@@ -1,11 +1,15 @@
 import * as vscode from "vscode";
 
+export type ToolConfirmationMode = "always" | "ask" | "never";
+
 export interface GemmaCodeSettings {
   ollamaUrl: string;
   modelName: string;
   maxTokens: number;
   temperature: number;
   requestTimeout: number;
+  toolConfirmationMode: ToolConfirmationMode;
+  maxAgentIterations: number;
 }
 
 export function getSettings(): GemmaCodeSettings {
@@ -16,6 +20,9 @@ export function getSettings(): GemmaCodeSettings {
     maxTokens: config.get<number>("maxTokens") ?? 8192,
     temperature: config.get<number>("temperature") ?? 0.2,
     requestTimeout: config.get<number>("requestTimeout") ?? 60000,
+    toolConfirmationMode:
+      (config.get<string>("toolConfirmationMode") as ToolConfirmationMode | undefined) ?? "ask",
+    maxAgentIterations: config.get<number>("maxAgentIterations") ?? 20,
   };
 }
 

@@ -17,7 +17,8 @@ export class StreamingPipeline {
   constructor(
     private readonly _client: OllamaClient,
     private readonly _manager: ConversationManager,
-    private readonly _modelName: string
+    private readonly _modelName: string,
+    private readonly _runAgentLoop?: (postMessage: PostMessageFn) => Promise<void>
   ) {}
 
   /** Abort any in-flight stream request. */
@@ -37,7 +38,11 @@ export class StreamingPipeline {
     postMessage({ type: "status", state: "thinking" });
 
     try {
-      await this._attemptStream(postMessage);
+      if (this._runAgentLoop !== undefined) {
+        await this._runAgentLoop(postMessage);
+      } else {
+        await this._attemptStream(postMessage);
+      }
     } finally {
       postMessage({ type: "status", state: "idle" });
     }

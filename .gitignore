@@ -4,12 +4,17 @@
 .DS_Store
 Thumbs.db
 Desktop.ini
+ehthumbs.db
+$RECYCLE.BIN/
 ._*
 
 # ==============================================================================
 # IDE and Editor
 # ==============================================================================
 .idea/
+*.suo
+*.user
+.vs/
 *.swp
 *.swo
 *~
@@ -28,9 +33,14 @@ Desktop.ini
 # Logs and Temp
 # ==============================================================================
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 logs/
 temp/
 tmp/
+*.tmp
+*.temp
 
 # ==============================================================================
 # Secrets and Environment
@@ -38,9 +48,16 @@ tmp/
 .env
 .env.*
 !.env.example
+!.env.sample
 *.pem
 *.key
 *.p12
+*.pfx
+*.cer
+*_rsa
+*_dsa
+*_ed25519
+*_ecdsa
 credentials.json
 secrets.json
 
@@ -91,11 +108,11 @@ node_modules/
 .npm
 .yarn/
 .pnp.*
+.eslintcache
 
 # VS Code Extension specific
 *.vsix
 .vscode-test/
-out/
 *.js.map
 
 # ==============================================================================

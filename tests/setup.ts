@@ -72,6 +72,32 @@ class MockEventEmitter<T> {
   });
 }
 
+// ---------------------------------------------------------------------------
+// workspace.fs stubs — used by filesystem tool handlers.
+// Tests that exercise these must configure their return values via vi.mocked().
+// ---------------------------------------------------------------------------
+
+export const mockFs = {
+  readFile: vi.fn<[{ fsPath: string }], Promise<Uint8Array>>(),
+  writeFile: vi.fn<[{ fsPath: string }, Uint8Array], Promise<void>>(),
+  createDirectory: vi.fn<[{ fsPath: string }], Promise<void>>(),
+  readDirectory: vi.fn<[{ fsPath: string }], Promise<[string, number][]>>(),
+  delete: vi.fn<[{ fsPath: string }], Promise<void>>(),
+  stat: vi.fn<[{ fsPath: string }], Promise<{ type: number; size: number }>>(),
+};
+
+export const mockFindTextInFiles = vi.fn<
+  [
+    { pattern: string },
+    { include?: string; exclude?: string; maxResults?: number },
+    (result: {
+      uri: { fsPath: string };
+      ranges: Array<{ start: { line: number } }>;
+    }) => void,
+  ],
+  Promise<void>
+>();
+
 vi.mock("vscode", () => ({
   window: {
     createOutputChannel: vi.fn(() => mockOutputChannel),
@@ -83,18 +109,39 @@ vi.mock("vscode", () => ({
   workspace: {
     getConfiguration: mockGetConfiguration,
     onDidChangeConfiguration: mockOnDidChangeConfiguration,
+    fs: mockFs,
+    findTextInFiles: mockFindTextInFiles,
+    findFiles: vi.fn().mockResolvedValue([]),
+    workspaceFolders: [
+      { uri: { fsPath: "C:\\workspace" }, name: "workspace", index: 0 },
+    ],
   },
   Disposable: class {
     dispose = vi.fn();
   },
   EventEmitter: MockEventEmitter,
   Uri: {
-    file: vi.fn((path: string) => ({ fsPath: path, toString: () => path })),
+    file: vi.fn((p: string) => ({ fsPath: p, toString: () => `file://${p}` })),
     parse: vi.fn((uri: string) => ({ toString: () => uri })),
+    joinPath: vi.fn((base: { fsPath: string }, ...segments: string[]) => {
+      const joined = [base.fsPath, ...segments].join("/");
+      return { fsPath: joined, toString: () => `file://${joined}` };
+    }),
+  },
+  FileType: {
+    File: 1,
+    Directory: 2,
+    SymbolicLink: 64,
   },
   CancellationTokenSource: class {
     token = { isCancellationRequested: false };
     cancel = vi.fn();
     dispose = vi.fn();
+  },
+  Position: class {
+    constructor(
+      public readonly line: number,
+      public readonly character: number
+    ) {}
   },
 }));

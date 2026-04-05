@@ -29,12 +29,35 @@ export interface StatusMessage {
   state: "idle" | "thinking" | "streaming";
 }
 
+export interface ToolUseMessage {
+  type: "toolUse";
+  toolName: string;
+  callId: string;
+}
+
+export interface ToolResultMessage {
+  type: "toolResult";
+  callId: string;
+  success: boolean;
+  summary: string;
+}
+
+export interface ConfirmationRequestMessage {
+  type: "confirmationRequest";
+  id: string;
+  description: string;
+  detail?: string;
+}
+
 export type ExtensionToWebviewMessage =
   | TokenMessage
   | MessageCompleteMessage
   | HistoryMessage
   | ErrorMessage
-  | StatusMessage;
+  | StatusMessage
+  | ToolUseMessage
+  | ToolResultMessage
+  | ConfirmationRequestMessage;
 
 // ---------------------------------------------------------------------------
 // Webview → Extension
@@ -57,8 +80,15 @@ export interface ReadyRequest {
   type: "ready";
 }
 
+export interface ConfirmationResponseMessage {
+  type: "confirmationResponse";
+  id: string;
+  approved: boolean;
+}
+
 export type WebviewToExtensionMessage =
   | SendMessageRequest
   | ClearChatRequest
   | CancelStreamRequest
-  | ReadyRequest;
+  | ReadyRequest
+  | ConfirmationResponseMessage;

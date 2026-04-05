@@ -227,6 +227,75 @@ export function getWebviewHtml(
       display: flex;
       justify-content: flex-end;
     }
+
+    /* ---- Tool use indicator ---- */
+    .tool-use {
+      align-self: flex-start;
+      font-size: 11px;
+      font-family: var(--vscode-editor-font-family, monospace);
+      color: var(--vscode-descriptionForeground);
+      border: 1px dashed var(--vscode-panel-border);
+      border-radius: 4px;
+      padding: 3px 8px;
+      opacity: 0.8;
+    }
+
+    /* ---- Tool result collapsible ---- */
+    .tool-result {
+      align-self: flex-start;
+      font-size: 11px;
+      max-width: 88%;
+    }
+    .tool-result summary {
+      cursor: pointer;
+      font-family: var(--vscode-editor-font-family, monospace);
+      padding: 3px 6px;
+      border-radius: 3px;
+      color: var(--vscode-descriptionForeground);
+      user-select: none;
+    }
+    .tool-result summary.success { color: var(--vscode-testing-iconPassed, #73c991); }
+    .tool-result summary.failure { color: var(--vscode-testing-iconFailed, #f48771); }
+    .tool-result pre {
+      margin-top: 4px;
+      padding: 6px 8px;
+      background: var(--vscode-textCodeBlock-background, rgba(0,0,0,0.2));
+      border-radius: 3px;
+      font-size: 11px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    /* ---- Confirmation card ---- */
+    .confirm-card {
+      align-self: flex-start;
+      max-width: 92%;
+      border: 1px solid var(--vscode-inputValidation-warningBorder, #b89500);
+      border-radius: 6px;
+      padding: 10px 12px;
+      background: var(--vscode-inputValidation-warningBackground, rgba(184,149,0,0.1));
+    }
+    .confirm-card p {
+      margin-bottom: 6px;
+      font-size: 12px;
+    }
+    .confirm-card pre {
+      background: var(--vscode-textCodeBlock-background, rgba(0,0,0,0.2));
+      border-radius: 3px;
+      padding: 6px 8px;
+      font-size: 11px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      margin-bottom: 8px;
+      max-height: 200px;
+    }
+    .confirm-buttons {
+      display: flex;
+      gap: 6px;
+    }
+    .confirm-buttons button { font-size: 11px; padding: 4px 10px; }
   </style>
 </head>
 <body>
@@ -460,6 +529,76 @@ export function getWebviewHtml(
             }
             appendBubble('error', escapeTextToHtml(msg.text));
             break;
+
+          case 'toolUse': {
+            const indicator = document.createElement('div');
+            indicator.className = 'tool-use';
+            indicator.dataset.callId = msg.callId;
+            indicator.textContent = 'Using tool: ' + msg.toolName + '…';
+            messagesEl.appendChild(indicator);
+            scrollToBottom();
+            break;
+          }
+
+          case 'toolResult': {
+            // Replace the matching toolUse indicator with a collapsible result.
+            const indicator = messagesEl.querySelector('[data-call-id="' + msg.callId + '"]');
+            if (indicator) indicator.remove();
+
+            const details = document.createElement('details');
+            details.className = 'tool-result';
+            const summary = document.createElement('summary');
+            summary.className = msg.success ? 'success' : 'failure';
+            summary.textContent = (msg.success ? '✓' : '✗') + ' Tool result';
+            const pre = document.createElement('pre');
+            pre.textContent = msg.summary;
+            details.appendChild(summary);
+            details.appendChild(pre);
+            messagesEl.appendChild(details);
+            scrollToBottom();
+            break;
+          }
+
+          case 'confirmationRequest': {
+            const card = document.createElement('div');
+            card.className = 'confirm-card';
+            card.dataset.confirmId = msg.id;
+
+            const desc = document.createElement('p');
+            desc.textContent = msg.description;
+            card.appendChild(desc);
+
+            if (msg.detail) {
+              const pre = document.createElement('pre');
+              pre.textContent = msg.detail;
+              card.appendChild(pre);
+            }
+
+            const btnRow = document.createElement('div');
+            btnRow.className = 'confirm-buttons';
+
+            const approveBtn = document.createElement('button');
+            approveBtn.textContent = 'Approve';
+            approveBtn.addEventListener('click', () => {
+              vscode.postMessage({ type: 'confirmationResponse', id: msg.id, approved: true });
+              card.remove();
+            });
+
+            const rejectBtn = document.createElement('button');
+            rejectBtn.className = 'secondary';
+            rejectBtn.textContent = 'Reject';
+            rejectBtn.addEventListener('click', () => {
+              vscode.postMessage({ type: 'confirmationResponse', id: msg.id, approved: false });
+              card.remove();
+            });
+
+            btnRow.appendChild(approveBtn);
+            btnRow.appendChild(rejectBtn);
+            card.appendChild(btnRow);
+            messagesEl.appendChild(card);
+            scrollToBottom();
+            break;
+          }
         }
       });
 
