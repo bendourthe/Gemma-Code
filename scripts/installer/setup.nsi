@@ -1,0 +1,340 @@
+; ============================================================================
+; Gemma Code — Windows Installer
+; Built with NSIS (Nullsoft Scriptable Install System)
+; ============================================================================
+
+Unicode True
+SetCompressor /SOLID lzma
+
+!define PRODUCT_NAME        "Gemma Code"
+!define PRODUCT_VERSION     "0.1.0"
+!define PRODUCT_PUBLISHER   "Gemma Code"
+!define PRODUCT_EXT_ID      "gemma-code.gemma-code"
+!define PRODUCT_VSIX        "gemma-code-0.1.0.vsix"
+!define VENV_SUBDIR         "GemmaCode\venv"
+!define REG_UNINSTALL       "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}"
+!define REG_OLLAMA_PATH     "Software\Ollama"
+
+; NSIS modern UI
+!include "MUI2.nsh"
+!include "LogicLib.nsh"
+!include "WinVer.nsh"
+!include "x64.nsh"
+!include "FileFunc.nsh"
+
+; ── Metadata ────────────────────────────────────────────────────────────────
+
+Name                    "${PRODUCT_NAME} ${PRODUCT_VERSION}"
+OutFile                 "setup.exe"
+InstallDir              "$PROGRAMFILES64\GemmaCode"
+InstallDirRegKey        HKLM "${REG_UNINSTALL}" "InstallLocation"
+RequestExecutionLevel   admin
+ShowInstDetails         show
+ShowUninstDetails       show
+
+; ── MUI configuration ───────────────────────────────────────────────────────
+
+!define MUI_ABORTWARNING
+!define MUI_ICON          "..\..\assets\icon.ico"
+!define MUI_UNICON        "..\..\assets\icon.ico"
+!define MUI_WELCOMEPAGE_TITLE "Welcome to ${PRODUCT_NAME} Setup"
+!define MUI_WELCOMEPAGE_TEXT  "This wizard will install ${PRODUCT_NAME} ${PRODUCT_VERSION}, a local agentic coding assistant powered by Gemma 4 via Ollama.$\n$\nAll components run entirely offline — no external API calls or data leaves your machine."
+
+!insertmacro MUI_PAGE_WELCOME
+!insertmacro MUI_PAGE_LICENSE "..\..\LICENSE"
+!insertmacro MUI_PAGE_COMPONENTS
+!insertmacro MUI_PAGE_DIRECTORY
+!insertmacro MUI_PAGE_INSTFILES
+!insertmacro MUI_PAGE_FINISH
+
+!insertmacro MUI_UNPAGE_CONFIRM
+!insertmacro MUI_UNPAGE_INSTFILES
+
+!insertmacro MUI_LANGUAGE "English"
+
+; ── Installer sections ───────────────────────────────────────────────────────
+
+Section "VS Code Extension" SecExtension
+    SectionIn RO  ; required, cannot be deselected
+
+    ; Prerequisite: Windows 10 1903+
+    ${IfNot} ${AtLeastWin10}
+        MessageBox MB_ICONSTOP "Gemma Code requires Windows 10 version 1903 or later.$\nPlease upgrade your operating system and try again."
+        Abort
+    ${EndIf}
+
+    ; Prerequisite: VS Code installed
+    DetailPrint "Checking for Visual Studio Code..."
+    Call FindVSCode
+    Pop $0  ; path to code.cmd or ""
+    ${If} $0 == ""
+        MessageBox MB_ICONSTOP "Visual Studio Code was not found on this machine.$\n$\nPlease install VS Code from https://code.visualstudio.com and run this installer again."
+        Abort
+    ${EndIf}
+    StrCpy $1 $0  ; store code path
+
+    ; Install the VSIX
+    DetailPrint "Installing VS Code extension..."
+    SetOutPath "$INSTDIR"
+    File "${PRODUCT_VSIX}"
+    ExecWait '"$1" --install-extension "$INSTDIR\${PRODUCT_VSIX}"' $0
+    ${If} $0 != 0
+        MessageBox MB_ICONSTOP "Failed to install the VS Code extension (exit code $0)."
+        Abort
+    ${EndIf}
+    DetailPrint "Extension installed successfully."
+
+    ; Write uninstall registry entry
+    WriteRegStr   HKLM "${REG_UNINSTALL}" "DisplayName"      "${PRODUCT_NAME}"
+    WriteRegStr   HKLM "${REG_UNINSTALL}" "DisplayVersion"   "${PRODUCT_VERSION}"
+    WriteRegStr   HKLM "${REG_UNINSTALL}" "Publisher"        "${PRODUCT_PUBLISHER}"
+    WriteRegStr   HKLM "${REG_UNINSTALL}" "InstallLocation"  "$INSTDIR"
+    WriteRegStr   HKLM "${REG_UNINSTALL}" "UninstallString"  '"$INSTDIR\uninstall.exe"'
+    WriteRegDWORD HKLM "${REG_UNINSTALL}" "NoModify"         1
+    WriteRegDWORD HKLM "${REG_UNINSTALL}" "NoRepair"         1
+
+    WriteUninstaller "$INSTDIR\uninstall.exe"
+
+    ; Start Menu shortcut
+    CreateDirectory "$SMPROGRAMS\${PRODUCT_NAME}"
+    CreateShortcut  "$SMPROGRAMS\${PRODUCT_NAME}\Open in VS Code.lnk" \
+                    "$1" "" "$INSTDIR\..\..\assets\icon.ico"
+    CreateShortcut  "$SMPROGRAMS\${PRODUCT_NAME}\Uninstall ${PRODUCT_NAME}.lnk" \
+                    "$INSTDIR\uninstall.exe"
+
+SectionEnd
+
+Section "Ollama (local AI runtime)" SecOllama
+
+    DetailPrint "Checking for Ollama..."
+    Call FindOllama
+    Pop $0  ; "found" or ""
+    ${If} $0 == "found"
+        DetailPrint "Ollama is already installed — skipping."
+    ${Else}
+        DetailPrint "Downloading Ollama installer..."
+        NSISdl::download /TIMEOUT=120000 \
+            "https://ollama.com/download/OllamaSetup.exe" \
+            "$TEMP\OllamaSetup.exe"
+        Pop $0
+        ${If} $0 != "success"
+            MessageBox MB_ICONSTOP "Failed to download Ollama ($0).$\nPlease install Ollama manually from https://ollama.com and re-run setup."
+            Abort
+        ${EndIf}
+        DetailPrint "Installing Ollama silently..."
+        ExecWait '"$TEMP\OllamaSetup.exe" /SILENT' $0
+        ${If} $0 != 0
+            MessageBox MB_ICONSTOP "Ollama installation failed (exit $0)."
+            Abort
+        ${EndIf}
+        DetailPrint "Ollama installed."
+        Delete "$TEMP\OllamaSetup.exe"
+    ${EndIf}
+
+SectionEnd
+
+Section "Python Backend" SecPython
+
+    DetailPrint "Locating Python 3.11+..."
+    Call FindPython
+    Pop $0  ; python executable path or ""
+    ${If} $0 == ""
+        DetailPrint "Python 3.11+ not found — downloading Python 3.12..."
+        NSISdl::download /TIMEOUT=120000 \
+            "https://www.python.org/ftp/python/3.12.3/python-3.12.3-amd64.exe" \
+            "$TEMP\python-installer.exe"
+        Pop $R0
+        ${If} $R0 != "success"
+            MessageBox MB_ICONSTOP "Failed to download Python ($R0)."
+            Abort
+        ${EndIf}
+        ExecWait '"$TEMP\python-installer.exe" /quiet InstallAllUsers=0 PrependPath=1 Include_test=0' $R0
+        ${If} $R0 != 0
+            MessageBox MB_ICONSTOP "Python installation failed (exit $R0)."
+            Abort
+        ${EndIf}
+        Delete "$TEMP\python-installer.exe"
+        ; Re-locate after install
+        Call FindPython
+        Pop $0
+    ${EndIf}
+    DetailPrint "Using Python: $0"
+
+    ; Create virtual environment
+    StrCpy $1 "$LOCALAPPDATA\${VENV_SUBDIR}"
+    DetailPrint "Creating venv at $1..."
+    ExecWait '"$0" -m venv "$1"' $R0
+    ${If} $R0 != 0
+        MessageBox MB_ICONSTOP "Failed to create Python virtual environment."
+        Abort
+    ${EndIf}
+
+    ; Install backend dependencies
+    SetOutPath "$INSTDIR"
+    File "backend-requirements.txt"
+    DetailPrint "Installing backend dependencies..."
+    ExecWait '"$1\Scripts\pip.exe" install -r "$INSTDIR\backend-requirements.txt" --quiet' $R0
+    ${If} $R0 != 0
+        MessageBox MB_ICONSTOP "Failed to install Python backend dependencies."
+        Abort
+    ${EndIf}
+    DetailPrint "Python backend ready."
+
+SectionEnd
+
+Section /o "Download Gemma model (15 GB)" SecModel
+
+    DetailPrint "Pulling Gemma model — this may take a long time depending on your connection..."
+    ExecWait 'ollama pull gemma3:27b' $0
+    ${If} $0 != 0
+        MessageBox MB_ICONEXCLAMATION "Model download failed or was interrupted (exit $0).$\nYou can pull it later by running: ollama pull gemma3:27b"
+    ${Else}
+        DetailPrint "Gemma model downloaded successfully."
+    ${EndIf}
+
+SectionEnd
+
+; ── Section descriptions ─────────────────────────────────────────────────────
+
+!insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
+    !insertmacro MUI_DESCRIPTION_TEXT ${SecExtension} "Installs the Gemma Code VS Code extension. Required."
+    !insertmacro MUI_DESCRIPTION_TEXT ${SecOllama}    "Installs the Ollama local AI runtime. Skipped if Ollama is already present."
+    !insertmacro MUI_DESCRIPTION_TEXT ${SecPython}    "Creates a Python virtual environment and installs the inference backend dependencies."
+    !insertmacro MUI_DESCRIPTION_TEXT ${SecModel}     "Downloads the Gemma 3 27B model from Ollama Hub (~15 GB). You can defer this and run 'ollama pull gemma3:27b' later."
+!insertmacro MUI_FUNCTION_DESCRIPTION_END
+
+; ── Uninstaller ──────────────────────────────────────────────────────────────
+
+Section "Uninstall"
+
+    ; Remove VS Code extension
+    Call un.FindVSCode
+    Pop $0
+    ${If} $0 != ""
+        ExecWait '"$0" --uninstall-extension ${PRODUCT_EXT_ID}'
+    ${EndIf}
+
+    ; Remove Python venv
+    StrCpy $1 "$LOCALAPPDATA\${VENV_SUBDIR}"
+    ${If} ${FileExists} "$1\*"
+        RMDir /r "$1"
+    ${EndIf}
+
+    ; Remove install directory contents
+    Delete "$INSTDIR\${PRODUCT_VSIX}"
+    Delete "$INSTDIR\backend-requirements.txt"
+    Delete "$INSTDIR\uninstall.exe"
+    RMDir  "$INSTDIR"
+
+    ; Remove Start Menu shortcuts
+    Delete "$SMPROGRAMS\${PRODUCT_NAME}\Open in VS Code.lnk"
+    Delete "$SMPROGRAMS\${PRODUCT_NAME}\Uninstall ${PRODUCT_NAME}.lnk"
+    RMDir  "$SMPROGRAMS\${PRODUCT_NAME}"
+
+    ; Remove registry entry
+    DeleteRegKey HKLM "${REG_UNINSTALL}"
+
+SectionEnd
+
+; ── Helper functions ─────────────────────────────────────────────────────────
+
+Function FindVSCode
+    ; Try HKLM first, then HKCU, then PATH
+    ReadRegStr $R0 HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\Code.exe" ""
+    ${If} $R0 != ""
+        ; Resolve to code.cmd in the same directory for CLI usage
+        ${GetParent} $R0 $R1
+        StrCpy $R0 "$R1\bin\code.cmd"
+        ${If} ${FileExists} $R0
+            Push $R0
+            Return
+        ${EndIf}
+    ${EndIf}
+    ReadRegStr $R0 HKCU "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\Code.exe" ""
+    ${If} $R0 != ""
+        ${GetParent} $R0 $R1
+        StrCpy $R0 "$R1\bin\code.cmd"
+        ${If} ${FileExists} $R0
+            Push $R0
+            Return
+        ${EndIf}
+    ${EndIf}
+    ; Fallback: try well-known install locations
+    ${If} ${FileExists} "$LOCALAPPDATA\Programs\Microsoft VS Code\bin\code.cmd"
+        Push "$LOCALAPPDATA\Programs\Microsoft VS Code\bin\code.cmd"
+        Return
+    ${EndIf}
+    ${If} ${FileExists} "$PROGRAMFILES64\Microsoft VS Code\bin\code.cmd"
+        Push "$PROGRAMFILES64\Microsoft VS Code\bin\code.cmd"
+        Return
+    ${EndIf}
+    Push ""
+FunctionEnd
+
+Function un.FindVSCode
+    ; Same logic as FindVSCode for the uninstaller section
+    ReadRegStr $R0 HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\Code.exe" ""
+    ${If} $R0 != ""
+        ${GetParent} $R0 $R1
+        StrCpy $R0 "$R1\bin\code.cmd"
+        ${If} ${FileExists} $R0
+            Push $R0
+            Return
+        ${EndIf}
+    ${EndIf}
+    ${If} ${FileExists} "$LOCALAPPDATA\Programs\Microsoft VS Code\bin\code.cmd"
+        Push "$LOCALAPPDATA\Programs\Microsoft VS Code\bin\code.cmd"
+        Return
+    ${EndIf}
+    Push ""
+FunctionEnd
+
+Function FindOllama
+    ; Check PATH-based lookup via where command
+    nsExec::ExecToStack 'where ollama'
+    Pop $0  ; exit code
+    Pop $1  ; stdout
+    ${If} $0 == 0
+        Push "found"
+        Return
+    ${EndIf}
+    ; Check default install path
+    ${If} ${FileExists} "$LOCALAPPDATA\Programs\Ollama\ollama.exe"
+        Push "found"
+        Return
+    ${EndIf}
+    Push ""
+FunctionEnd
+
+Function FindPython
+    ; Try candidates in order: py -3.11, py -3, python3, python
+    nsExec::ExecToStack 'py -3.11 -c "import sys; print(sys.executable)"'
+    Pop $0
+    Pop $1
+    ${If} $0 == 0
+        Push $1
+        Return
+    ${EndIf}
+    nsExec::ExecToStack 'py -3 -c "import sys; print(sys.executable)"'
+    Pop $0
+    Pop $1
+    ${If} $0 == 0
+        Push $1
+        Return
+    ${EndIf}
+    nsExec::ExecToStack 'python3 -c "import sys; print(sys.executable)"'
+    Pop $0
+    Pop $1
+    ${If} $0 == 0
+        Push $1
+        Return
+    ${EndIf}
+    nsExec::ExecToStack 'python -c "import sys; print(sys.executable)"'
+    Pop $0
+    Pop $1
+    ${If} $0 == 0
+        Push $1
+        Return
+    ${EndIf}
+    Push ""
+FunctionEnd

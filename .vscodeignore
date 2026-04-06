@@ -1,16 +1,42 @@
-.vscode/**
-.vscode-test/**
+# Source and test files — not needed at runtime
 src/**
 tests/**
 configs/**
 scripts/**
 docs/**
 examples/**
+lib/**
+assets/**
+coverage/**
+
+# Build artifacts that are not extension output
 out/test/**
-node_modules/**
+out/**/*.map
+
+# Tooling and CI configuration
+.vscode/**
+.vscode-test/**
+.claude/**
+.github/**
 .gitignore
+.gitattributes
 .npmrc
+.eslintignore
+eslint.config.mjs
 tsconfig.json
-**/*.map
+CHANGELOG.md
+README.md
+CLAUDE.md
+
+# Node modules (bundled via --no-dependencies flag; runtime deps are in out/)
+node_modules/**
+
+# Python and Rust artifacts
+**/__pycache__/**
+**/*.pyc
+**/*.pyo
+target/**
+
+# TypeScript source maps and declaration files (already excluded via pattern below)
 **/*.ts
 !out/**/*.js

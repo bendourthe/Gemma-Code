@@ -124,7 +124,8 @@
     "test": "vitest run --config configs/vitest.config.ts",
     "test:integration": "vitest run --config configs/vitest.config.ts --reporter=verbose tests/integration",
     "lint": "eslint src",
-    "package": "vsce package",
+    "package": "pwsh -NonInteractive -File scripts/build-vsix.ps1",
+    "package:quick": "vsce package --no-dependencies",
     "bench": "vitest bench --config configs/vitest.config.ts"
   },
   "devDependencies": {

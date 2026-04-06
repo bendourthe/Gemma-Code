@@ -1,0 +1,148 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["main"]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  # ── TypeScript ─────────────────────────────────────────────────────────────
+
+  lint-ts:
+    name: Lint TypeScript
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci --prefer-offline --no-audit --silent
+      - run: npm run lint
+
+  test-ts:
+    name: Test TypeScript
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci --prefer-offline --no-audit --silent
+      - run: npm run test -- --reporter=verbose --coverage
+        env:
+          CI: "true"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ts-coverage
+          path: coverage/
+          retention-days: 7
+
+  build-ts:
+    name: Build TypeScript
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci --prefer-offline --no-audit --silent
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ts-build
+          path: out/
+          retention-days: 7
+
+  # ── Python backend ─────────────────────────────────────────────────────────
+
+  lint-py:
+    name: Lint Python backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy src/
+
+  test-py:
+    name: Test Python backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+      - run: >
+          uv run pytest tests/unit tests/integration
+          -q
+          --cov=src/backend
+          --cov-report=xml
+          --cov-report=term-missing
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: py-coverage
+          path: src/backend/coverage.xml
+          retention-days: 7
+
+  # ── Coverage gate ──────────────────────────────────────────────────────────
+
+  coverage-gate:
+    name: Coverage gate (80%)
+    needs: [test-ts, test-py]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ts-coverage
+          path: coverage/
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: py-coverage
+          path: py-coverage/
+
+      - name: Check TypeScript coverage threshold
+        run: |
+          LINES=$(grep -oP 'lines[^%]+\K[\d.]+(?=%)' coverage/lcov-report/index.html | head -1 || echo "0")
+          echo "TypeScript line coverage: ${LINES}%"
+          python3 -c "
+          lines = float('${LINES}' or 0)
+          if lines < 80:
+              raise SystemExit(f'TS coverage {lines:.1f}% is below the 80% threshold')
+          print(f'TS coverage {lines:.1f}% — OK')
+          "
+
+      - name: Check Python coverage threshold
+        run: |
+          python3 -c "
+          import xml.etree.ElementTree as ET
+          tree = ET.parse('py-coverage/coverage.xml')
+          root = tree.getroot()
+          line_rate = float(root.attrib.get('line-rate', 0)) * 100
+          print(f'Python line coverage: {line_rate:.1f}%')
+          if line_rate < 80:
+              raise SystemExit(f'Python coverage {line_rate:.1f}% is below the 80% threshold')
+          print(f'Python coverage {line_rate:.1f}% — OK')
+          "
