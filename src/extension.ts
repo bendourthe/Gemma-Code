@@ -67,20 +67,20 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(backendManager);
 
     // Start asynchronously; fall-through to direct Ollama on failure.
-    backendManager.start().then((ready) => {
+    void backendManager.start().then((ready) => {
       if (!ready) {
         outputChannel?.appendLine(
           "[Gemma Code] Backend unavailable — routing directly to Ollama."
         );
         // Show a non-blocking notification so the user is aware.
-        vscode.window.showWarningMessage(
+        void vscode.window.showWarningMessage(
           "Gemma Code: Python backend process exited; using direct Ollama mode."
         );
       }
     }).catch((err: unknown) => {
       const msg = err instanceof Error ? err.message : String(err);
       outputChannel?.appendLine(`[Gemma Code] Backend start error: ${msg}`);
-      vscode.window.showWarningMessage(
+      void vscode.window.showWarningMessage(
         "Gemma Code: Backend process could not start; using direct Ollama mode."
       );
     });
@@ -101,12 +101,12 @@ export function activate(context: vscode.ExtensionContext): void {
         channel.appendLine(
           "[Gemma Code] ERROR: Ollama is not reachable. Make sure `ollama serve` is running."
         );
-        vscode.window.showErrorMessage(
+        void vscode.window.showErrorMessage(
           "Gemma Code: Ollama is not reachable. Run `ollama serve` and try again.",
           "Open Ollama docs"
         ).then((choice) => {
           if (choice === "Open Ollama docs") {
-            vscode.env.openExternal(vscode.Uri.parse("https://ollama.com/download"));
+            void vscode.env.openExternal(vscode.Uri.parse("https://ollama.com/download"));
           }
         });
         return;
@@ -134,7 +134,7 @@ export function activate(context: vscode.ExtensionContext): void {
         channel.appendLine(`[Gemma Code] ERROR: ${msg}`);
 
         if (msg.includes("not found") || msg.includes("model")) {
-          vscode.window.showErrorMessage(
+          void vscode.window.showErrorMessage(
             `Gemma Code: Model "${settings.modelName}" not found. Run: ollama pull ${settings.modelName}`,
             "Pull model"
           ).then((choice) => {

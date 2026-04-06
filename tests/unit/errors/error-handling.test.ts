@@ -3,22 +3,30 @@
  *
  * Covers:
  *  1. Global unhandled rejection handler wired up (smoke test only — we assert the handler exists)
- *  2. Ollama unavailable state: extension posts an error and starts polling
- *  3. Model not found: error message includes pull instructions
- *  4. SSRF protection: FetchPageTool rejects internal URLs
- *  5. Terminal blocklist: chain-bypass via shell metacharacters is rejected
- *  6. File system errors: ReadFileTool wraps ENOENT and returns a typed error result
- *  7. Backend crash notification: BackendManager exposes a "ready" state
+ *  2. SSRF protection: FetchPageTool rejects internal URLs
+ *  3. Terminal blocklist: chain-bypass via shell metacharacters is rejected
+ *  4. File system errors: ReadFileTool wraps ENOENT and returns a typed error result
+ *  5. ContextCompactor — shouldCompact threshold
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+import { FetchPageTool } from "../../../src/tools/handlers/webSearch.js";
+import { RunTerminalTool } from "../../../src/tools/handlers/terminal.js";
+import { ReadFileTool } from "../../../src/tools/handlers/filesystem.js";
+import { createConversationManager } from "../../../src/chat/ConversationManager.js";
+import { ContextCompactor } from "../../../src/chat/ContextCompactor.js";
+
+vi.mock("node-html-parser", () => ({ parse: vi.fn(() => ({ querySelectorAll: () => [] })) }));
+vi.mock("../../../src/ollama/client.js", () => ({
+  createOllamaClient: vi.fn(),
+}));
 
 // ---------------------------------------------------------------------------
 // 1. Global unhandled rejection handler
 // ---------------------------------------------------------------------------
 
 describe("global unhandledRejection handler", () => {
-  it("Node.js 'unhandledRejection' event listener is registered after extension activates", async () => {
+  it("Node.js 'unhandledRejection' event listener is registered after extension activates", () => {
     // The handler is registered by a top-level process.on() call in extension.ts.
     // We verify that at least one listener exists (it may be registered by the test runner
     // as well, so we check for ≥ 1 rather than exactly 1).
@@ -30,11 +38,6 @@ describe("global unhandledRejection handler", () => {
 // ---------------------------------------------------------------------------
 // 2. SSRF protection in FetchPageTool
 // ---------------------------------------------------------------------------
-
-vi.mock("node-html-parser", () => ({ parse: vi.fn(() => ({ querySelectorAll: () => [] })) }));
-
-// webSearch imports vscode only indirectly via types — no mock needed for this test.
-const { FetchPageTool } = await import("../../../src/tools/handlers/webSearch.js");
 
 describe("FetchPageTool SSRF protection", () => {
   const tool = new FetchPageTool();
@@ -77,19 +80,12 @@ describe("FetchPageTool SSRF protection", () => {
 // 3. Terminal blocklist — shell metacharacter bypass protection
 // ---------------------------------------------------------------------------
 
-vi.mock("vscode", () => ({
-  workspace: { workspaceFolders: [] },
-  window: {},
-}));
-
-const { RunTerminalTool } = await import("../../../src/tools/handlers/terminal.js");
-
 describe("RunTerminalTool blocklist bypass via shell metacharacters", () => {
   const gate = {
     request: vi.fn().mockResolvedValue(true),
   };
 
-  const tool = new RunTerminalTool(gate as never, "never");
+  const tool = new RunTerminalTool(gate as never, "never" as never);
 
   const bypassAttempts = [
     "echo ok; rm -rf /",
@@ -115,24 +111,6 @@ describe("RunTerminalTool blocklist bypass via shell metacharacters", () => {
 // 4. ReadFileTool — wraps file system errors as typed ToolResult
 // ---------------------------------------------------------------------------
 
-vi.mock("vscode", () => {
-  const makeUri = (p: string) => ({ fsPath: p, scheme: "file" });
-  return {
-    Uri: { file: (p: string) => makeUri(p) },
-    workspace: {
-      workspaceFolders: [{ uri: { fsPath: "/workspace" } }],
-      fs: {
-        readFile: vi.fn().mockRejectedValue(
-          Object.assign(new Error("ENOENT: no such file or directory"), { code: "FileNotFound" })
-        ),
-      },
-    },
-    window: {},
-  };
-});
-
-const { ReadFileTool } = await import("../../../src/tools/handlers/filesystem.js");
-
 describe("ReadFileTool — file not found returns typed error", () => {
   it("returns success=false with an error string when the file does not exist", async () => {
     const tool = new ReadFileTool();
@@ -153,13 +131,6 @@ describe("ReadFileTool — file not found returns typed error", () => {
 // ---------------------------------------------------------------------------
 // 5. ContextCompactor — shouldCompact threshold
 // ---------------------------------------------------------------------------
-
-vi.mock("../../../src/ollama/client.js", () => ({
-  createOllamaClient: vi.fn(),
-}));
-
-const { createConversationManager } = await import("../../../src/chat/ConversationManager.js");
-const { ContextCompactor } = await import("../../../src/chat/ContextCompactor.js");
 
 describe("ContextCompactor — shouldCompact threshold", () => {
   it("does not trigger compaction when the conversation is small", () => {

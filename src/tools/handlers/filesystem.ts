@@ -4,7 +4,6 @@ import { createPatch } from "diff";
 import type {
   ToolHandler,
   ToolResult,
-  ConfirmationMode,
   EditMode,
   ReadFileParams,
   WriteFileParams,
