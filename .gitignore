@@ -130,6 +130,11 @@ venv/
 *.pyc
 .python-version
 
+# uv package manager (src/backend/ uses uv)
+uv.lock
+.uv/
+uv.cache
+
 # ==============================================================================
 # Rust (Performance Components)
 # ==============================================================================

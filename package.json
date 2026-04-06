@@ -99,6 +99,21 @@
           ],
           "default": "auto",
           "description": "Controls how file edits (edit_file, write_file, create_file) are applied. 'auto': apply immediately. 'ask': show diff and confirm. 'manual': show diff only, never write."
+        },
+        "gemma-code.useBackend": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true, Gemma Code starts a local Python FastAPI backend that handles prompt formatting and context management. When false, the extension talks directly to Ollama."
+        },
+        "gemma-code.backendPort": {
+          "type": "number",
+          "default": 11435,
+          "description": "Port for the local Python inference backend. Change this if 11435 conflicts with another service."
+        },
+        "gemma-code.pythonPath": {
+          "type": "string",
+          "default": "python",
+          "description": "Path to the Python executable used to start the backend (e.g. 'python3' or an absolute path to a virtual-environment interpreter)."
         }
       }
     }

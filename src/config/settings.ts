@@ -12,6 +12,9 @@ export interface GemmaCodeSettings {
   toolConfirmationMode: ToolConfirmationMode;
   maxAgentIterations: number;
   editMode: EditMode;
+  useBackend: boolean;
+  backendPort: number;
+  pythonPath: string;
 }
 
 export function getSettings(): GemmaCodeSettings {
@@ -26,6 +29,9 @@ export function getSettings(): GemmaCodeSettings {
       (config.get<string>("toolConfirmationMode") as ToolConfirmationMode | undefined) ?? "ask",
     maxAgentIterations: config.get<number>("maxAgentIterations") ?? 20,
     editMode: (config.get<string>("editMode") as EditMode | undefined) ?? "auto",
+    useBackend: config.get<boolean>("useBackend") ?? true,
+    backendPort: config.get<number>("backendPort") ?? 11435,
+    pythonPath: config.get<string>("pythonPath") ?? "python",
   };
 }
 
