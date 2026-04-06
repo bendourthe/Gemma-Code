@@ -88,7 +88,7 @@
     "build": "tsc",
     "watch": "tsc -w",
     "test": "vitest run --config configs/vitest.config.ts",
-    "test:integration": "vitest run --config configs/vitest.config.ts --include 'tests/integration/**'",
+    "test:integration": "vitest run --config configs/vitest.config.ts --reporter=verbose tests/integration",
     "lint": "eslint src",
     "package": "vsce package"
   },

@@ -1,4 +1,6 @@
 import type { Message } from "../chat/types.js";
+import type { CommandDescriptor } from "../commands/CommandRouter.js";
+import type { PlanStep } from "../modes/PlanMode.js";
 
 // ---------------------------------------------------------------------------
 // Extension → Webview
@@ -49,6 +51,22 @@ export interface ConfirmationRequestMessage {
   detail?: string;
 }
 
+export interface CommandListMessage {
+  type: "commandList";
+  commands: CommandDescriptor[];
+}
+
+export interface PlanReadyMessage {
+  type: "planReady";
+  steps: string[];
+}
+
+export interface PlanModeToggledMessage {
+  type: "planModeToggled";
+  active: boolean;
+  steps?: PlanStep[];
+}
+
 export type ExtensionToWebviewMessage =
   | TokenMessage
   | MessageCompleteMessage
@@ -57,7 +75,10 @@ export type ExtensionToWebviewMessage =
   | StatusMessage
   | ToolUseMessage
   | ToolResultMessage
-  | ConfirmationRequestMessage;
+  | ConfirmationRequestMessage
+  | CommandListMessage
+  | PlanReadyMessage
+  | PlanModeToggledMessage;
 
 // ---------------------------------------------------------------------------
 // Webview → Extension
@@ -86,9 +107,20 @@ export interface ConfirmationResponseMessage {
   approved: boolean;
 }
 
+export interface RequestCommandListMessage {
+  type: "requestCommandList";
+}
+
+export interface ApproveStepMessage {
+  type: "approveStep";
+  step: number;
+}
+
 export type WebviewToExtensionMessage =
   | SendMessageRequest
   | ClearChatRequest
   | CancelStreamRequest
   | ReadyRequest
-  | ConfirmationResponseMessage;
+  | ConfirmationResponseMessage
+  | RequestCommandListMessage
+  | ApproveStepMessage;

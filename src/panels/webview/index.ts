@@ -228,6 +228,116 @@ export function getWebviewHtml(
       justify-content: flex-end;
     }
 
+    /* ---- Plan mode badge ---- */
+    #plan-badge {
+      display: none;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      border-radius: 3px;
+      background: var(--vscode-badge-background, #4d4d4d);
+      color: var(--vscode-badge-foreground, #fff);
+      flex-shrink: 0;
+    }
+    #plan-badge.active { display: inline-block; }
+
+    /* ---- Command autocomplete dropdown ---- */
+    #autocomplete {
+      position: absolute;
+      bottom: 100%;
+      left: 0;
+      right: 0;
+      background: var(--vscode-editorWidget-background, var(--vscode-input-background));
+      border: 1px solid var(--vscode-editorWidget-border, var(--vscode-input-border, transparent));
+      border-radius: 4px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      max-height: 180px;
+      overflow-y: auto;
+      z-index: 10;
+      display: none;
+    }
+    #autocomplete.visible { display: block; }
+    .autocomplete-item {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      padding: 5px 10px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .autocomplete-item:hover, .autocomplete-item.selected {
+      background: var(--vscode-list-hoverBackground);
+    }
+    .autocomplete-item .cmd-name {
+      font-family: var(--vscode-editor-font-family, monospace);
+      font-weight: 600;
+      color: var(--vscode-symbolIcon-functionForeground, var(--vscode-foreground));
+      flex-shrink: 0;
+    }
+    .autocomplete-item .cmd-hint {
+      font-family: var(--vscode-editor-font-family, monospace);
+      opacity: 0.55;
+      font-size: 11px;
+      flex-shrink: 0;
+    }
+    .autocomplete-item .cmd-desc {
+      opacity: 0.7;
+      font-size: 11px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    #footer { position: relative; }
+
+    /* ---- Plan panel ---- */
+    #plan-panel {
+      border-top: 1px solid var(--vscode-panel-border);
+      padding: 8px 10px;
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      background: var(--vscode-sideBarSectionHeader-background);
+      flex-shrink: 0;
+    }
+    #plan-panel.visible { display: flex; }
+    #plan-panel-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      opacity: 0.7;
+    }
+    .plan-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 12px;
+    }
+    .plan-step-num {
+      font-family: var(--vscode-editor-font-family, monospace);
+      font-size: 11px;
+      opacity: 0.55;
+      flex-shrink: 0;
+      min-width: 18px;
+    }
+    .plan-step-desc {
+      flex: 1;
+      line-height: 1.4;
+    }
+    .plan-step-status {
+      font-size: 11px;
+      flex-shrink: 0;
+    }
+    .plan-step-status.done { color: var(--vscode-testing-iconPassed, #73c991); }
+    .plan-step-status.approved { color: var(--vscode-progressBar-background, #0e70c0); }
+    .approve-btn {
+      font-size: 11px;
+      padding: 2px 8px;
+      flex-shrink: 0;
+    }
+
     /* ---- Tool use indicator ---- */
     .tool-use {
       align-self: flex-start;
@@ -301,6 +411,7 @@ export function getWebviewHtml(
 <body>
   <header id="header">
     <span id="model-label" title="${modelName}">${modelName}</span>
+    <span id="plan-badge" aria-label="Plan mode active">PLAN</span>
     <span id="status-dot" class="idle" aria-hidden="true"></span>
   </header>
 
@@ -310,7 +421,13 @@ export function getWebviewHtml(
     <span></span><span></span><span></span>
   </div>
 
+  <div id="plan-panel" role="region" aria-label="Plan steps">
+    <div id="plan-panel-title">Plan steps</div>
+    <div id="plan-steps"></div>
+  </div>
+
   <footer id="footer">
+    <div id="autocomplete" role="listbox" aria-label="Command suggestions"></div>
     <div id="input-row">
       <textarea
         id="input"
@@ -335,13 +452,17 @@ export function getWebviewHtml(
       // -----------------------------------------------------------------------
       // DOM references
       // -----------------------------------------------------------------------
-      const messagesEl = /** @type {HTMLElement} */ (document.getElementById('messages'));
-      const inputEl    = /** @type {HTMLTextAreaElement} */ (document.getElementById('input'));
-      const sendBtn    = /** @type {HTMLButtonElement} */ (document.getElementById('send-btn'));
-      const cancelBtn  = /** @type {HTMLButtonElement} */ (document.getElementById('cancel-btn'));
-      const clearBtn   = /** @type {HTMLButtonElement} */ (document.getElementById('clear-btn'));
-      const thinkingEl = /** @type {HTMLElement} */ (document.getElementById('thinking'));
-      const statusDot  = /** @type {HTMLElement} */ (document.getElementById('status-dot'));
+      const messagesEl    = /** @type {HTMLElement} */ (document.getElementById('messages'));
+      const inputEl       = /** @type {HTMLTextAreaElement} */ (document.getElementById('input'));
+      const sendBtn       = /** @type {HTMLButtonElement} */ (document.getElementById('send-btn'));
+      const cancelBtn     = /** @type {HTMLButtonElement} */ (document.getElementById('cancel-btn'));
+      const clearBtn      = /** @type {HTMLButtonElement} */ (document.getElementById('clear-btn'));
+      const thinkingEl    = /** @type {HTMLElement} */ (document.getElementById('thinking'));
+      const statusDot     = /** @type {HTMLElement} */ (document.getElementById('status-dot'));
+      const planBadge     = /** @type {HTMLElement} */ (document.getElementById('plan-badge'));
+      const autocompleteEl= /** @type {HTMLElement} */ (document.getElementById('autocomplete'));
+      const planPanel     = /** @type {HTMLElement} */ (document.getElementById('plan-panel'));
+      const planStepsEl   = /** @type {HTMLElement} */ (document.getElementById('plan-steps'));
 
       // -----------------------------------------------------------------------
       // State
@@ -350,6 +471,15 @@ export function getWebviewHtml(
       /** @type {HTMLElement | null} */
       let streamingBubble = null;
       let streamingContent = '';
+
+      // Autocomplete state
+      /** @type {Array<{name: string, description: string, argumentHint?: string}>} */
+      let commandList = [];
+      let autocompleteIndex = -1;
+
+      // Plan mode state
+      /** @type {string[]} */
+      let planSteps = [];
 
       // -----------------------------------------------------------------------
       // Minimal Markdown → HTML renderer
@@ -422,6 +552,136 @@ export function getWebviewHtml(
         text = text.replace(/\x00CODE(\\d+)\x00/g, (_m, idx) => codeBlocks[Number(idx)] ?? '');
 
         return text;
+      }
+
+      // -----------------------------------------------------------------------
+      // Autocomplete
+      // -----------------------------------------------------------------------
+
+      function showAutocomplete() {
+        const val = inputEl.value;
+        if (!val.startsWith('/')) { hideAutocomplete(); return; }
+
+        const query = val.slice(1).toLowerCase();
+        const matches = commandList.filter(
+          (c) => c.name.startsWith(query) || c.description.toLowerCase().includes(query)
+        );
+
+        if (matches.length === 0) { hideAutocomplete(); return; }
+
+        autocompleteEl.innerHTML = '';
+        autocompleteIndex = -1;
+
+        matches.forEach((cmd, i) => {
+          const item = document.createElement('div');
+          item.className = 'autocomplete-item';
+          item.setAttribute('role', 'option');
+          item.dataset.index = String(i);
+
+          const nameSpan = document.createElement('span');
+          nameSpan.className = 'cmd-name';
+          nameSpan.textContent = '/' + cmd.name;
+
+          const hintSpan = document.createElement('span');
+          hintSpan.className = 'cmd-hint';
+          hintSpan.textContent = cmd.argumentHint ?? '';
+
+          const descSpan = document.createElement('span');
+          descSpan.className = 'cmd-desc';
+          descSpan.textContent = cmd.description;
+
+          item.appendChild(nameSpan);
+          if (cmd.argumentHint) item.appendChild(hintSpan);
+          item.appendChild(descSpan);
+
+          item.addEventListener('mousedown', (e) => {
+            e.preventDefault(); // prevent input blur
+            selectAutocompleteItem(cmd.name);
+          });
+
+          autocompleteEl.appendChild(item);
+        });
+
+        autocompleteEl.classList.add('visible');
+      }
+
+      function hideAutocomplete() {
+        autocompleteEl.classList.remove('visible');
+        autocompleteEl.innerHTML = '';
+        autocompleteIndex = -1;
+      }
+
+      /** @param {string} name */
+      function selectAutocompleteItem(name) {
+        inputEl.value = '/' + name + ' ';
+        hideAutocomplete();
+        inputEl.focus();
+      }
+
+      function autocompleteNavigate(direction) {
+        const items = autocompleteEl.querySelectorAll('.autocomplete-item');
+        if (items.length === 0) return false;
+
+        items[autocompleteIndex]?.classList.remove('selected');
+        autocompleteIndex = (autocompleteIndex + direction + items.length) % items.length;
+        const selected = items[autocompleteIndex];
+        selected?.classList.add('selected');
+        selected?.scrollIntoView({ block: 'nearest' });
+        return true;
+      }
+
+      // -----------------------------------------------------------------------
+      // Plan mode
+      // -----------------------------------------------------------------------
+
+      /** @param {string[]} steps */
+      function renderPlanPanel(steps) {
+        planSteps = steps;
+        planStepsEl.innerHTML = '';
+
+        steps.forEach((desc, i) => {
+          const row = document.createElement('div');
+          row.className = 'plan-step';
+          row.dataset.step = String(i);
+
+          const numEl = document.createElement('span');
+          numEl.className = 'plan-step-num';
+          numEl.textContent = String(i + 1) + '.';
+
+          const descEl = document.createElement('span');
+          descEl.className = 'plan-step-desc';
+          descEl.textContent = desc;
+
+          const statusEl = document.createElement('span');
+          statusEl.className = 'plan-step-status';
+          statusEl.dataset.forStep = String(i);
+
+          const approveBtn = document.createElement('button');
+          approveBtn.className = 'approve-btn';
+          approveBtn.textContent = 'Approve';
+          approveBtn.dataset.forStep = String(i);
+          approveBtn.addEventListener('click', () => {
+            approveBtn.disabled = true;
+            approveBtn.textContent = '…';
+            statusEl.className = 'plan-step-status approved';
+            statusEl.textContent = '●';
+            vscode.postMessage({ type: 'approveStep', step: i });
+          });
+
+          row.appendChild(numEl);
+          row.appendChild(descEl);
+          row.appendChild(statusEl);
+          row.appendChild(approveBtn);
+          planStepsEl.appendChild(row);
+        });
+
+        planPanel.classList.add('visible');
+      }
+
+      function hidePlanPanel() {
+        planPanel.classList.remove('visible');
+        planStepsEl.innerHTML = '';
+        planSteps = [];
       }
 
       // -----------------------------------------------------------------------
@@ -559,6 +819,21 @@ export function getWebviewHtml(
             break;
           }
 
+          case 'commandList':
+            commandList = msg.commands;
+            // Re-trigger autocomplete if the user already typed '/'.
+            if (inputEl.value.startsWith('/')) showAutocomplete();
+            break;
+
+          case 'planReady':
+            renderPlanPanel(msg.steps);
+            break;
+
+          case 'planModeToggled':
+            planBadge.classList.toggle('active', msg.active);
+            if (!msg.active) hidePlanPanel();
+            break;
+
           case 'confirmationRequest': {
             const card = document.createElement('div');
             card.className = 'confirm-card';
@@ -642,6 +917,22 @@ export function getWebviewHtml(
       });
 
       inputEl.addEventListener('keydown', (e) => {
+        // Autocomplete keyboard navigation.
+        if (autocompleteEl.classList.contains('visible')) {
+          if (e.key === 'ArrowDown') { e.preventDefault(); autocompleteNavigate(1); return; }
+          if (e.key === 'ArrowUp')   { e.preventDefault(); autocompleteNavigate(-1); return; }
+          if (e.key === 'Tab' || e.key === 'Enter') {
+            const selected = autocompleteEl.querySelector('.autocomplete-item.selected');
+            if (selected) {
+              e.preventDefault();
+              const nameEl = selected.querySelector('.cmd-name');
+              if (nameEl) selectAutocompleteItem(nameEl.textContent?.slice(1) ?? '');
+              return;
+            }
+          }
+          if (e.key === 'Escape') { hideAutocomplete(); return; }
+        }
+
         if (e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault();
           sendMessage();
@@ -652,7 +943,21 @@ export function getWebviewHtml(
         inputEl.style.height = 'auto';
         inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px';
       }
-      inputEl.addEventListener('input', autoResize);
+
+      inputEl.addEventListener('input', () => {
+        autoResize();
+        const val = inputEl.value;
+        if (val.startsWith('/')) {
+          // Lazily request the command list on first slash.
+          if (commandList.length === 0) {
+            vscode.postMessage({ type: 'requestCommandList' });
+          } else {
+            showAutocomplete();
+          }
+        } else {
+          hideAutocomplete();
+        }
+      });
 
       // -----------------------------------------------------------------------
       // Bootstrap
