@@ -1,126 +1,242 @@
 # Gemma Code
 
-> A local, agentic coding assistant for VS Code powered by Google's Gemma 4 — no API keys, no data leaving your machine.
+> A local, agentic coding assistant for VS Code powered by Google's Gemma — no API keys, no data leaving your machine.
 
-Gemma Code brings a [Claude Code](https://claude.ai/claude-code)-style agentic workflow to VS Code, running entirely on your local hardware via [Ollama](https://ollama.com). It can read and edit files across your codebase, execute terminal commands, reason across multiple files simultaneously, and plan multi-step coding tasks — all without a network connection or a cloud subscription.
+Gemma Code brings a Claude Code-style agentic workflow to VS Code, running entirely on your local hardware via [Ollama](https://ollama.com). It can read and edit files across your codebase, execute terminal commands, reason across multiple files simultaneously, and plan multi-step coding tasks — all without a network connection or a cloud subscription.
 
 ---
 
 ## Features
 
-- **Fully offline** — all inference runs locally via Ollama; no data is sent to external servers
-- **Agentic workflow** — the assistant can plan, edit, run commands, and iterate autonomously across multiple steps
+- **Fully offline** — all inference runs locally via Ollama; zero data is sent to external servers
+- **Agentic tool use** — the assistant reads files, applies edits, runs shell commands, and searches the web using DuckDuckGo, iterating across multiple steps autonomously
 - **Codebase-wide reasoning** — reads and understands multiple files simultaneously to make context-aware edits
-- **Terminal execution** — can run shell commands and interpret their output as part of a task
-- **No API key required** — just install the extension, pull the model, and start coding
+- **Edit modes** — choose Auto (apply immediately), Ask (show diff and confirm), or Manual (show diff only, never write)
+- **Plan mode** — the assistant produces a numbered plan and waits for step-by-step approval before acting
+- **Slash commands and skills** — `/commit`, `/review-pr`, `/generate-readme`, and more built-in workflows; add your own skills to `~/.gemma-code/skills/`
+- **Persistent history** — sessions are stored in a local SQLite database; resume any past conversation
+- **Auto-compact** — automatically summarises the conversation when the context window approaches its limit
+- **Python inference backend** — optional FastAPI backend applies the Gemma chat template for higher-quality results
+- **Windows installer** — a single `setup.exe` installs everything: VS Code extension, Ollama, and the model
 - **Privacy-first** — your code and prompts never leave your machine
 
 ---
 
 ## Prerequisites
 
-Before installing Gemma Code, ensure the following are set up:
-
-1. **VS Code** 1.85 or later
-2. **Ollama** installed and running ([install guide](https://ollama.com/download))
-3. **Gemma 4 model** pulled locally:
-   ```bash
-   ollama pull gemma4
-   ```
-4. Ollama server running:
-   ```bash
-   ollama serve
-   ```
+| Requirement | Minimum version |
+|---|---|
+| VS Code | 1.90 |
+| Ollama | Latest |
+| Python (for backend) | 3.11 |
+| Node.js (for development) | 20 |
 
 ---
 
 ## Installation
 
-> The extension is not yet published. Installation instructions will be added once the first release is available.
+### Windows — Installer (recommended)
 
-To build and install from source (development):
+1. Download `setup.exe` from the [latest release](https://github.com/bendourthe/Gemma-Code/releases/latest).
+2. Run the installer. It will:
+   - Install Ollama if not already present
+   - Install the VS Code extension
+   - Set up the Python inference backend
+   - Optionally download the Gemma model (~15 GB)
+3. Launch VS Code and open the Gemma Code panel from the Activity Bar.
+
+### Manual — VSIX
+
+1. Download `gemma-code-0.1.0.vsix` from the [latest release](https://github.com/bendourthe/Gemma-Code/releases/latest).
+2. In VS Code: **Extensions → ··· → Install from VSIX**.
+3. Ensure Ollama is installed and the model is pulled:
+   ```bash
+   ollama pull gemma3:27b
+   ollama serve
+   ```
+
+### From source (development)
 
 ```bash
-# Clone the repository
 git clone https://github.com/bendourthe/Gemma-Code.git
 cd Gemma-Code
-
-# Install dependencies
 npm install
-
-# Build the extension
 npm run build
-
-# Package and install (requires vsce)
-npx vsce package
-code --install-extension gemma-code-*.vsix
+npx vsce package --no-dependencies
+code --install-extension gemma-code-0.1.0.vsix
 ```
 
 ---
 
-## Usage
+## Quick Start
 
-Once installed and Ollama is running with the Gemma 4 model:
+1. Open a project folder in VS Code.
+2. Click the Gemma Code icon in the Activity Bar to open the chat panel.
+3. Type a task in natural language and press Enter.
 
-1. Open a project folder in VS Code
-2. Open the Gemma Code panel from the Activity Bar
-3. Describe a coding task in natural language
-4. The assistant will propose a plan, make edits, and run commands with your confirmation
+**First chat:**
+```
+Explain the architecture of this codebase and identify the main entry point.
+```
 
-More detailed usage documentation will be added as features are implemented.
+**Using /commit:**
+```
+/commit fix the null-pointer bug in UserService
+```
+
+**Enabling plan mode:**
+```
+/plan
+```
+The assistant will now produce a numbered plan before making any changes, and wait for your step-by-step approval.
 
 ---
 
-## Tech Stack
+## Configuration
 
-| Layer | Technology |
-|-------|-----------|
-| VS Code Extension | TypeScript |
-| Inference Backend | Python + Ollama REST API |
-| Performance Components | Rust |
-| CLI / Tooling | Go |
-| Local Model | Google Gemma 4 (via Ollama) |
+All settings are under `gemma-code.*` in VS Code settings (`Ctrl+,`).
+
+| Setting | Default | Description |
+|---|---|---|
+| `gemma-code.ollamaUrl` | `http://localhost:11434` | Ollama server URL |
+| `gemma-code.modelName` | `gemma3:27b` | Model to use for inference |
+| `gemma-code.maxTokens` | `8192` | Maximum context tokens |
+| `gemma-code.temperature` | `0.2` | Sampling temperature |
+| `gemma-code.requestTimeout` | `60000` | HTTP timeout in milliseconds |
+| `gemma-code.editMode` | `auto` | How file edits are applied: `auto`, `ask`, or `manual` |
+| `gemma-code.toolConfirmationMode` | `ask` | When to ask before running terminal commands: `always`, `ask`, `never` |
+| `gemma-code.maxAgentIterations` | `20` | Maximum agentic tool-use iterations per message |
+| `gemma-code.useBackend` | `true` | Route inference through the Python backend for better prompt formatting |
+| `gemma-code.backendPort` | `11435` | Local Python backend port |
+| `gemma-code.pythonPath` | `python` | Python executable path |
 
 ---
 
-## Project Structure
+## Slash Commands
 
-```
-src/         VS Code extension source (TypeScript)
-lib/         Shared utilities across components
-tests/       Unit, integration, and e2e tests
-docs/        Architecture docs and guides
-configs/     Linter, launch, and environment configs
-scripts/     Build and utility scripts
-assets/      Icons and static assets
-examples/    Demo workflows and sample usage
-```
+| Command | Description |
+|---|---|
+| `/help [command]` | List all commands and skills |
+| `/clear` | Clear the current conversation |
+| `/history` | Browse and resume past sessions |
+| `/plan` | Toggle plan mode on/off |
+| `/compact` | Manually trigger context compaction |
+| `/model [name]` | Switch the active model |
+| `/commit [args]` | Generate a commit message from staged changes |
+| `/review-pr [args]` | Review the current diff or a pull request |
+| `/generate-readme` | Create or update README.md |
+| `/generate-changelog` | Generate CHANGELOG.md from git history |
+| `/generate-tests` | Generate a comprehensive test suite |
+| `/analyze-codebase` | Produce a structured codebase analysis |
+| `/setup-project` | Bootstrap project structure and configuration |
+
+### Custom skills
+
+Add your own skills to `~/.gemma-code/skills/<name>/SKILL.md`. Gemma Code hot-reloads skills as you add or modify them. See [docs/v0.1.0/tool-protocol.md](docs/v0.1.0/tool-protocol.md) for the SKILL.md format.
+
+---
+
+## Troubleshooting
+
+**"Ollama is not reachable"**
+Ensure Ollama is running: `ollama serve`. Gemma Code polls every 5 seconds and reconnects automatically when Ollama comes back online.
+
+**"Model not found"**
+Pull the configured model: `ollama pull gemma3:27b`. Use `/model` in the chat to switch to a model you have already pulled.
+
+**"Backend process exited; using direct Ollama mode"**
+The Python backend failed to start. Check the "Gemma Code" Output channel for the error. Common causes: Python not found, missing packages, or port 11435 in use. Set `gemma-code.useBackend` to `false` to disable the backend and use Ollama directly.
+
+**Slow responses**
+- Use a smaller model variant (e.g. `gemma3:9b` or `gemma3:2b`) via `/model`.
+- Increase `gemma-code.requestTimeout` if you are on a slow machine.
+- Reduce `gemma-code.maxTokens` to keep context shorter.
+
+**Extension not activating**
+Open the Output channel "Gemma Code" (`View → Output`) for diagnostic messages.
 
 ---
 
 ## Development
 
 ```bash
-# TypeScript extension
+# Install dependencies
+npm install
+
+# Build the TypeScript extension
 npm run build
+
+# Run unit tests
 npm run test
 
-# Python backend
-uv run pytest
-uv run ruff check . && uv run ruff format .
+# Run linter
+npm run lint
 
-# Rust components
-cargo build && cargo test && cargo clippy
+# Run benchmarks
+npm run bench
 
-# Go tooling
-go build ./... && go test -race ./...
+# Package as VSIX
+npm run package
 ```
+
+```bash
+# Python backend (from src/backend/)
+uv run pytest tests/unit tests/integration -q
+uv run ruff check . && uv run ruff format .
+```
+
+---
+
+## Project Structure
+
+```
+src/
+  extension.ts           Extension entry point
+  ollama/                Ollama HTTP client
+  chat/                  Conversation manager, streaming pipeline, auto-compact
+  panels/                VS Code webview panel and message protocol
+  tools/                 Tool registry, agent loop, tool handlers
+  skills/                Skill loader and built-in skill catalog
+  commands/              Slash command router
+  modes/                 Plan mode and edit mode
+  storage/               SQLite-backed chat history
+  utils/                 Markdown renderer
+  backend/               Python FastAPI inference backend (separate package)
+tests/
+  unit/                  Unit tests (Vitest)
+  integration/           Integration tests (Vitest + live Ollama)
+  e2e/                   End-to-end tests (Playwright)
+  benchmarks/            Performance benchmark suites
+docs/
+  v0.1.0/               Architecture, tool protocol, CI setup, security audit, benchmarks
+scripts/
+  installer/            NSIS installer script and build helper
+.github/
+  workflows/            CI (ci.yml), release (release.yml), nightly (nightly.yml)
+```
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| VS Code Extension | TypeScript + Vitest |
+| Inference Backend | Python + FastAPI + Ollama |
+| Local Model | Google Gemma (via Ollama) |
+| Persistence | SQLite (better-sqlite3) |
+| Installer | NSIS (Windows) |
+| CI/CD | GitHub Actions |
 
 ---
 
 ## Contributing
 
-Contributions are welcome. Please open an issue to discuss significant changes before submitting a pull request. See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for guidelines (coming soon).
+Contributions are welcome. Please open an issue to discuss significant changes before submitting a pull request.
+
+**Development setup:** see the Development section above.
+**Commit convention:** conventional commits (`feat:`, `fix:`, `chore:`, etc.).
+**CI:** all PRs must pass `lint-ts`, `test-ts`, `lint-py`, and `test-py` with coverage ≥ 80%.
 
 ---
 

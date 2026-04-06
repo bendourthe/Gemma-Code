@@ -500,6 +500,16 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     });
   }
 
+  /** Post a status update to the webview (visible even before the first message). */
+  postStatus(state: "idle" | "streaming" | "thinking"): void {
+    void this._view?.webview.postMessage({ type: "status", state });
+  }
+
+  /** Post an error banner to the webview. */
+  postError(message: string): void {
+    void this._view?.webview.postMessage({ type: "error", text: message });
+  }
+
   dispose(): void {
     this._manager.dispose();
     this._skillLoader.stopWatching();

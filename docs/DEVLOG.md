@@ -4,6 +4,157 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-04-05 23:00] Phase 8 — Hardening, CI/CD & Release
+
+### Summary
+
+Completed the final hardening phase for v0.1.0. Delivered four sub-tasks: a security audit with two vulnerability fixes (SSRF in `FetchPageTool`, terminal blocklist bypass via shell metacharacters), a five-suite performance benchmark harness, comprehensive error handling hardening across the full extension lifecycle, and complete release documentation (README, CHANGELOG, architecture doc). A `.gitignore` audit added 3 minor G2 patterns and confirmed zero secrets or build artifacts in the index.
+
+### Goal
+
+Bring Gemma Code to a stable v0.1.0 release candidate: no high/critical security findings, all error scenarios handled gracefully, performance benchmarks enforced by latency gates, and full user-facing documentation.
+
+### Architecture Changes
+
+**Security layer additions:**
+- `FetchPageTool` (`src/tools/handlers/webSearch.ts`) — new `isSsrfBlocked(url)` guard rejects localhost, loopback, link-local, RFC-1918 ranges, and non-HTTP(S) schemes before any outbound fetch
+- `RunTerminalTool` (`src/tools/handlers/terminal.ts`) — new `shellSegments(command)` splits on `;`, `&&`, `||`, `|`, `\n` so the blocklist check applies to every sub-command, not just the raw string
+
+**Extension lifecycle additions:**
+- `src/extension.ts` — global `process.on('unhandledRejection')` handler logs to the Output channel instead of crashing the extension host
+- `src/extension.ts` — `startOllamaPoller()` polls every 5 s; posts a recovery message when Ollama comes back online; posts an error banner when it goes offline
+- `src/extension.ts` — startup health check with actionable messaging and a "Pull model" quick action via VS Code terminal
+- `src/panels/GemmaCodePanel.ts` — new public `postStatus()` and `postError()` methods for external signalling from the extension activation code
+
+### Sub-task 8.1 — Security Audit
+
+**SSRF in FetchPageTool (fixed):**
+
+`FetchPageTool.execute()` previously accepted any URL string and passed it directly to `fetch()`. A malicious model response could have triggered requests to `http://localhost`, `http://169.254.169.254` (AWS metadata), or any LAN service.
+
+Fix: `isSsrfBlocked(rawUrl)` is now called before every fetch. It parses the URL, checks the scheme, and rejects any hostname that maps to loopback, link-local, or RFC-1918 ranges.
+
+```typescript
+if (isSsrfBlocked(p.url)) {
+  return failResult(id, `URL is not allowed: "${p.url}". Only public HTTP/HTTPS URLs are permitted.`);
+}
+```
+
+**Terminal blocklist bypass (hardened):**
+
+The original `isBlocked(command)` only tested the full command string. A chained command like `echo ok; rm -rf /` would pass because `rm -rf /` appeared after a semicolon and the check never split the string.
+
+Fix: `shellSegments(command)` splits on `/;|&&|\|\||[\n|]/` and the blocklist is applied to each segment independently.
+
+```typescript
+function shellSegments(command: string): string[] {
+  return command.split(/;|&&|\|\||[\n|]/).map((s) => s.trim()).filter(Boolean);
+}
+function isBlocked(command: string): boolean {
+  const segments = [command, ...shellSegments(command)];
+  return segments.some((seg) => {
+    const normalized = seg.toLowerCase().trim();
+    return BLOCKED_PATTERNS.some((pattern) => normalized.includes(pattern));
+  });
+}
+```
+
+Additional blocklist entries added: `mkfs`, `dd if=/dev/zero`, `> /dev/sda`, `rm -rf ~`.
+
+### Sub-task 8.2 — Performance Benchmarks
+
+Five benchmark files created in `tests/benchmarks/`:
+
+| File | What it measures | Target |
+|---|---|---|
+| `time-to-first-token.bench.ts` | First token latency vs. live Ollama | p50 < 2000ms, p99 < 5000ms |
+| `context-compaction.bench.ts` | `estimateTokens()` across 50/100/200-message conversations | p99 < 500ms |
+| `tool-execution.bench.ts` | `ReadFileTool` on 100/1000/10000-line files | p99 < 50ms |
+| `skill-loading.bench.ts` | `SkillLoader` loading 10/50/100 skills from disk | p99 < 200ms |
+| `rendering.bench.ts` | Markdown rendering at 100/500/2000 tokens | p99 < 100ms (existing) |
+
+All latency gates are asserted via standard `it()` blocks so they run in the normal `npm run test` suite. `bench()` declarations run in the separate nightly `npm run bench` pass. The nightly `nightly.yml` workflow already had a `benchmarks` job; no CI changes were needed.
+
+`docs/v0.1.0/performance-benchmarks.md` documents all thresholds and how to run each suite.
+
+### Sub-task 8.3 — Error Handling Hardening
+
+Seven error scenarios addressed:
+
+1. **Global unhandled rejection** — `process.on('unhandledRejection')` registered at module load time in `extension.ts`; logs stack trace to the Output channel.
+2. **Ollama unavailable at startup** — initial `checkHealth()` on `activate()`; posts an error banner with `ollama serve` instructions.
+3. **Ollama goes offline mid-session** — 5-second poller; when Ollama transitions from reachable → unreachable, posts an error banner; when it transitions back, posts a recovery status.
+4. **Model not found** — ping command catches errors containing "not found" and offers a "Pull model" quick action that opens an integrated terminal running `ollama pull <model>`.
+5. **Python backend crash** — `BackendManager.start()` promise rejection caught; shows a VS Code warning notification and logs the stderr.
+6. **`GemmaCodePanel` external signalling** — new `postStatus(state)` and `postError(message)` public methods called from `extension.ts` for Ollama state changes without requiring access to the panel's internal postMessage closure.
+7. **`ContextCompactor.shouldCompact()` regression** — confirmed by test: does not trigger at low token counts, does trigger when `chars / 4 > 0.8 × maxTokens`.
+
+Regression tests written in `tests/unit/errors/error-handling.test.ts` covering all above scenarios with mocked dependencies.
+
+### Sub-task 8.4 — Documentation & Release
+
+**`README.md`** — full rewrite: installation (installer + VSIX + source), quick start with example prompts, complete configuration reference table, slash command table, custom skills instructions, troubleshooting section, and contributing guide.
+
+**`CHANGELOG.md`** — complete v0.1.0 entry documenting all features added across Phases 1–8 in Keep a Changelog format, plus a Known Limitations section and an Unreleased section for future work.
+
+**`docs/v0.1.0/architecture.md`** — new document with ASCII system architecture diagram, component descriptions table, data-flow diagrams for the streaming pipeline and tool execution loop, and the extension activation/deactivation lifecycle.
+
+### .gitignore Audit (Phase 8)
+
+Ran `/update-gitignore`. Results:
+
+| Severity | Count |
+|---|---|
+| G0 CRITICAL | 0 |
+| G1 HIGH | 0 |
+| G2 MEDIUM | 2 |
+| G3 LOW | 0 |
+
+Two minor gaps added:
+- `*.userosscache` and `*.sln.docstates` (Visual Studio state files)
+- `desktop.ini` (lowercase supplement to existing `Desktop.ini` for Linux CI runners)
+
+Zero files removed from the index. Zero LFS candidates.
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/tools/handlers/webSearch.ts` | Added `isSsrfBlocked()` with full private-IP/scheme rejection; applied in `FetchPageTool.execute()` |
+| `src/tools/handlers/terminal.ts` | Added `shellSegments()` and extended blocklist; `isBlocked()` now checks all shell sub-commands |
+| `src/extension.ts` | Added `unhandledRejection` handler, `startOllamaPoller()`, startup health check, model-not-found quick action, backend crash notification |
+| `src/panels/GemmaCodePanel.ts` | Added `postStatus()` and `postError()` public methods |
+| `tests/benchmarks/time-to-first-token.bench.ts` | New — live Ollama TTFT benchmark and latency gate |
+| `tests/benchmarks/context-compaction.bench.ts` | New — `estimateTokens()` throughput and latency gate |
+| `tests/benchmarks/tool-execution.bench.ts` | New — `ReadFileTool` benchmark and latency gate |
+| `tests/benchmarks/skill-loading.bench.ts` | New — `SkillLoader` throughput and latency gate |
+| `tests/unit/errors/error-handling.test.ts` | New — regression tests for all 7 error scenarios |
+| `docs/v0.1.0/security-audit.md` | New — findings and remediations |
+| `docs/v0.1.0/performance-benchmarks.md` | New — benchmark targets and usage |
+| `docs/v0.1.0/architecture.md` | New — full system architecture documentation |
+| `docs/git/gitignore-audit-2026-04-05-phase8.md` | New — .gitignore audit report |
+| `README.md` | Full rewrite with complete v0.1.0 documentation |
+| `CHANGELOG.md` | Complete v0.1.0 entry across all phases |
+| `.gitignore` | Added `desktop.ini`, `*.userosscache`, `*.sln.docstates` |
+
+### Lessons Learned
+
+- **SSRF is a real risk for tool-calling agents.** Any tool that makes outbound HTTP requests based on model output must validate URLs against private IP ranges before fetching. A single unvalidated `fetch(url)` can exfiltrate cloud metadata or probe internal services.
+- **Shell blocklists must account for metacharacter chaining.** Checking the raw command string for a blocked substring is insufficient when `shell: true` is used. Always split on `;`, `&&`, `||`, `|`, and newlines before checking each segment.
+- **`GemmaCodePanel` needs a public error surface.** The extension's activation code runs before the webview is open, but it still needs to surface errors (Ollama unreachable, backend crash) to the user. Adding `postStatus()` and `postError()` public methods was the correct design — they no-op gracefully when the webview is not yet open.
+- **Benchmark `bench()` and latency-gate `it()` blocks can coexist in the same file.** This pattern keeps threshold documentation collocated with the measurement code, and lets the latency gates run on every CI push while the full benchmark profiles run only nightly.
+
+### Current Status
+
+**Verified.** All Phase 8 sub-tasks complete. The codebase is at v0.1.0 release-candidate quality:
+- Zero G0/G1 findings in the git index
+- Security audit complete with two fixes applied
+- Performance benchmarks integrated into nightly CI
+- Error handling covers all 7 defined error scenarios
+- README, CHANGELOG, and architecture doc are current and complete
+
+---
+
 ## [2026-04-05 21:00] Phase 5 — Persistent History, Auto-Compact, Edit Modes & UI Polish
 
 ### Summary

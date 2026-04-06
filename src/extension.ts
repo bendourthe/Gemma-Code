@@ -7,6 +7,47 @@ import { GemmaCodePanel, VIEW_ID } from "./panels/GemmaCodePanel.js";
 
 let outputChannel: vscode.OutputChannel | undefined;
 let backendManager: BackendManager | undefined;
+let ollamaPoller: NodeJS.Timeout | undefined;
+
+// ---------------------------------------------------------------------------
+// Global unhandled rejection handler
+// ---------------------------------------------------------------------------
+
+process.on("unhandledRejection", (reason: unknown) => {
+  const message =
+    reason instanceof Error ? reason.stack ?? reason.message : String(reason);
+  outputChannel?.appendLine(`[Gemma Code] Unhandled promise rejection: ${message}`);
+});
+
+// ---------------------------------------------------------------------------
+// Ollama availability polling
+// ---------------------------------------------------------------------------
+
+const OLLAMA_POLL_INTERVAL_MS = 5_000;
+
+function startOllamaPoller(
+  panel: GemmaCodePanel,
+  channel: vscode.OutputChannel
+): void {
+  let ollamaWasReachable = false;
+
+  ollamaPoller = setInterval(async () => {
+    const client = createOllamaClient();
+    const healthy = await client.checkHealth().catch(() => false);
+
+    if (healthy && !ollamaWasReachable) {
+      ollamaWasReachable = true;
+      channel.appendLine("[Gemma Code] Ollama is now reachable — resuming normal operation.");
+      panel.postStatus("idle");
+    } else if (!healthy && ollamaWasReachable) {
+      ollamaWasReachable = false;
+      channel.appendLine("[Gemma Code] Ollama became unreachable.");
+      panel.postError(
+        "Ollama is not reachable. Make sure `ollama serve` is running, then it will reconnect automatically."
+      );
+    }
+  }, OLLAMA_POLL_INTERVAL_MS);
+}
 
 export function activate(context: vscode.ExtensionContext): void {
   outputChannel = vscode.window.createOutputChannel("Gemma Code");
@@ -31,7 +72,17 @@ export function activate(context: vscode.ExtensionContext): void {
         outputChannel?.appendLine(
           "[Gemma Code] Backend unavailable — routing directly to Ollama."
         );
+        // Show a non-blocking notification so the user is aware.
+        vscode.window.showWarningMessage(
+          "Gemma Code: Python backend process exited; using direct Ollama mode."
+        );
       }
+    }).catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      outputChannel?.appendLine(`[Gemma Code] Backend start error: ${msg}`);
+      vscode.window.showWarningMessage(
+        "Gemma Code: Backend process could not start; using direct Ollama mode."
+      );
     });
   }
 
@@ -45,11 +96,19 @@ export function activate(context: vscode.ExtensionContext): void {
 
       const client = createOllamaClient();
 
-      const healthy = await client.checkHealth();
+      const healthy = await client.checkHealth().catch(() => false);
       if (!healthy) {
         channel.appendLine(
           "[Gemma Code] ERROR: Ollama is not reachable. Make sure `ollama serve` is running."
         );
+        vscode.window.showErrorMessage(
+          "Gemma Code: Ollama is not reachable. Run `ollama serve` and try again.",
+          "Open Ollama docs"
+        ).then((choice) => {
+          if (choice === "Open Ollama docs") {
+            vscode.env.openExternal(vscode.Uri.parse("https://ollama.com/download"));
+          }
+        });
         return;
       }
 
@@ -71,7 +130,21 @@ export function activate(context: vscode.ExtensionContext): void {
         }
         channel.appendLine("\n\n[Gemma Code] Stream complete.");
       } catch (err) {
-        channel.appendLine(`[Gemma Code] ERROR: ${String(err)}`);
+        const msg = err instanceof Error ? err.message : String(err);
+        channel.appendLine(`[Gemma Code] ERROR: ${msg}`);
+
+        if (msg.includes("not found") || msg.includes("model")) {
+          vscode.window.showErrorMessage(
+            `Gemma Code: Model "${settings.modelName}" not found. Run: ollama pull ${settings.modelName}`,
+            "Pull model"
+          ).then((choice) => {
+            if (choice === "Pull model") {
+              const terminal = vscode.window.createTerminal("Gemma Code — Model Pull");
+              terminal.sendText(`ollama pull ${settings.modelName}`);
+              terminal.show();
+            }
+          });
+        }
       }
     }
   );
@@ -88,9 +161,45 @@ export function activate(context: vscode.ExtensionContext): void {
     chatPanel
   );
   context.subscriptions.push(chatProviderDisposable, chatPanel);
+
+  // ── Ollama availability poller ────────────────────────────────────────────
+  startOllamaPoller(chatPanel, outputChannel);
+
+  // Dispose the poller when the extension deactivates.
+  context.subscriptions.push({
+    dispose: () => {
+      if (ollamaPoller !== undefined) {
+        clearInterval(ollamaPoller);
+        ollamaPoller = undefined;
+      }
+    },
+  });
+
+  // ── Initial Ollama health check ───────────────────────────────────────────
+  createOllamaClient()
+    .checkHealth()
+    .then((healthy) => {
+      if (!healthy) {
+        outputChannel?.appendLine(
+          "[Gemma Code] Ollama is not reachable at startup. Polling for availability..."
+        );
+        chatPanel.postError(
+          "Ollama is not reachable. Start it with `ollama serve`. Gemma Code will reconnect automatically."
+        );
+      } else {
+        outputChannel?.appendLine("[Gemma Code] Ollama is reachable. Extension ready.");
+      }
+    })
+    .catch(() => {
+      outputChannel?.appendLine("[Gemma Code] Ollama health check failed at startup.");
+    });
 }
 
 export async function deactivate(): Promise<void> {
+  if (ollamaPoller !== undefined) {
+    clearInterval(ollamaPoller);
+    ollamaPoller = undefined;
+  }
   if (backendManager) {
     await backendManager.stop();
   }

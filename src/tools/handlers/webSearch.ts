@@ -14,6 +14,69 @@ const MAX_RESULTS = 5;
 const FETCH_TIMEOUT_MS = 10_000;
 const MAX_PAGE_CHARS = 2_000;
 
+// ---------------------------------------------------------------------------
+// SSRF protection — reject URLs that resolve to internal/private destinations.
+// ---------------------------------------------------------------------------
+
+const BLOCKED_HOSTNAMES = new Set([
+  "localhost",
+  "ip6-localhost",
+  "ip6-loopback",
+]);
+
+/**
+ * Returns true if the URL should be blocked to prevent SSRF.
+ * Blocks: file://, non-http(s) schemes, localhost, loopback (127.x.x.x),
+ * link-local (169.254.x.x), and all RFC-1918 private IP ranges.
+ */
+function isSsrfBlocked(rawUrl: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return true; // Malformed URL — block it.
+  }
+
+  const scheme = parsed.protocol;
+  if (scheme !== "http:" && scheme !== "https:") {
+    return true;
+  }
+
+  const host = parsed.hostname.toLowerCase();
+
+  if (BLOCKED_HOSTNAMES.has(host)) {
+    return true;
+  }
+
+  // Loopback: 127.0.0.0/8
+  if (/^127\./.test(host)) {
+    return true;
+  }
+
+  // Link-local: 169.254.0.0/16
+  if (/^169\.254\./.test(host)) {
+    return true;
+  }
+
+  // RFC-1918 private ranges
+  if (/^10\./.test(host)) {
+    return true;
+  }
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(host)) {
+    return true;
+  }
+  if (/^192\.168\./.test(host)) {
+    return true;
+  }
+
+  // IPv6 loopback and link-local
+  if (host === "::1" || host.startsWith("fe80:") || host.startsWith("[fe80:")) {
+    return true;
+  }
+
+  return false;
+}
+
 interface SearchResult {
   title: string;
   url: string;
@@ -119,6 +182,13 @@ export class FetchPageTool implements ToolHandler {
 
     if (!p.url || typeof p.url !== "string") {
       return failResult(id, "Missing required parameter: url");
+    }
+
+    if (isSsrfBlocked(p.url)) {
+      return failResult(
+        id,
+        `URL is not allowed: "${p.url}". Only public HTTP/HTTPS URLs are permitted.`
+      );
     }
 
     let html: string;

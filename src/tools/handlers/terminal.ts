@@ -12,11 +12,13 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 
 /**
  * Commands that are unconditionally blocked regardless of confirmation mode.
- * Checked after lowercasing and trimming the command string.
+ * The full command string AND every individual segment (split on shell metacharacters)
+ * are each checked, so patterns like `echo ok; rm -rf /` are still caught.
  */
 const BLOCKED_PATTERNS = [
   "rm -rf /",
   "rm -rf /*",
+  "rm -rf ~",
   "format c:",
   "format d:",
   "shutdown",
@@ -25,11 +27,25 @@ const BLOCKED_PATTERNS = [
   "del /f /s /q c:\\",
   "del /f /s /q c:/",
   "rd /s /q c:\\",
+  "mkfs",
+  "dd if=/dev/zero",
+  "> /dev/sda",
 ];
 
+/**
+ * Split a shell command string on metacharacters that can chain sub-commands
+ * (`;`, `&&`, `||`, `|`, newlines) and return all individual segments.
+ */
+function shellSegments(command: string): string[] {
+  return command.split(/;|&&|\|\||[\n|]/).map((s) => s.trim()).filter(Boolean);
+}
+
 function isBlocked(command: string): boolean {
-  const normalized = command.toLowerCase().trim();
-  return BLOCKED_PATTERNS.some((pattern) => normalized.includes(pattern));
+  const segments = [command, ...shellSegments(command)];
+  return segments.some((seg) => {
+    const normalized = seg.toLowerCase().trim();
+    return BLOCKED_PATTERNS.some((pattern) => normalized.includes(pattern));
+  });
 }
 
 function workspaceRoot(): string {
