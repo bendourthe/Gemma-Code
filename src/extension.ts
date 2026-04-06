@@ -52,7 +52,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(pingCommand);
 
-  const chatPanel = new GemmaCodePanel(context.extensionUri);
+  const chatPanel = new GemmaCodePanel(context.extensionUri, context.globalStorageUri);
   const chatProviderDisposable = vscode.window.registerWebviewViewProvider(
     VIEW_ID,
     chatPanel

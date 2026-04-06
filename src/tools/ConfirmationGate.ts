@@ -42,6 +42,21 @@ export class ConfirmationGate {
   }
 
   /**
+   * Post a diff-preview notification for "manual" edit mode — no confirmation is
+   * needed, so this returns immediately after posting the message.
+   */
+  requestDiffPreview(callId: string, filePath: string, diff: string): Promise<void> {
+    this._postMessage({
+      type: "diffPreview",
+      callId,
+      filePath,
+      diff,
+      requiresConfirmation: false,
+    });
+    return Promise.resolve();
+  }
+
+  /**
    * Called by GemmaCodePanel when a `confirmationResponse` webview message arrives.
    * Silently ignores unknown ids (e.g., after a timeout already resolved the promise).
    */

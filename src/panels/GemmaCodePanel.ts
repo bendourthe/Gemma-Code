@@ -3,6 +3,7 @@ import * as vscode from "vscode";
 import { randomUUID } from "crypto";
 import { ConversationManager } from "../chat/ConversationManager.js";
 import { StreamingPipeline } from "../chat/StreamingPipeline.js";
+import { ContextCompactor } from "../chat/ContextCompactor.js";
 import { AgentLoop } from "../tools/AgentLoop.js";
 import { ToolRegistry } from "../tools/ToolRegistry.js";
 import { ConfirmationGate } from "../tools/ConfirmationGate.js";
@@ -22,7 +23,13 @@ import { getSettings } from "../config/settings.js";
 import { SkillLoader } from "../skills/SkillLoader.js";
 import { CommandRouter } from "../commands/CommandRouter.js";
 import { PlanMode, PLAN_MODE_SYSTEM_ADDENDUM, detectPlan } from "../modes/PlanMode.js";
-import type { WebviewToExtensionMessage } from "./messages.js";
+import { ChatHistoryStore } from "../storage/ChatHistoryStore.js";
+import { renderMarkdown } from "../utils/MarkdownRenderer.js";
+import type { EditMode } from "../tools/types.js";
+import type {
+  WebviewToExtensionMessage,
+  ExtensionToWebviewMessage,
+} from "./messages.js";
 import { getWebviewHtml } from "./webview/index.js";
 
 export const VIEW_ID = "gemma-code.chatView";
@@ -36,27 +43,62 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
   private readonly _skillLoader: SkillLoader;
   private readonly _commandRouter: CommandRouter;
   private readonly _planMode: PlanMode;
+  private readonly _store: ChatHistoryStore | null;
+  private readonly _compactor: ContextCompactor;
 
-  constructor(private readonly _extensionUri: vscode.Uri) {
-    this._manager = new ConversationManager();
+  private _currentEditMode: EditMode;
+
+  constructor(
+    private readonly _extensionUri: vscode.Uri,
+    private readonly _globalStorageUri?: vscode.Uri
+  ) {
     const settings = getSettings();
+    this._currentEditMode = settings.editMode;
+
+    // Initialise persistent chat history store.
+    this._store = this._initStore();
+
+    this._manager = new ConversationManager(this._store ?? undefined);
+
     const client = createOllamaClient(settings.ollamaUrl);
 
     // postMessage is not available until resolveWebviewView; use a late-binding closure.
-    const postMessage = (msg: unknown): void => {
+    const postRaw = (msg: ExtensionToWebviewMessage): void => {
       void this._view?.webview.postMessage(msg);
+    };
+
+    // Intercept messageComplete to inject server-side rendered HTML.
+    const postMessage = (msg: ExtensionToWebviewMessage): void => {
+      if (msg.type === "messageComplete" && !msg.renderedHtml) {
+        const history = this._manager.getHistory();
+        const found = history.find((m) => m.id === msg.messageId);
+        postRaw({
+          ...msg,
+          renderedHtml: found ? renderMarkdown(found.content) : "",
+        });
+        return;
+      }
+      postRaw(msg);
     };
 
     this._confirmationGate = new ConfirmationGate(postMessage);
 
-    const registry = this._buildToolRegistry(settings.toolConfirmationMode);
+    const registry = this._buildToolRegistry(settings.editMode, settings.toolConfirmationMode);
+
+    this._compactor = new ContextCompactor(
+      this._manager,
+      client,
+      settings.modelName,
+      settings.maxTokens
+    );
 
     this._agentLoop = new AgentLoop(
       client,
       this._manager,
       registry,
       settings.modelName,
-      settings.maxAgentIterations
+      settings.maxAgentIterations,
+      this._compactor
     );
 
     this._pipeline = new StreamingPipeline(
@@ -85,15 +127,30 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     this._planMode = new PlanMode();
   }
 
-  private _buildToolRegistry(confirmationMode: "always" | "ask" | "never"): ToolRegistry {
+  private _initStore(): ChatHistoryStore | null {
+    if (!this._globalStorageUri) return null;
+    try {
+      const dbPath = path.join(this._globalStorageUri.fsPath, "chat-history.db");
+      return new ChatHistoryStore(dbPath);
+    } catch {
+      // If the store can't be initialised (e.g. native module missing), continue
+      // without persistence rather than crashing the extension.
+      return null;
+    }
+  }
+
+  private _buildToolRegistry(
+    editMode: EditMode,
+    confirmationMode: "always" | "ask" | "never"
+  ): ToolRegistry {
     const registry = new ToolRegistry();
     const gate = this._confirmationGate;
 
     registry.register("read_file", new ReadFileTool());
-    registry.register("write_file", new WriteFileTool());
-    registry.register("create_file", new CreateFileTool());
+    registry.register("write_file", new WriteFileTool(gate, editMode));
+    registry.register("create_file", new CreateFileTool(gate, editMode));
     registry.register("delete_file", new DeleteFileTool());
-    registry.register("edit_file", new EditFileTool(gate, confirmationMode));
+    registry.register("edit_file", new EditFileTool(gate, editMode));
     registry.register("list_directory", new ListDirectoryTool());
     registry.register("grep_codebase", new GrepCodebaseTool());
     registry.register("run_terminal", new RunTerminalTool(gate, confirmationMode));
@@ -130,11 +187,15 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     switch (message.type) {
       case "ready":
         this._postHistory();
-        // Send plan mode state on init so badge reflects persisted state.
         void this._view?.webview.postMessage({
           type: "planModeToggled",
           active: this._planMode.active,
         });
+        void this._view?.webview.postMessage({
+          type: "editModeChanged",
+          mode: this._currentEditMode,
+        });
+        this._postTokenCount();
         break;
 
       case "requestCommandList":
@@ -152,6 +213,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
         this._manager.clearHistory();
         this._planMode.resetPlan();
         this._postHistory();
+        this._postTokenCount();
         break;
 
       case "cancelStream":
@@ -166,11 +228,35 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
       case "approveStep":
         await this._handleApproveStep(message.step);
         break;
+
+      case "loadSession":
+        this._handleLoadSession(message.sessionId);
+        break;
+
+      case "setEditMode":
+        this._handleSetEditMode(message.mode);
+        break;
     }
   }
 
   private async _handleSendMessage(text: string): Promise<void> {
-    const postMessage = (msg: unknown) => void this._view?.webview.postMessage(msg);
+    const postMessage = (msg: ExtensionToWebviewMessage) =>
+      void this._view?.webview.postMessage(msg);
+
+    // Intercept messageComplete for server-side rendering.
+    const postWithRender = (msg: ExtensionToWebviewMessage): void => {
+      if (msg.type === "messageComplete" && !msg.renderedHtml) {
+        const history = this._manager.getHistory();
+        const found = history.find((m) => m.id === msg.messageId);
+        postMessage({
+          ...msg,
+          renderedHtml: found ? renderMarkdown(found.content) : "",
+        });
+        this._postTokenCount();
+        return;
+      }
+      postMessage(msg);
+    };
 
     // Check for slash commands before sending to agent loop.
     const command = this._commandRouter.route(text);
@@ -191,21 +277,19 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
       const expandedPrompt = skill.prompt.replace(/\$ARGUMENTS/g, command.args);
       const combinedText = `${expandedPrompt}\n\n${command.args}`.trim();
 
-      await this._pipeline.send(combinedText, (msg) => postMessage(msg));
+      await this._pipeline.send(combinedText, postWithRender);
       this._checkForPlan();
       return;
     }
 
     // Normal message.
-    await this._pipeline.send(text, (msg) => postMessage(msg));
+    await this._pipeline.send(text, postWithRender);
     this._checkForPlan();
   }
 
-  private async _handleBuiltinCommand(
-    name: string,
-    args: string
-  ): Promise<void> {
-    const postMessage = (msg: unknown) => void this._view?.webview.postMessage(msg);
+  private async _handleBuiltinCommand(name: string, args: string): Promise<void> {
+    const postMessage = (msg: ExtensionToWebviewMessage) =>
+      void this._view?.webview.postMessage(msg);
 
     switch (name) {
       case "help": {
@@ -214,9 +298,13 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
           (d) =>
             `**/${d.name}**${d.argumentHint ? ` ${d.argumentHint}` : ""} — ${d.description}`
         );
-        const helpText =
-          "## Available Commands\n\n" + lines.join("\n");
-        this._manager.addAssistantMessage(helpText);
+        const helpText = "## Available Commands\n\n" + lines.join("\n");
+        const msg = this._manager.addAssistantMessage(helpText);
+        postMessage({
+          type: "messageComplete",
+          messageId: msg.id,
+          renderedHtml: renderMarkdown(helpText),
+        });
         this._postHistory();
         break;
       }
@@ -225,14 +313,26 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
         this._manager.clearHistory();
         this._planMode.resetPlan();
         this._postHistory();
+        this._postTokenCount();
         break;
 
-      case "history":
-        this._manager.addAssistantMessage(
-          "_Chat history persistence is coming in Phase 5. Stay tuned!_"
-        );
-        this._postHistory();
+      case "history": {
+        if (!this._store) {
+          const msg = this._manager.addAssistantMessage(
+            "_Chat history persistence requires better-sqlite3 to be installed._"
+          );
+          postMessage({
+            type: "messageComplete",
+            messageId: msg.id,
+            renderedHtml: renderMarkdown(msg.content),
+          });
+          this._postHistory();
+          break;
+        }
+        const sessions = this._store.listSessions(50);
+        postMessage({ type: "sessionList", sessions });
         break;
+      }
 
       case "plan": {
         const nowActive = this._planMode.toggle();
@@ -244,26 +344,43 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
           );
         }
         postMessage({ type: "planModeToggled", active: nowActive });
-        this._manager.addAssistantMessage(
+        const planMsg = this._manager.addAssistantMessage(
           nowActive
             ? "_Plan mode enabled. I will produce a numbered plan before taking any action._"
             : "_Plan mode disabled. Resuming normal mode._"
         );
+        postMessage({
+          type: "messageComplete",
+          messageId: planMsg.id,
+          renderedHtml: renderMarkdown(planMsg.content),
+        });
         this._postHistory();
         break;
       }
 
-      case "compact":
-        this._manager.addAssistantMessage(
-          "_Context compaction is coming in Phase 5. Stay tuned!_"
-        );
+      case "compact": {
+        const postWithRender = (msg: ExtensionToWebviewMessage): void => {
+          if (msg.type === "messageComplete" && !msg.renderedHtml) {
+            const history = this._manager.getHistory();
+            const found = history.find((m) => m.id === msg.messageId);
+            postMessage({
+              ...msg,
+              renderedHtml: found ? renderMarkdown(found.content) : "",
+            });
+            return;
+          }
+          postMessage(msg);
+        };
+        await this._compactor.compact(postWithRender, true);
+        this._postTokenCount();
         this._postHistory();
         break;
+      }
 
       case "model": {
         const settings = getSettings();
         const client = createOllamaClient(settings.ollamaUrl);
-        const models = await client.listModels().catch(() => [] as string[]);
+        const models = await client.listModels().catch(() => []);
 
         if (models.length === 0) {
           postMessage({
@@ -273,20 +390,47 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
           return;
         }
 
-        const selected = await vscode.window.showQuickPick(models, {
-          placeHolder: args || "Select a model",
-        });
+        const selected = await vscode.window.showQuickPick(
+          models.map((m) => m.name),
+          { placeHolder: args || "Select a model" }
+        );
 
         if (selected) {
           await vscode.workspace
             .getConfiguration("gemma-code")
             .update("modelName", selected, vscode.ConfigurationTarget.Global);
-          this._manager.addAssistantMessage(`_Switched to model: **${selected}**_`);
+          const switchMsg = this._manager.addAssistantMessage(
+            `_Switched to model: **${selected}**_`
+          );
+          postMessage({
+            type: "messageComplete",
+            messageId: switchMsg.id,
+            renderedHtml: renderMarkdown(switchMsg.content),
+          });
           this._postHistory();
         }
         break;
       }
     }
+  }
+
+  private _handleLoadSession(sessionId: string): void {
+    const loaded = this._manager.loadSession(sessionId);
+    if (loaded) {
+      this._planMode.resetPlan();
+      void this._view?.webview.postMessage({ type: "planModeToggled", active: false });
+      this._postHistory();
+      this._postTokenCount();
+    }
+  }
+
+  private _handleSetEditMode(mode: EditMode): void {
+    this._currentEditMode = mode;
+    vscode.workspace
+      .getConfiguration("gemma-code")
+      .update("editMode", mode, vscode.ConfigurationTarget.Global)
+      .then(undefined, () => { /* ignore save errors */ });
+    void this._view?.webview.postMessage({ type: "editModeChanged", mode });
   }
 
   private _checkForPlan(): void {
@@ -304,7 +448,8 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
   }
 
   private async _handleApproveStep(stepIndex: number): Promise<void> {
-    const postMessage = (msg: unknown) => void this._view?.webview.postMessage(msg);
+    const postMessage = (msg: ExtensionToWebviewMessage) =>
+      void this._view?.webview.postMessage(msg);
     const { currentPlan } = this._planMode.state;
     const step = currentPlan[stepIndex];
     if (!step) return;
@@ -313,18 +458,51 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
 
     // Send a follow-up user message to tell the model to execute the approved step.
     const instruction = `Please proceed with step ${stepIndex + 1}: ${step.description}`;
-    await this._pipeline.send(instruction, (msg) => postMessage(msg));
+    const postWithRender = (msg: ExtensionToWebviewMessage): void => {
+      if (msg.type === "messageComplete" && !msg.renderedHtml) {
+        const history = this._manager.getHistory();
+        const found = history.find((m) => m.id === msg.messageId);
+        postMessage({
+          ...msg,
+          renderedHtml: found ? renderMarkdown(found.content) : "",
+        });
+        return;
+      }
+      postMessage(msg);
+    };
+    await this._pipeline.send(instruction, postWithRender);
     this._planMode.markStepDone(stepIndex);
     this._checkForPlan();
   }
 
   private _postHistory(): void {
     const visible = this._manager.getHistory().filter((m) => m.role !== "system");
-    void this._view?.webview.postMessage({ type: "history", messages: visible });
+    const renderedHtmlMap: Record<string, string> = {};
+    for (const msg of visible) {
+      if (msg.role === "assistant") {
+        renderedHtmlMap[msg.id] = renderMarkdown(msg.content);
+      }
+    }
+    void this._view?.webview.postMessage({
+      type: "history",
+      messages: visible,
+      renderedHtmlMap,
+    });
+  }
+
+  private _postTokenCount(): void {
+    const settings = getSettings();
+    const count = this._compactor.estimateTokens();
+    void this._view?.webview.postMessage({
+      type: "tokenCount",
+      count,
+      limit: settings.maxTokens,
+    });
   }
 
   dispose(): void {
     this._manager.dispose();
     this._skillLoader.stopWatching();
+    this._store?.close();
   }
 }

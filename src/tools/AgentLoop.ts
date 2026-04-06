@@ -1,6 +1,7 @@
 import type { OllamaClient, OllamaMessage } from "../ollama/types.js";
 import type { ConversationManager } from "../chat/ConversationManager.js";
 import type { PostMessageFn } from "../chat/StreamingPipeline.js";
+import type { ContextCompactor } from "../chat/ContextCompactor.js";
 import { parseToolCalls, hasToolCall, stripToolCalls, formatToolResult } from "./ToolCallParser.js";
 import type { ToolRegistry } from "./ToolRegistry.js";
 
@@ -15,7 +16,8 @@ export class AgentLoop {
     private readonly _manager: ConversationManager,
     private readonly _registry: ToolRegistry,
     private readonly _modelName: string,
-    private readonly _maxIterations: number = DEFAULT_MAX_ITERATIONS
+    private readonly _maxIterations: number = DEFAULT_MAX_ITERATIONS,
+    private readonly _compactor?: ContextCompactor
   ) {}
 
   cancel(): void {
@@ -29,6 +31,7 @@ export class AgentLoop {
    *  2. If the response contains tool calls, execute them and loop.
    *  3. If no tool calls remain, commit the message and stop.
    *  4. Stop after maxIterations to prevent infinite loops.
+   *  5. After the final response, trigger auto-compaction if needed.
    */
   async run(postMessage: PostMessageFn): Promise<void> {
     // If cancel() was called before run() (e.g. a stale cancel from the prior session),
@@ -53,7 +56,16 @@ export class AgentLoop {
       if (!hasToolCall(accumulated)) {
         // No tool calls → final response. Commit and finish.
         const msg = this._manager.addAssistantMessage(accumulated);
-        postMessage({ type: "messageComplete", messageId: msg.id });
+        postMessage({ type: "messageComplete", messageId: msg.id, renderedHtml: "" });
+
+        // Post updated token count.
+        this._postTokenCount(postMessage);
+
+        // Run auto-compaction if the context is getting large.
+        if (this._compactor) {
+          await this._compactor.compact(postMessage);
+        }
+
         return;
       }
 
@@ -91,6 +103,14 @@ export class AgentLoop {
       type: "error",
       text: `Agent loop reached the maximum of ${this._maxIterations} iterations and stopped.`,
     });
+  }
+
+  private _postTokenCount(postMessage: PostMessageFn): void {
+    if (!this._compactor) return;
+    const count = this._compactor.estimateTokens();
+    // _maxTokens is not directly accessible here — post a best-effort count.
+    // GemmaCodePanel sets the limit; we emit count = estimated, limit = 0 as a signal.
+    postMessage({ type: "tokenCount", count, limit: 0 });
   }
 
   /**

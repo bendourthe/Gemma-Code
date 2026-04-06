@@ -4,6 +4,215 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-04-05 21:00] Phase 5 — Persistent History, Auto-Compact, Edit Modes & UI Polish
+
+### Summary
+
+Implemented the full Phase 5 feature set: SQLite-backed chat history persistence via `better-sqlite3`, automatic context compaction when the token window reaches 80% capacity, three structured file-edit modes (auto/ask/manual), and a polished Markdown + syntax-highlighted rendering pipeline using `marked` v4 and `highlight.js`. The webview UI gained a token counter, an edit-mode segmented selector, a compaction status banner, a session history panel, and Copy buttons on code blocks. 31 new tests were added (205 total passing).
+
+### Goal
+
+Deliver durable, production-quality UX for the assistant: sessions survive VS Code restarts, the context window never silently overflows, file edits have graduated confirmation (write immediately / ask with diff / show diff only), and all model output renders as formatted Markdown with syntax highlighting.
+
+### Architecture
+
+```
+User message
+    │
+    ▼ GemmaCodePanel._handleSendMessage()
+    │   └─ sets session title from first user message
+    │   └─ ChatHistoryStore.saveMessage() persists user turn
+    │
+    ▼ AgentLoop.run() → StreamingPipeline.send()
+    │   ├─ file tool executes in editMode ("auto" | "ask" | "manual")
+    │   │    ├─ auto   → write immediately
+    │   │    ├─ ask    → vscode.commands.executeCommand("vscode.diff", ...)
+    │   │    │           + ConfirmationGate.request() (blocks until user decides)
+    │   │    └─ manual → ConfirmationGate.requestDiffPreview() (non-blocking)
+    │   │                 returns { success: false, error: "manual mode" }
+    │   │
+    │   └─ AgentLoop: after final response, calls ContextCompactor.compact()
+    │        └─ if tokens ≥ 80% max: sends summary request to model
+    │           → ConversationManager.replaceWithSummary(summary, keepN)
+    │
+    ▼ GemmaCodePanel._postMessage interceptor (messageComplete)
+    │   └─ renderMarkdown(content) → injects renderedHtml before forwarding
+    │   └─ ChatHistoryStore.saveMessage() persists assistant turn
+    │
+    ▼ Webview renders pre-built HTML (streaming shows raw text,
+       messageComplete swaps in rendered HTML)
+```
+
+### Key Components
+
+| Component | File | Responsibility |
+|-----------|------|----------------|
+| `ChatHistoryStore` | `src/storage/ChatHistoryStore.ts` | SQLite sessions + messages tables; WAL mode; CRUD + search |
+| `ContextCompactor` | `src/chat/ContextCompactor.ts` | Token estimation (4 chars/token × 1.3× code multiplier); compaction trigger at 80% threshold |
+| `MarkdownRenderer` | `src/utils/MarkdownRenderer.ts` | Server-side render via `marked` v4 + `highlight.js`; Copy buttons; external links; image placeholders |
+| `EditMode` | `src/tools/types.ts`, `src/tools/handlers/filesystem.ts` | `"auto" | "ask" | "manual"` routing inside `WriteFileTool`, `CreateFileTool`, `EditFileTool` |
+| `ConfirmationGate` (extended) | `src/tools/ConfirmationGate.ts` | New `requestDiffPreview()` non-blocking diff post for manual mode |
+| `ConversationManager` (extended) | `src/chat/ConversationManager.ts` | Session creation/resumption; `loadSession()`; `replaceWithSummary()` |
+| Webview UI | `src/panels/webview/index.ts` | Token counter, edit-mode selector, compaction banner, history panel, Copy-button delegation, diff renderer |
+
+### Attempted Solutions & Key Decisions
+
+#### 1. `renderedHtml` property missing from `StreamingPipeline` postMessage
+
+**Problem:** `MessageCompleteMessage` was updated to require a `renderedHtml: string` field. `StreamingPipeline.ts` already called `postMessage({ type: "messageComplete", ... })` without it, causing a TypeScript build error.
+
+**Error:**
+```
+src/chat/StreamingPipeline.ts(87,5): error TS2345: Argument of type '{ type: "messageComplete"; ... }'
+is not assignable to parameter of type 'MessageCompleteMessage'.
+  Property 'renderedHtml' is missing.
+```
+
+**Fix:** Added `renderedHtml: ""` as a placeholder in `StreamingPipeline`'s postMessage call. `GemmaCodePanel` intercepts every `messageComplete` before it reaches the webview and overwrites `renderedHtml` with `renderMarkdown(content)`. The pipeline file stays unaware of rendering; the panel owns that responsibility.
+
+#### 2. `SkillLoader` regex captures possibly `undefined` under `noUncheckedIndexedAccess`
+
+**Problem:** `SkillLoader.ts` used `match[1]` and `match[2]` from a `RegExp.exec()` result without null guards. `noUncheckedIndexedAccess: true` in `tsconfig.json` types these as `string | undefined`, causing a type error.
+
+**Error:**
+```
+src/skills/SkillLoader.ts(62,26): error TS2345: Argument of type 'string | undefined'
+is not assignable to parameter of type 'string'.
+```
+
+**Fix:** Changed to `(match[1] ?? "")` and `(match[2] ?? "")`. The `??` coalesces to an empty string when the capture group is absent — safe for the frontmatter parser since missing fields are treated as empty strings.
+
+#### 3. `marked` v17 is ESM-only — incompatible with the project's CommonJS output
+
+**Problem:** `npm install marked` resolved v17 (the latest). `import { marked } from "marked"` compiled but failed at runtime with:
+
+**Error:**
+```
+Error [ERR_REQUIRE_ESM]: require() of ES Module .../node_modules/marked/src/marked.js not supported.
+```
+
+The project uses `"module": "Node16"` in `tsconfig.json` without `"type": "module"` in `package.json`, meaning all source files compile to CommonJS. `marked` v17 dropped its CJS build entirely.
+
+**Fix:** Pinned to `marked@^4.3.0`, the last version that ships both an ESM and a CJS build. Added `@types/marked@^4` to `devDependencies` to match. The lock file records the exact resolution (`4.3.0`) to prevent silent future upgrades.
+
+**Lesson:** When adding a dependency to a CJS project, check the package's `"type"` field and `exports` map before installing. `marked` v5+ are ESM-only; v4 is the CJS-compatible line.
+
+#### 4. `highlight.js` subpath import lacked type definitions
+
+**Problem:** The original implementation imported `import hljs from "highlight.js/lib/common.js"` to reduce bundle size. TypeScript resolved the JS but found no `.d.ts` for that subpath export.
+
+**Error:**
+```
+src/utils/MarkdownRenderer.ts(2,22): error TS7016: Could not find a declaration file for module
+'highlight.js/lib/common.js'.
+```
+
+**Fix:** Changed to `import hljs from "highlight.js"` (main entry point). The main entry ships `types/index.d.ts` and re-exports all common languages. Bundle size impact is negligible for a VS Code extension host (not a browser bundle).
+
+#### 5. `bench()` declarations cannot run in normal Vitest test mode
+
+**Problem:** `tests/benchmarks/rendering.bench.ts` uses `bench()` (Vitest benchmark API). The regular `vitest run` command loaded the file via the `tests/unit/**/*.test.ts` glob (`.bench.ts` matched). Vitest threw an error because `bench()` is only available in `--mode=benchmark`.
+
+**Error:**
+```
+TypeError: bench is not a function
+    at tests/benchmarks/rendering.bench.ts:39:3
+```
+
+**Fix:** Removed `.bench.ts` from the `include` array in `vitest.config.ts` and added a dedicated `benchmark.include` section. Added a `"bench": "vitest bench --config configs/vitest.config.ts"` npm script. The `.bench.ts` file also contains `it()` latency gate assertions (not `bench()` calls) that still run under the normal test suite — these were left and continue to work because they are standard `it()` blocks.
+
+#### 6. Dynamic `require()` inside `beforeEach` resolved before module system was ready
+
+**Problem:** The initial `EditMode.test.ts` draft used `const { mockFs } = require("../../setup.js")` inside `beforeEach`. This caused a module resolution error because in ESM/CJS mixed environments the dynamic require ran before the module cache was populated for that path.
+
+**Error:**
+```
+Error: Cannot find module '../../setup.js'
+```
+
+**Fix:** Replaced with a static top-level `import { mockFs } from "../../setup.js"` declaration. Static imports are resolved at module load time by the TypeScript compiler, so the path is validated at build time and the mock is available before any test lifecycle hooks run.
+
+#### 7. Existing filesystem tool tests broke with new constructor signatures
+
+**Problem:** Phase 5 updated `WriteFileTool`, `CreateFileTool`, and `EditFileTool` constructors to accept `(gate: ConfirmationGate, editMode: EditMode)`. Existing tests in `tests/unit/tools/filesystem.test.ts` instantiated these tools with `new WriteFileTool()` (no arguments), causing a TypeScript mismatch.
+
+**Fix:** Made both parameters optional with defaults:
+```typescript
+constructor(
+  private _confirmationGate: ConfirmationGate | null = null,
+  private _editMode: EditMode = "auto"
+) {}
+```
+Used optional chaining (`this._confirmationGate?.request(...)`) throughout so the `null` case is safe. All 26 existing filesystem tests continue to pass without modification.
+
+### Changes
+
+**New files (7):**
+
+| File | Purpose |
+|------|---------|
+| `src/storage/ChatHistoryStore.ts` | SQLite session + message persistence; `sessions` + `messages` tables; WAL mode; 8 methods including search |
+| `src/chat/ContextCompactor.ts` | Token estimation heuristic; 80% threshold check; compaction request with `replaceWithSummary` |
+| `src/utils/MarkdownRenderer.ts` | Server-side Markdown + syntax highlight pipeline; Copy buttons; external link targets |
+| `tests/benchmarks/rendering.bench.ts` | Vitest `bench()` + `it()` p99 latency gate (<50 ms) for 100/500/2000-token messages |
+| `tests/unit/storage/ChatHistoryStore.test.ts` | 12 tests: schema creation, CRUD, WAL mode, `listSessions`, `searchSessions`, `deleteSession` |
+| `tests/unit/chat/ContextCompactor.test.ts` | 11 tests: `estimateTokens`, `shouldCompact`, `compact` (normal, force, error, system-message exclusion) |
+| `tests/unit/modes/EditMode.test.ts` | 8 tests: auto mode (no gate), ask mode (approve + reject), manual mode (diff preview, no write), validation |
+
+**Modified files (14):**
+
+| File | Change |
+|------|--------|
+| `src/chat/ConversationManager.ts` | `ChatHistoryStore` optional dep; session create/resume on construction; auto-title from first user message; `loadSession()`; `replaceWithSummary()`; `clearHistory()` creates new session |
+| `src/config/settings.ts` | Added `editMode: EditMode` field (default `"auto"`) |
+| `src/tools/types.ts` | Added `export type EditMode = "auto" \| "ask" \| "manual"` |
+| `src/tools/handlers/filesystem.ts` | `WriteFileTool`, `CreateFileTool`, `EditFileTool` accept optional `gate` + `editMode`; routing logic for all three modes |
+| `src/tools/ConfirmationGate.ts` | Added `requestDiffPreview(callId, filePath, diff)` non-blocking method |
+| `src/tools/AgentLoop.ts` | Optional `_compactor?: ContextCompactor`; after final response calls `compact()` and posts `tokenCount` update |
+| `src/panels/messages.ts` | `MessageCompleteMessage` + `HistoryMessage` gain `renderedHtml`/`renderedHtmlMap`; new message types: `CompactionStatusMessage`, `TokenCountMessage`, `SessionListMessage`, `EditModeChangedMessage`, `DiffPreviewMessage`, `LoadSessionRequest`, `SetEditModeRequest` |
+| `src/extension.ts` | Passes `context.globalStorageUri` to `GemmaCodePanel` |
+| `src/panels/GemmaCodePanel.ts` | Accepts `globalStorageUri`; creates `ChatHistoryStore` at `globalStorageUri/chat-history.db`; creates `ContextCompactor`; `messageComplete` interceptor injects `renderedHtml`; `_postHistory()` builds `renderedHtmlMap`; handles `loadSession`, `setEditMode`; `/history` and `/compact` builtins |
+| `src/panels/webview/index.ts` | Token counter, edit-mode segmented selector, compaction banner, history panel, Copy-button delegation (event delegation on `[data-code]`), diff renderer with coloured lines, streaming raw-text → HTML swap on `messageComplete` |
+| `src/skills/SkillLoader.ts` | Fixed pre-existing strict TS errors: `match[1] ?? ""` and `match[2] ?? ""` |
+| `src/chat/StreamingPipeline.ts` | Added `renderedHtml: ""` placeholder to `messageComplete` postMessage |
+| `configs/vitest.config.ts` | Added `benchmark.include`; bench files excluded from regular `include` |
+| `package.json` | `better-sqlite3`, `marked@^4`, `highlight.js` in `dependencies`; `@types/better-sqlite3`, `@types/marked@^4` in `devDependencies`; `gemma-code.editMode` setting schema entry; `"bench"` npm script |
+
+**Also updated:**
+
+| File | Change |
+|------|--------|
+| `.gitignore` | Added SQLite section: `*.db`, `*.db-wal`, `*.db-shm`, `*.sqlite`, `*.sqlite3` |
+| `docs/git/gitignore-audit-2026-04-05.md` | Revised for Phase 5: 1 G2 finding (SQLite patterns) identified and resolved |
+
+### Test Results
+
+| Metric | Phase 4 | Phase 5 | Delta |
+|--------|---------|---------|-------|
+| Test files | 17 | 20 | +3 |
+| Total tests | 174 | 205 | +31 |
+| Benchmark file | — | 1 (3 bench + 3 latency gates) | +1 |
+| Build errors | 0 | 0 | — |
+| Lint errors | 0 | 0 | — |
+
+All 205 tests pass (2 skipped — Ollama-server-dependent health check tests that require a live `ollama serve`).
+
+### Lessons Learned
+
+- **Check a package's CJS/ESM status before installing.** `marked` v5+ is ESM-only. Always check the `"type"` field in `package.json` and the `exports` map before adding a dependency to a CJS project. The safest search: look for `"main"` (CJS entry) alongside `"module"` (ESM entry). If only `"exports"` exists with `"import"` conditions and no `"require"`, it's ESM-only.
+- **`highlight.js` main entry is the safest import target.** Subpath imports (e.g., `highlight.js/lib/common.js`) often lack `.d.ts` files in their export conditions. The main entry always has types. For an extension host (not a browser), the extra language weight is negligible.
+- **Vitest `bench()` is mode-gated — never include `.bench.ts` in the regular test glob.** Add a dedicated `benchmark.include` in `vitest.config.ts` and a separate `bench` npm script. If a benchmark file also contains latency-gate `it()` blocks, those will still run under the normal suite as long as they are not embedded inside `describe("...", () => bench(...))` — keep them in a separate `describe` block.
+- **Static imports always beat dynamic `require()` in test files.** Under the Node16 module system, dynamic `require()` inside lifecycle hooks can race with module cache population. Use top-level static `import` statements everywhere.
+- **Optional constructor parameters with `null` defaults are the correct pattern for optional service dependencies.** `new FileTool(null, "auto")` and `new FileTool(gate, "ask")` are both valid; `this._gate?.request()` handles the null case safely. This avoids the complexity of overloaded constructors and keeps existing tests unchanged.
+- **`renderedHtml` injection at the panel interceptor level keeps rendering concerns out of the streaming pipeline.** The pipeline emits raw text; the panel enriches the message before forwarding. This separation means the renderer can be upgraded, swapped, or disabled without touching streaming logic.
+- **SQLite WAL mode is essential for extension host storage.** VS Code's extension host may open the same database from multiple windows. WAL mode (`PRAGMA journal_mode=WAL`) allows concurrent readers with a single writer, preventing lock errors when two extension windows are open.
+
+### Current Status
+
+**Verified.** All 205 tests pass. `npm run build` and `npm run lint` are clean. Chat sessions persist across VS Code restarts. Context compaction fires automatically at 80% token capacity. File edits route correctly through all three edit modes. Markdown and code blocks render with syntax highlighting and Copy buttons. Phase 5 is complete.
+
+---
+
 ## [2026-04-05 18:00] Phase 4 — Skills, Commands & Plan Mode
 
 ### Summary

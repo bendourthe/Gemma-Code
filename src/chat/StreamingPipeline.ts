@@ -76,7 +76,8 @@ export class StreamingPipeline {
         }
 
         const msg = this._manager.addAssistantMessage(accumulated);
-        postMessage({ type: "messageComplete", messageId: msg.id });
+        // renderedHtml is populated by GemmaCodePanel's postMessage interceptor.
+        postMessage({ type: "messageComplete", messageId: msg.id, renderedHtml: "" });
         return;
       } catch (err) {
         if (this._abortController.signal.aborted) {

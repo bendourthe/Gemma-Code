@@ -5,6 +5,7 @@ import type {
   ToolHandler,
   ToolResult,
   ConfirmationMode,
+  EditMode,
   ReadFileParams,
   WriteFileParams,
   EditFileParams,
@@ -61,6 +62,30 @@ function failResult(id: string, error: string): ToolResult {
   return { id, success: false, output: "", error };
 }
 
+/**
+ * Opens the VS Code built-in diff editor showing original vs. modified content.
+ * The "modified" version is shown as an untitled in-memory document.
+ */
+async function openDiffEditor(
+  filePath: string,
+  originalUri: vscode.Uri,
+  updatedContent: string
+): Promise<void> {
+  try {
+    const modifiedDoc = await vscode.workspace.openTextDocument({
+      content: updatedContent,
+    });
+    await vscode.commands.executeCommand(
+      "vscode.diff",
+      originalUri,
+      modifiedDoc.uri,
+      `${path.basename(filePath)} (proposed edit)`
+    );
+  } catch {
+    // Non-fatal: the diff in the webview confirmation card already shows the change.
+  }
+}
+
 // ---------------------------------------------------------------------------
 // ReadFileTool
 // ---------------------------------------------------------------------------
@@ -111,10 +136,15 @@ export class ReadFileTool implements ToolHandler {
 }
 
 // ---------------------------------------------------------------------------
-// WriteFileTool  (also used by CreateFileTool)
+// WriteFileTool
 // ---------------------------------------------------------------------------
 
 export class WriteFileTool implements ToolHandler {
+  constructor(
+    private readonly _confirmationGate: ConfirmationGate | null = null,
+    private readonly _editMode: EditMode = "auto"
+  ) {}
+
   async execute(parameters: Record<string, unknown>): Promise<ToolResult> {
     const id = (parameters["_callId"] as string | undefined) ?? "";
     const p = parameters as unknown as WriteFileParams;
@@ -133,6 +163,35 @@ export class WriteFileTool implements ToolHandler {
       return failResult(id, (err as Error).message);
     }
 
+    if (this._editMode === "manual") {
+      // Show proposed content as a diff against an empty baseline, but don't write.
+      const diff = createPatch(p.path, "", p.content, "empty", "proposed");
+      await this._confirmationGate?.requestDiffPreview(id, p.path, diff);
+      return failResult(
+        id,
+        `Edit shown in diff preview for "${p.path}" but not applied (manual mode).`
+      );
+    }
+
+    if (this._editMode === "ask" && this._confirmationGate) {
+      let original = "";
+      try {
+        original = await readFileContent(uri);
+      } catch {
+        // New file — diff against empty.
+      }
+      const diff = createPatch(p.path, original, p.content, "original", "modified");
+      await openDiffEditor(p.path, uri, p.content);
+      const approved = await this._confirmationGate.request(
+        id,
+        `Write file "${p.path}"?`,
+        diff
+      );
+      if (!approved) {
+        return failResult(id, "Write rejected by user.");
+      }
+    }
+
     try {
       await writeFileContent(uri, p.content);
     } catch (err) {
@@ -144,10 +203,15 @@ export class WriteFileTool implements ToolHandler {
 }
 
 // ---------------------------------------------------------------------------
-// CreateFileTool  (fails if the file already exists)
+// CreateFileTool
 // ---------------------------------------------------------------------------
 
 export class CreateFileTool implements ToolHandler {
+  constructor(
+    private readonly _confirmationGate: ConfirmationGate | null = null,
+    private readonly _editMode: EditMode = "auto"
+  ) {}
+
   async execute(parameters: Record<string, unknown>): Promise<ToolResult> {
     const id = (parameters["_callId"] as string | undefined) ?? "";
     const p = parameters as unknown as CreateFileParams;
@@ -172,6 +236,28 @@ export class CreateFileTool implements ToolHandler {
     }
 
     const content = typeof p.content === "string" ? p.content : "";
+
+    if (this._editMode === "manual") {
+      const diff = createPatch(p.path, "", content, "empty", "new file");
+      await this._confirmationGate?.requestDiffPreview(id, p.path, diff);
+      return failResult(
+        id,
+        `File creation shown in diff preview for "${p.path}" but not applied (manual mode).`
+      );
+    }
+
+    if (this._editMode === "ask" && this._confirmationGate) {
+      const diff = createPatch(p.path, "", content, "empty", "new file");
+      const approved = await this._confirmationGate.request(
+        id,
+        `Create file "${p.path}"?`,
+        diff
+      );
+      if (!approved) {
+        return failResult(id, "File creation rejected by user.");
+      }
+    }
+
     try {
       await writeFileContent(uri, content);
     } catch (err) {
@@ -218,8 +304,8 @@ export class DeleteFileTool implements ToolHandler {
 
 export class EditFileTool implements ToolHandler {
   constructor(
-    private readonly _confirmationGate: ConfirmationGate,
-    private readonly _mode: ConfirmationMode
+    private readonly _confirmationGate: ConfirmationGate | null = null,
+    private readonly _editMode: EditMode = "auto"
   ) {}
 
   async execute(parameters: Record<string, unknown>): Promise<ToolResult> {
@@ -265,8 +351,18 @@ export class EditFileTool implements ToolHandler {
     const updated = original.replace(p.old_string, p.new_string);
     const diff = createPatch(p.path, original, updated, "original", "modified");
 
-    // Ask for confirmation unless mode is "never".
-    if (this._mode !== "never") {
+    if (this._editMode === "manual") {
+      // Show the diff but do not apply it.
+      await this._confirmationGate?.requestDiffPreview(id, p.path, diff);
+      return failResult(
+        id,
+        `Edit shown in diff preview for "${p.path}" but not applied (manual mode).`
+      );
+    }
+
+    if (this._editMode === "ask" && this._confirmationGate) {
+      // Open VS Code diff editor and show webview confirmation card.
+      await openDiffEditor(p.path, uri, updated);
       const approved = await this._confirmationGate.request(
         id,
         `Apply edit to "${p.path}"?`,
@@ -277,6 +373,7 @@ export class EditFileTool implements ToolHandler {
       }
     }
 
+    // "auto" mode (or approved "ask") — write without further prompting.
     try {
       await writeFileContent(uri, updated);
     } catch (err) {

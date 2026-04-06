@@ -1,7 +1,11 @@
 /**
  * Generates the self-contained HTML for the Gemma Code chat webview panel.
  * No CDN dependencies — all CSS and JavaScript is inlined.
- * The script implements a minimal Markdown renderer for assistant messages.
+ *
+ * Markdown rendering is performed server-side (extension host) using `marked` +
+ * `highlight.js`. The webview receives pre-rendered HTML for completed messages
+ * and displays raw token text during streaming, then swaps in the rendered HTML
+ * when the stream completes.
  */
 export function getWebviewHtml(
   nonce: string,
@@ -35,10 +39,11 @@ export function getWebviewHtml(
       display: flex;
       align-items: center;
       gap: 6px;
-      padding: 6px 10px;
+      padding: 5px 10px;
       border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-panel-border));
       flex-shrink: 0;
       background: var(--vscode-sideBarSectionHeader-background);
+      flex-wrap: wrap;
     }
     #model-label {
       font-size: 11px;
@@ -67,6 +72,41 @@ export function getWebviewHtml(
     @keyframes pulse {
       0%, 100% { opacity: 1; }
       50% { opacity: 0.35; }
+    }
+
+    /* ---- Token counter ---- */
+    #token-counter {
+      font-size: 10px;
+      opacity: 0.6;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    #token-counter.warn { color: var(--vscode-inputValidation-warningForeground, #c8a040); opacity: 1; }
+    #token-counter.danger { color: var(--vscode-inputValidation-errorForeground, #f48771); opacity: 1; }
+
+    /* ---- Edit mode selector ---- */
+    #edit-mode-selector {
+      display: flex;
+      gap: 1px;
+      background: var(--vscode-input-border, rgba(128,128,128,0.3));
+      border-radius: 3px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .edit-mode-btn {
+      font-size: 10px;
+      padding: 2px 7px;
+      background: var(--vscode-button-secondaryBackground);
+      color: var(--vscode-button-secondaryForeground);
+      border: none;
+      cursor: pointer;
+      white-space: nowrap;
+      border-radius: 0;
+    }
+    .edit-mode-btn:hover { background: var(--vscode-button-secondaryHoverBackground); }
+    .edit-mode-btn.active {
+      background: var(--vscode-button-background);
+      color: var(--vscode-button-foreground);
     }
 
     /* ---- Message list ---- */
@@ -106,6 +146,11 @@ export function getWebviewHtml(
       color: var(--vscode-input-foreground);
       border-bottom-left-radius: 2px;
     }
+    .msg.streaming {
+      white-space: pre-wrap;
+      font-family: var(--vscode-editor-font-family, monospace);
+      font-size: 12px;
+    }
     .msg.error {
       align-self: flex-start;
       background: var(--vscode-inputValidation-errorBackground, #5a1d1d);
@@ -113,7 +158,17 @@ export function getWebviewHtml(
       border: 1px solid var(--vscode-inputValidation-errorBorder, #be1100);
     }
 
-    /* ---- Markdown inside assistant bubbles ---- */
+    /* ---- Rendered Markdown inside assistant bubbles ---- */
+    .msg.assistant p { margin: 4px 0; }
+    .msg.assistant p:first-child { margin-top: 0; }
+    .msg.assistant p:last-child { margin-bottom: 0; }
+    .msg.assistant ul, .msg.assistant ol { padding-left: 18px; margin: 4px 0; }
+    .msg.assistant h1, .msg.assistant h2, .msg.assistant h3 {
+      margin: 6px 0 2px; font-weight: 600;
+    }
+    .msg.assistant h1 { font-size: 1.15em; }
+    .msg.assistant h2 { font-size: 1.05em; }
+    .msg.assistant h3 { font-size: 0.97em; }
     .msg.assistant code {
       font-family: var(--vscode-editor-font-family, monospace);
       font-size: 0.9em;
@@ -121,32 +176,151 @@ export function getWebviewHtml(
       padding: 1px 4px;
       border-radius: 3px;
     }
-    .msg.assistant pre {
-      background: var(--vscode-textCodeBlock-background, rgba(0,0,0,0.2));
-      padding: 8px 10px;
-      border-radius: 4px;
-      overflow-x: auto;
-      margin: 4px 0;
+    .msg.assistant a.ext-link {
+      color: var(--vscode-textLink-foreground, #3794ff);
+      text-decoration: underline;
+      cursor: pointer;
     }
-    .msg.assistant pre code {
+    .msg.assistant .img-placeholder {
+      opacity: 0.5;
+      font-style: italic;
+    }
+
+    /* ---- Code block with header and copy button ---- */
+    .code-block {
+      background: var(--vscode-textCodeBlock-background, rgba(0,0,0,0.2));
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 6px 0;
+    }
+    .code-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 3px 8px;
+      background: rgba(0,0,0,0.15);
+      font-size: 11px;
+    }
+    .code-lang {
+      font-family: var(--vscode-editor-font-family, monospace);
+      opacity: 0.7;
+    }
+    .copy-btn {
+      font-size: 10px;
+      padding: 1px 7px;
+      background: var(--vscode-button-secondaryBackground);
+      color: var(--vscode-button-secondaryForeground);
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .copy-btn:hover { background: var(--vscode-button-secondaryHoverBackground); }
+    .code-block pre {
+      padding: 8px 10px;
+      overflow-x: auto;
+      margin: 0;
+    }
+    .code-block pre code {
+      font-family: var(--vscode-editor-font-family, monospace);
+      font-size: 12px;
       background: none;
       padding: 0;
-      font-size: 12px;
     }
-    .msg.assistant p { margin: 4px 0; }
-    .msg.assistant p:first-child { margin-top: 0; }
-    .msg.assistant p:last-child { margin-bottom: 0; }
-    .msg.assistant ul, .msg.assistant ol {
-      padding-left: 18px;
-      margin: 4px 0;
+
+    /* ---- highlight.js token colours (VS Code-compatible) ---- */
+    .hljs-keyword, .hljs-selector-tag, .hljs-built_in, .hljs-tag {
+      color: var(--vscode-symbolIcon-keywordForeground, #569cd6);
     }
-    .msg.assistant h1, .msg.assistant h2, .msg.assistant h3 {
-      margin: 6px 0 2px;
+    .hljs-string, .hljs-attr, .hljs-attribute {
+      color: var(--vscode-symbolIcon-stringForeground, #ce9178);
+    }
+    .hljs-comment, .hljs-quote { color: var(--vscode-editorLineNumber-foreground, #608b4e); font-style: italic; }
+    .hljs-number, .hljs-literal { color: var(--vscode-charts-green, #b5cea8); }
+    .hljs-title, .hljs-class .hljs-title, .hljs-type {
+      color: var(--vscode-symbolIcon-classForeground, #4ec9b0);
+    }
+    .hljs-function, .hljs-selector-id { color: var(--vscode-symbolIcon-functionForeground, #dcdcaa); }
+    .hljs-variable, .hljs-name { color: var(--vscode-symbolIcon-variableForeground, #9cdcfe); }
+    .hljs-meta, .hljs-meta-keyword { color: var(--vscode-symbolIcon-operatorForeground, #c586c0); }
+    .hljs-operator { color: var(--vscode-foreground); }
+    .hljs-deletion { background: rgba(255,0,0,0.1); }
+    .hljs-addition { background: rgba(0,200,0,0.1); }
+
+    /* ---- Compaction status banner ---- */
+    #compaction-banner {
+      display: none;
+      padding: 4px 10px;
+      font-size: 11px;
+      background: var(--vscode-inputValidation-infoBackground, rgba(0,80,160,0.2));
+      color: var(--vscode-inputValidation-infoForeground, var(--vscode-foreground));
+      border-bottom: 1px solid var(--vscode-inputValidation-infoBorder, #007acc);
+      flex-shrink: 0;
+    }
+    #compaction-banner.visible { display: block; }
+
+    /* ---- History panel ---- */
+    #history-panel {
+      display: none;
+      flex-direction: column;
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+      gap: 4px;
+    }
+    #history-panel.visible { display: flex; }
+    #history-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+    #history-panel-title {
+      font-size: 11px;
       font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      opacity: 0.7;
     }
-    .msg.assistant h1 { font-size: 1.15em; }
-    .msg.assistant h2 { font-size: 1.05em; }
-    .msg.assistant h3 { font-size: 0.97em; }
+    .session-item {
+      padding: 6px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      border: 1px solid transparent;
+    }
+    .session-item:hover { background: var(--vscode-list-hoverBackground); }
+    .session-item .session-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .session-item .session-date { font-size: 10px; opacity: 0.55; margin-top: 2px; }
+
+    /* ---- Diff preview ---- */
+    .diff-preview {
+      align-self: flex-start;
+      max-width: 92%;
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 6px;
+      overflow: hidden;
+      font-size: 11px;
+    }
+    .diff-preview summary {
+      padding: 5px 10px;
+      cursor: pointer;
+      font-family: var(--vscode-editor-font-family, monospace);
+      background: var(--vscode-sideBarSectionHeader-background);
+      user-select: none;
+    }
+    .diff-preview pre {
+      margin: 0;
+      padding: 6px 8px;
+      overflow-x: auto;
+      max-height: 300px;
+      font-family: var(--vscode-editor-font-family, monospace);
+      font-size: 11px;
+      background: var(--vscode-textCodeBlock-background, rgba(0,0,0,0.2));
+    }
+    .diff-line-add { background: rgba(0,200,0,0.12); color: var(--vscode-diffEditor-insertedLineBackground, inherit); }
+    .diff-line-del { background: rgba(200,0,0,0.12); color: var(--vscode-diffEditor-removedLineBackground, inherit); }
+    .diff-line-hunk { opacity: 0.5; }
 
     /* ---- Thinking indicator ---- */
     #thinking {
@@ -226,6 +400,7 @@ export function getWebviewHtml(
     #controls-row {
       display: flex;
       justify-content: flex-end;
+      gap: 4px;
     }
 
     /* ---- Plan mode badge ---- */
@@ -322,21 +497,11 @@ export function getWebviewHtml(
       flex-shrink: 0;
       min-width: 18px;
     }
-    .plan-step-desc {
-      flex: 1;
-      line-height: 1.4;
-    }
-    .plan-step-status {
-      font-size: 11px;
-      flex-shrink: 0;
-    }
+    .plan-step-desc { flex: 1; line-height: 1.4; }
+    .plan-step-status { font-size: 11px; flex-shrink: 0; }
     .plan-step-status.done { color: var(--vscode-testing-iconPassed, #73c991); }
     .plan-step-status.approved { color: var(--vscode-progressBar-background, #0e70c0); }
-    .approve-btn {
-      font-size: 11px;
-      padding: 2px 8px;
-      flex-shrink: 0;
-    }
+    .approve-btn { font-size: 11px; padding: 2px 8px; flex-shrink: 0; }
 
     /* ---- Tool use indicator ---- */
     .tool-use {
@@ -386,10 +551,7 @@ export function getWebviewHtml(
       padding: 10px 12px;
       background: var(--vscode-inputValidation-warningBackground, rgba(184,149,0,0.1));
     }
-    .confirm-card p {
-      margin-bottom: 6px;
-      font-size: 12px;
-    }
+    .confirm-card p { margin-bottom: 6px; font-size: 12px; }
     .confirm-card pre {
       background: var(--vscode-textCodeBlock-background, rgba(0,0,0,0.2));
       border-radius: 3px;
@@ -401,10 +563,7 @@ export function getWebviewHtml(
       margin-bottom: 8px;
       max-height: 200px;
     }
-    .confirm-buttons {
-      display: flex;
-      gap: 6px;
-    }
+    .confirm-buttons { display: flex; gap: 6px; }
     .confirm-buttons button { font-size: 11px; padding: 4px 10px; }
   </style>
 </head>
@@ -412,10 +571,26 @@ export function getWebviewHtml(
   <header id="header">
     <span id="model-label" title="${modelName}">${modelName}</span>
     <span id="plan-badge" aria-label="Plan mode active">PLAN</span>
+    <span id="token-counter" aria-label="Token usage" title="Estimated token usage"></span>
+    <div id="edit-mode-selector" role="group" aria-label="Edit mode">
+      <button class="edit-mode-btn" data-mode="auto" aria-label="Auto edit mode" title="Apply edits immediately">Auto</button>
+      <button class="edit-mode-btn" data-mode="ask" aria-label="Ask edit mode" title="Ask before applying edits">Ask</button>
+      <button class="edit-mode-btn" data-mode="manual" aria-label="Manual edit mode" title="Show diffs without applying">Manual</button>
+    </div>
     <span id="status-dot" class="idle" aria-hidden="true"></span>
   </header>
 
+  <div id="compaction-banner" role="status" aria-live="polite"></div>
+
   <main id="messages" role="log" aria-live="polite" aria-label="Chat messages"></main>
+
+  <div id="history-panel" role="region" aria-label="Chat history">
+    <div id="history-panel-header">
+      <span id="history-panel-title">Chat History</span>
+      <button id="history-close-btn" class="secondary" style="font-size:11px;padding:2px 8px;" aria-label="Close history">✕ Close</button>
+    </div>
+    <div id="history-list"></div>
+  </div>
 
   <div id="thinking" aria-label="Gemma Code is thinking" role="status">
     <span></span><span></span><span></span>
@@ -452,17 +627,23 @@ export function getWebviewHtml(
       // -----------------------------------------------------------------------
       // DOM references
       // -----------------------------------------------------------------------
-      const messagesEl    = /** @type {HTMLElement} */ (document.getElementById('messages'));
-      const inputEl       = /** @type {HTMLTextAreaElement} */ (document.getElementById('input'));
-      const sendBtn       = /** @type {HTMLButtonElement} */ (document.getElementById('send-btn'));
-      const cancelBtn     = /** @type {HTMLButtonElement} */ (document.getElementById('cancel-btn'));
-      const clearBtn      = /** @type {HTMLButtonElement} */ (document.getElementById('clear-btn'));
-      const thinkingEl    = /** @type {HTMLElement} */ (document.getElementById('thinking'));
-      const statusDot     = /** @type {HTMLElement} */ (document.getElementById('status-dot'));
-      const planBadge     = /** @type {HTMLElement} */ (document.getElementById('plan-badge'));
-      const autocompleteEl= /** @type {HTMLElement} */ (document.getElementById('autocomplete'));
-      const planPanel     = /** @type {HTMLElement} */ (document.getElementById('plan-panel'));
-      const planStepsEl   = /** @type {HTMLElement} */ (document.getElementById('plan-steps'));
+      const messagesEl      = /** @type {HTMLElement} */ (document.getElementById('messages'));
+      const historyPanel    = /** @type {HTMLElement} */ (document.getElementById('history-panel'));
+      const historyListEl   = /** @type {HTMLElement} */ (document.getElementById('history-list'));
+      const historyCloseBtn = /** @type {HTMLButtonElement} */ (document.getElementById('history-close-btn'));
+      const inputEl         = /** @type {HTMLTextAreaElement} */ (document.getElementById('input'));
+      const sendBtn         = /** @type {HTMLButtonElement} */ (document.getElementById('send-btn'));
+      const cancelBtn       = /** @type {HTMLButtonElement} */ (document.getElementById('cancel-btn'));
+      const clearBtn        = /** @type {HTMLButtonElement} */ (document.getElementById('clear-btn'));
+      const thinkingEl      = /** @type {HTMLElement} */ (document.getElementById('thinking'));
+      const statusDot       = /** @type {HTMLElement} */ (document.getElementById('status-dot'));
+      const planBadge       = /** @type {HTMLElement} */ (document.getElementById('plan-badge'));
+      const tokenCounter    = /** @type {HTMLElement} */ (document.getElementById('token-counter'));
+      const compactionBanner= /** @type {HTMLElement} */ (document.getElementById('compaction-banner'));
+      const editModeSelector= /** @type {HTMLElement} */ (document.getElementById('edit-mode-selector'));
+      const autocompleteEl  = /** @type {HTMLElement} */ (document.getElementById('autocomplete'));
+      const planPanel       = /** @type {HTMLElement} */ (document.getElementById('plan-panel'));
+      const planStepsEl     = /** @type {HTMLElement} */ (document.getElementById('plan-steps'));
 
       // -----------------------------------------------------------------------
       // State
@@ -471,88 +652,18 @@ export function getWebviewHtml(
       /** @type {HTMLElement | null} */
       let streamingBubble = null;
       let streamingContent = '';
+      /** @type {string | null} — message id of the bubble currently streaming */
+      let streamingMessageId = null;
 
-      // Autocomplete state
       /** @type {Array<{name: string, description: string, argumentHint?: string}>} */
       let commandList = [];
       let autocompleteIndex = -1;
 
-      // Plan mode state
       /** @type {string[]} */
       let planSteps = [];
 
-      // -----------------------------------------------------------------------
-      // Minimal Markdown → HTML renderer
-      // -----------------------------------------------------------------------
-      /**
-       * @param {string} text
-       * @returns {string}
-       */
-      function renderMarkdown(text) {
-        // Escape HTML first (except inside code blocks — handled separately)
-        /** @param {string} s */
-        function escapeHtml(s) {
-          return s
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
-        }
-
-        // Pull out fenced code blocks to prevent inner processing
-        /** @type {string[]} */
-        const codeBlocks = [];
-        text = text.replace(/\`\`\`([\\w.-]*)\\n?([\\s\\S]*?)\`\`\`/g, (_m, lang, code) => {
-          const idx = codeBlocks.length;
-          const escaped = escapeHtml(code.trimEnd());
-          const langAttr = lang ? ' class="language-' + escapeHtml(lang) + '"' : '';
-          codeBlocks.push('<pre><code' + langAttr + '>' + escaped + '</code></pre>');
-          return '\\x00CODE' + idx + '\\x00';
-        });
-
-        // Escape remaining HTML
-        text = escapeHtml(text);
-
-        // Inline code
-        text = text.replace(/\`([^\`]+)\`/g, '<code>$1</code>');
-
-        // Bold & italic
-        text = text.replace(/\\*\\*\\*(.+?)\\*\\*\\*/g, '<strong><em>$1</em></strong>');
-        text = text.replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>');
-        text = text.replace(/__(.+?)__/g, '<strong>$1</strong>');
-        text = text.replace(/\\*(.+?)\\*/g, '<em>$1</em>');
-        text = text.replace(/_([^_]+)_/g, '<em>$1</em>');
-
-        // Headers
-        text = text.replace(/^### (.+)$/gm, '<h3>$1</h3>');
-        text = text.replace(/^## (.+)$/gm, '<h2>$1</h2>');
-        text = text.replace(/^# (.+)$/gm, '<h1>$1</h1>');
-
-        // Unordered lists (group consecutive items)
-        text = text.replace(/((?:^[\\-\\*] .+\\n?)+)/gm, (block) => {
-          const items = block.trim().split('\\n').map((line) =>
-            '<li>' + line.replace(/^[\\-\\*] /, '') + '</li>'
-          ).join('');
-          return '<ul>' + items + '</ul>';
-        });
-
-        // Paragraphs (double newline → paragraph break)
-        text = text
-          .split(/\\n{2,}/)
-          .map((para) => {
-            const trimmed = para.trim();
-            if (!trimmed) return '';
-            // Don't wrap block elements in <p>
-            if (/^<(h[1-3]|ul|ol|pre|blockquote)/.test(trimmed)) return trimmed;
-            return '<p>' + trimmed.replace(/\\n/g, '<br>') + '</p>';
-          })
-          .join('');
-
-        // Restore code blocks
-        text = text.replace(/\x00CODE(\\d+)\x00/g, (_m, idx) => codeBlocks[Number(idx)] ?? '');
-
-        return text;
-      }
+      /** @type {string} — current edit mode */
+      let currentEditMode = 'auto';
 
       // -----------------------------------------------------------------------
       // Autocomplete
@@ -561,12 +672,10 @@ export function getWebviewHtml(
       function showAutocomplete() {
         const val = inputEl.value;
         if (!val.startsWith('/')) { hideAutocomplete(); return; }
-
         const query = val.slice(1).toLowerCase();
         const matches = commandList.filter(
           (c) => c.name.startsWith(query) || c.description.toLowerCase().includes(query)
         );
-
         if (matches.length === 0) { hideAutocomplete(); return; }
 
         autocompleteEl.innerHTML = '';
@@ -595,7 +704,7 @@ export function getWebviewHtml(
           item.appendChild(descSpan);
 
           item.addEventListener('mousedown', (e) => {
-            e.preventDefault(); // prevent input blur
+            e.preventDefault();
             selectAutocompleteItem(cmd.name);
           });
 
@@ -621,13 +730,97 @@ export function getWebviewHtml(
       function autocompleteNavigate(direction) {
         const items = autocompleteEl.querySelectorAll('.autocomplete-item');
         if (items.length === 0) return false;
-
         items[autocompleteIndex]?.classList.remove('selected');
         autocompleteIndex = (autocompleteIndex + direction + items.length) % items.length;
         const selected = items[autocompleteIndex];
         selected?.classList.add('selected');
         selected?.scrollIntoView({ block: 'nearest' });
         return true;
+      }
+
+      // -----------------------------------------------------------------------
+      // Edit mode selector
+      // -----------------------------------------------------------------------
+
+      editModeSelector.querySelectorAll('.edit-mode-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const mode = /** @type {HTMLElement} */ (btn).dataset.mode;
+          if (mode && mode !== currentEditMode) {
+            vscode.postMessage({ type: 'setEditMode', mode });
+          }
+        });
+      });
+
+      /** @param {string} mode */
+      function applyEditMode(mode) {
+        currentEditMode = mode;
+        editModeSelector.querySelectorAll('.edit-mode-btn').forEach((btn) => {
+          btn.classList.toggle('active', /** @type {HTMLElement} */ (btn).dataset.mode === mode);
+        });
+      }
+
+      // -----------------------------------------------------------------------
+      // History panel
+      // -----------------------------------------------------------------------
+
+      historyCloseBtn.addEventListener('click', () => {
+        historyPanel.classList.remove('visible');
+        messagesEl.style.display = '';
+        thinkingEl.style.display = '';
+      });
+
+      /**
+       * @param {Array<{id: string, title: string, updatedAt: number}>} sessions
+       */
+      function renderHistoryPanel(sessions) {
+        historyListEl.innerHTML = '';
+
+        if (sessions.length === 0) {
+          const empty = document.createElement('div');
+          empty.style.cssText = 'text-align:center;padding:20px;opacity:0.5;font-size:12px;';
+          empty.textContent = 'No saved sessions yet.';
+          historyListEl.appendChild(empty);
+        } else {
+          for (const session of sessions) {
+            const item = document.createElement('div');
+            item.className = 'session-item';
+            item.setAttribute('role', 'button');
+            item.setAttribute('tabindex', '0');
+            item.setAttribute('aria-label', 'Load session: ' + session.title);
+
+            const titleEl = document.createElement('div');
+            titleEl.className = 'session-title';
+            titleEl.textContent = session.title;
+
+            const dateEl = document.createElement('div');
+            dateEl.className = 'session-date';
+            dateEl.textContent = new Date(session.updatedAt).toLocaleString();
+
+            item.appendChild(titleEl);
+            item.appendChild(dateEl);
+
+            item.addEventListener('click', () => {
+              vscode.postMessage({ type: 'loadSession', sessionId: session.id });
+              historyPanel.classList.remove('visible');
+              messagesEl.style.display = '';
+              thinkingEl.style.display = '';
+            });
+
+            item.addEventListener('keydown', (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                item.click();
+              }
+            });
+
+            historyListEl.appendChild(item);
+          }
+        }
+
+        // Show history panel, hide chat messages.
+        messagesEl.style.display = 'none';
+        thinkingEl.style.display = 'none';
+        historyPanel.classList.add('visible');
       }
 
       // -----------------------------------------------------------------------
@@ -685,6 +878,33 @@ export function getWebviewHtml(
       }
 
       // -----------------------------------------------------------------------
+      // Diff renderer
+      // -----------------------------------------------------------------------
+
+      /**
+       * Render a unified diff string as coloured lines.
+       * @param {string} diff
+       * @returns {string} HTML
+       */
+      function renderDiff(diff) {
+        const lines = diff.split('\\n');
+        const parts = lines.map((line) => {
+          const esc = escapeTextToHtml(line);
+          if (line.startsWith('+') && !line.startsWith('+++')) {
+            return '<span class="diff-line-add">' + esc + '</span>';
+          }
+          if (line.startsWith('-') && !line.startsWith('---')) {
+            return '<span class="diff-line-del">' + esc + '</span>';
+          }
+          if (line.startsWith('@@')) {
+            return '<span class="diff-line-hunk">' + esc + '</span>';
+          }
+          return esc;
+        });
+        return parts.join('\\n');
+      }
+
+      // -----------------------------------------------------------------------
       // UI helpers
       // -----------------------------------------------------------------------
 
@@ -716,67 +936,125 @@ export function getWebviewHtml(
         thinkingEl.classList.toggle('visible', state === 'thinking');
       }
 
+      /** @param {number} count @param {number} limit */
+      function updateTokenCounter(count, limit) {
+        if (limit <= 0) {
+          tokenCounter.textContent = count > 0 ? count + ' tokens' : '';
+          tokenCounter.className = '';
+          return;
+        }
+        const pct = Math.round((count / limit) * 100);
+        tokenCounter.textContent = count + ' / ' + limit + ' tokens (' + pct + '%)';
+        tokenCounter.className =
+          pct >= 80 ? 'danger' : pct >= 60 ? 'warn' : '';
+      }
+
       // -----------------------------------------------------------------------
-      // Message handlers
+      // Wire copy buttons (event delegation for dynamically added elements)
       // -----------------------------------------------------------------------
 
-      /** @param {readonly import('../../chat/types.js').Message[]} messages */
-      function renderHistory(messages) {
+      messagesEl.addEventListener('click', (e) => {
+        const btn = /** @type {HTMLElement} */ (e.target);
+        if (!btn.classList.contains('copy-btn')) return;
+        const code = btn.dataset.code ?? '';
+        navigator.clipboard.writeText(code).then(() => {
+          const prev = btn.textContent;
+          btn.textContent = 'Copied!';
+          setTimeout(() => { btn.textContent = prev; }, 1500);
+        }).catch(() => {});
+      });
+
+      // Open external links in the system browser.
+      messagesEl.addEventListener('click', (e) => {
+        const a = /** @type {HTMLElement} */ (e.target);
+        if (!a.classList.contains('ext-link')) return;
+        e.preventDefault();
+        const href = a.dataset.href ?? a.getAttribute('href') ?? '';
+        if (href) vscode.postMessage({ type: 'sendMessage', text: '' }); // no-op; handled by ext
+        // vscode.env.openExternal is not available in webview JS;
+        // opening links is handled by the extension side via a postMessage if needed.
+        window.open(href, '_blank');
+      });
+
+      // -----------------------------------------------------------------------
+      // History rendering
+      // -----------------------------------------------------------------------
+
+      /**
+       * @param {readonly {id: string, role: string, content: string}[]} messages
+       * @param {Record<string, string>} renderedHtmlMap
+       */
+      function renderHistory(messages, renderedHtmlMap) {
         messagesEl.innerHTML = '';
         for (const msg of messages) {
           if (msg.role === 'user') {
-            // Plain text for user messages
             const div = document.createElement('div');
             div.className = 'msg user';
             div.textContent = msg.content;
             messagesEl.appendChild(div);
           } else if (msg.role === 'assistant') {
-            appendBubble('assistant', renderMarkdown(msg.content));
+            const html = renderedHtmlMap[msg.id] ?? escapeTextToHtml(msg.content);
+            appendBubble('assistant', html);
           }
         }
         scrollToBottom();
       }
 
+      // -----------------------------------------------------------------------
+      // Message handlers
+      // -----------------------------------------------------------------------
+
       window.addEventListener('message', (event) => {
         const msg = event.data;
         switch (msg.type) {
           case 'history':
-            renderHistory(msg.messages);
+            renderHistory(msg.messages, msg.renderedHtmlMap ?? {});
             break;
 
           case 'status':
             applyStatus(msg.state);
             if (msg.state === 'streaming') {
               setStreaming(true);
-              // Start a new streaming bubble
               streamingContent = '';
-              streamingBubble = appendBubble('assistant', '');
+              const bubble = document.createElement('div');
+              bubble.className = 'msg assistant streaming';
+              messagesEl.appendChild(bubble);
+              streamingBubble = bubble;
+              scrollToBottom();
             } else if (msg.state === 'thinking') {
-              // On retry: discard the partial bubble
               if (streamingBubble) {
                 streamingBubble.remove();
                 streamingBubble = null;
                 streamingContent = '';
+                streamingMessageId = null;
               }
               setStreaming(true);
             } else {
               // idle
               setStreaming(false);
-              streamingBubble = null;
-              streamingContent = '';
             }
             break;
 
           case 'token':
             if (streamingBubble) {
               streamingContent += msg.value;
-              streamingBubble.innerHTML = renderMarkdown(streamingContent);
+              // Show raw text during streaming for performance.
+              streamingBubble.textContent = streamingContent;
               scrollToBottom();
             }
             break;
 
           case 'messageComplete':
-            // Already fully rendered; just ensure idle state is awaited from status msg
+            // Swap in pre-rendered HTML now that the stream is complete.
+            if (streamingBubble) {
+              if (msg.renderedHtml) {
+                streamingBubble.className = 'msg assistant';
+                streamingBubble.innerHTML = msg.renderedHtml;
+              }
+              streamingBubble = null;
+              streamingContent = '';
+              streamingMessageId = null;
+            }
             break;
 
           case 'error':
@@ -786,6 +1064,7 @@ export function getWebviewHtml(
               streamingBubble.remove();
               streamingBubble = null;
               streamingContent = '';
+              streamingMessageId = null;
             }
             appendBubble('error', escapeTextToHtml(msg.text));
             break;
@@ -801,7 +1080,6 @@ export function getWebviewHtml(
           }
 
           case 'toolResult': {
-            // Replace the matching toolUse indicator with a collapsible result.
             const indicator = messagesEl.querySelector('[data-call-id="' + msg.callId + '"]');
             if (indicator) indicator.remove();
 
@@ -821,7 +1099,6 @@ export function getWebviewHtml(
 
           case 'commandList':
             commandList = msg.commands;
-            // Re-trigger autocomplete if the user already typed '/'.
             if (inputEl.value.startsWith('/')) showAutocomplete();
             break;
 
@@ -833,6 +1110,43 @@ export function getWebviewHtml(
             planBadge.classList.toggle('active', msg.active);
             if (!msg.active) hidePlanPanel();
             break;
+
+          case 'tokenCount':
+            updateTokenCounter(msg.count, msg.limit);
+            break;
+
+          case 'compactionStatus':
+            if (msg.text) {
+              compactionBanner.textContent = msg.text;
+              compactionBanner.classList.add('visible');
+            } else {
+              compactionBanner.classList.remove('visible');
+              compactionBanner.textContent = '';
+            }
+            break;
+
+          case 'editModeChanged':
+            applyEditMode(msg.mode);
+            break;
+
+          case 'sessionList':
+            renderHistoryPanel(msg.sessions);
+            break;
+
+          case 'diffPreview': {
+            const details = document.createElement('details');
+            details.className = 'diff-preview';
+            details.open = true;
+            const summary = document.createElement('summary');
+            summary.textContent = (msg.requiresConfirmation ? '📝 ' : '👁 ') + msg.filePath;
+            const pre = document.createElement('pre');
+            pre.innerHTML = renderDiff(msg.diff);
+            details.appendChild(summary);
+            details.appendChild(pre);
+            messagesEl.appendChild(details);
+            scrollToBottom();
+            break;
+          }
 
           case 'confirmationRequest': {
             const card = document.createElement('div');
@@ -853,7 +1167,8 @@ export function getWebviewHtml(
             btnRow.className = 'confirm-buttons';
 
             const approveBtn = document.createElement('button');
-            approveBtn.textContent = 'Approve';
+            approveBtn.textContent = '✓ Apply';
+            approveBtn.setAttribute('aria-label', 'Apply change');
             approveBtn.addEventListener('click', () => {
               vscode.postMessage({ type: 'confirmationResponse', id: msg.id, approved: true });
               card.remove();
@@ -861,7 +1176,8 @@ export function getWebviewHtml(
 
             const rejectBtn = document.createElement('button');
             rejectBtn.className = 'secondary';
-            rejectBtn.textContent = 'Reject';
+            rejectBtn.textContent = '✗ Skip';
+            rejectBtn.setAttribute('aria-label', 'Skip change');
             rejectBtn.addEventListener('click', () => {
               vscode.postMessage({ type: 'confirmationResponse', id: msg.id, approved: false });
               card.remove();
@@ -893,7 +1209,6 @@ export function getWebviewHtml(
         const text = inputEl.value.trim();
         if (!text || streaming) return;
 
-        // Render user bubble immediately
         const div = document.createElement('div');
         div.className = 'msg user';
         div.textContent = text;
@@ -902,6 +1217,7 @@ export function getWebviewHtml(
 
         inputEl.value = '';
         autoResize();
+        inputEl.focus();
 
         vscode.postMessage({ type: 'sendMessage', text });
       }
@@ -917,7 +1233,6 @@ export function getWebviewHtml(
       });
 
       inputEl.addEventListener('keydown', (e) => {
-        // Autocomplete keyboard navigation.
         if (autocompleteEl.classList.contains('visible')) {
           if (e.key === 'ArrowDown') { e.preventDefault(); autocompleteNavigate(1); return; }
           if (e.key === 'ArrowUp')   { e.preventDefault(); autocompleteNavigate(-1); return; }
@@ -948,7 +1263,6 @@ export function getWebviewHtml(
         autoResize();
         const val = inputEl.value;
         if (val.startsWith('/')) {
-          // Lazily request the command list on first slash.
           if (commandList.length === 0) {
             vscode.postMessage({ type: 'requestCommandList' });
           } else {

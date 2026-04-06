@@ -72,7 +72,11 @@
         },
         "gemma-code.toolConfirmationMode": {
           "type": "string",
-          "enum": ["always", "ask", "never"],
+          "enum": [
+            "always",
+            "ask",
+            "never"
+          ],
           "default": "ask",
           "description": "When to prompt for confirmation before running terminal commands or editing files. 'always': always ask. 'ask': ask for destructive operations only. 'never': run without confirmation (use with caution)."
         },
@@ -80,6 +84,21 @@
           "type": "number",
           "default": 20,
           "description": "Maximum number of agentic tool-use iterations per user message before the loop terminates."
+        },
+        "gemma-code.editMode": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "ask",
+            "manual"
+          ],
+          "enumDescriptions": [
+            "Apply file edits immediately without prompting.",
+            "Show a diff and ask for confirmation before applying any file edit.",
+            "Show diffs in the chat panel but never write files (review-only mode)."
+          ],
+          "default": "auto",
+          "description": "Controls how file edits (edit_file, write_file, create_file) are applied. 'auto': apply immediately. 'ask': show diff and confirm. 'manual': show diff only, never write."
         }
       }
     }
@@ -90,10 +109,13 @@
     "test": "vitest run --config configs/vitest.config.ts",
     "test:integration": "vitest run --config configs/vitest.config.ts --reporter=verbose tests/integration",
     "lint": "eslint src",
-    "package": "vsce package"
+    "package": "vsce package",
+    "bench": "vitest bench --config configs/vitest.config.ts"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/diff": "^5.2.3",
+    "@types/marked": "^4.3.2",
     "@types/node": "^20.0.0",
     "@types/vscode": "^1.90.0",
     "@typescript-eslint/eslint-plugin": "^7.0.0",
@@ -105,7 +127,10 @@
     "vitest": "^1.0.0"
   },
   "dependencies": {
+    "better-sqlite3": "^12.8.0",
     "diff": "^5.2.2",
+    "highlight.js": "^11.11.1",
+    "marked": "^4.3.0",
     "node-html-parser": "^6.1.13"
   }
 }

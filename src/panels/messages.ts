@@ -1,6 +1,7 @@
-import type { Message } from "../chat/types.js";
+import type { Message, ConversationSession } from "../chat/types.js";
 import type { CommandDescriptor } from "../commands/CommandRouter.js";
 import type { PlanStep } from "../modes/PlanMode.js";
+import type { EditMode } from "../tools/types.js";
 
 // ---------------------------------------------------------------------------
 // Extension → Webview
@@ -14,11 +15,15 @@ export interface TokenMessage {
 export interface MessageCompleteMessage {
   type: "messageComplete";
   messageId: string;
+  /** Pre-rendered HTML from the server-side Markdown renderer. */
+  renderedHtml: string;
 }
 
 export interface HistoryMessage {
   type: "history";
   messages: readonly Message[];
+  /** Pre-rendered HTML for each non-system message, keyed by message id. */
+  renderedHtmlMap: Record<string, string>;
 }
 
 export interface ErrorMessage {
@@ -67,6 +72,44 @@ export interface PlanModeToggledMessage {
   steps?: PlanStep[];
 }
 
+/** Shown during and after context compaction. Empty string hides the banner. */
+export interface CompactionStatusMessage {
+  type: "compactionStatus";
+  text: string;
+}
+
+/** Updates the token-count indicator in the webview header. */
+export interface TokenCountMessage {
+  type: "tokenCount";
+  count: number;
+  limit: number;
+}
+
+/** Renders the history list inside the webview (for /history command). */
+export interface SessionListMessage {
+  type: "sessionList";
+  sessions: ConversationSession[];
+}
+
+/** Sends the current edit mode to the webview so the selector reflects it. */
+export interface EditModeChangedMessage {
+  type: "editModeChanged";
+  mode: EditMode;
+}
+
+/**
+ * Shows a diff preview in the webview for "ask" or "manual" edit modes.
+ * For "ask" mode this is paired with a confirmationRequest card.
+ * For "manual" mode it is shown standalone with no action buttons.
+ */
+export interface DiffPreviewMessage {
+  type: "diffPreview";
+  callId: string;
+  filePath: string;
+  diff: string;
+  requiresConfirmation: boolean;
+}
+
 export type ExtensionToWebviewMessage =
   | TokenMessage
   | MessageCompleteMessage
@@ -78,7 +121,12 @@ export type ExtensionToWebviewMessage =
   | ConfirmationRequestMessage
   | CommandListMessage
   | PlanReadyMessage
-  | PlanModeToggledMessage;
+  | PlanModeToggledMessage
+  | CompactionStatusMessage
+  | TokenCountMessage
+  | SessionListMessage
+  | EditModeChangedMessage
+  | DiffPreviewMessage;
 
 // ---------------------------------------------------------------------------
 // Webview → Extension
@@ -116,6 +164,18 @@ export interface ApproveStepMessage {
   step: number;
 }
 
+/** Sent when the user clicks a session in the history list. */
+export interface LoadSessionRequest {
+  type: "loadSession";
+  sessionId: string;
+}
+
+/** Sent when the user changes the edit mode via the header selector. */
+export interface SetEditModeRequest {
+  type: "setEditMode";
+  mode: EditMode;
+}
+
 export type WebviewToExtensionMessage =
   | SendMessageRequest
   | ClearChatRequest
@@ -123,4 +183,6 @@ export type WebviewToExtensionMessage =
   | ReadyRequest
   | ConfirmationResponseMessage
   | RequestCommandListMessage
-  | ApproveStepMessage;
+  | ApproveStepMessage
+  | LoadSessionRequest
+  | SetEditModeRequest;

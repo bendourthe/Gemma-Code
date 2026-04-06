@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import type { EditMode } from "../tools/types.js";
 
 export type ToolConfirmationMode = "always" | "ask" | "never";
 
@@ -10,6 +11,7 @@ export interface GemmaCodeSettings {
   requestTimeout: number;
   toolConfirmationMode: ToolConfirmationMode;
   maxAgentIterations: number;
+  editMode: EditMode;
 }
 
 export function getSettings(): GemmaCodeSettings {
@@ -23,6 +25,7 @@ export function getSettings(): GemmaCodeSettings {
     toolConfirmationMode:
       (config.get<string>("toolConfirmationMode") as ToolConfirmationMode | undefined) ?? "ask",
     maxAgentIterations: config.get<number>("maxAgentIterations") ?? 20,
+    editMode: (config.get<string>("editMode") as EditMode | undefined) ?? "auto",
   };
 }
 

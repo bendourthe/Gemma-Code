@@ -27,7 +27,7 @@ function parseFrontmatter(content: string): { meta: Record<string, string>; body
   if (!match) return null;
 
   const meta: Record<string, string> = {};
-  for (const line of match[1].split(/\r?\n/)) {
+  for (const line of (match[1] ?? "").split(/\r?\n/)) {
     const colonIdx = line.indexOf(":");
     if (colonIdx === -1) continue;
     const key = line.slice(0, colonIdx).trim();
@@ -35,7 +35,7 @@ function parseFrontmatter(content: string): { meta: Record<string, string>; body
     if (key) meta[key] = value;
   }
 
-  return { meta, body: match[2].trim() };
+  return { meta, body: (match[2] ?? "").trim() };
 }
 
 function loadSkillFromDir(skillDir: string): Skill | null {
