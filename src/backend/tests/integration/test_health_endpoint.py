@@ -5,10 +5,11 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from httpx import ASGITransport, AsyncClient
+
 from backend.config import Settings
 from backend.main import create_app
 from backend.services.ollama import OllamaService
-from httpx import ASGITransport, AsyncClient
 
 
 def _make_app():

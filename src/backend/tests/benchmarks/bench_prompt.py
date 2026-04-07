@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+
 from backend.models.schemas import Message
 from backend.services.prompt import assemble_prompt, trim_history
 

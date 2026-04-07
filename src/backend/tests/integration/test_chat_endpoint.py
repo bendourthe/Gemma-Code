@@ -7,10 +7,11 @@ from collections.abc import AsyncGenerator
 from unittest.mock import patch
 
 import pytest
+from httpx import ASGITransport, AsyncClient
+
 from backend.config import Settings
 from backend.main import create_app
 from backend.services.ollama import OllamaService, OllamaUnavailableError
-from httpx import ASGITransport, AsyncClient
 
 
 def _make_app():

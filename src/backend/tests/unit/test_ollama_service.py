@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
 from backend.models.schemas import Message
 from backend.services.ollama import (
     OllamaResponseError,
