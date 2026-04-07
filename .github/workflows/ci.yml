@@ -125,10 +125,13 @@ jobs:
 
       - name: Check TypeScript coverage threshold
         run: |
-          LINES=$(grep -oP 'lines[^%]+\K[\d.]+(?=%)' coverage/lcov-report/index.html | head -1 || echo "0")
-          echo "TypeScript line coverage: ${LINES}%"
           python3 -c "
-          lines = float('${LINES}' or 0)
+          import re, pathlib
+          html = pathlib.Path('coverage/lcov-report/index.html').read_text()
+          # Pattern: percentage on a line preceding 'Lines'
+          m = re.search(r'<span class=\"strong\">([\d.]+)%\s*</span>\s*\n\s*<span[^>]*>Lines</span>', html)
+          lines = float(m.group(1)) if m else 0
+          print(f'TypeScript line coverage: {lines:.1f}%')
           if lines < 80:
               raise SystemExit(f'TS coverage {lines:.1f}% is below the 80% threshold')
           print(f'TS coverage {lines:.1f}% — OK')
