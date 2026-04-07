@@ -7,11 +7,10 @@ from collections.abc import AsyncGenerator
 from unittest.mock import patch
 
 import pytest
-from httpx import ASGITransport, AsyncClient
-
 from backend.config import Settings
 from backend.main import create_app
 from backend.services.ollama import OllamaService, OllamaUnavailableError
+from httpx import ASGITransport, AsyncClient
 
 
 def _make_app():
@@ -27,9 +26,7 @@ def _make_app():
     return app
 
 
-async def _fake_stream_ok(
-    self: object, **kwargs: object
-) -> AsyncGenerator[str, None]:
+async def _fake_stream_ok(self: object, **kwargs: object) -> AsyncGenerator[str, None]:
     yield "Hello"
     yield " world"
 
@@ -38,7 +35,7 @@ async def _fake_stream_error(
     self: object, **kwargs: object
 ) -> AsyncGenerator[str, None]:
     raise OllamaUnavailableError("Ollama not running")
-    yield  # noqa: unreachable — makes this function an async generator
+    yield  # noqa: F401 — unreachable yield makes this an async generator
 
 
 @pytest.mark.asyncio
@@ -58,7 +55,7 @@ async def test_chat_stream_returns_sse_events() -> None:
 
     raw = response.text
     events = [
-        json.loads(line[len("data: "):])
+        json.loads(line[len("data: ") :])
         for line in raw.splitlines()
         if line.startswith("data: ")
     ]
@@ -98,7 +95,7 @@ async def test_chat_stream_ollama_error_returns_error_event() -> None:
     assert response.status_code == 200
     raw = response.text
     events = [
-        json.loads(line[len("data: "):])
+        json.loads(line[len("data: ") :])
         for line in raw.splitlines()
         if line.startswith("data: ")
     ]

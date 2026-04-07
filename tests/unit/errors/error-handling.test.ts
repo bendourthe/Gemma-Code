@@ -13,7 +13,7 @@ import { describe, it, expect, vi } from "vitest";
 import { FetchPageTool } from "../../../src/tools/handlers/webSearch.js";
 import { RunTerminalTool } from "../../../src/tools/handlers/terminal.js";
 import { ReadFileTool } from "../../../src/tools/handlers/filesystem.js";
-import { createConversationManager } from "../../../src/chat/ConversationManager.js";
+import { ConversationManager } from "../../../src/chat/ConversationManager.js";
 import { ContextCompactor } from "../../../src/chat/ContextCompactor.js";
 
 vi.mock("node-html-parser", () => ({ parse: vi.fn(() => ({ querySelectorAll: () => [] })) }));
@@ -134,7 +134,7 @@ describe("ReadFileTool — file not found returns typed error", () => {
 
 describe("ContextCompactor — shouldCompact threshold", () => {
   it("does not trigger compaction when the conversation is small", () => {
-    const manager = createConversationManager();
+    const manager = new ConversationManager();
     manager.addUserMessage("Hi");
     manager.addAssistantMessage("Hello");
     const compactor = new ContextCompactor(manager, {} as never, "gemma3:27b", 8192);
@@ -142,7 +142,7 @@ describe("ContextCompactor — shouldCompact threshold", () => {
   });
 
   it("triggers compaction when token estimate exceeds 80% of maxTokens", () => {
-    const manager = createConversationManager();
+    const manager = new ConversationManager();
     // 8192 * 0.8 = 6553.6 tokens → ~26 215 characters.
     const longMsg = "a".repeat(27_000);
     manager.addUserMessage(longMsg);

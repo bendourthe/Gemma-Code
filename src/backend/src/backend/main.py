@@ -29,7 +29,9 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="Gemma Code Backend",
         version="0.1.0",
-        description="Inference preprocessing backend for the Gemma Code VS Code extension",
+        description=(
+            "Inference preprocessing backend for the Gemma Code VS Code extension"
+        ),
         lifespan=lifespan,
     )
     app.include_router(health.router)

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from backend.models.schemas import Message
 from backend.services.prompt import (
     apply_gemma_template,
@@ -11,7 +9,6 @@ from backend.services.prompt import (
     is_gemma_model,
     trim_history,
 )
-
 
 # ---------------------------------------------------------------------------
 # is_gemma_model
@@ -64,11 +61,16 @@ def test_gemma_template_system_message_injected_into_first_user_turn() -> None:
         Message(role="user", content="What time is it?"),
     ]
     result = apply_gemma_template(messages)
-    assert "<start_of_turn>user\nYou are a helpful assistant.\n\nWhat time is it?<end_of_turn>" in result
+    expected = (
+        "<start_of_turn>user\n"
+        "You are a helpful assistant.\n\nWhat time is it?"
+        "<end_of_turn>"
+    )
+    assert expected in result
 
 
 def test_gemma_template_system_only_no_user_turn() -> None:
-    """A system message with no subsequent user turn should still produce the model prefix."""
+    """System message with no user turn should still produce model prefix."""
     messages = [Message(role="system", content="Setup.")]
     result = apply_gemma_template(messages)
     # No user turn, so pending_system never gets flushed into a turn.

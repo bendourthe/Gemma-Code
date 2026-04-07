@@ -80,24 +80,26 @@ class OllamaService:
             payload["options"] = options
 
         try:
-            async with self._client() as client:
-                async with client.stream("POST", "/api/chat", json=payload) as response:
-                    if response.status_code != 200:
-                        body = await response.aread()
-                        raise OllamaResponseError(
-                            response.status_code, body.decode(errors="replace")
-                        )
-                    async for line in response.aiter_lines():
-                        if not line:
-                            continue
-                        try:
-                            chunk: dict[str, Any] = json.loads(line)
-                        except json.JSONDecodeError:
-                            continue
-                        token: str = chunk.get("message", {}).get("content", "")
-                        if token:
-                            yield token
-                        if chunk.get("done"):
-                            return
+            async with (
+                self._client() as client,
+                client.stream("POST", "/api/chat", json=payload) as response,
+            ):
+                if response.status_code != 200:
+                    body = await response.aread()
+                    raise OllamaResponseError(
+                        response.status_code, body.decode(errors="replace")
+                    )
+                async for line in response.aiter_lines():
+                    if not line:
+                        continue
+                    try:
+                        chunk: dict[str, Any] = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    token: str = chunk.get("message", {}).get("content", "")
+                    if token:
+                        yield token
+                    if chunk.get("done"):
+                        return
         except httpx.ConnectError as exc:
             raise OllamaUnavailableError("Cannot connect to Ollama") from exc
