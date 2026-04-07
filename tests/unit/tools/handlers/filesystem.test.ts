@@ -9,13 +9,13 @@ import {
   GrepCodebaseTool,
 } from "../../../../src/tools/handlers/filesystem.js";
 import { ConfirmationGate } from "../../../../src/tools/ConfirmationGate.js";
-import { mockFs, mockFindTextInFiles } from "../../../setup.js";
+import { mockFs, mockFindTextInFiles, MOCK_WORKSPACE_ROOT } from "../../../setup.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-const ROOT = "C:\\workspace";
+const ROOT = MOCK_WORKSPACE_ROOT;
 
 function params(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return { _callId: "call_001", ...overrides };

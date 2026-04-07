@@ -1,4 +1,9 @@
+import { resolve } from "path";
 import { vi } from "vitest";
+
+// Cross-platform mock workspace root: on Windows this produces a drive-letter
+// path like "C:\workspace"; on Linux/macOS it produces "/workspace".
+export const MOCK_WORKSPACE_ROOT = resolve("/workspace");
 
 // ---------------------------------------------------------------------------
 // Global mock for the "vscode" module, which is only available inside the
@@ -113,7 +118,7 @@ vi.mock("vscode", () => ({
     findTextInFiles: mockFindTextInFiles,
     findFiles: vi.fn().mockResolvedValue([]),
     workspaceFolders: [
-      { uri: { fsPath: "C:\\workspace" }, name: "workspace", index: 0 },
+      { uri: { fsPath: MOCK_WORKSPACE_ROOT }, name: "workspace", index: 0 },
     ],
   },
   Disposable: class {
