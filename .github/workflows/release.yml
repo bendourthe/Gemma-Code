@@ -81,7 +81,7 @@ jobs:
       - name: Build installer
         run: >
           pwsh -NonInteractive -File scripts/installer/build-installer.ps1
-          -SkipSign
+          -SkipSign -SkipVsix
 
       - uses: actions/upload-artifact@v4
         with:

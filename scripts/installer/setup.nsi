@@ -75,10 +75,11 @@ Section "VS Code Extension" SecExtension
     ${EndIf}
     StrCpy $1 $0  ; store code path
 
-    ; Install the VSIX
+    ; Install the VSIX and icon
     DetailPrint "Installing VS Code extension..."
     SetOutPath "$INSTDIR"
     File "${PRODUCT_VSIX}"
+    File "..\..\assets\icon.ico"
     ExecWait '"$1" --install-extension "$INSTDIR\${PRODUCT_VSIX}"' $0
     ${If} $0 != 0
         MessageBox MB_ICONSTOP "Failed to install the VS Code extension (exit code $0)."
@@ -100,7 +101,7 @@ Section "VS Code Extension" SecExtension
     ; Start Menu shortcut
     CreateDirectory "$SMPROGRAMS\${PRODUCT_NAME}"
     CreateShortcut  "$SMPROGRAMS\${PRODUCT_NAME}\Open in VS Code.lnk" \
-                    "$1" "" "$INSTDIR\..\..\assets\icon.ico"
+                    "$1" "" "$INSTDIR\icon.ico"
     CreateShortcut  "$SMPROGRAMS\${PRODUCT_NAME}\Uninstall ${PRODUCT_NAME}.lnk" \
                     "$INSTDIR\uninstall.exe"
 
@@ -225,6 +226,7 @@ Section "Uninstall"
     ; Remove install directory contents
     Delete "$INSTDIR\${PRODUCT_VSIX}"
     Delete "$INSTDIR\backend-requirements.txt"
+    Delete "$INSTDIR\icon.ico"
     Delete "$INSTDIR\uninstall.exe"
     RMDir  "$INSTDIR"
 

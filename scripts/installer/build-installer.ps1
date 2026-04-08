@@ -13,12 +13,16 @@
 .PARAMETER SkipSign
     Skip code signing (required when no certificate is available).
 
+.PARAMETER SkipVsix
+    Skip the VSIX build step (use when the VSIX is already available, e.g. in CI).
+
 .PARAMETER NsisPath
     Override the path to makensis.exe. Auto-detected from common install locations.
 #>
 [CmdletBinding()]
 param(
     [switch]$SkipSign,
+    [switch]$SkipVsix,
     [string]$NsisPath = ''
 )
 
@@ -59,11 +63,15 @@ try {
 
     # ── Step 1: Build VSIX ───────────────────────────────────────────────────
 
-    Invoke-Step 'Build VSIX package' {
-        & pwsh -NonInteractive -File (Join-Path $RepoRoot 'scripts\build-vsix.ps1')
+    if ($SkipVsix) {
+        Log-Step 'Skipping VSIX build (-SkipVsix)'
+    } else {
+        Invoke-Step 'Build VSIX package' {
+            & pwsh -NonInteractive -File (Join-Path $RepoRoot 'scripts\build-vsix.ps1')
+        }
     }
 
-    # Verify VSIX was created
+    # Verify VSIX was created (or already exists from a prior step / CI artifact)
     if (-not (Test-Path $VsixPath)) {
         Log-Error "VSIX not found at $VsixPath"
         exit 1

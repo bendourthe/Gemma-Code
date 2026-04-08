@@ -136,7 +136,7 @@ try {
         $Version = (Get-Content (Join-Path $RepoRoot 'package.json') | ConvertFrom-Json).version
         $VsixName = "gemma-code-$Version.vsix"
         $VsixOut  = Join-Path $OutputDir $VsixName
-        npx vsce package --no-dependencies --skip-license --out $VsixOut
+        npx vsce package --no-dependencies --out $VsixOut
         if ($LASTEXITCODE -eq 0) {
             Log-Success "VSIX written to: $VsixOut"
         }
