@@ -106,3 +106,6 @@ First stable release of Gemma Code — a fully offline, agentic coding assistant
 - macOS and Linux installer packages
 - ripgrep-backed GrepCodebaseTool
 - Extension Marketplace publication
+
+[Unreleased]: https://github.com/bendourthe/Gemma-Code/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/bendourthe/Gemma-Code/releases/tag/v0.1.0
