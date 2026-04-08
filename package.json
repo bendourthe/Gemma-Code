@@ -5,6 +5,11 @@
   "version": "0.1.0",
   "publisher": "gemma-code",
   "license": "MIT",
+  "icon": "assets/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bendourthe/Gemma-Code"
+  },
   "engines": {
     "vscode": "^1.90.0"
   },
@@ -124,7 +129,7 @@
     "test": "vitest run --config configs/vitest.config.ts",
     "test:integration": "vitest run --config configs/vitest.config.ts --reporter=verbose tests/integration",
     "lint": "eslint src",
-    "package": "pwsh -NonInteractive -File scripts/build-vsix.ps1",
+    "package": "powershell -NonInteractive -ExecutionPolicy Bypass -File scripts/build-vsix.ps1",
     "package:quick": "vsce package --no-dependencies",
     "bench": "vitest bench --config configs/vitest.config.ts"
   },

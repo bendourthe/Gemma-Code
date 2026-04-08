@@ -16,7 +16,7 @@
 [CmdletBinding()]
 param(
     [switch]$SkipTests,
-    [string]$OutputDir = $PSScriptRoot\..
+    [string]$OutputDir
 )
 
 Set-StrictMode -Version Latest
@@ -53,6 +53,7 @@ function Invoke-Step {
 # ── Resolve paths ────────────────────────────────────────────────────────────
 
 $RepoRoot = (Resolve-Path "$PSScriptRoot\..").Path
+if (-not $OutputDir) { $OutputDir = $RepoRoot } else { $OutputDir = (Resolve-Path $OutputDir).Path }
 $SrcBackend = Join-Path $RepoRoot 'src\backend'
 $SrcSkills  = Join-Path $RepoRoot 'src\skills\catalog'
 $OutDir     = Join-Path $RepoRoot 'out'
@@ -135,7 +136,7 @@ try {
         $Version = (Get-Content (Join-Path $RepoRoot 'package.json') | ConvertFrom-Json).version
         $VsixName = "gemma-code-$Version.vsix"
         $VsixOut  = Join-Path $OutputDir $VsixName
-        npx vsce package --no-dependencies --out $VsixOut
+        npx vsce package --no-dependencies --skip-license --out $VsixOut
         if ($LASTEXITCODE -eq 0) {
             Log-Success "VSIX written to: $VsixOut"
         }

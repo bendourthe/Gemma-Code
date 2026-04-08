@@ -7,6 +7,8 @@ docs/**
 examples/**
 lib/**
 assets/**
+!assets/icon.png
+!assets/icon.svg
 coverage/**
 
 # Build artifacts that are not extension output
