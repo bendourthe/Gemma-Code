@@ -44,12 +44,13 @@ function Invoke-Step {
 
 # ── Paths ────────────────────────────────────────────────────────────────────
 
-$RepoRoot      = (Resolve-Path "$PSScriptRoot\..\..")
+$RepoRoot      = (Resolve-Path "$PSScriptRoot\..\.." ).Path
 $InstallerDir  = $PSScriptRoot
 $BackendDir    = Join-Path $RepoRoot 'src\backend'
 $ReqFile       = Join-Path $InstallerDir 'backend-requirements.txt'
 $NsiScript     = Join-Path $InstallerDir 'setup.nsi'
-$VsixPath      = Join-Path $RepoRoot 'gemma-code-0.1.0.vsix'
+$Version       = (Get-Content (Join-Path $RepoRoot 'package.json') | ConvertFrom-Json).version
+$VsixPath      = Join-Path $RepoRoot "gemma-code-$Version.vsix"
 $SetupExe      = Join-Path $InstallerDir 'setup.exe'
 
 Push-Location $RepoRoot
@@ -87,10 +88,12 @@ try {
 
     if (-not $NsisPath) {
         $Candidates = @(
-            'C:\Program Files (x86)\NSIS\makensis.exe',
-            'C:\Program Files\NSIS\makensis.exe',
-            (Get-Command makensis -ErrorAction SilentlyContinue)?.Source
-        ) | Where-Object { $_ -and (Test-Path $_) }
+            @(
+                'C:\Program Files (x86)\NSIS\makensis.exe',
+                'C:\Program Files\NSIS\makensis.exe',
+                (Get-Command makensis -ErrorAction SilentlyContinue)?.Source
+            ) | Where-Object { $_ -and (Test-Path $_) }
+        )
 
         if (-not $Candidates) {
             Log-Error 'makensis.exe not found. Install NSIS from https://nsis.sourceforge.io'
