@@ -21,8 +21,8 @@ export function getSettings(): GemmaCodeSettings {
   const config = vscode.workspace.getConfiguration("gemma-code");
   return {
     ollamaUrl: config.get<string>("ollamaUrl") ?? "http://localhost:11434",
-    modelName: config.get<string>("modelName") ?? "gemma3:27b",
-    maxTokens: config.get<number>("maxTokens") ?? 8192,
+    modelName: config.get<string>("modelName") ?? "gemma4",
+    maxTokens: config.get<number>("maxTokens") ?? 32768,
     temperature: config.get<number>("temperature") ?? 0.2,
     requestTimeout: config.get<number>("requestTimeout") ?? 60000,
     toolConfirmationMode:

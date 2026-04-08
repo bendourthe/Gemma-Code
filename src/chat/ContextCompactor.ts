@@ -1,4 +1,4 @@
-import type { OllamaClient, OllamaMessage } from "../ollama/types.js";
+import type { OllamaClient, OllamaMessage, OllamaOptions } from "../ollama/types.js";
 import type { ConversationManager } from "./ConversationManager.js";
 import type { PostMessageFn } from "./StreamingPipeline.js";
 
@@ -19,7 +19,8 @@ export class ContextCompactor {
     private readonly _manager: ConversationManager,
     private readonly _client: OllamaClient,
     private readonly _modelName: string,
-    private readonly _maxTokens: number
+    private readonly _maxTokens: number,
+    private readonly _ollamaOptions?: OllamaOptions
   ) {}
 
   /** Returns the estimated token count for the current conversation. */
@@ -72,6 +73,7 @@ export class ContextCompactor {
         model: this._modelName,
         messages: historyForSummary,
         stream: true,
+        options: this._ollamaOptions,
       });
 
       for await (const chunk of stream) {

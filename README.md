@@ -51,7 +51,7 @@ Gemma Code brings a Claude Code-style agentic workflow to VS Code, running entir
 2. In VS Code: **Extensions → ··· → Install from VSIX**.
 3. Ensure Ollama is installed and the model is pulled:
    ```bash
-   ollama pull gemma3:27b
+   ollama pull gemma4
    ollama serve
    ```
 
@@ -99,8 +99,8 @@ All settings are under `gemma-code.*` in VS Code settings (`Ctrl+,`).
 | Setting | Default | Description |
 |---|---|---|
 | `gemma-code.ollamaUrl` | `http://localhost:11434` | Ollama server URL |
-| `gemma-code.modelName` | `gemma3:27b` | Model to use for inference |
-| `gemma-code.maxTokens` | `8192` | Maximum context tokens |
+| `gemma-code.modelName` | `gemma4` | Model to use for inference (Gemma 4 e4b default) |
+| `gemma-code.maxTokens` | `32768` | Maximum context tokens (Gemma 4 supports up to 128K) |
 | `gemma-code.temperature` | `0.2` | Sampling temperature |
 | `gemma-code.requestTimeout` | `60000` | HTTP timeout in milliseconds |
 | `gemma-code.editMode` | `auto` | How file edits are applied: `auto`, `ask`, or `manual` |
@@ -142,13 +142,13 @@ Add your own skills to `~/.gemma-code/skills/<name>/SKILL.md`. Gemma Code hot-re
 Ensure Ollama is running: `ollama serve`. Gemma Code polls every 5 seconds and reconnects automatically when Ollama comes back online.
 
 **"Model not found"**
-Pull the configured model: `ollama pull gemma3:27b`. Use `/model` in the chat to switch to a model you have already pulled.
+Pull the configured model: `ollama pull gemma4`. Use `/model` in the chat to switch to a model you have already pulled.
 
 **"Backend process exited; using direct Ollama mode"**
 The Python backend failed to start. Check the "Gemma Code" Output channel for the error. Common causes: Python not found, missing packages, or port 11435 in use. Set `gemma-code.useBackend` to `false` to disable the backend and use Ollama directly.
 
 **Slow responses**
-- Use a smaller model variant (e.g. `gemma3:9b` or `gemma3:2b`) via `/model`.
+- Use a smaller model variant (e.g. `gemma4:e2b`) via `/model`.
 - Increase `gemma-code.requestTimeout` if you are on a slow machine.
 - Reduce `gemma-code.maxTokens` to keep context shorter.
 

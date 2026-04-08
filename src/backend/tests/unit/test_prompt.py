@@ -152,7 +152,7 @@ def test_assemble_prompt_gemma_model_returns_single_message() -> None:
     messages = [
         Message(role="user", content="Hello"),
     ]
-    result = assemble_prompt(messages, model_name="gemma3:27b")
+    result = assemble_prompt(messages, model_name="gemma4")
     assert len(result) == 1
     assert result[0].role == "user"
     assert "<start_of_turn>" in result[0].content

@@ -57,13 +57,13 @@
         },
         "gemma-code.modelName": {
           "type": "string",
-          "default": "gemma3:27b",
+          "default": "gemma4",
           "description": "Model to use for inference"
         },
         "gemma-code.maxTokens": {
           "type": "number",
-          "default": 8192,
-          "description": "Maximum context tokens"
+          "default": 32768,
+          "description": "Maximum context tokens (Gemma 4 supports up to 128K)"
         },
         "gemma-code.temperature": {
           "type": "number",

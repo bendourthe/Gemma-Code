@@ -142,9 +142,7 @@ The test:
 | Workflow | Tests run | Ollama available |
 |---|---|---|
 | `ci.yml` (every push) | Unit + mocked integration | No |
-| `nightly.yml` (daily) | Full integration + E2E (gemma3:2b) | Yes |
+| `nightly.yml` (daily) | Full integration + E2E (gemma4:e2b) | Yes |
 | Manual `workflow_dispatch` | Full integration + E2E | Yes |
 
-The nightly workflow installs Ollama and pulls `gemma3:2b` (the smallest Gemma
-variant) to keep download times reasonable. The full `gemma3:27b` model is only
-used in the installer's optional model-download section.
+The nightly workflow installs Ollama and pulls `gemma4:e2b` (the smallest Gemma 4 variant) to keep download times reasonable. The full `gemma4` model is only used in the installer's optional model-download section.

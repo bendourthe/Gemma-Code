@@ -23,8 +23,8 @@ describe("getSettings()", () => {
     const settings = getSettings();
 
     expect(settings.ollamaUrl).toBe("http://localhost:11434");
-    expect(settings.modelName).toBe("gemma3:27b");
-    expect(settings.maxTokens).toBe(8192);
+    expect(settings.modelName).toBe("gemma4");
+    expect(settings.maxTokens).toBe(32768);
     expect(settings.temperature).toBe(0.2);
     expect(settings.requestTimeout).toBe(60000);
   });

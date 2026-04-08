@@ -68,7 +68,7 @@ describe("ContextCompactor.estimateTokens() latency gate", () => {
   it(`estimates 200-message conversation in under ${P99_LIMIT_MS}ms at p99`, () => {
     const manager = buildConversation(200);
     // OllamaClient and postMessage are not used by estimateTokens/shouldCompact.
-    const compactor = new ContextCompactor(manager, {} as never, "gemma3:27b", 8192);
+    const compactor = new ContextCompactor(manager, {} as never, "gemma4", 8192);
     const times = measureEstimate(compactor, ITERATIONS);
     expect(p99(times)).toBeLessThan(P99_LIMIT_MS);
   });
@@ -83,9 +83,9 @@ describe("ContextCompactor.estimateTokens() throughput", () => {
   const mgr100 = buildConversation(100);
   const mgr200 = buildConversation(200);
 
-  const c50 = new ContextCompactor(mgr50, {} as never, "gemma3:27b", 8192);
-  const c100 = new ContextCompactor(mgr100, {} as never, "gemma3:27b", 8192);
-  const c200 = new ContextCompactor(mgr200, {} as never, "gemma3:27b", 8192);
+  const c50 = new ContextCompactor(mgr50, {} as never, "gemma4", 8192);
+  const c100 = new ContextCompactor(mgr100, {} as never, "gemma4", 8192);
+  const c200 = new ContextCompactor(mgr200, {} as never, "gemma4", 8192);
 
   bench("estimateTokens — 50 messages", () => { c50.estimateTokens(); });
   bench("estimateTokens — 100 messages", () => { c100.estimateTokens(); });

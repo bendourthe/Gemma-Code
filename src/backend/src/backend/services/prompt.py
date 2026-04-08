@@ -8,7 +8,7 @@ from backend.models.schemas import Message
 _CHARS_PER_TOKEN = 4
 
 # Maximum number of tokens to send to Ollama; messages beyond this are trimmed.
-_DEFAULT_MAX_TOKENS = 8192
+_DEFAULT_MAX_TOKENS = 32768
 
 
 def is_gemma_model(model_name: str) -> bool:

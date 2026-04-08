@@ -40,4 +40,4 @@ def test_bench_trim_100(benchmark) -> None:  # type: ignore[no-untyped-def]
 @pytest.mark.benchmark(group="prompt")
 def test_bench_assemble_gemma_100(benchmark) -> None:  # type: ignore[no-untyped-def]
     history = _make_history(100)
-    benchmark(assemble_prompt, history, "gemma3:27b", 8192)
+    benchmark(assemble_prompt, history, "gemma4", 32768)

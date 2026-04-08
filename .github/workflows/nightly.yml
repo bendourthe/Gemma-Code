@@ -23,7 +23,7 @@ jobs:
           timeout 30 bash -c 'until curl -sf http://localhost:11434/api/tags; do sleep 1; done'
 
       - name: Pull Gemma model (small variant for CI)
-        run: ollama pull gemma3:2b
+        run: ollama pull gemma4:e2b
 
       - uses: actions/setup-node@v4
         with:
@@ -36,7 +36,7 @@ jobs:
       - name: Run integration tests
         env:
           OLLAMA_URL: "http://localhost:11434"
-          TEST_MODEL: "gemma3:2b"
+          TEST_MODEL: "gemma4:e2b"
         run: npm run test:integration -- --reporter=verbose
 
       - uses: actions/upload-artifact@v4
@@ -62,7 +62,7 @@ jobs:
           timeout 30 bash -c 'until curl -sf http://localhost:11434/api/tags; do sleep 1; done'
 
       - name: Pull Gemma model (small variant for CI)
-        run: ollama pull gemma3:2b
+        run: ollama pull gemma4:e2b
 
       - uses: astral-sh/setup-uv@v4
         with:
@@ -71,7 +71,7 @@ jobs:
       - name: Run integration tests
         env:
           OLLAMA_URL: "http://localhost:11434"
-          MODEL_NAME: "gemma3:2b"
+          MODEL_NAME: "gemma4:e2b"
         run: uv run pytest tests/integration -v --cov=src/backend --cov-report=xml
 
       - uses: actions/upload-artifact@v4

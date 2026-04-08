@@ -4,6 +4,65 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-04-07] v0.1.0 Release — Gemma 4 Migration & Cleanup
+
+### Summary
+
+Finalized the v0.1.0 release. Migrated the entire codebase from Gemma 3 (`gemma3:27b`) to Gemma 4 (`gemma4`), upgraded context handling to leverage Gemma 4's 128K context window, cleaned up the project layout, and validated all documentation against the current codebase.
+
+### Changes
+
+**Gemma 4 migration:**
+- Default model changed from `gemma3:27b` to `gemma4` (Gemma 4 e4b, 4.5B effective params, 128K context, native function calling)
+- `maxTokens` default increased from 8192 to 32768 to take advantage of the larger context window
+- Ollama requests now pass `num_ctx` and `temperature` via the `options` field, ensuring the server allocates the correct context window
+- Components updated: `StreamingPipeline`, `AgentLoop`, `ContextCompactor`, and the `extension.ts` ping command all thread `OllamaOptions` through to Ollama
+- Nightly CI model changed from `gemma3:2b` to `gemma4:e2b` (smallest Gemma 4 variant, 7.2 GB)
+- Windows NSIS installer updated to pull `gemma4` (~9.6 GB, down from ~15 GB)
+
+**Layout cleanup:**
+- Removed dead `configs/eslint.config.mjs` (duplicate of root `eslint.config.mjs`; ESLint v9 requires root location)
+
+**Documentation:**
+- README updated: model references, configuration table, troubleshooting section
+- CHANGELOG updated with "Changed" section documenting the Gemma 4 migration
+- CHANGELOG footer comparison links added
+- CI-setup, testing, and performance-benchmarks docs updated to reference Gemma 4 model names
+- All test fixtures updated to use `gemma4` model name
+
+### Architectural Decision: Gemma 4 e4b as Default
+
+Chose `gemma4` (which maps to `gemma4:e4b`, 9.6 GB) as the default model because:
+- It is the recommended "sweet spot" model for most desktop hardware (8-16 GB VRAM)
+- Gemma 4 provides native function calling via 6 special tokens, aligning with the extension's agentic architecture
+- The 128K context window enables much longer conversations before compaction triggers
+- Users with more powerful hardware can switch to `gemma4:26b` (MoE, 256K context) or `gemma4:31b` (dense, 256K context) via the `/model` command or settings
+
+### Files Changed
+
+| File | Change |
+|---|---|
+| `package.json` | Default model `gemma4`, maxTokens 32768 |
+| `src/config/settings.ts` | Fallback defaults updated |
+| `src/backend/src/backend/config.py` | Python default model updated |
+| `src/backend/src/backend/services/prompt.py` | `_DEFAULT_MAX_TOKENS` raised to 32768 |
+| `src/chat/StreamingPipeline.ts` | Accepts and passes `OllamaOptions` |
+| `src/chat/ContextCompactor.ts` | Accepts and passes `OllamaOptions` |
+| `src/tools/AgentLoop.ts` | Accepts and passes `OllamaOptions` |
+| `src/panels/GemmaCodePanel.ts` | Constructs `ollamaOptions` from settings |
+| `src/extension.ts` | Ping command passes `options` |
+| `.github/workflows/nightly.yml` | `gemma4:e2b` for CI |
+| `scripts/installer/setup.nsi` | `gemma4` for installer |
+| `configs/eslint.config.mjs` | Removed (dead duplicate) |
+| `CHANGELOG.md` | Release date, Changed section, footer links |
+| `README.md` | Model references, config table |
+| `docs/v0.1.0/ci-setup.md` | Gemma 4 model references |
+| `docs/v0.1.0/testing.md` | Gemma 4 model references |
+| `docs/v0.1.0/performance-benchmarks.md` | Benchmark command updated |
+| All test files | Model name fixtures updated to `gemma4` |
+
+---
+
 ## [2026-04-05 23:00] Phase 8 — Hardening, CI/CD & Release
 
 ### Summary

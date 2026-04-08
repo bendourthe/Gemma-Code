@@ -85,11 +85,17 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
 
     const registry = this._buildToolRegistry(settings.editMode, settings.toolConfirmationMode);
 
+    const ollamaOptions = {
+      num_ctx: settings.maxTokens,
+      temperature: settings.temperature,
+    };
+
     this._compactor = new ContextCompactor(
       this._manager,
       client,
       settings.modelName,
-      settings.maxTokens
+      settings.maxTokens,
+      ollamaOptions
     );
 
     this._agentLoop = new AgentLoop(
@@ -98,14 +104,16 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
       registry,
       settings.modelName,
       settings.maxAgentIterations,
-      this._compactor
+      this._compactor,
+      ollamaOptions
     );
 
     this._pipeline = new StreamingPipeline(
       client,
       this._manager,
       settings.modelName,
-      (pm) => this._agentLoop.run(pm)
+      (pm) => this._agentLoop.run(pm),
+      ollamaOptions
     );
 
     // Skills — built-in catalog lives next to the source tree.

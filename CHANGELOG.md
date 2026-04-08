@@ -6,9 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
-## [0.1.0] — 2026-04-05
+## [0.1.0] — 2026-04-07
 
-First stable release of Gemma Code — a fully offline, agentic coding assistant for VS Code powered by Google's Gemma model via Ollama.
+First stable release of Gemma Code — a fully offline, agentic coding assistant for VS Code powered by Google's Gemma 4 via Ollama.
 
 ### Added
 
@@ -88,6 +88,15 @@ First stable release of Gemma Code — a fully offline, agentic coding assistant
 - Architecture documentation (`docs/v0.1.0/architecture.md`) with component descriptions and data-flow diagrams
 - Comprehensive README with installation guide, quick start, configuration reference, and troubleshooting section
 - Error regression tests in `tests/unit/errors/`
+
+### Changed
+
+- Default model switched from `gemma3:27b` to `gemma4` (Gemma 4 e4b, 128K context, native function calling)
+- Default `maxTokens` increased from 8192 to 32768 to take advantage of Gemma 4's larger context window
+- Ollama requests now pass `num_ctx` and `temperature` options to the server for consistent context handling
+- Nightly CI uses `gemma4:e2b` (smallest Gemma 4 variant) instead of `gemma3:2b`
+- Windows installer model download updated to `gemma4` (~9.6 GB, down from ~15 GB for gemma3:27b)
+- Removed duplicate `configs/eslint.config.mjs` (dead file; canonical ESLint config is at project root)
 
 ### Known Limitations
 

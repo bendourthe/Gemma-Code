@@ -74,7 +74,7 @@ For pre-release builds, use a tag like `v0.1.0-rc.1` — the release will be mar
 
 ## Nightly Workflow
 
-The nightly workflow starts Ollama in the CI environment and pulls `gemma3:2b` (the smallest Gemma 3 variant) to keep download time reasonable. It runs the full integration test suite and performance benchmarks, uploading results as artifacts retained for 30 days.
+The nightly workflow starts Ollama in the CI environment and pulls `gemma4:e2b` (the smallest Gemma 4 variant, ~7.2 GB) to keep download time reasonable. It runs the full integration test suite and performance benchmarks, uploading results as artifacts retained for 30 days.
 
 **Failure notifications** are sent to Slack if `SLACK_WEBHOOK_URL` is set as a repository secret. Add it via **Settings → Secrets and variables → Actions → New repository secret**.
 

@@ -1,4 +1,4 @@
-import type { OllamaClient, OllamaMessage } from "../ollama/types.js";
+import type { OllamaClient, OllamaMessage, OllamaOptions } from "../ollama/types.js";
 import type { ConversationManager } from "../chat/ConversationManager.js";
 import type { PostMessageFn } from "../chat/StreamingPipeline.js";
 import type { ContextCompactor } from "../chat/ContextCompactor.js";
@@ -17,7 +17,8 @@ export class AgentLoop {
     private readonly _registry: ToolRegistry,
     private readonly _modelName: string,
     private readonly _maxIterations: number = DEFAULT_MAX_ITERATIONS,
-    private readonly _compactor?: ContextCompactor
+    private readonly _compactor?: ContextCompactor,
+    private readonly _ollamaOptions?: OllamaOptions
   ) {}
 
   cancel(): void {
@@ -130,7 +131,7 @@ export class AgentLoop {
 
     try {
       const stream = this._client.streamChat(
-        { model: this._modelName, messages: ollamaMessages, stream: true },
+        { model: this._modelName, messages: ollamaMessages, stream: true, options: this._ollamaOptions },
         this._abortController.signal
       );
 

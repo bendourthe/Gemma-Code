@@ -67,7 +67,7 @@ async def test_list_models_parses_response() -> None:
         json=MagicMock(
             return_value={
                 "models": [
-                    {"name": "gemma3:27b", "size": 1024, "modified_at": "2026-01-01"},
+                    {"name": "gemma4", "size": 1024, "modified_at": "2026-01-01"},
                     {"name": "llama3", "size": 2048, "modified_at": "2026-01-02"},
                 ]
             }
@@ -82,7 +82,7 @@ async def test_list_models_parses_response() -> None:
         models = await service.list_models()
 
     assert len(models) == 2
-    assert models[0].name == "gemma3:27b"
+    assert models[0].name == "gemma4"
     assert models[1].name == "llama3"
 
 
@@ -158,7 +158,7 @@ async def test_stream_chat_yields_tokens() -> None:
     with patch.object(service, "_client", return_value=mock_client):
         tokens: list[str] = []
         async for token in service.stream_chat(
-            model="gemma3:27b",
+            model="gemma4",
             messages=[Message(role="user", content="Hi")],
         ):
             tokens.append(token)
@@ -186,7 +186,7 @@ async def test_stream_chat_raises_on_connect_error() -> None:
         pytest.raises(OllamaUnavailableError),
     ):
         async for _ in service.stream_chat(
-            model="gemma3:27b",
+            model="gemma4",
             messages=[Message(role="user", content="Hi")],
         ):
             pass

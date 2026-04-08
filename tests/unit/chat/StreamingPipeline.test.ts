@@ -52,7 +52,7 @@ describe("StreamingPipeline", () => {
         { content: "", done: true },
       ])
     );
-    const pipeline = new StreamingPipeline(client, manager, "gemma3:27b");
+    const pipeline = new StreamingPipeline(client, manager, "gemma4");
 
     await pipeline.send("hi", postMessage);
 
@@ -69,7 +69,7 @@ describe("StreamingPipeline", () => {
 
   it("adds the user message to the manager before streaming", async () => {
     const client = makeMockClient(() => makeStream([{ content: "ok", done: true }]));
-    const pipeline = new StreamingPipeline(client, manager, "gemma3:27b");
+    const pipeline = new StreamingPipeline(client, manager, "gemma4");
 
     await pipeline.send("user input", postMessage);
 
@@ -84,7 +84,7 @@ describe("StreamingPipeline", () => {
         { content: "part2", done: true },
       ])
     );
-    const pipeline = new StreamingPipeline(client, manager, "gemma3:27b");
+    const pipeline = new StreamingPipeline(client, manager, "gemma4");
 
     await pipeline.send("question", postMessage);
 
@@ -101,7 +101,7 @@ describe("StreamingPipeline", () => {
         { content: "C", done: true },
       ])
     );
-    const pipeline = new StreamingPipeline(client, manager, "gemma3:27b");
+    const pipeline = new StreamingPipeline(client, manager, "gemma4");
 
     await pipeline.send("x", postMessage);
 
@@ -132,7 +132,7 @@ describe("StreamingPipeline", () => {
     const client = makeMockClient(() => {
       throw new Error("something unexpected");
     });
-    const pipeline = new StreamingPipeline(client, manager, "gemma3:27b");
+    const pipeline = new StreamingPipeline(client, manager, "gemma4");
 
     await pipeline.send("q", postMessage);
 
@@ -144,7 +144,7 @@ describe("StreamingPipeline", () => {
     const client = makeMockClient(() => {
       throw new OllamaError("boom", 500);
     });
-    const pipeline = new StreamingPipeline(client, manager, "gemma3:27b");
+    const pipeline = new StreamingPipeline(client, manager, "gemma4");
 
     await pipeline.send("q", postMessage);
 
@@ -172,7 +172,7 @@ describe("StreamingPipeline", () => {
       },
     };
 
-    const pipeline = new StreamingPipeline(client, manager, "gemma3:27b");
+    const pipeline = new StreamingPipeline(client, manager, "gemma4");
     const sendPromise = pipeline.send("q", postMessage);
 
     // Give the pipeline a tick to start streaming, then cancel
@@ -211,7 +211,7 @@ describe("StreamingPipeline", () => {
       }),
     };
 
-    const pipeline = new StreamingPipeline(client, manager, "gemma3:27b");
+    const pipeline = new StreamingPipeline(client, manager, "gemma4");
     await pipeline.send("q", postMessage);
 
     expect(attempt).toBe(2);
@@ -237,7 +237,7 @@ describe("StreamingPipeline", () => {
       }),
     };
 
-    const pipeline = new StreamingPipeline(client, manager, "gemma3:27b");
+    const pipeline = new StreamingPipeline(client, manager, "gemma4");
     await pipeline.send("q", postMessage);
 
     expect(attempt).toBe(1);

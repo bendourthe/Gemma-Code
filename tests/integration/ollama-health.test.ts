@@ -4,8 +4,8 @@ import { describe, it, expect } from "vitest";
 vi.mock("../../src/config/settings.js", () => ({
   getSettings: () => ({
     ollamaUrl: process.env["OLLAMA_URL"] ?? "http://localhost:11434",
-    modelName: "gemma3:27b",
-    maxTokens: 8192,
+    modelName: "gemma4",
+    maxTokens: 32768,
     temperature: 0.2,
     requestTimeout: 30000,
   }),

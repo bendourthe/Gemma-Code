@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="GEMMA_", case_sensitive=False)
 
     ollama_url: str = "http://localhost:11434"
-    model_name: str = "gemma3:27b"
+    model_name: str = "gemma4"
     backend_port: int = 11435
     request_timeout: float = 60.0
 

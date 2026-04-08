@@ -121,6 +121,7 @@ export function activate(context: vscode.ExtensionContext): void {
           model: settings.modelName,
           messages: [{ role: "user", content: "Say hello briefly." }],
           stream: true,
+          options: { num_ctx: settings.maxTokens, temperature: settings.temperature },
         });
 
         for await (const chunk of stream) {

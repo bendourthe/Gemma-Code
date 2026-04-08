@@ -137,7 +137,7 @@ describe("ContextCompactor — shouldCompact threshold", () => {
     const manager = new ConversationManager();
     manager.addUserMessage("Hi");
     manager.addAssistantMessage("Hello");
-    const compactor = new ContextCompactor(manager, {} as never, "gemma3:27b", 8192);
+    const compactor = new ContextCompactor(manager, {} as never, "gemma4", 8192);
     expect(compactor.shouldCompact()).toBe(false);
   });
 
@@ -146,7 +146,7 @@ describe("ContextCompactor — shouldCompact threshold", () => {
     // 8192 * 0.8 = 6553.6 tokens → ~26 215 characters.
     const longMsg = "a".repeat(27_000);
     manager.addUserMessage(longMsg);
-    const compactor = new ContextCompactor(manager, {} as never, "gemma3:27b", 8192);
+    const compactor = new ContextCompactor(manager, {} as never, "gemma4", 8192);
     expect(compactor.shouldCompact()).toBe(true);
   });
 });

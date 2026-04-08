@@ -182,14 +182,14 @@ Section "Python Backend" SecPython
 
 SectionEnd
 
-Section /o "Download Gemma model (15 GB)" SecModel
+Section /o "Download Gemma 4 model (9.6 GB)" SecModel
 
-    DetailPrint "Pulling Gemma model — this may take a long time depending on your connection..."
-    ExecWait 'ollama pull gemma3:27b' $0
+    DetailPrint "Pulling Gemma 4 model — this may take a long time depending on your connection..."
+    ExecWait 'ollama pull gemma4' $0
     ${If} $0 != 0
-        MessageBox MB_ICONEXCLAMATION "Model download failed or was interrupted (exit $0).$\nYou can pull it later by running: ollama pull gemma3:27b"
+        MessageBox MB_ICONEXCLAMATION "Model download failed or was interrupted (exit $0).$\nYou can pull it later by running: ollama pull gemma4"
     ${Else}
-        DetailPrint "Gemma model downloaded successfully."
+        DetailPrint "Gemma 4 model downloaded successfully."
     ${EndIf}
 
 SectionEnd
@@ -200,7 +200,7 @@ SectionEnd
     !insertmacro MUI_DESCRIPTION_TEXT ${SecExtension} "Installs the Gemma Code VS Code extension. Required."
     !insertmacro MUI_DESCRIPTION_TEXT ${SecOllama}    "Installs the Ollama local AI runtime. Skipped if Ollama is already present."
     !insertmacro MUI_DESCRIPTION_TEXT ${SecPython}    "Creates a Python virtual environment and installs the inference backend dependencies."
-    !insertmacro MUI_DESCRIPTION_TEXT ${SecModel}     "Downloads the Gemma 3 27B model from Ollama Hub (~15 GB). You can defer this and run 'ollama pull gemma3:27b' later."
+    !insertmacro MUI_DESCRIPTION_TEXT ${SecModel}     "Downloads the Gemma 4 model from Ollama Hub (~9.6 GB). You can defer this and run 'ollama pull gemma4' later."
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
 
 ; ── Uninstaller ──────────────────────────────────────────────────────────────

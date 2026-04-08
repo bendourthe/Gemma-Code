@@ -34,7 +34,7 @@ npx vitest bench --config configs/vitest.config.ts tests/benchmarks/<file>.bench
 ### Live Ollama benchmarks
 
 ```bash
-OLLAMA_URL=http://localhost:11434 TEST_MODEL=gemma3:27b npm run bench
+OLLAMA_URL=http://localhost:11434 TEST_MODEL=gemma4 npm run bench
 ```
 
 ---
