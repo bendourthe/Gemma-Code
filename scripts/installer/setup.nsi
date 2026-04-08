@@ -7,10 +7,12 @@ Unicode True
 SetCompressor /SOLID lzma
 
 !define PRODUCT_NAME        "Gemma Code"
-!define PRODUCT_VERSION     "0.1.0"
+!ifndef PRODUCT_VERSION
+  !define PRODUCT_VERSION   "0.1.0"
+!endif
 !define PRODUCT_PUBLISHER   "Gemma Code"
 !define PRODUCT_EXT_ID      "gemma-code.gemma-code"
-!define PRODUCT_VSIX        "gemma-code-0.1.0.vsix"
+!define PRODUCT_VSIX        "gemma-code-${PRODUCT_VERSION}.vsix"
 !define VENV_SUBDIR         "GemmaCode\venv"
 !define REG_UNINSTALL       "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}"
 !define REG_OLLAMA_PATH     "Software\Ollama"
