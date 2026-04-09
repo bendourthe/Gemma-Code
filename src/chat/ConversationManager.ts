@@ -144,6 +144,17 @@ export class ConversationManager {
   }
 
   /**
+   * Replaces the entire message list with the provided messages. Used by the
+   * compaction pipeline to atomically swap in the compacted conversation.
+   * The caller is responsible for preserving system messages.
+   */
+  replaceMessages(messages: readonly Message[]): void {
+    this._messages.length = 0;
+    for (const m of messages) this._messages.push(m);
+    this._onDidChange.fire(this.getHistory());
+  }
+
+  /**
    * Replaces conversation history with a compact summary, keeping the original
    * system prompt and the most recent `keepMessages` user+assistant messages.
    * Called by ContextCompactor after receiving a summary from the model.

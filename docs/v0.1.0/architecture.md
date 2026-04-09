@@ -135,9 +135,9 @@ Message protocol:
 
 ### `src/chat/ContextCompactor.ts` — Auto-Compact
 
-Monitors estimated token count after each response. When the count exceeds 80% of `maxTokens`, it sends a compaction request to the model, receives a summary, and replaces the history with the summary plus the most recent 4 messages.
+Monitors estimated token count after each response. When the count exceeds 80% of `maxTokens`, it runs a multi-strategy compaction pipeline (`CompactionPipeline` from `CompactionStrategy.ts`) that applies 5 strategies in cost order until the conversation fits within the 65% conversation budget: (1) ToolResultClearing (regex), (2) SlidingWindow (filtering), (3) CodeBlockTruncation (text replacement), (4) LlmSummary (1 LLM call), (5) EmergencyTrim (hard clip). Accepts an optional pre-compaction hook for Phase 3 memory extraction.
 
-Token estimation: `chars / 4 * (1.3 if code blocks present)`.
+Token estimation: `chars / 4 * (1.3 if code blocks present)` via shared `estimateTokensForMessages()` helper.
 
 ### `src/storage/ChatHistoryStore.ts` — SQLite Persistence
 

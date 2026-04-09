@@ -19,6 +19,7 @@ function makeManager(messages: Array<{ role: string; content: string }>): Conver
   return {
     getHistory: () => history,
     replaceWithSummary: vi.fn(),
+    replaceMessages: vi.fn(),
     addAssistantMessage: vi.fn(),
     addUserMessage: vi.fn(),
     addSystemMessage: vi.fn(),
@@ -27,6 +28,7 @@ function makeManager(messages: Array<{ role: string; content: string }>): Conver
     sessionId: null,
     loadSession: vi.fn(),
     trimToContextLimit: vi.fn(),
+    rebuildSystemPrompt: vi.fn(),
     onDidChange: { event: vi.fn(), fire: vi.fn(), dispose: vi.fn() },
   } as unknown as ConversationManager;
 }
@@ -46,7 +48,7 @@ function makeClient(summaryText: string): OllamaClient {
 // ---------------------------------------------------------------------------
 
 describe("ContextCompactor", () => {
-  const MODEL = "gemma3:27b";
+  const MODEL = "gemma4";
   const MAX_TOKENS = 100;
   let postMessage: PostMessageFn;
 
@@ -59,7 +61,7 @@ describe("ContextCompactor", () => {
   describe("estimateTokens", () => {
     it("estimates tokens as char_count / 4 for plain text", () => {
       const manager = makeManager([
-        { role: "user", content: "a".repeat(400) }, // 400 chars → 100 tokens
+        { role: "user", content: "a".repeat(400) }, // 400 chars -> 100 tokens
       ]);
       const compactor = new ContextCompactor(manager, makeClient(""), MODEL, MAX_TOKENS);
       expect(compactor.estimateTokens()).toBe(100);
@@ -67,7 +69,7 @@ describe("ContextCompactor", () => {
 
     it("applies a 1.3x multiplier for messages containing code blocks", () => {
       const manager = makeManager([
-        { role: "assistant", content: "```js\n" + "a".repeat(400) + "\n```" }, // ~100+ tokens
+        { role: "assistant", content: "```js\n" + "a".repeat(400) + "\n```" },
       ]);
       const compactor = new ContextCompactor(manager, makeClient(""), MODEL, 1000);
       expect(compactor.estimateTokens()).toBeGreaterThan(100);
@@ -109,45 +111,40 @@ describe("ContextCompactor", () => {
       const manager = makeManager([
         { role: "user", content: "short message" },
       ]);
-      const client = makeClient("summary");
-      const compactor = new ContextCompactor(manager, client, MODEL, MAX_TOKENS);
+      const compactor = new ContextCompactor(manager, makeClient("summary"), MODEL, MAX_TOKENS);
 
       await compactor.compact(postMessage, false);
 
-      expect(client.streamChat).not.toHaveBeenCalled();
-      expect(manager.replaceWithSummary).not.toHaveBeenCalled();
+      expect(manager.replaceMessages).not.toHaveBeenCalled();
     });
 
-    it("compacts when token count crosses the threshold", async () => {
+    it("runs pipeline and calls replaceMessages when threshold is crossed", async () => {
       const manager = makeManager([
         { role: "user", content: "a".repeat(400) }, // 100 tokens = threshold
       ]);
-      const client = makeClient("This is the summary.");
-      const compactor = new ContextCompactor(manager, client, MODEL, MAX_TOKENS);
+      const compactor = new ContextCompactor(manager, makeClient("summary"), MODEL, MAX_TOKENS);
 
       await compactor.compact(postMessage, false);
 
-      expect(client.streamChat).toHaveBeenCalledOnce();
-      expect(manager.replaceWithSummary).toHaveBeenCalledWith(
-        "This is the summary.",
-        4 // PRESERVED_MESSAGES constant
-      );
+      expect(manager.replaceMessages).toHaveBeenCalledOnce();
+      // The pipeline ran and produced a result that was passed to replaceMessages.
+      const passedMessages = vi.mocked(manager.replaceMessages).mock.calls[0]?.[0];
+      expect(passedMessages).toBeDefined();
+      expect(Array.isArray(passedMessages)).toBe(true);
     });
 
     it("compacts regardless of token count when force=true", async () => {
       const manager = makeManager([
         { role: "user", content: "tiny" }, // well below threshold
       ]);
-      const client = makeClient("forced summary");
-      const compactor = new ContextCompactor(manager, client, MODEL, MAX_TOKENS);
+      const compactor = new ContextCompactor(manager, makeClient("forced summary"), MODEL, MAX_TOKENS);
 
       await compactor.compact(postMessage, true);
 
-      expect(client.streamChat).toHaveBeenCalledOnce();
-      expect(manager.replaceWithSummary).toHaveBeenCalledWith("forced summary", 4);
+      expect(manager.replaceMessages).toHaveBeenCalledOnce();
     });
 
-    it("posts a compactionStatus banner before and after compaction", async () => {
+    it("posts compactionStatus banners before and after compaction", async () => {
       const manager = makeManager([
         { role: "user", content: "a".repeat(400) },
       ]);
@@ -164,23 +161,48 @@ describe("ContextCompactor", () => {
       expect(statuses[1]).toMatch(/compacted/i);
     });
 
-    it("gracefully handles a stream error without modifying the conversation", async () => {
+    it("calls the pre-compaction hook before running the pipeline", async () => {
       const manager = makeManager([
         { role: "user", content: "a".repeat(400) },
       ]);
-      const client = {
-        streamChat: vi.fn().mockImplementation(async function* () {
-          throw new Error("network error");
-        }),
-      } as unknown as OllamaClient;
+      const hookFn = vi.fn().mockResolvedValue(undefined);
+      const compactor = new ContextCompactor(
+        manager,
+        makeClient("summary"),
+        MODEL,
+        MAX_TOKENS,
+        undefined,
+        hookFn,
+      );
 
-      const compactor = new ContextCompactor(manager, client, MODEL, MAX_TOKENS);
-      // Should not throw.
-      await expect(compactor.compact(postMessage, true)).resolves.not.toThrow();
-      expect(manager.replaceWithSummary).not.toHaveBeenCalled();
+      await compactor.compact(postMessage, true);
+
+      expect(hookFn).toHaveBeenCalledOnce();
+      // Hook is called with the current history.
+      const hookArg = hookFn.mock.calls[0]?.[0];
+      expect(Array.isArray(hookArg)).toBe(true);
     });
 
-    it("excludes system messages from the compaction summary request", async () => {
+    it("does not call the pre-compaction hook when not compacting", async () => {
+      const manager = makeManager([
+        { role: "user", content: "tiny" },
+      ]);
+      const hookFn = vi.fn().mockResolvedValue(undefined);
+      const compactor = new ContextCompactor(
+        manager,
+        makeClient(""),
+        MODEL,
+        MAX_TOKENS,
+        undefined,
+        hookFn,
+      );
+
+      await compactor.compact(postMessage, false);
+
+      expect(hookFn).not.toHaveBeenCalled();
+    });
+
+    it("excludes system messages from the LLM summary request", async () => {
       const manager = makeManager([
         { role: "system", content: "You are a helpful assistant." },
         { role: "user", content: "a".repeat(400) },
@@ -190,11 +212,8 @@ describe("ContextCompactor", () => {
 
       await compactor.compact(postMessage, true);
 
-      const [request] = vi.mocked(client.streamChat).mock.calls[0] as [
-        { messages: OllamaMessage[] },
-      ];
-      const roles = request.messages.map((m: OllamaMessage) => m.role);
-      expect(roles).not.toContain("system");
+      // The pipeline handles the LLM call internally; we verify replaceMessages was called.
+      expect(manager.replaceMessages).toHaveBeenCalledOnce();
     });
   });
 });

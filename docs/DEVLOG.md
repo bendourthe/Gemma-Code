@@ -4,6 +4,94 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-04-08] v0.2.0 Phase 2 — Multi-Strategy Context Compaction
+
+### Summary
+
+Replaced the monolithic LLM-summary context compaction with a 5-strategy pipeline that applies cheap transformations first (regex, filtering, text replacement) before resorting to expensive LLM calls. The pipeline runs strategies in cost order until the conversation fits within the 65% conversation budget. Tests: 327 passing (up from 288), 0 failures, 0 lint errors.
+
+### Architecture: CompactionStrategy Pipeline
+
+**New interface and pipeline (`src/chat/CompactionStrategy.ts`):**
+
+The `CompactionStrategy` interface defines a uniform contract for all strategies:
+```typescript
+interface CompactionStrategy {
+  readonly name: string;
+  canApply(messages: readonly Message[], budgetTokens: number): boolean;
+  apply(messages: readonly Message[], budgetTokens: number): Promise<Message[]>;
+}
+```
+
+`CompactionPipeline` iterates strategies in order, calling `apply()` on each, and short-circuits when `estimateTokensForMessages(current) <= budgetTokens`.
+
+**Execution flow:**
+```
+if (estimatedTokens > conversationBudget) {
+  for (strategy of [ToolResultClearing, SlidingWindow, CodeBlockTruncation, LlmSummary, EmergencyTrim]) {
+    if (strategy.canApply(messages, budget)) {
+      messages = await strategy.apply(messages, budget);
+      if (estimateTokensForMessages(messages) <= budget) break;
+    }
+  }
+}
+```
+
+### Strategy Implementations
+
+| # | Strategy | Cost | Mechanism | Expected Savings |
+|---|----------|------|-----------|-----------------|
+| 1 | ToolResultClearing | Zero (regex) | Strips `<\|tool_result>` blocks from older messages, keeps N most recent (default 8), replaces with one-line summary | 30-60% of tool-heavy conversations |
+| 2 | SlidingWindow | Zero (filtering) | Drops middle messages, preserves first user message, summary markers, and last N (default 10) | Variable depending on conversation length |
+| 3 | CodeBlockTruncation | Zero (text replace) | Replaces code blocks >80 lines with `[Code block: N lines, language]` placeholder | 10-30% of code-heavy conversations |
+| 4 | LlmSummary | 1 LLM call | Structured summary prompt preserving file paths, decisions, errors, tool outcomes | High reduction, expensive |
+| 5 | EmergencyTrim | Zero (hard clip) | Drops non-system messages from front until under budget | Guaranteed fit |
+
+### Key Design Decisions
+
+- **Uniform `Promise<Message[]>` return type**: All strategies return `Promise<Message[]>` for uniform async handling, even zero-cost ones. This avoids runtime `instanceof Promise` checks in the pipeline loop.
+- **Pipeline as separate class**: `CompactionPipeline` is its own class in `CompactionStrategy.ts`, injected into `ContextCompactor`. This keeps the pipeline independently testable while preserving `ContextCompactor` as the public facade.
+- **Budget from PromptBudget**: The pipeline targets `calculateBudget(maxTokens).conversationBudget` (65% of context), not the 80% compaction trigger threshold. The trigger fires at 80% of the full context; strategies compact down to the 65% conversation allocation.
+- **Settings read at compaction time**: `getSettings()` is called inside `compact()` rather than cached at construction, so users can change `compactionKeepRecent` and `compactionToolResultsKeep` mid-session.
+- **Pre-compaction hook**: `ContextCompactor` accepts an optional `preCompactionHook` parameter (currently `undefined`). Phase 3 will wire `MemoryStore.extractAndSave()` here to preserve context before lossy operations.
+- **`estimateTokensForMessages()` extracted**: Token estimation logic moved from `ContextCompactor` to a standalone exported function in `CompactionStrategy.ts` to avoid duplication across strategies.
+
+### Changes
+
+| File | Change |
+|------|--------|
+| `src/chat/CompactionStrategy.ts` (new, ~270 lines) | `CompactionStrategy` interface, `CompactionPipeline` class, `estimateTokensForMessages()` helper, 5 strategy implementations |
+| `src/chat/ContextCompactor.ts` (rewritten, ~90 lines) | Replaced monolithic `compact()` with pipeline-based approach; `estimateTokens()` delegates to shared helper; added `preCompactionHook` constructor parameter |
+| `src/chat/ConversationManager.ts` (+11 lines) | Added `replaceMessages(messages)` method for atomic message array replacement by the pipeline |
+| `src/config/settings.ts` (+4 lines) | Added `compactionKeepRecent` (default 10) and `compactionToolResultsKeep` (default 8) to `GemmaCodeSettings` |
+| `package.json` (+14 lines) | Registered both new settings in VS Code configuration |
+| `tests/unit/chat/CompactionStrategy.test.ts` (new, 35 tests) | Full coverage of all strategies, pipeline orchestration, and token estimation |
+| `tests/unit/chat/ContextCompactor.test.ts` (updated, 12 tests) | Updated for pipeline-based `compact()`: mocks `replaceMessages` instead of `replaceWithSummary`; added pre-compaction hook tests |
+| `tests/unit/chat/ConversationManager.test.ts` (+3 tests) | Tests for `replaceMessages()`: replacement, onDidChange firing, getHistory visibility |
+
+### Deviations from Plan
+
+None. All subtasks implemented as specified.
+
+### Test Results
+
+- **Total**: 327 passed, 0 failed, 2 skipped (Ollama integration)
+- **New tests**: 39 (35 CompactionStrategy + 1 ContextCompactor hook tests + 3 ConversationManager)
+- **Build**: Clean `tsc --noEmit`
+- **Lint**: ESLint clean
+
+### Lessons Learned
+
+- Extracting `estimateTokensForMessages()` as a standalone function early avoided circular dependency between `ContextCompactor` and `CompactionStrategy`. Strategies need token estimation but should not import the compactor.
+- The `SlidingWindow` strategy must deduplicate anchor messages that are already in the tail window (e.g., first user message that is also one of the last N messages). Without dedup, the message would appear twice in the compacted output.
+- `ToolResultClearing` uses the `slice(0, -N)` pattern to select messages to clear. When `_keepRecent` is 0, `slice(0, -0)` returns an empty array (not all elements), so the edge case of keep=0 needs explicit handling via the `canApply` check.
+
+### Current Status
+
+Verified. 327 tests passing, 0 lint errors, clean build. Ready for Phase 3 (Persistent Memory System).
+
+---
+
 ## [2026-04-08] v0.2.0 Phase 0+1 — Gemma 4 Native Protocol & Dynamic PromptBuilder
 
 ### Summary

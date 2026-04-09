@@ -142,6 +142,20 @@
           "maximum": 30,
           "description": "Percentage of the context window reserved for the system prompt (base instructions + tool declarations). Range: 5-30%."
         },
+        "gemma-code.compactionKeepRecent": {
+          "type": "number",
+          "default": 10,
+          "minimum": 2,
+          "maximum": 50,
+          "description": "Number of most-recent messages preserved during sliding-window context compaction."
+        },
+        "gemma-code.compactionToolResultsKeep": {
+          "type": "number",
+          "default": 8,
+          "minimum": 0,
+          "maximum": 50,
+          "description": "Number of most-recent tool results to preserve during compaction (older results are replaced with one-line summaries)."
+        },
         "gemma-code.useBackend": {
           "type": "boolean",
           "default": true,

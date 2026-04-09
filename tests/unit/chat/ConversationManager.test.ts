@@ -174,6 +174,41 @@ describe("ConversationManager", () => {
     expect(manager.getHistory().some((m) => m.role === "system")).toBe(true);
   });
 
+  // ---- replaceMessages ------------------------------------------------------
+
+  it("replaceMessages replaces all messages with the provided array", () => {
+    manager.addUserMessage("original");
+    const replacement = [
+      { id: "sys-1", role: "system" as const, content: "new system", timestamp: 1 },
+      { id: "usr-1", role: "user" as const, content: "new user", timestamp: 2 },
+    ];
+    manager.replaceMessages(replacement);
+    const history = manager.getHistory();
+    expect(history).toHaveLength(2);
+    expect(history[0]?.content).toBe("new system");
+    expect(history[1]?.content).toBe("new user");
+  });
+
+  it("replaceMessages fires onDidChange", () => {
+    const received: number[] = [];
+    manager.onDidChange((msgs) => { received.push(msgs.length); });
+    manager.replaceMessages([
+      { id: "s", role: "system", content: "sys", timestamp: 1 },
+    ]);
+    expect(received.length).toBeGreaterThan(0);
+    expect(received[received.length - 1]).toBe(1);
+  });
+
+  it("replaceMessages result is visible via getHistory", () => {
+    manager.addUserMessage("a");
+    manager.addUserMessage("b");
+    manager.replaceMessages([
+      { id: "x", role: "system", content: "only this", timestamp: 1 },
+    ]);
+    expect(manager.getHistory()).toHaveLength(1);
+    expect(manager.getHistory()[0]?.content).toBe("only this");
+  });
+
   // ---- dispose -------------------------------------------------------------
 
   it("dispose does not throw", () => {

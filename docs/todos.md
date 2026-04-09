@@ -9,7 +9,7 @@
 | Metric | Current | Target | Delta |
 |--------|---------|--------|-------|
 | Tasks done (v0.1.0) | 13 / 21 | 21 / 21 | -8 |
-| Tasks done (v0.2.0) | 14 / 38 | 38 / 38 | -24 |
+| Tasks done (v0.2.0) | 20 / 38 | 38 / 38 | -18 |
 
 ---
 
@@ -60,12 +60,12 @@ Full plan: `docs/v0.2.0/development/implementation-plan.md`
 - [x] Add `promptStyle` and `systemPromptBudgetPercent` settings
 
 ### Phase 2 — Multi-Strategy Context Compaction
-- [ ] Create `src/chat/CompactionStrategy.ts` with interface and 5 strategy implementations
-- [ ] Implement ToolResultClearing strategy (regex-based, zero LLM cost)
-- [ ] Implement SlidingWindow strategy (keep anchors + recent messages)
-- [ ] Implement CodeBlockTruncation strategy (replace large code blocks with placeholders)
-- [ ] Refactor `ContextCompactor.ts` to use CompactionPipeline
-- [ ] Add pre-compaction save hook (wires to MemoryStore in Phase 3)
+- [x] Create `src/chat/CompactionStrategy.ts` with interface and 5 strategy implementations
+- [x] Implement ToolResultClearing strategy (regex-based, zero LLM cost)
+- [x] Implement SlidingWindow strategy (keep anchors + recent messages)
+- [x] Implement CodeBlockTruncation strategy (replace large code blocks with placeholders)
+- [x] Refactor `ContextCompactor.ts` to use CompactionPipeline
+- [x] Add pre-compaction save hook (wires to MemoryStore in Phase 3)
 
 ### Phase 3 — Persistent Memory System
 - [ ] Create `src/storage/MemoryStore.ts` with SQLite FTS5 schema

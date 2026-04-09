@@ -18,6 +18,8 @@ export interface GemmaCodeSettings {
   thinkingMode: boolean;
   promptStyle: PromptStyle;
   systemPromptBudgetPercent: number;
+  compactionKeepRecent: number;
+  compactionToolResultsKeep: number;
   useBackend: boolean;
   backendPort: number;
   pythonPath: string;
@@ -40,6 +42,8 @@ export function getSettings(): GemmaCodeSettings {
     thinkingMode: config.get<boolean>("thinkingMode") ?? true,
     promptStyle: (config.get<string>("promptStyle") as PromptStyle | undefined) ?? "concise",
     systemPromptBudgetPercent: config.get<number>("systemPromptBudgetPercent") ?? 10,
+    compactionKeepRecent: config.get<number>("compactionKeepRecent") ?? 10,
+    compactionToolResultsKeep: config.get<number>("compactionToolResultsKeep") ?? 8,
     useBackend: config.get<boolean>("useBackend") ?? true,
     backendPort: config.get<number>("backendPort") ?? 11435,
     pythonPath: config.get<string>("pythonPath") ?? "python",
