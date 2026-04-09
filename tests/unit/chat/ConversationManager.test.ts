@@ -3,13 +3,15 @@ import { describe, it, expect, beforeEach } from "vitest";
 // ConversationManager imports vscode; the global mock in tests/setup.ts handles it.
 const { ConversationManager } = await import("../../../src/chat/ConversationManager.js");
 
+const TEST_SYSTEM_PROMPT = "You are a test assistant.";
+
 // ---------------------------------------------------------------------------
 
 describe("ConversationManager", () => {
   let manager: InstanceType<typeof ConversationManager>;
 
   beforeEach(() => {
-    manager = new ConversationManager();
+    manager = new ConversationManager(TEST_SYSTEM_PROMPT);
   });
 
   // ---- initial state -------------------------------------------------------
@@ -18,7 +20,7 @@ describe("ConversationManager", () => {
     const history = manager.getHistory();
     expect(history).toHaveLength(1);
     expect(history[0]?.role).toBe("system");
-    expect(history[0]?.content.length).toBeGreaterThan(0);
+    expect(history[0]?.content).toBe(TEST_SYSTEM_PROMPT);
   });
 
   it("exposes an onDidChange event property", () => {
@@ -66,7 +68,7 @@ describe("ConversationManager", () => {
 
   // ---- getHistory ----------------------------------------------------------
 
-  it("getHistory returns a defensive copy — mutating the result does not affect internal state", () => {
+  it("getHistory returns a defensive copy -- mutating the result does not affect internal state", () => {
     manager.addUserMessage("a");
     const snapshot = manager.getHistory() as ReturnType<typeof manager.getHistory> extends readonly (infer E)[] ? E[] : never[];
     // Attempt to push to the snapshot
@@ -76,19 +78,49 @@ describe("ConversationManager", () => {
 
   // ---- clearHistory --------------------------------------------------------
 
-  it("clearHistory resets to exactly one system message", () => {
+  it("clearHistory resets to exactly one system message with the original prompt", () => {
     manager.addUserMessage("one");
     manager.addAssistantMessage("two");
     manager.clearHistory();
     const history = manager.getHistory();
     expect(history).toHaveLength(1);
     expect(history[0]?.role).toBe("system");
+    expect(history[0]?.content).toBe(TEST_SYSTEM_PROMPT);
   });
 
   it("clearHistory allows new messages to be added after clearing", () => {
     manager.clearHistory();
     manager.addUserMessage("fresh start");
     expect(manager.getHistory()).toHaveLength(2);
+  });
+
+  // ---- rebuildSystemPrompt -------------------------------------------------
+
+  it("rebuildSystemPrompt replaces the system message content", () => {
+    const newPrompt = "Updated system prompt.";
+    manager.rebuildSystemPrompt(newPrompt);
+    const history = manager.getHistory();
+    expect(history[0]?.role).toBe("system");
+    expect(history[0]?.content).toBe(newPrompt);
+  });
+
+  it("rebuildSystemPrompt preserves the message id", () => {
+    const originalId = manager.getHistory()[0]?.id;
+    manager.rebuildSystemPrompt("new prompt");
+    expect(manager.getHistory()[0]?.id).toBe(originalId);
+  });
+
+  it("rebuildSystemPrompt fires onDidChange", () => {
+    const received: number[] = [];
+    manager.onDidChange((msgs) => { received.push(msgs.length); });
+    manager.rebuildSystemPrompt("updated");
+    expect(received.length).toBeGreaterThan(0);
+  });
+
+  it("rebuildSystemPrompt updates the prompt used by clearHistory", () => {
+    manager.rebuildSystemPrompt("rebuilt prompt");
+    manager.clearHistory();
+    expect(manager.getHistory()[0]?.content).toBe("rebuilt prompt");
   });
 
   // ---- onDidChange ---------------------------------------------------------
@@ -121,11 +153,11 @@ describe("ConversationManager", () => {
 
   it("trimToContextLimit removes non-system messages from the front when over limit", () => {
     // Add a user message long enough to exceed a tiny limit
-    const bigContent = "x".repeat(400); // 400 chars ≈ 100 estimated tokens
+    const bigContent = "x".repeat(400); // 400 chars = 100 estimated tokens
     manager.addUserMessage(bigContent);
     manager.addAssistantMessage("ok");
 
-    // Trim to a very small limit (1 token ≈ 4 chars)
+    // Trim to a very small limit (1 token = 4 chars)
     manager.trimToContextLimit(1);
 
     const history = manager.getHistory();

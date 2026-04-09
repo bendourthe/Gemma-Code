@@ -100,8 +100,12 @@ All settings are under `gemma-code.*` in VS Code settings (`Ctrl+,`).
 |---|---|---|
 | `gemma-code.ollamaUrl` | `http://localhost:11434` | Ollama server URL |
 | `gemma-code.modelName` | `gemma4` | Model to use for inference (Gemma 4 e4b default) |
-| `gemma-code.maxTokens` | `32768` | Maximum context tokens (Gemma 4 supports up to 128K) |
-| `gemma-code.temperature` | `0.2` | Sampling temperature |
+| `gemma-code.maxTokens` | `131072` | Maximum context tokens (128K for E2B/E4B, 256K for 26B/31B) |
+| `gemma-code.temperature` | `1.0` | Sampling temperature (Gemma 4 recommended: 1.0) |
+| `gemma-code.topP` | `0.95` | Top-p (nucleus) sampling threshold |
+| `gemma-code.topK` | `64` | Top-k sampling threshold |
+| `gemma-code.thinkingMode` | `true` | Enable Gemma 4 chain-of-thought reasoning |
+| `gemma-code.promptStyle` | `concise` | System prompt verbosity: `concise`, `detailed`, or `beginner` |
 | `gemma-code.requestTimeout` | `60000` | HTTP timeout in milliseconds |
 | `gemma-code.editMode` | `auto` | How file edits are applied: `auto`, `ask`, or `manual` |
 | `gemma-code.toolConfirmationMode` | `ask` | When to ask before running terminal commands: `always`, `ask`, `never` |

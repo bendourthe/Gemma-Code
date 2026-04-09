@@ -78,12 +78,7 @@ function collectMessages(loop: AgentLoop): {
   return { posted, postMessage };
 }
 
-const toolCallJson = JSON.stringify({
-  tool: "read_file",
-  id: "call_001",
-  parameters: { path: "src/extension.ts" },
-});
-const toolCallText = `<tool_call>${toolCallJson}</tool_call>`;
+const toolCallText = '<|tool_call>call:read_file{path:<|"|>src/extension.ts<|"|>}<tool_call|>';
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -124,20 +119,16 @@ describe("AgentLoop", () => {
     expect(posted.some((m) => m.type === "toolUse")).toBe(true);
     expect(posted.some((m) => m.type === "toolResult")).toBe(true);
     expect(posted.some((m) => m.type === "messageComplete")).toBe(true);
-    // Tool result is injected as user message
-    expect(manager.addUserMessage).toHaveBeenCalledWith(expect.stringContaining("tool_result"));
+    // Tool result is injected as user message in Gemma 4 format
+    expect(manager.addUserMessage).toHaveBeenCalledWith(expect.stringContaining("<|tool_result>"));
   });
 
   it("multi-turn: two consecutive tool calls then final answer", async () => {
-    const toolCall2 = JSON.stringify({
-      tool: "list_directory",
-      id: "call_002",
-      parameters: {},
-    });
+    const toolCall2 = '<|tool_call>call:list_directory{path:<|"|>src<|"|>}<tool_call|>';
     const client = makeMultiClient([
-      toolCallText,                           // turn 1
-      `<tool_call>${toolCall2}</tool_call>`,  // turn 2
-      "All done.",                            // turn 3 — final answer
+      toolCallText,   // turn 1
+      toolCall2,      // turn 2
+      "All done.",    // turn 3 — final answer
     ]);
     const loop = new AgentLoop(client, manager, registry, "gemma3:27b");
     const { posted, postMessage } = collectMessages(loop);

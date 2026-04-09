@@ -3,42 +3,6 @@ import { randomUUID } from "crypto";
 import type { Message, Role } from "./types.js";
 import type { ChatHistoryStore } from "../storage/ChatHistoryStore.js";
 
-const SYSTEM_PROMPT = `You are Gemma Code, a local agentic coding assistant running entirely offline via Ollama. You help developers understand, write, edit, and debug code across multiple files. Reason step-by-step, explain your thinking, and prefer clear, correct solutions over clever ones. Never fabricate file contents or API responses — always acknowledge uncertainty.
-
-## Tool Use
-
-You may invoke tools by emitting a JSON block inside your response, wrapped in XML tags:
-
-<tool_call>
-{
-  "tool": "<tool_name>",
-  "id": "<unique_id>",
-  "parameters": { ... }
-}
-</tool_call>
-
-After tool execution, the result will be injected into the conversation as:
-<tool_result id="<unique_id>">
-{ ...result JSON }
-</tool_result>
-
-Process the result and either call another tool or give your final answer. Do not fabricate tool results.
-
-## Available Tools
-
-- read_file: { path: string } — Read a file's content (up to 500 lines).
-- write_file: { path: string; content: string } — Write or overwrite a file.
-- edit_file: { path: string; old_string: string; new_string: string } — Replace an exact string in a file. old_string must appear exactly once.
-- create_file: { path: string; content?: string } — Create a new file (fails if it already exists).
-- delete_file: { path: string } — Delete a file.
-- list_directory: { path?: string; recursive?: boolean } — List directory contents (3 levels deep max).
-- grep_codebase: { pattern: string; glob?: string; max_results?: number } — Search files with a regex pattern.
-- run_terminal: { command: string; cwd?: string } — Execute a shell command (requires user confirmation).
-- web_search: { query: string; max_results?: number } — Search the web via DuckDuckGo (privacy-preserving).
-- fetch_page: { url: string } — Fetch and read a web page as plain text (up to 2000 chars).
-
-All paths are relative to the workspace root.`;
-
 /** Maximum characters used as the session title (truncated first user message). */
 const SESSION_TITLE_MAX_CHARS = 60;
 
@@ -47,11 +11,16 @@ export class ConversationManager {
   private readonly _onDidChange = new vscode.EventEmitter<readonly Message[]>();
   readonly onDidChange = this._onDidChange.event;
 
+  private _systemPrompt: string;
   private _sessionId: string | null = null;
   private _titleSet = false;
 
-  constructor(private readonly _store?: ChatHistoryStore) {
-    this._append("system", SYSTEM_PROMPT);
+  constructor(
+    systemPrompt: string,
+    private readonly _store?: ChatHistoryStore,
+  ) {
+    this._systemPrompt = systemPrompt;
+    this._append("system", systemPrompt);
 
     if (_store) {
       const existing = _store.listSessions(1);
@@ -66,6 +35,26 @@ export class ConversationManager {
 
   get sessionId(): string | null {
     return this._sessionId;
+  }
+
+  /**
+   * Replace the system prompt in-place. Updates the first system message
+   * in the message history and fires onDidChange. Used for mid-session
+   * reconfiguration (e.g. plan mode toggle, skill activation).
+   */
+  rebuildSystemPrompt(newPrompt: string): void {
+    this._systemPrompt = newPrompt;
+    const systemMsg = this._messages[0];
+    if (systemMsg && systemMsg.role === "system") {
+      // Replace in-place by splicing out the old and inserting a new message.
+      this._messages[0] = {
+        id: systemMsg.id,
+        role: "system",
+        content: newPrompt,
+        timestamp: Date.now(),
+      };
+    }
+    this._onDidChange.fire(this.getHistory());
   }
 
   private _append(role: Role, content: string): Message {
@@ -86,7 +75,7 @@ export class ConversationManager {
         this._titleSet = true;
         const title =
           content.length > SESSION_TITLE_MAX_CHARS
-            ? content.slice(0, SESSION_TITLE_MAX_CHARS) + "…"
+            ? content.slice(0, SESSION_TITLE_MAX_CHARS) + "\u2026"
             : content;
         this._store.updateSessionTitle(this._sessionId, title);
       }
@@ -114,7 +103,7 @@ export class ConversationManager {
 
   clearHistory(): void {
     this._messages.length = 0;
-    this._append("system", SYSTEM_PROMPT);
+    this._append("system", this._systemPrompt);
 
     // Start a fresh session on clear; keep the old one in history.
     if (this._store) {
@@ -138,7 +127,7 @@ export class ConversationManager {
     this._messages.push({
       id: randomUUID(),
       role: "system",
-      content: SYSTEM_PROMPT,
+      content: this._systemPrompt,
       timestamp: Date.now(),
     });
 

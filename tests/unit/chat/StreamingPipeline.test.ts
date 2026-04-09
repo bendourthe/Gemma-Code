@@ -38,7 +38,7 @@ describe("StreamingPipeline", () => {
   let postMessage: ReturnType<typeof vi.fn<[ExtensionToWebviewMessage], void>>;
 
   beforeEach(() => {
-    manager = new ConversationManager();
+    manager = new ConversationManager("Test system prompt.");
     postMessage = vi.fn();
   });
 

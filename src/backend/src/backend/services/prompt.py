@@ -8,7 +8,7 @@ from backend.models.schemas import Message
 _CHARS_PER_TOKEN = 4
 
 # Maximum number of tokens to send to Ollama; messages beyond this are trimmed.
-_DEFAULT_MAX_TOKENS = 32768
+_DEFAULT_MAX_TOKENS = 131072
 
 
 def is_gemma_model(model_name: str) -> bool:
@@ -17,30 +17,23 @@ def is_gemma_model(model_name: str) -> bool:
 
 
 def apply_gemma_template(messages: list[Message]) -> str:
-    """Format a message list using the Gemma chat template.
+    """Format a message list using the Gemma 4 chat template.
 
-    Gemma uses ``<start_of_turn>`` / ``<end_of_turn>`` delimiters.
-    System messages have no dedicated role token; instead their content is
-    prepended to the first user turn.
+    Gemma 4 uses ``<|turn>role`` / ``<turn|>`` delimiters with native
+    support for the system role (no need to prepend to the first user turn).
     """
     parts: list[str] = []
-    pending_system: str = ""
 
     for msg in messages:
         if msg.role == "system":
-            # Accumulate system content to inject into the next user turn.
-            pending_system = msg.content
+            parts.append(f"<|turn>system\n{msg.content}\n<turn|>\n")
         elif msg.role == "user":
-            content = msg.content
-            if pending_system:
-                content = f"{pending_system}\n\n{content}"
-                pending_system = ""
-            parts.append(f"<start_of_turn>user\n{content}<end_of_turn>\n")
+            parts.append(f"<|turn>user\n{msg.content}\n<turn|>\n")
         elif msg.role == "assistant":
-            parts.append(f"<start_of_turn>model\n{msg.content}<end_of_turn>\n")
+            parts.append(f"<|turn>model\n{msg.content}\n<turn|>\n")
 
     # Open the model's reply turn.
-    parts.append("<start_of_turn>model\n")
+    parts.append("<|turn>model\n")
     return "".join(parts)
 
 

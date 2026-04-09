@@ -1,4 +1,4 @@
-import type { OllamaClient, OllamaMessage, OllamaOptions } from "../ollama/types.js";
+import type { OllamaClient, OllamaMessage, OllamaOptions, OllamaToolDefinition } from "../ollama/types.js";
 import type { ConversationManager } from "../chat/ConversationManager.js";
 import type { PostMessageFn } from "../chat/StreamingPipeline.js";
 import type { ContextCompactor } from "../chat/ContextCompactor.js";
@@ -18,7 +18,8 @@ export class AgentLoop {
     private readonly _modelName: string,
     private readonly _maxIterations: number = DEFAULT_MAX_ITERATIONS,
     private readonly _compactor?: ContextCompactor,
-    private readonly _ollamaOptions?: OllamaOptions
+    private readonly _ollamaOptions?: OllamaOptions,
+    private readonly _tools?: OllamaToolDefinition[]
   ) {}
 
   cancel(): void {
@@ -95,7 +96,7 @@ export class AgentLoop {
         });
 
         // Inject the tool result back into the conversation as a user message.
-        this._manager.addUserMessage(formatToolResult(call.id, result));
+        this._manager.addUserMessage(formatToolResult(call.tool, result));
       }
     }
 
@@ -131,7 +132,7 @@ export class AgentLoop {
 
     try {
       const stream = this._client.streamChat(
-        { model: this._modelName, messages: ollamaMessages, stream: true, options: this._ollamaOptions },
+        { model: this._modelName, messages: ollamaMessages, stream: true, options: this._ollamaOptions, tools: this._tools },
         this._abortController.signal
       );
 

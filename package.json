@@ -62,13 +62,23 @@
         },
         "gemma-code.maxTokens": {
           "type": "number",
-          "default": 32768,
-          "description": "Maximum context tokens (Gemma 4 supports up to 128K)"
+          "default": 131072,
+          "description": "Maximum context tokens (Gemma 4 supports 128K for E2B/E4B, 256K for 26B/31B)"
         },
         "gemma-code.temperature": {
           "type": "number",
-          "default": 0.2,
-          "description": "Sampling temperature"
+          "default": 1.0,
+          "description": "Sampling temperature (Gemma 4 recommended: 1.0)"
+        },
+        "gemma-code.topP": {
+          "type": "number",
+          "default": 0.95,
+          "description": "Top-p (nucleus) sampling threshold (Gemma 4 recommended: 0.95)"
+        },
+        "gemma-code.topK": {
+          "type": "number",
+          "default": 64,
+          "description": "Top-k sampling threshold (Gemma 4 recommended: 64)"
         },
         "gemma-code.requestTimeout": {
           "type": "number",
@@ -104,6 +114,33 @@
           ],
           "default": "auto",
           "description": "Controls how file edits (edit_file, write_file, create_file) are applied. 'auto': apply immediately. 'ask': show diff and confirm. 'manual': show diff only, never write."
+        },
+        "gemma-code.thinkingMode": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Gemma 4 thinking mode (<|think|>) for chain-of-thought reasoning before tool use and complex responses."
+        },
+        "gemma-code.promptStyle": {
+          "type": "string",
+          "enum": [
+            "concise",
+            "detailed",
+            "beginner"
+          ],
+          "enumDescriptions": [
+            "Brief, direct instructions optimized for experienced developers.",
+            "Thorough instructions with rationale explanations.",
+            "Step-by-step instructions with technical term definitions for new developers."
+          ],
+          "default": "concise",
+          "description": "Controls the verbosity and style of the system prompt sent to the model."
+        },
+        "gemma-code.systemPromptBudgetPercent": {
+          "type": "number",
+          "default": 10,
+          "minimum": 5,
+          "maximum": 30,
+          "description": "Percentage of the context window reserved for the system prompt (base instructions + tool declarations). Range: 5-30%."
         },
         "gemma-code.useBackend": {
           "type": "boolean",

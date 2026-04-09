@@ -9,7 +9,7 @@
 | Metric | Current | Target | Delta |
 |--------|---------|--------|-------|
 | Tasks done (v0.1.0) | 13 / 21 | 21 / 21 | -8 |
-| Tasks done (v0.2.0) | 0 / 38 | 38 / 38 | -38 |
+| Tasks done (v0.2.0) | 14 / 38 | 38 / 38 | -24 |
 
 ---
 
@@ -42,22 +42,22 @@
 Full plan: `docs/v0.2.0/development/implementation-plan.md`
 
 ### Phase 0 — Gemma 4 Native Protocol Migration
-- [ ] Create `src/tools/Gemma4ToolFormat.ts` (tool declaration serializer, tool call parser, result formatter)
-- [ ] Migrate `ToolCallParser.ts` from XML `<tool_call>` regex to Gemma 4 native `<|tool_call>` tokens
-- [ ] Update `AgentLoop.ts` tool result injection to use `<|tool_result>` format
-- [ ] Update `ConversationManager.ts` system prompt for native system role
-- [ ] Update `settings.ts` defaults: model `gemma4:e4b`, maxTokens 131072, temperature 1.0, topP 0.95, topK 64
-- [ ] Update `prompt.py` to use native system role and Gemma 4 turn tokens
-- [ ] Update `client.ts` to pass `tools` parameter in Ollama API requests
-- [ ] Add thinking mode support (`<|think|>` token in system prompt)
+- [x] Create `src/tools/Gemma4ToolFormat.ts` (tool declaration serializer, tool call parser, result formatter)
+- [x] Migrate `ToolCallParser.ts` from XML `<tool_call>` regex to Gemma 4 native `<|tool_call>` tokens
+- [x] Update `AgentLoop.ts` tool result injection to use `<|tool_result>` format
+- [x] Update `ConversationManager.ts` system prompt for native system role
+- [x] Update `settings.ts` defaults: model `gemma4:e4b`, maxTokens 131072, temperature 1.0, topP 0.95, topK 64
+- [x] Update `prompt.py` to use native system role and Gemma 4 turn tokens
+- [x] Update `client.ts` to pass `tools` parameter in Ollama API requests
+- [x] Add thinking mode support (`<|think|>` token in system prompt)
 
 ### Phase 1 — Dynamic PromptBuilder with Token Budgeting
-- [ ] Create `src/chat/PromptBuilder.ts` with section-based assembly and greedy packing
-- [ ] Create `src/chat/PromptBuilder.types.ts` (PromptContext, PromptSection, PromptStyle)
-- [ ] Create `src/config/PromptBudget.ts` (centralized budget calculator)
-- [ ] Refactor `ConversationManager.ts` to use PromptBuilder instead of static SYSTEM_PROMPT
-- [ ] Wire PromptBuilder into `GemmaCodePanel.ts`
-- [ ] Add `promptStyle` and `systemPromptBudgetPercent` settings
+- [x] Create `src/chat/PromptBuilder.ts` with section-based assembly and greedy packing
+- [x] Create `src/chat/PromptBuilder.types.ts` (PromptContext, PromptSection, PromptStyle)
+- [x] Create `src/config/PromptBudget.ts` (centralized budget calculator)
+- [x] Refactor `ConversationManager.ts` to use PromptBuilder instead of static SYSTEM_PROMPT
+- [x] Wire PromptBuilder into `GemmaCodePanel.ts`
+- [x] Add `promptStyle` and `systemPromptBudgetPercent` settings
 
 ### Phase 2 — Multi-Strategy Context Compaction
 - [ ] Create `src/chat/CompactionStrategy.ts` with interface and 5 strategy implementations

@@ -1,4 +1,4 @@
-import type { OllamaClient, OllamaMessage, OllamaOptions } from "../ollama/types.js";
+import type { OllamaClient, OllamaMessage, OllamaOptions, OllamaToolDefinition } from "../ollama/types.js";
 import { OllamaError } from "../ollama/types.js";
 import type { ConversationManager } from "./ConversationManager.js";
 import type { ExtensionToWebviewMessage } from "../panels/messages.js";
@@ -19,7 +19,8 @@ export class StreamingPipeline {
     private readonly _manager: ConversationManager,
     private readonly _modelName: string,
     private readonly _runAgentLoop?: (postMessage: PostMessageFn) => Promise<void>,
-    private readonly _ollamaOptions?: OllamaOptions
+    private readonly _ollamaOptions?: OllamaOptions,
+    private readonly _tools?: OllamaToolDefinition[]
   ) {}
 
   /** Abort any in-flight stream request. */
@@ -63,7 +64,7 @@ export class StreamingPipeline {
         postMessage({ type: "status", state: "streaming" });
 
         const stream = this._client.streamChat(
-          { model: this._modelName, messages: ollamaMessages, stream: true, options: this._ollamaOptions },
+          { model: this._modelName, messages: ollamaMessages, stream: true, options: this._ollamaOptions, tools: this._tools },
           this._abortController.signal
         );
 

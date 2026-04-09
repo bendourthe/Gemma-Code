@@ -4,6 +4,49 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-04-08] v0.2.0 Phase 0+1 — Gemma 4 Native Protocol & Dynamic PromptBuilder
+
+### Summary
+
+Implemented the first two phases of the v0.2.0 plan: migrated from the custom XML tool protocol to Gemma 4's native special tokens (Phase 0), then replaced the static system prompt with a dynamic PromptBuilder that assembles sections conditionally within a token budget (Phase 1). 288 tests passing, 0 lint errors.
+
+### Phase 0: Gemma 4 Native Protocol Migration
+
+**Tool protocol migration:**
+- Replaced XML `<tool_call>` / `<tool_result>` format with Gemma 4 native `<|tool_call>call:NAME{...}<tool_call|>` and `<|tool_result>...<tool_result|>` tokens
+- Created `Gemma4ToolFormat.ts` with parser, serializer, and formatter
+- Created `ToolCatalog.ts` with structured metadata for all 10 tools (decoupled from ToolRegistry)
+- `ToolCallParser.ts` now re-exports from Gemma4ToolFormat, preserving existing import paths
+
+**Settings and API updates:**
+- `maxTokens` default: 32768 -> 131072 (128K context)
+- `temperature` default: 0.2 -> 1.0 (Gemma 4 recommended)
+- Added `topP` (0.95), `topK` (64), `thinkingMode` (true) settings
+- Ollama API requests now include `tools` field with JSON schema definitions
+- Python backend updated to Gemma 4 `<|turn>` chat template with native system role
+
+### Phase 1: Dynamic PromptBuilder with Token Budgeting
+
+**New prompt assembly system:**
+- `PromptBuilder` class assembles 7 section types by priority within a token budget
+- Greedy packing: always-include sections (base instructions, tool declarations) survive over-budget; conditional sections (plan mode, thinking mode, skills, memory, sub-agent) are dropped lowest-priority-first
+- `PromptBudget` calculator: system 10%, memory 3%, skill 2%, conversation 65%, response reserve 20%
+- Three prompt styles: `concise` (default), `detailed`, `beginner`
+
+**ConversationManager refactor:**
+- Removed static `SYSTEM_PROMPT` constant
+- Constructor now takes `systemPrompt: string` parameter
+- Added `rebuildSystemPrompt()` for mid-session reconfiguration (plan mode toggle, skill activation)
+- GemmaCodePanel owns the PromptBuilder and builds PromptContext from runtime state
+
+### Architectural Decisions
+
+- **ToolCatalog as static data**: metadata lives separately from ToolRegistry so PromptBuilder depends on data, not handler instances
+- **ConversationManager accepts string, not PromptBuilder**: keeps it as a pure state manager; GemmaCodePanel coordinates prompt building
+- **Plan mode via rebuildSystemPrompt()**: replaces system prompt in-place instead of accumulating separate system messages
+
+---
+
 ## [2026-04-07] v0.1.0 Release — Gemma 4 Migration & Cleanup
 
 ### Summary

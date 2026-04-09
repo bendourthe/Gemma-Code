@@ -6,7 +6,19 @@ export interface OllamaMessage {
 export interface OllamaOptions {
   temperature?: number;
   top_p?: number;
+  top_k?: number;
   num_ctx?: number;
+}
+
+export interface OllamaToolFunction {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+}
+
+export interface OllamaToolDefinition {
+  type: "function";
+  function: OllamaToolFunction;
 }
 
 export interface OllamaChatRequest {
@@ -14,6 +26,7 @@ export interface OllamaChatRequest {
   messages: OllamaMessage[];
   stream: boolean;
   options?: OllamaOptions;
+  tools?: OllamaToolDefinition[];
 }
 
 export interface OllamaChatChunk {

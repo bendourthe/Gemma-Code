@@ -20,9 +20,13 @@ import { RunTerminalTool } from "../tools/handlers/terminal.js";
 import { WebSearchTool, FetchPageTool } from "../tools/handlers/webSearch.js";
 import { createOllamaClient } from "../ollama/client.js";
 import { getSettings } from "../config/settings.js";
+import { TOOL_CATALOG } from "../tools/ToolCatalog.js";
+import type { OllamaToolDefinition } from "../ollama/types.js";
+import { PromptBuilder } from "../chat/PromptBuilder.js";
+import type { PromptContext } from "../chat/PromptBuilder.types.js";
 import { SkillLoader } from "../skills/SkillLoader.js";
 import { CommandRouter } from "../commands/CommandRouter.js";
-import { PlanMode, PLAN_MODE_SYSTEM_ADDENDUM, detectPlan } from "../modes/PlanMode.js";
+import { PlanMode, detectPlan } from "../modes/PlanMode.js";
 import { ChatHistoryStore } from "../storage/ChatHistoryStore.js";
 import { renderMarkdown } from "../utils/MarkdownRenderer.js";
 import type { EditMode } from "../tools/types.js";
@@ -43,6 +47,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
   private readonly _skillLoader: SkillLoader;
   private readonly _commandRouter: CommandRouter;
   private readonly _planMode: PlanMode;
+  private readonly _promptBuilder: PromptBuilder;
   private readonly _store: ChatHistoryStore | null;
   private readonly _compactor: ContextCompactor;
 
@@ -58,7 +63,13 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     // Initialise persistent chat history store.
     this._store = this._initStore();
 
-    this._manager = new ConversationManager(this._store ?? undefined);
+    // PlanMode must be initialised before PromptBuilder uses it.
+    this._planMode = new PlanMode();
+
+    // Build the initial system prompt via PromptBuilder.
+    this._promptBuilder = new PromptBuilder();
+    const initialPrompt = this._promptBuilder.build(this._buildPromptContext());
+    this._manager = new ConversationManager(initialPrompt, this._store ?? undefined);
 
     const client = createOllamaClient(settings.ollamaUrl);
 
@@ -88,7 +99,32 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     const ollamaOptions = {
       num_ctx: settings.maxTokens,
       temperature: settings.temperature,
+      top_p: settings.topP,
+      top_k: settings.topK,
     };
+
+    const ollamaTools: OllamaToolDefinition[] = TOOL_CATALOG.map((tool) => {
+      const properties: Record<string, { type: string; description: string }> = {};
+      const required: string[] = [];
+      for (const [key, param] of Object.entries(tool.parameters)) {
+        properties[key] = { type: param.type, description: param.description };
+        if (param.required) {
+          required.push(key);
+        }
+      }
+      return {
+        type: "function" as const,
+        function: {
+          name: tool.name,
+          description: tool.description,
+          parameters: {
+            type: "object",
+            properties,
+            ...(required.length > 0 ? { required } : {}),
+          },
+        },
+      };
+    });
 
     this._compactor = new ContextCompactor(
       this._manager,
@@ -105,7 +141,8 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
       settings.modelName,
       settings.maxAgentIterations,
       this._compactor,
-      ollamaOptions
+      ollamaOptions,
+      ollamaTools
     );
 
     this._pipeline = new StreamingPipeline(
@@ -113,7 +150,8 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
       this._manager,
       settings.modelName,
       (pm) => this._agentLoop.run(pm),
-      ollamaOptions
+      ollamaOptions,
+      ollamaTools
     );
 
     // Skills — built-in catalog lives next to the source tree.
@@ -132,7 +170,6 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
       }))
     );
 
-    this._planMode = new PlanMode();
   }
 
   private _initStore(): ChatHistoryStore | null {
@@ -344,13 +381,9 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
 
       case "plan": {
         const nowActive = this._planMode.toggle();
-        if (nowActive) {
-          this._manager.addSystemMessage(PLAN_MODE_SYSTEM_ADDENDUM);
-        } else {
-          this._manager.addSystemMessage(
-            "Plan mode is now OFF. Resume normal assistance without requiring a numbered plan."
-          );
-        }
+        // Rebuild the system prompt to include or exclude the plan mode section.
+        const prompt = this._promptBuilder.build(this._buildPromptContext());
+        this._manager.rebuildSystemPrompt(prompt);
         postMessage({ type: "planModeToggled", active: nowActive });
         const planMsg = this._manager.addAssistantMessage(
           nowActive
@@ -506,6 +539,20 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
       count,
       limit: settings.maxTokens,
     });
+  }
+
+  private _buildPromptContext(): PromptContext {
+    const settings = getSettings();
+    return {
+      modelName: settings.modelName,
+      maxTokens: settings.maxTokens,
+      planModeActive: this._planMode.active,
+      thinkingMode: settings.thinkingMode,
+      enabledTools: [...TOOL_CATALOG],
+      promptStyle: settings.promptStyle,
+      workspacePath: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+      systemPromptBudgetPercent: settings.systemPromptBudgetPercent,
+    };
   }
 
   /** Post a status update to the webview (visible even before the first message). */

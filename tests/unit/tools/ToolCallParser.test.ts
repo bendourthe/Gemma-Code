@@ -6,34 +6,26 @@ import {
   formatToolResult,
 } from "../../../src/tools/ToolCallParser.js";
 
-const validCall = JSON.stringify({
-  tool: "read_file",
-  id: "call_001",
-  parameters: { path: "src/extension.ts" },
-});
+// Gemma 4 native format tool call
+const validCall = '<|tool_call>call:read_file{path:<|"|>src/extension.ts<|"|>}<tool_call|>';
 
 describe("parseToolCalls", () => {
   it("parses a single well-formed tool call", () => {
-    const text = `Let me read the file.\n<tool_call>${validCall}</tool_call>`;
+    const text = `Let me read the file.\n${validCall}`;
     const results = parseToolCalls(text);
     expect(results).toHaveLength(1);
     expect(results[0]).toMatchObject({
       ok: true,
       call: {
         tool: "read_file",
-        id: "call_001",
         parameters: { path: "src/extension.ts" },
       },
     });
   });
 
   it("parses multiple tool calls in one response", () => {
-    const call2 = JSON.stringify({
-      tool: "list_directory",
-      id: "call_002",
-      parameters: { path: "src" },
-    });
-    const text = `<tool_call>${validCall}</tool_call>\n<tool_call>${call2}</tool_call>`;
+    const call2 = '<|tool_call>call:list_directory{path:<|"|>src<|"|>}<tool_call|>';
+    const text = `${validCall}\n${call2}`;
     const results = parseToolCalls(text);
     expect(results).toHaveLength(2);
     expect(results[0]).toMatchObject({ ok: true });
@@ -44,40 +36,41 @@ describe("parseToolCalls", () => {
     expect(parseToolCalls("Just a normal reply.")).toEqual([]);
   });
 
-  it("returns ok:false for malformed JSON inside the tag", () => {
-    const results = parseToolCalls("<tool_call>not json</tool_call>");
-    expect(results).toHaveLength(1);
-    expect(results[0]).toMatchObject({ ok: false, error: "JSON parse error" });
-  });
-
   it("returns ok:false for unknown tool name", () => {
-    const bad = JSON.stringify({ tool: "fly_drone", id: "x", parameters: {} });
-    const results = parseToolCalls(`<tool_call>${bad}</tool_call>`);
+    const text = '<|tool_call>call:fly_drone{target:<|"|>moon<|"|>}<tool_call|>';
+    const results = parseToolCalls(text);
+    expect(results).toHaveLength(1);
     expect(results[0]).toMatchObject({ ok: false });
     expect((results[0] as { ok: false; error: string }).error).toMatch(/Unknown or missing tool/);
   });
 
-  it("returns ok:false when id is missing", () => {
-    const bad = JSON.stringify({ tool: "read_file", parameters: {} });
-    const results = parseToolCalls(`<tool_call>${bad}</tool_call>`);
-    expect(results[0]).toMatchObject({ ok: false });
-  });
-
-  it("returns ok:false when parameters is not an object", () => {
-    const bad = JSON.stringify({ tool: "read_file", id: "x", parameters: "oops" });
-    const results = parseToolCalls(`<tool_call>${bad}</tool_call>`);
-    expect(results[0]).toMatchObject({ ok: false });
-  });
-
   it("ignores tool calls inside triple-backtick code fences", () => {
-    const text = "```\n<tool_call>" + validCall + "</tool_call>\n```";
+    const text = "```\n" + validCall + "\n```";
     expect(parseToolCalls(text)).toHaveLength(0);
   });
 
-  it("handles whitespace inside the tag gracefully", () => {
-    const text = `<tool_call>\n  ${validCall}\n</tool_call>`;
+  it("parses bare numeric parameters", () => {
+    const text = '<|tool_call>call:grep_codebase{pattern:<|"|>TODO<|"|>,max_results:5}<tool_call|>';
     const results = parseToolCalls(text);
-    expect(results[0]).toMatchObject({ ok: true });
+    expect(results[0]).toMatchObject({
+      ok: true,
+      call: {
+        tool: "grep_codebase",
+        parameters: { pattern: "TODO", max_results: 5 },
+      },
+    });
+  });
+
+  it("parses bare boolean parameters", () => {
+    const text = '<|tool_call>call:list_directory{path:<|"|>src<|"|>,recursive:true}<tool_call|>';
+    const results = parseToolCalls(text);
+    expect(results[0]).toMatchObject({
+      ok: true,
+      call: {
+        tool: "list_directory",
+        parameters: { path: "src", recursive: true },
+      },
+    });
   });
 
   it("parses all valid ToolName values", () => {
@@ -86,16 +79,24 @@ describe("parseToolCalls", () => {
       "list_directory", "grep_codebase", "run_terminal", "web_search", "fetch_page",
     ] as const;
     for (const name of toolNames) {
-      const raw = JSON.stringify({ tool: name, id: "x", parameters: {} });
-      const [result] = parseToolCalls(`<tool_call>${raw}</tool_call>`);
+      const text = `<|tool_call>call:${name}{path:<|"|>test<|"|>}<tool_call|>`;
+      const [result] = parseToolCalls(text);
       expect(result).toMatchObject({ ok: true, call: { tool: name } });
+    }
+  });
+
+  it("generates a unique id for each parsed call", () => {
+    const text = `${validCall}\n${validCall}`;
+    const results = parseToolCalls(text);
+    if (results[0]?.ok && results[1]?.ok) {
+      expect(results[0].call.id).not.toBe(results[1].call.id);
     }
   });
 });
 
 describe("hasToolCall", () => {
   it("returns true when a tool call tag is present", () => {
-    expect(hasToolCall(`<tool_call>${validCall}</tool_call>`)).toBe(true);
+    expect(hasToolCall(validCall)).toBe(true);
   });
 
   it("returns false when no tool call tag is present", () => {
@@ -103,24 +104,24 @@ describe("hasToolCall", () => {
   });
 
   it("returns false for tool calls inside code fences", () => {
-    const fenced = "```\n<tool_call>" + validCall + "</tool_call>\n```";
+    const fenced = "```\n" + validCall + "\n```";
     expect(hasToolCall(fenced)).toBe(false);
   });
 });
 
 describe("stripToolCalls", () => {
-  it("removes <tool_call> blocks leaving surrounding text intact", () => {
-    const text = `I'll read that.\n<tool_call>${validCall}</tool_call>\nDone.`;
+  it("removes <|tool_call> blocks leaving surrounding text intact", () => {
+    const text = `I'll read that.\n${validCall}\nDone.`;
     const stripped = stripToolCalls(text);
-    expect(stripped).not.toContain("<tool_call>");
+    expect(stripped).not.toContain("<|tool_call>");
     expect(stripped).toContain("I'll read that.");
     expect(stripped).toContain("Done.");
   });
 
   it("removes multiple blocks", () => {
-    const text = `<tool_call>${validCall}</tool_call>text<tool_call>${validCall}</tool_call>`;
+    const text = `${validCall}text${validCall}`;
     const stripped = stripToolCalls(text);
-    expect(stripped).not.toContain("<tool_call>");
+    expect(stripped).not.toContain("<|tool_call>");
     expect(stripped).toContain("text");
   });
 
@@ -130,15 +131,18 @@ describe("stripToolCalls", () => {
 });
 
 describe("formatToolResult", () => {
-  it("produces a <tool_result> XML block with the id attribute", () => {
-    const out = formatToolResult("call_001", { success: true, output: "content" });
-    expect(out).toContain('<tool_result id="call_001">');
-    expect(out).toContain("</tool_result>");
+  it("produces a <|tool_result> block with the tool name", () => {
+    const result = { id: "call_001", success: true, output: "content" };
+    const out = formatToolResult("read_file", result);
+    expect(out).toContain("<|tool_result>");
+    expect(out).toContain("<tool_result|>");
+    expect(out).toContain('"name": "read_file"');
     expect(out).toContain('"success": true');
   });
 
-  it("pretty-prints the JSON payload", () => {
-    const out = formatToolResult("x", { a: 1 });
-    expect(out).toContain('"a": 1');
+  it("includes error field when present", () => {
+    const result = { id: "x", success: false, output: "", error: "not found" };
+    const out = formatToolResult("read_file", result);
+    expect(out).toContain('"error": "not found"');
   });
 });

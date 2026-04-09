@@ -134,7 +134,7 @@ describe("ReadFileTool — file not found returns typed error", () => {
 
 describe("ContextCompactor — shouldCompact threshold", () => {
   it("does not trigger compaction when the conversation is small", () => {
-    const manager = new ConversationManager();
+    const manager = new ConversationManager("Test system prompt.");
     manager.addUserMessage("Hi");
     manager.addAssistantMessage("Hello");
     const compactor = new ContextCompactor(manager, {} as never, "gemma4", 8192);
@@ -142,7 +142,7 @@ describe("ContextCompactor — shouldCompact threshold", () => {
   });
 
   it("triggers compaction when token estimate exceeds 80% of maxTokens", () => {
-    const manager = new ConversationManager();
+    const manager = new ConversationManager("Test system prompt.");
     // 8192 * 0.8 = 6553.6 tokens → ~26 215 characters.
     const longMsg = "a".repeat(27_000);
     manager.addUserMessage(longMsg);

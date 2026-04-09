@@ -24,8 +24,13 @@ describe("getSettings()", () => {
 
     expect(settings.ollamaUrl).toBe("http://localhost:11434");
     expect(settings.modelName).toBe("gemma4");
-    expect(settings.maxTokens).toBe(32768);
-    expect(settings.temperature).toBe(0.2);
+    expect(settings.maxTokens).toBe(131072);
+    expect(settings.temperature).toBe(1.0);
+    expect(settings.topP).toBe(0.95);
+    expect(settings.topK).toBe(64);
+    expect(settings.thinkingMode).toBe(true);
+    expect(settings.promptStyle).toBe("concise");
+    expect(settings.systemPromptBudgetPercent).toBe(10);
     expect(settings.requestTimeout).toBe(60000);
   });
 
