@@ -183,4 +183,51 @@ describe("ChatHistoryStore", () => {
       expect(results.map((s) => s.id)).toContain(session.id);
     });
   });
+
+  // -------------------------------------------------------------------------
+
+  describe("searchFts", () => {
+    it("finds messages matching a keyword via FTS5", () => {
+      const s1 = store.createSession("FTS test");
+      store.saveMessage(s1.id, makeMessage("user", "how do I use useState in React?"));
+      store.saveMessage(s1.id, makeMessage("assistant", "Here is how useState works."));
+
+      const results = store.searchFts("useState");
+
+      expect(results.length).toBeGreaterThan(0);
+      expect(results[0]?.content).toContain("useState");
+      expect(results[0]?.sessionId).toBe(s1.id);
+    });
+
+    it("returns empty array when no matches found", () => {
+      const s1 = store.createSession("No match");
+      store.saveMessage(s1.id, makeMessage("user", "something about Go interfaces"));
+
+      const results = store.searchFts("nonexistent-xyz");
+      expect(results).toEqual([]);
+    });
+
+    it("returns empty array for empty query", () => {
+      expect(store.searchFts("")).toEqual([]);
+    });
+
+    it("respects the limit parameter", () => {
+      const s1 = store.createSession("Limit test");
+      for (let i = 0; i < 10; i++) {
+        store.saveMessage(s1.id, makeMessage("user", `message about testing number ${i}`));
+      }
+
+      const results = store.searchFts("testing", 3);
+      expect(results).toHaveLength(3);
+    });
+
+    it("handles FTS5 special characters gracefully", () => {
+      const s1 = store.createSession("Special chars");
+      store.saveMessage(s1.id, makeMessage("user", "search for test*pattern"));
+
+      // Should not throw despite special characters in query.
+      const results = store.searchFts('test*"pattern');
+      expect(results.length).toBeGreaterThanOrEqual(0);
+    });
+  });
 });

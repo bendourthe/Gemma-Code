@@ -4,6 +4,57 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-04-09] v0.2.0 Phase 3 — Persistent Memory System
+
+### Summary
+
+Added cross-session persistent memory backed by SQLite FTS5 for keyword search and optional Ollama embeddings for semantic search. Memories are auto-extracted before context compaction and injected into the system prompt via the PromptBuilder memory section (3% token budget). Tests: 372 passing (up from 327), 0 failures, 0 lint errors.
+
+### Architecture: MemoryStore and Retrieval Pipeline
+
+**New files:**
+- `src/storage/MemoryStore.ts` -- Core memory system with SQLite FTS5, embedding BLOB storage, heuristic extraction, and token-budgeted retrieval.
+- `src/storage/EmbeddingClient.ts` -- Wraps Ollama `/api/embed` endpoint. Graceful degradation to keyword-only search when embedding model is unavailable.
+- `src/storage/MemoryStore.types.ts` -- Types: `MemoryEntry`, `MemoryType` (5 types: decision, fact, preference, file_pattern, error_resolution), `MemorySearchResult`, `MemoryStats`.
+
+**Memory retrieval pipeline:**
+1. FTS5 keyword search (BM25 ranking, zero LLM cost)
+2. Cosine similarity against stored embeddings (optional, requires `nomic-embed-text`)
+3. Merge/dedup by ID, combined score (0.6 * keyword + 0.4 * semantic)
+4. Greedy token-budget packing (chars/4 estimation)
+5. Format as `## Recalled Memories` section for system prompt injection
+
+**Auto-extraction (pre-compaction hook):**
+Heuristic regex patterns detect decisions ("decided to", "going with"), preferences ("prefer", "always use"), error resolutions, project facts, and file patterns from messages about to be compacted. Deduplication uses FTS5 OR queries against existing memories.
+
+### Modifications to existing files
+
+- **`src/config/settings.ts`** -- 4 new settings: `memoryEnabled`, `embeddingModel`, `memoryAutoSaveInterval`, `memoryMaxEntries`
+- **`src/storage/ChatHistoryStore.ts`** -- Added FTS5 virtual table on messages with sync triggers and `searchFts()` method. One-time rebuild for v0.1.0 upgrade compatibility.
+- **`src/chat/PromptBuilder.ts`** -- Memory section now respects the 3% token budget cap with truncation notice.
+- **`src/commands/CommandRouter.ts`** -- Added `/memory` builtin command (search, save, clear, status subcommands).
+- **`src/panels/GemmaCodePanel.ts`** -- MemoryStore initialization, pre-compaction hook wiring, memory query before every `pipeline.send()`, `/memory` command handler, dispose cleanup.
+- **`package.json`** -- 4 new VS Code configuration properties.
+
+### Key decisions
+
+- **No ChromaDB dependency.** SQLite FTS5 is bundled with better-sqlite3 (zero new deps). Embeddings stored as Float64Array BLOBs in SQLite. Cosine similarity computed in-process (sub-millisecond at 10K entries).
+- **Explicit rowid column.** The `memories` table uses `rowid INTEGER PRIMARY KEY AUTOINCREMENT` with `id TEXT UNIQUE NOT NULL` to avoid the FTS5 external content rowid pitfall.
+- **OR-based deduplication.** Extract the 3 longest words from new content, search with FTS5 OR logic. Prevents saving near-duplicate memories while avoiding false negatives from strict AND matching.
+- **Non-fatal memory operations.** All memory queries and extraction are wrapped in try/catch. Memory system failure never breaks the chat flow or compaction pipeline.
+
+### Deviations
+
+None. Implementation follows the plan exactly.
+
+### Test results
+
+- 45 new tests (25 MemoryStore, 13 EmbeddingClient, 5 ChatHistoryStore FTS5, 2 CommandRouter)
+- Extended settings test with 4 new default assertions
+- 372 total passing, 0 failures, 2 skipped (pre-existing Ollama integration)
+
+---
+
 ## [2026-04-08] v0.2.0 Phase 2 — Multi-Strategy Context Compaction
 
 ### Summary

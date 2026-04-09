@@ -32,6 +32,10 @@ describe("getSettings()", () => {
     expect(settings.promptStyle).toBe("concise");
     expect(settings.systemPromptBudgetPercent).toBe(10);
     expect(settings.requestTimeout).toBe(60000);
+    expect(settings.memoryEnabled).toBe(true);
+    expect(settings.embeddingModel).toBe("nomic-embed-text");
+    expect(settings.memoryAutoSaveInterval).toBe(15);
+    expect(settings.memoryMaxEntries).toBe(10000);
   });
 
   it("returns user-configured values when they are set", () => {

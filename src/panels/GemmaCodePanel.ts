@@ -28,6 +28,9 @@ import { SkillLoader } from "../skills/SkillLoader.js";
 import { CommandRouter } from "../commands/CommandRouter.js";
 import { PlanMode, detectPlan } from "../modes/PlanMode.js";
 import { ChatHistoryStore } from "../storage/ChatHistoryStore.js";
+import { MemoryStore } from "../storage/MemoryStore.js";
+import { EmbeddingClient } from "../storage/EmbeddingClient.js";
+import { calculateBudget } from "../config/PromptBudget.js";
 import { renderMarkdown } from "../utils/MarkdownRenderer.js";
 import type { EditMode } from "../tools/types.js";
 import type {
@@ -49,6 +52,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
   private readonly _planMode: PlanMode;
   private readonly _promptBuilder: PromptBuilder;
   private readonly _store: ChatHistoryStore | null;
+  private readonly _memoryStore: MemoryStore | null;
   private readonly _compactor: ContextCompactor;
 
   private _currentEditMode: EditMode;
@@ -62,6 +66,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
 
     // Initialise persistent chat history store.
     this._store = this._initStore();
+    this._memoryStore = this._initMemoryStore();
 
     // PlanMode must be initialised before PromptBuilder uses it.
     this._planMode = new PlanMode();
@@ -131,7 +136,20 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
       client,
       settings.modelName,
       settings.maxTokens,
-      ollamaOptions
+      ollamaOptions,
+      settings.memoryEnabled && this._memoryStore
+        ? async (messages) => {
+            try {
+              await this._memoryStore!.extractAndSave(
+                messages,
+                this._manager.sessionId ?? undefined,
+              );
+              this._memoryStore!.prune(settings.memoryMaxEntries);
+            } catch (err) {
+              console.warn("[MemoryStore] Pre-compaction extraction failed:", err);
+            }
+          }
+        : undefined,
     );
 
     this._agentLoop = new AgentLoop(
@@ -322,12 +340,14 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
       const expandedPrompt = skill.prompt.replace(/\$ARGUMENTS/g, command.args);
       const combinedText = `${expandedPrompt}\n\n${command.args}`.trim();
 
+      await this._injectMemoryContext(command.args || combinedText);
       await this._pipeline.send(combinedText, postWithRender);
       this._checkForPlan();
       return;
     }
 
     // Normal message.
+    await this._injectMemoryContext(text);
     await this._pipeline.send(text, postWithRender);
     this._checkForPlan();
   }
@@ -452,6 +472,123 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
         }
         break;
       }
+
+      case "memory": {
+        if (!this._memoryStore) {
+          const disabledMsg = this._manager.addAssistantMessage(
+            "_Memory system is disabled. Enable it in settings: `gemma-code.memoryEnabled`._",
+          );
+          postMessage({
+            type: "messageComplete",
+            messageId: disabledMsg.id,
+            renderedHtml: renderMarkdown(disabledMsg.content),
+          });
+          this._postHistory();
+          break;
+        }
+
+        const [subcommand, ...rest] = args ? args.split(" ") : ["status"];
+        const subArgs = rest.join(" ").trim();
+
+        switch (subcommand) {
+          case "search": {
+            if (!subArgs) {
+              const usageMsg = this._manager.addAssistantMessage("Usage: `/memory search <query>`");
+              postMessage({
+                type: "messageComplete",
+                messageId: usageMsg.id,
+                renderedHtml: renderMarkdown(usageMsg.content),
+              });
+              this._postHistory();
+              break;
+            }
+            const results = this._memoryStore.searchKeyword(subArgs, 10);
+            const text =
+              results.length > 0
+                ? "## Memory Search Results\n\n" +
+                  results
+                    .map((r, i) => `${i + 1}. **[${r.entry.type}]** ${r.entry.content}`)
+                    .join("\n")
+                : "_No memories found matching your query._";
+            const searchMsg = this._manager.addAssistantMessage(text);
+            postMessage({
+              type: "messageComplete",
+              messageId: searchMsg.id,
+              renderedHtml: renderMarkdown(text),
+            });
+            this._postHistory();
+            break;
+          }
+
+          case "save": {
+            if (!subArgs) {
+              const usageMsg = this._manager.addAssistantMessage("Usage: `/memory save <content>`");
+              postMessage({
+                type: "messageComplete",
+                messageId: usageMsg.id,
+                renderedHtml: renderMarkdown(usageMsg.content),
+              });
+              this._postHistory();
+              break;
+            }
+            await this._memoryStore.save(subArgs, "fact", this._manager.sessionId ?? undefined);
+            const saveMsg = this._manager.addAssistantMessage("_Memory saved._");
+            postMessage({
+              type: "messageComplete",
+              messageId: saveMsg.id,
+              renderedHtml: renderMarkdown(saveMsg.content),
+            });
+            this._postHistory();
+            break;
+          }
+
+          case "clear": {
+            this._memoryStore.clear();
+            const clearMsg = this._manager.addAssistantMessage("_All memories cleared._");
+            postMessage({
+              type: "messageComplete",
+              messageId: clearMsg.id,
+              renderedHtml: renderMarkdown(clearMsg.content),
+            });
+            this._postHistory();
+            break;
+          }
+
+          case "status":
+          default: {
+            const stats = this._memoryStore.getStats();
+            const lines = [
+              "## Memory Status",
+              "",
+              `- **Total entries:** ${stats.totalEntries}`,
+              `- **With embeddings:** ${stats.embeddingCount}`,
+              ...Object.entries(stats.byType).map(
+                ([type, count]) => `- **${type}:** ${count}`,
+              ),
+            ];
+            if (stats.oldestEntryAt) {
+              lines.push(
+                `- **Oldest:** ${new Date(stats.oldestEntryAt).toLocaleDateString()}`,
+              );
+            }
+            if (stats.newestEntryAt) {
+              lines.push(
+                `- **Newest:** ${new Date(stats.newestEntryAt).toLocaleDateString()}`,
+              );
+            }
+            const statusText = lines.join("\n");
+            const statusMsg = this._manager.addAssistantMessage(statusText);
+            postMessage({
+              type: "messageComplete",
+              messageId: statusMsg.id,
+              renderedHtml: renderMarkdown(statusText),
+            });
+            this._postHistory();
+            break;
+          }
+        }
+        break;
+      }
     }
   }
 
@@ -541,7 +678,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     });
   }
 
-  private _buildPromptContext(): PromptContext {
+  private _buildPromptContext(memoryContext?: string): PromptContext {
     const settings = getSettings();
     return {
       modelName: settings.modelName,
@@ -552,7 +689,41 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
       promptStyle: settings.promptStyle,
       workspacePath: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
       systemPromptBudgetPercent: settings.systemPromptBudgetPercent,
+      memoryContext,
     };
+  }
+
+  /**
+   * Query the memory store for relevant memories and rebuild the system prompt
+   * with the memory context injected. Non-fatal on error.
+   */
+  private async _injectMemoryContext(queryText: string): Promise<void> {
+    if (!this._memoryStore) return;
+    try {
+      const budget = calculateBudget(getSettings().maxTokens);
+      const memoryContext = await this._memoryStore.retrieve(queryText, budget.memoryBudget);
+      if (memoryContext) {
+        const prompt = this._promptBuilder.build(this._buildPromptContext(memoryContext));
+        this._manager.rebuildSystemPrompt(prompt);
+      }
+    } catch {
+      // Memory query failure is non-fatal; proceed without memory context.
+    }
+  }
+
+  private _initMemoryStore(): MemoryStore | null {
+    if (!this._globalStorageUri) return null;
+    const settings = getSettings();
+    if (!settings.memoryEnabled) return null;
+    try {
+      const dbPath = path.join(this._globalStorageUri.fsPath, "memory.db");
+      const embedder = settings.embeddingModel
+        ? new EmbeddingClient(settings.ollamaUrl, settings.embeddingModel, settings.requestTimeout)
+        : null;
+      return new MemoryStore(dbPath, embedder);
+    } catch {
+      return null;
+    }
   }
 
   /** Post a status update to the webview (visible even before the first message). */
@@ -569,5 +740,6 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     this._manager.dispose();
     this._skillLoader.stopWatching();
     this._store?.close();
+    this._memoryStore?.close();
   }
 }

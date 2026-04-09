@@ -42,7 +42,26 @@ export class ChatHistoryStore {
         timestamp INTEGER NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, timestamp);
+
+      CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
+        content, content=messages, content_rowid=rowid
+      );
+
+      CREATE TRIGGER IF NOT EXISTS messages_fts_ai AFTER INSERT ON messages BEGIN
+        INSERT INTO messages_fts(rowid, content) VALUES (new.rowid, new.content);
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS messages_fts_ad AFTER DELETE ON messages BEGIN
+        INSERT INTO messages_fts(messages_fts, rowid, content) VALUES('delete', old.rowid, old.content);
+      END;
     `);
+
+    // Rebuild FTS index from existing data (safe no-op if already up-to-date).
+    try {
+      this._db.exec("INSERT INTO messages_fts(messages_fts) VALUES('rebuild')");
+    } catch {
+      // Ignore rebuild errors on first creation.
+    }
   }
 
   createSession(title: string): ConversationSession {
@@ -141,6 +160,69 @@ export class ChatHistoryStore {
       updatedAt: r.updated_at,
       messages: [],
     }));
+  }
+
+  /**
+   * Full-text search across messages using FTS5 with BM25 ranking.
+   * Falls back to LIKE search if the FTS5 query fails.
+   */
+  searchFts(
+    query: string,
+    limit = 20,
+  ): Array<{ messageId: string; sessionId: string; content: string; rank: number }> {
+    // Sanitize: quote each word to prevent FTS5 syntax errors.
+    const words = query
+      .replace(/[*"(){}[\]^~]/g, "")
+      .replace(/\b(AND|OR|NOT|NEAR)\b/gi, "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+    if (words.length === 0) return [];
+    const ftsQuery = words.map((w) => `"${w}"`).join(" ");
+
+    try {
+      const rows = this._db
+        .prepare(
+          `SELECT m.id, m.session_id, m.content, fts.rank
+           FROM messages_fts fts
+           JOIN messages m ON m.rowid = fts.rowid
+           WHERE messages_fts MATCH ?
+           ORDER BY fts.rank
+           LIMIT ?`,
+        )
+        .all(ftsQuery, limit) as Array<{
+        id: string;
+        session_id: string;
+        content: string;
+        rank: number;
+      }>;
+
+      return rows.map((r) => ({
+        messageId: r.id,
+        sessionId: r.session_id,
+        content: r.content,
+        rank: r.rank,
+      }));
+    } catch {
+      // Fallback to LIKE search.
+      const likeQuery = `%${query}%`;
+      const rows = this._db
+        .prepare(
+          `SELECT id, session_id, content FROM messages WHERE content LIKE ? LIMIT ?`,
+        )
+        .all(likeQuery, limit) as Array<{
+        id: string;
+        session_id: string;
+        content: string;
+      }>;
+
+      return rows.map((r) => ({
+        messageId: r.id,
+        sessionId: r.session_id,
+        content: r.content,
+        rank: 0,
+      }));
+    }
   }
 
   close(): void {

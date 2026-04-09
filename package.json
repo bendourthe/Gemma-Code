@@ -170,6 +170,30 @@
           "type": "string",
           "default": "python",
           "description": "Path to the Python executable used to start the backend (e.g. 'python3' or an absolute path to a virtual-environment interpreter)."
+        },
+        "gemma-code.memoryEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable persistent memory system for cross-session context recall."
+        },
+        "gemma-code.embeddingModel": {
+          "type": "string",
+          "default": "nomic-embed-text",
+          "description": "Ollama embedding model for semantic memory search. Set to empty string to disable semantic search."
+        },
+        "gemma-code.memoryAutoSaveInterval": {
+          "type": "number",
+          "default": 15,
+          "minimum": 5,
+          "maximum": 100,
+          "description": "Number of messages between automatic memory extraction runs."
+        },
+        "gemma-code.memoryMaxEntries": {
+          "type": "number",
+          "default": 10000,
+          "minimum": 100,
+          "maximum": 100000,
+          "description": "Maximum number of memory entries before automatic pruning."
         }
       }
     }

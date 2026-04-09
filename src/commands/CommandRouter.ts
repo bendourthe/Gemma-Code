@@ -4,7 +4,8 @@ export type BuiltinCommandName =
   | "history"
   | "plan"
   | "compact"
-  | "model";
+  | "model"
+  | "memory";
 
 export interface CommandDescriptor {
   name: string;
@@ -33,6 +34,7 @@ const BUILTIN_DESCRIPTORS: CommandDescriptor[] = [
   { name: "plan", description: "Toggle plan mode on/off" },
   { name: "compact", description: "Compact the conversation context" },
   { name: "model", description: "Switch the active Ollama model", argumentHint: "[model name]" },
+  { name: "memory", description: "Manage persistent memory (search, save, clear, status)", argumentHint: "<search|save|clear|status> [query/content]" },
 ];
 
 const BUILTIN_NAMES = new Set<string>(BUILTIN_DESCRIPTORS.map((d) => d.name));

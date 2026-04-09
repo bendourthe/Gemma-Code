@@ -9,7 +9,7 @@
 | Metric | Current | Target | Delta |
 |--------|---------|--------|-------|
 | Tasks done (v0.1.0) | 13 / 21 | 21 / 21 | -8 |
-| Tasks done (v0.2.0) | 20 / 38 | 38 / 38 | -18 |
+| Tasks done (v0.2.0) | 27 / 38 | 38 / 38 | -11 |
 
 ---
 
@@ -68,13 +68,13 @@ Full plan: `docs/v0.2.0/development/implementation-plan.md`
 - [x] Add pre-compaction save hook (wires to MemoryStore in Phase 3)
 
 ### Phase 3 — Persistent Memory System
-- [ ] Create `src/storage/MemoryStore.ts` with SQLite FTS5 schema
-- [ ] Create `src/storage/EmbeddingClient.ts` wrapping Ollama `/api/embeddings`
-- [ ] Add FTS5 virtual table and sync triggers to `ChatHistoryStore.ts`
-- [ ] Add `buildMemorySection()` to PromptBuilder
-- [ ] Wire memory retrieval into chat flow (GemmaCodePanel)
-- [ ] Implement pre-compaction memory extraction (`extractAndSave`)
-- [ ] Add `/memory` slash command (search, save, clear, status)
+- [x] Create `src/storage/MemoryStore.ts` with SQLite FTS5 schema
+- [x] Create `src/storage/EmbeddingClient.ts` wrapping Ollama `/api/embed`
+- [x] Add FTS5 virtual table and sync triggers to `ChatHistoryStore.ts`
+- [x] Add `buildMemorySection()` to PromptBuilder with budget cap
+- [x] Wire memory retrieval into chat flow (GemmaCodePanel)
+- [x] Implement pre-compaction memory extraction (`extractAndSave`)
+- [x] Add `/memory` slash command (search, save, clear, status)
 
 ### Phase 4 — Conditional Tool Activation and MCP Support
 - [ ] Add enabled/disabled state to `ToolRegistry.ts`

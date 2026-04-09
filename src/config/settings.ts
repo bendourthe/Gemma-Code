@@ -23,6 +23,10 @@ export interface GemmaCodeSettings {
   useBackend: boolean;
   backendPort: number;
   pythonPath: string;
+  memoryEnabled: boolean;
+  embeddingModel: string;
+  memoryAutoSaveInterval: number;
+  memoryMaxEntries: number;
 }
 
 export function getSettings(): GemmaCodeSettings {
@@ -47,6 +51,10 @@ export function getSettings(): GemmaCodeSettings {
     useBackend: config.get<boolean>("useBackend") ?? true,
     backendPort: config.get<number>("backendPort") ?? 11435,
     pythonPath: config.get<string>("pythonPath") ?? "python",
+    memoryEnabled: config.get<boolean>("memoryEnabled") ?? true,
+    embeddingModel: config.get<string>("embeddingModel") ?? "nomic-embed-text",
+    memoryAutoSaveInterval: config.get<number>("memoryAutoSaveInterval") ?? 15,
+    memoryMaxEntries: config.get<number>("memoryMaxEntries") ?? 10000,
   };
 }
 

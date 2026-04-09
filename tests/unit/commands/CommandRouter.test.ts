@@ -55,6 +55,24 @@ describe("CommandRouter", () => {
       });
     });
 
+    it("routes /memory to builtin", () => {
+      const router = makeRouter();
+      expect(router.route("/memory")).toEqual({
+        type: "builtin",
+        name: "memory",
+        args: "",
+      });
+    });
+
+    it("routes /memory search with query args", () => {
+      const router = makeRouter();
+      expect(router.route("/memory search SQLite FTS5")).toEqual({
+        type: "builtin",
+        name: "memory",
+        args: "search SQLite FTS5",
+      });
+    });
+
     it("routes a known skill command", () => {
       const router = makeRouter([{ name: "commit", description: "Generate commit" }]);
       const cmd = router.route("/commit fix login bug");
@@ -80,7 +98,7 @@ describe("CommandRouter", () => {
   });
 
   describe("getAllDescriptors()", () => {
-    it("includes all six built-in commands", () => {
+    it("includes all seven built-in commands", () => {
       const router = makeRouter();
       const names = router.getAllDescriptors().map((d) => d.name);
       expect(names).toContain("help");
@@ -89,6 +107,7 @@ describe("CommandRouter", () => {
       expect(names).toContain("plan");
       expect(names).toContain("compact");
       expect(names).toContain("model");
+      expect(names).toContain("memory");
     });
 
     it("includes skill descriptors returned by the factory", () => {

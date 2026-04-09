@@ -200,16 +200,26 @@ export class PromptBuilder {
     };
   }
 
-  /** Memory context injection. Phase 3 placeholder. */
+  /** Memory context injection. Truncates to fit within the memory token budget. */
   private _buildMemorySection(context: PromptContext): PromptSection | null {
     if (!context.memoryContext) return null;
 
+    const budget = calculateBudget(context.maxTokens, {
+      systemPromptPercent: context.systemPromptBudgetPercent,
+    });
+
+    let content = context.memoryContext;
+    const maxChars = budget.memoryBudget * 4;
+    if (content.length > maxChars) {
+      content = content.slice(0, maxChars) + "\n[Memory context truncated to fit budget]";
+    }
+
     return {
       id: "memory",
-      content: context.memoryContext,
+      content,
       priority: 30,
       alwaysInclude: false,
-      estimatedTokens: estimateTokens(context.memoryContext),
+      estimatedTokens: estimateTokens(content),
     };
   }
 
