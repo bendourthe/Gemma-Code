@@ -2,14 +2,33 @@ import type { OllamaClient, OllamaMessage, OllamaOptions, OllamaToolDefinition }
 import type { ConversationManager } from "../chat/ConversationManager.js";
 import type { PostMessageFn } from "../chat/StreamingPipeline.js";
 import type { ContextCompactor } from "../chat/ContextCompactor.js";
+import type { SubAgentManager } from "../agents/SubAgentManager.js";
+import type { SubAgentConfig, SubAgentResult } from "../agents/types.js";
 import { parseToolCalls, hasToolCall, stripToolCalls, formatToolResult } from "./ToolCallParser.js";
 import type { ToolRegistry } from "./ToolRegistry.js";
 
 const DEFAULT_MAX_ITERATIONS = 20;
 
+const FILE_EDIT_TOOLS = new Set(["write_file", "edit_file", "create_file"]);
+
+const MAX_RECENT_TOOL_RESULTS = 5;
+
+export interface AgentLoopOptions {
+  readonly subAgentManager?: SubAgentManager;
+  readonly verificationThreshold?: number;
+  readonly verificationEnabled?: boolean;
+}
+
 export class AgentLoop {
   private _cancelled = false;
   private _abortController: AbortController | null = null;
+  private _fileEditCount = 0;
+  private readonly _modifiedFiles: string[] = [];
+  private readonly _recentToolResults: string[] = [];
+
+  private readonly _subAgentManager?: SubAgentManager;
+  private readonly _verificationThreshold: number;
+  private readonly _verificationEnabled: boolean;
 
   constructor(
     private readonly _client: OllamaClient,
@@ -19,12 +38,33 @@ export class AgentLoop {
     private readonly _maxIterations: number = DEFAULT_MAX_ITERATIONS,
     private readonly _compactor?: ContextCompactor,
     private readonly _ollamaOptions?: OllamaOptions,
-    private readonly _tools?: OllamaToolDefinition[]
-  ) {}
+    private readonly _tools?: OllamaToolDefinition[],
+    options?: AgentLoopOptions,
+  ) {
+    this._subAgentManager = options?.subAgentManager;
+    this._verificationThreshold = options?.verificationThreshold ?? 3;
+    this._verificationEnabled = options?.verificationEnabled ?? true;
+  }
 
   cancel(): void {
     this._cancelled = true;
     this._abortController?.abort();
+  }
+
+  /** Files modified during this agent loop session (tracked via write/edit/create calls). */
+  getModifiedFiles(): readonly string[] {
+    return [...this._modifiedFiles];
+  }
+
+  /** Recent tool result summaries (last 5). */
+  getRecentToolResults(): readonly string[] {
+    return [...this._recentToolResults];
+  }
+
+  /** Manually spawn a sub-agent. Returns the sub-agent's result. */
+  async spawnSubAgent(config: SubAgentConfig, postMessage: PostMessageFn): Promise<SubAgentResult | null> {
+    if (!this._subAgentManager) return null;
+    return this._subAgentManager.run(config, postMessage);
   }
 
   /**
@@ -95,8 +135,46 @@ export class AgentLoop {
           summary: (result.output || result.error || "").slice(0, 200),
         });
 
+        // Track file edits for auto-verification.
+        if (FILE_EDIT_TOOLS.has(call.tool) && result.success) {
+          this._fileEditCount++;
+          const filePath = call.parameters["path"] as string | undefined;
+          if (filePath && !this._modifiedFiles.includes(filePath)) {
+            this._modifiedFiles.push(filePath);
+          }
+        }
+
+        // Track recent tool results (rolling window of 5).
+        const resultSummary = `[${call.tool}] ${(result.output || result.error || "").slice(0, 200)}`;
+        this._recentToolResults.push(resultSummary);
+        if (this._recentToolResults.length > MAX_RECENT_TOOL_RESULTS) {
+          this._recentToolResults.shift();
+        }
+
         // Inject the tool result back into the conversation as a user message.
         this._manager.addUserMessage(formatToolResult(call.tool, result));
+      }
+
+      // Auto-verification: trigger after enough file edits.
+      if (
+        this._verificationEnabled &&
+        this._subAgentManager &&
+        this._fileEditCount >= this._verificationThreshold
+      ) {
+        this._fileEditCount = 0;
+
+        const verifyConfig: SubAgentConfig = {
+          type: "verification",
+          maxIterations: 10,
+          userRequest: "Verify recent changes for correctness, check for bugs and run relevant tests.",
+          modifiedFiles: [...this._modifiedFiles],
+          recentToolResults: [...this._recentToolResults],
+        };
+
+        const verifyResult = await this._subAgentManager.run(verifyConfig, postMessage);
+        if (verifyResult.output) {
+          this._manager.addUserMessage(`[Verification Report]\n\n${verifyResult.output}`);
+        }
       }
     }
 

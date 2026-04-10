@@ -1,4 +1,7 @@
 import type { PromptContext, PromptSection } from "./PromptBuilder.types.js";
+import type { SubAgentConfig } from "../agents/types.js";
+import type { DynamicToolMetadata, ToolMetadata } from "../tools/ToolCatalog.js";
+import { getSubAgentInstructions } from "../agents/SubAgentPrompts.js";
 import { serializeToolDefinitions } from "../tools/Gemma4ToolFormat.js";
 import { calculateBudget } from "../config/PromptBudget.js";
 import { PLAN_MODE_SYSTEM_ADDENDUM } from "../modes/PlanMode.js";
@@ -53,6 +56,28 @@ export class PromptBuilder {
     return included.map((s) => s.content).join("\n\n");
   }
 
+  /**
+   * Build a minimal system prompt for a sub-agent. Assembles a PromptContext
+   * with sub-agent defaults and calls build().
+   */
+  buildForSubAgent(
+    config: SubAgentConfig,
+    enabledTools: readonly (ToolMetadata | DynamicToolMetadata)[],
+    maxTokens: number = 131072,
+  ): string {
+    const context: PromptContext = {
+      modelName: "",
+      maxTokens,
+      planModeActive: false,
+      thinkingMode: config.type === "verification" || config.type === "planning",
+      enabledTools,
+      isSubAgent: true,
+      subAgentType: config.type,
+      promptStyle: "concise",
+    };
+    return this.build(context);
+  }
+
   private _collectSections(context: PromptContext): PromptSection[] {
     const sections: PromptSection[] = [];
 
@@ -62,20 +87,29 @@ export class PromptBuilder {
     const tools = this._buildToolDeclarations(context);
     if (tools) sections.push(tools);
 
-    const plan = this._buildPlanModeSection(context);
-    if (plan) sections.push(plan);
+    if (context.isSubAgent) {
+      // Sub-agents get only: base + tools + sub-agent directive + thinking (if enabled)
+      const thinking = this._buildThinkingModeSection(context);
+      if (thinking) sections.push(thinking);
 
-    const thinking = this._buildThinkingModeSection(context);
-    if (thinking) sections.push(thinking);
+      const subAgent = this._buildSubAgentSection(context);
+      if (subAgent) sections.push(subAgent);
+    } else {
+      const plan = this._buildPlanModeSection(context);
+      if (plan) sections.push(plan);
 
-    const skill = this._buildSkillSection(context);
-    if (skill) sections.push(skill);
+      const thinking = this._buildThinkingModeSection(context);
+      if (thinking) sections.push(thinking);
 
-    const memory = this._buildMemorySection(context);
-    if (memory) sections.push(memory);
+      const skill = this._buildSkillSection(context);
+      if (skill) sections.push(skill);
 
-    const subAgent = this._buildSubAgentSection(context);
-    if (subAgent) sections.push(subAgent);
+      const memory = this._buildMemorySection(context);
+      if (memory) sections.push(memory);
+
+      const subAgent = this._buildSubAgentSection(context);
+      if (subAgent) sections.push(subAgent);
+    }
 
     return sections;
   }
@@ -223,20 +257,22 @@ export class PromptBuilder {
     };
   }
 
-  /** Sub-agent instructions. Phase 5 placeholder. */
+  /** Sub-agent instructions with type-specific directives. */
   private _buildSubAgentSection(context: PromptContext): PromptSection | null {
     if (!context.isSubAgent) return null;
 
-    const content =
-      "## Sub-Agent Mode\n\n" +
-      "You are running as a sub-agent within a larger orchestration. " +
-      "Focus on your assigned task and report results concisely. " +
-      "Do not interact with the user directly.";
+    const instructions = getSubAgentInstructions(context.subAgentType ?? "research");
+    let content = `## Sub-Agent Mode\n\n${instructions}`;
+
+    if (context.subAgentContext) {
+      content += `\n\n${context.subAgentContext}`;
+    }
+
     return {
       id: "sub-agent",
       content,
-      priority: 40,
-      alwaysInclude: false,
+      priority: 5,
+      alwaysInclude: true,
       estimatedTokens: estimateTokens(content),
     };
   }

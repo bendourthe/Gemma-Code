@@ -18,6 +18,7 @@ Gemma Code brings a Claude Code-style agentic workflow to VS Code, running entir
 - **Cross-session memory** — automatically extracts decisions, facts, and patterns from conversations; retrieves relevant memories in future sessions using FTS5 keyword search and optional Ollama embeddings
 - **Multi-strategy context compaction** — 5-stage pipeline (tool result clearing, sliding window, code block truncation, LLM summary, emergency trim) keeps long sessions within context limits
 - **Conditional tool activation** — tools are enabled/disabled based on runtime context (Ollama reachability, network availability, session mode); keeps the prompt clean for better model reliability
+- **Sub-agent orchestration** — spawns isolated verification, research, and planning sub-agents with scoped tools; auto-verification triggers after file edits to catch bugs early; `/verify` and `/research` slash commands for manual control
 - **MCP support** — Model Context Protocol client connects to external MCP servers; MCP server exposes Gemma Code's tools to external clients (opt-in, off by default)
 - **Python inference backend** — optional FastAPI backend applies the Gemma chat template for higher-quality results
 - **Windows installer** — a single `setup.exe` installs everything: VS Code extension, Ollama, and the model

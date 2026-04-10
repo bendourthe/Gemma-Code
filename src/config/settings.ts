@@ -29,6 +29,9 @@ export interface GemmaCodeSettings {
   memoryMaxEntries: number;
   mcpEnabled: boolean;
   mcpServerMode: "stdio" | "off";
+  verificationEnabled: boolean;
+  verificationThreshold: number;
+  subAgentMaxIterations: number;
 }
 
 export function getSettings(): GemmaCodeSettings {
@@ -59,6 +62,9 @@ export function getSettings(): GemmaCodeSettings {
     memoryMaxEntries: config.get<number>("memoryMaxEntries") ?? 10000,
     mcpEnabled: config.get<boolean>("mcpEnabled") ?? false,
     mcpServerMode: (config.get<string>("mcpServerMode") as "stdio" | "off" | undefined) ?? "off",
+    verificationEnabled: config.get<boolean>("verificationEnabled") ?? true,
+    verificationThreshold: config.get<number>("verificationThreshold") ?? 3,
+    subAgentMaxIterations: config.get<number>("subAgentMaxIterations") ?? 10,
   };
 }
 

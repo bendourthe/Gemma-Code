@@ -259,6 +259,22 @@ export function getWebviewHtml(
     }
     #compaction-banner.visible { display: block; }
 
+    /* ---- Sub-agent status banner ---- */
+    #sub-agent-banner {
+      display: none;
+      padding: 4px 10px;
+      font-size: 11px;
+      background: var(--vscode-inputValidation-warningBackground, rgba(200,160,0,0.15));
+      color: var(--vscode-inputValidation-warningForeground, var(--vscode-foreground));
+      border-bottom: 1px solid var(--vscode-inputValidation-warningBorder, #cca700);
+      flex-shrink: 0;
+    }
+    #sub-agent-banner.visible { display: block; }
+    #sub-agent-banner.error {
+      background: var(--vscode-inputValidation-errorBackground, rgba(200,0,0,0.15));
+      border-color: var(--vscode-inputValidation-errorBorder, #cc0000);
+    }
+
     /* ---- History panel ---- */
     #history-panel {
       display: none;
@@ -581,6 +597,7 @@ export function getWebviewHtml(
   </header>
 
   <div id="compaction-banner" role="status" aria-live="polite"></div>
+  <div id="sub-agent-banner" role="status" aria-live="polite"></div>
 
   <main id="messages" role="log" aria-live="polite" aria-label="Chat messages"></main>
 
@@ -640,6 +657,7 @@ export function getWebviewHtml(
       const planBadge       = /** @type {HTMLElement} */ (document.getElementById('plan-badge'));
       const tokenCounter    = /** @type {HTMLElement} */ (document.getElementById('token-counter'));
       const compactionBanner= /** @type {HTMLElement} */ (document.getElementById('compaction-banner'));
+      const subAgentBanner  = /** @type {HTMLElement} */ (document.getElementById('sub-agent-banner'));
       const editModeSelector= /** @type {HTMLElement} */ (document.getElementById('edit-mode-selector'));
       const autocompleteEl  = /** @type {HTMLElement} */ (document.getElementById('autocomplete'));
       const planPanel       = /** @type {HTMLElement} */ (document.getElementById('plan-panel'));
@@ -1124,6 +1142,31 @@ export function getWebviewHtml(
               compactionBanner.textContent = '';
             }
             break;
+
+          case 'subAgentStatus': {
+            const labels = { verification: 'Verification', research: 'Research', planning: 'Planning' };
+            const label = labels[msg.agentType] || msg.agentType;
+            subAgentBanner.classList.remove('error');
+            if (msg.state === 'running') {
+              subAgentBanner.textContent = label + ' agent running...';
+              subAgentBanner.classList.add('visible');
+            } else if (msg.state === 'complete') {
+              subAgentBanner.textContent = label + ' agent complete.';
+              subAgentBanner.classList.add('visible');
+              setTimeout(() => {
+                subAgentBanner.classList.remove('visible');
+                subAgentBanner.textContent = '';
+              }, 3000);
+            } else if (msg.state === 'error') {
+              subAgentBanner.textContent = label + ' agent error: ' + (msg.summary || 'unknown');
+              subAgentBanner.classList.add('visible', 'error');
+              setTimeout(() => {
+                subAgentBanner.classList.remove('visible', 'error');
+                subAgentBanner.textContent = '';
+              }, 5000);
+            }
+            break;
+          }
 
           case 'editModeChanged':
             applyEditMode(msg.mode);

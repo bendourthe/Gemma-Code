@@ -160,6 +160,16 @@ Endpoints:
 - `GET /models` — list available models
 - `POST /chat/stream` — SSE streaming response with Gemma chat template applied
 
+### `src/agents/SubAgentManager.ts` — Sub-Agent Orchestration (v0.2.0)
+
+Creates isolated sub-agents (verification, research, planning) with scoped tool access. Each sub-agent gets its own ConversationManager and AgentLoop; conversations are ephemeral and discarded after the run completes. Sub-agents run sequentially on the same GPU via Ollama's request queue.
+
+- **Verification**: auto-triggers after configurable file edit threshold; uses `read_file`, `grep_codebase`, `list_directory`, `run_terminal`
+- **Research**: manual via `/research <query>`; adds `web_search` and `fetch_page`
+- **Planning**: read-only tools; decomposes tasks into numbered steps
+
+Supporting files: `src/agents/types.ts` (SubAgentType, SubAgentConfig, SubAgentResult), `src/agents/SubAgentPrompts.ts` (type-specific prompt templates).
+
 ---
 
 ## Data Flow — Streaming Pipeline

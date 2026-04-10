@@ -218,4 +218,147 @@ describe("AgentLoop", () => {
     expect(toolResultIdx).toBeGreaterThan(toolUseIdx);
     expect(mcIdx).toBeGreaterThan(toolResultIdx);
   });
+
+  describe("file edit tracking", () => {
+    const writeCallText = '<|tool_call>call:write_file{path:<|"|>src/foo.ts<|"|>,content:<|"|>hello<|"|>}<tool_call|>';
+    const editCallText = '<|tool_call>call:edit_file{path:<|"|>src/bar.ts<|"|>,old_string:<|"|>a<|"|>,new_string:<|"|>b<|"|>}<tool_call|>';
+
+    it("tracks modified files after write_file calls", async () => {
+      const client = makeMultiClient([writeCallText, "Done."]);
+      const loop = new AgentLoop(client, manager, registry, "gemma3:27b");
+      const { postMessage } = collectMessages(loop);
+
+      await loop.run(postMessage);
+
+      expect(loop.getModifiedFiles()).toContain("src/foo.ts");
+    });
+
+    it("tracks modified files after edit_file calls", async () => {
+      const client = makeMultiClient([editCallText, "Done."]);
+      const loop = new AgentLoop(client, manager, registry, "gemma3:27b");
+      const { postMessage } = collectMessages(loop);
+
+      await loop.run(postMessage);
+
+      expect(loop.getModifiedFiles()).toContain("src/bar.ts");
+    });
+
+    it("tracks recent tool results with a rolling window", async () => {
+      const client = makeMultiClient([toolCallText, "Done."]);
+      const loop = new AgentLoop(client, manager, registry, "gemma3:27b");
+      const { postMessage } = collectMessages(loop);
+
+      await loop.run(postMessage);
+
+      const results = loop.getRecentToolResults();
+      expect(results.length).toBeGreaterThanOrEqual(1);
+      expect(results[0]).toContain("[read_file]");
+    });
+
+    it("does not duplicate the same file path in modifiedFiles", async () => {
+      // Two write calls to the same file
+      const client = makeMultiClient([writeCallText, writeCallText, "Done."]);
+      const loop = new AgentLoop(client, manager, registry, "gemma3:27b");
+      const { postMessage } = collectMessages(loop);
+
+      await loop.run(postMessage);
+
+      const modified = loop.getModifiedFiles();
+      const fooCount = modified.filter((f) => f === "src/foo.ts").length;
+      expect(fooCount).toBe(1);
+    });
+  });
+
+  describe("auto-verification", () => {
+    const writeCallText = '<|tool_call>call:write_file{path:<|"|>src/a.ts<|"|>,content:<|"|>x<|"|>}<tool_call|>';
+
+    it("does not trigger verification when verificationEnabled is false", async () => {
+      const subAgentManager = { run: vi.fn() };
+      const client = makeMultiClient([writeCallText, writeCallText, writeCallText, "Done."]);
+      const loop = new AgentLoop(client, manager, registry, "gemma3:27b", 20, undefined, undefined, undefined, {
+        subAgentManager: subAgentManager as any,
+        verificationThreshold: 3,
+        verificationEnabled: false,
+      });
+      const { postMessage } = collectMessages(loop);
+
+      await loop.run(postMessage);
+
+      expect(subAgentManager.run).not.toHaveBeenCalled();
+    });
+
+    it("does not trigger verification when no subAgentManager is provided", async () => {
+      const client = makeMultiClient([writeCallText, writeCallText, writeCallText, "Done."]);
+      const loop = new AgentLoop(client, manager, registry, "gemma3:27b", 20, undefined, undefined, undefined, {
+        verificationThreshold: 3,
+        verificationEnabled: true,
+      });
+      const { postMessage } = collectMessages(loop);
+
+      // Should not throw even without subAgentManager
+      await loop.run(postMessage);
+    });
+
+    it("triggers verification after reaching the file edit threshold", async () => {
+      const subAgentManager = {
+        run: vi.fn<any>().mockResolvedValue({
+          type: "verification",
+          success: true,
+          output: "All clear.",
+          toolCallCount: 0,
+          iterationsUsed: 1,
+        }),
+      };
+      // 3 writes (each in a separate iteration), then done
+      const client = makeMultiClient([writeCallText, writeCallText, writeCallText, "Done."]);
+      const loop = new AgentLoop(client, manager, registry, "gemma3:27b", 20, undefined, undefined, undefined, {
+        subAgentManager: subAgentManager as any,
+        verificationThreshold: 3,
+        verificationEnabled: true,
+      });
+      const { postMessage } = collectMessages(loop);
+
+      await loop.run(postMessage);
+
+      expect(subAgentManager.run).toHaveBeenCalledOnce();
+      const config = subAgentManager.run.mock.calls[0]![0];
+      expect(config.type).toBe("verification");
+      expect(config.modifiedFiles.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  describe("spawnSubAgent", () => {
+    it("returns null when no subAgentManager is provided", async () => {
+      const loop = new AgentLoop(makeClient("x"), manager, registry, "gemma3:27b");
+      const { postMessage } = collectMessages(loop);
+
+      const result = await loop.spawnSubAgent(
+        { type: "research", maxIterations: 5, userRequest: "test", modifiedFiles: [], recentToolResults: [] },
+        postMessage,
+      );
+
+      expect(result).toBeNull();
+    });
+
+    it("delegates to subAgentManager.run when provided", async () => {
+      const mockResult = {
+        type: "research" as const,
+        success: true,
+        output: "Found info.",
+        toolCallCount: 0,
+        iterationsUsed: 1,
+      };
+      const subAgentManager = { run: vi.fn<any>().mockResolvedValue(mockResult) };
+      const loop = new AgentLoop(makeClient("x"), manager, registry, "gemma3:27b", 20, undefined, undefined, undefined, {
+        subAgentManager: subAgentManager as any,
+      });
+      const { postMessage } = collectMessages(loop);
+
+      const config = { type: "research" as const, maxIterations: 5, userRequest: "test", modifiedFiles: [], recentToolResults: [] };
+      const result = await loop.spawnSubAgent(config, postMessage);
+
+      expect(subAgentManager.run).toHaveBeenCalledWith(config, postMessage);
+      expect(result).toEqual(mockResult);
+    });
+  });
 });

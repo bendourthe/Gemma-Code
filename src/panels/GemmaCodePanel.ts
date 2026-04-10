@@ -5,6 +5,8 @@ import { ConversationManager } from "../chat/ConversationManager.js";
 import { StreamingPipeline } from "../chat/StreamingPipeline.js";
 import { ContextCompactor } from "../chat/ContextCompactor.js";
 import { AgentLoop } from "../tools/AgentLoop.js";
+import { SubAgentManager } from "../agents/SubAgentManager.js";
+import type { SubAgentConfig } from "../agents/types.js";
 import { ToolRegistry } from "../tools/ToolRegistry.js";
 import { ConfirmationGate } from "../tools/ConfirmationGate.js";
 import {
@@ -65,6 +67,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
   private _mcpTools: DynamicToolMetadata[] = [];
   private _mcpManager: McpManager | null = null;
   private _mcpServer: McpServer | null = null;
+  private readonly _subAgentManager: SubAgentManager;
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
@@ -140,6 +143,14 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
         : undefined,
     );
 
+    this._subAgentManager = new SubAgentManager(
+      client,
+      this._promptBuilder,
+      this._memoryStore,
+      ollamaOptions,
+      settings.modelName,
+    );
+
     this._agentLoop = new AgentLoop(
       client,
       this._manager,
@@ -148,7 +159,12 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
       settings.maxAgentIterations,
       this._compactor,
       ollamaOptions,
-      ollamaTools
+      ollamaTools,
+      {
+        subAgentManager: this._subAgentManager,
+        verificationThreshold: settings.verificationThreshold,
+        verificationEnabled: settings.verificationEnabled,
+      },
     );
 
     this._pipeline = new StreamingPipeline(
@@ -680,6 +696,58 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
             break;
           }
         }
+        break;
+      }
+
+      case "verify": {
+        const verifySettings = getSettings();
+        const config: SubAgentConfig = {
+          type: "verification",
+          maxIterations: verifySettings.subAgentMaxIterations,
+          userRequest: "Verify recent changes for correctness, check for bugs and run relevant tests.",
+          modifiedFiles: [...this._agentLoop.getModifiedFiles()],
+          recentToolResults: [...this._agentLoop.getRecentToolResults()],
+        };
+        const result = await this._subAgentManager.run(config, postMessage);
+        const reportText = `## Verification Report\n\n${result.output || "_No issues found._"}`;
+        const reportMsg = this._manager.addAssistantMessage(reportText);
+        postMessage({
+          type: "messageComplete",
+          messageId: reportMsg.id,
+          renderedHtml: renderMarkdown(reportText),
+        });
+        this._postHistory();
+        break;
+      }
+
+      case "research": {
+        if (!args) {
+          const usageMsg = this._manager.addAssistantMessage("Usage: `/research <query>`");
+          postMessage({
+            type: "messageComplete",
+            messageId: usageMsg.id,
+            renderedHtml: renderMarkdown(usageMsg.content),
+          });
+          this._postHistory();
+          break;
+        }
+        const researchSettings = getSettings();
+        const config: SubAgentConfig = {
+          type: "research",
+          maxIterations: researchSettings.subAgentMaxIterations,
+          userRequest: args,
+          modifiedFiles: [...this._agentLoop.getModifiedFiles()],
+          recentToolResults: [...this._agentLoop.getRecentToolResults()],
+        };
+        const result = await this._subAgentManager.run(config, postMessage);
+        const researchText = `## Research Results\n\n${result.output || "_No results._"}`;
+        const researchMsg = this._manager.addAssistantMessage(researchText);
+        postMessage({
+          type: "messageComplete",
+          messageId: researchMsg.id,
+          renderedHtml: renderMarkdown(researchText),
+        });
+        this._postHistory();
         break;
       }
     }

@@ -9,7 +9,7 @@
 | Metric | Current | Target | Delta |
 |--------|---------|--------|-------|
 | Tasks done (v0.1.0) | 13 / 21 | 21 / 21 | -8 |
-| Tasks done (v0.2.0) | 33 / 38 | 38 / 38 | -5 |
+| Tasks done (v0.2.0) | 39 / 44 | 44 / 44 | -5 |
 
 ---
 
@@ -84,13 +84,13 @@ Full plan: `docs/v0.2.0/development/implementation-plan.md`
 - [x] Create `src/mcp/McpManager.ts` (lifecycle, config from mcp.json)
 - [x] Add `/mcp` slash command (status, connect, disconnect)
 
-### Phase 5 — Sub-Agent Orchestration
-- [ ] Create `src/agents/SubAgentManager.ts` (isolated ConversationManager + AgentLoop)
-- [ ] Create `src/agents/SubAgentPrompts.ts` (verification, research, planning templates)
-- [ ] Add file-edit counter and auto-verification trigger to AgentLoop
-- [ ] Add `buildForSubAgent()` to PromptBuilder
-- [ ] Wire sub-agent status to webview
-- [ ] Add `/verify` and `/research` slash commands
+### Phase 5 — Sub-Agent Orchestration [COMPLETED]
+- [x] Create `src/agents/SubAgentManager.ts` (isolated ConversationManager + AgentLoop)
+- [x] Create `src/agents/SubAgentPrompts.ts` (verification, research, planning templates)
+- [x] Add file-edit counter and auto-verification trigger to AgentLoop
+- [x] Add `buildForSubAgent()` to PromptBuilder
+- [x] Wire sub-agent status to webview
+- [x] Add `/verify` and `/research` slash commands
 
 ### Phase 6 — Integration, Polish, and Backend Alignment
 - [ ] Align Python backend prompt.py with multi-strategy compaction

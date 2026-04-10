@@ -1,4 +1,5 @@
 import type { DynamicToolMetadata, ToolMetadata } from "../tools/ToolCatalog.js";
+import type { SubAgentType } from "../agents/types.js";
 
 export type PromptStyle = "concise" | "detailed" | "beginner";
 
@@ -11,6 +12,8 @@ export interface PromptContext {
   readonly activeSkillPrompt?: string;
   readonly enabledTools: readonly (ToolMetadata | DynamicToolMetadata)[];
   readonly isSubAgent?: boolean;
+  readonly subAgentType?: SubAgentType;
+  readonly subAgentContext?: string;
   readonly promptStyle: PromptStyle;
   readonly workspacePath?: string;
   readonly memoryContext?: string;

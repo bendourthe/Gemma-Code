@@ -110,6 +110,14 @@ export interface DiffPreviewMessage {
   requiresConfirmation: boolean;
 }
 
+/** Shows sub-agent status in the webview (spinner while running, summary on complete). */
+export interface SubAgentStatusMessage {
+  type: "subAgentStatus";
+  agentType: "verification" | "research" | "planning";
+  state: "running" | "complete" | "error";
+  summary?: string;
+}
+
 export type ExtensionToWebviewMessage =
   | TokenMessage
   | MessageCompleteMessage
@@ -126,7 +134,8 @@ export type ExtensionToWebviewMessage =
   | TokenCountMessage
   | SessionListMessage
   | EditModeChangedMessage
-  | DiffPreviewMessage;
+  | DiffPreviewMessage
+  | SubAgentStatusMessage;
 
 // ---------------------------------------------------------------------------
 // Webview → Extension

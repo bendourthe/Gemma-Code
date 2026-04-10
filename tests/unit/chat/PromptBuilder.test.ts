@@ -149,6 +149,85 @@ describe("PromptBuilder", () => {
     expect(result).not.toContain("Sub-Agent Mode");
   });
 
+  it("sub-agent section includes type-specific instructions", () => {
+    const result = builder.build(makeContext({
+      isSubAgent: true,
+      subAgentType: "verification",
+    }));
+    expect(result).toContain("verification agent");
+    expect(result).toContain("bugs");
+  });
+
+  it("sub-agent mode skips skill, memory, and plan mode sections", () => {
+    const result = builder.build(makeContext({
+      isSubAgent: true,
+      subAgentType: "research",
+      planModeActive: true,
+      activeSkillPrompt: "Skill content here.",
+      memoryContext: "User prefers Python.",
+    }));
+    expect(result).toContain("Sub-Agent Mode");
+    expect(result).not.toContain("Skill content here.");
+    expect(result).not.toContain("User prefers Python.");
+    expect(result).not.toContain("PLAN MODE");
+  });
+
+  it("sub-agent mode still includes thinking mode when enabled", () => {
+    const result = builder.build(makeContext({
+      isSubAgent: true,
+      subAgentType: "verification",
+      thinkingMode: true,
+    }));
+    expect(result).toContain("<|think|>");
+    expect(result).toContain("Sub-Agent Mode");
+  });
+
+  // ---- buildForSubAgent convenience method --------------------------------
+
+  it("buildForSubAgent produces a minimal prompt with sub-agent directives", () => {
+    const result = builder.buildForSubAgent(
+      {
+        type: "verification",
+        maxIterations: 10,
+        userRequest: "Check code",
+        modifiedFiles: [],
+        recentToolResults: [],
+      },
+      [...TOOL_CATALOG],
+    );
+    expect(result).toContain("Gemma Code");
+    expect(result).toContain("Sub-Agent Mode");
+    expect(result).toContain("verification agent");
+  });
+
+  it("buildForSubAgent enables thinking mode for verification", () => {
+    const result = builder.buildForSubAgent(
+      {
+        type: "verification",
+        maxIterations: 10,
+        userRequest: "Check code",
+        modifiedFiles: [],
+        recentToolResults: [],
+      },
+      [...TOOL_CATALOG],
+    );
+    expect(result).toContain("<|think|>");
+  });
+
+  it("buildForSubAgent disables thinking mode for research", () => {
+    const result = builder.buildForSubAgent(
+      {
+        type: "research",
+        maxIterations: 10,
+        userRequest: "Find info",
+        modifiedFiles: [],
+        recentToolResults: [],
+      },
+      [...TOOL_CATALOG],
+    );
+    expect(result).not.toContain("<|think|>");
+  });
+
   // ---- regression: covers current SYSTEM_PROMPT functionality ---------------
 
   it("default context includes tool use protocol instructions", () => {

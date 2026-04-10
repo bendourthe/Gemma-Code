@@ -4,6 +4,68 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-04-09] v0.2.0 Phase 5 — Sub-Agent Orchestration
+
+### Summary
+
+Implemented sub-agent orchestration enabling the main AgentLoop to spawn isolated sub-agents (verification, research, planning) with focused prompts and restricted tool access. Each sub-agent gets its own ConversationManager and AgentLoop, runs sequentially on the same GPU via Ollama, and its output is injected back into the main conversation as an advisory report. Tests: 449 passing (up from 416), 0 failures, 88.57% line coverage, 0 lint errors.
+
+### Architecture: SubAgentManager
+
+**Core pattern:** SubAgentManager receives dependencies via DI (OllamaClient, PromptBuilder, MemoryStore, OllamaOptions, modelName). Its `run(config, postMessage)` method creates a fresh, ephemeral ConversationManager (no persistence store) and a scoped ToolRegistry per invocation. The sub-agent conversation is discarded after completion.
+
+**Tool scoping:** Each sub-agent type gets a fresh ToolRegistry with only its allowed tools registered. This avoids the main registry's ConfirmationGate entanglement:
+- **Verification**: `read_file`, `grep_codebase`, `list_directory`, `run_terminal` (with `confirmationMode: "never"` to auto-approve)
+- **Research**: `read_file`, `grep_codebase`, `list_directory`, `web_search`, `fetch_page`
+- **Planning**: `read_file`, `grep_codebase`, `list_directory`
+
+Phase 4's `computeToolActivation()` with `subAgentType` context is applied as an additional safety layer on top of registry scoping.
+
+**Result detection:** Sub-agent success is determined by both the absence of stream errors (tracked via a `hadError` flag on the postMessage wrapper) and the presence of meaningful assistant output. This handles the case where Ollama connection failures are caught internally by AgentLoop's `_streamOneTurn` and do not propagate as exceptions.
+
+### Architecture: AgentLoop Enhancements
+
+**AgentLoopOptions interface:** New optional parameters (`subAgentManager`, `verificationThreshold`, `verificationEnabled`) are grouped into an `AgentLoopOptions` interface passed as the 9th constructor argument. This avoids extending the existing 8-parameter positional constructor.
+
+**File edit tracking:** After each successful `write_file`, `edit_file`, or `create_file` tool execution, the loop increments `_fileEditCount` and records the file path in `_modifiedFiles` (deduped). Recent tool results are tracked in a rolling 5-element window (`_recentToolResults`).
+
+**Auto-verification trigger:** After the tool execution loop in each iteration, if `_fileEditCount >= threshold && verificationEnabled && _subAgentManager` is truthy, the loop resets the count, builds a SubAgentConfig, and runs verification. The verification report is injected as a user message so the model naturally processes it on the next iteration.
+
+### Architecture: PromptBuilder Sub-Agent Support
+
+**`buildForSubAgent()` method:** Convenience method that assembles a minimal PromptContext with sub-agent defaults (`isSubAgent: true`, `planModeActive: false`, `thinkingMode: true` for verification/planning, `promptStyle: "concise"`).
+
+**Section skipping:** When `context.isSubAgent` is true, `_collectSections()` skips skill, memory, and plan mode sections. Sub-agents get only: base instructions + tool declarations + thinking mode (if enabled) + sub-agent directive. This keeps the system prompt minimal (~700 tokens vs ~2K+ for the main agent).
+
+**Type-specific directives:** The placeholder `_buildSubAgentSection()` was replaced with a real implementation that reads `context.subAgentType` and returns instructions from `SubAgentPrompts.getSubAgentInstructions()`. Priority set to 5 with `alwaysInclude: true`.
+
+### New Files
+- `src/agents/types.ts` -- SubAgentType, SubAgentConfig, SubAgentResult
+- `src/agents/SubAgentPrompts.ts` -- Prompt templates and context message builder
+- `src/agents/SubAgentManager.ts` -- Core orchestrator (fresh registry + ConversationManager per run)
+- `tests/unit/agents/SubAgentPrompts.test.ts` -- 11 tests
+- `tests/unit/agents/SubAgentManager.test.ts` -- 7 tests
+
+### Modified Files
+- `src/tools/AgentLoop.ts` -- AgentLoopOptions, file edit tracking, auto-verification trigger, spawnSubAgent()
+- `src/chat/PromptBuilder.ts` -- buildForSubAgent(), section skipping, type-specific sub-agent section
+- `src/chat/PromptBuilder.types.ts` -- Added subAgentType, subAgentContext to PromptContext
+- `src/config/settings.ts` + `package.json` -- 3 new settings (verificationEnabled, verificationThreshold, subAgentMaxIterations)
+- `src/panels/messages.ts` -- SubAgentStatusMessage type
+- `src/commands/CommandRouter.ts` -- /verify and /research builtin commands
+- `src/panels/GemmaCodePanel.ts` -- SubAgentManager wiring, command handlers
+- `src/panels/webview/index.ts` -- Sub-agent status banner UI
+
+### Lessons Learned
+- AgentLoop's `_streamOneTurn` catches stream errors internally and returns null rather than throwing. SubAgentManager must track errors via the postMessage callback rather than relying on try/catch around `agentLoop.run()`.
+- Fresh ToolRegistry per sub-agent is cleaner than cloning because read-only tool handlers (ReadFileTool, GrepCodebaseTool, ListDirectoryTool) have no constructor dependencies, and RunTerminalTool with `confirmationMode: "never"` skips the gate entirely (line 83 of terminal.ts).
+- Mock OllamaClient generators are single-use; tests that run multiple sub-agent invocations need a factory function that returns fresh generators per `streamChat` call.
+
+### Current Status
+Verified. 449 tests passing, 0 failures, 88.57% line coverage, 0 lint errors. Next: Phase 6 (Integration, Polish & Backend Alignment).
+
+---
+
 ## [2026-04-09] v0.2.0 Phase 4 — Conditional Tool Activation and MCP Support
 
 ### Summary

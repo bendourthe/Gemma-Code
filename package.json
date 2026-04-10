@@ -208,6 +208,25 @@
           ],
           "default": "off",
           "description": "MCP server mode. 'stdio' exposes Gemma Code tools via MCP stdio protocol. 'off' disables."
+        },
+        "gemma-code.verificationEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically run a verification sub-agent after multiple file edits to check for bugs and test failures."
+        },
+        "gemma-code.verificationThreshold": {
+          "type": "number",
+          "default": 3,
+          "minimum": 1,
+          "maximum": 20,
+          "description": "Number of file edits in a session before automatic verification triggers."
+        },
+        "gemma-code.subAgentMaxIterations": {
+          "type": "number",
+          "default": 10,
+          "minimum": 1,
+          "maximum": 30,
+          "description": "Maximum tool-use iterations for sub-agents (verification, research, planning)."
         }
       }
     }
