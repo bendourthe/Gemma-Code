@@ -27,6 +27,8 @@ export interface GemmaCodeSettings {
   embeddingModel: string;
   memoryAutoSaveInterval: number;
   memoryMaxEntries: number;
+  mcpEnabled: boolean;
+  mcpServerMode: "stdio" | "off";
 }
 
 export function getSettings(): GemmaCodeSettings {
@@ -55,6 +57,8 @@ export function getSettings(): GemmaCodeSettings {
     embeddingModel: config.get<string>("embeddingModel") ?? "nomic-embed-text",
     memoryAutoSaveInterval: config.get<number>("memoryAutoSaveInterval") ?? 15,
     memoryMaxEntries: config.get<number>("memoryMaxEntries") ?? 10000,
+    mcpEnabled: config.get<boolean>("mcpEnabled") ?? false,
+    mcpServerMode: (config.get<string>("mcpServerMode") as "stdio" | "off" | undefined) ?? "off",
   };
 }
 

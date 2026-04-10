@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import type { ToolCall, ToolName, ToolResult } from "./types.js";
-import { TOOL_NAMES } from "./types.js";
+import { BUILTIN_TOOL_NAMES } from "./types.js";
 import type { ToolMetadata } from "./ToolCatalog.js";
 
 // ---------------------------------------------------------------------------
@@ -35,7 +35,10 @@ const KEY_VALUE_RE = /(\w+):<\|"\|>([\s\S]*?)<\|"\|>|(\w+):([^\s,}<|]+)/g;
 // ---------------------------------------------------------------------------
 
 function isToolName(value: unknown): value is ToolName {
-  return typeof value === "string" && (TOOL_NAMES as readonly string[]).includes(value);
+  if (typeof value !== "string") return false;
+  if ((BUILTIN_TOOL_NAMES as readonly string[]).includes(value)) return true;
+  if (value.startsWith("mcp:")) return true;
+  return false;
 }
 
 /** Remove triple-backtick code fences to avoid false-positive tool call matches. */

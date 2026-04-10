@@ -1,4 +1,4 @@
-import type { ToolMetadata } from "../tools/ToolCatalog.js";
+import type { DynamicToolMetadata, ToolMetadata } from "../tools/ToolCatalog.js";
 
 export type PromptStyle = "concise" | "detailed" | "beginner";
 
@@ -9,7 +9,7 @@ export interface PromptContext {
   readonly planModeActive: boolean;
   readonly thinkingMode: boolean;
   readonly activeSkillPrompt?: string;
-  readonly enabledTools: readonly ToolMetadata[];
+  readonly enabledTools: readonly (ToolMetadata | DynamicToolMetadata)[];
   readonly isSubAgent?: boolean;
   readonly promptStyle: PromptStyle;
   readonly workspacePath?: string;

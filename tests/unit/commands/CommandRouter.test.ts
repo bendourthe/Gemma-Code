@@ -73,6 +73,24 @@ describe("CommandRouter", () => {
       });
     });
 
+    it("routes /mcp to builtin", () => {
+      const router = makeRouter();
+      expect(router.route("/mcp")).toEqual({
+        type: "builtin",
+        name: "mcp",
+        args: "",
+      });
+    });
+
+    it("routes /mcp status with args", () => {
+      const router = makeRouter();
+      expect(router.route("/mcp status")).toEqual({
+        type: "builtin",
+        name: "mcp",
+        args: "status",
+      });
+    });
+
     it("routes a known skill command", () => {
       const router = makeRouter([{ name: "commit", description: "Generate commit" }]);
       const cmd = router.route("/commit fix login bug");
@@ -98,7 +116,7 @@ describe("CommandRouter", () => {
   });
 
   describe("getAllDescriptors()", () => {
-    it("includes all seven built-in commands", () => {
+    it("includes all eight built-in commands", () => {
       const router = makeRouter();
       const names = router.getAllDescriptors().map((d) => d.name);
       expect(names).toContain("help");
@@ -108,6 +126,7 @@ describe("CommandRouter", () => {
       expect(names).toContain("compact");
       expect(names).toContain("model");
       expect(names).toContain("memory");
+      expect(names).toContain("mcp");
     });
 
     it("includes skill descriptors returned by the factory", () => {

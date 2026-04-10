@@ -67,7 +67,7 @@
         },
         "gemma-code.temperature": {
           "type": "number",
-          "default": 1.0,
+          "default": 1,
           "description": "Sampling temperature (Gemma 4 recommended: 1.0)"
         },
         "gemma-code.topP": {
@@ -194,6 +194,20 @@
           "minimum": 100,
           "maximum": 100000,
           "description": "Maximum number of memory entries before automatic pruning."
+        },
+        "gemma-code.mcpEnabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable Model Context Protocol (MCP) support for interoperability with external tools."
+        },
+        "gemma-code.mcpServerMode": {
+          "type": "string",
+          "enum": [
+            "stdio",
+            "off"
+          ],
+          "default": "off",
+          "description": "MCP server mode. 'stdio' exposes Gemma Code tools via MCP stdio protocol. 'off' disables."
         }
       }
     }
@@ -223,6 +237,7 @@
     "vitest": "^1.0.0"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "better-sqlite3": "^12.8.0",
     "diff": "^5.2.2",
     "highlight.js": "^11.11.1",

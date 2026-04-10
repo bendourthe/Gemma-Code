@@ -12,6 +12,20 @@ export interface ToolMetadata {
   readonly parameters: Record<string, ToolParameterSchema>;
 }
 
+export type ToolCategory = "builtin" | "mcp";
+
+/** Extended metadata with source tracking and priority for conditional activation. */
+export interface DynamicToolMetadata extends ToolMetadata {
+  readonly source: ToolCategory;
+  /** Lower number = higher priority. Built-in tools use 0; MCP tools default to 100. */
+  readonly priority: number;
+}
+
+/** Wrap a static catalog entry as a DynamicToolMetadata with builtin source and priority 0. */
+export function toDynamicMetadata(tool: ToolMetadata): DynamicToolMetadata {
+  return { ...tool, source: "builtin", priority: 0 };
+}
+
 /**
  * Static metadata catalog for every registered tool. Used by PromptBuilder
  * to generate tool declarations in the system prompt and by the Ollama API

@@ -1,4 +1,4 @@
-export type ToolName =
+export type BuiltinToolName =
   | "read_file"
   | "write_file"
   | "edit_file"
@@ -10,7 +10,13 @@ export type ToolName =
   | "web_search"
   | "fetch_page";
 
-export const TOOL_NAMES: readonly ToolName[] = [
+/** Namespaced MCP tool name: `mcp:serverName/toolName`. */
+export type McpToolName = `mcp:${string}`;
+
+/** Any tool name: either a built-in tool or an MCP-sourced tool. */
+export type ToolName = BuiltinToolName | McpToolName;
+
+export const BUILTIN_TOOL_NAMES: readonly BuiltinToolName[] = [
   "read_file",
   "write_file",
   "edit_file",
@@ -22,6 +28,9 @@ export const TOOL_NAMES: readonly ToolName[] = [
   "web_search",
   "fetch_page",
 ];
+
+/** @deprecated Use BUILTIN_TOOL_NAMES instead. */
+export const TOOL_NAMES: readonly BuiltinToolName[] = BUILTIN_TOOL_NAMES;
 
 export interface ToolCall {
   readonly tool: ToolName;

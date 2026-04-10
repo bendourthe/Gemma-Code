@@ -15,7 +15,10 @@ Gemma Code brings a Claude Code-style agentic workflow to VS Code, running entir
 - **Plan mode** — the assistant produces a numbered plan and waits for step-by-step approval before acting
 - **Slash commands and skills** — `/commit`, `/review-pr`, `/generate-readme`, and more built-in workflows; add your own skills to `~/.gemma-code/skills/`
 - **Persistent history** — sessions are stored in a local SQLite database; resume any past conversation
-- **Auto-compact** — automatically summarises the conversation when the context window approaches its limit
+- **Cross-session memory** — automatically extracts decisions, facts, and patterns from conversations; retrieves relevant memories in future sessions using FTS5 keyword search and optional Ollama embeddings
+- **Multi-strategy context compaction** — 5-stage pipeline (tool result clearing, sliding window, code block truncation, LLM summary, emergency trim) keeps long sessions within context limits
+- **Conditional tool activation** — tools are enabled/disabled based on runtime context (Ollama reachability, network availability, session mode); keeps the prompt clean for better model reliability
+- **MCP support** — Model Context Protocol client connects to external MCP servers; MCP server exposes Gemma Code's tools to external clients (opt-in, off by default)
 - **Python inference backend** — optional FastAPI backend applies the Gemma chat template for higher-quality results
 - **Windows installer** — a single `setup.exe` installs everything: VS Code extension, Ollama, and the model
 - **Privacy-first** — your code and prompts never leave your machine
@@ -113,6 +116,12 @@ All settings are under `gemma-code.*` in VS Code settings (`Ctrl+,`).
 | `gemma-code.useBackend` | `true` | Route inference through the Python backend for better prompt formatting |
 | `gemma-code.backendPort` | `11435` | Local Python backend port |
 | `gemma-code.pythonPath` | `python` | Python executable path |
+| `gemma-code.memoryEnabled` | `true` | Enable persistent cross-session memory |
+| `gemma-code.embeddingModel` | `nomic-embed-text` | Ollama embedding model for semantic memory search (empty string disables) |
+| `gemma-code.memoryAutoSaveInterval` | `15` | Messages between automatic memory extraction runs |
+| `gemma-code.memoryMaxEntries` | `10000` | Maximum memory entries before automatic pruning |
+| `gemma-code.mcpEnabled` | `false` | Enable Model Context Protocol (MCP) support |
+| `gemma-code.mcpServerMode` | `off` | MCP server mode: `stdio` (expose tools) or `off` |
 
 ---
 
@@ -126,6 +135,8 @@ All settings are under `gemma-code.*` in VS Code settings (`Ctrl+,`).
 | `/plan` | Toggle plan mode on/off |
 | `/compact` | Manually trigger context compaction |
 | `/model [name]` | Switch the active model |
+| `/memory <subcommand>` | Manage persistent memory (search, save, clear, status) |
+| `/mcp <subcommand>` | Manage MCP connections (status, connect, disconnect) |
 | `/commit [args]` | Generate a commit message from staged changes |
 | `/review-pr [args]` | Review the current diff or a pull request |
 | `/generate-readme` | Create or update README.md |

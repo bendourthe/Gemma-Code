@@ -35,6 +35,8 @@ function startOllamaPoller(
     const client = createOllamaClient();
     const healthy = await client.checkHealth().catch(() => false);
 
+    panel.setOllamaReachable(healthy);
+
     if (healthy && !ollamaWasReachable) {
       ollamaWasReachable = true;
       channel.appendLine("[Gemma Code] Ollama is now reachable — resuming normal operation.");
@@ -180,6 +182,7 @@ export function activate(context: vscode.ExtensionContext): void {
   createOllamaClient()
     .checkHealth()
     .then((healthy) => {
+      chatPanel.setOllamaReachable(healthy);
       if (!healthy) {
         outputChannel?.appendLine(
           "[Gemma Code] Ollama is not reachable at startup. Polling for availability..."

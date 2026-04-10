@@ -36,6 +36,8 @@ describe("getSettings()", () => {
     expect(settings.embeddingModel).toBe("nomic-embed-text");
     expect(settings.memoryAutoSaveInterval).toBe(15);
     expect(settings.memoryMaxEntries).toBe(10000);
+    expect(settings.mcpEnabled).toBe(false);
+    expect(settings.mcpServerMode).toBe("off");
   });
 
   it("returns user-configured values when they are set", () => {

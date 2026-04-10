@@ -20,8 +20,12 @@ import { RunTerminalTool } from "../tools/handlers/terminal.js";
 import { WebSearchTool, FetchPageTool } from "../tools/handlers/webSearch.js";
 import { createOllamaClient } from "../ollama/client.js";
 import { getSettings } from "../config/settings.js";
-import { TOOL_CATALOG } from "../tools/ToolCatalog.js";
+import { TOOL_CATALOG, toDynamicMetadata } from "../tools/ToolCatalog.js";
+import type { DynamicToolMetadata } from "../tools/ToolCatalog.js";
 import type { OllamaToolDefinition } from "../ollama/types.js";
+import { computeToolActivation } from "../tools/ToolActivationRules.js";
+import { McpManager } from "../mcp/McpManager.js";
+import { McpServer } from "../mcp/McpServer.js";
 import { PromptBuilder } from "../chat/PromptBuilder.js";
 import type { PromptContext } from "../chat/PromptBuilder.types.js";
 import { SkillLoader } from "../skills/SkillLoader.js";
@@ -55,7 +59,12 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
   private readonly _memoryStore: MemoryStore | null;
   private readonly _compactor: ContextCompactor;
 
+  private _registry!: ToolRegistry;
   private _currentEditMode: EditMode;
+  private _ollamaReachable = true;
+  private _mcpTools: DynamicToolMetadata[] = [];
+  private _mcpManager: McpManager | null = null;
+  private _mcpServer: McpServer | null = null;
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
@@ -99,7 +108,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
 
     this._confirmationGate = new ConfirmationGate(postMessage);
 
-    const registry = this._buildToolRegistry(settings.editMode, settings.toolConfirmationMode);
+    this._registry = this._buildToolRegistry(settings.editMode, settings.toolConfirmationMode);
 
     const ollamaOptions = {
       num_ctx: settings.maxTokens,
@@ -108,28 +117,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
       top_k: settings.topK,
     };
 
-    const ollamaTools: OllamaToolDefinition[] = TOOL_CATALOG.map((tool) => {
-      const properties: Record<string, { type: string; description: string }> = {};
-      const required: string[] = [];
-      for (const [key, param] of Object.entries(tool.parameters)) {
-        properties[key] = { type: param.type, description: param.description };
-        if (param.required) {
-          required.push(key);
-        }
-      }
-      return {
-        type: "function" as const,
-        function: {
-          name: tool.name,
-          description: tool.description,
-          parameters: {
-            type: "object",
-            properties,
-            ...(required.length > 0 ? { required } : {}),
-          },
-        },
-      };
-    });
+    const ollamaTools = this._buildOllamaTools();
 
     this._compactor = new ContextCompactor(
       this._manager,
@@ -155,7 +143,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     this._agentLoop = new AgentLoop(
       client,
       this._manager,
-      registry,
+      this._registry,
       settings.modelName,
       settings.maxAgentIterations,
       this._compactor,
@@ -187,6 +175,26 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
         argumentHint: s.argumentHint || undefined,
       }))
     );
+
+    // MCP support — initialize lazily based on settings.
+    if (settings.mcpEnabled) {
+      const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      this._mcpManager = new McpManager(this._registry, workspacePath);
+      void this._mcpManager.initialize().then(() => {
+        this._mcpTools = this._mcpManager?.getAllToolMetadata() ?? [];
+        const prompt = this._promptBuilder.build(this._buildPromptContext());
+        this._manager.rebuildSystemPrompt(prompt);
+      }).catch((err) => {
+        console.warn("[McpManager] Initialization failed:", err);
+      });
+    }
+
+    if (settings.mcpServerMode === "stdio") {
+      this._mcpServer = new McpServer(this._registry, TOOL_CATALOG);
+      void this._mcpServer.start().catch((err) => {
+        console.warn("[McpServer] Failed to start:", err);
+      });
+    }
 
   }
 
@@ -589,6 +597,91 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
         }
         break;
       }
+
+      case "mcp": {
+        const mcpSettings = getSettings();
+        if (!mcpSettings.mcpEnabled || !this._mcpManager) {
+          const disabledMsg = this._manager.addAssistantMessage(
+            "_MCP support is disabled. Enable it in settings: `gemma-code.mcpEnabled`._",
+          );
+          postMessage({
+            type: "messageComplete",
+            messageId: disabledMsg.id,
+            renderedHtml: renderMarkdown(disabledMsg.content),
+          });
+          this._postHistory();
+          break;
+        }
+
+        const [subcommand] = args.split(" ", 1);
+        const subArgs = args.slice((subcommand?.length ?? 0) + 1).trim();
+
+        switch (subcommand) {
+          case "connect": {
+            if (!subArgs) {
+              const usageMsg = this._manager.addAssistantMessage("Usage: `/mcp connect <server-name>`");
+              postMessage({ type: "messageComplete", messageId: usageMsg.id, renderedHtml: renderMarkdown(usageMsg.content) });
+              this._postHistory();
+              break;
+            }
+            try {
+              await this._mcpManager.connectServer(subArgs);
+              this._mcpTools = this._mcpManager.getAllToolMetadata();
+              const prompt = this._promptBuilder.build(this._buildPromptContext());
+              this._manager.rebuildSystemPrompt(prompt);
+              const msg = this._manager.addAssistantMessage(`_Connected to MCP server "${subArgs}"._`);
+              postMessage({ type: "messageComplete", messageId: msg.id, renderedHtml: renderMarkdown(msg.content) });
+            } catch (err) {
+              const errMsg = err instanceof Error ? err.message : String(err);
+              const msg = this._manager.addAssistantMessage(`_Failed to connect to "${subArgs}": ${errMsg}_`);
+              postMessage({ type: "messageComplete", messageId: msg.id, renderedHtml: renderMarkdown(msg.content) });
+            }
+            this._postHistory();
+            break;
+          }
+          case "disconnect": {
+            if (!subArgs) {
+              const usageMsg = this._manager.addAssistantMessage("Usage: `/mcp disconnect <server-name>`");
+              postMessage({ type: "messageComplete", messageId: usageMsg.id, renderedHtml: renderMarkdown(usageMsg.content) });
+              this._postHistory();
+              break;
+            }
+            await this._mcpManager.disconnectServer(subArgs);
+            this._mcpTools = this._mcpManager.getAllToolMetadata();
+            const prompt = this._promptBuilder.build(this._buildPromptContext());
+            this._manager.rebuildSystemPrompt(prompt);
+            const dcMsg = this._manager.addAssistantMessage(`_Disconnected from MCP server "${subArgs}"._`);
+            postMessage({ type: "messageComplete", messageId: dcMsg.id, renderedHtml: renderMarkdown(dcMsg.content) });
+            this._postHistory();
+            break;
+          }
+          case "status":
+          default: {
+            const states = this._mcpManager.getServerStates();
+            const lines = [
+              "## MCP Status",
+              "",
+              `- **Enabled:** yes`,
+              `- **Connected servers:** ${states.filter((s) => s.status === "connected").length}`,
+              `- **MCP tools:** ${this._mcpTools.length}`,
+            ];
+            if (states.length > 0) {
+              lines.push("", "### Servers", "");
+              for (const state of states) {
+                const toolCount = state.tools.length;
+                const statusIcon = state.status === "connected" ? "+" : state.status === "error" ? "x" : "-";
+                lines.push(`- [${statusIcon}] **${state.config.name}** (${state.status}) -- ${toolCount} tools${state.error ? ` -- error: ${state.error}` : ""}`);
+              }
+            }
+            const statusText = lines.join("\n");
+            const msg = this._manager.addAssistantMessage(statusText);
+            postMessage({ type: "messageComplete", messageId: msg.id, renderedHtml: renderMarkdown(statusText) });
+            this._postHistory();
+            break;
+          }
+        }
+        break;
+      }
     }
   }
 
@@ -685,12 +778,72 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
       maxTokens: settings.maxTokens,
       planModeActive: this._planMode.active,
       thinkingMode: settings.thinkingMode,
-      enabledTools: [...TOOL_CATALOG],
+      enabledTools: this._getEnabledToolMetadata(),
       promptStyle: settings.promptStyle,
       workspacePath: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
       systemPromptBudgetPercent: settings.systemPromptBudgetPercent,
       memoryContext,
     };
+  }
+
+  /**
+   * Compute which tools should be enabled based on the current runtime context
+   * (Ollama reachability, network, session mode) and return the filtered catalog.
+   */
+  private _getEnabledToolMetadata(): DynamicToolMetadata[] {
+    const builtinTools = TOOL_CATALOG.map(toDynamicMetadata);
+    const allTools = [...builtinTools, ...this._mcpTools];
+
+    // During construction, _registry is not yet assigned. Return full catalog.
+    if (!this._registry) return builtinTools;
+
+    const { disabledTools } = computeToolActivation(allTools, {
+      ollamaReachable: this._ollamaReachable,
+      networkAvailable: true,
+      readOnlySession: false,
+      totalToolCount: allTools.length,
+    });
+
+    for (const tool of allTools) {
+      this._registry.setEnabled(tool.name, !disabledTools.has(tool.name));
+    }
+
+    return this._registry.getEnabledToolMetadata(allTools);
+  }
+
+  /** Build OllamaToolDefinition[] from the currently enabled tools. */
+  private _buildOllamaTools(): OllamaToolDefinition[] {
+    const enabled = this._getEnabledToolMetadata();
+    return enabled.map((tool) => {
+      const properties: Record<string, { type: string; description: string }> = {};
+      const required: string[] = [];
+      for (const [key, param] of Object.entries(tool.parameters)) {
+        properties[key] = { type: param.type, description: param.description };
+        if (param.required) {
+          required.push(key);
+        }
+      }
+      return {
+        type: "function" as const,
+        function: {
+          name: tool.name,
+          description: tool.description,
+          parameters: {
+            type: "object",
+            properties,
+            ...(required.length > 0 ? { required } : {}),
+          },
+        },
+      };
+    });
+  }
+
+  /** Update Ollama reachability state and rebuild the system prompt accordingly. */
+  setOllamaReachable(reachable: boolean): void {
+    if (this._ollamaReachable === reachable) return;
+    this._ollamaReachable = reachable;
+    const prompt = this._promptBuilder.build(this._buildPromptContext());
+    this._manager.rebuildSystemPrompt(prompt);
   }
 
   /**
@@ -741,5 +894,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     this._skillLoader.stopWatching();
     this._store?.close();
     this._memoryStore?.close();
+    this._mcpManager?.dispose();
+    void this._mcpServer?.stop();
   }
 }

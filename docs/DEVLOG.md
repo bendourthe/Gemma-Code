@@ -4,6 +4,124 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-04-09] v0.2.0 Phase 4 — Conditional Tool Activation and MCP Support
+
+### Summary
+
+Added context-dependent tool enable/disable logic and Model Context Protocol (MCP) support. Tools are now conditionally activated based on runtime state (Ollama reachability, network availability, session mode, sub-agent type, 15-tool cap). MCP client connects to external MCP servers via stdio, and MCP server exposes Gemma Code's tools to external clients. Tests: 416 passing (up from 372), 0 failures, 0 lint errors.
+
+### Architecture: Type System Extensions
+
+**Problem:** The `ToolName` type was a strict 10-member string union that could not accommodate dynamically discovered MCP tools.
+
+**Solution:** Introduced a two-tier type system:
+- `BuiltinToolName` -- the original 10-member union for built-in tools
+- `McpToolName` -- template literal type `` `mcp:${string}` `` for namespaced MCP tools (e.g., `mcp:mempalace/search`)
+- `ToolName = BuiltinToolName | McpToolName` -- union of both
+
+The `mcp:` prefix was chosen over `(string & {})` escape hatch because it preserves runtime type narrowing via `name.startsWith("mcp:")` and prevents collision with built-in tool names.
+
+`DynamicToolMetadata` extends `ToolMetadata` with `source: "builtin" | "mcp"` and `priority: number` (builtin = 0, MCP = 100). The `toDynamicMetadata()` helper wraps static catalog entries.
+
+### Architecture: Conditional Tool Activation
+
+**ToolRegistry enable/disable state:**
+- `_enabled: Map<ToolName, boolean>` alongside `_handlers`
+- `setEnabled()`, `isEnabled()`, `getEnabledNames()`, `getEnabledToolMetadata()`
+- `execute()` returns a "currently disabled" error for disabled tools (does not crash the agent loop)
+- Newly registered tools are enabled by default
+
+**ToolActivationRules.ts** -- Pure function `computeToolActivation()` applied in order:
+1. `!ollamaReachable` -- disable ALL tools
+2. `!networkAvailable` -- disable `web_search`, `fetch_page`
+3. `readOnlySession` -- disable write/execute tools
+4. `subAgentType === "research"` -- disable write tools
+5. `subAgentType === "verification"` -- disable create/delete tools
+6. `totalToolCount > 15` -- trim lowest-priority MCP tools
+
+The rules engine is a pure function taking `(allTools, context)` and returning `{ disabledTools, reasons }`. This made it trivially testable with 10 unit tests covering each rule and their composition.
+
+**GemmaCodePanel wiring:**
+- `_getEnabledToolMetadata()` combines `TOOL_CATALOG.map(toDynamicMetadata)` with `_mcpTools`, runs `computeToolActivation()`, and calls `setEnabled()` on the registry
+- `_buildPromptContext()` now uses `_getEnabledToolMetadata()` instead of spreading the full static catalog
+- `_buildOllamaTools()` extracts OllamaToolDefinition building into a method that also filters to enabled tools
+- `setOllamaReachable(reachable)` triggers prompt rebuild on state change
+- Constructor initialization order issue: `_buildPromptContext()` is called before `_registry` is assigned; solved with a guard (`if (!this._registry) return builtinTools`)
+
+### Architecture: MCP Support
+
+**`@modelcontextprotocol/sdk`** added as a runtime dependency. All imports use dynamic `import()` to avoid ESM/CJS interop issues (the SDK is ESM-only, the VS Code extension outputs CJS via `Node16` module resolution).
+
+**McpClient** (`src/mcp/McpClient.ts`):
+- Connects to a single external MCP server via `StdioClientTransport`
+- `connect()` calls `client.listTools()` to discover tools, converts to `McpToolInfo[]` with qualified `mcp:serverName/toolName` names
+- `callTool()` delegates via JSON-RPC, extracts text content from response, returns `ToolResult`
+- Status tracking: `disconnected -> connecting -> connected | error`
+
+**McpToolHandler** (`src/mcp/McpToolHandler.ts`):
+- Implements `ToolHandler` interface, delegates `execute()` to `McpClient.callTool()`
+- One instance per discovered MCP tool, registered in `ToolRegistry`
+
+**McpManager** (`src/mcp/McpManager.ts`):
+- Reads config from `.gemma-code/mcp.json` (workspace-local overrides `~/.gemma-code/mcp.json` global)
+- Manages multiple `McpClient` instances by server name
+- `connectServer()` creates client, connects, registers discovered tools in `ToolRegistry`
+- `disconnectServer()` disables tools and disconnects
+- `getAllToolMetadata()` returns MCP tools as `DynamicToolMetadata[]` for prompt injection
+
+**McpServer** (`src/mcp/McpServer.ts`):
+- Exposes built-in tools via MCP stdio transport using `McpServer` (high-level SDK class from `server/mcp.js`)
+- Each catalog tool registered via `server.tool(name, description, callback)` (3-arg overload, no Zod schema)
+- Callback delegates to `ToolRegistry.execute()`
+- Start/stop lifecycle controlled by `mcpServerMode` setting
+
+**Settings:** `mcpEnabled: false` (opt-in), `mcpServerMode: "off" | "stdio"`
+
+**`/mcp` command:** status (shows connected servers and tool count), connect `<name>`, disconnect `<name>`
+
+### New files
+
+| File | Lines | Purpose |
+|------|-------|---------|
+| `src/tools/ToolActivationRules.ts` | ~100 | Context-dependent tool enable/disable rules engine |
+| `src/mcp/McpTypes.ts` | ~35 | Type definitions: McpServerConfig, McpToolInfo, McpServerState |
+| `src/mcp/McpClient.ts` | ~130 | Connect to external MCP servers via stdio |
+| `src/mcp/McpToolHandler.ts` | ~18 | ToolHandler wrapper for MCP tool calls |
+| `src/mcp/McpManager.ts` | ~165 | MCP connection lifecycle and config management |
+| `src/mcp/McpServer.ts` | ~80 | Expose built-in tools via MCP stdio |
+| `tests/unit/tools/ToolActivationRules.test.ts` | ~160 | 10 tests for activation rules |
+| `tests/unit/mcp/McpClient.test.ts` | ~150 | 10 tests for MCP client |
+| `tests/unit/mcp/McpManager.test.ts` | ~155 | 9 tests for MCP manager |
+| `tests/unit/mcp/McpServer.test.ts` | ~110 | 6 tests for MCP server |
+
+### Modifications to existing files
+
+| File | Change |
+|------|--------|
+| `src/tools/types.ts` | Split `ToolName` into `BuiltinToolName` + `McpToolName` union; renamed `TOOL_NAMES` to `BUILTIN_TOOL_NAMES` with deprecated alias |
+| `src/tools/ToolCatalog.ts` | Added `DynamicToolMetadata`, `ToolCategory`, `toDynamicMetadata()` |
+| `src/tools/Gemma4ToolFormat.ts` | Updated `isToolName()` to accept `mcp:` prefix; switched to `BUILTIN_TOOL_NAMES` import |
+| `src/tools/ToolRegistry.ts` | Added `_enabled` map, `setEnabled()`, `isEnabled()`, `getEnabledNames()`, `getEnabledToolMetadata()`; `execute()` checks enabled state |
+| `src/chat/PromptBuilder.types.ts` | Widened `enabledTools` type to accept `DynamicToolMetadata` |
+| `src/config/settings.ts` | Added `mcpEnabled`, `mcpServerMode` settings |
+| `src/commands/CommandRouter.ts` | Added `"mcp"` to `BuiltinCommandName` and descriptors |
+| `src/panels/GemmaCodePanel.ts` | Added `_registry`, `_ollamaReachable`, `_mcpTools`, `_mcpManager`, `_mcpServer` fields; `_getEnabledToolMetadata()`, `_buildOllamaTools()`, `setOllamaReachable()` methods; full `/mcp` command handler; MCP initialization in constructor; cleanup in `dispose()` |
+| `src/extension.ts` | Wired `setOllamaReachable()` in health poller and initial check |
+| `package.json` | Added `@modelcontextprotocol/sdk` dependency; added `mcpEnabled` and `mcpServerMode` config properties |
+
+### Lessons Learned
+
+- **ESM/CJS interop with `@modelcontextprotocol/sdk`:** The SDK uses `"type": "module"` in its package.json. With `tsconfig.json` set to `"module": "Node16"`, static imports fail with TS1479. Solution: dynamic `import()` for all SDK classes. This adds a small async overhead on first use but avoids any build configuration changes.
+- **Constructor initialization order matters:** `_buildPromptContext()` is called early in the constructor (line 76) before `_registry` is assigned (line 102). The `_getEnabledToolMetadata()` method must guard against `!this._registry` and return the full catalog as a fallback during initial construction.
+- **McpServer SDK class location:** The high-level `McpServer` class is at `@modelcontextprotocol/sdk/server/mcp.js`, not re-exported from `@modelcontextprotocol/sdk/server`. The `server` subpath exports only the low-level `Server` class.
+- **`server.tool()` overloads:** The 4-arg overload `(name, description, schema, cb)` expects a Zod shape for the schema parameter. The simpler 3-arg overload `(name, description, cb)` accepts any callback params and avoids Zod type requirements.
+
+### Current Status
+
+Verified. Build clean, 416 tests passing, 0 lint errors. Phase 4 complete.
+
+---
+
 ## [2026-04-09] v0.2.0 Phase 3 — Persistent Memory System
 
 ### Summary

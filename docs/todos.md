@@ -9,7 +9,7 @@
 | Metric | Current | Target | Delta |
 |--------|---------|--------|-------|
 | Tasks done (v0.1.0) | 13 / 21 | 21 / 21 | -8 |
-| Tasks done (v0.2.0) | 27 / 38 | 38 / 38 | -11 |
+| Tasks done (v0.2.0) | 33 / 38 | 38 / 38 | -5 |
 
 ---
 
@@ -77,12 +77,12 @@ Full plan: `docs/v0.2.0/development/implementation-plan.md`
 - [x] Add `/memory` slash command (search, save, clear, status)
 
 ### Phase 4 — Conditional Tool Activation and MCP Support
-- [ ] Add enabled/disabled state to `ToolRegistry.ts`
-- [ ] Update PromptBuilder to only declare enabled tools
-- [ ] Create `src/mcp/McpServer.ts` (expose tools via MCP stdio)
-- [ ] Create `src/mcp/McpClient.ts` (consume external MCP servers)
-- [ ] Create `src/mcp/McpManager.ts` (lifecycle, config from mcp.json)
-- [ ] Add `/mcp` slash command (status, connect, disconnect)
+- [x] Add enabled/disabled state to `ToolRegistry.ts`
+- [x] Update PromptBuilder to only declare enabled tools
+- [x] Create `src/mcp/McpServer.ts` (expose tools via MCP stdio)
+- [x] Create `src/mcp/McpClient.ts` (consume external MCP servers)
+- [x] Create `src/mcp/McpManager.ts` (lifecycle, config from mcp.json)
+- [x] Add `/mcp` slash command (status, connect, disconnect)
 
 ### Phase 5 — Sub-Agent Orchestration
 - [ ] Create `src/agents/SubAgentManager.ts` (isolated ConversationManager + AgentLoop)
