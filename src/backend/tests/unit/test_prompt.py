@@ -294,9 +294,7 @@ def test_sliding_window_keeps_conversation_summary() -> None:
 
 
 def test_sliding_window_trims_middle_messages() -> None:
-    messages = [
-        Message(role="user", content=f"msg {i}") for i in range(20)
-    ]
+    messages = [Message(role="user", content=f"msg {i}") for i in range(20)]
     result = sliding_window(messages, keep_recent=5)
     non_system = [m for m in result if m.role != "system"]
     # Anchor (msg 0) + last 5 (msg 15-19) = 6 messages.
@@ -312,9 +310,7 @@ def test_sliding_window_trims_middle_messages() -> None:
 
 def test_assemble_prompt_injects_system_prompt() -> None:
     messages = [Message(role="user", content="Hello")]
-    result = assemble_prompt(
-        messages, model_name="llama3", system_prompt="Be helpful."
-    )
+    result = assemble_prompt(messages, model_name="llama3", system_prompt="Be helpful.")
     assert result[0].role == "system"
     assert result[0].content == "Be helpful."
     assert result[1].role == "user"

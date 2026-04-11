@@ -48,7 +48,7 @@ def clear_old_tool_results(
         return messages
 
     # Indices to clear: all except the last keep_recent.
-    to_clear = set(indices_with_results[: -keep_recent])
+    to_clear = set(indices_with_results[:-keep_recent])
 
     result: list[Message] = []
     for i, msg in enumerate(messages):
