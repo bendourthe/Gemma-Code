@@ -434,6 +434,68 @@ export function getWebviewHtml(
     }
     #plan-badge.active { display: inline-block; }
 
+    /* ---- Thinking mode badge ---- */
+    #thinking-mode-badge {
+      display: none;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      border-radius: 3px;
+      background: var(--vscode-progressBar-background, #0e70c0);
+      color: #fff;
+      flex-shrink: 0;
+    }
+    #thinking-mode-badge.active { display: inline-block; }
+
+    /* ---- Memory status badge ---- */
+    #memory-badge {
+      display: none;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      border-radius: 3px;
+      background: var(--vscode-badge-background, #4d4d4d);
+      color: var(--vscode-badge-foreground, #fff);
+      flex-shrink: 0;
+      opacity: 0.7;
+    }
+    #memory-badge.active { display: inline-block; opacity: 1; }
+    #memory-badge.off    { display: inline-block; opacity: 0.4; }
+
+    /* ---- MCP connection badge ---- */
+    #mcp-badge {
+      display: none;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      border-radius: 3px;
+      background: var(--vscode-badge-background, #4d4d4d);
+      color: var(--vscode-badge-foreground, #fff);
+      flex-shrink: 0;
+    }
+    #mcp-badge.connected    { display: inline-block; opacity: 1; background: var(--vscode-testing-iconPassed, #73c991); color: #000; }
+    #mcp-badge.disconnected { display: inline-block; opacity: 0.4; }
+
+    /* ---- Sub-agent spinner ---- */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .sub-agent-spinner {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border: 2px solid var(--vscode-foreground);
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+
     /* ---- Command autocomplete dropdown ---- */
     #autocomplete {
       position: absolute;
@@ -587,6 +649,9 @@ export function getWebviewHtml(
   <header id="header">
     <span id="model-label" title="${modelName}">${modelName}</span>
     <span id="plan-badge" aria-label="Plan mode active">PLAN</span>
+    <span id="thinking-mode-badge" aria-label="Thinking mode active">THINK</span>
+    <span id="memory-badge" aria-label="Memory status" title="Memory system status">MEM</span>
+    <span id="mcp-badge" aria-label="MCP connection status" title="MCP connection status">MCP</span>
     <span id="token-counter" aria-label="Token usage" title="Estimated token usage"></span>
     <div id="edit-mode-selector" role="group" aria-label="Edit mode">
       <button class="edit-mode-btn" data-mode="auto" aria-label="Auto edit mode" title="Apply edits immediately">Auto</button>
@@ -655,6 +720,9 @@ export function getWebviewHtml(
       const thinkingEl      = /** @type {HTMLElement} */ (document.getElementById('thinking'));
       const statusDot       = /** @type {HTMLElement} */ (document.getElementById('status-dot'));
       const planBadge       = /** @type {HTMLElement} */ (document.getElementById('plan-badge'));
+      const thinkingBadge   = /** @type {HTMLElement} */ (document.getElementById('thinking-mode-badge'));
+      const memoryBadge     = /** @type {HTMLElement} */ (document.getElementById('memory-badge'));
+      const mcpBadge        = /** @type {HTMLElement} */ (document.getElementById('mcp-badge'));
       const tokenCounter    = /** @type {HTMLElement} */ (document.getElementById('token-counter'));
       const compactionBanner= /** @type {HTMLElement} */ (document.getElementById('compaction-banner'));
       const subAgentBanner  = /** @type {HTMLElement} */ (document.getElementById('sub-agent-banner'));
@@ -1148,23 +1216,56 @@ export function getWebviewHtml(
             const label = labels[msg.agentType] || msg.agentType;
             subAgentBanner.classList.remove('error');
             if (msg.state === 'running') {
-              subAgentBanner.textContent = label + ' agent running...';
+              subAgentBanner.innerHTML =
+                '<span class="sub-agent-spinner"></span>' +
+                '<strong>' + label + '</strong> agent running\u2026';
               subAgentBanner.classList.add('visible');
             } else if (msg.state === 'complete') {
-              subAgentBanner.textContent = label + ' agent complete.';
+              subAgentBanner.innerHTML = '<strong>' + label + '</strong> agent complete.';
               subAgentBanner.classList.add('visible');
               setTimeout(() => {
                 subAgentBanner.classList.remove('visible');
-                subAgentBanner.textContent = '';
+                subAgentBanner.innerHTML = '';
               }, 3000);
             } else if (msg.state === 'error') {
-              subAgentBanner.textContent = label + ' agent error: ' + (msg.summary || 'unknown');
+              subAgentBanner.innerHTML =
+                '<strong>' + label + '</strong> agent error: ' + (msg.summary || 'unknown');
               subAgentBanner.classList.add('visible', 'error');
               setTimeout(() => {
                 subAgentBanner.classList.remove('visible', 'error');
-                subAgentBanner.textContent = '';
+                subAgentBanner.innerHTML = '';
               }, 5000);
             }
+            break;
+          }
+
+          case 'memoryStatus': {
+            if (msg.enabled) {
+              memoryBadge.className = 'active';
+              memoryBadge.title = 'Memory: ' + msg.entryCount + ' entries';
+            } else {
+              memoryBadge.className = 'off';
+              memoryBadge.title = 'Memory: disabled';
+            }
+            break;
+          }
+
+          case 'mcpStatus': {
+            if (!msg.enabled) {
+              mcpBadge.className = '';
+              mcpBadge.title = 'MCP: disabled';
+            } else if (msg.connectedServerCount > 0) {
+              mcpBadge.className = 'connected';
+              mcpBadge.title = 'MCP: ' + msg.connectedServerCount + ' server(s), ' + msg.totalToolCount + ' tools';
+            } else {
+              mcpBadge.className = 'disconnected';
+              mcpBadge.title = 'MCP: no servers connected';
+            }
+            break;
+          }
+
+          case 'thinkingModeStatus': {
+            thinkingBadge.classList.toggle('active', msg.active);
             break;
           }
 

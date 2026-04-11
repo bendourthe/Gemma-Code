@@ -13,6 +13,20 @@ class Settings(BaseSettings):
     backend_port: int = 11435
     request_timeout: float = 120.0
 
+    # Compaction settings (aligned with TypeScript frontend defaults).
+    compaction_keep_recent: int = 10
+    compaction_tool_results_keep: int = 8
+
+    # Feature flags.
+    memory_enabled: bool = True
+    thinking_mode: bool = True
+
+    # Sub-agent settings.
+    sub_agent_max_iterations: int = 10
+
+    # Prompt budgeting.
+    system_prompt_budget_percent: int = 10
+
 
 _settings: Settings | None = None
 

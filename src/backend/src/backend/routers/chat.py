@@ -22,7 +22,12 @@ async def _event_stream(
     settings = request.app.state.settings
 
     model = body.model or settings.model_name
-    prepared = assemble_prompt(body.messages, model, settings.request_timeout)
+    prepared = assemble_prompt(
+        body.messages,
+        model,
+        tool_results_keep=settings.compaction_tool_results_keep,
+        keep_recent=settings.compaction_keep_recent,
+    )
 
     try:
         async for token in ollama.stream_chat(

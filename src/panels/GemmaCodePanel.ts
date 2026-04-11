@@ -283,6 +283,9 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
           mode: this._currentEditMode,
         });
         this._postTokenCount();
+        this._postMemoryStatus();
+        this._postMcpStatus();
+        this._postThinkingModeStatus();
         break;
 
       case "requestCommandList":
@@ -563,6 +566,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
               renderedHtml: renderMarkdown(saveMsg.content),
             });
             this._postHistory();
+            this._postMemoryStatus();
             break;
           }
 
@@ -575,6 +579,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
               renderedHtml: renderMarkdown(clearMsg.content),
             });
             this._postHistory();
+            this._postMemoryStatus();
             break;
           }
 
@@ -653,6 +658,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
               postMessage({ type: "messageComplete", messageId: msg.id, renderedHtml: renderMarkdown(msg.content) });
             }
             this._postHistory();
+            this._postMcpStatus();
             break;
           }
           case "disconnect": {
@@ -669,6 +675,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
             const dcMsg = this._manager.addAssistantMessage(`_Disconnected from MCP server "${subArgs}"._`);
             postMessage({ type: "messageComplete", messageId: dcMsg.id, renderedHtml: renderMarkdown(dcMsg.content) });
             this._postHistory();
+            this._postMcpStatus();
             break;
           }
           case "status":
@@ -836,6 +843,45 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
       type: "tokenCount",
       count,
       limit: settings.maxTokens,
+    });
+  }
+
+  private _postMemoryStatus(): void {
+    const settings = getSettings();
+    const entryCount = this._memoryStore?.getStats().totalEntries ?? 0;
+    void this._view?.webview.postMessage({
+      type: "memoryStatus",
+      enabled: settings.memoryEnabled && this._memoryStore !== null,
+      entryCount,
+    });
+  }
+
+  private _postMcpStatus(): void {
+    const settings = getSettings();
+    if (!settings.mcpEnabled || !this._mcpManager) {
+      void this._view?.webview.postMessage({
+        type: "mcpStatus",
+        enabled: false,
+        connectedServerCount: 0,
+        totalToolCount: 0,
+      });
+      return;
+    }
+    const states = this._mcpManager.getServerStates();
+    const connectedCount = states.filter((s) => s.status === "connected").length;
+    void this._view?.webview.postMessage({
+      type: "mcpStatus",
+      enabled: true,
+      connectedServerCount: connectedCount,
+      totalToolCount: this._mcpTools.length,
+    });
+  }
+
+  private _postThinkingModeStatus(): void {
+    const settings = getSettings();
+    void this._view?.webview.postMessage({
+      type: "thinkingModeStatus",
+      active: settings.thinkingMode,
     });
   }
 

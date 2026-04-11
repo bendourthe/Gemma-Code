@@ -46,12 +46,12 @@ Gemma Code brings a Claude Code-style agentic workflow to VS Code, running entir
    - Install Ollama if not already present
    - Install the VS Code extension
    - Set up the Python inference backend
-   - Optionally download the Gemma model (~15 GB)
+   - Optionally download the Gemma model (~9.6 GB)
 3. Launch VS Code and open the Gemma Code panel from the Activity Bar.
 
 ### Manual — VSIX
 
-1. Download `gemma-code-0.1.0.vsix` from the [latest release](https://github.com/bendourthe/Gemma-Code/releases/latest).
+1. Download `gemma-code-0.2.0.vsix` from the [latest release](https://github.com/bendourthe/Gemma-Code/releases/latest).
 2. In VS Code: **Extensions → ··· → Install from VSIX**.
 3. Ensure Ollama is installed and the model is pulled:
    ```bash
@@ -67,7 +67,7 @@ cd Gemma-Code
 npm install
 npm run build
 npx vsce package --no-dependencies
-code --install-extension gemma-code-0.1.0.vsix
+code --install-extension gemma-code-0.2.0.vsix
 ```
 
 ---
@@ -103,7 +103,7 @@ All settings are under `gemma-code.*` in VS Code settings (`Ctrl+,`).
 | Setting | Default | Description |
 |---|---|---|
 | `gemma-code.ollamaUrl` | `http://localhost:11434` | Ollama server URL |
-| `gemma-code.modelName` | `gemma4` | Model to use for inference (Gemma 4 e4b default) |
+| `gemma-code.modelName` | `gemma4:e4b` | Model to use for inference |
 | `gemma-code.maxTokens` | `131072` | Maximum context tokens (128K for E2B/E4B, 256K for 26B/31B) |
 | `gemma-code.temperature` | `1.0` | Sampling temperature (Gemma 4 recommended: 1.0) |
 | `gemma-code.topP` | `0.95` | Top-p (nucleus) sampling threshold |
@@ -121,8 +121,14 @@ All settings are under `gemma-code.*` in VS Code settings (`Ctrl+,`).
 | `gemma-code.embeddingModel` | `nomic-embed-text` | Ollama embedding model for semantic memory search (empty string disables) |
 | `gemma-code.memoryAutoSaveInterval` | `15` | Messages between automatic memory extraction runs |
 | `gemma-code.memoryMaxEntries` | `10000` | Maximum memory entries before automatic pruning |
+| `gemma-code.systemPromptBudgetPercent` | `10` | Percentage of context window for system prompt (5-30) |
+| `gemma-code.compactionKeepRecent` | `10` | Messages to keep in sliding window during compaction |
+| `gemma-code.compactionToolResultsKeep` | `8` | Recent tool results to preserve during compaction |
 | `gemma-code.mcpEnabled` | `false` | Enable Model Context Protocol (MCP) support |
 | `gemma-code.mcpServerMode` | `off` | MCP server mode: `stdio` (expose tools) or `off` |
+| `gemma-code.verificationEnabled` | `true` | Enable auto-verification sub-agent after file edits |
+| `gemma-code.verificationThreshold` | `3` | Number of file edits before verification triggers |
+| `gemma-code.subAgentMaxIterations` | `10` | Maximum iterations for sub-agent tool loops |
 
 ---
 
@@ -138,6 +144,8 @@ All settings are under `gemma-code.*` in VS Code settings (`Ctrl+,`).
 | `/model [name]` | Switch the active model |
 | `/memory <subcommand>` | Manage persistent memory (search, save, clear, status) |
 | `/mcp <subcommand>` | Manage MCP connections (status, connect, disconnect) |
+| `/verify` | Manually trigger verification sub-agent on recent changes |
+| `/research <query>` | Spawn a research sub-agent to investigate a topic |
 | `/commit [args]` | Generate a commit message from staged changes |
 | `/review-pr [args]` | Review the current diff or a pull request |
 | `/generate-readme` | Create or update README.md |
@@ -209,13 +217,16 @@ uv run ruff check . && uv run ruff format .
 src/
   extension.ts           Extension entry point
   ollama/                Ollama HTTP client
-  chat/                  Conversation manager, streaming pipeline, auto-compact
+  chat/                  Conversation manager, streaming, PromptBuilder, compaction
+  config/                Settings, PromptBudget token allocation
   panels/                VS Code webview panel and message protocol
-  tools/                 Tool registry, agent loop, tool handlers
+  tools/                 Tool registry, agent loop, tool handlers, Gemma 4 format
+  agents/                Sub-agent manager (verification, research, planning)
+  mcp/                   MCP client, server, and manager
   skills/                Skill loader and built-in skill catalog
   commands/              Slash command router
   modes/                 Plan mode and edit mode
-  storage/               SQLite-backed chat history
+  storage/               SQLite chat history, MemoryStore, EmbeddingClient
   utils/                 Markdown renderer
   backend/               Python FastAPI inference backend (separate package)
 tests/
@@ -225,6 +236,7 @@ tests/
   benchmarks/            Performance benchmark suites
 docs/
   v0.1.0/               Architecture, tool protocol, CI setup, security audit, benchmarks
+  v0.2.0/               Architecture, implementation plan, development history
 scripts/
   installer/            NSIS installer script and build helper
 .github/

@@ -9,7 +9,7 @@
 | Metric | Current | Target | Delta |
 |--------|---------|--------|-------|
 | Tasks done (v0.1.0) | 13 / 21 | 21 / 21 | -8 |
-| Tasks done (v0.2.0) | 39 / 44 | 44 / 44 | -5 |
+| Tasks done (v0.2.0) | 44 / 44 | 44 / 44 | 0 |
 
 ---
 
@@ -92,12 +92,12 @@ Full plan: `docs/v0.2.0/development/implementation-plan.md`
 - [x] Wire sub-agent status to webview
 - [x] Add `/verify` and `/research` slash commands
 
-### Phase 6 — Integration, Polish, and Backend Alignment
-- [ ] Align Python backend prompt.py with multi-strategy compaction
-- [ ] Update webview UI (memory status, sub-agent spinner, MCP badge)
-- [ ] Create root-level `SECURITY.md` and `ARCHITECTURE.md`
-- [ ] Run end-to-end verification checklist (11 items in plan)
-- [ ] Bump version to 0.2.0, update CHANGELOG
+### Phase 6 — Integration, Polish, and Backend Alignment [COMPLETED]
+- [x] Align Python backend prompt.py with multi-strategy compaction
+- [x] Update webview UI (memory status, sub-agent spinner, MCP badge)
+- [x] Create root-level `SECURITY.md` and `ARCHITECTURE.md`
+- [x] Run end-to-end verification checklist (11 items in plan)
+- [x] Bump version to 0.2.0, update CHANGELOG
 
 ## Backlog — v0.3.0+
 

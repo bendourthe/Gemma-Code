@@ -118,6 +118,27 @@ export interface SubAgentStatusMessage {
   summary?: string;
 }
 
+/** Updates the memory-system status badge in the webview header. */
+export interface MemoryStatusMessage {
+  type: "memoryStatus";
+  enabled: boolean;
+  entryCount: number;
+}
+
+/** Updates the MCP connection badge in the webview header. */
+export interface McpStatusMessage {
+  type: "mcpStatus";
+  enabled: boolean;
+  connectedServerCount: number;
+  totalToolCount: number;
+}
+
+/** Updates the thinking mode indicator in the webview header. */
+export interface ThinkingModeMessage {
+  type: "thinkingModeStatus";
+  active: boolean;
+}
+
 export type ExtensionToWebviewMessage =
   | TokenMessage
   | MessageCompleteMessage
@@ -135,7 +156,10 @@ export type ExtensionToWebviewMessage =
   | SessionListMessage
   | EditModeChangedMessage
   | DiffPreviewMessage
-  | SubAgentStatusMessage;
+  | SubAgentStatusMessage
+  | MemoryStatusMessage
+  | McpStatusMessage
+  | ThinkingModeMessage;
 
 // ---------------------------------------------------------------------------
 // Webview → Extension
