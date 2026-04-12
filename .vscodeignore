@@ -9,6 +9,8 @@ lib/**
 assets/**
 !assets/icon.png
 !assets/icon.svg
+!assets/sidebar-icon.svg
+!assets/vector.svg
 coverage/**
 
 # Build artifacts that are not extension output
@@ -30,8 +32,24 @@ CHANGELOG.md
 README.md
 CLAUDE.md
 
-# Node modules (bundled via --no-dependencies flag; runtime deps are in out/)
-node_modules/**
+# Trim unnecessary files from bundled node_modules
+# (vsce automatically excludes devDependencies when --no-dependencies is not used)
+node_modules/**/*.md
+node_modules/**/*.map
+node_modules/**/test/**
+node_modules/**/tests/**
+node_modules/**/.npmignore
+node_modules/**/.travis.yml
+node_modules/**/CHANGELOG*
+node_modules/**/LICENSE*
+node_modules/**/HISTORY*
+# better-sqlite3: exclude C++ source (only .node binary + JS lib needed)
+node_modules/better-sqlite3/src/**
+node_modules/better-sqlite3/deps/**
+node_modules/better-sqlite3/binding.gyp
+node_modules/better-sqlite3/build/Release/.forge-meta
+# prebuild-install not needed at runtime
+node_modules/prebuild-install/**
 
 # Python and Rust artifacts
 **/__pycache__/**

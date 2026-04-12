@@ -7,11 +7,28 @@
  * and displays raw token text during streaming, then swaps in the rendered HTML
  * when the stream completes.
  */
+/**
+ * Format a raw Ollama model name into a human-friendly display string.
+ * "gemma4:e4b" -> "Gemma 4 E4B"
+ * "gemma4" -> "Gemma 4"
+ * "gemma4:26b" -> "Gemma 4 26B"
+ */
+export function formatModelName(raw: string): string {
+  const parts = raw.split(":");
+  const base = parts[0] ?? raw;
+  const variant = parts[1];
+  const formatted = base.replace(/(\d)/g, " $1").trim();
+  const capitalized = formatted.charAt(0).toUpperCase() + formatted.slice(1);
+  if (variant) return `${capitalized} ${variant.toUpperCase()}`;
+  return capitalized;
+}
+
 export function getWebviewHtml(
   nonce: string,
   cspSource: string,
   modelName: string
 ): string {
+  const displayName = formatModelName(modelName);
   return /* html */ `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -37,25 +54,16 @@ export function getWebviewHtml(
     /* ---- Header ---- */
     #header {
       display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 5px 10px;
-      border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-panel-border));
+      flex-direction: column;
+      gap: 0;
       flex-shrink: 0;
-      background: var(--vscode-sideBarSectionHeader-background);
-      flex-wrap: wrap;
+      border-bottom: 1px solid var(--vscode-panel-border);
     }
-    #model-label {
-      font-size: 11px;
-      font-weight: 600;
-      opacity: 0.7;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      flex: 1;
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+    #header-top {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
     }
     #status-dot {
       width: 8px;
@@ -73,11 +81,51 @@ export function getWebviewHtml(
       0%, 100% { opacity: 1; }
       50% { opacity: 0.35; }
     }
+    #session-title {
+      font-size: 13px;
+      font-weight: 600;
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      cursor: default;
+      border-radius: 3px;
+      padding: 1px 4px;
+    }
+    #session-title:hover { background: rgba(128,128,128,0.15); cursor: text; }
+    #session-title[contenteditable="true"] {
+      outline: 1px solid var(--vscode-focusBorder);
+      background: var(--vscode-input-background);
+      cursor: text;
+    }
+    #model-label {
+      font-size: 10px;
+      opacity: 0.5;
+      white-space: nowrap;
+    }
+    .icon-btn {
+      font-size: 16px;
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      color: var(--vscode-foreground);
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      opacity: 0.6;
+      flex-shrink: 0;
+      padding: 0;
+    }
+    .icon-btn:hover { opacity: 1; background: rgba(128,128,128,0.2); }
 
     /* ---- Token counter ---- */
     #token-counter {
       font-size: 10px;
-      opacity: 0.6;
+      opacity: 0.5;
       white-space: nowrap;
       flex-shrink: 0;
     }
@@ -89,62 +137,68 @@ export function getWebviewHtml(
       display: flex;
       gap: 1px;
       background: var(--vscode-input-border, rgba(128,128,128,0.3));
-      border-radius: 3px;
+      border-radius: 4px;
       overflow: hidden;
       flex-shrink: 0;
     }
     .edit-mode-btn {
       font-size: 10px;
-      padding: 2px 7px;
-      background: var(--vscode-button-secondaryBackground);
-      color: var(--vscode-button-secondaryForeground);
+      padding: 3px 10px;
+      background: transparent;
+      color: var(--vscode-foreground);
       border: none;
       cursor: pointer;
       white-space: nowrap;
       border-radius: 0;
+      opacity: 0.6;
     }
-    .edit-mode-btn:hover { background: var(--vscode-button-secondaryHoverBackground); }
+    .edit-mode-btn:hover { opacity: 1; background: rgba(128,128,128,0.15); }
     .edit-mode-btn.active {
       background: var(--vscode-button-background);
       color: var(--vscode-button-foreground);
+      opacity: 1;
     }
 
     /* ---- Message list ---- */
     #messages {
       flex: 1;
       overflow-y: auto;
-      padding: 10px 8px;
+      padding: 16px 12px;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 16px;
     }
     #messages:empty::after {
       content: "Ask Gemma Code anything about your code.";
-      display: block;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
       text-align: center;
-      padding: 40px 16px;
-      opacity: 0.4;
-      font-size: 12px;
+      opacity: 0.35;
+      font-size: 13px;
     }
 
     .msg {
-      max-width: 88%;
-      padding: 7px 10px;
-      border-radius: 8px;
-      line-height: 1.5;
+      max-width: 100%;
+      padding: 8px 12px;
+      border-radius: 6px;
+      line-height: 1.55;
       word-break: break-word;
+      font-size: 13px;
     }
     .msg.user {
       align-self: flex-end;
+      max-width: 85%;
       background: var(--vscode-button-background);
       color: var(--vscode-button-foreground);
-      border-bottom-right-radius: 2px;
+      border-radius: 12px 12px 4px 12px;
     }
     .msg.assistant {
       align-self: flex-start;
-      background: var(--vscode-input-background);
-      color: var(--vscode-input-foreground);
-      border-bottom-left-radius: 2px;
+      background: transparent;
+      color: var(--vscode-foreground);
+      padding: 4px 0;
     }
     .msg.streaming {
       white-space: pre-wrap;
@@ -363,16 +417,16 @@ export function getWebviewHtml(
 
     /* ---- Footer ---- */
     #footer {
-      padding: 8px;
+      padding: 10px 12px 12px;
       border-top: 1px solid var(--vscode-panel-border);
       display: flex;
       flex-direction: column;
-      gap: 5px;
+      gap: 6px;
       flex-shrink: 0;
     }
     #input-row {
       display: flex;
-      gap: 5px;
+      gap: 6px;
       align-items: flex-end;
     }
     #input {
@@ -380,18 +434,56 @@ export function getWebviewHtml(
       resize: none;
       background: var(--vscode-input-background);
       color: var(--vscode-input-foreground);
-      border: 1px solid var(--vscode-input-border, transparent);
-      border-radius: 4px;
-      padding: 5px 8px;
+      border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.3));
+      border-radius: 8px;
+      padding: 8px 12px;
       font-family: inherit;
-      font-size: inherit;
+      font-size: 13px;
       line-height: 1.4;
-      min-height: 32px;
-      max-height: 120px;
+      min-height: 36px;
+      max-height: 150px;
       overflow-y: auto;
     }
-    #input:focus { outline: 1px solid var(--vscode-focusBorder); }
+    #input:focus { outline: none; border-color: var(--vscode-focusBorder); }
     #input:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    #send-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    #footer-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding-top: 4px;
+      flex-wrap: wrap;
+    }
+    #mode-desc {
+      font-size: 11px;
+      opacity: 0.45;
+      white-space: nowrap;
+    }
+    .footer-spacer { flex: 1; }
+    .clear-btn {
+      font-size: 11px;
+      padding: 2px 8px;
+      background: transparent;
+      color: var(--vscode-foreground);
+      border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.25));
+      border-radius: 4px;
+      cursor: pointer;
+      opacity: 0.6;
+      margin-left: auto;
+    }
+    .clear-btn:hover { opacity: 1; }
 
     button {
       background: var(--vscode-button-background);
@@ -418,21 +510,6 @@ export function getWebviewHtml(
       justify-content: flex-end;
       gap: 4px;
     }
-
-    /* ---- Plan mode badge ---- */
-    #plan-badge {
-      display: none;
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      padding: 2px 6px;
-      border-radius: 3px;
-      background: var(--vscode-badge-background, #4d4d4d);
-      color: var(--vscode-badge-foreground, #fff);
-      flex-shrink: 0;
-    }
-    #plan-badge.active { display: inline-block; }
 
     /* ---- Thinking mode badge ---- */
     #thinking-mode-badge {
@@ -647,18 +724,16 @@ export function getWebviewHtml(
 </head>
 <body>
   <header id="header">
-    <span id="model-label" title="${modelName}">${modelName}</span>
-    <span id="plan-badge" aria-label="Plan mode active">PLAN</span>
-    <span id="thinking-mode-badge" aria-label="Thinking mode active">THINK</span>
-    <span id="memory-badge" aria-label="Memory status" title="Memory system status">MEM</span>
-    <span id="mcp-badge" aria-label="MCP connection status" title="MCP connection status">MCP</span>
-    <span id="token-counter" aria-label="Token usage" title="Estimated token usage"></span>
-    <div id="edit-mode-selector" role="group" aria-label="Edit mode">
-      <button class="edit-mode-btn" data-mode="auto" aria-label="Auto edit mode" title="Apply edits immediately">Auto</button>
-      <button class="edit-mode-btn" data-mode="ask" aria-label="Ask edit mode" title="Ask before applying edits">Ask</button>
-      <button class="edit-mode-btn" data-mode="manual" aria-label="Manual edit mode" title="Show diffs without applying">Manual</button>
+    <div id="header-top">
+      <span id="status-dot" class="idle" aria-hidden="true"></span>
+      <span id="session-title">New Session</span>
+      <button id="history-btn" class="icon-btn" aria-label="Session history" title="Show session history"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.2"/><path d="M8 4.5V8.5L10.5 10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg></button>
+      <button id="new-chat-btn" class="icon-btn" aria-label="New session" title="Start a new session">+</button>
     </div>
-    <span id="status-dot" class="idle" aria-hidden="true"></span>
+    <span id="plan-badge" hidden></span>
+    <span id="thinking-mode-badge" hidden></span>
+    <span id="memory-badge" hidden></span>
+    <span id="mcp-badge" hidden></span>
   </header>
 
   <div id="compaction-banner" role="status" aria-live="polite"></div>
@@ -689,14 +764,23 @@ export function getWebviewHtml(
       <textarea
         id="input"
         rows="1"
-        placeholder="Ask Gemma Code… (Enter to send, Shift+Enter for newline)"
+        placeholder="Ask Gemma Code..."
         aria-label="Chat input"
       ></textarea>
       <button id="cancel-btn" class="secondary" hidden aria-label="Cancel stream">Cancel</button>
-      <button id="send-btn" aria-label="Send message">Send</button>
+      <button id="send-btn" aria-label="Send message">&#9650;</button>
     </div>
-    <div id="controls-row">
-      <button id="clear-btn" class="secondary" aria-label="Clear chat history">Clear chat</button>
+    <div id="footer-bar">
+      <div id="edit-mode-selector" role="group" aria-label="Edit mode">
+        <button class="edit-mode-btn" data-mode="ask" title="Ask before applying edits">Ask</button>
+        <button class="edit-mode-btn" data-mode="auto" title="Automatically accept all changes">Accept</button>
+        <button class="edit-mode-btn" data-mode="plan" title="Produce a plan before acting">Plan</button>
+      </div>
+      <span id="mode-desc">Ask before edits</span>
+      <span class="footer-spacer"></span>
+      <span id="model-label" title="${modelName}">${displayName}</span>
+      <span id="token-counter" aria-label="Context usage" title="Context window usage"></span>
+      <button id="clear-btn" class="clear-btn" aria-label="Clear session">Clear</button>
     </div>
   </footer>
 
@@ -717,8 +801,11 @@ export function getWebviewHtml(
       const sendBtn         = /** @type {HTMLButtonElement} */ (document.getElementById('send-btn'));
       const cancelBtn       = /** @type {HTMLButtonElement} */ (document.getElementById('cancel-btn'));
       const clearBtn        = /** @type {HTMLButtonElement} */ (document.getElementById('clear-btn'));
+      const newChatBtn      = /** @type {HTMLButtonElement} */ (document.getElementById('new-chat-btn'));
+      const historyBtn      = /** @type {HTMLButtonElement} */ (document.getElementById('history-btn'));
       const thinkingEl      = /** @type {HTMLElement} */ (document.getElementById('thinking'));
       const statusDot       = /** @type {HTMLElement} */ (document.getElementById('status-dot'));
+      const sessionTitleEl  = /** @type {HTMLElement} */ (document.getElementById('session-title'));
       const planBadge       = /** @type {HTMLElement} */ (document.getElementById('plan-badge'));
       const thinkingBadge   = /** @type {HTMLElement} */ (document.getElementById('thinking-mode-badge'));
       const memoryBadge     = /** @type {HTMLElement} */ (document.getElementById('memory-badge'));
@@ -749,7 +836,7 @@ export function getWebviewHtml(
       let planSteps = [];
 
       /** @type {string} — current edit mode */
-      let currentEditMode = 'auto';
+      let currentEditMode = 'ask';
 
       // -----------------------------------------------------------------------
       // Autocomplete
@@ -838,11 +925,19 @@ export function getWebviewHtml(
       });
 
       /** @param {string} mode */
+      const modeDescEl = /** @type {HTMLElement} */ (document.getElementById('mode-desc'));
+      const modeDescriptions = {
+        ask: 'Ask before edits',
+        auto: 'Auto-accept changes',
+        plan: 'Plan before acting',
+      };
+
       function applyEditMode(mode) {
         currentEditMode = mode;
         editModeSelector.querySelectorAll('.edit-mode-btn').forEach((btn) => {
           btn.classList.toggle('active', /** @type {HTMLElement} */ (btn).dataset.mode === mode);
         });
+        modeDescEl.textContent = modeDescriptions[mode] || '';
       }
 
       // -----------------------------------------------------------------------
@@ -1023,14 +1118,18 @@ export function getWebviewHtml(
       }
 
       /** @param {number} count @param {number} limit */
+      function fmtNum(n) {
+        return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+      }
+
       function updateTokenCounter(count, limit) {
         if (limit <= 0) {
-          tokenCounter.textContent = count > 0 ? count + ' tokens' : '';
+          tokenCounter.textContent = count > 0 ? 'Context: ' + fmtNum(count) : '';
           tokenCounter.className = '';
           return;
         }
         const pct = Math.round((count / limit) * 100);
-        tokenCounter.textContent = count + ' / ' + limit + ' tokens (' + pct + '%)';
+        tokenCounter.textContent = 'Context: ' + fmtNum(count) + ' / ' + fmtNum(limit) + ' (' + pct + '%)';
         tokenCounter.className =
           pct >= 80 ? 'danger' : pct >= 60 ? 'warn' : '';
       }
@@ -1364,6 +1463,12 @@ export function getWebviewHtml(
         inputEl.focus();
 
         vscode.postMessage({ type: 'sendMessage', text });
+
+        // Auto-title the session from the first user message.
+        if (sessionTitleEl.textContent === 'New Session' && !text.startsWith('/')) {
+          const title = text.length > 50 ? text.slice(0, 47) + '...' : text;
+          sessionTitleEl.textContent = title;
+        }
       }
 
       sendBtn.addEventListener('click', sendMessage);
@@ -1374,6 +1479,40 @@ export function getWebviewHtml(
 
       clearBtn.addEventListener('click', () => {
         vscode.postMessage({ type: 'clearChat' });
+      });
+
+      newChatBtn.addEventListener('click', () => {
+        vscode.postMessage({ type: 'clearChat' });
+        sessionTitleEl.textContent = 'New Session';
+      });
+
+      // Double-click session title to rename it.
+      sessionTitleEl.addEventListener('dblclick', () => {
+        sessionTitleEl.contentEditable = 'true';
+        sessionTitleEl.focus();
+        // Select all text.
+        const range = document.createRange();
+        range.selectNodeContents(sessionTitleEl);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      });
+      sessionTitleEl.addEventListener('blur', () => {
+        sessionTitleEl.contentEditable = 'false';
+        const title = sessionTitleEl.textContent.trim();
+        if (!title) sessionTitleEl.textContent = 'New Session';
+      });
+      sessionTitleEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          sessionTitleEl.blur();
+        } else if (e.key === 'Escape') {
+          sessionTitleEl.blur();
+        }
+      });
+
+      historyBtn.addEventListener('click', () => {
+        vscode.postMessage({ type: 'sendMessage', text: '/history' });
       });
 
       inputEl.addEventListener('keydown', (e) => {

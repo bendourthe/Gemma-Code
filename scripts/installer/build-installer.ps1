@@ -67,7 +67,7 @@ try {
         Log-Step 'Skipping VSIX build (-SkipVsix)'
     } else {
         Invoke-Step 'Build VSIX package' {
-            & pwsh -NonInteractive -File (Join-Path $RepoRoot 'scripts\build-vsix.ps1')
+            & powershell -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $RepoRoot 'scripts\build-vsix.ps1')
         }
     }
 
@@ -84,9 +84,21 @@ try {
     # ── Step 2: Export Python backend requirements ───────────────────────────
 
     Invoke-Step 'Export Python backend requirements (uv export)' {
+        # Resolve uv: check PATH first, then common install locations.
+        $uvExe = (Get-Command uv -ErrorAction SilentlyContinue)
+        if ($uvExe) {
+            $uvPath = $uvExe.Source
+        } elseif (Test-Path "$env:USERPROFILE\.local\bin\uv.exe") {
+            $uvPath = "$env:USERPROFILE\.local\bin\uv.exe"
+        } elseif (Test-Path "$env:LOCALAPPDATA\uv\bin\uv.exe") {
+            $uvPath = "$env:LOCALAPPDATA\uv\bin\uv.exe"
+        } else {
+            throw "uv not found. Install it: powershell -c 'irm https://astral.sh/uv/install.ps1 | iex'"
+        }
+
         Push-Location $BackendDir
         try {
-            uv export --no-dev --format requirements-txt --output-file $ReqFile
+            & $uvPath export --no-dev --format requirements-txt --output-file $ReqFile
         } finally {
             Pop-Location
         }
@@ -95,11 +107,12 @@ try {
     # ── Step 3: Locate NSIS ──────────────────────────────────────────────────
 
     if (-not $NsisPath) {
+        $nsisCmd = Get-Command makensis -ErrorAction SilentlyContinue
         $Candidates = @(
             @(
                 'C:\Program Files (x86)\NSIS\makensis.exe',
                 'C:\Program Files\NSIS\makensis.exe',
-                (Get-Command makensis -ErrorAction SilentlyContinue)?.Source
+                $(if ($nsisCmd) { $nsisCmd.Source })
             ) | Where-Object { $_ -and (Test-Path $_) }
         )
 
@@ -115,7 +128,7 @@ try {
 
     Invoke-Step 'Compile NSIS installer script' {
         & $NsisPath `
-            /DPRODUCT_VERSION="0.1.0" `
+            /DPRODUCT_VERSION="$Version" `
             /V2 `
             $NsiScript
     }

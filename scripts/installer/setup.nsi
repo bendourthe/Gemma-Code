@@ -1,5 +1,5 @@
 ; ============================================================================
-; Gemma Code — Windows Installer
+; Gemma Code - Windows Installer
 ; Built with NSIS (Nullsoft Scriptable Install System)
 ; ============================================================================
 
@@ -24,7 +24,18 @@ SetCompressor /SOLID lzma
 !include "x64.nsh"
 !include "FileFunc.nsh"
 
-; ── Metadata ────────────────────────────────────────────────────────────────
+; -- String contains helper --------------------------------------------------
+; ${StrContains} $result "needle" $haystack
+; Sets $result to "needle" if found, or "" if not found.
+!macro _StrContainsConstructor RESULT NEEDLE HAYSTACK
+    Push "${HAYSTACK}"
+    Push "${NEEDLE}"
+    Call StrContainsFunc
+    Pop "${RESULT}"
+!macroend
+!define StrContains '!insertmacro "_StrContainsConstructor"'
+
+; -- Metadata ----------------------------------------------------------------
 
 Name                    "${PRODUCT_NAME} ${PRODUCT_VERSION}"
 OutFile                 "setup.exe"
@@ -34,13 +45,13 @@ RequestExecutionLevel   admin
 ShowInstDetails         show
 ShowUninstDetails       show
 
-; ── MUI configuration ───────────────────────────────────────────────────────
+; -- MUI configuration -------------------------------------------------------
 
 !define MUI_ABORTWARNING
 !define MUI_ICON          "..\..\assets\icon.ico"
 !define MUI_UNICON        "..\..\assets\icon.ico"
 !define MUI_WELCOMEPAGE_TITLE "Welcome to ${PRODUCT_NAME} Setup"
-!define MUI_WELCOMEPAGE_TEXT  "This wizard will install ${PRODUCT_NAME} ${PRODUCT_VERSION}, a local agentic coding assistant powered by Gemma 4 via Ollama.$\n$\nAll components run entirely offline — no external API calls or data leaves your machine."
+!define MUI_WELCOMEPAGE_TEXT  "This wizard will install ${PRODUCT_NAME} ${PRODUCT_VERSION}, a local agentic coding assistant powered by Gemma 4 via Ollama.$\n$\nAll components run entirely offline - no external API calls or data leaves your machine."
 
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_LICENSE "..\..\LICENSE"
@@ -54,7 +65,7 @@ ShowUninstDetails       show
 
 !insertmacro MUI_LANGUAGE "English"
 
-; ── Installer sections ───────────────────────────────────────────────────────
+; -- Installer sections -------------------------------------------------------
 
 Section "VS Code Extension" SecExtension
     SectionIn RO  ; required, cannot be deselected
@@ -113,19 +124,16 @@ Section "Ollama (local AI runtime)" SecOllama
     Call FindOllama
     Pop $0  ; "found" or ""
     ${If} $0 == "found"
-        DetailPrint "Ollama is already installed — skipping."
+        DetailPrint "Ollama is already installed - skipping."
     ${Else}
-        DetailPrint "Downloading Ollama installer..."
-        NSISdl::download /TIMEOUT=120000 \
-            "https://ollama.com/download/OllamaSetup.exe" \
-            "$TEMP\OllamaSetup.exe"
-        Pop $0
-        ${If} $0 != "success"
-            MessageBox MB_ICONSTOP "Failed to download Ollama ($0).$\nPlease install Ollama manually from https://ollama.com and re-run setup."
+        DetailPrint "Downloading OllamaSetup.exe (~1.9 GB, this may take several minutes)..."
+        ExecWait 'powershell -NoProfile -WindowStyle Hidden -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri https://github.com/ollama/ollama/releases/latest/download/OllamaSetup.exe -OutFile $env:TEMP\OllamaSetup.exe -UseBasicParsing"' $0
+        ${IfNot} ${FileExists} "$TEMP\OllamaSetup.exe"
+            MessageBox MB_ICONSTOP "Failed to download Ollama (download incomplete).$\nPlease install Ollama manually from https://ollama.com and re-run setup."
             Abort
         ${EndIf}
         DetailPrint "Installing Ollama silently..."
-        ExecWait '"$TEMP\OllamaSetup.exe" /SILENT' $0
+        ExecWait '"$TEMP\OllamaSetup.exe" /SILENT /AUTOSTART=0' $0
         ${If} $0 != 0
             MessageBox MB_ICONSTOP "Ollama installation failed (exit $0)."
             Abort
@@ -140,15 +148,12 @@ Section "Python Backend" SecPython
 
     DetailPrint "Locating Python 3.11+..."
     Call FindPython
-    Pop $0  ; python executable path or ""
-    ${If} $0 == ""
-        DetailPrint "Python 3.11+ not found — downloading Python 3.12..."
-        NSISdl::download /TIMEOUT=120000 \
-            "https://www.python.org/ftp/python/3.12.3/python-3.12.3-amd64.exe" \
-            "$TEMP\python-installer.exe"
-        Pop $R0
-        ${If} $R0 != "success"
-            MessageBox MB_ICONSTOP "Failed to download Python ($R0)."
+    Pop $0  ; python executable path or "NONE"
+    ${IfNot} ${FileExists} "$0"
+        DetailPrint "Python 3.11+ not found - downloading Python 3.12..."
+        ExecWait 'powershell -NoProfile -WindowStyle Hidden -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri https://www.python.org/ftp/python/3.12.3/python-3.12.3-amd64.exe -OutFile $env:TEMP\python-installer.exe -UseBasicParsing"' $R0
+        ${IfNot} ${FileExists} "$TEMP\python-installer.exe"
+            MessageBox MB_ICONSTOP "Failed to download Python."
             Abort
         ${EndIf}
         ExecWait '"$TEMP\python-installer.exe" /quiet InstallAllUsers=0 PrependPath=1 Include_test=0' $R0
@@ -187,8 +192,9 @@ SectionEnd
 
 Section /o "Download Gemma 4 model (9.6 GB)" SecModel
 
-    DetailPrint "Pulling Gemma 4 model — this may take a long time depending on your connection..."
-    ExecWait 'ollama pull gemma4' $0
+    DetailPrint "Pulling Gemma 4 model - this may take a long time depending on your connection..."
+    nsExec::ExecToLog 'ollama pull gemma4'
+    Pop $0
     ${If} $0 != 0
         MessageBox MB_ICONEXCLAMATION "Model download failed or was interrupted (exit $0).$\nYou can pull it later by running: ollama pull gemma4"
     ${Else}
@@ -197,7 +203,7 @@ Section /o "Download Gemma 4 model (9.6 GB)" SecModel
 
 SectionEnd
 
-; ── Section descriptions ─────────────────────────────────────────────────────
+; -- Section descriptions -----------------------------------------------------
 
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
     !insertmacro MUI_DESCRIPTION_TEXT ${SecExtension} "Installs the Gemma Code VS Code extension. Required."
@@ -206,7 +212,7 @@ SectionEnd
     !insertmacro MUI_DESCRIPTION_TEXT ${SecModel}     "Downloads the Gemma 4 model from Ollama Hub (~9.6 GB). You can defer this and run 'ollama pull gemma4' later."
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
 
-; ── Uninstaller ──────────────────────────────────────────────────────────────
+; -- Uninstaller --------------------------------------------------------------
 
 Section "Uninstall"
 
@@ -240,7 +246,7 @@ Section "Uninstall"
 
 SectionEnd
 
-; ── Helper functions ─────────────────────────────────────────────────────────
+; -- Helper functions ---------------------------------------------------------
 
 Function FindVSCode
     ; Try HKLM first, then HKCU, then PATH
@@ -293,6 +299,41 @@ Function un.FindVSCode
     Push ""
 FunctionEnd
 
+Function StrContainsFunc
+    ; Stack: needle, haystack
+    Exch $R1  ; needle
+    Exch
+    Exch $R2  ; haystack
+    Push $R3
+    Push $R4
+    Push $R5
+    StrLen $R3 $R1  ; needle length
+    StrLen $R4 $R2  ; haystack length
+    StrCpy $R5 0
+    loop:
+        IntCmp $R5 $R4 done done
+        StrCpy $0 $R2 $R3 $R5
+        StrCmp $0 $R1 found
+        IntOp $R5 $R5 + 1
+        Goto loop
+    found:
+        Pop $R5
+        Pop $R4
+        Pop $R3
+        Pop $R2
+        Exch $R1  ; return needle (found)
+        Return
+    done:
+        Pop $R5
+        Pop $R4
+        Pop $R3
+        Pop $R2
+        Push ""
+        Exch
+        Pop $R1
+        Return
+FunctionEnd
+
 Function FindOllama
     ; Check PATH-based lookup via where command
     nsExec::ExecToStack 'where ollama'
@@ -311,34 +352,11 @@ Function FindOllama
 FunctionEnd
 
 Function FindPython
-    ; Try candidates in order: py -3.11, py -3, python3, python
-    nsExec::ExecToStack 'py -3.11 -c "import sys; print(sys.executable)"'
-    Pop $0
-    Pop $1
-    ${If} $0 == 0
-        Push $1
-        Return
-    ${EndIf}
-    nsExec::ExecToStack 'py -3 -c "import sys; print(sys.executable)"'
-    Pop $0
-    Pop $1
-    ${If} $0 == 0
-        Push $1
-        Return
-    ${EndIf}
-    nsExec::ExecToStack 'python3 -c "import sys; print(sys.executable)"'
-    Pop $0
-    Pop $1
-    ${If} $0 == 0
-        Push $1
-        Return
-    ${EndIf}
-    nsExec::ExecToStack 'python -c "import sys; print(sys.executable)"'
-    Pop $0
-    Pop $1
-    ${If} $0 == 0
-        Push $1
-        Return
-    ${EndIf}
-    Push ""
+    ; Use PowerShell to find a suitable Python 3.11+ that is NOT the
+    ; Microsoft Store stub (WindowsApps), which has sandboxed permissions
+    ; that break venv creation.  Outputs "NONE" if no suitable Python found.
+    nsExec::ExecToStack 'powershell -NoProfile -Command "foreach ($$cmd in @(\"py\",\"python3\",\"python\")) { try { $$p = & $$cmd -c \"import sys; print(sys.executable)\" 2>$$null; if ($$p -and $$p -notmatch \"WindowsApps\") { $$v = & $$cmd -c \"import sys; print(sys.version_info.minor)\" 2>$$null; if ([int]$$v -ge 11) { Write-Output $$p.Trim(); exit 0 } } } catch {} } Write-Output NONE"'
+    Pop $0  ; exit code
+    Pop $1  ; stdout (python path or "NONE")
+    Push $1
 FunctionEnd

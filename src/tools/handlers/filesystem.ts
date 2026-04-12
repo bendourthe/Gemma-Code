@@ -162,13 +162,13 @@ export class WriteFileTool implements ToolHandler {
       return failResult(id, (err as Error).message);
     }
 
-    if (this._editMode === "manual") {
+    if (this._editMode === "plan") {
       // Show proposed content as a diff against an empty baseline, but don't write.
       const diff = createPatch(p.path, "", p.content, "empty", "proposed");
       await this._confirmationGate?.requestDiffPreview(id, p.path, diff);
       return failResult(
         id,
-        `Edit shown in diff preview for "${p.path}" but not applied (manual mode).`
+        `Edit shown in diff preview for "${p.path}" but not applied (plan mode).`
       );
     }
 
@@ -236,12 +236,12 @@ export class CreateFileTool implements ToolHandler {
 
     const content = typeof p.content === "string" ? p.content : "";
 
-    if (this._editMode === "manual") {
+    if (this._editMode === "plan") {
       const diff = createPatch(p.path, "", content, "empty", "new file");
       await this._confirmationGate?.requestDiffPreview(id, p.path, diff);
       return failResult(
         id,
-        `File creation shown in diff preview for "${p.path}" but not applied (manual mode).`
+        `File creation shown in diff preview for "${p.path}" but not applied (plan mode).`
       );
     }
 
@@ -350,12 +350,12 @@ export class EditFileTool implements ToolHandler {
     const updated = original.replace(p.old_string, p.new_string);
     const diff = createPatch(p.path, original, updated, "original", "modified");
 
-    if (this._editMode === "manual") {
+    if (this._editMode === "plan") {
       // Show the diff but do not apply it.
       await this._confirmationGate?.requestDiffPreview(id, p.path, diff);
       return failResult(
         id,
-        `Edit shown in diff preview for "${p.path}" but not applied (manual mode).`
+        `Edit shown in diff preview for "${p.path}" but not applied (plan mode).`
       );
     }
 

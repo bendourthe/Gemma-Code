@@ -49,6 +49,7 @@ export const VIEW_ID = "gemma-code.chatView";
 
 export class GemmaCodePanel implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
+  private _editorPanel?: vscode.WebviewPanel;
   private readonly _manager: ConversationManager;
   private readonly _pipeline: StreamingPipeline;
   private readonly _confirmationGate: ConfirmationGate;
@@ -92,7 +93,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
 
     // postMessage is not available until resolveWebviewView; use a late-binding closure.
     const postRaw = (msg: ExtensionToWebviewMessage): void => {
-      void this._view?.webview.postMessage(msg);
+      this._postToWebview(msg);
     };
 
     // Intercept messageComplete to inject server-side rendered HTML.
@@ -274,11 +275,11 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     switch (message.type) {
       case "ready":
         this._postHistory();
-        void this._view?.webview.postMessage({
+        this._postToWebview({
           type: "planModeToggled",
           active: this._planMode.active,
         });
-        void this._view?.webview.postMessage({
+        this._postToWebview({
           type: "editModeChanged",
           mode: this._currentEditMode,
         });
@@ -289,7 +290,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
         break;
 
       case "requestCommandList":
-        void this._view?.webview.postMessage({
+        this._postToWebview({
           type: "commandList",
           commands: this._commandRouter.getAllDescriptors(),
         });
@@ -331,7 +332,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
 
   private async _handleSendMessage(text: string): Promise<void> {
     const postMessage = (msg: ExtensionToWebviewMessage) =>
-      void this._view?.webview.postMessage(msg);
+      this._postToWebview(msg);
 
     // Intercept messageComplete for server-side rendering.
     const postWithRender = (msg: ExtensionToWebviewMessage): void => {
@@ -381,7 +382,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
 
   private async _handleBuiltinCommand(name: string, args: string): Promise<void> {
     const postMessage = (msg: ExtensionToWebviewMessage) =>
-      void this._view?.webview.postMessage(msg);
+      this._postToWebview(msg);
 
     switch (name) {
       case "help": {
@@ -764,7 +765,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     const loaded = this._manager.loadSession(sessionId);
     if (loaded) {
       this._planMode.resetPlan();
-      void this._view?.webview.postMessage({ type: "planModeToggled", active: false });
+      this._postToWebview({ type: "planModeToggled", active: false });
       this._postHistory();
       this._postTokenCount();
     }
@@ -776,7 +777,19 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
       .getConfiguration("gemma-code")
       .update("editMode", mode, vscode.ConfigurationTarget.Global)
       .then(undefined, () => { /* ignore save errors */ });
-    void this._view?.webview.postMessage({ type: "editModeChanged", mode });
+    this._postToWebview({ type: "editModeChanged", mode });
+
+    // Toggle plan mode based on the selected edit mode.
+    const shouldPlan = mode === "plan";
+    if (shouldPlan !== this._planMode.active) {
+      this._planMode.toggle();
+      const prompt = this._promptBuilder.build(this._buildPromptContext());
+      this._manager.rebuildSystemPrompt(prompt);
+      this._postToWebview({
+        type: "planModeToggled",
+        active: shouldPlan,
+      });
+    }
   }
 
   private _checkForPlan(): void {
@@ -789,13 +802,13 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     const steps = detectPlan(lastAssistant.content);
     if (steps && steps.length >= 2) {
       this._planMode.setPlan(steps);
-      void this._view?.webview.postMessage({ type: "planReady", steps });
+      this._postToWebview({ type: "planReady", steps });
     }
   }
 
   private async _handleApproveStep(stepIndex: number): Promise<void> {
     const postMessage = (msg: ExtensionToWebviewMessage) =>
-      void this._view?.webview.postMessage(msg);
+      this._postToWebview(msg);
     const { currentPlan } = this._planMode.state;
     const step = currentPlan[stepIndex];
     if (!step) return;
@@ -829,7 +842,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
         renderedHtmlMap[msg.id] = renderMarkdown(msg.content);
       }
     }
-    void this._view?.webview.postMessage({
+    this._postToWebview({
       type: "history",
       messages: visible,
       renderedHtmlMap,
@@ -839,7 +852,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
   private _postTokenCount(): void {
     const settings = getSettings();
     const count = this._compactor.estimateTokens();
-    void this._view?.webview.postMessage({
+    this._postToWebview({
       type: "tokenCount",
       count,
       limit: settings.maxTokens,
@@ -849,7 +862,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
   private _postMemoryStatus(): void {
     const settings = getSettings();
     const entryCount = this._memoryStore?.getStats().totalEntries ?? 0;
-    void this._view?.webview.postMessage({
+    this._postToWebview({
       type: "memoryStatus",
       enabled: settings.memoryEnabled && this._memoryStore !== null,
       entryCount,
@@ -859,7 +872,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
   private _postMcpStatus(): void {
     const settings = getSettings();
     if (!settings.mcpEnabled || !this._mcpManager) {
-      void this._view?.webview.postMessage({
+      this._postToWebview({
         type: "mcpStatus",
         enabled: false,
         connectedServerCount: 0,
@@ -869,7 +882,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     }
     const states = this._mcpManager.getServerStates();
     const connectedCount = states.filter((s) => s.status === "connected").length;
-    void this._view?.webview.postMessage({
+    this._postToWebview({
       type: "mcpStatus",
       enabled: true,
       connectedServerCount: connectedCount,
@@ -879,7 +892,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
 
   private _postThinkingModeStatus(): void {
     const settings = getSettings();
-    void this._view?.webview.postMessage({
+    this._postToWebview({
       type: "thinkingModeStatus",
       active: settings.thinkingMode,
     });
@@ -993,14 +1006,66 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     }
   }
 
+  /** Post a message to whichever webview is active (sidebar or editor panel). */
+  private _postToWebview(msg: unknown): void {
+    void this._editorPanel?.webview.postMessage(msg);
+    void this._view?.webview.postMessage(msg);
+  }
+
   /** Post a status update to the webview (visible even before the first message). */
   postStatus(state: "idle" | "streaming" | "thinking"): void {
-    void this._view?.webview.postMessage({ type: "status", state });
+    this._postToWebview({ type: "status", state });
+  }
+
+  /** Clear the chat and start a fresh session (callable from commands). */
+  clearChat(): void {
+    this._manager.clearHistory();
+    this._planMode.resetPlan();
+    this._postHistory();
+    this._postTokenCount();
   }
 
   /** Post an error banner to the webview. */
   postError(message: string): void {
-    void this._view?.webview.postMessage({ type: "error", text: message });
+    this._postToWebview({ type: "error", text: message });
+  }
+
+  /** Attach this panel's logic to an editor-area WebviewPanel. */
+  attachToWebviewPanel(panel: vscode.WebviewPanel): void {
+    const nonce = randomUUID().replace(/-/g, "");
+    const cspSource = panel.webview.cspSource;
+    const settings = getSettings();
+
+    panel.webview.html = getWebviewHtml(nonce, cspSource, settings.modelName);
+
+    panel.webview.onDidReceiveMessage((raw: unknown) => {
+      void this._handleMessage(raw as WebviewToExtensionMessage);
+    });
+
+    // Store a reference so postMessage calls work on the editor panel.
+    this._editorPanel = panel;
+  }
+
+  /** Get the underlying ChatHistoryStore (for session list panel). */
+  getStore(): import("../storage/ChatHistoryStore.js").ChatHistoryStore | null {
+    return this._store;
+  }
+
+  /** Load a saved session by ID. */
+  loadSession(sessionId: string): void {
+    if (!this._store) return;
+    const session = this._store.getSession(sessionId);
+    if (!session) return;
+    this._manager.clearHistory();
+    for (const msg of session.messages) {
+      if (msg.role === "user") {
+        this._manager.addUserMessage(msg.content);
+      } else if (msg.role === "assistant") {
+        this._manager.addAssistantMessage(msg.content);
+      }
+    }
+    this._postHistory();
+    this._postTokenCount();
   }
 
   dispose(): void {

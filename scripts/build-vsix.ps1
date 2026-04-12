@@ -93,6 +93,12 @@ try {
         npm run build --silent
     }
 
+    # ── Step 4b: Rebuild native modules for VS Code Electron ─────────────────
+
+    Invoke-Step 'Rebuild better-sqlite3 for VS Code Electron' {
+        npx @electron/rebuild --version 36.4.0 --only better-sqlite3 --force
+    }
+
     # ── Step 5: Bundle webview assets ────────────────────────────────────────
 
     Invoke-Step 'Bundle webview assets into out/webview/' {
@@ -136,7 +142,7 @@ try {
         $Version = (Get-Content (Join-Path $RepoRoot 'package.json') | ConvertFrom-Json).version
         $VsixName = "gemma-code-$Version.vsix"
         $VsixOut  = Join-Path $OutputDir $VsixName
-        npx vsce package --no-dependencies --out $VsixOut
+        npx vsce package --out $VsixOut
         if ($LASTEXITCODE -eq 0) {
             Log-Success "VSIX written to: $VsixOut"
         }

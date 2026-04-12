@@ -47,7 +47,7 @@ export function getSettings(): GemmaCodeSettings {
     toolConfirmationMode:
       (config.get<string>("toolConfirmationMode") as ToolConfirmationMode | undefined) ?? "ask",
     maxAgentIterations: config.get<number>("maxAgentIterations") ?? 20,
-    editMode: (config.get<string>("editMode") as EditMode | undefined) ?? "auto",
+    editMode: (config.get<string>("editMode") as EditMode | undefined) ?? "ask",
     thinkingMode: config.get<boolean>("thinkingMode") ?? true,
     promptStyle: (config.get<string>("promptStyle") as PromptStyle | undefined) ?? "concise",
     systemPromptBudgetPercent: config.get<number>("systemPromptBudgetPercent") ?? 10,

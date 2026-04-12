@@ -52,7 +52,7 @@ export interface ToolHandler {
 export type ConfirmationMode = "always" | "ask" | "never";
 
 /** Controls how file edits are applied by the file tool handlers. */
-export type EditMode = "auto" | "ask" | "manual";
+export type EditMode = "auto" | "ask" | "plan";
 
 // ---------------------------------------------------------------------------
 // Typed parameter shapes (used internally by each handler for validation)

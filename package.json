@@ -28,7 +28,7 @@
         {
           "id": "gemma-code-sidebar",
           "title": "Gemma Code",
-          "icon": "assets/icon.svg"
+          "icon": "assets/sidebar-icon.svg"
         }
       ]
     },
@@ -45,8 +45,32 @@
       {
         "command": "gemma-code.ping",
         "title": "Gemma Code: Ping Ollama"
+      },
+      {
+        "command": "gemma-code.newChat",
+        "title": "Gemma Code: New Session",
+        "icon": {
+          "light": "assets/icon.png",
+          "dark": "assets/icon.png"
+        }
+      },
+      {
+        "command": "gemma-code.focusSidebar",
+        "title": "Gemma Code: Show Sessions"
+      },
+      {
+        "command": "gemma-code.openSession",
+        "title": "Gemma Code: Open Session"
       }
     ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "gemma-code.newChat",
+          "group": "navigation"
+        }
+      ]
+    },
     "configuration": {
       "title": "Gemma Code",
       "properties": {
@@ -103,17 +127,17 @@
         "gemma-code.editMode": {
           "type": "string",
           "enum": [
-            "auto",
             "ask",
-            "manual"
+            "auto",
+            "plan"
           ],
           "enumDescriptions": [
-            "Apply file edits immediately without prompting.",
             "Show a diff and ask for confirmation before applying any file edit.",
-            "Show diffs in the chat panel but never write files (review-only mode)."
+            "Automatically accept and apply all changes without prompting.",
+            "Produce a plan before taking action and show diffs for review."
           ],
-          "default": "auto",
-          "description": "Controls how file edits (edit_file, write_file, create_file) are applied. 'auto': apply immediately. 'ask': show diff and confirm. 'manual': show diff only, never write."
+          "default": "ask",
+          "description": "Controls how Gemma Code applies changes. 'ask': show diff and confirm. 'auto' (Accept): apply immediately. 'plan': produce a plan first."
         },
         "gemma-code.thinkingMode": {
           "type": "boolean",
@@ -238,10 +262,11 @@
     "test:integration": "vitest run --config configs/vitest.config.ts --reporter=verbose tests/integration",
     "lint": "eslint src",
     "package": "powershell -NonInteractive -ExecutionPolicy Bypass -File scripts/build-vsix.ps1",
-    "package:quick": "vsce package --no-dependencies",
+    "package:quick": "vsce package",
     "bench": "vitest bench --config configs/vitest.config.ts"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.3",
     "@types/better-sqlite3": "^7.6.13",
     "@types/diff": "^5.2.3",
     "@types/marked": "^4.3.2",
