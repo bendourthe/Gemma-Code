@@ -5,7 +5,6 @@
  */
 import * as vscode from "vscode";
 import type { ChatHistoryStore } from "../storage/ChatHistoryStore.js";
-import type { ConversationSession } from "../chat/types.js";
 
 export const SESSION_VIEW_ID = "gemma-code.chatView";
 

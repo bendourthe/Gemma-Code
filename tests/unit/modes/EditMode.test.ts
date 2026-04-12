@@ -87,17 +87,17 @@ describe("EditFileTool", () => {
 
   // -------------------------------------------------------------------------
 
-  describe('"manual" mode', () => {
+  describe('"plan" mode', () => {
     it("never writes the file and posts a diff preview", async () => {
       const gate = makeGate();
-      const tool = new EditFileTool(gate, "manual" as EditMode);
+      const tool = new EditFileTool(gate, "plan" as EditMode);
 
       const result = await tool.execute(makeParams());
 
       expect(gate.requestDiffPreview).toHaveBeenCalledOnce();
       expect(gate.request).not.toHaveBeenCalled();
       expect(result.success).toBe(false);
-      expect(result.error).toMatch(/manual mode/i);
+      expect(result.error).toMatch(/plan mode/i);
       expect(vi.mocked(mockFs.writeFile)).not.toHaveBeenCalled();
     });
   });
