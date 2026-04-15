@@ -11,6 +11,7 @@ import {
   EmergencyTrim,
   estimateTokensForMessages,
 } from "./CompactionStrategy.js";
+import { RegenerateFromSource } from "./RegenerateFromSource.js";
 import { calculateBudget } from "../config/PromptBudget.js";
 import { getSettings } from "../config/settings.js";
 
@@ -23,6 +24,7 @@ export class ContextCompactor {
     private readonly _ollamaOptions?: OllamaOptions,
     private readonly _preCompactionHook?: (messages: readonly Message[]) => Promise<void>,
     private readonly _compactionThreshold: number = 0.8,
+    private readonly _workspacePath?: string,
   ) {}
 
   /** Returns the estimated token count for the current conversation. */
@@ -63,6 +65,9 @@ export class ContextCompactor {
       new ToolResultClearing(settings.compactionToolResultsKeep),
       new SlidingWindow(settings.compactionKeepRecent),
       new CodeBlockTruncation(),
+      ...(this._workspacePath
+        ? [new RegenerateFromSource(this._workspacePath)]
+        : []),
       new LlmSummary(
         this._client,
         this._modelName,

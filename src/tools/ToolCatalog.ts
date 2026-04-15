@@ -111,4 +111,28 @@ export const TOOL_CATALOG: readonly ToolMetadata[] = [
       url: { type: "string", description: "URL to fetch", required: true },
     },
   },
+  {
+    name: "tail_output",
+    description: "Read the last N lines from a redirected tool output file.",
+    parameters: {
+      path: { type: "string", description: "Path to the redirected output file", required: true },
+      lines: { type: "number", description: "Number of lines to read from the end (default 50)" },
+    },
+  },
+  {
+    name: "grep_output",
+    description: "Search a redirected tool output file for a regex pattern.",
+    parameters: {
+      path: { type: "string", description: "Path to the redirected output file", required: true },
+      pattern: { type: "string", description: "Regular expression pattern to search for", required: true },
+      max_results: { type: "number", description: "Maximum matching lines to return (default 20)" },
+    },
+  },
+  {
+    name: "get_tool_schema",
+    description: "Retrieve the full parameter schema for a tool by name. Call this before using any tool to get its parameters.",
+    parameters: {
+      name: { type: "string", description: "Name of the tool to get the schema for", required: true },
+    },
+  },
 ];

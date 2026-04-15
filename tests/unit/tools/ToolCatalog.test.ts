@@ -3,8 +3,8 @@ import { TOOL_CATALOG } from "../../../src/tools/ToolCatalog.js";
 import { TOOL_NAMES } from "../../../src/tools/types.js";
 
 describe("TOOL_CATALOG", () => {
-  it("contains exactly 10 entries", () => {
-    expect(TOOL_CATALOG).toHaveLength(10);
+  it("contains exactly 13 entries", () => {
+    expect(TOOL_CATALOG).toHaveLength(13);
   });
 
   it("every entry name matches a value from TOOL_NAMES", () => {

@@ -227,11 +227,11 @@ describe("formatToolResult", () => {
 describe("serializeToolDefinitions", () => {
   it("produces <|tool> blocks for each tool", () => {
     const out = serializeToolDefinitions(TOOL_CATALOG);
-    // Should have 10 tool blocks
+    // Should have one block per catalog entry
     const toolOpenCount = (out.match(/<\|tool>/g) ?? []).length;
     const toolCloseCount = (out.match(/<tool\|>/g) ?? []).length;
-    expect(toolOpenCount).toBe(10);
-    expect(toolCloseCount).toBe(10);
+    expect(toolOpenCount).toBe(TOOL_CATALOG.length);
+    expect(toolCloseCount).toBe(TOOL_CATALOG.length);
   });
 
   it("includes tool name and description in each block", () => {

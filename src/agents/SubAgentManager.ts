@@ -75,7 +75,7 @@ export class SubAgentManager {
       }
 
       // Build the sub-agent system prompt (minimal: base + tools + sub-agent directive).
-      const systemPrompt = this._promptBuilder.buildForSubAgent(
+      const systemPrompt = await this._promptBuilder.buildForSubAgent(
         config,
         enabledToolMeta,
         this._ollamaOptions.num_ctx,

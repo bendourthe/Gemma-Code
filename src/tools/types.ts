@@ -8,7 +8,10 @@ export type BuiltinToolName =
   | "grep_codebase"
   | "run_terminal"
   | "web_search"
-  | "fetch_page";
+  | "fetch_page"
+  | "tail_output"
+  | "grep_output"
+  | "get_tool_schema";
 
 /** Namespaced MCP tool name: `mcp:serverName/toolName`. */
 export type McpToolName = `mcp:${string}`;
@@ -27,6 +30,9 @@ export const BUILTIN_TOOL_NAMES: readonly BuiltinToolName[] = [
   "run_terminal",
   "web_search",
   "fetch_page",
+  "tail_output",
+  "grep_output",
+  "get_tool_schema",
 ];
 
 /** @deprecated Use BUILTIN_TOOL_NAMES instead. */
@@ -105,4 +111,19 @@ export interface WebSearchParams {
 
 export interface FetchPageParams {
   url: string;
+}
+
+export interface TailOutputParams {
+  path: string;
+  lines?: number;
+}
+
+export interface GrepOutputParams {
+  path: string;
+  pattern: string;
+  max_results?: number;
+}
+
+export interface GetToolSchemaParams {
+  name: string;
 }

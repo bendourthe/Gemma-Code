@@ -39,7 +39,7 @@ function startOllamaPoller(
     const client = createOllamaClient();
     const healthy = await client.checkHealth().catch(() => false);
 
-    panel.setOllamaReachable(healthy);
+    void panel.setOllamaReachable(healthy);
 
     if (healthy && !ollamaWasReachable) {
       ollamaWasReachable = true;
@@ -179,7 +179,7 @@ export function activate(context: vscode.ExtensionContext): void {
           `VRAM: ${vramMb} MB, Tier: ${tierId} (${tierConfig.name})`
         );
 
-        chatPanel.updateTierConfig(tierConfig);
+        await chatPanel.updateTierConfig(tierConfig);
         statusBarItem.text = `$(circuit-board) Tier ${tierId} (${tierConfig.name})`;
         statusBarItem.tooltip = `GPU: ${result.primaryGpu?.name ?? "none"} | VRAM: ${vramMb} MB`;
       } catch (err) {
@@ -190,7 +190,7 @@ export function activate(context: vscode.ExtensionContext): void {
     })();
   } else if (settings.gpuTierOverride != null) {
     const tierConfig = getTierConfig(settings.gpuTierOverride);
-    chatPanel.updateTierConfig(tierConfig);
+    void chatPanel.updateTierConfig(tierConfig);
     statusBarItem.text = `$(circuit-board) Tier ${settings.gpuTierOverride} (${tierConfig.name})`;
   } else {
     statusBarItem.text = "$(circuit-board) Tier 2 (default)";
@@ -207,7 +207,7 @@ export function activate(context: vscode.ExtensionContext): void {
       const tierId = classifyTier(vramMb);
       const tierConfig = getTierConfig(tierId);
 
-      chatPanel.updateTierConfig(tierConfig);
+      await chatPanel.updateTierConfig(tierConfig);
       statusBarItem.text = `$(circuit-board) Tier ${tierId} (${tierConfig.name})`;
       statusBarItem.tooltip = `GPU: ${result.primaryGpu?.name ?? "none"} | VRAM: ${vramMb} MB`;
 
@@ -324,7 +324,7 @@ export function activate(context: vscode.ExtensionContext): void {
   createOllamaClient()
     .checkHealth()
     .then((healthy) => {
-      chatPanel.setOllamaReachable(healthy);
+      void chatPanel.setOllamaReachable(healthy);
       if (!healthy) {
         outputChannel?.appendLine(
           "[Gemma Code] Ollama is not reachable at startup. Polling for availability..."

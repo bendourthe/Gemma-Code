@@ -1,9 +1,11 @@
 import type { DynamicToolMetadata } from "./ToolCatalog.js";
 import type { ToolCall, ToolHandler, ToolName, ToolResult } from "./types.js";
+import type { OutputRedirector } from "./OutputRedirector.js";
 
 export class ToolRegistry {
   private readonly _handlers = new Map<ToolName, ToolHandler>();
   private readonly _enabled = new Map<ToolName, boolean>();
+  private _redirector?: OutputRedirector;
 
   register(name: ToolName, handler: ToolHandler): void {
     this._handlers.set(name, handler);
@@ -39,6 +41,14 @@ export class ToolRegistry {
   }
 
   /**
+   * Enable output redirection for large tool results. When set, execute()
+   * will redirect results exceeding the character threshold to temp files.
+   */
+  setOutputRedirector(redirector: OutputRedirector): void {
+    this._redirector = redirector;
+  }
+
+  /**
    * Execute a tool call. Validates the tool exists and is enabled, delegates
    * to its handler, and wraps any thrown exception as a failure ToolResult so
    * the agent loop can continue rather than crash.
@@ -65,7 +75,17 @@ export class ToolRegistry {
     }
 
     try {
-      return await handler.execute(call.parameters);
+      const result = await handler.execute(call.parameters);
+
+      // Redirect large successful outputs to temp files.
+      if (result.success && this._redirector?.shouldRedirect(result.output)) {
+        const redirected = this._redirector.redirect(call.tool, call.id, result.output);
+        if (redirected) {
+          return { ...result, output: redirected.summary };
+        }
+      }
+
+      return result;
     } catch (err) {
       return {
         id: call.id,

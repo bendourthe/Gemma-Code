@@ -4,6 +4,84 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-04-14] v0.3.0 Phase 2 -- Advanced Context Engineering
+
+### Summary
+
+Second phase of v0.3.0 harness engineering. Implemented five features to reduce context window pressure and improve information quality: lazy tool loading (get_tool_schema meta-tool for 40%+ token reduction), output redirection for large tool results (>5000 chars redirected to temp files with tail/grep helpers), regenerate-from-source compaction (re-reads actual files instead of summarizing conversation), hierarchical relevance scoring (multi-signal scoring for prompt section packing), and chat history syncing to JSONL for agent self-search via grep_codebase. Tests: 534 passing (43 test files), 2 pre-existing SQLite failures unchanged, 0 lint errors, 0 type errors. 83 new tests across 5 new test files.
+
+### Chat History Syncing (Sub-task 2.5)
+
+**ConversationSync class** (`src/storage/ConversationSync.ts`): Appends conversation messages as JSONL lines to `{workspace}/.gemma-code/sessions/{sessionId}.jsonl`. Fire-and-forget I/O (all errors caught silently). Methods: `syncMessage` (append single line), `syncSession` (overwrite full file for compaction), `deleteSession`, `listSyncedSessions`. ConversationManager gains an optional third constructor parameter and hooks in `_append()`, `replaceMessages()`, `clearHistory()`, and `loadSession()`.
+
+**Design decision:** Synchronous file I/O (`appendFileSync`, `writeFileSync`) was chosen over async because individual messages are small and the sync is fire-and-forget. This avoids race conditions between rapid message appends.
+
+### Output Redirection (Sub-task 2.2)
+
+**OutputRedirector class** (`src/tools/OutputRedirector.ts`): When a tool result exceeds `charThreshold` (default 5000 chars), the full output is written to `.gemma-code-output/{callId}.txt` and replaced with a summary pointer containing first 500 chars preview plus instructions to use `tail_output` or `grep_output`.
+
+**New tools:** `tail_output` (read last N lines from redirected file, default 50) and `grep_output` (regex search with line numbers, default 20 max results). Both implement ToolHandler and delegate to OutputRedirector.
+
+**ToolRegistry integration:** Added `setOutputRedirector()` method and wrapping in `execute()`. The redirection is opt-in; without calling the setter, behavior is identical to before.
+
+**Type changes:** Added `"tail_output" | "grep_output"` to BuiltinToolName union, BUILTIN_TOOL_NAMES array, and parameter interfaces. Added metadata entries to TOOL_CATALOG. Updated `.gitignore` with `.gemma-code-output/` and `.gemma-code/`.
+
+### Lazy Tool Loading (Sub-task 2.1)
+
+**LazyToolLoader class** (`src/tools/LazyToolLoader.ts`): Implements ToolHandler for `get_tool_schema`. The model calls `get_tool_schema(name)` to retrieve full parameter schemas on demand, instead of having all schemas embedded in the system prompt.
+
+**serializeToolSummary()** (`src/tools/Gemma4ToolFormat.ts`): New function that produces only the `get_tool_schema` meta-tool as a full `<|tool>` declaration block, followed by a markdown list of available tool names and descriptions. Achieves 40%+ token reduction compared to `serializeToolDefinitions()`.
+
+**PromptBuilder integration:** `_buildToolDeclarations()` checks `context.lazyToolLoading` to choose between compact (summary) and full (definitions) serialization. Backward compatible; default behavior unchanged.
+
+**Type changes:** Added `"get_tool_schema"` to BuiltinToolName union and BUILTIN_TOOL_NAMES. Added `lazyToolLoading?: boolean` to PromptContext. TOOL_CATALOG now has 13 entries (was 10).
+
+### Regenerate-from-Source Compaction (Sub-task 2.3)
+
+**RegenerateFromSource class** (`src/chat/RegenerateFromSource.ts`): Implements CompactionStrategy. Instead of summarizing the conversation text, it re-reads actual source files, runs `git diff --stat HEAD~5` and `git log --oneline -5`, extracts decisions and test results from messages, and builds a fresh summary.
+
+**Pipeline integration:** ContextCompactor gains optional `_workspacePath` parameter. RegenerateFromSource is inserted between CodeBlockTruncation and LlmSummary in the pipeline (only when workspacePath is provided). Pipeline order: ToolResultClearing, SlidingWindow, CodeBlockTruncation, RegenerateFromSource, LlmSummary, EmergencyTrim.
+
+**Design decision:** Used `child_process.execSync` with 5-second timeout for git commands, wrapped in try/catch. Falls through gracefully to LlmSummary when git commands fail or no files exist.
+
+### Hierarchical Relevance Scoring (Sub-task 2.4)
+
+**RelevanceScorer class** (`src/chat/RelevanceScorer.ts`): Scores prompt sections by four signals: static priority (weight 0.3, normalized from section.priority), temporal recency (weight 0.2, decay from lastRelevantAt), semantic similarity (weight 0.3, cosine similarity via EmbeddingClient or default 0.5), and user mention (weight 0.2, keyword overlap). Caches embeddings within a scoring pass.
+
+**Async build() migration:** PromptBuilder.build() is now `async build(): Promise<string>`. Added `buildSync()` for synchronous contexts (constructors). Shared logic extracted to private `_buildCore()`. When `context.relevanceScorer` is provided, conditional sections are scored and sorted by relevance descending; otherwise falls back to static priority ordering.
+
+**Caller migration (10 call sites):**
+- GemmaCodePanel constructor: `buildSync()` (cannot await in constructor)
+- GemmaCodePanel (8 other sites): `await build()`; 3 methods changed from sync to async (`updateTierConfig`, `_handleSetEditMode`, `setOllamaReachable`)
+- SubAgentManager: `await buildForSubAgent()`
+- extension.ts: `void` prefix on fire-and-forget calls to newly-async methods
+
+**Type changes:** Added `lastRelevantAt?: number` to PromptSection. Added `currentQuery`, `recentUserMessage`, `relevanceScorer` to PromptContext.
+
+### Deviations from Plan
+
+1. **ToolCatalog test**: Hardcoded count "10 entries" changed to `TOOL_CATALOG.length` for resilience (was breaking on each tool addition).
+2. **Gemma4ToolFormat test**: Same pattern; replaced hardcoded `toBe(10)` with `toBe(TOOL_CATALOG.length)`.
+3. **child_process mocking**: RegenerateFromSource tests required `vi.mock("child_process")` at module level rather than `vi.spyOn(await import(...))` because `execSync` is non-configurable on dynamic imports.
+
+### Files Changed
+
+**New (10):** ConversationSync.ts, OutputRedirector.ts, LazyToolLoader.ts, RegenerateFromSource.ts, RelevanceScorer.ts, + 5 test files
+
+**Modified (15):** .gitignore, SubAgentManager.ts, ContextCompactor.ts, ConversationManager.ts, PromptBuilder.ts, PromptBuilder.types.ts, extension.ts, GemmaCodePanel.ts, Gemma4ToolFormat.ts, ToolCatalog.ts, ToolRegistry.ts, types.ts, + 3 test files
+
+### Lessons Learned
+
+- **Dual sync/async API pattern:** When making a widely-called method async, provide both `buildSync()` and `async build()` backed by shared `_buildCore()` logic. This avoids cascading async migration through constructors.
+- **Opt-in wrapping for ToolRegistry:** Adding output redirection via `setOutputRedirector()` (setter) rather than modifying the constructor keeps the change backward-compatible and testable independently.
+- **Module-level vi.mock for Node built-ins:** `vi.spyOn(await import("child_process"), "execSync")` fails because the property is non-configurable. Use `vi.mock("child_process")` at the top of the test file instead.
+
+### Current Status
+
+Verified. All quality gates pass. Ready for Phase 3 (Persistent Memory Layer).
+
+---
+
 ## [2026-04-14] v0.3.0 Phase 1 -- GPU Detection & Hardware-Aware Foundation
 
 ### Summary

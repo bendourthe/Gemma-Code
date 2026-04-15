@@ -1,5 +1,6 @@
 import type { DynamicToolMetadata, ToolMetadata } from "../tools/ToolCatalog.js";
 import type { SubAgentType } from "../agents/types.js";
+import type { RelevanceScorer } from "./RelevanceScorer.js";
 
 export type PromptStyle = "concise" | "detailed" | "beginner";
 
@@ -21,6 +22,10 @@ export interface PromptContext {
   readonly tierName?: string;
   readonly tierVramMb?: number;
   readonly tierModelName?: string;
+  readonly lazyToolLoading?: boolean;
+  readonly currentQuery?: string;
+  readonly recentUserMessage?: string;
+  readonly relevanceScorer?: RelevanceScorer;
 }
 
 /** A candidate section for inclusion in the system prompt. */
@@ -33,4 +38,6 @@ export interface PromptSection {
   readonly alwaysInclude: boolean;
   /** Estimated token count (chars / 4). */
   readonly estimatedTokens: number;
+  /** Timestamp of when this section was last contextually relevant. */
+  readonly lastRelevantAt?: number;
 }

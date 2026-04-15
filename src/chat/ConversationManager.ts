@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { randomUUID } from "crypto";
 import type { Message, Role } from "./types.js";
 import type { ChatHistoryStore } from "../storage/ChatHistoryStore.js";
+import type { ConversationSync } from "../storage/ConversationSync.js";
 
 /** Maximum characters used as the session title (truncated first user message). */
 const SESSION_TITLE_MAX_CHARS = 60;
@@ -18,6 +19,7 @@ export class ConversationManager {
   constructor(
     systemPrompt: string,
     private readonly _store?: ChatHistoryStore,
+    private readonly _sync?: ConversationSync,
   ) {
     this._systemPrompt = systemPrompt;
     this._append("system", systemPrompt);
@@ -81,6 +83,15 @@ export class ConversationManager {
       }
     }
 
+    // Sync to JSONL for agent self-search.
+    if (this._sync && this._sessionId) {
+      try {
+        this._sync.syncMessage(this._sessionId, message);
+      } catch {
+        // Fire-and-forget: sync errors must not disrupt conversation flow.
+      }
+    }
+
     this._onDidChange.fire(this.getHistory());
     return message;
   }
@@ -111,6 +122,15 @@ export class ConversationManager {
       this._sessionId = session.id;
       this._titleSet = false;
     }
+
+    // Sync the fresh session (system prompt only).
+    if (this._sync && this._sessionId) {
+      try {
+        this._sync.syncSession(this._sessionId, this._messages);
+      } catch {
+        // Fire-and-forget.
+      }
+    }
   }
 
   /**
@@ -139,6 +159,16 @@ export class ConversationManager {
 
     this._sessionId = sessionId;
     this._titleSet = true;
+
+    // Sync the loaded session.
+    if (this._sync) {
+      try {
+        this._sync.syncSession(sessionId, this._messages);
+      } catch {
+        // Fire-and-forget.
+      }
+    }
+
     this._onDidChange.fire(this.getHistory());
     return true;
   }
@@ -151,6 +181,16 @@ export class ConversationManager {
   replaceMessages(messages: readonly Message[]): void {
     this._messages.length = 0;
     for (const m of messages) this._messages.push(m);
+
+    // Re-sync the full session after compaction.
+    if (this._sync && this._sessionId) {
+      try {
+        this._sync.syncSession(this._sessionId, this._messages);
+      } catch {
+        // Fire-and-forget.
+      }
+    }
+
     this._onDidChange.fire(this.getHistory());
   }
 

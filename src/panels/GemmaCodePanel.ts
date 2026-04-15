@@ -89,7 +89,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
 
     // Build the initial system prompt via PromptBuilder.
     this._promptBuilder = new PromptBuilder();
-    const initialPrompt = this._promptBuilder.build(this._buildPromptContext());
+    const initialPrompt = this._promptBuilder.buildSync(this._buildPromptContext());
     this._manager = new ConversationManager(initialPrompt, this._store ?? undefined);
 
     const client = createOllamaClient(settings.ollamaUrl);
@@ -200,9 +200,9 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     if (settings.mcpEnabled) {
       const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
       this._mcpManager = new McpManager(this._registry, workspacePath);
-      void this._mcpManager.initialize().then(() => {
+      void this._mcpManager.initialize().then(async () => {
         this._mcpTools = this._mcpManager?.getAllToolMetadata() ?? [];
-        const prompt = this._promptBuilder.build(this._buildPromptContext());
+        const prompt = await this._promptBuilder.build(this._buildPromptContext());
         this._manager.rebuildSystemPrompt(prompt);
       }).catch((err) => {
         console.warn("[McpManager] Initialization failed:", err);
@@ -234,9 +234,9 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
    * Update the hardware tier configuration after async GPU detection completes.
    * Rebuilds the system prompt with tier info and configures budget middleware.
    */
-  updateTierConfig(tierConfig: HardwareTierConfig): void {
+  async updateTierConfig(tierConfig: HardwareTierConfig): Promise<void> {
     this._tierConfig = tierConfig;
-    const prompt = this._promptBuilder.build(this._buildPromptContext());
+    const prompt = await this._promptBuilder.build(this._buildPromptContext());
     this._manager.rebuildSystemPrompt(prompt);
 
     const budget = createSessionBudget(tierConfig.id, tierConfig.contextWindow);
@@ -341,7 +341,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
         break;
 
       case "setEditMode":
-        this._handleSetEditMode(message.mode);
+        await this._handleSetEditMode(message.mode);
         break;
     }
   }
@@ -446,7 +446,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
       case "plan": {
         const nowActive = this._planMode.toggle();
         // Rebuild the system prompt to include or exclude the plan mode section.
-        const prompt = this._promptBuilder.build(this._buildPromptContext());
+        const prompt = await this._promptBuilder.build(this._buildPromptContext());
         this._manager.rebuildSystemPrompt(prompt);
         postMessage({ type: "planModeToggled", active: nowActive });
         const planMsg = this._manager.addAssistantMessage(
@@ -665,7 +665,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
             try {
               await this._mcpManager.connectServer(subArgs);
               this._mcpTools = this._mcpManager.getAllToolMetadata();
-              const prompt = this._promptBuilder.build(this._buildPromptContext());
+              const prompt = await this._promptBuilder.build(this._buildPromptContext());
               this._manager.rebuildSystemPrompt(prompt);
               const msg = this._manager.addAssistantMessage(`_Connected to MCP server "${subArgs}"._`);
               postMessage({ type: "messageComplete", messageId: msg.id, renderedHtml: renderMarkdown(msg.content) });
@@ -687,7 +687,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
             }
             await this._mcpManager.disconnectServer(subArgs);
             this._mcpTools = this._mcpManager.getAllToolMetadata();
-            const prompt = this._promptBuilder.build(this._buildPromptContext());
+            const prompt = await this._promptBuilder.build(this._buildPromptContext());
             this._manager.rebuildSystemPrompt(prompt);
             const dcMsg = this._manager.addAssistantMessage(`_Disconnected from MCP server "${subArgs}"._`);
             postMessage({ type: "messageComplete", messageId: dcMsg.id, renderedHtml: renderMarkdown(dcMsg.content) });
@@ -787,7 +787,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     }
   }
 
-  private _handleSetEditMode(mode: EditMode): void {
+  private async _handleSetEditMode(mode: EditMode): Promise<void> {
     this._currentEditMode = mode;
     vscode.workspace
       .getConfiguration("gemma-code")
@@ -799,7 +799,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     const shouldPlan = mode === "plan";
     if (shouldPlan !== this._planMode.active) {
       this._planMode.toggle();
-      const prompt = this._promptBuilder.build(this._buildPromptContext());
+      const prompt = await this._promptBuilder.build(this._buildPromptContext());
       this._manager.rebuildSystemPrompt(prompt);
       this._postToWebview({
         type: "planModeToggled",
@@ -985,10 +985,10 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
   }
 
   /** Update Ollama reachability state and rebuild the system prompt accordingly. */
-  setOllamaReachable(reachable: boolean): void {
+  async setOllamaReachable(reachable: boolean): Promise<void> {
     if (this._ollamaReachable === reachable) return;
     this._ollamaReachable = reachable;
-    const prompt = this._promptBuilder.build(this._buildPromptContext());
+    const prompt = await this._promptBuilder.build(this._buildPromptContext());
     this._manager.rebuildSystemPrompt(prompt);
   }
 
@@ -1002,7 +1002,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
       const budget = calculateBudget(getSettings().maxTokens);
       const memoryContext = await this._memoryStore.retrieve(queryText, budget.memoryBudget);
       if (memoryContext) {
-        const prompt = this._promptBuilder.build(this._buildPromptContext(memoryContext));
+        const prompt = await this._promptBuilder.build(this._buildPromptContext(memoryContext));
         this._manager.rebuildSystemPrompt(prompt);
       }
     } catch {

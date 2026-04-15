@@ -1,8 +1,9 @@
 import type { PromptContext, PromptSection } from "./PromptBuilder.types.js";
 import type { SubAgentConfig } from "../agents/types.js";
 import type { DynamicToolMetadata, ToolMetadata } from "../tools/ToolCatalog.js";
+import type { ScoringContext } from "./RelevanceScorer.js";
 import { getSubAgentInstructions } from "../agents/SubAgentPrompts.js";
-import { serializeToolDefinitions } from "../tools/Gemma4ToolFormat.js";
+import { serializeToolDefinitions, serializeToolSummary } from "../tools/Gemma4ToolFormat.js";
 import { calculateBudget } from "../config/PromptBudget.js";
 import { PLAN_MODE_SYSTEM_ADDENDUM } from "../modes/PlanMode.js";
 
@@ -23,9 +24,88 @@ function estimateTokens(text: string): number {
 export class PromptBuilder {
   /**
    * Assemble the system prompt from the given runtime context.
-   * Returns a single string ready to be set as the system message.
+   * When a relevanceScorer is provided, conditional sections are ranked by
+   * relevance score instead of static priority. Returns a Promise.
    */
-  build(context: PromptContext): string {
+  async build(context: PromptContext): Promise<string> {
+    if (!context.relevanceScorer) {
+      return this._buildCore(context);
+    }
+
+    const budget = calculateBudget(context.maxTokens, {
+      systemPromptPercent: context.systemPromptBudgetPercent,
+    });
+
+    const sections = this._collectSections(context);
+    const always = sections.filter((s) => s.alwaysInclude);
+    const conditional = sections.filter((s) => !s.alwaysInclude);
+
+    // Score all conditional sections.
+    const scoringContext: ScoringContext = {
+      currentQuery: context.currentQuery,
+      currentTimestamp: Date.now(),
+      recentUserMessage: context.recentUserMessage,
+    };
+
+    const scored = await Promise.all(
+      conditional.map(async (section) => ({
+        section,
+        score: await context.relevanceScorer!.scoreSection(section, scoringContext),
+      })),
+    );
+
+    // Sort by score descending (highest relevance first).
+    scored.sort((a, b) => b.score - a.score);
+
+    // Pack always-include unconditionally, then scored sections greedily.
+    const included: PromptSection[] = [...always];
+    let usedTokens = always.reduce((sum, s) => sum + s.estimatedTokens, 0);
+
+    for (const { section } of scored) {
+      if (usedTokens + section.estimatedTokens <= budget.systemPromptBudget) {
+        included.push(section);
+        usedTokens += section.estimatedTokens;
+      }
+    }
+
+    // Sort included sections by priority for deterministic output order.
+    included.sort((a, b) => a.priority - b.priority);
+    return included.map((s) => s.content).join("\n\n");
+  }
+
+  /**
+   * Synchronous build for contexts where async is not available (e.g.
+   * constructors). Does not support relevance scoring. Uses static
+   * priority ordering.
+   */
+  buildSync(context: PromptContext): string {
+    return this._buildCore(context);
+  }
+
+  /**
+   * Build a minimal system prompt for a sub-agent. Assembles a PromptContext
+   * with sub-agent defaults and calls build().
+   */
+  async buildForSubAgent(
+    config: SubAgentConfig,
+    enabledTools: readonly (ToolMetadata | DynamicToolMetadata)[],
+    maxTokens: number = 131072,
+  ): Promise<string> {
+    const context: PromptContext = {
+      modelName: "",
+      maxTokens,
+      planModeActive: false,
+      thinkingMode: config.type === "verification" || config.type === "planning",
+      enabledTools,
+      isSubAgent: true,
+      subAgentType: config.type,
+      promptStyle: "concise",
+    };
+    return this.build(context);
+  }
+
+  /** Shared synchronous core logic for assembling sections by static priority. */
+  private _buildCore(context: PromptContext): string {
     const budget = calculateBudget(context.maxTokens, {
       systemPromptPercent: context.systemPromptBudgetPercent,
     });
@@ -54,28 +134,6 @@ export class PromptBuilder {
     included.sort((a, b) => a.priority - b.priority);
 
     return included.map((s) => s.content).join("\n\n");
-  }
-
-  /**
-   * Build a minimal system prompt for a sub-agent. Assembles a PromptContext
-   * with sub-agent defaults and calls build().
-   */
-  buildForSubAgent(
-    config: SubAgentConfig,
-    enabledTools: readonly (ToolMetadata | DynamicToolMetadata)[],
-    maxTokens: number = 131072,
-  ): string {
-    const context: PromptContext = {
-      modelName: "",
-      maxTokens,
-      planModeActive: false,
-      thinkingMode: config.type === "verification" || config.type === "planning",
-      enabledTools,
-      isSubAgent: true,
-      subAgentType: config.type,
-      promptStyle: "concise",
-    };
-    return this.build(context);
   }
 
   private _collectSections(context: PromptContext): PromptSection[] {
@@ -175,7 +233,9 @@ export class PromptBuilder {
   private _buildToolDeclarations(context: PromptContext): PromptSection | null {
     if (context.enabledTools.length === 0) return null;
 
-    const content = serializeToolDefinitions(context.enabledTools);
+    const content = context.lazyToolLoading
+      ? serializeToolSummary(context.enabledTools)
+      : serializeToolDefinitions(context.enabledTools);
     return {
       id: "tools",
       content,
