@@ -102,6 +102,20 @@ describe("ContextCompactor", () => {
       const compactor = new ContextCompactor(manager, makeClient(""), MODEL, MAX_TOKENS);
       expect(compactor.shouldCompact()).toBe(true);
     });
+
+    it("uses custom compaction threshold when provided", () => {
+      // 70 tokens = 70% of 100 => below default 80% but at custom 0.7 threshold
+      const manager = makeManager([
+        { role: "user", content: "a".repeat(280) }, // 70 tokens
+      ]);
+      const compactorDefault = new ContextCompactor(manager, makeClient(""), MODEL, MAX_TOKENS);
+      expect(compactorDefault.shouldCompact()).toBe(false); // 70% < 80%
+
+      const compactorCustom = new ContextCompactor(
+        manager, makeClient(""), MODEL, MAX_TOKENS, undefined, undefined, 0.7,
+      );
+      expect(compactorCustom.shouldCompact()).toBe(true); // 70% >= 70%
+    });
   });
 
   // -------------------------------------------------------------------------

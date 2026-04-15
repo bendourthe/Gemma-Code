@@ -4,6 +4,97 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-04-14] v0.3.0 Phase 1 -- GPU Detection & Hardware-Aware Foundation
+
+### Summary
+
+First phase of v0.3.0 harness engineering. Implemented GPU/VRAM auto-detection, 3-tier hardware classification (constrained/balanced/full), tier-aware context budget calculation, and token/iteration budget middleware for the agent loop. All new modules are pure TypeScript (no vscode imports) for full testability. Tests: 456 passing (35 test files), 2 pre-existing SQLite failures, 0 lint errors, 0 type errors.
+
+### GPU Detection Service (Sub-task 1.1)
+
+**GpuDetector class** (`src/config/GpuDetector.ts`): Platform-specific detection with ordered strategy fallbacks. NVIDIA via `nvidia-smi` CSV parsing (with Windows fallback to `C:\Windows\System32\nvidia-smi.exe`), AMD via `rocm-smi` on Linux or PowerShell `Get-CimInstance` on Windows, Apple via `system_profiler SPDisplaysDataType -json` with unified memory heuristic (75% of system RAM), and WMI/lspci fallback. Each command has a 5-second timeout and catches all errors gracefully. Results are instance-cached with `refresh()` to clear.
+
+**Design decision:** Used `child_process.execFile` (not `exec`) for non-shell commands to avoid injection. Shell-requiring commands (WMI) use `exec` with hardcoded strings only. Multi-GPU systems are handled by picking the highest-VRAM GPU as `primaryGpu`.
+
+### Hardware Tier Classification (Sub-task 1.2)
+
+**Three tiers** defined in `TIER_CONFIGS` record:
+- Tier 1 (constrained, <10 GB VRAM): gemma4:e2b/e4b, 32K context, 10 iterations, 0.7 compaction threshold
+- Tier 2 (balanced, 10-20 GB): gemma4:e4b/12b, 128K context, 20 iterations, 0.8 threshold
+- Tier 3 (full, 20+ GB): gemma4:26b-moe/31b, 256K context, 30 iterations, 0.85 threshold
+
+**Backward compatibility:** Tier 2 budget overrides (10/3/65/20%) match the existing v0.2.0 hardcoded defaults exactly, ensuring zero behavioral change when no tier is detected.
+
+**Settings additions:** `autoDetectGpu` (boolean, default true) and `gpuTierOverride` (1/2/3/null, default null) added to `GemmaCodeSettings` and `package.json` contributes.
+
+### Tier-Aware Budget Calculator (Sub-task 1.3)
+
+**PromptBudget expanded:** New `BudgetOverrides` interface replaces the single `systemPromptPercent` override with 5 optional fields (system, memory, skill, conversation, response). Added proportional scaling when percentages exceed 100% with a console warning.
+
+**Tier 1 budget fix:** Original plan specified 8+2+70+20 = 100% for tier 1, but the default skill 2% pushed total to 102%. Fixed by adjusting conversationPercent to 68% (8+2+68+20+2 = 100%).
+
+**ContextCompactor:** Replaced hardcoded `COMPACTION_THRESHOLD = 0.8` with a 7th constructor parameter `_compactionThreshold` (default 0.8). Existing call sites are unchanged.
+
+### Budget Middleware (Sub-task 1.4)
+
+**BudgetMiddleware class** (`src/tools/BudgetMiddleware.ts`): Pre-turn check (`checkPreTurn()`) enforces iteration limits (action: "stop") and session token limits (action: "compact"). Post-turn recording (`recordTurnTokens()`) enforces per-turn token limits (action: "truncate"). Warning issued at configurable threshold percentage.
+
+**AgentLoop integration:** Added `budgetMiddleware` to `AgentLoopOptions`. Pre-turn budget check runs before `_streamOneTurn()` with compaction fallback. `recordIteration()` called after tool execution. `setBudgetMiddleware()` setter enables async tier config updates after construction.
+
+### Extension Lifecycle Wiring (Sub-task 1.5)
+
+**Activation flow:** Status bar item shows "Detecting GPU..." during async detection, then updates to "Tier N (name)" on completion. Detection is fire-and-forget (never blocks activation). Falls back to Tier 2 on failure.
+
+**GemmaCodePanel.updateTierConfig():** Hot-swaps tier configuration after async detection. Rebuilds system prompt with tier info and creates BudgetMiddleware for the AgentLoop.
+
+**PromptBuilder:** Appends "Running on {tierName} tier ({vramMb} MB VRAM) with model {modelName}." to base instructions when tier is available, giving the model self-awareness of its hardware constraints.
+
+### Troubleshooting
+
+**Extension test failure:** The vscode mock in `tests/setup.ts` was missing `StatusBarAlignment` and `createStatusBarItem`. Added both to the mock. The extension test also had an incomplete settings mock (missing `autoDetectGpu`, `useBackend`, etc.), causing `undefined` to flow through to `getTierConfig()`. Fixed by adding the missing settings to the mock and using `!= null` (loose equality) to catch both `null` and `undefined` for `gpuTierOverride`.
+
+### Changes
+
+**New files (9):**
+- `src/config/GpuDetector.types.ts`: GpuVendor, GpuInfo, DetectionResult types
+- `src/config/GpuDetector.ts`: GPU detection class with platform-specific strategies
+- `src/config/HardwareTier.types.ts`: HardwareTierId, ModelRecommendation, HardwareTierConfig types
+- `src/config/HardwareTier.ts`: TIER_CONFIGS, classifyTier, getTierConfig, getRecommendedModel
+- `src/tools/BudgetMiddleware.types.ts`: SessionBudget, BudgetState, BudgetCheckResult types
+- `src/tools/BudgetMiddleware.ts`: BudgetMiddleware class, createSessionBudget factory
+- `tests/unit/config/GpuDetector.test.ts`: 9 tests for GPU detection
+- `tests/unit/config/HardwareTier.test.ts`: 21 tests for tier classification
+- `tests/unit/tools/BudgetMiddleware.test.ts`: 13 tests for budget middleware
+
+**Modified files (15):**
+- `src/config/settings.ts`: added autoDetectGpu, gpuTierOverride fields
+- `src/config/PromptBudget.ts`: expanded BudgetOverrides, added calculateTierBudget, scaling validation
+- `src/chat/ContextCompactor.ts`: parameterized compaction threshold
+- `src/tools/AgentLoop.ts`: integrated budget middleware with pre-turn checks and setBudgetMiddleware setter
+- `src/chat/PromptBuilder.types.ts`: added tierName, tierVramMb, tierModelName to PromptContext
+- `src/chat/PromptBuilder.ts`: appends tier info to base instructions
+- `src/panels/GemmaCodePanel.ts`: added _tierConfig field, updateTierConfig method, tier-aware _buildPromptContext
+- `src/extension.ts`: GPU detection, status bar, detectGpu command
+- `package.json`: added detectGpu command, autoDetectGpu and gpuTierOverride settings
+- `tests/setup.ts`: added StatusBarAlignment, createStatusBarItem, showInformationMessage to vscode mock
+- `tests/unit/config/PromptBudget.test.ts`: added 4 new tests for overrides, scaling, tier budget
+- `tests/unit/config/settings.test.ts`: added 2 assertions for new settings defaults
+- `tests/unit/chat/ContextCompactor.test.ts`: added custom threshold test
+- `tests/unit/tools/AgentLoop.test.ts`: added 3 budget middleware integration tests
+- `tests/unit/extension.test.ts`: expanded settings mock with missing fields
+
+### Lessons Learned
+
+- When adding new settings fields, always update the extension test's settings mock (which is separate from the global setup.ts mock) to include defaults for every field used in the activation path.
+- Tier budget percentages must account for the default skillPercent (2%) which is not part of the tier's budgetOverrides. The total including skill must not exceed 100%.
+- Use `!= null` (loose equality) rather than `!== null` for nullable settings in extension.ts to handle both `null` and `undefined` from incomplete mocks or missing VS Code configuration.
+
+### Current Status
+
+Phase 1 complete. All 5 sub-tasks implemented. Quality gate passed (0 new test failures, 0 lint errors, 0 type errors). Ready for Phase 2 (Advanced Context Engineering).
+
+---
+
 ## [2026-04-10] v0.2.0 Phase 6 -- Integration, Polish, and Backend Alignment
 
 ### Summary

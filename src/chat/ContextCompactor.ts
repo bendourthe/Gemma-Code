@@ -14,9 +14,6 @@ import {
 import { calculateBudget } from "../config/PromptBudget.js";
 import { getSettings } from "../config/settings.js";
 
-/** Fraction of maxTokens at which auto-compaction triggers. */
-const COMPACTION_THRESHOLD = 0.8;
-
 export class ContextCompactor {
   constructor(
     private readonly _manager: ConversationManager,
@@ -25,6 +22,7 @@ export class ContextCompactor {
     private readonly _maxTokens: number,
     private readonly _ollamaOptions?: OllamaOptions,
     private readonly _preCompactionHook?: (messages: readonly Message[]) => Promise<void>,
+    private readonly _compactionThreshold: number = 0.8,
   ) {}
 
   /** Returns the estimated token count for the current conversation. */
@@ -34,7 +32,7 @@ export class ContextCompactor {
 
   /** Returns true when the estimated token count has crossed the compaction threshold. */
   shouldCompact(): boolean {
-    return this.estimateTokens() >= this._maxTokens * COMPACTION_THRESHOLD;
+    return this.estimateTokens() >= this._maxTokens * this._compactionThreshold;
   }
 
   /**

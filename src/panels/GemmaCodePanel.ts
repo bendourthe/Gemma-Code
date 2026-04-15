@@ -37,6 +37,8 @@ import { ChatHistoryStore } from "../storage/ChatHistoryStore.js";
 import { MemoryStore } from "../storage/MemoryStore.js";
 import { EmbeddingClient } from "../storage/EmbeddingClient.js";
 import { calculateBudget } from "../config/PromptBudget.js";
+import type { HardwareTierConfig } from "../config/HardwareTier.types.js";
+import { BudgetMiddleware, createSessionBudget } from "../tools/BudgetMiddleware.js";
 import { renderMarkdown } from "../utils/MarkdownRenderer.js";
 import type { EditMode } from "../tools/types.js";
 import type {
@@ -67,6 +69,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
   private _ollamaReachable = true;
   private _mcpTools: DynamicToolMetadata[] = [];
   private _mcpManager: McpManager | null = null;
+  private _tierConfig?: HardwareTierConfig;
   private _mcpServer: McpServer | null = null;
   private readonly _subAgentManager: SubAgentManager;
 
@@ -225,6 +228,19 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
       // without persistence rather than crashing the extension.
       return null;
     }
+  }
+
+  /**
+   * Update the hardware tier configuration after async GPU detection completes.
+   * Rebuilds the system prompt with tier info and configures budget middleware.
+   */
+  updateTierConfig(tierConfig: HardwareTierConfig): void {
+    this._tierConfig = tierConfig;
+    const prompt = this._promptBuilder.build(this._buildPromptContext());
+    this._manager.rebuildSystemPrompt(prompt);
+
+    const budget = createSessionBudget(tierConfig.id, tierConfig.contextWindow);
+    this._agentLoop.setBudgetMiddleware(new BudgetMiddleware(budget));
   }
 
   private _buildToolRegistry(
@@ -902,7 +918,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     const settings = getSettings();
     return {
       modelName: settings.modelName,
-      maxTokens: settings.maxTokens,
+      maxTokens: this._tierConfig?.contextWindow ?? settings.maxTokens,
       planModeActive: this._planMode.active,
       thinkingMode: settings.thinkingMode,
       enabledTools: this._getEnabledToolMetadata(),
@@ -910,6 +926,9 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
       workspacePath: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
       systemPromptBudgetPercent: settings.systemPromptBudgetPercent,
       memoryContext,
+      tierName: this._tierConfig?.name,
+      tierVramMb: this._tierConfig?.vramRange.max,
+      tierModelName: this._tierConfig?.recommendedModels[0]?.modelName,
     };
   }
 

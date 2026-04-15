@@ -61,6 +61,10 @@
       {
         "command": "gemma-code.openSession",
         "title": "Gemma Code: Open Session"
+      },
+      {
+        "command": "gemma-code.detectGpu",
+        "title": "Gemma Code: Detect GPU"
       }
     ],
     "menus": {
@@ -251,6 +255,31 @@
           "minimum": 1,
           "maximum": 30,
           "description": "Maximum tool-use iterations for sub-agents (verification, research, planning)."
+        },
+        "gemma-code.autoDetectGpu": {
+          "type": "boolean",
+          "default": true,
+          "description": "Auto-detect GPU and VRAM at startup to select optimal model configuration."
+        },
+        "gemma-code.gpuTierOverride": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "enum": [
+            null,
+            1,
+            2,
+            3
+          ],
+          "enumDescriptions": [
+            "Auto-detect (default)",
+            "Tier 1: Constrained (6-8 GB VRAM)",
+            "Tier 2: Balanced (12-16 GB VRAM)",
+            "Tier 3: Full (24+ GB VRAM)"
+          ],
+          "default": null,
+          "description": "Override auto-detected GPU tier. Set to null for auto-detection."
         }
       }
     }

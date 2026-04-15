@@ -10,6 +10,7 @@
 |--------|---------|--------|-------|
 | Tasks done (v0.1.0) | 13 / 21 | 21 / 21 | -8 |
 | Tasks done (v0.2.0) | 44 / 44 | 44 / 44 | 0 |
+| Tasks done (v0.3.0) | 5 / 48 | 48 / 48 | -43 |
 
 ---
 
@@ -99,7 +100,57 @@ Full plan: `docs/v0.2.0/development/implementation-plan.md`
 - [x] Run end-to-end verification checklist (11 items in plan)
 - [x] Bump version to 0.2.0, update CHANGELOG
 
-## Backlog — v0.3.0+
+## v0.3.0 — Harness Engineering Infrastructure
+
+Full plan: `docs/v0.3.0/implementation-plan.md`
+
+### Phase 1 — GPU Detection & Hardware-Aware Foundation [COMPLETED]
+- [x] GPU/VRAM detection service (nvidia-smi, rocm-smi, system_profiler, WMI fallbacks)
+- [x] Hardware tier classification (3 tiers: constrained/balanced/full)
+- [x] Tier-aware context budget calculator (expanded BudgetOverrides, calculateTierBudget)
+- [x] Token and iteration budget middleware (BudgetMiddleware in AgentLoop)
+- [x] Wire GPU detection into extension lifecycle (status bar, detectGpu command, panel integration)
+
+### Phase 2 — Advanced Context Engineering
+- [ ] Lazy tool loading with progressive disclosure
+- [ ] Output redirection for large tool results
+- [ ] Enhanced compaction with regenerate-from-source
+- [ ] Context budget middleware chain
+- [ ] Token estimation accuracy improvements
+
+### Phase 3 — Graph-Vector Hybrid Memory
+- [ ] 4-layer memory stack (working/episodic/semantic/graph)
+- [ ] Entity extraction and provenance tracking
+- [ ] Memory-aware context assembly
+- [ ] Memory pruning and consolidation
+
+### Phase 4 — Safety, Budgeting & Runaway Prevention
+- [ ] Hash-based loop detection
+- [ ] Irreversible action classification
+- [ ] Git safety net
+- [ ] Permission escalation system
+
+### Phase 5 — Plan-and-Execute Orchestration
+- [ ] DAG-based plan orchestration (replace ReAct-style loop)
+- [ ] Reflexion pattern for error recovery
+- [ ] Sub-plan decomposition
+
+### Phase 6 — Local Observability & Trace Dashboard
+- [ ] SQLite trace store
+- [ ] Webview-based trace viewer
+- [ ] Optional OTLP export
+
+### Phase 7 — Cross-Platform PyQt5 Installer
+- [ ] Dark-themed wizard installer (Windows, macOS, Linux)
+- [ ] GPU auto-detection and model recommendation in installer
+- [ ] Real-time installation progress
+
+### Phase 8 — Golden Task Suite & Integration Stabilization
+- [ ] 20+ golden tasks for per-tier benchmarks
+- [ ] Regression baseline and detection
+- [ ] Full documentation update
+
+## Backlog
 
 - [ ] *(suggested)* Improve web search backend to reduce rate-limiting and improve result quality
 - [ ] *(suggested)* Add E2E test suite to the standard CI matrix for pre-merge validation

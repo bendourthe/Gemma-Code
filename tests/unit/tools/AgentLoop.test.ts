@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { AgentLoop } from "../../../src/tools/AgentLoop.js";
+import { BudgetMiddleware } from "../../../src/tools/BudgetMiddleware.js";
 import type { ConversationManager } from "../../../src/chat/ConversationManager.js";
 import type { ToolRegistry } from "../../../src/tools/ToolRegistry.js";
 import type { OllamaClient } from "../../../src/ollama/types.js";
@@ -324,6 +325,60 @@ describe("AgentLoop", () => {
       const config = subAgentManager.run.mock.calls[0]![0];
       expect(config.type).toBe("verification");
       expect(config.modifiedFiles.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  describe("budget middleware integration", () => {
+    it("stops the loop when budget middleware returns 'stop'", async () => {
+      const middleware = new BudgetMiddleware({
+        maxSessionTokens: 100000,
+        maxTurnTokens: 100000,
+        maxIterations: 0, // exhaust immediately
+        warningThresholdPercent: 80,
+      });
+
+      const client = makeMultiClient([toolCallText, "Done."]);
+      const loop = new AgentLoop(client, manager, registry, "gemma3:27b", 20, undefined, undefined, undefined, {
+        budgetMiddleware: middleware,
+      });
+      const { posted, postMessage } = collectMessages(loop);
+
+      await loop.run(postMessage);
+
+      const errorMsg = posted.find((m) => m.type === "error");
+      expect(errorMsg).toBeDefined();
+      expect((errorMsg as { type: "error"; text: string }).text).toContain("Budget exhausted");
+      expect(posted.some((m) => m.type === "messageComplete")).toBe(false);
+    });
+
+    it("does not affect behavior when no middleware is provided", async () => {
+      const client = makeClient("Hello.");
+      const loop = new AgentLoop(client, manager, registry, "gemma3:27b");
+      const { posted, postMessage } = collectMessages(loop);
+
+      await loop.run(postMessage);
+
+      expect(posted.some((m) => m.type === "messageComplete")).toBe(true);
+    });
+
+    it("setBudgetMiddleware allows updating middleware after construction", async () => {
+      const middleware = new BudgetMiddleware({
+        maxSessionTokens: 100000,
+        maxTurnTokens: 100000,
+        maxIterations: 0,
+        warningThresholdPercent: 80,
+      });
+
+      const client = makeMultiClient(["Hello."]);
+      const loop = new AgentLoop(client, manager, registry, "gemma3:27b");
+      loop.setBudgetMiddleware(middleware);
+
+      const { posted, postMessage } = collectMessages(loop);
+      await loop.run(postMessage);
+
+      const errorMsg = posted.find((m) => m.type === "error");
+      expect(errorMsg).toBeDefined();
+      expect((errorMsg as { type: "error"; text: string }).text).toContain("Budget exhausted");
     });
   });
 

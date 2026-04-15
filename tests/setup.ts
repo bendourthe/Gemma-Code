@@ -104,9 +104,19 @@ export const mockFindTextInFiles = vi.fn<
 >();
 
 vi.mock("vscode", () => ({
+  StatusBarAlignment: { Left: 1, Right: 2 },
   window: {
     createOutputChannel: vi.fn(() => mockOutputChannel),
+    createStatusBarItem: vi.fn(() => ({
+      text: "",
+      tooltip: "",
+      command: undefined,
+      show: vi.fn(),
+      hide: vi.fn(),
+      dispose: vi.fn(),
+    })),
     registerWebviewViewProvider: vi.fn(() => mockDisposable),
+    showInformationMessage: vi.fn(),
   },
   commands: {
     registerCommand: vi.fn((_id: string, _handler: () => void) => mockDisposable),

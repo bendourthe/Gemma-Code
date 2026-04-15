@@ -6,6 +6,7 @@ import type { SubAgentManager } from "../agents/SubAgentManager.js";
 import type { SubAgentConfig, SubAgentResult } from "../agents/types.js";
 import { parseToolCalls, hasToolCall, stripToolCalls, formatToolResult } from "./ToolCallParser.js";
 import type { ToolRegistry } from "./ToolRegistry.js";
+import type { BudgetMiddleware } from "./BudgetMiddleware.js";
 
 const DEFAULT_MAX_ITERATIONS = 20;
 
@@ -17,6 +18,7 @@ export interface AgentLoopOptions {
   readonly subAgentManager?: SubAgentManager;
   readonly verificationThreshold?: number;
   readonly verificationEnabled?: boolean;
+  readonly budgetMiddleware?: BudgetMiddleware;
 }
 
 export class AgentLoop {
@@ -29,6 +31,7 @@ export class AgentLoop {
   private readonly _subAgentManager?: SubAgentManager;
   private readonly _verificationThreshold: number;
   private readonly _verificationEnabled: boolean;
+  private _budgetMiddleware?: BudgetMiddleware;
 
   constructor(
     private readonly _client: OllamaClient,
@@ -44,6 +47,12 @@ export class AgentLoop {
     this._subAgentManager = options?.subAgentManager;
     this._verificationThreshold = options?.verificationThreshold ?? 3;
     this._verificationEnabled = options?.verificationEnabled ?? true;
+    this._budgetMiddleware = options?.budgetMiddleware;
+  }
+
+  /** Set or replace the budget middleware (used for async tier config updates). */
+  setBudgetMiddleware(middleware: BudgetMiddleware): void {
+    this._budgetMiddleware = middleware;
   }
 
   cancel(): void {
@@ -86,6 +95,24 @@ export class AgentLoop {
 
     for (let iteration = 0; iteration < this._maxIterations; iteration++) {
       if (this._cancelled) return;
+
+      // Budget pre-turn check (when middleware is provided).
+      if (this._budgetMiddleware) {
+        const check = this._budgetMiddleware.checkPreTurn();
+        if (!check.allowed) {
+          if (check.action === "compact" && this._compactor) {
+            await this._compactor.compact(postMessage, true);
+            const recheck = this._budgetMiddleware.checkPreTurn();
+            if (!recheck.allowed) {
+              postMessage({ type: "error", text: `Budget exhausted: ${recheck.reason}` });
+              return;
+            }
+          } else {
+            postMessage({ type: "error", text: `Budget exhausted: ${check.reason}` });
+            return;
+          }
+        }
+      }
 
       // Stream the next model response.
       const accumulated = await this._streamOneTurn(postMessage);
@@ -154,6 +181,9 @@ export class AgentLoop {
         // Inject the tool result back into the conversation as a user message.
         this._manager.addUserMessage(formatToolResult(call.tool, result));
       }
+
+      // Record iteration in budget middleware.
+      this._budgetMiddleware?.recordIteration();
 
       // Auto-verification: trigger after enough file edits.
       if (

@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import type { EditMode } from "../tools/types.js";
 import type { PromptStyle } from "../chat/PromptBuilder.types.js";
+import type { HardwareTierId } from "./HardwareTier.types.js";
 
 export type ToolConfirmationMode = "always" | "ask" | "never";
 
@@ -32,6 +33,8 @@ export interface GemmaCodeSettings {
   verificationEnabled: boolean;
   verificationThreshold: number;
   subAgentMaxIterations: number;
+  autoDetectGpu: boolean;
+  gpuTierOverride: HardwareTierId | null;
 }
 
 export function getSettings(): GemmaCodeSettings {
@@ -65,6 +68,8 @@ export function getSettings(): GemmaCodeSettings {
     verificationEnabled: config.get<boolean>("verificationEnabled") ?? true,
     verificationThreshold: config.get<number>("verificationThreshold") ?? 3,
     subAgentMaxIterations: config.get<number>("subAgentMaxIterations") ?? 10,
+    autoDetectGpu: config.get<boolean>("autoDetectGpu") ?? true,
+    gpuTierOverride: (config.get<number | null>("gpuTierOverride") ?? null) as HardwareTierId | null,
   };
 }
 

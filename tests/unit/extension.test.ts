@@ -21,6 +21,13 @@ vi.mock("../../src/config/settings.js", () => ({
     maxTokens: 8192,
     temperature: 0.2,
     requestTimeout: 60000,
+    useBackend: false,
+    memoryEnabled: false,
+    mcpEnabled: false,
+    mcpServerMode: "off",
+    verificationEnabled: false,
+    autoDetectGpu: false,
+    gpuTierOverride: null,
   })),
   onSettingsChange: vi.fn(() => ({ dispose: vi.fn() })),
 }));

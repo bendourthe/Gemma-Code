@@ -18,6 +18,9 @@ export interface PromptContext {
   readonly workspacePath?: string;
   readonly memoryContext?: string;
   readonly systemPromptBudgetPercent?: number;
+  readonly tierName?: string;
+  readonly tierVramMb?: number;
+  readonly tierModelName?: string;
 }
 
 /** A candidate section for inclusion in the system prompt. */

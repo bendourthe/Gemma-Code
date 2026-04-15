@@ -38,6 +38,8 @@ describe("getSettings()", () => {
     expect(settings.memoryMaxEntries).toBe(10000);
     expect(settings.mcpEnabled).toBe(false);
     expect(settings.mcpServerMode).toBe("off");
+    expect(settings.autoDetectGpu).toBe(true);
+    expect(settings.gpuTierOverride).toBeNull();
   });
 
   it("returns user-configured values when they are set", () => {

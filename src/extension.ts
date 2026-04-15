@@ -5,6 +5,9 @@ import { getSettings } from "./config/settings.js";
 import { createOllamaClient } from "./ollama/client.js";
 import { GemmaCodePanel } from "./panels/GemmaCodePanel.js";
 import { SessionListPanel, SESSION_VIEW_ID } from "./panels/SessionListPanel.js";
+import { getGpuDetector } from "./config/GpuDetector.js";
+import { classifyTier, getTierConfig } from "./config/HardwareTier.js";
+import type { HardwareTierId } from "./config/HardwareTier.types.js";
 
 let outputChannel: vscode.OutputChannel | undefined;
 let backendManager: BackendManager | undefined;
@@ -154,6 +157,66 @@ export function activate(context: vscode.ExtensionContext): void {
     context.extensionUri,
     context.globalStorageUri
   );
+
+  // ── GPU detection and tier classification ──────────────────────────────
+  const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+  statusBarItem.text = "$(circuit-board) Detecting GPU...";
+  statusBarItem.command = "gemma-code.detectGpu";
+  statusBarItem.show();
+  context.subscriptions.push(statusBarItem);
+
+  if (settings.autoDetectGpu) {
+    void (async () => {
+      try {
+        const detector = getGpuDetector();
+        const result = await detector.detect();
+        const vramMb = result.primaryGpu?.totalVramMb ?? 0;
+        const tierId: HardwareTierId = (settings.gpuTierOverride as HardwareTierId | null) ?? classifyTier(vramMb);
+        const tierConfig = getTierConfig(tierId);
+
+        outputChannel?.appendLine(
+          `[Gemma Code] GPU detected: ${result.primaryGpu?.name ?? "none"}, ` +
+          `VRAM: ${vramMb} MB, Tier: ${tierId} (${tierConfig.name})`
+        );
+
+        chatPanel.updateTierConfig(tierConfig);
+        statusBarItem.text = `$(circuit-board) Tier ${tierId} (${tierConfig.name})`;
+        statusBarItem.tooltip = `GPU: ${result.primaryGpu?.name ?? "none"} | VRAM: ${vramMb} MB`;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        outputChannel?.appendLine(`[Gemma Code] GPU detection failed: ${msg}`);
+        statusBarItem.text = "$(circuit-board) Tier 2 (default)";
+      }
+    })();
+  } else if (settings.gpuTierOverride != null) {
+    const tierConfig = getTierConfig(settings.gpuTierOverride);
+    chatPanel.updateTierConfig(tierConfig);
+    statusBarItem.text = `$(circuit-board) Tier ${settings.gpuTierOverride} (${tierConfig.name})`;
+  } else {
+    statusBarItem.text = "$(circuit-board) Tier 2 (default)";
+  }
+
+  // ── Detect GPU command ──────────────────────────────────────────────────
+  const detectGpuCommand = vscode.commands.registerCommand(
+    "gemma-code.detectGpu",
+    async () => {
+      const detector = getGpuDetector();
+      detector.refresh();
+      const result = await detector.detect();
+      const vramMb = result.primaryGpu?.totalVramMb ?? 0;
+      const tierId = classifyTier(vramMb);
+      const tierConfig = getTierConfig(tierId);
+
+      chatPanel.updateTierConfig(tierConfig);
+      statusBarItem.text = `$(circuit-board) Tier ${tierId} (${tierConfig.name})`;
+      statusBarItem.tooltip = `GPU: ${result.primaryGpu?.name ?? "none"} | VRAM: ${vramMb} MB`;
+
+      void vscode.window.showInformationMessage(
+        `Gemma Code: ${result.primaryGpu?.name ?? "No GPU"}, ${vramMb} MB VRAM -- Tier ${tierId} (${tierConfig.name})`
+      );
+    }
+  );
+  context.subscriptions.push(detectGpuCommand);
 
   // Helper to open a new chat editor panel.
   // First panel opens beside the editor; subsequent panels open as tabs in the same column.

@@ -158,6 +158,10 @@ export class PromptBuilder {
           "All file paths are relative to the workspace root.";
     }
 
+    if (context.tierName) {
+      content += `\n\nRunning on ${context.tierName} tier (${context.tierVramMb ?? 0} MB VRAM) with model ${context.tierModelName ?? "auto"}.`;
+    }
+
     return {
       id: "base",
       content,
