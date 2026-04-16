@@ -4,6 +4,90 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-04-15] v0.3.0 Phase 7 -- Cross-Platform PyQt5 Installer
+
+### Summary
+
+Seventh phase of v0.3.0 harness engineering. Replaced the Windows-only NSIS installer with a modern, cross-platform PyQt5 wizard installer supporting Windows, macOS, and Linux. The installer is an entirely new Python project at `scripts/installer/pyqt/` featuring a dark theme with custom-painted step indicator, 9 wizard pages (Welcome, Prerequisites, GPU Detection, Install Path, Model Selection, Configuration, Review, Installing, Complete), GPU auto-detection ported from TypeScript GpuDetector.ts, model tier recommendation based on VRAM thresholds, a multi-step installation engine with real-time log output and progress tracking, and platform-specific packaging via PyInstaller. The old NSIS installer was migrated to `scripts/installer/legacy/`. CI/CD workflows updated for three-platform builds and nightly smoke tests. Tests: 184 tests across 18 test files, all passing. Line coverage: 83% (with entry-point main.py excluded).
+
+### PyQt5 Project Scaffold and Theme Engine (Sub-task 7.1)
+
+**Project structure:** `scripts/installer/pyqt/` with hatchling build backend, Python >= 3.11, PyQt5 >= 5.15 (pinned to < 5.15.12 with PyQt5-Qt5 == 5.15.2 for Windows wheel compatibility), httpx for HTTP operations. Separate from the main VS Code extension TypeScript project.
+
+**Design tokens** (`constants.py`): All hex colors, dimensions, and platform-conditional font families (Segoe UI/SF Pro Display/Cantarell for primary; Consolas/SF Mono/Ubuntu Mono for monospace). Nine step names defined as a module-level list.
+
+**QSS theme** (`theme.py`): Single `generate_stylesheet()` function returning a complete QSS string covering QMainWindow, QPushButton (primary/secondary via objectName), QLineEdit, QTextEdit, QProgressBar (8px with cyan gradient), QScrollBar, QCheckBox, QFrame variants for cards and callout boxes.
+
+**Custom widgets:** StepIndicator (QPainter-based horizontal dots with three states: filled accent + checkmark for completed, hollow accent for active, hollow border for future), Header (64px), Footer (56px with Back/Next signals), CalloutBox (3px left accent stripe), PrimaryButton (cyan gradient), SecondaryButton (transparent border), LogPanel (QTextEdit subclass with color-coded append_log).
+
+**InstallerWindow** (`window.py`): QMainWindow with three-band layout (header/step indicator/scrollable content/footer), page registration via `add_page()`, `switch_page()` with validation support, keyboard shortcuts (Enter/Escape), close confirmation during installation, error label for validation messages.
+
+### Welcome, Prerequisites, GPU Detection Pages (Sub-task 7.2)
+
+**InstallerState** (`installer_state.py`): Shared mutable dataclass threaded through all pages. Holds install_path (platform-default), vscode_path, python_path, ollama_installed, gpu_vendor/gpu_name/vram_mb, recommended/selected model, disk_space_gb, components_to_install, ollama_url, feature flags, install_log, and failed_steps.
+
+**GPU detection** (`pages/gpu_detection.py`): Full port of the TypeScript GpuDetector.ts detection pipeline to Python. Detection functions: `detect_nvidia()` (nvidia-smi CSV parsing with Windows System32 fallback), `detect_amd_linux()` (rocm-smi), `detect_amd_windows()` (PowerShell Get-CimInstance), `detect_apple()` (system_profiler JSON with Apple Silicon unified memory at 75% of system RAM), `detect_fallback_windows()` (wmic), `detect_fallback_linux()` (lspci). All use `subprocess.run(timeout=5)` matching the TypeScript 5-second timeout. Model recommendation thresholds: >= 20 GB -> gemma4:31b, >= 8 GB -> gemma4:26b, >= 6 GB -> gemma4:e4b, >= 4 GB -> gemma4:e2b, < 4 GB -> e2b with CPU warning.
+
+**Prerequisite detection** (`pages/prerequisites.py`): Ported from NSIS setup.nsi FindVSCode/FindOllama/FindPython. Windows VS Code detection: winreg registry lookup (HKLM/HKCU App Paths), well-known paths (LOCALAPPDATA/PROGRAMFILES), PATH fallback. Python detection: tries python/python3/py, excludes WindowsApps paths, requires >= 3.11. All detection runs in QThread workers.
+
+### Install Path, Model Selection, Configuration, Review Pages (Sub-task 7.3)
+
+**Model selection** (`pages/model_selection.py`): Four model cards (gemma4:e2b/e4b/26b/31b) with radio-button behavior. Recommended model gets a cyan badge. Cards exceeding detected VRAM show a yellow warning. "Skip model download" checkbox removes "model" from components_to_install.
+
+**Review page** (`pages/review.py`): Dynamically rebuilds summary on showEvent. Displays install path, components checklist, selected model with download size, GPU info, estimated disk usage, and time estimate heuristic.
+
+### Installation Engine and Real-Time Log Panel (Sub-task 7.4)
+
+**Engine architecture** (`engine/`): `InstallEngine(QObject)` orchestrates four installers in sequence, running in a QThread via `start_install()`. Emits Qt signals: log_message, progress_update, step_completed, install_finished. Each step runs independently; failures are logged but do not block subsequent steps (partial failure mode).
+
+**OllamaInstaller:** Windows: downloads OllamaSetup.exe via httpx streaming, runs /SILENT /AUTOSTART=0. macOS: brew install. Linux: curl pipe to sh. All paths verify Ollama connectivity by polling /api/tags with 30-second timeout.
+
+**ModelPuller:** Runs `ollama pull` with streaming output, parses percentage from progress lines via regex. Supports cancellation via subprocess.terminate.
+
+**Installing page** (`pages/installing.py`): Indeterminate QProgressBar (switches to determinate on model pull progress), LogPanel with color-coded real-time output, Cancel button with confirmation dialog.
+
+### Completion Page and Navigation Polish (Sub-task 7.5)
+
+**Complete page** (`pages/complete.py`): "Running Services" table, "Managing Gemma Code" commands with copy-to-clipboard buttons, "Open VS Code" button (platform-specific subprocess), "View Installation Log" save dialog. Title dynamically shows "Installation Complete" or "Installation Completed with Warnings" based on failed_steps.
+
+**Navigation polish:** Fade-style page transitions via validation protocol (`validate() -> tuple[bool, str]`). Enter/Escape keyboard shortcuts. Review page shows "Install" button text. Back button disabled during installation. Close confirmation dialog when installation is in progress.
+
+### Cross-Platform Packaging (Sub-task 7.6)
+
+**PyInstaller spec** (`build/gemma-installer.spec`): Platform-adaptive (detects OS at build time). Bundles VSIX, backend-requirements.txt, and icon assets. Excludes tkinter/matplotlib/numpy/scipy for smaller binaries. Custom hook for PyQt5 data files.
+
+**Build scripts:** `build-windows.ps1` (PowerShell: uv sync, pyinstaller, optional signtool signing), `build-macos.sh` (bash: icns creation via sips/iconutil, pyinstaller, hdiutil DMG, optional codesign), `build-linux.sh` (bash: pyinstaller, optional AppImage via appimagetool).
+
+**release.yml rewrite:** Replaced single `build-installer` (NSIS, Windows-only) with three parallel jobs: `build-installer-windows`, `build-installer-macos`, `build-installer-linux`. All depend on `build-vsix`. `create-release` now depends on all three and attaches GemmaCodeSetup.exe, GemmaCodeSetup.dmg, and GemmaCodeSetup-x86_64.AppImage to the GitHub Release.
+
+### Test Suite and NSIS Migration (Sub-task 7.7)
+
+**conftest.py:** Session-scoped `qt_app` fixture (creates QApplication with QT_QPA_PLATFORM=offscreen for headless CI), mock_state, mock_subprocess, mock_platform_* fixtures.
+
+**Test coverage:** 184 tests across 18 files covering theme/constants, installer state, GPU detection (NVIDIA/AMD/Apple/Intel/lspci/none), prerequisite detection, model selection logic, review summary, install path validation, engine orchestration (step ordering, skip logic, partial failure), model puller progress parsing, platform utils, widget rendering (QTest), page lifecycle, and packaging infrastructure.
+
+**CI integration:** ci.yml gains `test-installer` job (ubuntu-latest, QT_QPA_PLATFORM=offscreen). nightly.yml gains three per-platform smoke test jobs.
+
+**NSIS migration:** setup.nsi, build-installer.ps1, backend-requirements.txt, setup.exe, gemma-code-0.2.0.vsix moved to `scripts/installer/legacy/` with deprecation README.
+
+### Files Changed
+
+**New (~60):** Complete `scripts/installer/pyqt/` tree: pyproject.toml, 10 source modules (main, constants, theme, window, installer_state + 5 engine modules), 7 widgets, 9 pages, 18 test files, 3 build scripts, 1 PyInstaller spec, 1 hook. Plus 3 platform integration test scripts, legacy README.
+
+**Modified (3):** release.yml (three-platform installer builds), ci.yml (installer test job), nightly.yml (per-platform smoke tests)
+
+**Moved (2):** setup.nsi -> legacy/, build-installer.ps1 -> legacy/
+
+### Lessons Learned
+
+- **PyQt5-Qt5 wheel availability varies by version:** PyQt5-Qt5 5.15.17+ dropped Windows wheels. Pinning PyQt5-Qt5==5.15.2 with PyQt5<5.15.12 was required for cross-platform uv sync. This should be documented for contributors.
+- **GPU detection porting is straightforward but subprocess timeouts behave differently:** Python's `subprocess.run(timeout=N)` raises `TimeoutExpired`, which is cleaner than Node's callback-based approach. The core detection logic (nvidia-smi CSV parsing, system_profiler JSON) translated 1:1.
+- **QApplication is session-scoped in tests:** Creating multiple QApplication instances in a test session causes segfaults. The session-scoped `qt_app` fixture with `QApplication.instance()` guard prevents this.
+- **QT_QPA_PLATFORM=offscreen is essential for CI:** Without it, PyQt5 tests fail on headless Linux runners with "could not connect to display" errors. Set in conftest.py for automatic handling.
+- **Coverage of UI code requires instantiating widgets:** Pure-logic detection functions test well, but page classes need a QApplication and explicit callback invocation to cover their signal handlers. Testing `_on_detection_complete()` directly was more effective than trying to simulate QThread completion.
+
+---
+
 ## [2026-04-15] v0.3.0 Phase 6 -- Local Observability & Trace Dashboard
 
 ### Summary

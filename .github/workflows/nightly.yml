@@ -106,12 +106,62 @@ jobs:
           path: bench-results.txt
           retention-days: 30
 
-  # ── Failure notification ──────────────────────────────────────────────────
+  # -- Installer smoke tests (per-platform) -----------------------------------
+
+  installer-smoke-windows:
+    name: Installer smoke (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+      - name: Run installer smoke tests
+        run: pwsh -NonInteractive -File tests/integration/installer/test-install-pyqt.ps1
+
+  installer-smoke-macos:
+    name: Installer smoke (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install deps and run smoke tests
+        run: |
+          cd scripts/installer/pyqt
+          pip install -e ".[dev]" --quiet 2>/dev/null || pip install PyQt5 httpx --quiet
+          cd "${{ github.workspace }}"
+          bash tests/integration/installer/test-install-pyqt-macos.sh
+
+  installer-smoke-linux:
+    name: Installer smoke (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install system deps
+        run: sudo apt-get update && sudo apt-get install -y libxcb-xinerama0 libxkbcommon-x11-0
+      - name: Install deps and run smoke tests
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          cd scripts/installer/pyqt
+          pip install -e ".[dev]" --quiet 2>/dev/null || pip install PyQt5 httpx --quiet
+          cd "${{ github.workspace }}"
+          bash tests/integration/installer/test-install-pyqt-linux.sh
+
+  # -- Failure notification ----------------------------------------------------
 
   notify-on-failure:
     name: Notify on failure
     runs-on: ubuntu-latest
-    needs: [integration-ts, integration-py, benchmarks]
+    needs: [integration-ts, integration-py, benchmarks, installer-smoke-windows, installer-smoke-macos, installer-smoke-linux]
     if: failure()
     steps:
       - name: Send failure notification

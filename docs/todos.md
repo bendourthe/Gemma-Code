@@ -10,7 +10,7 @@
 |--------|---------|--------|-------|
 | Tasks done (v0.1.0) | 13 / 21 | 21 / 21 | -8 |
 | Tasks done (v0.2.0) | 44 / 44 | 44 / 44 | 0 |
-| Tasks done (v0.3.0) | 35 / 48 | 48 / 48 | -13 |
+| Tasks done (v0.3.0) | 43 / 48 | 48 / 48 | -5 |
 
 ---
 
@@ -33,7 +33,7 @@
 ## Sprint 2 — Active (v0.1.x maintenance)
 
 - [ ] Implement ripgrep-backed GrepCodebaseTool to replace slow workspace.findFiles approach (CHANGELOG Known Limitations)
-- [ ] Build macOS and Linux installer packages (CHANGELOG Known Limitations)
+- [x] Build macOS and Linux installer packages (resolved in v0.3.0 Phase 7 PyQt5 installer)
 - [ ] Publish extension to VS Code Marketplace (CHANGELOG Unreleased)
 - [ ] Implement Rust performance components for file indexing and grep (CHANGELOG Unreleased)
 - [ ] Implement Go CLI tooling for project scaffolding (CHANGELOG Unreleased)
@@ -145,10 +145,15 @@ Full plan: `docs/v0.3.0/implementation-plan.md`
 - [x] Webview-based trace dashboard with waterfall visualization
 - [x] Optional OTLP export (off by default, minimal fetch-based exporter)
 
-### Phase 7 — Cross-Platform PyQt5 Installer
-- [ ] Dark-themed wizard installer (Windows, macOS, Linux)
-- [ ] GPU auto-detection and model recommendation in installer
-- [ ] Real-time installation progress
+### Phase 7 — Cross-Platform PyQt5 Installer [COMPLETED]
+- [x] PyQt5 project scaffold with dark theme engine and custom widgets (7.1)
+- [x] Welcome, Prerequisites, GPU Detection wizard pages with background detection (7.2)
+- [x] Install Path, Model Selection, Configuration, Review wizard pages (7.3)
+- [x] Installation engine with Ollama/extension/venv/model installers and real-time log (7.4)
+- [x] Completion page with services table, management commands, and navigation polish (7.5)
+- [x] Cross-platform packaging: PyInstaller for Windows/macOS/Linux (7.6)
+- [x] Comprehensive test suite (184 tests, 83% coverage) and NSIS migration to legacy (7.7)
+- [x] Testing stabilization to 80%+ coverage (7.T)
 
 ### Phase 8 — Golden Task Suite & Integration Stabilization
 - [ ] 20+ golden tasks for per-tier benchmarks

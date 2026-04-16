@@ -149,3 +149,30 @@ jobs:
               raise SystemExit(f'Python coverage {line_rate:.1f}% is below the 80% threshold')
           print(f'Python coverage {line_rate:.1f}% — OK')
           "
+
+  # -- Installer unit tests --------------------------------------------------
+
+  test-installer:
+    name: Installer unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Install system deps for PyQt5
+        run: sudo apt-get update && sudo apt-get install -y libxcb-xinerama0 libxkbcommon-x11-0
+
+      - name: Run installer tests
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          cd scripts/installer/pyqt
+          uv sync --quiet
+          uv run pytest tests/ -v --tb=short
