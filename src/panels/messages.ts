@@ -2,6 +2,8 @@ import type { Message, ConversationSession } from "../chat/types.js";
 import type { CommandDescriptor } from "../commands/CommandRouter.js";
 import type { PlanStep } from "../modes/PlanMode.js";
 import type { EditMode } from "../tools/types.js";
+import type { Span } from "../observability/TraceStore.js";
+import type { SessionMetrics } from "../observability/MetricsCollector.js";
 
 // ---------------------------------------------------------------------------
 // Extension → Webview
@@ -183,6 +185,31 @@ export interface ReplanningMessage {
   failedNodes: string[];
 }
 
+/** Sends a list of recent traces to the trace dashboard webview. */
+export interface TraceListMessage {
+  type: "traceList";
+  traces: Array<{
+    traceId: string;
+    startTime: number;
+    durationMs: number;
+    spanCount: number;
+    status: string;
+  }>;
+}
+
+/** Sends the full span tree for a single trace to the trace dashboard. */
+export interface TraceDetailMessage {
+  type: "traceDetail";
+  traceId: string;
+  spans: Span[];
+}
+
+/** Sends computed session metrics for a trace to the trace dashboard. */
+export interface TraceMetricsMessage {
+  type: "traceMetrics";
+  metrics: SessionMetrics;
+}
+
 export type ExtensionToWebviewMessage =
   | TokenMessage
   | MessageCompleteMessage
@@ -208,7 +235,10 @@ export type ExtensionToWebviewMessage =
   | GitCheckpointMessage
   | DAGProgressMessage
   | DAGVisualizationMessage
-  | ReplanningMessage;
+  | ReplanningMessage
+  | TraceListMessage
+  | TraceDetailMessage
+  | TraceMetricsMessage;
 
 // ---------------------------------------------------------------------------
 // Webview → Extension
@@ -263,6 +293,23 @@ export interface RollbackRequest {
   type: "rollbackRequest";
 }
 
+/** Requests the list of recent traces from the extension. */
+export interface RequestTraceListMessage {
+  type: "requestTraceList";
+}
+
+/** Requests full trace detail for a specific trace. */
+export interface RequestTraceDetailMessage {
+  type: "requestTraceDetail";
+  traceId: string;
+}
+
+/** Requests computed metrics for a specific trace. */
+export interface RequestTraceMetricsMessage {
+  type: "requestTraceMetrics";
+  traceId: string;
+}
+
 export type WebviewToExtensionMessage =
   | SendMessageRequest
   | ClearChatRequest
@@ -273,4 +320,7 @@ export type WebviewToExtensionMessage =
   | ApproveStepMessage
   | LoadSessionRequest
   | SetEditModeRequest
-  | RollbackRequest;
+  | RollbackRequest
+  | RequestTraceListMessage
+  | RequestTraceDetailMessage
+  | RequestTraceMetricsMessage;

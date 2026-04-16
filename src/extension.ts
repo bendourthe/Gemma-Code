@@ -8,6 +8,11 @@ import { SessionListPanel, SESSION_VIEW_ID } from "./panels/SessionListPanel.js"
 import { getGpuDetector } from "./config/GpuDetector.js";
 import { classifyTier, getTierConfig } from "./config/HardwareTier.js";
 import type { HardwareTierId } from "./config/HardwareTier.types.js";
+import { TraceStore } from "./observability/TraceStore.js";
+import { Tracer } from "./observability/Tracer.js";
+import { MetricsCollector } from "./observability/MetricsCollector.js";
+import { TraceDashboardPanel, TRACE_DASHBOARD_VIEW_ID } from "./panels/TraceDashboardPanel.js";
+import { OtlpExporter, parseOtlpHeaders } from "./observability/OtlpExporter.js";
 
 let outputChannel: vscode.OutputChannel | undefined;
 let backendManager: BackendManager | undefined;
@@ -272,6 +277,46 @@ export function activate(context: vscode.ExtensionContext): void {
     sessionListPanel
   );
   context.subscriptions.push(sessionProviderDisposable);
+
+  // ── Observability: TraceStore, Tracer, Trace Dashboard ────────────────────
+  const traceDbPath = path.join(context.globalStorageUri.fsPath, "traces.db");
+  let traceStore: TraceStore | null = null;
+  let metricsCollector: MetricsCollector | null = null;
+
+  try {
+    traceStore = new TraceStore(traceDbPath);
+    metricsCollector = new MetricsCollector(traceStore);
+    const tracer = Tracer.getInstance();
+    tracer.init(traceStore);
+
+    // Optional OTLP export (off by default).
+    if (settings.otlpEnabled) {
+      const otlpExporter = new OtlpExporter({
+        endpoint: settings.otlpEndpoint,
+        headers: parseOtlpHeaders(settings.otlpHeaders),
+      });
+      tracer.setExporter(otlpExporter);
+      context.subscriptions.push({ dispose: () => otlpExporter.dispose() });
+      outputChannel?.appendLine(`[Gemma Code] OTLP export enabled -> ${settings.otlpEndpoint}`);
+    }
+
+    outputChannel?.appendLine("[Gemma Code] Trace store initialized.");
+    context.subscriptions.push({ dispose: () => { traceStore?.close(); } });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    outputChannel?.appendLine(`[Gemma Code] Trace store init failed: ${msg}`);
+  }
+
+  const traceDashboardPanel = new TraceDashboardPanel(
+    context.extensionUri,
+    traceStore,
+    metricsCollector,
+  );
+  const traceDashboardDisposable = vscode.window.registerWebviewViewProvider(
+    TRACE_DASHBOARD_VIEW_ID,
+    traceDashboardPanel,
+  );
+  context.subscriptions.push(traceDashboardDisposable);
 
   // Chat panel is only used via the editor panel (not sidebar).
   context.subscriptions.push(chatPanel);

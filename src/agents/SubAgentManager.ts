@@ -10,6 +10,7 @@ import { ToolRegistry } from "../tools/ToolRegistry.js";
 import { computeToolActivation } from "../tools/ToolActivationRules.js";
 import { TOOL_CATALOG, toDynamicMetadata } from "../tools/ToolCatalog.js";
 import type { DynamicToolMetadata } from "../tools/ToolCatalog.js";
+import { Tracer } from "../observability/Tracer.js";
 import {
   ReadFileTool,
   ListDirectoryTool,
@@ -43,7 +44,17 @@ export class SubAgentManager {
     this._promptBuilder = promptBuilder;
   }
 
-  async run(config: SubAgentConfig, postMessage: PostMessageFn): Promise<SubAgentResult> {
+  async run(config: SubAgentConfig, postMessage: PostMessageFn, parentTraceId?: string, parentSpanId?: string): Promise<SubAgentResult> {
+    const tracer = Tracer.getInstance();
+    const traceId = parentTraceId || tracer.startTrace();
+    const subAgentSpanId = tracer.startSpan(
+      traceId,
+      `sub_agent_${config.type}`,
+      "sub_agent",
+      parentSpanId,
+      { agentType: config.type, maxIterations: config.maxIterations },
+    );
+
     postMessage({
       type: "subAgentStatus",
       agentType: config.type,
@@ -143,6 +154,13 @@ export class SubAgentManager {
       // Clean up the isolated manager.
       manager.dispose();
 
+      tracer.endSpan(subAgentSpanId, success ? "ok" : "error", {
+        success,
+        toolCallCount,
+        iterationsUsed,
+        outputLength: output.length,
+      });
+
       return {
         type: config.type,
         success,
@@ -153,6 +171,8 @@ export class SubAgentManager {
       };
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
+
+      tracer.endSpan(subAgentSpanId, "error", { error: errorMessage });
 
       postMessage({
         type: "subAgentStatus",

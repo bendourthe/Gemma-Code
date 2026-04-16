@@ -38,6 +38,11 @@
           "id": "gemma-code.chatView",
           "name": "Chat",
           "type": "webview"
+        },
+        {
+          "id": "gemma-code.traceDashboard",
+          "name": "Traces",
+          "type": "webview"
         }
       ]
     },
@@ -295,6 +300,21 @@
           "type": "object",
           "default": {},
           "description": "Override default permission tiers for individual tools. Values: 0 = auto-approve, 1 = confirm, 2 = dangerous."
+        },
+        "gemma-code.otlpEnabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable optional OTLP trace export to an external collector (Jaeger, Grafana Tempo). Off by default for offline-first usage."
+        },
+        "gemma-code.otlpEndpoint": {
+          "type": "string",
+          "default": "http://localhost:4318/v1/traces",
+          "description": "OTLP HTTP endpoint for trace export."
+        },
+        "gemma-code.otlpHeaders": {
+          "type": "string",
+          "default": "",
+          "description": "Comma-separated key=value headers for OTLP export requests (e.g. 'Authorization=Bearer token,X-Custom=value')."
         },
         "gemma-code.gpuTier": {
           "type": "string",

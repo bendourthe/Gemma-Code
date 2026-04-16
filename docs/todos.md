@@ -10,7 +10,7 @@
 |--------|---------|--------|-------|
 | Tasks done (v0.1.0) | 13 / 21 | 21 / 21 | -8 |
 | Tasks done (v0.2.0) | 44 / 44 | 44 / 44 | 0 |
-| Tasks done (v0.3.0) | 30 / 48 | 48 / 48 | -18 |
+| Tasks done (v0.3.0) | 35 / 48 | 48 / 48 | -13 |
 
 ---
 
@@ -138,10 +138,12 @@ Full plan: `docs/v0.3.0/implementation-plan.md`
 - [x] Orchestrator integration with GemmaCodePanel (plan mode + complexity heuristic)
 - [x] Dynamic replanning on divergence (>30% failure threshold)
 
-### Phase 6 — Local Observability & Trace Dashboard
-- [ ] SQLite trace store
-- [ ] Webview-based trace viewer
-- [ ] Optional OTLP export
+### Phase 6 — Local Observability & Trace Dashboard [COMPLETED]
+- [x] SQLite trace store (TraceStore with spans, traces, events)
+- [x] Tracer singleton with no-op mode and core component instrumentation
+- [x] Metrics collector and golden task evaluation framework
+- [x] Webview-based trace dashboard with waterfall visualization
+- [x] Optional OTLP export (off by default, minimal fetch-based exporter)
 
 ### Phase 7 — Cross-Platform PyQt5 Installer
 - [ ] Dark-themed wizard installer (Windows, macOS, Linux)

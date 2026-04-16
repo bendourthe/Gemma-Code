@@ -39,6 +39,9 @@ export interface GemmaCodeSettings {
   maxSessionMinutes: number;
   permissionOverrides: Record<string, number>;
   gpuTier: "auto" | "1" | "2" | "3";
+  otlpEnabled: boolean;
+  otlpEndpoint: string;
+  otlpHeaders: string;
 }
 
 export function getSettings(): GemmaCodeSettings {
@@ -78,6 +81,9 @@ export function getSettings(): GemmaCodeSettings {
     maxSessionMinutes: config.get<number>("maxSessionMinutes") ?? 30,
     permissionOverrides: config.get<Record<string, number>>("permissionOverrides") ?? {},
     gpuTier: (config.get<string>("gpuTier") as "auto" | "1" | "2" | "3" | undefined) ?? "auto",
+    otlpEnabled: config.get<boolean>("otlpEnabled") ?? false,
+    otlpEndpoint: config.get<string>("otlpEndpoint") ?? "http://localhost:4318/v1/traces",
+    otlpHeaders: config.get<string>("otlpHeaders") ?? "",
   };
 }
 

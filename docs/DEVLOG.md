@@ -4,6 +4,74 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-04-15] v0.3.0 Phase 6 -- Local Observability & Trace Dashboard
+
+### Summary
+
+Sixth phase of v0.3.0 harness engineering. Implemented the full observability stack: a SQLite-backed trace store (OpenTelemetry-compatible span model), a no-op-safe singleton Tracer for instrumenting core components, a metrics collector for aggregate session analytics, a golden task evaluation framework for regression detection, a webview trace dashboard with waterfall visualization, and an optional OTLP/HTTP JSON exporter. The Tracer is initialized with a TraceStore in extension.ts; when tracing is disabled (store is null), all methods are zero-cost no-ops. AgentLoop, SubAgentManager, and ContextCompactor now emit trace spans. The OTLP exporter is off by default (offline-first philosophy) but available via three new VS Code settings. Tests: 101 new tests across 6 test files, all passing. TypeScript compiles cleanly, 0 lint errors (2 expected console.debug warnings in OtlpExporter). No regressions in existing tests (756 total passing).
+
+### Trace Data Model and SQLite Store (Sub-task 6.1)
+
+**TraceStore class** (`src/observability/TraceStore.ts`): Follows the ChatHistoryStore pattern (constructor -> WAL mode -> foreign keys -> _initSchema). Two tables: `traces` (trace_id PK, session_id, root_span_id, start_time, end_time) and `spans` (span_id PK, trace_id FK with CASCADE delete, parent_span_id, name, kind, start_time, end_time, duration_ms, status, attributes JSON, events JSON). Indexes on trace_id, parent_span_id, kind, start_time. Key methods: startTrace() creates a trace + root span atomically, startSpan()/endSpan() manage span lifecycle with attribute merging on end, addEvent() appends to the JSON events array, getTrace() returns the trace with full span tree, listTraces() with pagination, getSpansByKind() for filtered queries, getSpan() for single span lookup, deleteOlderThan() for pruning with cascade.
+
+Span kinds: `agent_turn`, `tool_call`, `llm_call`, `compaction`, `sub_agent`, `planning`, `reflexion`, `custom`. Statuses: `ok`, `error`, `cancelled`.
+
+### Tracer Singleton (Sub-task 6.2)
+
+**Tracer class** (`src/observability/Tracer.ts`): Singleton via `Tracer.getInstance()`. Holds optional TraceStore reference set via `init(store)`. All convenience methods (startTrace, startSpan, endSpan, addEvent) return early with empty strings when the store is null, providing zero-cost no-op behavior when tracing is disabled. Supports an optional `TracerExporter` interface for OTLP integration; completed spans are enqueued to the exporter in endSpan() if one is configured. `resetInstance()` method provided for test isolation.
+
+### Core Component Instrumentation (Sub-task 6.2)
+
+**AgentLoop** (`src/tools/AgentLoop.ts`): `run()` starts a root trace linked to the session ID. Each iteration gets an `agent_turn` span. `_streamOneTurn()` calls are wrapped with `llm_call` spans recording model name and response length. Tool executions get `tool_call` spans with toolName/callId/success attributes. The trace context is passed to the ContextCompactor via `setTraceContext()`.
+
+**SubAgentManager** (`src/agents/SubAgentManager.ts`): `run()` now accepts optional `parentTraceId` and `parentSpanId` parameters. Creates a `sub_agent` span with agentType and maxIterations attributes. Ends with success/error status and toolCallCount/iterationsUsed metrics.
+
+**ContextCompactor** (`src/chat/ContextCompactor.ts`): `compact()` creates a `compaction` span recording tokensBefore, tokensAfter, and maxTokens. A new `setTraceContext()` method lets AgentLoop link compaction spans to the session trace.
+
+**ToolRegistry** (`src/tools/ToolRegistry.ts`): Tracer import added but no duplicate spans created, since AgentLoop already wraps `_registry.execute()` calls with tool_call spans.
+
+### Metrics Collector (Sub-task 6.3)
+
+**MetricsCollector class** (`src/observability/MetricsCollector.ts`): Computes SessionMetrics from spans in a trace (toolStepCount, llmCallCount, retryCount, compactionCount, humanInterventionCount, successRate, estimatedTokensUsed, subAgentCount). AggregateMetrics averages across multiple traces with proper median calculation. MetricsTrend returns time-series arrays for the last N traces. All methods handle empty/null gracefully.
+
+### Golden Task Evaluation (Sub-task 6.3)
+
+**GoldenTaskSuite module** (`src/observability/GoldenTaskSuite.ts`): Defines GoldenTask/GoldenTaskExpectation/GoldenTaskResult interfaces. Ships 5 placeholder golden tasks across categories: file_ops, code_gen, refactor, debug, test_gen. `validateExpectation()` checks maxToolCalls, maxDurationMs, and mustPass constraints. `detectRegressions()` compares current vs previous results, flagging duration and tool step regressions beyond a threshold (default 20%), plus pass-to-fail regressions.
+
+### Webview Trace Dashboard (Sub-task 6.4)
+
+**TraceDashboardPanel class** (`src/panels/TraceDashboardPanel.ts`): Implements `vscode.WebviewViewProvider` registered as `gemma-code.traceDashboard` in the sidebar. Handles three message types: requestTraceList, requestTraceDetail, requestTraceMetrics. Returns trace lists with duration/spanCount/status, full span trees, and computed SessionMetrics.
+
+**Dashboard webview** (`src/panels/webview/traceDashboard.ts`): Self-contained HTML with inlined CSS/JS (same pattern as SessionListPanel). Features: trace list table (date, duration, spans, status), waterfall/timeline visualization on row click with spans positioned by startTime relative to trace start, color-coded bars by kind (blue=agent_turn, green=tool_call, purple=llm_call, orange=compaction, teal=sub_agent, red=reflexion), span detail pane showing attributes and events, refresh button. Uses VS Code theme CSS variables.
+
+**Message types added** to `src/panels/messages.ts`: TraceListMessage, TraceDetailMessage, TraceMetricsMessage (extension->webview), RequestTraceListMessage, RequestTraceDetailMessage, RequestTraceMetricsMessage (webview->extension).
+
+### Optional OTLP Export (Sub-task 6.5)
+
+**OtlpExporter class** (`src/observability/OtlpExporter.ts`): Implements the `TracerExporter` interface. Buffers spans and flushes via HTTP POST in OTLP JSON format to a configurable endpoint (default: `http://localhost:4318/v1/traces`). Auto-flush at batchSize (100) and periodic flush on a timer (30s). Maps internal spans to OTLP schema: traceId/spanId as hex, timestamps in nanoseconds, kind mapping (llm_call -> SPAN_KIND_CLIENT, others -> SPAN_KIND_INTERNAL), attributes as key-value arrays. Network errors are logged at debug level and discarded (never thrown). `parseOtlpHeaders()` utility converts the settings string format to a headers object.
+
+**Settings added:** `otlpEnabled` (boolean, default false), `otlpEndpoint` (string), `otlpHeaders` (string, comma-separated key=value).
+
+### Extension Wiring
+
+**extension.ts changes:** Creates TraceStore at `globalStorageUri/traces.db`, initializes the Tracer singleton, creates MetricsCollector, registers TraceDashboardPanel. If `otlpEnabled`, creates OtlpExporter and sets it on the Tracer. All cleanup is registered via `context.subscriptions`. TraceStore initialization is wrapped in try/catch so a failure does not block extension activation.
+
+### Files Changed
+
+**New (13):** TraceStore.ts, Tracer.ts, MetricsCollector.ts, GoldenTaskSuite.ts, OtlpExporter.ts, TraceDashboardPanel.ts, traceDashboard.ts + 6 test files (TraceStore, Tracer, MetricsCollector, GoldenTaskSuite, OtlpExporter, TraceDashboardPanel)
+
+**Modified (9):** AgentLoop.ts (trace spans), SubAgentManager.ts (sub_agent span), ContextCompactor.ts (compaction span + trace context), ToolRegistry.ts (Tracer import), messages.ts (6 new message types), settings.ts (3 OTLP settings), extension.ts (TraceStore/Tracer/OTLP/dashboard init), package.json (Traces view + 3 OTLP config settings), todos.md (Phase 6 completion)
+
+### Lessons Learned
+
+- **No-op Tracer pattern is essential for optional instrumentation:** By returning empty strings when unintialized, the Tracer avoids conditional checks in every instrumented method. Components call tracer methods unconditionally; the Tracer silently discards them.
+- **Trace context must be threaded explicitly in a non-DI system:** ContextCompactor needed a `setTraceContext()` method because it has no access to the AgentLoop's traceId. In a dependency-injection system, a scoped trace context would solve this more cleanly. The explicit setter works well for the current architecture.
+- **better-sqlite3 native module version mismatch:** Tests initially failed because better-sqlite3 was compiled against NODE_MODULE_VERSION 135 but the runtime needed 137. Fixed with `npm rebuild better-sqlite3`. This is a recurring issue when the Node.js version changes between sessions.
+- **Fake timers and async flush conflict:** Vitest's `vi.useFakeTimers()` caused an infinite loop in the OtlpExporter auto-flush test because the periodic timer fires during `vi.runAllTimersAsync()`, triggering more async work. Fixed by using real timers for the specific auto-flush test and only faking timers for the periodic flush test.
+- **deleteOlderThan(0) does not delete "everything":** The cutoff is `Date.now() - 0 * day`, which equals "now". Traces created in the same millisecond are not "older than now", so they survive. Tests needed adjustment to use negative days (future cutoff) for reliable cleanup verification.
+
+---
+
 ## [2026-04-15] v0.3.0 Phase 5 -- Plan-and-Execute Orchestration
 
 ### Summary

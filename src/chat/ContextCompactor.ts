@@ -14,9 +14,12 @@ import {
 import { RegenerateFromSource } from "./RegenerateFromSource.js";
 import { calculateBudget } from "../config/PromptBudget.js";
 import { getSettings } from "../config/settings.js";
+import { Tracer } from "../observability/Tracer.js";
 
 export class ContextCompactor {
   private _postCompactionHook?: (sessionId: string) => Promise<void>;
+  private _traceId = "";
+  private _traceParentSpanId?: string;
 
   constructor(
     private readonly _manager: ConversationManager,
@@ -28,6 +31,12 @@ export class ContextCompactor {
     private readonly _compactionThreshold: number = 0.8,
     private readonly _workspacePath?: string,
   ) {}
+
+  /** Set the trace context so compaction spans are linked to the agent trace. */
+  setTraceContext(traceId: string, parentSpanId?: string): void {
+    this._traceId = traceId;
+    this._traceParentSpanId = parentSpanId;
+  }
 
   /** Set a hook to run after compaction (e.g. memory consolidation). */
   setPostCompactionHook(hook: (sessionId: string) => Promise<void>): void {
@@ -54,6 +63,16 @@ export class ContextCompactor {
    */
   async compact(postMessage: PostMessageFn, force = false): Promise<void> {
     if (!force && !this.shouldCompact()) return;
+
+    const tracer = Tracer.getInstance();
+    const tokensBefore = this.estimateTokens();
+    const compactSpanId = tracer.startSpan(
+      this._traceId,
+      "compact",
+      "compaction",
+      this._traceParentSpanId,
+      { force, tokensBefore, maxTokens: this._maxTokens },
+    );
 
     // Pre-compaction hook (Phase 3 wires MemoryStore.extractAndSave here).
     if (this._preCompactionHook) {
@@ -100,6 +119,9 @@ export class ContextCompactor {
         });
       }
     }
+
+    const tokensAfter = this.estimateTokens();
+    tracer.endSpan(compactSpanId, "ok", { tokensAfter });
 
     postMessage({
       type: "compactionStatus",

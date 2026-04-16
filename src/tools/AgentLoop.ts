@@ -14,6 +14,7 @@ import type { LoopDetector } from "../safety/LoopDetector.js";
 import type { BudgetEnforcer } from "../safety/BudgetEnforcer.js";
 import type { GitSafetyNet, GitCheckpoint } from "../safety/GitSafetyNet.js";
 import { classifyAction, ActionRisk } from "../safety/ActionClassifier.js";
+import { Tracer } from "../observability/Tracer.js";
 
 const DEFAULT_MAX_ITERATIONS = 20;
 
@@ -53,6 +54,8 @@ export class AgentLoop {
   private readonly _budgetEnforcer?: BudgetEnforcer;
   private readonly _gitSafetyNet?: GitSafetyNet;
   private _gitCheckpoint: GitCheckpoint | null = null;
+  private _traceId = "";
+  private _rootSpanId = "";
 
   constructor(
     private readonly _client: OllamaClient,
@@ -97,6 +100,11 @@ export class AgentLoop {
     return this._gitCheckpoint;
   }
 
+  /** The trace ID for this agent loop session, if tracing is active. */
+  getTraceId(): string {
+    return this._traceId;
+  }
+
   /** Recent tool result summaries (last 5). */
   getRecentToolResults(): readonly string[] {
     return [...this._recentToolResults];
@@ -126,6 +134,16 @@ export class AgentLoop {
     this._cancelled = false;
     this._loopDetector?.reset();
 
+    // Start a trace for this agent loop session.
+    const tracer = Tracer.getInstance();
+    this._traceId = tracer.startTrace(this._sessionId);
+    this._rootSpanId = tracer.getRootSpanId(this._traceId);
+
+    // Pass trace context to compactor so compaction spans are linked.
+    if (this._compactor) {
+      this._compactor.setTraceContext(this._traceId, this._rootSpanId);
+    }
+
     // Git safety: create a checkpoint before the agent modifies files.
     if (this._gitSafetyNet) {
       this._gitCheckpoint = await this._gitSafetyNet.createCheckpoint();
@@ -136,6 +154,14 @@ export class AgentLoop {
 
     for (let iteration = 0; iteration < this._maxIterations; iteration++) {
       if (this._cancelled) return;
+
+      const iterSpanId = tracer.startSpan(
+        this._traceId,
+        `iteration_${iteration}`,
+        "agent_turn",
+        this._rootSpanId,
+        { iteration },
+      );
 
       // Budget pre-turn check (when middleware is provided).
       if (this._budgetMiddleware) {
@@ -165,12 +191,22 @@ export class AgentLoop {
       }
 
       // Stream the next model response.
+      const llmSpanId = tracer.startSpan(
+        this._traceId,
+        "stream_one_turn",
+        "llm_call",
+        iterSpanId,
+        { model: this._modelName },
+      );
       const accumulated = await this._streamOneTurn(postMessage);
 
       if (accumulated === null) {
         // Stream was cancelled or errored; _streamOneTurn already posted the error.
+        tracer.endSpan(llmSpanId, "cancelled");
+        tracer.endSpan(iterSpanId, "cancelled");
         return;
       }
+      tracer.endSpan(llmSpanId, "ok", { responseLength: accumulated.length });
 
       if (!hasToolCall(accumulated)) {
         // No tool calls → final response. Commit and finish.
@@ -185,6 +221,7 @@ export class AgentLoop {
           await this._compactor.compact(postMessage);
         }
 
+        tracer.endSpan(iterSpanId, "ok", { finalResponse: true });
         return;
       }
 
@@ -226,10 +263,22 @@ export class AgentLoop {
 
         postMessage({ type: "toolUse", toolName: call.tool, callId: call.id });
 
+        const toolSpanId = tracer.startSpan(
+          this._traceId,
+          `tool_${call.tool}`,
+          "tool_call",
+          iterSpanId,
+          { toolName: call.tool, callId: call.id },
+        );
+
         // Pass the call id to the handler via a special _callId parameter.
         const result = await this._registry.execute({
           ...call,
           parameters: { ...call.parameters, _callId: call.id },
+        });
+
+        tracer.endSpan(toolSpanId, result.success ? "ok" : "error", {
+          success: result.success,
         });
 
         postMessage({
@@ -303,6 +352,7 @@ export class AgentLoop {
 
       // Record iteration in budget middleware.
       this._budgetMiddleware?.recordIteration();
+      tracer.endSpan(iterSpanId, "ok");
 
       // Auto-verification: trigger after enough file edits.
       if (

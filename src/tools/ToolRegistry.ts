@@ -3,6 +3,7 @@ import type { ToolCall, ToolHandler, ToolName, ToolResult } from "./types.js";
 import type { OutputRedirector } from "./OutputRedirector.js";
 import type { ConfirmationGate } from "./ConfirmationGate.js";
 import { getPermissionTier, shouldRequireConfirmation, getDangerousWarning, PermissionTier } from "../safety/PermissionTiers.js";
+import { Tracer } from "../observability/Tracer.js";
 
 export class ToolRegistry {
   private readonly _handlers = new Map<ToolName, ToolHandler>();
