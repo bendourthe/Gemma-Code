@@ -51,6 +51,7 @@ import { BudgetMiddleware, createSessionBudget } from "../tools/BudgetMiddleware
 import { GitSafetyNet } from "../safety/GitSafetyNet.js";
 import { LoopDetector } from "../safety/LoopDetector.js";
 import { detectGpuTier, getEffectiveProfile } from "../config/GpuTierConfig.js";
+import { Orchestrator } from "../orchestration/Orchestrator.js";
 import { renderMarkdown } from "../utils/MarkdownRenderer.js";
 import type { EditMode } from "../tools/types.js";
 import type {
@@ -90,6 +91,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
   private _mcpServer: McpServer | null = null;
   private readonly _gitSafetyNet: GitSafetyNet | null;
   private readonly _subAgentManager: SubAgentManager;
+  private readonly _orchestrator: Orchestrator;
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
@@ -195,6 +197,17 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     // GPU-tier-aware safety configuration.
     const gpuTier = detectGpuTier(settings);
     const tierProfile = getEffectiveProfile(settings, gpuTier);
+
+    // Plan-and-Execute orchestrator for complex multi-step requests.
+    this._orchestrator = new Orchestrator({
+      client,
+      modelName: settings.modelName,
+      ollamaOptions,
+      subAgentManager: this._subAgentManager,
+      gpuTierProfile: tierProfile,
+      memoryStore: this._memoryStore,
+      postMessage: postRaw,
+    });
 
     this._agentLoop = new AgentLoop(
       client,
@@ -453,10 +466,49 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
       return;
     }
 
+    // Orchestrator path: plan mode + complex request = DAG orchestration.
+    if (this._planMode.active && this._orchestrator.shouldUseOrchestrator(text)) {
+      await this._handleOrchestratorRequest(text, postWithRender);
+      return;
+    }
+
     // Normal message.
     await this._injectMemoryContext(text);
     await this._pipeline.send(text, postWithRender);
     this._checkForPlan();
+  }
+
+  private async _handleOrchestratorRequest(
+    text: string,
+    postWithRender: (msg: ExtensionToWebviewMessage) => void,
+  ): Promise<void> {
+    const postMessage = (msg: ExtensionToWebviewMessage) =>
+      this._postToWebview(msg);
+
+    postMessage({ type: "status", state: "thinking" });
+
+    try {
+      const workspacePath =
+        vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? "";
+      const codebaseContext = `Workspace: ${workspacePath}`;
+
+      const result = await this._orchestrator.execute(text, codebaseContext);
+
+      const summaryMsg = this._manager.addAssistantMessage(result.summary);
+      postWithRender({
+        type: "messageComplete",
+        messageId: summaryMsg.id,
+        renderedHtml: renderMarkdown(result.summary),
+      });
+      this._postHistory();
+      this._postTokenCount();
+    } catch (err) {
+      const errorText =
+        err instanceof Error ? err.message : "Orchestrator failed";
+      postMessage({ type: "error", text: errorText });
+    } finally {
+      postMessage({ type: "status", state: "idle" });
+    }
   }
 
   private async _handleBuiltinCommand(name: string, args: string): Promise<void> {

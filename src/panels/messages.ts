@@ -154,6 +154,35 @@ export interface GitCheckpointMessage {
   filesChanged: number;
 }
 
+/** Reports DAG execution progress (node completion counts and currently running nodes). */
+export interface DAGProgressMessage {
+  type: "dagProgress";
+  total: number;
+  completed: number;
+  failed: number;
+  running: number;
+  currentNodes: string[];
+}
+
+/** Sends the DAG structure to the webview for visualization. */
+export interface DAGVisualizationMessage {
+  type: "dagVisualization";
+  nodes: Array<{
+    id: string;
+    title: string;
+    status: string;
+    dependencies: string[];
+  }>;
+}
+
+/** Notifies the webview that the orchestrator is replanning due to divergence. */
+export interface ReplanningMessage {
+  type: "replanning";
+  attempt: number;
+  reason: string;
+  failedNodes: string[];
+}
+
 export type ExtensionToWebviewMessage =
   | TokenMessage
   | MessageCompleteMessage
@@ -176,7 +205,10 @@ export type ExtensionToWebviewMessage =
   | McpStatusMessage
   | ThinkingModeMessage
   | ActionClassificationMessage
-  | GitCheckpointMessage;
+  | GitCheckpointMessage
+  | DAGProgressMessage
+  | DAGVisualizationMessage
+  | ReplanningMessage;
 
 // ---------------------------------------------------------------------------
 // Webview → Extension

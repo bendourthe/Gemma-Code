@@ -4,6 +4,85 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-04-15] v0.3.0 Phase 5 -- Plan-and-Execute Orchestration
+
+### Summary
+
+Fifth phase of v0.3.0 harness engineering. Replaced the flat ReAct-style agent loop dispatch for complex tasks with a structured Plan-and-Execute orchestration layer. The implementation adds a DAG-based task planner (LLM decomposes requests into dependency-aware subtask graphs), a GPU-tier-aware executor with semaphore-based concurrency control (1/2/3 concurrent sub-agents by tier), a Reflexion pattern for intelligent error recovery (generates analysis on failure, extracts negative constraints, injects into retry context), typed input/output contracts for sub-agent communication, and dynamic replanning when execution diverges (>30% node failure triggers re-planning with accumulated context). The Orchestrator activates only when plan mode is active AND the request is classified as "complex" by a keyword heuristic; simple single-turn requests continue to use the existing AgentLoop path unchanged. Tests: 82 new tests across 7 test files, all passing. TypeScript compiles cleanly, 0 lint errors. No regressions in existing non-storage tests (669 passing + 82 new = 751 total). Aggregate coverage for orchestration module: 97.85% statements.
+
+### Task DAG Data Model (Sub-task 5.1)
+
+**TaskDAG class** (`src/orchestration/TaskDAG.ts`): Stores nodes in a `Map<string, TaskNode>` for O(1) lookup. Builds a reverse adjacency map (dependents) on construction for efficient `skipDependents()` traversal. Validates acyclicity using Kahn's algorithm (topological sort) on construction and after `addNode()`. Key methods: `getReadyNodes()` (pending nodes with all deps completed), `markRunning()` (prevents double-dispatch), `markFailed()` (retries if retryCount < maxRetries, otherwise terminal failure), `skipDependents()` (BFS on reverse adjacency map, marks all transitive dependents as skipped), `toJSON()`/`fromJSON()` for serialization roundtrip.
+
+**Critical addition not in original spec:** `markRunning(nodeId)` method. Without it, `getReadyNodes()` would return the same "pending" nodes every iteration of the executor loop, causing duplicate dispatches.
+
+### JSON Extraction Utility (Sub-task 5.1)
+
+**`extractJsonFromLlmOutput()`** (`src/orchestration/utils.ts`): Multi-strategy JSON extraction from LLM output: (1) direct `JSON.parse`, (2) markdown fence extraction (` ```json ... ``` `), (3) greedy bracket matching (first `[` to last `]`, or `{` to `}`). Shared by PlannerAgent and contracts module. Essential because Gemma 4 models at various quantization levels produce inconsistent output formatting.
+
+### PlannerAgent (Sub-task 5.1)
+
+**PlannerAgent class** (`src/orchestration/PlannerAgent.ts`): Calls Ollama (non-streaming accumulation pattern from CompactionStrategy) with a system prompt instructing the model to produce a JSON array of TaskNode objects. On parse failure, retries once with a correction message. On second failure, returns a single-node fallback DAG containing the original request. Sets `maxRetries=1` on all generated nodes by default. Validates node types against the allowed set: "research", "code", "test", "verify".
+
+### DAG Executor with GPU-Aware Scheduling (Sub-task 5.2)
+
+**DAGExecutor class** (`src/orchestration/DAGExecutor.ts`): Walks the TaskDAG, dispatching ready nodes to SubAgentManager with concurrency controlled by a local Promise-based Semaphore. Concurrency limits from GpuTierProfile: TIER_1=1 (sequential), TIER_2=2, TIER_3=3. Maps TaskNode types to SubAgentTypes: research -> research, code -> planning, test -> verification, verify -> verification. Includes deadlock detection (breaks when no nodes are ready and none are running). Posts `DAGProgressMessage` to the webview after each node completion.
+
+**Semaphore pattern:** Counter + queue of Promise resolve callbacks. `acquire()` resolves immediately if under limit, otherwise enqueues. `release()` decrements and dequeues next waiter. No third-party dependencies.
+
+### Reflexion Pattern for Error Recovery (Sub-task 5.3)
+
+**ReflexionEngine class** (`src/orchestration/ReflexionEngine.ts`): When a sub-agent task fails, generates a textual self-reflection analyzing the root cause via an LLM call. Extracts negative constraints from the analysis using regex (`/(?:^|\.\s+)((?:Do not|Avoid|Instead|Make sure|Ensure)[^.]+\.)/gi`). Stores reflections in MemoryStore as `error_resolution` type. On retry, `buildRetryContext()` formats accumulated reflections into a structured context block injected into the sub-agent's `memoryContext`.
+
+**DAGExecutor integration:** Optional `ReflexionEngineInterface` in constructor. Stores a `Map<string, Reflection[]>` per node ID. On failure with retries remaining: reflect -> store -> accumulate -> inject on retry dispatch. Exposes `getReflections()` for the Orchestrator's replanning logic.
+
+### Structured Output Contracts (Sub-task 5.6)
+
+**Contracts module** (`src/orchestration/contracts.ts`): Defines typed input/output interfaces for each TaskNodeType: ResearchInput/Output, CodeTaskInput/Output, TestTaskInput/Output, VerifyTaskInput/Output. `buildSubAgentRequest()` serializes inputs into structured prompts with JSON output schema instructions. `parseSubAgentResponse()` extracts and validates JSON from raw sub-agent output using `extractJsonFromLlmOutput()`. Validators are lenient (coerce missing fields to defaults) to handle imperfect LLM output.
+
+### Orchestrator Integration (Sub-task 5.4)
+
+**Orchestrator class** (`src/orchestration/Orchestrator.ts`): Top-level coordinator tying PlannerAgent, DAGExecutor, and ReflexionEngine together. `execute()` flow: plan -> post visualization -> execute with reflexion -> check failure rate -> optionally replan. `shouldUseOrchestrator()` is a synchronous keyword heuristic (triggers: "implement", "refactor", "build", "migrate", etc.; inhibitors: "what is", "explain", "show me", etc.; length threshold: >200 chars).
+
+**GemmaCodePanel integration:** 3 changes: (1) import Orchestrator, (2) add `_orchestrator` field initialized after `_subAgentManager` in constructor, (3) insert 4-line dispatch check in `_handleSendMessage()` before the normal message path. New `_handleOrchestratorRequest()` method handles the orchestration flow and posts the summary as an assistant message. Total addition: ~50 lines. The existing ReAct loop path is completely untouched.
+
+### Dynamic Replanning (Sub-task 5.5)
+
+Built into the Orchestrator's `execute()` method. After DAG execution, checks failure rate: `failed / (total - skipped)`. If >30% (`_replanThreshold`) and replan count < 2 (`_maxReplanAttempts`): collects completed node results as context, collects reflections from the executor, builds an augmented replanning prompt, calls PlannerAgent again, and executes the new DAG. Posts `ReplanningMessage` to the webview with attempt number, reason, and failed node list.
+
+### Message Types Added
+
+3 new message types in `src/panels/messages.ts`, all added to the `ExtensionToWebviewMessage` union:
+- `DAGProgressMessage` (type: "dagProgress"): node completion counts and currently running node titles
+- `DAGVisualizationMessage` (type: "dagVisualization"): full DAG structure for webview rendering
+- `ReplanningMessage` (type: "replanning"): replanning notification with attempt/reason/failed nodes
+
+### Deviations from Plan
+
+1. **`shouldUseOrchestrator()` is synchronous, not async:** The plan specified `Promise<boolean>` but the implementation is a pure keyword heuristic with no LLM call, so `boolean` is correct and avoids unnecessary async overhead.
+2. **Sub-task 5.6 (Contracts) implemented before 5.4 (Orchestrator):** Reordered because the Orchestrator benefits from having typed contracts available when mapping TaskNode types. Contracts have no dependency on the Orchestrator.
+3. **ReflexionEngine created early with full implementation:** Created during sub-task 5.2 (not 5.3) because DAGExecutor imports the Reflection type. The full implementation was written immediately rather than doing a type-only stub followed by a separate implementation pass.
+4. **`markRunning()` added to TaskDAG:** Not in the original plan spec but essential for the DAGExecutor's fire-and-forget concurrency pattern. Without it, `getReadyNodes()` returns already-dispatched nodes.
+
+### Files Changed
+
+**New (14):** TaskDAG.ts, utils.ts, PlannerAgent.ts, DAGExecutor.ts, ReflexionEngine.ts, contracts.ts, Orchestrator.ts + 7 test files (TaskDAG, PlannerAgent, DAGExecutor, ReflexionEngine, contracts, Orchestrator, Orchestrator.replan)
+
+**Modified (2):** messages.ts (3 new message types), GemmaCodePanel.ts (Orchestrator import, field, initialization, dispatch check, handler method)
+
+### Lessons Learned
+
+- **Multi-strategy JSON extraction is essential for local LLMs:** Gemma 4 at various quantization levels produces inconsistent output formatting (clean JSON, fenced blocks, trailing explanations). A try-parse -> fence-extract -> bracket-match -> retry pipeline handles all cases reliably.
+- **`markRunning()` is critical for concurrent DAG execution:** Without a "running" status, the executor's fire-and-forget pattern dispatches the same node multiple times. This was not in the original spec and would have caused subtle concurrency bugs.
+- **Additive integration minimizes risk:** The Orchestrator is wired into GemmaCodePanel with only ~4 lines in `_handleSendMessage()`. The entire existing ReAct loop path is untouched. This means any Orchestrator bugs only affect plan-mode complex requests, not the normal agent flow.
+- **Promise-based semaphore is sufficient for JS concurrency:** No need for third-party libraries. A counter + resolve queue handles GPU-tier-aware concurrency cleanly because JavaScript is single-threaded and `Promise.race` maintains event loop safety.
+
+### Current Status
+
+Verified. TypeScript compiles cleanly (0 errors). 751 non-storage tests passing (669 existing + 82 new Phase 5), 0 failures, 0 regressions. Orchestration module coverage: 97.85% statements, 82.9% branches. Pre-existing better-sqlite3 native module failures in storage tests remain unchanged. Ready for Phase 6 (Local Observability & Trace Dashboard).
+
+---
+
 ## [2026-04-15] v0.3.0 Phase 4 -- Safety, Budgeting & Runaway Prevention
 
 ### Summary
