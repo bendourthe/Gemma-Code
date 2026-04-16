@@ -7,10 +7,14 @@ import type { SubAgentConfig, SubAgentResult } from "../agents/types.js";
 import { parseToolCalls, hasToolCall, stripToolCalls, formatToolResult } from "./ToolCallParser.js";
 import type { ToolRegistry } from "./ToolRegistry.js";
 import type { BudgetMiddleware } from "./BudgetMiddleware.js";
+import type { WorkingMemory } from "../storage/WorkingMemory.js";
+import type { EpisodicMemory } from "../storage/EpisodicMemory.js";
+import { recordToolEvent } from "../storage/EpisodicMemory.js";
 
 const DEFAULT_MAX_ITERATIONS = 20;
 
 const FILE_EDIT_TOOLS = new Set(["write_file", "edit_file", "create_file"]);
+const EPISODIC_TOOLS = new Set(["write_file", "edit_file", "create_file", "run_terminal", "grep_codebase"]);
 
 const MAX_RECENT_TOOL_RESULTS = 5;
 
@@ -19,6 +23,9 @@ export interface AgentLoopOptions {
   readonly verificationThreshold?: number;
   readonly verificationEnabled?: boolean;
   readonly budgetMiddleware?: BudgetMiddleware;
+  readonly workingMemory?: WorkingMemory;
+  readonly episodicMemory?: EpisodicMemory;
+  readonly sessionId?: string;
 }
 
 export class AgentLoop {
@@ -32,6 +39,9 @@ export class AgentLoop {
   private readonly _verificationThreshold: number;
   private readonly _verificationEnabled: boolean;
   private _budgetMiddleware?: BudgetMiddleware;
+  private readonly _workingMemory?: WorkingMemory;
+  private readonly _episodicMemory?: EpisodicMemory;
+  private readonly _sessionId?: string;
 
   constructor(
     private readonly _client: OllamaClient,
@@ -48,6 +58,9 @@ export class AgentLoop {
     this._verificationThreshold = options?.verificationThreshold ?? 3;
     this._verificationEnabled = options?.verificationEnabled ?? true;
     this._budgetMiddleware = options?.budgetMiddleware;
+    this._workingMemory = options?.workingMemory;
+    this._episodicMemory = options?.episodicMemory;
+    this._sessionId = options?.sessionId;
   }
 
   /** Set or replace the budget middleware (used for async tier config updates). */
@@ -169,6 +182,32 @@ export class AgentLoop {
           if (filePath && !this._modifiedFiles.includes(filePath)) {
             this._modifiedFiles.push(filePath);
           }
+        }
+
+        // Update working memory based on tool results.
+        if (this._workingMemory) {
+          const filePath = call.parameters["path"] as string | undefined;
+          if (filePath && (call.tool === "read_file" || FILE_EDIT_TOOLS.has(call.tool))) {
+            this._workingMemory.addOpenFile(filePath);
+          }
+          if (!result.success) {
+            this._workingMemory.addRecentError(
+              call.tool,
+              (result.error || "unknown error").slice(0, 200),
+            );
+          }
+        }
+
+        // Record significant tool calls to episodic memory.
+        if (this._episodicMemory && this._sessionId && EPISODIC_TOOLS.has(call.tool)) {
+          recordToolEvent(
+            this._episodicMemory,
+            this._sessionId,
+            call.tool,
+            call.parameters,
+            result,
+            `Agent iteration ${iteration + 1}`,
+          ).catch(() => { /* episodic recording is non-fatal */ });
         }
 
         // Track recent tool results (rolling window of 5).

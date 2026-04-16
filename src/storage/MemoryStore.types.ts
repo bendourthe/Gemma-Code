@@ -1,3 +1,5 @@
+import type { MemoryProvenance, MemoryTTL } from "./MemoryLayers.types.js";
+
 export type MemoryType =
   | "decision"
   | "fact"
@@ -15,6 +17,9 @@ export interface MemoryEntry {
   readonly accessedAt: number;
   readonly accessCount: number;
   readonly relevanceDecay: number;
+  readonly provenance?: MemoryProvenance;
+  readonly ttl?: MemoryTTL;
+  readonly scope?: "global" | "project" | "session";
 }
 
 export interface MemorySearchResult {
@@ -31,3 +36,24 @@ export interface MemoryStats {
   readonly newestEntryAt: number | null;
   readonly embeddingCount: number;
 }
+
+// Re-export layer types for convenience.
+export type {
+  MemoryProvenance,
+  MemoryTTL,
+  WriteGate,
+  WritePolicy,
+  WorkingMemoryState,
+  EpisodicEntry,
+  SemanticMemoryEntry,
+  GraphEntity,
+  GraphRelation,
+  EntityType,
+  RelationType,
+  MemoryLayerId,
+  MemoryQuery,
+  MemoryQueryResult,
+  MemoryResultEntry,
+} from "./MemoryLayers.types.js";
+
+export { isStale, isExpired } from "./MemoryLayers.types.js";

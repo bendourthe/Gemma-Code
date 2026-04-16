@@ -16,6 +16,8 @@ import { calculateBudget } from "../config/PromptBudget.js";
 import { getSettings } from "../config/settings.js";
 
 export class ContextCompactor {
+  private _postCompactionHook?: (sessionId: string) => Promise<void>;
+
   constructor(
     private readonly _manager: ConversationManager,
     private readonly _client: OllamaClient,
@@ -26,6 +28,11 @@ export class ContextCompactor {
     private readonly _compactionThreshold: number = 0.8,
     private readonly _workspacePath?: string,
   ) {}
+
+  /** Set a hook to run after compaction (e.g. memory consolidation). */
+  setPostCompactionHook(hook: (sessionId: string) => Promise<void>): void {
+    this._postCompactionHook = hook;
+  }
 
   /** Returns the estimated token count for the current conversation. */
   estimateTokens(): number {
@@ -83,6 +90,16 @@ export class ContextCompactor {
     );
 
     this._manager.replaceMessages(compacted);
+
+    // Post-compaction hook (Phase 3 wires MemoryConsolidator here).
+    if (this._postCompactionHook) {
+      const sessionId = this._manager.sessionId;
+      if (sessionId) {
+        await this._postCompactionHook(sessionId).catch((err) => {
+          console.warn("[ContextCompactor] Post-compaction hook failed:", err);
+        });
+      }
+    }
 
     postMessage({
       type: "compactionStatus",

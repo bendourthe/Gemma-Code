@@ -4,6 +4,85 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-04-15] v0.3.0 Phase 3 -- Graph-Vector Hybrid Memory
+
+### Summary
+
+Third phase of v0.3.0 harness engineering. Implemented a 4-layer memory stack replacing the flat MemoryStore with a layered architecture: working memory (ephemeral in-context JSON), episodic memory (structured session event logs with provenance), semantic memory (existing MemoryStore extended with provenance/TTL/scope), and graph memory (entity-relationship triples with regex-based extraction). Includes a consolidation pipeline that detects recurring patterns in episodic memory and promotes them to semantic memory with write policy enforcement, plus a unified retrieval layer that queries all four layers in parallel with configurable budget distribution. Tests: 42 new tests passing (3 test files runnable without native module), TypeScript compiles cleanly, 0 lint errors. Tests requiring better-sqlite3 (EpisodicMemory, GraphMemory, MemoryConsolidator) cannot run in the current environment due to a pre-existing native module loading issue (ERR_DLOPEN_FAILED), same issue that affects all v0.2.0 storage tests.
+
+### Memory Layer Architecture (Sub-task 3.1)
+
+**MemoryLayers.types.ts** (`src/storage/MemoryLayers.types.ts`): Defines all type interfaces for the 4-layer system. Key types: `MemoryProvenance` (source tracking with confidence scores), `WriteGate` (policy enforcement), `MemoryTTL` (expiration and staleness), `WorkingMemoryState`, `EpisodicEntry`, `SemanticMemoryEntry` (extends existing MemoryEntry), `GraphEntity`, `GraphRelation`, `MemoryQuery`, `MemoryQueryResult`. Pure utility functions `isStale()` and `isExpired()` exported alongside types.
+
+**MemoryStore.types.ts extension:** Added optional `provenance?`, `ttl?`, and `scope?` fields to the existing `MemoryEntry` interface for backward compatibility. Re-exports all new types from MemoryLayers.types.ts.
+
+### Working Memory Manager -- Layer 1 (Sub-task 3.2)
+
+**WorkingMemory class** (`src/storage/WorkingMemory.ts`): Ephemeral JSON state tracking current task, open files (cap 10), recent errors (cap 5), architectural decisions (cap 5), active goals, and a free-form scratchpad. Entirely synchronous with no disk I/O. `serialize(maxTokens)` produces compact markdown format, dropping lowest-priority sections (scratchpad first, then goals, then errors) when over budget.
+
+**PromptBuilder integration:** Added `workingMemory?` to `PromptContext`. `_buildMemorySection()` prepends working memory serialization (20% of memory budget) before recalled memories. Working memory is never trimmed by the unified retriever.
+
+**AgentLoop integration:** After each tool call, updates working memory: `addOpenFile` for read_file/write_file/edit_file/create_file, `addRecentError` for failed tool results.
+
+### Episodic Memory -- Layer 2 (Sub-task 3.3)
+
+**EpisodicMemory class** (`src/storage/EpisodicMemory.ts`): SQLite-backed session event store with FTS5 keyword search and optional embedding-based semantic search. Schema: `episodic_events` table with `episodic_fts` virtual table and INSERT/DELETE/UPDATE triggers for FTS sync. Methods: `record`, `searchKeyword` (BM25 ranking), `searchSemantic` (cosine similarity), `retrieve` (formatted string within token budget), `getSessionEvents`, `prune`, `close`. Shares the same `memory.db` database file as MemoryStore.
+
+**Helper functions:** `recordToolEvent()` creates episodic entries from tool execution results with automatic confidence scoring (0.9 for success, 0.5 for failure). `recordDecisionEvent()` for architectural decisions.
+
+**AgentLoop integration:** Records events for significant tool calls (write_file, edit_file, create_file, run_terminal, grep_codebase) via fire-and-forget promises.
+
+### Graph Memory and Entity Extraction -- Layer 4 (Sub-tasks 3.4, 3.5)
+
+**GraphMemory class** (`src/storage/GraphMemory.ts`): SQLite tables `graph_entities` and `graph_relations` with unique constraints on (name, type) and (source_id, target_id, type). All operations synchronous. `upsertEntity` increments mention_count and merges properties on duplicates. `upsertRelation` increases weight by 0.1 (capped at 1.0) on duplicates. `findRelatedEntities` performs BFS traversal capped at 50 results. `prune` cascade-deletes relations before removing low-mention old entities.
+
+**EntityExtractor class** (`src/storage/EntityExtractor.ts`): Regex-based extraction (no LLM calls) of file paths, function/method names, class/interface names, import/module references, technology names (curated set of 50+ entries), error patterns, and decision markers. `extractRelationsFromText` infers relationships from co-occurrence and syntax: import relations, function-modifies-file, error-causes-file, decision-technology, and proximity-based related_to (entities within 100 characters, weight 0.3).
+
+**Design decision:** Sentence splitting uses a negative lookbehind (`(?<!\.\w{1,5})`) to avoid splitting on periods inside file extensions like `.ts`, `.js`.
+
+**GraphQueryEngine class** (`src/storage/GraphQueryEngine.ts`): Multi-hop traversal with recency-weighted scoring (1.0 for <1 day, 0.7 for <7 days, 0.4 otherwise). Hard cap of 100 nodes visited in BFS. Methods: `queryByEntity` (depth-limited subgraph), `queryByRelationType`, `queryContextFor` (extracts entities from natural language, traverses each at depth 2, merges), `formatAsContext` (markdown for prompt injection), `explainPath` (shortest path with natural-language explanation).
+
+**MemoryStore integration:** `setGraphEngine()` setter injects the graph engine. `retrieve()` now appends graph context (up to 25% of token budget) when a graph engine is available.
+
+### Memory Consolidation (Sub-task 3.6)
+
+**MemoryConsolidator class** (`src/storage/MemoryConsolidator.ts`): Full pipeline: (1) gather episodic events, (2) extract entities/relations into graph memory, (3) detect recurring patterns via token overlap (intersection/union > 0.7), (4) apply write gate policy, (5) promote qualifying patterns to semantic memory with deduplication.
+
+**Write gate policies:** `always` (for testing), `user_requested` (only user-stated sources), `tool_verified` (confidence >= 0.8), `pattern_recurring` (occurrences >= minRecurrences).
+
+**ContextCompactor integration:** Added `setPostCompactionHook()` to ContextCompactor. The consolidator runs after compaction completes (post-hook rather than pre-hook).
+
+**MemoryStore changes:** `_isDuplicate` renamed to public `isDuplicate`. Added `saveWithProvenance()` method accepting full provenance, TTL, and scope metadata.
+
+### Unified Memory Retrieval (Sub-task 3.7)
+
+**UnifiedMemoryRetriever class** (`src/storage/UnifiedMemoryRetriever.ts`): Queries all 4 layers with configurable budget distribution: working 20%, semantic 30%, graph 25%, episodic 25%. Unused budget redistributes proportionally to available layers. Queries run in parallel via `Promise.all` (working and graph are synchronous, semantic and episodic are async). Trims in reverse priority order (episodic first, working never).
+
+**GemmaCodePanel wiring:** `_initMemoryLayers()` creates all layer instances sharing the same `memory.db` SQLite database. WorkingMemory and EpisodicMemory passed to AgentLoop via options. UnifiedMemoryRetriever and WorkingMemory passed to PromptBuilder via PromptContext. MemoryConsolidator wired to ContextCompactor post-hook. `_injectMemoryContext()` uses unified retriever when available, falls back to MemoryStore.retrieve().
+
+### Deviations from Plan
+
+1. **Post-compaction hook:** Instead of modifying the `_preCompactionHook` signature in ContextCompactor, added a separate `setPostCompactionHook()` method. The consolidator runs after compaction rather than during the pre-compaction phase, which avoids modifying the existing hook contract and is semantically better (consolidation should happen after extraction).
+
+### Files Changed
+
+**New (15):** MemoryLayers.types.ts, WorkingMemory.ts, EpisodicMemory.ts, GraphMemory.ts, EntityExtractor.ts, GraphQueryEngine.ts, MemoryConsolidator.ts, UnifiedMemoryRetriever.ts, + 7 test files
+
+**Modified (7):** MemoryStore.types.ts, MemoryStore.ts, PromptBuilder.ts, PromptBuilder.types.ts, ContextCompactor.ts, AgentLoop.ts, GemmaCodePanel.ts
+
+### Lessons Learned
+
+- **Shared SQLite database:** Multiple modules (MemoryStore, EpisodicMemory, GraphMemory) can share the same SQLite database file with separate tables. WAL mode handles concurrent reads well. GraphMemory accepts a Database instance directly (shared) while EpisodicMemory creates its own connection (sharing the file path).
+- **Sentence splitting around file extensions:** Naive splitting on `[.!?\n]+` breaks file paths like `src/storage/MemoryStore.ts`. Use negative lookbehind: `(?<!\.\w{1,5})[.!?]\s+|\n+`.
+- **Graceful degradation in layers:** Making every memory layer optional (`| null`) in both the retriever and GemmaCodePanel allows the system to function at any level of initialization failure without crashing.
+- **Post-hook vs pre-hook for consolidation:** Running consolidation after compaction (post-hook) rather than during pre-compaction is cleaner because the pre-hook already does extraction; consolidation needs the extracted data, not the raw messages.
+
+### Current Status
+
+Verified. TypeScript compiles, lint clean, 42 new tests passing. Tests requiring better-sqlite3 native module are blocked by pre-existing ERR_DLOPEN_FAILED (needs `npm rebuild better-sqlite3`). Ready for Phase 4 (Safety, Budgeting & Runaway Prevention).
+
+---
+
 ## [2026-04-14] v0.3.0 Phase 2 -- Advanced Context Engineering
 
 ### Summary

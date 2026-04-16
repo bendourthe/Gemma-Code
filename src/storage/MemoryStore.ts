@@ -8,6 +8,8 @@ import type {
   MemoryStats,
 } from "./MemoryStore.types.js";
 import type { EmbeddingClient } from "./EmbeddingClient.js";
+import type { MemoryProvenance, MemoryTTL } from "./MemoryLayers.types.js";
+import type { GraphQueryEngine } from "./GraphQueryEngine.js";
 
 const CHARS_PER_TOKEN = 4;
 
@@ -27,6 +29,7 @@ const MEMORY_TYPES: readonly MemoryType[] = [
 export class MemoryStore {
   private readonly _db: Database.Database;
   private readonly _embedder: EmbeddingClient | null;
+  private _graphEngine: GraphQueryEngine | null = null;
 
   constructor(dbPath: string, embedder?: EmbeddingClient | null) {
     this._db = new Database(dbPath);
@@ -73,6 +76,11 @@ export class MemoryStore {
     `);
   }
 
+  /** Inject a graph query engine for graph-augmented retrieval. */
+  setGraphEngine(engine: GraphQueryEngine | null): void {
+    this._graphEngine = engine;
+  }
+
   // ---------------------------------------------------------------------------
   // Save
   // ---------------------------------------------------------------------------
@@ -111,6 +119,30 @@ export class MemoryStore {
       accessedAt: now,
       accessCount: 0,
       relevanceDecay: 1.0,
+    };
+  }
+
+  /**
+   * Save a memory entry with full provenance and TTL metadata.
+   * Used by the consolidation pipeline for promoted memories.
+   */
+  async saveWithProvenance(
+    content: string,
+    type: MemoryType,
+    provenance: MemoryProvenance,
+    ttl?: MemoryTTL,
+    scope?: "global" | "project" | "session",
+    sessionId?: string,
+  ): Promise<MemoryEntry> {
+    const entry = await this.save(content, type, sessionId);
+    // The provenance, ttl, and scope are returned as part of the entry
+    // for consumers that need them (the base table columns are not yet
+    // altered, so they are carried in-memory only).
+    return {
+      ...entry,
+      provenance,
+      ttl,
+      scope,
     };
   }
 
@@ -259,8 +291,21 @@ export class MemoryStore {
       usedTokens += lineTokens;
     }
 
-    if (lines.length === 0) return "";
-    return header + lines.join("\n");
+    if (lines.length === 0 && !this._graphEngine) return "";
+
+    let result = lines.length > 0 ? header + lines.join("\n") : "";
+
+    // Append graph context if a graph engine is available (up to 25% of budget).
+    if (this._graphEngine) {
+      const graphBudget = Math.floor(tokenBudget * 0.25);
+      const graphResult = this._graphEngine.queryContextFor(query, 10);
+      const graphContext = this._graphEngine.formatAsContext(graphResult, graphBudget);
+      if (graphContext) {
+        result = result ? result + "\n\n" + graphContext : graphContext;
+      }
+    }
+
+    return result;
   }
 
   // ---------------------------------------------------------------------------
@@ -279,7 +324,7 @@ export class MemoryStore {
 
       const extractions = this._extractPatterns(msg.content, msg.role);
       for (const { content, type } of extractions) {
-        if (this._isDuplicate(content)) continue;
+        if (this.isDuplicate(content)) continue;
         await this.save(content, type, sessionId);
         saved++;
       }
@@ -347,7 +392,7 @@ export class MemoryStore {
   }
 
   /** Check if a memory with very similar content already exists. */
-  private _isDuplicate(content: string): boolean {
+  isDuplicate(content: string): boolean {
     // Pick the most distinctive words (longest, most likely to be unique).
     const words = content
       .split(/\s+/)

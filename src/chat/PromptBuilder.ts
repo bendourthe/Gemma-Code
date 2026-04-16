@@ -300,14 +300,30 @@ export class PromptBuilder {
 
   /** Memory context injection. Truncates to fit within the memory token budget. */
   private _buildMemorySection(context: PromptContext): PromptSection | null {
-    if (!context.memoryContext) return null;
-
     const budget = calculateBudget(context.maxTokens, {
       systemPromptPercent: context.systemPromptBudgetPercent,
     });
-
-    let content = context.memoryContext;
     const maxChars = budget.memoryBudget * 4;
+
+    const parts: string[] = [];
+
+    // Working memory gets highest priority within the memory section.
+    if (context.workingMemory) {
+      const workingTokens = Math.floor(budget.memoryBudget * 0.2);
+      const workingSerialized = context.workingMemory.serialize(workingTokens);
+      if (workingSerialized) {
+        parts.push(workingSerialized);
+      }
+    }
+
+    // Recalled memories (existing memoryContext string).
+    if (context.memoryContext) {
+      parts.push(context.memoryContext);
+    }
+
+    if (parts.length === 0) return null;
+
+    let content = parts.join("\n\n");
     if (content.length > maxChars) {
       content = content.slice(0, maxChars) + "\n[Memory context truncated to fit budget]";
     }

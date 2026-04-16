@@ -15,8 +15,9 @@ Gemma Code brings a Claude Code-style agentic workflow to VS Code, running entir
 - **Plan mode** — the assistant produces a numbered plan and waits for step-by-step approval before acting
 - **Slash commands and skills** — `/commit`, `/review-pr`, `/generate-readme`, and more built-in workflows; add your own skills to `~/.gemma-code/skills/`
 - **Persistent history** — sessions are stored in a local SQLite database; resume any past conversation
-- **Cross-session memory** — automatically extracts decisions, facts, and patterns from conversations; retrieves relevant memories in future sessions using FTS5 keyword search and optional Ollama embeddings
-- **Multi-strategy context compaction** — 5-stage pipeline (tool result clearing, sliding window, code block truncation, LLM summary, emergency trim) keeps long sessions within context limits
+- **4-layer memory system** — working memory (ephemeral task state), episodic memory (structured session events), semantic memory (FTS5 + embeddings), and graph memory (entity-relationship triples) with unified cross-layer retrieval
+- **Hardware-aware** — auto-detects GPU/VRAM, classifies into three tiers (constrained/balanced/full), and adjusts context budgets, compaction thresholds, and iteration limits accordingly
+- **Multi-strategy context compaction** — 6-stage pipeline (tool result clearing, sliding window, code block truncation, regenerate-from-source, LLM summary, emergency trim) keeps long sessions within context limits
 - **Conditional tool activation** — tools are enabled/disabled based on runtime context (Ollama reachability, network availability, session mode); keeps the prompt clean for better model reliability
 - **Sub-agent orchestration** — spawns isolated verification, research, and planning sub-agents with scoped tools; auto-verification triggers after file edits to catch bugs early; `/verify` and `/research` slash commands for manual control
 - **MCP support** — Model Context Protocol client connects to external MCP servers; MCP server exposes Gemma Code's tools to external clients (opt-in, off by default)

@@ -91,10 +91,31 @@ v0.2.0 uses Gemma 4 native tokens for tool interaction:
 
 This replaces the v0.1.0 custom XML protocol. See [docs/v0.1.0/tool-protocol.md](docs/v0.1.0/tool-protocol.md) for legacy reference.
 
+### v0.3.0 Additions (Phases 1-3)
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| GpuDetector | `src/config/GpuDetector.ts` | Multi-platform GPU/VRAM auto-detection |
+| HardwareTier | `src/config/HardwareTier.ts` | 3-tier classification (constrained/balanced/full) |
+| BudgetMiddleware | `src/tools/BudgetMiddleware.ts` | Token/iteration budget enforcement per tier |
+| LazyToolLoader | `src/tools/LazyToolLoader.ts` | On-demand tool schema loading (40%+ token savings) |
+| OutputRedirector | `src/tools/OutputRedirector.ts` | Large tool result redirection to temp files |
+| RegenerateFromSource | `src/chat/RegenerateFromSource.ts` | Compaction via source file re-reading |
+| RelevanceScorer | `src/chat/RelevanceScorer.ts` | Multi-signal prompt section ranking |
+| ConversationSync | `src/storage/ConversationSync.ts` | JSONL session sync for grep-based self-search |
+| WorkingMemory | `src/storage/WorkingMemory.ts` | Layer 1: ephemeral in-context task state |
+| EpisodicMemory | `src/storage/EpisodicMemory.ts` | Layer 2: structured session event logs with provenance |
+| GraphMemory | `src/storage/GraphMemory.ts` | Layer 4: entity-relationship triples in SQLite |
+| EntityExtractor | `src/storage/EntityExtractor.ts` | Regex-based entity/relation extraction from text |
+| GraphQueryEngine | `src/storage/GraphQueryEngine.ts` | Multi-hop graph traversal and context formatting |
+| MemoryConsolidator | `src/storage/MemoryConsolidator.ts` | Pattern detection and write-gated promotion |
+| UnifiedMemoryRetriever | `src/storage/UnifiedMemoryRetriever.ts` | Cross-layer query merging with budget distribution |
+
 ## Further Reading
 
 - [Full Architecture (v0.2.0)](docs/v0.2.0/architecture.md) -- comprehensive component descriptions and data flow diagrams
 - [Architecture (v0.1.0)](docs/v0.1.0/architecture.md) -- original architecture document
 - [Tool Protocol (v0.1.0)](docs/v0.1.0/tool-protocol.md) -- legacy XML tool protocol specification
 - [Security Audit](docs/v0.1.0/security-audit.md) -- security findings and remediations
-- [Implementation Plan](docs/v0.2.0/development/implementation-plan.md) -- v0.2.0 phase breakdown
+- [Implementation Plan (v0.2.0)](docs/v0.2.0/development/implementation-plan.md) -- v0.2.0 phase breakdown
+- [Implementation Plan (v0.3.0)](docs/v0.3.0/implementation-plan.md) -- v0.3.0 harness engineering plan

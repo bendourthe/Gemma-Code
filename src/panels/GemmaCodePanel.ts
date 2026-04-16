@@ -37,6 +37,15 @@ import { ChatHistoryStore } from "../storage/ChatHistoryStore.js";
 import { MemoryStore } from "../storage/MemoryStore.js";
 import { EmbeddingClient } from "../storage/EmbeddingClient.js";
 import { calculateBudget } from "../config/PromptBudget.js";
+import { createWorkingMemory } from "../storage/WorkingMemory.js";
+import type { WorkingMemory } from "../storage/WorkingMemory.js";
+import { EpisodicMemory } from "../storage/EpisodicMemory.js";
+import { GraphMemory } from "../storage/GraphMemory.js";
+import { EntityExtractor } from "../storage/EntityExtractor.js";
+import { GraphQueryEngine } from "../storage/GraphQueryEngine.js";
+import { MemoryConsolidator } from "../storage/MemoryConsolidator.js";
+import { UnifiedMemoryRetriever } from "../storage/UnifiedMemoryRetriever.js";
+import Database from "better-sqlite3";
 import type { HardwareTierConfig } from "../config/HardwareTier.types.js";
 import { BudgetMiddleware, createSessionBudget } from "../tools/BudgetMiddleware.js";
 import { renderMarkdown } from "../utils/MarkdownRenderer.js";
@@ -63,6 +72,11 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
   private readonly _store: ChatHistoryStore | null;
   private readonly _memoryStore: MemoryStore | null;
   private readonly _compactor: ContextCompactor;
+  private readonly _workingMemory: WorkingMemory | null;
+  private readonly _episodicMemory: EpisodicMemory | null;
+  private readonly _graphMemory: GraphMemory | null;
+  private readonly _unifiedRetriever: UnifiedMemoryRetriever | null;
+  private readonly _memoryConsolidator: MemoryConsolidator | null;
 
   private _registry!: ToolRegistry;
   private _currentEditMode: EditMode;
@@ -83,6 +97,14 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     // Initialise persistent chat history store.
     this._store = this._initStore();
     this._memoryStore = this._initMemoryStore();
+
+    // Initialize 4-layer memory system (Phase 3).
+    const memoryLayers = this._initMemoryLayers();
+    this._workingMemory = memoryLayers.workingMemory;
+    this._episodicMemory = memoryLayers.episodicMemory;
+    this._graphMemory = memoryLayers.graphMemory;
+    this._unifiedRetriever = memoryLayers.unifiedRetriever;
+    this._memoryConsolidator = memoryLayers.memoryConsolidator;
 
     // PlanMode must be initialised before PromptBuilder uses it.
     this._planMode = new PlanMode();
@@ -147,6 +169,13 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
         : undefined,
     );
 
+    // Wire the consolidator into the post-compaction hook.
+    if (this._memoryConsolidator) {
+      this._compactor.setPostCompactionHook(async (sessionId) => {
+        await this._memoryConsolidator!.consolidate(sessionId);
+      });
+    }
+
     this._subAgentManager = new SubAgentManager(
       client,
       this._promptBuilder,
@@ -168,6 +197,9 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
         subAgentManager: this._subAgentManager,
         verificationThreshold: settings.verificationThreshold,
         verificationEnabled: settings.verificationEnabled,
+        workingMemory: this._workingMemory ?? undefined,
+        episodicMemory: this._episodicMemory ?? undefined,
+        sessionId: this._manager.sessionId ?? undefined,
       },
     );
 
@@ -926,6 +958,8 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
       workspacePath: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
       systemPromptBudgetPercent: settings.systemPromptBudgetPercent,
       memoryContext,
+      workingMemory: this._workingMemory ?? undefined,
+      unifiedRetriever: this._unifiedRetriever ?? undefined,
       tierName: this._tierConfig?.name,
       tierVramMb: this._tierConfig?.vramRange.max,
       tierModelName: this._tierConfig?.recommendedModels[0]?.modelName,
@@ -997,16 +1031,107 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
    * with the memory context injected. Non-fatal on error.
    */
   private async _injectMemoryContext(queryText: string): Promise<void> {
-    if (!this._memoryStore) return;
+    if (!this._memoryStore && !this._unifiedRetriever) return;
     try {
       const budget = calculateBudget(getSettings().maxTokens);
-      const memoryContext = await this._memoryStore.retrieve(queryText, budget.memoryBudget);
+
+      // Use unified retriever when available (Phase 3), fall back to MemoryStore.
+      let memoryContext: string;
+      if (this._unifiedRetriever) {
+        memoryContext = await this._unifiedRetriever.retrieveForPrompt(
+          queryText,
+          budget.memoryBudget,
+        );
+      } else {
+        memoryContext = await this._memoryStore!.retrieve(queryText, budget.memoryBudget);
+      }
+
       if (memoryContext) {
         const prompt = await this._promptBuilder.build(this._buildPromptContext(memoryContext));
         this._manager.rebuildSystemPrompt(prompt);
       }
     } catch {
       // Memory query failure is non-fatal; proceed without memory context.
+    }
+  }
+
+  /**
+   * Initialize the 4-layer memory system. Each layer is optional and degrades
+   * gracefully if initialization fails.
+   */
+  private _initMemoryLayers(): {
+    workingMemory: WorkingMemory | null;
+    episodicMemory: EpisodicMemory | null;
+    graphMemory: GraphMemory | null;
+    unifiedRetriever: UnifiedMemoryRetriever | null;
+    memoryConsolidator: MemoryConsolidator | null;
+  } {
+    const settings = getSettings();
+    if (!settings.memoryEnabled || !this._memoryStore || !this._globalStorageUri) {
+      return {
+        workingMemory: null,
+        episodicMemory: null,
+        graphMemory: null,
+        unifiedRetriever: null,
+        memoryConsolidator: null,
+      };
+    }
+
+    try {
+      const workingMemory = createWorkingMemory();
+
+      // Episodic memory shares the memory.db path.
+      const dbPath = path.join(this._globalStorageUri.fsPath, "memory.db");
+      const embedder = settings.embeddingModel
+        ? new EmbeddingClient(settings.ollamaUrl, settings.embeddingModel, settings.requestTimeout)
+        : null;
+      const episodicMemory = new EpisodicMemory(dbPath, embedder);
+
+      // Graph memory shares the same SQLite database.
+      const graphDb = new Database(dbPath);
+      graphDb.pragma("journal_mode = WAL");
+      const graphMemory = new GraphMemory(graphDb);
+
+      // Wire the graph engine into the memory store.
+      const graphEngine = new GraphQueryEngine(graphMemory, embedder);
+      this._memoryStore.setGraphEngine(graphEngine);
+
+      // Entity extractor for consolidation.
+      const entityExtractor = new EntityExtractor();
+
+      // Consolidator for promoting episodic patterns to semantic memory.
+      const memoryConsolidator = new MemoryConsolidator(
+        this._memoryStore,
+        episodicMemory,
+        graphMemory,
+        entityExtractor,
+        { policy: "pattern_recurring", minRecurrences: 2, requireVerification: false },
+      );
+
+      // Unified retriever ties all layers together.
+      const unifiedRetriever = new UnifiedMemoryRetriever(
+        workingMemory,
+        episodicMemory,
+        this._memoryStore,
+        graphEngine,
+      );
+
+      return {
+        workingMemory,
+        episodicMemory,
+        graphMemory,
+        unifiedRetriever,
+        memoryConsolidator,
+      };
+    } catch (err) {
+      console.warn("[GemmaCodePanel] Memory layer initialization failed:", err);
+      return {
+        workingMemory: null,
+        episodicMemory: null,
+        graphMemory: null,
+        unifiedRetriever: null,
+        memoryConsolidator: null,
+      };
     }
   }
 
@@ -1092,6 +1217,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     this._skillLoader.stopWatching();
     this._store?.close();
     this._memoryStore?.close();
+    this._episodicMemory?.close();
     this._mcpManager?.dispose();
     void this._mcpServer?.stop();
   }

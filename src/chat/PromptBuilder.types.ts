@@ -1,6 +1,8 @@
 import type { DynamicToolMetadata, ToolMetadata } from "../tools/ToolCatalog.js";
 import type { SubAgentType } from "../agents/types.js";
 import type { RelevanceScorer } from "./RelevanceScorer.js";
+import type { WorkingMemory } from "../storage/WorkingMemory.js";
+import type { UnifiedMemoryRetriever } from "../storage/UnifiedMemoryRetriever.js";
 
 export type PromptStyle = "concise" | "detailed" | "beginner";
 
@@ -18,6 +20,8 @@ export interface PromptContext {
   readonly promptStyle: PromptStyle;
   readonly workspacePath?: string;
   readonly memoryContext?: string;
+  readonly workingMemory?: WorkingMemory;
+  readonly unifiedRetriever?: UnifiedMemoryRetriever;
   readonly systemPromptBudgetPercent?: number;
   readonly tierName?: string;
   readonly tierVramMb?: number;
