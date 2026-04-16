@@ -4,6 +4,83 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-04-15] v0.3.0 Phase 4 -- Safety, Budgeting & Runaway Prevention
+
+### Summary
+
+Fourth phase of v0.3.0 harness engineering. Implemented multi-layered safety infrastructure for the agent loop: hash-based loop detection (SHA-256 sliding window), a 3-tier permission system (AUTO_APPROVE/CONFIRM/DANGEROUS) with centralized enforcement in ToolRegistry, git-based safety net with checkpoint/rollback capability, session-level token and time budget enforcement, semantic action classification with per-invocation risk analysis, and GPU-tier-aware iteration/concurrency profiles. The permission refactor moved confirmation logic out of individual tool handlers (terminal.ts) into a centralized gate in ToolRegistry.execute(), making the permission model consistent across all tools including MCP tools. Tests: 78 new tests across 6 test files, all passing. TypeScript compiles cleanly, 0 lint errors. No regressions in existing non-storage tests (587 total passing). Pre-existing better-sqlite3 native module failures in storage tests remain unchanged.
+
+### Loop Detection (Sub-task 4.1)
+
+**LoopDetector class** (`src/safety/LoopDetector.ts`): Tracks SHA-256 hashes of consecutive tool call payloads (tool name + parameters, excluding transient `id` and `_callId` fields) in a configurable sliding window (default size 4). When the same hash appears `repeatThreshold` times (default 3), a warning is injected into the conversation as a system message. If the pattern persists after the warning, the agent loop is terminated immediately. `reset()` clears the buffer at the start of each `run()` call.
+
+**AgentLoop integration:** Three insertion points: reset at `run()` start, record after each tool result injection, verdict check with early termination on "terminate" or system warning injection on "warn".
+
+### Token & Time Budget Enforcement (Sub-task 4.4)
+
+**BudgetEnforcer class** (`src/safety/BudgetEnforcer.ts`): Session-level budget tracking for estimated token usage (chars/4 heuristic, matching existing CHARS_PER_TOKEN convention) and wall-clock time. Fires `onBudgetWarning` callback at 80% of either budget, `onBudgetExceeded` at 100%. Designed to compose with (not replace) the existing BudgetMiddleware which handles per-turn and per-iteration limits.
+
+**Settings additions:** `maxSessionTokens` (default 500,000, roughly 4x the 128K context window) and `maxSessionMinutes` (default 30).
+
+**AgentLoop integration:** `checkBudget()` called before each iteration (alongside existing BudgetMiddleware check). `recordOutput()` called after streaming. `recordInput()` called when tool results are injected into conversation.
+
+### Git Safety Net (Sub-task 4.3)
+
+**GitSafetyNet class** (`src/safety/GitSafetyNet.ts`): Creates git stash-based checkpoints before agent runs and can commit agent-modified files with a `[gemma-code]` prefix after the loop completes. All git operations use `child_process.execFile` with a 10-second timeout and catch all errors (never thrown). Methods: `isGitRepo()`, `createCheckpoint()`, `commitAgentChanges()`, `rollback()`.
+
+**Message types added:** `GitCheckpointMessage` (extension to webview) and `RollbackRequest` (webview to extension).
+
+**AgentLoop integration:** Bookend pattern: checkpoint at start of `run()`, commit modified files after the loop completes.
+
+**GemmaCodePanel integration:** Creates GitSafetyNet using workspace path, passes to AgentLoop, handles `rollbackRequest` message.
+
+### Permission Tier System (Sub-task 4.2)
+
+**PermissionTiers module** (`src/safety/PermissionTiers.ts`): Defines 3 tiers: AUTO_APPROVE (read_file, list_directory, grep_codebase, tail_output, grep_output, get_tool_schema), CONFIRM (write_file, edit_file, create_file, delete_file), DANGEROUS (run_terminal, web_search, fetch_page). MCP tools default to DANGEROUS. Functions: `getPermissionTier()`, `shouldRequireConfirmation()`, `getDangerousWarning()`. User overrides via `permissionOverrides` setting.
+
+**ToolRegistry refactor:** Added `setConfirmationGate()` method. `execute()` now checks permission tier before calling handler and requests confirmation via the gate for CONFIRM/DANGEROUS tools. DANGEROUS tools include an enhanced warning message from `getDangerousWarning()`.
+
+**terminal.ts refactor:** Removed `_confirmationGate` and `_mode` constructor parameters. Removed confirmation logic (now handled by ToolRegistry). Kept BLOCKED_PATTERNS as a hard safety layer. Constructor simplified to `(timeoutMs?: number)`. Exported `BLOCKED_PATTERNS` and `isBlocked()` for reuse by ActionClassifier.
+
+**SubAgentManager fix:** Updated RunTerminalTool construction to use the new parameterless constructor. Removed unused ConfirmationGate import.
+
+### Action Classification (Sub-task 4.5)
+
+**ActionClassifier module** (`src/safety/ActionClassifier.ts`): Classifies each tool invocation by risk level: REVERSIBLE (no side effects), DESTRUCTIVE (modifies state), BLOCKED (unconditionally prevented). For `run_terminal`, performs command content analysis: read-only commands (ls, cat, git status, echo, etc.) are REVERSIBLE, BLOCKED_PATTERNS matches are BLOCKED, dangerous patterns (git push, rm, DROP, npm publish) are DESTRUCTIVE with `enhancedConfirmation`, all other commands default to DESTRUCTIVE.
+
+**AgentLoop integration:** Before each `registry.execute()` call, classifies the action. BLOCKED actions skip execution entirely and inject a failure result. DESTRUCTIVE actions with `requiresCheckpoint` trigger a git checkpoint before execution. Posts `actionClassification` message to webview for UI visibility.
+
+### GPU-Tier-Aware Iteration Limits (Sub-task 4.6)
+
+**GpuTierConfig module** (`src/config/GpuTierConfig.ts`): Defines 3 tier profiles with safety-relevant parameters: TIER_1 (25 max iterations, 1 concurrent sub-agent, 0.7 compaction threshold), TIER_2 (40/2/0.8), TIER_3 (60/3/0.85). `detectGpuTier()` reads the explicit `gpuTier` setting or infers from model name (e4b -> T1, 26b/12b -> T2, 31b -> T3). `getEffectiveProfile()` merges tier defaults with user overrides.
+
+**GemmaCodePanel integration:** Calls `detectGpuTier()` and `getEffectiveProfile()` in constructor. Uses `tierProfile.maxAgentIterations` instead of `settings.maxAgentIterations` when constructing AgentLoop. Also instantiates a LoopDetector and passes it to AgentLoop.
+
+### Deviations from Plan
+
+1. **BudgetEnforcer does not wrap BudgetMiddleware:** The plan called for BudgetEnforcer to compose BudgetMiddleware. Instead, they run as parallel checks in AgentLoop (existing BudgetMiddleware for token/iteration limits, new BudgetEnforcer for session-level token/time limits). This avoids changing the existing BudgetMiddleware contract.
+2. **ActionClassifier is a module-level function, not a class:** The plan suggested an optional `actionClassifier` field on AgentLoopOptions. Instead, `classifyAction()` is imported directly and always runs (no opt-out). This is simpler and ensures every tool call is classified regardless of configuration.
+3. **terminal.ts exports BLOCKED_PATTERNS and isBlocked:** Not in the original plan but necessary for ActionClassifier to reuse the existing blocklist rather than duplicating it.
+
+### Files Changed
+
+**New (12):** LoopDetector.ts, BudgetEnforcer.ts, GitSafetyNet.ts, PermissionTiers.ts, ActionClassifier.ts, GpuTierConfig.ts, + 6 test files
+
+**Modified (8):** AgentLoop.ts, ToolRegistry.ts, terminal.ts, messages.ts, GemmaCodePanel.ts, settings.ts, SubAgentManager.ts, package.json
+
+### Lessons Learned
+
+- **Centralized confirmation is cleaner than per-handler confirmation:** Moving confirmation from individual tool handlers to ToolRegistry.execute() ensures consistent enforcement across all tools (including future MCP tools) and simplifies handler constructors.
+- **Separate hard blocks from permission tiers:** BLOCKED_PATTERNS in terminal.ts is a hard safety layer that runs regardless of user settings. Permission tiers (AUTO_APPROVE/CONFIRM/DANGEROUS) are configurable. Keeping these orthogonal means neither can accidentally disable the other.
+- **Bookend pattern for git safety:** Placing checkpoint at the start of `run()` and commit at the end avoids any changes to the inner tool execution loop for git operations. The inner loop only needs to track `_modifiedFiles` (which it already does).
+- **Default-deny for shell commands:** The ActionClassifier treats all unrecognized shell commands as DESTRUCTIVE. This is more conservative than a whitelist approach but prevents unknown commands from silently executing without classification.
+
+### Current Status
+
+Verified. TypeScript compiles cleanly (0 errors). 587 non-storage tests passing, 0 failures. 78 new Phase 4 tests all passing. Pre-existing better-sqlite3 native module failures in storage tests remain unchanged. Ready for Phase 5 (Plan-and-Execute Orchestration).
+
+---
+
 ## [2026-04-15] v0.3.0 Phase 3 -- Graph-Vector Hybrid Memory
 
 ### Summary

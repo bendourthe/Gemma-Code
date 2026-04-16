@@ -139,6 +139,21 @@ export interface ThinkingModeMessage {
   active: boolean;
 }
 
+/** Notifies the webview of a tool call's risk classification. */
+export interface ActionClassificationMessage {
+  type: "actionClassification";
+  callId: string;
+  risk: string;
+  reason: string;
+}
+
+/** Notifies the webview that a git safety checkpoint was created. */
+export interface GitCheckpointMessage {
+  type: "gitCheckpoint";
+  sha: string;
+  filesChanged: number;
+}
+
 export type ExtensionToWebviewMessage =
   | TokenMessage
   | MessageCompleteMessage
@@ -159,7 +174,9 @@ export type ExtensionToWebviewMessage =
   | SubAgentStatusMessage
   | MemoryStatusMessage
   | McpStatusMessage
-  | ThinkingModeMessage;
+  | ThinkingModeMessage
+  | ActionClassificationMessage
+  | GitCheckpointMessage;
 
 // ---------------------------------------------------------------------------
 // Webview → Extension
@@ -209,6 +226,11 @@ export interface SetEditModeRequest {
   mode: EditMode;
 }
 
+/** Sent when the user requests a rollback to a git safety checkpoint. */
+export interface RollbackRequest {
+  type: "rollbackRequest";
+}
+
 export type WebviewToExtensionMessage =
   | SendMessageRequest
   | ClearChatRequest
@@ -218,4 +240,5 @@ export type WebviewToExtensionMessage =
   | RequestCommandListMessage
   | ApproveStepMessage
   | LoadSessionRequest
-  | SetEditModeRequest;
+  | SetEditModeRequest
+  | RollbackRequest;

@@ -81,11 +81,7 @@ describe("FetchPageTool SSRF protection", () => {
 // ---------------------------------------------------------------------------
 
 describe("RunTerminalTool blocklist bypass via shell metacharacters", () => {
-  const gate = {
-    request: vi.fn().mockResolvedValue(true),
-  };
-
-  const tool = new RunTerminalTool(gate as never, "never" as never);
+  const tool = new RunTerminalTool();
 
   const bypassAttempts = [
     "echo ok; rm -rf /",

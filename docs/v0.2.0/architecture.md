@@ -102,12 +102,22 @@ v0.2.0 additions:
 - Triggers `SubAgentManager.run("verification")` after `verificationThreshold` file edits
 - Uses `Gemma4ToolFormat` for parsing and formatting (replaces XML)
 
+v0.3.0 Phase 4 additions:
+- Loop detection via `LoopDetector` (reset at start, record after each tool call)
+- Session budget check via `BudgetEnforcer` (token + time limits, checked before each iteration)
+- Git safety net via `GitSafetyNet` (checkpoint at start, commit modified files at end)
+- Action classification via `classifyAction()` (BLOCKED actions skipped, DESTRUCTIVE actions trigger checkpoints)
+
 #### `src/tools/ToolRegistry.ts` -- Tool Dispatch
 
 Maps tool names to `ToolHandler` implementations. v0.2.0 additions:
 - `setEnabled(name, enabled)` / `isEnabled(name)` for conditional activation
 - `getEnabledNames()` / `getEnabledToolMetadata()` for prompt building
 - Supports both `BuiltinToolName` and `McpToolName` (`mcp:${string}`) types
+
+v0.3.0 Phase 4 additions:
+- `setConfirmationGate(gate, overrides?)` -- centralized permission enforcement via `PermissionTiers`
+- `execute()` now checks tool permission tier (AUTO_APPROVE/CONFIRM/DANGEROUS) before calling the handler and requests user confirmation for CONFIRM and DANGEROUS tiers
 
 #### `src/panels/GemmaCodePanel.ts` -- Webview Orchestrator
 
@@ -236,6 +246,34 @@ Each sub-agent gets a fresh `ToolRegistry`, isolated `ConversationManager`, and 
 
 ---
 
+### v0.3.0 Phase 4 Components -- Safety Layer
+
+#### `src/safety/LoopDetector.ts` -- Hash-Based Loop Detection
+
+Tracks SHA-256 hashes of consecutive tool call payloads in a sliding window. Detects when the model repeatedly invokes the same tool with the same parameters. Issues a warning after `repeatThreshold` (default 3) identical calls within the window, terminates the loop if the pattern persists.
+
+#### `src/safety/BudgetEnforcer.ts` -- Session Budget Enforcement
+
+Tracks cumulative estimated token usage (chars/4 heuristic) and wall-clock time per session. Fires a warning callback at 80% of either budget and an exceeded callback at 100%. Composes alongside (not replaces) the existing `BudgetMiddleware`.
+
+#### `src/safety/GitSafetyNet.ts` -- Git Checkpoint/Rollback
+
+Creates git stash-based checkpoints before agent runs. Commits agent-modified files with a `[gemma-code]` prefix after the loop completes. Supports rollback to any checkpoint. All git operations use `child_process.execFile` with timeouts; errors are caught and logged, never thrown.
+
+#### `src/safety/PermissionTiers.ts` -- 3-Tier Permission System
+
+Classifies all tools into three tiers: AUTO_APPROVE (read-only tools), CONFIRM (file write tools), DANGEROUS (terminal, network, MCP tools). User overrides via `permissionOverrides` setting. Enforcement is centralized in `ToolRegistry.execute()` via `setConfirmationGate()`.
+
+#### `src/safety/ActionClassifier.ts` -- Per-Invocation Risk Classification
+
+Classifies each tool call as REVERSIBLE (no side effects), DESTRUCTIVE (modifies state), or BLOCKED (unconditionally prevented). For `run_terminal`, performs shell command content analysis against read-only command whitelist, destructive pattern list, and BLOCKED_PATTERNS from `terminal.ts`.
+
+#### `src/config/GpuTierConfig.ts` -- GPU-Tier-Aware Profiles
+
+Defines 3 tier profiles with safety-relevant parameters (max iterations, sub-agent concurrency, compaction threshold). `detectGpuTier()` reads the explicit setting or infers from the model name. `getEffectiveProfile()` merges tier defaults with user overrides.
+
+---
+
 ## Data Flow -- Streaming Pipeline
 
 ```
@@ -352,6 +390,8 @@ User sends message
 | `memoryStatus` | Memory badge state (enabled, entry count) |
 | `mcpStatus` | MCP badge state (enabled, server/tool counts) |
 | `thinkingModeStatus` | Thinking mode badge state |
+| `actionClassification` | Tool call risk classification (Phase 4) |
+| `gitCheckpoint` | Git safety checkpoint created (Phase 4) |
 
 ### Webview to Extension
 
@@ -366,6 +406,7 @@ User sends message
 | `approveStep` | Approve plan step |
 | `loadSession` | Resume a past session |
 | `setEditMode` | Change edit mode |
+| `rollbackRequest` | Roll back to git safety checkpoint (Phase 4) |
 
 ---
 
@@ -439,3 +480,12 @@ All settings use the `gemma-code.` prefix in VS Code.
 |---------|------|---------|-------------|
 | `verificationEnabled` | boolean | `true` | Enable auto-verification |
 | `verificationThreshold` | number | `3` | File edits before verification triggers |
+
+### Safety and Budgeting (v0.3.0 Phase 4)
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `maxSessionTokens` | number | `500000` | Maximum estimated tokens per session |
+| `maxSessionMinutes` | number | `30` | Maximum wall-clock minutes per session |
+| `permissionOverrides` | object | `{}` | Per-tool permission tier overrides (0=auto, 1=confirm, 2=dangerous) |
+| `gpuTier` | string | `auto` | GPU tier: auto, 1, 2, or 3 |

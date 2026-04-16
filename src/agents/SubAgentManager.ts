@@ -7,7 +7,6 @@ import { PromptBuilder } from "../chat/PromptBuilder.js";
 import { ConversationManager } from "../chat/ConversationManager.js";
 import { AgentLoop } from "../tools/AgentLoop.js";
 import { ToolRegistry } from "../tools/ToolRegistry.js";
-import { ConfirmationGate } from "../tools/ConfirmationGate.js";
 import { computeToolActivation } from "../tools/ToolActivationRules.js";
 import { TOOL_CATALOG, toDynamicMetadata } from "../tools/ToolCatalog.js";
 import type { DynamicToolMetadata } from "../tools/ToolCatalog.js";
@@ -192,9 +191,7 @@ export class SubAgentManager {
       registry.register("grep_codebase", new GrepCodebaseTool());
     }
     if (allowed.has("run_terminal")) {
-      // No-op gate that will never be called (mode is "never").
-      const noOpGate = new ConfirmationGate(() => {});
-      registry.register("run_terminal", new RunTerminalTool(noOpGate, "never"));
+      registry.register("run_terminal", new RunTerminalTool());
     }
     if (allowed.has("web_search")) {
       registry.register("web_search", new WebSearchTool());

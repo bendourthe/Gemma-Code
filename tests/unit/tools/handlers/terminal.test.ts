@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { EventEmitter } from "events";
 import { RunTerminalTool } from "../../../../src/tools/handlers/terminal.js";
-import { ConfirmationGate } from "../../../../src/tools/ConfirmationGate.js";
 
 // ---------------------------------------------------------------------------
 // Mock child_process.spawn
@@ -49,12 +48,6 @@ function params(overrides: Record<string, unknown> = {}): Record<string, unknown
   return { _callId: "call_001", ...overrides };
 }
 
-function makeGate(approved = true): ConfirmationGate {
-  const gate = new ConfirmationGate(vi.fn());
-  vi.spyOn(gate, "request").mockResolvedValue(approved);
-  return gate;
-}
-
 beforeEach(() => {
   vi.clearAllMocks();
   vi.useFakeTimers({ shouldAdvanceTime: true });
@@ -72,7 +65,7 @@ describe("RunTerminalTool", () => {
   it("returns stdout and exitCode 0 for a successful command", async () => {
     mockSpawn.mockReturnValueOnce(makeChild("hello\n", "", 0) as ReturnType<typeof spawn>);
 
-    const tool = new RunTerminalTool(makeGate(true), "never");
+    const tool = new RunTerminalTool();
     const result = await tool.execute(params({ command: "echo hello" }));
 
     expect(result.success).toBe(true);
@@ -84,7 +77,7 @@ describe("RunTerminalTool", () => {
   it("returns success:false and exitCode for a failing command", async () => {
     mockSpawn.mockReturnValueOnce(makeChild("", "error: not found", 1) as ReturnType<typeof spawn>);
 
-    const tool = new RunTerminalTool(makeGate(true), "never");
+    const tool = new RunTerminalTool();
     const result = await tool.execute(params({ command: "badcmd" }));
 
     expect(result.success).toBe(false);
@@ -94,7 +87,7 @@ describe("RunTerminalTool", () => {
   });
 
   it("blocks a command that matches the safety blocklist", async () => {
-    const tool = new RunTerminalTool(makeGate(true), "never");
+    const tool = new RunTerminalTool();
     const result = await tool.execute(params({ command: "rm -rf /" }));
 
     expect(result.success).toBe(false);
@@ -103,7 +96,7 @@ describe("RunTerminalTool", () => {
   });
 
   it("blocks case-insensitively (SHUTDOWN)", async () => {
-    const tool = new RunTerminalTool(makeGate(true), "never");
+    const tool = new RunTerminalTool();
     const result = await tool.execute(params({ command: "SHUTDOWN /s" }));
 
     expect(result.success).toBe(false);
@@ -111,42 +104,26 @@ describe("RunTerminalTool", () => {
     expect(mockSpawn).not.toHaveBeenCalled();
   });
 
-  it("calls the confirmation gate in 'ask' mode", async () => {
-    mockSpawn.mockReturnValueOnce(makeChild("ok", "", 0) as ReturnType<typeof spawn>);
-
-    const gate = makeGate(true);
-    const tool = new RunTerminalTool(gate, "ask");
-    await tool.execute(params({ command: "ls" }));
-
-    expect(gate.request).toHaveBeenCalledOnce();
-    expect(mockSpawn).toHaveBeenCalled();
-  });
-
-  it("returns failure when user rejects the confirmation", async () => {
-    const gate = makeGate(false);
-    const tool = new RunTerminalTool(gate, "ask");
-    const result = await tool.execute(params({ command: "ls" }));
+  it("blocks commands hidden in shell metacharacters", async () => {
+    const tool = new RunTerminalTool();
+    const result = await tool.execute(params({ command: "echo ok; rm -rf /" }));
 
     expect(result.success).toBe(false);
-    expect(result.error).toMatch(/rejected/i);
+    expect(result.error).toMatch(/blocked/i);
     expect(mockSpawn).not.toHaveBeenCalled();
   });
 
-  it("skips confirmation gate in 'never' mode", async () => {
-    mockSpawn.mockReturnValueOnce(makeChild("out", "", 0) as ReturnType<typeof spawn>);
-
-    const gate = makeGate(true);
-    const tool = new RunTerminalTool(gate, "never");
-    const result = await tool.execute(params({ command: "echo test" }));
-
-    expect(result.success).toBe(true);
-    expect(gate.request).not.toHaveBeenCalled();
-  });
-
   it("returns failure when command parameter is missing", async () => {
-    const tool = new RunTerminalTool(makeGate(), "never");
+    const tool = new RunTerminalTool();
     const result = await tool.execute(params());
     expect(result.success).toBe(false);
     expect(result.error).toMatch(/command/i);
+  });
+
+  it("accepts a custom timeout", async () => {
+    const tool = new RunTerminalTool(5000);
+    mockSpawn.mockReturnValueOnce(makeChild("ok", "", 0) as ReturnType<typeof spawn>);
+    const result = await tool.execute(params({ command: "echo test" }));
+    expect(result.success).toBe(true);
   });
 });

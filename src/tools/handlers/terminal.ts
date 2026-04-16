@@ -3,10 +3,8 @@ import * as vscode from "vscode";
 import type {
   ToolHandler,
   ToolResult,
-  ConfirmationMode,
   RunTerminalParams,
 } from "../types.js";
-import type { ConfirmationGate } from "../ConfirmationGate.js";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
@@ -15,7 +13,7 @@ const DEFAULT_TIMEOUT_MS = 30_000;
  * The full command string AND every individual segment (split on shell metacharacters)
  * are each checked, so patterns like `echo ok; rm -rf /` are still caught.
  */
-const BLOCKED_PATTERNS = [
+export const BLOCKED_PATTERNS = [
   "rm -rf /",
   "rm -rf /*",
   "rm -rf ~",
@@ -40,7 +38,7 @@ function shellSegments(command: string): string[] {
   return command.split(/;|&&|\|\||[\n|]/).map((s) => s.trim()).filter(Boolean);
 }
 
-function isBlocked(command: string): boolean {
+export function isBlocked(command: string): boolean {
   const segments = [command, ...shellSegments(command)];
   return segments.some((seg) => {
     const normalized = seg.toLowerCase().trim();
@@ -62,8 +60,6 @@ function failResult(id: string, error: string): ToolResult {
 
 export class RunTerminalTool implements ToolHandler {
   constructor(
-    private readonly _confirmationGate: ConfirmationGate,
-    private readonly _mode: ConfirmationMode,
     private readonly _timeoutMs: number = DEFAULT_TIMEOUT_MS
   ) {}
 
@@ -75,19 +71,10 @@ export class RunTerminalTool implements ToolHandler {
       return failResult(id, "Missing required parameter: command");
     }
 
+    // Hard safety: unconditionally block dangerous command patterns.
+    // Confirmation is handled centrally by ToolRegistry via PermissionTiers.
     if (isBlocked(p.command)) {
       return failResult(id, `Command is blocked for safety: "${p.command}"`);
-    }
-
-    // Ask for confirmation before executing (unless mode is "never").
-    if (this._mode !== "never") {
-      const approved = await this._confirmationGate.request(
-        id,
-        `Run terminal command: ${p.command}`
-      );
-      if (!approved) {
-        return failResult(id, "Command rejected by user.");
-      }
     }
 
     const cwd = typeof p.cwd === "string" ? p.cwd : workspaceRoot();

@@ -280,6 +280,38 @@
           ],
           "default": null,
           "description": "Override auto-detected GPU tier. Set to null for auto-detection."
+        },
+        "gemma-code.maxSessionTokens": {
+          "type": "number",
+          "default": 500000,
+          "description": "Maximum estimated tokens per session before the agent loop is stopped. Default is 500,000 (~4x the 128K context window)."
+        },
+        "gemma-code.maxSessionMinutes": {
+          "type": "number",
+          "default": 30,
+          "description": "Maximum wall-clock minutes per agent session before the loop is stopped."
+        },
+        "gemma-code.permissionOverrides": {
+          "type": "object",
+          "default": {},
+          "description": "Override default permission tiers for individual tools. Values: 0 = auto-approve, 1 = confirm, 2 = dangerous."
+        },
+        "gemma-code.gpuTier": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "1",
+            "2",
+            "3"
+          ],
+          "enumDescriptions": [
+            "Auto-detect from model name",
+            "Tier 1: Constrained (6-8 GB VRAM, conservative limits)",
+            "Tier 2: Balanced (12-16 GB VRAM, moderate limits)",
+            "Tier 3: Full (24+ GB VRAM, generous limits)"
+          ],
+          "default": "auto",
+          "description": "GPU tier for safety and iteration limits. Controls max agent iterations, sub-agent concurrency, and compaction thresholds."
         }
       }
     }

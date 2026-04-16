@@ -1,11 +1,15 @@
 import type { DynamicToolMetadata } from "./ToolCatalog.js";
 import type { ToolCall, ToolHandler, ToolName, ToolResult } from "./types.js";
 import type { OutputRedirector } from "./OutputRedirector.js";
+import type { ConfirmationGate } from "./ConfirmationGate.js";
+import { getPermissionTier, shouldRequireConfirmation, getDangerousWarning, PermissionTier } from "../safety/PermissionTiers.js";
 
 export class ToolRegistry {
   private readonly _handlers = new Map<ToolName, ToolHandler>();
   private readonly _enabled = new Map<ToolName, boolean>();
   private _redirector?: OutputRedirector;
+  private _confirmationGate?: ConfirmationGate;
+  private _permissionOverrides?: Record<string, number>;
 
   register(name: ToolName, handler: ToolHandler): void {
     this._handlers.set(name, handler);
@@ -49,6 +53,16 @@ export class ToolRegistry {
   }
 
   /**
+   * Set the centralized confirmation gate and permission overrides.
+   * When configured, execute() checks the permission tier of each tool
+   * and requests user confirmation for CONFIRM and DANGEROUS tiers.
+   */
+  setConfirmationGate(gate: ConfirmationGate, overrides?: Record<string, number>): void {
+    this._confirmationGate = gate;
+    this._permissionOverrides = overrides;
+  }
+
+  /**
    * Execute a tool call. Validates the tool exists and is enabled, delegates
    * to its handler, and wraps any thrown exception as a failure ToolResult so
    * the agent loop can continue rather than crash.
@@ -72,6 +86,23 @@ export class ToolRegistry {
         output: "",
         error: `Tool "${call.tool}" is currently disabled.`,
       };
+    }
+
+    // Centralized permission check: request user confirmation for CONFIRM/DANGEROUS tools.
+    if (this._confirmationGate && shouldRequireConfirmation(call.tool, this._permissionOverrides)) {
+      const tier = getPermissionTier(call.tool, this._permissionOverrides);
+      const warning = tier === PermissionTier.DANGEROUS
+        ? getDangerousWarning(call.tool, call.parameters)
+        : `Tool "${call.tool}" requires confirmation.`;
+      const approved = await this._confirmationGate.request(call.id, warning);
+      if (!approved) {
+        return {
+          id: call.id,
+          success: false,
+          output: "",
+          error: `Tool "${call.tool}" was rejected by user.`,
+        };
+      }
     }
 
     try {

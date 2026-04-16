@@ -48,6 +48,9 @@ import { UnifiedMemoryRetriever } from "../storage/UnifiedMemoryRetriever.js";
 import Database from "better-sqlite3";
 import type { HardwareTierConfig } from "../config/HardwareTier.types.js";
 import { BudgetMiddleware, createSessionBudget } from "../tools/BudgetMiddleware.js";
+import { GitSafetyNet } from "../safety/GitSafetyNet.js";
+import { LoopDetector } from "../safety/LoopDetector.js";
+import { detectGpuTier, getEffectiveProfile } from "../config/GpuTierConfig.js";
 import { renderMarkdown } from "../utils/MarkdownRenderer.js";
 import type { EditMode } from "../tools/types.js";
 import type {
@@ -85,6 +88,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
   private _mcpManager: McpManager | null = null;
   private _tierConfig?: HardwareTierConfig;
   private _mcpServer: McpServer | null = null;
+  private readonly _gitSafetyNet: GitSafetyNet | null;
   private readonly _subAgentManager: SubAgentManager;
 
   constructor(
@@ -184,12 +188,20 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
       settings.modelName,
     );
 
+    // Git safety net: auto-checkpoint/rollback for agent file modifications.
+    const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    this._gitSafetyNet = workspacePath ? new GitSafetyNet(workspacePath) : null;
+
+    // GPU-tier-aware safety configuration.
+    const gpuTier = detectGpuTier(settings);
+    const tierProfile = getEffectiveProfile(settings, gpuTier);
+
     this._agentLoop = new AgentLoop(
       client,
       this._manager,
       this._registry,
       settings.modelName,
-      settings.maxAgentIterations,
+      tierProfile.maxAgentIterations,
       this._compactor,
       ollamaOptions,
       ollamaTools,
@@ -200,6 +212,8 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
         workingMemory: this._workingMemory ?? undefined,
         episodicMemory: this._episodicMemory ?? undefined,
         sessionId: this._manager.sessionId ?? undefined,
+        gitSafetyNet: this._gitSafetyNet ?? undefined,
+        loopDetector: new LoopDetector(),
       },
     );
 
@@ -277,7 +291,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
 
   private _buildToolRegistry(
     editMode: EditMode,
-    confirmationMode: "always" | "ask" | "never"
+    _confirmationMode: "always" | "ask" | "never"
   ): ToolRegistry {
     const registry = new ToolRegistry();
     const gate = this._confirmationGate;
@@ -289,9 +303,12 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     registry.register("edit_file", new EditFileTool(gate, editMode));
     registry.register("list_directory", new ListDirectoryTool());
     registry.register("grep_codebase", new GrepCodebaseTool());
-    registry.register("run_terminal", new RunTerminalTool(gate, confirmationMode));
+    registry.register("run_terminal", new RunTerminalTool());
     registry.register("web_search", new WebSearchTool());
     registry.register("fetch_page", new FetchPageTool());
+
+    // Centralized permission enforcement via PermissionTiers.
+    registry.setConfirmationGate(gate);
 
     return registry;
   }
@@ -375,6 +392,20 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
       case "setEditMode":
         await this._handleSetEditMode(message.mode);
         break;
+
+      case "rollbackRequest": {
+        const checkpoint = this._agentLoop.getLastCheckpoint();
+        if (checkpoint && this._gitSafetyNet) {
+          const success = await this._gitSafetyNet.rollback(checkpoint);
+          this._postToWebview({
+            type: "error",
+            text: success
+              ? `Rolled back to checkpoint ${checkpoint.headSha.slice(0, 7)}.`
+              : "Rollback failed. Check git status manually.",
+          });
+        }
+        break;
+      }
     }
   }
 

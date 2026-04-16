@@ -35,6 +35,10 @@ export interface GemmaCodeSettings {
   subAgentMaxIterations: number;
   autoDetectGpu: boolean;
   gpuTierOverride: HardwareTierId | null;
+  maxSessionTokens: number;
+  maxSessionMinutes: number;
+  permissionOverrides: Record<string, number>;
+  gpuTier: "auto" | "1" | "2" | "3";
 }
 
 export function getSettings(): GemmaCodeSettings {
@@ -70,6 +74,10 @@ export function getSettings(): GemmaCodeSettings {
     subAgentMaxIterations: config.get<number>("subAgentMaxIterations") ?? 10,
     autoDetectGpu: config.get<boolean>("autoDetectGpu") ?? true,
     gpuTierOverride: (config.get<number | null>("gpuTierOverride") ?? null) as HardwareTierId | null,
+    maxSessionTokens: config.get<number>("maxSessionTokens") ?? 500000,
+    maxSessionMinutes: config.get<number>("maxSessionMinutes") ?? 30,
+    permissionOverrides: config.get<Record<string, number>>("permissionOverrides") ?? {},
+    gpuTier: (config.get<string>("gpuTier") as "auto" | "1" | "2" | "3" | undefined) ?? "auto",
   };
 }
 

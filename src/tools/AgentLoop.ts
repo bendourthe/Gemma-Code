@@ -10,6 +10,10 @@ import type { BudgetMiddleware } from "./BudgetMiddleware.js";
 import type { WorkingMemory } from "../storage/WorkingMemory.js";
 import type { EpisodicMemory } from "../storage/EpisodicMemory.js";
 import { recordToolEvent } from "../storage/EpisodicMemory.js";
+import type { LoopDetector } from "../safety/LoopDetector.js";
+import type { BudgetEnforcer } from "../safety/BudgetEnforcer.js";
+import type { GitSafetyNet, GitCheckpoint } from "../safety/GitSafetyNet.js";
+import { classifyAction, ActionRisk } from "../safety/ActionClassifier.js";
 
 const DEFAULT_MAX_ITERATIONS = 20;
 
@@ -26,6 +30,9 @@ export interface AgentLoopOptions {
   readonly workingMemory?: WorkingMemory;
   readonly episodicMemory?: EpisodicMemory;
   readonly sessionId?: string;
+  readonly loopDetector?: LoopDetector;
+  readonly budgetEnforcer?: BudgetEnforcer;
+  readonly gitSafetyNet?: GitSafetyNet;
 }
 
 export class AgentLoop {
@@ -42,6 +49,10 @@ export class AgentLoop {
   private readonly _workingMemory?: WorkingMemory;
   private readonly _episodicMemory?: EpisodicMemory;
   private readonly _sessionId?: string;
+  private readonly _loopDetector?: LoopDetector;
+  private readonly _budgetEnforcer?: BudgetEnforcer;
+  private readonly _gitSafetyNet?: GitSafetyNet;
+  private _gitCheckpoint: GitCheckpoint | null = null;
 
   constructor(
     private readonly _client: OllamaClient,
@@ -61,6 +72,9 @@ export class AgentLoop {
     this._workingMemory = options?.workingMemory;
     this._episodicMemory = options?.episodicMemory;
     this._sessionId = options?.sessionId;
+    this._loopDetector = options?.loopDetector;
+    this._budgetEnforcer = options?.budgetEnforcer;
+    this._gitSafetyNet = options?.gitSafetyNet;
   }
 
   /** Set or replace the budget middleware (used for async tier config updates). */
@@ -76,6 +90,11 @@ export class AgentLoop {
   /** Files modified during this agent loop session (tracked via write/edit/create calls). */
   getModifiedFiles(): readonly string[] {
     return [...this._modifiedFiles];
+  }
+
+  /** The last git checkpoint created at the start of run(), if any. */
+  getLastCheckpoint(): GitCheckpoint | null {
+    return this._gitCheckpoint;
   }
 
   /** Recent tool result summaries (last 5). */
@@ -105,6 +124,15 @@ export class AgentLoop {
       return;
     }
     this._cancelled = false;
+    this._loopDetector?.reset();
+
+    // Git safety: create a checkpoint before the agent modifies files.
+    if (this._gitSafetyNet) {
+      this._gitCheckpoint = await this._gitSafetyNet.createCheckpoint();
+      if (this._gitCheckpoint) {
+        postMessage({ type: "gitCheckpoint", sha: this._gitCheckpoint.headSha, filesChanged: 0 });
+      }
+    }
 
     for (let iteration = 0; iteration < this._maxIterations; iteration++) {
       if (this._cancelled) return;
@@ -124,6 +152,15 @@ export class AgentLoop {
             postMessage({ type: "error", text: `Budget exhausted: ${check.reason}` });
             return;
           }
+        }
+      }
+
+      // Session-level budget check (token + time limits).
+      if (this._budgetEnforcer) {
+        const budget = this._budgetEnforcer.checkBudget();
+        if (!budget.withinBudget) {
+          postMessage({ type: "error", text: `Session budget exceeded. ${this._budgetEnforcer.getUsageReport()}` });
+          return;
         }
       }
 
@@ -160,6 +197,33 @@ export class AgentLoop {
         if (!parsed.ok) continue; // skip malformed calls silently
 
         const { call } = parsed;
+
+        // Action classification: check risk level before execution.
+        const classification = classifyAction(call);
+        postMessage({
+          type: "actionClassification",
+          callId: call.id,
+          risk: classification.risk,
+          reason: classification.reason,
+        });
+
+        if (classification.risk === ActionRisk.BLOCKED) {
+          postMessage({
+            type: "toolResult",
+            callId: call.id,
+            success: false,
+            summary: `Blocked: ${classification.reason}`,
+          });
+          this._manager.addUserMessage(
+            `[Tool ${call.tool}] Error: Action blocked for safety. ${classification.reason}`,
+          );
+          continue;
+        }
+
+        if (classification.requiresCheckpoint && this._gitSafetyNet) {
+          await this._gitSafetyNet.createCheckpoint(`pre-${call.tool}`);
+        }
+
         postMessage({ type: "toolUse", toolName: call.tool, callId: call.id });
 
         // Pass the call id to the handler via a special _callId parameter.
@@ -218,7 +282,23 @@ export class AgentLoop {
         }
 
         // Inject the tool result back into the conversation as a user message.
-        this._manager.addUserMessage(formatToolResult(call.tool, result));
+        const formattedResult = formatToolResult(call.tool, result);
+        this._budgetEnforcer?.recordInput(formattedResult);
+        this._manager.addUserMessage(formattedResult);
+
+        // Loop detection: check for repetitive identical tool calls.
+        if (this._loopDetector) {
+          const verdict = this._loopDetector.record(call);
+          if (verdict.action === "terminate") {
+            postMessage({ type: "error", text: verdict.message ?? "Loop detected. Terminating." });
+            return;
+          }
+          if (verdict.action === "warn") {
+            this._manager.addUserMessage(
+              `[SYSTEM WARNING] ${verdict.message ?? "Repeated tool calls detected. Vary your approach."}`,
+            );
+          }
+        }
       }
 
       // Record iteration in budget middleware.
@@ -245,6 +325,14 @@ export class AgentLoop {
           this._manager.addUserMessage(`[Verification Report]\n\n${verifyResult.output}`);
         }
       }
+    }
+
+    // Git safety: commit agent-modified files after the loop finishes.
+    if (this._gitSafetyNet && this._modifiedFiles.length > 0 && this._gitCheckpoint) {
+      await this._gitSafetyNet.commitAgentChanges(
+        this._modifiedFiles,
+        `agent session: ${this._modifiedFiles.length} file(s) modified`,
+      );
     }
 
     // Max iterations reached.
@@ -292,6 +380,9 @@ export class AgentLoop {
         }
       }
 
+      if (!this._cancelled && accumulated) {
+        this._budgetEnforcer?.recordOutput(accumulated);
+      }
       return this._cancelled ? null : accumulated;
     } catch (err) {
       if (this._abortController.signal.aborted) {

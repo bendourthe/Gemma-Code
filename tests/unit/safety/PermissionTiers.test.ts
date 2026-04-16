@@ -1,0 +1,98 @@
+import { describe, it, expect } from "vitest";
+import {
+  PermissionTier,
+  getPermissionTier,
+  shouldRequireConfirmation,
+  getDangerousWarning,
+} from "../../../src/safety/PermissionTiers.js";
+import type { ToolName } from "../../../src/tools/types.js";
+
+describe("PermissionTiers", () => {
+  describe("getPermissionTier", () => {
+    it("returns AUTO_APPROVE for read-only built-in tools", () => {
+      expect(getPermissionTier("read_file")).toBe(PermissionTier.AUTO_APPROVE);
+      expect(getPermissionTier("list_directory")).toBe(PermissionTier.AUTO_APPROVE);
+      expect(getPermissionTier("grep_codebase")).toBe(PermissionTier.AUTO_APPROVE);
+      expect(getPermissionTier("tail_output")).toBe(PermissionTier.AUTO_APPROVE);
+      expect(getPermissionTier("grep_output")).toBe(PermissionTier.AUTO_APPROVE);
+      expect(getPermissionTier("get_tool_schema")).toBe(PermissionTier.AUTO_APPROVE);
+    });
+
+    it("returns CONFIRM for write built-in tools", () => {
+      expect(getPermissionTier("write_file")).toBe(PermissionTier.CONFIRM);
+      expect(getPermissionTier("edit_file")).toBe(PermissionTier.CONFIRM);
+      expect(getPermissionTier("create_file")).toBe(PermissionTier.CONFIRM);
+      expect(getPermissionTier("delete_file")).toBe(PermissionTier.CONFIRM);
+    });
+
+    it("returns DANGEROUS for execution/network built-in tools", () => {
+      expect(getPermissionTier("run_terminal")).toBe(PermissionTier.DANGEROUS);
+      expect(getPermissionTier("web_search")).toBe(PermissionTier.DANGEROUS);
+      expect(getPermissionTier("fetch_page")).toBe(PermissionTier.DANGEROUS);
+    });
+
+    it("defaults MCP tools to DANGEROUS", () => {
+      expect(getPermissionTier("mcp:server/tool" as ToolName)).toBe(PermissionTier.DANGEROUS);
+    });
+
+    it("applies user overrides over defaults", () => {
+      const overrides = { read_file: PermissionTier.DANGEROUS };
+      expect(getPermissionTier("read_file", overrides)).toBe(PermissionTier.DANGEROUS);
+    });
+
+    it("ignores invalid override values", () => {
+      const overrides = { read_file: 99 };
+      expect(getPermissionTier("read_file", overrides)).toBe(PermissionTier.AUTO_APPROVE);
+    });
+  });
+
+  describe("shouldRequireConfirmation", () => {
+    it("returns false for AUTO_APPROVE tools", () => {
+      expect(shouldRequireConfirmation("read_file")).toBe(false);
+      expect(shouldRequireConfirmation("list_directory")).toBe(false);
+    });
+
+    it("returns true for CONFIRM tools", () => {
+      expect(shouldRequireConfirmation("write_file")).toBe(true);
+      expect(shouldRequireConfirmation("edit_file")).toBe(true);
+    });
+
+    it("returns true for DANGEROUS tools", () => {
+      expect(shouldRequireConfirmation("run_terminal")).toBe(true);
+      expect(shouldRequireConfirmation("fetch_page")).toBe(true);
+    });
+
+    it("respects user overrides", () => {
+      const overrides = { run_terminal: PermissionTier.AUTO_APPROVE };
+      expect(shouldRequireConfirmation("run_terminal", overrides)).toBe(false);
+    });
+  });
+
+  describe("getDangerousWarning", () => {
+    it("returns command text for run_terminal", () => {
+      const warning = getDangerousWarning("run_terminal", { command: "rm -rf /" });
+      expect(warning).toContain("rm -rf /");
+      expect(warning).toContain("execute a shell command");
+    });
+
+    it("returns query text for web_search", () => {
+      const warning = getDangerousWarning("web_search", { query: "test query" });
+      expect(warning).toContain("test query");
+    });
+
+    it("returns url for fetch_page", () => {
+      const warning = getDangerousWarning("fetch_page", { url: "https://example.com" });
+      expect(warning).toContain("https://example.com");
+    });
+
+    it("returns generic warning for MCP tools", () => {
+      const warning = getDangerousWarning("mcp:server/tool" as ToolName, {});
+      expect(warning).toContain("elevated permission");
+    });
+
+    it("returns empty string for non-DANGEROUS tools", () => {
+      expect(getDangerousWarning("read_file", {})).toBe("");
+      expect(getDangerousWarning("write_file", {})).toBe("");
+    });
+  });
+});
