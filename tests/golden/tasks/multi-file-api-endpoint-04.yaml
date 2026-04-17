@@ -1,0 +1,29 @@
+id: multi-file-api-endpoint-04
+name: Add a new REST endpoint
+category: multi-file-edit
+description: |
+  Add a new REST endpoint GET /items that returns a static list
+  `[{"id":1,"name":"alpha"}, {"id":2,"name":"beta"}]`. Create
+  src/routes/items.ts with the handler, register the route in src/server.ts,
+  and add a minimal test file tests/items.test.ts asserting the response
+  body. `npx tsc --noEmit` must succeed.
+initial_state: snapshots/multi-file-api-endpoint-04
+expected_files_changed:
+  - src/server.ts
+  - src/routes/items.ts
+  - tests/items.test.ts
+success_criteria:
+  - type: file_exists
+    target: src/routes/items.ts
+    description: new route module created
+  - type: file_contains
+    target: src/server.ts
+    pattern: "items"
+    description: route registered in server
+  - type: file_exists
+    target: tests/items.test.ts
+    description: test file exists
+max_iterations: 20
+timeout_seconds: 240
+model_tier: e4b
+tags: [typescript, medium, api]

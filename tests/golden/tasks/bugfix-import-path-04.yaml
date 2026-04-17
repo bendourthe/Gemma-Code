@@ -1,0 +1,25 @@
+id: bugfix-import-path-04
+name: Repair broken import paths
+config: bug-fix
+category: bug-fix
+description: |
+  After a recent directory restructure, src/main.ts imports from wrong
+  relative paths (referencing ../helpers when helpers now lives under
+  ./helpers). Update all three broken import paths in src/main.ts so that
+  `npx tsc --noEmit` passes.
+initial_state: snapshots/bugfix-import-path-04
+expected_files_changed:
+  - src/main.ts
+success_criteria:
+  - type: file_contains
+    target: src/main.ts
+    pattern: "./helpers/"
+    description: paths point to the correct helpers directory
+  - type: output_contains
+    target: "grep -c \"../\" src/main.ts || true"
+    pattern: "^[01]$"
+    description: no stray parent-directory imports remain
+max_iterations: 10
+timeout_seconds: 120
+model_tier: e2b
+tags: [easy, typescript, imports]

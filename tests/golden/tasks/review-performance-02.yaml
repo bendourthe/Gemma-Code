@@ -1,0 +1,23 @@
+id: review-performance-02
+name: Replace O(n squared) lookup with a Map
+category: code-review
+description: |
+  src/dedupe.ts uses nested loops to find duplicates in O(n^2) time.
+  Rewrite the algorithm using a Set or Map so it runs in O(n). The exported
+  function signature and behavior must remain the same.
+initial_state: snapshots/review-performance-02
+expected_files_changed:
+  - src/dedupe.ts
+success_criteria:
+  - type: file_contains
+    target: src/dedupe.ts
+    pattern: "(Set|Map)"
+    description: Set or Map used
+  - type: output_contains
+    target: "grep -c \"for .* of\" src/dedupe.ts || true"
+    pattern: "^[01]$"
+    description: nested loops removed
+max_iterations: 12
+timeout_seconds: 180
+model_tier: e4b
+tags: [medium, typescript, performance, review]

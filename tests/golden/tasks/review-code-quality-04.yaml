@@ -1,0 +1,23 @@
+id: review-code-quality-04
+name: Clean up code smells
+category: code-review
+description: |
+  src/process.ts has several code smells: magic numbers, dead code, and a
+  too-long function. Extract named constants for the magic numbers, remove
+  the dead code branch, and split the long function into two smaller ones.
+initial_state: snapshots/review-code-quality-04
+expected_files_changed:
+  - src/process.ts
+success_criteria:
+  - type: file_contains
+    target: src/process.ts
+    pattern: "(const [A-Z_]+ = |const [A-Z_]+[A-Z_0-9]* = )"
+    description: named constants extracted
+  - type: output_contains
+    target: "grep -c \"function \" src/process.ts || true"
+    pattern: "^[2-9]$"
+    description: at least two functions declared (split accomplished)
+max_iterations: 15
+timeout_seconds: 180
+model_tier: e4b
+tags: [medium, typescript, quality, review]

@@ -1,0 +1,27 @@
+id: multi-file-type-propagation-05
+name: Propagate a changed return type through the call chain
+category: multi-file-edit
+description: |
+  In src/d.ts the function `fetchValue()` currently returns `number`. Change
+  its return type to `{ value: number; cached: boolean }` and propagate the
+  new shape through src/c.ts -> src/b.ts -> src/a.ts. All callers must
+  continue to compile under `tsc --noEmit` strict mode.
+initial_state: snapshots/multi-file-type-propagation-05
+expected_files_changed:
+  - src/d.ts
+  - src/c.ts
+  - src/b.ts
+  - src/a.ts
+success_criteria:
+  - type: file_contains
+    target: src/d.ts
+    pattern: "cached"
+    description: new return shape in source
+  - type: file_contains
+    target: src/a.ts
+    pattern: "cached|value"
+    description: top-level caller uses the new shape
+max_iterations: 20
+timeout_seconds: 240
+model_tier: e4b
+tags: [typescript, hard]

@@ -1,0 +1,19 @@
+id: bugfix-off-by-one-01
+name: Fix an off-by-one loop bug
+category: bug-fix
+description: |
+  src/process.ts contains a loop with `i <= arr.length` which causes an
+  out-of-bounds access. Fix the condition to `i < arr.length` and ensure
+  `npx tsc --noEmit` passes.
+initial_state: snapshots/bugfix-off-by-one-01
+expected_files_changed:
+  - src/process.ts
+success_criteria:
+  - type: file_contains
+    target: src/process.ts
+    pattern: "i < arr.length"
+    description: loop bound corrected
+max_iterations: 10
+timeout_seconds: 120
+model_tier: e2b
+tags: [easy, typescript, bugfix]

@@ -1,0 +1,23 @@
+id: review-error-handling-03
+name: Add missing error handling to async pipeline
+category: code-review
+description: |
+  src/pipeline.ts has a chain of unguarded async calls. Wrap each call
+  with proper error handling so that failures do not crash the process,
+  logging the error and returning null (or a safe fallback) instead.
+initial_state: snapshots/review-error-handling-03
+expected_files_changed:
+  - src/pipeline.ts
+success_criteria:
+  - type: file_contains
+    target: src/pipeline.ts
+    pattern: "try|catch|catch \\("
+    description: try/catch introduced
+  - type: file_contains
+    target: src/pipeline.ts
+    pattern: "(console\\.error|logger|return null)"
+    description: errors are logged or handled
+max_iterations: 14
+timeout_seconds: 180
+model_tier: e4b
+tags: [medium, typescript, errors, review]

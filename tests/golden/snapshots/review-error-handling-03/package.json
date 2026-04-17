@@ -1,0 +1,8 @@
+{
+  "name": "golden-review-error-handling-03",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": { "build": "tsc --noEmit" },
+  "devDependencies": { "typescript": "^5.4.0" }
+}

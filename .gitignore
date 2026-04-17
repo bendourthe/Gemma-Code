@@ -190,3 +190,11 @@ coverage.xml
 # npm Auth Tokens
 # ==============================================================================
 .npmrc
+
+# ==============================================================================
+# Golden Task Suite (Phase 8)
+# ==============================================================================
+tests/golden/.worktrees/
+tests/smoke/results/
+tests/golden/snapshots/*/.git/
+tests/golden/snapshots/*/node_modules/

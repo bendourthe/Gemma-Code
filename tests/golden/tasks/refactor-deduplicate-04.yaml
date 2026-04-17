@@ -1,0 +1,33 @@
+id: refactor-deduplicate-04
+name: Deduplicate a block across 3 files
+category: refactor
+description: |
+  src/a.ts, src/b.ts, src/c.ts contain nearly identical 10-line blocks that
+  normalize a string. Extract the common block into src/normalize.ts and
+  import it in all three callers.
+initial_state: snapshots/refactor-deduplicate-04
+expected_files_changed:
+  - src/a.ts
+  - src/b.ts
+  - src/c.ts
+  - src/normalize.ts
+success_criteria:
+  - type: file_exists
+    target: src/normalize.ts
+    description: shared module created
+  - type: file_contains
+    target: src/a.ts
+    pattern: "normalize"
+    description: a.ts imports normalize
+  - type: file_contains
+    target: src/b.ts
+    pattern: "normalize"
+    description: b.ts imports normalize
+  - type: file_contains
+    target: src/c.ts
+    pattern: "normalize"
+    description: c.ts imports normalize
+max_iterations: 15
+timeout_seconds: 180
+model_tier: e4b
+tags: [medium, typescript, refactor]

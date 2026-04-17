@@ -1,0 +1,28 @@
+id: testgen-unit-function-01
+name: Generate unit tests for pure functions
+category: test-gen
+description: |
+  src/math.ts exports `add`, `multiply`, and `divide` with no tests yet.
+  Create tests/math.test.ts using a simple node --test style (import the
+  functions, declare tests with test() from node:test, assert with
+  node:assert) covering happy paths and edge cases (negative values,
+  division by zero throws).
+initial_state: snapshots/testgen-unit-function-01
+expected_files_changed:
+  - tests/math.test.ts
+success_criteria:
+  - type: file_exists
+    target: tests/math.test.ts
+    description: test file exists
+  - type: file_contains
+    target: tests/math.test.ts
+    pattern: "add"
+    description: tests cover add
+  - type: file_contains
+    target: tests/math.test.ts
+    pattern: "divide"
+    description: tests cover divide
+max_iterations: 15
+timeout_seconds: 180
+model_tier: e4b
+tags: [easy, typescript, testgen]

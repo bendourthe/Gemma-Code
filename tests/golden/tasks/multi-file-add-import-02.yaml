@@ -1,0 +1,29 @@
+id: multi-file-add-import-02
+name: Add utility and wire it into callers
+category: multi-file-edit
+description: |
+  Add a new `subtract(a, b)` function to src/utils.ts and call it from
+  src/service.ts (computing `add(x, y) - subtract(x, y)`) and from
+  src/main.ts. Update imports in both files. `npx tsc --noEmit` must succeed.
+initial_state: snapshots/multi-file-add-import-02
+expected_files_changed:
+  - src/utils.ts
+  - src/service.ts
+  - src/main.ts
+success_criteria:
+  - type: file_contains
+    target: src/utils.ts
+    pattern: "export function subtract"
+    description: new function exported
+  - type: file_contains
+    target: src/service.ts
+    pattern: "subtract"
+    description: service uses subtract
+  - type: file_contains
+    target: src/main.ts
+    pattern: "subtract"
+    description: main uses subtract
+max_iterations: 15
+timeout_seconds: 180
+model_tier: e4b
+tags: [fast, typescript]

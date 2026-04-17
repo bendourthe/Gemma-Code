@@ -1,0 +1,20 @@
+id: bugfix-null-check-02
+name: Add missing null guard
+category: bug-fix
+description: |
+  src/access.ts contains `function getName(user)` that accesses
+  `user.profile.name` without checking for null. Add a null-safe access
+  (optional chaining or an explicit check) so the function returns an empty
+  string when `user` or `user.profile` is null.
+initial_state: snapshots/bugfix-null-check-02
+expected_files_changed:
+  - src/access.ts
+success_criteria:
+  - type: file_contains
+    target: src/access.ts
+    pattern: "\\?\\.|== null|!= null|=== null|!== null|!user"
+    description: null-safe access added
+max_iterations: 10
+timeout_seconds: 120
+model_tier: e2b
+tags: [easy, typescript, bugfix]

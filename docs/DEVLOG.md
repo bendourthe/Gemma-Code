@@ -4,6 +4,80 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-04-16] v0.3.0 Phase 8 -- Golden Task Suite & Integration Stabilization
+
+### Summary
+
+Eighth and final phase of v0.3.0 harness engineering. Delivered the evaluation infrastructure required to ship v0.3.0 with confidence: a declarative golden task framework, 24 concrete tasks with self-contained git snapshots, per-tier benchmark suites, baseline-based regression detection, cross-platform installer smoke tests, end-to-end integration tests for module composition, and a v0.2.0-vs-v0.3.0 comparison framework. Also expanded the PyQt5 installer with a `--headless` CLI for CI automation, and added two conservative new GitHub workflows (`golden-tasks.yml`, `installer-smoke.yml`) gated on `workflow_dispatch` + weekly cron to avoid destabilizing existing CI. All scope decisions approved by the user up front (24-task full scope, CLI flags in Phase 8, conservative CI additions, full-mock e2e).
+
+### Golden Task Framework (Sub-task 8.1)
+
+Python package at `tests/golden/framework/` with a small surface area that can be driven by either pytest or ad-hoc scripts. Dataclasses `GoldenTask`, `SuccessCriteria`, and `TaskResult` live in `types.py`. `task_loader.py` parses YAML into those dataclasses, with `load_task`, `load_all_tasks`, and filter helpers (`by_category`, `by_model_tier`, `by_tag`). `snapshot.py` copies each task's pristine snapshot into a tempdir worktree so tasks never mutate shared state and can be cleaned up even on failure. `evaluator.py` dispatches the seven `SuccessCriteria` types (`file_contains`, `file_exists`, `file_deleted`, `test_passes`, `lint_passes`, `diff_matches`, `output_contains`, `no_errors`) with 60-second subprocess timeouts for command-based checks. `reporter.py` emits both JSON and Markdown reports. `task_runner.py` supports a `dry` mode (evaluates untouched snapshot; used in framework self-tests) and a `live` mode (calls the Python backend via `httpx`); both modes always clean up the worktree. A pytest `conftest.py` registers a `live_ollama` marker and skips live tests when `OLLAMA_URL` is missing. Framework tests: 27 covering loader, evaluator, reporter, snapshot, and runner.
+
+### 24 Golden Task Definitions + Snapshots (Sub-task 8.2)
+
+24 YAML files under `tests/golden/tasks/` and 24 matching snapshot directories under `tests/golden/snapshots/`. Categories: 5 multi-file-edit, 5 bug-fix, 5 refactor, 5 test-gen, 4 code-review. Each snapshot is a minimal TypeScript project (`package.json` + `tsconfig.json` + `src/*.ts` + optional `tests/*.ts` + `README.md` + `.gitignore`) averaging 3-5 files and well under the 500-line plan target. A `_scaffold.py` helper initializes git repos in each snapshot idempotently so the agent can use `git` tools during live runs. All 24 YAMLs were verified to parse via the task loader.
+
+### Per-Tier Benchmarks + Baseline & Regression Framework (Sub-task 8.3)
+
+Three new TypeScript benchmarks under `tests/benchmarks/`:
+
+- `model-tier-matrix.bench.ts` reads `TEST_MODEL_TIERS` (comma-separated) or falls back to `TEST_MODEL`, applies tier-specific TTFT (p50 < 1000/2000/3000/5000ms for E2B/E4B/26B/31B) and throughput thresholds, follows the exact skip pattern from `time-to-first-token.bench.ts`.
+- `memory-recall.bench.ts` populates a temp SQLite-backed `MemoryStore` with 500 entries across all 5 memory types, asserts keyword `recall@5 >= 0.8` and p99 latency < 100ms on 500 entries.
+- `golden-task-perf.bench.ts` bridges Vitest to the Python runner via `child_process.spawn`, exercising 7 representative tasks across the 5 categories.
+
+Python `framework/baseline.py` saves per-version/per-tier JSON baselines (with `nvidia-smi` hardware detection best-effort). `framework/regression.py` detects pass-to-fail flips, time regressions (> 1.5x), token regressions (> 1.3x), iteration regressions (> 1.5x), and overall pass-rate drops (> 5 pts). Empty baseline stubs placed at `tests/golden/baselines/v0.3.0-{e2b,e4b}.json`. Documentation in `docs/v0.3.0/performance-benchmarks.md` captures tier thresholds, recall targets, regression methodology, and local run commands.
+
+### Installer CLI Automation + Smoke Tests (Sub-task 8.4)
+
+Expanded `scripts/installer/pyqt/src/gemma_installer/main.py` with 5 new argparse flags (`--headless`, `--model`, `--install-path`, `--skip-model`, `--json-output`). In headless mode the PyQt5 import is deferred and the `InstallEngine`'s four orchestrated installers (Ollama, extension, venv, model) run in-process; success/failure is emitted as JSON on stdout when `--json-output` is set. Exit code 0 on success, 1 otherwise.
+
+Added `tests/smoke/` with cross-platform shell scripts: `smoke-windows.ps1` (winget + PowerShell), `smoke-macos.sh` (brew + bash), `smoke-linux.sh` (apt + bash), each invoking `verify-components.py` (checks VS Code CLI, Ollama reachability, venv, optional model, optional backend) and `cleanup.py`. Python unit tests (7, via `importlib.util`) exercise the pure branches of both helpers without requiring an actual installed system.
+
+### E2E Integration Tests with Full Mocks (Sub-task 8.5)
+
+Six new test files under `tests/integration/e2e/` verifying cross-module composition without requiring a live Ollama:
+
+- `full-pipeline.test.ts` composes `PromptBuilder` + `ToolRegistry` and verifies the Gemma 4 native tool protocol (`<|tool>`, `<tool|>` tokens), round-trip tool execution, and that disabled tools are omitted from the prompt.
+- `memory-across-sessions.test.ts` persists memories in one `MemoryStore` instance and verifies retrieval in a second instance over the same on-disk SQLite database, with stats confirming all 5 types accumulated correctly.
+- `compaction-under-load.test.ts` exercises the real `CompactionPipeline` (tool-result clearing + sliding window + code-block truncation + emergency trim) against a synthetic 60-message conversation, verifying budget compliance, system-prompt preservation, and recent-message retention.
+- `sub-agent-verification.test.ts` calls `computeToolActivation` for verification/research sub-agent scopes, 15-tool cap enforcement, read-only session, network unavailability, and Ollama unreachable edge case.
+- `mcp-tool-integration.test.ts` registers an MCP tool with `ToolRegistry`, executes it, and verifies the 15-tool cap preferentially disables MCP tools over built-ins.
+- `prompt-budget-compliance.test.ts` asserts budget compliance for E2B/E4B (128K) and 26B (256K) tiers, with all optional sections active, and confirms the base section is preserved under a tight 5% budget.
+
+All 26 tests pass without any `OLLAMA_URL` or external dependency.
+
+### Comparison Framework + Full Documentation (Sub-task 8.6)
+
+`framework/comparison.py` produces a `ComparisonReport` with executive summary, per-category delta table, per-task improvements and regressions, and new-tasks-in-current-version lists, rendered as Markdown via `generate_comparison_markdown`. 4 accompanying tests (`test_comparison.py`) cover overall metrics, improvement/regression detection, new-task identification, and both clean/regressed markdown renders.
+
+Documentation: new `docs/v0.3.0/architecture.md` extends the v0.2.0 architecture with the four-component ecosystem (adding the PyQt5 installer), v0.3.0 component table, installer architecture with 9-page flow, headless mode docs, platform-detection flow, and quality-assurance architecture (golden task flow, benchmark pipeline, regression detection). `docs/v0.3.0/performance-comparison.md` provides a methodology + template that gets filled in by the comparison tool once baselines are ready. Updated root-level `ARCHITECTURE.md` (added v0.3.0 components table), `CHANGELOG.md` (new 0.3.0 section with Phase 7 + Phase 8 entries in Keep a Changelog format), `README.md` (installer now lists Windows/macOS/Linux + headless mode + macOS Gatekeeper and Linux FUSE troubleshooting + golden task testing section), and `docs/todos.md` (Phase 8 marked complete, v0.3.0 task count updated to 55/55).
+
+### CI/CD Workflows + Release Checklist (Sub-task 8.7)
+
+Added `.github/workflows/golden-tasks.yml` with `workflow_dispatch` (accepting `model` and `categories` inputs) + weekly Sunday 04:00 UTC cron. Installs Ollama, pulls the requested model, scaffolds snapshots, runs framework tests + the dry suite, and uploads baselines as artifacts. Added `.github/workflows/installer-smoke.yml` with three jobs (Windows, macOS, Linux) each dispatching the corresponding smoke script. Deliberately kept `ci.yml`, `release.yml`, and `nightly.yml` untouched per user's conservative preference; existing CI contracts hold.
+
+Added `docs/v0.3.0/release-checklist.md` (5 phases: pre-release verification, version bump, build + test, release, post-release) and `docs/v0.3.0/ci-pipeline.md` (pipeline diagram, per-workflow summary, quality gates, secret requirements, troubleshooting matrix).
+
+### Quality Gates at Phase Completion
+
+- Golden framework: 44/44 passing (loader, evaluator, reporter, snapshot, runner, baseline, regression, comparison).
+- Smoke test helpers: 7/7 passing.
+- E2E integration tests: 26/26 passing.
+- TypeScript build: `tsc` clean.
+- TypeScript tests: 952 passing, 5 pre-existing failures in `GraphMemory` / `GraphQueryEngine` / `extension` (all introduced by Phase 3/Phase 6 before Phase 8) verified via `git stash`. No new regressions from Phase 8.
+- Python lint: `ruff check` clean on all new code.
+- Workflow YAML: all 5 workflow files parse cleanly.
+
+### Deviations from Plan
+
+- CI changes kept minimal per user direction: new workflows are `workflow_dispatch` + weekly cron only; existing PR/nightly CI untouched to preserve stability.
+- E2E tests use full mocks rather than Ollama dependency per user choice; live integration is covered by the weekly golden-tasks workflow.
+- `_scaffold.py` handles `git init` lazily instead of pre-committing each snapshot's `.git` directory, since nested `.git` dirs are not portable to the parent repo.
+- Pre-existing lint errors in `src/safety/`, `src/tools/ToolRegistry.ts` (from Phases 4/6) left untouched, following the project rule that every changed line must trace to the user's request.
+
+---
+
 ## [2026-04-15] v0.3.0 Phase 7 -- Cross-Platform PyQt5 Installer
 
 ### Summary

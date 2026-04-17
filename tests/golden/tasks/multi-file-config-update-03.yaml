@@ -1,0 +1,32 @@
+id: multi-file-config-update-03
+name: Extend Settings schema and update consumers
+category: multi-file-edit
+description: |
+  Add a required `timeout: number` field to the `Settings` interface in
+  src/config.ts, then update the four consumer files (src/a.ts, src/b.ts,
+  src/c.ts, src/d.ts) so that each one reads or references `timeout`.
+  `npx tsc --noEmit` must succeed after the change.
+initial_state: snapshots/multi-file-config-update-03
+expected_files_changed:
+  - src/config.ts
+  - src/a.ts
+  - src/b.ts
+  - src/c.ts
+  - src/d.ts
+success_criteria:
+  - type: file_contains
+    target: src/config.ts
+    pattern: "timeout"
+    description: timeout field added to Settings
+  - type: file_contains
+    target: src/a.ts
+    pattern: "timeout"
+    description: consumer a references timeout
+  - type: file_contains
+    target: src/d.ts
+    pattern: "timeout"
+    description: consumer d references timeout
+max_iterations: 18
+timeout_seconds: 180
+model_tier: e4b
+tags: [typescript, medium]

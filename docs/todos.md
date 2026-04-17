@@ -10,7 +10,7 @@
 |--------|---------|--------|-------|
 | Tasks done (v0.1.0) | 13 / 21 | 21 / 21 | -8 |
 | Tasks done (v0.2.0) | 44 / 44 | 44 / 44 | 0 |
-| Tasks done (v0.3.0) | 43 / 48 | 48 / 48 | -5 |
+| Tasks done (v0.3.0) | 55 / 55 | 55 / 55 | 0 |
 
 ---
 
@@ -155,10 +155,19 @@ Full plan: `docs/v0.3.0/implementation-plan.md`
 - [x] Comprehensive test suite (184 tests, 83% coverage) and NSIS migration to legacy (7.7)
 - [x] Testing stabilization to 80%+ coverage (7.T)
 
-### Phase 8 — Golden Task Suite & Integration Stabilization
-- [ ] 20+ golden tasks for per-tier benchmarks
-- [ ] Regression baseline and detection
-- [ ] Full documentation update
+### Phase 8 — Golden Task Suite & Integration Stabilization [COMPLETED]
+- [x] Golden task framework: types, loader, runner, evaluator, reporter, snapshot (8.1)
+- [x] 24 golden task YAMLs + snapshots across 5 categories (8.2)
+- [x] Per-tier model-matrix, memory-recall, and golden-task-perf benchmarks (8.3)
+- [x] Baseline save/load + regression detection framework (8.3)
+- [x] Installer CLI flags (`--headless`, `--model`, `--install-path`, `--skip-model`, `--json-output`) (8.4)
+- [x] Cross-platform smoke tests (Windows PowerShell, macOS/Linux bash) with verify + cleanup helpers (8.4)
+- [x] E2E integration tests: full-pipeline, memory-across-sessions, compaction-under-load, sub-agent, MCP, prompt-budget (8.5)
+- [x] Comparison framework (`compare_versions` + markdown report) (8.6)
+- [x] v0.3.0 architecture doc, performance benchmarks, performance comparison template (8.6)
+- [x] `.github/workflows/golden-tasks.yml` + `installer-smoke.yml` (conservative, workflow_dispatch + weekly cron) (8.7)
+- [x] Release checklist and CI pipeline documentation (8.7)
+- [x] ARCHITECTURE.md, CHANGELOG.md, docs/todos.md updates (8.6)
 
 ## Backlog
 

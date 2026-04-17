@@ -1,0 +1,88 @@
+name: Installer smoke tests
+
+# Verifies the PyQt5 installer works end-to-end on each platform in
+# headless mode. Conservative trigger: manual dispatch + weekly cron so
+# nightly CI stays stable.
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "0 5 * * 0"  # Sunday 05:00 UTC
+
+concurrency:
+  group: installer-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke-windows:
+    name: Windows smoke test
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install VS Code
+        run: choco install vscode --no-progress -y
+      - name: Run smoke test
+        run: pwsh -File tests/smoke/smoke-windows.ps1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-windows-results
+          path: tests/smoke/results/
+          retention-days: 14
+
+  smoke-macos:
+    name: macOS smoke test
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install VS Code
+        run: brew install --cask visual-studio-code
+      - name: Install installer deps
+        run: pip install PyQt5 httpx
+      - name: Run smoke test
+        run: bash tests/smoke/smoke-macos.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-macos-results
+          path: tests/smoke/results/
+          retention-days: 14
+
+  smoke-linux:
+    name: Linux smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install VS Code
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget gpg libxcb-xinerama0 libxkbcommon-x11-0
+          wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > packages.microsoft.gpg
+          sudo install -D -o root -g root -m 644 packages.microsoft.gpg /etc/apt/keyrings/
+          echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" | sudo tee /etc/apt/sources.list.d/vscode.list
+          sudo apt-get update
+          sudo apt-get install -y code
+      - name: Install installer deps
+        run: pip install PyQt5 httpx
+      - name: Run smoke test
+        run: bash tests/smoke/smoke-linux.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-linux-results
+          path: tests/smoke/results/
+          retention-days: 14

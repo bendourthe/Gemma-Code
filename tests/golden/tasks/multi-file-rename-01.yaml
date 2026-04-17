@@ -1,0 +1,33 @@
+id: multi-file-rename-01
+name: Rename processData across modules
+category: multi-file-edit
+description: |
+  Rename the function `processData` to `transformPayload` in src/utils.ts and
+  update every import and call site across src/service.ts and src/index.ts.
+  After the rename, `npx tsc --noEmit` must succeed with no errors.
+initial_state: snapshots/multi-file-rename-01
+expected_files_changed:
+  - src/utils.ts
+  - src/service.ts
+  - src/index.ts
+success_criteria:
+  - type: file_contains
+    target: src/utils.ts
+    pattern: "transformPayload"
+    description: function renamed in source
+  - type: file_contains
+    target: src/service.ts
+    pattern: "transformPayload"
+    description: call site updated in service
+  - type: file_contains
+    target: src/index.ts
+    pattern: "transformPayload"
+    description: call site updated in index
+  - type: output_contains
+    target: "grep -r \"processData\" src || true"
+    pattern: "^$"
+    description: no occurrences of old name remain
+max_iterations: 15
+timeout_seconds: 180
+model_tier: e4b
+tags: [fast, typescript, rename]

@@ -1,0 +1,22 @@
+id: testgen-error-handling-05
+name: Generate tests for error-handling branches
+category: test-gen
+description: |
+  src/validator.ts validates input and throws custom errors for each
+  failure type. Write tests/validator.test.ts that covers every error
+  branch: missing field, wrong type, out of range.
+initial_state: snapshots/testgen-error-handling-05
+expected_files_changed:
+  - tests/validator.test.ts
+success_criteria:
+  - type: file_exists
+    target: tests/validator.test.ts
+    description: test file exists
+  - type: file_contains
+    target: tests/validator.test.ts
+    pattern: "assert\\.throws|throws|rejects"
+    description: error branches exercised
+max_iterations: 15
+timeout_seconds: 180
+model_tier: e4b
+tags: [medium, typescript, testgen, errors]

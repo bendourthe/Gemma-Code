@@ -1,0 +1,24 @@
+id: refactor-callback-to-async-03
+name: Convert callbacks to async/await
+category: refactor
+description: |
+  src/reader.ts uses nested callbacks (callback hell). Convert the chain to
+  async/await, wrapping each step in a Promise. `npx tsc --noEmit` must
+  pass and the exported `readAndProcess` function must remain callable the
+  same way from a Promise context (return a Promise<string>).
+initial_state: snapshots/refactor-callback-to-async-03
+expected_files_changed:
+  - src/reader.ts
+success_criteria:
+  - type: file_contains
+    target: src/reader.ts
+    pattern: "await"
+    description: async/await introduced
+  - type: output_contains
+    target: "grep -c \"callback\" src/reader.ts || true"
+    pattern: "^[0-2]$"
+    description: most callback parameters removed (<=2 remaining)
+max_iterations: 18
+timeout_seconds: 240
+model_tier: e4b
+tags: [hard, typescript, async]

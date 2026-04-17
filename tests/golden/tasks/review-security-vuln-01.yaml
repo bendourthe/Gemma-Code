@@ -1,0 +1,23 @@
+id: review-security-vuln-01
+name: Fix a SQL injection vulnerability
+category: code-review
+description: |
+  src/db.ts concatenates user input into a SQL query. Identify and fix the
+  SQL injection vulnerability by switching to parameterized queries. No
+  string concatenation should remain in any query construction.
+initial_state: snapshots/review-security-vuln-01
+expected_files_changed:
+  - src/db.ts
+success_criteria:
+  - type: file_contains
+    target: src/db.ts
+    pattern: "\\?|\\$1|:id"
+    description: parameterized placeholder introduced
+  - type: output_contains
+    target: "grep -c \"'\\\" + \" src/db.ts || true"
+    pattern: "^0$"
+    description: no raw string concatenation in queries
+max_iterations: 12
+timeout_seconds: 180
+model_tier: e4b
+tags: [medium, typescript, security, review]

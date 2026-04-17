@@ -8,12 +8,49 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 - Rust performance components for file indexing and grep
 - Go CLI tooling for project scaffolding
-- macOS and Linux installer packages
 - ripgrep-backed GrepCodebaseTool
 - Extension Marketplace publication
 - Tree-sitter AST parsing for semantic code understanding
-- Knowledge graph generation
 - SSE transport for MCP server
+
+---
+
+## [0.3.0] -- 2026-XX-XX
+
+Cross-platform installer, golden task evaluation suite, and integration stabilization.
+
+### Added
+
+**Phase 7 -- Cross-Platform PyQt5 Installer**
+- PyQt5 wizard installer replacing Windows-only NSIS installer
+- 9-step installation wizard: Welcome, Prerequisites, GPU Detection, Install Path, Model Selection, Configuration, Review, Installing, Complete
+- Automatic GPU detection (NVIDIA, AMD, Apple Silicon, Intel) with model recommendation
+- Platform-specific installation: Windows (.exe), macOS (.dmg), Linux (AppImage)
+- Real-time log panel during installation with color-coded output
+- Headless mode (`--headless`, `--model`, `--install-path`, `--skip-model`, `--json-output`) for CI/automated installations
+- "Open VS Code" button on completion page
+
+**Phase 8 -- Golden Task Suite & Integration Stabilization**
+- Golden task evaluation framework with YAML-based task definitions
+- 24 golden tasks across 5 categories: multi-file edits (5), bug fixes (5), refactors (5), test generation (5), code review (4)
+- Per-model-tier benchmark suite (E2B, E4B, 26B, 31B) measuring TTFT p50/p99 and throughput
+- Memory recall accuracy benchmarks (keyword and semantic search) with latency targets
+- Regression detection with baseline comparison (pass/fail flips, time, tokens, iterations, pass-rate drop)
+- Cross-platform installer smoke tests (Windows, macOS, Linux)
+- End-to-end integration tests for core v0.2.0 + v0.3.0 composition (full mocks)
+- v0.2.0 vs v0.3.0 performance comparison framework
+
+### Changed
+
+- Installer technology changed from NSIS (Windows-only) to PyQt5 (cross-platform)
+- Old NSIS installer preserved under `scripts/installer/legacy/`
+
+### Known Limitations
+
+- macOS .dmg is not notarized (requires Apple Developer account)
+- Linux AppImage requires FUSE to run on some distributions
+- Golden tasks require a running Ollama instance; CI uses E2B on CPU which is slower
+- GPU detection may not work in virtualized environments (CI runners)
 
 ---
 

@@ -1,0 +1,20 @@
+id: bugfix-race-condition-05
+name: Fix a race condition with a mutex
+category: bug-fix
+description: |
+  src/counter.ts has two async functions that increment a shared counter
+  without synchronization. Add a mutex (or queue) so that concurrent
+  invocations always produce a correct final count. Provide a small async
+  mutex implementation inline; no third-party dependencies.
+initial_state: snapshots/bugfix-race-condition-05
+expected_files_changed:
+  - src/counter.ts
+success_criteria:
+  - type: file_contains
+    target: src/counter.ts
+    pattern: "(lock|mutex|await)"
+    description: synchronization primitive added
+max_iterations: 18
+timeout_seconds: 240
+model_tier: e4b
+tags: [hard, typescript, async]

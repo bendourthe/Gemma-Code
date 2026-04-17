@@ -40,15 +40,23 @@ Gemma Code brings a Claude Code-style agentic workflow to VS Code, running entir
 
 ## Installation
 
-### Windows — Installer (recommended)
+### Windows / macOS / Linux — PyQt5 installer (recommended, v0.3.0)
 
-1. Download `setup.exe` from the [latest release](https://github.com/bendourthe/Gemma-Code/releases/latest).
-2. Run the installer. It will:
-   - Install Ollama if not already present
-   - Install the VS Code extension
-   - Set up the Python inference backend
-   - Optionally download the Gemma model (~9.6 GB)
+1. Download the installer for your platform from the [latest release](https://github.com/bendourthe/Gemma-Code/releases/latest):
+   - Windows: `gemma-code-installer.exe`
+   - macOS: `GemmaCode.dmg` (Intel or Apple Silicon)
+   - Linux: `gemma-code-installer.AppImage`
+2. Launch the installer. The wizard will auto-detect your GPU, recommend a model tier, and install:
+   - Ollama (if missing)
+   - The VS Code extension
+   - A Python 3.11 virtual environment with the FastAPI backend
+   - Optionally, the selected Gemma 4 model
 3. Launch VS Code and open the Gemma Code panel from the Activity Bar.
+
+For scripted or CI installs, the installer supports a headless mode:
+```bash
+python -m gemma_installer.main --headless --skip-model --json-output
+```
 
 ### Manual — VSIX
 
@@ -180,6 +188,12 @@ The Python backend failed to start. Check the "Gemma Code" Output channel for th
 **Extension not activating**
 Open the Output channel "Gemma Code" (`View → Output`) for diagnostic messages.
 
+**macOS: "cannot be opened because the developer cannot be verified"**
+The `.dmg` is not notarized. Right-click the app in `/Applications` and choose **Open** once to accept it, or run `xattr -dr com.apple.quarantine /Applications/GemmaCode.app`.
+
+**Linux: AppImage refuses to launch**
+Ensure FUSE is installed (`sudo apt install libfuse2`). If FUSE is unavailable, extract the AppImage and run the embedded binary directly: `./GemmaCode.AppImage --appimage-extract && ./squashfs-root/AppRun`.
+
 ---
 
 ## Development
@@ -209,6 +223,21 @@ npm run package
 uv run pytest tests/unit tests/integration -q
 uv run ruff check . && uv run ruff format .
 ```
+
+### Golden task suite (v0.3.0)
+
+Declarative evaluation tasks live under [tests/golden/](tests/golden/). Each task is a YAML file paired with a self-contained git snapshot under [tests/golden/snapshots/](tests/golden/snapshots/).
+
+```bash
+# Framework-only tests (no Ollama required)
+cd tests/golden && python -m pytest framework/
+
+# Full suite against a running Ollama
+OLLAMA_URL=http://localhost:11434 TEST_MODEL=gemma4:e4b \
+  python -m pytest -m live_ollama
+```
+
+See [docs/v0.3.0/performance-benchmarks.md](docs/v0.3.0/performance-benchmarks.md) for baseline management and regression detection.
 
 ---
 

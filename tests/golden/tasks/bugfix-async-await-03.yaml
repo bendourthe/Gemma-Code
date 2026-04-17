@@ -1,0 +1,19 @@
+id: bugfix-async-await-03
+name: Fix a missing await
+category: bug-fix
+description: |
+  src/fetch.ts has an async function that forgets to `await` a promise,
+  returning a Promise instead of the resolved value. Add the missing `await`
+  and update the return type so the function actually returns `string`.
+initial_state: snapshots/bugfix-async-await-03
+expected_files_changed:
+  - src/fetch.ts
+success_criteria:
+  - type: file_contains
+    target: src/fetch.ts
+    pattern: "await"
+    description: await added
+max_iterations: 10
+timeout_seconds: 120
+model_tier: e2b
+tags: [easy, typescript, async]

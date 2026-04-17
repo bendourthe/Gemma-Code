@@ -1,0 +1,8 @@
+{
+  "name": "golden-testgen-unit-function-01",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": { "build": "tsc --noEmit" },
+  "devDependencies": { "typescript": "^5.4.0", "@types/node": "^20.0.0" }
+}

@@ -1,0 +1,65 @@
+name: Golden Tasks
+
+# Runs the golden task evaluation suite. Conservative trigger: manual
+# dispatch + a weekly Sunday cron. Not wired into the PR/nightly pipeline
+# to keep CI fast and cheap until baselines are stable.
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "Model tier to evaluate"
+        default: "gemma4:e2b"
+        type: choice
+        options: ["gemma4:e2b", "gemma4:e4b"]
+      categories:
+        description: "Task categories (comma-separated, or 'all')"
+        default: "all"
+  schedule:
+    - cron: "0 4 * * 0"  # Sunday 04:00 UTC
+
+concurrency:
+  group: golden-tasks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  run-golden-tasks:
+    name: Run golden tasks (${{ inputs.model || 'gemma4:e2b' }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Python deps for golden tasks
+        run: python -m pip install --quiet pyyaml httpx pytest
+      - name: Install Ollama
+        run: curl -fsSL https://ollama.com/install.sh | sh
+      - name: Start Ollama
+        run: |
+          ollama serve &
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:11434/api/tags >/dev/null; then break; fi
+            sleep 1
+          done
+      - name: Pull model
+        run: ollama pull ${{ inputs.model || 'gemma4:e2b' }}
+      - name: Scaffold snapshots
+        run: python tests/golden/snapshots/_scaffold.py
+      - name: Run framework tests
+        run: cd tests/golden && python -m pytest framework/ -q
+      - name: Run golden suite (dry mode only, live mode requires more runner time)
+        run: cd tests/golden && python -m pytest -q
+        env:
+          OLLAMA_URL: "http://localhost:11434"
+          TEST_MODEL: ${{ inputs.model || 'gemma4:e2b' }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: golden-tasks-results
+          path: tests/golden/baselines/
+          retention-days: 30

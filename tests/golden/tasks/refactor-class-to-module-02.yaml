@@ -1,0 +1,24 @@
+id: refactor-class-to-module-02
+name: Convert a static-only class to a module
+category: refactor
+description: |
+  src/logger.ts defines a class `Logger` with only static methods. Refactor
+  it into a module: export the methods as functions, delete the class, and
+  update src/usage.ts to import the functions directly.
+initial_state: snapshots/refactor-class-to-module-02
+expected_files_changed:
+  - src/logger.ts
+  - src/usage.ts
+success_criteria:
+  - type: file_contains
+    target: src/logger.ts
+    pattern: "export function"
+    description: methods now exported as functions
+  - type: output_contains
+    target: "grep -c \"class Logger\" src/logger.ts || true"
+    pattern: "^0$"
+    description: class declaration removed
+max_iterations: 14
+timeout_seconds: 180
+model_tier: e4b
+tags: [medium, typescript, refactor]

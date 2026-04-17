@@ -1,0 +1,24 @@
+id: refactor-extract-function-01
+name: Extract a long block into a named function
+category: refactor
+description: |
+  src/report.ts contains a single function `buildReport` with a 20-line
+  inline block that formats a header. Extract the block into a new function
+  `formatHeader` (exported or private), and call it from `buildReport`.
+  Behavior must not change; `npx tsc --noEmit` must still pass.
+initial_state: snapshots/refactor-extract-function-01
+expected_files_changed:
+  - src/report.ts
+success_criteria:
+  - type: file_contains
+    target: src/report.ts
+    pattern: "function formatHeader"
+    description: new function extracted
+  - type: file_contains
+    target: src/report.ts
+    pattern: "formatHeader\\("
+    description: new function is called
+max_iterations: 12
+timeout_seconds: 180
+model_tier: e4b
+tags: [easy, typescript, refactor]

@@ -1,0 +1,16 @@
+{
+  "version": "0.3.0",
+  "model": "gemma4:e4b",
+  "timestamp": "pending",
+  "hardware": {},
+  "tasks": {},
+  "aggregates": {
+    "pass_rate": 0.0,
+    "passed": 0,
+    "total": 0,
+    "mean_iterations": 0.0,
+    "mean_time_ms": 0.0,
+    "total_tokens": 0,
+    "by_category": {}
+  }
+}

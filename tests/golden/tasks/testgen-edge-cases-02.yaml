@@ -1,0 +1,24 @@
+id: testgen-edge-cases-02
+name: Add edge-case tests to an existing suite
+category: test-gen
+description: |
+  src/strings.ts has a `slugify` function with a basic test in
+  tests/strings.test.ts. Add edge-case tests for empty string, very long
+  input (>1000 chars), unicode input, and strings containing only
+  whitespace.
+initial_state: snapshots/testgen-edge-cases-02
+expected_files_changed:
+  - tests/strings.test.ts
+success_criteria:
+  - type: file_contains
+    target: tests/strings.test.ts
+    pattern: "empty|''|\"\""
+    description: empty-string case covered
+  - type: file_contains
+    target: tests/strings.test.ts
+    pattern: "unicode|\\\\u|é|ñ"
+    description: unicode case covered
+max_iterations: 15
+timeout_seconds: 180
+model_tier: e4b
+tags: [medium, typescript, testgen]

@@ -1,0 +1,23 @@
+id: testgen-mock-dependency-03
+name: Test a function with a mocked HTTP dependency
+category: test-gen
+description: |
+  src/weather.ts calls an HTTP client to fetch temperature. Create a test
+  file tests/weather.test.ts that injects a fake client via dependency
+  injection (the function already accepts the client as a parameter).
+  Cover the happy path and a failure path.
+initial_state: snapshots/testgen-mock-dependency-03
+expected_files_changed:
+  - tests/weather.test.ts
+success_criteria:
+  - type: file_exists
+    target: tests/weather.test.ts
+    description: test file exists
+  - type: file_contains
+    target: tests/weather.test.ts
+    pattern: "mock|fake|stub"
+    description: mock or fake used
+max_iterations: 15
+timeout_seconds: 180
+model_tier: e4b
+tags: [medium, typescript, testgen, mock]

@@ -111,11 +111,28 @@ This replaces the v0.1.0 custom XML protocol. See [docs/v0.1.0/tool-protocol.md]
 | MemoryConsolidator | `src/storage/MemoryConsolidator.ts` | Pattern detection and write-gated promotion |
 | UnifiedMemoryRetriever | `src/storage/UnifiedMemoryRetriever.ts` | Cross-layer query merging with budget distribution |
 
+### v0.3.0 Additions (Phases 7-8)
+
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| InstallEngine | `scripts/installer/pyqt/src/gemma_installer/engine/installer.py` | Cross-platform install orchestrator |
+| PyQt5 installer wizard | `scripts/installer/pyqt/src/gemma_installer/` | 9-page GUI installer; now supports `--headless` mode |
+| Smoke tests | `tests/smoke/` | Cross-platform installer verification |
+| Golden task framework | `tests/golden/framework/` | YAML task loader, runner, evaluator, reporter, baseline, regression, comparison |
+| Golden task suite | `tests/golden/tasks/` + `tests/golden/snapshots/` | 24 declarative tasks across 5 categories |
+| Per-tier benchmarks | `tests/benchmarks/model-tier-matrix.bench.ts` | TTFT and throughput matrix across E2B/E4B/26B/31B |
+| Memory recall benchmark | `tests/benchmarks/memory-recall.bench.ts` | Keyword + semantic recall@5 and latency |
+| Golden task perf bench | `tests/benchmarks/golden-task-perf.bench.ts` | Per-category wall-clock, iterations, tokens |
+| E2E integration tests | `tests/integration/e2e/` | Composed-module checks without live Ollama |
+
 ## Further Reading
 
+- [Full Architecture (v0.3.0)](docs/v0.3.0/architecture.md) -- v0.3.0 design including installer + evaluation framework
 - [Full Architecture (v0.2.0)](docs/v0.2.0/architecture.md) -- comprehensive component descriptions and data flow diagrams
 - [Architecture (v0.1.0)](docs/v0.1.0/architecture.md) -- original architecture document
 - [Tool Protocol (v0.1.0)](docs/v0.1.0/tool-protocol.md) -- legacy XML tool protocol specification
 - [Security Audit](docs/v0.1.0/security-audit.md) -- security findings and remediations
 - [Implementation Plan (v0.2.0)](docs/v0.2.0/development/implementation-plan.md) -- v0.2.0 phase breakdown
 - [Implementation Plan (v0.3.0)](docs/v0.3.0/implementation-plan.md) -- v0.3.0 harness engineering plan
+- [Performance Benchmarks (v0.3.0)](docs/v0.3.0/performance-benchmarks.md) -- targets, regression detection, runner commands
+- [Performance Comparison (v0.2.0 vs v0.3.0)](docs/v0.3.0/performance-comparison.md) -- comparison methodology and template

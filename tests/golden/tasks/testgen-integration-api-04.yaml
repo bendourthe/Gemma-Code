@@ -1,0 +1,22 @@
+id: testgen-integration-api-04
+name: Generate an integration test for an API handler
+category: test-gen
+description: |
+  src/api.ts exports a simple request handler that looks up a user by id
+  from an injected repository. Generate tests/api.integration.test.ts that
+  uses a fake repository and exercises the handler with several requests.
+initial_state: snapshots/testgen-integration-api-04
+expected_files_changed:
+  - tests/api.integration.test.ts
+success_criteria:
+  - type: file_exists
+    target: tests/api.integration.test.ts
+    description: integration test file exists
+  - type: file_contains
+    target: tests/api.integration.test.ts
+    pattern: "handle|request"
+    description: handler exercised
+max_iterations: 18
+timeout_seconds: 240
+model_tier: e4b
+tags: [hard, typescript, testgen, integration]
