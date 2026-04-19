@@ -148,16 +148,23 @@ jobs:
       - uses: astral-sh/setup-uv@v4
         with:
           version: "latest"
-      - name: Sync installer venv
-        run: |
-          cd scripts/installer/pyqt
-          uv sync --quiet
       - name: Cache pip-audit advisory DB
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip-audit
           key: pip-audit-${{ runner.os }}-${{ hashFiles('scripts/installer/pyqt/uv.lock') }}
+      - name: Export installer dependencies to requirements-audit.txt
+        # `--no-emit-project` excludes the local `gemma-code-installer` package
+        # from the audited set; pip-audit cannot look up an unpublished package.
+        run: |
+          cd scripts/installer/pyqt
+          uv export \
+            --no-hashes \
+            --no-annotate \
+            --format requirements-txt \
+            --no-emit-project \
+            > requirements-audit.txt
       - name: Run pip-audit
         run: |
           cd scripts/installer/pyqt
-          uv run --with pip-audit pip-audit --strict
+          uv run --with pip-audit -- pip-audit --strict -r requirements-audit.txt

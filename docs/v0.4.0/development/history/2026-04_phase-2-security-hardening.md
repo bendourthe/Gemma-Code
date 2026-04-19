@@ -54,6 +54,20 @@ The signature change from `_loadConfigs(): McpServerConfig[]` to `async _loadCon
 
 Adding `McpManager`'s optional `_workspaceState` parameter required plumbing through `GemmaCodePanel`'s constructor (which takes a new optional `vscode.Memento` param) and `extension.ts`'s `GemmaCodePanel` instantiation. Tests use a simple Map-backed mock object for `workspaceState`.
 
+### CI pip-audit job failed on first push
+
+The initial push of Phase 2 hit red on CI at the `audit-py` job:
+
+```
+ERROR:pip_audit._cli:gemma-code-installer: Dependency not found on PyPI and could not be audited: gemma-code-installer (0.3.0)
+```
+
+Root cause: `pip-audit` without arguments audits the active environment by inspecting every installed distribution. The PyQt5 installer is itself an unpublished package (`gemma-code-installer==0.3.0`); looking it up on PyPI fails, and pip-audit treats the lookup failure as a fatal error under `--strict`.
+
+Fix: generate a requirements file from the uv lock (`uv export --no-hashes --no-annotate --format requirements-txt --no-emit-project`) and feed it to pip-audit with `-r`. The `--no-emit-project` flag excludes the local package so only real PyPI deps are audited. The exported file is gitignored (`scripts/installer/pyqt/requirements-audit.txt`) because it is regenerated on every CI run.
+
+Verified locally: `uv run --with pip-audit -- pip-audit --strict -r requirements-audit.txt` reports "No known vulnerabilities found." Other CI jobs (build, test, lint, coverage gate at 89.1%, npm audit, installer pytest) were already green.
+
 ## Assumptions and manual checks
 
 - **Assumed** `hono@<4.12.14` will be fixed via an upstream `@modelcontextprotocol/sdk` bump rather than a direct override; the current moderate finding is below the high-severity gate so CI still passes. If the bump is slow, we can add a `package.json` `overrides` clause.
@@ -113,3 +127,7 @@ Adding `McpManager`'s optional `_workspaceState` parameter required plumbing thr
 1. **Fill in real SHA-256 constants** in `ollama_installer.py` before the v0.4.0 installer ships.
 2. **Bump `@modelcontextprotocol/sdk`** once it carries a `hono>=4.12.14`, then tighten the audit gate to `moderate`.
 3. **Phase 3**: begin work on the 24 correctness-and-code-quality findings. See plan lines 701-968.
+
+## Post-merge CI status
+
+After the `audit-py` fix landed (requirements-audit.txt export pattern), all seven CI jobs are expected to pass: `lint-ts`, `build-ts`, `test-ts`, `coverage-gate` (89.1% line coverage, well above the 80% threshold), `test-installer`, `audit-ts` (moderate `hono` finding below the `high` threshold), `audit-py` (no vulnerabilities found).
