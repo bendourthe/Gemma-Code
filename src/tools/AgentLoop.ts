@@ -4,7 +4,7 @@ import type { PostMessageFn } from "../chat/StreamingPipeline.js";
 import type { ContextCompactor } from "../chat/ContextCompactor.js";
 import type { SubAgentManager } from "../agents/SubAgentManager.js";
 import type { SubAgentConfig, SubAgentResult } from "../agents/types.js";
-import { parseToolCalls, hasToolCall, stripToolCalls, formatToolResult } from "./ToolCallParser.js";
+import { parseToolCalls, stripToolCalls, formatToolResult } from "./ToolCallParser.js";
 import type { ToolRegistry } from "./ToolRegistry.js";
 import type { BudgetMiddleware } from "./BudgetMiddleware.js";
 import type { ToolCall } from "./types.js";
@@ -251,7 +251,11 @@ export class AgentLoop {
       }
     }
 
-    if (!hasToolCall(accumulated)) {
+    // Single parse pass: the previous code parsed once for presence and again
+    // for the results. `parseToolCalls` now surfaces both in one scan.
+    const { results: parseResults, hasAny } = parseToolCalls(accumulated);
+
+    if (!hasAny) {
       // No tool calls -> final response. Commit and finish.
       const msg = this._manager.addAssistantMessage(accumulated);
       postMessage({ type: "messageComplete", messageId: msg.id, renderedHtml: "" });
@@ -267,7 +271,6 @@ export class AgentLoop {
     this._manager.addAssistantMessage(stripToolCalls(accumulated));
 
     // Execute each tool call in sequence.
-    const parseResults = parseToolCalls(accumulated);
     for (const parsed of parseResults) {
       if (!parsed.ok) continue; // skip malformed calls silently
       const verdict = await this._runToolCall(parsed.call, iteration, iterSpanId, tracer, postMessage);

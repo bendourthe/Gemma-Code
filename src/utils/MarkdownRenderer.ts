@@ -1,7 +1,35 @@
 import { marked, Renderer } from "marked";
-// Import main highlight.js entry (includes common languages) for full type support.
-import hljs from "highlight.js";
+// Import the core highlight.js entry and register only the languages we ship
+// syntax highlighting for. The default `highlight.js` export registers the
+// full language corpus (~600KB minified); explicit registration drops the
+// bundle by >=100KB (finding #64). Unregistered languages fall back to plain
+// text via highlightAuto / escapeHtml.
+import hljs from "highlight.js/lib/core";
+import typescript from "highlight.js/lib/languages/typescript";
+import javascript from "highlight.js/lib/languages/javascript";
+import python from "highlight.js/lib/languages/python";
+import go from "highlight.js/lib/languages/go";
+import rust from "highlight.js/lib/languages/rust";
+import json from "highlight.js/lib/languages/json";
+import bash from "highlight.js/lib/languages/bash";
+import yaml from "highlight.js/lib/languages/yaml";
 import DOMPurify from "isomorphic-dompurify";
+
+hljs.registerLanguage("typescript", typescript);
+hljs.registerLanguage("ts", typescript);
+hljs.registerLanguage("javascript", javascript);
+hljs.registerLanguage("js", javascript);
+hljs.registerLanguage("python", python);
+hljs.registerLanguage("py", python);
+hljs.registerLanguage("go", go);
+hljs.registerLanguage("rust", rust);
+hljs.registerLanguage("rs", rust);
+hljs.registerLanguage("json", json);
+hljs.registerLanguage("bash", bash);
+hljs.registerLanguage("sh", bash);
+hljs.registerLanguage("shell", bash);
+hljs.registerLanguage("yaml", yaml);
+hljs.registerLanguage("yml", yaml);
 
 /**
  * Server-side Markdown renderer using `marked` (v4, CJS), `highlight.js`, and

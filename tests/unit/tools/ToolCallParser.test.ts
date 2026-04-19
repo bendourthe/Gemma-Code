@@ -1,10 +1,14 @@
 import { describe, it, expect } from "vitest";
 import {
-  parseToolCalls,
-  hasToolCall,
+  parseToolCalls as parseToolCallsRaw,
   stripToolCalls,
   formatToolResult,
 } from "../../../src/tools/ToolCallParser.js";
+import { parseToolCalls as _parseToolCallsRawDirect } from "../../../src/tools/Gemma4ToolFormat.js";
+
+// Compatibility shim mirroring the Gemma4ToolFormat tests.
+const parseToolCalls = (text: string) => parseToolCallsRaw(text).results;
+const hasToolCall = (text: string) => _parseToolCallsRawDirect(text).hasAny;
 
 // Gemma 4 native format tool call
 const validCall = '<|tool_call>call:read_file{path:<|"|>src/extension.ts<|"|>}<tool_call|>';

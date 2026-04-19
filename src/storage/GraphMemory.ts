@@ -228,6 +228,38 @@ export class GraphMemory {
   }
 
   /**
+   * Batched equivalent of `getEntityRelations` for a full frontier.
+   * Issues one SQL query with `IN (...)` instead of one per entity,
+   * which is the difference between O(N) and O(1) round-trips during BFS
+   * expansion (finding #35).
+   */
+  getRelationsForEntities(
+    entityIds: readonly string[],
+    direction: "outgoing" | "incoming" | "both" = "both",
+  ): GraphRelation[] {
+    if (entityIds.length === 0) return [];
+
+    const placeholders = entityIds.map(() => "?").join(",");
+    let sql: string;
+    let params: string[];
+    switch (direction) {
+      case "outgoing":
+        sql = `SELECT * FROM graph_relations WHERE source_id IN (${placeholders})`;
+        params = [...entityIds];
+        break;
+      case "incoming":
+        sql = `SELECT * FROM graph_relations WHERE target_id IN (${placeholders})`;
+        params = [...entityIds];
+        break;
+      default:
+        sql = `SELECT * FROM graph_relations WHERE source_id IN (${placeholders}) OR target_id IN (${placeholders})`;
+        params = [...entityIds, ...entityIds];
+    }
+    const rows = this._db.prepare(sql).all(...params) as RelationRow[];
+    return rows.map((r) => this._relationRowToObj(r));
+  }
+
+  /**
    * BFS traversal up to `depth` hops from the named entity.
    * Returns all reachable entities, capped at 50 results.
    */
@@ -240,21 +272,22 @@ export class GraphMemory {
     const results: GraphEntity[] = [];
 
     for (let d = 0; d < depth && frontier.length > 0; d++) {
+      // One SQL query per depth level instead of one per node.
+      const relations = this.getRelationsForEntities(frontier, "both");
+      const frontierSet = new Set(frontier);
       const nextFrontier: string[] = [];
-      for (const nodeId of frontier) {
-        const relations = this.getEntityRelations(nodeId, "both");
-        for (const rel of relations) {
-          const neighborId =
-            rel.sourceId === nodeId ? rel.targetId : rel.sourceId;
-          if (!visited.has(neighborId)) {
-            visited.add(neighborId);
-            nextFrontier.push(neighborId);
 
-            const entity = this.getEntityById(neighborId);
-            if (entity) {
-              results.push(entity);
-              if (results.length >= GRAPH_MAX_TRAVERSAL_RESULTS) return results;
-            }
+      for (const rel of relations) {
+        const fromFrontier = frontierSet.has(rel.sourceId);
+        const neighborId = fromFrontier ? rel.targetId : rel.sourceId;
+        if (!visited.has(neighborId)) {
+          visited.add(neighborId);
+          nextFrontier.push(neighborId);
+
+          const entity = this.getEntityById(neighborId);
+          if (entity) {
+            results.push(entity);
+            if (results.length >= GRAPH_MAX_TRAVERSAL_RESULTS) return results;
           }
         }
       }

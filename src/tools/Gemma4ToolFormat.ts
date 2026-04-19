@@ -181,14 +181,24 @@ export type ParseResult =
  * Blocks inside triple-backtick code fences are ignored. The body `{...}` is
  * located with balanced-brace scanning so nested object/array values are
  * preserved intact for `parseKeyValueBody`.
+ *
+ * Returns `{ results, hasAny }`. `hasAny` is true when at least one opening
+ * tool_call token is present in `text` (regardless of whether its body parses
+ * successfully), so callers can fast-path the "no tool call at all" branch
+ * without a second scan of the message.
  */
-export function parseToolCalls(text: string): ParseResult[] {
+export function parseToolCalls(text: string): {
+  results: ParseResult[];
+  hasAny: boolean;
+} {
   const stripped = stripCodeFences(text);
   const results: ParseResult[] = [];
+  let hasAny = false;
 
   let match: RegExpExecArray | null;
   GEMMA4_TOOL_CALL_OPEN_RE.lastIndex = 0;
   while ((match = GEMMA4_TOOL_CALL_OPEN_RE.exec(stripped)) !== null) {
+    hasAny = true;
     const toolName = match[1] ?? "";
     const openBraceIdx = match.index + match[0].length - 1; // position of '{'
     const closeBraceEnd = findBalancedEnd(stripped, openBraceIdx);
@@ -233,13 +243,15 @@ export function parseToolCalls(text: string): ParseResult[] {
     });
   }
 
-  return results;
-}
+  // Malformed patterns (unbalanced braces, missing close token) that match
+  // the opening regex still set hasAny=true; they just do not produce a
+  // ParseResult. A fallback scan catches opening tokens the balanced-brace
+  // loop skipped entirely (e.g. no '{' at all after the tag).
+  if (!hasAny) {
+    hasAny = /<\|tool_call>/.test(stripped);
+  }
 
-/** Returns true if `text` contains at least one Gemma 4 tool call token. */
-export function hasToolCall(text: string): boolean {
-  const stripped = stripCodeFences(text);
-  return /<\|tool_call>/.test(stripped);
+  return { results, hasAny };
 }
 
 /**

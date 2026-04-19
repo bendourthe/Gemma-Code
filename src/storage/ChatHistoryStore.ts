@@ -13,6 +13,14 @@ interface SessionRow {
   updated_at: number;
 }
 
+// Schema version persisted via PRAGMA user_version. Bump when the schema or
+// FTS configuration changes so the next cold start rebuilds the FTS index
+// exactly once. Rebuilds on an unchanged DB are now a no-op.
+const SCHEMA_VERSION = 1;
+
+/** Default cap on rows returned by searchSessions -- see 4.6. */
+const DEFAULT_SEARCH_LIMIT = 100;
+
 interface MessageRow {
   id: string;
   role: string;
@@ -56,11 +64,19 @@ export class ChatHistoryStore {
       triggerPrefix: "messages_fts",
     });
 
-    // Rebuild FTS index from existing data (safe no-op if already up-to-date).
-    try {
-      this._db.exec("INSERT INTO messages_fts(messages_fts) VALUES('rebuild')");
-    } catch {
-      // Ignore rebuild errors on first creation.
+    // Rebuild the FTS index only when the schema version changed. On a hot DB
+    // this used to iterate every row on every cold start (review finding
+    // #66); now it runs once per schema bump.
+    const currentVersion = this._db.pragma("user_version", {
+      simple: true,
+    }) as number;
+    if (currentVersion !== SCHEMA_VERSION) {
+      try {
+        this._db.exec("INSERT INTO messages_fts(messages_fts) VALUES('rebuild')");
+      } catch {
+        // Ignore rebuild errors on first creation.
+      }
+      this._db.pragma(`user_version = ${SCHEMA_VERSION}`);
     }
   }
 
@@ -155,7 +171,36 @@ export class ChatHistoryStore {
     this._db.prepare("DELETE FROM sessions WHERE id = ?").run(sessionId);
   }
 
-  searchSessions(query: string): ConversationSession[] {
+  searchSessions(query: string, limit = DEFAULT_SEARCH_LIMIT): ConversationSession[] {
+    // Prefer FTS5 (indexed, milliseconds on 10k rows). Falls back to the
+    // legacy LIKE join if the FTS query is unusable (empty after sanitize,
+    // or FTS5 not available on the running SQLite build).
+    const ftsQuery = sanitizeFtsQuery(query);
+    if (ftsQuery) {
+      try {
+        const rows = this._db
+          .prepare(
+            `SELECT DISTINCT s.id, s.title, s.created_at, s.updated_at
+             FROM sessions s
+             JOIN messages m ON m.session_id = s.id
+             JOIN messages_fts fts ON m.rowid = fts.rowid
+             WHERE messages_fts MATCH ?
+             ORDER BY s.updated_at DESC
+             LIMIT ?`,
+          )
+          .all(ftsQuery, limit) as SessionRow[];
+        return rows.map((r) => ({
+          id: r.id,
+          title: r.title,
+          createdAt: r.created_at,
+          updatedAt: r.updated_at,
+          messages: [],
+        }));
+      } catch {
+        // FTS5 unavailable -- fall through to LIKE.
+      }
+    }
+
     const likeQuery = `%${escapeLikePattern(query)}%`;
     const rows = this._db
       .prepare(
@@ -163,9 +208,10 @@ export class ChatHistoryStore {
          FROM sessions s
          JOIN messages m ON m.session_id = s.id
          WHERE m.content LIKE ? ESCAPE '\\'
-         ORDER BY s.updated_at DESC`
+         ORDER BY s.updated_at DESC
+         LIMIT ?`
       )
-      .all(likeQuery) as SessionRow[];
+      .all(likeQuery, limit) as SessionRow[];
 
     return rows.map((r) => ({
       id: r.id,

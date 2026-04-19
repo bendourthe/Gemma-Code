@@ -33,6 +33,12 @@ export class MemorySubsystem {
   readonly entityExtractor: EntityExtractor | null;
   readonly memoryConsolidator: MemoryConsolidator | null;
   readonly unifiedRetriever: UnifiedMemoryRetriever | null;
+  // One shared Database backing all memory layers (finding #65). Opened
+  // here, passed by reference to every layer, and closed exactly once via
+  // MemorySubsystem.close(). Before this consolidation, MemoryStore,
+  // EpisodicMemory, and GraphMemory each opened their own connection,
+  // causing WAL-lock contention on concurrent writes.
+  private readonly _sharedDb: Database.Database | null;
 
   constructor(options: MemorySubsystemOptions | null) {
     const built = options ? buildSubsystem(options) : EMPTY_BUILT;
@@ -44,6 +50,7 @@ export class MemorySubsystem {
     this.entityExtractor = built.entityExtractor;
     this.memoryConsolidator = built.memoryConsolidator;
     this.unifiedRetriever = built.unifiedRetriever;
+    this._sharedDb = built.sharedDb;
   }
 
   static disabled(): MemorySubsystem {
@@ -52,6 +59,11 @@ export class MemorySubsystem {
 
   get isReady(): boolean {
     return this.memoryStore !== null && this.unifiedRetriever !== null;
+  }
+
+  /** Close the single shared Database connection backing every memory layer. */
+  close(): void {
+    this._sharedDb?.close();
   }
 }
 
@@ -64,6 +76,7 @@ interface Built {
   entityExtractor: EntityExtractor | null;
   memoryConsolidator: MemoryConsolidator | null;
   unifiedRetriever: UnifiedMemoryRetriever | null;
+  sharedDb: Database.Database | null;
 }
 
 const EMPTY_BUILT: Built = {
@@ -75,22 +88,27 @@ const EMPTY_BUILT: Built = {
   entityExtractor: null,
   memoryConsolidator: null,
   unifiedRetriever: null,
+  sharedDb: null,
 };
 
 function buildSubsystem(options: MemorySubsystemOptions): Built {
+  let sharedDb: Database.Database | null = null;
   try {
     const embedder = options.embeddingModel
       ? new EmbeddingClient(options.ollamaUrl, options.embeddingModel, options.requestTimeout)
       : null;
 
-    const memoryStore = new MemoryStore(options.dbPath, embedder);
-    const workingMemory = createWorkingMemory();
-    const episodicMemory = new EpisodicMemory(options.dbPath, embedder);
-
-    const graphDb = new Database(options.dbPath);
+    // Single connection shared across MemoryStore, EpisodicMemory, and
+    // GraphMemory. All three classes accept an already-open Database and
+    // do NOT close it on their own .close() methods.
+    sharedDb = new Database(options.dbPath);
     secureDbPermissions(options.dbPath);
-    graphDb.pragma("journal_mode = WAL");
-    const graphMemory = new GraphMemory(graphDb);
+    sharedDb.pragma("journal_mode = WAL");
+
+    const memoryStore = new MemoryStore(sharedDb, embedder);
+    const workingMemory = createWorkingMemory();
+    const episodicMemory = new EpisodicMemory(sharedDb, embedder);
+    const graphMemory = new GraphMemory(sharedDb);
 
     const graphQueryEngine = new GraphQueryEngine(graphMemory, embedder);
     memoryStore.setGraphEngine(graphQueryEngine);
@@ -121,8 +139,14 @@ function buildSubsystem(options: MemorySubsystemOptions): Built {
       entityExtractor,
       memoryConsolidator,
       unifiedRetriever,
+      sharedDb,
     };
   } catch {
+    // On construction failure, close the shared DB so we do not leak a file
+    // handle. Individual layer constructors that ran before the failure
+    // were passed the shared DB and do not own it, so this is the only
+    // place the connection can be reclaimed.
+    sharedDb?.close();
     return EMPTY_BUILT;
   }
 }

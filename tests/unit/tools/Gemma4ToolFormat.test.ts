@@ -1,12 +1,17 @@
 import { describe, it, expect } from "vitest";
 import {
-  parseToolCalls,
-  hasToolCall,
+  parseToolCalls as parseToolCallsRaw,
   stripToolCalls,
   formatToolResult,
   serializeToolDefinitions,
 } from "../../../src/tools/Gemma4ToolFormat.js";
 import { TOOL_CATALOG } from "../../../src/tools/ToolCatalog.js";
+
+// Compatibility shim: the old parseToolCalls returned a flat array. It now
+// returns { results, hasAny }. These tests were written against the array
+// form; unwrap `.results` so they keep reading naturally.
+const parseToolCalls = (text: string) => parseToolCallsRaw(text).results;
+const hasToolCall = (text: string) => parseToolCallsRaw(text).hasAny;
 
 // ---------------------------------------------------------------------------
 // parseToolCalls

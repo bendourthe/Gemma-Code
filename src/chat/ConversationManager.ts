@@ -15,6 +15,11 @@ export class ConversationManager {
   private _sessionId: string | null = null;
   private _titleSet = false;
 
+  // Running total of Message.content character lengths across all messages.
+  // Maintained by every mutation path so estimators can read it in O(1)
+  // without iterating the array. Divide by ~4 for a rough token estimate.
+  private _totalChars = 0;
+
   constructor(
     systemPrompt: string,
     private readonly _store?: ChatHistoryStore,
@@ -46,16 +51,14 @@ export class ConversationManager {
     this._systemPrompt = newPrompt;
     const systemMsg = this._messages[0];
     if (systemMsg && systemMsg.role === "system") {
-      // Reassign messages[0] with a fresh Message that preserves the existing
-      // id (so any reference held by the webview stays valid) and bumps the
-      // timestamp. No splice is needed because the seeded system message is
-      // always at index 0.
+      this._totalChars -= systemMsg.content.length;
       this._messages[0] = {
         id: systemMsg.id,
         role: "system",
         content: newPrompt,
         timestamp: Date.now(),
       };
+      this._totalChars += newPrompt.length;
     }
     this._onDidChange.fire(this.getHistory());
   }
@@ -68,6 +71,7 @@ export class ConversationManager {
       timestamp: Date.now(),
     };
     this._messages.push(message);
+    this._totalChars += content.length;
 
     // Persist non-system messages to the history store.
     if (this._store && this._sessionId && role !== "system") {
@@ -101,11 +105,17 @@ export class ConversationManager {
   }
 
   getHistory(): readonly Message[] {
-    return [...this._messages];
+    return this._messages;
+  }
+
+  /** Current running total of message content chars. O(1). */
+  get totalChars(): number {
+    return this._totalChars;
   }
 
   clearHistory(): void {
     this._messages.length = 0;
+    this._totalChars = 0;
     this._append("system", this._systemPrompt);
 
     // Start a fresh session on clear; keep the old one in history.
@@ -126,17 +136,21 @@ export class ConversationManager {
     if (!session) return false;
 
     this._messages.length = 0;
+    this._totalChars = 0;
     // Always keep the system prompt as the first message.
-    this._messages.push({
+    const systemMsg: Message = {
       id: randomUUID(),
       role: "system",
       content: this._systemPrompt,
       timestamp: Date.now(),
-    });
+    };
+    this._messages.push(systemMsg);
+    this._totalChars += systemMsg.content.length;
 
     for (const msg of session.messages) {
       if (msg.role !== "system") {
         this._messages.push(msg as Message);
+        this._totalChars += msg.content.length;
       }
     }
 
@@ -154,7 +168,11 @@ export class ConversationManager {
    */
   replaceMessages(messages: readonly Message[]): void {
     this._messages.length = 0;
-    for (const m of messages) this._messages.push(m);
+    this._totalChars = 0;
+    for (const m of messages) {
+      this._messages.push(m);
+      this._totalChars += m.content.length;
+    }
 
     this._onDidChange.fire(this.getHistory());
   }
@@ -179,11 +197,19 @@ export class ConversationManager {
     };
 
     this._messages.length = 0;
+    this._totalChars = 0;
     // Restore system messages first.
-    for (const m of systemMessages) this._messages.push(m);
+    for (const m of systemMessages) {
+      this._messages.push(m);
+      this._totalChars += m.content.length;
+    }
     // Add the summary, then the most recent messages.
     this._messages.push(summaryMessage);
-    for (const m of kept) this._messages.push(m);
+    this._totalChars += summaryMessage.content.length;
+    for (const m of kept) {
+      this._messages.push(m);
+      this._totalChars += m.content.length;
+    }
 
     this._onDidChange.fire(this.getHistory());
   }
@@ -194,19 +220,33 @@ export class ConversationManager {
    * The seeded system message is always preserved.
    */
   trimToContextLimit(maxTokens: number): void {
-    let totalChars = this._messages.reduce((sum, m) => sum + m.content.length, 0);
-    if (totalChars / 4 <= maxTokens) return;
+    // Use the running counter for the fit check; no full-array reduce needed.
+    if (this._totalChars / 4 <= maxTokens) return;
 
-    let i = 0;
-    while (i < this._messages.length && totalChars / 4 > maxTokens) {
+    // Single O(N) pass: scan non-system messages oldest-first, mark for
+    // deletion until the remaining total fits, then rebuild the array once.
+    let remaining = this._totalChars;
+    const drop = new Set<number>();
+    for (let i = 0; i < this._messages.length && remaining / 4 > maxTokens; i++) {
       const msg = this._messages[i];
       if (msg !== undefined && msg.role !== "system") {
-        totalChars -= msg.content.length;
-        this._messages.splice(i, 1);
-      } else {
-        i++;
+        remaining -= msg.content.length;
+        drop.add(i);
       }
     }
+
+    if (drop.size === 0) return;
+
+    const kept: Message[] = [];
+    for (let i = 0; i < this._messages.length; i++) {
+      if (!drop.has(i)) {
+        const msg = this._messages[i];
+        if (msg) kept.push(msg);
+      }
+    }
+    this._messages.length = 0;
+    for (const m of kept) this._messages.push(m);
+    this._totalChars = remaining;
 
     this._onDidChange.fire(this.getHistory());
   }

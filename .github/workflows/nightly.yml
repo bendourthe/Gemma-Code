@@ -65,10 +65,11 @@ jobs:
       - name: Run benchmarks
         run: npm run bench -- --reporter=verbose --outputFile=bench-results.json --reporter=json 2>&1 | tee bench-results.txt
 
-      - name: Check benchmark regressions against v0.3.0 baseline
+      - name: Check benchmark regressions against v0.4.0 baseline (v0.3.0 as floor)
         run: |
           node scripts/check-bench-regressions.mjs \
-            --baseline tests/benchmarks/baselines/v0.3.0.json \
+            --baseline tests/benchmarks/baselines/v0.4.0.json \
+            --floor tests/benchmarks/baselines/v0.3.0.json \
             --current bench-results.json \
             --regression-pct 20
 

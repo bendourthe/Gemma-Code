@@ -23,11 +23,24 @@ const CHARS_PER_TOKEN = 4;
 export class EpisodicMemory {
   private readonly _db: Database.Database;
   private readonly _embedder: EmbeddingClient | null;
+  /** True when this instance opened its own Database and must close it. */
+  private readonly _ownsDb: boolean;
 
-  constructor(dbPath: string, embedder?: EmbeddingClient | null) {
-    this._db = new Database(dbPath);
-    secureDbPermissions(dbPath);
-    this._db.pragma("journal_mode = WAL");
+  /**
+   * Construct an EpisodicMemory backed either by a path (self-owned) or a
+   * shared Database (caller-owned -- used by MemorySubsystem to share one
+   * connection across all memory layers, finding #65).
+   */
+  constructor(dbOrPath: string | Database.Database, embedder?: EmbeddingClient | null) {
+    if (typeof dbOrPath === "string") {
+      this._db = new Database(dbOrPath);
+      secureDbPermissions(dbOrPath);
+      this._db.pragma("journal_mode = WAL");
+      this._ownsDb = true;
+    } else {
+      this._db = dbOrPath;
+      this._ownsDb = false;
+    }
     this._embedder = embedder ?? null;
     this._initSchema();
   }
@@ -216,7 +229,7 @@ export class EpisodicMemory {
   }
 
   close(): void {
-    this._db.close();
+    if (this._ownsDb) this._db.close();
   }
 
   // -------------------------------------------------------------------------

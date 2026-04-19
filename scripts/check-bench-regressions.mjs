@@ -4,10 +4,15 @@
  *
  * Usage:
  *   node scripts/check-bench-regressions.mjs \
- *     --baseline tests/benchmarks/baselines/v0.3.0.json \
+ *     --baseline tests/benchmarks/baselines/v0.4.0.json \
+ *     [--floor tests/benchmarks/baselines/v0.3.0.json] \
  *     --current bench-results.json \
  *     [--regression-pct 20] \
  *     [--update-baseline]
+ *
+ * `--floor` is consulted only for benchmarks missing from the primary baseline,
+ * letting v0.4.0 supersede v0.3.0 while still catching regressions against
+ * older numbers for metrics that have not been re-measured yet.
  *
  * Exits 0 on success, 1 on regression (unless --update-baseline is set).
  */
@@ -22,6 +27,9 @@ function parseArgs() {
     switch (key) {
       case "--baseline":
         args.baseline = argv[++i];
+        break;
+      case "--floor":
+        args.floor = argv[++i];
         break;
       case "--current":
         args.current = argv[++i];
@@ -38,7 +46,7 @@ function parseArgs() {
     }
   }
   if (!args.baseline || !args.current) {
-    console.error("Usage: --baseline <path> --current <path> [--regression-pct N] [--update-baseline]");
+    console.error("Usage: --baseline <path> --current <path> [--floor <path>] [--regression-pct N] [--update-baseline]");
     exit(2);
   }
   return args;
@@ -97,16 +105,33 @@ function main() {
   const baseline = baselineReport.benchmarks ?? {};
   const regressionPct = baselineReport.thresholds?.regressionPct ?? args.regressionPct;
 
+  // Optional floor baseline: an older (strict) set of numbers used only for
+  // benchmarks the primary baseline does not cover yet. Lets v0.4.0 take over
+  // as the preferred reference without losing v0.3.0's coverage.
+  let floor = {};
+  if (args.floor && existsSync(args.floor)) {
+    const floorReport = JSON.parse(readFileSync(args.floor, "utf-8"));
+    floor = floorReport.benchmarks ?? {};
+  }
+
   const regressions = [];
   const improvements = [];
   const missing = [];
 
   for (const [name, cur] of Object.entries(currentBench)) {
-    const base = baseline[name];
+    let base = baseline[name];
+    let baseSource = "baseline";
+    if (!base || typeof base.hz !== "number" || base.hz === 0) {
+      base = floor[name];
+      baseSource = "floor";
+    }
     if (!base || typeof base.hz !== "number" || base.hz === 0) {
       missing.push(name);
       continue;
     }
+    // baseSource tag is kept for future debug output; baseline resolution is
+    // deliberately silent unless a regression fires.
+    void baseSource;
     // hz (ops/s) higher is better. Regression means current hz dropped.
     const deltaPct = ((cur.hz - base.hz) / base.hz) * 100;
     if (deltaPct < -regressionPct) {

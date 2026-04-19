@@ -245,34 +245,31 @@ export class GraphQueryEngine {
       };
     }
 
-    // BFS with parent tracking.
+    // BFS with parent tracking. Each depth level issues one batched SQL
+    // query covering the full frontier instead of one per node.
     const visited = new Set<string>([startEntity.id]);
     const parentMap = new Map<string, { entityId: string; relation: GraphRelation }>();
     let frontier = [startEntity.id];
     let nodesVisited = 0;
 
     for (let d = 0; d < maxDepth && frontier.length > 0; d++) {
+      const relations = this._graphMemory.getRelationsForEntities(frontier, "both");
+      const frontierSet = new Set(frontier);
       const nextFrontier: string[] = [];
-      for (const nodeId of frontier) {
+
+      for (const rel of relations) {
         if (nodesVisited++ >= MAX_NODES_VISITED) break;
 
-        const relations = this._graphMemory.getEntityRelations(nodeId, "both");
-        for (const rel of relations) {
-          const neighborId =
-            rel.sourceId === nodeId ? rel.targetId : rel.sourceId;
-          if (!visited.has(neighborId)) {
-            visited.add(neighborId);
-            parentMap.set(neighborId, { entityId: nodeId, relation: rel });
-            nextFrontier.push(neighborId);
+        const parentId = frontierSet.has(rel.sourceId) ? rel.sourceId : rel.targetId;
+        const neighborId = parentId === rel.sourceId ? rel.targetId : rel.sourceId;
 
-            if (neighborId === endEntity.id) {
-              // Found! Reconstruct path.
-              return this._reconstructPath(
-                startEntity,
-                endEntity,
-                parentMap,
-              );
-            }
+        if (!visited.has(neighborId)) {
+          visited.add(neighborId);
+          parentMap.set(neighborId, { entityId: parentId, relation: rel });
+          nextFrontier.push(neighborId);
+
+          if (neighborId === endEntity.id) {
+            return this._reconstructPath(startEntity, endEntity, parentMap);
           }
         }
       }

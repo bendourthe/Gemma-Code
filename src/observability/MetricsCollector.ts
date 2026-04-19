@@ -84,11 +84,12 @@ export class MetricsCollector {
   }
 
   computeAggregateMetrics(traceIds: readonly string[]): AggregateMetrics {
-    const sessions = traceIds
-      .map((id) => this.computeSessionMetrics(id))
-      .filter((m): m is SessionMetrics => m !== null);
+    // Single GROUP BY query instead of loading each trace's spans and
+    // re-parsing every attributes JSON (finding #34). Per-span JSON parse
+    // now happens only on detail views (computeSessionMetrics, getTrace).
+    const aggregates = this._store.getTraceAggregates(traceIds);
 
-    if (sessions.length === 0) {
+    if (aggregates.length === 0) {
       return {
         averageDurationMs: 0,
         medianDurationMs: 0,
@@ -100,7 +101,7 @@ export class MetricsCollector {
       };
     }
 
-    const durations = sessions.map((s) => s.totalDurationMs);
+    const durations = aggregates.map((a) => a.durationMs);
     const sorted = [...durations].sort((a, b) => a - b);
     const mid = Math.floor(sorted.length / 2);
     const medianDurationMs =
@@ -108,19 +109,22 @@ export class MetricsCollector {
         ? ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2
         : (sorted[mid] ?? 0);
 
-    const totalToolCalls = sessions.reduce((s, m) => s + m.toolStepCount, 0);
-    const totalInterventions = sessions.reduce(
-      (s, m) => s + m.humanInterventionCount,
+    const totalToolCalls = aggregates.reduce((s, a) => s + a.toolCount, 0);
+    const totalInterventions = aggregates.reduce(
+      (s, a) => s + a.humanInterventionCount,
       0,
+    );
+    const successRates = aggregates.map((a) =>
+      a.toolCount > 0 ? a.toolSuccessCount / a.toolCount : 1,
     );
 
     return {
       averageDurationMs: avg(durations),
       medianDurationMs,
-      averageToolSteps: avg(sessions.map((s) => s.toolStepCount)),
-      averageRetries: avg(sessions.map((s) => s.retryCount)),
-      overallSuccessRate: avg(sessions.map((s) => s.successRate)),
-      totalCompactions: sessions.reduce((s, m) => s + m.compactionCount, 0),
+      averageToolSteps: avg(aggregates.map((a) => a.toolCount)),
+      averageRetries: avg(aggregates.map((a) => a.retryCount)),
+      overallSuccessRate: avg(successRates),
+      totalCompactions: aggregates.reduce((s, a) => s + a.compactionCount, 0),
       humanInterventionRate:
         totalToolCalls > 0 ? totalInterventions / totalToolCalls : 0,
     };

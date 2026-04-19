@@ -1,0 +1,10 @@
+{
+  "note": "Baseline performance numbers for Gemma Code v0.4.0 benchmarks. Populated by the nightly CI workflow via `node scripts/check-bench-regressions.mjs --update-baseline` after v0.4.0 tags. Until then, the gating script uses v0.3.0.json as the floor (both baselines are empty objects at seed time, so the gate is a no-op -- every bench name is treated as new).",
+  "version": "0.4.0",
+  "createdAt": null,
+  "thresholds": {
+    "regressionPct": 20,
+    "improvementPct": 50
+  },
+  "benchmarks": {}
+}

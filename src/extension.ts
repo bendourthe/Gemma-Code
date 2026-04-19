@@ -30,23 +30,29 @@ process.on("unhandledRejection", (reason: unknown) => {
 // Ollama availability polling
 // ---------------------------------------------------------------------------
 
-const OLLAMA_POLL_INTERVAL_MS = 5_000;
+// Fast cadence while the server is unreachable so the UI reconnects quickly.
+const OLLAMA_POLL_FAST_MS = 5_000;
+// Slow cadence once healthy; just a keep-alive for a lightweight change signal.
+const OLLAMA_POLL_SLOW_MS = 30_000;
 
 function startOllamaPoller(
   panel: GemmaCodePanel,
   channel: vscode.OutputChannel
 ): void {
   let ollamaWasReachable = false;
+  // Client is created once and reused across every tick. Previously a fresh
+  // client was allocated per tick, generating ~17k allocations/day on an idle
+  // 8-hour session.
+  const client = createOllamaClient();
 
-  ollamaPoller = setInterval(async () => {
-    const client = createOllamaClient();
+  const tick = async (): Promise<void> => {
     const healthy = await client.checkHealth().catch(() => false);
 
     void panel.setOllamaReachable(healthy);
 
     if (healthy && !ollamaWasReachable) {
       ollamaWasReachable = true;
-      channel.appendLine("[Gemma Code] Ollama is now reachable — resuming normal operation.");
+      channel.appendLine("[Gemma Code] Ollama is now reachable -- resuming normal operation.");
       panel.postStatus("idle");
     } else if (!healthy && ollamaWasReachable) {
       ollamaWasReachable = false;
@@ -55,7 +61,16 @@ function startOllamaPoller(
         "Ollama is not reachable. Make sure `ollama serve` is running, then it will reconnect automatically."
       );
     }
-  }, OLLAMA_POLL_INTERVAL_MS);
+
+    // Reschedule at the cadence that matches current health. Once healthy we
+    // only need occasional keep-alive checks; while unreachable we want fast
+    // reconnect.
+    const next = ollamaWasReachable ? OLLAMA_POLL_SLOW_MS : OLLAMA_POLL_FAST_MS;
+    ollamaPoller = setTimeout(() => void tick(), next);
+  };
+
+  // Kick off the first poll at the fast cadence.
+  ollamaPoller = setTimeout(() => void tick(), OLLAMA_POLL_FAST_MS);
 }
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -210,7 +225,9 @@ export function activate(context: vscode.ExtensionContext): void {
       targetColumn,
       {
         enableScripts: true,
-        retainContextWhenHidden: true,
+        // Discard webview JS state while hidden to free memory; the panel
+        // rehydrates via GemmaCodePanel.onDidChangeViewState + _postHistory.
+        retainContextWhenHidden: false,
         localResourceRoots: [context.extensionUri],
       }
     );
@@ -333,7 +350,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push({
     dispose: () => {
       if (ollamaPoller !== undefined) {
-        clearInterval(ollamaPoller);
+        clearTimeout(ollamaPoller);
         ollamaPoller = undefined;
       }
     },
@@ -362,7 +379,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
 export async function deactivate(): Promise<void> {
   if (ollamaPoller !== undefined) {
-    clearInterval(ollamaPoller);
+    clearTimeout(ollamaPoller);
     ollamaPoller = undefined;
   }
 }

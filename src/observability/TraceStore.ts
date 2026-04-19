@@ -47,6 +47,33 @@ export interface Trace {
   readonly spanCount: number;
 }
 
+/** Pre-aggregated counts for a single trace, populated by getTraceAggregates. */
+export interface TraceAggregate {
+  readonly traceId: string;
+  readonly durationMs: number;
+  readonly toolCount: number;
+  readonly llmCount: number;
+  readonly retryCount: number;
+  readonly compactionCount: number;
+  readonly subAgentCount: number;
+  readonly toolSuccessCount: number;
+  readonly humanInterventionCount: number;
+  readonly tokensEstimated: number;
+}
+
+interface TraceAggregateRow {
+  trace_id: string;
+  duration_ms: number | null;
+  tool_count: number | null;
+  llm_count: number | null;
+  retry_count: number | null;
+  compaction_count: number | null;
+  sub_agent_count: number | null;
+  tool_success_count: number | null;
+  human_intervention_count: number | null;
+  tokens_estimated: number | null;
+}
+
 // ---------------------------------------------------------------------------
 // Internal row types
 // ---------------------------------------------------------------------------
@@ -392,6 +419,50 @@ export class TraceStore {
       startTime: r.start_time,
       endTime: r.end_time,
       spanCount: r.span_count,
+    }));
+  }
+
+  /**
+   * Batched aggregate counts for many traces in a single SQL query.
+   * Used by MetricsCollector.computeAggregateMetrics to avoid loading every
+   * span and parsing every attributes JSON for a dashboard refresh
+   * (finding #34). Detail queries still use `getTrace` / `getSpansByKind`
+   * which preserve full span fidelity.
+   */
+  getTraceAggregates(traceIds: readonly string[]): TraceAggregate[] {
+    if (traceIds.length === 0) return [];
+    this.flush();
+    const placeholders = traceIds.map(() => "?").join(",");
+    const rows = this._db
+      .prepare(
+        `SELECT
+           trace_id,
+           COALESCE(MAX(end_time), MAX(start_time)) - MIN(start_time) AS duration_ms,
+           SUM(CASE WHEN kind = 'tool_call' THEN 1 ELSE 0 END) AS tool_count,
+           SUM(CASE WHEN kind = 'llm_call' THEN 1 ELSE 0 END) AS llm_count,
+           SUM(CASE WHEN kind = 'reflexion' THEN 1 ELSE 0 END) AS retry_count,
+           SUM(CASE WHEN kind = 'compaction' THEN 1 ELSE 0 END) AS compaction_count,
+           SUM(CASE WHEN kind = 'sub_agent' THEN 1 ELSE 0 END) AS sub_agent_count,
+           SUM(CASE WHEN kind = 'tool_call' AND status = 'ok' THEN 1 ELSE 0 END) AS tool_success_count,
+           SUM(CASE WHEN kind = 'tool_call' AND json_extract(attributes, '$.confirmation_required') = 1 THEN 1 ELSE 0 END) AS human_intervention_count,
+           COALESCE(SUM(CAST(json_extract(attributes, '$.tokens_estimated') AS INTEGER)), 0) AS tokens_estimated
+         FROM spans
+         WHERE trace_id IN (${placeholders})
+         GROUP BY trace_id`,
+      )
+      .all(...traceIds) as TraceAggregateRow[];
+
+    return rows.map((r) => ({
+      traceId: r.trace_id,
+      durationMs: r.duration_ms ?? 0,
+      toolCount: r.tool_count ?? 0,
+      llmCount: r.llm_count ?? 0,
+      retryCount: r.retry_count ?? 0,
+      compactionCount: r.compaction_count ?? 0,
+      subAgentCount: r.sub_agent_count ?? 0,
+      toolSuccessCount: r.tool_success_count ?? 0,
+      humanInterventionCount: r.human_intervention_count ?? 0,
+      tokensEstimated: r.tokens_estimated ?? 0,
     }));
   }
 

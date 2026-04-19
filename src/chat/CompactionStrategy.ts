@@ -12,13 +12,34 @@ const CHARS_PER_TOKEN = 4;
 /** Multiplier for content that contains code blocks. */
 const CODE_BLOCK_MULTIPLIER = 1.3;
 
-/** Estimate the token count for an array of messages. */
+/**
+ * Per-Message memoization cache for token estimates. Messages are immutable,
+ * so the estimate is stable for the lifetime of the Message object. WeakMap
+ * lets entries be collected when the Message is no longer referenced.
+ */
+const _tokenEstimateCache = new WeakMap<Message, number>();
+
+/** Compute the per-message token estimate (bypassing the cache). */
+function _computeTokensForMessage(msg: Message): number {
+  const chars = msg.content.length;
+  const hasCode = msg.content.includes("```");
+  return (chars / CHARS_PER_TOKEN) * (hasCode ? CODE_BLOCK_MULTIPLIER : 1);
+}
+
+/** Estimate the token count for a single message. Result is memoized. */
+export function estimateTokensForMessage(msg: Message): number {
+  const cached = _tokenEstimateCache.get(msg);
+  if (cached !== undefined) return cached;
+  const raw = _computeTokensForMessage(msg);
+  _tokenEstimateCache.set(msg, raw);
+  return raw;
+}
+
+/** Estimate the token count for an array of messages. Per-message results cached. */
 export function estimateTokensForMessages(messages: readonly Message[]): number {
   let total = 0;
   for (const msg of messages) {
-    const chars = msg.content.length;
-    const hasCode = msg.content.includes("```");
-    total += (chars / CHARS_PER_TOKEN) * (hasCode ? CODE_BLOCK_MULTIPLIER : 1);
+    total += estimateTokensForMessage(msg);
   }
   return Math.round(total);
 }
@@ -308,14 +329,29 @@ export class EmergencyTrim implements CompactionStrategy {
   }
 
   async apply(messages: readonly Message[], budgetTokens: number): Promise<Message[]> {
-    const result = [...messages];
-    let i = 0;
-    while (i < result.length && estimateTokensForMessages(result) > budgetTokens) {
-      const msg = result[i];
+    // Compute the starting total once, then subtract each dropped message's
+    // estimate instead of re-summing the whole array on every iteration.
+    let total = 0;
+    for (const msg of messages) total += estimateTokensForMessage(msg);
+
+    // Collect indices of non-system messages in order; drop oldest-first until
+    // under budget. Build the result in a single O(N) pass.
+    const dropped = new Set<number>();
+    for (let i = 0; i < messages.length && Math.round(total) > budgetTokens; i++) {
+      const msg = messages[i];
       if (msg && msg.role !== "system") {
-        result.splice(i, 1);
-      } else {
-        i++;
+        total -= estimateTokensForMessage(msg);
+        dropped.add(i);
+      }
+    }
+
+    if (dropped.size === 0) return [...messages];
+
+    const result: Message[] = [];
+    for (let i = 0; i < messages.length; i++) {
+      if (!dropped.has(i)) {
+        const msg = messages[i];
+        if (msg) result.push(msg);
       }
     }
     return result;

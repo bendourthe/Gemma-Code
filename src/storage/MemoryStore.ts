@@ -43,14 +43,27 @@ const SEMANTIC_CANDIDATE_LIMIT = 200;
 export class MemoryStore {
   private readonly _db: Database.Database;
   private readonly _embedder: EmbeddingClient | null;
+  /** True when this instance opened its own Database and must close it. */
+  private readonly _ownsDb: boolean;
   private _graphEngine: GraphQueryEngine | null = null;
   /** id -> deserialized Float32 vector. Invalidated on save/delete/prune/clear. */
   private readonly _embeddingCache = new Map<string, Float32Array>();
 
-  constructor(dbPath: string, embedder?: EmbeddingClient | null) {
-    this._db = new Database(dbPath);
-    secureDbPermissions(dbPath);
-    this._db.pragma("journal_mode = WAL");
+  /**
+   * Construct a MemoryStore backed either by a path (self-opens and owns the
+   * connection) or an existing Database (caller owns the connection -- used
+   * by MemorySubsystem for connection sharing, see finding #65).
+   */
+  constructor(dbOrPath: string | Database.Database, embedder?: EmbeddingClient | null) {
+    if (typeof dbOrPath === "string") {
+      this._db = new Database(dbOrPath);
+      secureDbPermissions(dbOrPath);
+      this._db.pragma("journal_mode = WAL");
+      this._ownsDb = true;
+    } else {
+      this._db = dbOrPath;
+      this._ownsDb = false;
+    }
     this._embedder = embedder ?? null;
     this._initSchema();
   }
@@ -266,29 +279,41 @@ export class MemoryStore {
     const keywordResults = this.searchKeyword(query, 20);
     const semanticResults = await this.searchSemantic(query, 20);
 
-    // Merge and deduplicate.
-    const merged = new Map<string, MemorySearchResult>();
+    if (keywordResults.length === 0 && semanticResults.length === 0 && !this._graphEngine) {
+      return "";
+    }
 
-    for (const r of keywordResults) {
-      merged.set(r.entry.id, r);
+    // Merge keyword + semantic into a single array, tracking seen ids via an
+    // index map so we can blend scores for entries that matched both paths.
+    // Avoids the previous Map<id, result> + `[...values()]` spread
+    // (finding #70): one dense array, one small lookup Map, no re-allocation.
+    const merged: MemorySearchResult[] = keywordResults.slice();
+    const indexById = new Map<string, number>();
+    for (let i = 0; i < merged.length; i++) {
+      const m = merged[i];
+      if (m) indexById.set(m.entry.id, i);
     }
     for (const r of semanticResults) {
-      const existing = merged.get(r.entry.id);
-      if (existing) {
-        merged.set(r.entry.id, {
-          entry: r.entry,
-          score: 0.6 * existing.score + 0.4 * r.score,
-          matchSource: "both",
-        });
+      const existingIdx = indexById.get(r.entry.id);
+      if (existingIdx !== undefined) {
+        const existing = merged[existingIdx];
+        if (existing) {
+          merged[existingIdx] = {
+            entry: r.entry,
+            score: 0.6 * existing.score + 0.4 * r.score,
+            matchSource: "both",
+          };
+        }
       } else {
-        merged.set(r.entry.id, r);
+        indexById.set(r.entry.id, merged.length);
+        merged.push(r);
       }
     }
 
-    if (merged.size === 0) return "";
+    if (merged.length === 0 && !this._graphEngine) return "";
 
-    // Sort by score descending.
-    const sorted = [...merged.values()].sort((a, b) => b.score - a.score);
+    // Sort by score descending, in place, on the single merged array.
+    const sorted = merged.sort((a, b) => b.score - a.score);
 
     // Token-budget packing.
     const header = "## Recalled Memories\n\n";
@@ -325,25 +350,60 @@ export class MemoryStore {
   // Auto-extraction from conversation
   // ---------------------------------------------------------------------------
 
-  /** Heuristic extraction of memorable content from messages about to be compacted. */
+  /**
+   * Heuristic extraction of memorable content from messages about to be
+   * compacted. Batches the embedding calls and INSERTs into a single
+   * transaction -- a 30-extraction compaction that used to issue 30 HTTP
+   * embed calls now issues one (finding #67).
+   */
   async extractAndSave(
     messages: readonly Message[],
     sessionId?: string,
   ): Promise<number> {
-    let saved = 0;
-
+    // Gather extractions.
+    const extractions: Array<{ content: string; type: MemoryType }> = [];
     for (const msg of messages) {
       if (msg.role === "system") continue;
-
-      const extractions = this._extractPatterns(msg.content, msg.role);
-      for (const { content, type } of extractions) {
-        if (this.isDuplicate(content)) continue;
-        await this.save(content, type, sessionId);
-        saved++;
+      for (const extraction of this._extractPatterns(msg.content, msg.role)) {
+        extractions.push(extraction);
       }
     }
+    if (extractions.length === 0) return 0;
 
-    return saved;
+    // Filter duplicates. `isDuplicate` runs a small FTS query per entry; the
+    // extraction set is capped by message count so the N<<DB-size assumption
+    // holds. Acceptable until a bulk version of isDuplicate is needed.
+    const fresh = extractions.filter((e) => !this.isDuplicate(e.content));
+    if (fresh.length === 0) return 0;
+
+    // Embed all fresh extractions in a single batch request where possible.
+    let embeddings: Array<number[] | null> = fresh.map(() => null);
+    if (this._embedder) {
+      embeddings = await this._embedder.embedBatch(fresh.map((e) => e.content));
+    }
+
+    // Bulk INSERT inside a transaction.
+    const now = Date.now();
+    const insertStmt = this._db.prepare(
+      `INSERT INTO memories (id, session_id, content, type, embedding, created_at, accessed_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    );
+    const tx = this._db.transaction(
+      (rows: Array<{ id: string; content: string; type: MemoryType; buf: Buffer | null }>) => {
+        for (const r of rows) {
+          insertStmt.run(r.id, sessionId ?? null, r.content, r.type, r.buf, now, now);
+        }
+      },
+    );
+    const rows = fresh.map((e, i) => ({
+      id: randomUUID(),
+      content: e.content,
+      type: e.type,
+      buf: embeddings[i] ? serializeEmbedding(embeddings[i] as number[]) : null,
+    }));
+    tx(rows);
+
+    return rows.length;
   }
 
   /** Pattern-based extraction of memorable content from a single message. */
@@ -512,9 +572,9 @@ export class MemoryStore {
     };
   }
 
-  /** Close the database connection. */
+  /** Close the database connection if this instance owns it. */
   close(): void {
-    this._db.close();
+    if (this._ownsDb) this._db.close();
   }
 
   // ---------------------------------------------------------------------------

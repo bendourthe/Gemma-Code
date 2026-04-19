@@ -2,6 +2,7 @@ import * as path from "path";
 import * as vscode from "vscode";
 import { randomUUID } from "crypto";
 import { ConversationManager } from "../chat/ConversationManager.js";
+import type { Message } from "../chat/types.js";
 import { StreamingPipeline } from "../chat/StreamingPipeline.js";
 import { ContextCompactor } from "../chat/ContextCompactor.js";
 import { AgentLoop } from "../tools/AgentLoop.js";
@@ -61,6 +62,17 @@ export const VIEW_ID = "gemma-code.chatView";
 export class GemmaCodePanel implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
   private _editorPanel?: vscode.WebviewPanel;
+  // Tracks whether the editor panel currently has focus. Streaming messages
+  // route to only the focused surface to avoid double-posting when both the
+  // sidebar and an editor panel are attached. History events still broadcast
+  // so both stay in sync. Initially true because opening the editor panel is
+  // the normal flow; flipped on onDidChangeViewState.
+  private _editorPanelActive = true;
+  // Per-message rendered Markdown cache. Populated lazily on `_postHistory`
+  // and evicted for ids that are no longer in the current history. Prevents
+  // re-rendering every assistant message on every post (replace, delete,
+  // session load, or scroll-induced rehydrate).
+  private readonly _renderedHtmlCache = new Map<string, string>();
   private readonly _manager: ConversationManager;
   private readonly _pipeline: StreamingPipeline;
   private readonly _confirmationGate: ConfirmationGate;
@@ -70,6 +82,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
   private readonly _planMode: PlanMode;
   private readonly _promptBuilder: PromptBuilder;
   private readonly _store: ChatHistoryStore | null;
+  private readonly _memorySubsystem: MemorySubsystem;
   private readonly _memoryStore: MemoryStore | null;
   private readonly _compactor: ContextCompactor;
   private readonly _workingMemory: WorkingMemory | null;
@@ -114,6 +127,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
 
     // Initialize 4-layer memory system through the MemorySubsystem factory.
     const memory = this._buildMemorySubsystem(settings);
+    this._memorySubsystem = memory;
     this._memoryStore = memory.memoryStore;
     this._workingMemory = memory.workingMemory;
     this._episodicMemory = memory.episodicMemory;
@@ -991,15 +1005,46 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
 
   private _postHistory(): void {
     const visible = this._manager.getHistory().filter((m) => m.role !== "system");
+
+    // Populate the cache lazily -- each assistant message's Markdown is
+    // rendered exactly once per session, even across repeated history posts.
+    const liveIds = new Set<string>();
     const renderedHtmlMap: Record<string, string> = {};
+    const messages: Message[] = [];
+
     for (const msg of visible) {
+      liveIds.add(msg.id);
       if (msg.role === "assistant") {
-        renderedHtmlMap[msg.id] = renderMarkdown(msg.content);
+        let html = this._renderedHtmlCache.get(msg.id);
+        if (html === undefined) {
+          html = renderMarkdown(msg.content);
+          this._renderedHtmlCache.set(msg.id, html);
+        }
+        renderedHtmlMap[msg.id] = html;
+        // Assistant payload: keep metadata only; the HTML map is authoritative
+        // for the webview. Drops roughly half the payload on typical sessions.
+        messages.push({
+          id: msg.id,
+          role: msg.role,
+          content: "",
+          timestamp: msg.timestamp,
+        });
+      } else {
+        messages.push(msg);
       }
     }
+
+    // Evict cache entries whose messages no longer exist (handles trim,
+    // replaceMessages, clearHistory, loadSession).
+    if (this._renderedHtmlCache.size > liveIds.size) {
+      for (const id of this._renderedHtmlCache.keys()) {
+        if (!liveIds.has(id)) this._renderedHtmlCache.delete(id);
+      }
+    }
+
     this._postToWebview({
       type: "history",
-      messages: visible,
+      messages,
       renderedHtmlMap,
     });
   }
@@ -1196,10 +1241,51 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     });
   }
 
-  /** Post a message to whichever webview is active (sidebar or editor panel). */
+  /**
+   * Post a message to every attached webview (sidebar + editor panel).
+   * History, status, and other broadcast events use this path so every
+   * surface stays in sync.
+   */
   private _postToWebview(msg: unknown): void {
+    // Route high-frequency streaming traffic to only the focused surface.
+    // A single stream of 500 tokens with both panels attached posted 1000
+    // messages before this split; now it posts 500.
+    if (this._isStreamingMessage(msg)) {
+      this._postToFocusedWebview(msg);
+      return;
+    }
     void this._editorPanel?.webview.postMessage(msg);
     void this._view?.webview.postMessage(msg);
+  }
+
+  /** Post to whichever surface currently has focus. Used for streaming. */
+  private _postToFocusedWebview(msg: unknown): void {
+    const hasEditor = this._editorPanel !== undefined;
+    const hasView = this._view !== undefined;
+    // If only one is attached, behavior matches the pre-split broadcast.
+    if (!hasEditor) {
+      void this._view?.webview.postMessage(msg);
+      return;
+    }
+    if (!hasView) {
+      void this._editorPanel?.webview.postMessage(msg);
+      return;
+    }
+    // Both attached: pick the focused one.
+    if (this._editorPanelActive) {
+      void this._editorPanel?.webview.postMessage(msg);
+    } else {
+      void this._view?.webview.postMessage(msg);
+    }
+  }
+
+  private _isStreamingMessage(msg: unknown): boolean {
+    if (typeof msg !== "object" || msg === null) return false;
+    const type = (msg as { type?: unknown }).type;
+    // Streaming-family types: token deltas and the completion marker. All
+    // other events (history, status, errors, tool I/O, config updates) are
+    // low-frequency or critical and must reach every attached surface.
+    return type === "token" || type === "messageComplete";
   }
 
   /** Post a status update to the webview (visible even before the first message). */
@@ -1248,6 +1334,26 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
 
     // Store a reference so postMessage calls work on the editor panel.
     this._editorPanel = panel;
+    this._editorPanelActive = panel.active;
+
+    // Track focus for streaming routing (4.4) and rehydrate on re-show so a
+    // hidden panel with retainContextWhenHidden: false (4.19) paints fresh.
+    panel.onDidChangeViewState((ev) => {
+      const wasHidden = !this._editorPanelActive;
+      this._editorPanelActive = ev.webviewPanel.active;
+      if (ev.webviewPanel.visible && wasHidden) {
+        // Re-show after being hidden: the webview's JS state was discarded,
+        // so repaint from the cached rendered HTML.
+        this._postHistory();
+      }
+    });
+
+    panel.onDidDispose(() => {
+      if (this._editorPanel === panel) {
+        this._editorPanel = undefined;
+        this._editorPanelActive = false;
+      }
+    });
   }
 
   /** Get the underlying ChatHistoryStore (for session list panel). */
@@ -1276,8 +1382,10 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     this._manager.dispose();
     this._skillLoader.stopWatching();
     this._store?.close();
-    this._memoryStore?.close();
-    this._episodicMemory?.close();
+    // MemoryStore, EpisodicMemory, and GraphMemory now share one Database
+    // owned by MemorySubsystem. One close() is sufficient; the per-layer
+    // close() methods are no-ops on injected connections.
+    this._memorySubsystem.close();
     this._mcpManager?.dispose();
     void this._mcpServer?.stop();
     this._settingsChangeDisposable?.dispose();

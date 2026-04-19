@@ -8,7 +8,6 @@
  */
 export {
   parseToolCalls,
-  hasToolCall,
   stripToolCalls,
   formatToolResult,
   type ParseResult,

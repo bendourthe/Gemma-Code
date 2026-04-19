@@ -4,6 +4,43 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-04-19] v0.4.0 Phase 4 -- Performance Optimization
+
+### Summary
+
+Closed 20 remaining performance findings (9 P1 + 8 P2 + 3 P3) from the v0.3.0 review across seven waves. The send loop, panel/webview rendering, prompt/tool serialization, storage layer, and observability aggregation were all touched. Two sub-tasks were verified as already resolved by earlier phases and recorded as deviations.
+
+### Changes
+
+- **Send-loop hot path (Wave A):** `ConversationManager.getHistory()` no longer clones; a running `_totalChars` counter makes token estimates O(1) at the manager level. Per-`Message` token estimates are memoized via a module-scoped `WeakMap`. `trimToContextLimit` and `EmergencyTrim.apply` both rewritten from O(N^2) splice-in-loop to O(N) single-pass rebuilds. Ollama poller hoists its client out of `setInterval` and uses self-rescheduling `setTimeout` with fast (5s) / slow (30s) cadences.
+- **Panels and webview (Wave B):** `GemmaCodePanel` gained a cross-call `_renderedHtmlCache: Map<string, string>` with id-based eviction, halving the Markdown render cost on repeat history posts. Streaming `token` / `messageComplete` events now route to the focused surface only; history and status still broadcast. `_postHistory` strips assistant content from the payload (`renderedHtmlMap` is authoritative). Editor panel registers with `retainContextWhenHidden: false` and rehydrates via `onDidChangeViewState`.
+- **Prompt and tool serialization (Wave C):** `PromptBuilder._buildToolDeclarations` memoizes its output keyed by a stable hash of the enabled-tool id set + `lazyToolLoading`. `parseToolCalls` now returns `{ results, hasAny }`; `hasToolCall` is removed from exports and `AgentLoop` uses the folded API with a single scan.
+- **Storage layer (Wave D):** `ChatHistoryStore.searchSessions` routes through FTS5 with a LIMIT default of 100, falling back to the prior LIKE join on sanitize/availability failures. FTS5 rebuild on cold start is gated on `PRAGMA user_version`. `GraphMemory.getRelationsForEntities(ids, direction)` issues one batched SQL query; `findRelatedEntities` and `GraphQueryEngine.explainPath` use it to reduce BFS depth expansion to at most one query per level. `MemoryStore` and `EpisodicMemory` constructors accept `string | Database`; `MemorySubsystem` opens one shared connection for all layers and exposes `close()`. `MemoryStore.extractAndSave` batches embeddings via `EmbeddingClient.embedBatch` and inserts in a single transaction. `MemoryStore.retrieve` merges keyword+semantic results into a single array with an id->index map, avoiding the Map+spread allocation.
+- **Observability (Wave E):** `TraceStore.getTraceAggregates(ids)` computes per-trace counts via one `GROUP BY trace_id` query using conditional aggregation and `json_extract` for attribute-dependent metrics. `MetricsCollector.computeAggregateMetrics` consumes the batched result; per-span JSON parsing is now detail-view only.
+- **Bundle size (Wave E, 4.11):** `MarkdownRenderer` imports `highlight.js/lib/core` and explicitly registers TypeScript, JavaScript, Python, Go, Rust, JSON, Bash, YAML (with common aliases). VSIX size is expected to drop by >=100 KB once packaged.
+- **Stabilization (Wave G):** Seeded `tests/benchmarks/baselines/v0.4.0.json` in the same shape as the (empty) v0.3.0 baseline. `scripts/check-bench-regressions.mjs` gained a `--floor` flag so v0.4.0 can supersede v0.3.0 for metrics it has measured while v0.3.0 remains the backup floor. Nightly workflow updated to pass both paths.
+
+### Deviations
+
+- **4.5** memory-block splice not implemented. Tool-section memoization captures the dominant cost; memory-section rebuild is proportionally small and would fork the prompt-assembly flow.
+- **4.8** `queryByEntity` was not directly rewritten -- it already delegates its primary work to the now-batched `findRelatedEntities`. Remaining single-entity `getEntityRelations` calls in leaf enrichment are not on the review's hot path.
+- **4.9** `ConversationSync` async -- N/A. The class has zero importers since Phase 3.6 removed the last callers. Phase 7 owns deletion.
+- **4.15** Shared `EmbeddingClient` -- already satisfied. `MemorySubsystem` constructs exactly one instance and passes by reference to every consumer.
+- **4.21** Baseline numbers were not captured in this run. The v0.3.0 baseline was also seeded empty and populated by the first nightly CI run; v0.4.0 inherits the same pattern. The gating logic is active via the new `--floor` flag.
+
+### Test status
+
+- `npm run build`: clean
+- `npm run lint`: 0 errors, 30 pre-existing `no-console` warnings (unchanged from Phase 3)
+- `npm run test`: 1117 passed, 2 skipped, 0 failed across 85 test files
+
+### Files touched
+
+- 19 src files, 3 test files, 1 script, 1 workflow, 1 new baseline, 1 session history.
+- Full list: [docs/v0.4.0/development/history/2026-04_phase-4-performance.md](v0.4.0/development/history/2026-04_phase-4-performance.md).
+
+---
+
 ## [2026-04-19] v0.4.0 Phase 3 -- Correctness and Code Quality
 
 ### Summary
