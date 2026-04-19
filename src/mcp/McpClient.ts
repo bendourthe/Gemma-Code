@@ -5,6 +5,27 @@ import type {
   McpServerConfig,
   McpToolInfo,
 } from "./McpTypes.js";
+import { stripHtmlTags } from "../tools/handlers/webSearch.js";
+
+/**
+ * Environment variables that are safely propagated to spawned MCP subprocesses.
+ * Additional keys may be allowed by listing them in the server's `env` config.
+ */
+const DEFAULT_ENV_WHITELIST = ["PATH", "HOME", "USERPROFILE", "APPDATA"] as const;
+
+/** Maximum length of an MCP tool description (characters) after sanitization. */
+const MAX_TOOL_DESCRIPTION_CHARS = 500;
+
+/** Pattern every MCP tool name must match to be accepted. */
+const TOOL_NAME_REGEX = /^[a-zA-Z0-9_]{1,64}$/;
+
+function sanitizeToolDescription(raw: string | undefined): string {
+  if (!raw) return "";
+  const stripped = stripHtmlTags(raw);
+  return stripped.length <= MAX_TOOL_DESCRIPTION_CHARS
+    ? stripped
+    : stripped.slice(0, MAX_TOOL_DESCRIPTION_CHARS);
+}
 
 /**
  * Connects to a single external MCP server, discovers its tools,
@@ -43,14 +64,15 @@ export class McpClient {
       const { Client } = await import("@modelcontextprotocol/sdk/client");
       const { StdioClientTransport } = await import("@modelcontextprotocol/sdk/client/stdio.js");
 
+      // Start with ONLY a minimal whitelist from process.env (no full inheritance).
       const envRecord: Record<string, string> = {};
+      for (const key of DEFAULT_ENV_WHITELIST) {
+        const v = process.env[key];
+        if (typeof v === "string") envRecord[key] = v;
+      }
+      // Add explicitly-configured env keys.
       if (this._config.env) {
         for (const [k, v] of Object.entries(this._config.env)) {
-          envRecord[k] = v;
-        }
-      }
-      for (const [k, v] of Object.entries(process.env)) {
-        if (v !== undefined && !(k in envRecord)) {
           envRecord[k] = v;
         }
       }
@@ -58,7 +80,7 @@ export class McpClient {
       this._transport = new StdioClientTransport({
         command: this._config.command,
         args: this._config.args ? [...this._config.args] : undefined,
-        env: this._config.env ? envRecord : undefined,
+        env: envRecord,
       });
 
       const client = new Client(
@@ -68,15 +90,24 @@ export class McpClient {
 
       await client.connect(this._transport as never);
 
-      // Discover tools from the server.
+      // Discover tools from the server; skip any with an unsafe name.
       const { tools } = await client.listTools();
-      this._tools = tools.map((t) => ({
-        serverName: this._config.name,
-        name: t.name,
-        qualifiedName: `mcp:${this._config.name}/${t.name}` as McpToolName,
-        description: t.description ?? "",
-        inputSchema: t.inputSchema as Record<string, unknown>,
-      }));
+      this._tools = [];
+      for (const t of tools) {
+        if (!TOOL_NAME_REGEX.test(t.name)) {
+          console.warn(
+            `[McpClient] Rejected tool name from server "${this._config.name}": "${t.name}"`,
+          );
+          continue;
+        }
+        this._tools.push({
+          serverName: this._config.name,
+          name: t.name,
+          qualifiedName: `mcp:${this._config.name}/${t.name}` as McpToolName,
+          description: sanitizeToolDescription(t.description),
+          inputSchema: t.inputSchema as Record<string, unknown>,
+        });
+      }
 
       this._client = client as never;
       this._status = "connected";

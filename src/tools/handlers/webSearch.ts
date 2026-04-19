@@ -8,74 +8,15 @@ import type {
   WebSearchParams,
   FetchPageParams,
 } from "../types.js";
+import { fetchWithSsrfGuard } from "../../utils/ssrf.js";
 
 const DUCKDUCKGO_HTML_URL = "https://html.duckduckgo.com/html/";
 const MAX_RESULTS = 5;
 const FETCH_TIMEOUT_MS = 10_000;
 const MAX_PAGE_CHARS = 2_000;
-
-// ---------------------------------------------------------------------------
-// SSRF protection — reject URLs that resolve to internal/private destinations.
-// ---------------------------------------------------------------------------
-
-const BLOCKED_HOSTNAMES = new Set([
-  "localhost",
-  "ip6-localhost",
-  "ip6-loopback",
-]);
-
-/**
- * Returns true if the URL should be blocked to prevent SSRF.
- * Blocks: file://, non-http(s) schemes, localhost, loopback (127.x.x.x),
- * link-local (169.254.x.x), and all RFC-1918 private IP ranges.
- */
-function isSsrfBlocked(rawUrl: string): boolean {
-  let parsed: URL;
-  try {
-    parsed = new URL(rawUrl);
-  } catch {
-    return true; // Malformed URL — block it.
-  }
-
-  const scheme = parsed.protocol;
-  if (scheme !== "http:" && scheme !== "https:") {
-    return true;
-  }
-
-  const host = parsed.hostname.toLowerCase();
-
-  if (BLOCKED_HOSTNAMES.has(host)) {
-    return true;
-  }
-
-  // Loopback: 127.0.0.0/8
-  if (/^127\./.test(host)) {
-    return true;
-  }
-
-  // Link-local: 169.254.0.0/16
-  if (/^169\.254\./.test(host)) {
-    return true;
-  }
-
-  // RFC-1918 private ranges
-  if (/^10\./.test(host)) {
-    return true;
-  }
-  if (/^172\.(1[6-9]|2\d|3[01])\./.test(host)) {
-    return true;
-  }
-  if (/^192\.168\./.test(host)) {
-    return true;
-  }
-
-  // IPv6 loopback and link-local
-  if (host === "::1" || host.startsWith("fe80:") || host.startsWith("[fe80:")) {
-    return true;
-  }
-
-  return false;
-}
+const MAX_SNIPPET_CHARS = 300;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX_REQUESTS = 10;
 
 interface SearchResult {
   title: string;
@@ -87,18 +28,12 @@ function failResult(id: string, error: string): ToolResult {
   return { id, success: false, output: "", error };
 }
 
-async function fetchWithTimeout(url: string, init?: RequestInit): Promise<Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  try {
-    return await fetch(url, { ...init, signal: controller.signal });
-  } finally {
-    clearTimeout(timer);
-  }
+export function stripHtmlTags(html: string): string {
+  return html.replace(/<[^>]+>/g, " ").replace(/\s{2,}/g, " ").trim();
 }
 
-function stripHtmlTags(html: string): string {
-  return html.replace(/<[^>]+>/g, " ").replace(/\s{2,}/g, " ").trim();
+function truncate(s: string, max: number): string {
+  return s.length <= max ? s : s.slice(0, max);
 }
 
 // ---------------------------------------------------------------------------
@@ -106,6 +41,22 @@ function stripHtmlTags(html: string): string {
 // ---------------------------------------------------------------------------
 
 export class WebSearchTool implements ToolHandler {
+  private _requestTimestamps: number[] = [];
+
+  /** Reset per-session rate-limit counter. Called by session boundary wiring. */
+  resetSession(): void {
+    this._requestTimestamps = [];
+  }
+
+  /** Returns remaining-seconds until next request slot opens, or 0 if under limit. */
+  private _rateLimitWait(nowMs: number): number {
+    const cutoff = nowMs - RATE_LIMIT_WINDOW_MS;
+    this._requestTimestamps = this._requestTimestamps.filter((t) => t >= cutoff);
+    if (this._requestTimestamps.length < RATE_LIMIT_MAX_REQUESTS) return 0;
+    const first = this._requestTimestamps[0]!;
+    return Math.max(0, Math.ceil((first + RATE_LIMIT_WINDOW_MS - nowMs) / 1000));
+  }
+
   async execute(parameters: Record<string, unknown>): Promise<ToolResult> {
     const id = (parameters["_callId"] as string | undefined) ?? "";
     const p = parameters as unknown as WebSearchParams;
@@ -113,6 +64,16 @@ export class WebSearchTool implements ToolHandler {
     if (!p.query || typeof p.query !== "string") {
       return failResult(id, "Missing required parameter: query");
     }
+
+    const now = Date.now();
+    const wait = this._rateLimitWait(now);
+    if (wait > 0) {
+      return failResult(
+        id,
+        `Rate limit exceeded (${RATE_LIMIT_MAX_REQUESTS} searches per minute). Retry in ${wait}s.`,
+      );
+    }
+    this._requestTimestamps.push(now);
 
     const maxResults =
       typeof p.max_results === "number" ? Math.min(p.max_results, 10) : MAX_RESULTS;
@@ -122,7 +83,8 @@ export class WebSearchTool implements ToolHandler {
 
     let html: string;
     try {
-      const response = await fetchWithTimeout(searchUrl, {
+      const response = await fetchWithSsrfGuard(searchUrl, {
+        timeoutMs: FETCH_TIMEOUT_MS,
         headers: {
           // Mimic a browser so DuckDuckGo returns proper HTML results.
           "User-Agent":
@@ -151,8 +113,8 @@ export class WebSearchTool implements ToolHandler {
         const snippetEl = node.querySelector(".result__snippet");
         const linkEl = node.querySelector(".result__url");
 
-        const title = titleEl ? titleEl.text.trim() : "";
-        const snippet = snippetEl ? snippetEl.text.trim() : "";
+        const title = truncate(stripHtmlTags(titleEl ? titleEl.text : ""), MAX_SNIPPET_CHARS);
+        const snippet = truncate(stripHtmlTags(snippetEl ? snippetEl.text : ""), MAX_SNIPPET_CHARS);
         const url = linkEl ? linkEl.text.trim() : "";
 
         if (title) {
@@ -184,25 +146,22 @@ export class FetchPageTool implements ToolHandler {
       return failResult(id, "Missing required parameter: url");
     }
 
-    if (isSsrfBlocked(p.url)) {
-      return failResult(
-        id,
-        `URL is not allowed: "${p.url}". Only public HTTP/HTTPS URLs are permitted.`
-      );
-    }
-
     let html: string;
     try {
-      const response = await fetchWithTimeout(p.url);
+      const response = await fetchWithSsrfGuard(p.url, { timeoutMs: FETCH_TIMEOUT_MS });
       if (!response.ok) {
         return failResult(id, `HTTP ${response.status} fetching "${p.url}"`);
       }
       html = await response.text();
     } catch (err) {
-      return failResult(
-        id,
-        `Network error: ${err instanceof Error ? err.message : String(err)}`
-      );
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("blocked by SSRF check")) {
+        return failResult(
+          id,
+          `URL is not allowed: "${p.url}". Only public HTTP/HTTPS URLs are permitted.`,
+        );
+      }
+      return failResult(id, `Network error: ${msg}`);
     }
 
     let text = stripHtmlTags(html);

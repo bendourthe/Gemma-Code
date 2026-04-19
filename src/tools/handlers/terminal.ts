@@ -10,9 +10,37 @@ import { resolveInsideWorkspace } from "./pathGuard.js";
 const DEFAULT_TIMEOUT_MS = 30_000;
 
 /**
- * Commands that are unconditionally blocked regardless of confirmation mode.
- * The full command string AND every individual segment (split on shell metacharacters)
- * are each checked, so patterns like `echo ok; rm -rf /` are still caught.
+ * Allowlist of commands that are routinely safe for development workflows.
+ * Map key: the first token of the command (case-sensitive).
+ * Map value: regex matching the remainder of the command string (after the first token).
+ *
+ * Commands outside this allowlist still execute, but flow through the standard
+ * DANGEROUS-tier confirmation gate in ToolRegistry. The allowlist exists to make
+ * the surface area explicit and to surface a clearer warning to the user when a
+ * command falls outside it.
+ */
+export const ALLOWED_COMMANDS: Record<string, RegExp> = {
+  git: /^[\s\S]*$/,
+  npm: /^[\s\S]*$/,
+  pnpm: /^[\s\S]*$/,
+  yarn: /^[\s\S]*$/,
+  node: /^[\s\S]*$/,
+  python: /^[\s\S]*$/,
+  python3: /^[\s\S]*$/,
+  pytest: /^[\s\S]*$/,
+  cargo: /^[\s\S]*$/,
+  go: /^[\s\S]*$/,
+  make: /^[\s\S]*$/,
+  ls: /^[\s\S]*$/,
+  cat: /^[\s\S]*$/,
+  echo: /^[\s\S]*$/,
+  pwd: /^[\s\S]*$/,
+};
+
+/**
+ * Hard blocklist: commands matching these patterns are rejected unconditionally
+ * as a defense-in-depth layer. Kept advisory (not the primary safety mechanism)
+ * after the allowlist transition.
  */
 export const BLOCKED_PATTERNS = [
   "rm -rf /",
@@ -42,9 +70,28 @@ function shellSegments(command: string): string[] {
 export function isBlocked(command: string): boolean {
   const segments = [command, ...shellSegments(command)];
   return segments.some((seg) => {
-    const normalized = seg.toLowerCase().trim();
+    // Normalize multiple whitespace into single spaces to catch patterns like `rm  -rf /`.
+    const normalized = seg.toLowerCase().trim().replace(/\s+/g, " ");
     return BLOCKED_PATTERNS.some((pattern) => normalized.includes(pattern));
   });
+}
+
+/**
+ * Returns true if every chained segment of the command starts with an allowlisted
+ * command and matches its argument pattern. A command that fails this check still
+ * executes (after confirmation), but the caller can surface a clearer warning.
+ */
+export function isAllowlisted(command: string): boolean {
+  const segments = shellSegments(command);
+  if (segments.length === 0) return false;
+  for (const seg of segments) {
+    const firstToken = seg.split(/\s+/)[0] ?? "";
+    const argPattern = ALLOWED_COMMANDS[firstToken];
+    if (!argPattern) return false;
+    const args = seg.slice(firstToken.length).trim();
+    if (!argPattern.test(args)) return false;
+  }
+  return true;
 }
 
 function workspaceRoot(): string {

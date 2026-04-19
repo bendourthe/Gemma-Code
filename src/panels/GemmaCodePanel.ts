@@ -91,7 +91,8 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
-    private readonly _globalStorageUri?: vscode.Uri
+    private readonly _globalStorageUri?: vscode.Uri,
+    private readonly _workspaceState?: vscode.Memento,
   ) {
     const settings = getSettings();
     this._currentEditMode = settings.editMode;
@@ -139,7 +140,11 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
 
     this._confirmationGate = new ConfirmationGate(postMessage);
 
-    this._registry = this._buildToolRegistry(settings.editMode, settings.toolConfirmationMode);
+    this._registry = this._buildToolRegistry(
+      settings.editMode,
+      settings.toolConfirmationMode,
+      settings.secretPathDenyExtra,
+    );
 
     const ollamaOptions = {
       num_ctx: settings.maxTokens,
@@ -254,7 +259,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     // MCP support — initialize lazily based on settings.
     if (settings.mcpEnabled) {
       const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-      this._mcpManager = new McpManager(this._registry, workspacePath);
+      this._mcpManager = new McpManager(this._registry, workspacePath, this._workspaceState);
       void this._mcpManager.initialize().then(async () => {
         this._mcpTools = this._mcpManager?.getAllToolMetadata() ?? [];
         const prompt = await this._promptBuilder.build(this._buildPromptContext());
@@ -300,18 +305,19 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
 
   private _buildToolRegistry(
     editMode: EditMode,
-    _confirmationMode: "always" | "ask" | "never"
+    _confirmationMode: "always" | "ask" | "never",
+    secretPathDenyExtra: readonly string[] = [],
   ): ToolRegistry {
     const registry = new ToolRegistry();
     const gate = this._confirmationGate;
 
-    registry.register("read_file", new ReadFileTool());
+    registry.register("read_file", new ReadFileTool(gate, secretPathDenyExtra));
     registry.register("write_file", new WriteFileTool(gate, editMode));
     registry.register("create_file", new CreateFileTool(gate, editMode));
     registry.register("delete_file", new DeleteFileTool());
     registry.register("edit_file", new EditFileTool(gate, editMode));
-    registry.register("list_directory", new ListDirectoryTool());
-    registry.register("grep_codebase", new GrepCodebaseTool());
+    registry.register("list_directory", new ListDirectoryTool(gate, secretPathDenyExtra));
+    registry.register("grep_codebase", new GrepCodebaseTool(gate, secretPathDenyExtra));
     registry.register("run_terminal", new RunTerminalTool());
     registry.register("web_search", new WebSearchTool());
     registry.register("fetch_page", new FetchPageTool());
@@ -1164,8 +1170,22 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
   clearChat(): void {
     this._manager.clearHistory();
     this._planMode.resetPlan();
+    this._resetSessionScopedToolState();
     this._postHistory();
     this._postTokenCount();
+  }
+
+  /**
+   * Reset tool-level state that should not leak across sessions (e.g. the
+   * per-session rate-limit window in WebSearchTool).
+   */
+  private _resetSessionScopedToolState(): void {
+    const webSearch = this._registry.get("web_search") as unknown as
+      | { resetSession?: () => void }
+      | undefined;
+    if (webSearch && typeof webSearch.resetSession === "function") {
+      webSearch.resetSession();
+    }
   }
 
   /** Post an error banner to the webview. */

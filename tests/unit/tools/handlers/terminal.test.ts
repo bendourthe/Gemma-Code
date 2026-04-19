@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { EventEmitter } from "events";
-import { RunTerminalTool } from "../../../../src/tools/handlers/terminal.js";
+import {
+  RunTerminalTool,
+  isAllowlisted,
+  isBlocked,
+} from "../../../../src/tools/handlers/terminal.js";
 
 // ---------------------------------------------------------------------------
 // Mock child_process.spawn
@@ -144,5 +148,57 @@ describe("RunTerminalTool", () => {
 
     expect(result.success).toBe(true);
     expect(mockSpawn).toHaveBeenCalledOnce();
+  });
+});
+
+describe("isAllowlisted", () => {
+  it.each([
+    ["git status"],
+    ["npm run test"],
+    ["pnpm install --silent"],
+    ["pytest tests/"],
+    ["cargo build --release"],
+    ["go test ./..."],
+    ["make clean && make build"],
+    ["ls -la"],
+    ["echo hello"],
+    ["cat file.txt"],
+  ])("allows: %s", (cmd) => {
+    expect(isAllowlisted(cmd)).toBe(true);
+  });
+
+  it.each([
+    ["curl https://evil.example.com"],
+    ["wget evil"],
+    ["nc -l 1234"],
+    ["bash -c 'rm -rf foo'"],
+    ["unknown-binary --flag"],
+    ["ls && nc -l 1234"],
+  ])("does NOT allow: %s", (cmd) => {
+    expect(isAllowlisted(cmd)).toBe(false);
+  });
+
+  it("returns false for an empty command", () => {
+    expect(isAllowlisted("")).toBe(false);
+  });
+});
+
+describe("isBlocked (defense-in-depth)", () => {
+  it.each([
+    ["rm -rf /"],
+    ["echo ok; rm -rf /"],
+    ["rm  -rf  /"], // extra whitespace
+    ["shutdown -h now"],
+    ["mkfs.ext4 /dev/sda1"],
+  ])("blocks dangerous pattern: %s", (cmd) => {
+    expect(isBlocked(cmd)).toBe(true);
+  });
+
+  it.each([
+    ["git reset --hard HEAD~1"],
+    ["rm -rf ./tmp"],
+    ["echo hello"],
+  ])("does NOT block safe command: %s", (cmd) => {
+    expect(isBlocked(cmd)).toBe(false);
   });
 });

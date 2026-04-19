@@ -1,5 +1,6 @@
 import Database from "better-sqlite3";
 import { randomUUID } from "crypto";
+import { secureDbPermissions } from "../storage/dbPermissions.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -118,6 +119,7 @@ export class TraceStore {
 
   constructor(dbPath: string) {
     this._db = new Database(dbPath);
+    secureDbPermissions(dbPath);
     this._db.pragma("journal_mode = WAL");
     this._db.pragma("foreign_keys = ON");
     this._initSchema();

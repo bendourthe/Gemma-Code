@@ -44,7 +44,7 @@ describe("OtlpExporter", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     exporter = new OtlpExporter({
-      endpoint: "http://localhost:4318/v1/traces",
+      endpoint: "https://otlp.example.com/v1/traces",
       batchSize: 3,
       flushIntervalMs: 60_000,
     });
@@ -74,7 +74,7 @@ describe("OtlpExporter", () => {
       vi.useRealTimers();
       exporter.dispose(); // clear previous exporter with fake timer
       exporter = new OtlpExporter({
-        endpoint: "http://localhost:4318/v1/traces",
+        endpoint: "https://otlp.example.com/v1/traces",
         batchSize: 3,
         flushIntervalMs: 600_000,
       });
@@ -116,7 +116,7 @@ describe("OtlpExporter", () => {
       await exporter.flush();
 
       const [url, options] = fetchMock.mock.calls[0];
-      expect(url).toBe("http://localhost:4318/v1/traces");
+      expect(url).toBe("https://otlp.example.com/v1/traces");
       expect(options.method).toBe("POST");
       expect(options.headers["Content-Type"]).toBe("application/json");
 
@@ -269,7 +269,7 @@ describe("OtlpExporter", () => {
     it("sends custom headers in requests", async () => {
       exporter.dispose(); // dispose the default exporter
       exporter = new OtlpExporter({
-        endpoint: "http://localhost:4318/v1/traces",
+        endpoint: "https://otlp.example.com/v1/traces",
         headers: { Authorization: "Bearer test-token" },
         batchSize: 10,
         flushIntervalMs: 600_000,

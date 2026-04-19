@@ -117,3 +117,47 @@ jobs:
           cd scripts/installer/pyqt
           uv sync --quiet
           uv run pytest tests/ -v --tb=short
+
+  # -- Dependency audits ----------------------------------------------------
+  #
+  # Gate on known CVEs for both the TypeScript extension and the PyQt5
+  # installer. `npm audit` runs against production-only deps; `pip-audit`
+  # targets the installer venv (only remaining Python surface after ADR-0001).
+
+  audit-ts:
+    name: npm audit (production deps)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci --prefer-offline --no-audit --silent
+      - name: npm audit --production --audit-level=high
+        run: npm audit --production --audit-level=high
+
+  audit-py:
+    name: pip-audit (installer venv)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+      - name: Sync installer venv
+        run: |
+          cd scripts/installer/pyqt
+          uv sync --quiet
+      - name: Cache pip-audit advisory DB
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip-audit
+          key: pip-audit-${{ runner.os }}-${{ hashFiles('scripts/installer/pyqt/uv.lock') }}
+      - name: Run pip-audit
+        run: |
+          cd scripts/installer/pyqt
+          uv run --with pip-audit pip-audit --strict

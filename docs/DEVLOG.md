@@ -4,6 +4,73 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-04-18] v0.4.0 Phase 2 -- Security Hardening
+
+### Summary
+
+Second phase of the v0.4.0 remediation release. Closed 17 of the 20 non-P0 security findings from [docs/v0.3.0/review.md](v0.3.0/review.md); the remaining three (2.2, 2.11, 2.13) are N/A per ADR-0001 because they targeted the deleted Python FastAPI backend. Wired `npm audit --production` and `pip-audit` into CI as dependency gate jobs, documented the pinned-checksum upgrade procedure for the Ollama installer in `scripts/installer/pyqt/VERSIONS.md`, and expanded `SECURITY.md` with file-permission and supply-chain sections.
+
+### Sub-task closures
+
+**Web fetch surface**
+- `src/utils/ssrf.ts` extracts the SSRF check into a shared utility that resolves hostnames via DNS and validates every returned address (v4 and v6) against private/loopback/link-local ranges. A `fetchWithSsrfGuard` helper applies `redirect: "manual"` and re-validates every hop in the redirect chain (max 5 hops). `isSsrfBlockedSync` gives callers a fail-fast precheck that does not require a DNS round-trip, used by `OtlpExporter`'s constructor to reject loopback endpoints at configuration time.
+- `FetchPageTool` and `WebSearchTool` now go through `fetchWithSsrfGuard`. `WebSearchTool` additionally HTML-strips and caps title/snippet at 300 chars, and enforces a per-session sliding-window rate limit of 10 requests per minute via `resetSession()`, wired into `GemmaCodePanel.clearChat`.
+- `OtlpExporter` uses `AbortSignal.timeout(10_000)` on each flush, warns in the constructor if `Authorization` is present in `otlpHeaders`, and rejects private/loopback endpoints at construction.
+
+**Terminal allowlist**
+- `RunTerminalTool` exposes an `ALLOWED_COMMANDS` allowlist (`git`, `npm`, `pnpm`, `yarn`, `node`, `python`, `python3`, `pytest`, `cargo`, `go`, `make`, `ls`, `cat`, `echo`, `pwd`) and keeps `BLOCKED_PATTERNS` as defense-in-depth with whitespace normalization. `PermissionTiers.getDangerousWarning` surfaces an explicit "OUTSIDE the allowlist" prefix in the confirmation card when a command is not allowlisted.
+
+**MCP hardening (findings #25, #27, #79)**
+- `McpManager` now parses config files through a Zod schema (name 1-64 chars, alphanumeric with `.` `_` `-`, stdio transport literal) and drops unknown fields. Workspace-local `.gemma-code/mcp.json` requires an explicit modal approval on first load; the approval is remembered per-workspace via `context.workspaceState`. Global `~/.gemma-code/mcp.json` continues to load without prompt.
+- `McpClient` no longer inherits the extension host's full `process.env`; only `PATH`, `HOME`, `USERPROFILE`, `APPDATA` plus explicitly-listed and whitelisted env keys are forwarded to the MCP subprocess. Tool names are regex-validated (`^[a-zA-Z0-9_]{1,64}$`); tool descriptions are HTML-stripped and capped at 500 chars. `PromptBuilder` partitions tool declarations between built-in and MCP sections, prefixing the MCP block with an `## External MCP tools` heading that tells the model to treat descriptions as content, not directives.
+
+**Filesystem surface**
+- `src/tools/handlers/secretPaths.ts` matches paths against a denylist (`**/.env*`, `**/id_rsa*`, `**/id_ed25519*`, `**/*.pem`, `**/*.key`, `**/credentials*`, `**/.aws/**`, `**/.ssh/**`, `**/secrets/**`, `**/.gemma-code/mcp.json`) with Windows path-separator normalization. `ReadFileTool`, `ListDirectoryTool`, `GrepCodebaseTool` reject matching paths by default; users can pass `allow_secrets: true` to trigger an explicit confirmation. Extra patterns can be configured via `gemma-code.secretPathDenyExtra`.
+- `GrepCodebaseTool` adds a ReDoS defense: patterns with nested quantifiers (`(a+)+b`, `[a-z]+[a-z]+`) or more than 512 chars are rejected before compilation, and the fallback-regex scan loop aborts after a 500 ms time budget. `re2` was evaluated and rejected: node-gyp builds are unreliable on Electron-pinned Node ABIs, especially on Windows. DEVIATION noted.
+
+**Storage hardening**
+- `src/storage/likeEscape.ts` escapes `\`, `%`, `_` in user-supplied LIKE patterns. `ChatHistoryStore.searchSessions` and `GraphMemory.searchEntities` now use `LIKE ? ESCAPE '\'`.
+- `src/storage/dbPermissions.ts` chmod's every SQLite DB file to `0o600` after open on POSIX; no-op on Windows (documented instead in `SECURITY.md`). Applied to all five stores (chat history, memory, traces, episodic, graph).
+- `MemoryStore`'s caught exceptions in `searchKeyword` and the duplicate-check path now log at `console.debug` with context, pending migration to a proper logger in Phase 6. Silent swallows removed.
+
+**Webview defense-in-depth**
+- `traceDashboard.ts` gains an inline `escapeAttr` helper and applies it to every attribute-context interpolation (`data-id`, `data-span`, `title`, `class`). `SessionListPanel` already had escapeAttr from Phase 1 and is unchanged. CSP snapshot tests assert the strict directive set on both webview hosts so future relaxations fail CI.
+
+**Installer supply chain (findings #122, #123)**
+- `scripts/installer/pyqt/src/gemma_installer/engine/ollama_installer.py` pins the Ollama release tag, downloads the installer, and verifies a SHA-256 checksum before execution. On Windows, `Get-AuthenticodeSignature` runs via PowerShell and the installer aborts on any Status other than Valid or on an untrusted SignerCertificate subject. On Linux, the install script is downloaded to a temp file, hash-verified, chmoded `0o700`, executed via `bash`, then cleaned up in a `finally` block. The previous `curl | sh` pattern is gone.
+- `scripts/installer/pyqt/VERSIONS.md` documents the pinned tag, both SHA-256 constants, the trusted signer list, and a required two-person update procedure. Placeholder checksum values must be replaced with real upstream digests before the next installer ship.
+
+**Dependency auditing**
+- `.github/workflows/ci.yml` gains `audit-ts` (`npm audit --production --audit-level=high`) and `audit-py` (`pip-audit --strict` against the installer venv) jobs, both with advisory-DB caching. Current baseline at merge: one moderate-severity `hono` finding (transitive via `@modelcontextprotocol/sdk`); below the high threshold, CI still green.
+
+### Test additions
+
+- `tests/unit/utils/ssrf.test.ts` (32 tests): private-IP range coverage, DNS rebinding, IPv6 loopback, redirect chain validation.
+- `tests/unit/tools/handlers/secretPaths.test.ts` (23 tests): every denylist category plus user-pattern extension.
+- `tests/unit/storage/likeEscape.test.ts` (2 tests): wildcard escape behavior.
+- `tests/unit/tools/handlers/terminal.test.ts` +16 new cases: `isAllowlisted` and `isBlocked` with whitespace and chain variants.
+- `tests/unit/mcp/McpManager.test.ts` +4 new cases: workspace approval denied / approved, Zod length rejection, env-whitelist filtering.
+- `tests/unit/panels/csp.test.ts` (4 tests): CSP directive snapshot across both webview hosts.
+- `scripts/installer/pyqt/tests/test_ollama_installer.py` rewritten with 5 cases: Windows hash mismatch, Windows Authenticode failure, Linux hash mismatch, Linux happy path (bash-exec, not `curl | sh`), skip-when-installed.
+
+Full suite: 1085 passing, 2 skipped (from 997 before Phase 2). Lint clean at 0 errors (warnings unchanged from baseline).
+
+### Deviations from the plan
+
+- Sub-tasks 2.2, 2.11, and 2.13 marked N/A per ADR-0001 (backend deleted in Phase 1).
+- Sub-task 2.6 implementation uses the static pre-filter plus a time budget rather than `re2` as the primary mechanism. Reason: `re2`'s node-gyp binary is unreliable on Windows/Electron; a pure static-filter plus time-budget approach keeps the extension portable. Logged as a deliberate deviation with user confirmation at planning time.
+- Sub-task 2.15 / 2.16 ships with placeholder SHA-256 constants in `ollama_installer.py`. The installer will currently abort on every Windows / Linux install because the placeholders will never match a real download. Real checksums must be filled in before v0.4.0 ships or the installer end-to-end test will fail. `VERSIONS.md` documents the upgrade procedure. Flagged as a known follow-up.
+- Sub-task 2.19's `audit-ts` job is gated at `--audit-level=high`. The current tree has one moderate `hono` finding; this does not fail the gate. If we want to tighten to `moderate`, we need to first bump `@modelcontextprotocol/sdk` to pick up the fixed `hono`.
+- Sub-task 2.5 drops the async SSRF re-check in `OtlpExporter.flush()` that the plan originally specified. The sync endpoint check in the constructor is sufficient because the endpoint is fixed at configure time and cannot change between flushes. If runtime endpoint updates are added, reintroduce the per-flush check.
+
+### Known follow-ups
+
+- Replace placeholder Ollama SHA-256 constants with real values before the v0.4.0 installer ship.
+- Revisit the static ReDoS pre-filter for completeness; the current regex catches nested quantifiers but not all exponential-backtracking patterns.
+- Phase 6 logger utility should replace the `console.debug` calls in `MemoryStore` and `dbPermissions`.
+
+---
+
 ## [2026-04-18] v0.4.0 Phase 1 -- Critical Hotfix (P0 Unblock)
 
 ### Summary

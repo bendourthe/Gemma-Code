@@ -1,4 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+// Mock DNS to return a routable public IP so the SSRF guard permits test URLs.
+vi.mock("node:dns/promises", () => ({
+  lookup: vi.fn(async () => [
+    { address: "93.184.216.34", family: 4 },
+  ]),
+}));
+
 import { WebSearchTool, FetchPageTool } from "../../../../src/tools/handlers/webSearch.js";
 
 // ---------------------------------------------------------------------------

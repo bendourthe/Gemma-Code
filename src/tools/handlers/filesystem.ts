@@ -14,6 +14,7 @@ import type {
   GrepCodebaseParams,
 } from "../types.js";
 import type { ConfirmationGate } from "../ConfirmationGate.js";
+import { matchesSecretPath } from "./secretPaths.js";
 
 const MAX_READ_LINES = 500;
 const MAX_GREP_RESULTS = 50;
@@ -90,12 +91,36 @@ async function openDiffEditor(
 // ---------------------------------------------------------------------------
 
 export class ReadFileTool implements ToolHandler {
+  constructor(
+    private readonly _confirmationGate: ConfirmationGate | null = null,
+    private readonly _extraSecretPatterns: readonly string[] = [],
+  ) {}
+
   async execute(parameters: Record<string, unknown>): Promise<ToolResult> {
     const id = (parameters["_callId"] as string | undefined) ?? "";
     const p = parameters as unknown as ReadFileParams;
 
     if (!p.path || typeof p.path !== "string") {
       return failResult(id, "Missing required parameter: path");
+    }
+
+    if (matchesSecretPath(p.path, this._extraSecretPatterns)) {
+      if (p.allow_secrets !== true) {
+        return failResult(
+          id,
+          `Path "${p.path}" matches the secret-path denylist. Pass allow_secrets: true to request explicit confirmation.`,
+        );
+      }
+      if (this._confirmationGate) {
+        const approved = await this._confirmationGate.request(
+          id,
+          `Read secret-path file "${p.path}"?`,
+          "The path matches the secret-path denylist (env/keys/credentials). Only approve if you trust this file.",
+        );
+        if (!approved) {
+          return failResult(id, `Read of secret-path file "${p.path}" rejected by user.`);
+        }
+      }
     }
 
     let uri: vscode.Uri;
@@ -432,11 +457,36 @@ async function walkDir(
 }
 
 export class ListDirectoryTool implements ToolHandler {
+  constructor(
+    private readonly _confirmationGate: ConfirmationGate | null = null,
+    private readonly _extraSecretPatterns: readonly string[] = [],
+  ) {}
+
   async execute(parameters: Record<string, unknown>): Promise<ToolResult> {
     const id = (parameters["_callId"] as string | undefined) ?? "";
     const p = parameters as unknown as ListDirectoryParams;
 
     const relativePath = typeof p.path === "string" ? p.path : ".";
+
+    if (matchesSecretPath(relativePath, this._extraSecretPatterns)) {
+      if (p.allow_secrets !== true) {
+        return failResult(
+          id,
+          `Path "${relativePath}" matches the secret-path denylist. Pass allow_secrets: true to request explicit confirmation.`,
+        );
+      }
+      if (this._confirmationGate) {
+        const approved = await this._confirmationGate.request(
+          id,
+          `List secret-path directory "${relativePath}"?`,
+          "The path matches the secret-path denylist. Only approve if you trust this location.",
+        );
+        if (!approved) {
+          return failResult(id, `List of secret-path directory rejected by user.`);
+        }
+      }
+    }
+
     const recursive = p.recursive !== false; // defaults to true
 
     let uri: vscode.Uri;
@@ -450,10 +500,15 @@ export class ListDirectoryTool implements ToolHandler {
     const maxDepth = recursive ? MAX_LIST_DEPTH : 1;
     const entries = await walkDir(uri, 1, maxDepth);
 
+    // Filter out secret-path entries from results when allow_secrets is not set.
+    const filteredEntries = p.allow_secrets === true
+      ? entries
+      : entries.filter((e) => !matchesSecretPath(e.name, this._extraSecretPatterns));
+
     return {
       id,
       success: true,
-      output: JSON.stringify({ entries, count: entries.length }),
+      output: JSON.stringify({ entries: filteredEntries, count: filteredEntries.length }),
     };
   }
 }
@@ -502,13 +557,63 @@ async function grepWithRipgrep(
   });
 }
 
+const MAX_PATTERN_LENGTH = 512;
+const GREP_TIME_BUDGET_MS = 500;
+
+/**
+ * Reject patterns with nested quantifiers or other known catastrophic-backtracking
+ * shapes. Not exhaustive: pairs with a runtime time-budget for defense in depth.
+ *
+ * Examples rejected: `(a+)+b`, `(a*)*`, `(\w+)+$`, `[a-z]+[a-z]+`.
+ */
+function isRedosRisky(pattern: string): boolean {
+  if (pattern.length > MAX_PATTERN_LENGTH) return true;
+  // Nested quantifiers like (x+)+, (x*)+, (x+)*, [x]+[x]+
+  if (/(\([^)]*[+*?][^)]*\))\s*[+*?]/.test(pattern)) return true;
+  if (/(\[[^\]]+\])\s*[+*?]\s*(\[[^\]]+\])\s*[+*?]/.test(pattern)) return true;
+  return false;
+}
+
 export class GrepCodebaseTool implements ToolHandler {
+  constructor(
+    private readonly _confirmationGate: ConfirmationGate | null = null,
+    private readonly _extraSecretPatterns: readonly string[] = [],
+  ) {}
+
   async execute(parameters: Record<string, unknown>): Promise<ToolResult> {
     const id = (parameters["_callId"] as string | undefined) ?? "";
     const p = parameters as unknown as GrepCodebaseParams;
 
     if (!p.pattern || typeof p.pattern !== "string") {
       return failResult(id, "Missing required parameter: pattern");
+    }
+
+    if (isRedosRisky(p.pattern)) {
+      return failResult(
+        id,
+        `Pattern rejected as potentially catastrophic for regex backtracking: "${p.pattern}". ` +
+          `Avoid nested quantifiers (e.g. "(a+)+b") and keep patterns under ${MAX_PATTERN_LENGTH} chars.`,
+      );
+    }
+
+    // Secret-path denylist: if glob filter targets a secret location, require approval.
+    if (p.glob && matchesSecretPath(p.glob, this._extraSecretPatterns)) {
+      if (p.allow_secrets !== true) {
+        return failResult(
+          id,
+          `Glob "${p.glob}" matches the secret-path denylist. Pass allow_secrets: true to request explicit confirmation.`,
+        );
+      }
+      if (this._confirmationGate) {
+        const approved = await this._confirmationGate.request(
+          id,
+          `Grep across secret-path glob "${p.glob}"?`,
+          "The glob matches the secret-path denylist.",
+        );
+        if (!approved) {
+          return failResult(id, `Grep against secret-path rejected by user.`);
+        }
+      }
     }
 
     const maxResults = typeof p.max_results === "number" ? p.max_results : MAX_GREP_RESULTS;
@@ -526,9 +631,25 @@ export class GrepCodebaseTool implements ToolHandler {
         "{node_modules,out,dist,.git}/**",
         500
       );
-      const regex = new RegExp(p.pattern);
+      let regex: RegExp;
+      try {
+        regex = new RegExp(p.pattern);
+      } catch (err) {
+        return failResult(id, `Invalid regex pattern: ${(err as Error).message}`);
+      }
+      const deadline = Date.now() + GREP_TIME_BUDGET_MS;
       for (const uri of uris) {
         if (vsMatches.length >= maxResults) break;
+        if (Date.now() > deadline) {
+          return failResult(
+            id,
+            `Grep exceeded time budget (${GREP_TIME_BUDGET_MS}ms). The pattern may be catastrophic; narrow the regex or glob.`,
+          );
+        }
+        const relFile = path.relative(root, uri.fsPath);
+        if (p.allow_secrets !== true && matchesSecretPath(relFile, this._extraSecretPatterns)) {
+          continue;
+        }
         try {
           const bytes = await vscode.workspace.fs.readFile(uri);
           const text = Buffer.from(bytes).toString("utf-8");
@@ -537,7 +658,7 @@ export class GrepCodebaseTool implements ToolHandler {
             const line = lines[i] ?? "";
             if (regex.test(line)) {
               vsMatches.push({
-                file: path.relative(root, uri.fsPath),
+                file: relFile,
                 line: i + 1,
                 content: line.trim().slice(0, 200),
               });
@@ -548,6 +669,11 @@ export class GrepCodebaseTool implements ToolHandler {
         }
       }
       matches = vsMatches;
+    } else if (p.allow_secrets !== true) {
+      // Filter ripgrep results through the denylist.
+      matches = matches.filter(
+        (m) => !matchesSecretPath(m.file, this._extraSecretPatterns),
+      );
     }
 
     return {

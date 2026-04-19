@@ -39,6 +39,7 @@ export interface GemmaCodeSettings {
   otlpEnabled: boolean;
   otlpEndpoint: string;
   otlpHeaders: string;
+  secretPathDenyExtra: string[];
 }
 
 export function getSettings(): GemmaCodeSettings {
@@ -78,6 +79,7 @@ export function getSettings(): GemmaCodeSettings {
     otlpEnabled: config.get<boolean>("otlpEnabled") ?? false,
     otlpEndpoint: config.get<string>("otlpEndpoint") ?? "http://localhost:4318/v1/traces",
     otlpHeaders: config.get<string>("otlpHeaders") ?? "",
+    secretPathDenyExtra: config.get<string[]>("secretPathDenyExtra") ?? [],
   };
 }
 

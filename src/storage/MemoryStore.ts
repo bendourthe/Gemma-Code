@@ -10,6 +10,7 @@ import type {
 import type { EmbeddingClient } from "./EmbeddingClient.js";
 import type { MemoryProvenance, MemoryTTL } from "./MemoryLayers.types.js";
 import type { GraphQueryEngine } from "./GraphQueryEngine.js";
+import { secureDbPermissions } from "./dbPermissions.js";
 
 const CHARS_PER_TOKEN = 4;
 
@@ -41,6 +42,7 @@ export class MemoryStore {
 
   constructor(dbPath: string, embedder?: EmbeddingClient | null) {
     this._db = new Database(dbPath);
+    secureDbPermissions(dbPath);
     this._db.pragma("journal_mode = WAL");
     this._embedder = embedder ?? null;
     this._initSchema();
@@ -201,7 +203,12 @@ export class MemoryStore {
         score: 1 - (r.rank - minRank) / range,
         matchSource: "keyword" as const,
       }));
-    } catch {
+    } catch (err) {
+      // TODO: migrate to logger utility (Phase 6).
+      console.debug(
+        "[MemoryStore] searchKeyword FTS5 query failed:",
+        err instanceof Error ? err.message : String(err),
+      );
       return [];
     }
   }
@@ -426,7 +433,12 @@ export class MemoryStore {
         )
         .get(sanitized) as { count: number } | undefined;
       return (row?.count ?? 0) > 0;
-    } catch {
+    } catch (err) {
+      // TODO: migrate to logger utility (Phase 6).
+      console.debug(
+        "[MemoryStore] duplicate-check FTS5 query failed:",
+        err instanceof Error ? err.message : String(err),
+      );
       return false;
     }
   }

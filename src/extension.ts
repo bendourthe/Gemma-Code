@@ -133,7 +133,8 @@ export function activate(context: vscode.ExtensionContext): void {
   // ── Chat panel (used by both sidebar fallback and editor panel) ──────────
   const chatPanel = new GemmaCodePanel(
     context.extensionUri,
-    context.globalStorageUri
+    context.globalStorageUri,
+    context.workspaceState,
   );
 
   // ── GPU detection and tier classification ──────────────────────────────

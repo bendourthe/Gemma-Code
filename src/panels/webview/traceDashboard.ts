@@ -251,6 +251,14 @@ export function getTraceDashboardHtml(
       function escapeHtml(s) {
         return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
       }
+      function escapeAttr(s) {
+        return String(s)
+          .replace(/&/g,'&amp;')
+          .replace(/"/g,'&quot;')
+          .replace(/'/g,'&#39;')
+          .replace(/</g,'&lt;')
+          .replace(/>/g,'&gt;');
+      }
 
       function renderTraceList(traces) {
         if (traces.length === 0) {
@@ -258,11 +266,11 @@ export function getTraceDashboardHtml(
           return;
         }
         contentEl.innerHTML = traces.map(t =>
-          '<div class="trace-item" data-id="' + t.traceId + '">' +
-            '<span class="trace-date">' + formatDate(t.startTime) + '</span>' +
-            '<span class="trace-duration">' + formatDuration(t.durationMs) + '</span>' +
-            '<span class="trace-spans">' + t.spanCount + ' spans</span>' +
-            '<span class="trace-status ' + t.status + '">' + t.status.toUpperCase() + '</span>' +
+          '<div class="trace-item" data-id="' + escapeAttr(t.traceId) + '">' +
+            '<span class="trace-date">' + escapeHtml(formatDate(t.startTime)) + '</span>' +
+            '<span class="trace-duration">' + escapeHtml(formatDuration(t.durationMs)) + '</span>' +
+            '<span class="trace-spans">' + escapeHtml(String(t.spanCount)) + ' spans</span>' +
+            '<span class="trace-status ' + escapeAttr(t.status) + '">' + escapeHtml(String(t.status).toUpperCase()) + '</span>' +
           '</div>'
         ).join('');
 
@@ -288,12 +296,12 @@ export function getTraceDashboardHtml(
         waterfallEl.innerHTML = spans.map(s => {
           const left = ((s.startTime - traceStart) / totalDuration * 100).toFixed(1);
           const width = Math.max(((s.durationMs || 1) / totalDuration * 100), 0.5).toFixed(1);
-          return '<div class="span-row" data-span=\\'' + escapeHtml(JSON.stringify(s)) + '\\'>' +
-            '<span class="span-label" title="' + escapeHtml(s.name) + '">' + escapeHtml(s.name) + '</span>' +
+          return '<div class="span-row" data-span="' + escapeAttr(JSON.stringify(s)) + '">' +
+            '<span class="span-label" title="' + escapeAttr(s.name) + '">' + escapeHtml(s.name) + '</span>' +
             '<div class="span-bar-container">' +
-              '<div class="span-bar ' + s.kind + '" style="left:' + left + '%;width:' + width + '%" title="' + escapeHtml(s.kind) + '"></div>' +
+              '<div class="span-bar ' + escapeAttr(s.kind) + '" style="left:' + left + '%;width:' + width + '%" title="' + escapeAttr(s.kind) + '"></div>' +
             '</div>' +
-            '<span class="span-duration">' + formatDuration(s.durationMs) + '</span>' +
+            '<span class="span-duration">' + escapeHtml(formatDuration(s.durationMs)) + '</span>' +
           '</div>';
         }).join('');
 
@@ -312,12 +320,12 @@ export function getTraceDashboardHtml(
       function renderSpanDetail(span) {
         const attrs = span.attributes || {};
         const keys = Object.keys(attrs);
-        let html = '<div class="detail-title">' + escapeHtml(span.name) + ' (' + span.kind + ')</div>';
-        html += '<div class="detail-row"><span class="detail-key">Status</span><span class="detail-val">' + span.status + '</span></div>';
-        html += '<div class="detail-row"><span class="detail-key">Duration</span><span class="detail-val">' + formatDuration(span.durationMs) + '</span></div>';
-        html += '<div class="detail-row"><span class="detail-key">Span ID</span><span class="detail-val">' + span.spanId + '</span></div>';
+        let html = '<div class="detail-title">' + escapeHtml(span.name) + ' (' + escapeHtml(span.kind) + ')</div>';
+        html += '<div class="detail-row"><span class="detail-key">Status</span><span class="detail-val">' + escapeHtml(span.status) + '</span></div>';
+        html += '<div class="detail-row"><span class="detail-key">Duration</span><span class="detail-val">' + escapeHtml(formatDuration(span.durationMs)) + '</span></div>';
+        html += '<div class="detail-row"><span class="detail-key">Span ID</span><span class="detail-val">' + escapeHtml(span.spanId) + '</span></div>';
         if (span.parentSpanId) {
-          html += '<div class="detail-row"><span class="detail-key">Parent</span><span class="detail-val">' + span.parentSpanId + '</span></div>';
+          html += '<div class="detail-row"><span class="detail-key">Parent</span><span class="detail-val">' + escapeHtml(span.parentSpanId) + '</span></div>';
         }
         for (const key of keys) {
           html += '<div class="detail-row"><span class="detail-key">' + escapeHtml(key) + '</span><span class="detail-val">' + escapeHtml(String(attrs[key])) + '</span></div>';

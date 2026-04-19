@@ -7,6 +7,7 @@ import type {
   RelationType,
   MemoryProvenance,
 } from "./MemoryLayers.types.js";
+import { escapeLikePattern } from "./likeEscape.js";
 
 /**
  * Layer 4: graph-based relational memory.
@@ -268,15 +269,15 @@ export class GraphMemory {
     type?: EntityType,
     limit = 20,
   ): GraphEntity[] {
-    const pattern = `%${query}%`;
+    const pattern = `%${escapeLikePattern(query)}%`;
     const rows = type
       ? (this._db
           .prepare(
-            "SELECT * FROM graph_entities WHERE name LIKE ? AND type = ? LIMIT ?",
+            "SELECT * FROM graph_entities WHERE name LIKE ? ESCAPE '\\' AND type = ? LIMIT ?",
           )
           .all(pattern, type, limit) as EntityRow[])
       : (this._db
-          .prepare("SELECT * FROM graph_entities WHERE name LIKE ? LIMIT ?")
+          .prepare("SELECT * FROM graph_entities WHERE name LIKE ? ESCAPE '\\' LIMIT ?")
           .all(pattern, limit) as EntityRow[]);
 
     return rows.map((r) => this._entityRowToObj(r));

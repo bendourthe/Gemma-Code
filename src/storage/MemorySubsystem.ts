@@ -1,5 +1,6 @@
 import Database from "better-sqlite3";
 import { MemoryStore } from "./MemoryStore.js";
+import { secureDbPermissions } from "./dbPermissions.js";
 import { EmbeddingClient } from "./EmbeddingClient.js";
 import { createWorkingMemory } from "./WorkingMemory.js";
 import type { WorkingMemory } from "./WorkingMemory.js";
@@ -87,6 +88,7 @@ function buildSubsystem(options: MemorySubsystemOptions): Built {
     const episodicMemory = new EpisodicMemory(options.dbPath, embedder);
 
     const graphDb = new Database(options.dbPath);
+    secureDbPermissions(options.dbPath);
     graphDb.pragma("journal_mode = WAL");
     const graphMemory = new GraphMemory(graphDb);
 

@@ -22,6 +22,11 @@ export class ToolRegistry {
     return this._handlers.has(name);
   }
 
+  /** Return the registered handler for a tool, or undefined if none. */
+  get(name: ToolName): ToolHandler | undefined {
+    return this._handlers.get(name);
+  }
+
   /** Set the enabled state for a tool. No-op if the tool is not registered. */
   setEnabled(name: ToolName, enabled: boolean): void {
     if (this._handlers.has(name)) {

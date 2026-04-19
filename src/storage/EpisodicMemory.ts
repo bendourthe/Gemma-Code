@@ -2,6 +2,7 @@ import Database from "better-sqlite3";
 import { randomUUID } from "crypto";
 import type { EpisodicEntry, MemoryProvenance } from "./MemoryLayers.types.js";
 import type { EmbeddingClient } from "./EmbeddingClient.js";
+import { secureDbPermissions } from "./dbPermissions.js";
 
 const CHARS_PER_TOKEN = 4;
 
@@ -18,6 +19,7 @@ export class EpisodicMemory {
 
   constructor(dbPath: string, embedder?: EmbeddingClient | null) {
     this._db = new Database(dbPath);
+    secureDbPermissions(dbPath);
     this._db.pragma("journal_mode = WAL");
     this._embedder = embedder ?? null;
     this._initSchema();

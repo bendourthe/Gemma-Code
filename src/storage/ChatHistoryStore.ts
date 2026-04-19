@@ -1,6 +1,8 @@
 import Database from "better-sqlite3";
 import { randomUUID } from "crypto";
 import type { Message, ConversationSession, Role } from "../chat/types.js";
+import { escapeLikePattern } from "./likeEscape.js";
+import { secureDbPermissions } from "./dbPermissions.js";
 
 interface SessionRow {
   id: string;
@@ -21,6 +23,7 @@ export class ChatHistoryStore {
 
   constructor(dbPath: string) {
     this._db = new Database(dbPath);
+    secureDbPermissions(dbPath);
     this._db.pragma("journal_mode = WAL");
     this._db.pragma("foreign_keys = ON");
     this._initSchema();
@@ -161,13 +164,13 @@ export class ChatHistoryStore {
   }
 
   searchSessions(query: string): ConversationSession[] {
-    const likeQuery = `%${query}%`;
+    const likeQuery = `%${escapeLikePattern(query)}%`;
     const rows = this._db
       .prepare(
         `SELECT DISTINCT s.id, s.title, s.created_at, s.updated_at
          FROM sessions s
          JOIN messages m ON m.session_id = s.id
-         WHERE m.content LIKE ?
+         WHERE m.content LIKE ? ESCAPE '\\'
          ORDER BY s.updated_at DESC`
       )
       .all(likeQuery) as SessionRow[];

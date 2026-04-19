@@ -66,6 +66,7 @@ export type EditMode = "auto" | "ask" | "plan";
 
 export interface ReadFileParams {
   path: string;
+  allow_secrets?: boolean;
 }
 
 export interface WriteFileParams {
@@ -91,12 +92,14 @@ export interface DeleteFileParams {
 export interface ListDirectoryParams {
   path?: string;
   recursive?: boolean;
+  allow_secrets?: boolean;
 }
 
 export interface GrepCodebaseParams {
   pattern: string;
   glob?: string;
   max_results?: number;
+  allow_secrets?: boolean;
 }
 
 export interface RunTerminalParams {

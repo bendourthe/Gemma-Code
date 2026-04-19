@@ -1,4 +1,5 @@
 import type { BuiltinToolName, ToolName } from "../tools/types.js";
+import { isAllowlisted } from "../tools/handlers/terminal.js";
 
 export enum PermissionTier {
   AUTO_APPROVE = 0,
@@ -70,8 +71,13 @@ export function getDangerousWarning(
   if (tier !== PermissionTier.DANGEROUS) return "";
 
   switch (toolName) {
-    case "run_terminal":
-      return `This will execute a shell command: ${String(parameters["command"] ?? "(unknown)")}`;
+    case "run_terminal": {
+      const cmd = String(parameters["command"] ?? "(unknown)");
+      const prefix = isAllowlisted(cmd)
+        ? "This will execute a shell command"
+        : "This will execute a shell command OUTSIDE the allowlist";
+      return `${prefix}: ${cmd}`;
+    }
     case "web_search":
       return `This will perform a web search: ${String(parameters["query"] ?? "(unknown)")}`;
     case "fetch_page":

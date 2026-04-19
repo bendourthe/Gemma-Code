@@ -301,6 +301,14 @@
           "default": "",
           "description": "Comma-separated key=value headers for OTLP export requests (e.g. 'Authorization=Bearer token,X-Custom=value')."
         },
+        "gemma-code.secretPathDenyExtra": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Extra glob-style patterns (relative to workspace root) that should be treated as secret paths and blocked from file/list/grep tools unless `allow_secrets: true` is passed with per-call confirmation."
+        },
         "gemma-code.gpuTier": {
           "type": "string",
           "enum": [
@@ -353,6 +361,7 @@
     "highlight.js": "^11.11.1",
     "isomorphic-dompurify": "^3.9.0",
     "marked": "^4.3.0",
-    "node-html-parser": "^6.1.13"
+    "node-html-parser": "^6.1.13",
+    "zod": "^3.23.8"
   }
 }

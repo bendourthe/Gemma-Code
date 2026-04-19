@@ -1,5 +1,6 @@
 import type { Span } from "./TraceStore.js";
 import type { TracerExporter } from "./Tracer.js";
+import { isSsrfBlockedSync } from "../utils/ssrf.js";
 
 // ---------------------------------------------------------------------------
 // OTLP JSON schema types (minimal subset)
@@ -49,6 +50,7 @@ export interface OtlpExporterConfig {
 
 const DEFAULT_BATCH_SIZE = 100;
 const DEFAULT_FLUSH_INTERVAL_MS = 30_000;
+const FETCH_TIMEOUT_MS = 10_000;
 
 /** OTLP/HTTP JSON span kind constants. */
 const SPAN_KIND_INTERNAL = 1;
@@ -66,14 +68,35 @@ export class OtlpExporter implements TracerExporter {
   private _flushTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(config: OtlpExporterConfig) {
+    if (isSsrfBlockedSync(config.endpoint)) {
+      throw new Error(
+        `OtlpExporter endpoint rejected by SSRF check: "${config.endpoint}". ` +
+          `Point at a non-loopback, non-private collector URL.`,
+      );
+    }
     this._endpoint = config.endpoint;
     this._headers = config.headers ?? {};
     this._batchSize = config.batchSize ?? DEFAULT_BATCH_SIZE;
+
+    if (this._hasAuthorizationHeader()) {
+      // TODO: migrate to logger utility (Phase 6).
+      console.warn(
+        "[OtlpExporter] Authorization header configured. Credentials will be sent to the OTLP endpoint; " +
+          "verify the endpoint is a trusted collector before enabling.",
+      );
+    }
 
     const intervalMs = config.flushIntervalMs ?? DEFAULT_FLUSH_INTERVAL_MS;
     this._flushTimer = setInterval(() => {
       void this.flush();
     }, intervalMs);
+  }
+
+  private _hasAuthorizationHeader(): boolean {
+    for (const key of Object.keys(this._headers)) {
+      if (key.toLowerCase() === "authorization") return true;
+    }
+    return false;
   }
 
   enqueueSpan(span: Span): void {
@@ -97,6 +120,7 @@ export class OtlpExporter implements TracerExporter {
           ...this._headers,
         },
         body: JSON.stringify(body),
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
 
       if (!response.ok) {
@@ -105,7 +129,7 @@ export class OtlpExporter implements TracerExporter {
         );
       }
     } catch (err) {
-      // Network errors are non-fatal; log and discard.
+      // Network errors (including timeouts) are non-fatal; log and discard.
       console.debug(
         `[OtlpExporter] Export error: ${err instanceof Error ? err.message : String(err)}`,
       );
