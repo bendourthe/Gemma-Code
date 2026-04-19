@@ -72,11 +72,12 @@ export class LoopDetector {
   }
 
   private _hash(call: ToolCall): string {
-    // Strip transient fields that change per invocation.
-    const { id: _id, ...params } = call.parameters;
-    const { _callId: _cid, ...stable } = params as Record<string, unknown>;
+    // Strip transient fields that change per invocation (id, _callId).
+    const params = { ...call.parameters } as Record<string, unknown>;
+    delete params.id;
+    delete params._callId;
 
-    const payload = JSON.stringify({ tool: call.tool, parameters: stable });
+    const payload = JSON.stringify({ tool: call.tool, parameters: params });
     return createHash("sha256").update(payload).digest("hex");
   }
 

@@ -62,6 +62,17 @@ export class EntityExtractor {
       }
     }
 
+    // Bare filenames with recognized code extensions (no slash). Prevents
+    // over-matching generic identifier.method patterns while still catching
+    // references like "MemoryStore.ts" in prose.
+    for (const match of text.matchAll(
+      /\b([A-Za-z_][A-Za-z0-9_.-]*\.(?:ts|tsx|js|jsx|mjs|cjs|py|rs|go|java|kt|cpp|cc|c|h|hpp|md|json|yaml|yml|toml|sh|ps1))\b/g,
+    )) {
+      if (match[1] && match.index !== undefined) {
+        addEntity(match[1], "file", match.index, match.index + match[1].length);
+      }
+    }
+
     // Function/method names
     for (const match of text.matchAll(
       /(?:function|def|fn|func|method|async\s+function)\s+([a-zA-Z_]\w*)/g,

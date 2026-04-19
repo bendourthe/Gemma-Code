@@ -1,5 +1,5 @@
-import type { ToolCall, ToolName } from "../tools/types.js";
-import { BLOCKED_PATTERNS, isBlocked } from "../tools/handlers/terminal.js";
+import type { ToolCall } from "../tools/types.js";
+import { isBlocked } from "../tools/handlers/terminal.js";
 
 export enum ActionRisk {
   REVERSIBLE = "reversible",

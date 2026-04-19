@@ -244,7 +244,51 @@ npx vitest run --config configs/vitest.config.ts
 #   Tests       5 failed | 990 passed | 2 skipped (997)
 ```
 
-The 5 failures are pre-existing at HEAD (verified via `git stash && vitest run && git stash pop`): extension activate x2, GraphMemory searchEntities filters-by-type + prune, GraphQueryEngine queryContextFor extracts-entities. None are caused by this phase; all are candidates for Phase 3.
+The 5 failures are pre-existing at HEAD (verified via `git stash && vitest run && git stash pop`): extension activate x2, GraphMemory searchEntities filters-by-type + prune, GraphQueryEngine queryContextFor extracts-entities. Initially deferred to Phase 3; closed in sub-task 2.17 below before pushing.
+
+---
+
+### 2.17 CI follow-up (post-initial-push)
+
+**Context**: First push of the Phase 1 changeset triggered 4 failing CI jobs (Lint TypeScript, Test TypeScript, Installer unit tests, with Build TypeScript green). Before advancing to Phase 2, all of them had to be resolved and the fixes bundled into the same Phase 1 commit so the repository lands green on `main`.
+
+**Failure 1: Lint TypeScript (5 errors)** -- `@typescript-eslint/no-unused-vars` errors in three files that survived v0.3.0 but never broke local runs because our local `/check` used `eslint --fix` which silently drops `_`-prefixed names. CI runs `eslint src` without `--fix` and reports them.
+
+- `src/safety/ActionClassifier.ts:1-2`: `ToolName` import and `BLOCKED_PATTERNS` re-export were never consumed after a v0.3.0 refactor.
+- `src/safety/LoopDetector.ts:76-77`: the destructure aliases `_id: _id` and `_callId: _cid` were flagged even though the `_` prefix usually exempts them (TypeScript's ESLint plugin treats destructure aliases differently).
+- `src/tools/ToolRegistry.ts:6`: `Tracer` imported for a removed instrumentation block.
+
+**Fix 1**: Dropped the three unused imports. Rewrote `LoopDetector._hash` to use a mutable-copy + `delete` pattern instead of destructure aliasing, which reads more cleanly and sidesteps the linter corner case entirely.
+
+**Failure 2: Test TypeScript (5 tests)** -- the "pre-existing failures carried forward" from 2.16. CI's 80% coverage gate fails on any test failure, so these could not be deferred any longer.
+
+- `tests/unit/extension.test.ts` x2: `TypeError: The "path" argument must be of type string. Received undefined` at `src/extension.ts:255`. The test's mock `context.globalStorageUri` was `{} as vscode.Uri` with no `fsPath`. Fix: added `fsPath: "/tmp/gemma-code-test-storage"` (and the parallel `logUri`) to the mock.
+- `tests/unit/storage/GraphMemory.test.ts` -- `searchEntities filters by type`: expected `toHaveLength(0)` on the assumption that `LIKE "%sqlite%"` would not match "SQLite". SQLite's default `LIKE` is case-insensitive for ASCII, so the search returns one row. Fix: updated the test to expect `toHaveLength(1)` and assert the matched row is the technology-typed "SQLite".
+- `tests/unit/storage/GraphMemory.test.ts` -- `prune removes low-mention old entities`: expected 1 removed, got 0. Root cause: `upsertRelation` internally calls `upsertEntity` on both sides, which bumps `old-entity.mention_count` from 1 to 2 (failing the `< 2` filter) and refreshes `last_seen_at` to now. The test manually backdated `last_seen_at` via raw UPDATE but never reset `mention_count`. Fix: reset both fields in the test's backdating UPDATE.
+- `tests/unit/storage/GraphQueryEngine.test.ts` -- `queryContextFor extracts entities from query`: expected >= 1 extracted entity from "What depends on MemoryStore.ts?", got 0. Root cause: `EntityExtractor`'s file regex requires a `/` in the path (`[^/]+/[^/]+\.ext`), so bare filenames like "MemoryStore.ts" were never extracted. Fix: added a second regex that matches bare filenames ending in a curated list of code extensions (ts/tsx/js/jsx/py/rs/go/md/json/yaml/toml/sh/ps1/cpp/etc.). Scoping to known extensions avoids false positives on `Math.min` / `window.foo` style dotted identifiers.
+
+**Failure 3: Installer packaging tests (7 failures)** -- `tests/test_packaging.py` asserts that `scripts/installer/pyqt/build/gemma-installer.spec`, `hooks/hook-PyQt5.py`, `build-{windows,macos,linux}.{ps1,sh}` exist. Locally they do; in CI they don't. Root cause: `.gitignore` line 81 declares `build/` (a reasonable global pattern for compiled output) but the PyQt installer puts PyInstaller *input* files (not output) under `scripts/installer/pyqt/build/`. Those five files were never tracked. `git ls-files scripts/installer/pyqt/build` returned empty.
+
+**Fix 3**: Added a negation in `.gitignore` immediately after the `build/` pattern: `!scripts/installer/pyqt/build/` and `!scripts/installer/pyqt/build/**`. Staged the five previously-ignored packaging sources (`.spec`, hook, three build scripts) so they ship with this commit.
+
+**Failure 4: Installer venv_installer tests (6 failures)** -- `tests/test_venv_installer.py` patches `gemma_installer.engine.venv_installer.os.makedirs`, `os.path.isfile`, `run_command`, `is_windows`, and expects the install method to return `False` when `python_path` is empty. My v0.4.0 stub for `venv_installer.py` (ADR-0001) removed `import os`, removed the subprocess machinery, removed `_find_requirements`, and always returns `True` because the venv step is a no-op now. Every patch target raised `AttributeError`, and the single False-expectation test failed because the stub unconditionally succeeds.
+
+**Fix 4**: Rewrote `tests/test_venv_installer.py` to match the stub's contract (4 focused tests: returns True on valid state, returns True without python_path, logs a "v0.4.0" or "no longer bundled" deprecation line, accepts the default `InstallerState()` without raising). Deleted the 6 legacy tests that were asserting removed behavior. This is the correct direction per ADR-0001 -- the tests now match what the code actually does, not what a removed implementation used to do.
+
+**Post-fix verification**:
+```bash
+npm run build                               # clean
+npm run lint                                # 0 errors (22 warnings, pre-existing)
+npx vitest run --config configs/vitest.config.ts
+#   Test Files  79 passed | 1 skipped (80)
+#   Tests       995 passed | 2 skipped (997)
+
+cd scripts/installer/pyqt
+PYTHONPATH=src python -m pytest tests/test_packaging.py tests/test_venv_installer.py -v
+#   11 passed
+```
+
+Net change vs. 2.16 baseline: 990 -> 995 passing tests, 5 -> 0 failing tests, 0 -> 0 regressions.
 
 ---
 
@@ -253,8 +297,9 @@ The 5 failures are pre-existing at HEAD (verified via `git stash && vitest run &
 | Check | Result |
 |---|---|
 | `npm run build` (tsc) | PASS |
-| `npx eslint <touched files>` | PASS (0 errors) |
-| `vitest run` full suite | 990 of 997 pass (5 pre-existing failures carried forward) |
+| `npm run lint` (eslint src) | PASS (0 errors, 22 pre-existing warnings) |
+| `vitest run` full suite | 995 of 997 pass (2 skipped; 0 failing after 2.17 CI follow-up) |
+| Installer pytest (test_packaging + test_venv_installer) | 11 of 11 pass |
 | `git grep -l BackendManager src/` | PASS (0 matches) |
 | `git grep -l 'useBackend\|backendPort\|pythonPath' src/ tests/` | PASS (0 matches) |
 | `wc -l src/panels/GemmaCodePanel.ts` >= 80-line reduction | PASS (1307 -> 1223; -84 lines) |
@@ -268,7 +313,7 @@ The 5 failures are pre-existing at HEAD (verified via `git stash && vitest run &
 
 | Issue | Severity | Decision |
 |---|---|---|
-| 5 pre-existing test failures (extension activate, GraphMemory searchEntities/prune, GraphQueryEngine queryContextFor) | P2 | Carried forward; in-scope for Phase 3 Correctness |
+| 5 pre-existing test failures (extension activate, GraphMemory searchEntities/prune, GraphQueryEngine queryContextFor) | P2 | Closed in sub-task 2.17 CI follow-up |
 | Benchmark baseline JSON is empty scaffolding | P3 | First post-merge nightly populates via `--update-baseline` |
 | Golden-task baselines exist (v0.3.0-e2b/e4b.json) but have never run against live Ollama | P3 | First matrixed nightly run exercises them; adjust thresholds after one clean run |
 | `EpisodicMemory.searchSemantic` still does full-table scan | P2 | Deferred to Phase 4 per plan scope; mirror of 1.6 |

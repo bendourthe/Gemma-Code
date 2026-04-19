@@ -81,6 +81,10 @@ TEST*.xml
 dist/
 build/
 out/
+# PyQt installer packaging sources live under build/ — these are inputs to
+# PyInstaller (scripts + .spec + hooks), not build outputs, so allow them.
+!scripts/installer/pyqt/build/
+!scripts/installer/pyqt/build/**
 
 # ==============================================================================
 # Archives

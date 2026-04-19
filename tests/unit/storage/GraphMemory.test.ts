@@ -149,8 +149,12 @@ describe("GraphMemory", () => {
       gm.upsertEntity("SQLite", "technology");
       gm.upsertEntity("sqlite.db", "file");
 
+      // SQLite's LIKE is case-insensitive for ASCII by default, so "sqlite"
+      // matches "SQLite". The type filter narrows to the technology row.
       const results = gm.searchEntities("sqlite", "technology");
-      expect(results).toHaveLength(0); // case-sensitive LIKE, SQLite != sqlite
+      expect(results).toHaveLength(1);
+      expect(results[0].name).toBe("SQLite");
+      expect(results[0].type).toBe("technology");
     });
   });
 
@@ -164,10 +168,12 @@ describe("GraphMemory", () => {
 
       gm.upsertRelation("old-entity", "file", "popular-entity", "file", "imports", prov);
 
-      // Force old entity's last_seen_at far in the past.
+      // upsertRelation bumped old-entity's mention_count to 2 and refreshed
+      // last_seen_at to now. Reset both so the entity looks stale + rare, the
+      // state prune() is designed to catch.
       db.prepare(
-        "UPDATE graph_entities SET last_seen_at = ? WHERE name = ?",
-      ).run(Date.now() - 999999999, "old-entity");
+        "UPDATE graph_entities SET last_seen_at = ?, mention_count = ? WHERE name = ?",
+      ).run(Date.now() - 999999999, 1, "old-entity");
 
       const removed = gm.prune(2, 1000);
       expect(removed).toBe(1);
