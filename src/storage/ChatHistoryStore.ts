@@ -54,6 +54,11 @@ export class ChatHistoryStore {
       CREATE TRIGGER IF NOT EXISTS messages_fts_ad AFTER DELETE ON messages BEGIN
         INSERT INTO messages_fts(messages_fts, rowid, content) VALUES('delete', old.rowid, old.content);
       END;
+
+      CREATE TRIGGER IF NOT EXISTS messages_fts_au AFTER UPDATE ON messages BEGIN
+        INSERT INTO messages_fts(messages_fts, rowid, content) VALUES('delete', old.rowid, old.content);
+        INSERT INTO messages_fts(rowid, content) VALUES (new.rowid, new.content);
+      END;
     `);
 
     // Rebuild FTS index from existing data (safe no-op if already up-to-date).
@@ -76,11 +81,25 @@ export class ChatHistoryStore {
   }
 
   saveMessage(sessionId: string, message: Message): void {
-    this._db
-      .prepare(
-        "INSERT OR REPLACE INTO messages (id, session_id, role, content, timestamp) VALUES (?, ?, ?, ?, ?)"
-      )
-      .run(message.id, sessionId, message.role, message.content, message.timestamp);
+    // Use explicit UPDATE-or-INSERT so the FTS5 AFTER UPDATE trigger fires on
+    // re-saves. INSERT OR REPLACE bypasses DELETE/UPDATE triggers in SQLite,
+    // which left the FTS index stale on edits (review finding #3).
+    const existing = this._db
+      .prepare("SELECT id FROM messages WHERE id = ?")
+      .get(message.id) as { id: string } | undefined;
+    if (existing) {
+      this._db
+        .prepare(
+          "UPDATE messages SET session_id = ?, role = ?, content = ?, timestamp = ? WHERE id = ?"
+        )
+        .run(sessionId, message.role, message.content, message.timestamp, message.id);
+    } else {
+      this._db
+        .prepare(
+          "INSERT INTO messages (id, session_id, role, content, timestamp) VALUES (?, ?, ?, ?, ?)"
+        )
+        .run(message.id, sessionId, message.role, message.content, message.timestamp);
+    }
     this._db
       .prepare("UPDATE sessions SET updated_at = ? WHERE id = ?")
       .run(Date.now(), sessionId);

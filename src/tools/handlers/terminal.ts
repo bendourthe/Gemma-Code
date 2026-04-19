@@ -5,6 +5,7 @@ import type {
   ToolResult,
   RunTerminalParams,
 } from "../types.js";
+import { resolveInsideWorkspace } from "./pathGuard.js";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
@@ -77,7 +78,16 @@ export class RunTerminalTool implements ToolHandler {
       return failResult(id, `Command is blocked for safety: "${p.command}"`);
     }
 
-    const cwd = typeof p.cwd === "string" ? p.cwd : workspaceRoot();
+    let cwd: string;
+    try {
+      cwd =
+        typeof p.cwd === "string"
+          ? resolveInsideWorkspace(p.cwd)
+          : workspaceRoot();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return failResult(id, msg);
+    }
 
     return this._runCommand(id, p.command, cwd);
   }

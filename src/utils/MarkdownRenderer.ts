@@ -1,14 +1,56 @@
 import { marked, Renderer } from "marked";
 // Import main highlight.js entry (includes common languages) for full type support.
 import hljs from "highlight.js";
+import DOMPurify from "isomorphic-dompurify";
 
 /**
- * Server-side Markdown renderer using `marked` (v4, CJS) and `highlight.js`.
- *
- * Runs in the extension (Node.js) context and produces sanitised HTML that
- * is injected into the webview. All output is escaped — the webview CSP
- * provides a second layer of defence against XSS.
+ * Server-side Markdown renderer using `marked` (v4, CJS), `highlight.js`, and
+ * DOMPurify. Runs in the extension (Node.js) context and produces sanitised
+ * HTML that is injected into the webview. DOMPurify is the primary defence;
+ * the webview CSP is a second layer.
  */
+
+// DOMPurify configuration: allow the tags/attrs our renderer produces, strip
+// everything else. `data-href` / `data-code` are needed for the ext-link and
+// copy-btn wiring in GemmaCodePanel's message bridge.
+const PURIFY_CONFIG = {
+  ALLOWED_TAGS: [
+    "a",
+    "b",
+    "blockquote",
+    "br",
+    "code",
+    "div",
+    "em",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "hr",
+    "i",
+    "li",
+    "ol",
+    "p",
+    "pre",
+    "span",
+    "strong",
+    "table",
+    "tbody",
+    "td",
+    "th",
+    "thead",
+    "tr",
+    "ul",
+    "button",
+  ],
+  ALLOWED_ATTR: ["class", "href", "data-href", "data-code", "aria-label"],
+  ALLOW_DATA_ATTR: false,
+  FORBID_TAGS: ["script", "style", "iframe", "object", "embed", "form", "input", "link", "meta"],
+  FORBID_ATTR: ["onload", "onerror", "onclick", "onmouseover", "onfocus", "style"],
+  ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):|#|\/)/i,
+};
 
 // ---------------------------------------------------------------------------
 // Configure marked with syntax-highlighted code blocks
@@ -66,11 +108,13 @@ marked.use({ renderer });
  * Safe to call from the extension host; the result is sent to the webview.
  */
 export function renderMarkdown(text: string): string {
+  let html: string;
   try {
-    return marked(text) as string;
+    html = marked(text) as string;
   } catch {
-    return `<pre>${escapeHtml(text)}</pre>`;
+    html = `<pre>${escapeHtml(text)}</pre>`;
   }
+  return DOMPurify.sanitize(html, PURIFY_CONFIG) as unknown as string;
 }
 
 // ---------------------------------------------------------------------------

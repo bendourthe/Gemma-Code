@@ -26,18 +26,16 @@
 │  │    McpManager                    │                                   │
 │  │    ToolActivationRules           │                                   │
 │  └──────────────┬───────────────────┘                                  │
-│                 │ HTTP (SSE / REST)                                      │
+│                 │ HTTP (REST)                                            │
 └─────────────────┼──────────────────────────────────────────────────────┘
                   │
-       ┌──────────┴──────────┐
-       │                     │
-       v                     v
-┌──────────────┐    ┌─────────────────────────┐
-│  Python      │    │  Ollama                  │
-│  FastAPI     │───>│  (local model runtime)   │
-│  Backend     │    │  gemma4:e4b              │
-│  :11435      │    │  :11434                  │
-└──────────────┘    └─────────────────────────┘
+                  v
+       ┌─────────────────────────┐
+       │  Ollama                  │
+       │  (local model runtime)   │
+       │  gemma4:e4b              │
+       │  :11434                  │
+       └─────────────────────────┘
 ```
 
 All inference runs locally. No data leaves the developer's machine.
@@ -55,7 +53,6 @@ All inference runs locally. No data leaves the developer's machine.
 | ToolRegistry | `src/tools/ToolRegistry.ts` | Tool name-to-handler dispatch |
 | GemmaCodePanel | `src/panels/GemmaCodePanel.ts` | Webview chat UI provider and orchestrator |
 | ChatHistoryStore | `src/storage/ChatHistoryStore.ts` | SQLite session persistence with FTS5 search |
-| BackendManager | `src/backend/BackendManager.ts` | Python process lifecycle management |
 
 ### v0.2.0 Additions
 

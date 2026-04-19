@@ -1,0 +1,10 @@
+{
+  "note": "Baseline performance numbers for Gemma Code v0.3.0 benchmarks. Populated by running `npm run bench -- --reporter=json` against the v0.3.0 tag and capturing the hz/rme for each named benchmark. First nightly run after v0.4.0 merges will regenerate this via --update-baseline mode in scripts/check-bench-regressions.mjs.",
+  "version": "0.3.0",
+  "createdAt": null,
+  "thresholds": {
+    "regressionPct": 20,
+    "improvementPct": 50
+  },
+  "benchmarks": {}
+}

@@ -212,7 +212,7 @@ export class SessionListPanel implements vscode.WebviewViewProvider {
           return;
         }
         sessionsEl.innerHTML = sessions.map(s =>
-          '<div class="session-item" data-id="' + s.id + '">' +
+          '<div class="session-item" data-id="' + escapeAttr(s.id) + '">' +
             '<div class="session-title">' + escapeHtml(s.title) + '</div>' +
             '<div class="session-meta">' +
               '<span>' + formatDate(s.updatedAt) + '</span>' +
@@ -229,7 +229,10 @@ export class SessionListPanel implements vscode.WebviewViewProvider {
       }
 
       function escapeHtml(s) {
-        return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      }
+      function escapeAttr(s) {
+        return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
       }
 
       window.addEventListener('message', (e) => {

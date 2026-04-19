@@ -337,5 +337,31 @@ describe("TaskDAG", () => {
       ]);
       expect(dag.hasCycle()).toBe(false);
     });
+
+    it("should return false for a diamond DAG", () => {
+      const dag = new TaskDAG([
+        makeNode({ id: "a" }),
+        makeNode({ id: "b", dependencies: ["a"] }),
+        makeNode({ id: "c", dependencies: ["a"] }),
+        makeNode({ id: "d", dependencies: ["b", "c"] }),
+      ]);
+      expect(dag.hasCycle()).toBe(false);
+    });
+
+    it("should reject a self-loop at construction", () => {
+      expect(
+        () => new TaskDAG([makeNode({ id: "a", dependencies: ["a"] })]),
+      ).toThrow(/cycle/i);
+    });
+
+    it("should reject a two-node cycle at construction", () => {
+      expect(
+        () =>
+          new TaskDAG([
+            makeNode({ id: "a", dependencies: ["b"] }),
+            makeNode({ id: "b", dependencies: ["a"] }),
+          ]),
+      ).toThrow(/cycle/i);
+    });
   });
 });

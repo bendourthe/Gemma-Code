@@ -128,6 +128,22 @@ describe("GraphQueryEngine", () => {
         expect(path.relations).toHaveLength(0);
       }
     });
+
+    it("preserves all intermediate nodes on a three-hop path", () => {
+      const path = engine.explainPath("AgentLoop.ts", "Ollama", 5);
+      expect(path).not.toBeNull();
+      if (path) {
+        const names = path.path.map((e) => e.name);
+        expect(names).toEqual([
+          "AgentLoop.ts",
+          "PromptBuilder.ts",
+          "MemoryStore.ts",
+          "EmbeddingClient.ts",
+          "Ollama",
+        ]);
+        expect(path.relations).toHaveLength(4);
+      }
+    });
   });
 
   describe("results sorted by weight * recency", () => {

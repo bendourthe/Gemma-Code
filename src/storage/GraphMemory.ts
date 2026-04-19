@@ -248,7 +248,7 @@ export class GraphMemory {
             visited.add(neighborId);
             nextFrontier.push(neighborId);
 
-            const entity = this._getEntityById(neighborId);
+            const entity = this.getEntityById(neighborId);
             if (entity) {
               results.push(entity);
               if (results.length >= 50) return results;
@@ -342,7 +342,7 @@ export class GraphMemory {
   // Helpers
   // -------------------------------------------------------------------------
 
-  private _getEntityById(id: string): GraphEntity | null {
+  getEntityById(id: string): GraphEntity | null {
     const row = this._db
       .prepare("SELECT * FROM graph_entities WHERE id = ?")
       .get(id) as EntityRow | undefined;

@@ -198,3 +198,13 @@ tests/golden/.worktrees/
 tests/smoke/results/
 tests/golden/snapshots/*/.git/
 tests/golden/snapshots/*/node_modules/
+
+# ==============================================================================
+# CI Workflow Outputs (v0.4.0 Phase 1: benchmark + golden-task gates)
+# ==============================================================================
+bench-results.json
+bench-results.txt
+golden-results-*.json
+golden-report-*.md
+golden-task-results.json
+golden-task-report.md

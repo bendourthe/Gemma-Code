@@ -126,4 +126,23 @@ describe("RunTerminalTool", () => {
     const result = await tool.execute(params({ command: "echo test" }));
     expect(result.success).toBe(true);
   });
+
+  it("rejects an absolute cwd outside the workspace root", async () => {
+    const tool = new RunTerminalTool();
+    const outside = process.platform === "win32" ? "C:\\Users" : "/etc";
+    const result = await tool.execute(params({ command: "echo hi", cwd: outside }));
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/outside the workspace/i);
+    expect(mockSpawn).not.toHaveBeenCalled();
+  });
+
+  it("accepts a workspace-relative cwd subdirectory", async () => {
+    mockSpawn.mockReturnValueOnce(makeChild("ok", "", 0) as ReturnType<typeof spawn>);
+    const tool = new RunTerminalTool();
+    const result = await tool.execute(params({ command: "echo hi", cwd: "sub/dir" }));
+
+    expect(result.success).toBe(true);
+    expect(mockSpawn).toHaveBeenCalledOnce();
+  });
 });

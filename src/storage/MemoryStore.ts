@@ -26,10 +26,18 @@ const MEMORY_TYPES: readonly MemoryType[] = [
  * Persistent cross-session memory backed by SQLite with FTS5 keyword search
  * and optional Ollama-generated embeddings for semantic search.
  */
+/**
+ * Candidate pool size for FTS5-pre-filtered semantic search. The embedding
+ * cosine scorer only runs over this many rows, bounding latency at O(N).
+ */
+const SEMANTIC_CANDIDATE_LIMIT = 200;
+
 export class MemoryStore {
   private readonly _db: Database.Database;
   private readonly _embedder: EmbeddingClient | null;
   private _graphEngine: GraphQueryEngine | null = null;
+  /** id -> deserialized Float32 vector. Invalidated on save/delete/prune/clear. */
+  private readonly _embeddingCache = new Map<string, Float32Array>();
 
   constructor(dbPath: string, embedder?: EmbeddingClient | null) {
     this._db = new Database(dbPath);
@@ -108,6 +116,7 @@ export class MemoryStore {
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(id, sessionId ?? null, content, type, embeddingBuf, now, now);
+    this._invalidateEmbeddingCache(id);
 
     return {
       id,
@@ -207,17 +216,18 @@ export class MemoryStore {
 
     const queryVec = await this._embedder.embed(query);
     if (!queryVec) return [];
+    const queryVec32 = Float32Array.from(queryVec);
 
-    const rows = this._db
-      .prepare("SELECT * FROM memories WHERE embedding IS NOT NULL")
-      .all() as MemoryRow[];
-
+    // Pre-filter candidates via FTS5 so we don't scan the full embeddings table.
+    // If the query has no FTS tokens (e.g., pure symbols) or the FTS query fails,
+    // fall back to a bounded scan of the most recently accessed rows.
+    const rows = this._getSemanticCandidates(query);
     if (rows.length === 0) return [];
 
     const scored = rows
       .map((r) => ({
         row: r,
-        similarity: this._cosineSimilarity(queryVec, this._deserializeEmbedding(r.embedding!)),
+        similarity: this._cosineSimilarity32(queryVec32, this._getCachedEmbedding(r)),
       }))
       .sort((a, b) => b.similarity - a.similarity)
       .slice(0, limit);
@@ -443,6 +453,10 @@ export class MemoryStore {
       )
       .run(excess);
 
+    // Cache is keyed by id and we don't know which ids were pruned without a
+    // second query; clear wholesale. Rehydration cost is bounded by N rows.
+    this._invalidateEmbeddingCache();
+
     return result.changes;
   }
 
@@ -453,6 +467,7 @@ export class MemoryStore {
   /** Delete all memories. */
   clear(): void {
     this._db.exec("DELETE FROM memories");
+    this._invalidateEmbeddingCache();
   }
 
   /** Return aggregate statistics about the memory store. */
@@ -517,14 +532,69 @@ export class MemoryStore {
     return Array.from(arr);
   }
 
-  private _cosineSimilarity(a: number[], b: number[]): number {
+  /** Get the Float32 embedding for a row, populating the cache on first access. */
+  private _getCachedEmbedding(row: MemoryRow): Float32Array {
+    const hit = this._embeddingCache.get(row.id);
+    if (hit) return hit;
+
+    // Stored as Float64 on disk; convert once to Float32 and cache.
+    const buf = row.embedding!;
+    const f64 = new Float64Array(buf.buffer, buf.byteOffset, buf.byteLength / 8);
+    const f32 = Float32Array.from(f64);
+    this._embeddingCache.set(row.id, f32);
+    return f32;
+  }
+
+  private _invalidateEmbeddingCache(id?: string): void {
+    if (id === undefined) {
+      this._embeddingCache.clear();
+      return;
+    }
+    this._embeddingCache.delete(id);
+  }
+
+  /**
+   * Return the candidate pool for semantic scoring: FTS5-matched rows first,
+   * fallback to the most-recently-accessed rows if the query has no tokens.
+   * Capped at SEMANTIC_CANDIDATE_LIMIT rows so cosine scoring is O(N).
+   */
+  private _getSemanticCandidates(query: string): MemoryRow[] {
+    const sanitized = this._sanitizeFtsQuery(query);
+    if (sanitized) {
+      try {
+        const rows = this._db
+          .prepare(
+            `SELECT m.*
+             FROM memories_fts fts
+             JOIN memories m ON m.rowid = fts.rowid
+             WHERE memories_fts MATCH ? AND m.embedding IS NOT NULL
+             ORDER BY fts.rank
+             LIMIT ?`,
+          )
+          .all(sanitized, SEMANTIC_CANDIDATE_LIMIT) as MemoryRow[];
+        if (rows.length > 0) return rows;
+      } catch {
+        // Fall through to the recency-based fallback.
+      }
+    }
+    return this._db
+      .prepare(
+        `SELECT * FROM memories
+         WHERE embedding IS NOT NULL
+         ORDER BY accessed_at DESC
+         LIMIT ?`,
+      )
+      .all(SEMANTIC_CANDIDATE_LIMIT) as MemoryRow[];
+  }
+
+  private _cosineSimilarity32(a: Float32Array, b: Float32Array): number {
     if (a.length !== b.length || a.length === 0) return 0;
     let dot = 0;
     let normA = 0;
     let normB = 0;
     for (let i = 0; i < a.length; i++) {
-      const ai = a[i] ?? 0;
-      const bi = b[i] ?? 0;
+      const ai = a[i]!;
+      const bi = b[i]!;
       dot += ai * bi;
       normA += ai * ai;
       normB += bi * bi;

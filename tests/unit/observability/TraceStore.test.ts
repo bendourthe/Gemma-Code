@@ -401,4 +401,48 @@ describe("TraceStore", () => {
       expect(loaded!.spanCount).toBe(6); // root + 5 nested levels
     });
   });
+
+  // -------------------------------------------------------------------------
+  // Batched writes (Phase 1 sub-task 1.7)
+  // -------------------------------------------------------------------------
+
+  describe("batched writes", () => {
+    it("spans remain queryable after buffered writes are flushed", () => {
+      const trace = store.startTrace();
+      for (let i = 0; i < 10; i++) {
+        const span = store.startSpan(trace.traceId, `op_${i}`, "tool_call");
+        store.endSpan(span.spanId, "ok");
+      }
+      store.flush();
+
+      const loaded = store.getTrace(trace.traceId);
+      expect(loaded).not.toBeNull();
+      expect(loaded!.spanCount).toBe(11); // 1 root + 10 children
+      expect(loaded!.spans.filter((s) => s.durationMs !== null)).toHaveLength(10);
+    });
+
+    it("does not issue a SELECT in endSpan (startTime + attributes cached in memory)", () => {
+      const trace = store.startTrace();
+      const span = store.startSpan(trace.traceId, "op", "tool_call", undefined, { foo: "bar" });
+
+      // endSpan must succeed even if the INSERT is still buffered (no SELECT).
+      store.endSpan(span.spanId, "ok", { extra: "baz" });
+      store.flush();
+
+      const loaded = store.getSpan(span.spanId);
+      expect(loaded).not.toBeNull();
+      expect(loaded!.attributes).toEqual({ foo: "bar", extra: "baz" });
+      expect(loaded!.durationMs).not.toBeNull();
+    });
+
+    it("reads force an implicit flush so queries always return up-to-date data", () => {
+      const trace = store.startTrace();
+      const span = store.startSpan(trace.traceId, "op", "tool_call");
+      store.endSpan(span.spanId, "ok");
+      // Deliberately NO explicit flush() — getSpan() must flush internally.
+      const loaded = store.getSpan(span.spanId);
+      expect(loaded).not.toBeNull();
+      expect(loaded!.durationMs).not.toBeNull();
+    });
+  });
 });

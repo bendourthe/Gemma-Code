@@ -11,6 +11,7 @@
 | Tasks done (v0.1.0) | 13 / 21 | 21 / 21 | -8 |
 | Tasks done (v0.2.0) | 44 / 44 | 44 / 44 | 0 |
 | Tasks done (v0.3.0) | 55 / 55 | 55 / 55 | 0 |
+| Tasks done (v0.4.0) | 16 / 16 (Phase 1) | ~90 / ~90 | in-progress |
 
 ---
 
@@ -205,3 +206,54 @@ Full plan: `docs/v0.3.0/implementation-plan.md`
 | macOS | Missing | -- | Sprint 2 |
 | Linux | Missing | -- | Sprint 2 |
 | VS Code Marketplace | Missing | -- | Sprint 2 |
+
+---
+
+## v0.4.0 — Code Review Remediation
+
+Driven by [docs/v0.3.0/review.md](v0.3.0/review.md) (129 findings: 14 P0, 46 P1, 42 P2, 27 P3). Plan: [docs/v0.4.0/implementation-plan.md](v0.4.0/implementation-plan.md).
+
+### Phase 1 — Critical Hotfix (P0 Unblock) [COMPLETED 2026-04-18]
+
+All 14 P0 findings closed plus version bump. See [docs/DEVLOG.md](DEVLOG.md) and [docs/adr/0001-python-backend-disposition.md](adr/0001-python-backend-disposition.md) for detail.
+
+- [x] 1.1 DOMPurify-sanitize markdown + tighten webview CSP
+- [x] 1.2 Restrict `run_terminal` cwd to workspace root (via `src/tools/handlers/pathGuard.ts`)
+- [x] 1.3 Add AFTER UPDATE FTS5 trigger to ChatHistoryStore + switch `saveMessage` to UPDATE-or-INSERT
+- [x] 1.4 Delete dead in-degree loop in TaskDAG.hasCycle
+- [x] 1.5 Fix GraphQueryEngine path reconstruction
+- [x] 1.6 Add Float32 embedding cache + FTS5 candidate filter to MemoryStore.searchSemantic
+- [x] 1.7 Batch tracer writes; eliminate SELECT in endSpan
+- [x] 1.8 Add end-to-end safety-pipeline integration test
+- [x] 1.9 Add McpToolHandler unit tests
+- [x] 1.10 Add SessionListPanel unit tests + attribute-context escaping (closes #87)
+- [x] 1.11 Wire benchmark threshold gating in nightly.yml
+- [x] 1.12 Wire golden-task live-Ollama matrix CI (e2b + e4b)
+- [x] 1.13 Delete Python backend; record ADR-0001
+- [x] 1.14 Extract MemorySubsystem factory from GemmaCodePanel (-84 LOC)
+- [x] 1.15 Version bump to 0.4.0 + CHANGELOG seed
+- [x] 1.16 Testing & stabilization (build + lint + test green on touched files)
+
+### Phase 2 — Security Hardening [PENDING]
+
+20 non-P0 security findings (6 P1 + 9 P2 + 5 P3). Note: 2.2 and 2.13 are N/A per ADR-0001.
+
+### Phase 3 — Correctness & Code Quality [PENDING]
+
+24 findings including the 5 pre-existing test failures carried forward from Phase 1.
+
+### Phase 4 — Performance Optimization [PENDING]
+
+20 findings including the EpisodicMemory.searchSemantic mirror of Phase 1's 1.6 work.
+
+### Phase 5 — Testing Pipeline Completeness [PENDING]
+
+22 findings. First-run baseline population of `tests/benchmarks/baselines/v0.3.0.json` via `--update-baseline` is a prerequisite.
+
+### Phase 6 — Restructuring (Architecture) [PENDING]
+
+17 structural recommendations. Continues the GemmaCodePanel split started by Phase 1's 1.14.
+
+### Phase 7 — Simplification & Release [PENDING]
+
+17 simplification findings; ~800 LOC target deletion; v0.4.0 tag + VSIX publish.

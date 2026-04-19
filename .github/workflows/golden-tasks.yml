@@ -23,9 +23,17 @@ concurrency:
 
 jobs:
   run-golden-tasks:
-    name: Run golden tasks (${{ inputs.model || 'gemma4:e2b' }})
+    name: "Golden tasks (${{ matrix.tier }})"
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - tier: e2b
+            model: "gemma4:e2b"
+          - tier: e4b
+            model: "gemma4:e4b"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -47,19 +55,27 @@ jobs:
             sleep 1
           done
       - name: Pull model
-        run: ollama pull ${{ inputs.model || 'gemma4:e2b' }}
+        run: ollama pull ${{ matrix.model }}
       - name: Scaffold snapshots
         run: python tests/golden/snapshots/_scaffold.py
       - name: Run framework tests
         run: cd tests/golden && python -m pytest framework/ -q
-      - name: Run golden suite (dry mode only, live mode requires more runner time)
-        run: cd tests/golden && python -m pytest -q
+      - name: Run golden suite against live Ollama and diff against v0.3.0 baseline
         env:
           OLLAMA_URL: "http://localhost:11434"
-          TEST_MODEL: ${{ inputs.model || 'gemma4:e2b' }}
+        run: |
+          python tests/golden/framework/run_all.py \
+            --model "${{ matrix.model }}" \
+            --tier "${{ matrix.tier }}" \
+            --baseline "tests/golden/baselines/v0.3.0-${{ matrix.tier }}.json" \
+            --output "golden-results-${{ matrix.tier }}.json" \
+            --report "golden-report-${{ matrix.tier }}.md"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: golden-tasks-results
-          path: tests/golden/baselines/
+          name: "golden-tasks-${{ matrix.tier }}"
+          path: |
+            golden-results-${{ matrix.tier }}.json
+            golden-report-${{ matrix.tier }}.md
+            tests/golden/baselines/
           retention-days: 30

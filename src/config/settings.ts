@@ -21,9 +21,6 @@ export interface GemmaCodeSettings {
   systemPromptBudgetPercent: number;
   compactionKeepRecent: number;
   compactionToolResultsKeep: number;
-  useBackend: boolean;
-  backendPort: number;
-  pythonPath: string;
   memoryEnabled: boolean;
   embeddingModel: string;
   memoryAutoSaveInterval: number;
@@ -48,7 +45,7 @@ export function getSettings(): GemmaCodeSettings {
   const config = vscode.workspace.getConfiguration("gemma-code");
   return {
     ollamaUrl: config.get<string>("ollamaUrl") ?? "http://localhost:11434",
-    modelName: config.get<string>("modelName") ?? "gemma4",
+    modelName: config.get<string>("modelName") ?? "gemma4:e4b",
     maxTokens: config.get<number>("maxTokens") ?? 131072,
     temperature: config.get<number>("temperature") ?? 1.0,
     topP: config.get<number>("topP") ?? 0.95,
@@ -63,9 +60,6 @@ export function getSettings(): GemmaCodeSettings {
     systemPromptBudgetPercent: config.get<number>("systemPromptBudgetPercent") ?? 10,
     compactionKeepRecent: config.get<number>("compactionKeepRecent") ?? 10,
     compactionToolResultsKeep: config.get<number>("compactionToolResultsKeep") ?? 8,
-    useBackend: config.get<boolean>("useBackend") ?? true,
-    backendPort: config.get<number>("backendPort") ?? 11435,
-    pythonPath: config.get<string>("pythonPath") ?? "python",
     memoryEnabled: config.get<boolean>("memoryEnabled") ?? true,
     embeddingModel: config.get<string>("embeddingModel") ?? "nomic-embed-text",
     memoryAutoSaveInterval: config.get<number>("memoryAutoSaveInterval") ?? 15,

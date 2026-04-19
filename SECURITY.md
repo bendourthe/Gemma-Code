@@ -34,8 +34,7 @@ Gemma Code follows coordinated disclosure. We will work with you to understand a
 The following components are in scope for security reports:
 
 - TypeScript extension host code (`src/`)
-- Python FastAPI backend (`src/backend/`)
-- Windows NSIS installer (`scripts/installer/`)
+- PyQt5 cross-platform installer (`scripts/installer/pyqt/`)
 - Webview HTML/JS (`src/panels/webview/`)
 - MCP client/server implementation (`src/mcp/`)
 

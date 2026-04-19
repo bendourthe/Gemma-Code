@@ -30,9 +30,6 @@ vi.mock("../../../src/config/settings.js", () => ({
     thinkingMode: true,
     promptStyle: "concise",
     systemPromptBudgetPercent: 10,
-    useBackend: true,
-    backendPort: 11435,
-    pythonPath: "python",
   })),
   onSettingsChange: vi.fn(() => ({ dispose: vi.fn() })),
 }));

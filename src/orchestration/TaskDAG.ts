@@ -198,18 +198,9 @@ export class TaskDAG {
    */
   hasCycle(): boolean {
     const inDegree = new Map<string, number>();
-    for (const id of this._nodes.keys()) {
-      inDegree.set(id, 0);
-    }
-    for (const node of this._nodes.values()) {
-      for (const dep of node.dependencies) {
-        inDegree.set(dep, (inDegree.get(dep) ?? 0));
-        // dep -> node edge: increment node's in-degree is wrong.
-        // Actually: node depends on dep means edge dep -> node.
-        // In-degree of node increases for each dependency.
-      }
-    }
-    // Recompute correctly: in-degree[nodeId] = number of dependencies.
+    // Edge direction: node depends on dep means edge dep -> node, so
+    // in-degree(node) = number of dependencies of node. _dependents[x]
+    // holds the set of nodes that depend on x.
     for (const node of this._nodes.values()) {
       inDegree.set(node.id, node.dependencies.length);
     }

@@ -21,7 +21,6 @@ Gemma Code brings a Claude Code-style agentic workflow to VS Code, running entir
 - **Conditional tool activation** — tools are enabled/disabled based on runtime context (Ollama reachability, network availability, session mode); keeps the prompt clean for better model reliability
 - **Sub-agent orchestration** — spawns isolated verification, research, and planning sub-agents with scoped tools; auto-verification triggers after file edits to catch bugs early; `/verify` and `/research` slash commands for manual control
 - **MCP support** — Model Context Protocol client connects to external MCP servers; MCP server exposes Gemma Code's tools to external clients (opt-in, off by default)
-- **Python inference backend** — optional FastAPI backend applies the Gemma chat template for higher-quality results
 - **Windows installer** — a single `setup.exe` installs everything: VS Code extension, Ollama, and the model
 - **Privacy-first** — your code and prompts never leave your machine
 
@@ -33,7 +32,6 @@ Gemma Code brings a Claude Code-style agentic workflow to VS Code, running entir
 |---|---|
 | VS Code | 1.90 |
 | Ollama | Latest |
-| Python (for backend) | 3.11 |
 | Node.js (for development) | 20 |
 
 ---
@@ -49,7 +47,6 @@ Gemma Code brings a Claude Code-style agentic workflow to VS Code, running entir
 2. Launch the installer. The wizard will auto-detect your GPU, recommend a model tier, and install:
    - Ollama (if missing)
    - The VS Code extension
-   - A Python 3.11 virtual environment with the FastAPI backend
    - Optionally, the selected Gemma 4 model
 3. Launch VS Code and open the Gemma Code panel from the Activity Bar.
 
@@ -123,9 +120,6 @@ All settings are under `gemma-code.*` in VS Code settings (`Ctrl+,`).
 | `gemma-code.editMode` | `auto` | How file edits are applied: `auto`, `ask`, or `manual` |
 | `gemma-code.toolConfirmationMode` | `ask` | When to ask before running terminal commands: `always`, `ask`, `never` |
 | `gemma-code.maxAgentIterations` | `20` | Maximum agentic tool-use iterations per message |
-| `gemma-code.useBackend` | `true` | Route inference through the Python backend for better prompt formatting |
-| `gemma-code.backendPort` | `11435` | Local Python backend port |
-| `gemma-code.pythonPath` | `python` | Python executable path |
 | `gemma-code.memoryEnabled` | `true` | Enable persistent cross-session memory |
 | `gemma-code.embeddingModel` | `nomic-embed-text` | Ollama embedding model for semantic memory search (empty string disables) |
 | `gemma-code.memoryAutoSaveInterval` | `15` | Messages between automatic memory extraction runs |
@@ -177,9 +171,6 @@ Ensure Ollama is running: `ollama serve`. Gemma Code polls every 5 seconds and r
 **"Model not found"**
 Pull the configured model: `ollama pull gemma4`. Use `/model` in the chat to switch to a model you have already pulled.
 
-**"Backend process exited; using direct Ollama mode"**
-The Python backend failed to start. Check the "Gemma Code" Output channel for the error. Common causes: Python not found, missing packages, or port 11435 in use. Set `gemma-code.useBackend` to `false` to disable the backend and use Ollama directly.
-
 **Slow responses**
 - Use a smaller model variant (e.g. `gemma4:e2b`) via `/model`.
 - Increase `gemma-code.requestTimeout` if you are on a slow machine.
@@ -218,12 +209,6 @@ npm run bench
 npm run package
 ```
 
-```bash
-# Python backend (from src/backend/)
-uv run pytest tests/unit tests/integration -q
-uv run ruff check . && uv run ruff format .
-```
-
 ### Golden task suite (v0.3.0)
 
 Declarative evaluation tasks live under [tests/golden/](tests/golden/). Each task is a YAML file paired with a self-contained git snapshot under [tests/golden/snapshots/](tests/golden/snapshots/).
@@ -256,9 +241,10 @@ src/
   skills/                Skill loader and built-in skill catalog
   commands/              Slash command router
   modes/                 Plan mode and edit mode
-  storage/               SQLite chat history, MemoryStore, EmbeddingClient
-  utils/                 Markdown renderer
-  backend/               Python FastAPI inference backend (separate package)
+  storage/               SQLite chat history, MemoryStore, MemorySubsystem factory, EmbeddingClient
+  observability/         TraceStore (batched writes), Tracer, MetricsCollector, OTLP exporter
+  safety/                ActionClassifier, GitSafetyNet, LoopDetector, BudgetEnforcer
+  utils/                 Markdown renderer (DOMPurify-sanitized)
 tests/
   unit/                  Unit tests (Vitest)
   integration/           Integration tests (Vitest + live Ollama)
@@ -280,10 +266,9 @@ scripts/
 | Layer | Technology |
 |---|---|
 | VS Code Extension | TypeScript + Vitest |
-| Inference Backend | Python + FastAPI + Ollama |
-| Local Model | Google Gemma (via Ollama) |
-| Persistence | SQLite (better-sqlite3) |
-| Installer | NSIS (Windows) |
+| Local Model | Google Gemma (via Ollama, direct HTTP) |
+| Persistence | SQLite (better-sqlite3) with FTS5 |
+| Installer | PyQt5 cross-platform wizard |
 | CI/CD | GitHub Actions |
 
 ---

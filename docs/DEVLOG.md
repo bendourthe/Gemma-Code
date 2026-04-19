@@ -4,6 +4,62 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-04-18] v0.4.0 Phase 1 -- Critical Hotfix (P0 Unblock)
+
+### Summary
+
+First phase of the v0.4.0 remediation release. Closed all 14 P0 findings from the v0.3.0 code review ([docs/v0.3.0/review.md](v0.3.0/review.md)), bumped package.json to 0.4.0, and seeded the CHANGELOG. Implemented across two `/implement-phase 1 of v0.4.0` sessions: the first closed 6 P0s + version bump; the second closed the remaining 8 P0s including the largest deletion (Python FastAPI backend, ADR-0001) and the deepest refactor (MemorySubsystem extraction from GemmaCodePanel).
+
+### P0 closures by category
+
+**Correctness**
+- ChatHistoryStore FTS5 index now stays in sync on message re-saves. Root cause: `INSERT OR REPLACE` does not fire SQLite DELETE triggers. Fix: added `messages_fts_au` AFTER UPDATE trigger and switched `saveMessage` to explicit UPDATE-or-INSERT so the trigger path is reachable.
+- TaskDAG.hasCycle no longer carries the dead in-degree loop; edge-direction intent is documented inline.
+- GraphQueryEngine.explainPath returns all intermediate entities on multi-hop paths. Promoted `GraphMemory.getEntityById` to public.
+
+**Security**
+- Markdown output routed through DOMPurify in `src/utils/MarkdownRenderer.ts` before reaching any `innerHTML` sink in the webview. 8 new XSS regression tests cover `<script>`, `<iframe>`, `javascript:` URIs, `<style>`, `<details open ontoggle>`, and inline event handlers.
+- CSP tightened in both webview entry points: `img-src`, `connect-src`, `object-src`, `frame-src`, `base-uri`, `form-action` explicitly denied; `require-trusted-types-for 'script'` added.
+- `run_terminal` rejects any cwd that resolves outside the workspace root. Shared path guard extracted into `src/tools/handlers/pathGuard.ts` (symlink-aware via `fs.realpathSync`).
+- SessionListPanel now HTML-escapes session ids in attribute contexts (also closes finding #87 early).
+
+**Performance**
+- MemoryStore.searchSemantic no longer scans the full embeddings table. FTS5 candidate pre-filter caps scoring at 200 rows; Float32 embedding cache (keyed by id, invalidated on save/prune/clear) replaces per-call Float64 deserialization.
+- Tracer writes batched: `startSpan` buffers an INSERT in memory, `endSpan` looks up startTime + attributes from an in-memory map (no SELECT), and `flush()` drains everything in a single `db.transaction` on process.nextTick, every 32 ops, or on any read call.
+
+**Testing**
+- New tests: `tests/unit/mcp/McpToolHandler.test.ts` (4), `tests/unit/panels/SessionListPanel.test.ts` (8), `tests/unit/utils/MarkdownRenderer.test.ts` (8), `tests/unit/storage/MemorySubsystem.test.ts` (4), `tests/integration/safety/agent-safety-pipeline.test.ts` (4), TraceStore batching suite (3 new cases).
+- Full suite: 990 of 997 passing (5 pre-existing failures at HEAD remain unrelated to this phase; git-stash diff confirms zero regressions introduced).
+
+**CI**
+- `scripts/check-bench-regressions.mjs` + `tests/benchmarks/baselines/v0.3.0.json` wired into `nightly.yml`. Bench results now emit JSON; > 20% hz regression vs baseline fails the job. First post-merge nightly should run with `--update-baseline` to seed real numbers.
+- `golden-tasks.yml` matrixes e2b + e4b, runs `tests/golden/framework/run_all.py` against live Ollama, diffs against `tests/golden/baselines/v0.3.0-<tier>.json`, and uploads a Markdown regression report. Retained the Sunday-cron + workflow_dispatch conservative trigger.
+
+**Restructuring**
+- Python FastAPI backend deleted (ADR-0001). Removed: `src/backend/` tree, `BackendManager.ts` wiring in `src/extension.ts`, `useBackend`/`backendPort`/`pythonPath` settings in both `settings.ts` and `package.json`, the `lint-py` + `test-py` jobs in `ci.yml`, the `integration-py` job in `nightly.yml`, and the `coverage-gate` Python half. The installer `VenvInstaller` is now a no-op stub. `git grep BackendManager` under `src/` returns zero results.
+- `src/storage/MemorySubsystem.ts` factory owns the 4-layer memory wiring (MemoryStore + WorkingMemory + EpisodicMemory + GraphMemory + GraphQueryEngine + EntityExtractor + MemoryConsolidator + UnifiedMemoryRetriever). `GemmaCodePanel._initMemoryLayers/_initMemoryStore` replaced with a single `_buildMemorySubsystem` call. Panel shrank 84 lines (1307 -> 1223).
+
+**Release**
+- `package.json` version bumped to 0.4.0.
+- `modelName` default aligned across manifest and `settings.ts` (both now `gemma4:e4b`).
+- CHANGELOG `[0.3.0]` heading dated `2026-04-18`; new `[0.4.0] - Unreleased` section describes every sub-task above.
+
+### Deviations from the plan
+
+- Plan referenced `src/orchestration/AgentLoop.ts`; actual path is `src/tools/AgentLoop.ts`. Integration test imports adjusted accordingly.
+- Plan listed `gemma-code.modelName` as the only drift item; actual package.json version was 0.2.0 and CHANGELOG had a pending `[0.3.0]` section. Resolved by finalizing `[0.3.0]` with commit date `2026-04-18` and inserting `[0.4.0] - Unreleased` above it.
+- Sub-task 1.13 settled on the full-deletion path of the ADR (per user approval in-session); the alternative path (keep backend + add auth/CORS) is now N/A. Phase 2 sub-tasks 2.2, 2.11, and 2.13 will be marked N/A with ADR-0001 as the reason.
+- Sub-task 1.8 plan targeted a full AgentLoop integration test. Actual implementation exercises the classifier -> gate -> GitSafetyNet seam directly with `vi.mock("child_process")`. The full AgentLoop path is untestable without mocking OllamaClient streaming, which is larger scope than the P0 finding requires. The pipeline contract is still asserted end-to-end: classifier output drives checkpoint creation, rollback performs `reset --hard` + `stash pop`, and reversible tools produce zero git invocations.
+- Plan required a benchmark showing >= 3x speedup on memory recall at N=1000. Deferred: the cache + FTS5 filter are in place and unit-covered; a bench run will populate `tests/benchmarks/baselines/v0.3.0.json` in the first post-merge nightly via `--update-baseline`.
+
+### Known follow-ups
+
+- Pre-existing 5 test failures (extension activate, GraphMemory searchEntities/prune, GraphQueryEngine queryContextFor) were present at HEAD before this phase and remain out of scope; they are candidates for Phase 3 (Correctness & Code Quality).
+- EpisodicMemory.searchSemantic still does a full-table scan; the plan notes this as the "analogous path" to 1.6. Left for Phase 4 (Performance) given scope.
+- Benchmark and golden-task baseline JSON files need a first real population run -- both scripts support a `--update-baseline` path.
+
+---
+
 ## [2026-04-16] v0.3.0 Phase 8 -- Golden Task Suite & Integration Stabilization
 
 ### Summary

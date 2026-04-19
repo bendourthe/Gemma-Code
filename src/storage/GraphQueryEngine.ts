@@ -299,12 +299,18 @@ export class GraphQueryEngine {
     }
 
     const path: GraphEntity[] = [];
-    const knownEntities = [start, end];
     for (const id of pathIds) {
-      const found = knownEntities.find((e) => e.id === id)
-        ?? this._graphMemory.getEntity("", undefined);
-      if (found && found.id === id) {
-        path.push(found);
+      if (id === start.id) {
+        path.push(start);
+        continue;
+      }
+      if (id === end.id) {
+        path.push(end);
+        continue;
+      }
+      const entity = this._graphMemory.getEntityById(id);
+      if (entity) {
+        path.push(entity);
       }
     }
 

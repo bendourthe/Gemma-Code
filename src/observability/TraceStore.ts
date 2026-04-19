@@ -80,8 +80,41 @@ interface CountRow {
 // TraceStore
 // ---------------------------------------------------------------------------
 
+// Buffered pending writes — fed by startSpan/endSpan, drained by _flush().
+interface PendingInsert {
+  readonly kind: "insert";
+  readonly spanId: string;
+  readonly traceId: string;
+  readonly parentSpanId: string | null;
+  readonly name: string;
+  readonly spanKind: SpanKind;
+  readonly startTime: number;
+  attributes: Record<string, string | number | boolean>;
+}
+
+interface PendingUpdate {
+  readonly kind: "update";
+  readonly spanId: string;
+  readonly endTime: number;
+  readonly durationMs: number;
+  readonly status: SpanStatus;
+  readonly attributes: Record<string, string | number | boolean>;
+}
+
+type PendingOp = PendingInsert | PendingUpdate;
+
+const FLUSH_BATCH_SIZE = 32;
+
 export class TraceStore {
   private readonly _db: Database.Database;
+  /** In-memory span state so endSpan() never issues a SELECT. */
+  private readonly _liveSpans = new Map<
+    string,
+    { startTime: number; attributes: Record<string, string | number | boolean> }
+  >();
+  /** Pending INSERT/UPDATE operations to drain in one transaction. */
+  private readonly _pendingOps: PendingOp[] = [];
+  private _flushScheduled = false;
 
   constructor(dbPath: string) {
     this._db = new Database(dbPath);
@@ -167,21 +200,20 @@ export class TraceStore {
     const now = Date.now();
     const attrs = attributes ?? {};
 
-    this._db
-      .prepare(
-        "INSERT INTO spans (span_id, trace_id, parent_span_id, name, kind, start_time, status, attributes, events) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      )
-      .run(
-        spanId,
-        traceId,
-        parentSpanId ?? null,
-        name,
-        kind,
-        now,
-        "ok",
-        JSON.stringify(attrs),
-        "[]",
-      );
+    // Remember the start info in memory so endSpan() does not hit the DB.
+    this._liveSpans.set(spanId, { startTime: now, attributes: { ...attrs } });
+
+    this._pendingOps.push({
+      kind: "insert",
+      spanId,
+      traceId,
+      parentSpanId: parentSpanId ?? null,
+      name,
+      spanKind: kind,
+      startTime: now,
+      attributes: attrs,
+    });
+    this._scheduleFlush(kind === "agent_turn" && parentSpanId === undefined);
 
     return {
       traceId,
@@ -205,25 +237,91 @@ export class TraceStore {
   ): void {
     const now = Date.now();
 
-    const existing = this._db
-      .prepare("SELECT start_time, attributes FROM spans WHERE span_id = ?")
-      .get(spanId) as { start_time: number; attributes: string } | undefined;
+    // Fast path: the in-memory map holds startTime + attributes. No SELECT.
+    const live = this._liveSpans.get(spanId);
+    if (!live) return;
 
-    if (!existing) return;
+    const durationMs = now - live.startTime;
+    const merged = attributes ? { ...live.attributes, ...attributes } : live.attributes;
 
-    const durationMs = now - existing.start_time;
-    const merged = attributes
-      ? { ...JSON.parse(existing.attributes), ...attributes }
-      : JSON.parse(existing.attributes);
+    this._pendingOps.push({
+      kind: "update",
+      spanId,
+      endTime: now,
+      durationMs,
+      status,
+      attributes: merged,
+    });
+    this._liveSpans.delete(spanId);
+    this._scheduleFlush(false);
+  }
 
-    this._db
-      .prepare(
-        "UPDATE spans SET end_time = ?, duration_ms = ?, status = ?, attributes = ? WHERE span_id = ?",
-      )
-      .run(now, durationMs, status, JSON.stringify(merged), spanId);
+  /**
+   * Synchronously drain buffered inserts/updates in a single transaction.
+   * Callers: extension deactivate(), process exit, and readers that need
+   * fully-synchronized data (the test suite calls this before querying).
+   */
+  flush(): void {
+    if (this._pendingOps.length === 0) {
+      this._flushScheduled = false;
+      return;
+    }
+    const ops = this._pendingOps.splice(0, this._pendingOps.length);
+    this._flushScheduled = false;
+
+    const insertStmt = this._db.prepare(
+      "INSERT INTO spans (span_id, trace_id, parent_span_id, name, kind, start_time, status, attributes, events) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    );
+    const updateStmt = this._db.prepare(
+      "UPDATE spans SET end_time = ?, duration_ms = ?, status = ?, attributes = ? WHERE span_id = ?",
+    );
+
+    this._db.transaction(() => {
+      for (const op of ops) {
+        if (op.kind === "insert") {
+          insertStmt.run(
+            op.spanId,
+            op.traceId,
+            op.parentSpanId,
+            op.name,
+            op.spanKind,
+            op.startTime,
+            "ok",
+            JSON.stringify(op.attributes),
+            "[]",
+          );
+        } else {
+          updateStmt.run(
+            op.endTime,
+            op.durationMs,
+            op.status,
+            JSON.stringify(op.attributes),
+            op.spanId,
+          );
+        }
+      }
+    })();
+  }
+
+  private _scheduleFlush(forceSync: boolean): void {
+    if (this._pendingOps.length >= FLUSH_BATCH_SIZE || forceSync) {
+      this.flush();
+      return;
+    }
+    if (this._flushScheduled) return;
+    this._flushScheduled = true;
+    process.nextTick(() => {
+      try {
+        this.flush();
+      } catch {
+        this._flushScheduled = false;
+      }
+    });
   }
 
   addEvent(spanId: string, event: SpanEvent): void {
+    // Events require the span row to be persisted, so flush first.
+    this.flush();
     const row = this._db
       .prepare("SELECT events FROM spans WHERE span_id = ?")
       .get(spanId) as { events: string } | undefined;
@@ -243,6 +341,7 @@ export class TraceStore {
   // -------------------------------------------------------------------------
 
   getTrace(traceId: string): (Trace & { spans: Span[] }) | null {
+    this.flush();
     const row = this._db
       .prepare(
         "SELECT trace_id, session_id, root_span_id, start_time, end_time FROM traces WHERE trace_id = ?",
@@ -273,6 +372,7 @@ export class TraceStore {
   }
 
   listTraces(limit = 50, offset = 0): Trace[] {
+    this.flush();
     const rows = this._db
       .prepare(
         `SELECT t.trace_id, t.session_id, t.root_span_id, t.start_time, t.end_time,
@@ -294,6 +394,7 @@ export class TraceStore {
   }
 
   getSpansByKind(traceId: string, kind: SpanKind): Span[] {
+    this.flush();
     const rows = this._db
       .prepare(
         "SELECT span_id, trace_id, parent_span_id, name, kind, start_time, end_time, duration_ms, status, attributes, events FROM spans WHERE trace_id = ? AND kind = ? ORDER BY start_time ASC",
@@ -304,6 +405,7 @@ export class TraceStore {
   }
 
   getSpan(spanId: string): Span | null {
+    this.flush();
     const row = this._db
       .prepare(
         "SELECT span_id, trace_id, parent_span_id, name, kind, start_time, end_time, duration_ms, status, attributes, events FROM spans WHERE span_id = ?",
@@ -315,6 +417,7 @@ export class TraceStore {
   }
 
   deleteOlderThan(daysAgo: number): number {
+    this.flush();
     const cutoff = Date.now() - daysAgo * 24 * 60 * 60 * 1000;
     const result = this._db
       .prepare("DELETE FROM traces WHERE start_time < ?")
@@ -327,6 +430,7 @@ export class TraceStore {
   // -------------------------------------------------------------------------
 
   close(): void {
+    this.flush();
     this._db.close();
   }
 

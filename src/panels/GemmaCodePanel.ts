@@ -35,17 +35,13 @@ import { CommandRouter } from "../commands/CommandRouter.js";
 import { PlanMode, detectPlan } from "../modes/PlanMode.js";
 import { ChatHistoryStore } from "../storage/ChatHistoryStore.js";
 import { MemoryStore } from "../storage/MemoryStore.js";
-import { EmbeddingClient } from "../storage/EmbeddingClient.js";
+import { MemorySubsystem } from "../storage/MemorySubsystem.js";
 import { calculateBudget } from "../config/PromptBudget.js";
-import { createWorkingMemory } from "../storage/WorkingMemory.js";
 import type { WorkingMemory } from "../storage/WorkingMemory.js";
 import { EpisodicMemory } from "../storage/EpisodicMemory.js";
 import { GraphMemory } from "../storage/GraphMemory.js";
-import { EntityExtractor } from "../storage/EntityExtractor.js";
-import { GraphQueryEngine } from "../storage/GraphQueryEngine.js";
 import { MemoryConsolidator } from "../storage/MemoryConsolidator.js";
 import { UnifiedMemoryRetriever } from "../storage/UnifiedMemoryRetriever.js";
-import Database from "better-sqlite3";
 import type { HardwareTierConfig } from "../config/HardwareTier.types.js";
 import { BudgetMiddleware, createSessionBudget } from "../tools/BudgetMiddleware.js";
 import { GitSafetyNet } from "../safety/GitSafetyNet.js";
@@ -102,15 +98,15 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
 
     // Initialise persistent chat history store.
     this._store = this._initStore();
-    this._memoryStore = this._initMemoryStore();
 
-    // Initialize 4-layer memory system (Phase 3).
-    const memoryLayers = this._initMemoryLayers();
-    this._workingMemory = memoryLayers.workingMemory;
-    this._episodicMemory = memoryLayers.episodicMemory;
-    this._graphMemory = memoryLayers.graphMemory;
-    this._unifiedRetriever = memoryLayers.unifiedRetriever;
-    this._memoryConsolidator = memoryLayers.memoryConsolidator;
+    // Initialize 4-layer memory system through the MemorySubsystem factory.
+    const memory = this._buildMemorySubsystem(settings);
+    this._memoryStore = memory.memoryStore;
+    this._workingMemory = memory.workingMemory;
+    this._episodicMemory = memory.episodicMemory;
+    this._graphMemory = memory.graphMemory;
+    this._unifiedRetriever = memory.unifiedRetriever;
+    this._memoryConsolidator = memory.memoryConsolidator;
 
     // PlanMode must be initialised before PromptBuilder uses it.
     this._planMode = new PlanMode();
@@ -1138,99 +1134,19 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     }
   }
 
-  /**
-   * Initialize the 4-layer memory system. Each layer is optional and degrades
-   * gracefully if initialization fails.
-   */
-  private _initMemoryLayers(): {
-    workingMemory: WorkingMemory | null;
-    episodicMemory: EpisodicMemory | null;
-    graphMemory: GraphMemory | null;
-    unifiedRetriever: UnifiedMemoryRetriever | null;
-    memoryConsolidator: MemoryConsolidator | null;
-  } {
-    const settings = getSettings();
-    if (!settings.memoryEnabled || !this._memoryStore || !this._globalStorageUri) {
-      return {
-        workingMemory: null,
-        episodicMemory: null,
-        graphMemory: null,
-        unifiedRetriever: null,
-        memoryConsolidator: null,
-      };
+  private _buildMemorySubsystem(
+    settings: ReturnType<typeof getSettings>,
+  ): MemorySubsystem {
+    if (!settings.memoryEnabled || !this._globalStorageUri) {
+      return MemorySubsystem.disabled();
     }
-
-    try {
-      const workingMemory = createWorkingMemory();
-
-      // Episodic memory shares the memory.db path.
-      const dbPath = path.join(this._globalStorageUri.fsPath, "memory.db");
-      const embedder = settings.embeddingModel
-        ? new EmbeddingClient(settings.ollamaUrl, settings.embeddingModel, settings.requestTimeout)
-        : null;
-      const episodicMemory = new EpisodicMemory(dbPath, embedder);
-
-      // Graph memory shares the same SQLite database.
-      const graphDb = new Database(dbPath);
-      graphDb.pragma("journal_mode = WAL");
-      const graphMemory = new GraphMemory(graphDb);
-
-      // Wire the graph engine into the memory store.
-      const graphEngine = new GraphQueryEngine(graphMemory, embedder);
-      this._memoryStore.setGraphEngine(graphEngine);
-
-      // Entity extractor for consolidation.
-      const entityExtractor = new EntityExtractor();
-
-      // Consolidator for promoting episodic patterns to semantic memory.
-      const memoryConsolidator = new MemoryConsolidator(
-        this._memoryStore,
-        episodicMemory,
-        graphMemory,
-        entityExtractor,
-        { policy: "pattern_recurring", minRecurrences: 2, requireVerification: false },
-      );
-
-      // Unified retriever ties all layers together.
-      const unifiedRetriever = new UnifiedMemoryRetriever(
-        workingMemory,
-        episodicMemory,
-        this._memoryStore,
-        graphEngine,
-      );
-
-      return {
-        workingMemory,
-        episodicMemory,
-        graphMemory,
-        unifiedRetriever,
-        memoryConsolidator,
-      };
-    } catch (err) {
-      console.warn("[GemmaCodePanel] Memory layer initialization failed:", err);
-      return {
-        workingMemory: null,
-        episodicMemory: null,
-        graphMemory: null,
-        unifiedRetriever: null,
-        memoryConsolidator: null,
-      };
-    }
-  }
-
-  private _initMemoryStore(): MemoryStore | null {
-    if (!this._globalStorageUri) return null;
-    const settings = getSettings();
-    if (!settings.memoryEnabled) return null;
-    try {
-      const dbPath = path.join(this._globalStorageUri.fsPath, "memory.db");
-      const embedder = settings.embeddingModel
-        ? new EmbeddingClient(settings.ollamaUrl, settings.embeddingModel, settings.requestTimeout)
-        : null;
-      return new MemoryStore(dbPath, embedder);
-    } catch {
-      return null;
-    }
+    const dbPath = path.join(this._globalStorageUri.fsPath, "memory.db");
+    return new MemorySubsystem({
+      dbPath,
+      ollamaUrl: settings.ollamaUrl,
+      embeddingModel: settings.embeddingModel ?? null,
+      requestTimeout: settings.requestTimeout,
+    });
   }
 
   /** Post a message to whichever webview is active (sidebar or editor panel). */

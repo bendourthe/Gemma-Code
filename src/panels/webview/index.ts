@@ -34,7 +34,7 @@ export function getWebviewHtml(
 <head>
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy"
-    content="default-src 'none'; style-src ${cspSource} 'nonce-${nonce}'; script-src 'nonce-${nonce}';" />
+    content="default-src 'none'; style-src ${cspSource} 'nonce-${nonce}'; script-src 'nonce-${nonce}'; img-src 'none'; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'; require-trusted-types-for 'script';" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Gemma Code</title>
   <style nonce="${nonce}">

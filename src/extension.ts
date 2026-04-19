@@ -1,6 +1,5 @@
 import * as path from "path";
 import * as vscode from "vscode";
-import { BackendManager } from "./backend/BackendManager.js";
 import { getSettings } from "./config/settings.js";
 import { createOllamaClient } from "./ollama/client.js";
 import { GemmaCodePanel } from "./panels/GemmaCodePanel.js";
@@ -15,7 +14,6 @@ import { TraceDashboardPanel, TRACE_DASHBOARD_VIEW_ID } from "./panels/TraceDash
 import { OtlpExporter, parseOtlpHeaders } from "./observability/OtlpExporter.js";
 
 let outputChannel: vscode.OutputChannel | undefined;
-let backendManager: BackendManager | undefined;
 let ollamaPoller: NodeJS.Timeout | undefined;
 
 // ---------------------------------------------------------------------------
@@ -65,31 +63,6 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(outputChannel);
 
   const settings = getSettings();
-
-  // ── Optional Python backend ──────────────────────────────────────────────
-  if (settings.useBackend) {
-    const backendDir = path.join(context.extensionPath, "src", "backend");
-    backendManager = new BackendManager({
-      pythonPath: settings.pythonPath,
-      backendDir,
-      port: settings.backendPort,
-      channel: outputChannel,
-    });
-    context.subscriptions.push(backendManager);
-
-    // Start asynchronously; fall-through to direct Ollama on failure.
-    // Failures are logged silently -- no popup notification.
-    void backendManager.start().then((ready) => {
-      if (!ready) {
-        outputChannel?.appendLine(
-          "[Gemma Code] Backend unavailable -- routing directly to Ollama."
-        );
-      }
-    }).catch((err: unknown) => {
-      const msg = err instanceof Error ? err.message : String(err);
-      outputChannel?.appendLine(`[Gemma Code] Backend start error: ${msg}`);
-    });
-  }
 
   // ── Ping command ─────────────────────────────────────────────────────────
   const pingCommand = vscode.commands.registerCommand(
@@ -390,8 +363,5 @@ export async function deactivate(): Promise<void> {
   if (ollamaPoller !== undefined) {
     clearInterval(ollamaPoller);
     ollamaPoller = undefined;
-  }
-  if (backendManager) {
-    await backendManager.stop();
   }
 }

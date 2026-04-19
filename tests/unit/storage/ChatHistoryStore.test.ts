@@ -229,5 +229,26 @@ describe("ChatHistoryStore", () => {
       const results = store.searchFts('test*"pattern');
       expect(results.length).toBeGreaterThanOrEqual(0);
     });
+
+    it("keeps FTS index in sync when a message is re-saved with new content", () => {
+      const session = store.createSession("Resave test");
+      const original = makeMessage("user", "originalphrase stays here");
+      store.saveMessage(session.id, original);
+
+      // Re-save the same message id with different content.
+      const updated: Message = {
+        ...original,
+        content: "updatedphrase now lives here",
+        timestamp: original.timestamp + 1,
+      };
+      store.saveMessage(session.id, updated);
+
+      const newHits = store.searchFts("updatedphrase");
+      expect(newHits.map((h) => h.messageId)).toContain(original.id);
+      expect(newHits[0].content).toContain("updatedphrase");
+
+      const staleHits = store.searchFts("originalphrase");
+      expect(staleHits.map((h) => h.messageId)).not.toContain(original.id);
+    });
   });
 });

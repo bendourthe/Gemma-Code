@@ -15,7 +15,54 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
-## [0.3.0] -- 2026-XX-XX
+## [0.4.0] -- Unreleased
+
+Code-review remediation release closing all 14 P0 findings from the v0.3.0 review.
+
+### Phase 1 -- Critical Hotfix (P0 Unblock)
+
+**Correctness**
+- ChatHistoryStore FTS5 index stays in sync on message re-saves (added AFTER UPDATE trigger; switched saveMessage from INSERT OR REPLACE to explicit UPDATE/INSERT so the trigger fires)
+- TaskDAG.hasCycle() no longer contains a dead in-degree loop; edge-direction intent is documented inline
+- GraphQueryEngine.explainPath returns all intermediate entities on multi-hop paths (GraphMemory.getEntityById promoted to public)
+
+**Security**
+- run_terminal rejects any cwd that resolves outside the workspace root (shared path guard in src/tools/handlers/pathGuard.ts; symlink-aware)
+
+**Security**
+- Webview HTML rendered from LLM/tool/memory content is now sanitized through DOMPurify before reaching any innerHTML sink (strips <script>, <iframe>, <style>, inline event handlers, javascript: URIs)
+- Content-Security-Policy tightened in both chat and trace-dashboard webviews: img-src, connect-src, object-src, frame-src, base-uri, form-action explicitly denied; require-trusted-types-for 'script' added
+- run_terminal rejects any cwd that resolves outside the workspace root via a new shared src/tools/handlers/pathGuard.ts (symlink-aware)
+- SessionListPanel HTML template now escapes session ids in attribute contexts (also gates finding #87)
+
+**Performance**
+- MemoryStore.searchSemantic scales with an FTS5 candidate pre-filter (bounded at 200 rows) and a per-instance Float32 embedding cache invalidated on save/prune/clear (previously full-table scan + Float64 per call)
+- Tracer writes are batched: startSpan/endSpan buffer in memory and flush in a single transaction every 32 ops or on process.nextTick; endSpan no longer issues a per-span SELECT (startTime + attributes kept in-memory); reads auto-flush for consistency
+
+**Testing**
+- McpToolHandler unit tests (delegation, error propagation, rejection bubbling, argument pass-through)
+- SessionListPanel unit tests (HTML rendering, message handling, escapeAttr wiring, null-store safety)
+- MarkdownRenderer XSS regression tests (8 cases covering <script>/<iframe>/javascript:/<style>/<details open ontoggle>/inline event handlers)
+- MemorySubsystem unit tests (disabled() contract, wired layers, graph-engine binding, isReady semantics)
+- TraceStore batching tests (flushed queryability, in-memory endSpan path, implicit flush on read)
+- Integration test for the safety pipeline: classifier -> requiresCheckpoint -> GitSafetyNet.createCheckpoint/rollback wired with real classifier + GitSafetyNet and mocked execFile (tests/integration/safety/agent-safety-pipeline.test.ts)
+
+**CI**
+- Benchmark regression gate: nightly.yml now exports bench results as JSON and runs scripts/check-bench-regressions.mjs against tests/benchmarks/baselines/v0.3.0.json; fails on >20% hz regression. First post-merge nightly will populate the baseline via --update-baseline mode.
+- Golden task live-Ollama job: golden-tasks.yml now matrixes e2b + e4b, pulls Gemma, runs tests/golden/framework/run_all.py against OLLAMA_URL, diffs against v0.3.0 baseline, and uploads a Markdown regression report.
+
+**Restructuring**
+- Python FastAPI backend removed (ADR-0001). src/backend/ tree deleted along with BackendManager wiring, lint-py / test-py CI jobs, integration-py nightly job, and the installer venv step. The extension now talks directly to Ollama.
+- `gemma-code.useBackend`, `gemma-code.backendPort`, `gemma-code.pythonPath` settings removed. Users with these set in their workspace will see "unknown setting" warnings on upgrade; they are safe to delete.
+- GemmaCodePanel memory wiring extracted into src/storage/MemorySubsystem.ts (first slice of the god-object split). GemmaCodePanel.ts shrank by ~84 lines; the factory is independently unit-tested.
+
+**Release**
+- package.json version bumped to 0.4.0
+- modelName default aligned across package.json manifest and src/config/settings.ts (both now "gemma4:e4b")
+
+---
+
+## [0.3.0] -- 2026-04-18
 
 Cross-platform installer, golden task evaluation suite, and integration stabilization.
 

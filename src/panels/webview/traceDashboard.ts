@@ -11,7 +11,7 @@ export function getTraceDashboardHtml(
 <head>
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy"
-    content="default-src 'none'; style-src ${cspSource} 'nonce-${nonce}'; script-src 'nonce-${nonce}';" />
+    content="default-src 'none'; style-src ${cspSource} 'nonce-${nonce}'; script-src 'nonce-${nonce}'; img-src 'none'; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'; require-trusted-types-for 'script';" />
   <title>Gemma Code Traces</title>
   <style nonce="${nonce}">
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
