@@ -416,4 +416,78 @@ describe("AgentLoop", () => {
       expect(result).toEqual(mockResult);
     });
   });
+
+  // 3.4 — Wire BudgetMiddleware.recordTurnTokens
+  describe("BudgetMiddleware integration", () => {
+    it("records per-turn tokens and halts the loop on the next iteration after session budget exhaustion", async () => {
+      const middleware = new BudgetMiddleware({
+        maxSessionTokens: 50, // ~200 chars / 4 -> tripped after one turn
+        maxTurnTokens: 1_000_000, // do not trip per-turn limit
+        maxIterations: 10,
+        warningThresholdPercent: 80,
+      });
+
+      // Iter 1 emits a tool call so the loop continues; iter 2's pre-turn
+      // check must halt because sessionTokensUsed > maxSessionTokens.
+      const filler = "x".repeat(800); // 200 tokens
+      const client = makeMultiClient([
+        `${filler} ${toolCallText}`,
+        "ignored — loop should halt before this",
+      ]);
+      const loop = new AgentLoop(
+        client,
+        manager,
+        registry,
+        "gemma3:27b",
+        5,
+        undefined,
+        undefined,
+        undefined,
+        { budgetMiddleware: middleware },
+      );
+      const { posted, postMessage } = collectMessages(loop);
+
+      await loop.run(postMessage);
+
+      expect(middleware.getState().sessionTokensUsed).toBeGreaterThanOrEqual(50);
+
+      const budgetError = posted.find(
+        (m) => m.type === "error" && /Budget/i.test((m as { text: string }).text),
+      );
+      expect(budgetError).toBeDefined();
+
+      // Only one stream call — iter 2's pre-turn check halted before streaming.
+      expect((client.streamChat as ReturnType<typeof vi.fn>).mock.calls.length).toBe(1);
+    });
+
+    it("halts when a single turn exceeds maxTurnTokens", async () => {
+      const middleware = new BudgetMiddleware({
+        maxSessionTokens: 1_000_000,
+        maxTurnTokens: 5, // very low: 40-char response = 10 tokens > 5
+        maxIterations: 10,
+        warningThresholdPercent: 80,
+      });
+
+      const client = makeClient("response that exceeds the per-turn limit");
+      const loop = new AgentLoop(
+        client,
+        manager,
+        registry,
+        "gemma3:27b",
+        5,
+        undefined,
+        undefined,
+        undefined,
+        { budgetMiddleware: middleware },
+      );
+      const { posted, postMessage } = collectMessages(loop);
+
+      await loop.run(postMessage);
+
+      const truncErr = posted.find(
+        (m) => m.type === "error" && /Turn token limit/i.test((m as { text: string }).text),
+      );
+      expect(truncErr).toBeDefined();
+    });
+  });
 });

@@ -7,11 +7,11 @@ import type { SubAgentConfig, SubAgentResult } from "../agents/types.js";
 import { parseToolCalls, hasToolCall, stripToolCalls, formatToolResult } from "./ToolCallParser.js";
 import type { ToolRegistry } from "./ToolRegistry.js";
 import type { BudgetMiddleware } from "./BudgetMiddleware.js";
+import type { ToolCall } from "./types.js";
 import type { WorkingMemory } from "../storage/WorkingMemory.js";
 import type { EpisodicMemory } from "../storage/EpisodicMemory.js";
 import { recordToolEvent } from "../storage/EpisodicMemory.js";
 import type { LoopDetector } from "../safety/LoopDetector.js";
-import type { BudgetEnforcer } from "../safety/BudgetEnforcer.js";
 import type { GitSafetyNet, GitCheckpoint } from "../safety/GitSafetyNet.js";
 import { classifyAction, ActionRisk } from "../safety/ActionClassifier.js";
 import { Tracer } from "../observability/Tracer.js";
@@ -23,6 +23,15 @@ const EPISODIC_TOOLS = new Set(["write_file", "edit_file", "create_file", "run_t
 
 const MAX_RECENT_TOOL_RESULTS = 5;
 
+// Lightweight token estimator for a single string. Mirrors the heuristic used in
+// CompactionStrategy (chars / 4, x1.3 when code blocks are present). Inlined to
+// avoid coupling AgentLoop to CompactionStrategy.
+function estimateTokensForString(text: string): number {
+  const chars = text.length;
+  const hasCode = text.includes("```");
+  return Math.round((chars / 4) * (hasCode ? 1.3 : 1));
+}
+
 export interface AgentLoopOptions {
   readonly subAgentManager?: SubAgentManager;
   readonly verificationThreshold?: number;
@@ -32,8 +41,13 @@ export interface AgentLoopOptions {
   readonly episodicMemory?: EpisodicMemory;
   readonly sessionId?: string;
   readonly loopDetector?: LoopDetector;
-  readonly budgetEnforcer?: BudgetEnforcer;
   readonly gitSafetyNet?: GitSafetyNet;
+  /**
+   * Maximum context window in tokens. Posted alongside the running token
+   * count so the webview can render an accurate progress bar. When omitted
+   * the loop emits `limit: 0` to signal "unknown" (legacy behavior).
+   */
+  readonly maxTokens?: number;
 }
 
 export class AgentLoop {
@@ -51,8 +65,8 @@ export class AgentLoop {
   private readonly _episodicMemory?: EpisodicMemory;
   private readonly _sessionId?: string;
   private readonly _loopDetector?: LoopDetector;
-  private readonly _budgetEnforcer?: BudgetEnforcer;
   private readonly _gitSafetyNet?: GitSafetyNet;
+  private readonly _maxTokens: number;
   private _gitCheckpoint: GitCheckpoint | null = null;
   private _traceId = "";
   private _rootSpanId = "";
@@ -76,8 +90,8 @@ export class AgentLoop {
     this._episodicMemory = options?.episodicMemory;
     this._sessionId = options?.sessionId;
     this._loopDetector = options?.loopDetector;
-    this._budgetEnforcer = options?.budgetEnforcer;
     this._gitSafetyNet = options?.gitSafetyNet;
+    this._maxTokens = options?.maxTokens ?? 0;
   }
 
   /** Set or replace the budget middleware (used for async tier config updates). */
@@ -154,227 +168,8 @@ export class AgentLoop {
 
     for (let iteration = 0; iteration < this._maxIterations; iteration++) {
       if (this._cancelled) return;
-
-      const iterSpanId = tracer.startSpan(
-        this._traceId,
-        `iteration_${iteration}`,
-        "agent_turn",
-        this._rootSpanId,
-        { iteration },
-      );
-
-      // Budget pre-turn check (when middleware is provided).
-      if (this._budgetMiddleware) {
-        const check = this._budgetMiddleware.checkPreTurn();
-        if (!check.allowed) {
-          if (check.action === "compact" && this._compactor) {
-            await this._compactor.compact(postMessage, true);
-            const recheck = this._budgetMiddleware.checkPreTurn();
-            if (!recheck.allowed) {
-              postMessage({ type: "error", text: `Budget exhausted: ${recheck.reason}` });
-              return;
-            }
-          } else {
-            postMessage({ type: "error", text: `Budget exhausted: ${check.reason}` });
-            return;
-          }
-        }
-      }
-
-      // Session-level budget check (token + time limits).
-      if (this._budgetEnforcer) {
-        const budget = this._budgetEnforcer.checkBudget();
-        if (!budget.withinBudget) {
-          postMessage({ type: "error", text: `Session budget exceeded. ${this._budgetEnforcer.getUsageReport()}` });
-          return;
-        }
-      }
-
-      // Stream the next model response.
-      const llmSpanId = tracer.startSpan(
-        this._traceId,
-        "stream_one_turn",
-        "llm_call",
-        iterSpanId,
-        { model: this._modelName },
-      );
-      const accumulated = await this._streamOneTurn(postMessage);
-
-      if (accumulated === null) {
-        // Stream was cancelled or errored; _streamOneTurn already posted the error.
-        tracer.endSpan(llmSpanId, "cancelled");
-        tracer.endSpan(iterSpanId, "cancelled");
-        return;
-      }
-      tracer.endSpan(llmSpanId, "ok", { responseLength: accumulated.length });
-
-      if (!hasToolCall(accumulated)) {
-        // No tool calls → final response. Commit and finish.
-        const msg = this._manager.addAssistantMessage(accumulated);
-        postMessage({ type: "messageComplete", messageId: msg.id, renderedHtml: "" });
-
-        // Post updated token count.
-        this._postTokenCount(postMessage);
-
-        // Run auto-compaction if the context is getting large.
-        if (this._compactor) {
-          await this._compactor.compact(postMessage);
-        }
-
-        tracer.endSpan(iterSpanId, "ok", { finalResponse: true });
-        return;
-      }
-
-      // Commit the assistant's "reasoning" turn with tool calls stripped.
-      this._manager.addAssistantMessage(stripToolCalls(accumulated));
-
-      // Execute each tool call in sequence.
-      const parseResults = parseToolCalls(accumulated);
-      for (const parsed of parseResults) {
-        if (!parsed.ok) continue; // skip malformed calls silently
-
-        const { call } = parsed;
-
-        // Action classification: check risk level before execution.
-        const classification = classifyAction(call);
-        postMessage({
-          type: "actionClassification",
-          callId: call.id,
-          risk: classification.risk,
-          reason: classification.reason,
-        });
-
-        if (classification.risk === ActionRisk.BLOCKED) {
-          postMessage({
-            type: "toolResult",
-            callId: call.id,
-            success: false,
-            summary: `Blocked: ${classification.reason}`,
-          });
-          this._manager.addUserMessage(
-            `[Tool ${call.tool}] Error: Action blocked for safety. ${classification.reason}`,
-          );
-          continue;
-        }
-
-        if (classification.requiresCheckpoint && this._gitSafetyNet) {
-          await this._gitSafetyNet.createCheckpoint(`pre-${call.tool}`);
-        }
-
-        postMessage({ type: "toolUse", toolName: call.tool, callId: call.id });
-
-        const toolSpanId = tracer.startSpan(
-          this._traceId,
-          `tool_${call.tool}`,
-          "tool_call",
-          iterSpanId,
-          { toolName: call.tool, callId: call.id },
-        );
-
-        // Pass the call id to the handler via a special _callId parameter.
-        const result = await this._registry.execute({
-          ...call,
-          parameters: { ...call.parameters, _callId: call.id },
-        });
-
-        tracer.endSpan(toolSpanId, result.success ? "ok" : "error", {
-          success: result.success,
-        });
-
-        postMessage({
-          type: "toolResult",
-          callId: call.id,
-          success: result.success,
-          summary: (result.output || result.error || "").slice(0, 200),
-        });
-
-        // Track file edits for auto-verification.
-        if (FILE_EDIT_TOOLS.has(call.tool) && result.success) {
-          this._fileEditCount++;
-          const filePath = call.parameters["path"] as string | undefined;
-          if (filePath && !this._modifiedFiles.includes(filePath)) {
-            this._modifiedFiles.push(filePath);
-          }
-        }
-
-        // Update working memory based on tool results.
-        if (this._workingMemory) {
-          const filePath = call.parameters["path"] as string | undefined;
-          if (filePath && (call.tool === "read_file" || FILE_EDIT_TOOLS.has(call.tool))) {
-            this._workingMemory.addOpenFile(filePath);
-          }
-          if (!result.success) {
-            this._workingMemory.addRecentError(
-              call.tool,
-              (result.error || "unknown error").slice(0, 200),
-            );
-          }
-        }
-
-        // Record significant tool calls to episodic memory.
-        if (this._episodicMemory && this._sessionId && EPISODIC_TOOLS.has(call.tool)) {
-          recordToolEvent(
-            this._episodicMemory,
-            this._sessionId,
-            call.tool,
-            call.parameters,
-            result,
-            `Agent iteration ${iteration + 1}`,
-          ).catch(() => { /* episodic recording is non-fatal */ });
-        }
-
-        // Track recent tool results (rolling window of 5).
-        const resultSummary = `[${call.tool}] ${(result.output || result.error || "").slice(0, 200)}`;
-        this._recentToolResults.push(resultSummary);
-        if (this._recentToolResults.length > MAX_RECENT_TOOL_RESULTS) {
-          this._recentToolResults.shift();
-        }
-
-        // Inject the tool result back into the conversation as a user message.
-        const formattedResult = formatToolResult(call.tool, result);
-        this._budgetEnforcer?.recordInput(formattedResult);
-        this._manager.addUserMessage(formattedResult);
-
-        // Loop detection: check for repetitive identical tool calls.
-        if (this._loopDetector) {
-          const verdict = this._loopDetector.record(call);
-          if (verdict.action === "terminate") {
-            postMessage({ type: "error", text: verdict.message ?? "Loop detected. Terminating." });
-            return;
-          }
-          if (verdict.action === "warn") {
-            this._manager.addUserMessage(
-              `[SYSTEM WARNING] ${verdict.message ?? "Repeated tool calls detected. Vary your approach."}`,
-            );
-          }
-        }
-      }
-
-      // Record iteration in budget middleware.
-      this._budgetMiddleware?.recordIteration();
-      tracer.endSpan(iterSpanId, "ok");
-
-      // Auto-verification: trigger after enough file edits.
-      if (
-        this._verificationEnabled &&
-        this._subAgentManager &&
-        this._fileEditCount >= this._verificationThreshold
-      ) {
-        this._fileEditCount = 0;
-
-        const verifyConfig: SubAgentConfig = {
-          type: "verification",
-          maxIterations: 10,
-          userRequest: "Verify recent changes for correctness, check for bugs and run relevant tests.",
-          modifiedFiles: [...this._modifiedFiles],
-          recentToolResults: [...this._recentToolResults],
-        };
-
-        const verifyResult = await this._subAgentManager.run(verifyConfig, postMessage);
-        if (verifyResult.output) {
-          this._manager.addUserMessage(`[Verification Report]\n\n${verifyResult.output}`);
-        }
-      }
+      const verdict = await this._runOneIteration(iteration, tracer, postMessage);
+      if (verdict === "done" || verdict === "abort") return;
     }
 
     // Git safety: commit agent-modified files after the loop finishes.
@@ -392,12 +187,255 @@ export class AgentLoop {
     });
   }
 
+  /**
+   * Run one agent iteration: pre-turn checks, model stream, tool execution,
+   * post-iteration bookkeeping. Returns a verdict telling `run` whether to
+   * continue, exit on success, or abort due to error/cancellation.
+   */
+  private async _runOneIteration(
+    iteration: number,
+    tracer: Tracer,
+    postMessage: PostMessageFn,
+  ): Promise<"continue" | "done" | "abort"> {
+    const iterSpanId = tracer.startSpan(
+      this._traceId,
+      `iteration_${iteration}`,
+      "agent_turn",
+      this._rootSpanId,
+      { iteration },
+    );
+
+    // Budget pre-turn check (when middleware is provided).
+    if (this._budgetMiddleware) {
+      const check = this._budgetMiddleware.checkPreTurn();
+      if (!check.allowed) {
+        if (check.action === "compact" && this._compactor) {
+          await this._compactor.compact(postMessage, true);
+          const recheck = this._budgetMiddleware.checkPreTurn();
+          if (!recheck.allowed) {
+            postMessage({ type: "error", text: `Budget exhausted: ${recheck.reason}` });
+            return "abort";
+          }
+        } else {
+          postMessage({ type: "error", text: `Budget exhausted: ${check.reason}` });
+          return "abort";
+        }
+      }
+    }
+
+    // Stream the next model response.
+    const llmSpanId = tracer.startSpan(
+      this._traceId,
+      "stream_one_turn",
+      "llm_call",
+      iterSpanId,
+      { model: this._modelName },
+    );
+    const accumulated = await this._streamOneTurn(postMessage);
+
+    if (accumulated === null) {
+      tracer.endSpan(llmSpanId, "cancelled");
+      tracer.endSpan(iterSpanId, "cancelled");
+      return "abort";
+    }
+    tracer.endSpan(llmSpanId, "ok", { responseLength: accumulated.length });
+
+    // Record per-turn token usage so session-level budget gating fires next turn.
+    if (this._budgetMiddleware) {
+      const turnTokens = estimateTokensForString(accumulated);
+      const turnResult = this._budgetMiddleware.recordTurnTokens(turnTokens);
+      if (!turnResult.allowed) {
+        postMessage({ type: "error", text: `Budget exceeded: ${turnResult.reason}` });
+        tracer.endSpan(iterSpanId, "error", { reason: turnResult.reason });
+        return "abort";
+      }
+    }
+
+    if (!hasToolCall(accumulated)) {
+      // No tool calls -> final response. Commit and finish.
+      const msg = this._manager.addAssistantMessage(accumulated);
+      postMessage({ type: "messageComplete", messageId: msg.id, renderedHtml: "" });
+      this._postTokenCount(postMessage);
+      if (this._compactor) {
+        await this._compactor.compact(postMessage);
+      }
+      tracer.endSpan(iterSpanId, "ok", { finalResponse: true });
+      return "done";
+    }
+
+    // Commit the assistant's "reasoning" turn with tool calls stripped.
+    this._manager.addAssistantMessage(stripToolCalls(accumulated));
+
+    // Execute each tool call in sequence.
+    const parseResults = parseToolCalls(accumulated);
+    for (const parsed of parseResults) {
+      if (!parsed.ok) continue; // skip malformed calls silently
+      const verdict = await this._runToolCall(parsed.call, iteration, iterSpanId, tracer, postMessage);
+      if (verdict === "abort") {
+        tracer.endSpan(iterSpanId, "error", { reason: "tool loop terminated" });
+        return "abort";
+      }
+    }
+
+    // Record iteration in budget middleware.
+    this._budgetMiddleware?.recordIteration();
+    tracer.endSpan(iterSpanId, "ok");
+
+    // Auto-verification: trigger after enough file edits.
+    if (
+      this._verificationEnabled &&
+      this._subAgentManager &&
+      this._fileEditCount >= this._verificationThreshold
+    ) {
+      this._fileEditCount = 0;
+      const verifyConfig: SubAgentConfig = {
+        type: "verification",
+        maxIterations: 10,
+        userRequest: "Verify recent changes for correctness, check for bugs and run relevant tests.",
+        modifiedFiles: [...this._modifiedFiles],
+        recentToolResults: [...this._recentToolResults],
+      };
+      const verifyResult = await this._subAgentManager.run(verifyConfig, postMessage);
+      if (verifyResult.output) {
+        this._manager.addUserMessage(`[Verification Report]\n\n${verifyResult.output}`);
+      }
+    }
+
+    return "continue";
+  }
+
+  /**
+   * Run a single tool call: classification gating, registry execute, result
+   * tracking, working/episodic memory updates, loop detection. Returns "abort"
+   * when loop detection terminates the loop, otherwise "continue".
+   */
+  private async _runToolCall(
+    call: ToolCall,
+    iteration: number,
+    iterSpanId: string,
+    tracer: Tracer,
+    postMessage: PostMessageFn,
+  ): Promise<"continue" | "abort"> {
+    // Action classification: check risk level before execution.
+    const classification = classifyAction(call);
+    postMessage({
+      type: "actionClassification",
+      callId: call.id,
+      risk: classification.risk,
+      reason: classification.reason,
+    });
+
+    if (classification.risk === ActionRisk.BLOCKED) {
+      postMessage({
+        type: "toolResult",
+        callId: call.id,
+        success: false,
+        summary: `Blocked: ${classification.reason}`,
+      });
+      this._manager.addUserMessage(
+        `[Tool ${call.tool}] Error: Action blocked for safety. ${classification.reason}`,
+      );
+      return "continue";
+    }
+
+    if (classification.requiresCheckpoint && this._gitSafetyNet) {
+      await this._gitSafetyNet.createCheckpoint(`pre-${call.tool}`);
+    }
+
+    postMessage({ type: "toolUse", toolName: call.tool, callId: call.id });
+
+    const toolSpanId = tracer.startSpan(
+      this._traceId,
+      `tool_${call.tool}`,
+      "tool_call",
+      iterSpanId,
+      { toolName: call.tool, callId: call.id },
+    );
+
+    // Pass the call id to the handler via a special _callId parameter.
+    const result = await this._registry.execute({
+      ...call,
+      parameters: { ...call.parameters, _callId: call.id },
+    });
+
+    tracer.endSpan(toolSpanId, result.success ? "ok" : "error", {
+      success: result.success,
+    });
+
+    postMessage({
+      type: "toolResult",
+      callId: call.id,
+      success: result.success,
+      summary: (result.output || result.error || "").slice(0, 200),
+    });
+
+    // Track file edits for auto-verification.
+    if (FILE_EDIT_TOOLS.has(call.tool) && result.success) {
+      this._fileEditCount++;
+      const filePath = call.parameters["path"] as string | undefined;
+      if (filePath && !this._modifiedFiles.includes(filePath)) {
+        this._modifiedFiles.push(filePath);
+      }
+    }
+
+    // Update working memory based on tool results.
+    if (this._workingMemory) {
+      const filePath = call.parameters["path"] as string | undefined;
+      if (filePath && (call.tool === "read_file" || FILE_EDIT_TOOLS.has(call.tool))) {
+        this._workingMemory.addOpenFile(filePath);
+      }
+      if (!result.success) {
+        this._workingMemory.addRecentError(
+          call.tool,
+          (result.error || "unknown error").slice(0, 200),
+        );
+      }
+    }
+
+    // Record significant tool calls to episodic memory.
+    if (this._episodicMemory && this._sessionId && EPISODIC_TOOLS.has(call.tool)) {
+      recordToolEvent(
+        this._episodicMemory,
+        this._sessionId,
+        call.tool,
+        call.parameters,
+        result,
+        `Agent iteration ${iteration + 1}`,
+      ).catch(() => { /* episodic recording is non-fatal */ });
+    }
+
+    // Track recent tool results (rolling window of 5).
+    const resultSummary = `[${call.tool}] ${(result.output || result.error || "").slice(0, 200)}`;
+    this._recentToolResults.push(resultSummary);
+    if (this._recentToolResults.length > MAX_RECENT_TOOL_RESULTS) {
+      this._recentToolResults.shift();
+    }
+
+    // Inject the tool result back into the conversation as a user message.
+    const formattedResult = formatToolResult(call.tool, result);
+    this._manager.addUserMessage(formattedResult);
+
+    // Loop detection: check for repetitive identical tool calls.
+    if (this._loopDetector) {
+      const verdict = this._loopDetector.record(call);
+      if (verdict.action === "terminate") {
+        postMessage({ type: "error", text: verdict.message ?? "Loop detected. Terminating." });
+        return "abort";
+      }
+      if (verdict.action === "warn") {
+        this._manager.addUserMessage(
+          `[SYSTEM WARNING] ${verdict.message ?? "Repeated tool calls detected. Vary your approach."}`,
+        );
+      }
+    }
+
+    return "continue";
+  }
+
   private _postTokenCount(postMessage: PostMessageFn): void {
     if (!this._compactor) return;
     const count = this._compactor.estimateTokens();
-    // _maxTokens is not directly accessible here — post a best-effort count.
-    // GemmaCodePanel sets the limit; we emit count = estimated, limit = 0 as a signal.
-    postMessage({ type: "tokenCount", count, limit: 0 });
+    postMessage({ type: "tokenCount", count, limit: this._maxTokens });
   }
 
   /**
@@ -430,9 +468,6 @@ export class AgentLoop {
         }
       }
 
-      if (!this._cancelled && accumulated) {
-        this._budgetEnforcer?.recordOutput(accumulated);
-      }
       return this._cancelled ? null : accumulated;
     } catch (err) {
       if (this._abortController.signal.aborted) {

@@ -29,8 +29,16 @@ export interface MemoryProvenance {
 // Write Policy
 // ---------------------------------------------------------------------------
 
+/**
+ * Write policy that gates promotion of detected patterns to semantic memory.
+ *
+ * Note (v0.4.0, finding #57): the `user_requested` policy was removed because
+ * the consolidation pipeline never has access to user-stated provenance and
+ * the corresponding case in `MemoryConsolidator.shouldPersist` always returned
+ * false. If user-stated promotion is reintroduced, extend `DetectedPattern`
+ * with `provenance.source` so the gate can actually check it.
+ */
 export type WritePolicy =
-  | "user_requested"
   | "tool_verified"
   | "pattern_recurring"
   | "always";

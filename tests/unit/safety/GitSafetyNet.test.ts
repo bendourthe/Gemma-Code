@@ -138,6 +138,66 @@ describe("GitSafetyNet", () => {
       const sha = await net.commitAgentChanges(["file.ts"], "test");
       expect(sha).toBeNull();
     });
+
+    it("returns null when nothing is staged (diff --cached --quiet exits 0)", async () => {
+      // Regression: review finding #15 originally claimed an inverted diff check.
+      // The current logic correctly skips commit when `git diff --cached --quiet`
+      // exits 0 (clean) and proceeds when it exits non-zero (staged changes exist).
+      mockGitCommand({
+        "add": "",
+        "--cached": "", // exit 0 = no staged differences
+      });
+
+      const sha = await net.commitAgentChanges(["file.ts"], "noop");
+      expect(sha).toBeNull();
+      // commit must NOT be invoked when nothing is staged.
+      const commitCall = mockedExecFile.mock.calls.find(
+        (c) => (c[1] as string[])?.[0] === "commit",
+      );
+      expect(commitCall).toBeUndefined();
+    });
+
+    it("commits exactly once when called twice and only the first call has staged changes", async () => {
+      // First invocation: changes are staged; second: nothing to commit.
+      let invocation = 0;
+      mockedExecFile.mockImplementation(
+        (_cmd: string, args: readonly string[] | undefined | null, _opts: unknown, cb?: unknown) => {
+          const callback = cb as ExecFileCallback;
+          const argList = args as string[];
+          const first = argList?.[0] ?? "";
+          if (first === "add") {
+            callback(null, "", "");
+          } else if (first === "diff") {
+            invocation++;
+            if (invocation === 1) {
+              // First call: staged changes exist (non-zero exit -> error)
+              callback(new Error("differences found"), "", "");
+            } else {
+              // Second call: clean (exit 0)
+              callback(null, "", "");
+            }
+          } else if (first === "commit") {
+            callback(null, "commit ok\n", "");
+          } else if (first === "rev-parse") {
+            callback(null, "newshasha\n", "");
+          } else {
+            callback(null, "", "");
+          }
+          return undefined as never;
+        },
+      );
+
+      const sha1 = await net.commitAgentChanges(["file.ts"], "first");
+      const sha2 = await net.commitAgentChanges(["file.ts"], "second");
+
+      expect(sha1).toBe("newshasha");
+      expect(sha2).toBeNull();
+
+      const commitCalls = mockedExecFile.mock.calls.filter(
+        (c) => (c[1] as string[])?.[0] === "commit",
+      );
+      expect(commitCalls).toHaveLength(1);
+    });
   });
 
   describe("rollback", () => {

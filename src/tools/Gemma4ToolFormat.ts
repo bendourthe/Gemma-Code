@@ -8,13 +8,18 @@ import type { ToolMetadata } from "./ToolCatalog.js";
 // ---------------------------------------------------------------------------
 
 /**
- * Matches `<|tool_call>call:TOOL_NAME{...}<tool_call|>` blocks.
+ * Matches the opening of a `<|tool_call>call:TOOL_NAME{` block. The closing
+ * `}<tool_call|>` is located manually with balanced-brace scanning so that
+ * nested object/array values in the body do not terminate the match early.
  *
  * Capture groups:
- *   1 - tool name (word characters)
- *   2 - key-value argument body (everything between `{` and `}`)
+ *   1 - tool name (word chars, `:`, `-`, and `/` so MCP namespaces parse)
  */
-const GEMMA4_TOOL_CALL_RE = /<\|tool_call>call:(\w+)\{([\s\S]*?)\}<tool_call\|>/g;
+const GEMMA4_TOOL_CALL_OPEN_RE = /<\|tool_call>call:([\w:/-]+)\{/g;
+const GEMMA4_TOOL_CALL_CLOSE = "<tool_call|>";
+
+/** Strip all `<|tool_call>...<tool_call|>` blocks (including nested braces). */
+const GEMMA4_TOOL_CALL_ANY_RE = /<\|tool_call>[\s\S]*?<tool_call\|>/g;
 
 /** Matches triple-backtick code fences (with optional language tag). */
 const CODE_FENCE_RE = /```[\s\S]*?```/g;
@@ -23,12 +28,19 @@ const CODE_FENCE_RE = /```[\s\S]*?```/g;
  * Matches a single key-value pair inside a Gemma 4 tool call body.
  * Handles both `<|"|>` delimited string values and bare numeric/boolean values.
  *
+ * Note: nested object/array values (`key:{...}`, `key:[...]`) are handled by a
+ * separate hand-written scan in `parseKeyValueBody` because regex cannot match
+ * balanced brackets reliably. See `extractNestedJsonValues`.
+ *
  * Examples:
  *   `path:<|"|>src/foo.ts<|"|>`  -> key="path", value="src/foo.ts"
  *   `max_results:10`             -> key="max_results", value="10"
  *   `recursive:true`             -> key="recursive", value="true"
  */
 const KEY_VALUE_RE = /(\w+):<\|"\|>([\s\S]*?)<\|"\|>|(\w+):([^\s,}<|]+)/g;
+
+/** Matches the start of a nested object/array value: `key:{` or `key:[`. */
+const NESTED_VALUE_START_RE = /(\w+):([{\[])/g;
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -47,18 +59,91 @@ function stripCodeFences(text: string): string {
 }
 
 /**
+ * Find the matching closing bracket for the opener at `start` in `text`.
+ * Honors balanced nested brackets and JSON-style string spans (`"..."` with
+ * `\` escapes). Returns the index AFTER the matching closer, or -1 if no
+ * balanced match is found before end-of-input.
+ */
+function findBalancedEnd(text: string, start: number): number {
+  const open = text[start];
+  if (open !== "{" && open !== "[") return -1;
+  const close = open === "{" ? "}" : "]";
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (inString) {
+      if (ch === "\\") escape = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+    if (ch === open) depth++;
+    else if (ch === close) {
+      depth--;
+      if (depth === 0) return i + 1;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Extract `key:{...}` and `key:[...]` nested JSON values from the body.
+ * Returns the parsed values plus a stripped body with those spans removed
+ * so the bare-value regex does not see them.
+ */
+function extractNestedJsonValues(body: string): {
+  values: Record<string, unknown>;
+  stripped: string;
+} {
+  const values: Record<string, unknown> = {};
+  let stripped = body;
+  // Iterate until no more nested starts are found. Each pass extracts one span.
+  for (;;) {
+    NESTED_VALUE_START_RE.lastIndex = 0;
+    const match = NESTED_VALUE_START_RE.exec(stripped);
+    if (!match) break;
+    const key = match[1]!;
+    const openIdx = match.index + key.length + 1; // skip "key:"
+    const endIdx = findBalancedEnd(stripped, openIdx);
+    if (endIdx === -1) break; // malformed; bail out
+    const jsonText = stripped.slice(openIdx, endIdx);
+    try {
+      values[key] = JSON.parse(jsonText);
+    } catch {
+      // Fall back to raw string so the model sees it round-trip.
+      values[key] = jsonText;
+    }
+    // Remove the entire `key:{...}` (or `key:[...]`) span from the body.
+    stripped = stripped.slice(0, match.index) + stripped.slice(endIdx);
+  }
+  return { values, stripped };
+}
+
+/**
  * Parse the key-value body of a Gemma 4 tool call into a parameter record.
  *
- * The body uses two formats:
+ * The body uses three formats:
  *   - String values: `key:<|"|>value<|"|>`
  *   - Bare values:   `key:123` or `key:true`
+ *   - Nested JSON:   `key:{...}` or `key:[...]` (e.g., MCP tool args)
  */
 function parseKeyValueBody(body: string): Record<string, unknown> {
-  const params: Record<string, unknown> = {};
+  // First extract nested object/array values; they cannot be matched by regex.
+  const nested = extractNestedJsonValues(body);
+  const params: Record<string, unknown> = { ...nested.values };
 
   let match: RegExpExecArray | null;
   KEY_VALUE_RE.lastIndex = 0;
-  while ((match = KEY_VALUE_RE.exec(body)) !== null) {
+  while ((match = KEY_VALUE_RE.exec(nested.stripped)) !== null) {
     // String-delimited value (groups 1 & 2)
     if (match[1] !== undefined && match[2] !== undefined) {
       params[match[1]] = match[2];
@@ -93,18 +178,39 @@ export type ParseResult =
 
 /**
  * Parse all `<|tool_call>call:NAME{...}<tool_call|>` blocks found in `text`.
- * Blocks inside triple-backtick code fences are ignored.
+ * Blocks inside triple-backtick code fences are ignored. The body `{...}` is
+ * located with balanced-brace scanning so nested object/array values are
+ * preserved intact for `parseKeyValueBody`.
  */
 export function parseToolCalls(text: string): ParseResult[] {
   const stripped = stripCodeFences(text);
   const results: ParseResult[] = [];
 
   let match: RegExpExecArray | null;
-  GEMMA4_TOOL_CALL_RE.lastIndex = 0;
-  while ((match = GEMMA4_TOOL_CALL_RE.exec(stripped)) !== null) {
+  GEMMA4_TOOL_CALL_OPEN_RE.lastIndex = 0;
+  while ((match = GEMMA4_TOOL_CALL_OPEN_RE.exec(stripped)) !== null) {
     const toolName = match[1] ?? "";
-    const body = match[2] ?? "";
-    const raw = match[0];
+    const openBraceIdx = match.index + match[0].length - 1; // position of '{'
+    const closeBraceEnd = findBalancedEnd(stripped, openBraceIdx);
+    if (closeBraceEnd === -1) {
+      // Malformed: unbalanced braces. Skip and keep scanning.
+      continue;
+    }
+    const closeTokenStart = closeBraceEnd;
+    // Allow optional whitespace between `}` and `<tool_call|>`.
+    const trailing = stripped.slice(closeTokenStart);
+    const trimmed = trailing.replace(/^\s*/, "");
+    if (!trimmed.startsWith(GEMMA4_TOOL_CALL_CLOSE)) {
+      continue;
+    }
+    const body = stripped.slice(openBraceIdx + 1, closeBraceEnd - 1);
+    const raw = stripped.slice(
+      match.index,
+      closeTokenStart + (trailing.length - trimmed.length) + GEMMA4_TOOL_CALL_CLOSE.length,
+    );
+
+    // Advance the regex past the closing token so we do not rematch the prefix.
+    GEMMA4_TOOL_CALL_OPEN_RE.lastIndex = match.index + raw.length;
 
     if (!isToolName(toolName)) {
       results.push({
@@ -133,8 +239,7 @@ export function parseToolCalls(text: string): ParseResult[] {
 /** Returns true if `text` contains at least one Gemma 4 tool call token. */
 export function hasToolCall(text: string): boolean {
   const stripped = stripCodeFences(text);
-  GEMMA4_TOOL_CALL_RE.lastIndex = 0;
-  return GEMMA4_TOOL_CALL_RE.test(stripped);
+  return /<\|tool_call>/.test(stripped);
 }
 
 /**
@@ -142,7 +247,7 @@ export function hasToolCall(text: string): boolean {
  * committing the assistant message so protocol tags are not shown to the user.
  */
 export function stripToolCalls(text: string): string {
-  return text.replace(GEMMA4_TOOL_CALL_RE, "").trim();
+  return text.replace(GEMMA4_TOOL_CALL_ANY_RE, "").trim();
 }
 
 // ---------------------------------------------------------------------------

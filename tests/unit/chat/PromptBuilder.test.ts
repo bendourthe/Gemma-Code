@@ -194,6 +194,7 @@ describe("PromptBuilder", () => {
         recentToolResults: [],
       },
       [...TOOL_CATALOG],
+      131072,
     );
     expect(result).toContain("Gemma Code");
     expect(result).toContain("Sub-Agent Mode");
@@ -210,6 +211,7 @@ describe("PromptBuilder", () => {
         recentToolResults: [],
       },
       [...TOOL_CATALOG],
+      131072,
     );
     expect(result).toContain("<|think|>");
   });
@@ -224,6 +226,7 @@ describe("PromptBuilder", () => {
         recentToolResults: [],
       },
       [...TOOL_CATALOG],
+      131072,
     );
     expect(result).not.toContain("<|think|>");
   });

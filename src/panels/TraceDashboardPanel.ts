@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { randomUUID } from "crypto";
 import type { TraceStore } from "../observability/TraceStore.js";
 import type { MetricsCollector } from "../observability/MetricsCollector.js";
 import { getTraceDashboardHtml } from "./webview/traceDashboard.js";
@@ -31,7 +32,7 @@ export class TraceDashboardPanel implements vscode.WebviewViewProvider {
       localResourceRoots: [this._extensionUri],
     };
 
-    const nonce = crypto.randomUUID().replace(/-/g, "");
+    const nonce = randomUUID().replace(/-/g, "");
     const cspSource = webviewView.webview.cspSource;
 
     webviewView.webview.html = getTraceDashboardHtml(nonce, cspSource);

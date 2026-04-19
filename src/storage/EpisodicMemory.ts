@@ -3,6 +3,13 @@ import { randomUUID } from "crypto";
 import type { EpisodicEntry, MemoryProvenance } from "./MemoryLayers.types.js";
 import type { EmbeddingClient } from "./EmbeddingClient.js";
 import { secureDbPermissions } from "./dbPermissions.js";
+import {
+  cosineSimilarity,
+  deserializeEmbedding,
+  serializeEmbedding,
+  sanitizeFtsQuery,
+} from "./embeddingUtils.js";
+import { createFtsTableAndTriggers } from "./sqliteFts.js";
 
 const CHARS_PER_TOKEN = 4;
 
@@ -42,28 +49,13 @@ export class EpisodicMemory {
         tags TEXT,
         embedding BLOB
       );
-
-      CREATE VIRTUAL TABLE IF NOT EXISTS episodic_fts USING fts5(
-        action, context, outcome, content=episodic_events, content_rowid=rowid
-      );
-
-      CREATE TRIGGER IF NOT EXISTS episodic_ai AFTER INSERT ON episodic_events BEGIN
-        INSERT INTO episodic_fts(rowid, action, context, outcome)
-        VALUES (new.rowid, new.action, new.context, new.outcome);
-      END;
-
-      CREATE TRIGGER IF NOT EXISTS episodic_ad AFTER DELETE ON episodic_events BEGIN
-        INSERT INTO episodic_fts(episodic_fts, rowid, action, context, outcome)
-        VALUES ('delete', old.rowid, old.action, old.context, old.outcome);
-      END;
-
-      CREATE TRIGGER IF NOT EXISTS episodic_au AFTER UPDATE ON episodic_events BEGIN
-        INSERT INTO episodic_fts(episodic_fts, rowid, action, context, outcome)
-        VALUES ('delete', old.rowid, old.action, old.context, old.outcome);
-        INSERT INTO episodic_fts(rowid, action, context, outcome)
-        VALUES (new.rowid, new.action, new.context, new.outcome);
-      END;
     `);
+
+    createFtsTableAndTriggers(this._db, {
+      ftsTable: "episodic_fts",
+      contentTable: "episodic_events",
+      columns: ["action", "context", "outcome"],
+    });
   }
 
   /** Record a new episodic event. Computes embedding if embedder is available. */
@@ -77,7 +69,7 @@ export class EpisodicMemory {
       const textForEmbedding = `${event.action} ${event.context} ${event.outcome ?? ""}`.trim();
       const vec = await this._embedder.embed(textForEmbedding);
       if (vec) {
-        embeddingBuf = Buffer.from(new Float64Array(vec).buffer);
+        embeddingBuf = serializeEmbedding(vec);
       }
     }
 
@@ -107,7 +99,7 @@ export class EpisodicMemory {
 
   /** Keyword search using FTS5 BM25 ranking. */
   searchKeyword(query: string, limit = 10): EpisodicEntry[] {
-    const sanitized = this._sanitizeFtsQuery(query);
+    const sanitized = sanitizeFtsQuery(query);
     if (!sanitized) return [];
 
     try {
@@ -144,7 +136,7 @@ export class EpisodicMemory {
     const scored = rows
       .map((r) => ({
         row: r,
-        similarity: this._cosineSimilarity(queryVec, this._deserializeEmbedding(r.embedding!)),
+        similarity: cosineSimilarity(queryVec, deserializeEmbedding(r.embedding!)),
       }))
       .sort((a, b) => b.similarity - a.similarity)
       .slice(0, limit);
@@ -250,36 +242,6 @@ export class EpisodicMemory {
     };
   }
 
-  private _deserializeEmbedding(buf: Buffer): number[] {
-    const arr = new Float64Array(buf.buffer, buf.byteOffset, buf.byteLength / 8);
-    return Array.from(arr);
-  }
-
-  private _cosineSimilarity(a: number[], b: number[]): number {
-    if (a.length !== b.length || a.length === 0) return 0;
-    let dot = 0;
-    let normA = 0;
-    let normB = 0;
-    for (let i = 0; i < a.length; i++) {
-      const ai = a[i] ?? 0;
-      const bi = b[i] ?? 0;
-      dot += ai * bi;
-      normA += ai * ai;
-      normB += bi * bi;
-    }
-    const denom = Math.sqrt(normA) * Math.sqrt(normB);
-    return denom === 0 ? 0 : dot / denom;
-  }
-
-  private _sanitizeFtsQuery(query: string): string {
-    const cleaned = query
-      .replace(/[*"(){}[\]^~]/g, "")
-      .replace(/\b(AND|OR|NOT|NEAR)\b/gi, "")
-      .trim();
-    if (!cleaned) return "";
-    const words = cleaned.split(/\s+/).filter(Boolean);
-    return words.map((w) => `"${w}"`).join(" ");
-  }
 }
 
 // -------------------------------------------------------------------------

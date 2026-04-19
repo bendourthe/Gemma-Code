@@ -157,4 +157,71 @@ describe("ToolRegistry", () => {
     registry.setEnabled("read_file", true);
     expect(registry.isEnabled("read_file")).toBe(false);
   });
+
+  // ---- centralized confirmation deduplication --------------------------------
+
+  describe("centralized confirmation gate", () => {
+    function makeGate(approve: boolean = true) {
+      const request = vi.fn().mockResolvedValue(approve);
+      return {
+        gate: { request, requestDiffPreview: vi.fn(), resolve: vi.fn() } as unknown as import("../../../src/tools/ConfirmationGate.js").ConfirmationGate,
+        request,
+      };
+    }
+
+    it("fires the centralized gate exactly once for delete_file (no per-tool gate)", async () => {
+      const registry = new ToolRegistry();
+      registry.register("delete_file", makeHandler({ id: "x", success: true, output: "" }));
+      const { gate, request } = makeGate(true);
+      registry.setConfirmationGate(gate, undefined, "ask");
+
+      await registry.execute(makeCall({ tool: "delete_file" }));
+      expect(request).toHaveBeenCalledTimes(1);
+    });
+
+    it("skips the centralized gate for write_file when editMode is ask (per-tool fires its own)", async () => {
+      const registry = new ToolRegistry();
+      registry.register("write_file", makeHandler({ id: "x", success: true, output: "" }));
+      const { gate, request } = makeGate(true);
+      registry.setConfirmationGate(gate, undefined, "ask");
+
+      await registry.execute(makeCall({ tool: "write_file" }));
+      expect(request).not.toHaveBeenCalled();
+    });
+
+    it("skips the centralized gate for edit_file when editMode is plan", async () => {
+      const registry = new ToolRegistry();
+      registry.register("edit_file", makeHandler({ id: "x", success: true, output: "" }));
+      const { gate, request } = makeGate(true);
+      registry.setConfirmationGate(gate, undefined, "plan");
+
+      await registry.execute(makeCall({ tool: "edit_file" }));
+      expect(request).not.toHaveBeenCalled();
+    });
+
+    it("fires the centralized gate for create_file when editMode is auto", async () => {
+      const registry = new ToolRegistry();
+      registry.register("create_file", makeHandler({ id: "x", success: true, output: "" }));
+      const { gate, request } = makeGate(true);
+      registry.setConfirmationGate(gate, undefined, "auto");
+
+      await registry.execute(makeCall({ tool: "create_file" }));
+      expect(request).toHaveBeenCalledTimes(1);
+    });
+
+    it("returns rejection error when user denies the centralized gate", async () => {
+      const registry = new ToolRegistry();
+      const handler = makeHandler({ id: "x", success: true, output: "" });
+      registry.register("run_terminal", handler);
+      const { gate } = makeGate(false);
+      registry.setConfirmationGate(gate, undefined, "auto");
+
+      const result = await registry.execute(
+        makeCall({ tool: "run_terminal", parameters: { command: "ls" } }),
+      );
+      expect(result.success).toBe(false);
+      expect(result.error).toMatch(/rejected by user/);
+      expect(handler.execute).not.toHaveBeenCalled();
+    });
+  });
 });

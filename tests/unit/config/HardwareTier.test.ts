@@ -3,7 +3,6 @@ import {
   TIER_CONFIGS,
   classifyTier,
   getTierConfig,
-  getRecommendedModel,
 } from "../../../src/config/HardwareTier.js";
 import type { HardwareTierId } from "../../../src/config/HardwareTier.types.js";
 
@@ -78,33 +77,4 @@ describe("TIER_CONFIGS", () => {
   });
 });
 
-describe("getRecommendedModel", () => {
-  it("returns the first matching installed model", () => {
-    const tier = getTierConfig(2);
-    const result = getRecommendedModel(tier, ["gemma4:12b", "gemma4:e4b"]);
-    // gemma4:e4b is listed first in tier 2 recommendations
-    expect(result).not.toBeNull();
-    expect(result!.modelName).toBe("gemma4:e4b");
-  });
-
-  it("returns second model if first is not installed", () => {
-    const tier = getTierConfig(2);
-    const result = getRecommendedModel(tier, ["gemma4:12b"]);
-    expect(result).not.toBeNull();
-    expect(result!.modelName).toBe("gemma4:12b");
-  });
-
-  it("returns null when no recommended models are installed", () => {
-    const tier = getTierConfig(1);
-    const result = getRecommendedModel(tier, ["llama3:8b", "codellama:13b"]);
-    expect(result).toBeNull();
-  });
-
-  it("matches model names with suffixes", () => {
-    const tier = getTierConfig(1);
-    const result = getRecommendedModel(tier, ["gemma4:e2b-q4_k_m"]);
-    // "gemma4:e2b-q4_k_m" starts with "gemma4:e2b-"
-    expect(result).not.toBeNull();
-    expect(result!.modelName).toBe("gemma4:e2b");
-  });
-});
+// `getRecommendedModel` was removed in v0.4.0 (Phase 3.19, dead-code sweep).

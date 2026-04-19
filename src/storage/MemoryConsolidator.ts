@@ -203,14 +203,15 @@ export class MemoryConsolidator {
       }));
   }
 
-  /** Apply write gate rules to determine if a pattern should be promoted. */
+  /**
+   * Apply write gate rules to determine if a pattern should be promoted.
+   * The `user_requested` policy was removed in v0.4.0 (finding #57) because
+   * the consolidation pipeline has no access to user-stated provenance.
+   */
   shouldPersist(pattern: DetectedPattern, gate: WriteGate): boolean {
     switch (gate.policy) {
       case "always":
         return true;
-      case "user_requested":
-        // Only patterns from user-stated sources qualify.
-        return false; // Patterns from episodic are not user-stated by default.
       case "tool_verified":
         return pattern.confidence >= 0.8;
       case "pattern_recurring":

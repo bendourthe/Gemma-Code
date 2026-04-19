@@ -11,6 +11,13 @@ import type { EmbeddingClient } from "./EmbeddingClient.js";
 import type { MemoryProvenance, MemoryTTL } from "./MemoryLayers.types.js";
 import type { GraphQueryEngine } from "./GraphQueryEngine.js";
 import { secureDbPermissions } from "./dbPermissions.js";
+import {
+  cosineSimilarity,
+  deserializeEmbedding,
+  serializeEmbedding,
+  sanitizeFtsQuery,
+} from "./embeddingUtils.js";
+import { createFtsTableAndTriggers } from "./sqliteFts.js";
 
 const CHARS_PER_TOKEN = 4;
 
@@ -66,24 +73,13 @@ export class MemoryStore {
         access_count INTEGER DEFAULT 0,
         relevance_decay REAL DEFAULT 1.0
       );
-
-      CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
-        content, content=memories, content_rowid=rowid
-      );
-
-      CREATE TRIGGER IF NOT EXISTS memories_ai AFTER INSERT ON memories BEGIN
-        INSERT INTO memories_fts(rowid, content) VALUES (new.rowid, new.content);
-      END;
-
-      CREATE TRIGGER IF NOT EXISTS memories_ad AFTER DELETE ON memories BEGIN
-        INSERT INTO memories_fts(memories_fts, rowid, content) VALUES('delete', old.rowid, old.content);
-      END;
-
-      CREATE TRIGGER IF NOT EXISTS memories_au AFTER UPDATE ON memories BEGIN
-        INSERT INTO memories_fts(memories_fts, rowid, content) VALUES('delete', old.rowid, old.content);
-        INSERT INTO memories_fts(rowid, content) VALUES (new.rowid, new.content);
-      END;
     `);
+
+    createFtsTableAndTriggers(this._db, {
+      ftsTable: "memories_fts",
+      contentTable: "memories",
+      columns: ["content"],
+    });
   }
 
   /** Inject a graph query engine for graph-augmented retrieval. */
@@ -108,7 +104,7 @@ export class MemoryStore {
     if (this._embedder) {
       const vec = await this._embedder.embed(content);
       if (vec) {
-        embeddingBuf = Buffer.from(new Float64Array(vec).buffer);
+        embeddingBuf = serializeEmbedding(vec);
       }
     }
 
@@ -125,7 +121,7 @@ export class MemoryStore {
       sessionId: sessionId ?? null,
       content,
       type,
-      embedding: embeddingBuf ? this._deserializeEmbedding(embeddingBuf) : null,
+      embedding: embeddingBuf ? deserializeEmbedding(embeddingBuf) : null,
       createdAt: now,
       accessedAt: now,
       accessCount: 0,
@@ -163,7 +159,7 @@ export class MemoryStore {
 
   /** Search memories using FTS5 keyword matching with BM25 ranking. */
   searchKeyword(query: string, limit = 10): MemorySearchResult[] {
-    const sanitized = this._sanitizeFtsQuery(query);
+    const sanitized = sanitizeFtsQuery(query);
     if (!sanitized) return [];
 
     try {
@@ -531,17 +527,12 @@ export class MemoryStore {
       sessionId: row.session_id,
       content: row.content,
       type: row.type as MemoryType,
-      embedding: row.embedding ? this._deserializeEmbedding(row.embedding) : null,
+      embedding: row.embedding ? deserializeEmbedding(row.embedding) : null,
       createdAt: row.created_at,
       accessedAt: row.accessed_at,
       accessCount: row.access_count,
       relevanceDecay: row.relevance_decay,
     };
-  }
-
-  private _deserializeEmbedding(buf: Buffer): number[] {
-    const arr = new Float64Array(buf.buffer, buf.byteOffset, buf.byteLength / 8);
-    return Array.from(arr);
   }
 
   /** Get the Float32 embedding for a row, populating the cache on first access. */
@@ -571,7 +562,7 @@ export class MemoryStore {
    * Capped at SEMANTIC_CANDIDATE_LIMIT rows so cosine scoring is O(N).
    */
   private _getSemanticCandidates(query: string): MemoryRow[] {
-    const sanitized = this._sanitizeFtsQuery(query);
+    const sanitized = sanitizeFtsQuery(query);
     if (sanitized) {
       try {
         const rows = this._db
@@ -600,32 +591,7 @@ export class MemoryStore {
   }
 
   private _cosineSimilarity32(a: Float32Array, b: Float32Array): number {
-    if (a.length !== b.length || a.length === 0) return 0;
-    let dot = 0;
-    let normA = 0;
-    let normB = 0;
-    for (let i = 0; i < a.length; i++) {
-      const ai = a[i]!;
-      const bi = b[i]!;
-      dot += ai * bi;
-      normA += ai * ai;
-      normB += bi * bi;
-    }
-    const denom = Math.sqrt(normA) * Math.sqrt(normB);
-    return denom === 0 ? 0 : dot / denom;
-  }
-
-  /** Sanitize a query string for FTS5 MATCH by quoting it. */
-  private _sanitizeFtsQuery(query: string): string {
-    // Remove FTS5 operators and special characters, then wrap remaining words in quotes.
-    const cleaned = query
-      .replace(/[*"(){}[\]^~]/g, "")
-      .replace(/\b(AND|OR|NOT|NEAR)\b/gi, "")
-      .trim();
-    if (!cleaned) return "";
-    // Quote each word individually for exact matching.
-    const words = cleaned.split(/\s+/).filter(Boolean);
-    return words.map((w) => `"${w}"`).join(" ");
+    return cosineSimilarity(a, b);
   }
 }
 

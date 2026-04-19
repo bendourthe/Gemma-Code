@@ -283,8 +283,9 @@ export class GpuDetector {
 
   /**
    * Fallback detection using WMI on Windows.
-   * Note: wmic is deprecated on Windows 11 but still ships.
-   * Future migration: replace with PowerShell Get-CimInstance.
+   * NOTE(v0.5): wmic is deprecated on Windows 11 but still ships; migrate to
+   * PowerShell `Get-CimInstance Win32_VideoController` once minimum supported
+   * Windows version drops wmic.
    */
   async _detectFallback(): Promise<GpuInfo[] | null> {
     if (process.platform === "win32") {

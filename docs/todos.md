@@ -11,7 +11,7 @@
 | Tasks done (v0.1.0) | 13 / 21 | 21 / 21 | -8 |
 | Tasks done (v0.2.0) | 44 / 44 | 44 / 44 | 0 |
 | Tasks done (v0.3.0) | 55 / 55 | 55 / 55 | 0 |
-| Tasks done (v0.4.0) | 16 / 16 (Phase 1) | ~90 / ~90 | in-progress |
+| Tasks done (v0.4.0) | 16 (Phase 1) + 17 (Phase 2) + 21 (Phase 3) | ~90 / ~90 | in-progress |
 
 ---
 

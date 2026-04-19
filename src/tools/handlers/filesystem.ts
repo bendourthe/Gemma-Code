@@ -523,10 +523,12 @@ async function grepWithRipgrep(
   pattern: string,
   glob: string | undefined,
   root: string,
-  maxResults: number
+  maxResults: number,
+  caseInsensitive: boolean = false,
 ): Promise<Array<{ file: string; line: number; content: string }> | null> {
   return new Promise((resolve) => {
     const args = ["--line-number", "--no-heading", "--color=never", "-m", String(maxResults)];
+    if (caseInsensitive) args.push("-i");
     if (glob) args.push("--glob", glob);
     args.push(pattern, root);
 
@@ -617,10 +619,19 @@ export class GrepCodebaseTool implements ToolHandler {
     }
 
     const maxResults = typeof p.max_results === "number" ? p.max_results : MAX_GREP_RESULTS;
+    const caseInsensitive = p.case_insensitive === true;
     const root = workspaceRoot();
 
+    // Validate the regex eagerly so an invalid pattern fails clearly even when
+    // ripgrep handles the search (which would otherwise return an empty list).
+    try {
+      new RegExp(p.pattern, caseInsensitive ? "i" : "");
+    } catch (err) {
+      return failResult(id, `Invalid regex pattern: ${(err as Error).message}`);
+    }
+
     // Try ripgrep first.
-    let matches = await grepWithRipgrep(p.pattern, p.glob, root, maxResults);
+    let matches = await grepWithRipgrep(p.pattern, p.glob, root, maxResults, caseInsensitive);
 
     // Fall back to manual file-by-file search using vscode.workspace.findFiles.
     if (matches === null) {
@@ -633,7 +644,7 @@ export class GrepCodebaseTool implements ToolHandler {
       );
       let regex: RegExp;
       try {
-        regex = new RegExp(p.pattern);
+        regex = new RegExp(p.pattern, caseInsensitive ? "i" : "");
       } catch (err) {
         return failResult(id, `Invalid regex pattern: ${(err as Error).message}`);
       }

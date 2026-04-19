@@ -1,4 +1,5 @@
 import type { EmbeddingClient } from "../storage/EmbeddingClient.js";
+import { cosineSimilarityNormalized } from "../storage/embeddingUtils.js";
 import type { PromptSection } from "./PromptBuilder.types.js";
 
 /** Context signals used for relevance scoring. */
@@ -152,20 +153,8 @@ export class RelevanceScorer {
     return matchCount / keywords.length;
   }
 
-  /** Cosine similarity between two vectors. */
+  /** Cosine similarity normalized to [0, 1]; 0.5 for empty/zero-norm vectors. */
   private _cosineSimilarity(a: number[], b: number[]): number {
-    if (a.length !== b.length || a.length === 0) return 0.5;
-    let dot = 0;
-    let normA = 0;
-    let normB = 0;
-    for (let i = 0; i < a.length; i++) {
-      dot += a[i]! * b[i]!;
-      normA += a[i]! * a[i]!;
-      normB += b[i]! * b[i]!;
-    }
-    const denom = Math.sqrt(normA) * Math.sqrt(normB);
-    if (denom === 0) return 0.5;
-    // Map cosine similarity from [-1, 1] to [0, 1].
-    return (dot / denom + 1) / 2;
+    return cosineSimilarityNormalized(a, b);
   }
 }

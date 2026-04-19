@@ -3,6 +3,8 @@ import { randomUUID } from "crypto";
 import type { Message, ConversationSession, Role } from "../chat/types.js";
 import { escapeLikePattern } from "./likeEscape.js";
 import { secureDbPermissions } from "./dbPermissions.js";
+import { sanitizeFtsQuery } from "./embeddingUtils.js";
+import { createFtsTableAndTriggers } from "./sqliteFts.js";
 
 interface SessionRow {
   id: string;
@@ -45,24 +47,14 @@ export class ChatHistoryStore {
         timestamp INTEGER NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, timestamp);
-
-      CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
-        content, content=messages, content_rowid=rowid
-      );
-
-      CREATE TRIGGER IF NOT EXISTS messages_fts_ai AFTER INSERT ON messages BEGIN
-        INSERT INTO messages_fts(rowid, content) VALUES (new.rowid, new.content);
-      END;
-
-      CREATE TRIGGER IF NOT EXISTS messages_fts_ad AFTER DELETE ON messages BEGIN
-        INSERT INTO messages_fts(messages_fts, rowid, content) VALUES('delete', old.rowid, old.content);
-      END;
-
-      CREATE TRIGGER IF NOT EXISTS messages_fts_au AFTER UPDATE ON messages BEGIN
-        INSERT INTO messages_fts(messages_fts, rowid, content) VALUES('delete', old.rowid, old.content);
-        INSERT INTO messages_fts(rowid, content) VALUES (new.rowid, new.content);
-      END;
     `);
+
+    createFtsTableAndTriggers(this._db, {
+      ftsTable: "messages_fts",
+      contentTable: "messages",
+      columns: ["content"],
+      triggerPrefix: "messages_fts",
+    });
 
     // Rebuild FTS index from existing data (safe no-op if already up-to-date).
     try {
@@ -193,14 +185,8 @@ export class ChatHistoryStore {
     limit = 20,
   ): Array<{ messageId: string; sessionId: string; content: string; rank: number }> {
     // Sanitize: quote each word to prevent FTS5 syntax errors.
-    const words = query
-      .replace(/[*"(){}[\]^~]/g, "")
-      .replace(/\b(AND|OR|NOT|NEAR)\b/gi, "")
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean);
-    if (words.length === 0) return [];
-    const ftsQuery = words.map((w) => `"${w}"`).join(" ");
+    const ftsQuery = sanitizeFtsQuery(query);
+    if (!ftsQuery) return [];
 
     try {
       const rows = this._db

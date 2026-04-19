@@ -3,8 +3,15 @@ import type { EntityType, RelationType } from "./MemoryLayers.types.js";
 export interface ExtractedEntity {
   readonly name: string;
   readonly type: EntityType;
+  /** Position of the first occurrence. Preserved for backward compatibility. */
   readonly startIndex: number;
+  /** End position of the first occurrence. Preserved for backward compatibility. */
   readonly endIndex: number;
+  /**
+   * All `{start, end}` positions where this entity appears in the source text.
+   * In-memory only; the persisted graph schema records `(name, type)` once.
+   */
+  readonly occurrences: ReadonlyArray<{ start: number; end: number }>;
 }
 
 export interface ExtractedRelation {
@@ -30,6 +37,28 @@ const TECHNOLOGY_NAMES = new Set([
 ]);
 
 /**
+ * Split text into sentence spans with character positions in the original text.
+ * Sentences end at `.` `!` `?` followed by whitespace OR at one-or-more newlines.
+ * Periods inside file-extension-like patterns (`.ts`, `.json`) do not split.
+ */
+function splitIntoSentenceSpans(text: string): Array<{ start: number; end: number }> {
+  const spans: Array<{ start: number; end: number }> = [];
+  const re = /(?<!\.\w{1,5})[.!?]\s+|\n+/g;
+  let lastEnd = 0;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(text)) !== null) {
+    if (match.index >= lastEnd) {
+      spans.push({ start: lastEnd, end: match.index });
+    }
+    lastEnd = match.index + match[0].length;
+  }
+  if (lastEnd < text.length) {
+    spans.push({ start: lastEnd, end: text.length });
+  }
+  return spans;
+}
+
+/**
  * Regex-based entity extraction from text. Designed to be fast (no LLM calls)
  * since it runs on every compaction cycle.
  */
@@ -38,8 +67,14 @@ export class EntityExtractor {
    * Extract entities from free-form text using regex patterns.
    */
   extractFromText(text: string): ExtractedEntity[] {
-    const entities: ExtractedEntity[] = [];
-    const seen = new Set<string>();
+    // Mutable working storage so we can accumulate occurrences across passes.
+    const byKey = new Map<string, {
+      name: string;
+      type: EntityType;
+      startIndex: number;
+      endIndex: number;
+      occurrences: Array<{ start: number; end: number }>;
+    }>();
 
     const addEntity = (
       name: string,
@@ -48,9 +83,18 @@ export class EntityExtractor {
       endIndex: number,
     ): void => {
       const key = `${name}:${type}`;
-      if (seen.has(key)) return;
-      seen.add(key);
-      entities.push({ name, type, startIndex, endIndex });
+      const existing = byKey.get(key);
+      if (existing) {
+        existing.occurrences.push({ start: startIndex, end: endIndex });
+        return;
+      }
+      byKey.set(key, {
+        name,
+        type,
+        startIndex,
+        endIndex,
+        occurrences: [{ start: startIndex, end: endIndex }],
+      });
     };
 
     // File paths: word/word.ext or word\word.ext
@@ -141,7 +185,14 @@ export class EntityExtractor {
       }
     }
 
-    return entities;
+    // Materialize the working storage into immutable ExtractedEntity records.
+    return Array.from(byKey.values()).map((e) => ({
+      name: e.name,
+      type: e.type,
+      startIndex: e.startIndex,
+      endIndex: e.endIndex,
+      occurrences: e.occurrences,
+    }));
   }
 
   /**
@@ -167,17 +218,19 @@ export class EntityExtractor {
       relations.push({ source, target, type, confidence });
     };
 
-    // Split text into sentences. Use newlines and sentence-ending punctuation
-    // but avoid splitting on periods inside file extensions (e.g. ".ts", ".js").
-    const sentences = text.split(/(?<!\.\w{1,5})[.!?]\s+|\n+/);
+    // Split text into sentence spans (with character positions). Avoid splitting
+    // on periods inside file extensions (e.g. ".ts", ".js").
+    const sentenceSpans = splitIntoSentenceSpans(text);
 
-    for (const sentence of sentences) {
+    for (const span of sentenceSpans) {
+      const sentence = text.slice(span.start, span.end);
       const lower = sentence.toLowerCase();
 
-      // Find entities that appear in this sentence.
+      // Find entities that have at least one occurrence inside this sentence's
+      // character range. This avoids spurious matches from `.includes(name)`
+      // when the same name appears in unrelated text.
       const inSentence = entities.filter((e) =>
-        sentence.includes(e.name) ||
-        lower.includes(e.name.toLowerCase()),
+        e.occurrences.some((o) => o.start >= span.start && o.end <= span.end),
       );
 
       for (let i = 0; i < inSentence.length; i++) {

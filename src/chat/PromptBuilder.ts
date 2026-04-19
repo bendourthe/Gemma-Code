@@ -12,6 +12,45 @@ function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
+// ---------------------------------------------------------------------------
+// Shared base-instruction blocks (deduplicated across promptStyle variants)
+// ---------------------------------------------------------------------------
+
+/**
+ * Identity + reasoning style line. The only part that varies across the three
+ * prompt styles. Hand-tuned for byte-identical output vs. the pre-refactor
+ * implementation; do not edit casually -- snapshot tests assert the wording.
+ */
+const IDENTITY_LINE_BY_STYLE: Record<"beginner" | "detailed" | "concise", string> = {
+  beginner:
+    "You are Gemma Code, a local agentic coding assistant running entirely offline via Ollama. " +
+    "You help developers understand, write, edit, and debug code across multiple files. " +
+    "Explain your reasoning in detail, define technical terms when first used, and walk through " +
+    "solutions step-by-step. Prefer clear, correct solutions over clever ones. " +
+    "Never fabricate file contents or API responses -- always acknowledge uncertainty.",
+  detailed:
+    "You are Gemma Code, a local agentic coding assistant running entirely offline via Ollama. " +
+    "You help developers understand, write, edit, and debug code across multiple files. " +
+    "Reason step-by-step, explain your thinking thoroughly, and prefer clear, correct solutions over clever ones. " +
+    "When making changes, explain the rationale and any trade-offs considered. " +
+    "Never fabricate file contents or API responses -- always acknowledge uncertainty.",
+  concise:
+    "You are Gemma Code, a local agentic coding assistant running entirely offline via Ollama. " +
+    "You help developers understand, write, edit, and debug code across multiple files. " +
+    "Reason step-by-step, explain your thinking, and prefer clear, correct solutions over clever ones. " +
+    "Never fabricate file contents or API responses -- always acknowledge uncertainty.",
+};
+
+/** Tool Use heading and protocol explanation. Identical across styles. */
+const SHARED_TOOL_USE_BLOCK =
+  "## Tool Use\n\n" +
+  "You have access to tools declared with <|tool> blocks. Call a tool using the native tool call format. " +
+  "After tool execution, the result will be returned in a <|tool_result> block. " +
+  "Process the result and either call another tool or give your final answer. Do not fabricate tool results.";
+
+/** Path semantics rule. Identical across styles. */
+const SHARED_PATH_RULE = "All file paths are relative to the workspace root.";
+
 /**
  * Dynamic system prompt builder that assembles sections conditionally
  * within a token budget. Sections are packed greedily by priority
@@ -89,7 +128,7 @@ export class PromptBuilder {
   async buildForSubAgent(
     config: SubAgentConfig,
     enabledTools: readonly (ToolMetadata | DynamicToolMetadata)[],
-    maxTokens: number = 131072,
+    maxTokens: number,
   ): Promise<string> {
     const context: PromptContext = {
       modelName: "",
@@ -174,47 +213,12 @@ export class PromptBuilder {
 
   /** Identity paragraph and general instructions. Always included. */
   private _buildBaseInstructions(context: PromptContext): PromptSection {
-    let content: string;
-
-    switch (context.promptStyle) {
-      case "beginner":
-        content =
-          "You are Gemma Code, a local agentic coding assistant running entirely offline via Ollama. " +
-          "You help developers understand, write, edit, and debug code across multiple files. " +
-          "Explain your reasoning in detail, define technical terms when first used, and walk through " +
-          "solutions step-by-step. Prefer clear, correct solutions over clever ones. " +
-          "Never fabricate file contents or API responses -- always acknowledge uncertainty.\n\n" +
-          "## Tool Use\n\n" +
-          "You have access to tools declared with <|tool> blocks. Call a tool using the native tool call format. " +
-          "After tool execution, the result will be returned in a <|tool_result> block. " +
-          "Process the result and either call another tool or give your final answer. Do not fabricate tool results.\n\n" +
-          "All file paths are relative to the workspace root.";
-        break;
-      case "detailed":
-        content =
-          "You are Gemma Code, a local agentic coding assistant running entirely offline via Ollama. " +
-          "You help developers understand, write, edit, and debug code across multiple files. " +
-          "Reason step-by-step, explain your thinking thoroughly, and prefer clear, correct solutions over clever ones. " +
-          "When making changes, explain the rationale and any trade-offs considered. " +
-          "Never fabricate file contents or API responses -- always acknowledge uncertainty.\n\n" +
-          "## Tool Use\n\n" +
-          "You have access to tools declared with <|tool> blocks. Call a tool using the native tool call format. " +
-          "After tool execution, the result will be returned in a <|tool_result> block. " +
-          "Process the result and either call another tool or give your final answer. Do not fabricate tool results.\n\n" +
-          "All file paths are relative to the workspace root.";
-        break;
-      default: // "concise"
-        content =
-          "You are Gemma Code, a local agentic coding assistant running entirely offline via Ollama. " +
-          "You help developers understand, write, edit, and debug code across multiple files. " +
-          "Reason step-by-step, explain your thinking, and prefer clear, correct solutions over clever ones. " +
-          "Never fabricate file contents or API responses -- always acknowledge uncertainty.\n\n" +
-          "## Tool Use\n\n" +
-          "You have access to tools declared with <|tool> blocks. Call a tool using the native tool call format. " +
-          "After tool execution, the result will be returned in a <|tool_result> block. " +
-          "Process the result and either call another tool or give your final answer. Do not fabricate tool results.\n\n" +
-          "All file paths are relative to the workspace root.";
-    }
+    const identity = IDENTITY_LINE_BY_STYLE[context.promptStyle ?? "concise"];
+    let content =
+      `${identity}\n\n` +
+      SHARED_TOOL_USE_BLOCK +
+      "\n\n" +
+      SHARED_PATH_RULE;
 
     if (context.tierName) {
       content += `\n\nRunning on ${context.tierName} tier (${context.tierVramMb ?? 0} MB VRAM) with model ${context.tierModelName ?? "auto"}.`;

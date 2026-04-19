@@ -100,6 +100,7 @@ export interface GrepCodebaseParams {
   glob?: string;
   max_results?: number;
   allow_secrets?: boolean;
+  case_insensitive?: boolean;
 }
 
 export interface RunTerminalParams {

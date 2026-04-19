@@ -1,8 +1,17 @@
 import type { DynamicToolMetadata } from "./ToolCatalog.js";
-import type { ToolCall, ToolHandler, ToolName, ToolResult } from "./types.js";
+import type { ToolCall, ToolHandler, ToolName, ToolResult, EditMode } from "./types.js";
 import type { OutputRedirector } from "./OutputRedirector.js";
 import type { ConfirmationGate } from "./ConfirmationGate.js";
 import { getPermissionTier, shouldRequireConfirmation, getDangerousWarning, PermissionTier } from "../safety/PermissionTiers.js";
+
+// Tools that fire their own diff-bearing confirmation in `ask` mode and a
+// diff-preview in `plan` mode. The centralized gate is skipped for these
+// tools when the edit mode is ask/plan to avoid a double confirmation card.
+const TOOLS_WITH_PER_TOOL_DIFF_CONFIRMATION: ReadonlySet<ToolName> = new Set([
+  "write_file",
+  "edit_file",
+  "create_file",
+]);
 
 export class ToolRegistry {
   private readonly _handlers = new Map<ToolName, ToolHandler>();
@@ -10,6 +19,7 @@ export class ToolRegistry {
   private _redirector?: OutputRedirector;
   private _confirmationGate?: ConfirmationGate;
   private _permissionOverrides?: Record<string, number>;
+  private _editMode: EditMode = "auto";
 
   register(name: ToolName, handler: ToolHandler): void {
     this._handlers.set(name, handler);
@@ -62,9 +72,21 @@ export class ToolRegistry {
    * When configured, execute() checks the permission tier of each tool
    * and requests user confirmation for CONFIRM and DANGEROUS tiers.
    */
-  setConfirmationGate(gate: ConfirmationGate, overrides?: Record<string, number>): void {
+  setConfirmationGate(
+    gate: ConfirmationGate,
+    overrides?: Record<string, number>,
+    editMode?: EditMode,
+  ): void {
     this._confirmationGate = gate;
     this._permissionOverrides = overrides;
+    if (editMode !== undefined) {
+      this._editMode = editMode;
+    }
+  }
+
+  /** Update the edit mode used to suppress duplicate confirmation prompts. */
+  setEditMode(editMode: EditMode): void {
+    this._editMode = editMode;
   }
 
   /**
@@ -94,7 +116,17 @@ export class ToolRegistry {
     }
 
     // Centralized permission check: request user confirmation for CONFIRM/DANGEROUS tools.
-    if (this._confirmationGate && shouldRequireConfirmation(call.tool, this._permissionOverrides)) {
+    // Tools that fire their own diff-bearing confirmation in ask/plan mode are skipped
+    // here so the user only sees one prompt per file edit.
+    const handlesOwnConfirmation =
+      TOOLS_WITH_PER_TOOL_DIFF_CONFIRMATION.has(call.tool) &&
+      (this._editMode === "ask" || this._editMode === "plan");
+
+    if (
+      this._confirmationGate &&
+      shouldRequireConfirmation(call.tool, this._permissionOverrides) &&
+      !handlesOwnConfirmation
+    ) {
       const tier = getPermissionTier(call.tool, this._permissionOverrides);
       const warning = tier === PermissionTier.DANGEROUS
         ? getDangerousWarning(call.tool, call.parameters)

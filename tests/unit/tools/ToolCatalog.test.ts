@@ -3,8 +3,8 @@ import { TOOL_CATALOG } from "../../../src/tools/ToolCatalog.js";
 import { TOOL_NAMES } from "../../../src/tools/types.js";
 
 describe("TOOL_CATALOG", () => {
-  it("contains exactly 13 entries", () => {
-    expect(TOOL_CATALOG).toHaveLength(13);
+  it("contains exactly 10 entries (advertised tools only)", () => {
+    expect(TOOL_CATALOG).toHaveLength(10);
   });
 
   it("every entry name matches a value from TOOL_NAMES", () => {
@@ -13,11 +13,11 @@ describe("TOOL_CATALOG", () => {
     }
   });
 
-  it("covers every value in TOOL_NAMES", () => {
+  it("does not advertise unregistered helper tools (tail_output, grep_output, get_tool_schema)", () => {
     const catalogNames = new Set(TOOL_CATALOG.map((t) => t.name));
-    for (const name of TOOL_NAMES) {
-      expect(catalogNames.has(name)).toBe(true);
-    }
+    expect(catalogNames.has("tail_output" as never)).toBe(false);
+    expect(catalogNames.has("grep_output" as never)).toBe(false);
+    expect(catalogNames.has("get_tool_schema" as never)).toBe(false);
   });
 
   it("every entry has a non-empty description", () => {

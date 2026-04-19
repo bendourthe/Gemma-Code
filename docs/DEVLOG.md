@@ -4,6 +4,68 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-04-19] v0.4.0 Phase 3 -- Correctness and Code Quality
+
+### Summary
+
+Third phase of the v0.4.0 remediation release. Closed the 24 correctness / code-quality findings from [docs/v0.3.0/review.md](v0.3.0/review.md) (8 P1 + 10 P2 + 6 P3). Real bugs were eliminated (duplicate file-edit confirmations, unwired session-token budgeting, dead `BudgetEnforcer` branches, unreachable `user_requested` provenance policy, unused `getRecommendedModel` export); storage duplication was consolidated into two shared modules (`embeddingUtils`, `sqliteFts`); the Gemma 4 tool-call parser gained nested object/array support for MCP arguments; `AgentLoop.run` was split into smaller helpers; and settings lookups in `GemmaCodePanel` now cache via a configuration-change subscription. `npm run test` is green at 1116/1118 (2 skipped, 0 failures); `npm run lint` is clean (0 errors, 30 pre-existing `no-console` warnings).
+
+### Sub-task closures
+
+**Correctness bug-fixes (3.1-3.6)**
+- `src/safety/GitSafetyNet.ts` `commitAgentChanges` verified correct. Added a regression test asserting that `git diff --cached --quiet` exit-0 produces no commit and that consecutive calls produce exactly one commit when only the first has staged changes.
+- `src/tools/ToolRegistry.ts` now accepts an `editMode` via `setConfirmationGate(gate, overrides?, editMode?)` (and `setEditMode`) and skips its centralized confirmation for `write_file`, `edit_file`, `create_file` when edit mode is `ask` or `plan` so users see the per-tool diff-bearing prompt exactly once. `delete_file` continues through the central gate (no per-tool diff exists). A dedicated `TOOLS_WITH_PER_TOOL_DIFF_CONFIRMATION` set documents the handoff.
+- `src/tools/ToolCatalog.ts` drops the three unregistered entries (`tail_output`, `grep_output`, `get_tool_schema`); `types.ts` keeps them in `BuiltinToolName` so Phase 7 can cleanly delete `LazyToolLoader` / `OutputRedirector`. `tests/unit/tools/LazyToolLoader.test.ts` constructs a synthetic catalog with the legacy helper tools so it can still exercise the loader.
+- `src/tools/AgentLoop.ts` calls `recordTurnTokens(estimateTokensForString(accumulated))` after each model stream; session-budget exhaustion halts the loop via the next iteration's pre-turn `checkPreTurn`, and a per-turn overage halts immediately with the middleware's `Turn token limit exceeded` reason. All `_budgetEnforcer` branches (import, field, option, `checkBudget`, `recordInput`, `recordOutput`) were removed; the class itself stays in-place for Phase 7.
+- `src/chat/ConversationManager.ts` drops the `ConversationSync` optional parameter and all four fire-and-forget try/catch blocks. Persistence flows only through `ChatHistoryStore`.
+
+**Shared utility extractions (3.7-3.8)**
+- `src/storage/embeddingUtils.ts` consolidates `cosineSimilarity` (raw `[-1, 1]`), `cosineSimilarityNormalized` (`[0, 1]` with 0.5 neutral for empty/zero-norm vectors — preserves `RelevanceScorer` behavior exactly), `serializeEmbedding`, `deserializeEmbedding`, `deserializeEmbeddingF32`, and `sanitizeFtsQuery`. Retired duplicates in `MemoryStore`, `EpisodicMemory`, `RelevanceScorer`, `ChatHistoryStore`.
+- `src/storage/sqliteFts.ts` exports `createFtsTableAndTriggers(db, {ftsTable, contentTable, columns, triggerPrefix?})`. Applied to all three FTS stores, homogenizing INSERT/UPDATE/DELETE triggers (review finding #3's AFTER UPDATE fix is now built in for every FTS table by default).
+
+**Refactors and targeted fixes (3.9-3.16)**
+- `src/tools/Gemma4ToolFormat.ts` replaced the outer-block regex with a two-step scanner: `GEMMA4_TOOL_CALL_OPEN_RE` matches `<|tool_call>call:NAME{`, then a balanced-brace walker (`findBalancedEnd`) locates the matching `}` so nested JSON values round-trip. `parseKeyValueBody` extracts `key:{...}` and `key:[...]` substrings via `extractNestedJsonValues` before the flat key-value regex runs; JSON.parse failures fall back to storing the raw text so the model still sees something. `stripToolCalls` uses a matching `[\s\S]*?` regex for strip-only scenarios.
+- `src/tools/AgentLoop.ts` `run()` is now under 30 lines; iteration body split into `_runOneIteration` (budget pre-turn, stream, token-recording, tool-call fanout, verification sub-agent) and `_runToolCall` (classification, registry execute, working/episodic memory updates, loop-detector verdict). Observable behavior is unchanged; all 21 `AgentLoop` tests pass unchanged.
+- `src/chat/PromptBuilder.ts` hoists `SHARED_TOOL_USE_BLOCK`, `SHARED_PATH_RULE`, and `IDENTITY_LINE_BY_STYLE`; `_buildBaseInstructions` composes `${identity}\n\n${SHARED_TOOL_USE_BLOCK}\n\n${SHARED_PATH_RULE}`. Existing snapshot / thinking-mode / sub-agent tests continue to match byte-for-byte.
+- `src/orchestration/ComplexityClassifier.ts` extracts the heuristic that previously lived inline in `Orchestrator.shouldUseOrchestrator`. `HeuristicComplexityClassifier` is the default, injectable via `OrchestratorConfig.complexityClassifier`. New test covers simple-prefix / trigger-keyword / length-threshold / simple-takes-precedence-over-trigger branches.
+- `src/storage/MemoryConsolidator.ts` `shouldPersist` drops the unreachable `"user_requested"` case; `WritePolicy` union shrinks from four to three (the removal is documented in the type's JSDoc).
+- `src/tools/handlers/filesystem.ts` `GrepCodebaseTool` validates the regex eagerly with `new RegExp(pattern, caseInsensitive ? "i" : "")` under try/catch and passes `-i` to ripgrep when `case_insensitive: true`. New `case_insensitive?: boolean` parameter added to `GrepCodebaseParams`.
+- `src/storage/EntityExtractor.ts` in-memory `ExtractedEntity` now carries `occurrences: Array<{start, end}>` (persisted graph schema unchanged). Relation extraction uses `splitIntoSentenceSpans(text)` (character-aware splitter that preserves `.ts` / `.json` extensions) and filters entities by position overlap rather than `sentence.includes(name)` - eliminates spurious relations when the same entity name appears in unrelated prose.
+- `src/panels/TraceDashboardPanel.ts` imports `randomUUID` from `crypto` explicitly to match the rest of the codebase.
+
+**P3 sweep (3.17)**
+- `src/tools/AgentLoop.ts` accepts `maxTokens` in `AgentLoopOptions`; `_postTokenCount` emits the real limit instead of the `limit: 0` sentinel. Wired through `GemmaCodePanel`.
+- `src/panels/GemmaCodePanel.ts` caches settings in `_settingsCache` and invalidates on `workspace.onDidChangeConfiguration`; all ~13 internal `getSettings()` call sites now go through `_getSettings()`. Config-save errors in `_handleSetEditMode` are now logged to a dedicated `Gemma Code` output channel instead of being swallowed. Disposable and output channel are torn down in `dispose()`.
+- `src/storage/constants.ts` centralizes `CHARS_PER_TOKEN`, `MAX_NODES_VISITED`, `GRAPH_MAX_TRAVERSAL_RESULTS`, `ONE_DAY_MS`, `ONE_WEEK_MS`. Applied to `GraphQueryEngine` and `GraphMemory`.
+- `src/chat/PromptBuilder.ts` `buildForSubAgent` no longer defaults `maxTokens` to 131072; it must be passed explicitly. `SubAgentManager` forwards `ollamaOptions.num_ctx` (tier-aware via `settings.maxTokens`).
+
+**Cleanup (3.18-3.20)**
+- `src/chat/ConversationManager.ts` `rebuildSystemPrompt` comment now matches the actual reassign-not-splice behavior.
+- `src/config/HardwareTier.ts` deletes the unused `getRecommendedModel` export and its `ModelRecommendation` import; tests trimmed accordingly.
+- Debt-comment cleanup: `src/config/GpuDetector.ts`, `src/chat/ContextCompactor.ts`, `src/observability/GoldenTaskSuite.ts`, `src/storage/UnifiedMemoryRetriever.ts` now use `NOTE(v0.5):` format or describe the actual state accurately.
+
+### Deviations from the plan
+
+- **3.1 near-no-op**: The `GitSafetyNet` "inverted diff" logic was already correct at the time of Phase 3 work. Only the regression test was added; no production code changed.
+- **3.2 approach**: Chose to skip the centralized gate for file-edit tools in `ask` / `plan` mode rather than relocate diff-generation into `ToolRegistry`. Smaller blast radius; preserves the per-tool diff-bearing UX with zero handler changes.
+- **3.3 catalog vs types**: Removed the three entries from `TOOL_CATALOG` only; left them in `BuiltinToolName` and `TOOL_NAMES` because Phase 7 owns the deletion of their backing classes (`LazyToolLoader`, `OutputRedirector`).
+- **3.9 depth**: Nested-JSON support covers both objects and arrays with balanced-brace scanning; arbitrary JSON values pass through `JSON.parse` with a raw-string fallback on parse failure. No Phase 4 follow-up needed.
+- **3.13 path choice**: Removed `user_requested` from `WritePolicy` (path A) rather than adding `provenance.source` to `DetectedPattern` (path B); no callers rely on the policy.
+- **3.17 item 1 no-op**: The unused `BLOCKED_PATTERNS` import in `ActionClassifier.ts` was already gone.
+
+### Test results
+
+- `npm run lint`: 0 errors, 30 pre-existing `no-console` warnings (unchanged from Phase 2).
+- `npm run test`: 85 test files passed, 1 skipped (ollama-health integration), 1116 / 1118 tests pass, 2 skipped. Zero failures.
+- Typecheck via `npx tsc --noEmit`: clean.
+
+### Known follow-ups
+
+- **Phase 4 (perf)** picks up any further tier-aware propagation refinements; `SubAgentManager` currently reads `ollamaOptions.num_ctx` which tracks `settings.maxTokens`, not the auto-detected tier.
+- **Phase 7 (simplification)** deletes `BudgetEnforcer` class, `ConversationSync` class, `LazyToolLoader` class, and the legacy helper tool types in `BuiltinToolName`.
+
+---
+
 ## [2026-04-18] v0.4.0 Phase 2 -- Security Hardening
 
 ### Summary

@@ -265,3 +265,51 @@ describe("serializeToolDefinitions", () => {
     expect(out).toContain('"name": "read_file"');
   });
 });
+
+// ---------------------------------------------------------------------------
+// 3.9 — Nested JSON values in tool call body
+// ---------------------------------------------------------------------------
+
+describe("parseToolCalls — nested JSON values", () => {
+  it("parses a key:{...} object value (e.g., MCP filter arg)", () => {
+    const text =
+      '<|tool_call>call:mcp:srv/search{query:<|"|>foo<|"|>,filter:{"status":"active","limit":5}}<tool_call|>';
+    const results = parseToolCalls(text);
+    expect(results).toHaveLength(1);
+    if (!results[0]?.ok) throw new Error("expected ok parse");
+    expect(results[0].call.parameters).toEqual({
+      query: "foo",
+      filter: { status: "active", limit: 5 },
+    });
+  });
+
+  it("parses a key:[...] array value", () => {
+    const text =
+      '<|tool_call>call:mcp:srv/batch{ids:["a","b","c"],dryRun:true}<tool_call|>';
+    const results = parseToolCalls(text);
+    expect(results).toHaveLength(1);
+    if (!results[0]?.ok) throw new Error("expected ok parse");
+    expect(results[0].call.parameters).toEqual({
+      ids: ["a", "b", "c"],
+      dryRun: true,
+    });
+  });
+
+  it("handles deeply nested objects with strings containing braces", () => {
+    const text =
+      '<|tool_call>call:mcp:srv/run{config:{"a":1,"b":{"c":"text { with } braces"}}}<tool_call|>';
+    const results = parseToolCalls(text);
+    if (!results[0]?.ok) throw new Error("expected ok parse");
+    expect(results[0].call.parameters).toEqual({
+      config: { a: 1, b: { c: "text { with } braces" } },
+    });
+  });
+
+  it("falls back to raw string when nested JSON is malformed", () => {
+    const text =
+      '<|tool_call>call:mcp:srv/run{cfg:{not valid json}}<tool_call|>';
+    const results = parseToolCalls(text);
+    if (!results[0]?.ok) throw new Error("expected ok parse");
+    expect(results[0].call.parameters["cfg"]).toBe("{not valid json}");
+  });
+});

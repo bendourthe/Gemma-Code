@@ -6,11 +6,12 @@ import type {
 import type { GraphMemory } from "./GraphMemory.js";
 import type { EmbeddingClient } from "./EmbeddingClient.js";
 import { EntityExtractor } from "./EntityExtractor.js";
-
-const CHARS_PER_TOKEN = 4;
-const MAX_NODES_VISITED = 100;
-const ONE_DAY_MS = 86_400_000;
-const ONE_WEEK_MS = 604_800_000;
+import {
+  CHARS_PER_TOKEN,
+  MAX_NODES_VISITED,
+  ONE_DAY_MS,
+  ONE_WEEK_MS,
+} from "./constants.js";
 
 export interface GraphQueryResult {
   readonly entities: GraphEntity[];

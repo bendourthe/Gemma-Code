@@ -179,7 +179,8 @@ export class UnifiedMemoryRetriever {
       },
       episodic: {
         available: this._episodicMemory !== null,
-        entryCount: 0, // would need a count query; kept simple
+        // NOTE(v0.5): expose EpisodicMemory.count() and surface it here.
+        entryCount: 0,
       },
       semantic: {
         available: this._semanticMemory !== null,
@@ -187,7 +188,8 @@ export class UnifiedMemoryRetriever {
       },
       graph: {
         available: this._graphEngine !== null,
-        entryCount: 0, // would need graph stats; kept simple
+        // NOTE(v0.5): expose GraphMemory.getStats() and surface it here.
+        entryCount: 0,
       },
     };
   }

@@ -21,7 +21,7 @@ import {
 import { RunTerminalTool } from "../tools/handlers/terminal.js";
 import { WebSearchTool, FetchPageTool } from "../tools/handlers/webSearch.js";
 import { createOllamaClient } from "../ollama/client.js";
-import { getSettings } from "../config/settings.js";
+import { getSettings, type GemmaCodeSettings } from "../config/settings.js";
 import { TOOL_CATALOG, toDynamicMetadata } from "../tools/ToolCatalog.js";
 import type { DynamicToolMetadata } from "../tools/ToolCatalog.js";
 import type { OllamaToolDefinition } from "../ollama/types.js";
@@ -88,14 +88,26 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
   private readonly _gitSafetyNet: GitSafetyNet | null;
   private readonly _subAgentManager: SubAgentManager;
   private readonly _orchestrator: Orchestrator;
+  // Cached settings: invalidated by the configuration-change subscription so
+  // we avoid hitting `vscode.workspace.getConfiguration("gemma-code")` on
+  // every prompt build, message handler, or tool activation rebuild.
+  private _settingsCache: GemmaCodeSettings | null = null;
+  private _settingsChangeDisposable: vscode.Disposable | null = null;
+  private _outputChannel: vscode.OutputChannel | null = null;
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
     private readonly _globalStorageUri?: vscode.Uri,
     private readonly _workspaceState?: vscode.Memento,
   ) {
-    const settings = getSettings();
+    const settings = this._getSettings();
     this._currentEditMode = settings.editMode;
+    // Invalidate the cache when the user edits any gemma-code setting.
+    this._settingsChangeDisposable = vscode.workspace.onDidChangeConfiguration((event) => {
+      if (event.affectsConfiguration("gemma-code")) {
+        this._settingsCache = null;
+      }
+    });
 
     // Initialise persistent chat history store.
     this._store = this._initStore();
@@ -228,6 +240,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
         sessionId: this._manager.sessionId ?? undefined,
         gitSafetyNet: this._gitSafetyNet ?? undefined,
         loopDetector: new LoopDetector(),
+        maxTokens: settings.maxTokens,
       },
     );
 
@@ -323,7 +336,9 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     registry.register("fetch_page", new FetchPageTool());
 
     // Centralized permission enforcement via PermissionTiers.
-    registry.setConfirmationGate(gate);
+    // Pass editMode so duplicate confirmations are suppressed for write/edit/create
+    // (which fire their own diff-bearing prompt in ask/plan mode).
+    registry.setConfirmationGate(gate, undefined, editMode);
 
     return registry;
   }
@@ -342,7 +357,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
 
     const nonce = randomUUID().replace(/-/g, "");
     const cspSource = webviewView.webview.cspSource;
-    const settings = getSettings();
+    const settings = this._getSettings();
 
     webviewView.webview.html = getWebviewHtml(nonce, cspSource, settings.modelName);
 
@@ -600,7 +615,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
       }
 
       case "model": {
-        const settings = getSettings();
+        const settings = this._getSettings();
         const client = createOllamaClient(settings.ollamaUrl);
         const models = await client.listModels().catch(() => []);
 
@@ -754,7 +769,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
       }
 
       case "mcp": {
-        const mcpSettings = getSettings();
+        const mcpSettings = this._getSettings();
         if (!mcpSettings.mcpEnabled || !this._mcpManager) {
           const disabledMsg = this._manager.addAssistantMessage(
             "_MCP support is disabled. Enable it in settings: `gemma-code.mcpEnabled`._",
@@ -841,7 +856,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
       }
 
       case "verify": {
-        const verifySettings = getSettings();
+        const verifySettings = this._getSettings();
         const config: SubAgentConfig = {
           type: "verification",
           maxIterations: verifySettings.subAgentMaxIterations,
@@ -872,7 +887,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
           this._postHistory();
           break;
         }
-        const researchSettings = getSettings();
+        const researchSettings = this._getSettings();
         const config: SubAgentConfig = {
           type: "research",
           maxIterations: researchSettings.subAgentMaxIterations,
@@ -909,7 +924,14 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     vscode.workspace
       .getConfiguration("gemma-code")
       .update("editMode", mode, vscode.ConfigurationTarget.Global)
-      .then(undefined, () => { /* ignore save errors */ });
+      .then(undefined, (err: unknown) => {
+        // Surface config-save failures to the output channel so they are not
+        // swallowed silently (review finding #100).
+        const message = err instanceof Error ? err.message : String(err);
+        this._getOutputChannel().appendLine(
+          `[config] Failed to save editMode='${mode}' to global settings: ${message}`,
+        );
+      });
     this._postToWebview({ type: "editModeChanged", mode });
 
     // Toggle plan mode based on the selected edit mode.
@@ -983,7 +1005,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
   }
 
   private _postTokenCount(): void {
-    const settings = getSettings();
+    const settings = this._getSettings();
     const count = this._compactor.estimateTokens();
     this._postToWebview({
       type: "tokenCount",
@@ -993,7 +1015,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
   }
 
   private _postMemoryStatus(): void {
-    const settings = getSettings();
+    const settings = this._getSettings();
     const entryCount = this._memoryStore?.getStats().totalEntries ?? 0;
     this._postToWebview({
       type: "memoryStatus",
@@ -1003,7 +1025,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
   }
 
   private _postMcpStatus(): void {
-    const settings = getSettings();
+    const settings = this._getSettings();
     if (!settings.mcpEnabled || !this._mcpManager) {
       this._postToWebview({
         type: "mcpStatus",
@@ -1023,8 +1045,27 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     });
   }
 
+  /**
+   * Return cached settings or refresh from VS Code configuration.
+   * Invalidated by `workspace.onDidChangeConfiguration` (registered in the
+   * constructor) so the cache stays in sync with the user's edits.
+   */
+  private _getSettings(): GemmaCodeSettings {
+    if (!this._settingsCache) {
+      this._settingsCache = getSettings();
+    }
+    return this._settingsCache;
+  }
+
+  private _getOutputChannel(): vscode.OutputChannel {
+    if (!this._outputChannel) {
+      this._outputChannel = vscode.window.createOutputChannel("Gemma Code");
+    }
+    return this._outputChannel;
+  }
+
   private _postThinkingModeStatus(): void {
-    const settings = getSettings();
+    const settings = this._getSettings();
     this._postToWebview({
       type: "thinkingModeStatus",
       active: settings.thinkingMode,
@@ -1032,7 +1073,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
   }
 
   private _buildPromptContext(memoryContext?: string): PromptContext {
-    const settings = getSettings();
+    const settings = this._getSettings();
     return {
       modelName: settings.modelName,
       maxTokens: this._tierConfig?.contextWindow ?? settings.maxTokens,
@@ -1118,7 +1159,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
   private async _injectMemoryContext(queryText: string): Promise<void> {
     if (!this._memoryStore && !this._unifiedRetriever) return;
     try {
-      const budget = calculateBudget(getSettings().maxTokens);
+      const budget = calculateBudget(this._getSettings().maxTokens);
 
       // Use unified retriever when available (Phase 3), fall back to MemoryStore.
       let memoryContext: string;
@@ -1197,7 +1238,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
   attachToWebviewPanel(panel: vscode.WebviewPanel): void {
     const nonce = randomUUID().replace(/-/g, "");
     const cspSource = panel.webview.cspSource;
-    const settings = getSettings();
+    const settings = this._getSettings();
 
     panel.webview.html = getWebviewHtml(nonce, cspSource, settings.modelName);
 
@@ -1239,5 +1280,9 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     this._episodicMemory?.close();
     this._mcpManager?.dispose();
     void this._mcpServer?.stop();
+    this._settingsChangeDisposable?.dispose();
+    this._settingsChangeDisposable = null;
+    this._outputChannel?.dispose();
+    this._outputChannel = null;
   }
 }

@@ -8,6 +8,7 @@ import type {
   MemoryProvenance,
 } from "./MemoryLayers.types.js";
 import { escapeLikePattern } from "./likeEscape.js";
+import { GRAPH_MAX_TRAVERSAL_RESULTS } from "./constants.js";
 
 /**
  * Layer 4: graph-based relational memory.
@@ -252,7 +253,7 @@ export class GraphMemory {
             const entity = this.getEntityById(neighborId);
             if (entity) {
               results.push(entity);
-              if (results.length >= 50) return results;
+              if (results.length >= GRAPH_MAX_TRAVERSAL_RESULTS) return results;
             }
           }
         }

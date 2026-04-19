@@ -1,4 +1,4 @@
-import type { HardwareTierId, HardwareTierConfig, ModelRecommendation } from "./HardwareTier.types.js";
+import type { HardwareTierId, HardwareTierConfig } from "./HardwareTier.types.js";
 
 /**
  * Hardware tier configurations for the three supported VRAM ranges.
@@ -115,20 +115,3 @@ export function getTierConfig(tierId: HardwareTierId): HardwareTierConfig {
   return config;
 }
 
-/**
- * Find the first recommended model for a tier that is installed in Ollama.
- * Matches by model name prefix (e.g. "gemma4:e4b" matches "gemma4:e4b-q4_k_m").
- * Returns null when none of the recommended models are installed.
- */
-export function getRecommendedModel(
-  tier: HardwareTierConfig,
-  installedModels: readonly string[],
-): ModelRecommendation | null {
-  for (const rec of tier.recommendedModels) {
-    const match = installedModels.some(
-      (installed) => installed === rec.modelName || installed.startsWith(`${rec.modelName}-`),
-    );
-    if (match) return rec;
-  }
-  return null;
-}

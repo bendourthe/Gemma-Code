@@ -74,7 +74,8 @@ export class ContextCompactor {
       { force, tokensBefore, maxTokens: this._maxTokens },
     );
 
-    // Pre-compaction hook (Phase 3 wires MemoryStore.extractAndSave here).
+    // Pre-compaction hook: invoked with the full history before any
+    // compaction strategy runs. MemoryStore.extractAndSave can be wired here.
     if (this._preCompactionHook) {
       await this._preCompactionHook(this._manager.getHistory());
     }
@@ -110,7 +111,9 @@ export class ContextCompactor {
 
     this._manager.replaceMessages(compacted);
 
-    // Post-compaction hook (Phase 3 wires MemoryConsolidator here).
+    // Post-compaction hook: invoked with the session id after the conversation
+    // has been replaced. MemoryConsolidator.run can be wired here to promote
+    // patterns detected in the just-compacted history.
     if (this._postCompactionHook) {
       const sessionId = this._manager.sessionId;
       if (sessionId) {

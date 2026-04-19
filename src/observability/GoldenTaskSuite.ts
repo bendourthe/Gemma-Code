@@ -50,7 +50,9 @@ export interface RegressionReport {
 }
 
 // ---------------------------------------------------------------------------
-// Default golden tasks (placeholders for Phase 8 expansion)
+// Default golden tasks. The full 24-task YAML-driven suite lives under
+// `tests/golden/tasks/`; this in-process list is the minimal smoke set used
+// when the YAML harness is not loaded (e.g. quick CI checks).
 // ---------------------------------------------------------------------------
 
 export const GOLDEN_TASKS: readonly GoldenTask[] = [

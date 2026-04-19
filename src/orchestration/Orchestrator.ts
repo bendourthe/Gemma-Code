@@ -17,6 +17,10 @@ import type { DAGExecutionResult } from "./DAGExecutor.js";
 import { PlannerAgent } from "./PlannerAgent.js";
 import { ReflexionEngine } from "./ReflexionEngine.js";
 import type { TaskDAG } from "./TaskDAG.js";
+import {
+  defaultComplexityClassifier,
+  type ComplexityClassifier,
+} from "./ComplexityClassifier.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -32,6 +36,8 @@ export interface OrchestratorConfig {
   readonly gpuTierProfile: GpuTierProfile;
   readonly memoryStore: MemoryStore | null;
   readonly postMessage: PostMessageFn;
+  /** Optional injection point for tests / alternative classifiers. */
+  readonly complexityClassifier?: ComplexityClassifier;
 }
 
 export interface OrchestratorResult {
@@ -43,40 +49,6 @@ export interface OrchestratorResult {
 }
 
 // ---------------------------------------------------------------------------
-// Heuristic keywords
-// ---------------------------------------------------------------------------
-
-const ORCHESTRATOR_TRIGGERS = [
-  "implement",
-  "refactor",
-  "build",
-  "create a feature",
-  "fix all",
-  "update across",
-  "redesign",
-  "migrate",
-  "convert all",
-  "rewrite",
-  "restructure",
-  "overhaul",
-];
-
-const SIMPLE_PREFIXES = [
-  "what is",
-  "what are",
-  "explain",
-  "read file",
-  "show me",
-  "help",
-  "list",
-  "describe",
-  "how does",
-  "where is",
-];
-
-const COMPLEXITY_LENGTH_THRESHOLD = 200;
-
-// ---------------------------------------------------------------------------
 // Orchestrator
 // ---------------------------------------------------------------------------
 
@@ -86,6 +58,7 @@ export class Orchestrator {
   private readonly _subAgentManager: SubAgentManager;
   private readonly _profile: GpuTierProfile;
   private readonly _postMessage: PostMessageFn;
+  private readonly _complexityClassifier: ComplexityClassifier;
   private _maxReplanAttempts = 2;
   private _replanThreshold = 0.3;
 
@@ -104,6 +77,7 @@ export class Orchestrator {
     this._subAgentManager = config.subAgentManager;
     this._profile = config.gpuTierProfile;
     this._postMessage = config.postMessage;
+    this._complexityClassifier = config.complexityClassifier ?? defaultComplexityClassifier;
   }
 
   /**
@@ -218,25 +192,11 @@ export class Orchestrator {
 
   /**
    * Synchronous heuristic to decide whether a request is complex enough
-   * to warrant DAG orchestration vs. the simple ReAct loop.
+   * to warrant DAG orchestration vs. the simple ReAct loop. Delegates to
+   * the injected ComplexityClassifier (default: HeuristicComplexityClassifier).
    */
   shouldUseOrchestrator(userRequest: string): boolean {
-    const lower = userRequest.toLowerCase().trim();
-
-    // Short-circuit: simple queries should not use orchestration.
-    for (const prefix of SIMPLE_PREFIXES) {
-      if (lower.startsWith(prefix)) return false;
-    }
-
-    // Check for complexity keywords.
-    for (const trigger of ORCHESTRATOR_TRIGGERS) {
-      if (lower.includes(trigger)) return true;
-    }
-
-    // Long requests are likely complex.
-    if (userRequest.length > COMPLEXITY_LENGTH_THRESHOLD) return true;
-
-    return false;
+    return this._complexityClassifier.classify(userRequest).complex;
   }
 
   // -------------------------------------------------------------------------
