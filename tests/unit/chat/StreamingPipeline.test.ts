@@ -137,7 +137,9 @@ describe("StreamingPipeline", () => {
     await pipeline.send("q", postMessage);
 
     const errorCall = postMessage.mock.calls.find((c) => c[0]?.type === "error");
-    expect(errorCall).toBeTruthy();
+    const text = (errorCall?.[0] as { text?: string } | undefined)?.text ?? "";
+    expect(text.length).toBeGreaterThan(0);
+    expect(text.toLowerCase()).toContain("something unexpected");
   });
 
   it("always posts status:idle in the finally block, even on error", async () => {
@@ -175,8 +177,8 @@ describe("StreamingPipeline", () => {
     const pipeline = new StreamingPipeline(client, manager, "gemma4");
     const sendPromise = pipeline.send("q", postMessage);
 
-    // Give the pipeline a tick to start streaming, then cancel
-    await new Promise((r) => setTimeout(r, 0));
+    // Flush the microtask queue so the pipeline starts streaming, then cancel.
+    await Promise.resolve();
     pipeline.cancel();
     resolveHold();
 
@@ -216,8 +218,8 @@ describe("StreamingPipeline", () => {
 
     expect(attempt).toBe(2);
 
-    const completeCall = postMessage.mock.calls.find((c) => c[0]?.type === "messageComplete");
-    expect(completeCall).toBeTruthy();
+    const completeCalls = postMessage.mock.calls.filter((c) => c[0]?.type === "messageComplete");
+    expect(completeCalls).toHaveLength(1);
 
     const errorCall = postMessage.mock.calls.find((c) => c[0]?.type === "error");
     expect(errorCall).toBeUndefined();
@@ -242,6 +244,8 @@ describe("StreamingPipeline", () => {
 
     expect(attempt).toBe(1);
     const errorCall = postMessage.mock.calls.find((c) => c[0]?.type === "error");
-    expect(errorCall).toBeTruthy();
+    const errorText = (errorCall?.[0] as { text?: string } | undefined)?.text ?? "";
+    expect(errorText.length).toBeGreaterThan(0);
+    expect(errorText.toLowerCase()).toContain("late failure");
   });
 });

@@ -4,43 +4,12 @@ import type { SubAgentConfig, SubAgentResult } from "../../../src/agents/types.j
 import type { OllamaClient } from "../../../src/ollama/types.js";
 import type { MemoryStore } from "../../../src/storage/MemoryStore.js";
 import { PromptBuilder } from "../../../src/chat/PromptBuilder.js";
-import type { ExtensionToWebviewMessage } from "../../../src/panels/messages.js";
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function makeClient(responseText: string): OllamaClient {
-  async function* gen() {
-    yield { message: { content: responseText, role: "assistant" }, done: true };
-  }
-  return {
-    streamChat: vi.fn().mockReturnValue(gen()),
-    ping: vi.fn(),
-    listModels: vi.fn(),
-  } as unknown as OllamaClient;
-}
-
-function makeMultiClient(responses: string[]): OllamaClient {
-  let callCount = 0;
-  const streamChat = vi.fn(() => {
-    const text = responses[callCount++] ?? "";
-    async function* gen() {
-      yield { message: { content: text, role: "assistant" }, done: true };
-    }
-    return gen();
-  });
-  return { streamChat, ping: vi.fn(), listModels: vi.fn() } as unknown as OllamaClient;
-}
-
-function collectMessages(): {
-  posted: ExtensionToWebviewMessage[];
-  postMessage: (m: ExtensionToWebviewMessage) => void;
-} {
-  const posted: ExtensionToWebviewMessage[] = [];
-  const postMessage = (m: ExtensionToWebviewMessage) => posted.push(m);
-  return { posted, postMessage };
-}
+import {
+  collectMessages,
+  makeMultiResponseOllamaClient as makeMultiClient,
+  makeOllamaClient as makeClient,
+  mockOf,
+} from "../../helpers/factories.js";
 
 const baseConfig: SubAgentConfig = {
   type: "verification",
@@ -96,11 +65,9 @@ describe("SubAgentManager", () => {
   });
 
   it("returns error result when the client throws", async () => {
-    const client = {
+    const client = mockOf<OllamaClient>({
       streamChat: vi.fn(() => { throw new Error("Connection refused"); }),
-      ping: vi.fn(),
-      listModels: vi.fn(),
-    } as unknown as OllamaClient;
+    });
     const manager = new SubAgentManager(client, promptBuilder, null, ollamaOptions, "gemma4");
     const { posted, postMessage } = collectMessages();
 
@@ -165,7 +132,7 @@ describe("SubAgentManager", () => {
   it("sub-agent conversation is ephemeral (does not persist)", async () => {
     // Use a factory that returns fresh generators for each streamChat call
     let callCount = 0;
-    const client = {
+    const client = mockOf<OllamaClient>({
       streamChat: vi.fn(() => {
         callCount++;
         async function* gen() {
@@ -173,9 +140,7 @@ describe("SubAgentManager", () => {
         }
         return gen();
       }),
-      ping: vi.fn(),
-      listModels: vi.fn(),
-    } as unknown as OllamaClient;
+    });
     const manager = new SubAgentManager(client, promptBuilder, null, ollamaOptions, "gemma4");
     const { postMessage } = collectMessages();
 

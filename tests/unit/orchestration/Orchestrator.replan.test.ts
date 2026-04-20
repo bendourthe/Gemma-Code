@@ -1,12 +1,14 @@
 import { describe, it, expect, vi } from "vitest";
 import { Orchestrator } from "../../../src/orchestration/Orchestrator.js";
-import type { OrchestratorConfig } from "../../../src/orchestration/Orchestrator.js";
-import type { OllamaClient } from "../../../src/ollama/types.js";
 import type { SubAgentManager } from "../../../src/agents/SubAgentManager.js";
-import type { SubAgentConfig, SubAgentResult } from "../../../src/agents/types.js";
-import type { GpuTierProfile } from "../../../src/config/GpuTierConfig.js";
-import { GpuTier } from "../../../src/config/GpuTierConfig.js";
-import type { ExtensionToWebviewMessage } from "../../../src/panels/messages.js";
+import type { SubAgentConfig } from "../../../src/agents/types.js";
+import {
+  collectMessages,
+  makeMemoryStore,
+  makeMultiResponseOllamaClient as makeMultiResponseClient,
+  makeOrchestratorConfig,
+  mockOf,
+} from "../../helpers/factories.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -48,49 +50,13 @@ const REPLAN_RESPONSE = JSON.stringify([
   },
 ]);
 
-function makeMultiResponseClient(responses: string[]): OllamaClient {
-  let callCount = 0;
-  const streamChat = vi.fn(() => {
-    const text = responses[callCount++] ?? THREE_NODE_PLAN;
-    async function* gen() {
-      yield { message: { content: text, role: "assistant" }, done: true };
-    }
-    return gen();
-  });
-  return {
-    streamChat,
-    checkHealth: vi.fn(),
-    listModels: vi.fn(),
-  } as unknown as OllamaClient;
-}
-
-function makeTier1Profile(): GpuTierProfile {
-  return {
-    tier: GpuTier.TIER_1,
-    maxAgentIterations: 25,
-    subAgentMaxIterations: 8,
-    maxConcurrentSubAgents: 1,
-    compactionThreshold: 0.7,
-    contextWindow: 131072,
-    recommendedModel: "gemma4:e4b",
-  };
-}
-
-function collectMessages(): {
-  posted: ExtensionToWebviewMessage[];
-  postMessage: (m: ExtensionToWebviewMessage) => void;
-} {
-  const posted: ExtensionToWebviewMessage[] = [];
-  const postMessage = (m: ExtensionToWebviewMessage) => posted.push(m);
-  return { posted, postMessage };
-}
 
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
 describe("Orchestrator - Dynamic Replanning", () => {
-  it("should NOT replan when failure rate is below 30%", async () => {
+  it("NOT replan when failure rate is below 30%", async () => {
     // 3 nodes, 1 fails = 33% => triggers replan. But let's do 4 nodes, 1 fails = 25%.
     const fourNodePlan = JSON.stringify([
       { id: "t1", title: "A", description: "a", type: "research", dependencies: [] },
@@ -100,7 +66,7 @@ describe("Orchestrator - Dynamic Replanning", () => {
     ]);
 
     let runCallCount = 0;
-    const manager: SubAgentManager = {
+    const manager = mockOf<SubAgentManager>({
       run: vi.fn(async () => {
         runCallCount++;
         // Only the first call fails.
@@ -122,7 +88,7 @@ describe("Orchestrator - Dynamic Replanning", () => {
           iterationsUsed: 1,
         };
       }),
-    } as unknown as SubAgentManager;
+    });
 
     // Responses: plan + reflexion call.
     const client = makeMultiResponseClient([
@@ -131,15 +97,11 @@ describe("Orchestrator - Dynamic Replanning", () => {
     ]);
     const { posted, postMessage } = collectMessages();
 
-    const config: OrchestratorConfig = {
+    const config = makeOrchestratorConfig({
       client,
-      modelName: "gemma4:e4b",
-      ollamaOptions: { num_ctx: 131072 },
       subAgentManager: manager,
-      gpuTierProfile: makeTier1Profile(),
-      memoryStore: null,
       postMessage,
-    };
+    });
 
     const orch = new Orchestrator(config);
     const result = await orch.execute("Build feature", "src/");
@@ -152,12 +114,12 @@ describe("Orchestrator - Dynamic Replanning", () => {
     expect(replanMessages).toHaveLength(0);
   });
 
-  it("should replan when failure rate exceeds 30%", async () => {
+  it("replan when failure rate exceeds 30%", async () => {
     // 3 nodes: all fail (maxRetries=0 default from PlannerAgent is 1).
     // With maxRetries=1, each node gets one retry. If both attempts fail,
     // that's 100% failure -> triggers replan.
     let runCallCount = 0;
-    const manager: SubAgentManager = {
+    const manager = mockOf<SubAgentManager>({
       run: vi.fn(async () => {
         runCallCount++;
         // First execution of the original plan: all fail.
@@ -181,7 +143,7 @@ describe("Orchestrator - Dynamic Replanning", () => {
           iterationsUsed: 1,
         };
       }),
-    } as unknown as SubAgentManager;
+    });
 
     // Responses: initial plan, 6 reflexion calls, replan.
     const responses = [
@@ -195,15 +157,11 @@ describe("Orchestrator - Dynamic Replanning", () => {
     const client = makeMultiResponseClient(responses);
     const { posted, postMessage } = collectMessages();
 
-    const config: OrchestratorConfig = {
+    const config = makeOrchestratorConfig({
       client,
-      modelName: "gemma4:e4b",
-      ollamaOptions: { num_ctx: 131072 },
       subAgentManager: manager,
-      gpuTierProfile: makeTier1Profile(),
-      memoryStore: null,
       postMessage,
-    };
+    });
 
     const orch = new Orchestrator(config);
     const result = await orch.execute("Build feature", "src/");
@@ -216,9 +174,9 @@ describe("Orchestrator - Dynamic Replanning", () => {
     expect(replanMessages.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("should respect max replan attempts limit", async () => {
+  it("respect max replan attempts limit", async () => {
     // All nodes always fail -> should replan at most 2 times (default).
-    const manager: SubAgentManager = {
+    const manager = mockOf<SubAgentManager>({
       run: vi.fn(async () => ({
         type: "planning" as const,
         success: false,
@@ -227,7 +185,7 @@ describe("Orchestrator - Dynamic Replanning", () => {
         iterationsUsed: 1,
         error: "Always fails",
       })),
-    } as unknown as SubAgentManager;
+    });
 
     const singleNodePlan = JSON.stringify([
       { id: "t1", title: "Task", description: "Fail", type: "code", dependencies: [] },
@@ -237,17 +195,13 @@ describe("Orchestrator - Dynamic Replanning", () => {
     const responses = Array(20).fill(singleNodePlan) as string[];
     responses.push(...Array(20).fill("Reflexion analysis") as string[]);
     const client = makeMultiResponseClient(responses);
-    const { posted, postMessage } = collectMessages();
+    const { postMessage } = collectMessages();
 
-    const config: OrchestratorConfig = {
+    const config = makeOrchestratorConfig({
       client,
-      modelName: "gemma4:e4b",
-      ollamaOptions: { num_ctx: 131072 },
       subAgentManager: manager,
-      gpuTierProfile: makeTier1Profile(),
-      memoryStore: null,
       postMessage,
-    };
+    });
 
     const orch = new Orchestrator(config);
     const result = await orch.execute("Build feature", "src/");
@@ -256,10 +210,10 @@ describe("Orchestrator - Dynamic Replanning", () => {
     expect(result.replanCount).toBeLessThanOrEqual(2);
   });
 
-  it("should include completed work context in replanning", async () => {
+  it("include completed work context in replanning", async () => {
     // 2 nodes: first succeeds, second fails -> 50% failure -> replan.
     let runCallCount = 0;
-    const manager: SubAgentManager = {
+    const manager = mockOf<SubAgentManager>({
       run: vi.fn(async (config: SubAgentConfig) => {
         runCallCount++;
         const title = config.userRequest.split(":")[0]!;
@@ -293,7 +247,7 @@ describe("Orchestrator - Dynamic Replanning", () => {
           iterationsUsed: 1,
         };
       }),
-    } as unknown as SubAgentManager;
+    });
 
     const twoNodePlan = JSON.stringify([
       { id: "t1", title: "Step1", description: "Research", type: "research", dependencies: [] },
@@ -307,17 +261,13 @@ describe("Orchestrator - Dynamic Replanning", () => {
       REPLAN_RESPONSE,           // replan
     ];
     const client = makeMultiResponseClient(responses);
-    const { posted, postMessage } = collectMessages();
+    const { postMessage } = collectMessages();
 
-    const config: OrchestratorConfig = {
+    const config = makeOrchestratorConfig({
       client,
-      modelName: "gemma4:e4b",
-      ollamaOptions: { num_ctx: 131072 },
       subAgentManager: manager,
-      gpuTierProfile: makeTier1Profile(),
-      memoryStore: null,
       postMessage,
-    };
+    });
 
     const orch = new Orchestrator(config);
     const result = await orch.execute("Build feature", "src/");
@@ -331,5 +281,45 @@ describe("Orchestrator - Dynamic Replanning", () => {
     expect(client.streamChat).toHaveBeenCalledTimes(
       (client.streamChat as ReturnType<typeof vi.fn>).mock.calls.length,
     );
+  });
+
+  it("saves an error_resolution memory after terminal failure", async () => {
+    // Every run fails until max replans is exhausted -> terminal failure.
+    const manager = mockOf<SubAgentManager>({
+      run: vi.fn(async () => ({
+        type: "planning" as const,
+        success: false,
+        output: "",
+        toolCallCount: 0,
+        iterationsUsed: 1,
+        error: "Terminal failure",
+      })),
+    });
+
+    const singleNodePlan = JSON.stringify([
+      { id: "t1", title: "Task", description: "Fail", type: "code", dependencies: [] },
+    ]);
+    const responses = Array<string>(30).fill(singleNodePlan);
+    responses.push(...Array<string>(30).fill("Reflexion analysis"));
+    const client = makeMultiResponseClient(responses);
+    const memoryStore = makeMemoryStore();
+
+    const config = makeOrchestratorConfig({
+      client,
+      subAgentManager: manager,
+      memoryStore,
+    });
+
+    const orch = new Orchestrator(config);
+    await orch.execute("Build feature", "src/");
+
+    const saveMock = memoryStore.save as ReturnType<typeof vi.fn>;
+    expect(saveMock).toHaveBeenCalled();
+    const savedWithErrorResolution = saveMock.mock.calls.some((call) => {
+      const arg = call[0] as { type?: string } | undefined;
+      const secondArg = call[1] as string | undefined;
+      return arg?.type === "error_resolution" || secondArg === "error_resolution";
+    });
+    expect(savedWithErrorResolution).toBe(true);
   });
 });

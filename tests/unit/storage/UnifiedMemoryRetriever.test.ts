@@ -4,9 +4,10 @@ import type { WorkingMemory } from "../../../src/storage/WorkingMemory.js";
 import type { EpisodicMemory } from "../../../src/storage/EpisodicMemory.js";
 import type { MemoryStore } from "../../../src/storage/MemoryStore.js";
 import type { GraphQueryEngine } from "../../../src/storage/GraphQueryEngine.js";
+import { mockOf } from "../../helpers/factories.js";
 
 function mockWorkingMemory(): WorkingMemory {
-  return {
+  return mockOf<WorkingMemory>({
     serialize: vi.fn((_maxTokens: number) => "## Working Memory\n\n**Task**: Test task"),
     getState: vi.fn(() => ({
       currentTask: "Test task",
@@ -26,11 +27,11 @@ function mockWorkingMemory(): WorkingMemory {
     getScratchpad: vi.fn(),
     clear: vi.fn(),
     toJSON: vi.fn(),
-  } as unknown as WorkingMemory;
+  });
 }
 
 function mockEpisodicMemory(): EpisodicMemory {
-  return {
+  return mockOf<EpisodicMemory>({
     retrieve: vi.fn(async (_q: string, _b: number) => "## Past Experiences\n\n- [edit_file] Fixed auth bug -> Success"),
     record: vi.fn(),
     searchKeyword: vi.fn(),
@@ -38,11 +39,11 @@ function mockEpisodicMemory(): EpisodicMemory {
     getSessionEvents: vi.fn(),
     prune: vi.fn(),
     close: vi.fn(),
-  } as unknown as EpisodicMemory;
+  });
 }
 
 function mockSemanticMemory(): MemoryStore {
-  return {
+  return mockOf<MemoryStore>({
     retrieve: vi.fn(async (_q: string, _b: number) => "## Recalled Memories\n\n- [fact] We use SQLite for storage"),
     save: vi.fn(),
     saveWithProvenance: vi.fn(),
@@ -55,11 +56,11 @@ function mockSemanticMemory(): MemoryStore {
     isDuplicate: vi.fn(),
     getStats: vi.fn(() => ({ totalEntries: 5, byType: {}, oldestEntryAt: null, newestEntryAt: null, embeddingCount: 0 })),
     setGraphEngine: vi.fn(),
-  } as unknown as MemoryStore;
+  });
 }
 
 function mockGraphEngine(): GraphQueryEngine {
-  return {
+  return mockOf<GraphQueryEngine>({
     queryContextFor: vi.fn((_q: string, _l: number) => ({
       entities: [{ id: "1", name: "MemoryStore", type: "class", properties: {}, firstSeenAt: 0, lastSeenAt: 0, mentionCount: 5 }],
       relations: [],
@@ -69,7 +70,7 @@ function mockGraphEngine(): GraphQueryEngine {
     queryByEntity: vi.fn(),
     queryByRelationType: vi.fn(),
     explainPath: vi.fn(),
-  } as unknown as GraphQueryEngine;
+  });
 }
 
 describe("UnifiedMemoryRetriever", () => {

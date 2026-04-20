@@ -1,0 +1,5 @@
+# Python test and lint caches produced while running the golden-task suite.
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.pyc

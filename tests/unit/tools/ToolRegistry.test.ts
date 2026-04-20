@@ -2,6 +2,8 @@ import { describe, it, expect, vi } from "vitest";
 import { ToolRegistry } from "../../../src/tools/ToolRegistry.js";
 import type { ToolCall, ToolHandler, ToolResult } from "../../../src/tools/types.js";
 import type { DynamicToolMetadata } from "../../../src/tools/ToolCatalog.js";
+import type { ConfirmationGate } from "../../../src/tools/ConfirmationGate.js";
+import { mockOf } from "../../helpers/factories.js";
 
 function makeCall(overrides: Partial<ToolCall> = {}): ToolCall {
   return { tool: "read_file", id: "call_001", parameters: {}, ...overrides };
@@ -164,7 +166,7 @@ describe("ToolRegistry", () => {
     function makeGate(approve: boolean = true) {
       const request = vi.fn().mockResolvedValue(approve);
       return {
-        gate: { request, requestDiffPreview: vi.fn(), resolve: vi.fn() } as unknown as import("../../../src/tools/ConfirmationGate.js").ConfirmationGate,
+        gate: mockOf<ConfirmationGate>({ request, requestDiffPreview: vi.fn(), resolve: vi.fn() }),
         request,
       };
     }

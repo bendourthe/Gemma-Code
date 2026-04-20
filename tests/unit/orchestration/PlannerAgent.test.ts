@@ -1,37 +1,9 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { PlannerAgent } from "../../../src/orchestration/PlannerAgent.js";
-import type { OllamaClient } from "../../../src/ollama/types.js";
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function makeClient(responseText: string): OllamaClient {
-  async function* gen() {
-    yield { message: { content: responseText, role: "assistant" }, done: true };
-  }
-  return {
-    streamChat: vi.fn().mockReturnValue(gen()),
-    checkHealth: vi.fn(),
-    listModels: vi.fn(),
-  } as unknown as OllamaClient;
-}
-
-function makeMultiClient(responses: string[]): OllamaClient {
-  let callCount = 0;
-  const streamChat = vi.fn(() => {
-    const text = responses[callCount++] ?? "";
-    async function* gen() {
-      yield { message: { content: text, role: "assistant" }, done: true };
-    }
-    return gen();
-  });
-  return {
-    streamChat,
-    checkHealth: vi.fn(),
-    listModels: vi.fn(),
-  } as unknown as OllamaClient;
-}
+import {
+  makeMultiResponseOllamaClient as makeMultiClient,
+  makeOllamaClient as makeClient,
+} from "../../helpers/factories.js";
 
 const VALID_JSON_RESPONSE = JSON.stringify([
   {
@@ -73,7 +45,7 @@ const ollamaOptions = { num_ctx: 131072, temperature: 1.0 };
 
 describe("PlannerAgent", () => {
   describe("plan", () => {
-    it("should parse a clean JSON response into a TaskDAG", async () => {
+    it("parse a clean JSON response into a TaskDAG", async () => {
       const client = makeClient(VALID_JSON_RESPONSE);
       const agent = new PlannerAgent(client, "gemma4:e4b", ollamaOptions);
 
@@ -88,7 +60,7 @@ describe("PlannerAgent", () => {
       expect(nodes[1]!.dependencies).toEqual(["task_1"]);
     });
 
-    it("should extract JSON from markdown fences", async () => {
+    it("extract JSON from markdown fences", async () => {
       const client = makeClient(FENCED_JSON_RESPONSE);
       const agent = new PlannerAgent(client, "gemma4:e4b", ollamaOptions);
 
@@ -96,7 +68,7 @@ describe("PlannerAgent", () => {
       expect(dag.getProgress().total).toBe(3);
     });
 
-    it("should retry once on parse failure and succeed on second attempt", async () => {
+    it("retry once on parse failure and succeed on second attempt", async () => {
       const client = makeMultiClient([
         "I cannot produce JSON right now, sorry!",
         VALID_JSON_RESPONSE,
@@ -108,7 +80,7 @@ describe("PlannerAgent", () => {
       expect(client.streamChat).toHaveBeenCalledTimes(2);
     });
 
-    it("should return fallback single-node DAG after two parse failures", async () => {
+    it("return fallback single-node DAG after two parse failures", async () => {
       const client = makeMultiClient([
         "Not valid JSON",
         "Still not valid JSON",
@@ -123,7 +95,7 @@ describe("PlannerAgent", () => {
       expect(nodes[0]!.description).toBe("Fix the bug");
     });
 
-    it("should reject cyclic DAGs from the LLM and fall through to retry", async () => {
+    it("reject cyclic DAGs from the LLM and fall through to retry", async () => {
       const cyclicResponse = JSON.stringify([
         {
           id: "a",
@@ -149,7 +121,7 @@ describe("PlannerAgent", () => {
       expect(client.streamChat).toHaveBeenCalledTimes(2);
     });
 
-    it("should handle empty array from LLM gracefully", async () => {
+    it("handle empty array from LLM gracefully", async () => {
       const client = makeClient("[]");
       const agent = new PlannerAgent(client, "gemma4:e4b", ollamaOptions);
 
@@ -158,7 +130,7 @@ describe("PlannerAgent", () => {
       expect(dag.getProgress().total).toBe(0);
     });
 
-    it("should set maxRetries to 1 and retryCount to 0 on all nodes", async () => {
+    it("set maxRetries to 1 and retryCount to 0 on all nodes", async () => {
       const client = makeClient(VALID_JSON_RESPONSE);
       const agent = new PlannerAgent(client, "gemma4:e4b", ollamaOptions);
 
@@ -169,7 +141,7 @@ describe("PlannerAgent", () => {
       }
     });
 
-    it("should handle invalid node types by rejecting the response", async () => {
+    it("handle invalid node types by rejecting the response", async () => {
       const invalidType = JSON.stringify([
         {
           id: "task_1",

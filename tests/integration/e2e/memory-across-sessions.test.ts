@@ -26,11 +26,20 @@ describe("e2e: memory across sessions", () => {
     dbPath = tempDbPath();
   });
 
-  afterEach(() => {
-    try {
-      fs.unlinkSync(dbPath);
-    } catch {
-      // ignore
+  afterEach(async () => {
+    // Windows occasionally reports EBUSY/EPERM briefly after sqlite closes
+    // the handle; retry a handful of times before giving up.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        fs.unlinkSync(dbPath);
+        return;
+      } catch (err: unknown) {
+        const code = (err as NodeJS.ErrnoException).code;
+        if (code !== "EBUSY" && code !== "EPERM") {
+          return;
+        }
+        await new Promise<void>((resolve) => setTimeout(resolve, 50));
+      }
     }
   });
 

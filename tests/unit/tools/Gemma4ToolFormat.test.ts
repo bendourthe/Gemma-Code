@@ -31,8 +31,8 @@ describe("parseToolCalls", () => {
     });
     // Should have a generated UUID id
     if (results[0]?.ok) {
-      expect(results[0].call.id).toBeTruthy();
       expect(typeof results[0].call.id).toBe("string");
+      expect(results[0].call.id.length).toBeGreaterThan(0);
     }
   });
 

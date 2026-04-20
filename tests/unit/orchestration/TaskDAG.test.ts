@@ -25,13 +25,13 @@ function makeNode(overrides: Partial<TaskNode> & { id: string }): TaskNode {
 
 describe("TaskDAG", () => {
   describe("constructor", () => {
-    it("should accept an empty node list", () => {
+    it("accept an empty node list", () => {
       const dag = new TaskDAG([]);
       expect(dag.isComplete()).toBe(true);
       expect(dag.getProgress().total).toBe(0);
     });
 
-    it("should accept a valid DAG", () => {
+    it("accept a valid DAG", () => {
       const dag = new TaskDAG([
         makeNode({ id: "a" }),
         makeNode({ id: "b", dependencies: ["a"] }),
@@ -39,20 +39,20 @@ describe("TaskDAG", () => {
       expect(dag.getProgress().total).toBe(2);
     });
 
-    it("should throw on duplicate node IDs", () => {
+    it("throw on duplicate node IDs", () => {
       expect(
         () =>
           new TaskDAG([makeNode({ id: "a" }), makeNode({ id: "a" })]),
       ).toThrow("Duplicate node ID");
     });
 
-    it("should throw when a dependency references an unknown node", () => {
+    it("throw when a dependency references an unknown node", () => {
       expect(
         () => new TaskDAG([makeNode({ id: "a", dependencies: ["missing"] })]),
       ).toThrow('depends on unknown node "missing"');
     });
 
-    it("should throw when the graph contains a cycle", () => {
+    it("throw when the graph contains a cycle", () => {
       expect(
         () =>
           new TaskDAG([
@@ -62,7 +62,7 @@ describe("TaskDAG", () => {
       ).toThrow("contains a cycle");
     });
 
-    it("should detect a 3-node cycle", () => {
+    it("detect a 3-node cycle", () => {
       expect(
         () =>
           new TaskDAG([
@@ -75,27 +75,27 @@ describe("TaskDAG", () => {
   });
 
   describe("addNode", () => {
-    it("should add a node to an existing DAG", () => {
+    it("add a node to an existing DAG", () => {
       const dag = new TaskDAG([makeNode({ id: "a" })]);
       dag.addNode(makeNode({ id: "b", dependencies: ["a"] }));
       expect(dag.getProgress().total).toBe(2);
     });
 
-    it("should reject duplicate IDs", () => {
+    it("reject duplicate IDs", () => {
       const dag = new TaskDAG([makeNode({ id: "a" })]);
       expect(() => dag.addNode(makeNode({ id: "a" }))).toThrow(
         "Duplicate node ID",
       );
     });
 
-    it("should reject unknown dependencies", () => {
+    it("reject unknown dependencies", () => {
       const dag = new TaskDAG([makeNode({ id: "a" })]);
       expect(() =>
         dag.addNode(makeNode({ id: "b", dependencies: ["missing"] })),
       ).toThrow("depends on unknown node");
     });
 
-    it("should reject additions that would create a cycle", () => {
+    it("reject additions that would create a cycle", () => {
       const dag = new TaskDAG([
         makeNode({ id: "a" }),
         makeNode({ id: "b", dependencies: ["a"] }),
@@ -117,7 +117,7 @@ describe("TaskDAG", () => {
   });
 
   describe("getReadyNodes", () => {
-    it("should return nodes with no dependencies", () => {
+    it("return nodes with no dependencies", () => {
       const dag = new TaskDAG([
         makeNode({ id: "a" }),
         makeNode({ id: "b" }),
@@ -127,7 +127,7 @@ describe("TaskDAG", () => {
       expect(ready.map((n) => n.id).sort()).toEqual(["a", "b"]);
     });
 
-    it("should return dependent nodes once dependencies are completed", () => {
+    it("return dependent nodes once dependencies are completed", () => {
       const dag = new TaskDAG([
         makeNode({ id: "a" }),
         makeNode({ id: "b", dependencies: ["a"] }),
@@ -138,13 +138,13 @@ describe("TaskDAG", () => {
       expect(ready[0]!.id).toBe("b");
     });
 
-    it("should not return running nodes", () => {
+    it("not return running nodes", () => {
       const dag = new TaskDAG([makeNode({ id: "a" })]);
       dag.markRunning("a");
       expect(dag.getReadyNodes()).toHaveLength(0);
     });
 
-    it("should not return nodes when a dependency is still pending", () => {
+    it("not return nodes when a dependency is still pending", () => {
       const dag = new TaskDAG([
         makeNode({ id: "a" }),
         makeNode({ id: "b" }),
@@ -159,20 +159,20 @@ describe("TaskDAG", () => {
   });
 
   describe("markRunning", () => {
-    it("should set node status to running", () => {
+    it("set node status to running", () => {
       const dag = new TaskDAG([makeNode({ id: "a" })]);
       dag.markRunning("a");
       expect(dag.getNode("a")?.status).toBe("running");
     });
 
-    it("should throw for unknown node ID", () => {
+    it("throw for unknown node ID", () => {
       const dag = new TaskDAG([]);
       expect(() => dag.markRunning("missing")).toThrow("Unknown node ID");
     });
   });
 
   describe("markCompleted", () => {
-    it("should set status and store result", () => {
+    it("set status and store result", () => {
       const dag = new TaskDAG([makeNode({ id: "a" })]);
       dag.markCompleted("a", "success output");
       const node = dag.getNode("a");
@@ -182,7 +182,7 @@ describe("TaskDAG", () => {
   });
 
   describe("markFailed", () => {
-    it("should set back to pending if retries remain", () => {
+    it("set back to pending if retries remain", () => {
       const dag = new TaskDAG([makeNode({ id: "a", maxRetries: 2 })]);
       dag.markFailed("a", "error message");
       const node = dag.getNode("a")!;
@@ -191,13 +191,13 @@ describe("TaskDAG", () => {
       expect(node.error).toBe("error message");
     });
 
-    it("should set to failed when all retries exhausted", () => {
+    it("set to failed when all retries exhausted", () => {
       const dag = new TaskDAG([makeNode({ id: "a", maxRetries: 1 })]);
       dag.markFailed("a", "first error");
       expect(dag.getNode("a")?.status).toBe("failed");
     });
 
-    it("should track retry count across multiple failures", () => {
+    it("track retry count across multiple failures", () => {
       const dag = new TaskDAG([makeNode({ id: "a", maxRetries: 3 })]);
       dag.markFailed("a", "err1");
       expect(dag.getNode("a")?.retryCount).toBe(1);
@@ -214,7 +214,7 @@ describe("TaskDAG", () => {
   });
 
   describe("skipDependents", () => {
-    it("should skip direct dependents", () => {
+    it("skip direct dependents", () => {
       const dag = new TaskDAG([
         makeNode({ id: "a" }),
         makeNode({ id: "b", dependencies: ["a"] }),
@@ -223,7 +223,7 @@ describe("TaskDAG", () => {
       expect(dag.getNode("b")?.status).toBe("skipped");
     });
 
-    it("should skip transitive dependents", () => {
+    it("skip transitive dependents", () => {
       const dag = new TaskDAG([
         makeNode({ id: "a" }),
         makeNode({ id: "b", dependencies: ["a"] }),
@@ -236,7 +236,7 @@ describe("TaskDAG", () => {
       expect(dag.getNode("d")?.status).toBe("skipped");
     });
 
-    it("should not skip completed nodes", () => {
+    it("not skip completed nodes", () => {
       const dag = new TaskDAG([
         makeNode({ id: "a" }),
         makeNode({ id: "b", dependencies: ["a"] }),
@@ -246,7 +246,7 @@ describe("TaskDAG", () => {
       expect(dag.getNode("b")?.status).toBe("completed");
     });
 
-    it("should handle diamond dependencies correctly", () => {
+    it("handle diamond dependencies correctly", () => {
       // a -> b -> d
       // a -> c -> d
       const dag = new TaskDAG([
@@ -263,11 +263,11 @@ describe("TaskDAG", () => {
   });
 
   describe("isComplete", () => {
-    it("should return true for empty DAG", () => {
+    it("return true for empty DAG", () => {
       expect(new TaskDAG([]).isComplete()).toBe(true);
     });
 
-    it("should return true when all nodes are completed or skipped", () => {
+    it("return true when all nodes are completed or skipped", () => {
       const dag = new TaskDAG([
         makeNode({ id: "a" }),
         makeNode({ id: "b" }),
@@ -279,14 +279,14 @@ describe("TaskDAG", () => {
       expect(dag.isComplete()).toBe(true);
     });
 
-    it("should return false when nodes are still pending", () => {
+    it("return false when nodes are still pending", () => {
       const dag = new TaskDAG([makeNode({ id: "a" })]);
       expect(dag.isComplete()).toBe(false);
     });
   });
 
   describe("getProgress", () => {
-    it("should count all status types correctly", () => {
+    it("count all status types correctly", () => {
       const dag = new TaskDAG([
         makeNode({ id: "a" }),
         makeNode({ id: "b" }),
@@ -310,7 +310,7 @@ describe("TaskDAG", () => {
   });
 
   describe("serialization", () => {
-    it("should round-trip through toJSON/fromJSON", () => {
+    it("round-trip through toJSON/fromJSON", () => {
       const original = new TaskDAG([
         makeNode({ id: "a", type: "research" }),
         makeNode({ id: "b", type: "code", dependencies: ["a"] }),
@@ -329,7 +329,7 @@ describe("TaskDAG", () => {
   });
 
   describe("hasCycle", () => {
-    it("should return false for a valid DAG", () => {
+    it("return false for a valid DAG", () => {
       const dag = new TaskDAG([
         makeNode({ id: "a" }),
         makeNode({ id: "b", dependencies: ["a"] }),
@@ -338,7 +338,7 @@ describe("TaskDAG", () => {
       expect(dag.hasCycle()).toBe(false);
     });
 
-    it("should return false for a diamond DAG", () => {
+    it("return false for a diamond DAG", () => {
       const dag = new TaskDAG([
         makeNode({ id: "a" }),
         makeNode({ id: "b", dependencies: ["a"] }),
@@ -348,13 +348,13 @@ describe("TaskDAG", () => {
       expect(dag.hasCycle()).toBe(false);
     });
 
-    it("should reject a self-loop at construction", () => {
+    it("reject a self-loop at construction", () => {
       expect(
         () => new TaskDAG([makeNode({ id: "a", dependencies: ["a"] })]),
       ).toThrow(/cycle/i);
     });
 
-    it("should reject a two-node cycle at construction", () => {
+    it("reject a two-node cycle at construction", () => {
       expect(
         () =>
           new TaskDAG([

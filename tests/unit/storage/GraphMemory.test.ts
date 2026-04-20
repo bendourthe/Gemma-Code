@@ -34,7 +34,8 @@ describe("GraphMemory", () => {
       expect(entity.name).toBe("MemoryStore");
       expect(entity.type).toBe("class");
       expect(entity.mentionCount).toBe(1);
-      expect(entity.id).toBeTruthy();
+      expect(typeof entity.id).toBe("string");
+      expect(entity.id.length).toBeGreaterThan(0);
     });
 
     it("increments mentionCount on duplicate (name, type)", () => {
@@ -65,8 +66,10 @@ describe("GraphMemory", () => {
       );
       expect(rel.type).toBe("imports");
       expect(rel.weight).toBe(0.5);
-      expect(rel.sourceId).toBeTruthy();
-      expect(rel.targetId).toBeTruthy();
+      expect(typeof rel.sourceId).toBe("string");
+      expect(rel.sourceId.length).toBeGreaterThan(0);
+      expect(typeof rel.targetId).toBe("string");
+      expect(rel.targetId.length).toBeGreaterThan(0);
     });
 
     it("increases weight on duplicate relation (capped at 1.0)", () => {

@@ -8,6 +8,7 @@ import type { SubAgentConfig, SubAgentResult } from "../../../src/agents/types.j
 import type { GpuTierProfile } from "../../../src/config/GpuTierConfig.js";
 import { GpuTier } from "../../../src/config/GpuTierConfig.js";
 import type { ExtensionToWebviewMessage } from "../../../src/panels/messages.js";
+import { mockOf } from "../../helpers/factories.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -90,11 +91,11 @@ describe("DAGExecutor", () => {
 
   beforeEach(() => {
     runFn = vi.fn().mockResolvedValue(makeSuccessResult());
-    mockManager = { run: runFn } as unknown as SubAgentManager;
+    mockManager = mockOf<SubAgentManager>({ run: runFn });
   });
 
   describe("sequential execution (TIER_1)", () => {
-    it("should execute a linear DAG node by node", async () => {
+    it("execute a linear DAG node by node", async () => {
       const dag = new TaskDAG([
         makeNode({ id: "a", type: "research" }),
         makeNode({ id: "b", type: "code", dependencies: ["a"] }),
@@ -124,7 +125,7 @@ describe("DAGExecutor", () => {
   });
 
   describe("parallel execution (TIER_3)", () => {
-    it("should execute independent nodes in parallel", async () => {
+    it("execute independent nodes in parallel", async () => {
       const executionOrder: string[] = [];
       let resolveA: (() => void) | undefined;
       let resolveB: (() => void) | undefined;
@@ -158,12 +159,11 @@ describe("DAGExecutor", () => {
 
       const executePromise = executor.execute(dag);
 
-      // Wait a tick for both a and b to start.
-      await new Promise((r) => setTimeout(r, 10));
-
-      // Both a and b should have started.
-      expect(executionOrder).toContain("start:a");
-      expect(executionOrder).toContain("start:b");
+      // Deterministically wait for both independent nodes to start.
+      await vi.waitFor(() => {
+        expect(executionOrder).toContain("start:a");
+        expect(executionOrder).toContain("start:b");
+      });
 
       // Resolve both.
       resolveA?.();
@@ -179,7 +179,7 @@ describe("DAGExecutor", () => {
   });
 
   describe("failure handling", () => {
-    it("should skip dependents when a node fails terminally", async () => {
+    it("skip dependents when a node fails terminally", async () => {
       runFn.mockImplementation(async (config: SubAgentConfig) => {
         const title = config.userRequest.split(":")[0]!;
         if (title === "a") return makeFailureResult();
@@ -207,7 +207,7 @@ describe("DAGExecutor", () => {
       expect(result.nodesCompleted).toBe(1); // d completed
     });
 
-    it("should retry a node when maxRetries > retryCount", async () => {
+    it("retry a node when maxRetries > retryCount", async () => {
       let callCount = 0;
       runFn.mockImplementation(async () => {
         callCount++;
@@ -235,7 +235,7 @@ describe("DAGExecutor", () => {
   });
 
   describe("progress messages", () => {
-    it("should post dagProgress messages after each node completes", async () => {
+    it("post dagProgress messages after each node completes", async () => {
       const dag = new TaskDAG([
         makeNode({ id: "a" }),
         makeNode({ id: "b" }),
@@ -258,7 +258,7 @@ describe("DAGExecutor", () => {
   });
 
   describe("deadlock detection", () => {
-    it("should terminate when no nodes are ready and none are running", async () => {
+    it("terminate when no nodes are ready and none are running", async () => {
       // Create a DAG where all nodes depend on a failed node.
       runFn.mockResolvedValue(makeFailureResult());
 
@@ -283,7 +283,7 @@ describe("DAGExecutor", () => {
   });
 
   describe("reflexion integration", () => {
-    it("should invoke reflexion engine on failure and use context on retry", async () => {
+    it("invoke reflexion engine on failure and use context on retry", async () => {
       let callCount = 0;
       runFn.mockImplementation(async (config: SubAgentConfig) => {
         callCount++;
@@ -326,7 +326,7 @@ describe("DAGExecutor", () => {
   });
 
   describe("node type mapping", () => {
-    it("should map task types to correct sub-agent types", async () => {
+    it("map task types to correct sub-agent types", async () => {
       const dag = new TaskDAG([
         makeNode({ id: "a", type: "research" }),
         makeNode({ id: "b", type: "code", dependencies: ["a"] }),

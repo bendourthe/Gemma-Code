@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type * as vscode from "vscode";
 import { SessionListPanel } from "../../../src/panels/SessionListPanel.js";
 import { ChatHistoryStore } from "../../../src/storage/ChatHistoryStore.js";
+import { mockOf } from "../../helpers/factories.js";
 
 function makeMockWebview() {
   const postMessage = vi.fn();
@@ -29,7 +30,7 @@ function makeMockWebview() {
 function makeMockWebviewView() {
   const { webview, postMessage, triggerMessage } = makeMockWebview();
   const view: Partial<vscode.WebviewView> = {
-    webview: webview as unknown as vscode.Webview,
+    webview: mockOf<vscode.Webview>(webview),
     onDidChangeVisibility: vi.fn(() => ({ dispose: vi.fn() })),
     onDidDispose: vi.fn(() => ({ dispose: vi.fn() })),
     show: vi.fn(),
@@ -40,8 +41,11 @@ function makeMockWebviewView() {
   return { view: view as vscode.WebviewView, postMessage, triggerMessage };
 }
 
-const extensionUri = { fsPath: "/workspace/ext", scheme: "file" } as unknown as vscode.Uri;
-const cancellationToken = { isCancellationRequested: false, onCancellationRequested: vi.fn() } as unknown as vscode.CancellationToken;
+const extensionUri = mockOf<vscode.Uri>({ fsPath: "/workspace/ext", scheme: "file" });
+const cancellationToken = mockOf<vscode.CancellationToken>({
+  isCancellationRequested: false,
+  onCancellationRequested: vi.fn(),
+});
 const resolveContext = {} as vscode.WebviewViewResolveContext;
 
 describe("SessionListPanel", () => {

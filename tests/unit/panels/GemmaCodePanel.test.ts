@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type * as vscode from "vscode";
+import { mockOf } from "../../helpers/factories.js";
 
 // ---------------------------------------------------------------------------
 // Module mocks (must be defined before dynamic imports)
@@ -68,7 +69,7 @@ function makeMockWebview() {
 function makeMockWebviewView() {
   const { webview, postMessage, triggerMessage } = makeMockWebview();
   const view: Partial<vscode.WebviewView> = {
-    webview: webview as unknown as vscode.Webview,
+    webview: mockOf<vscode.Webview>(webview),
     onDidChangeVisibility: vi.fn(() => ({ dispose: vi.fn() })),
     onDidDispose: vi.fn(() => ({ dispose: vi.fn() })),
     show: vi.fn(),
@@ -82,7 +83,7 @@ function makeMockWebviewView() {
 }
 
 function makeExtensionUri() {
-  return { fsPath: "/ext", toString: () => "/ext" } as unknown as vscode.Uri;
+  return mockOf<vscode.Uri>({ fsPath: "/ext", toString: () => "/ext" });
 }
 
 // ---------------------------------------------------------------------------
@@ -144,9 +145,13 @@ describe("GemmaCodePanel", () => {
       {} as vscode.CancellationToken
     );
 
-    // Give any async work a tick to settle
     triggerMessage({ type: "ready" });
-    await new Promise((r) => setTimeout(r, 0));
+    // Deterministically wait for the history message rather than racing a timer.
+    await vi.waitFor(() =>
+      expect(
+        postMessage.mock.calls.some((c) => c[0]?.type === "history"),
+      ).toBe(true),
+    );
 
     const historyCall = postMessage.mock.calls.find(
       (c) => c[0]?.type === "history"
@@ -168,8 +173,12 @@ describe("GemmaCodePanel", () => {
     );
 
     triggerMessage({ type: "sendMessage", text: "hello" });
-    // Wait for async pipeline to complete
-    await new Promise((r) => setTimeout(r, 20));
+    // Wait deterministically for the pipeline to emit messageComplete.
+    await vi.waitFor(() =>
+      expect(
+        postMessage.mock.calls.some((c) => c[0]?.type === "messageComplete"),
+      ).toBe(true),
+    );
 
     const completeCall = postMessage.mock.calls.find(
       (c) => c[0]?.type === "messageComplete"
@@ -188,7 +197,11 @@ describe("GemmaCodePanel", () => {
     );
 
     triggerMessage({ type: "clearChat" });
-    await new Promise((r) => setTimeout(r, 0));
+    await vi.waitFor(() =>
+      expect(
+        postMessage.mock.calls.some((c) => c[0]?.type === "history"),
+      ).toBe(true),
+    );
 
     const historyCalls = postMessage.mock.calls.filter(
       (c) => c[0]?.type === "history"

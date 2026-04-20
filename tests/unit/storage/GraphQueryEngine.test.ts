@@ -109,7 +109,8 @@ describe("GraphQueryEngine", () => {
       if (path) {
         expect(path.path.length).toBeGreaterThanOrEqual(2);
         expect(path.relations.length).toBeGreaterThanOrEqual(1);
-        expect(path.explanation).toBeTruthy();
+        expect(typeof path.explanation).toBe("string");
+        expect(path.explanation.length).toBeGreaterThan(0);
       }
     });
 

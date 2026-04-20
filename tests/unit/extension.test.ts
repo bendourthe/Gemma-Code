@@ -70,15 +70,47 @@ describe("activate()", () => {
     expect(registeredIds).toContain("gemma-code.ping");
   });
 
-  it("adds disposables to context.subscriptions", () => {
+  it("registers every public command advertised in package.json", () => {
     activate(context);
 
-    expect(context.subscriptions.length).toBeGreaterThan(0);
+    const registeredIds = (vscode.commands.registerCommand as ReturnType<typeof vi.fn>).mock.calls.map(
+      (call: unknown[]) => call[0] as string,
+    );
+
+    // These command ids are listed under contributes.commands in package.json
+    // and must be registered during activate() or the palette entries break.
+    for (const id of [
+      "gemma-code.ping",
+      "gemma-code.newChat",
+      "gemma-code.focusSidebar",
+      "gemma-code.openSession",
+    ]) {
+      expect(registeredIds).toContain(id);
+    }
+  });
+
+  it("registers the chat and trace dashboard webview view providers", () => {
+    activate(context);
+
+    const providerIds = (vscode.window.registerWebviewViewProvider as ReturnType<typeof vi.fn>).mock.calls.map(
+      (call: unknown[]) => call[0] as string,
+    );
+
+    expect(providerIds).toContain("gemma-code.chatView");
+    expect(providerIds).toContain("gemma-code.traceDashboard");
+  });
+
+  it("stores multiple disposables in context.subscriptions", () => {
+    activate(context);
+
+    // At minimum: ping command, webview providers (2), newChat, focusSidebar,
+    // openSession, traces dispose, poller dispose.
+    expect(context.subscriptions.length).toBeGreaterThanOrEqual(5);
   });
 });
 
 describe("deactivate()", () => {
-  it("does not throw", () => {
-    expect(() => deactivate()).not.toThrow();
+  it("resolves without throwing", async () => {
+    await expect(deactivate()).resolves.not.toThrow();
   });
 });

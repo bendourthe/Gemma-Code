@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { SkillLoader } from "../../../src/skills/SkillLoader.js";
 
 // ---------------------------------------------------------------------------
@@ -161,8 +161,15 @@ describe("SkillLoader", () => {
       "Hot prompt."
     );
 
-    // Wait briefly for the fs.watch callback to fire and reload.
-    await new Promise<void>((resolve) => setTimeout(resolve, 200));
+    // Poll deterministically for the fs.watch callback to reload the skill.
+    await vi.waitFor(
+      () => {
+        const s = loader.getSkill("hot-skill");
+        expect(s).toBeDefined();
+        expect(s?.name).toBe("hot-skill");
+      },
+      { timeout: 2000, interval: 20 },
+    );
 
     loader.stopWatching();
 

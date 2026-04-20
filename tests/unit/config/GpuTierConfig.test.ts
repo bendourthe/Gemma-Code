@@ -47,9 +47,9 @@ function makeSettings(overrides: Partial<GemmaCodeSettings> = {}): GemmaCodeSett
 describe("GpuTierConfig", () => {
   describe("GPU_TIER_PROFILES", () => {
     it("defines profiles for all three tiers", () => {
-      expect(GPU_TIER_PROFILES[GpuTier.TIER_1]).toBeDefined();
-      expect(GPU_TIER_PROFILES[GpuTier.TIER_2]).toBeDefined();
-      expect(GPU_TIER_PROFILES[GpuTier.TIER_3]).toBeDefined();
+      expect(GPU_TIER_PROFILES[GpuTier.TIER_1]?.tier).toBe(GpuTier.TIER_1);
+      expect(GPU_TIER_PROFILES[GpuTier.TIER_2]?.tier).toBe(GpuTier.TIER_2);
+      expect(GPU_TIER_PROFILES[GpuTier.TIER_3]?.tier).toBe(GpuTier.TIER_3);
     });
 
     it("tier 1 has more conservative limits than tier 3", () => {

@@ -1,49 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
 import { ReflexionEngine } from "../../../src/orchestration/ReflexionEngine.js";
 import type { Reflection } from "../../../src/orchestration/ReflexionEngine.js";
-import type { OllamaClient } from "../../../src/ollama/types.js";
-import type { MemoryStore } from "../../../src/storage/MemoryStore.js";
-import type { TaskNode } from "../../../src/orchestration/TaskDAG.js";
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function makeClient(responseText: string): OllamaClient {
-  async function* gen() {
-    yield { message: { content: responseText, role: "assistant" }, done: true };
-  }
-  return {
-    streamChat: vi.fn().mockReturnValue(gen()),
-    checkHealth: vi.fn(),
-    listModels: vi.fn(),
-  } as unknown as OllamaClient;
-}
-
-function makeNode(id: string): TaskNode {
-  return {
-    id,
-    title: `Task ${id}`,
-    description: `Description for task ${id}`,
-    type: "code",
-    dependencies: [],
-    status: "failed",
-    retryCount: 1,
-    maxRetries: 2,
-  };
-}
-
-function makeMemoryStore(): MemoryStore {
-  return {
-    save: vi.fn().mockResolvedValue({
-      id: "mem_1",
-      content: "test",
-      type: "error_resolution",
-      createdAt: Date.now(),
-    }),
-    search: vi.fn(),
-  } as unknown as MemoryStore;
-}
+import {
+  makeFailedTaskNode as makeNode,
+  makeMemoryStore,
+  makeOllamaClient as makeClient,
+} from "../../helpers/factories.js";
 
 const ollamaOptions = { num_ctx: 131072, temperature: 1.0 };
 
@@ -53,7 +15,7 @@ const ollamaOptions = { num_ctx: 131072, temperature: 1.0 };
 
 describe("ReflexionEngine", () => {
   describe("reflect", () => {
-    it("should generate a reflection from the LLM", async () => {
+    it("generate a reflection from the LLM", async () => {
       const analysis =
         "The file path was incorrect. Do not assume relative paths work from the project root. Ensure the full absolute path is used.";
       const client = makeClient(analysis);
@@ -77,7 +39,7 @@ describe("ReflexionEngine", () => {
       expect(client.streamChat).toHaveBeenCalledTimes(1);
     });
 
-    it("should extract constraints from the analysis", async () => {
+    it("extract constraints from the analysis", async () => {
       const analysis =
         "The function was not found because the module was renamed. Do not use the old module path. Avoid hardcoding file names. Instead, use the grep tool to find the current location. Make sure to verify the file exists before reading it.";
       const client = makeClient(analysis);
@@ -100,7 +62,7 @@ describe("ReflexionEngine", () => {
       ).toBe(true);
     });
 
-    it("should return empty constraints when no patterns match", async () => {
+    it("return empty constraints when no patterns match", async () => {
       const analysis = "The error occurred because of a network timeout. The server was unreachable.";
       const client = makeClient(analysis);
       const engine = new ReflexionEngine(
@@ -121,7 +83,7 @@ describe("ReflexionEngine", () => {
   });
 
   describe("storeReflection", () => {
-    it("should save to memory store as error_resolution type", async () => {
+    it("save to memory store as error_resolution type", async () => {
       const memoryStore = makeMemoryStore();
       const client = makeClient("analysis");
       const engine = new ReflexionEngine(
@@ -147,7 +109,7 @@ describe("ReflexionEngine", () => {
       );
     });
 
-    it("should not throw when memory store is null", async () => {
+    it("not throw when memory store is null", async () => {
       const client = makeClient("analysis");
       const engine = new ReflexionEngine(
         client,
@@ -168,7 +130,7 @@ describe("ReflexionEngine", () => {
   });
 
   describe("buildRetryContext", () => {
-    it("should format a single reflection", () => {
+    it("format a single reflection", () => {
       const client = makeClient("");
       const engine = new ReflexionEngine(
         client,
@@ -192,7 +154,7 @@ describe("ReflexionEngine", () => {
       expect(context).toContain("Do not use relative paths.");
     });
 
-    it("should format multiple reflections", () => {
+    it("format multiple reflections", () => {
       const client = makeClient("");
       const engine = new ReflexionEngine(
         client,
@@ -221,7 +183,7 @@ describe("ReflexionEngine", () => {
       expect(context).toContain("Attempt 2: Second error.");
     });
 
-    it("should return empty string for no reflections", () => {
+    it("return empty string for no reflections", () => {
       const client = makeClient("");
       const engine = new ReflexionEngine(
         client,

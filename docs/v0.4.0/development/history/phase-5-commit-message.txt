@@ -1,0 +1,57 @@
+feat(v0.4.0): complete testing pipeline (Phase 5)
+
+Close all 22 Phase 5 testing findings from docs/v0.3.0/review.md:
+20 implemented, 2 marked N/A (their targets no longer exist).
+1166/1168 Vitest cases pass at 89.07% lines / 82.78% branches,
+above the 80/75 gate.
+
+Highlights:
+- New tests/helpers/factories.ts with mockOf<T>() generic and 10
+  typed factory helpers. Cast sweep: 54 -> 10 legitimate survivors
+  (ChildProcess internals, private-field introspection, generic
+  type erasure).
+- All 10 setTimeout(r, N) test-sync primitives replaced with
+  Promise.resolve(), vi.waitFor, or fake timers.
+- Dropped the "should" prefix from all 85 it() descriptions in
+  orchestration tests.
+- 22 of 46 weak toBeDefined/toBeTruthy/toBeFalsy assertions
+  tightened to explicit type/content checks across 9 files;
+  25 legitimate null guards retained.
+- New real-AgentLoop e2e test (tests/integration/e2e/full-pipeline
+  .test.ts) instantiates AgentLoop with mocked OllamaClient and
+  covers single-turn, tool-call continuation, and cancellation.
+  Prior PromptBuilder/ToolRegistry composition tests moved to
+  tests/integration/prompt-composition.test.ts.
+- New tests/integration/ollama-client.test.ts (8 msw-backed cases)
+  covering checkHealth / listModels / streamChat branches.
+- New tests/integration/config-reload.test.ts (17 cases) covering
+  onSettingsChange wiring and every reactive key.
+- New tests/unit/panels/GemmaCodePanel.realSettings.test.ts exercises
+  the panel through the real settings.ts module.
+- GrepCodebaseTool gained 7 new cases (regex special chars, invalid
+  regex, ReDoS guard, max_results cap, include-glob forwarding,
+  binary-file tolerance, secret-path rejection).
+- GitSafetyNet integration block added to AgentLoop.test.ts
+  (4 branches); Orchestrator memory-save test added; trivial
+  toBeGreaterThanOrEqual(0) assertion tightened.
+- extension.test.ts expanded to verify all package.json commands
+  and both webview providers are registered.
+- memory-across-sessions afterEach retries unlinkSync on EBUSY/EPERM.
+- Deleted legacy tests/unit/installer/nsis-logic.test.ps1 (no NSIS
+  installer ships as of v0.3.0).
+- scripts/generate-golden-tasks.mjs emits
+  src/observability/goldenTasksYaml.generated.ts (cross-checks the
+  YAML corpus against the in-process smoke set); wired as prebuild
+  and pretest hooks. New GoldenTaskSuite.test.ts assertions verify
+  count, uniqueness, and id-to-filename mapping.
+- Added tests/golden/.gitignore for pytest/ruff caches.
+- Nightly installer-smoke-* jobs renamed installer-package-check-*
+  to reflect that they cover only the package layer (imports, GPU
+  detection); full smoke remains on the weekly workflow. New
+  tests/integration/installer/README.md documents the distinction.
+- docs/v0.4.0/test-pyramid.md records the current unit/integration/
+  e2e split.
+
+N/A:
+- 5.6 (src/backend/ removed in Phase 3; no /models endpoint).
+- 5.15 (src/ollama/client.ts has no retry/backoff to test).

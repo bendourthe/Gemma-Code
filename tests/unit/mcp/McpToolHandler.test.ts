@@ -2,11 +2,12 @@ import { describe, it, expect, vi } from "vitest";
 import { McpToolHandler } from "../../../src/mcp/McpToolHandler.js";
 import type { McpClient } from "../../../src/mcp/McpClient.js";
 import type { ToolResult } from "../../../src/tools/types.js";
+import { mockOf } from "../../helpers/factories.js";
 
 function makeClient(
   callTool: (name: string, args: Record<string, unknown>) => Promise<ToolResult>,
 ): McpClient {
-  return { callTool } as unknown as McpClient;
+  return mockOf<McpClient>({ callTool });
 }
 
 describe("McpToolHandler", () => {

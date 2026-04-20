@@ -4,6 +4,57 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-04-19] v0.4.0 Phase 5 -- Testing Pipeline Completeness
+
+### Summary
+
+Closed all 22 Phase 5 testing findings from [docs/v0.3.0/review.md](v0.3.0/review.md) (20 implemented, 2 marked N/A because their targets no longer exist). The test suite is now deterministic (sleep-based synchronization removed), has a shared factory module for mock construction, real integration coverage for the Ollama HTTP client via `msw`, a real-AgentLoop e2e pipeline test, a config-reload integration test, a build-script cross-check for the golden-task YAML corpus, and consistent `it(...)` naming across the suite. 1166 Vitest cases pass at **89.07% line / 82.78% branch** coverage.
+
+### Changes
+
+- **Shared test helpers (5.20, 5.4):** New [tests/helpers/factories.ts](../tests/helpers/factories.ts) consolidates `makeOllamaClient`, `makeMultiResponseOllamaClient`, `makeConversationManager`, `makeToolRegistry`, `makeSubAgentManager`, `makeOrchestratorConfig`, `makeMemoryStore`, `makeFailedTaskNode`, `makeTier1Profile`, `collectMessages`, plus a `mockOf<T>()` generic that encapsulates the suite's only explicit `as unknown as` cast. Callers migrated across 15 test files. Cast sweep: 54 -> 10 survivors, all legitimate (ChildProcess internals in terminal.test.ts, private-field introspection in MemorySubsystem / memory-recall.bench / tool-execution.bench, the factories.ts encapsulation, and a generic type erasure in GemmaCodePanel.realSettings.test.ts).
+- **Deterministic synchronization (5.1):** Replaced all 10 `setTimeout(r, N)` test-sync primitives with `Promise.resolve()` microtask flushes, `vi.waitFor` polls, or `vi.useFakeTimers()` + `vi.setSystemTime()` deterministic clock control. Only the deliberate Windows-unlink backoff and a production-like golden fixture retain `setTimeout`.
+- **GitSafetyNet integration (5.2):** Added a `describe("GitSafetyNet integration")` block to [tests/unit/tools/AgentLoop.test.ts](../tests/unit/tools/AgentLoop.test.ts) covering four branches: no safety net = no checkpoint emitted; safety net provided = `createCheckpoint` called once; no modified files = `commitAgentChanges` not called; `createCheckpoint` returns null = loop still completes.
+- **Orchestrator memory-save test (5.3):** New test in [tests/unit/orchestration/Orchestrator.replan.test.ts](../tests/unit/orchestration/Orchestrator.replan.test.ts) verifies that on terminal failure `MemoryStore.save` is called with `type: "error_resolution"`.
+- **Trivial assertion tightened (5.5):** Orchestrator.test.ts "plan, execute, and return results" asserts `result.totalTimeMs > 0` instead of `>= 0`.
+- **Real AgentLoop e2e (5.7):** Rewrote [tests/integration/e2e/full-pipeline.test.ts](../tests/integration/e2e/full-pipeline.test.ts) to instantiate a real `AgentLoop` with a mocked `OllamaClient`, a real `ConversationManager`, and a real `ToolRegistry`. Three cases: no-tool single turn, tool-call continuation, mid-stream cancel. The prior PromptBuilder + ToolRegistry composition checks moved to the new [tests/integration/prompt-composition.test.ts](../tests/integration/prompt-composition.test.ts).
+- **Mocked Ollama integration (5.8):** [tests/integration/ollama-client.test.ts](../tests/integration/ollama-client.test.ts) uses `msw@^2.13.4` to cover checkHealth (200 / 500 / unreachable), listModels (success / error), and streamChat (multi-chunk ndjson / 404 model-not-found / 500 server error).
+- **Golden-task cross-check (5.9):** New [scripts/generate-golden-tasks.mjs](../scripts/generate-golden-tasks.mjs) reads all YAML files under [tests/golden/tasks/](../tests/golden/tasks/) and emits [src/observability/goldenTasksYaml.generated.ts](../src/observability/goldenTasksYaml.generated.ts) containing `YAML_GOLDEN_TASK_COUNT` and `YAML_GOLDEN_TASK_IDS`. Wired as a `prebuild` and `pretest` hook in [package.json](../package.json). [tests/unit/observability/GoldenTaskSuite.test.ts](../tests/unit/observability/GoldenTaskSuite.test.ts) now cross-checks the YAML count on disk vs the generated constant and asserts each id maps to a `<id>.yaml` file. The in-process 5-task smoke array is preserved and documented as distinct from the YAML harness.
+- **Weak-assertion sweep (5.10):** 22 of the 46 flagged `toBeDefined` / `toBeTruthy` / `toBeFalsy` assertions tightened to explicit type/content checks across 9 files (ConversationManager, Tracer, TraceStore, GraphMemory, GraphQueryEngine, MemoryConsolidator, OtlpExporter, McpManager, OutputRedirector, LazyToolLoader, Gemma4ToolFormat, GpuTierConfig, StreamingPipeline). The remaining 25 occurrences are pre-specific-assertion null guards that the plan explicitly allows.
+- **Extension activation coverage (5.11):** Expanded [tests/unit/extension.test.ts](../tests/unit/extension.test.ts) from 3 to 5 cases. Verifies every `package.json` command id is registered during `activate()` and that both webview providers are wired.
+- **GrepCodebaseTool breadth (5.12):** Added 7 new cases to [tests/unit/tools/handlers/filesystem.test.ts](../tests/unit/tools/handlers/filesystem.test.ts): regex special chars, invalid regex, ReDoS short-circuit, `max_results` cap, include-glob forwarding, binary-file tolerance, secret-path rejection without `allow_secrets`.
+- **GemmaCodePanel real-settings path (5.13):** New [tests/unit/panels/GemmaCodePanel.realSettings.test.ts](../tests/unit/panels/GemmaCodePanel.realSettings.test.ts) exercises the panel through the REAL `settings.ts` module (no `vi.mock("../config/settings.js")`) by configuring the global `mockGetConfiguration` stub. Three cases: custom `modelName` propagates to webview HTML, declared defaults apply when the key is absent, and `getConfiguration("gemma-code")` is called correctly.
+- **Windows unlink retry (5.14):** `afterEach` in [tests/integration/e2e/memory-across-sessions.test.ts](../tests/integration/e2e/memory-across-sessions.test.ts) retries `unlinkSync` up to 3x with 50ms backoff on `EBUSY`/`EPERM`.
+- **Test description rename (5.16):** Dropped the `should ` prefix from all 85 `it("should ...")` calls across 7 orchestration test files (contracts, DAGExecutor, Orchestrator, Orchestrator.replan, PlannerAgent, ReflexionEngine, TaskDAG). Consistent naming; closer to Vitest community style.
+- **Legacy NSIS retirement (5.17):** Deleted `tests/unit/installer/nsis-logic.test.ps1` and the now-empty parent directory.
+- **Golden gitignore (5.18):** Added [tests/golden/.gitignore](../tests/golden/.gitignore).
+- **Installer smoke disambiguation (5.19):** Renamed the nightly `installer-smoke-*` jobs in [.github/workflows/nightly.yml](../.github/workflows/nightly.yml) to `installer-package-check-*` since those scripts only verify the PyQt installer package (imports, GPU detection) rather than running a full end-to-end smoke. Full smoke remains under the weekly [.github/workflows/installer-smoke.yml](../.github/workflows/installer-smoke.yml) using the scripts in [tests/smoke/](../tests/smoke/). New [tests/integration/installer/README.md](../tests/integration/installer/README.md) documents the distinction so future contributors can pick the right surface.
+- **Config-reload integration test (5.21):** [tests/integration/config-reload.test.ts](../tests/integration/config-reload.test.ts) covers `onSettingsChange` registration, matching section dispatch, non-matching section skip, per-change re-read of configuration, multiple subscribers, and every reactive key advertised in `settings.ts`. 17 cases total.
+- **Test-pyramid documented (5.22):** [docs/v0.4.0/test-pyramid.md](v0.4.0/test-pyramid.md) records the unit/integration/e2e split and the steps remaining to move it closer to 70/20/10.
+
+### Deviations (closed as N/A)
+
+- **5.6 N/A.** `src/backend/` was removed in Phase 3; no `/models` endpoint exists. Finding #42 closed as obsolete.
+- **5.15 N/A.** `src/ollama/client.ts` does not implement retry or backoff. There is no retry state machine to cover with fake-timer tests. Finding closed as obsolete.
+
+### Test status
+
+- `npm run test`: 1166 passed, 2 skipped (live Ollama), 0 failed across 89 test files (up from 1139 / 87 at the start of Phase 5).
+- Coverage: **89.07% lines / 82.78% branches** -- above the 80/75 gate.
+- `git grep "it(\"should\\|it('should" tests/` returns nothing.
+- `git grep "setTimeout(r" tests/` returns only the Windows-unlink backoff and a golden-task fixture.
+- `git grep "as unknown as" tests/` returns 10 legitimate survivors (documented above).
+
+### Files touched
+
+New: `tests/helpers/factories.ts`, `tests/integration/ollama-client.test.ts`, `tests/integration/config-reload.test.ts`, `tests/integration/prompt-composition.test.ts`, `tests/unit/panels/GemmaCodePanel.realSettings.test.ts`, `tests/golden/.gitignore`, `scripts/generate-golden-tasks.mjs`, `src/observability/goldenTasksYaml.generated.ts`, `tests/integration/installer/README.md`, `docs/v0.4.0/test-pyramid.md`, `docs/v0.4.0/development/history/2026-04_phase-5-testing-pipeline.md`.
+
+Modified: 25+ test files across unit/ and integration/, `package.json` (msw devDep + prebuild/pretest hooks), `.github/workflows/nightly.yml` (job renames), `docs/DEVLOG.md`, `docs/todos.md`.
+
+Deleted: `tests/unit/installer/nsis-logic.test.ps1`.
+
+---
+
 ## [2026-04-19] v0.4.0 Phase 4 -- Performance Optimization
 
 ### Summary

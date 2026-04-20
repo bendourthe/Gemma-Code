@@ -65,7 +65,8 @@ describe("TraceStore", () => {
         trace.rootSpanId,
       );
 
-      expect(span.spanId).toBeTruthy();
+      expect(typeof span.spanId).toBe("string");
+      expect(span.spanId.length).toBeGreaterThan(0);
       expect(span.traceId).toBe(trace.traceId);
       expect(span.parentSpanId).toBe(trace.rootSpanId);
       expect(span.name).toBe("iteration_0");

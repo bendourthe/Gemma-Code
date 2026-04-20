@@ -194,7 +194,8 @@ describe("TailOutputTool", () => {
   it("returns error for nonexistent file", async () => {
     const result = await tool.execute({ path: "/nonexistent/file.txt" });
     expect(result.success).toBe(false);
-    expect(result.error).toBeDefined();
+    expect(typeof result.error).toBe("string");
+    expect(result.error!.length).toBeGreaterThan(0);
   });
 });
 

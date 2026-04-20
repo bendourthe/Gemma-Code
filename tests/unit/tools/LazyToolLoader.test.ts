@@ -51,9 +51,10 @@ describe("LazyToolLoader", () => {
 
     const schema = JSON.parse(result.output);
     expect(schema.name).toBe("read_file");
-    expect(schema.description).toBeDefined();
-    expect(schema.parameters).toBeDefined();
-    expect(schema.parameters.path).toBeDefined();
+    expect(typeof schema.description).toBe("string");
+    expect(schema.description.length).toBeGreaterThan(0);
+    expect(schema.parameters).toEqual(expect.any(Object));
+    expect(schema.parameters.path).toEqual(expect.any(Object));
     expect(schema.parameters.path.required).toBe(true);
   });
 
@@ -63,9 +64,9 @@ describe("LazyToolLoader", () => {
 
     const schema = JSON.parse(result.output);
     expect(schema.parameters.pattern.required).toBe(true);
-    expect(schema.parameters.glob).toBeDefined();
+    expect(schema.parameters.glob).toEqual(expect.any(Object));
     expect(schema.parameters.glob.required).toBe(false);
-    expect(schema.parameters.max_results).toBeDefined();
+    expect(schema.parameters.max_results).toEqual(expect.any(Object));
   });
 
   it("returns error for unknown tool name", async () => {

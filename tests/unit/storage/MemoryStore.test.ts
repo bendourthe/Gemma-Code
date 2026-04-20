@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { MemoryStore } from "../../../src/storage/MemoryStore.js";
 import type { EmbeddingClient } from "../../../src/storage/EmbeddingClient.js";
 import type { Message } from "../../../src/chat/types.js";
+import { mockOf } from "../../helpers/factories.js";
 
 function makeMessage(role: "user" | "assistant" | "system", content: string): Message {
   return {
@@ -14,7 +15,7 @@ function makeMessage(role: "user" | "assistant" | "system", content: string): Me
 
 function makeMockEmbedder(embeddings?: number[][]): EmbeddingClient {
   let callIndex = 0;
-  return {
+  return mockOf<EmbeddingClient>({
     embed: vi.fn(async (_text: string) => {
       if (!embeddings) return null;
       return embeddings[callIndex++] ?? null;
@@ -24,7 +25,7 @@ function makeMockEmbedder(embeddings?: number[][]): EmbeddingClient {
       return texts.map(() => embeddings[callIndex++] ?? null);
     }),
     isAvailable: vi.fn(async () => !!embeddings),
-  } as unknown as EmbeddingClient;
+  });
 }
 
 describe("MemoryStore", () => {

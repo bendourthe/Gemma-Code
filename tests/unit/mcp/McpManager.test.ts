@@ -98,7 +98,8 @@ describe("McpManager", () => {
     expect(metadata[0]!.name).toBe("mcp:test-server/search");
     expect(metadata[0]!.source).toBe("mcp");
     expect(metadata[0]!.priority).toBe(100);
-    expect(metadata[0]!.parameters.query).toBeDefined();
+    expect(metadata[0]!.parameters.query).toEqual(expect.any(Object));
+    expect(metadata[0]!.parameters.query.type).toBe("string");
   });
 
   it("disconnectServer() removes the client", async () => {

@@ -4,80 +4,16 @@ import { BudgetMiddleware } from "../../../src/tools/BudgetMiddleware.js";
 import type { ConversationManager } from "../../../src/chat/ConversationManager.js";
 import type { ToolRegistry } from "../../../src/tools/ToolRegistry.js";
 import type { OllamaClient } from "../../../src/ollama/types.js";
-import type { ExtensionToWebviewMessage } from "../../../src/panels/messages.js";
 import type { ToolCall, ToolResult } from "../../../src/tools/types.js";
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function makeMessage(id: string, role: "user" | "assistant" | "system", content: string) {
-  return { id, role, content, timestamp: Date.now() };
-}
-
-function makeManager(): ConversationManager {
-  const messages = [makeMessage("sys", "system", "You are Gemma Code.")];
-  let counter = 0;
-
-  const addMsg = (role: "user" | "assistant" | "system", content: string) => {
-    const msg = makeMessage(String(++counter), role, content);
-    messages.push(msg);
-    return msg;
-  };
-
-  return {
-    getHistory: vi.fn(() => [...messages]),
-    addUserMessage: vi.fn((c: string) => addMsg("user", c)),
-    addAssistantMessage: vi.fn((c: string) => addMsg("assistant", c)),
-    addSystemMessage: vi.fn((c: string) => addMsg("system", c)),
-  } as unknown as ConversationManager;
-}
-
-function makeRegistry(result?: ToolResult): ToolRegistry {
-  const defaultResult: ToolResult = {
-    id: "call_001",
-    success: true,
-    output: JSON.stringify({ content: "file content", lines: 3 }),
-  };
-  return {
-    execute: vi.fn<[ToolCall], Promise<ToolResult>>().mockResolvedValue(result ?? defaultResult),
-    register: vi.fn(),
-    has: vi.fn(() => true),
-  } as unknown as ToolRegistry;
-}
-
-// Build a mock OllamaClient whose streamChat yields the given text as a single chunk.
-function makeClient(responseText: string): OllamaClient {
-  async function* gen() {
-    yield { message: { content: responseText, role: "assistant" }, done: true };
-  }
-  return {
-    streamChat: vi.fn().mockReturnValue(gen()),
-    ping: vi.fn(),
-  } as unknown as OllamaClient;
-}
-
-// Build a client that yields multiple responses in sequence (one per call).
-function makeMultiClient(responses: string[]): OllamaClient {
-  let callCount = 0;
-  const streamChat = vi.fn(() => {
-    const text = responses[callCount++] ?? "";
-    async function* gen() {
-      yield { message: { content: text, role: "assistant" }, done: true };
-    }
-    return gen();
-  });
-  return { streamChat, ping: vi.fn() } as unknown as OllamaClient;
-}
-
-function collectMessages(loop: AgentLoop): {
-  posted: ExtensionToWebviewMessage[];
-  postMessage: (m: ExtensionToWebviewMessage) => void;
-} {
-  const posted: ExtensionToWebviewMessage[] = [];
-  const postMessage = (m: ExtensionToWebviewMessage) => posted.push(m);
-  return { posted, postMessage };
-}
+import {
+  collectMessages,
+  makeConversationManager as makeManager,
+  makeMessage,
+  makeMultiResponseOllamaClient as makeMultiClient,
+  makeOllamaClient as makeClient,
+  makeToolRegistry as makeRegistry,
+  mockOf,
+} from "../../helpers/factories.js";
 
 const toolCallText = '<|tool_call>call:read_file{path:<|"|>src/extension.ts<|"|>}<tool_call|>';
 
@@ -97,7 +33,7 @@ describe("AgentLoop", () => {
   it("single turn with no tool call: posts tokens and messageComplete", async () => {
     const client = makeClient("Here is my answer.");
     const loop = new AgentLoop(client, manager, registry, "gemma3:27b");
-    const { posted, postMessage } = collectMessages(loop);
+    const { posted, postMessage } = collectMessages();
 
     await loop.run(postMessage);
 
@@ -112,7 +48,7 @@ describe("AgentLoop", () => {
       "Done reading.",    // second turn: model gives final answer
     ]);
     const loop = new AgentLoop(client, manager, registry, "gemma3:27b");
-    const { posted, postMessage } = collectMessages(loop);
+    const { posted, postMessage } = collectMessages();
 
     await loop.run(postMessage);
 
@@ -132,7 +68,7 @@ describe("AgentLoop", () => {
       "All done.",    // turn 3 — final answer
     ]);
     const loop = new AgentLoop(client, manager, registry, "gemma3:27b");
-    const { posted, postMessage } = collectMessages(loop);
+    const { posted, postMessage } = collectMessages();
 
     await loop.run(postMessage);
 
@@ -145,7 +81,7 @@ describe("AgentLoop", () => {
     // Every response contains a tool call → loop never terminates naturally
     const client = makeMultiClient(Array(5).fill(toolCallText));
     const loop = new AgentLoop(client, manager, registry, "gemma3:27b", 3 /* maxIterations */);
-    const { posted, postMessage } = collectMessages(loop);
+    const { posted, postMessage } = collectMessages();
 
     await loop.run(postMessage);
 
@@ -165,10 +101,10 @@ describe("AgentLoop", () => {
       }
       return gen();
     });
-    const client = { streamChat, ping: vi.fn() } as unknown as OllamaClient;
+    const client = mockOf<OllamaClient>({ streamChat });
     const loop = new AgentLoop(client, manager, registry, "gemma3:27b");
 
-    const { postMessage } = collectMessages(loop);
+    const { postMessage } = collectMessages();
 
     // Cancel immediately — the loop should exit after at most one iteration
     loop.cancel();
@@ -179,7 +115,7 @@ describe("AgentLoop", () => {
   });
 
   it("registry error is injected as a failed tool result and loop continues", async () => {
-    const failingRegistry: ToolRegistry = {
+    const failingRegistry = mockOf<ToolRegistry>({
       execute: vi.fn<[ToolCall], Promise<ToolResult>>().mockResolvedValueOnce({
         id: "call_001",
         success: false,
@@ -188,11 +124,11 @@ describe("AgentLoop", () => {
       }),
       register: vi.fn(),
       has: vi.fn(() => true),
-    } as unknown as ToolRegistry;
+    });
 
     const client = makeMultiClient([toolCallText, "Recovered."]);
     const loop = new AgentLoop(client, manager, failingRegistry, "gemma3:27b");
-    const { posted, postMessage } = collectMessages(loop);
+    const { posted, postMessage } = collectMessages();
 
     await loop.run(postMessage);
 
@@ -207,7 +143,7 @@ describe("AgentLoop", () => {
   it("toolUse and toolResult messages are posted before the next streaming turn", async () => {
     const client = makeMultiClient([toolCallText, "Final."]);
     const loop = new AgentLoop(client, manager, registry, "gemma3:27b");
-    const { posted, postMessage } = collectMessages(loop);
+    const { posted, postMessage } = collectMessages();
 
     await loop.run(postMessage);
 
@@ -227,7 +163,7 @@ describe("AgentLoop", () => {
     it("tracks modified files after write_file calls", async () => {
       const client = makeMultiClient([writeCallText, "Done."]);
       const loop = new AgentLoop(client, manager, registry, "gemma3:27b");
-      const { postMessage } = collectMessages(loop);
+      const { postMessage } = collectMessages();
 
       await loop.run(postMessage);
 
@@ -237,7 +173,7 @@ describe("AgentLoop", () => {
     it("tracks modified files after edit_file calls", async () => {
       const client = makeMultiClient([editCallText, "Done."]);
       const loop = new AgentLoop(client, manager, registry, "gemma3:27b");
-      const { postMessage } = collectMessages(loop);
+      const { postMessage } = collectMessages();
 
       await loop.run(postMessage);
 
@@ -247,7 +183,7 @@ describe("AgentLoop", () => {
     it("tracks recent tool results with a rolling window", async () => {
       const client = makeMultiClient([toolCallText, "Done."]);
       const loop = new AgentLoop(client, manager, registry, "gemma3:27b");
-      const { postMessage } = collectMessages(loop);
+      const { postMessage } = collectMessages();
 
       await loop.run(postMessage);
 
@@ -260,7 +196,7 @@ describe("AgentLoop", () => {
       // Two write calls to the same file
       const client = makeMultiClient([writeCallText, writeCallText, "Done."]);
       const loop = new AgentLoop(client, manager, registry, "gemma3:27b");
-      const { postMessage } = collectMessages(loop);
+      const { postMessage } = collectMessages();
 
       await loop.run(postMessage);
 
@@ -281,7 +217,7 @@ describe("AgentLoop", () => {
         verificationThreshold: 3,
         verificationEnabled: false,
       });
-      const { postMessage } = collectMessages(loop);
+      const { postMessage } = collectMessages();
 
       await loop.run(postMessage);
 
@@ -294,7 +230,7 @@ describe("AgentLoop", () => {
         verificationThreshold: 3,
         verificationEnabled: true,
       });
-      const { postMessage } = collectMessages(loop);
+      const { postMessage } = collectMessages();
 
       // Should not throw even without subAgentManager
       await loop.run(postMessage);
@@ -317,7 +253,7 @@ describe("AgentLoop", () => {
         verificationThreshold: 3,
         verificationEnabled: true,
       });
-      const { postMessage } = collectMessages(loop);
+      const { postMessage } = collectMessages();
 
       await loop.run(postMessage);
 
@@ -341,7 +277,7 @@ describe("AgentLoop", () => {
       const loop = new AgentLoop(client, manager, registry, "gemma3:27b", 20, undefined, undefined, undefined, {
         budgetMiddleware: middleware,
       });
-      const { posted, postMessage } = collectMessages(loop);
+      const { posted, postMessage } = collectMessages();
 
       await loop.run(postMessage);
 
@@ -354,7 +290,7 @@ describe("AgentLoop", () => {
     it("does not affect behavior when no middleware is provided", async () => {
       const client = makeClient("Hello.");
       const loop = new AgentLoop(client, manager, registry, "gemma3:27b");
-      const { posted, postMessage } = collectMessages(loop);
+      const { posted, postMessage } = collectMessages();
 
       await loop.run(postMessage);
 
@@ -373,7 +309,7 @@ describe("AgentLoop", () => {
       const loop = new AgentLoop(client, manager, registry, "gemma3:27b");
       loop.setBudgetMiddleware(middleware);
 
-      const { posted, postMessage } = collectMessages(loop);
+      const { posted, postMessage } = collectMessages();
       await loop.run(postMessage);
 
       const errorMsg = posted.find((m) => m.type === "error");
@@ -385,7 +321,7 @@ describe("AgentLoop", () => {
   describe("spawnSubAgent", () => {
     it("returns null when no subAgentManager is provided", async () => {
       const loop = new AgentLoop(makeClient("x"), manager, registry, "gemma3:27b");
-      const { postMessage } = collectMessages(loop);
+      const { postMessage } = collectMessages();
 
       const result = await loop.spawnSubAgent(
         { type: "research", maxIterations: 5, userRequest: "test", modifiedFiles: [], recentToolResults: [] },
@@ -407,7 +343,7 @@ describe("AgentLoop", () => {
       const loop = new AgentLoop(makeClient("x"), manager, registry, "gemma3:27b", 20, undefined, undefined, undefined, {
         subAgentManager: subAgentManager as any,
       });
-      const { postMessage } = collectMessages(loop);
+      const { postMessage } = collectMessages();
 
       const config = { type: "research" as const, maxIterations: 5, userRequest: "test", modifiedFiles: [], recentToolResults: [] };
       const result = await loop.spawnSubAgent(config, postMessage);
@@ -445,7 +381,7 @@ describe("AgentLoop", () => {
         undefined,
         { budgetMiddleware: middleware },
       );
-      const { posted, postMessage } = collectMessages(loop);
+      const { posted, postMessage } = collectMessages();
 
       await loop.run(postMessage);
 
@@ -480,7 +416,7 @@ describe("AgentLoop", () => {
         undefined,
         { budgetMiddleware: middleware },
       );
-      const { posted, postMessage } = collectMessages(loop);
+      const { posted, postMessage } = collectMessages();
 
       await loop.run(postMessage);
 
@@ -488,6 +424,107 @@ describe("AgentLoop", () => {
         (m) => m.type === "error" && /Turn token limit/i.test((m as { text: string }).text),
       );
       expect(truncErr).toBeDefined();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // GitSafetyNet integration (5.2)
+  // -------------------------------------------------------------------------
+
+  describe("GitSafetyNet integration", () => {
+    type GitSafetyNetLike = import("../../../src/safety/GitSafetyNet.js").GitSafetyNet;
+
+    function makeSafetyNet(overrides: Partial<GitSafetyNetLike> = {}): GitSafetyNetLike {
+      return mockOf<GitSafetyNetLike>({
+        isGitRepo: vi.fn(async () => true),
+        createCheckpoint: vi.fn(async () => ({
+          headSha: "abcdef1234",
+          stashCreated: false,
+          timestamp: Date.now(),
+        })),
+        commitAgentChanges: vi.fn(async () => "commit_sha"),
+        rollback: vi.fn(async () => true),
+        ...overrides,
+      });
+    }
+
+    it("does not call checkpoint when gitSafetyNet is not provided", async () => {
+      const client = makeClient("Done.");
+      const loop = new AgentLoop(client, manager, registry, "gemma3:27b");
+      const { posted, postMessage } = collectMessages();
+
+      await loop.run(postMessage);
+
+      expect(posted.some((m) => m.type === "gitCheckpoint")).toBe(false);
+    });
+
+    it("creates a checkpoint at the start of a run when provided", async () => {
+      const gitSafetyNet = makeSafetyNet();
+      const client = makeClient("Done.");
+      const loop = new AgentLoop(
+        client,
+        manager,
+        registry,
+        "gemma3:27b",
+        5,
+        undefined,
+        undefined,
+        undefined,
+        { gitSafetyNet },
+      );
+      const { posted, postMessage } = collectMessages();
+
+      await loop.run(postMessage);
+
+      expect(gitSafetyNet.createCheckpoint).toHaveBeenCalledTimes(1);
+      expect(posted.some((m) => m.type === "gitCheckpoint")).toBe(true);
+    });
+
+    it("skips commitAgentChanges when no files are modified", async () => {
+      const gitSafetyNet = makeSafetyNet();
+      const client = makeClient("No edits here.");
+      const loop = new AgentLoop(
+        client,
+        manager,
+        registry,
+        "gemma3:27b",
+        3,
+        undefined,
+        undefined,
+        undefined,
+        { gitSafetyNet },
+      );
+      const { postMessage } = collectMessages();
+
+      await loop.run(postMessage);
+
+      expect(gitSafetyNet.commitAgentChanges).not.toHaveBeenCalled();
+    });
+
+    it("keeps running even when createCheckpoint returns null", async () => {
+      const gitSafetyNet = makeSafetyNet({
+        createCheckpoint: vi.fn(async () => null),
+      });
+      const client = makeClient("Done.");
+      const loop = new AgentLoop(
+        client,
+        manager,
+        registry,
+        "gemma3:27b",
+        3,
+        undefined,
+        undefined,
+        undefined,
+        { gitSafetyNet },
+      );
+      const { posted, postMessage } = collectMessages();
+
+      await loop.run(postMessage);
+
+      expect(gitSafetyNet.createCheckpoint).toHaveBeenCalledTimes(1);
+      expect(posted.some((m) => m.type === "messageComplete")).toBe(true);
+      // No checkpoint posted because createCheckpoint returned null.
+      expect(posted.some((m) => m.type === "gitCheckpoint")).toBe(false);
     });
   });
 });

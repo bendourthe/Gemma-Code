@@ -10,6 +10,7 @@ import {
 } from "../../../../src/tools/handlers/filesystem.js";
 import { ConfirmationGate } from "../../../../src/tools/ConfirmationGate.js";
 import { mockFs, mockFindTextInFiles, MOCK_WORKSPACE_ROOT } from "../../../setup.js";
+import { mockOf } from "../../../helpers/factories.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -291,12 +292,18 @@ describe("ListDirectoryTool", () => {
 // ---------------------------------------------------------------------------
 
 describe("GrepCodebaseTool", () => {
+  async function mockFindFiles(uris: string[]): Promise<void> {
+    const { findFiles } = await import("vscode").then((m) => m.workspace);
+    vi.mocked(findFiles).mockResolvedValueOnce(
+      uris.map((p) =>
+        mockOf<import("vscode").Uri>({ fsPath: p, toString: () => p }),
+      ),
+    );
+  }
+
   it("falls back to findFiles+readFile and returns matches", async () => {
     // ripgrep is not available in tests, so spawn will fail → falls through to findFiles
-    const { findFiles } = await import("vscode").then((m) => m.workspace);
-    vi.mocked(findFiles).mockResolvedValueOnce([
-      { fsPath: `${ROOT}/src/extension.ts`, toString: () => "" } as unknown as import("vscode").Uri,
-    ]);
+    await mockFindFiles([`${ROOT}/src/extension.ts`]);
     // The file contains "activate" on line 5
     mockFs.readFile.mockResolvedValueOnce(
       new TextEncoder().encode("line1\nline2\nline3\nline4\nactivate(context);\n")
@@ -307,7 +314,100 @@ describe("GrepCodebaseTool", () => {
 
     expect(result.success).toBe(true);
     const parsed = JSON.parse(result.output);
-    expect(parsed.count).toBeGreaterThan(0);
+    expect(parsed.count).toBe(1);
     expect(parsed.matches[0].line).toBe(5);
+    expect(parsed.matches[0].content).toBe("activate(context);");
+  });
+
+  it("handles regex special characters in the pattern", async () => {
+    await mockFindFiles([`${ROOT}/src/re.ts`]);
+    mockFs.readFile.mockResolvedValueOnce(
+      new TextEncoder().encode("foo(123)\nbar(456)\n"),
+    );
+
+    const tool = new GrepCodebaseTool();
+    const result = await tool.execute(params({ pattern: "\\(\\d+\\)" }));
+
+    expect(result.success).toBe(true);
+    const parsed = JSON.parse(result.output);
+    expect(parsed.count).toBe(2);
+  });
+
+  it("rejects invalid regex patterns with a clear error", async () => {
+    const tool = new GrepCodebaseTool();
+    const result = await tool.execute(params({ pattern: "(unterminated" }));
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/invalid regex/i);
+  });
+
+  it("rejects ReDoS-risky patterns before any filesystem work", async () => {
+    const tool = new GrepCodebaseTool();
+    const result = await tool.execute(params({ pattern: "(a+)+b" }));
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/catastrophic/i);
+    // The tool must short-circuit before searching files.
+    expect(mockFs.readFile).not.toHaveBeenCalled();
+  });
+
+  it("respects max_results by truncating the match list", async () => {
+    await mockFindFiles([`${ROOT}/src/many.ts`]);
+    const content = Array.from({ length: 20 }, (_, i) => `hit ${i}`).join("\n");
+    mockFs.readFile.mockResolvedValueOnce(new TextEncoder().encode(content));
+
+    const tool = new GrepCodebaseTool();
+    const result = await tool.execute(params({ pattern: "hit", max_results: 3 }));
+
+    expect(result.success).toBe(true);
+    const parsed = JSON.parse(result.output);
+    expect(parsed.count).toBe(3);
+    expect(parsed.matches).toHaveLength(3);
+  });
+
+  it("honors the include glob via vscode.workspace.findFiles", async () => {
+    const { findFiles } = await import("vscode").then((m) => m.workspace);
+    await mockFindFiles([`${ROOT}/src/inc.ts`]);
+    mockFs.readFile.mockResolvedValueOnce(
+      new TextEncoder().encode("match here\n"),
+    );
+
+    const tool = new GrepCodebaseTool();
+    await tool.execute(params({ pattern: "match", glob: "**/*.ts" }));
+
+    expect(vi.mocked(findFiles)).toHaveBeenCalledWith(
+      "**/*.ts",
+      expect.any(String),
+      expect.any(Number),
+    );
+  });
+
+  it("skips binary files without throwing", async () => {
+    // Two files: one ascii, one binary-like (null bytes). The tool reads both
+    // but only the ascii file should produce matches without errors.
+    await mockFindFiles([`${ROOT}/src/a.ts`, `${ROOT}/src/b.bin`]);
+    mockFs.readFile.mockResolvedValueOnce(
+      new TextEncoder().encode("clean line\n"),
+    );
+    const binary = new Uint8Array([0x00, 0xff, 0x01, 0x02, 0x03]);
+    mockFs.readFile.mockResolvedValueOnce(binary);
+
+    const tool = new GrepCodebaseTool();
+    const result = await tool.execute(params({ pattern: "clean" }));
+
+    expect(result.success).toBe(true);
+    const parsed = JSON.parse(result.output);
+    expect(parsed.count).toBe(1);
+    expect(parsed.matches[0].file).toContain("a.ts");
+  });
+
+  it("rejects unsafe glob targeting a secret path without allow_secrets", async () => {
+    const tool = new GrepCodebaseTool();
+    const result = await tool.execute(
+      params({ pattern: "password", glob: "**/.env" }),
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/secret/i);
   });
 });

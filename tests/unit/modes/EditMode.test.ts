@@ -3,6 +3,7 @@ import { EditFileTool } from "../../../src/tools/handlers/filesystem.js";
 import type { ConfirmationGate } from "../../../src/tools/ConfirmationGate.js";
 import type { EditMode } from "../../../src/tools/types.js";
 import { mockFs } from "../../setup.js";
+import { mockOf } from "../../helpers/factories.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -15,11 +16,11 @@ function textToUint8(text: string): Uint8Array {
 }
 
 function makeGate(approved = true): ConfirmationGate {
-  return {
+  return mockOf<ConfirmationGate>({
     request: vi.fn().mockResolvedValue(approved),
     resolve: vi.fn(),
     requestDiffPreview: vi.fn().mockResolvedValue(undefined),
-  } as unknown as ConfirmationGate;
+  });
 }
 
 function makeParams(extra: Record<string, unknown> = {}) {

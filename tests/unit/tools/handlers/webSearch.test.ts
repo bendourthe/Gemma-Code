@@ -8,6 +8,7 @@ vi.mock("node:dns/promises", () => ({
 }));
 
 import { WebSearchTool, FetchPageTool } from "../../../../src/tools/handlers/webSearch.js";
+import { mockOf } from "../../../helpers/factories.js";
 
 // ---------------------------------------------------------------------------
 // Mock fetch globally
@@ -33,19 +34,23 @@ function params(overrides: Record<string, unknown> = {}): Record<string, unknown
 }
 
 function mockOkResponse(body: string): void {
-  mockFetch.mockResolvedValueOnce({
-    ok: true,
-    status: 200,
-    text: async () => body,
-  } as unknown as Response);
+  mockFetch.mockResolvedValueOnce(
+    mockOf<Response>({
+      ok: true,
+      status: 200,
+      text: async () => body,
+    }),
+  );
 }
 
 function mockErrorResponse(status: number): void {
-  mockFetch.mockResolvedValueOnce({
-    ok: false,
-    status,
-    text: async () => "",
-  } as unknown as Response);
+  mockFetch.mockResolvedValueOnce(
+    mockOf<Response>({
+      ok: false,
+      status,
+      text: async () => "",
+    }),
+  );
 }
 
 // DuckDuckGo HTML structure (simplified)

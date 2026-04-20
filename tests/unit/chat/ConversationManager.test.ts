@@ -40,8 +40,8 @@ describe("ConversationManager", () => {
 
   it("addUserMessage returns the created Message with an id and timestamp", () => {
     const msg = manager.addUserMessage("test");
-    expect(msg.id).toBeTruthy();
     expect(typeof msg.id).toBe("string");
+    expect(msg.id.length).toBeGreaterThan(0);
     expect(msg.timestamp).toBeGreaterThan(0);
     expect(msg.role).toBe("user");
   });

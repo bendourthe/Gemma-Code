@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { EpisodicMemory, recordToolEvent, recordDecisionEvent } from "../../../src/storage/EpisodicMemory.js";
 import type { EmbeddingClient } from "../../../src/storage/EmbeddingClient.js";
 import type { MemoryProvenance } from "../../../src/storage/MemoryLayers.types.js";
+import { mockOf } from "../../helpers/factories.js";
 
 function makeProvenance(overrides?: Partial<MemoryProvenance>): MemoryProvenance {
   return {
@@ -16,7 +17,7 @@ function makeProvenance(overrides?: Partial<MemoryProvenance>): MemoryProvenance
 
 function makeMockEmbedder(embeddings?: number[][]): EmbeddingClient {
   let callIndex = 0;
-  return {
+  return mockOf<EmbeddingClient>({
     embed: vi.fn(async (_text: string) => {
       if (!embeddings) return null;
       return embeddings[callIndex++] ?? null;
@@ -26,7 +27,7 @@ function makeMockEmbedder(embeddings?: number[][]): EmbeddingClient {
       return texts.map(() => embeddings[callIndex++] ?? null);
     }),
     isAvailable: vi.fn(async () => !!embeddings),
-  } as unknown as EmbeddingClient;
+  });
 }
 
 describe("EpisodicMemory", () => {

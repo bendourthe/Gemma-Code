@@ -1,129 +1,126 @@
 /**
- * E2E: full agent pipeline composition (mocks only).
+ * E2E: full AgentLoop pipeline with a mocked OllamaClient.
  *
- * Wires PromptBuilder + ToolRegistry together with a mock tool handler to
- * verify the Gemma 4 native protocol: the built system prompt must include
- * <|tool> declarations, and round-tripping a tool call through the
- * registry must produce a well-formed ToolResult.
+ * Instantiates a real `AgentLoop` (not a stub), wires it to a mocked
+ * streaming client, real ConversationManager, and real ToolRegistry, and
+ * exercises:
+ *   - a single-turn answer with no tool call;
+ *   - a multi-turn tool-call + continuation;
+ *   - cancellation between turns.
  *
  * Requires no external service.
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { PromptBuilder } from "../../../src/chat/PromptBuilder.js";
-import { TOOL_CATALOG } from "../../../src/tools/ToolCatalog.js";
+import { AgentLoop } from "../../../src/tools/AgentLoop.js";
+import { ConversationManager } from "../../../src/chat/ConversationManager.js";
 import { ToolRegistry } from "../../../src/tools/ToolRegistry.js";
-import type { PromptContext } from "../../../src/chat/PromptBuilder.types.js";
 import type {
   ToolHandler,
   ToolResult,
 } from "../../../src/tools/types.js";
+import type { ExtensionToWebviewMessage } from "../../../src/panels/messages.js";
+import {
+  makeMultiResponseOllamaClient,
+  makeOllamaClient,
+} from "../../helpers/factories.js";
 
-// Minimal VS Code stub so transitive ConversationManager imports resolve.
-vi.mock("vscode", () => ({
-  EventEmitter: class {
-    private readonly _listeners: Array<(data: unknown) => void> = [];
-    readonly event = (listener: (data: unknown) => void) => {
-      this._listeners.push(listener);
-      return { dispose: () => {} };
-    };
-    fire(data: unknown): void {
-      for (const l of this._listeners) l(data);
-    }
-    dispose(): void {
-      this._listeners.length = 0;
-    }
-  },
-}));
-
-function makeContext(overrides?: Partial<PromptContext>): PromptContext {
+function makeToolHandler(
+  output: string,
+  success = true,
+): ToolHandler {
   return {
-    modelName: "gemma4:e4b",
-    maxTokens: 131_072,
-    planModeActive: false,
-    thinkingMode: false,
-    enabledTools: [...TOOL_CATALOG],
-    promptStyle: "concise",
-    systemPromptBudgetPercent: 10,
-    ...overrides,
-  };
-}
-
-function makeHandler(fn: (params: Record<string, unknown>) => string): ToolHandler {
-  return {
-    execute: async (parameters): Promise<ToolResult> => ({
-      id: "tc-test",
-      success: true,
-      output: fn(parameters),
+    execute: async (): Promise<ToolResult> => ({
+      id: "tc-mock",
+      success,
+      output,
     }),
   };
 }
 
-describe("e2e: full agent pipeline (mocked)", () => {
-  it("system prompt declares tools in Gemma 4 native format", () => {
-    const builder = new PromptBuilder();
-    const prompt = builder.buildSync(makeContext());
-    expect(prompt).toContain("<|tool>");
-    expect(prompt).toContain("<tool|>");
-    expect(prompt).toContain("read_file");
-    expect(prompt).toContain("write_file");
+function collectPosted(): {
+  posted: ExtensionToWebviewMessage[];
+  postMessage: (m: ExtensionToWebviewMessage) => void;
+} {
+  const posted: ExtensionToWebviewMessage[] = [];
+  return {
+    posted,
+    postMessage: (m) => posted.push(m),
+  };
+}
+
+describe("e2e: real AgentLoop with mocked OllamaClient", () => {
+  it("runs a single turn and posts messageComplete when there is no tool call", async () => {
+    const client = makeOllamaClient("Here is a direct answer to the question.");
+    const manager = new ConversationManager("You are Gemma Code.");
+    const registry = new ToolRegistry();
+    registry.register("read_file", makeToolHandler(""));
+    const loop = new AgentLoop(client, manager, registry, "gemma4:e4b");
+    const { posted, postMessage } = collectPosted();
+
+    manager.addUserMessage("What is 1 + 1?");
+    await loop.run(postMessage);
+
+    expect(posted.some((m) => m.type === "token")).toBe(true);
+    expect(posted.some((m) => m.type === "messageComplete")).toBe(true);
+    const assistantMessages = manager
+      .getHistory()
+      .filter((m) => m.role === "assistant");
+    expect(assistantMessages.at(-1)?.content).toContain("direct answer");
   });
 
-  it("ToolRegistry returns a well-formed ToolResult for a registered handler", async () => {
+  it("executes a tool call and continues to a final assistant answer", async () => {
+    const toolCall =
+      '<|tool_call>call:read_file{path:<|"|>src/extension.ts<|"|>}<tool_call|>';
+    const client = makeMultiResponseOllamaClient([
+      toolCall,                  // turn 1: model issues a tool call
+      "Thanks, all set.",        // turn 2: model produces final answer
+    ]);
+    const manager = new ConversationManager("You are Gemma Code.");
     const registry = new ToolRegistry();
-    registry.register(
-      "read_file",
-      makeHandler((p) => `File contents of ${String(p["path"])}`),
+    const readFileHandler = makeToolHandler(
+      JSON.stringify({ content: "file bytes", lines: 3 }),
     );
+    registry.register("read_file", readFileHandler);
+    const executeSpy = vi.spyOn(registry, "execute");
+    const loop = new AgentLoop(client, manager, registry, "gemma4:e4b");
+    const { posted, postMessage } = collectPosted();
 
-    const result = await registry.execute({
-      tool: "read_file",
-      id: "tc-1",
-      parameters: { path: "src/extension.ts" },
-    });
-    expect(result.success).toBe(true);
-    expect(result.output).toContain("src/extension.ts");
+    manager.addUserMessage("Read src/extension.ts please.");
+    await loop.run(postMessage);
+
+    expect(executeSpy).toHaveBeenCalledTimes(1);
+    expect(posted.some((m) => m.type === "toolUse")).toBe(true);
+    expect(posted.some((m) => m.type === "toolResult")).toBe(true);
+    expect(posted.some((m) => m.type === "messageComplete")).toBe(true);
+    // Tool results are injected as synthetic user messages in Gemma 4 format.
+    expect(
+      manager
+        .getHistory()
+        .some(
+          (m) =>
+            m.role === "user" &&
+            typeof m.content === "string" &&
+            m.content.includes("<|tool_result>"),
+        ),
+    ).toBe(true);
   });
 
-  it("ToolRegistry filters catalog by enabled state", () => {
+  it("halts cleanly when cancel() is called before the next iteration", async () => {
+    const toolCall =
+      '<|tool_call>call:read_file{path:<|"|>src/extension.ts<|"|>}<tool_call|>';
+    const client = makeMultiResponseOllamaClient([toolCall, toolCall, toolCall]);
+    const manager = new ConversationManager("You are Gemma Code.");
     const registry = new ToolRegistry();
-    const noop = makeHandler(() => "");
-    registry.register("read_file", noop);
-    registry.register("write_file", noop);
-    registry.setEnabled("write_file", false);
+    registry.register("read_file", makeToolHandler("{}"));
+    const loop = new AgentLoop(client, manager, registry, "gemma4:e4b", 5);
+    const { posted, postMessage } = collectPosted();
 
-    const enabled = registry.getEnabledToolMetadata([...TOOL_CATALOG]);
-    const names = enabled.map((t) => t.name);
-    expect(names).toContain("read_file");
-    expect(names).not.toContain("write_file");
-  });
+    manager.addUserMessage("Keep reading forever.");
+    loop.cancel();
+    await loop.run(postMessage);
 
-  it("disabled tools are omitted from the generated prompt", () => {
-    const registry = new ToolRegistry();
-    const noop = makeHandler(() => "");
-    for (const tool of TOOL_CATALOG) {
-      registry.register(tool.name, noop);
-    }
-    registry.setEnabled("write_file", false);
-    registry.setEnabled("run_terminal", false);
-
-    const enabled = registry.getEnabledToolMetadata([...TOOL_CATALOG]);
-    const builder = new PromptBuilder();
-    const prompt = builder.buildSync(makeContext({ enabledTools: enabled }));
-
-    expect(prompt).toContain("read_file");
-    expect(prompt).not.toContain('"name": "write_file"');
-    expect(prompt).not.toContain('"name": "run_terminal"');
-  });
-
-  it("execute returns an error ToolResult when no handler is registered for a built-in", async () => {
-    const registry = new ToolRegistry();
-    const result = await registry.execute({
-      tool: "read_file",
-      id: "tc-ghost",
-      parameters: {},
-    });
-    expect(result.success).toBe(false);
-    expect(result.error).toBeDefined();
+    // With immediate cancellation the loop must not complete the run.
+    expect(posted.some((m) => m.type === "messageComplete")).toBe(false);
   });
 });

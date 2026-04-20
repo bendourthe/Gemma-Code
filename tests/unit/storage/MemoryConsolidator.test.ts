@@ -207,7 +207,8 @@ describe("MemoryConsolidator", () => {
 
       const result = await consolidator.promoteToMemory(pattern);
       expect(result).not.toBeNull();
-      expect(result!.id).toBeTruthy();
+      expect(typeof result!.id).toBe("string");
+      expect(result!.id.length).toBeGreaterThan(0);
 
       // Verify it's in the memory store.
       const stats = memoryStore.getStats();

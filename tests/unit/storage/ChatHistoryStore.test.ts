@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { ChatHistoryStore } from "../../../src/storage/ChatHistoryStore.js";
 import type { Message } from "../../../src/chat/types.js";
 
@@ -61,15 +61,24 @@ describe("ChatHistoryStore", () => {
       expect(loaded?.messages[0]?.role).toBe("user");
     });
 
-    it("updates session updated_at timestamp", async () => {
-      const session = store.createSession("Timestamp test");
-      const before = Date.now();
-      await new Promise<void>((r) => setTimeout(r, 5));
+    it("updates session updated_at timestamp", () => {
+      // Drive the system clock deterministically so saveMessage's Date.now()
+      // call lands strictly after createSession's.
+      vi.useFakeTimers();
+      try {
+        const start = new Date("2026-01-01T00:00:00.000Z");
+        vi.setSystemTime(start);
+        const session = store.createSession("Timestamp test");
+        const before = Date.now();
 
-      store.saveMessage(session.id, makeMessage("assistant", "response"));
+        vi.setSystemTime(new Date(start.getTime() + 50));
+        store.saveMessage(session.id, makeMessage("assistant", "response"));
 
-      const loaded = store.getSession(session.id);
-      expect(loaded?.updatedAt).toBeGreaterThanOrEqual(before);
+        const loaded = store.getSession(session.id);
+        expect(loaded?.updatedAt).toBeGreaterThan(before);
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 
@@ -104,12 +113,18 @@ describe("ChatHistoryStore", () => {
   // -------------------------------------------------------------------------
 
   describe("listSessions", () => {
-    it("returns sessions sorted by updated_at descending", async () => {
+    it("returns sessions sorted by updated_at descending", () => {
+      // Drive wall-clock advances deterministically between creates so that
+      // updated_at reliably increases on platforms with coarse Date.now()
+      // resolution (Windows historically had 10-16ms granularity).
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
       const s1 = store.createSession("Oldest");
-      await new Promise<void>((r) => setTimeout(r, 5));
+      vi.setSystemTime(new Date("2026-01-01T00:00:00.050Z"));
       const s2 = store.createSession("Middle");
-      await new Promise<void>((r) => setTimeout(r, 5));
+      vi.setSystemTime(new Date("2026-01-01T00:00:00.100Z"));
       const s3 = store.createSession("Newest");
+      vi.useRealTimers();
 
       const list = store.listSessions();
       const ids = list.map((s) => s.id);

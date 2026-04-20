@@ -11,6 +11,7 @@ import {
 import type { CompactionStrategy } from "../../../src/chat/CompactionStrategy.js";
 import type { Message } from "../../../src/chat/types.js";
 import type { OllamaClient, OllamaChatChunk } from "../../../src/ollama/types.js";
+import { mockOf } from "../../helpers/factories.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -41,11 +42,9 @@ async function* singleChunkStream(text: string): AsyncGenerator<OllamaChatChunk>
 }
 
 function makeClient(summaryText: string): OllamaClient {
-  return {
+  return mockOf<OllamaClient>({
     streamChat: vi.fn(() => singleChunkStream(summaryText)),
-    checkHealth: vi.fn(),
-    listModels: vi.fn(),
-  } as unknown as OllamaClient;
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -433,11 +432,11 @@ describe("LlmSummary", () => {
   });
 
   it("returns messages unchanged on LLM failure", async () => {
-    const client = {
+    const client = mockOf<OllamaClient>({
       streamChat: vi.fn().mockImplementation(async function* () {
         throw new Error("network error");
       }),
-    } as unknown as OllamaClient;
+    });
 
     const messages = [msg("system", "sys"), msg("user", "hello")];
     const strategy = new LlmSummary(client, "gemma4", 1);

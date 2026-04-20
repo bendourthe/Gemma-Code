@@ -41,7 +41,7 @@ function makeNode(
 
 describe("contracts", () => {
   describe("buildSubAgentRequest", () => {
-    it("should serialize a research input into a structured prompt", () => {
+    it("serialize a research input into a structured prompt", () => {
       const node = makeNode("research");
       const input: ResearchInput = {
         question: "How does the auth module work?",
@@ -58,7 +58,7 @@ describe("contracts", () => {
       expect(prompt).toContain("findings");
     });
 
-    it("should serialize a code task input", () => {
+    it("serialize a code task input", () => {
       const node = makeNode("code");
       const input: CodeTaskInput = {
         description: "Add validation to user input",
@@ -73,7 +73,7 @@ describe("contracts", () => {
       expect(prompt).toContain("filesModified");
     });
 
-    it("should serialize a test task input", () => {
+    it("serialize a test task input", () => {
       const node = makeNode("test");
       const input: TestTaskInput = {
         targetFiles: ["src/auth/handler.ts"],
@@ -88,7 +88,7 @@ describe("contracts", () => {
       expect(prompt).toContain("passed");
     });
 
-    it("should serialize a verify task input", () => {
+    it("serialize a verify task input", () => {
       const node = makeNode("verify");
       const input: VerifyTaskInput = {
         filesModified: ["src/api/users.ts"],
@@ -105,7 +105,7 @@ describe("contracts", () => {
 
   describe("parseSubAgentResponse", () => {
     describe("research", () => {
-      it("should parse a valid research output", () => {
+      it("parse a valid research output", () => {
         const output: ResearchOutput = {
           findings: "The auth module uses JWT tokens",
           references: [
@@ -126,7 +126,7 @@ describe("contracts", () => {
         expect(r.confidence).toBe("high");
       });
 
-      it("should extract from markdown fences", () => {
+      it("extract from markdown fences", () => {
         const output = {
           findings: "Found in fenced block",
           references: [],
@@ -139,7 +139,7 @@ describe("contracts", () => {
         expect((result as ResearchOutput).findings).toBe("Found in fenced block");
       });
 
-      it("should default confidence to medium when missing", () => {
+      it("default confidence to medium when missing", () => {
         const raw = JSON.stringify({
           findings: "Some findings",
           references: [],
@@ -151,7 +151,7 @@ describe("contracts", () => {
     });
 
     describe("code", () => {
-      it("should parse a valid code output", () => {
+      it("parse a valid code output", () => {
         const output: CodeTaskOutput = {
           filesModified: ["src/api/users.ts"],
           summary: "Added validation",
@@ -168,7 +168,7 @@ describe("contracts", () => {
         expect(result.linesChanged).toBe(15);
       });
 
-      it("should default linesChanged to 0 when missing", () => {
+      it("default linesChanged to 0 when missing", () => {
         const raw = JSON.stringify({
           summary: "Changes made",
           filesModified: [],
@@ -180,7 +180,7 @@ describe("contracts", () => {
     });
 
     describe("test", () => {
-      it("should parse a valid test output", () => {
+      it("parse a valid test output", () => {
         const output: TestTaskOutput = {
           passed: true,
           testOutput: "5 tests passed",
@@ -196,7 +196,7 @@ describe("contracts", () => {
         expect(result.failureDetails).toBeUndefined();
       });
 
-      it("should include failure details when present", () => {
+      it("include failure details when present", () => {
         const output: TestTaskOutput = {
           passed: false,
           testOutput: "1 test failed",
@@ -214,7 +214,7 @@ describe("contracts", () => {
     });
 
     describe("verify", () => {
-      it("should parse a valid verify output", () => {
+      it("parse a valid verify output", () => {
         const output: VerifyTaskOutput = {
           approved: true,
           issues: [],
@@ -229,7 +229,7 @@ describe("contracts", () => {
         expect(result.issues).toEqual([]);
       });
 
-      it("should parse issues with all fields", () => {
+      it("parse issues with all fields", () => {
         const output: VerifyTaskOutput = {
           approved: false,
           issues: [
@@ -254,19 +254,19 @@ describe("contracts", () => {
     });
 
     describe("invalid input", () => {
-      it("should return null for non-JSON input", () => {
+      it("return null for non-JSON input", () => {
         expect(
           parseSubAgentResponse("research", "This is not JSON"),
         ).toBeNull();
       });
 
-      it("should return null for an array instead of object", () => {
+      it("return null for an array instead of object", () => {
         expect(
           parseSubAgentResponse("research", "[1, 2, 3]"),
         ).toBeNull();
       });
 
-      it("should return null for research output missing findings", () => {
+      it("return null for research output missing findings", () => {
         expect(
           parseSubAgentResponse(
             "research",
@@ -275,7 +275,7 @@ describe("contracts", () => {
         ).toBeNull();
       });
 
-      it("should return null for code output missing summary", () => {
+      it("return null for code output missing summary", () => {
         expect(
           parseSubAgentResponse(
             "code",

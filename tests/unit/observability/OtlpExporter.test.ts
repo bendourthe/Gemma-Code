@@ -83,11 +83,11 @@ describe("OtlpExporter", () => {
       exporter.enqueueSpan(makeSpan({ name: "s2" }));
       exporter.enqueueSpan(makeSpan({ name: "s3" }));
 
-      // Wait for the async flush to settle.
-      await new Promise((r) => setTimeout(r, 50));
-
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-      expect(exporter.bufferSize).toBe(0);
+      // Deterministically wait for the batch-triggered flush to complete.
+      await vi.waitFor(() => {
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(exporter.bufferSize).toBe(0);
+      });
 
       vi.useFakeTimers(); // restore for other tests
     });
@@ -200,7 +200,8 @@ describe("OtlpExporter", () => {
 
       const body = JSON.parse(fetchMock.mock.calls[0][1].body);
       const otlpSpan = body.resourceSpans[0].scopeSpans[0].spans[0];
-      expect(otlpSpan.parentSpanId).toBeTruthy();
+      expect(typeof otlpSpan.parentSpanId).toBe("string");
+      expect(otlpSpan.parentSpanId.length).toBeGreaterThan(0);
     });
   });
 

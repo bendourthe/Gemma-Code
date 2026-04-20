@@ -104,7 +104,8 @@ describe("Tracer", () => {
         { toolName: "read_file" },
       );
 
-      expect(spanId).toBeTruthy();
+      expect(typeof spanId).toBe("string");
+      expect(spanId.length).toBeGreaterThan(0);
 
       tracer.endSpan(spanId, "ok", { success: true });
 
@@ -252,7 +253,8 @@ describe("Tracer", () => {
     it("returns the root span ID for a trace", () => {
       const traceId = tracer.startTrace();
       const rootSpanId = tracer.getRootSpanId(traceId);
-      expect(rootSpanId).toBeTruthy();
+      expect(typeof rootSpanId).toBe("string");
+      expect(rootSpanId!.length).toBeGreaterThan(0);
 
       const trace = store.getTrace(traceId);
       expect(rootSpanId).toBe(trace!.rootSpanId);

@@ -1,8 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ContextCompactor } from "../../../src/chat/ContextCompactor.js";
 import type { ConversationManager } from "../../../src/chat/ConversationManager.js";
-import type { OllamaClient, OllamaMessage, OllamaChatChunk } from "../../../src/ollama/types.js";
+import type { OllamaMessage } from "../../../src/ollama/types.js";
 import type { PostMessageFn } from "../../../src/chat/StreamingPipeline.js";
+import {
+  makeOllamaClient as makeClient,
+  mockOf,
+} from "../../helpers/factories.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -16,7 +20,7 @@ function makeManager(messages: Array<{ role: string; content: string }>): Conver
     timestamp: Date.now() + i,
   }));
 
-  return {
+  return mockOf<ConversationManager>({
     getHistory: () => history,
     replaceWithSummary: vi.fn(),
     replaceMessages: vi.fn(),
@@ -29,20 +33,9 @@ function makeManager(messages: Array<{ role: string; content: string }>): Conver
     loadSession: vi.fn(),
     trimToContextLimit: vi.fn(),
     rebuildSystemPrompt: vi.fn(),
-    onDidChange: { event: vi.fn(), fire: vi.fn(), dispose: vi.fn() },
-  } as unknown as ConversationManager;
-}
-
-async function* singleChunkStream(text: string): AsyncGenerator<OllamaChatChunk> {
-  yield { message: { role: "assistant", content: text }, done: true };
-}
-
-function makeClient(summaryText: string): OllamaClient {
-  return {
-    streamChat: vi.fn(() => singleChunkStream(summaryText)),
-    checkHealth: vi.fn(),
-    listModels: vi.fn(),
-  } as unknown as OllamaClient;
+    // onDidChange has a complex VS Code Event<T> shape — omitted from the
+    // partial; callers in this test suite do not subscribe to it.
+  });
 }
 
 // ---------------------------------------------------------------------------
