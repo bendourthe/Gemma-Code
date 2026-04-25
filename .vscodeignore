@@ -30,7 +30,7 @@ eslint.config.mjs
 tsconfig.json
 CHANGELOG.md
 README.md
-CLAUDE.md
+AGENTS.md
 
 # Trim unnecessary files from bundled node_modules
 # (vsce automatically excludes devDependencies when --no-dependencies is not used)

@@ -4,6 +4,16 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-04-25] v0.5.0 Phase 1 -- Identity & Naming
+
+### Summary
+
+Migrated the project's agent directive from `CLAUDE.md` to a new agent-agnostic `AGENTS.md` at the repository root, deleted `CLAUDE.md`, and stood up the smoke-test classification rubric (`missing_env`, `upstream_unavailable`, `product_failure`, `harness_bug`) in [docs/v0.5.0/test-pyramid.md](v0.5.0/test-pyramid.md). Every rule from the legacy directive is preserved or strengthened; the new file also adds an explicit five-step Cognitive Workflow stanza (ANALYZE -> PLAN -> EXECUTE -> VERIFY -> PROPAGATE). Two new meta-tests pin down the migration: [tests/unit/docs/AGENTS-md.test.ts](../tests/unit/docs/AGENTS-md.test.ts) asserts AGENTS.md content and `CLAUDE.md` non-existence; [tests/unit/test-discipline.test.ts](../tests/unit/test-discipline.test.ts) walks `tests/integration/**` and rejects bare `if (!process.env.X) return;` early returns or unjustified `it.skip` / `describe.skip`. Two helpers were added to [tests/helpers/factories.ts](../tests/helpers/factories.ts) (`skipIfNoOllama()`, `skipIfMissingEnv(...)`); [tests/integration/ollama-health.test.ts](../tests/integration/ollama-health.test.ts) was reclassified to use them. Quality gates: 1043 unit tests pass, 62 integration tests pass (2 designed skips on `ollama-health` without a live Ollama), lint clean, build clean. The agent-behavior golden-task baseline check is deferred to a developer machine with a live Ollama; the AGENTS.md <-> CLAUDE.md diff is purely additive so behavior risk is minimal.
+
+Full phase write-up: [docs/v0.5.0/development/history/2026-04_phase-1-identity-and-naming.md](v0.5.0/development/history/2026-04_phase-1-identity-and-naming.md).
+
+---
+
 ## [2026-04-25] v0.4.0 Phase 7 -- Simplification and Release
 
 ### Summary

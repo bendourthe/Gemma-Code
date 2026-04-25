@@ -25,6 +25,18 @@ export function mockOf<T extends object>(partial: Partial<T>): T {
   return partial as unknown as T;
 }
 
+// Smoke-test classification helpers (see docs/v0.5.0/test-pyramid.md).
+// `missing_env`: skip when required environment variables are absent.
+// `upstream_unavailable`: skip when a configured upstream is unreachable.
+
+export function skipIfMissingEnv(...keys: string[]): boolean {
+  return keys.some((k) => !process.env[k] || process.env[k] === "");
+}
+
+export function skipIfNoOllama(): boolean {
+  return skipIfMissingEnv("OLLAMA_URL");
+}
+
 export type ChatRole = "user" | "assistant" | "system";
 
 export interface TestChatMessage {

@@ -10,7 +10,7 @@ Thanks for your interest in improving Gemma Code. This document covers the minim
 - Local trace store + dashboard at [src/observability/](./src/observability).
 - Tests mirror source layout under [tests/unit/](./tests/unit), [tests/integration/](./tests/integration), and [tests/golden/](./tests/golden).
 
-For deeper architecture see [ARCHITECTURE.md](./ARCHITECTURE.md) and [docs/v0.4.0/](./docs/v0.4.0/).
+For deeper architecture see [ARCHITECTURE.md](./ARCHITECTURE.md) and [docs/v0.4.0/](./docs/v0.4.0/). The canonical agent directive is [AGENTS.md](./AGENTS.md).
 
 ## One-command setup
 
@@ -57,6 +57,7 @@ To debug the extension live, press `F5` in VS Code; this launches the Extension 
 - Integration tests: `npm run test:integration`.
 - Add tests next to the unit you change. Mirror source paths under `tests/unit/`.
 - New tracing/runtime work must use a per-test `new Tracer()` instance -- the singleton was retired in v0.4.0.
+- Tests that depend on environment variables or upstream services must follow the Smoke-Test Classification Rubric in [docs/v0.5.0/test-pyramid.md](./docs/v0.5.0/test-pyramid.md). Use `skipIfNoOllama()` / `skipIfMissingEnv()` from [tests/helpers/factories.ts](./tests/helpers/factories.ts); do not write bare `if (!process.env.X) return;` early returns.
 
 ## Filing changes
 

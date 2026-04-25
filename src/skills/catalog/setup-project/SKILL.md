@@ -20,7 +20,7 @@ You are bootstrapping a new project. Follow these steps:
    - `CHANGELOG.md` — empty Keep a Changelog skeleton
    - Language-specific config: `tsconfig.json` / `pyproject.toml` / `go.mod` / `Cargo.toml`
    - Linter config: `.eslintrc` / `ruff.toml` / `.golangci.yml` / `.clippy.toml`
-   - A `CLAUDE.md` at the project root with the tech stack, key commands, and conventions pre-filled.
+   - An `AGENTS.md` at the project root with the tech stack, key commands, and conventions pre-filled.
 4. If a package manifest already exists (package.json, etc.), add standard scripts: build, test, lint, format.
 5. Create a `src/.gitkeep` and `tests/.gitkeep` if directories are empty.
 6. After setup, list all created files and suggest next steps.

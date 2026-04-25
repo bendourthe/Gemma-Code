@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { skipIfNoOllama } from "../helpers/factories.js";
 
 // Mock settings to use the OLLAMA_URL environment variable
 vi.mock("../../src/config/settings.js", () => ({
@@ -13,9 +14,11 @@ vi.mock("../../src/config/settings.js", () => ({
 
 const { createOllamaClient } = await import("../../src/llm/OllamaClient.js");
 
-const ollamaUrl = process.env["OLLAMA_URL"];
+// Class: missing_env (see docs/v0.5.0/test-pyramid.md). Skip the suite when
+// OLLAMA_URL is not configured; do not silently early-return inside the test body.
+describe.skipIf(skipIfNoOllama())("Ollama integration smoke tests", () => {
+  const ollamaUrl = process.env["OLLAMA_URL"];
 
-describe.skipIf(!ollamaUrl)("Ollama integration smoke tests", () => {
   it("checkHealth() returns true against a real Ollama server", async () => {
     const client = createOllamaClient(ollamaUrl);
     const healthy = await client.checkHealth();
