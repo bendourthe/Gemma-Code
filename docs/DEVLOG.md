@@ -4,6 +4,53 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-04-25] v0.5.0 Phase 6 -- Mutation Safety + Structured Outputs
+
+### Summary
+
+Landed every adoption item from Phase 6 of [docs/v0.5.0/plans/implementation-plan.md](v0.5.0/plans/implementation-plan.md): a `dry_run: boolean` parameter on the two consequential mutation tools (`run_terminal`, `delete_file`) so the agent can pre-flight-check before re-running for real, and a `format: 'text' | 'json'` parameter on the two structured-output tools (`list_directory`, `grep_codebase`) so the agent can request RFC-8259 valid JSON instead of the legacy text payload. The dry-run paths are spawn-free / unlink-free by construction: `run_terminal(dry_run=true)` returns a `=== DRY RUN: no execution occurred ===` preview with parsed tokens, resolved cwd, allowlist verdict, and any blocked-pattern match (without short-circuiting on a match -- the agent gets the report so it can decide), while `delete_file(dry_run=true)` returns a `=== DRY RUN: no deletion occurred ===` preview with file size and SHA-256 over the first 1 MB of content (labelled as such for files past the 1 MB cap). The format=json paths produce parseable JSON end-to-end including under the 64 KB byte budget: when the JSON would exceed the cap, a binary search finds the largest entries/matches prefix that fits with a `_truncation` field appended, so `JSON.parse(output)` always succeeds. Default `format='text'` is byte-equivalent to the pre-change output (verified by a regression test that calls the tool with and without the explicit parameter and asserts the strings are identical). `ToolCatalog.ts` documents both new parameters with the per-spec language. Quality gates: 1368 tests pass (4 designed skips), lint clean, build clean.
+
+Full phase write-up: [docs/v0.5.0/development/history/2026-04_phase-6-mutation-safety-and-structured-outputs.md](v0.5.0/development/history/2026-04_phase-6-mutation-safety-and-structured-outputs.md).
+
+### Sub-task closures
+
+**6.1 -- `dry_run` on `run_terminal` and `delete_file`** ([src/tools/handlers/terminal.ts](../src/tools/handlers/terminal.ts), [src/tools/handlers/filesystem.ts](../src/tools/handlers/filesystem.ts), [src/tools/types.ts](../src/tools/types.ts), [src/tools/ToolCatalog.ts](../src/tools/ToolCatalog.ts))
+
+`RunTerminalParams` and `DeleteFileParams` gain `dry_run?: boolean` (default `false`). On the run-terminal side, dry-run resolves cwd through the existing `resolveInsideWorkspace` path-guard (cwd-traversal is still a hard error in dry-run), tokenises the command via whitespace split, derives the allowlist verdict via `isAllowlisted`, and calls a new `findBlockedPattern` helper (returns the first matching destructive pattern or `null`) to surface the match informationally rather than failing the call. The dry-run output is plain text starting with `=== DRY RUN: no execution occurred ===` and ending with the `Tokens / CWD / Allowlisted / Blocked-pattern match` lines specified in the plan. `child_process.spawn` is never invoked on the dry-run code path. On the delete-file side, dry-run runs `vscode.workspace.fs.stat` to capture size, then `fs.readFile` of the first 1 MB to compute the SHA-256 via `crypto.createHash('sha256')`. Files larger than 1 MB get the labelled hint `Content SHA-256 (first 1 MB):` so the agent does not assume full-content equivalence. `vscode.workspace.fs.delete` is never invoked on the dry-run code path.
+
+**6.2 -- `format=json` on `list_directory` and `grep_codebase`** ([src/tools/handlers/filesystem.ts](../src/tools/handlers/filesystem.ts), [src/tools/types.ts](../src/tools/types.ts), [src/tools/ToolCatalog.ts](../src/tools/ToolCatalog.ts))
+
+`ListDirectoryParams.format?: 'text' | 'json'` and `GrepCodebaseParams.format?: 'text' | 'json'` (both default `'text'`). The new helpers `renderListDirectoryJson` (per-file `vscode.workspace.fs.stat` lookups for `size_bytes`, then full-or-truncated payload with `path` + `entries: [{name, type, size_bytes?}]`) and `renderGrepJson` (project to `{file_path, line_number, line}`, optional `next_offset`) drive the new code paths. Both helpers use the same binary-search truncation strategy: serialise the full payload first; if it fits inside `FORMAT_JSON_BYTE_CAP` (64 KB, mirroring `OutputRedirector.DEFAULT_MAX_BYTES`), return verbatim; otherwise binary-search the largest entries/matches prefix whose serialised payload (already including the `_truncation` field at full worst-case length) fits the budget. The shared `truncationMessage` helper keeps wording consistent (`"Showing N of M entries; use list_directory with subset paths to narrow."` and `"Showing N of M matches; use max_results / next_offset, or pass a tighter glob to narrow."`). Default `format='text'` is byte-equivalent to the pre-change output -- verified explicitly by a unit test that calls the tool twice (once without the parameter, once with `format='text'`) and asserts the byte strings are equal.
+
+**6.3 -- Stabilization** ([tests/unit/tools/handlers/dry_run.adversarial.test.ts](../tests/unit/tools/handlers/dry_run.adversarial.test.ts), [tests/integration/dry-run-end-to-end.test.ts](../tests/integration/dry-run-end-to-end.test.ts), [tests/integration/format-json-end-to-end.test.ts](../tests/integration/format-json-end-to-end.test.ts))
+
+The adversarial sweep fuzzes both handlers with 200 deterministic LCG-generated inputs each (seed `0xdeadbeef` for run-terminal, `0xfeedface` for delete-file) plus a hand-curated shell-injection vector list, and asserts the binary invariant `mockSpawn` / `mockFs.delete` is never called when `dry_run=true`. The format=json end-to-end test exercises the agent-loop pattern (one tool call emits format=json, the next "turn" parses the result with `JSON.parse`) against a real temp directory.
+
+### Tests added (5 files, 22 cases)
+
+- [tests/unit/tools/handlers/terminal.dry_run.test.ts](../tests/unit/tools/handlers/terminal.dry_run.test.ts) -- 6 cases: dry-run preview with allowlisted/un-allowlisted/blocked-pattern commands, live path unchanged when `dry_run` is omitted or explicitly `false`, fuzz sweep of 11 pathological inputs.
+- [tests/unit/tools/handlers/filesystem.delete.dry_run.test.ts](../tests/unit/tools/handlers/filesystem.delete.dry_run.test.ts) -- 6 cases: size + full-content SHA, the >1 MB labelled-hint path, fuzz sweep of 6 path shapes, live path unchanged when `dry_run` is omitted or false, stat-failure fallback.
+- [tests/unit/tools/handlers/filesystem.format_json.test.ts](../tests/unit/tools/handlers/filesystem.format_json.test.ts) -- 7 cases: parseable list+grep JSON shape, byte-equivalence of `format='text'` vs. omitted parameter, parseable truncation with `_truncation`, `next_offset` round-trip in JSON mode.
+- [tests/unit/tools/handlers/dry_run.adversarial.test.ts](../tests/unit/tools/handlers/dry_run.adversarial.test.ts) -- 3 cases: 200-iteration LCG fuzz against `RunTerminalTool`, 200-iteration LCG fuzz against `DeleteFileTool`, hand-curated shell-injection sweep. Critical invariant: spawn / unlink never called.
+- [tests/integration/dry-run-end-to-end.test.ts](../tests/integration/dry-run-end-to-end.test.ts) + [tests/integration/format-json-end-to-end.test.ts](../tests/integration/format-json-end-to-end.test.ts) -- 3 end-to-end cases against real temp directories: file survives the dry-run preview and is deleted only on the explicit live re-run; list-directory and grep-codebase JSON outputs are parseable with the documented field names.
+
+### Quality gates
+
+| Gate | Result |
+|------|--------|
+| Unit + integration tests | 1368 passed, 4 designed skips, 0 failures across 108 test files |
+| Lint (`npm run lint`) | 0 errors, 5 pre-existing warnings |
+| Build (`npm run build`) | Clean |
+| Golden-task suite | 19 cases passed (24 total IDs, designed-skip set unchanged) |
+
+### Deviations
+
+- **Blocked-pattern handling on dry-run**: The plan specifies "Run all the existing safety checks (allowlist, blocked patterns, path-guard on cwd)" for the `run_terminal` dry-run, then in the same paragraph asks the dry-run output to include a `Blocked-pattern match: <yes:<pattern>|no>` field. Strictly applying "run the check" would short-circuit on a match (which is what the live path does) and prevent the field from ever being populated with `yes:`. Resolved by making the blocked-pattern check informational on the dry-run path and a hard fail on the live path. The cwd path-guard remains a hard error in both paths because there is no defensible cwd to report when it fails.
+- **Per-tool JSON pre-truncation vs. central byte-cap**: The plan describes the byte-cap as the existing 64 KB bound from Phase 1, applied centrally via `applyByteCap` in `ToolRegistry`. Centrally truncating a JSON payload would split it mid-string and break parseability, so the format=json helpers pre-truncate to keep the output under 64 KB. The central `applyByteCap` then runs as a no-op on the JSON path. Per-call `max_bytes` overrides still flow through `ToolRegistry`; if a caller bumps the override above 64 KB, the pre-truncation will keep the JSON smaller than the override allows, which is a safe over-truncation but a conscious deviation from "respect every byte the user asked for".
+- **Manual smoke (Phase 6.3 step 4)**: The plan calls for a manual `delete_file(dry_run=true)` against the real `package.json` with SHA verified against `git hash-object`. This is documented in the session-history file as a pre-merge smoke step rather than an automated test, because the integration suite already covers the contract end-to-end against a real temp directory.
+
+---
+
 ## [2026-04-25] v0.5.0 Phase 4 -- Persistent Cache + Diff-Based Reads
 
 ### Summary

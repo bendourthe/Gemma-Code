@@ -255,13 +255,13 @@ Success is measured through three artifacts: a `tests/golden/baselines/v0.5.0.js
 
 ### Phase 6 Exit Checklist
 
-- [ ] `run_terminal(dry_run=true)` returns preview without side effects
-- [ ] `delete_file(dry_run=true)` returns size + SHA without unlinking
-- [ ] Adversarial test confirms spawn/unlink are never called on dry-run
-- [ ] `list_directory(format='json')` and `grep_codebase(format='json')` return parseable JSON
-- [ ] `format='text'` (default) byte-equivalent to pre-change
-- [ ] No regression on 24 golden tasks
-- [ ] Session history generated
+- [x] `run_terminal(dry_run=true)` returns preview without side effects -- [src/tools/handlers/terminal.ts](../../../src/tools/handlers/terminal.ts) `_dryRunReport`; [tests/unit/tools/handlers/terminal.dry_run.test.ts](../../../tests/unit/tools/handlers/terminal.dry_run.test.ts) covers allowlisted / un-allowlisted / blocked-pattern cases
+- [x] `delete_file(dry_run=true)` returns size + SHA without unlinking -- [src/tools/handlers/filesystem.ts](../../../src/tools/handlers/filesystem.ts) `DeleteFileTool._dryRunReport`; [tests/unit/tools/handlers/filesystem.delete.dry_run.test.ts](../../../tests/unit/tools/handlers/filesystem.delete.dry_run.test.ts) covers <1 MB and >1 MB labelled-hint paths
+- [x] Adversarial test confirms spawn/unlink are never called on dry-run -- [tests/unit/tools/handlers/dry_run.adversarial.test.ts](../../../tests/unit/tools/handlers/dry_run.adversarial.test.ts) (200-iteration LCG fuzz against each handler + curated shell-injection sweep)
+- [x] `list_directory(format='json')` and `grep_codebase(format='json')` return parseable JSON -- [src/tools/handlers/filesystem.ts](../../../src/tools/handlers/filesystem.ts) `renderListDirectoryJson` / `renderGrepJson`; [tests/unit/tools/handlers/filesystem.format_json.test.ts](../../../tests/unit/tools/handlers/filesystem.format_json.test.ts) verifies `JSON.parse` round-trip including truncated form with `_truncation`
+- [x] `format='text'` (default) byte-equivalent to pre-change -- explicit byte-equality assertion in [tests/unit/tools/handlers/filesystem.format_json.test.ts](../../../tests/unit/tools/handlers/filesystem.format_json.test.ts) `"default format='text' is byte-equivalent to the legacy output"`
+- [x] No regression on 24 golden tasks -- 19/19 cases pass in `tests/unit/evaluation/GoldenTaskSuite.test.ts` (5 designed gaps in synthesized snapshots are unchanged from prior phases)
+- [x] Session history generated -- [docs/v0.5.0/development/history/2026-04_phase-6-mutation-safety-and-structured-outputs.md](../development/history/2026-04_phase-6-mutation-safety-and-structured-outputs.md)
 
 ---
 

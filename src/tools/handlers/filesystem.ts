@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import * as path from "path";
 import * as vscode from "vscode";
 import { createPatch } from "diff";
@@ -23,6 +24,9 @@ const MAX_GREP_RESULTS_CEILING = 500;
 const READ_RANGE_MAX_WINDOW = 1024 * 1024; // 1 MB per paginated window
 const MAX_LIST_DEPTH = 3;
 const EXCLUDED_DIRS = new Set(["node_modules", ".git", "out", "dist", "__pycache__"]);
+const DRY_RUN_SHA_BYTES_CAP = 1024 * 1024; // 1 MB SHA-256 sample for delete_file dry-run
+/** 64 KB byte budget mirrored from OutputRedirector.DEFAULT_MAX_BYTES; used for in-handler JSON pre-truncation. */
+const FORMAT_JSON_BYTE_CAP = 64 * 1024;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -482,6 +486,10 @@ export class DeleteFileTool implements ToolHandler {
       );
     }
 
+    if (p.dry_run === true) {
+      return this._dryRunReport(id, p.path, uri);
+    }
+
     try {
       await vscode.workspace.fs.delete(uri);
     } catch (err) {
@@ -493,6 +501,56 @@ export class DeleteFileTool implements ToolHandler {
     }
 
     return { id, success: true, output: JSON.stringify({ success: true, path: p.path }) };
+  }
+
+  /**
+   * Build the dry-run report for `delete_file`: stat the file (size in bytes)
+   * and SHA-256 the first 1 MB of content (so the agent can verify identity
+   * without paying the full hash cost on multi-GB files). Crucially, no
+   * `vscode.workspace.fs.delete` call is made.
+   */
+  private async _dryRunReport(
+    id: string,
+    relativePath: string,
+    uri: vscode.Uri,
+  ): Promise<ToolResult> {
+    let stat: { size: number };
+    try {
+      stat = (await vscode.workspace.fs.stat(uri)) as { size: number };
+    } catch (err) {
+      return failResult(
+        id,
+        `Failed to stat file at path "${relativePath}": ${(err as Error).message}. ` +
+          `Usage: delete_file(path=<existing workspace-relative file>, dry_run=true).`,
+      );
+    }
+
+    let bytes: Uint8Array;
+    try {
+      bytes = await vscode.workspace.fs.readFile(uri);
+    } catch (err) {
+      return failResult(
+        id,
+        `Failed to read file at path "${relativePath}" for dry-run hash: ${(err as Error).message}. ` +
+          `Usage: delete_file(path=<existing workspace-relative file>, dry_run=true).`,
+      );
+    }
+
+    const sample = bytes.length > DRY_RUN_SHA_BYTES_CAP
+      ? bytes.subarray(0, DRY_RUN_SHA_BYTES_CAP)
+      : bytes;
+    const hash = createHash("sha256").update(sample).digest("hex");
+    const hashLabel =
+      bytes.length > DRY_RUN_SHA_BYTES_CAP
+        ? `Content SHA-256 (first 1 MB): ${hash}`
+        : `Content SHA-256: ${hash}`;
+
+    const output =
+      "=== DRY RUN: no deletion occurred ===\n" +
+      `Target: ${uri.fsPath}\n` +
+      `Size: ${stat.size}\n` +
+      hashLabel;
+    return { id, success: true, output };
   }
 }
 
@@ -724,12 +782,97 @@ export class ListDirectoryTool implements ToolHandler {
       ? entries
       : entries.filter((e) => !matchesSecretPath(e.name, this._extraSecretPatterns));
 
+    if (p.format === "json") {
+      const output = await renderListDirectoryJson(uri, filteredEntries);
+      return { id, success: true, output };
+    }
+
     return {
       id,
       success: true,
       output: JSON.stringify({ entries: filteredEntries, count: filteredEntries.length }),
     };
   }
+}
+
+/**
+ * Stat each file entry to capture `size_bytes`, then serialise as parseable JSON
+ * with a 64 KB byte budget. When the budget is exceeded the array is truncated
+ * at the last entry that fits and a `_truncation` string is appended so the
+ * output remains valid JSON the agent can `JSON.parse` end-to-end.
+ */
+async function renderListDirectoryJson(
+  rootUri: vscode.Uri,
+  entries: readonly DirEntry[],
+): Promise<string> {
+  interface JsonEntry {
+    name: string;
+    type: "file" | "directory";
+    size_bytes?: number;
+  }
+  const enriched: JsonEntry[] = [];
+  for (const entry of entries) {
+    if (entry.type === "file") {
+      let size: number | undefined;
+      try {
+        const childUri = vscode.Uri.file(path.resolve(rootUri.fsPath, entry.name));
+        const stat = (await vscode.workspace.fs.stat(childUri)) as { size: number };
+        size = typeof stat.size === "number" ? stat.size : undefined;
+      } catch {
+        // Best-effort: omit size_bytes when stat fails (broken symlink, permissions).
+      }
+      enriched.push(
+        size !== undefined
+          ? { name: entry.name, type: "file", size_bytes: size }
+          : { name: entry.name, type: "file" },
+      );
+    } else {
+      enriched.push({ name: entry.name, type: "directory" });
+    }
+  }
+
+  const totalCount = enriched.length;
+  const fullPayload = { path: rootUri.fsPath, entries: enriched };
+  const fullSerialised = JSON.stringify(fullPayload);
+  if (Buffer.byteLength(fullSerialised, "utf8") <= FORMAT_JSON_BYTE_CAP) {
+    return fullSerialised;
+  }
+
+  // Binary-search the largest prefix whose serialised payload (with the
+  // `_truncation` field) fits inside the byte budget. Uses the worst-case
+  // truncation hint length so each candidate is evaluated at its final size.
+  let lo = 0;
+  let hi = totalCount;
+  let best = 0;
+  while (lo <= hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    const candidate = {
+      path: rootUri.fsPath,
+      entries: enriched.slice(0, mid),
+      _truncation: truncationMessage(mid, totalCount, "entries", "list_directory with subset paths"),
+    };
+    const serialised = JSON.stringify(candidate);
+    if (Buffer.byteLength(serialised, "utf8") <= FORMAT_JSON_BYTE_CAP) {
+      best = mid;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  return JSON.stringify({
+    path: rootUri.fsPath,
+    entries: enriched.slice(0, best),
+    _truncation: truncationMessage(best, totalCount, "entries", "list_directory with subset paths"),
+  });
+}
+
+function truncationMessage(
+  shown: number,
+  total: number,
+  noun: string,
+  narrowHint: string,
+): string {
+  return `Showing ${shown} of ${total} ${noun}; use ${narrowHint} to narrow.`;
 }
 
 // ---------------------------------------------------------------------------
@@ -1026,10 +1169,77 @@ export class GrepCodebaseTool implements ToolHandler {
       payload["warning"] = maxResultsClampWarning;
     }
 
+    if (p.format === "json") {
+      const jsonOutput = renderGrepJson(p.pattern, pageMatches, nextOffset);
+      return { id, success: true, output: jsonOutput };
+    }
+
     return {
       id,
       success: true,
       output: JSON.stringify(payload),
     };
   }
+}
+
+/**
+ * Serialise the grep page as RFC-8259 JSON with `pattern`/`matches`/`next_offset`
+ * fields, pre-truncating to keep the payload under 64 KB. Per-match shape is
+ * `{file_path, line_number, line}` (renamed from the text-mode `file/line/content`
+ * to match the agent-friendly contract).
+ */
+function renderGrepJson(
+  pattern: string,
+  matches: readonly { file: string; line: number; content: string }[],
+  nextOffset: string | undefined,
+): string {
+  const projected = matches.map((m) => ({
+    file_path: m.file,
+    line_number: m.line,
+    line: m.content,
+  }));
+  const totalCount = projected.length;
+  const fullPayload: Record<string, unknown> = { pattern, matches: projected };
+  if (nextOffset !== undefined) fullPayload["next_offset"] = nextOffset;
+  const fullSerialised = JSON.stringify(fullPayload);
+  if (Buffer.byteLength(fullSerialised, "utf8") <= FORMAT_JSON_BYTE_CAP) {
+    return fullSerialised;
+  }
+
+  let lo = 0;
+  let hi = totalCount;
+  let best = 0;
+  while (lo <= hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    const candidate: Record<string, unknown> = {
+      pattern,
+      matches: projected.slice(0, mid),
+    };
+    if (nextOffset !== undefined) candidate["next_offset"] = nextOffset;
+    candidate["_truncation"] = truncationMessage(
+      mid,
+      totalCount,
+      "matches",
+      "max_results / next_offset, or pass a tighter glob",
+    );
+    const serialised = JSON.stringify(candidate);
+    if (Buffer.byteLength(serialised, "utf8") <= FORMAT_JSON_BYTE_CAP) {
+      best = mid;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  const truncated: Record<string, unknown> = {
+    pattern,
+    matches: projected.slice(0, best),
+  };
+  if (nextOffset !== undefined) truncated["next_offset"] = nextOffset;
+  truncated["_truncation"] = truncationMessage(
+    best,
+    totalCount,
+    "matches",
+    "max_results / next_offset, or pass a tighter glob",
+  );
+  return JSON.stringify(truncated);
 }

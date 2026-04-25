@@ -89,23 +89,36 @@ export const TOOL_CATALOG: readonly ToolMetadata[] = [
   },
   {
     name: "delete_file",
-    description: "Delete a file.",
+    description:
+      "Delete a file. Pass dry_run=true to preview the deletion target (size + SHA-256) without unlinking; verify the SHA before re-running with dry_run=false.",
     parameters: {
       path: { type: "string", description: "Relative file path", required: true },
+      dry_run: {
+        type: "boolean",
+        description:
+          "When true, the tool returns a preview without performing any side effect. Use this to verify the operation is safe before re-running with dry_run=false. Default: false.",
+      },
     },
   },
   {
     name: "list_directory",
-    description: "List directory contents (3 levels deep max).",
+    description:
+      "List directory contents (3 levels deep max). Pass format='json' for RFC-8259 structured output with absolute path and per-entry size_bytes; default format='text' is byte-equivalent to the legacy output.",
     parameters: {
       path: { type: "string", description: "Relative directory path" },
       recursive: { type: "boolean", description: "List recursively up to 3 levels" },
+      format: {
+        type: "string",
+        description:
+          "Output format: 'text' (default, byte-equivalent to legacy output) or 'json' (RFC-8259 structured: {path, entries:[{name,type,size_bytes?}], _truncation?}).",
+      },
     },
   },
   {
     name: "grep_codebase",
     description:
       "Search files with a regex pattern. Use max_results to bound the page size and next_offset (returned by a prior call) to continue paging. " +
+      "Pass format='json' for RFC-8259 structured output with per-match {file_path,line_number,line}; default format='text' is byte-equivalent to the legacy output. " +
       "Example: grep_codebase(pattern='TODO', max_results=50, next_offset='<cursor>').",
     parameters: {
       pattern: { type: "string", description: "Regex search pattern", required: true },
@@ -125,14 +138,25 @@ export const TOOL_CATALOG: readonly ToolMetadata[] = [
         description:
           "Override the universal 64 KB output cap for this call (ceiling: 1 MB).",
       },
+      format: {
+        type: "string",
+        description:
+          "Output format: 'text' (default, byte-equivalent to legacy output) or 'json' (RFC-8259 structured: {pattern, matches:[{file_path,line_number,line}], next_offset?, _truncation?}).",
+      },
     },
   },
   {
     name: "run_terminal",
-    description: "Execute a shell command (requires user confirmation).",
+    description:
+      "Execute a shell command (requires user confirmation). Pass dry_run=true to preview the parsed tokens, resolved cwd, and safety-check results without spawning a subprocess.",
     parameters: {
       command: { type: "string", description: "Shell command to run", required: true },
       cwd: { type: "string", description: "Working directory" },
+      dry_run: {
+        type: "boolean",
+        description:
+          "When true, the tool returns a preview without performing any side effect. Use this to verify the operation is safe before re-running with dry_run=false. Default: false.",
+      },
     },
   },
   {

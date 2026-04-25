@@ -95,12 +95,23 @@ export interface CreateFileParams {
 
 export interface DeleteFileParams {
   path: string;
+  /**
+   * When `true`, returns the file's size and SHA-256 (over the first 1 MB) without
+   * unlinking the file. Use this to verify the deletion target before re-running
+   * with `dry_run=false`.
+   */
+  dry_run?: boolean;
 }
 
 export interface ListDirectoryParams {
   path?: string;
   recursive?: boolean;
   allow_secrets?: boolean;
+  /**
+   * `'text'` (default) preserves the existing JSON-stringified `{entries, count}` output.
+   * `'json'` returns RFC-8259 valid JSON with `path` and structured per-entry metadata.
+   */
+  format?: "text" | "json";
 }
 
 export interface GrepCodebaseParams {
@@ -111,11 +122,22 @@ export interface GrepCodebaseParams {
   case_insensitive?: boolean;
   /** Opaque base64-encoded cursor for paginating through additional matches. */
   next_offset?: string;
+  /**
+   * `'text'` (default) preserves the existing JSON-stringified payload.
+   * `'json'` returns RFC-8259 valid JSON with `pattern` and per-match `file_path`/`line_number`/`line` fields.
+   */
+  format?: "text" | "json";
 }
 
 export interface RunTerminalParams {
   command: string;
   cwd?: string;
+  /**
+   * When `true`, returns a textual preview of the parsed tokens, resolved cwd,
+   * and safety-check results without spawning a subprocess. Use this to
+   * pre-flight-check before re-running with `dry_run=false`.
+   */
+  dry_run?: boolean;
 }
 
 export interface WebSearchParams {

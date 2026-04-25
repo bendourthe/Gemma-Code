@@ -59,6 +59,22 @@ export function isBlocked(command: string): boolean {
 }
 
 /**
+ * Return the first blocked-pattern substring matched by any segment of `command`,
+ * or `null` when the command is safe. Used for the dry-run report so the agent
+ * knows *which* destructive pattern triggered the match.
+ */
+export function findBlockedPattern(command: string): string | null {
+  const segments = [command, ...shellSegments(command)];
+  for (const seg of segments) {
+    const normalized = seg.toLowerCase().trim().replace(/\s+/g, " ");
+    for (const pattern of BLOCKED_PATTERNS) {
+      if (normalized.includes(pattern)) return pattern;
+    }
+  }
+  return null;
+}
+
+/**
  * Returns true if every chained segment of the command starts with an allowlisted
  * command and matches its argument pattern. A command that fails this check still
  * executes (after confirmation), but the caller can surface a clearer warning.
@@ -106,16 +122,11 @@ export class RunTerminalTool implements ToolHandler {
       );
     }
 
-    // Hard safety: unconditionally block dangerous command patterns.
-    // Confirmation is handled centrally by ToolRegistry via PermissionTiers.
-    if (isBlocked(p.command)) {
-      return failResult(
-        id,
-        `Command "${p.command}" is blocked for safety (matches a destructive pattern). ` +
-          `Usage: run_terminal(command=<a non-destructive command>) — avoid rm -rf, dd, mkfs, fork bombs, etc.`,
-      );
-    }
+    const dryRun = p.dry_run === true;
 
+    // Resolve cwd before any safety check that depends on it; cwd path-guard is a
+    // hard error in both dry-run and live paths because the tool would otherwise
+    // have no defensible working directory to report.
     let cwd: string;
     try {
       cwd =
@@ -129,7 +140,45 @@ export class RunTerminalTool implements ToolHandler {
       );
     }
 
+    if (dryRun) {
+      return this._dryRunReport(id, p.command, cwd);
+    }
+
+    // Hard safety: unconditionally block dangerous command patterns on the live
+    // execution path. Confirmation is handled centrally by ToolRegistry via
+    // PermissionTiers. (Dry-run reports the match instead of blocking so the
+    // agent can inspect what would have triggered.)
+    if (isBlocked(p.command)) {
+      return failResult(
+        id,
+        `Command "${p.command}" is blocked for safety (matches a destructive pattern). ` +
+          `Usage: run_terminal(command=<a non-destructive command>) - avoid rm -rf, dd, mkfs, fork bombs, etc.`,
+      );
+    }
+
     return this._runCommand(id, p.command, cwd);
+  }
+
+  /**
+   * Build the dry-run report for `run_terminal`. The output is plain text framed
+   * by `=== DRY RUN: no execution occurred ===` so the agent has a stable contract
+   * to recognise dry-run results. Tokens are whitespace-split for readability.
+   * Crucially, no subprocess is spawned and no stdout/stderr is simulated.
+   */
+  private _dryRunReport(id: string, command: string, cwd: string): ToolResult {
+    const tokens = command.trim().split(/\s+/).filter(Boolean);
+    const allowlisted = isAllowlisted(command);
+    const blockedPattern = findBlockedPattern(command);
+    const blockedField =
+      blockedPattern === null ? "no" : `yes:${blockedPattern}`;
+    const tokenList = tokens.map((t) => `'${t}'`).join(", ");
+    const output =
+      "=== DRY RUN: no execution occurred ===\n" +
+      `Tokens: [${tokenList}]\n` +
+      `CWD: ${cwd}\n` +
+      `Allowlisted: ${allowlisted}\n` +
+      `Blocked-pattern match: ${blockedField}`;
+    return { id, success: true, output };
   }
 
   private _runCommand(id: string, command: string, cwd: string): Promise<ToolResult> {
