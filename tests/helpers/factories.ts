@@ -10,8 +10,8 @@ import type { ToolCall, ToolResult } from "../../src/tools/types.js";
 import type { SubAgentManager } from "../../src/agents/SubAgentManager.js";
 import type { SubAgentResult } from "../../src/agents/types.js";
 import type { OrchestratorConfig } from "../../src/orchestration/Orchestrator.js";
-import type { GpuTierProfile } from "../../src/config/GpuTierConfig.js";
-import { GpuTier } from "../../src/config/GpuTierConfig.js";
+import type { HardwareTierConfig } from "../../src/config/HardwareTier.types.js";
+import { getTierConfig } from "../../src/config/HardwareTier.js";
 import type { MemoryStore } from "../../src/storage/MemoryStore.js";
 import type { TaskNode } from "../../src/orchestration/TaskDAG.js";
 import type { ExtensionToWebviewMessage } from "../../src/panels/messages.js";
@@ -153,16 +153,8 @@ export function makeSubAgentManager(
   });
 }
 
-export function makeTier1Profile(): GpuTierProfile {
-  return {
-    tier: GpuTier.TIER_1,
-    maxAgentIterations: 25,
-    subAgentMaxIterations: 8,
-    maxConcurrentSubAgents: 1,
-    compactionThreshold: 0.7,
-    contextWindow: 131072,
-    recommendedModel: "gemma4:e4b",
-  };
+export function makeTier1Profile(): HardwareTierConfig {
+  return getTierConfig(1);
 }
 
 export interface MessageCollector {
@@ -190,7 +182,7 @@ export function makeOrchestratorConfig(
     modelName: "gemma4:e4b",
     ollamaOptions: { num_ctx: 131072 },
     subAgentManager: makeSubAgentManager({ success: true }),
-    gpuTierProfile: makeTier1Profile(),
+    hardwareTier: makeTier1Profile(),
     memoryStore: null,
     postMessage,
     ...overrides,

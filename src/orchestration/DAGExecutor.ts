@@ -7,7 +7,7 @@
 
 import type { SubAgentManager } from "../agents/SubAgentManager.js";
 import type { SubAgentConfig, SubAgentType } from "../agents/types.js";
-import type { GpuTierProfile } from "../config/GpuTierConfig.js";
+import type { HardwareTierConfig } from "../config/HardwareTier.types.js";
 import type { ExtensionToWebviewMessage } from "../panels/messages.js";
 import type { TaskDAG, TaskNode, TaskNodeType } from "./TaskDAG.js";
 import type { Reflection } from "./ReflexionEngine.js";
@@ -91,7 +91,7 @@ export class DAGExecutor {
 
   constructor(
     private readonly _subAgentManager: SubAgentManager,
-    private readonly _profile: GpuTierProfile,
+    private readonly _profile: HardwareTierConfig,
     private readonly _postMessage: PostMessageFn,
     private readonly _reflexionEngine?: ReflexionEngineInterface,
     private readonly _sessionId?: string,

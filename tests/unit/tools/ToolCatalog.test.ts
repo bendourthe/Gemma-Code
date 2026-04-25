@@ -13,11 +13,10 @@ describe("TOOL_CATALOG", () => {
     }
   });
 
-  it("does not advertise unregistered helper tools (tail_output, grep_output, get_tool_schema)", () => {
+  it("does not advertise unregistered helper tools (tail_output, grep_output)", () => {
     const catalogNames = new Set(TOOL_CATALOG.map((t) => t.name));
     expect(catalogNames.has("tail_output" as never)).toBe(false);
     expect(catalogNames.has("grep_output" as never)).toBe(false);
-    expect(catalogNames.has("get_tool_schema" as never)).toBe(false);
   });
 
   it("every entry has a non-empty description", () => {

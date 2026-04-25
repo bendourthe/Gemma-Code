@@ -8,7 +8,7 @@
  */
 
 import type { SubAgentManager } from "../agents/SubAgentManager.js";
-import type { GpuTierProfile } from "../config/GpuTierConfig.js";
+import type { HardwareTierConfig } from "../config/HardwareTier.types.js";
 import type { OllamaClient, OllamaOptions } from "../llm/types.js";
 import type { ExtensionToWebviewMessage } from "../panels/messages.js";
 import type { MemoryStore } from "../storage/MemoryStore.js";
@@ -33,7 +33,7 @@ export interface OrchestratorConfig {
   readonly modelName: string;
   readonly ollamaOptions: OllamaOptions;
   readonly subAgentManager: SubAgentManager;
-  readonly gpuTierProfile: GpuTierProfile;
+  readonly hardwareTier: HardwareTierConfig;
   readonly memoryStore: MemoryStore | null;
   readonly postMessage: PostMessageFn;
   /** Optional injection point for tests / alternative classifiers. */
@@ -56,7 +56,7 @@ export class Orchestrator {
   private readonly _plannerAgent: PlannerAgent;
   private readonly _reflexionEngine: ReflexionEngine;
   private readonly _subAgentManager: SubAgentManager;
-  private readonly _profile: GpuTierProfile;
+  private readonly _profile: HardwareTierConfig;
   private readonly _postMessage: PostMessageFn;
   private readonly _complexityClassifier: ComplexityClassifier;
   private _maxReplanAttempts = 2;
@@ -75,7 +75,7 @@ export class Orchestrator {
       config.memoryStore,
     );
     this._subAgentManager = config.subAgentManager;
-    this._profile = config.gpuTierProfile;
+    this._profile = config.hardwareTier;
     this._postMessage = config.postMessage;
     this._complexityClassifier = config.complexityClassifier ?? defaultComplexityClassifier;
   }

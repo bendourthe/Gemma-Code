@@ -14,6 +14,8 @@ export interface HardwareTierConfig {
   readonly vramRange: { readonly min: number; readonly max: number };
   readonly recommendedModels: readonly ModelRecommendation[];
   readonly maxAgentIterations: number;
+  readonly subAgentMaxIterations: number;
+  readonly maxConcurrentSubAgents: number;
   readonly contextWindow: number;
   readonly budgetOverrides: {
     readonly systemPromptPercent: number;

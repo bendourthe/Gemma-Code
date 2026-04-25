@@ -34,7 +34,6 @@ describe("getSettings()", () => {
     expect(settings.requestTimeout).toBe(60000);
     expect(settings.memoryEnabled).toBe(true);
     expect(settings.embeddingModel).toBe("nomic-embed-text");
-    expect(settings.memoryAutoSaveInterval).toBe(15);
     expect(settings.memoryMaxEntries).toBe(10000);
     expect(settings.mcpEnabled).toBe(false);
     expect(settings.mcpServerMode).toBe("off");

@@ -221,17 +221,17 @@ export class OtlpExporter implements TracerExporter {
 export function parseOtlpHeaders(
   headerString: string,
 ): Record<string, string> {
-  const result: Record<string, string> = {};
-  if (!headerString) return result;
-
-  for (const pair of headerString.split(",")) {
-    const eqIdx = pair.indexOf("=");
-    if (eqIdx > 0) {
-      const key = pair.slice(0, eqIdx).trim();
-      const value = pair.slice(eqIdx + 1).trim();
-      if (key) result[key] = value;
-    }
-  }
-
-  return result;
+  if (!headerString) return {};
+  return Object.fromEntries(
+    headerString
+      .split(",")
+      .map((pair): [string, string] | null => {
+        const eqIdx = pair.indexOf("=");
+        if (eqIdx <= 0) return null;
+        const key = pair.slice(0, eqIdx).trim();
+        if (!key) return null;
+        return [key, pair.slice(eqIdx + 1).trim()];
+      })
+      .filter((entry): entry is [string, string] => entry !== null),
+  );
 }

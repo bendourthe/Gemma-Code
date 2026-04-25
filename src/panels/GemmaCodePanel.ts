@@ -44,10 +44,10 @@ import { GraphMemory } from "../storage/GraphMemory.js";
 import { MemoryConsolidator } from "../storage/MemoryConsolidator.js";
 import { UnifiedMemoryRetriever } from "../storage/UnifiedMemoryRetriever.js";
 import type { HardwareTierConfig } from "../config/HardwareTier.types.js";
+import { getTierConfig } from "../config/HardwareTier.js";
 import { BudgetMiddleware, createSessionBudget } from "../tools/BudgetMiddleware.js";
 import { GitSafetyNet } from "../guardrails/GitSafetyNet.js";
 import { LoopDetector } from "../guardrails/LoopDetector.js";
-import { detectGpuTier, getEffectiveProfile } from "../config/GpuTierConfig.js";
 import { Orchestrator } from "../orchestration/Orchestrator.js";
 import { renderMarkdown } from "../utils/MarkdownRenderer.js";
 import { getLogger } from "../utils/logger.js";
@@ -174,6 +174,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
       settings.editMode,
       settings.toolConfirmationMode,
       settings.secretPathDenyExtra,
+      settings.permissionOverrides,
     );
 
     const ollamaOptions = {
@@ -230,9 +231,10 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     this._gitSafetyNet = workspacePath ? new GitSafetyNet(workspacePath) : null;
 
-    // GPU-tier-aware safety configuration.
-    const gpuTier = detectGpuTier(settings);
-    const tierProfile = getEffectiveProfile(settings, gpuTier);
+    // Bootstrap with the user's tier override (if any) or the balanced default.
+    // extension.ts updates this asynchronously via updateTierConfig once GPU
+    // detection completes, so the values used here are only the initial seed.
+    const initialTier = getTierConfig(settings.gpuTierOverride ?? 2);
 
     // Plan-and-Execute orchestrator for complex multi-step requests.
     this._orchestrator = new Orchestrator({
@@ -240,7 +242,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
       modelName: settings.modelName,
       ollamaOptions,
       subAgentManager: this._subAgentManager,
-      gpuTierProfile: tierProfile,
+      hardwareTier: initialTier,
       memoryStore: this._memoryStore,
       postMessage: postRaw,
     });
@@ -250,7 +252,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
       this._manager,
       this._registry,
       settings.modelName,
-      tierProfile.maxAgentIterations,
+      initialTier.maxAgentIterations,
       this._compactor,
       ollamaOptions,
       ollamaTools,
@@ -299,7 +301,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
       this._mcpManager = new McpManager(this._registry, workspacePath, this._workspaceState);
       void this._mcpManager.initialize().then(async () => {
         this._mcpTools = this._mcpManager?.getAllToolMetadata() ?? [];
-        const prompt = await this._promptBuilder.build(this._buildPromptContext());
+        const prompt = this._promptBuilder.build(this._buildPromptContext());
         this._manager.rebuildSystemPrompt(prompt);
       }).catch((err) => {
         getLogger().warn("[McpManager] Initialization failed:", err);
@@ -331,9 +333,9 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
    * Update the hardware tier configuration after async GPU detection completes.
    * Rebuilds the system prompt with tier info and configures budget middleware.
    */
-  async updateTierConfig(tierConfig: HardwareTierConfig): Promise<void> {
+  updateTierConfig(tierConfig: HardwareTierConfig): void {
     this._tierConfig = tierConfig;
-    const prompt = await this._promptBuilder.build(this._buildPromptContext());
+    const prompt = this._promptBuilder.build(this._buildPromptContext());
     this._manager.rebuildSystemPrompt(prompt);
 
     const budget = createSessionBudget(tierConfig.id, tierConfig.contextWindow);
@@ -344,6 +346,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     editMode: EditMode,
     _confirmationMode: "always" | "ask" | "never",
     secretPathDenyExtra: readonly string[] = [],
+    permissionOverrides?: Record<string, number>,
   ): ToolRegistry {
     const registry = new ToolRegistry();
     const gate = this._confirmationGate;
@@ -362,7 +365,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     // Centralized permission enforcement via PermissionTiers.
     // Pass editMode so duplicate confirmations are suppressed for write/edit/create
     // (which fire their own diff-bearing prompt in ask/plan mode).
-    registry.setConfirmationGate(gate, undefined, editMode);
+    registry.setConfirmationGate(gate, permissionOverrides, editMode);
 
     return registry;
   }
@@ -602,7 +605,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
       case "plan": {
         const nowActive = this._planMode.toggle();
         // Rebuild the system prompt to include or exclude the plan mode section.
-        const prompt = await this._promptBuilder.build(this._buildPromptContext());
+        const prompt = this._promptBuilder.build(this._buildPromptContext());
         this._manager.rebuildSystemPrompt(prompt);
         postMessage({ type: "planModeToggled", active: nowActive });
         const planMsg = this._manager.addAssistantMessage(
@@ -821,7 +824,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
             try {
               await this._mcpManager.connectServer(subArgs);
               this._mcpTools = this._mcpManager.getAllToolMetadata();
-              const prompt = await this._promptBuilder.build(this._buildPromptContext());
+              const prompt = this._promptBuilder.build(this._buildPromptContext());
               this._manager.rebuildSystemPrompt(prompt);
               const msg = this._manager.addAssistantMessage(`_Connected to MCP server "${subArgs}"._`);
               postMessage({ type: "messageComplete", messageId: msg.id, renderedHtml: renderMarkdown(msg.content) });
@@ -843,7 +846,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
             }
             await this._mcpManager.disconnectServer(subArgs);
             this._mcpTools = this._mcpManager.getAllToolMetadata();
-            const prompt = await this._promptBuilder.build(this._buildPromptContext());
+            const prompt = this._promptBuilder.build(this._buildPromptContext());
             this._manager.rebuildSystemPrompt(prompt);
             const dcMsg = this._manager.addAssistantMessage(`_Disconnected from MCP server "${subArgs}"._`);
             postMessage({ type: "messageComplete", messageId: dcMsg.id, renderedHtml: renderMarkdown(dcMsg.content) });
@@ -962,7 +965,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     const shouldPlan = mode === "plan";
     if (shouldPlan !== this._planMode.active) {
       this._planMode.toggle();
-      const prompt = await this._promptBuilder.build(this._buildPromptContext());
+      const prompt = this._promptBuilder.build(this._buildPromptContext());
       this._manager.rebuildSystemPrompt(prompt);
       this._postToWebview({
         type: "planModeToggled",
@@ -1203,7 +1206,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
   async setOllamaReachable(reachable: boolean): Promise<void> {
     if (this._ollamaReachable === reachable) return;
     this._ollamaReachable = reachable;
-    const prompt = await this._promptBuilder.build(this._buildPromptContext());
+    const prompt = this._promptBuilder.build(this._buildPromptContext());
     this._manager.rebuildSystemPrompt(prompt);
   }
 
@@ -1228,7 +1231,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
       }
 
       if (memoryContext) {
-        const prompt = await this._promptBuilder.build(this._buildPromptContext(memoryContext));
+        const prompt = this._promptBuilder.build(this._buildPromptContext(memoryContext));
         this._manager.rebuildSystemPrompt(prompt);
       }
     } catch {

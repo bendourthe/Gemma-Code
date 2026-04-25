@@ -39,7 +39,7 @@ const DESTRUCTIVE_COMMAND_PATTERNS = [
 const SAFE_TOOLS = new Set<string>([
   "read_file", "list_directory", "grep_codebase",
   "web_search", "fetch_page",
-  "tail_output", "grep_output", "get_tool_schema",
+  "tail_output", "grep_output",
 ]);
 
 /**

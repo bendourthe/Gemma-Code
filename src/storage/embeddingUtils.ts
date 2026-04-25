@@ -1,7 +1,7 @@
 /**
  * Shared utilities for embedding serialization, cosine similarity, and FTS5
  * query sanitization. Consolidates implementations previously duplicated across
- * MemoryStore, EpisodicMemory, RelevanceScorer, and ChatHistoryStore.
+ * MemoryStore, EpisodicMemory, and ChatHistoryStore.
  *
  * Cosine convention: `cosineSimilarity` returns the raw cosine in `[-1, 1]`.
  * Callers that want a non-negative similarity score should call
@@ -51,8 +51,7 @@ export function cosineSimilarity(
 /**
  * Cosine similarity normalized to `[0, 1]`. Equivalent to
  * `(cosineSimilarity(a, b) + 1) / 2`. Returns 0.5 for empty / mismatched
- * vectors, matching the prior RelevanceScorer behavior so the prompt scoring
- * pipeline does not regress.
+ * vectors so neutral inputs do not bias relevance pipelines.
  */
 export function cosineSimilarityNormalized(
   a: ArrayLike<number>,

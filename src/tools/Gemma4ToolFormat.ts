@@ -283,52 +283,6 @@ export function formatToolResult(name: string, result: ToolResult): string {
 }
 
 /**
- * Produce a compact tool summary for lazy loading. Only the get_tool_schema
- * meta-tool is serialized as a full `<|tool>` block; other tools appear as
- * a markdown name+description list. The model calls get_tool_schema(name)
- * to retrieve full parameter schemas on demand.
- *
- * Typically reduces system prompt tokens by 40-80% compared to
- * serializeToolDefinitions.
- */
-export function serializeToolSummary(tools: readonly ToolMetadata[]): string {
-  // Find the get_tool_schema meta-tool and serialize it fully.
-  const metaTool = tools.find((t) => t.name === "get_tool_schema");
-  let metaBlock = "";
-  if (metaTool) {
-    const properties: Record<string, { type: string; description: string }> = {};
-    const required: string[] = [];
-    for (const [key, param] of Object.entries(metaTool.parameters)) {
-      properties[key] = { type: param.type, description: param.description };
-      if (param.required) required.push(key);
-    }
-    const schema = {
-      name: metaTool.name,
-      description: metaTool.description,
-      parameters: {
-        type: "object",
-        properties,
-        ...(required.length > 0 ? { required } : {}),
-      },
-    };
-    metaBlock = `<|tool>\n${JSON.stringify(schema, null, 2)}\n<tool|>`;
-  }
-
-  // List all other tools as compact name+description entries.
-  const otherTools = tools.filter((t) => t.name !== "get_tool_schema");
-  const toolList = otherTools
-    .map((t) => `- **${t.name}**: ${t.description}`)
-    .join("\n");
-
-  return (
-    (metaBlock ? metaBlock + "\n\n" : "") +
-    "Before using any tool listed below, call get_tool_schema(name) to get its full parameter schema.\n\n" +
-    "## Available Tools\n\n" +
-    toolList
-  );
-}
-
-/**
  * Serialize tool metadata into Gemma 4 `<|tool>...<tool|>` declaration blocks
  * for inclusion in the system prompt.
  */

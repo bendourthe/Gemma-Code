@@ -1,15 +1,15 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
-import {
-  GOLDEN_TASKS,
-  validateExpectation,
-  detectRegressions,
-} from "../../../src/evaluation/GoldenTaskSuite.js";
+import { GOLDEN_TASKS } from "../../../src/evaluation/GoldenTaskSuite.js";
 import type {
   GoldenTaskResult,
   GoldenTask,
 } from "../../../src/evaluation/GoldenTaskSuite.js";
+import {
+  validateExpectation,
+  detectRegressions,
+} from "../../helpers/goldenTaskHelpers.js";
 import type { SessionMetrics } from "../../../src/observability/MetricsCollector.js";
 import {
   YAML_GOLDEN_TASK_COUNT,

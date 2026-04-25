@@ -1,6 +1,5 @@
 import type { DynamicToolMetadata, ToolMetadata } from "../tools/ToolCatalog.js";
 import type { SubAgentType } from "../agents/types.js";
-import type { RelevanceScorer } from "./RelevanceScorer.js";
 import type { WorkingMemory } from "../storage/WorkingMemory.js";
 import type { UnifiedMemoryRetriever } from "../storage/UnifiedMemoryRetriever.js";
 
@@ -26,10 +25,6 @@ export interface PromptContext {
   readonly tierName?: string;
   readonly tierVramMb?: number;
   readonly tierModelName?: string;
-  readonly lazyToolLoading?: boolean;
-  readonly currentQuery?: string;
-  readonly recentUserMessage?: string;
-  readonly relevanceScorer?: RelevanceScorer;
 }
 
 /** A candidate section for inclusion in the system prompt. */

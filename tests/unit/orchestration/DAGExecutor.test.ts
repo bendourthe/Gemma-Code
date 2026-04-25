@@ -5,8 +5,8 @@ import { TaskDAG } from "../../../src/orchestration/TaskDAG.js";
 import type { TaskNode } from "../../../src/orchestration/TaskDAG.js";
 import type { SubAgentManager } from "../../../src/agents/SubAgentManager.js";
 import type { SubAgentConfig, SubAgentResult } from "../../../src/agents/types.js";
-import type { GpuTierProfile } from "../../../src/config/GpuTierConfig.js";
-import { GpuTier } from "../../../src/config/GpuTierConfig.js";
+import type { HardwareTierConfig } from "../../../src/config/HardwareTier.types.js";
+import { getTierConfig } from "../../../src/config/HardwareTier.js";
 import type { ExtensionToWebviewMessage } from "../../../src/panels/messages.js";
 import { mockOf } from "../../helpers/factories.js";
 
@@ -27,28 +27,12 @@ function makeNode(overrides: Partial<TaskNode> & { id: string }): TaskNode {
   };
 }
 
-function makeTier1Profile(): GpuTierProfile {
-  return {
-    tier: GpuTier.TIER_1,
-    maxAgentIterations: 25,
-    subAgentMaxIterations: 8,
-    maxConcurrentSubAgents: 1,
-    compactionThreshold: 0.7,
-    contextWindow: 131072,
-    recommendedModel: "gemma4:e4b",
-  };
+function makeTier1Profile(): HardwareTierConfig {
+  return getTierConfig(1);
 }
 
-function makeTier3Profile(): GpuTierProfile {
-  return {
-    tier: GpuTier.TIER_3,
-    maxAgentIterations: 60,
-    subAgentMaxIterations: 15,
-    maxConcurrentSubAgents: 3,
-    compactionThreshold: 0.85,
-    contextWindow: 262144,
-    recommendedModel: "gemma4:31b",
-  };
+function makeTier3Profile(): HardwareTierConfig {
+  return getTierConfig(3);
 }
 
 function makeSuccessResult(type = "planning"): SubAgentResult {

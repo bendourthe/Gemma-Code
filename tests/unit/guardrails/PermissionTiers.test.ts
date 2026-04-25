@@ -15,7 +15,6 @@ describe("PermissionTiers", () => {
       expect(getPermissionTier("grep_codebase")).toBe(PermissionTier.AUTO_APPROVE);
       expect(getPermissionTier("tail_output")).toBe(PermissionTier.AUTO_APPROVE);
       expect(getPermissionTier("grep_output")).toBe(PermissionTier.AUTO_APPROVE);
-      expect(getPermissionTier("get_tool_schema")).toBe(PermissionTier.AUTO_APPROVE);
     });
 
     it("returns CONFIRM for write built-in tools", () => {

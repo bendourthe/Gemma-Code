@@ -225,5 +225,15 @@ describe("ToolRegistry", () => {
       expect(result.error).toMatch(/rejected by user/);
       expect(handler.execute).not.toHaveBeenCalled();
     });
+
+    it("applies permissionOverrides so an auto-approve tool can be elevated to dangerous", async () => {
+      const registry = new ToolRegistry();
+      registry.register("read_file", makeHandler({ id: "x", success: true, output: "" }));
+      const { gate, request } = makeGate(true);
+      registry.setConfirmationGate(gate, { read_file: 2 }, "auto");
+
+      await registry.execute(makeCall({ tool: "read_file", parameters: { path: "x.txt" } }));
+      expect(request).toHaveBeenCalledTimes(1);
+    });
   });
 });

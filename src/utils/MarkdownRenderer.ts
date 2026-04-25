@@ -111,7 +111,7 @@ renderer.code = function (code: string, lang: string | undefined): string {
 
   return (
     `<div class="code-block">` +
-    `<div class="code-header">${langLabel}<button class="copy-btn" aria-label="Copy code" data-code="${escapeAttr(code)}">Copy</button></div>` +
+    `<div class="code-header">${langLabel}<button class="copy-btn" aria-label="Copy code" data-code="${escapeHtml(code)}">Copy</button></div>` +
     `<pre><code class="hljs${lang ? ` language-${escapeHtml(lang)}` : ""}">${highlighted}</code></pre>` +
     `</div>`
   );
@@ -123,7 +123,7 @@ renderer.link = function (
   _title: string | null | undefined,
   text: string
 ): string {
-  return `<a href="${escapeAttr(href)}" class="ext-link" data-href="${escapeAttr(href)}">${text}</a>`;
+  return `<a href="${escapeHtml(href)}" class="ext-link" data-href="${escapeHtml(href)}">${text}</a>`;
 };
 
 /** Replace images with a placeholder to avoid loading external resources. */
@@ -164,6 +164,3 @@ function escapeHtml(str: string): string {
     .replace(/'/g, "&#39;");
 }
 
-function escapeAttr(str: string): string {
-  return escapeHtml(str);
-}

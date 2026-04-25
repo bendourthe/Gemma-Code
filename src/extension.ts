@@ -176,7 +176,7 @@ export function activate(context: vscode.ExtensionContext): void {
           `VRAM: ${vramMb} MB, Tier: ${tierId} (${tierConfig.name})`
         );
 
-        await chatPanel.updateTierConfig(tierConfig);
+        chatPanel.updateTierConfig(tierConfig);
         statusBarItem.text = `$(circuit-board) Tier ${tierId} (${tierConfig.name})`;
         statusBarItem.tooltip = `GPU: ${result.primaryGpu?.name ?? "none"} | VRAM: ${vramMb} MB`;
       } catch (err) {
@@ -187,7 +187,7 @@ export function activate(context: vscode.ExtensionContext): void {
     })();
   } else if (settings.gpuTierOverride != null) {
     const tierConfig = getTierConfig(settings.gpuTierOverride);
-    void chatPanel.updateTierConfig(tierConfig);
+    chatPanel.updateTierConfig(tierConfig);
     statusBarItem.text = `$(circuit-board) Tier ${settings.gpuTierOverride} (${tierConfig.name})`;
   } else {
     statusBarItem.text = "$(circuit-board) Tier 2 (default)";
@@ -204,7 +204,7 @@ export function activate(context: vscode.ExtensionContext): void {
       const tierId = classifyTier(vramMb);
       const tierConfig = getTierConfig(tierId);
 
-      await chatPanel.updateTierConfig(tierConfig);
+      chatPanel.updateTierConfig(tierConfig);
       statusBarItem.text = `$(circuit-board) Tier ${tierId} (${tierConfig.name})`;
       statusBarItem.tooltip = `GPU: ${result.primaryGpu?.name ?? "none"} | VRAM: ${vramMb} MB`;
 

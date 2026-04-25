@@ -89,7 +89,7 @@ export class SubAgentManager {
       // Build the sub-agent system prompt (minimal: base + tools + sub-agent directive).
       // Use the configured num_ctx (tier-aware via settings.maxTokens) instead of
       // a hardcoded Tier-2 default (review finding #103).
-      const systemPrompt = await this._promptBuilder.buildForSubAgent(
+      const systemPrompt = this._promptBuilder.buildForSubAgent(
         config,
         enabledToolMeta,
         this._ollamaOptions.num_ctx ?? 131072,

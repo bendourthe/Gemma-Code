@@ -107,11 +107,6 @@ try {
         if (Test-Path $WebviewSrc) {
             Copy-Item "$WebviewSrc\*" -Destination $OutWebview -Recurse -Force
         }
-        # Copy highlight.js from node_modules for syntax highlighting
-        $HljsMin = Join-Path $RepoRoot 'node_modules\highlight.js\build\highlight.min.js'
-        if (Test-Path $HljsMin) {
-            Copy-Item $HljsMin -Destination $OutWebview -Force
-        }
         0  # explicit success
     }
 

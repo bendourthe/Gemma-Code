@@ -60,6 +60,28 @@ Code-review remediation release closing all 14 P0 findings from the v0.3.0 revie
 - package.json version bumped to 0.4.0
 - modelName default aligned across package.json manifest and src/config/settings.ts (both now "gemma4:e4b")
 
+### Phase 7 -- Simplification and Release
+
+**Removed (~800 LOC)**
+- BudgetEnforcer (`src/guardrails/BudgetEnforcer.ts`) and its test; agent-loop branches that consumed it were already removed in Phase 3
+- LazyToolLoader (`src/tools/LazyToolLoader.ts`), the `serializeToolSummary` helper in `Gemma4ToolFormat.ts`, the `lazyToolLoading` flag on `PromptContext`, and the `get_tool_schema` meta-tool from the catalog/permission tiers
+- ConversationSync (`src/storage/ConversationSync.ts`) and its test
+- RelevanceScorer (`src/chat/RelevanceScorer.ts`), its test, and the async relevance branch in `PromptBuilder.build` (build is now synchronous; all call sites updated)
+- GpuTierConfig (`src/config/GpuTierConfig.ts`) and `inferTierFromModelName`; tier model unified onto `HardwareTierConfig` (gains `subAgentMaxIterations` + `maxConcurrentSubAgents`); `Orchestrator` and `DAGExecutor` now consume `HardwareTierConfig` directly
+- `gemma-code.gpuTier` setting (with v0.5 migration shim that maps the legacy "1"/"2"/"3" string onto the canonical `gpuTierOverride` numeric tier)
+- `gemma-code.memoryAutoSaveInterval` setting (no readers remained)
+- `gemma-code.maxSessionTokens` and `gemma-code.maxSessionMinutes` settings (tied to BudgetEnforcer deletion)
+- `escapeAttr` alias in MarkdownRenderer (every call site now invokes `escapeHtml` directly)
+- `highlight.min.js` copy step in `scripts/build-vsix.ps1` (webview imports highlight.js via the bundled module loader; ~1 MB smaller VSIX)
+- `validateExpectation` and `detectRegressions` relocated from `src/evaluation/GoldenTaskSuite.ts` to `tests/helpers/goldenTaskHelpers.ts` (test-only consumers)
+
+**Wired**
+- `gemma-code.permissionOverrides` setting now reaches `ToolRegistry.setConfirmationGate` so user overrides take effect (previously read but never applied); covered by a new `ToolRegistry` unit test
+
+**Internal**
+- `tsconfig.json`: `declaration: false`, `declarationMap: false` (no `.d.ts` artifacts in `out/`; faster builds)
+- `parseOtlpHeaders` rewritten as `split` -> `map` -> `Object.fromEntries` (same shape, half the lines)
+
 ---
 
 ## [0.3.0] -- 2026-04-18

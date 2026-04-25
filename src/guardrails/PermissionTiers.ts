@@ -13,7 +13,6 @@ const TOOL_PERMISSION_MAP: Record<BuiltinToolName, PermissionTier> = {
   grep_codebase: PermissionTier.AUTO_APPROVE,
   tail_output: PermissionTier.AUTO_APPROVE,
   grep_output: PermissionTier.AUTO_APPROVE,
-  get_tool_schema: PermissionTier.AUTO_APPROVE,
   write_file: PermissionTier.CONFIRM,
   edit_file: PermissionTier.CONFIRM,
   create_file: PermissionTier.CONFIRM,

@@ -23,7 +23,6 @@ export interface GemmaCodeSettings {
   compactionToolResultsKeep: number;
   memoryEnabled: boolean;
   embeddingModel: string;
-  memoryAutoSaveInterval: number;
   memoryMaxEntries: number;
   mcpEnabled: boolean;
   mcpServerMode: "stdio" | "off";
@@ -32,14 +31,28 @@ export interface GemmaCodeSettings {
   subAgentMaxIterations: number;
   autoDetectGpu: boolean;
   gpuTierOverride: HardwareTierId | null;
-  maxSessionTokens: number;
-  maxSessionMinutes: number;
   permissionOverrides: Record<string, number>;
-  gpuTier: "auto" | "1" | "2" | "3";
   otlpEnabled: boolean;
   otlpEndpoint: string;
   otlpHeaders: string;
   secretPathDenyExtra: string[];
+}
+
+// NOTE(v0.5): remove gpuTier fallback. Reads the legacy `gemma-code.gpuTier`
+// string setting and maps it onto the canonical `gpuTierOverride` numeric tier
+// for one release so users with the old preference do not regress.
+function readGpuTierOverride(
+  config: vscode.WorkspaceConfiguration,
+): HardwareTierId | null {
+  const explicit = config.get<number | null>("gpuTierOverride");
+  if (explicit === 1 || explicit === 2 || explicit === 3) {
+    return explicit;
+  }
+  const legacy = config.get<string>("gpuTier");
+  if (legacy === "1" || legacy === "2" || legacy === "3") {
+    return Number(legacy) as HardwareTierId;
+  }
+  return null;
 }
 
 export function getSettings(): GemmaCodeSettings {
@@ -63,7 +76,6 @@ export function getSettings(): GemmaCodeSettings {
     compactionToolResultsKeep: config.get<number>("compactionToolResultsKeep") ?? 8,
     memoryEnabled: config.get<boolean>("memoryEnabled") ?? true,
     embeddingModel: config.get<string>("embeddingModel") ?? "nomic-embed-text",
-    memoryAutoSaveInterval: config.get<number>("memoryAutoSaveInterval") ?? 15,
     memoryMaxEntries: config.get<number>("memoryMaxEntries") ?? 10000,
     mcpEnabled: config.get<boolean>("mcpEnabled") ?? false,
     mcpServerMode: (config.get<string>("mcpServerMode") as "stdio" | "off" | undefined) ?? "off",
@@ -71,11 +83,8 @@ export function getSettings(): GemmaCodeSettings {
     verificationThreshold: config.get<number>("verificationThreshold") ?? 3,
     subAgentMaxIterations: config.get<number>("subAgentMaxIterations") ?? 10,
     autoDetectGpu: config.get<boolean>("autoDetectGpu") ?? true,
-    gpuTierOverride: (config.get<number | null>("gpuTierOverride") ?? null) as HardwareTierId | null,
-    maxSessionTokens: config.get<number>("maxSessionTokens") ?? 500000,
-    maxSessionMinutes: config.get<number>("maxSessionMinutes") ?? 30,
+    gpuTierOverride: readGpuTierOverride(config),
     permissionOverrides: config.get<Record<string, number>>("permissionOverrides") ?? {},
-    gpuTier: (config.get<string>("gpuTier") as "auto" | "1" | "2" | "3" | undefined) ?? "auto",
     otlpEnabled: config.get<boolean>("otlpEnabled") ?? false,
     otlpEndpoint: config.get<string>("otlpEndpoint") ?? "http://localhost:4318/v1/traces",
     otlpHeaders: config.get<string>("otlpHeaders") ?? "",

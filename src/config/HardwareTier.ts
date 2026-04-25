@@ -28,6 +28,8 @@ export const TIER_CONFIGS: Record<HardwareTierId, HardwareTierConfig> = {
       },
     ],
     maxAgentIterations: 10,
+    subAgentMaxIterations: 8,
+    maxConcurrentSubAgents: 1,
     contextWindow: 32768,
     budgetOverrides: {
       systemPromptPercent: 8,
@@ -58,6 +60,8 @@ export const TIER_CONFIGS: Record<HardwareTierId, HardwareTierConfig> = {
       },
     ],
     maxAgentIterations: 20,
+    subAgentMaxIterations: 12,
+    maxConcurrentSubAgents: 2,
     contextWindow: 131072,
     budgetOverrides: {
       systemPromptPercent: 10,
@@ -88,6 +92,8 @@ export const TIER_CONFIGS: Record<HardwareTierId, HardwareTierConfig> = {
       },
     ],
     maxAgentIterations: 30,
+    subAgentMaxIterations: 15,
+    maxConcurrentSubAgents: 3,
     contextWindow: 262144,
     budgetOverrides: {
       systemPromptPercent: 10,

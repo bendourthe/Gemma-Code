@@ -9,8 +9,6 @@
  */
 export { classifyAction, ActionRisk } from "./ActionClassifier.js";
 export type { ActionClassification } from "./ActionClassifier.js";
-export { BudgetEnforcer } from "./BudgetEnforcer.js";
-export type { BudgetEnforcerConfig } from "./BudgetEnforcer.js";
 export { GitSafetyNet } from "./GitSafetyNet.js";
 export type { GitCheckpoint } from "./GitSafetyNet.js";
 export { LoopDetector } from "./LoopDetector.js";

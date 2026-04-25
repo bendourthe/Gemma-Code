@@ -4,6 +4,65 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-04-25] v0.4.0 Phase 7 -- Simplification and Release
+
+### Summary
+
+Closed 17 of 18 simplification findings from [docs/v0.3.0/review.md](v0.3.0/review.md), removing roughly 800 LOC across BudgetEnforcer, LazyToolLoader, ConversationSync, RelevanceScorer, GpuTierConfig, the legacy `gpuTier` setting, three obsolete user settings, the `escapeAttr` MarkdownRenderer alias, the highlight.min.js webview copy step, and a pair of GoldenTaskSuite test helpers. Wired `gemma-code.permissionOverrides` into `ToolRegistry.setConfirmationGate` so user-supplied per-tool tier overrides finally take effect, and unified `HardwareTierConfig` with the prior `GpuTierProfile` so the orchestrator and panel agree on a single tier model. `PromptBuilder.build` is now synchronous; the relevance-scoring branch and 11 `await` markers across `GemmaCodePanel`, `SubAgentManager`, and `extension.ts` are gone. Quality gates: 1097/1099 tests pass (2 ollama-health skipped without a live server), 88.79% line coverage, 82.58% branch coverage, lint clean, build clean. The CHANGELOG.md v0.4.0 section now includes a Phase 7 block; VSIX/installer/tag actions are deferred to interactive user execution because they affect shared state (CI runs and release artifacts).
+
+### Sub-task closures
+
+**Removals (7.1-7.4)**
+
+- BudgetEnforcer ([src/guardrails/BudgetEnforcer.ts](../src/guardrails/BudgetEnforcer.ts)) and its unit test deleted; the `BudgetEnforcer` and `BudgetEnforcerConfig` exports were removed from [src/guardrails/index.ts](../src/guardrails/index.ts). The agent-loop branches that consumed it were already removed in Phase 3 (sub-task 3.5), so this closure is a pure deletion. `git grep BudgetEnforcer src/ tests/` returns zero hits.
+- LazyToolLoader ([src/tools/LazyToolLoader.ts](../src/tools/LazyToolLoader.ts)) and its test deleted; `serializeToolSummary` removed from [src/tools/Gemma4ToolFormat.ts](../src/tools/Gemma4ToolFormat.ts); `lazyToolLoading` field removed from `PromptContext` ([src/chat/PromptBuilder.types.ts](../src/chat/PromptBuilder.types.ts)); `get_tool_schema` removed from `BuiltinToolName`, `BUILTIN_TOOL_NAMES`, `TOOL_PERMISSION_MAP`, `SAFE_TOOLS`, and the `GetToolSchemaParams` type; `PromptBuilder._buildToolDeclarations` collapsed to a single serializer (cache key no longer encodes the lazy flag). The `ToolCatalog.test.ts` and `PermissionTiers.test.ts` cases that asserted the meta-tool's presence were updated.
+- ConversationSync ([src/storage/ConversationSync.ts](../src/storage/ConversationSync.ts)) and its test deleted. The try/catch that wrapped its calls was already removed in Phase 3 (sub-task 3.6); no other consumers existed.
+- RelevanceScorer ([src/chat/RelevanceScorer.ts](../src/chat/RelevanceScorer.ts)) and its test deleted; `PromptBuilder.build`, `buildSync`, and `buildForSubAgent` are now synchronous and the relevance-scoring branch (priority-by-score sorting, embedding cache, `Promise.all`) is gone. `currentQuery`, `recentUserMessage`, and `relevanceScorer` fields removed from `PromptContext`. Eight call sites in [src/panels/GemmaCodePanel.ts](../src/panels/GemmaCodePanel.ts) and one in [src/agents/SubAgentManager.ts](../src/agents/SubAgentManager.ts) drop the `await`. `updateTierConfig` is now synchronous; three call sites in [src/extension.ts](../src/extension.ts) drop the `await` and `void` markers. Stale RelevanceScorer references in [src/storage/embeddingUtils.ts](../src/storage/embeddingUtils.ts) doc comments were updated.
+
+**Tier model unification (7.5, 7.6, 7.13)**
+
+- [src/config/GpuTierConfig.ts](../src/config/GpuTierConfig.ts) and its test deleted along with `GpuTier`, `GpuTierProfile`, `GPU_TIER_PROFILES`, `inferTierFromModelName`, `detectGpuTier`, and `getEffectiveProfile`.
+- [src/config/HardwareTier.types.ts](../src/config/HardwareTier.types.ts) `HardwareTierConfig` gains `subAgentMaxIterations` and `maxConcurrentSubAgents` fields. [src/config/HardwareTier.ts](../src/config/HardwareTier.ts) `TIER_CONFIGS` populated with the values previously held in `GPU_TIER_PROFILES`: Tier 1 -> 8 / 1, Tier 2 -> 12 / 2, Tier 3 -> 15 / 3. The choice preserves each disagreeing default bit-for-bit.
+- [src/orchestration/Orchestrator.ts](../src/orchestration/Orchestrator.ts) and [src/orchestration/DAGExecutor.ts](../src/orchestration/DAGExecutor.ts) now consume `HardwareTierConfig` directly. `OrchestratorConfig.gpuTierProfile` was renamed to `hardwareTier`; the only external caller is `GemmaCodePanel`.
+- [src/panels/GemmaCodePanel.ts](../src/panels/GemmaCodePanel.ts) no longer imports or calls `detectGpuTier` / `getEffectiveProfile`. The constructor bootstraps with `getTierConfig(settings.gpuTierOverride ?? 2)`; [src/extension.ts](../src/extension.ts) updates the panel via `updateTierConfig` once the async GPU detection finishes. The bootstrap default is Tier 2 (balanced), matching the existing v0.2.0 default.
+- The legacy `gemma-code.gpuTier` setting was removed from `package.json` and `settings.ts`. A `readGpuTierOverride` migration shim in [src/config/settings.ts](../src/config/settings.ts) reads the legacy `gpuTier` string ("1"/"2"/"3"), maps it onto `gpuTierOverride`, and is annotated `// NOTE(v0.5): remove gpuTier fallback`. Users with the old setting do not regress for one release.
+- Test factories ([tests/helpers/factories.ts](../tests/helpers/factories.ts), [tests/unit/orchestration/DAGExecutor.test.ts](../tests/unit/orchestration/DAGExecutor.test.ts)) now return `getTierConfig(N)` instead of hand-rolled `GpuTierProfile` objects.
+
+**Settings cleanup (7.10, 7.12)**
+
+- `gemma-code.memoryAutoSaveInterval`, `gemma-code.maxSessionTokens`, and `gemma-code.maxSessionMinutes` removed from [package.json](../package.json) `contributes.configuration.properties` and from `GemmaCodeSettings` / `getSettings()` ([src/config/settings.ts](../src/config/settings.ts)). The internal `BudgetMiddleware.SessionBudget.maxSessionTokens` field is unrelated -- it is a tier-derived budget computed in [src/tools/BudgetMiddleware.ts](../src/tools/BudgetMiddleware.ts) `createSessionBudget`, not the user setting -- and stays in place. The settings-test snapshot was updated.
+
+**Permission override wiring (7.11)**
+
+- [src/panels/GemmaCodePanel.ts](../src/panels/GemmaCodePanel.ts) `_buildToolRegistry` now accepts `permissionOverrides` and forwards it to `ToolRegistry.setConfirmationGate`. The `ToolRegistry` already consulted overrides in `getPermissionTier` / `shouldRequireConfirmation`; the missing link was the constructor wiring. A new `ToolRegistry` unit test asserts that `{ read_file: 2 }` elevates an auto-approve tool to dangerous and triggers the confirmation gate exactly once.
+
+**Build and packaging (7.7, 7.8, 7.9)**
+
+- 7.7 (python-multipart) is N/A: the Python backend was removed in Phase 1.13. The legacy locked `scripts/installer/legacy/backend-requirements.txt` retains the entry but is not on any active build path. The `out/backend/pyproject.toml` is a leftover build artifact.
+- 7.8: the `Copy-Item $HljsMin` block in [scripts/build-vsix.ps1](../scripts/build-vsix.ps1) was deleted. The webview imports highlight.js languages via the bundled module loader; the standalone bundle is no longer needed and the VSIX shrinks by ~1 MB.
+- 7.9: [tsconfig.json](../tsconfig.json) sets `declaration: false` and `declarationMap: false`. No `.d.ts` artifacts in `out/`; faster `tsc` compile.
+
+**Code-quality polish (7.14, 7.15, 7.16)**
+
+- [src/observability/OtlpExporter.ts](../src/observability/OtlpExporter.ts) `parseOtlpHeaders` was rewritten using `split` -> `map` -> `filter` -> `Object.fromEntries`. Same shape, half the lines, no mutable accumulator.
+- [src/utils/MarkdownRenderer.ts](../src/utils/MarkdownRenderer.ts) `escapeAttr` alias deleted; the two call sites (code-block copy button + link renderer) now invoke `escapeHtml` directly. The independent inline `escapeAttr` helpers inside the SessionListPanel and traceDashboard webview HTML strings are unrelated implementations and stay in place.
+- `validateExpectation` and `detectRegressions` moved from [src/evaluation/GoldenTaskSuite.ts](../src/evaluation/GoldenTaskSuite.ts) to a new [tests/helpers/goldenTaskHelpers.ts](../tests/helpers/goldenTaskHelpers.ts). Only the test suite consumed them; the shipped extension carries less code.
+
+### Test outcomes
+
+- `npm run build`: clean.
+- `npm run lint`: 0 errors, 5 pre-existing warnings (out-of-phase scope).
+- `npm test`: 1097 / 1099 pass; 2 skipped (the `ollama-health` integration tests gated on a live Ollama server).
+- `npx vitest run --coverage`: 88.79% line coverage, 82.58% branch coverage; total run 8.18s.
+
+### Known gaps and follow-ups
+
+- Phases 2-6 each have their own session-history file but were not aggregated into the v0.4.0 CHANGELOG section. Before tagging, the user should verify that the CHANGELOG carries a summary paragraph per phase. The Phase 7 block is now in place.
+- `npm run package`, `installer-smoke.yml workflow_dispatch`, and the `v0.4.0` git tag are deferred to interactive user execution. They affect shared state (CI runs, release artifacts) and require explicit authorization.
+- The `// NOTE(v0.5)` markers (`gpuTier` legacy fallback in `settings.ts`; the deferred items from Phase 6: `GemmaCodePanel` split, full settings injection, full Zod boundary coverage, marked v12 upgrade) are tracked under `docs/v0.5.0/plans/`.
+
+---
+
 ## [2026-04-24] v0.4.0 Phase 6 -- Restructuring (Architecture)
 
 ### Summary
