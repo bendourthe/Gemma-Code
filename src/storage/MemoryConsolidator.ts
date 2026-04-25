@@ -28,6 +28,22 @@ export interface ConsolidationReport {
   readonly errors: string[];
 }
 
+/**
+ * Counter snapshot exposed by `MemoryConsolidator.getCounters()` so callers
+ * (panel, tests) can observe consolidation behavior without a full metrics
+ * pipeline. Read-only -- counters are reset only by `resetCounters()`.
+ */
+export interface ConsolidationCounters {
+  readonly observationAdded: number;
+  readonly candidatePromoted: number;
+  readonly candidateReturned: number;
+}
+
+export type CorroborationOutcome =
+  | { readonly action: "inserted"; readonly id: string }
+  | { readonly action: "incremented"; readonly id: string; readonly count: number }
+  | { readonly action: "promoted"; readonly id: string; readonly count: number };
+
 const DEFAULT_STALE_AFTER_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 /**
@@ -41,6 +57,12 @@ export class MemoryConsolidator {
   private readonly _graphMemory: GraphMemory;
   private readonly _entityExtractor: EntityExtractor;
   private readonly _writeGate: WriteGate;
+  private _corroborationThreshold: number;
+  private _counters = {
+    observationAdded: 0,
+    candidatePromoted: 0,
+    candidateReturned: 0,
+  };
 
   constructor(
     memoryStore: MemoryStore,
@@ -48,12 +70,75 @@ export class MemoryConsolidator {
     graphMemory: GraphMemory,
     entityExtractor: EntityExtractor,
     writeGate: WriteGate,
+    corroborationThreshold = 2,
   ) {
     this._memoryStore = memoryStore;
     this._episodicMemory = episodicMemory;
     this._graphMemory = graphMemory;
     this._entityExtractor = entityExtractor;
     this._writeGate = writeGate;
+    this._corroborationThreshold = Math.max(1, Math.floor(corroborationThreshold));
+  }
+
+  /** Update the active threshold at runtime (settings change). */
+  setCorroborationThreshold(threshold: number): void {
+    this._corroborationThreshold = Math.max(1, Math.floor(threshold));
+  }
+
+  /** Return the active threshold. */
+  getCorroborationThreshold(): number {
+    return this._corroborationThreshold;
+  }
+
+  /** Read the current counter snapshot. */
+  getCounters(): ConsolidationCounters {
+    return { ...this._counters };
+  }
+
+  /** Reset counters to zero (used by tests). */
+  resetCounters(): void {
+    this._counters = {
+      observationAdded: 0,
+      candidatePromoted: 0,
+      candidateReturned: 0,
+    };
+  }
+
+  /** Record that a candidate-tier row was returned during retrieval (no fact-tier match). */
+  recordCandidateReturned(): void {
+    this._counters.candidateReturned += 1;
+  }
+
+  /**
+   * Add a single observation. If a matching memory row already exists (by
+   * identical content or Jaccard >= 0.9), increment its `corroboration_count`
+   * and promote to fact tier when the threshold is crossed; otherwise insert
+   * a new row at count 1.
+   */
+  async addObservation(
+    content: string,
+    type: MemoryType,
+    sessionId?: string,
+  ): Promise<CorroborationOutcome> {
+    this._counters.observationAdded += 1;
+    const existing = this._memoryStore.findMatchingEntry(content);
+    if (existing) {
+      const newCount = this._memoryStore.incrementCorroboration(existing.id);
+      if (newCount === null) {
+        // Race condition: row was deleted between the lookup and the update.
+        // Fall through to a fresh insert.
+      } else {
+        const wasCandidate = existing.corroborationCount < this._corroborationThreshold;
+        const isFact = newCount >= this._corroborationThreshold;
+        if (wasCandidate && isFact) {
+          this._counters.candidatePromoted += 1;
+          return { action: "promoted", id: existing.id, count: newCount };
+        }
+        return { action: "incremented", id: existing.id, count: newCount };
+      }
+    }
+    const entry = await this._memoryStore.save(content, type, sessionId);
+    return { action: "inserted", id: entry.id };
   }
 
   /**

@@ -44,6 +44,11 @@ import { EpisodicMemory } from "../storage/EpisodicMemory.js";
 import { GraphMemory } from "../storage/GraphMemory.js";
 import { MemoryConsolidator } from "../storage/MemoryConsolidator.js";
 import { UnifiedMemoryRetriever } from "../storage/UnifiedMemoryRetriever.js";
+import {
+  parseMemoryLintArgs,
+  runMemoryLint,
+  type MemoryLintResult,
+} from "../commands/memoryLintCommand.js";
 import type { HardwareTierConfig } from "../config/HardwareTier.types.js";
 import { getTierConfig } from "../config/HardwareTier.js";
 import { BudgetMiddleware, createSessionBudget } from "../tools/BudgetMiddleware.js";
@@ -125,6 +130,13 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     this._settingsChangeDisposable = vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration("gemma-code")) {
         this._settingsCache = null;
+        if (
+          event.affectsConfiguration("gemma-code.memoryCorroborationThreshold")
+        ) {
+          const threshold = this._getSettings().memoryCorroborationThreshold;
+          this._memoryConsolidator?.setCorroborationThreshold(threshold);
+          this._unifiedRetriever?.setCorroborationThreshold(threshold);
+        }
       }
     });
 
@@ -785,6 +797,53 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
             break;
           }
 
+          case "lint": {
+            const workspaceRoot =
+              vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? "";
+            if (!workspaceRoot) {
+              const noWsMsg = this._manager.addAssistantMessage(
+                "_/memory lint requires an open workspace._",
+              );
+              postMessage({
+                type: "messageComplete",
+                messageId: noWsMsg.id,
+                renderedHtml: renderMarkdown(noWsMsg.content),
+              });
+              this._postHistory();
+              break;
+            }
+            const settings = this._getSettings();
+            const lintArgs = parseMemoryLintArgs(subArgs);
+            let result: MemoryLintResult;
+            try {
+              result = await runMemoryLint(lintArgs, {
+                memoryStore: this._memoryStore,
+                workspaceRoot,
+                secretPathDenyExtra: settings.secretPathDenyExtra,
+                embeddingEnabled: settings.embeddingModel !== "",
+              });
+            } catch (err) {
+              const errMsg = this._manager.addAssistantMessage(
+                `_Memory lint failed: ${formatForUser(err)}_`,
+              );
+              postMessage({
+                type: "messageComplete",
+                messageId: errMsg.id,
+                renderedHtml: renderMarkdown(errMsg.content),
+              });
+              this._postHistory();
+              break;
+            }
+            const lintMsg = this._manager.addAssistantMessage(result.message);
+            postMessage({
+              type: "messageComplete",
+              messageId: lintMsg.id,
+              renderedHtml: renderMarkdown(lintMsg.content),
+            });
+            this._postHistory();
+            break;
+          }
+
           case "status":
           default: {
             const stats = this._memoryStore.getStats();
@@ -1353,6 +1412,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
       embeddingModel: settings.embeddingModel ?? null,
       requestTimeout: settings.requestTimeout,
       toolOutputCache,
+      corroborationThreshold: settings.memoryCorroborationThreshold,
     });
   }
 

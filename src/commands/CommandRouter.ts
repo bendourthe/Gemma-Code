@@ -40,7 +40,7 @@ const BUILTIN_DESCRIPTORS: CommandDescriptor[] = [
   { name: "plan", description: "Toggle plan mode on/off" },
   { name: "compact", description: "Compact the conversation context" },
   { name: "model", description: "Switch the active Ollama model", argumentHint: "[model name]" },
-  { name: "memory", description: "Manage persistent memory (search, save, clear, status)", argumentHint: "<search|save|clear|status> [query/content]" },
+  { name: "memory", description: "Manage persistent memory (search, save, clear, status, lint)", argumentHint: "<search|save|clear|status|lint> [query/content|--dry-run|--apply|--full|--limit=N]" },
   { name: "mcp", description: "Manage MCP connections (status, connect, disconnect)", argumentHint: "<status|connect|disconnect> [name]" },
   { name: "verify", description: "Manually trigger verification of recent changes" },
   { name: "research", description: "Spawn a research sub-agent to gather information", argumentHint: "<query>" },

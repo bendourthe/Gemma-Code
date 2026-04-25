@@ -24,6 +24,12 @@ export interface MemorySubsystemOptions {
    * so `searchToolOutputs(...)` can resolve.
    */
   toolOutputCache?: ToolOutputCache | null;
+  /**
+   * Phase 7 (v0.5.0): N-corroboration threshold. Default 2. Single-source
+   * observations are kept as candidates and only retrieved when no fact-tier
+   * match is available. Set to 1 to disable (legacy behavior).
+   */
+  corroborationThreshold?: number;
 }
 
 /**
@@ -123,12 +129,17 @@ function buildSubsystem(options: MemorySubsystemOptions): Built {
 
     const entityExtractor = new EntityExtractor();
 
+    const corroborationThreshold = Math.max(
+      1,
+      Math.floor(options.corroborationThreshold ?? 2),
+    );
     const memoryConsolidator = new MemoryConsolidator(
       memoryStore,
       episodicMemory,
       graphMemory,
       entityExtractor,
       { policy: "pattern_recurring", minRecurrences: 2, requireVerification: false },
+      corroborationThreshold,
     );
 
     // Phase 5: wire the shared embedder into the persistent tool-output
@@ -144,6 +155,7 @@ function buildSubsystem(options: MemorySubsystemOptions): Built {
       graphQueryEngine,
       options.toolOutputCache ?? null,
       embedder,
+      corroborationThreshold,
     );
 
     return {

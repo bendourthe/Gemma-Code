@@ -17,16 +17,32 @@ export interface MemoryEntry {
   readonly accessedAt: number;
   readonly accessCount: number;
   readonly relevanceDecay: number;
+  /**
+   * Number of independent observations that have corroborated this entry.
+   * Default 1 on first save; incremented by `MemoryConsolidator` when a new
+   * matching observation arrives. Compared against
+   * `gemma-code.memoryCorroborationThreshold` to gate retrieval tier.
+   */
+  readonly corroborationCount: number;
   readonly provenance?: MemoryProvenance;
   readonly ttl?: MemoryTTL;
   readonly scope?: "global" | "project" | "session";
 }
+
+/** Retrieval tier for a memory entry. */
+export type CorroborationTier = "fact" | "candidate";
 
 export interface MemorySearchResult {
   readonly entry: MemoryEntry;
   /** Combined relevance score in the range 0..1. */
   readonly score: number;
   readonly matchSource: "keyword" | "semantic" | "both";
+  /**
+   * Corroboration tier derived from `entry.corroborationCount` and the
+   * configured threshold. Surfaced so retrieval consumers can prefer
+   * fact-tier rows over candidate-tier rows.
+   */
+  readonly corroborationTier?: CorroborationTier;
 }
 
 export interface MemoryStats {

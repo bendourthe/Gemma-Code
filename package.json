@@ -206,6 +206,13 @@
           "maximum": 100000,
           "description": "Maximum number of memory entries before automatic pruning."
         },
+        "gemma-code.memoryCorroborationThreshold": {
+          "type": "number",
+          "default": 2,
+          "minimum": 1,
+          "maximum": 5,
+          "description": "Number of independent observations required before a semantic memory is treated as a fact. Single-source observations are kept as candidates and only retrieved when no fact-tier match is available. Set to 1 to disable (legacy behavior: every observation is a fact)."
+        },
         "gemma-code.mcpEnabled": {
           "type": "boolean",
           "default": false,

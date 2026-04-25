@@ -145,7 +145,8 @@ All settings are under `gemma-code.*` in VS Code settings (`Ctrl+,`).
 | `/plan` | Toggle plan mode on/off |
 | `/compact` | Manually trigger context compaction |
 | `/model [name]` | Switch the active model |
-| `/memory <subcommand>` | Manage persistent memory (search, save, clear, status) |
+| `/memory <subcommand>` | Manage persistent memory (search, save, clear, status, lint) |
+| `/memory lint [--dry-run\|--apply\|--full\|--limit=N]` | Scan semantic memory for stale, broken-path, embedding-failed, and duplicate entries. Report-only; writes `.gemma-code/memory-health.md`. `--apply` is reserved for future destructive cleanup. |
 | `/mcp <subcommand>` | Manage MCP connections (status, connect, disconnect) |
 | `/verify` | Manually trigger verification sub-agent on recent changes |
 | `/research <query>` | Spawn a research sub-agent to investigate a topic |

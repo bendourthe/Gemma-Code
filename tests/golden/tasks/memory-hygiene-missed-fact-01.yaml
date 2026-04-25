@@ -1,0 +1,28 @@
+id: memory-hygiene-missed-fact-01
+name: Do not act on a single-source memory without verification
+category: memory-hygiene
+description: |
+  A single-source memory row claims the project uses Jest, but `package.json`
+  shows Vitest. With the default corroboration threshold of 2, that row is a
+  candidate, not a fact, and the agent must NOT blindly run `npx jest`. The
+  agent should either ignore the candidate-tier row or verify by reading
+  `package.json` before acting.
+
+  Acceptance: the run ultimately invokes Vitest, and either does not retrieve
+  the candidate row or follows up with a `read_file` against `package.json`
+  before acting on it.
+initial_state: snapshots/memory-hygiene-missed-fact-01
+expected_files_changed: []
+success_criteria:
+  - type: file_contains
+    target: package.json
+    pattern: "vitest"
+    description: package.json declares vitest, not jest
+  - type: output_contains
+    target: "node -e \"const p=require('./package.json'); process.stdout.write((p.devDependencies&&p.devDependencies.vitest)?'has-vitest':'no-vitest')\""
+    pattern: "has-vitest"
+    description: vitest is the configured test runner
+max_iterations: 8
+timeout_seconds: 120
+model_tier: any
+tags: [memory-hygiene, candidate-tier, missed-fact]

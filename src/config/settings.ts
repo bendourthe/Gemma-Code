@@ -24,6 +24,7 @@ export interface GemmaCodeSettings {
   memoryEnabled: boolean;
   embeddingModel: string;
   memoryMaxEntries: number;
+  memoryCorroborationThreshold: number;
   mcpEnabled: boolean;
   mcpServerMode: "stdio" | "off";
   verificationEnabled: boolean;
@@ -77,6 +78,8 @@ export function getSettings(): GemmaCodeSettings {
     memoryEnabled: config.get<boolean>("memoryEnabled") ?? true,
     embeddingModel: config.get<string>("embeddingModel") ?? "nomic-embed-text",
     memoryMaxEntries: config.get<number>("memoryMaxEntries") ?? 10000,
+    memoryCorroborationThreshold:
+      Math.max(1, Math.min(5, config.get<number>("memoryCorroborationThreshold") ?? 2)),
     mcpEnabled: config.get<boolean>("mcpEnabled") ?? false,
     mcpServerMode: (config.get<string>("mcpServerMode") as "stdio" | "off" | undefined) ?? "off",
     verificationEnabled: config.get<boolean>("verificationEnabled") ?? true,

@@ -8,7 +8,7 @@
  * and the YAML harness stay in sync in spirit, even though they have
  * different schemas.
  */
-export const YAML_GOLDEN_TASK_COUNT = 24;
+export const YAML_GOLDEN_TASK_COUNT = 25;
 
 /**
  * Task ids as declared by the `id:` field in each YAML file, sorted by
@@ -20,6 +20,7 @@ export const YAML_GOLDEN_TASK_IDS: readonly string[] = [
   "bugfix-null-check-02",
   "bugfix-off-by-one-01",
   "bugfix-race-condition-05",
+  "memory-hygiene-missed-fact-01",
   "multi-file-add-import-02",
   "multi-file-api-endpoint-04",
   "multi-file-config-update-03",

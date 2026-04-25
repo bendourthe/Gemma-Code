@@ -146,7 +146,8 @@ describe("UnifiedMemoryRetriever", () => {
       });
 
       // Semantic should get the full budget since it's the only active layer.
-      expect(semantic.retrieve).toHaveBeenCalledWith("test", 1000);
+      // Third arg is the corroboration threshold, defaulting to 1.
+      expect(semantic.retrieve).toHaveBeenCalledWith("test", 1000, 1);
     });
 
     it("trims episodic first when over budget", async () => {

@@ -23,6 +23,13 @@ import { createFtsTableAndTriggers } from "./sqliteFts.js";
 
 const CHARS_PER_TOKEN = 4;
 
+/**
+ * Schema version persisted via PRAGMA user_version. Bump when the memories
+ * table layout changes; the constructor runs the migration block to bring
+ * an older DB up to the current version. Idempotent.
+ */
+const MEMORY_SCHEMA_VERSION = 2;
+
 /** All valid memory type values, used for stats initialization. */
 const MEMORY_TYPES: readonly MemoryType[] = [
   "decision",
@@ -86,15 +93,50 @@ export class MemoryStore {
         created_at INTEGER NOT NULL,
         accessed_at INTEGER NOT NULL,
         access_count INTEGER DEFAULT 0,
-        relevance_decay REAL DEFAULT 1.0
+        relevance_decay REAL DEFAULT 1.0,
+        corroboration_count INTEGER NOT NULL DEFAULT 1
       );
     `);
+
+    this._runMigrations();
 
     createFtsTableAndTriggers(this._db, {
       ftsTable: "memories_fts",
       contentTable: "memories",
       columns: ["content"],
     });
+  }
+
+  /**
+   * Apply schema migrations idempotently. Older DBs created before
+   * `corroboration_count` was introduced are upgraded in place; freshly
+   * created tables already have the column and the ADD COLUMN is skipped.
+   */
+  private _runMigrations(): void {
+    const currentVersion = this._db.pragma("user_version", {
+      simple: true,
+    }) as number;
+
+    if (currentVersion >= MEMORY_SCHEMA_VERSION) return;
+
+    // v0.5.0 Phase 7: add corroboration_count for the N-corroboration rule.
+    if (currentVersion < 2) {
+      const cols = this._db
+        .prepare(`PRAGMA table_info(memories)`)
+        .all() as Array<{ name: string }>;
+      const hasCorroboration = cols.some((c) => c.name === "corroboration_count");
+      if (!hasCorroboration) {
+        this._db.exec(
+          `ALTER TABLE memories ADD COLUMN corroboration_count INTEGER NOT NULL DEFAULT 1`,
+        );
+      }
+      this._db.exec(
+        `UPDATE memories SET corroboration_count = 1
+         WHERE corroboration_count IS NULL OR corroboration_count = 0`,
+      );
+    }
+
+    this._db.pragma(`user_version = ${MEMORY_SCHEMA_VERSION}`);
   }
 
   /** Inject a graph query engine for graph-augmented retrieval. */
@@ -125,8 +167,8 @@ export class MemoryStore {
 
     this._db
       .prepare(
-        `INSERT INTO memories (id, session_id, content, type, embedding, created_at, accessed_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO memories (id, session_id, content, type, embedding, created_at, accessed_at, corroboration_count)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
       )
       .run(id, sessionId ?? null, content, type, embeddingBuf, now, now);
     this._invalidateEmbeddingCache(id);
@@ -141,6 +183,7 @@ export class MemoryStore {
       accessedAt: now,
       accessCount: 0,
       relevanceDecay: 1.0,
+      corroborationCount: 1,
     };
   }
 
@@ -178,13 +221,15 @@ export class MemoryStore {
     if (!sanitized) return [];
 
     try {
+      // Order by FTS rank first, then by corroboration_count DESC so
+      // fact-tier rows surface above candidate-tier rows when ranks tie.
       const rows = this._db
         .prepare(
           `SELECT m.*, fts.rank
            FROM memories_fts fts
            JOIN memories m ON m.rowid = fts.rowid
            WHERE memories_fts MATCH ?
-           ORDER BY fts.rank
+           ORDER BY fts.rank, m.corroboration_count DESC
            LIMIT ?`,
         )
         .all(sanitized, limit) as MemoryRow[];
@@ -273,8 +318,17 @@ export class MemoryStore {
   /**
    * Retrieve memories relevant to a query, packed within a token budget.
    * Returns a formatted string ready for injection into PromptContext.memoryContext.
+   *
+   * `corroborationThreshold` tiers results into facts (count >= threshold)
+   * and candidates (count < threshold). Fact-tier rows are preferred; the
+   * candidate tier is only consulted when no fact-tier match is selected.
+   * Default is 1, which preserves legacy behavior (every row is a fact).
    */
-  async retrieve(query: string, tokenBudget: number): Promise<string> {
+  async retrieve(
+    query: string,
+    tokenBudget: number,
+    corroborationThreshold = 1,
+  ): Promise<string> {
     if (!query) return "";
 
     const keywordResults = this.searchKeyword(query, 20);
@@ -303,6 +357,7 @@ export class MemoryStore {
             entry: r.entry,
             score: 0.6 * existing.score + 0.4 * r.score,
             matchSource: "both",
+            corroborationTier: existing.corroborationTier,
           };
         }
       } else {
@@ -313,8 +368,21 @@ export class MemoryStore {
 
     if (merged.length === 0 && !this._graphEngine) return "";
 
-    // Sort by score descending, in place, on the single merged array.
-    const sorted = merged.sort((a, b) => b.score - a.score);
+    // Annotate corroboration tier on each result.
+    const annotated: MemorySearchResult[] = merged.map((r) => ({
+      ...r,
+      corroborationTier:
+        r.entry.corroborationCount >= corroborationThreshold ? "fact" : "candidate",
+    }));
+
+    // Partition: facts always rank above candidates regardless of score; within
+    // a tier sort by score descending.
+    const facts = annotated.filter((r) => r.corroborationTier === "fact");
+    const candidates = annotated.filter((r) => r.corroborationTier === "candidate");
+    facts.sort((a, b) => b.score - a.score);
+    candidates.sort((a, b) => b.score - a.score);
+    // Candidates only fill the budget after every fact has been considered.
+    const sorted: MemorySearchResult[] = [...facts, ...candidates];
 
     // Token-budget packing.
     const header = "## Recalled Memories\n\n";
@@ -386,8 +454,8 @@ export class MemoryStore {
     // Bulk INSERT inside a transaction.
     const now = Date.now();
     const insertStmt = this._db.prepare(
-      `INSERT INTO memories (id, session_id, content, type, embedding, created_at, accessed_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO memories (id, session_id, content, type, embedding, created_at, accessed_at, corroboration_count)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
     );
     const tx = this._db.transaction(
       (rows: Array<{ id: string; content: string; type: MemoryType; buf: Buffer | null }>) => {
@@ -499,6 +567,81 @@ export class MemoryStore {
     }
   }
 
+  /**
+   * Find an existing semantic memory entry that matches `content` either by
+   * exact match or by Jaccard token-set similarity >= 0.9. Used by the
+   * consolidator to attribute a new observation to an existing row before
+   * deciding whether to insert a fresh candidate.
+   *
+   * Candidate pool: most recent 200 rows. The pool is bounded to keep this
+   * O(K) regardless of total memory size; high-similarity matches surface
+   * within the recency window in practice.
+   */
+  findMatchingEntry(content: string): MemoryEntry | null {
+    if (!content) return null;
+    const tokensA = this._tokenSet(content);
+    if (tokensA.size === 0) return null;
+
+    const candidates = this._db
+      .prepare(
+        `SELECT * FROM memories
+         ORDER BY accessed_at DESC
+         LIMIT 200`,
+      )
+      .all() as MemoryRow[];
+
+    let best: { row: MemoryRow; sim: number } | null = null;
+    for (const row of candidates) {
+      if (row.content === content) {
+        return this._rowToEntry(row);
+      }
+      const sim = this._jaccard(tokensA, this._tokenSet(row.content));
+      if (sim >= 0.9 && (!best || sim > best.sim)) {
+        best = { row, sim };
+      }
+    }
+    return best ? this._rowToEntry(best.row) : null;
+  }
+
+  /**
+   * Increment `corroboration_count` for a row by 1 and return the new count.
+   * Returns null if the id does not exist.
+   */
+  incrementCorroboration(id: string): number | null {
+    const result = this._db
+      .prepare(
+        `UPDATE memories
+         SET corroboration_count = corroboration_count + 1, accessed_at = ?
+         WHERE id = ?`,
+      )
+      .run(Date.now(), id);
+    if (result.changes === 0) return null;
+    const row = this._db
+      .prepare("SELECT corroboration_count FROM memories WHERE id = ?")
+      .get(id) as { corroboration_count: number } | undefined;
+    return row?.corroboration_count ?? null;
+  }
+
+  /** Return all entries (no pagination). Intended for health-check use; bounded by `limit`. */
+  listAll(limit = 1000): MemoryEntry[] {
+    const rows = this._db
+      .prepare(
+        `SELECT * FROM memories
+         ORDER BY accessed_at DESC
+         LIMIT ?`,
+      )
+      .all(limit) as MemoryRow[];
+    return rows.map((r) => this._rowToEntry(r));
+  }
+
+  /** Total row count for the memories table. */
+  count(): number {
+    const row = this._db
+      .prepare("SELECT COUNT(*) as count FROM memories")
+      .get() as { count: number };
+    return row.count;
+  }
+
   // ---------------------------------------------------------------------------
   // Prune
   // ---------------------------------------------------------------------------
@@ -592,6 +735,7 @@ export class MemoryStore {
       accessedAt: row.accessed_at,
       accessCount: row.access_count,
       relevanceDecay: row.relevance_decay,
+      corroborationCount: row.corroboration_count ?? 1,
     };
   }
 
@@ -653,6 +797,26 @@ export class MemoryStore {
   private _cosineSimilarity32(a: Float32Array, b: Float32Array): number {
     return cosineSimilarity(a, b);
   }
+
+  /** Word-level token set for Jaccard similarity. Lowercased, length > 2. */
+  private _tokenSet(text: string): Set<string> {
+    const set = new Set<string>();
+    for (const tok of text.toLowerCase().split(/\W+/)) {
+      if (tok.length > 2) set.add(tok);
+    }
+    return set;
+  }
+
+  private _jaccard(a: Set<string>, b: Set<string>): number {
+    if (a.size === 0 && b.size === 0) return 1;
+    if (a.size === 0 || b.size === 0) return 0;
+    let intersection = 0;
+    for (const t of a) {
+      if (b.has(t)) intersection++;
+    }
+    const union = a.size + b.size - intersection;
+    return union === 0 ? 0 : intersection / union;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -670,5 +834,6 @@ interface MemoryRow {
   accessed_at: number;
   access_count: number;
   relevance_decay: number;
+  corroboration_count: number;
   rank: number;
 }

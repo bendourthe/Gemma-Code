@@ -1,0 +1,11 @@
+{
+  "comment": "Pre-seeded memory rows applied via MemoryStore.save(...) before the run. corroborationCount stays at 1 so the row is a candidate under the default threshold of 2.",
+  "rows": [
+    {
+      "key": "project-uses-jest",
+      "content": "The project uses Jest as its test runner.",
+      "type": "fact",
+      "corroborationCount": 1
+    }
+  ]
+}

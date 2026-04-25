@@ -58,6 +58,7 @@ export class UnifiedMemoryRetriever {
   private readonly _graphEngine: GraphQueryEngine | null;
   private readonly _toolOutputCache: ToolOutputCache | null;
   private readonly _embedder: EmbeddingClient | null;
+  private _corroborationThreshold: number;
 
   constructor(
     workingMemory: WorkingMemory | null,
@@ -66,6 +67,7 @@ export class UnifiedMemoryRetriever {
     graphEngine: GraphQueryEngine | null,
     toolOutputCache: ToolOutputCache | null = null,
     embedder: EmbeddingClient | null = null,
+    corroborationThreshold = 1,
   ) {
     this._workingMemory = workingMemory;
     this._episodicMemory = episodicMemory;
@@ -73,6 +75,17 @@ export class UnifiedMemoryRetriever {
     this._graphEngine = graphEngine;
     this._toolOutputCache = toolOutputCache;
     this._embedder = embedder;
+    this._corroborationThreshold = corroborationThreshold;
+  }
+
+  /** Update the corroboration tier threshold at runtime (settings change). */
+  setCorroborationThreshold(threshold: number): void {
+    this._corroborationThreshold = Math.max(1, Math.floor(threshold));
+  }
+
+  /** Read the active corroboration threshold. */
+  getCorroborationThreshold(): number {
+    return this._corroborationThreshold;
   }
 
   /**
@@ -166,7 +179,7 @@ export class UnifiedMemoryRetriever {
     if (layerBudgets.has("semantic")) {
       const budget = layerBudgets.get("semantic")!;
       promises.push(
-        this._semanticMemory!.retrieve(query.query, budget)
+        this._semanticMemory!.retrieve(query.query, budget, this._corroborationThreshold)
           .then((content) => { if (content) results.set("semantic", content); })
           .catch(() => { /* non-fatal */ }),
       );

@@ -1,0 +1,26 @@
+{
+  "version": "0.5.0",
+  "model": "gemma4:e4b",
+  "timestamp": "pending",
+  "hardware": {},
+  "tasks": {
+    "memory-hygiene-missed-fact-01": {
+      "expected": "pass",
+      "notes": "Agent must run Vitest, not Jest. Either ignore the candidate-tier memory row or verify against package.json before acting."
+    }
+  },
+  "aggregates": {
+    "pass_rate": 1.0,
+    "passed": 1,
+    "total": 1,
+    "mean_iterations": 0.0,
+    "mean_time_ms": 0.0,
+    "total_tokens": 0,
+    "by_category": {
+      "memory-hygiene": {
+        "passed": 1,
+        "total": 1
+      }
+    }
+  }
+}
