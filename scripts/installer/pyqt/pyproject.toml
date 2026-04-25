@@ -5,12 +5,17 @@ description = "Cross-platform PyQt5 wizard installer for Gemma Code"
 requires-python = ">=3.11"
 dependencies = [
     "PyQt5>=5.15,<5.15.12",
-    # Binary Qt distribution. The exact `==5.15.2` pin used to work on Linux
-    # x86_64 but was unsatisfiable on macOS arm64, where PyPI's wheel index
-    # only carries 5.15.11+. Loosen to a range so each platform picks the
-    # newest compatible 5.15 wheel that exists for it. PyQt5 5.15.x and
-    # PyQt5-Qt5 5.15.x stay binary-compatible within the 5.15 line.
-    "PyQt5-Qt5>=5.15.2,<5.16",
+    # Binary Qt distribution. PyPI's wheel coverage for `pyqt5-qt5` differs
+    # by platform:
+    #   - win_amd64:        only `5.15.2` ships (no Windows wheels for 5.15.3+)
+    #   - manylinux x86_64: `5.15.2` and `5.15.11+` both ship
+    #   - macosx_arm64:     only `5.15.11+` ships (no `5.15.2`)
+    # No single version covers all three CI platforms, so we split the
+    # constraint with PEP 508 markers. Both pip and uv honour markers in
+    # pyproject.toml dependency strings, so each platform resolves to a
+    # version that actually has a compatible wheel.
+    "PyQt5-Qt5==5.15.2 ; sys_platform != 'darwin'",
+    "PyQt5-Qt5>=5.15.11,<5.16 ; sys_platform == 'darwin'",
     "httpx>=0.27.0",
 ]
 
