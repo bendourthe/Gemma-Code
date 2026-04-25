@@ -160,12 +160,12 @@ Success is measured through three artifacts: a `tests/golden/baselines/v0.5.0.js
 
 ### Phase 3 Exit Checklist
 
-- [ ] `src/tools/Compressor.ts` exists with documented public API
-- [ ] `OutputRedirector.ts` stores compressed payloads transparently
-- [ ] `MetricsCollector` emits 4 compression events (`original_bytes`, `compressed_bytes`, `skipped_below_threshold`, `skipped_low_savings`)
-- [ ] No new entries in `package.json` `dependencies`
-- [ ] Round-trip is byte-equivalent across UTF-8 fixtures
-- [ ] Session history generated
+- [x] `src/tools/Compressor.ts` exists with documented public API ([src/tools/Compressor.ts](../../../src/tools/Compressor.ts))
+- [x] `OutputRedirector.ts` stores compressed payloads transparently (`.txt.br` files; `readTail`/`grepOutput`/`readDecoded` decompress on read)
+- [x] 4 compression events tracked (`originalBytes`, `compressedBytes`, `skippedBelowThreshold`, `skippedLowSavings`) -- DEVIATION: surfaced via module-level `getCompressionStats()` (mirrors the established `getTruncationStats()` pattern in OutputRedirector); `MetricsCollector` has no event-emit pattern in this codebase
+- [x] No new entries in `package.json` `dependencies` (uses Node built-in `zlib` and `crypto`)
+- [x] Round-trip is byte-equivalent across UTF-8 fixtures (emoji + CJK covered in [tests/unit/tools/Compressor.test.ts](../../../tests/unit/tools/Compressor.test.ts) and [tests/integration/tool-output-compression.test.ts](../../../tests/integration/tool-output-compression.test.ts))
+- [x] Session history generated -- [docs/v0.5.0/development/history/2026-04_phase-3-compression-foundation.md](../development/history/2026-04_phase-3-compression-foundation.md)
 
 ---
 

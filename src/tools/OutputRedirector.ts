@@ -1,6 +1,13 @@
 import * as fs from "fs";
 import * as path from "path";
 import { formatForUser } from "../utils/errors.js";
+import {
+  shouldCompress,
+  compressSync,
+  compressSyncLarge,
+  decompressSync,
+  SYNC_COMPRESS_CEILING,
+} from "./Compressor.js";
 import type {
   ToolHandler,
   ToolResult,
@@ -14,10 +21,15 @@ export interface RedirectedResult {
   readonly summary: string;
   readonly lineCount: number;
   readonly charCount: number;
+  /** True when the on-disk payload was Brotli-compressed. */
+  readonly compressed: boolean;
 }
 
 const PREVIEW_CHARS = 500;
 const OUTPUT_SUBDIR = ".gemma-code-output";
+
+/** Marker suffix appended to redirected output files when their bytes are Brotli-compressed. */
+export const COMPRESSED_FILE_SUFFIX = ".br";
 
 // ---------------------------------------------------------------------------
 // Universal byte-cap (Phase 2.1 — agent-friendly tools)
@@ -128,6 +140,19 @@ export function applyByteCap(
   };
 }
 
+/**
+ * Read a redirected output file's content as a string, transparently
+ * Brotli-decompressing files whose path ends with `.br`. Plain `.txt` files
+ * are read as utf-8.
+ */
+function _readRedirectedFile(filePath: string): string {
+  if (filePath.endsWith(COMPRESSED_FILE_SUFFIX)) {
+    const raw = fs.readFileSync(filePath);
+    return decompressSync(raw);
+  }
+  return fs.readFileSync(filePath, "utf-8");
+}
+
 function _truncationHint(toolName: string, cutBytes: number, originalBytes: number): string {
   let narrow: string;
   switch (toolName) {
@@ -172,6 +197,8 @@ export class OutputRedirector {
 
   /**
    * Write the full output to a file and return a summary pointer.
+   * Outputs that pass the Compressor's `shouldCompress` gate are stored
+   * Brotli-compressed at `<callId>.txt.br`; others land at `<callId>.txt`.
    * On write failure, returns null so the caller can fall back to the original output.
    */
   redirect(toolName: string, callId: string, output: string): RedirectedResult | null {
@@ -180,8 +207,33 @@ export class OutputRedirector {
         fs.mkdirSync(this._outputDir, { recursive: true });
       }
 
-      const filePath = path.join(this._outputDir, `${callId}.txt`);
-      fs.writeFileSync(filePath, output, "utf-8");
+      // Decide once whether to compress. shouldCompress emits its own
+      // skipped_below_threshold / skipped_low_savings telemetry; compressSync
+      // (or async compress for larger inputs) emits original/compressed bytes.
+      let compressed = false;
+      let filePath = path.join(this._outputDir, `${callId}.txt`);
+      const eligible = shouldCompress(output);
+      if (eligible) {
+        try {
+          // OutputRedirector is sync; use compressSync up to the 4 KB ceiling
+          // and zlib.brotliCompressSync directly above it. compressSync still
+          // updates telemetry for inputs at or below the ceiling; for larger
+          // inputs we mirror the behavior inline.
+          const byteLen = Buffer.byteLength(output, "utf8");
+          const dataBuf =
+            byteLen <= SYNC_COMPRESS_CEILING
+              ? compressSync(output).data
+              : compressSyncLarge(output).data;
+          filePath = path.join(this._outputDir, `${callId}.txt${COMPRESSED_FILE_SUFFIX}`);
+          fs.writeFileSync(filePath, dataBuf);
+          compressed = true;
+        } catch {
+          // Fall back to plain write on any compression error.
+          fs.writeFileSync(filePath, output, "utf-8");
+        }
+      } else {
+        fs.writeFileSync(filePath, output, "utf-8");
+      }
 
       const lineCount = output.split("\n").length;
       const charCount = output.length;
@@ -191,7 +243,7 @@ export class OutputRedirector {
         `Preview (first ${PREVIEW_CHARS} chars):\n${preview}\n\n` +
         "Use tail_output or grep_output to read specific parts.";
 
-      return { redirectedPath: filePath, summary, lineCount, charCount };
+      return { redirectedPath: filePath, summary, lineCount, charCount, compressed };
     } catch {
       return null;
     }
@@ -199,14 +251,14 @@ export class OutputRedirector {
 
   /** Read the last N lines from a redirected output file. */
   readTail(filePath: string, lines: number): string {
-    const content = fs.readFileSync(filePath, "utf-8");
+    const content = _readRedirectedFile(filePath);
     const allLines = content.split("\n");
     return allLines.slice(-lines).join("\n");
   }
 
   /** Search a redirected file for regex matches, returning lines with numbers. */
   grepOutput(filePath: string, pattern: string, maxResults: number): string {
-    const content = fs.readFileSync(filePath, "utf-8");
+    const content = _readRedirectedFile(filePath);
     const regex = new RegExp(pattern, "g");
     const allLines = content.split("\n");
     const matches: string[] = [];
@@ -222,6 +274,16 @@ export class OutputRedirector {
     return matches.length > 0
       ? matches.join("\n")
       : `No matches found for pattern: ${pattern}`;
+  }
+
+  /**
+   * Read the raw text of a redirected output file, transparently
+   * Brotli-decompressing files written with the `.br` suffix. Used by
+   * `readTail` and `grepOutput`; also exposed for advanced callers that need
+   * direct content access. Idempotent: calling twice produces the same string.
+   */
+  static readDecoded(filePath: string): string {
+    return _readRedirectedFile(filePath);
   }
 
   /** Remove all files in the output directory. */

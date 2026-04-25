@@ -6,7 +6,12 @@ import {
   OutputRedirector,
   TailOutputTool,
   GrepOutputTool,
+  COMPRESSED_FILE_SUFFIX,
 } from "../../../src/tools/OutputRedirector.js";
+import {
+  resetCompressionStats,
+  getCompressionStats,
+} from "../../../src/tools/Compressor.js";
 
 describe("OutputRedirector", () => {
   let tmpDir: string;
@@ -154,6 +159,107 @@ describe("OutputRedirector", () => {
       const freshRedirector = new OutputRedirector(path.join(tmpDir, "nope"));
       freshRedirector.cleanup();
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe("OutputRedirector — Brotli compression integration (Phase 3)", () => {
+  let tmpDir: string;
+  let redirector: OutputRedirector;
+
+  const lorem =
+    "Lorem ipsum dolor sit amet, consectetur adipiscing elit. " +
+    "Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. ";
+
+  function bigLorem(byteTarget: number): string {
+    let out = "";
+    while (Buffer.byteLength(out, "utf8") < byteTarget) out += lorem;
+    return out;
+  }
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "redir-compress-"));
+    redirector = new OutputRedirector(tmpDir, 100);
+    resetCompressionStats();
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("writes plain .txt files when output is below the 500 B compression threshold", () => {
+    const output = "x".repeat(200);
+    const result = redirector.redirect("run_terminal", "small", output);
+    expect(result).not.toBeNull();
+    expect(result!.compressed).toBe(false);
+    expect(result!.redirectedPath).toMatch(/small\.txt$/);
+    expect(result!.redirectedPath.endsWith(COMPRESSED_FILE_SUFFIX)).toBe(false);
+  });
+
+  it("writes a Brotli-compressed .txt.br file when output is large and compressible", () => {
+    const output = bigLorem(8 * 1024);
+    const result = redirector.redirect("run_terminal", "big", output);
+    expect(result).not.toBeNull();
+    expect(result!.compressed).toBe(true);
+    expect(result!.redirectedPath.endsWith(COMPRESSED_FILE_SUFFIX)).toBe(true);
+    const onDiskBytes = fs.statSync(result!.redirectedPath).size;
+    const originalBytes = Buffer.byteLength(output, "utf8");
+    expect(onDiskBytes).toBeLessThan(originalBytes / 2);
+  });
+
+  it("readTail transparently decompresses .br files", () => {
+    const lines = Array.from({ length: 200 }, (_, i) => `line-${i + 1} ${lorem}`);
+    const output = lines.join("\n");
+    const result = redirector.redirect("run_terminal", "tail", output)!;
+    expect(result.compressed).toBe(true);
+
+    const tail = redirector.readTail(result.redirectedPath, 3);
+    expect(tail).toContain("line-198");
+    expect(tail).toContain("line-200");
+    expect(tail).not.toContain("line-197");
+  });
+
+  it("grepOutput transparently decompresses .br files", () => {
+    const lines = Array.from({ length: 100 }, (_, i) =>
+      i === 42 ? "ERROR: needle in haystack" : `info: ${lorem}`,
+    );
+    const output = lines.join("\n");
+    const result = redirector.redirect("run_terminal", "grep", output)!;
+    expect(result.compressed).toBe(true);
+
+    const matches = redirector.grepOutput(result.redirectedPath, "ERROR", 10);
+    expect(matches).toContain("43: ERROR: needle in haystack");
+  });
+
+  it("round-trips UTF-8 with emoji and CJK characters byte-for-byte", () => {
+    const block = "世界 🌍 日本語 漢字 🎉🚀✨ ";
+    let output = "";
+    while (Buffer.byteLength(output, "utf8") < 4 * 1024) output += block;
+    const result = redirector.redirect("run_terminal", "utf8", output)!;
+    expect(result.compressed).toBe(true);
+
+    // readTail with a huge "lines" arg returns all decoded content.
+    const decoded = redirector.readTail(result.redirectedPath, 10_000_000);
+    expect(decoded).toBe(output);
+  });
+
+  it("updates compression telemetry counters", () => {
+    redirector.redirect("run_terminal", "telemetry", bigLorem(4 * 1024));
+    const stats = getCompressionStats();
+    expect(stats.originalBytes).toBeGreaterThan(0);
+    expect(stats.compressedBytes).toBeGreaterThan(0);
+    expect(stats.compressedBytes).toBeLessThan(stats.originalBytes);
+  });
+
+  it("OutputRedirector.readDecoded reads both .txt and .txt.br files", () => {
+    const small = redirector.redirect("run_terminal", "rd-small", "x".repeat(200))!;
+    expect(OutputRedirector.readDecoded(small.redirectedPath)).toBe("x".repeat(200));
+
+    const big = bigLorem(2 * 1024);
+    const r = redirector.redirect("run_terminal", "rd-big", big)!;
+    expect(r.compressed).toBe(true);
+    expect(OutputRedirector.readDecoded(r.redirectedPath)).toBe(big);
   });
 });
 
