@@ -10,12 +10,20 @@ import { EntityExtractor } from "./EntityExtractor.js";
 import { GraphQueryEngine } from "./GraphQueryEngine.js";
 import { MemoryConsolidator } from "./MemoryConsolidator.js";
 import { UnifiedMemoryRetriever } from "./UnifiedMemoryRetriever.js";
+import type { ToolOutputCache } from "./ToolOutputCache.js";
 
 export interface MemorySubsystemOptions {
   dbPath: string;
   ollamaUrl: string;
   embeddingModel: string | null;
   requestTimeout: number;
+  /**
+   * Phase 5 (v0.5.0): optional persistent tool-output cache. When provided,
+   * the subsystem wires its EmbeddingClient into the cache for async
+   * embed-after-store and threads the cache through to UnifiedMemoryRetriever
+   * so `searchToolOutputs(...)` can resolve.
+   */
+  toolOutputCache?: ToolOutputCache | null;
 }
 
 /**
@@ -123,11 +131,19 @@ function buildSubsystem(options: MemorySubsystemOptions): Built {
       { policy: "pattern_recurring", minRecurrences: 2, requireVerification: false },
     );
 
+    // Phase 5: wire the shared embedder into the persistent tool-output
+    // cache (if provided) so embed-after-store fires for cached reads.
+    if (options.toolOutputCache && embedder) {
+      options.toolOutputCache.setEmbedder(embedder);
+    }
+
     const unifiedRetriever = new UnifiedMemoryRetriever(
       workingMemory,
       episodicMemory,
       memoryStore,
       graphQueryEngine,
+      options.toolOutputCache ?? null,
+      embedder,
     );
 
     return {

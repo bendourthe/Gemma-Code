@@ -224,12 +224,12 @@ Success is measured through three artifacts: a `tests/golden/baselines/v0.5.0.js
 
 ### Phase 5 Exit Checklist
 
-- [ ] `searchToolOutputs` uses cosine similarity when Ollama is up; FTS5 fallback when down
-- [ ] `PromptBudget` uses tiktoken when available; heuristic fallback proven
-- [ ] `tiktoken` listed in `package.json` `dependencies`
-- [ ] Offline install verified
-- [ ] `tests/golden/baselines/v0.5.0-tiktoken.json` written
-- [ ] Session history generated
+- [x] `searchToolOutputs` uses cosine similarity when Ollama is up; FTS5 fallback when down -- [src/storage/UnifiedMemoryRetriever.ts](../../../src/storage/UnifiedMemoryRetriever.ts) `searchToolOutputs(query, options)` plus [src/storage/ToolOutputCache.ts](../../../src/storage/ToolOutputCache.ts) `searchByEmbedding` / `searchByKeyword`. Schema migrated with `embedding BLOB` + `excerpt TEXT` columns and an FTS5 contentless-shadow index over the excerpt.
+- [x] `PromptBudget` uses tiktoken when available; heuristic fallback proven -- [src/config/PromptBudget.ts](../../../src/config/PromptBudget.ts) `countTokens` / `heuristicTokenCount` / `disposeEncoder`. Tests: [tests/unit/config/PromptBudget.tiktoken.test.ts](../../../tests/unit/config/PromptBudget.tiktoken.test.ts) covers both branches. CompactionStrategy / PromptBuilder / AgentLoop now delegate to the centralized counter.
+- [x] `tiktoken` listed in `package.json` `dependencies` (`^1.0.17`)
+- [ ] Offline install verified (deferred -- `npm install --offline` requires a primed dev workstation cache; tracked for Phase 12 release-gate run)
+- [ ] `tests/golden/baselines/v0.5.0-tiktoken.json` written (deferred -- requires live Ollama + golden-task suite run; rolled into Phase 12 final baselining)
+- [x] Session history generated -- [docs/v0.5.0/development/history/2026-04_phase-5-semantic-recall-and-budgeting.md](../development/history/2026-04_phase-5-semantic-recall-and-budgeting.md)
 
 ---
 

@@ -1,5 +1,150 @@
+import { createRequire } from "node:module";
 import type { HardwareTierConfig } from "./HardwareTier.types.js";
 import { getLogger } from "../utils/logger.js";
+
+// ---------------------------------------------------------------------------
+// Phase 5 (v0.5.0): tiktoken-backed token counter with heuristic fallback.
+//
+// `countTokens(text)` returns precise token counts via OpenAI's `cl100k_base`
+// encoding (matches the GPT-3.5/4 tokenizer family closely enough for budget
+// allocation; for Gemma the exact count does not matter -- what matters is
+// that the *delta* between two strings is consistent so context-compaction
+// triggers fire at the right point). When tiktoken cannot load (native
+// binding missing / unsupported platform), the fallback heuristic preserves
+// the chars/4 contract so existing behavior degrades gracefully.
+//
+// The encoder load is lazy: the first call to `countTokens(...)` attempts
+// `get_encoding('cl100k_base')`. Subsequent calls reuse the cached encoder.
+// `disposeEncoder()` is exposed for tests and `extension.ts` deactivate().
+// ---------------------------------------------------------------------------
+
+const _heuristicChars = 4;
+const _heuristicCodeMultiplier = 1.3;
+
+interface TiktokenEncoder {
+  encode(text: string): Uint32Array;
+  free?(): void;
+}
+
+interface TiktokenModule {
+  get_encoding(name: string): TiktokenEncoder;
+}
+
+let _encoder: TiktokenEncoder | null = null;
+let _encoderLoadAttempted = false;
+let _encoderLoadFailed = false;
+
+const _tokenCounterStats = {
+  tiktokenCalls: 0,
+  heuristicCalls: 0,
+  tiktokenLoadAttempted: false,
+  tiktokenLoadFailed: false,
+};
+
+export interface TokenCounterStats {
+  readonly tiktokenCalls: number;
+  readonly heuristicCalls: number;
+  readonly tiktokenLoadAttempted: boolean;
+  readonly tiktokenLoadFailed: boolean;
+}
+
+function _ensureEncoderLoaded(): void {
+  if (_encoderLoadAttempted) return;
+  _encoderLoadAttempted = true;
+  _tokenCounterStats.tiktokenLoadAttempted = true;
+  try {
+    // Resolve `tiktoken` lazily so platforms missing a prebuilt native binding
+    // still start (the heuristic kicks in). createRequire works in both CJS
+    // and ESM-compiled outputs of this project.
+    const localRequire = createRequire(__filename);
+    const mod = localRequire("tiktoken") as TiktokenModule;
+    _encoder = mod.get_encoding("cl100k_base");
+  } catch (err) {
+    _encoderLoadFailed = true;
+    _tokenCounterStats.tiktokenLoadFailed = true;
+    getLogger().warn(
+      "[PromptBudget] tiktoken load failed; falling back to chars/4 heuristic.",
+      err,
+    );
+  }
+}
+
+/**
+ * Heuristic token counter: chars/4 with a 1.3x multiplier when the input
+ * contains a fenced code block. Deterministic, offline, and free of native
+ * bindings. Used as the fallback path when tiktoken cannot load.
+ */
+export function heuristicTokenCount(text: string): number {
+  if (!text) return 0;
+  const chars = text.length;
+  const hasCode = text.includes("```");
+  return Math.ceil((chars / _heuristicChars) * (hasCode ? _heuristicCodeMultiplier : 1));
+}
+
+/**
+ * Phase 5: precise token count via tiktoken `cl100k_base` when the native
+ * binding can load; falls back to `heuristicTokenCount` otherwise.
+ *
+ * The first call eagerly loads the encoder (synchronously). On platforms
+ * where the native binding is missing, the load is recorded as failed and
+ * subsequent calls go straight to the heuristic.
+ */
+export function countTokens(text: string): number {
+  if (!text) return 0;
+  _ensureEncoderLoaded();
+  if (_encoder && !_encoderLoadFailed) {
+    try {
+      _tokenCounterStats.tiktokenCalls += 1;
+      return _encoder.encode(text).length;
+    } catch (err) {
+      // A runtime tiktoken failure (e.g. a string with malformed surrogates)
+      // is rare but non-fatal -- fall through to the heuristic for this call
+      // without disabling the encoder for future calls.
+      getLogger().debug(
+        "[PromptBudget] tiktoken encode threw; using heuristic for this call.",
+        err,
+      );
+    }
+  }
+  _tokenCounterStats.heuristicCalls += 1;
+  return heuristicTokenCount(text);
+}
+
+/**
+ * Snapshot of the token-counter telemetry. Used by tests and the trace
+ * dashboard to confirm whether tiktoken is in use.
+ */
+export function getTokenCounterStats(): TokenCounterStats {
+  return { ..._tokenCounterStats };
+}
+
+/** Reset telemetry counters (test-only helper). */
+export function resetTokenCounterStats(): void {
+  _tokenCounterStats.tiktokenCalls = 0;
+  _tokenCounterStats.heuristicCalls = 0;
+  _tokenCounterStats.tiktokenLoadAttempted = _encoderLoadAttempted;
+  _tokenCounterStats.tiktokenLoadFailed = _encoderLoadFailed;
+}
+
+/**
+ * Free the cached tiktoken encoder so the underlying native handle is
+ * released. Idempotent. Tests use this to force a fresh load attempt; the
+ * extension's `deactivate()` calls this on shutdown.
+ */
+export function disposeEncoder(): void {
+  if (_encoder && typeof _encoder.free === "function") {
+    try {
+      _encoder.free();
+    } catch (err) {
+      getLogger().debug("[PromptBudget] tiktoken free threw:", err);
+    }
+  }
+  _encoder = null;
+  _encoderLoadAttempted = false;
+  _encoderLoadFailed = false;
+  _tokenCounterStats.tiktokenLoadAttempted = false;
+  _tokenCounterStats.tiktokenLoadFailed = false;
+}
 
 export interface BudgetAllocation {
   /** Tokens available for the system prompt (base instructions + tool declarations). */

@@ -333,6 +333,7 @@
     "isomorphic-dompurify": "^3.9.0",
     "marked": "^4.3.0",
     "node-html-parser": "^6.1.13",
+    "tiktoken": "^1.0.17",
     "zod": "^3.23.8"
   }
 }

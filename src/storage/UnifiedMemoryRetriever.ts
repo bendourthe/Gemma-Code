@@ -6,6 +6,14 @@ import type { WorkingMemory } from "./WorkingMemory.js";
 import type { EpisodicMemory } from "./EpisodicMemory.js";
 import type { MemoryStore } from "./MemoryStore.js";
 import type { GraphQueryEngine } from "./GraphQueryEngine.js";
+import type { EmbeddingClient } from "./EmbeddingClient.js";
+import type {
+  ToolOutputCache,
+  ToolOutputSearchResult,
+} from "./ToolOutputCache.js";
+import { DEFAULT_SEMANTIC_THRESHOLD } from "./ToolOutputCache.js";
+import { getLogger } from "../utils/logger.js";
+import { formatForLog } from "../utils/errors.js";
 
 const CHARS_PER_TOKEN = 4;
 
@@ -26,6 +34,15 @@ const TRIM_PRIORITY: Record<MemoryLayerId, number> = {
 };
 
 /**
+ * Phase 5 (v0.5.0) -- Options for `searchToolOutputs`. `topK` caps the result
+ * count; `threshold` overrides the default 0.85 cosine similarity bar.
+ */
+export interface ToolOutputSearchOptions {
+  readonly topK: number;
+  readonly threshold?: number;
+}
+
+/**
  * Unified memory retrieval across all four layers.
  *
  * Distributes a token budget across layers, queries each in parallel,
@@ -39,17 +56,66 @@ export class UnifiedMemoryRetriever {
   private readonly _episodicMemory: EpisodicMemory | null;
   private readonly _semanticMemory: MemoryStore | null;
   private readonly _graphEngine: GraphQueryEngine | null;
+  private readonly _toolOutputCache: ToolOutputCache | null;
+  private readonly _embedder: EmbeddingClient | null;
 
   constructor(
     workingMemory: WorkingMemory | null,
     episodicMemory: EpisodicMemory | null,
     semanticMemory: MemoryStore | null,
     graphEngine: GraphQueryEngine | null,
+    toolOutputCache: ToolOutputCache | null = null,
+    embedder: EmbeddingClient | null = null,
   ) {
     this._workingMemory = workingMemory;
     this._episodicMemory = episodicMemory;
     this._semanticMemory = semanticMemory;
     this._graphEngine = graphEngine;
+    this._toolOutputCache = toolOutputCache;
+    this._embedder = embedder;
+  }
+
+  /**
+   * Phase 5 -- semantic recall over the persistent tool-output cache. When an
+   * EmbeddingClient is wired and reachable, scores cached rows by cosine
+   * similarity at `threshold` (default 0.85). Falls back to FTS5 keyword
+   * search whenever:
+   *   1. The retriever was constructed without a ToolOutputCache (no-op),
+   *   2. No EmbeddingClient is wired (skip semantic step entirely),
+   *   3. The embedder returns null (Ollama offline / model unavailable),
+   *   4. The semantic step returns zero results.
+   * The semantic step never throws upstream -- failures degrade to keyword.
+   */
+  async searchToolOutputs(
+    query: string,
+    options: ToolOutputSearchOptions,
+  ): Promise<ToolOutputSearchResult[]> {
+    if (!this._toolOutputCache) return [];
+    if (!query) return [];
+
+    const threshold = options.threshold ?? DEFAULT_SEMANTIC_THRESHOLD;
+
+    if (this._embedder) {
+      let queryVec: number[] | null = null;
+      try {
+        queryVec = await this._embedder.embed(query);
+      } catch (err) {
+        getLogger().debug(
+          "[UnifiedMemoryRetriever] embed threw during searchToolOutputs:",
+          formatForLog(err),
+        );
+        queryVec = null;
+      }
+      if (queryVec) {
+        const semantic = this._toolOutputCache.searchByEmbedding(queryVec, {
+          topK: options.topK,
+          threshold,
+        });
+        if (semantic.length > 0) return semantic;
+      }
+    }
+
+    return this._toolOutputCache.searchByKeyword(query, options.topK);
   }
 
   /**

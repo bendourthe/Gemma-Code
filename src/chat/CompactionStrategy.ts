@@ -1,16 +1,16 @@
 import { randomUUID } from "crypto";
 import type { Message } from "./types.js";
 import type { OllamaClient, OllamaMessage, OllamaOptions } from "../llm/types.js";
+import { countTokens } from "../config/PromptBudget.js";
 
 // ---------------------------------------------------------------------------
 // Token estimation helper (extracted from ContextCompactor)
+//
+// Phase 5 (v0.5.0): delegates to the shared `countTokens` in PromptBudget,
+// which prefers tiktoken `cl100k_base` and falls back to the chars/4
+// heuristic when the native binding cannot load. The per-Message memoization
+// remains so we do not recompute for the same Message object across calls.
 // ---------------------------------------------------------------------------
-
-/** Characters-per-token heuristic for English text. */
-const CHARS_PER_TOKEN = 4;
-
-/** Multiplier for content that contains code blocks. */
-const CODE_BLOCK_MULTIPLIER = 1.3;
 
 /**
  * Per-Message memoization cache for token estimates. Messages are immutable,
@@ -21,9 +21,7 @@ const _tokenEstimateCache = new WeakMap<Message, number>();
 
 /** Compute the per-message token estimate (bypassing the cache). */
 function _computeTokensForMessage(msg: Message): number {
-  const chars = msg.content.length;
-  const hasCode = msg.content.includes("```");
-  return (chars / CHARS_PER_TOKEN) * (hasCode ? CODE_BLOCK_MULTIPLIER : 1);
+  return countTokens(msg.content);
 }
 
 /** Estimate the token count for a single message. Result is memoized. */

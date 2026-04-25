@@ -12,6 +12,7 @@ import { MetricsCollector } from "./observability/MetricsCollector.js";
 import { TraceDashboardPanel, TRACE_DASHBOARD_VIEW_ID } from "./panels/TraceDashboardPanel.js";
 import { OtlpExporter, parseOtlpHeaders } from "./observability/OtlpExporter.js";
 import { GemmaRuntime } from "./runtime/GemmaRuntime.js";
+import { disposeEncoder as disposeTokenEncoder } from "./config/PromptBudget.js";
 
 let outputChannel: vscode.OutputChannel | undefined;
 let ollamaPoller: NodeJS.Timeout | undefined;
@@ -385,4 +386,7 @@ export async function deactivate(): Promise<void> {
     clearTimeout(ollamaPoller);
     ollamaPoller = undefined;
   }
+  // Phase 5 (v0.5.0): release the cached tiktoken encoder so its native
+  // handle is freed when the extension shuts down.
+  disposeTokenEncoder();
 }

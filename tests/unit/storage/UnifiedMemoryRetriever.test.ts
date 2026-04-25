@@ -210,4 +210,203 @@ describe("UnifiedMemoryRetriever", () => {
       expect(stats.semantic.entryCount).toBe(5);
     });
   });
+
+  // -------------------------------------------------------------------------
+  // Phase 5: searchToolOutputs
+  // -------------------------------------------------------------------------
+
+  describe("searchToolOutputs() (Phase 5 -- semantic + FTS5 fallback)", () => {
+    function makeMockToolOutputCache(opts: {
+      semanticResults?: Array<{
+        absolutePath: string;
+        similarity: number;
+        content: string;
+      }>;
+      keywordResults?: Array<{
+        absolutePath: string;
+        similarity: number;
+        content: string;
+      }>;
+    }): {
+      cache: import("../../../src/storage/ToolOutputCache.js").ToolOutputCache;
+      searchByEmbedding: ReturnType<typeof vi.fn>;
+      searchByKeyword: ReturnType<typeof vi.fn>;
+    } {
+      const searchByEmbedding = vi.fn(() => opts.semanticResults ?? []);
+      const searchByKeyword = vi.fn(() => opts.keywordResults ?? []);
+      const cache = mockOf<
+        import("../../../src/storage/ToolOutputCache.js").ToolOutputCache
+      >({
+        searchByEmbedding,
+        searchByKeyword,
+      });
+      return { cache, searchByEmbedding, searchByKeyword };
+    }
+
+    function makeMockEmbedder(
+      embedFn: (text: string) => Promise<number[] | null>,
+    ): import("../../../src/storage/EmbeddingClient.js").EmbeddingClient {
+      return mockOf<
+        import("../../../src/storage/EmbeddingClient.js").EmbeddingClient
+      >({
+        embed: vi.fn(embedFn),
+        embedBatch: vi.fn(),
+        isAvailable: vi.fn(async () => true),
+      });
+    }
+
+    it("returns [] when no ToolOutputCache is wired", async () => {
+      const retriever = new UnifiedMemoryRetriever(null, null, null, null);
+      expect(await retriever.searchToolOutputs("anything", { topK: 5 })).toEqual([]);
+    });
+
+    it("returns [] for an empty query", async () => {
+      const { cache, searchByEmbedding, searchByKeyword } = makeMockToolOutputCache({
+        semanticResults: [{ absolutePath: "p", similarity: 0.99, content: "x" }],
+      });
+      const retriever = new UnifiedMemoryRetriever(null, null, null, null, cache, null);
+      expect(await retriever.searchToolOutputs("", { topK: 5 })).toEqual([]);
+      expect(searchByEmbedding).not.toHaveBeenCalled();
+      expect(searchByKeyword).not.toHaveBeenCalled();
+    });
+
+    it("uses semantic recall when an embedder returns a vector", async () => {
+      const semanticResults = [
+        { absolutePath: "/a", similarity: 0.97, content: "alpha content" },
+      ];
+      const { cache, searchByEmbedding, searchByKeyword } = makeMockToolOutputCache({
+        semanticResults,
+      });
+      const embedder = makeMockEmbedder(async () => [1, 0, 0, 0]);
+      const retriever = new UnifiedMemoryRetriever(
+        null,
+        null,
+        null,
+        null,
+        cache,
+        embedder,
+      );
+
+      const results = await retriever.searchToolOutputs("alpha", { topK: 5 });
+      expect(results).toEqual(semanticResults);
+      expect(searchByEmbedding).toHaveBeenCalledOnce();
+      expect(searchByKeyword).not.toHaveBeenCalled();
+    });
+
+    it("falls back to FTS5 when Ollama embedder returns null", async () => {
+      const keywordResults = [
+        { absolutePath: "/b", similarity: 1, content: "alpha keyword content" },
+      ];
+      const { cache, searchByEmbedding, searchByKeyword } = makeMockToolOutputCache({
+        keywordResults,
+      });
+      const embedder = makeMockEmbedder(async () => null);
+      const retriever = new UnifiedMemoryRetriever(
+        null,
+        null,
+        null,
+        null,
+        cache,
+        embedder,
+      );
+
+      const results = await retriever.searchToolOutputs("alpha", { topK: 5 });
+      expect(results).toEqual(keywordResults);
+      expect(searchByEmbedding).not.toHaveBeenCalled();
+      expect(searchByKeyword).toHaveBeenCalledOnce();
+    });
+
+    it("falls back to FTS5 when the embedder throws", async () => {
+      const { cache, searchByEmbedding, searchByKeyword } = makeMockToolOutputCache({
+        keywordResults: [
+          { absolutePath: "/c", similarity: 0.8, content: "alpha thrown content" },
+        ],
+      });
+      const embedder = makeMockEmbedder(async () => {
+        throw new Error("network down");
+      });
+      const retriever = new UnifiedMemoryRetriever(
+        null,
+        null,
+        null,
+        null,
+        cache,
+        embedder,
+      );
+
+      const results = await retriever.searchToolOutputs("alpha", { topK: 5 });
+      expect(results.length).toBe(1);
+      expect(searchByEmbedding).not.toHaveBeenCalled();
+      expect(searchByKeyword).toHaveBeenCalledOnce();
+    });
+
+    it("falls back to FTS5 when semantic results are empty", async () => {
+      const keywordResults = [
+        { absolutePath: "/d", similarity: 0.5, content: "alpha keyword" },
+      ];
+      const { cache, searchByEmbedding, searchByKeyword } = makeMockToolOutputCache({
+        semanticResults: [],
+        keywordResults,
+      });
+      const embedder = makeMockEmbedder(async () => [1, 0, 0]);
+      const retriever = new UnifiedMemoryRetriever(
+        null,
+        null,
+        null,
+        null,
+        cache,
+        embedder,
+      );
+
+      const results = await retriever.searchToolOutputs("alpha", { topK: 5 });
+      expect(results).toEqual(keywordResults);
+      expect(searchByEmbedding).toHaveBeenCalledOnce();
+      expect(searchByKeyword).toHaveBeenCalledOnce();
+    });
+
+    it("skips the semantic step entirely when no embedder is wired", async () => {
+      const keywordResults = [
+        { absolutePath: "/e", similarity: 0.9, content: "match" },
+      ];
+      const { cache, searchByEmbedding, searchByKeyword } = makeMockToolOutputCache({
+        keywordResults,
+      });
+      const retriever = new UnifiedMemoryRetriever(
+        null,
+        null,
+        null,
+        null,
+        cache,
+        null,
+      );
+
+      const results = await retriever.searchToolOutputs("alpha", { topK: 5 });
+      expect(results).toEqual(keywordResults);
+      expect(searchByEmbedding).not.toHaveBeenCalled();
+      expect(searchByKeyword).toHaveBeenCalledOnce();
+    });
+
+    it("forwards the threshold override to searchByEmbedding", async () => {
+      const { cache, searchByEmbedding } = makeMockToolOutputCache({
+        semanticResults: [
+          { absolutePath: "/f", similarity: 0.92, content: "x" },
+        ],
+      });
+      const embedder = makeMockEmbedder(async () => [1, 0]);
+      const retriever = new UnifiedMemoryRetriever(
+        null,
+        null,
+        null,
+        null,
+        cache,
+        embedder,
+      );
+
+      await retriever.searchToolOutputs("alpha", { topK: 7, threshold: 0.99 });
+      expect(searchByEmbedding).toHaveBeenCalledWith([1, 0], {
+        topK: 7,
+        threshold: 0.99,
+      });
+    });
+  });
 });

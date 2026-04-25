@@ -16,6 +16,7 @@ import type { GitSafetyNet, GitCheckpoint } from "../guardrails/GitSafetyNet.js"
 import { classifyAction, ActionRisk } from "../guardrails/ActionClassifier.js";
 import { Tracer } from "../observability/Tracer.js";
 import { formatForUser } from "../utils/errors.js";
+import { countTokens } from "../config/PromptBudget.js";
 
 const DEFAULT_MAX_ITERATIONS = 20;
 
@@ -24,13 +25,13 @@ const EPISODIC_TOOLS = new Set(["write_file", "edit_file", "create_file", "run_t
 
 const MAX_RECENT_TOOL_RESULTS = 5;
 
-// Lightweight token estimator for a single string. Mirrors the heuristic used in
-// CompactionStrategy (chars / 4, x1.3 when code blocks are present). Inlined to
-// avoid coupling AgentLoop to CompactionStrategy.
+/**
+ * Phase 5 (v0.5.0): delegates to `countTokens` so AgentLoop's per-turn
+ * accounting follows the same path as CompactionStrategy / PromptBuilder
+ * (tiktoken when loaded, chars/4 heuristic otherwise).
+ */
 function estimateTokensForString(text: string): number {
-  const chars = text.length;
-  const hasCode = text.includes("```");
-  return Math.round((chars / 4) * (hasCode ? 1.3 : 1));
+  return countTokens(text);
 }
 
 export interface AgentLoopOptions {

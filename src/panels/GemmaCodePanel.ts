@@ -135,7 +135,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     this._toolOutputCache = this._initToolOutputCache(settings);
 
     // Initialize 4-layer memory system through the MemorySubsystem factory.
-    const memory = this._buildMemorySubsystem(settings);
+    const memory = this._buildMemorySubsystem(settings, this._toolOutputCache);
     this._memorySubsystem = memory;
     this._memoryStore = memory.memoryStore;
     this._workingMemory = memory.workingMemory;
@@ -1341,6 +1341,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
 
   private _buildMemorySubsystem(
     settings: ReturnType<typeof getSettings>,
+    toolOutputCache: ToolOutputCache | null,
   ): MemorySubsystem {
     if (!settings.memoryEnabled || !this._globalStorageUri) {
       return MemorySubsystem.disabled();
@@ -1351,6 +1352,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
       ollamaUrl: settings.ollamaUrl,
       embeddingModel: settings.embeddingModel ?? null,
       requestTimeout: settings.requestTimeout,
+      toolOutputCache,
     });
   }
 

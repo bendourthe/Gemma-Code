@@ -3,12 +3,15 @@ import type { SubAgentConfig } from "../agents/types.js";
 import type { DynamicToolMetadata, ToolMetadata } from "../tools/ToolCatalog.js";
 import { getSubAgentInstructions } from "../agents/SubAgentPrompts.js";
 import { serializeToolDefinitions } from "../tools/Gemma4ToolFormat.js";
-import { calculateBudget } from "../config/PromptBudget.js";
+import { calculateBudget, countTokens } from "../config/PromptBudget.js";
 import { PLAN_MODE_SYSTEM_ADDENDUM } from "./PlanMode.js";
 
-/** Rough token estimation matching the heuristic used elsewhere in the codebase. */
+/**
+ * Phase 5 (v0.5.0): delegates to the shared `countTokens` so PromptBuilder
+ * uses tiktoken when available and the chars/4 heuristic otherwise.
+ */
 function estimateTokens(text: string): number {
-  return Math.ceil(text.length / 4);
+  return countTokens(text);
 }
 
 // ---------------------------------------------------------------------------
