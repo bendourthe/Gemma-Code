@@ -1,4 +1,5 @@
-import type { OllamaClient, OllamaOptions } from "../ollama/types.js";
+import type { OllamaClient, OllamaOptions } from "../llm/types.js";
+import { getLogger } from "../utils/logger.js";
 import type { ConversationManager } from "./ConversationManager.js";
 import type { PostMessageFn } from "./StreamingPipeline.js";
 import type { Message } from "./types.js";
@@ -13,8 +14,16 @@ import {
 } from "./CompactionStrategy.js";
 import { RegenerateFromSource } from "./RegenerateFromSource.js";
 import { calculateBudget } from "../config/PromptBudget.js";
-import { getSettings } from "../config/settings.js";
 import { Tracer } from "../observability/Tracer.js";
+
+/**
+ * The slice of `GemmaCodeSettings` the compactor reads on each invocation.
+ * Provided via callback so reactivity to settings changes does not require
+ * reconstructing the compactor.
+ */
+export interface CompactionSettingsProvider {
+  (): { compactionToolResultsKeep: number; compactionKeepRecent: number };
+}
 
 export class ContextCompactor {
   private _postCompactionHook?: (sessionId: string) => Promise<void>;
@@ -30,6 +39,11 @@ export class ContextCompactor {
     private readonly _preCompactionHook?: (messages: readonly Message[]) => Promise<void>,
     private readonly _compactionThreshold: number = 0.8,
     private readonly _workspacePath?: string,
+    private readonly _tracer: Tracer = new Tracer(),
+    private readonly _settingsProvider: CompactionSettingsProvider = () => ({
+      compactionToolResultsKeep: 3,
+      compactionKeepRecent: 6,
+    }),
   ) {}
 
   /** Set the trace context so compaction spans are linked to the agent trace. */
@@ -64,7 +78,7 @@ export class ContextCompactor {
   async compact(postMessage: PostMessageFn, force = false): Promise<void> {
     if (!force && !this.shouldCompact()) return;
 
-    const tracer = Tracer.getInstance();
+    const tracer = this._tracer;
     const tokensBefore = this.estimateTokens();
     const compactSpanId = tracer.startSpan(
       this._traceId,
@@ -85,7 +99,7 @@ export class ContextCompactor {
       text: "Context window approaching limit — compacting...",
     });
 
-    const settings = getSettings();
+    const settings = this._settingsProvider();
     const budget = calculateBudget(this._maxTokens);
 
     const pipeline = new CompactionPipeline([
@@ -93,7 +107,7 @@ export class ContextCompactor {
       new SlidingWindow(settings.compactionKeepRecent),
       new CodeBlockTruncation(),
       ...(this._workspacePath
-        ? [new RegenerateFromSource(this._workspacePath)]
+        ? [new RegenerateFromSource(this._workspacePath, 2000, settings.compactionKeepRecent)]
         : []),
       new LlmSummary(
         this._client,
@@ -118,7 +132,7 @@ export class ContextCompactor {
       const sessionId = this._manager.sessionId;
       if (sessionId) {
         await this._postCompactionHook(sessionId).catch((err) => {
-          console.warn("[ContextCompactor] Post-compaction hook failed:", err);
+          getLogger().warn("[ContextCompactor] Post-compaction hook failed:", err);
         });
       }
     }

@@ -9,7 +9,7 @@
 
 import type { SubAgentManager } from "../agents/SubAgentManager.js";
 import type { GpuTierProfile } from "../config/GpuTierConfig.js";
-import type { OllamaClient, OllamaOptions } from "../ollama/types.js";
+import type { OllamaClient, OllamaOptions } from "../llm/types.js";
 import type { ExtensionToWebviewMessage } from "../panels/messages.js";
 import type { MemoryStore } from "../storage/MemoryStore.js";
 import { DAGExecutor } from "./DAGExecutor.js";

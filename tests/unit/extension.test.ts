@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import * as vscode from "vscode";
 
 // Mock the ollama client so the extension doesn't make real HTTP calls
-vi.mock("../../src/ollama/client.js", () => ({
+vi.mock("../../src/llm/OllamaClient.js", () => ({
   createOllamaClient: vi.fn(() => ({
     checkHealth: vi.fn().mockResolvedValue(true),
     listModels: vi.fn().mockResolvedValue([]),

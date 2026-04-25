@@ -1,4 +1,6 @@
 import * as fs from "fs";
+import { getLogger } from "../utils/logger.js";
+import { formatForLog } from "../utils/errors.js";
 
 /**
  * Set POSIX mode 0600 on the SQLite database file so other users on the same
@@ -12,9 +14,9 @@ export function secureDbPermissions(dbPath: string): void {
   } catch (err) {
     // Non-fatal: log at debug and continue. Missing the chmod does not prevent
     // SQLite from opening the DB; it only weakens the file permission posture.
-    console.debug(
+    getLogger().debug(
       `[dbPermissions] chmod 0600 failed for "${dbPath}":`,
-      err instanceof Error ? err.message : String(err),
+      formatForLog(err),
     );
   }
 }

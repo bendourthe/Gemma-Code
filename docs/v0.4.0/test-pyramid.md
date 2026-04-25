@@ -43,7 +43,7 @@ Phase 5 added the following Vitest files:
 - **Deterministic synchronization** — removed all 10 `setTimeout(r, N)` test-sync primitives; suite now uses `vi.waitFor` / `Promise.resolve()` / fake timers.
 - **Consistent naming** — dropped the `should ` prefix from all 85 `it()` descriptions in the orchestration suite.
 - **Assertion strength** — 22 of 46 weak `toBeDefined`/`toBeTruthy`/`toBeFalsy` assertions tightened; remaining 25 are legitimate pre-specific-assertion null guards.
-- **Golden-task cross-check** — [scripts/generate-golden-tasks.mjs](../../scripts/generate-golden-tasks.mjs) generates [src/observability/goldenTasksYaml.generated.ts](../../src/observability/goldenTasksYaml.generated.ts) as a `prebuild`/`pretest` hook; `GoldenTaskSuite.test.ts` cross-checks the YAML count and id-to-filename mapping.
+- **Golden-task cross-check** — [scripts/generate-golden-tasks.mjs](../../scripts/generate-golden-tasks.mjs) generates [src/evaluation/goldenTasksYaml.generated.ts](../../src/evaluation/goldenTasksYaml.generated.ts) as a `prebuild`/`pretest` hook; `GoldenTaskSuite.test.ts` cross-checks the YAML count and id-to-filename mapping.
 - **Installer test disambiguation** — nightly jobs renamed `installer-package-check-*` (verifies PyQt installer package); weekly `installer-smoke-*` stays the canonical full smoke surface.
 
 ## What moved / shrank

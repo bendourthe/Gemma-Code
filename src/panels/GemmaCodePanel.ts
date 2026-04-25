@@ -21,11 +21,11 @@ import {
 } from "../tools/handlers/filesystem.js";
 import { RunTerminalTool } from "../tools/handlers/terminal.js";
 import { WebSearchTool, FetchPageTool } from "../tools/handlers/webSearch.js";
-import { createOllamaClient } from "../ollama/client.js";
+import { createOllamaClient } from "../llm/OllamaClient.js";
 import { getSettings, type GemmaCodeSettings } from "../config/settings.js";
 import { TOOL_CATALOG, toDynamicMetadata } from "../tools/ToolCatalog.js";
 import type { DynamicToolMetadata } from "../tools/ToolCatalog.js";
-import type { OllamaToolDefinition } from "../ollama/types.js";
+import type { OllamaToolDefinition } from "../llm/types.js";
 import { computeToolActivation } from "../tools/ToolActivationRules.js";
 import { McpManager } from "../mcp/McpManager.js";
 import { McpServer } from "../mcp/McpServer.js";
@@ -33,7 +33,7 @@ import { PromptBuilder } from "../chat/PromptBuilder.js";
 import type { PromptContext } from "../chat/PromptBuilder.types.js";
 import { SkillLoader } from "../skills/SkillLoader.js";
 import { CommandRouter } from "../commands/CommandRouter.js";
-import { PlanMode, detectPlan } from "../modes/PlanMode.js";
+import { PlanMode, detectPlan } from "../chat/PlanMode.js";
 import { ChatHistoryStore } from "../storage/ChatHistoryStore.js";
 import { MemoryStore } from "../storage/MemoryStore.js";
 import { MemorySubsystem } from "../storage/MemorySubsystem.js";
@@ -45,11 +45,14 @@ import { MemoryConsolidator } from "../storage/MemoryConsolidator.js";
 import { UnifiedMemoryRetriever } from "../storage/UnifiedMemoryRetriever.js";
 import type { HardwareTierConfig } from "../config/HardwareTier.types.js";
 import { BudgetMiddleware, createSessionBudget } from "../tools/BudgetMiddleware.js";
-import { GitSafetyNet } from "../safety/GitSafetyNet.js";
-import { LoopDetector } from "../safety/LoopDetector.js";
+import { GitSafetyNet } from "../guardrails/GitSafetyNet.js";
+import { LoopDetector } from "../guardrails/LoopDetector.js";
 import { detectGpuTier, getEffectiveProfile } from "../config/GpuTierConfig.js";
 import { Orchestrator } from "../orchestration/Orchestrator.js";
 import { renderMarkdown } from "../utils/MarkdownRenderer.js";
+import { getLogger } from "../utils/logger.js";
+import { formatForUser } from "../utils/errors.js";
+import type { GemmaRuntime } from "../runtime/GemmaRuntime.js";
 import type { EditMode } from "../tools/types.js";
 import type {
   WebviewToExtensionMessage,
@@ -110,6 +113,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
+    private readonly _runtime: GemmaRuntime,
     private readonly _globalStorageUri?: vscode.Uri,
     private readonly _workspaceState?: vscode.Memento,
   ) {
@@ -196,10 +200,14 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
               );
               this._memoryStore!.prune(settings.memoryMaxEntries);
             } catch (err) {
-              console.warn("[MemoryStore] Pre-compaction extraction failed:", err);
+              getLogger().warn("[MemoryStore] Pre-compaction extraction failed:", err);
             }
           }
         : undefined,
+      0.8,
+      undefined,
+      this._runtime.tracer,
+      () => this._runtime.settings,
     );
 
     // Wire the consolidator into the post-compaction hook.
@@ -215,6 +223,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
       this._memoryStore,
       ollamaOptions,
       settings.modelName,
+      this._runtime.tracer,
     );
 
     // Git safety net: auto-checkpoint/rollback for agent file modifications.
@@ -255,6 +264,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
         gitSafetyNet: this._gitSafetyNet ?? undefined,
         loopDetector: new LoopDetector(),
         maxTokens: settings.maxTokens,
+        tracer: this._runtime.tracer,
       },
     );
 
@@ -292,14 +302,14 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
         const prompt = await this._promptBuilder.build(this._buildPromptContext());
         this._manager.rebuildSystemPrompt(prompt);
       }).catch((err) => {
-        console.warn("[McpManager] Initialization failed:", err);
+        getLogger().warn("[McpManager] Initialization failed:", err);
       });
     }
 
     if (settings.mcpServerMode === "stdio") {
       this._mcpServer = new McpServer(this._registry, TOOL_CATALOG);
       void this._mcpServer.start().catch((err) => {
-        console.warn("[McpServer] Failed to start:", err);
+        getLogger().warn("[McpServer] Failed to start:", err);
       });
     }
 
@@ -816,7 +826,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
               const msg = this._manager.addAssistantMessage(`_Connected to MCP server "${subArgs}"._`);
               postMessage({ type: "messageComplete", messageId: msg.id, renderedHtml: renderMarkdown(msg.content) });
             } catch (err) {
-              const errMsg = err instanceof Error ? err.message : String(err);
+              const errMsg = formatForUser(err);
               const msg = this._manager.addAssistantMessage(`_Failed to connect to "${subArgs}": ${errMsg}_`);
               postMessage({ type: "messageComplete", messageId: msg.id, renderedHtml: renderMarkdown(msg.content) });
             }
@@ -941,7 +951,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
       .then(undefined, (err: unknown) => {
         // Surface config-save failures to the output channel so they are not
         // swallowed silently (review finding #100).
-        const message = err instanceof Error ? err.message : String(err);
+        const message = formatForUser(err);
         this._getOutputChannel().appendLine(
           `[config] Failed to save editMode='${mode}' to global settings: ${message}`,
         );

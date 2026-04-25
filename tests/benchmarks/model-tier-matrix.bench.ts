@@ -16,7 +16,7 @@
  */
 
 import { bench, describe, it, expect } from "vitest";
-import { createOllamaClient } from "../../src/ollama/client.js";
+import { createOllamaClient } from "../../src/llm/OllamaClient.js";
 
 const OLLAMA_URL = process.env["OLLAMA_URL"];
 const MODEL_TIERS = (

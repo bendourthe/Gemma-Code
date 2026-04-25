@@ -1,13 +1,20 @@
 # Architecture -- Gemma Code v0.3.0
 
+> **Note (v0.4.0 update, 2026-04-24)**: The Python FastAPI backend described below
+> was removed in v0.4.0 per [ADR-0001](../adr/0001-python-backend-disposition.md).
+> The TypeScript extension now talks directly to Ollama; port 11435, `BackendManager`,
+> and the installer's `VenvInstaller` step no longer exist. Sections that reference
+> the backend are preserved as historical record for the v0.3.0 snapshot. See
+> [docs/v0.4.0/](../v0.4.0/) for current architecture.
+
 ## Overview
 
 v0.3.0 builds on the v0.2.0 foundation and adds: hardware-aware GPU tier detection, context engineering improvements, graph-vector hybrid memory, safety and budget controls, plan-and-execute orchestration, local observability with a trace dashboard, a cross-platform PyQt5 installer, and a golden-task evaluation suite.
 
-The four-component runtime ecosystem:
+The four-component runtime ecosystem (as shipped in v0.3.0; reduced to three in v0.4.0):
 
 1. **TypeScript extension** -- VS Code Extension Host (Node.js).
-2. **Python FastAPI backend** -- child process spawned on activation (port 11435).
+2. **Python FastAPI backend** -- child process spawned on activation (port 11435). **Removed in v0.4.0.**
 3. **Ollama server** -- local model runtime (port 11434).
 4. **PyQt5 installer** (new in v0.3.0) -- standalone cross-platform wizard that bootstraps the above.
 

@@ -17,7 +17,7 @@ import { ConversationManager } from "../../../src/chat/ConversationManager.js";
 import { ContextCompactor } from "../../../src/chat/ContextCompactor.js";
 
 vi.mock("node-html-parser", () => ({ parse: vi.fn(() => ({ querySelectorAll: () => [] })) }));
-vi.mock("../../../src/ollama/client.js", () => ({
+vi.mock("../../../src/llm/OllamaClient.js", () => ({
   createOllamaClient: vi.fn(),
 }));
 

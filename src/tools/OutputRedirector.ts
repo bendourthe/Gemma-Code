@@ -1,5 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
+import { formatForUser } from "../utils/errors.js";
 import type {
   ToolHandler,
   ToolResult,
@@ -134,7 +135,7 @@ export class TailOutputTool implements ToolHandler {
         id,
         success: false,
         output: "",
-        error: err instanceof Error ? err.message : String(err),
+        error: formatForUser(err),
       };
     }
   }
@@ -171,7 +172,7 @@ export class GrepOutputTool implements ToolHandler {
         id,
         success: false,
         output: "",
-        error: err instanceof Error ? err.message : String(err),
+        error: formatForUser(err),
       };
     }
   }

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { GitSafetyNet } from "../../../src/safety/GitSafetyNet.js";
+import { GitSafetyNet } from "../../../src/guardrails/GitSafetyNet.js";
 
 // Mock child_process.execFile
 vi.mock("child_process", () => ({

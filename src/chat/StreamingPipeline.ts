@@ -1,7 +1,8 @@
-import type { OllamaClient, OllamaMessage, OllamaOptions, OllamaToolDefinition } from "../ollama/types.js";
-import { OllamaError } from "../ollama/types.js";
+import type { OllamaClient, OllamaMessage, OllamaOptions, OllamaToolDefinition } from "../llm/types.js";
+import { OllamaError } from "../llm/types.js";
 import type { ConversationManager } from "./ConversationManager.js";
 import type { ExtensionToWebviewMessage } from "../panels/messages.js";
+import { formatForUser } from "../utils/errors.js";
 
 export type PostMessageFn = (message: ExtensionToWebviewMessage) => void;
 
@@ -120,6 +121,6 @@ export class StreamingPipeline {
     if (err instanceof Error && err.name === "AbortError") {
       return "Request timed out. Try a shorter prompt or check if Ollama is overloaded.";
     }
-    return String(err);
+    return formatForUser(err);
   }
 }

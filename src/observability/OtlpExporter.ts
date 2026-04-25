@@ -1,6 +1,8 @@
 import type { Span } from "./TraceStore.js";
 import type { TracerExporter } from "./Tracer.js";
 import { isSsrfBlockedSync } from "../utils/ssrf.js";
+import { getLogger } from "../utils/logger.js";
+import { formatForLog } from "../utils/errors.js";
 
 // ---------------------------------------------------------------------------
 // OTLP JSON schema types (minimal subset)
@@ -79,8 +81,7 @@ export class OtlpExporter implements TracerExporter {
     this._batchSize = config.batchSize ?? DEFAULT_BATCH_SIZE;
 
     if (this._hasAuthorizationHeader()) {
-      // TODO: migrate to logger utility (Phase 6).
-      console.warn(
+      getLogger().warn(
         "[OtlpExporter] Authorization header configured. Credentials will be sent to the OTLP endpoint; " +
           "verify the endpoint is a trusted collector before enabling.",
       );
@@ -124,14 +125,14 @@ export class OtlpExporter implements TracerExporter {
       });
 
       if (!response.ok) {
-        console.debug(
+        getLogger().debug(
           `[OtlpExporter] Export failed: ${response.status} ${response.statusText}`,
         );
       }
     } catch (err) {
       // Network errors (including timeouts) are non-fatal; log and discard.
-      console.debug(
-        `[OtlpExporter] Export error: ${err instanceof Error ? err.message : String(err)}`,
+      getLogger().debug(
+        `[OtlpExporter] Export error: ${formatForLog(err)}`,
       );
     }
   }

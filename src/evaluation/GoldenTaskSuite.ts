@@ -1,4 +1,4 @@
-import type { SessionMetrics } from "./MetricsCollector.js";
+import type { SessionMetrics } from "../observability/MetricsCollector.js";
 
 // ---------------------------------------------------------------------------
 // Types

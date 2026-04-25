@@ -2,6 +2,7 @@
 // privacy-first goal. No API key is required for the HTML endpoint.
 
 import { parse as parseHtml } from "node-html-parser";
+import { formatForUser } from "../../utils/errors.js";
 import type {
   ToolHandler,
   ToolResult,
@@ -97,10 +98,7 @@ export class WebSearchTool implements ToolHandler {
       }
       html = await response.text();
     } catch (err) {
-      return failResult(
-        id,
-        `Network error: ${err instanceof Error ? err.message : String(err)}`
-      );
+      return failResult(id, `Network error: ${formatForUser(err)}`);
     }
 
     const results: SearchResult[] = [];
@@ -154,7 +152,7 @@ export class FetchPageTool implements ToolHandler {
       }
       html = await response.text();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = formatForUser(err);
       if (msg.includes("blocked by SSRF check")) {
         return failResult(
           id,

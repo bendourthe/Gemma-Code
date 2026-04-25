@@ -1,17 +1,21 @@
+import { OllamaHttp } from "../llm/OllamaHttp.js";
+import { getLogger } from "../utils/logger.js";
+
 /**
  * Wraps Ollama's /api/embed endpoint for generating text embeddings.
  * Gracefully degrades to null when the embedding model is unavailable.
+ *
+ * Shares the HTTP primitives (timeouts, URL normalization, /api/tags
+ * availability probing) with the chat `OllamaClient` via `OllamaHttp`.
  */
 export class EmbeddingClient {
-  private readonly _baseUrl: string;
+  private readonly _http: OllamaHttp;
   private readonly _model: string;
-  private readonly _timeoutMs: number;
   private _available: boolean | null = null;
 
   constructor(baseUrl: string, model: string, timeoutMs = 30000) {
-    this._baseUrl = baseUrl.replace(/\/$/, "");
+    this._http = new OllamaHttp(baseUrl, timeoutMs);
     this._model = model;
-    this._timeoutMs = timeoutMs;
   }
 
   /** Check whether the configured embedding model is available on the Ollama server. */
@@ -19,9 +23,7 @@ export class EmbeddingClient {
     if (this._available !== null) return this._available;
 
     try {
-      const response = await fetch(`${this._baseUrl}/api/tags`, {
-        signal: AbortSignal.timeout(this._timeoutMs),
-      });
+      const response = await this._http.get("/api/tags");
       if (!response.ok) {
         this._available = false;
         return false;
@@ -29,7 +31,7 @@ export class EmbeddingClient {
       const data = (await response.json()) as { models?: Array<{ name: string }> };
       const models = data.models ?? [];
       this._available = models.some(
-        (m) => m.name === this._model || m.name.startsWith(`${this._model}:`)
+        (m) => m.name === this._model || m.name.startsWith(`${this._model}:`),
       );
       return this._available;
     } catch {
@@ -46,12 +48,10 @@ export class EmbeddingClient {
     if (!available) return null;
 
     try {
-      const response = await fetch(`${this._baseUrl}/api/embed`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: this._model, input: text }),
-        signal: AbortSignal.timeout(this._timeoutMs),
-      });
+      const response = await this._http.postJson(
+        "/api/embed",
+        JSON.stringify({ model: this._model, input: text }),
+      );
 
       if (!response.ok) {
         if (response.status === 404) {
@@ -63,7 +63,7 @@ export class EmbeddingClient {
       const data = (await response.json()) as { embeddings?: number[][] };
       return data.embeddings?.[0] ?? null;
     } catch (err) {
-      console.warn("[EmbeddingClient] embed failed:", err);
+      getLogger().warn("[EmbeddingClient] embed failed:", err);
       return null;
     }
   }
@@ -83,15 +83,13 @@ export class EmbeddingClient {
     if (nonEmpty.length === 0) return texts.map(() => null);
 
     try {
-      const response = await fetch(`${this._baseUrl}/api/embed`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const response = await this._http.postJson(
+        "/api/embed",
+        JSON.stringify({
           model: this._model,
           input: nonEmpty.map((e) => e.text),
         }),
-        signal: AbortSignal.timeout(this._timeoutMs),
-      });
+      );
 
       if (!response.ok) {
         if (response.status === 404) {
@@ -112,7 +110,7 @@ export class EmbeddingClient {
       }
       return result;
     } catch (err) {
-      console.warn("[EmbeddingClient] embedBatch failed:", err);
+      getLogger().warn("[EmbeddingClient] embedBatch failed:", err);
       return texts.map(() => null);
     }
   }

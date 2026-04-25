@@ -11,6 +11,7 @@ import type { GpuTierProfile } from "../config/GpuTierConfig.js";
 import type { ExtensionToWebviewMessage } from "../panels/messages.js";
 import type { TaskDAG, TaskNode, TaskNodeType } from "./TaskDAG.js";
 import type { Reflection } from "./ReflexionEngine.js";
+import { formatForUser } from "../utils/errors.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -188,7 +189,7 @@ export class DAGExecutor {
         await this._handleNodeFailure(node, dag, result.error ?? "Sub-agent reported failure");
       }
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
+      const errorMsg = formatForUser(err);
       await this._handleNodeFailure(node, dag, errorMsg);
     }
 

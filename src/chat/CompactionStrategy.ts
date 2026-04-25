@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import type { Message } from "./types.js";
-import type { OllamaClient, OllamaMessage, OllamaOptions } from "../ollama/types.js";
+import type { OllamaClient, OllamaMessage, OllamaOptions } from "../llm/types.js";
 
 // ---------------------------------------------------------------------------
 // Token estimation helper (extracted from ContextCompactor)

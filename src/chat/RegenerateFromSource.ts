@@ -4,7 +4,6 @@ import { execSync } from "child_process";
 import { randomUUID } from "crypto";
 import type { CompactionStrategy } from "./CompactionStrategy.js";
 import type { Message } from "./types.js";
-import { getSettings } from "../config/settings.js";
 
 /**
  * Regex to extract file paths from message content.
@@ -42,6 +41,12 @@ export class RegenerateFromSource implements CompactionStrategy {
   constructor(
     private readonly _workspacePath: string,
     private readonly _maxSummaryTokens: number = 2000,
+    /**
+     * Number of recent non-system messages to keep after summarisation.
+     * Defaults to 6 to mirror the historical default of `compactionKeepRecent`
+     * when the value is not threaded in from the composition root.
+     */
+    private readonly _keepRecent: number = 6,
   ) {}
 
   /**
@@ -101,7 +106,7 @@ export class RegenerateFromSource implements CompactionStrategy {
     };
 
     // Preserve system messages and last N non-system messages.
-    const keepRecent = getSettings().compactionKeepRecent;
+    const keepRecent = this._keepRecent;
     const systemMessages = messages.filter((m) => m.role === "system");
     const nonSystem = messages.filter((m) => m.role !== "system");
     const kept = nonSystem.slice(-keepRecent);

@@ -28,7 +28,7 @@ export default [
       ],
       "@typescript-eslint/no-floating-promises": "error",
       "@typescript-eslint/await-thenable": "error",
-      "no-console": "warn",
+      "no-console": "error",
     },
   },
   {

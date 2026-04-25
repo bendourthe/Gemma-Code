@@ -1,6 +1,7 @@
 import { execFile, exec } from "child_process";
 import { totalmem } from "os";
 import type { GpuInfo, GpuVendor, DetectionResult } from "./GpuDetector.types.js";
+import { getLogger } from "../utils/logger.js";
 
 const DETECTION_TIMEOUT_MS = 5000;
 
@@ -16,7 +17,7 @@ function execWithTimeout(
   return new Promise((resolve) => {
     const cb = (error: Error | null, stdout: string | Buffer) => {
       if (error) {
-        console.debug(`[GpuDetector] Command failed: ${command} ${args.join(" ")} -- ${error.message}`);
+        getLogger().debug(`[GpuDetector] Command failed: ${command} ${args.join(" ")} -- ${error.message}`);
         resolve(null);
         return;
       }
@@ -276,7 +277,7 @@ export class GpuDetector {
 
       return gpus.length > 0 ? gpus : null;
     } catch {
-      console.debug("[GpuDetector] Failed to parse system_profiler output");
+      getLogger().debug("[GpuDetector] Failed to parse system_profiler output");
       return null;
     }
   }

@@ -6,27 +6,18 @@ import type {
 } from "./TraceStore.js";
 
 /**
- * Singleton tracer that instruments Gemma-Code components with trace spans.
+ * Tracer that instruments Gemma-Code components with trace spans.
  * When no TraceStore is configured, all methods are zero-cost no-ops.
+ *
+ * Constructed once at the composition root (`GemmaRuntime`) and passed by
+ * reference to consumers. Tests construct fresh per-test instances rather
+ * than relying on shared static state.
  */
 export class Tracer {
-  private static _instance: Tracer | null = null;
   private _store: TraceStore | null = null;
   private _exporter: TracerExporter | null = null;
 
-  private constructor() {}
-
-  static getInstance(): Tracer {
-    if (!Tracer._instance) {
-      Tracer._instance = new Tracer();
-    }
-    return Tracer._instance;
-  }
-
-  /** Reset singleton (for testing). */
-  static resetInstance(): void {
-    Tracer._instance = null;
-  }
+  constructor() {}
 
   /** Wire the trace store. Pass null to disable tracing. */
   init(store: TraceStore | null): void {

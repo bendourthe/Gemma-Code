@@ -1,4 +1,4 @@
-import type { OllamaClient, OllamaOptions, OllamaToolDefinition } from "../ollama/types.js";
+import type { OllamaClient, OllamaOptions, OllamaToolDefinition } from "../llm/types.js";
 import type { MemoryStore } from "../storage/MemoryStore.js";
 import type { PostMessageFn } from "../chat/StreamingPipeline.js";
 import type { SubAgentConfig, SubAgentResult, SubAgentType } from "./types.js";
@@ -8,6 +8,7 @@ import { ConversationManager } from "../chat/ConversationManager.js";
 import { AgentLoop } from "../tools/AgentLoop.js";
 import { ToolRegistry } from "../tools/ToolRegistry.js";
 import { computeToolActivation } from "../tools/ToolActivationRules.js";
+import { formatForUser } from "../utils/errors.js";
 import { TOOL_CATALOG, toDynamicMetadata } from "../tools/ToolCatalog.js";
 import type { DynamicToolMetadata } from "../tools/ToolCatalog.js";
 import { Tracer } from "../observability/Tracer.js";
@@ -40,12 +41,13 @@ export class SubAgentManager {
     private readonly _memoryStore: MemoryStore | null,
     private readonly _ollamaOptions: OllamaOptions,
     private readonly _modelName: string,
+    private readonly _tracer: Tracer = new Tracer(),
   ) {
     this._promptBuilder = promptBuilder;
   }
 
   async run(config: SubAgentConfig, postMessage: PostMessageFn, parentTraceId?: string, parentSpanId?: string): Promise<SubAgentResult> {
-    const tracer = Tracer.getInstance();
+    const tracer = this._tracer;
     const traceId = parentTraceId || tracer.startTrace();
     const subAgentSpanId = tracer.startSpan(
       traceId,
@@ -172,7 +174,7 @@ export class SubAgentManager {
         error: hadError ? errorText : undefined,
       };
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
+      const errorMessage = formatForUser(err);
 
       tracer.endSpan(subAgentSpanId, "error", { error: errorMessage });
 

@@ -1,3 +1,9 @@
+// NOTE(v0.5): bump marked from v4 to v12 to pick up its built-in sanitizer
+// and Trusted Types support. Deferred from v0.4.0 Phase 6.16 because the v12
+// renderer API is a breaking change (synchronous-only renderer methods, the
+// `Renderer` constructor signature changes, and `marked.setOptions` is gone).
+// DOMPurify (below) currently provides the sanitization layer, so the upgrade
+// is a maintenance/API-modernization win rather than a security fix.
 import { marked, Renderer } from "marked";
 // Import the core highlight.js entry and register only the languages we ship
 // syntax highlighting for. The default `highlight.js` export registers the

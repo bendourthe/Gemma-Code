@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { BudgetEnforcer } from "../../../src/safety/BudgetEnforcer.js";
-import type { BudgetEnforcerConfig } from "../../../src/safety/BudgetEnforcer.js";
+import { BudgetEnforcer } from "../../../src/guardrails/BudgetEnforcer.js";
+import type { BudgetEnforcerConfig } from "../../../src/guardrails/BudgetEnforcer.js";
 
 function makeConfig(overrides?: Partial<BudgetEnforcerConfig>): BudgetEnforcerConfig {
   return {

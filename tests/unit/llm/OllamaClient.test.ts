@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { OllamaError } from "../../../src/ollama/types.js";
+import { OllamaError } from "../../../src/llm/types.js";
 
 // Mock the settings module so the client doesn't need a live vscode instance
 vi.mock("../../../src/config/settings.js", () => ({
@@ -13,7 +13,7 @@ vi.mock("../../../src/config/settings.js", () => ({
 }));
 
 // Import after mocking
-const { createOllamaClient } = await import("../../../src/ollama/client.js");
+const { createOllamaClient } = await import("../../../src/llm/OllamaClient.js");
 
 // ---------------------------------------------------------------------------
 // Helpers

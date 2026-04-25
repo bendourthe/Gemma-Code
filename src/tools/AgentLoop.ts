@@ -1,4 +1,4 @@
-import type { OllamaClient, OllamaMessage, OllamaOptions, OllamaToolDefinition } from "../ollama/types.js";
+import type { OllamaClient, OllamaMessage, OllamaOptions, OllamaToolDefinition } from "../llm/types.js";
 import type { ConversationManager } from "../chat/ConversationManager.js";
 import type { PostMessageFn } from "../chat/StreamingPipeline.js";
 import type { ContextCompactor } from "../chat/ContextCompactor.js";
@@ -11,10 +11,11 @@ import type { ToolCall } from "./types.js";
 import type { WorkingMemory } from "../storage/WorkingMemory.js";
 import type { EpisodicMemory } from "../storage/EpisodicMemory.js";
 import { recordToolEvent } from "../storage/EpisodicMemory.js";
-import type { LoopDetector } from "../safety/LoopDetector.js";
-import type { GitSafetyNet, GitCheckpoint } from "../safety/GitSafetyNet.js";
-import { classifyAction, ActionRisk } from "../safety/ActionClassifier.js";
+import type { LoopDetector } from "../guardrails/LoopDetector.js";
+import type { GitSafetyNet, GitCheckpoint } from "../guardrails/GitSafetyNet.js";
+import { classifyAction, ActionRisk } from "../guardrails/ActionClassifier.js";
 import { Tracer } from "../observability/Tracer.js";
+import { formatForUser } from "../utils/errors.js";
 
 const DEFAULT_MAX_ITERATIONS = 20;
 
@@ -43,6 +44,12 @@ export interface AgentLoopOptions {
   readonly loopDetector?: LoopDetector;
   readonly gitSafetyNet?: GitSafetyNet;
   /**
+   * Tracer instance. Constructor-injected from the composition root so the
+   * loop never reaches into shared static state. Falls back to a disabled
+   * tracer (zero-cost no-ops) when omitted.
+   */
+  readonly tracer?: Tracer;
+  /**
    * Maximum context window in tokens. Posted alongside the running token
    * count so the webview can render an accurate progress bar. When omitted
    * the loop emits `limit: 0` to signal "unknown" (legacy behavior).
@@ -67,6 +74,7 @@ export class AgentLoop {
   private readonly _loopDetector?: LoopDetector;
   private readonly _gitSafetyNet?: GitSafetyNet;
   private readonly _maxTokens: number;
+  private readonly _tracer: Tracer;
   private _gitCheckpoint: GitCheckpoint | null = null;
   private _traceId = "";
   private _rootSpanId = "";
@@ -92,6 +100,7 @@ export class AgentLoop {
     this._loopDetector = options?.loopDetector;
     this._gitSafetyNet = options?.gitSafetyNet;
     this._maxTokens = options?.maxTokens ?? 0;
+    this._tracer = options?.tracer ?? new Tracer();
   }
 
   /** Set or replace the budget middleware (used for async tier config updates). */
@@ -149,7 +158,7 @@ export class AgentLoop {
     this._loopDetector?.reset();
 
     // Start a trace for this agent loop session.
-    const tracer = Tracer.getInstance();
+    const tracer = this._tracer;
     this._traceId = tracer.startTrace(this._sessionId);
     this._rootSpanId = tracer.getRootSpanId(this._traceId);
 
@@ -476,8 +485,7 @@ export class AgentLoop {
       if (this._abortController.signal.aborted) {
         return null; // normal cancellation — no error message
       }
-      const message =
-        err instanceof Error ? err.message : String(err);
+      const message = formatForUser(err);
       postMessage({ type: "error", text: `Stream error: ${message}` });
       return null;
     } finally {

@@ -16,6 +16,7 @@ import { mockGetConfiguration } from "../../setup.js";
 import { mockOf } from "../../helpers/factories.js";
 
 const { GemmaCodePanel, VIEW_ID } = await import("../../../src/panels/GemmaCodePanel.js");
+const { GemmaRuntime } = await import("../../../src/runtime/GemmaRuntime.js");
 
 function makeMockWebview() {
   const postMessage = vi.fn();
@@ -78,7 +79,7 @@ describe("GemmaCodePanel with real settings module", () => {
   it("renders the webview HTML using a custom modelName read via real getSettings", () => {
     setConfigValue("modelName", "custom-model:13b");
 
-    const panel = new GemmaCodePanel(makeExtensionUri());
+    const panel = new GemmaCodePanel(makeExtensionUri(), new GemmaRuntime());
     const { view } = makeMockWebviewView();
     panel.resolveWebviewView(
       view as vscode.WebviewView,
@@ -95,7 +96,7 @@ describe("GemmaCodePanel with real settings module", () => {
       get: vi.fn(<U>(_key: string, defaultValue?: U): U | undefined => defaultValue),
     }));
 
-    const panel = new GemmaCodePanel(makeExtensionUri());
+    const panel = new GemmaCodePanel(makeExtensionUri(), new GemmaRuntime());
     const { view } = makeMockWebviewView();
     panel.resolveWebviewView(
       view as vscode.WebviewView,
@@ -110,7 +111,7 @@ describe("GemmaCodePanel with real settings module", () => {
   it("reads getConfiguration with the gemma-code section", () => {
     setConfigValue("modelName", "probe-model");
 
-    new GemmaCodePanel(makeExtensionUri());
+    new GemmaCodePanel(makeExtensionUri(), new GemmaRuntime());
 
     expect(mockGetConfiguration).toHaveBeenCalledWith("gemma-code");
   });

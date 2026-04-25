@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { SubAgentManager } from "../../../src/agents/SubAgentManager.js";
 import type { SubAgentConfig, SubAgentResult } from "../../../src/agents/types.js";
-import type { OllamaClient } from "../../../src/ollama/types.js";
+import type { OllamaClient } from "../../../src/llm/types.js";
 import type { MemoryStore } from "../../../src/storage/MemoryStore.js";
 import { PromptBuilder } from "../../../src/chat/PromptBuilder.js";
 import {

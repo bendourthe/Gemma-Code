@@ -8,6 +8,8 @@ import type { ToolRegistry } from "../tools/ToolRegistry.js";
 import type { McpToolName } from "../tools/types.js";
 import { McpClient } from "./McpClient.js";
 import { McpToolHandler } from "./McpToolHandler.js";
+import { getLogger } from "../utils/logger.js";
+import { formatForLog } from "../utils/errors.js";
 import type {
   McpServerConfig,
   McpServerState,
@@ -105,7 +107,7 @@ export class McpManager {
     this._configs = await this._loadConfigs();
     for (const config of this._configs) {
       await this.connectServer(config.name).catch((err) => {
-        console.warn(`[McpManager] Failed to connect to "${config.name}":`, err);
+        getLogger().warn(`[McpManager] Failed to connect to "${config.name}":`, err);
       });
     }
   }
@@ -228,7 +230,7 @@ export class McpManager {
       const parsed = JSON.parse(raw) as unknown;
       const result = McpConfigFileSchema.safeParse(parsed);
       if (!result.success) {
-        console.warn(
+        getLogger().warn(
           `[McpManager] Invalid MCP config at ${filePath}: ${result.error.issues
             .map((i) => `${i.path.join(".")}: ${i.message}`)
             .join("; ")}`,
@@ -237,10 +239,8 @@ export class McpManager {
       }
       return result.data.servers.map((s) => ({ ...s, args: s.args ?? [] }));
     } catch (err) {
-      console.warn(
-        `[McpManager] Failed to read MCP config at ${filePath}: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
+      getLogger().warn(
+        `[McpManager] Failed to read MCP config at ${filePath}: ${formatForLog(err)}`,
       );
       return [];
     }
@@ -258,7 +258,7 @@ export class McpManager {
       if (ENV_WHITELIST_KEYS.has(k)) {
         filtered[k] = v;
       } else {
-        console.warn(
+        getLogger().warn(
           `[McpManager] Dropped non-whitelisted env key "${k}" for server "${config.name}"`,
         );
       }

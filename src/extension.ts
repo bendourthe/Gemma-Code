@@ -1,17 +1,17 @@
 import * as path from "path";
 import * as vscode from "vscode";
-import { getSettings } from "./config/settings.js";
-import { createOllamaClient } from "./ollama/client.js";
+import { createOllamaClient } from "./llm/OllamaClient.js";
+import { formatForUser } from "./utils/errors.js";
 import { GemmaCodePanel } from "./panels/GemmaCodePanel.js";
 import { SessionListPanel, SESSION_VIEW_ID } from "./panels/SessionListPanel.js";
 import { getGpuDetector } from "./config/GpuDetector.js";
 import { classifyTier, getTierConfig } from "./config/HardwareTier.js";
 import type { HardwareTierId } from "./config/HardwareTier.types.js";
 import { TraceStore } from "./observability/TraceStore.js";
-import { Tracer } from "./observability/Tracer.js";
 import { MetricsCollector } from "./observability/MetricsCollector.js";
 import { TraceDashboardPanel, TRACE_DASHBOARD_VIEW_ID } from "./panels/TraceDashboardPanel.js";
 import { OtlpExporter, parseOtlpHeaders } from "./observability/OtlpExporter.js";
+import { GemmaRuntime } from "./runtime/GemmaRuntime.js";
 
 let outputChannel: vscode.OutputChannel | undefined;
 let ollamaPoller: NodeJS.Timeout | undefined;
@@ -77,7 +77,9 @@ export function activate(context: vscode.ExtensionContext): void {
   outputChannel = vscode.window.createOutputChannel("Gemma Code");
   context.subscriptions.push(outputChannel);
 
-  const settings = getSettings();
+  const runtime = new GemmaRuntime();
+  context.subscriptions.push({ dispose: () => runtime.dispose() });
+  const settings = runtime.settings;
 
   // ── Ping command ─────────────────────────────────────────────────────────
   const pingCommand = vscode.commands.registerCommand(
@@ -124,7 +126,7 @@ export function activate(context: vscode.ExtensionContext): void {
         }
         channel.appendLine("\n\n[Gemma Code] Stream complete.");
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
+        const msg = formatForUser(err);
         channel.appendLine(`[Gemma Code] ERROR: ${msg}`);
 
         if (msg.includes("not found") || msg.includes("model")) {
@@ -148,6 +150,7 @@ export function activate(context: vscode.ExtensionContext): void {
   // ── Chat panel (used by both sidebar fallback and editor panel) ──────────
   const chatPanel = new GemmaCodePanel(
     context.extensionUri,
+    runtime,
     context.globalStorageUri,
     context.workspaceState,
   );
@@ -177,7 +180,7 @@ export function activate(context: vscode.ExtensionContext): void {
         statusBarItem.text = `$(circuit-board) Tier ${tierId} (${tierConfig.name})`;
         statusBarItem.tooltip = `GPU: ${result.primaryGpu?.name ?? "none"} | VRAM: ${vramMb} MB`;
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
+        const msg = formatForUser(err);
         outputChannel?.appendLine(`[Gemma Code] GPU detection failed: ${msg}`);
         statusBarItem.text = "$(circuit-board) Tier 2 (default)";
       }
@@ -277,7 +280,7 @@ export function activate(context: vscode.ExtensionContext): void {
   try {
     traceStore = new TraceStore(traceDbPath);
     metricsCollector = new MetricsCollector(traceStore);
-    const tracer = Tracer.getInstance();
+    const tracer = runtime.tracer;
     tracer.init(traceStore);
 
     // Optional OTLP export (off by default).
@@ -294,7 +297,7 @@ export function activate(context: vscode.ExtensionContext): void {
     outputChannel?.appendLine("[Gemma Code] Trace store initialized.");
     context.subscriptions.push({ dispose: () => { traceStore?.close(); } });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = formatForUser(err);
     outputChannel?.appendLine(`[Gemma Code] Trace store init failed: ${msg}`);
   }
 

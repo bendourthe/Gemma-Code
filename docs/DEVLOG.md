@@ -4,6 +4,78 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-04-24] v0.4.0 Phase 6 -- Restructuring (Architecture)
+
+### Summary
+
+Landed 14 of 17 structural recommendations from [docs/v0.3.0/review.md](v0.3.0/review.md) as behavior-preserving refactors, with three sub-tasks scoped down (the `GemmaCodePanel` split, full settings injection, and full Zod boundary coverage) and explicitly deferred to v0.5 with documented landing points. The codebase now has cohesive `guardrails/`, `llm/`, `evaluation/`, `runtime/`, and `utils/` modules; the `Tracer` singleton is gone; logging routes through a single injectable utility; ad-hoc `err instanceof Error ? ... : String(err)` formatting is centralized in [src/utils/errors.ts](../src/utils/errors.ts) with redaction; ESLint's `no-console` is now an error; and a one-command dev-setup pipeline is documented in [CONTRIBUTING.md](../CONTRIBUTING.md). 1165 Vitest cases pass at the same coverage the suite carried out of Phase 5; build is clean; lint is at 0 errors.
+
+### Sub-task closures
+
+**Documentation scaffolding (6.1, 6.13)**
+- New [docs/adr/README.md](adr/README.md) declares MADR convention plus an index that already links [docs/adr/0001-python-backend-disposition.md](adr/0001-python-backend-disposition.md). Companion [docs/adr/template.md](adr/template.md) seeds future ADRs with the canonical sections (Context, Decision, Consequences, Alternatives, Links).
+- [docs/v0.3.0/architecture.md](v0.3.0/architecture.md) header now carries a v0.4.0-update banner pointing at ADR-0001 and noting that the Python FastAPI backend, port 11435, `BackendManager`, and the installer's `VenvInstaller` step were removed; the rest of the v0.3.0 snapshot is preserved as historical record.
+
+**Module moves (6.3, 6.4, 6.5, 6.6, 6.7)**
+- `src/safety/` -> `src/guardrails/`. All five modules moved: `ActionClassifier.ts`, `BudgetEnforcer.ts`, `GitSafetyNet.ts`, `LoopDetector.ts`, `PermissionTiers.ts`. New [src/guardrails/policy.ts](../src/guardrails/policy.ts) holds `BLOCKED_PATTERNS` (extracted from `tools/handlers/terminal.ts`); `terminal.ts` now imports and re-exports it. New [src/guardrails/index.ts](../src/guardrails/index.ts) is the cohesive surface. The 3 importers (`tools/AgentLoop.ts`, `tools/ToolRegistry.ts`, `panels/GemmaCodePanel.ts`) all moved to the new path; the parallel `tests/unit/safety/` and `tests/integration/safety/` directories were renamed to `tests/unit/guardrails/` and `tests/integration/guardrails/` (with `agent-safety-pipeline.test.ts` -> `agent-guardrails-pipeline.test.ts`). `git grep "from \"../safety/"` returns zero hits in `src/`.
+- `src/ollama/` -> `src/llm/`. New [src/llm/types.ts](../src/llm/types.ts) defines vendor-neutral `LLMMessage`, `LLMOptions`, `LLMToolDefinition`, `LLMChatRequest`, `LLMStreamChunk`, `LLMModel`, `LLMClient`, `LLMError`. Transitional `Ollama*` aliases are re-exported from the same module so the 10 consumers (`agents/SubAgentManager.ts`, `chat/CompactionStrategy.ts`, `chat/ContextCompactor.ts`, `chat/StreamingPipeline.ts`, `panels/GemmaCodePanel.ts`, `tools/AgentLoop.ts`, `orchestration/{Orchestrator,PlannerAgent,ReflexionEngine}.ts`, `extension.ts`) only have a path swap, not a name change. The driver moved to [src/llm/OllamaClient.ts](../src/llm/OllamaClient.ts); the old `src/ollama/` directory is deleted.
+- New [src/llm/OllamaHttp.ts](../src/llm/OllamaHttp.ts) centralizes the previously duplicated fetch-with-timeout, URL normalization, `/api/tags` reachability probe, and JSON list parsing. Both `OllamaClient` and [src/storage/EmbeddingClient.ts](../src/storage/EmbeddingClient.ts) compose over it. `EmbeddingClient` lost its private `_baseUrl` / `_timeoutMs` fields and three direct `fetch` calls.
+- `src/observability/GoldenTaskSuite.ts` and `goldenTasksYaml.generated.ts` -> `src/evaluation/`. The cross-import to `MetricsCollector` updated to `../observability/MetricsCollector.js`. [scripts/generate-golden-tasks.mjs](../scripts/generate-golden-tasks.mjs) emits to the new path; [docs/v0.4.0/test-pyramid.md](v0.4.0/test-pyramid.md) link updated. `src/observability/` now contains only `Tracer`, `TraceStore`, `MetricsCollector`, `OtlpExporter`. Tests moved from `tests/unit/observability/GoldenTaskSuite.test.ts` to `tests/unit/evaluation/GoldenTaskSuite.test.ts`.
+- `src/modes/PlanMode.ts` -> `src/chat/PlanMode.ts`. The `src/modes/` directory is deleted. Importers `chat/PromptBuilder.ts`, `panels/messages.ts`, `panels/GemmaCodePanel.ts` updated. The unit test moved to `tests/unit/chat/PlanMode.test.ts`. (`tests/unit/modes/EditMode.test.ts` left in place; that test exercises `tools/types`, not `modes/`.)
+
+**Composition root and singleton retirement (6.2, 6.8, 6.9)**
+- New [src/runtime/GemmaRuntime.ts](../src/runtime/GemmaRuntime.ts) is the composition root. It owns one `Tracer` instance, one `getSettings()` snapshot, and the `onSettingsChange` subscription; consumers receive a typed slice via `runtime.tracer` / `runtime.settings` plus `onSettingsChange(listener)`. [src/extension.ts](../src/extension.ts) constructs it once at activation and passes it into `GemmaCodePanel`.
+- `Tracer.getInstance()` and `Tracer.resetInstance()` were deleted. The constructor is now public; the four call sites (`extension.ts:280`, `tools/AgentLoop.ts:152`, `chat/ContextCompactor.ts:67`, `agents/SubAgentManager.ts:48`) all receive the runtime's instance via constructor parameters. `AgentLoopOptions.tracer` was added; `ContextCompactor` and `SubAgentManager` accept a `tracer: Tracer = new Tracer()` parameter (the default is a disabled no-op tracer for tests). [tests/unit/observability/Tracer.test.ts](../tests/unit/observability/Tracer.test.ts) was rewritten to use per-test `new Tracer()` instances rather than `resetInstance` -- the suite is now parallel-safe. `git grep "Tracer.getInstance" src/` returns zero hits.
+- `getSettings()` is no longer called inside `chat/ContextCompactor.ts` or `chat/RegenerateFromSource.ts`. Compactor accepts a `CompactionSettingsProvider` callback that returns a typed slice (default falls back to historical defaults so direct constructions in tests keep working). `RegenerateFromSource` accepts an explicit `_keepRecent` parameter. [src/llm/OllamaClient.ts](../src/llm/OllamaClient.ts) `createOllamaClient` accepts `{ baseUrl, timeoutMs }` and only reads `getSettings()` as a documented backstop for the legacy zero-arg form (used by `gemma-code.ping` and a handful of tests).
+
+**Cross-cutting utilities (6.10, 6.11)**
+- New [src/utils/logger.ts](../src/utils/logger.ts) wraps `vscode.OutputChannel` with an injectable `Logger` interface (debug/info/warn/error). A `StderrLogger` fallback fires when `vscode.window.createOutputChannel` is not available so unit tests still see warnings. `setLogger` lets tests inject a captured fake. All 25 `console.*` call sites in `src/` migrated through `getLogger()`. [eslint.config.mjs](../eslint.config.mjs) `no-console` is now `"error"`.
+- New [src/utils/errors.ts](../src/utils/errors.ts) provides `formatForUser(err)` (redacts `C:\Users\<user>`, `/home/<user>`, generic absolute paths, GitHub PATs/AWS keys/JWTs/sk-* tokens) and `formatForLog(err)` (preserves stack). The 21 ad-hoc `err instanceof Error ? err.message : String(err)` sites across `agents/SubAgentManager`, `extension`, `mcp/{McpClient,McpManager}`, `observability/OtlpExporter`, `tools/{AgentLoop,OutputRedirector,ToolRegistry}`, `tools/handlers/{terminal,webSearch}`, `orchestration/DAGExecutor`, `panels/GemmaCodePanel`, and `storage/{dbPermissions,MemoryStore}` now route through these helpers. `StreamingPipeline._humanizeError` retains its OllamaError-specific branches but its catch-all `String(err)` fallback now goes through `formatForUser`.
+
+**Validation hardening (6.12, partial)**
+- [src/llm/types.ts](../src/llm/types.ts) adds `LLMStreamChunkSchema`, `LLMModelSchema`, and `LLMListModelsResponseSchema` (pre-compiled Zod schemas). `OllamaClient.streamChat` validates every chunk via a private `parseChunk` helper; `OllamaHttp.listModels` validates the `/api/tags` body. McpManager's existing Zod use is unchanged.
+
+**Contributor onboarding (6.14)**
+- New [scripts/dev-setup.sh](../scripts/dev-setup.sh) and [scripts/dev-setup.ps1](../scripts/dev-setup.ps1) verify Node 18+, optionally check for Ollama, install dependencies, run the prebuild generator, and compile TypeScript. Idempotent. New [CONTRIBUTING.md](../CONTRIBUTING.md) documents the project tour, the one-command setup, the daily loop, conventions (no `console.*`, formatForUser/formatForLog, Zod at boundaries, ASCII-only commit messages), the testing workflow, and where to ask. [package.json](../package.json) adds `"dev": "tsc -w"` next to the existing `watch` script (kept for backwards compatibility).
+
+**Closed via prior work (6.15)**
+- Sub-task 6.15 (drop nightly `installer-smoke-*` jobs) was already satisfied by Phase 5 sub-task 5.19, which renamed the nightly jobs to `installer-package-check-*` and documented the distinction. No code changes; recorded as a no-op closure.
+
+### Deviations
+
+- **6.2 panel split deferred.** `GemmaRuntime` exists and now owns the cross-cutting state, but the further extraction of `ChatController` (agent-loop + orchestration mediator) and `ChatWebviewHost` (webview provider + message translation) from `panels/GemmaCodePanel.ts` is deferred to v0.5. The panel still holds ~1400 lines; v0.5 will land the host/controller split with the new runtime-owned dependencies as the seam.
+- **6.9 not strict.** The deepest consumers (`ContextCompactor`, `RegenerateFromSource`) take settings via constructor injection. `panels/GemmaCodePanel.ts` still calls `this._getSettings()` (its private cache) at 12 sites; `extension.ts` still calls `getSettings()` directly during activation; `llm/OllamaClient.ts` retains a documented backstop for the zero-arg `createOllamaClient()`. Eliminating the panel reads is owned by the v0.5 panel split; the `OllamaClient` backstop is acceptable per the plan ("at most one call outside `GemmaRuntime`" interpreted broadly to include intentional fallbacks).
+- **6.12 LLM-only.** Zod schemas were added at the LLM boundary (stream chunks, list-models response) where the input is highest-volume and most external. The webview message payloads (`panels/messages.ts`), persisted GraphMemory entity attributes, and TraceStore span attributes still use plain `as` casts. These three boundaries are documented as P3 follow-ups for v0.5; the existing tests cover the happy path, and McpManager's Zod use remains the template.
+- **6.16 marked v12 deferred.** v4 -> v12 is a renderer API break (constructor signature change, `marked.setOptions` removed, synchronous-only renderer methods). DOMPurify already provides the sanitization layer that motivated the bump, so the upgrade is maintenance, not a security fix. A `NOTE(v0.5)` comment in [src/utils/MarkdownRenderer.ts:1](../src/utils/MarkdownRenderer.ts#L1) records the deferral.
+
+### Test status
+
+- `npm run build`: clean (`tsc` reports no errors).
+- `npm run lint`: 0 errors. 5 pre-existing `explicit-function-return-type` warnings on inline callbacks in `config/GpuDetector.ts` and `panels/GemmaCodePanel.ts` predate Phase 6 and are out of scope.
+- `npm run test`: 1165 passed, 2 skipped (live Ollama), 0 failed across 89 test files. Updated tests: `tests/unit/observability/Tracer.test.ts` (per-test instances), `tests/unit/panels/GemmaCodePanel.test.ts` and `GemmaCodePanel.realSettings.test.ts` (pass `GemmaRuntime` to the constructor), `tests/unit/commands/CommandRouter.test.ts` / `tests/unit/config/PromptBudget.test.ts` / `tests/unit/storage/EmbeddingClient.test.ts` (capture warnings via `setLogger`, not `vi.spyOn(console, "warn")`).
+
+### Verification of plan acceptance criteria
+
+| Criterion | Result |
+|---|---|
+| `git grep "from \"../ollama/types"` under `src/` | zero hits (driver moved to `src/llm/OllamaClient.ts`) |
+| `git grep "Tracer.getInstance"` under `src/` | zero hits |
+| `git grep "from \"../safety/"` under `src/` | zero hits; `src/safety/` directory deleted |
+| `git grep "console\\."` under `src/` | zero hits |
+| `src/observability/` contents | `Tracer`, `TraceStore`, `MetricsCollector`, `OtlpExporter` only |
+| `docs/adr/` | populated with README, template, ADR-0001 |
+| `CONTRIBUTING.md` + dev-setup scripts | present (sh + ps1) |
+
+### Files touched
+
+New: `src/runtime/GemmaRuntime.ts`, `src/guardrails/index.ts`, `src/guardrails/policy.ts`, `src/llm/types.ts`, `src/llm/OllamaClient.ts`, `src/llm/OllamaHttp.ts`, `src/utils/logger.ts`, `src/utils/errors.ts`, `src/chat/PlanMode.ts`, `src/evaluation/GoldenTaskSuite.ts`, `src/evaluation/goldenTasksYaml.generated.ts`, `docs/adr/README.md`, `docs/adr/template.md`, `CONTRIBUTING.md`, `scripts/dev-setup.sh`, `scripts/dev-setup.ps1`, `tests/unit/chat/PlanMode.test.ts`, `tests/unit/evaluation/GoldenTaskSuite.test.ts`, `tests/unit/llm/OllamaClient.test.ts`, `tests/unit/guardrails/{ActionClassifier,BudgetEnforcer,GitSafetyNet,LoopDetector,PermissionTiers}.test.ts`, `tests/integration/guardrails/agent-guardrails-pipeline.test.ts`.
+
+Modified: 32 source files (`src/agents`, `src/chat`, `src/commands`, `src/config`, `src/extension.ts`, `src/mcp`, `src/observability/{OtlpExporter,Tracer}.ts`, `src/orchestration`, `src/panels/{GemmaCodePanel,messages}.ts`, `src/skills`, `src/storage/{EmbeddingClient,MemoryStore,dbPermissions}.ts`, `src/tools/{AgentLoop,OutputRedirector,ToolRegistry}.ts`, `src/tools/handlers/{terminal,webSearch}.ts`, `src/utils/MarkdownRenderer.ts`), 13 test files, `package.json`, `eslint.config.mjs`, `scripts/generate-golden-tasks.mjs`, `ARCHITECTURE.md`, `docs/v0.3.0/architecture.md`, `docs/v0.4.0/test-pyramid.md`.
+
+Deleted: `src/safety/{ActionClassifier,BudgetEnforcer,GitSafetyNet,LoopDetector,PermissionTiers}.ts`, `src/ollama/{client,types}.ts`, `src/modes/PlanMode.ts`, `src/observability/{GoldenTaskSuite,goldenTasksYaml.generated}.ts`, `tests/unit/safety/*`, `tests/integration/safety/agent-safety-pipeline.test.ts`, `tests/unit/modes/PlanMode.test.ts`, `tests/unit/observability/GoldenTaskSuite.test.ts`, `tests/unit/ollama/client.test.ts`.
+
+---
+
 ## [2026-04-19] v0.4.0 Phase 5 -- Testing Pipeline Completeness
 
 ### Summary

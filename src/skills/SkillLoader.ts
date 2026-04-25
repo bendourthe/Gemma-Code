@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
+import { getLogger } from "../utils/logger.js";
 
 export interface Skill {
   name: string;
@@ -50,14 +51,14 @@ function loadSkillFromDir(skillDir: string): Skill | null {
 
   const parsed = parseFrontmatter(content);
   if (!parsed) {
-    console.warn(`[SkillLoader] ${skillMdPath}: missing or malformed frontmatter — skipping`);
+    getLogger().warn(`[SkillLoader] ${skillMdPath}: missing or malformed frontmatter — skipping`);
     return null;
   }
 
   const { meta, body } = parsed;
 
   if (!meta["name"] || !meta["description"]) {
-    console.warn(`[SkillLoader] ${skillMdPath}: missing required fields 'name' or 'description' — skipping`);
+    getLogger().warn(`[SkillLoader] ${skillMdPath}: missing required fields 'name' or 'description' — skipping`);
     return null;
   }
 
@@ -146,7 +147,7 @@ export class SkillLoader {
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
     } catch (err) {
-      console.warn(`[SkillLoader] Cannot read directory ${dir}: ${String(err)}`);
+      getLogger().warn(`[SkillLoader] Cannot read directory ${dir}: ${String(err)}`);
       return;
     }
 

@@ -10,7 +10,7 @@ import type {
   OllamaClient,
   OllamaMessage,
   OllamaOptions,
-} from "../ollama/types.js";
+} from "../llm/types.js";
 import { TaskDAG } from "./TaskDAG.js";
 import type { TaskNode, TaskNodeType } from "./TaskDAG.js";
 import { extractJsonFromLlmOutput } from "./utils.js";

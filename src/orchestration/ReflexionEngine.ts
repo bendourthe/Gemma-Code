@@ -11,7 +11,7 @@ import type {
   OllamaClient,
   OllamaMessage,
   OllamaOptions,
-} from "../ollama/types.js";
+} from "../llm/types.js";
 import type { MemoryStore } from "../storage/MemoryStore.js";
 import type { TaskNode } from "./TaskDAG.js";
 

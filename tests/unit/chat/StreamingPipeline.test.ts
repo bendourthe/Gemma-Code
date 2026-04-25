@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { OllamaClient, OllamaChatRequest } from "../../../src/ollama/types.js";
-import { OllamaError } from "../../../src/ollama/types.js";
+import type { OllamaClient, OllamaChatRequest } from "../../../src/llm/types.js";
+import { OllamaError } from "../../../src/llm/types.js";
 import type { ExtensionToWebviewMessage } from "../../../src/panels/messages.js";
 
 // ConversationManager and StreamingPipeline both import vscode; the global

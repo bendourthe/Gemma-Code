@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { PlanMode, detectPlan, PLAN_MODE_SYSTEM_ADDENDUM } from "../../../src/modes/PlanMode.js";
+import { PlanMode, detectPlan, PLAN_MODE_SYSTEM_ADDENDUM } from "../../../src/chat/PlanMode.js";
 
 describe("detectPlan()", () => {
   it("returns null when response has no numbered list", () => {

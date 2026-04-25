@@ -1,4 +1,5 @@
 import type { HardwareTierConfig } from "./HardwareTier.types.js";
+import { getLogger } from "../utils/logger.js";
 
 export interface BudgetAllocation {
   /** Tokens available for the system prompt (base instructions + tool declarations). */
@@ -42,7 +43,7 @@ export function calculateBudget(
 
   const total = systemPercent + memoryPercent + skillPercent + conversationPercent + responsePercent;
   if (total > 100) {
-    console.warn(
+    getLogger().warn(
       `[PromptBudget] Budget percentages sum to ${total}% (>100%). Scaling proportionally.`,
     );
     const scale = 100 / total;

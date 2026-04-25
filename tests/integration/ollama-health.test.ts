@@ -11,7 +11,7 @@ vi.mock("../../src/config/settings.js", () => ({
   }),
 }));
 
-const { createOllamaClient } = await import("../../src/ollama/client.js");
+const { createOllamaClient } = await import("../../src/llm/OllamaClient.js");
 
 const ollamaUrl = process.env["OLLAMA_URL"];
 

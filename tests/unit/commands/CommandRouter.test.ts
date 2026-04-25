@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { CommandRouter } from "../../../src/commands/CommandRouter.js";
 import type { CommandDescriptor } from "../../../src/commands/CommandRouter.js";
+import { setLogger } from "../../../src/utils/logger.js";
 
 function makeRouter(skills: CommandDescriptor[] = []): CommandRouter {
   return new CommandRouter(() => skills);
@@ -104,14 +105,14 @@ describe("CommandRouter", () => {
     });
 
     it("returns null and warns for an unknown command", () => {
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+      const warn = vi.fn();
+      setLogger({ debug: vi.fn(), info: vi.fn(), warn, error: vi.fn() });
       const router = makeRouter();
       const cmd = router.route("/nonexistent-skill");
       expect(cmd).toBeNull();
-      expect(warnSpy).toHaveBeenCalledWith(
+      expect(warn).toHaveBeenCalledWith(
         expect.stringContaining("/nonexistent-skill")
       );
-      warnSpy.mockRestore();
     });
   });
 

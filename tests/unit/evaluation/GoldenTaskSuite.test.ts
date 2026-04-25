@@ -5,16 +5,16 @@ import {
   GOLDEN_TASKS,
   validateExpectation,
   detectRegressions,
-} from "../../../src/observability/GoldenTaskSuite.js";
+} from "../../../src/evaluation/GoldenTaskSuite.js";
 import type {
   GoldenTaskResult,
   GoldenTask,
-} from "../../../src/observability/GoldenTaskSuite.js";
+} from "../../../src/evaluation/GoldenTaskSuite.js";
 import type { SessionMetrics } from "../../../src/observability/MetricsCollector.js";
 import {
   YAML_GOLDEN_TASK_COUNT,
   YAML_GOLDEN_TASK_IDS,
-} from "../../../src/observability/goldenTasksYaml.generated.js";
+} from "../../../src/evaluation/goldenTasksYaml.generated.js";
 
 // -------------------------------------------------------------------------
 // Helpers

@@ -10,7 +10,7 @@ import {
 } from "../../../src/chat/CompactionStrategy.js";
 import type { CompactionStrategy } from "../../../src/chat/CompactionStrategy.js";
 import type { Message } from "../../../src/chat/types.js";
-import type { OllamaClient, OllamaChatChunk } from "../../../src/ollama/types.js";
+import type { OllamaClient, OllamaChatChunk } from "../../../src/llm/types.js";
 import { mockOf } from "../../helpers/factories.js";
 
 // ---------------------------------------------------------------------------

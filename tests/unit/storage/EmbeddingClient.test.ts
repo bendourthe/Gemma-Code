@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { EmbeddingClient } from "../../../src/storage/EmbeddingClient.js";
+import { setLogger } from "../../../src/utils/logger.js";
 
 const mockFetch = vi.fn();
 
@@ -117,12 +118,12 @@ describe("EmbeddingClient", () => {
       });
       mockFetch.mockRejectedValueOnce(new Error("timeout"));
 
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+      const warn = vi.fn();
+      setLogger({ debug: vi.fn(), info: vi.fn(), warn, error: vi.fn() });
       const result = await client.embed("hello");
 
       expect(result).toBeNull();
-      expect(warnSpy).toHaveBeenCalled();
-      warnSpy.mockRestore();
+      expect(warn).toHaveBeenCalled();
     });
 
     it("marks model unavailable on 404 response", async () => {

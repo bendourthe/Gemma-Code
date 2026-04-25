@@ -179,6 +179,13 @@ Full plan: `docs/v0.3.0/implementation-plan.md`
 - [ ] *(deferred)* Chat format normalization for importing Claude/ChatGPT history (from MemPalace comparison)
 - [ ] *(deferred)* Retrieval quality benchmarks (from MemPalace comparison)
 
+### v0.5 follow-ups (deferred from v0.4.0 Phase 6)
+
+- [ ] Complete the GemmaCodePanel split: extract `ChatController` (agent loop + orchestration mediator) and `ChatWebviewHost` (webview provider + message translation) from `src/panels/GemmaCodePanel.ts`. Reduce the panel to <100 lines or delete it; thin `extension.ts` to a lifecycle adapter. Seam already in place via `GemmaRuntime`.
+- [ ] Finish settings injection: eliminate the 12 `_getSettings()` reads inside `panels/GemmaCodePanel.ts` and the activation-time `getSettings()` in `extension.ts`. Reach the strict acceptance criterion of "exactly one `getSettings()` call, in `GemmaRuntime`."
+- [ ] Expand Zod adoption beyond the LLM boundary: `panels/messages.ts` (webview payloads), `storage/GraphMemory.ts` (persisted entity attributes), `observability/TraceStore.ts` (persisted span attributes).
+- [ ] Upgrade `marked` from v4 to v12: adapt the renderer API break, snapshot-test the rendered HTML against the existing fixture set, keep DOMPurify in the pipeline. See the `NOTE(v0.5)` comment in `src/utils/MarkdownRenderer.ts:1`.
+
 ---
 
 ## Functionality Matrix
@@ -234,25 +241,43 @@ All 14 P0 findings closed plus version bump. See [docs/DEVLOG.md](DEVLOG.md) and
 - [x] 1.15 Version bump to 0.4.0 + CHANGELOG seed
 - [x] 1.16 Testing & stabilization (build + lint + test green on touched files)
 
-### Phase 2 — Security Hardening [PENDING]
+### Phase 2 — Security Hardening [COMPLETED 2026-04-19]
 
-20 non-P0 security findings (6 P1 + 9 P2 + 5 P3). Note: 2.2 and 2.13 are N/A per ADR-0001.
+20 non-P0 security findings closed (6 P1 + 9 P2 + 5 P3). 2.2 and 2.13 closed N/A per ADR-0001. See [docs/v0.4.0/development/history/2026-04_phase-2-security-hardening.md](v0.4.0/development/history/2026-04_phase-2-security-hardening.md).
 
-### Phase 3 — Correctness & Code Quality [PENDING]
+### Phase 3 — Correctness & Code Quality [COMPLETED 2026-04-19]
 
-24 findings including the 5 pre-existing test failures carried forward from Phase 1.
+24 findings closed (8 P1 + 10 P2 + 6 P3). See [docs/v0.4.0/development/history/2026-04_phase-3-correctness.md](v0.4.0/development/history/2026-04_phase-3-correctness.md).
 
-### Phase 4 — Performance Optimization [PENDING]
+### Phase 4 — Performance Optimization [COMPLETED 2026-04-19]
 
-20 findings including the EpisodicMemory.searchSemantic mirror of Phase 1's 1.6 work.
+20 findings closed across seven waves; 5 closed N/A. See [docs/v0.4.0/development/history/2026-04_phase-4-performance.md](v0.4.0/development/history/2026-04_phase-4-performance.md).
 
-### Phase 5 — Testing Pipeline Completeness [PENDING]
+### Phase 5 — Testing Pipeline Completeness [COMPLETED 2026-04-19]
 
-22 findings. First-run baseline population of `tests/benchmarks/baselines/v0.3.0.json` via `--update-baseline` is a prerequisite.
+22 findings closed; 2 closed N/A. 1166 Vitest cases at 89.07% line / 82.78% branch coverage. See [docs/v0.4.0/development/history/2026-04_phase-5-testing-pipeline.md](v0.4.0/development/history/2026-04_phase-5-testing-pipeline.md).
 
-### Phase 6 — Restructuring (Architecture) [PENDING]
+### Phase 6 — Restructuring (Architecture) [COMPLETED 2026-04-24]
 
-17 structural recommendations. Continues the GemmaCodePanel split started by Phase 1's 1.14.
+14 of 17 sub-tasks landed; 3 scoped down with documented v0.5 deferrals (panel split, full settings injection, full Zod boundary coverage). See the [DEVLOG entry](DEVLOG.md) for the full breakdown.
+
+- [x] 6.1 Record ADR-0001 Python backend disposition
+- [x] 6.2 GemmaRuntime composition root extracted (full ChatController / ChatWebviewHost split deferred to v0.5)
+- [x] 6.3 src/safety/ -> src/guardrails/ (all 5 modules + BLOCKED_PATTERNS extracted to policy.ts)
+- [x] 6.4 src/llm/ port with vendor-neutral types + OllamaClient driver (10 consumers migrated; src/ollama/ deleted)
+- [x] 6.5 src/llm/OllamaHttp.ts shared client; OllamaClient + EmbeddingClient compose over it
+- [x] 6.6 GoldenTaskSuite + goldenTasksYaml.generated.ts moved to src/evaluation/
+- [x] 6.7 src/modes/PlanMode.ts inlined into src/chat/PlanMode.ts; src/modes/ deleted
+- [x] 6.8 Tracer singleton retired; constructor injection via GemmaRuntime; tests parallel-safe
+- [x] 6.9 Settings injection in ContextCompactor + RegenerateFromSource (panel reads deferred)
+- [x] 6.10 src/utils/logger.ts (vscode.OutputChannel wrapper); 25 console.* calls migrated; ESLint no-console -> error
+- [x] 6.11 src/utils/errors.ts (formatForUser with redaction; formatForLog); 21 ad-hoc patterns replaced
+- [x] 6.12 Zod schemas at LLM boundary (stream chunks + listModels); webview/storage/observability deferred
+- [x] 6.13 docs/adr/ scaffolding (README index + MADR template)
+- [x] 6.14 scripts/dev-setup.{sh,ps1} + CONTRIBUTING.md + npm run dev
+- [x] 6.15 Already satisfied via Phase 5 sub-task 5.19 (no-op)
+- [x] 6.16 marked v12 deferred with NOTE(v0.5) (renderer API break; DOMPurify already provides sanitization)
+- [x] 6.17 Lint + test + build stabilization (1165 pass / 0 fail; 0 lint errors)
 
 ### Phase 7 — Simplification & Release [PENDING]
 

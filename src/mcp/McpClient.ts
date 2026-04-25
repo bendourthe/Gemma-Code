@@ -6,6 +6,8 @@ import type {
   McpToolInfo,
 } from "./McpTypes.js";
 import { stripHtmlTags } from "../tools/handlers/webSearch.js";
+import { getLogger } from "../utils/logger.js";
+import { formatForUser } from "../utils/errors.js";
 
 /**
  * Environment variables that are safely propagated to spawned MCP subprocesses.
@@ -95,7 +97,7 @@ export class McpClient {
       this._tools = [];
       for (const t of tools) {
         if (!TOOL_NAME_REGEX.test(t.name)) {
-          console.warn(
+          getLogger().warn(
             `[McpClient] Rejected tool name from server "${this._config.name}": "${t.name}"`,
           );
           continue;
@@ -113,7 +115,7 @@ export class McpClient {
       this._status = "connected";
     } catch (err) {
       this._status = "error";
-      this._error = err instanceof Error ? err.message : String(err);
+      this._error = formatForUser(err);
       this._tools = [];
       throw err;
     }
@@ -172,7 +174,7 @@ export class McpClient {
         id: "",
         success: false,
         output: "",
-        error: err instanceof Error ? err.message : String(err),
+        error: formatForUser(err),
       };
     }
   }

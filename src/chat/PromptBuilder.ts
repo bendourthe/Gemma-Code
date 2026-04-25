@@ -5,7 +5,7 @@ import type { ScoringContext } from "./RelevanceScorer.js";
 import { getSubAgentInstructions } from "../agents/SubAgentPrompts.js";
 import { serializeToolDefinitions, serializeToolSummary } from "../tools/Gemma4ToolFormat.js";
 import { calculateBudget } from "../config/PromptBudget.js";
-import { PLAN_MODE_SYSTEM_ADDENDUM } from "../modes/PlanMode.js";
+import { PLAN_MODE_SYSTEM_ADDENDUM } from "./PlanMode.js";
 
 /** Rough token estimation matching the heuristic used elsewhere in the codebase. */
 function estimateTokens(text: string): number {

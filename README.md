@@ -231,8 +231,9 @@ See [docs/v0.3.0/performance-benchmarks.md](docs/v0.3.0/performance-benchmarks.m
 ```
 src/
   extension.ts           Extension entry point
-  ollama/                Ollama HTTP client
-  chat/                  Conversation manager, streaming, PromptBuilder, compaction
+  runtime/               GemmaRuntime composition root (Tracer + settings)
+  llm/                   Vendor-neutral LLM port + Ollama adapter (OllamaClient, OllamaHttp)
+  chat/                  Conversation manager, streaming, PromptBuilder, compaction, PlanMode
   config/                Settings, PromptBudget token allocation
   panels/                VS Code webview panel and message protocol
   tools/                 Tool registry, agent loop, tool handlers, Gemma 4 format
@@ -240,11 +241,11 @@ src/
   mcp/                   MCP client, server, and manager
   skills/                Skill loader and built-in skill catalog
   commands/              Slash command router
-  modes/                 Plan mode and edit mode
   storage/               SQLite chat history, MemoryStore, MemorySubsystem factory, EmbeddingClient
   observability/         TraceStore (batched writes), Tracer, MetricsCollector, OTLP exporter
-  safety/                ActionClassifier, GitSafetyNet, LoopDetector, BudgetEnforcer
-  utils/                 Markdown renderer (DOMPurify-sanitized)
+  evaluation/            Golden-task suite (GoldenTaskSuite, YAML cross-check)
+  guardrails/            ActionClassifier, GitSafetyNet, LoopDetector, BudgetEnforcer, PermissionTiers, BLOCKED_PATTERNS
+  utils/                 Logger, error formatting, Markdown renderer (DOMPurify-sanitized)
 tests/
   unit/                  Unit tests (Vitest)
   integration/           Integration tests (Vitest + live Ollama)
@@ -275,11 +276,10 @@ scripts/
 
 ## Contributing
 
-Contributions are welcome. Please open an issue to discuss significant changes before submitting a pull request.
+Contributions are welcome. Please open an issue to discuss significant changes before submitting a pull request. See [CONTRIBUTING.md](CONTRIBUTING.md) for the project tour, conventions, daily loop, and the one-command dev-setup scripts ([scripts/dev-setup.sh](scripts/dev-setup.sh) on macOS/Linux, [scripts/dev-setup.ps1](scripts/dev-setup.ps1) on Windows).
 
-**Development setup:** see the Development section above.
-**Commit convention:** conventional commits (`feat:`, `fix:`, `chore:`, etc.).
-**CI:** all PRs must pass `lint-ts`, `test-ts`, `lint-py`, and `test-py` with coverage ≥ 80%.
+**Commit convention:** conventional commits (`feat:`, `fix:`, `chore:`, etc.); ASCII-only.
+**CI:** all PRs must pass `lint-ts` and `test-ts` with coverage ≥ 80%.
 
 ---
 

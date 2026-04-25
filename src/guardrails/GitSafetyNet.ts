@@ -1,4 +1,5 @@
 import { execFile } from "child_process";
+import { getLogger } from "../utils/logger.js";
 
 export interface GitCheckpoint {
   readonly headSha: string;
@@ -105,7 +106,7 @@ export class GitSafetyNet {
         { cwd: this._workspaceRoot, timeout: GIT_TIMEOUT_MS },
         (error, stdout) => {
           if (error) {
-            console.debug(`[GitSafetyNet] git ${args[0]} failed:`, error.message);
+            getLogger().debug(`[GitSafetyNet] git ${args[0]} failed:`, error.message);
             resolve(null);
             return;
           }

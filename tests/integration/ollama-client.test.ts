@@ -11,8 +11,8 @@ vi.mock("../../src/config/settings.js", () => ({
   onSettingsChange: () => ({ dispose: () => {} }),
 }));
 
-const { createOllamaClient } = await import("../../src/ollama/client.js");
-const { OllamaError } = await import("../../src/ollama/types.js");
+const { createOllamaClient } = await import("../../src/llm/OllamaClient.js");
+const { OllamaError } = await import("../../src/llm/types.js");
 
 const BASE_URL = "http://localhost:11434";
 const TAGS_URL = `${BASE_URL}/api/tags`;

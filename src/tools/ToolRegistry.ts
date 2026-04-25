@@ -2,7 +2,8 @@ import type { DynamicToolMetadata } from "./ToolCatalog.js";
 import type { ToolCall, ToolHandler, ToolName, ToolResult, EditMode } from "./types.js";
 import type { OutputRedirector } from "./OutputRedirector.js";
 import type { ConfirmationGate } from "./ConfirmationGate.js";
-import { getPermissionTier, shouldRequireConfirmation, getDangerousWarning, PermissionTier } from "../safety/PermissionTiers.js";
+import { getPermissionTier, shouldRequireConfirmation, getDangerousWarning, PermissionTier } from "../guardrails/PermissionTiers.js";
+import { formatForUser } from "../utils/errors.js";
 
 // Tools that fire their own diff-bearing confirmation in `ask` mode and a
 // diff-preview in `plan` mode. The centralized gate is skipped for these
@@ -159,7 +160,7 @@ export class ToolRegistry {
         id: call.id,
         success: false,
         output: "",
-        error: err instanceof Error ? err.message : String(err),
+        error: formatForUser(err),
       };
     }
   }

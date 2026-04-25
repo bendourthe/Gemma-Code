@@ -46,7 +46,7 @@ All inference runs locally. No data leaves the developer's machine.
 
 | Component | File | Purpose |
 |-----------|------|---------|
-| OllamaClient | `src/ollama/client.ts` | HTTP client for Ollama REST API |
+| OllamaClient | `src/llm/OllamaClient.ts` | HTTP client for Ollama REST API (implements `LLMClient`) |
 | ConversationManager | `src/chat/ConversationManager.ts` | Message history and system prompt management |
 | StreamingPipeline | `src/chat/StreamingPipeline.ts` | Streaming token relay to webview |
 | AgentLoop | `src/tools/AgentLoop.ts` | Multi-turn tool execution loop |

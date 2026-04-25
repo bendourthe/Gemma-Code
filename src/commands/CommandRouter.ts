@@ -1,3 +1,5 @@
+import { getLogger } from "../utils/logger.js";
+
 export type BuiltinCommandName =
   | "help"
   | "clear"
@@ -77,7 +79,7 @@ export class CommandRouter {
       return { type: "skill", name, args };
     }
 
-    console.warn(`[CommandRouter] Unknown command: /${name}`);
+    getLogger().warn(`[CommandRouter] Unknown command: /${name}`);
     return null;
   }
 

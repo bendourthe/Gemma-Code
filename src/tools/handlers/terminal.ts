@@ -6,6 +6,8 @@ import type {
   RunTerminalParams,
 } from "../types.js";
 import { resolveInsideWorkspace } from "./pathGuard.js";
+import { BLOCKED_PATTERNS } from "../../guardrails/policy.js";
+import { formatForUser } from "../../utils/errors.js";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
@@ -37,27 +39,7 @@ export const ALLOWED_COMMANDS: Record<string, RegExp> = {
   pwd: /^[\s\S]*$/,
 };
 
-/**
- * Hard blocklist: commands matching these patterns are rejected unconditionally
- * as a defense-in-depth layer. Kept advisory (not the primary safety mechanism)
- * after the allowlist transition.
- */
-export const BLOCKED_PATTERNS = [
-  "rm -rf /",
-  "rm -rf /*",
-  "rm -rf ~",
-  "format c:",
-  "format d:",
-  "shutdown",
-  "halt",
-  "init 0",
-  "del /f /s /q c:\\",
-  "del /f /s /q c:/",
-  "rd /s /q c:\\",
-  "mkfs",
-  "dd if=/dev/zero",
-  "> /dev/sda",
-];
+export { BLOCKED_PATTERNS } from "../../guardrails/policy.js";
 
 /**
  * Split a shell command string on metacharacters that can chain sub-commands
@@ -132,7 +114,7 @@ export class RunTerminalTool implements ToolHandler {
           ? resolveInsideWorkspace(p.cwd)
           : workspaceRoot();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = formatForUser(err);
       return failResult(id, msg);
     }
 

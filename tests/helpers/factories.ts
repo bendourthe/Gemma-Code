@@ -3,7 +3,7 @@ import type {
   OllamaClient,
   OllamaChatChunk,
   OllamaModel,
-} from "../../src/ollama/types.js";
+} from "../../src/llm/types.js";
 import type { ConversationManager } from "../../src/chat/ConversationManager.js";
 import type { ToolRegistry } from "../../src/tools/ToolRegistry.js";
 import type { ToolCall, ToolResult } from "../../src/tools/types.js";

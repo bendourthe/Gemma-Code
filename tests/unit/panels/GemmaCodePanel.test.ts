@@ -6,7 +6,7 @@ import { mockOf } from "../../helpers/factories.js";
 // Module mocks (must be defined before dynamic imports)
 // ---------------------------------------------------------------------------
 
-vi.mock("../../../src/ollama/client.js", () => ({
+vi.mock("../../../src/llm/OllamaClient.js", () => ({
   createOllamaClient: vi.fn(() => ({
     checkHealth: vi.fn().mockResolvedValue(true),
     listModels: vi.fn().mockResolvedValue([]),
@@ -86,14 +86,20 @@ function makeExtensionUri() {
   return mockOf<vscode.Uri>({ fsPath: "/ext", toString: () => "/ext" });
 }
 
+async function makeRuntime() {
+  const { GemmaRuntime } = await import("../../../src/runtime/GemmaRuntime.js");
+  return new GemmaRuntime();
+}
+
 // ---------------------------------------------------------------------------
 
 describe("GemmaCodePanel", () => {
   let panel: InstanceType<typeof GemmaCodePanel>;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
-    panel = new GemmaCodePanel(makeExtensionUri());
+    const runtime = await makeRuntime();
+    panel = new GemmaCodePanel(makeExtensionUri(), runtime);
   });
 
   // ---- VIEW_ID constant ----------------------------------------------------

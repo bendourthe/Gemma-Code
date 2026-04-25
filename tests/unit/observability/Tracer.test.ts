@@ -9,33 +9,24 @@ describe("Tracer", () => {
   let store: TraceStore;
 
   beforeEach(() => {
-    Tracer.resetInstance();
-    tracer = Tracer.getInstance();
+    tracer = new Tracer();
     store = new TraceStore(":memory:");
     tracer.init(store);
   });
 
   afterEach(() => {
     store.close();
-    Tracer.resetInstance();
   });
 
   // -------------------------------------------------------------------------
-  // Singleton
+  // Construction (per-test isolation; no shared static state)
   // -------------------------------------------------------------------------
 
-  describe("singleton", () => {
-    it("returns the same instance on multiple calls", () => {
-      const a = Tracer.getInstance();
-      const b = Tracer.getInstance();
-      expect(a).toBe(b);
-    });
-
-    it("returns a fresh instance after resetInstance()", () => {
-      const before = Tracer.getInstance();
-      Tracer.resetInstance();
-      const after = Tracer.getInstance();
-      expect(before).not.toBe(after);
+  describe("construction", () => {
+    it("yields a distinct instance per `new Tracer()` call", () => {
+      const a = new Tracer();
+      const b = new Tracer();
+      expect(a).not.toBe(b);
     });
   });
 
@@ -45,8 +36,7 @@ describe("Tracer", () => {
 
   describe("no-op mode", () => {
     it("returns empty strings when store is null", () => {
-      Tracer.resetInstance();
-      const uninit = Tracer.getInstance();
+      const uninit = new Tracer();
 
       expect(uninit.enabled).toBe(false);
       expect(uninit.startTrace()).toBe("");
@@ -54,16 +44,14 @@ describe("Tracer", () => {
     });
 
     it("does not throw when ending non-existent spans", () => {
-      Tracer.resetInstance();
-      const uninit = Tracer.getInstance();
+      const uninit = new Tracer();
 
       expect(() => uninit.endSpan("x", "ok")).not.toThrow();
       expect(() => uninit.addEvent("x", "ev")).not.toThrow();
     });
 
     it("returns empty string for getRootSpanId when uninitialized", () => {
-      Tracer.resetInstance();
-      const uninit = Tracer.getInstance();
+      const uninit = new Tracer();
       expect(uninit.getRootSpanId("any")).toBe("");
     });
   });

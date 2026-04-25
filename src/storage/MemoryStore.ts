@@ -11,6 +11,8 @@ import type { EmbeddingClient } from "./EmbeddingClient.js";
 import type { MemoryProvenance, MemoryTTL } from "./MemoryLayers.types.js";
 import type { GraphQueryEngine } from "./GraphQueryEngine.js";
 import { secureDbPermissions } from "./dbPermissions.js";
+import { getLogger } from "../utils/logger.js";
+import { formatForLog } from "../utils/errors.js";
 import {
   cosineSimilarity,
   deserializeEmbedding,
@@ -213,10 +215,9 @@ export class MemoryStore {
         matchSource: "keyword" as const,
       }));
     } catch (err) {
-      // TODO: migrate to logger utility (Phase 6).
-      console.debug(
+      getLogger().debug(
         "[MemoryStore] searchKeyword FTS5 query failed:",
-        err instanceof Error ? err.message : String(err),
+        formatForLog(err),
       );
       return [];
     }
@@ -490,10 +491,9 @@ export class MemoryStore {
         .get(sanitized) as { count: number } | undefined;
       return (row?.count ?? 0) > 0;
     } catch (err) {
-      // TODO: migrate to logger utility (Phase 6).
-      console.debug(
+      getLogger().debug(
         "[MemoryStore] duplicate-check FTS5 query failed:",
-        err instanceof Error ? err.message : String(err),
+        formatForLog(err),
       );
       return false;
     }

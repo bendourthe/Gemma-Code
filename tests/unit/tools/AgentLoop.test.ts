@@ -3,7 +3,7 @@ import { AgentLoop } from "../../../src/tools/AgentLoop.js";
 import { BudgetMiddleware } from "../../../src/tools/BudgetMiddleware.js";
 import type { ConversationManager } from "../../../src/chat/ConversationManager.js";
 import type { ToolRegistry } from "../../../src/tools/ToolRegistry.js";
-import type { OllamaClient } from "../../../src/ollama/types.js";
+import type { OllamaClient } from "../../../src/llm/types.js";
 import type { ToolCall, ToolResult } from "../../../src/tools/types.js";
 import {
   collectMessages,
@@ -432,7 +432,7 @@ describe("AgentLoop", () => {
   // -------------------------------------------------------------------------
 
   describe("GitSafetyNet integration", () => {
-    type GitSafetyNetLike = import("../../../src/safety/GitSafetyNet.js").GitSafetyNet;
+    type GitSafetyNetLike = import("../../../src/guardrails/GitSafetyNet.js").GitSafetyNet;
 
     function makeSafetyNet(overrides: Partial<GitSafetyNetLike> = {}): GitSafetyNetLike {
       return mockOf<GitSafetyNetLike>({

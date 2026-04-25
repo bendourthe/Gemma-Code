@@ -8,8 +8,8 @@ vi.mock("child_process", () => ({
   spawn: vi.fn(),
 }));
 
-import { classifyAction, ActionRisk } from "../../../src/safety/ActionClassifier.js";
-import { GitSafetyNet } from "../../../src/safety/GitSafetyNet.js";
+import { classifyAction, ActionRisk } from "../../../src/guardrails/ActionClassifier.js";
+import { GitSafetyNet } from "../../../src/guardrails/GitSafetyNet.js";
 import type { ToolCall } from "../../../src/tools/types.js";
 
 /**

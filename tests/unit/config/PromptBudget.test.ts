@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { calculateBudget, calculateTierBudget } from "../../../src/config/PromptBudget.js";
 import type { HardwareTierConfig } from "../../../src/config/HardwareTier.types.js";
+import { setLogger } from "../../../src/utils/logger.js";
 
 describe("calculateBudget", () => {
   it("returns correct allocations for 128K context (131072 tokens)", () => {
@@ -60,7 +61,8 @@ describe("calculateBudget", () => {
   });
 
   it("scales proportionally when percentages sum to >100", () => {
-    const spy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const warn = vi.fn();
+    setLogger({ debug: vi.fn(), info: vi.fn(), warn, error: vi.fn() });
     // 40 + 10 + 10 + 60 + 40 = 160%
     const budget = calculateBudget(100000, {
       systemPromptPercent: 40,
@@ -78,8 +80,7 @@ describe("calculateBudget", () => {
       budget.conversationBudget +
       budget.responseReserve;
     expect(totalAllocated).toBeLessThanOrEqual(100000);
-    expect(spy).toHaveBeenCalledOnce();
-    spy.mockRestore();
+    expect(warn).toHaveBeenCalledOnce();
   });
 });
 
