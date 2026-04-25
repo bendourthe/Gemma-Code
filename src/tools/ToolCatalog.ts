@@ -34,9 +34,25 @@ export function toDynamicMetadata(tool: ToolMetadata): DynamicToolMetadata {
 export const TOOL_CATALOG: readonly ToolMetadata[] = [
   {
     name: "read_file",
-    description: "Read a file's content (up to 500 lines).",
+    description:
+      "Read a file's content (up to 500 lines by default). Use range_start/range_end to fetch a byte sub-window of large files. " +
+      "Example: read_file(path='src/extension.ts', range_start=0, range_end=4096).",
     parameters: {
       path: { type: "string", description: "Relative file path", required: true },
+      range_start: {
+        type: "number",
+        description: "Inclusive byte offset for paginated reads (>= 0).",
+      },
+      range_end: {
+        type: "number",
+        description:
+          "Exclusive byte offset for paginated reads. Must be > range_start; window <= 1 MB.",
+      },
+      max_bytes: {
+        type: "number",
+        description:
+          "Override the universal 64 KB output cap for this call (ceiling: 1 MB).",
+      },
     },
   },
   {
@@ -81,11 +97,27 @@ export const TOOL_CATALOG: readonly ToolMetadata[] = [
   },
   {
     name: "grep_codebase",
-    description: "Search files with a regex pattern.",
+    description:
+      "Search files with a regex pattern. Use max_results to bound the page size and next_offset (returned by a prior call) to continue paging. " +
+      "Example: grep_codebase(pattern='TODO', max_results=50, next_offset='<cursor>').",
     parameters: {
       pattern: { type: "string", description: "Regex search pattern", required: true },
       glob: { type: "string", description: "File glob filter (e.g. '*.ts')" },
-      max_results: { type: "number", description: "Maximum number of results" },
+      max_results: {
+        type: "number",
+        description:
+          "Maximum number of results in this page (default 50, ceiling 500).",
+      },
+      next_offset: {
+        type: "string",
+        description:
+          "Opaque base64 cursor returned by a prior grep_codebase call. Pass verbatim to fetch the next page.",
+      },
+      max_bytes: {
+        type: "number",
+        description:
+          "Override the universal 64 KB output cap for this call (ceiling: 1 MB).",
+      },
     },
   },
   {

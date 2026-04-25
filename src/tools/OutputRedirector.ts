@@ -19,6 +19,138 @@ export interface RedirectedResult {
 const PREVIEW_CHARS = 500;
 const OUTPUT_SUBDIR = ".gemma-code-output";
 
+// ---------------------------------------------------------------------------
+// Universal byte-cap (Phase 2.1 — agent-friendly tools)
+// ---------------------------------------------------------------------------
+
+/** Default per-tool byte-cap (64 KB) applied to every successful tool output. */
+export const DEFAULT_MAX_BYTES = 64 * 1024;
+
+/** Hard ceiling on per-call `max_bytes` overrides (1 MB). */
+export const MAX_BYTES_CEILING = 1024 * 1024;
+
+/** Marker substring written into truncated outputs; used by tests and meta-checks. */
+export const TRUNCATION_MARKER = "=== TRUNCATED at";
+
+/** Result of applying the byte-cap to an output payload. */
+export interface ByteCapResult {
+  readonly output: string;
+  readonly originalBytes: number;
+  readonly truncated: boolean;
+  readonly maxBytes: number;
+}
+
+/** Aggregate counters for the byte-cap, exposed for observability and tests. */
+export interface TruncationStats {
+  readonly truncatedCount: number;
+  readonly totalBytesSeen: number;
+  readonly totalBytesTruncated: number;
+}
+
+const _truncationStats = {
+  truncatedCount: 0,
+  totalBytesSeen: 0,
+  totalBytesTruncated: 0,
+};
+
+/** Reset the global truncation counters. Test-only helper. */
+export function resetTruncationStats(): void {
+  _truncationStats.truncatedCount = 0;
+  _truncationStats.totalBytesSeen = 0;
+  _truncationStats.totalBytesTruncated = 0;
+}
+
+/** Snapshot the global truncation counters. */
+export function getTruncationStats(): TruncationStats {
+  return { ..._truncationStats };
+}
+
+/**
+ * Resolve a per-call `max_bytes` override. Throws an Error containing the
+ * parameter name and a usage hint when the override is invalid. Returns
+ * `DEFAULT_MAX_BYTES` when `override` is undefined or null.
+ */
+export function resolveMaxBytes(override: unknown): number {
+  if (override === undefined || override === null) return DEFAULT_MAX_BYTES;
+  if (typeof override !== "number" || !Number.isFinite(override) || override <= 0) {
+    throw new Error(
+      `Invalid max_bytes parameter: must be a positive number. ` +
+        `Usage: pass max_bytes=<positive integer up to ${MAX_BYTES_CEILING}>.`,
+    );
+  }
+  if (override > MAX_BYTES_CEILING) {
+    throw new Error(
+      `max_bytes=${override} exceeds the per-call ceiling of ${MAX_BYTES_CEILING} bytes. ` +
+        `Usage: pass max_bytes=<positive integer up to ${MAX_BYTES_CEILING}> or omit max_bytes.`,
+    );
+  }
+  return Math.floor(override);
+}
+
+/**
+ * Truncate `output` so the final UTF-8 byte length does not exceed `maxBytes`,
+ * appending a structured truncation hint footer that teaches the agent how to
+ * narrow the request. Multi-byte characters at the boundary are not split.
+ */
+export function applyByteCap(
+  output: string,
+  toolName: string,
+  maxBytes: number = DEFAULT_MAX_BYTES,
+): ByteCapResult {
+  const originalBytes = Buffer.byteLength(output, "utf8");
+  _truncationStats.totalBytesSeen += originalBytes;
+
+  if (originalBytes <= maxBytes) {
+    return { output, originalBytes, truncated: false, maxBytes };
+  }
+
+  const buf = Buffer.from(output, "utf8");
+  // Walk back from the maxBytes boundary until we land on a UTF-8 sequence
+  // start byte (0xxxxxxx or 11xxxxxx). Continuation bytes are 10xxxxxx.
+  let cut = Math.min(maxBytes, buf.length);
+  while (cut > 0) {
+    const byte = buf[cut]!;
+    if ((byte & 0xc0) !== 0x80) break; // not a continuation byte
+    cut -= 1;
+  }
+  const headBytes = buf.subarray(0, cut);
+  const head = headBytes.toString("utf8");
+
+  const hint = _truncationHint(toolName, cut, originalBytes);
+  _truncationStats.truncatedCount += 1;
+  _truncationStats.totalBytesTruncated += originalBytes - cut;
+
+  return {
+    output: head + hint,
+    originalBytes,
+    truncated: true,
+    maxBytes,
+  };
+}
+
+function _truncationHint(toolName: string, cutBytes: number, originalBytes: number): string {
+  let narrow: string;
+  switch (toolName) {
+    case "read_file":
+      narrow = "use range_start/range_end to fetch a sub-window";
+      break;
+    case "grep_codebase":
+      narrow = "use max_results/next_offset to paginate, or pass a tighter glob";
+      break;
+    case "list_directory":
+      narrow = "pass a deeper path or set recursive=false";
+      break;
+    default:
+      narrow = "issue a narrower request";
+      break;
+  }
+  return (
+    `\n=== TRUNCATED at ${cutBytes} bytes; total ${originalBytes} bytes ===\n` +
+    `To narrow: ${narrow}, or pass max_bytes=<larger value> on this tool call ` +
+    `(ceiling: ${MAX_BYTES_CEILING}).`
+  );
+}
+
 /**
  * Redirects large tool results to temporary workspace files and provides
  * helper tools (tail_output, grep_output) for the model to read subsets.
@@ -118,7 +250,14 @@ export class TailOutputTool implements ToolHandler {
     const params = parameters as unknown as TailOutputParams;
 
     if (typeof params.path !== "string" || params.path.length === 0) {
-      return { id, success: false, output: "", error: "Missing required parameter: path" };
+      return {
+        id,
+        success: false,
+        output: "",
+        error:
+          "Missing required parameter: path. " +
+          "Usage: tail_output(path=<redirected output file path>, lines=<optional integer>).",
+      };
     }
 
     const lines = typeof params.lines === "number" ? params.lines : 50;
@@ -152,10 +291,24 @@ export class GrepOutputTool implements ToolHandler {
     const params = parameters as unknown as GrepOutputParams;
 
     if (typeof params.path !== "string" || params.path.length === 0) {
-      return { id, success: false, output: "", error: "Missing required parameter: path" };
+      return {
+        id,
+        success: false,
+        output: "",
+        error:
+          "Missing required parameter: path. " +
+          "Usage: grep_output(path=<redirected output file path>, pattern=<regex>, max_results=<optional>).",
+      };
     }
     if (typeof params.pattern !== "string" || params.pattern.length === 0) {
-      return { id, success: false, output: "", error: "Missing required parameter: pattern" };
+      return {
+        id,
+        success: false,
+        output: "",
+        error:
+          "Missing required parameter: pattern. " +
+          "Usage: grep_output(path=<...>, pattern=<regex pattern>, max_results=<optional>).",
+      };
     }
 
     const maxResults = typeof params.max_results === "number" ? params.max_results : 20;

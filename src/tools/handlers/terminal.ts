@@ -98,13 +98,22 @@ export class RunTerminalTool implements ToolHandler {
     const p = parameters as unknown as RunTerminalParams;
 
     if (!p.command || typeof p.command !== "string") {
-      return failResult(id, "Missing required parameter: command");
+      return failResult(
+        id,
+        "Missing required parameter: command. " +
+          "Usage: run_terminal(command=<shell command>, cwd=<optional workspace-relative cwd>). " +
+          "Example: run_terminal(command='git status').",
+      );
     }
 
     // Hard safety: unconditionally block dangerous command patterns.
     // Confirmation is handled centrally by ToolRegistry via PermissionTiers.
     if (isBlocked(p.command)) {
-      return failResult(id, `Command is blocked for safety: "${p.command}"`);
+      return failResult(
+        id,
+        `Command "${p.command}" is blocked for safety (matches a destructive pattern). ` +
+          `Usage: run_terminal(command=<a non-destructive command>) — avoid rm -rf, dd, mkfs, fork bombs, etc.`,
+      );
     }
 
     let cwd: string;
@@ -114,8 +123,10 @@ export class RunTerminalTool implements ToolHandler {
           ? resolveInsideWorkspace(p.cwd)
           : workspaceRoot();
     } catch (err) {
-      const msg = formatForUser(err);
-      return failResult(id, msg);
+      return failResult(
+        id,
+        `${formatForUser(err)} Usage: run_terminal(command=<...>, cwd=<workspace-relative dir inside the project root>).`,
+      );
     }
 
     return this._runCommand(id, p.command, cwd);
@@ -140,7 +151,13 @@ export class RunTerminalTool implements ToolHandler {
       child.on("close", (code) => {
         clearTimeout(timer);
         if (timedOut) {
-          resolve(failResult(id, `Command timed out after ${this._timeoutMs / 1000}s.`));
+          resolve(
+            failResult(
+              id,
+              `Command timed out after ${this._timeoutMs / 1000}s. ` +
+                `Usage: run_terminal(command=<a faster command>) or split the work into smaller invocations.`,
+            ),
+          );
           return;
         }
         const exitCode = code ?? -1;
@@ -148,13 +165,23 @@ export class RunTerminalTool implements ToolHandler {
           id,
           success: exitCode === 0,
           output: JSON.stringify({ stdout, stderr, exitCode }),
-          error: exitCode !== 0 ? `Command exited with code ${exitCode}` : undefined,
+          error:
+            exitCode !== 0
+              ? `Command "${command}" exited with code ${exitCode}. ` +
+                `Usage: inspect stderr above and re-run run_terminal(command=<corrected command>).`
+              : undefined,
         });
       });
 
       child.on("error", (err) => {
         clearTimeout(timer);
-        resolve(failResult(id, `Spawn error: ${err.message}`));
+        resolve(
+          failResult(
+            id,
+            `Spawn error for command "${command}": ${err.message}. ` +
+              `Usage: run_terminal(command=<a command available on PATH>, cwd=<...>).`,
+          ),
+        );
       });
     });
   }

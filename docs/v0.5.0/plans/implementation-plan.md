@@ -128,13 +128,13 @@ Success is measured through three artifacts: a `tests/golden/baselines/v0.5.0.js
 
 ### Phase 2 Exit Checklist
 
-- [ ] Every tool output respects the 64 KB cap (tunable via `max_bytes`)
-- [ ] `read_file` and `grep_codebase` paginate correctly
-- [ ] `tests/unit/tools/errors.test.ts` enforces parameter-name + `Usage:` property; meta-test catches missing-`Usage:` regressions
-- [ ] `tests/unit/tools/null-safety.test.ts` exercises every handler against null/undefined/empty/binary
-- [ ] Cap-fire rate < 30% on all golden tasks
-- [ ] No benchmark regression > 5 ms p99
-- [ ] Session history generated
+- [x] Every tool output respects the 64 KB cap (tunable via `max_bytes`)
+- [x] `read_file` and `grep_codebase` paginate correctly
+- [x] `tests/unit/tools/errors.test.ts` enforces parameter-name + `Usage:` property; meta-test catches missing-`Usage:` regressions
+- [x] `tests/unit/tools/null-safety.test.ts` exercises every handler against null/undefined/empty/binary
+- [ ] Cap-fire rate < 30% on all golden tasks (deferred -- requires live Ollama; will run alongside Phase 12 golden-task baselining)
+- [ ] No benchmark regression > 5 ms p99 (deferred -- benchmark-suite run requires `npm run bench` baseline; tracked for Phase 12)
+- [x] Session history generated -- [docs/v0.5.0/development/history/2026-04_phase-2-tool-surface-hardening.md](../development/history/2026-04_phase-2-tool-surface-hardening.md)
 
 ---
 

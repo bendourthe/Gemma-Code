@@ -4,6 +4,62 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-04-25] v0.5.0 Phase 2 -- Tool Surface Hardening
+
+### Summary
+
+Landed every adoption item from Phase 2 of [docs/v0.5.0/plans/implementation-plan.md](v0.5.0/plans/implementation-plan.md): a universal 64 KB byte-cap with structured truncation hints applied to every tool result through `ToolRegistry.execute`, byte-offset pagination on `read_file` (`range_start` / `range_end`, 1 MB window cap), opaque-cursor pagination on `grep_codebase` (`max_results` clamped to 500 / `next_offset` round-trip), an actionability rewrite of every error string in `src/tools/handlers/*.ts` plus `OutputRedirector.ts`, `ToolRegistry.ts` and `webSearch.ts` so each carries the failing parameter name and a `Usage:` hint, and a null-safety baseline of 88 sweeping tests (8 handlers x 11 pathological inputs). Two new test files lock in the actionable-error contract: a 24-case property test and a TypeScript-AST meta-test that walks tool source and rejects any future `error: ...` literal that omits `Usage:`. The byte-cap exposes a `max_bytes` per-call override (1 MB ceiling) that is validated before handler invocation so an invalid override yields an actionable error without burning work; truncation events are tracked in a process-wide counter (`getTruncationStats()`) for observability and tests. The null-safety sweep also caught and fixed a real `TypeError: entries is not iterable` in `walkDir` by treating any non-array result from `vscode.workspace.fs.readDirectory` as an empty directory. Quality gates: 1249 unit tests pass (2 designed skips), 67 integration tests pass (2 designed skips), lint clean (5 pre-existing warnings only), build clean.
+
+Full phase write-up: [docs/v0.5.0/development/history/2026-04_phase-2-tool-surface-hardening.md](v0.5.0/development/history/2026-04_phase-2-tool-surface-hardening.md).
+
+### Sub-task closures
+
+**2.1 - Universal 64 KB byte-cap + truncation hint** ([src/tools/OutputRedirector.ts](../src/tools/OutputRedirector.ts), [src/tools/ToolRegistry.ts](../src/tools/ToolRegistry.ts))
+
+Added `DEFAULT_MAX_BYTES = 64 * 1024`, `MAX_BYTES_CEILING = 1 MB`, `applyByteCap`, `resolveMaxBytes`, `resetTruncationStats`, `getTruncationStats`, plus a `TRUNCATION_MARKER` constant exported for tests and meta-checks. The cap walks back from the byte-boundary to the previous UTF-8 sequence start so multi-byte characters are never split mid-codepoint (verified by an emoji round-trip test). Tool-specific narrowing hints are emitted: `read_file` truncations point at `range_start/range_end`, `grep_codebase` at `max_results/next_offset`, others at `max_bytes`. `ToolRegistry.execute` resolves the per-call `max_bytes` override before handler invocation and applies the cap to every successful tool result before downstream redirection.
+
+**2.2 - read_file pagination via range_start / range_end** ([src/tools/handlers/filesystem.ts](../src/tools/handlers/filesystem.ts))
+
+`ReadFileTool` accepts optional `range_start` (>= 0) and `range_end` (> range_start, window <= 1 MB) byte offsets; the result body adds `range_start`, `range_end`, `file_size`, and `eof` fields. When `range_end` exceeds the file size the response appends `=== End of file at byte <fileSize> ===`. Validation errors carry the failing parameter name and a `Usage:` hint. `ReadFileParams` in [src/tools/types.ts](../src/tools/types.ts) and the `read_file` schema in [src/tools/ToolCatalog.ts](../src/tools/ToolCatalog.ts) now document the parameters with an inline example.
+
+**2.3 - grep_codebase pagination via max_results / next_offset** ([src/tools/handlers/filesystem.ts](../src/tools/handlers/filesystem.ts))
+
+`GrepCodebaseTool` accepts `max_results` (default 50, ceiling 500, with a `warning` field surfaced in the result body when clamped) and `next_offset` (an opaque base64 cursor encoded with `encodeGrepCursor`/`decodeGrepCursor` and validated for shape). Pagination fetches `clampedMaxResults + cursorMatchIndex + 1` matches under the existing 500 ms ReDoS time budget, then slices the page and emits a `next_offset` cursor + `truncation_hint` when more matches remain. `GrepCodebaseParams` in [src/tools/types.ts](../src/tools/types.ts) gains `next_offset`; the catalog entry documents the cursor pattern.
+
+**2.4 - Tool-handler error messages** ([src/tools/handlers/filesystem.ts](../src/tools/handlers/filesystem.ts), [src/tools/handlers/terminal.ts](../src/tools/handlers/terminal.ts), [src/tools/handlers/webSearch.ts](../src/tools/handlers/webSearch.ts), [src/tools/OutputRedirector.ts](../src/tools/OutputRedirector.ts), [src/tools/ToolRegistry.ts](../src/tools/ToolRegistry.ts))
+
+Every literal `error: ...` string returned from a tool handler now contains the failing parameter name and a `Usage:` hint. File-not-found errors point at `list_directory`; secret-path errors point at `allow_secrets=true`; ReDoS / invalid regex errors point at the corrected pattern shape; unknown tool / disabled tool / rejected confirmation errors all carry the convention. The catch-block paths that re-throw via `formatForUser(err)` are not literal strings and so do not need a `Usage:` hint (and the meta-test only flags string-literal returns).
+
+**2.5 - Null-safety baseline** ([tests/unit/tools/null-safety.test.ts](../tests/unit/tools/null-safety.test.ts))
+
+Sweeps 8 tool handlers (`read_file`, `write_file`, `edit_file`, `create_file`, `delete_file`, `list_directory`, `grep_codebase`, `run_terminal`) against 11 pathological input shapes (empty params, null/undefined values, wrong types, NaN numerics, very-long strings) for 88 total assertions. The sweep uncovered a real `TypeError: entries is not iterable` in `walkDir` when `vscode.workspace.fs.readDirectory` returned a non-array; fixed by checking `Array.isArray(raw)`.
+
+**Tests added** (5 files, 144 cases)
+- [tests/unit/tools/OutputRedirector.bytecap.test.ts](../tests/unit/tools/OutputRedirector.bytecap.test.ts) -- 13 tests for `applyByteCap` / `resolveMaxBytes` (UTF-8 boundary safety, override validation, counter tracking).
+- [tests/unit/tools/handlers/filesystem.read_file.range.test.ts](../tests/unit/tools/handlers/filesystem.read_file.range.test.ts) -- 7 tests for pagination happy-path, EOF marker, invalid range_start / range_end, 1 MB window cap.
+- [tests/unit/tools/handlers/filesystem.grep.pagination.test.ts](../tests/unit/tools/handlers/filesystem.grep.pagination.test.ts) -- 7 tests for cursor round-trip, invalid cursor formats, max_results clamp warning.
+- [tests/unit/tools/errors.test.ts](../tests/unit/tools/errors.test.ts) -- 24 programmatic error scenarios + 1 AST meta-test that scans 5 tool source files and asserts every literal `error: ...` carries `Usage:` (skippable via `SKIP_ERROR_PROPERTY_TEST=1` for emergency triage).
+- [tests/unit/tools/null-safety.test.ts](../tests/unit/tools/null-safety.test.ts) -- 88-case null-safety sweep.
+- [tests/integration/tool-output-bytecap.test.ts](../tests/integration/tool-output-bytecap.test.ts) -- 5 integration tests proving the cap fires, max_bytes override works, and the per-call ceiling is enforced.
+
+### Quality gates
+
+| Gate | Result |
+|------|--------|
+| Unit tests | 1249 passed, 2 designed skips |
+| Integration tests | 67 passed, 2 designed skips |
+| Lint (`npm run lint`) | 0 errors, 5 pre-existing warnings |
+| Build (`npm run build`) | Clean |
+
+Cap-fire calibration against the 24 golden tasks (per the plan's Phase 2.6 stabilization checklist) is deferred to a developer environment with a live Ollama server; the truncation-recovery 3-task golden micro-eval is itself a Phase 12 deliverable, so cap-tuning iterations will land alongside that work.
+
+### Deviations
+
+- The plan calls for a `MetricsCollector` event `tool_output.truncated`. The existing `MetricsCollector` is a query-only layer over `TraceStore` with no emit API. Phase 2 ships a process-wide counter (`getTruncationStats`) inside [src/tools/OutputRedirector.ts](../src/tools/OutputRedirector.ts) that is observable from tests and exportable later by an emit-capable observer; tracer/span integration is left for Phase 9 (Coverage & Observability) where the `MetricsCollector` is being extended anyway.
+- The plan's Phase 1 sub-task references for 2.1 / 2.2 / 2.3 mention "the parallel token-optimizer-adoption Phase 1 Brotli compressor" -- token-optimizer Phase 1 is the implementation-plan's Phase 3, which has not landed yet. The byte-cap therefore operates on uncompressed text; the cap is applied before any future compression layer, exactly as the plan requires.
+
+---
+
 ## [2026-04-25] v0.5.0 Phase 1 -- Identity & Naming
 
 ### Summary

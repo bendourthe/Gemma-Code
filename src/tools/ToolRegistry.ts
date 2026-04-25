@@ -1,6 +1,7 @@
 import type { DynamicToolMetadata } from "./ToolCatalog.js";
 import type { ToolCall, ToolHandler, ToolName, ToolResult, EditMode } from "./types.js";
 import type { OutputRedirector } from "./OutputRedirector.js";
+import { applyByteCap, resolveMaxBytes } from "./OutputRedirector.js";
 import type { ConfirmationGate } from "./ConfirmationGate.js";
 import { getPermissionTier, shouldRequireConfirmation, getDangerousWarning, PermissionTier } from "../guardrails/PermissionTiers.js";
 import { formatForUser } from "../utils/errors.js";
@@ -103,7 +104,9 @@ export class ToolRegistry {
         id: call.id,
         success: false,
         output: "",
-        error: `Unknown tool: "${call.tool}"`,
+        error:
+          `Unknown tool name: "${call.tool}". ` +
+          `Usage: call get_tool_schema or pick a registered tool from the catalog.`,
       };
     }
 
@@ -112,7 +115,9 @@ export class ToolRegistry {
         id: call.id,
         success: false,
         output: "",
-        error: `Tool "${call.tool}" is currently disabled.`,
+        error:
+          `Tool "${call.tool}" is currently disabled. ` +
+          `Usage: pick another registered tool, or ask the user to enable "${call.tool}" in settings.`,
       };
     }
 
@@ -138,23 +143,50 @@ export class ToolRegistry {
           id: call.id,
           success: false,
           output: "",
-          error: `Tool "${call.tool}" was rejected by user.`,
+          error:
+            `Tool "${call.tool}" was rejected by user (parameter: confirmation). ` +
+            `Usage: re-issue ${call.tool}(...) only after the user explicitly approves.`,
         };
       }
+    }
+
+    // Resolve and validate per-call max_bytes override before invoking the handler
+    // so an invalid override yields an actionable error without burning work.
+    let maxBytes: number;
+    try {
+      maxBytes = resolveMaxBytes(call.parameters["max_bytes"]);
+    } catch (err) {
+      return {
+        id: call.id,
+        success: false,
+        output: "",
+        error: formatForUser(err),
+      };
     }
 
     try {
       const result = await handler.execute(call.parameters);
 
-      // Redirect large successful outputs to temp files.
-      if (result.success && this._redirector?.shouldRedirect(result.output)) {
-        const redirected = this._redirector.redirect(call.tool, call.id, result.output);
-        if (redirected) {
-          return { ...result, output: redirected.summary };
+      // Apply universal byte-cap to successful outputs so the conversation
+      // transcript can never receive an oversized payload, even if downstream
+      // compression or redirection is disabled.
+      let bounded = result;
+      if (result.success && result.output.length > 0) {
+        const capped = applyByteCap(result.output, call.tool, maxBytes);
+        if (capped.truncated) {
+          bounded = { ...result, output: capped.output };
         }
       }
 
-      return result;
+      // Redirect large successful outputs to temp files.
+      if (bounded.success && this._redirector?.shouldRedirect(bounded.output)) {
+        const redirected = this._redirector.redirect(call.tool, call.id, bounded.output);
+        if (redirected) {
+          return { ...bounded, output: redirected.summary };
+        }
+      }
+
+      return bounded;
     } catch (err) {
       return {
         id: call.id,

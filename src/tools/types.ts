@@ -65,6 +65,10 @@ export type EditMode = "auto" | "ask" | "plan";
 export interface ReadFileParams {
   path: string;
   allow_secrets?: boolean;
+  /** Inclusive start offset in bytes for paginated reads. */
+  range_start?: number;
+  /** Exclusive end offset in bytes for paginated reads (max window 1 MB). */
+  range_end?: number;
 }
 
 export interface WriteFileParams {
@@ -99,6 +103,8 @@ export interface GrepCodebaseParams {
   max_results?: number;
   allow_secrets?: boolean;
   case_insensitive?: boolean;
+  /** Opaque base64-encoded cursor for paginating through additional matches. */
+  next_offset?: string;
 }
 
 export interface RunTerminalParams {

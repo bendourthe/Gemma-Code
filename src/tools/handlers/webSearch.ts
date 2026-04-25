@@ -63,7 +63,11 @@ export class WebSearchTool implements ToolHandler {
     const p = parameters as unknown as WebSearchParams;
 
     if (!p.query || typeof p.query !== "string") {
-      return failResult(id, "Missing required parameter: query");
+      return failResult(
+        id,
+        "Missing required parameter: query. " +
+          "Usage: web_search(query=<search terms>, max_results=<optional 1-10>).",
+      );
     }
 
     const now = Date.now();
@@ -71,7 +75,8 @@ export class WebSearchTool implements ToolHandler {
     if (wait > 0) {
       return failResult(
         id,
-        `Rate limit exceeded (${RATE_LIMIT_MAX_REQUESTS} searches per minute). Retry in ${wait}s.`,
+        `Rate limit exceeded for parameter query: ${RATE_LIMIT_MAX_REQUESTS} searches per minute. Retry in ${wait}s. ` +
+          `Usage: throttle web_search calls or use cached results.`,
       );
     }
     this._requestTimestamps.push(now);
@@ -94,11 +99,19 @@ export class WebSearchTool implements ToolHandler {
         },
       });
       if (!response.ok) {
-        return failResult(id, `DuckDuckGo returned HTTP ${response.status}`);
+        return failResult(
+          id,
+          `DuckDuckGo returned HTTP ${response.status} for query "${p.query}". ` +
+            `Usage: retry web_search(query=<terms>) shortly, or rephrase the query.`,
+        );
       }
       html = await response.text();
     } catch (err) {
-      return failResult(id, `Network error: ${formatForUser(err)}`);
+      return failResult(
+        id,
+        `Network error fetching search results for query "${p.query}": ${formatForUser(err)}. ` +
+          `Usage: verify internet connectivity and retry web_search(query=<...>).`,
+      );
     }
 
     const results: SearchResult[] = [];
@@ -120,7 +133,11 @@ export class WebSearchTool implements ToolHandler {
         }
       }
     } catch (err) {
-      return failResult(id, `Failed to parse search results: ${String(err)}`);
+      return failResult(
+        id,
+        `Failed to parse search results for query "${p.query}": ${String(err)}. ` +
+          `Usage: retry web_search(query=<...>) — the upstream HTML format may have changed.`,
+      );
     }
 
     return {
@@ -141,14 +158,23 @@ export class FetchPageTool implements ToolHandler {
     const p = parameters as unknown as FetchPageParams;
 
     if (!p.url || typeof p.url !== "string") {
-      return failResult(id, "Missing required parameter: url");
+      return failResult(
+        id,
+        "Missing required parameter: url. " +
+          "Usage: fetch_page(url=<absolute https:// URL>). " +
+          "Example: fetch_page(url='https://example.com/article').",
+      );
     }
 
     let html: string;
     try {
       const response = await fetchWithSsrfGuard(p.url, { timeoutMs: FETCH_TIMEOUT_MS });
       if (!response.ok) {
-        return failResult(id, `HTTP ${response.status} fetching "${p.url}"`);
+        return failResult(
+          id,
+          `HTTP ${response.status} fetching parameter url="${p.url}". ` +
+            `Usage: fetch_page(url=<a publicly reachable URL>).`,
+        );
       }
       html = await response.text();
     } catch (err) {
@@ -156,10 +182,15 @@ export class FetchPageTool implements ToolHandler {
       if (msg.includes("blocked by SSRF check")) {
         return failResult(
           id,
-          `URL is not allowed: "${p.url}". Only public HTTP/HTTPS URLs are permitted.`,
+          `URL "${p.url}" is not allowed (SSRF guard rejected the host). ` +
+            `Usage: fetch_page(url=<public http:// or https:// URL>) — internal/private addresses are blocked.`,
         );
       }
-      return failResult(id, `Network error: ${msg}`);
+      return failResult(
+        id,
+        `Network error fetching parameter url="${p.url}": ${msg}. ` +
+          `Usage: verify connectivity and retry fetch_page(url=<...>).`,
+      );
     }
 
     let text = stripHtmlTags(html);
