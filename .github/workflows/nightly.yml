@@ -63,7 +63,13 @@ jobs:
       - run: npm run build
 
       - name: Run benchmarks
-        run: npm run bench -- --reporter=verbose --outputFile=bench-results.json --reporter=json 2>&1 | tee bench-results.txt
+        # Vitest 1.x's `vitest bench` mode only ships two built-in reporters
+        # (default/table and verbose) -- there is no JSON reporter for bench
+        # mode in this version. The downstream regression gate needs JSON, so
+        # we load a tiny custom reporter (scripts/vitest-bench-json-reporter.mjs)
+        # alongside the verbose reporter so the workflow log still shows
+        # human-readable output.
+        run: npm run bench -- --reporter=verbose --reporter=./scripts/vitest-bench-json-reporter.mjs --outputFile=bench-results.json 2>&1 | tee bench-results.txt
 
       - name: Check benchmark regressions against v0.4.0 baseline (v0.3.0 as floor)
         run: |
@@ -110,10 +116,15 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install deps and run installer package checks
+        # Editable install of the local installer package puts `gemma_installer`
+        # on the import path. The `2>/dev/null || pip install PyQt5 httpx`
+        # fallback that previously hid failures here did not install the local
+        # package, so all three downstream tests failed with `ImportError`
+        # whenever the editable install hit a wheel issue. Keep the failure
+        # visible so the runner reports the actual error instead of silently
+        # succeeding into broken tests.
         run: |
-          cd scripts/installer/pyqt
-          pip install -e ".[dev]" --quiet 2>/dev/null || pip install PyQt5 httpx --quiet
-          cd "${{ github.workspace }}"
+          python -m pip install --quiet --editable "scripts/installer/pyqt[dev]"
           bash tests/integration/installer/test-install-pyqt-macos.sh
 
   installer-package-check-linux:
@@ -130,9 +141,7 @@ jobs:
         env:
             QT_QPA_PLATFORM: offscreen
         run: |
-          cd scripts/installer/pyqt
-          pip install -e ".[dev]" --quiet 2>/dev/null || pip install PyQt5 httpx --quiet
-          cd "${{ github.workspace }}"
+          python -m pip install --quiet --editable "scripts/installer/pyqt[dev]"
           bash tests/integration/installer/test-install-pyqt-linux.sh
 
   # -- Failure notification ----------------------------------------------------
