@@ -5,7 +5,12 @@ description = "Cross-platform PyQt5 wizard installer for Gemma Code"
 requires-python = ">=3.11"
 dependencies = [
     "PyQt5>=5.15,<5.15.12",
-    "PyQt5-Qt5==5.15.2",
+    # Binary Qt distribution. The exact `==5.15.2` pin used to work on Linux
+    # x86_64 but was unsatisfiable on macOS arm64, where PyPI's wheel index
+    # only carries 5.15.11+. Loosen to a range so each platform picks the
+    # newest compatible 5.15 wheel that exists for it. PyQt5 5.15.x and
+    # PyQt5-Qt5 5.15.x stay binary-compatible within the 5.15 line.
+    "PyQt5-Qt5>=5.15.2,<5.16",
     "httpx>=0.27.0",
 ]
 

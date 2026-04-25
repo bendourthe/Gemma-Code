@@ -36,11 +36,17 @@ function Test-Case {
 # `-notmatch` / `-eq` operators treat arrays as filter operations rather than
 # scalar checks, which breaks `if ($result -notmatch ...)` when the array
 # contains uv's install-progress lines.
+#
+# An accumulator is required because a `process { return ... }` block inside a
+# pipeline-bound function returns from each iteration independently, so its
+# output is itself an array. Buffering all input and converting once in `end`
+# is what gives us a single scalar string.
 function Get-CommandOutput {
+    [CmdletBinding()]
     param([Parameter(ValueFromPipeline = $true)]$InputObject)
-    process {
-        return ($InputObject | Out-String).Trim()
-    }
+    begin { $items = [System.Collections.Generic.List[object]]::new() }
+    process { $items.Add($InputObject) }
+    end { return ($items | Out-String).Trim() }
 }
 
 Write-Host "`nPyQt5 Installer Integration Tests (Windows)" -ForegroundColor Cyan
