@@ -69,6 +69,12 @@ export interface ReadFileParams {
   range_start?: number;
   /** Exclusive end offset in bytes for paginated reads (max window 1 MB). */
   range_end?: number;
+  /**
+   * When `true`, bypass the persistent tool-output cache and always return the
+   * full file content (escape hatch when the agent needs the entire file even
+   * after a previous read).
+   */
+  full?: boolean;
 }
 
 export interface WriteFileParams {

@@ -37,6 +37,7 @@ import { PlanMode, detectPlan } from "../chat/PlanMode.js";
 import { ChatHistoryStore } from "../storage/ChatHistoryStore.js";
 import { MemoryStore } from "../storage/MemoryStore.js";
 import { MemorySubsystem } from "../storage/MemorySubsystem.js";
+import { ToolOutputCache } from "../storage/ToolOutputCache.js";
 import { calculateBudget } from "../config/PromptBudget.js";
 import type { WorkingMemory } from "../storage/WorkingMemory.js";
 import { EpisodicMemory } from "../storage/EpisodicMemory.js";
@@ -87,6 +88,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
   private readonly _store: ChatHistoryStore | null;
   private readonly _memorySubsystem: MemorySubsystem;
   private readonly _memoryStore: MemoryStore | null;
+  private readonly _toolOutputCache: ToolOutputCache | null;
   private readonly _compactor: ContextCompactor;
   private readonly _workingMemory: WorkingMemory | null;
   private readonly _episodicMemory: EpisodicMemory | null;
@@ -128,6 +130,9 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
 
     // Initialise persistent chat history store.
     this._store = this._initStore();
+
+    // Phase 4 (v0.5.0): persistent tool-output cache backing diff-based reads.
+    this._toolOutputCache = this._initToolOutputCache(settings);
 
     // Initialize 4-layer memory system through the MemorySubsystem factory.
     const memory = this._buildMemorySubsystem(settings);
@@ -329,6 +334,24 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     }
   }
 
+  private _initToolOutputCache(settings: GemmaCodeSettings): ToolOutputCache | null {
+    const folders = vscode.workspace.workspaceFolders;
+    if (!folders || folders.length === 0) return null;
+    try {
+      const cache = new ToolOutputCache({
+        extraSecretPatterns: settings.secretPathDenyExtra,
+      });
+      cache.open(folders[0]!.uri.fsPath);
+      return cache;
+    } catch (err) {
+      getLogger().debug(
+        `[GemmaCodePanel] ToolOutputCache init failed:`,
+        formatForUser(err),
+      );
+      return null;
+    }
+  }
+
   /**
    * Update the hardware tier configuration after async GPU detection completes.
    * Rebuilds the system prompt with tier info and configures budget middleware.
@@ -351,7 +374,10 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     const registry = new ToolRegistry();
     const gate = this._confirmationGate;
 
-    registry.register("read_file", new ReadFileTool(gate, secretPathDenyExtra));
+    registry.register(
+      "read_file",
+      new ReadFileTool(gate, secretPathDenyExtra, this._toolOutputCache),
+    );
     registry.register("write_file", new WriteFileTool(gate, editMode));
     registry.register("create_file", new CreateFileTool(gate, editMode));
     registry.register("delete_file", new DeleteFileTool());
@@ -903,6 +929,80 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
         break;
       }
 
+      case "cache": {
+        if (!this._toolOutputCache) {
+          const disabledMsg = this._manager.addAssistantMessage(
+            "_Tool-output cache is disabled (no workspace open or initialization failed)._",
+          );
+          postMessage({
+            type: "messageComplete",
+            messageId: disabledMsg.id,
+            renderedHtml: renderMarkdown(disabledMsg.content),
+          });
+          this._postHistory();
+          break;
+        }
+
+        const [subcommand] = args ? args.split(" ", 1) : ["status"];
+
+        switch (subcommand) {
+          case "clear": {
+            const removed = this._toolOutputCache.clear();
+            const text = `_Cleared ${removed} entr${removed === 1 ? "y" : "ies"} from the tool-output cache._`;
+            const msg = this._manager.addAssistantMessage(text);
+            postMessage({
+              type: "messageComplete",
+              messageId: msg.id,
+              renderedHtml: renderMarkdown(text),
+            });
+            this._postHistory();
+            break;
+          }
+          case "prune": {
+            const removed = this._toolOutputCache.prune();
+            const text =
+              removed > 0
+                ? `_Pruned ${removed} oldest entr${removed === 1 ? "y" : "ies"} from the tool-output cache._`
+                : "_Cache is below capacity; no entries pruned._";
+            const msg = this._manager.addAssistantMessage(text);
+            postMessage({
+              type: "messageComplete",
+              messageId: msg.id,
+              renderedHtml: renderMarkdown(text),
+            });
+            this._postHistory();
+            break;
+          }
+          case "status":
+          default: {
+            const stats = this._toolOutputCache.stats();
+            const lru = this._toolOutputCache.lruStats();
+            const lines = [
+              "## Tool-Output Cache",
+              "",
+              `- **Entries:** ${stats.entries}`,
+              `- **In-process LRU:** ${lru.entries} entries / ${(lru.bytes / 1024).toFixed(1)} KB (hits: ${lru.hits}, misses: ${lru.misses})`,
+            ];
+            if (stats.topByHits.length > 0) {
+              lines.push("", "### Top by hits", "");
+              for (const row of stats.topByHits) {
+                lines.push(`- \`${row.absolutePath}\` -- ${row.hits} hits`);
+              }
+            }
+            const text = lines.join("\n");
+            const msg = this._manager.addAssistantMessage(text);
+            postMessage({
+              type: "messageComplete",
+              messageId: msg.id,
+              renderedHtml: renderMarkdown(text),
+            });
+            this._postHistory();
+            break;
+          }
+        }
+        break;
+      }
+
       case "research": {
         if (!args) {
           const usageMsg = this._manager.addAssistantMessage("Usage: `/research <query>`");
@@ -1399,6 +1499,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     // owned by MemorySubsystem. One close() is sufficient; the per-layer
     // close() methods are no-ops on injected connections.
     this._memorySubsystem.close();
+    this._toolOutputCache?.close();
     this._mcpManager?.dispose();
     void this._mcpServer?.stop();
     this._settingsChangeDisposable?.dispose();

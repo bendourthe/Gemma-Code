@@ -4,6 +4,49 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-04-25] v0.5.0 Phase 4 -- Persistent Cache + Diff-Based Reads
+
+### Summary
+
+Landed every adoption item from Phase 4 of [docs/v0.5.0/plans/implementation-plan.md](v0.5.0/plans/implementation-plan.md): a workspace-scoped SQLite tool-output cache at `<workspace>/.gemma-code/tool-output-cache.sqlite` (chmod 0o600 on POSIX), keyed by `(absolute_path, mtime, size)` with content stored Brotli-compressed via the Phase 3 `Compressor` module; a diff-based `read_file` handler that returns a one-line cached-marker for unchanged files (~150 B vs. multi-KB before) and a unified diff against the previous content when the file has been modified, with `full=true` as an explicit cache-bypass; a `/cache` builtin slash command with `status`, `clear`, and `prune` subcommands surfacing cache size, in-process LRU stats, and top-by-hits files; secret-path denylist enforcement on every store call so `.env`, `id_rsa`, `*.pem`, and other sensitive paths are never cached; a 500-entry cap enforced via LRU eviction by `stored_at` that also invalidates the in-process front cache; a 50-entry / 1 MB in-process LRU sitting in front of SQLite to dedupe within-session re-reads. Quality gates: 1307 tests pass (4 designed skips), lint clean, build clean.
+
+Full phase write-up: [docs/v0.5.0/development/history/2026-04_phase-4-persistent-cache.md](v0.5.0/development/history/2026-04_phase-4-persistent-cache.md).
+
+### Sub-task closures
+
+**4.1 - Schema + dbPermissions integration** ([src/storage/ToolOutputCache.ts](../src/storage/ToolOutputCache.ts), [src/storage/dbPermissions.ts](../src/storage/dbPermissions.ts))
+
+New `ToolOutputCache` class with `open`, `close`, `lookup`, `store`, `clear`, `prune`, `size`, `stats`, `lruStats`, and `dbPath` methods. Single SQLite table `tool_output_cache(absolute_path PRIMARY KEY, mtime_ms, size_bytes, content_brotli, stored_at, hits)` with a `stored_at` index for LRU eviction. `secureDbPermissions` is invoked immediately after `new Database(dbPath)` (mirroring `MemoryStore` / `ChatHistoryStore`); the `dbPermissions.ts` doc-comment lists `tool-output-cache.sqlite` alongside the four other known cache files. WAL journal mode for concurrent reads.
+
+**4.2 - Diff-based read_file + /cache commands** ([src/tools/handlers/filesystem.ts](../src/tools/handlers/filesystem.ts), [src/tools/types.ts](../src/tools/types.ts), [src/tools/ToolCatalog.ts](../src/tools/ToolCatalog.ts), [src/commands/CommandRouter.ts](../src/commands/CommandRouter.ts), [src/panels/GemmaCodePanel.ts](../src/panels/GemmaCodePanel.ts))
+
+`ReadFileTool` now takes an optional `ToolOutputCache` constructor argument. When the cache is wired in and `full !== true`, the handler reads on-disk content, calls `lookup`, calls `store` (so the next read diffs against current content), and returns either a cached-marker (byte-identical) or a unified diff via `createPatch`. Pagination (`range_start` / `range_end`) bypasses the cache because byte windows are not delta-able. Cache failures inside try/catch never break `read_file`. `ReadFileParams.full` and the `read_file` schema entry document the escape hatch. The `cache` builtin slash command is registered in `BuiltinCommandName`, declared in `BUILTIN_DESCRIPTORS` (so it shows up in `/help`), and handled in `GemmaCodePanel._handleBuiltinCommand` with subcommands `status` (default), `clear`, and `prune`.
+
+**Tests added** (5 files, 27 cases + 1 benchmark file)
+- [tests/unit/storage/ToolOutputCache.test.ts](../tests/unit/storage/ToolOutputCache.test.ts) -- 14 cases covering lookup contract, freshness flag, secret-path denylist, capacity LRU, clear / prune / size / stats / lruStats, throw-when-not-opened, disk persistence, `.gemma-code/` subdir creation.
+- [tests/unit/storage/dbPermissions.test.ts](../tests/unit/storage/dbPermissions.test.ts) -- 3 cases (2 POSIX-only) covering chmod 0o600 on the new tool-output cache.
+- [tests/unit/tools/handlers/filesystem.read_file.cache.test.ts](../tests/unit/tools/handlers/filesystem.read_file.cache.test.ts) -- 6 cases covering first-read full content, second-read cached-marker, second-read-after-modification diff, `full=true` bypass, secret-path skip, cache-failure resilience.
+- [tests/integration/read-file-cache.test.ts](../tests/integration/read-file-cache.test.ts) -- 2 end-to-end cases: 3 KB code fixture -> first ToolResult > 2 KB, second ToolResult < 200 B; second-read-after-modification produces a parseable diff with both sides.
+- [tests/benchmarks/cache-hit.bench.ts](../tests/benchmarks/cache-hit.bench.ts) -- 2 latency gates (hit p99 < 1 ms, miss p99 < 0.5 ms on a 500-row populated cache) + 2 throughput benchmarks.
+
+### Quality gates
+
+| Gate | Result |
+|------|--------|
+| Unit + integration tests | 1307 passed, 4 designed skips, 0 failures across 99 test files |
+| Lint (`npm run lint`) | 0 errors, 5 pre-existing warnings |
+| Build (`npm run build`) | Clean |
+| Benchmark capture | Deferred to Phase 12 (`vitest bench` runs continuously without exiting when scoped to a single file in this repo; latency gates inside `cache-hit.bench.ts` will fire alongside the Phase 12 `npm run bench` invocation) |
+
+### Deviations
+
+- **`lookup` return shape**: The plan-source sub-task specified `lookup` returns null whenever the on-disk mtime+size do not match the cached row. Strictly applied, that contract makes the diff path unreachable -- when the file changes, `lookup` would return null and the handler would treat it as a first-time read. To make the spec's diff path observable, `lookup` returns `{ content, fresh }` instead of `string | null`. `fresh: true` matches the original semantics; `fresh: false` exposes the previously-stored content so the handler can compute a diff.
+- **`secureDbPermissions` registration**: The sub-plan asked us to "register" the new file with `dbPermissions.ts`. The existing pattern is just to call the helper directly from each store (no central registry). `secureDbPermissions` is now invoked from `ToolOutputCache.open()`, and the helper's doc-comment lists `tool-output-cache.sqlite`.
+- **In-process LRU**: The sub-plan defers the front-cache LRU to Phase 4 step 4.2 of the token-optimizer sub-plan (and the implementation-plan references it in Phase 9). I included the LRU here because SQLite-eviction needs the LRU to stay consistent (otherwise stale LRU entries would mask SQLite-level eviction). Phase 9's LRU sub-task will be a no-op when it gets there: documentation + dashboard panel only.
+- **Benchmark capture deferred**: Same deferral path as Phases 2 and 3 -- `vitest bench` runs continuously and does not auto-exit when scoped to a single file in this repo, which is incompatible with one-shot phase stabilization. The latency gates will fire under the Phase 12 release-gate `npm run bench`.
+
+---
+
 ## [2026-04-25] v0.5.0 Phase 2 -- Tool Surface Hardening
 
 ### Summary

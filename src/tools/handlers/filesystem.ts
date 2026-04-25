@@ -14,6 +14,7 @@ import type {
   GrepCodebaseParams,
 } from "../types.js";
 import type { ConfirmationGate } from "../ConfirmationGate.js";
+import type { ToolOutputCache } from "../../storage/ToolOutputCache.js";
 import { matchesSecretPath } from "./secretPaths.js";
 
 const MAX_READ_LINES = 500;
@@ -96,6 +97,7 @@ export class ReadFileTool implements ToolHandler {
   constructor(
     private readonly _confirmationGate: ConfirmationGate | null = null,
     private readonly _extraSecretPatterns: readonly string[] = [],
+    private readonly _cache: ToolOutputCache | null = null,
   ) {}
 
   async execute(parameters: Record<string, unknown>): Promise<ToolResult> {
@@ -211,6 +213,48 @@ export class ReadFileTool implements ToolHandler {
           eof: eofReached,
         }),
       };
+    }
+
+    // Diff-based cache path. Active only when (a) a cache is wired in and
+    // (b) `full=true` was not requested. On cache hit, return either the
+    // unchanged-marker (byte-identical content) or a unified diff (file
+    // changed since prior read). Always update the cache afterwards so the
+    // next read diffs against the latest content.
+    if (this._cache && p.full !== true) {
+      try {
+        const hit = this._cache.lookup(uri.fsPath);
+        this._cache.store(uri.fsPath, content, p.path);
+        if (hit !== null) {
+          if (hit.content === content) {
+            const storedAtIso = new Date().toISOString();
+            return {
+              id,
+              success: true,
+              output: JSON.stringify({
+                cached: true,
+                changed: false,
+                marker: `=== cached: file unchanged since ${storedAtIso} ===`,
+                file_size: Buffer.byteLength(content, "utf8"),
+              }),
+            };
+          }
+          const nowIso = new Date().toISOString();
+          const diff = createPatch(p.path, hit.content, content, "cached", "current");
+          const header = `=== diff vs. cached read at ${nowIso} ===\n`;
+          return {
+            id,
+            success: true,
+            output: JSON.stringify({
+              cached: true,
+              changed: true,
+              diff: header + diff,
+              file_size: Buffer.byteLength(content, "utf8"),
+            }),
+          };
+        }
+      } catch {
+        // Cache failures must never break read_file.
+      }
     }
 
     const lines = content.split("\n");

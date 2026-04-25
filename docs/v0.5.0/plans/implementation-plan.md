@@ -191,14 +191,14 @@ Success is measured through three artifacts: a `tests/golden/baselines/v0.5.0.js
 
 ### Phase 4 Exit Checklist
 
-- [ ] `src/storage/ToolOutputCache.ts` with documented public API
-- [ ] `dbPermissions.ts` covers `tool-output-cache.sqlite`
-- [ ] `read_file` returns diffs on cache hit; full content on `full=true`
-- [ ] `/cache clear`, `/cache status`, `/cache prune` listed in `/help`
-- [ ] Cache cap (500 entries) enforced via LRU
-- [ ] Secret-path denylist blocks `.env`, `id_rsa`, etc. from caching
-- [ ] `tests/benchmarks/cache-hit.bench.ts` p99 < 1 ms hit / < 0.5 ms miss
-- [ ] Session history generated
+- [x] `src/storage/ToolOutputCache.ts` with documented public API ([src/storage/ToolOutputCache.ts](../../../src/storage/ToolOutputCache.ts))
+- [x] `dbPermissions.ts` covers `tool-output-cache.sqlite` (chmod 0o600 verified by `tests/unit/storage/dbPermissions.test.ts`)
+- [x] `read_file` returns diffs on cache hit; full content on `full=true` -- DEVIATION: `lookup` now returns `{ content, fresh }` so the handler can diff against the previously-stored content even after the file changed (the original contract returned null on stat mismatch, which made the diff path unreachable)
+- [x] `/cache clear`, `/cache status`, `/cache prune` listed in `/help` (registered in [src/commands/CommandRouter.ts](../../../src/commands/CommandRouter.ts))
+- [x] Cache cap (500 entries) enforced via LRU; LRU eviction also invalidates the in-process LRU front cache
+- [x] Secret-path denylist blocks `.env`, `id_rsa`, etc. from caching ([tests/unit/storage/ToolOutputCache.test.ts](../../../tests/unit/storage/ToolOutputCache.test.ts))
+- [ ] `tests/benchmarks/cache-hit.bench.ts` p99 < 1 ms hit / < 0.5 ms miss (deferred -- `vitest bench` in this repo runs continuously without exiting when scoped to a single file; latency capture tracked for Phase 12 alongside the rest of `npm run bench`)
+- [x] Session history generated -- [docs/v0.5.0/development/history/2026-04_phase-4-persistent-cache.md](../development/history/2026-04_phase-4-persistent-cache.md)
 
 ---
 

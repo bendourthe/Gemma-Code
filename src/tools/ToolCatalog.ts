@@ -36,6 +36,8 @@ export const TOOL_CATALOG: readonly ToolMetadata[] = [
     name: "read_file",
     description:
       "Read a file's content (up to 500 lines by default). Use range_start/range_end to fetch a byte sub-window of large files. " +
+      "Subsequent reads of an unchanged file return a short cached-marker; subsequent reads of a modified file return a unified diff. " +
+      "Pass full=true to bypass the cache and always return the full content. " +
       "Example: read_file(path='src/extension.ts', range_start=0, range_end=4096).",
     parameters: {
       path: { type: "string", description: "Relative file path", required: true },
@@ -52,6 +54,11 @@ export const TOOL_CATALOG: readonly ToolMetadata[] = [
         type: "number",
         description:
           "Override the universal 64 KB output cap for this call (ceiling: 1 MB).",
+      },
+      full: {
+        type: "boolean",
+        description:
+          "Bypass the persistent tool-output cache and always return the full file content. Default: false.",
       },
     },
   },
