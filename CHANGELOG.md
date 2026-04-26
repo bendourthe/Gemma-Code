@@ -1,3 +1,10 @@
+## [0.5.2](https://github.com/bendourthe/Gemma-Code/compare/v0.5.1...v0.5.2) (2026-04-26)
+
+
+### Bug Fixes
+
+* **ci:** collapse duplicate CI runs on Dependabot PRs ([725d78c](https://github.com/bendourthe/Gemma-Code/commit/725d78ced581ead5955635eb5cf098ba3fe4e3e5))
+
 ## [0.5.1](https://github.com/bendourthe/Gemma-Code/compare/v0.5.0...v0.5.1) (2026-04-26)
 
 
