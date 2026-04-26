@@ -1,13 +1,22 @@
 name: CI
 
 on:
+  # `branches-ignore: ["dependabot/**"]` (instead of `branches: ["**"]`)
+  # prevents Dependabot's branch-push from racing with the PR-open event.
+  # Dependabot PRs still get CI via the `pull_request:` trigger; the push
+  # event was producing a duplicate run that survived the concurrency
+  # cancellation because `github.ref` is `refs/heads/...` for push and
+  # `refs/pull/N/merge` for pull_request.
   push:
-    branches: ["**"]
+    branches-ignore: ["dependabot/**"]
   pull_request:
     branches: ["main"]
 
 concurrency:
-  group: ci-${{ github.ref }}
+  # github.head_ref is set on pull_request events; falls back to
+  # github.ref on push. This collapses push/pull_request events for the
+  # same effective change into one run.
+  group: ci-${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
