@@ -210,6 +210,34 @@ export interface TraceMetricsMessage {
   metrics: SessionMetrics;
 }
 
+/**
+ * Phase 9 (v0.5.0) -- Sends cache and compression observability data to the
+ * trace dashboard. Refresh cadence matches MetricsCollector buffer flush
+ * cadence (5 s).
+ */
+export interface CacheStatsMessage {
+  type: "cacheStats";
+  /** Cumulative pre-compression bytes minus post-compression bytes. */
+  compressionSavedBytes: number;
+  compressionOriginalBytes: number;
+  compressionCompressedBytes: number;
+  /** `tool-output-cache` LRU hit/miss snapshot. */
+  toolOutputCache: {
+    entries: number;
+    hits: number;
+    misses: number;
+    bytes: number;
+    topByHits: Array<{ absolutePath: string; hits: number }>;
+  };
+  /** `web-response-cache` hit/miss snapshot (or null when disabled). */
+  webResponseCache: {
+    entries: number;
+    hits: number;
+    misses: number;
+    expired: number;
+  } | null;
+}
+
 export type ExtensionToWebviewMessage =
   | TokenMessage
   | MessageCompleteMessage
@@ -238,7 +266,8 @@ export type ExtensionToWebviewMessage =
   | ReplanningMessage
   | TraceListMessage
   | TraceDetailMessage
-  | TraceMetricsMessage;
+  | TraceMetricsMessage
+  | CacheStatsMessage;
 
 // ---------------------------------------------------------------------------
 // Webview → Extension
@@ -310,6 +339,11 @@ export interface RequestTraceMetricsMessage {
   traceId: string;
 }
 
+/** Phase 9: requests an updated cache-stats snapshot. */
+export interface RequestCacheStatsMessage {
+  type: "requestCacheStats";
+}
+
 export type WebviewToExtensionMessage =
   | SendMessageRequest
   | ClearChatRequest
@@ -323,4 +357,5 @@ export type WebviewToExtensionMessage =
   | RollbackRequest
   | RequestTraceListMessage
   | RequestTraceDetailMessage
-  | RequestTraceMetricsMessage;
+  | RequestTraceMetricsMessage
+  | RequestCacheStatsMessage;

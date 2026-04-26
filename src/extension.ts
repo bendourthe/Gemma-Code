@@ -306,6 +306,10 @@ export function activate(context: vscode.ExtensionContext): void {
     context.extensionUri,
     traceStore,
     metricsCollector,
+    {
+      toolOutputCache: chatPanel.getToolOutputCache(),
+      webResponseCache: chatPanel.getWebResponseCache(),
+    },
   );
   const traceDashboardDisposable = vscode.window.registerWebviewViewProvider(
     TRACE_DASHBOARD_VIEW_ID,

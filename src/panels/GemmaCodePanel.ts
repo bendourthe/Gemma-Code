@@ -38,6 +38,8 @@ import { ChatHistoryStore } from "../storage/ChatHistoryStore.js";
 import { MemoryStore } from "../storage/MemoryStore.js";
 import { MemorySubsystem } from "../storage/MemorySubsystem.js";
 import { ToolOutputCache } from "../storage/ToolOutputCache.js";
+import { WebResponseCache } from "../tools/handlers/webCache.js";
+import { OperationLog } from "../observability/OperationLog.js";
 import { calculateBudget } from "../config/PromptBudget.js";
 import type { WorkingMemory } from "../storage/WorkingMemory.js";
 import { EpisodicMemory } from "../storage/EpisodicMemory.js";
@@ -94,6 +96,8 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
   private readonly _memorySubsystem: MemorySubsystem;
   private readonly _memoryStore: MemoryStore | null;
   private readonly _toolOutputCache: ToolOutputCache | null;
+  private readonly _webResponseCache: WebResponseCache | null;
+  private readonly _operationLog: OperationLog | null;
   private readonly _compactor: ContextCompactor;
   private readonly _workingMemory: WorkingMemory | null;
   private readonly _episodicMemory: EpisodicMemory | null;
@@ -137,6 +141,9 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
           this._memoryConsolidator?.setCorroborationThreshold(threshold);
           this._unifiedRetriever?.setCorroborationThreshold(threshold);
         }
+        if (event.affectsConfiguration("gemma-code.operationLog.enabled")) {
+          this._operationLog?.setEnabled(this._getSettings().operationLogEnabled);
+        }
       }
     });
 
@@ -145,6 +152,13 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
 
     // Phase 4 (v0.5.0): persistent tool-output cache backing diff-based reads.
     this._toolOutputCache = this._initToolOutputCache(settings);
+
+    // Phase 9 (v0.5.0): API-response cache fronting `web_search`.
+    this._webResponseCache = this._initWebResponseCache();
+
+    // Phase 9 (v0.5.0): opt-in append-only operation log. Initialized
+    // unconditionally; `setEnabled(...)` controls whether writes happen.
+    this._operationLog = this._initOperationLog(settings);
 
     // Initialize 4-layer memory system through the MemorySubsystem factory.
     const memory = this._buildMemorySubsystem(settings, this._toolOutputCache);
@@ -284,6 +298,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
         loopDetector: new LoopDetector(),
         maxTokens: settings.maxTokens,
         tracer: this._runtime.tracer,
+        operationLog: this._operationLog ?? undefined,
       },
     );
 
@@ -364,6 +379,41 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     }
   }
 
+  private _initWebResponseCache(): WebResponseCache | null {
+    const folders = vscode.workspace.workspaceFolders;
+    if (!folders || folders.length === 0) return null;
+    try {
+      const cache = new WebResponseCache();
+      cache.open(folders[0]!.uri.fsPath);
+      return cache;
+    } catch (err) {
+      getLogger().debug(
+        `[GemmaCodePanel] WebResponseCache init failed:`,
+        formatForUser(err),
+      );
+      return null;
+    }
+  }
+
+  private _initOperationLog(settings: GemmaCodeSettings): OperationLog | null {
+    const folders = vscode.workspace.workspaceFolders;
+    if (!folders || folders.length === 0) return null;
+    try {
+      const log = new OperationLog({
+        extraSecretPatterns: settings.secretPathDenyExtra,
+      });
+      log.open(folders[0]!.uri.fsPath);
+      log.setEnabled(settings.operationLogEnabled);
+      return log;
+    } catch (err) {
+      getLogger().debug(
+        `[GemmaCodePanel] OperationLog init failed:`,
+        formatForUser(err),
+      );
+      return null;
+    }
+  }
+
   /**
    * Update the hardware tier configuration after async GPU detection completes.
    * Rebuilds the system prompt with tier info and configures budget middleware.
@@ -397,7 +447,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     registry.register("list_directory", new ListDirectoryTool(gate, secretPathDenyExtra));
     registry.register("grep_codebase", new GrepCodebaseTool(gate, secretPathDenyExtra));
     registry.register("run_terminal", new RunTerminalTool());
-    registry.register("web_search", new WebSearchTool());
+    registry.register("web_search", new WebSearchTool(this._webResponseCache));
     registry.register("fetch_page", new FetchPageTool());
 
     // Centralized permission enforcement via PermissionTiers.
@@ -1062,6 +1112,70 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
         break;
       }
 
+      case "operation-log": {
+        if (!this._operationLog) {
+          const disabledMsg = this._manager.addAssistantMessage(
+            "_Operation log is unavailable (no workspace open)._",
+          );
+          postMessage({
+            type: "messageComplete",
+            messageId: disabledMsg.id,
+            renderedHtml: renderMarkdown(disabledMsg.content),
+          });
+          this._postHistory();
+          break;
+        }
+
+        const [opSubcommand] = args ? args.split(" ", 1) : ["status"];
+        switch (opSubcommand) {
+          case "clear": {
+            this._operationLog.clear();
+            const text = "_Operation log cleared._";
+            const msg = this._manager.addAssistantMessage(text);
+            postMessage({
+              type: "messageComplete",
+              messageId: msg.id,
+              renderedHtml: renderMarkdown(text),
+            });
+            this._postHistory();
+            break;
+          }
+          case "status":
+          default: {
+            const status = this._operationLog.status();
+            const lines = [
+              "## Operation Log",
+              "",
+              `- **Enabled:** ${status.enabled ? "yes" : "no"}`,
+              `- **File:** ${status.filePath ?? "_(not initialized)_"}`,
+              `- **Size:** ${(status.fileSizeBytes / 1024).toFixed(1)} KB`,
+            ];
+            if (status.lastLines.length > 0) {
+              lines.push("", "### Last entries", "");
+              for (const line of status.lastLines) {
+                lines.push(`- \`${line}\``);
+              }
+            }
+            if (!status.enabled) {
+              lines.push(
+                "",
+                "_Set `gemma-code.operationLog.enabled` to true in settings to start writing._",
+              );
+            }
+            const text = lines.join("\n");
+            const msg = this._manager.addAssistantMessage(text);
+            postMessage({
+              type: "messageComplete",
+              messageId: msg.id,
+              renderedHtml: renderMarkdown(text),
+            });
+            this._postHistory();
+            break;
+          }
+        }
+        break;
+      }
+
       case "research": {
         if (!args) {
           const usageMsg = this._manager.addAssistantMessage("Usage: `/research <query>`");
@@ -1536,6 +1650,22 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     return this._store;
   }
 
+  /**
+   * Phase 9 (v0.5.0): expose the persistent tool-output cache so the trace
+   * dashboard can render cache-hit and top-cached-files panels.
+   */
+  getToolOutputCache(): ToolOutputCache | null {
+    return this._toolOutputCache;
+  }
+
+  /**
+   * Phase 9 (v0.5.0): expose the API-response cache so the trace dashboard
+   * can render the web-cache hit/miss panel.
+   */
+  getWebResponseCache(): WebResponseCache | null {
+    return this._webResponseCache;
+  }
+
   /** Load a saved session by ID. */
   loadSession(sessionId: string): void {
     if (!this._store) return;
@@ -1562,6 +1692,8 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     // close() methods are no-ops on injected connections.
     this._memorySubsystem.close();
     this._toolOutputCache?.close();
+    this._webResponseCache?.close();
+    this._operationLog?.close();
     this._mcpManager?.dispose();
     void this._mcpServer?.stop();
     this._settingsChangeDisposable?.dispose();

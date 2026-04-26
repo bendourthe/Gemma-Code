@@ -131,7 +131,22 @@ interface PendingUpdate {
 
 type PendingOp = PendingInsert | PendingUpdate;
 
-const FLUSH_BATCH_SIZE = 32;
+/**
+ * Phase 9 (v0.5.0): batch size for the count-based flush. Hitting this
+ * threshold drains the buffer immediately; otherwise the time-based interval
+ * (`FLUSH_INTERVAL_MS`) handles the drain.
+ */
+const FLUSH_BATCH_SIZE = 100;
+
+/** Phase 9: maximum interval between time-based flushes (5 seconds). */
+const FLUSH_INTERVAL_MS = 5_000;
+
+/** Phase 9: snapshot of the trace-write buffer for observability. */
+export interface TraceBufferStats {
+  readonly bufferedEvents: number;
+  readonly lastFlushMs: number;
+  readonly totalFlushed: number;
+}
 
 export class TraceStore {
   private readonly _db: Database.Database;
@@ -143,6 +158,12 @@ export class TraceStore {
   /** Pending INSERT/UPDATE operations to drain in one transaction. */
   private readonly _pendingOps: PendingOp[] = [];
   private _flushScheduled = false;
+  // Phase 9: time-based flush so a quiet stream of writes still lands within
+  // 5 s. The interval is created lazily on the first scheduled flush so test
+  // instances that immediately close don't leak handles.
+  private _flushInterval: NodeJS.Timeout | null = null;
+  private _lastFlushMs = 0;
+  private _totalFlushed = 0;
 
   constructor(dbPath: string) {
     this._db = new Database(dbPath);
@@ -293,6 +314,7 @@ export class TraceStore {
   flush(): void {
     if (this._pendingOps.length === 0) {
       this._flushScheduled = false;
+      this._lastFlushMs = Date.now();
       return;
     }
     const ops = this._pendingOps.splice(0, this._pendingOps.length);
@@ -330,6 +352,32 @@ export class TraceStore {
         }
       }
     })();
+
+    this._lastFlushMs = Date.now();
+    this._totalFlushed += ops.length;
+  }
+
+  /**
+   * Phase 9: synchronous-resolved Promise variant of `flush()` for callers
+   * that need to await drain (e.g. correctness-critical confirmation
+   * decisions). Behaves identically to `flush()` but composes with async
+   * code paths.
+   */
+  async flushImmediately(): Promise<void> {
+    this.flush();
+  }
+
+  /**
+   * Phase 9: snapshot of buffer state for observability. Surfaces
+   * `bufferedEvents`, `lastFlushMs`, and `totalFlushed` so the dashboard
+   * can render flush cadence without a separate query path.
+   */
+  bufferStats(): TraceBufferStats {
+    return {
+      bufferedEvents: this._pendingOps.length,
+      lastFlushMs: this._lastFlushMs,
+      totalFlushed: this._totalFlushed,
+    };
   }
 
   private _scheduleFlush(forceSync: boolean): void {
@@ -337,6 +385,25 @@ export class TraceStore {
       this.flush();
       return;
     }
+
+    // Phase 9: ensure the time-based flush interval is running. Lazy startup
+    // keeps short-lived test stores from leaking handles when nothing is
+    // ever scheduled.
+    if (this._flushInterval === null) {
+      this._flushInterval = setInterval(() => {
+        try {
+          this.flush();
+        } catch {
+          /* swallow -- interval continues on next tick */
+        }
+      }, FLUSH_INTERVAL_MS);
+      // unref() so the interval does not keep the Node process alive at
+      // shutdown -- vscode disposes via dispose()/close() before exit.
+      if (typeof this._flushInterval.unref === "function") {
+        this._flushInterval.unref();
+      }
+    }
+
     if (this._flushScheduled) return;
     this._flushScheduled = true;
     process.nextTick(() => {
@@ -503,8 +570,25 @@ export class TraceStore {
   // -------------------------------------------------------------------------
 
   close(): void {
+    this.dispose();
+  }
+
+  /**
+   * Phase 9 (v0.5.0): release the time-based flush interval, perform a final
+   * synchronous flush so no buffered events are lost on extension
+   * deactivation, and close the SQLite connection.
+   */
+  dispose(): void {
+    if (this._flushInterval !== null) {
+      clearInterval(this._flushInterval);
+      this._flushInterval = null;
+    }
     this.flush();
-    this._db.close();
+    try {
+      this._db.close();
+    } catch {
+      /* swallow -- already closed */
+    }
   }
 
   // -------------------------------------------------------------------------

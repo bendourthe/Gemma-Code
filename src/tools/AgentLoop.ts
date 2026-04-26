@@ -15,6 +15,7 @@ import type { LoopDetector } from "../guardrails/LoopDetector.js";
 import type { GitSafetyNet, GitCheckpoint } from "../guardrails/GitSafetyNet.js";
 import { classifyAction, ActionRisk } from "../guardrails/ActionClassifier.js";
 import { Tracer } from "../observability/Tracer.js";
+import type { OperationLog } from "../observability/OperationLog.js";
 import { formatForUser } from "../utils/errors.js";
 import { countTokens } from "../config/PromptBudget.js";
 
@@ -51,6 +52,13 @@ export interface AgentLoopOptions {
    */
   readonly tracer?: Tracer;
   /**
+   * Phase 9 (v0.5.0): opt-in append-only operation log. When provided AND
+   * `OperationLog.isEnabled()` is true, the loop records one metadata-only
+   * line per tool call. Records `<redacted>` for any path matching the
+   * secret-path denylist. Default: not provided -> no log writes.
+   */
+  readonly operationLog?: OperationLog;
+  /**
    * Maximum context window in tokens. Posted alongside the running token
    * count so the webview can render an accurate progress bar. When omitted
    * the loop emits `limit: 0` to signal "unknown" (legacy behavior).
@@ -76,6 +84,7 @@ export class AgentLoop {
   private readonly _gitSafetyNet?: GitSafetyNet;
   private readonly _maxTokens: number;
   private readonly _tracer: Tracer;
+  private readonly _operationLog?: OperationLog;
   private _gitCheckpoint: GitCheckpoint | null = null;
   private _traceId = "";
   private _rootSpanId = "";
@@ -102,6 +111,7 @@ export class AgentLoop {
     this._gitSafetyNet = options?.gitSafetyNet;
     this._maxTokens = options?.maxTokens ?? 0;
     this._tracer = options?.tracer ?? new Tracer();
+    this._operationLog = options?.operationLog;
   }
 
   /** Set or replace the budget middleware (used for async tier config updates). */
@@ -374,6 +384,19 @@ export class AgentLoop {
     tracer.endSpan(toolSpanId, result.success ? "ok" : "error", {
       success: result.success,
     });
+
+    // Phase 9: append a metadata-only line to the opt-in operation log.
+    // Records only tool name, outcome, optional path, and session id; tool
+    // inputs (commands, file contents, search patterns) are never logged.
+    if (this._operationLog && this._operationLog.isEnabled()) {
+      const pathParam = call.parameters["path"];
+      this._operationLog.recordToolCall({
+        toolName: call.tool,
+        outcome: result.success ? "ok" : "error",
+        path: typeof pathParam === "string" ? pathParam : undefined,
+        sessionId: this._sessionId,
+      });
+    }
 
     postMessage({
       type: "toolResult",

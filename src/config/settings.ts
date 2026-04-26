@@ -37,6 +37,7 @@ export interface GemmaCodeSettings {
   otlpEndpoint: string;
   otlpHeaders: string;
   secretPathDenyExtra: string[];
+  operationLogEnabled: boolean;
 }
 
 // NOTE(v0.5): remove gpuTier fallback. Reads the legacy `gemma-code.gpuTier`
@@ -92,6 +93,7 @@ export function getSettings(): GemmaCodeSettings {
     otlpEndpoint: config.get<string>("otlpEndpoint") ?? "http://localhost:4318/v1/traces",
     otlpHeaders: config.get<string>("otlpHeaders") ?? "",
     secretPathDenyExtra: config.get<string[]>("secretPathDenyExtra") ?? [],
+    operationLogEnabled: config.get<boolean>("operationLog.enabled") ?? false,
   };
 }
 

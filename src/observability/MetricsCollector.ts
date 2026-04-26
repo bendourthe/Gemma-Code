@@ -1,4 +1,4 @@
-import type { TraceStore, Span } from "./TraceStore.js";
+import type { TraceBufferStats, TraceStore, Span } from "./TraceStore.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -40,6 +40,24 @@ export interface MetricsTrend {
 
 export class MetricsCollector {
   constructor(private readonly _store: TraceStore) {}
+
+  /**
+   * Phase 9 (v0.5.0): expose the underlying trace store's buffer stats
+   * (bufferedEvents / lastFlushMs / totalFlushed) so the dashboard can render
+   * flush cadence without reaching past MetricsCollector.
+   */
+  bufferStats(): TraceBufferStats {
+    return this._store.bufferStats();
+  }
+
+  /**
+   * Phase 9: synchronous-resolved flush for correctness-critical events that
+   * cannot wait for the 5 s / 100-event cadence (e.g. confirmation gate
+   * decisions persisted before the agent loop continues).
+   */
+  async flushImmediately(): Promise<void> {
+    await this._store.flushImmediately();
+  }
 
   computeSessionMetrics(traceId: string): SessionMetrics | null {
     const trace = this._store.getTrace(traceId);

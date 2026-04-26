@@ -10,6 +10,7 @@ import type {
   FetchPageParams,
 } from "../types.js";
 import { fetchWithSsrfGuard } from "../../utils/ssrf.js";
+import type { WebResponseCache } from "./webCache.js";
 
 const DUCKDUCKGO_HTML_URL = "https://html.duckduckgo.com/html/";
 const MAX_RESULTS = 5;
@@ -43,6 +44,11 @@ function truncate(s: string, max: number): string {
 
 export class WebSearchTool implements ToolHandler {
   private _requestTimestamps: number[] = [];
+  private readonly _cache: WebResponseCache | null;
+
+  constructor(cache: WebResponseCache | null = null) {
+    this._cache = cache;
+  }
 
   /** Reset per-session rate-limit counter. Called by session boundary wiring. */
   resetSession(): void {
@@ -86,6 +92,17 @@ export class WebSearchTool implements ToolHandler {
 
     const searchUrl =
       `${DUCKDUCKGO_HTML_URL}?q=${encodeURIComponent(p.query)}&kl=us-en`;
+
+    if (this._cache) {
+      try {
+        const cached = await this._cache.lookup(searchUrl);
+        if (cached) {
+          return { id, success: true, output: cached.response };
+        }
+      } catch {
+        // Cache lookup must not break the search path; fall through to fetch.
+      }
+    }
 
     let html: string;
     try {
@@ -140,11 +157,15 @@ export class WebSearchTool implements ToolHandler {
       );
     }
 
-    return {
-      id,
-      success: true,
-      output: JSON.stringify({ results, count: results.length }),
-    };
+    const output = JSON.stringify({ results, count: results.length });
+    if (this._cache) {
+      try {
+        this._cache.store(searchUrl, output, "application/json");
+      } catch {
+        // Cache write failures must not break the response path.
+      }
+    }
+    return { id, success: true, output };
   }
 }
 

@@ -179,6 +179,43 @@ export function getTraceDashboardHtml(
       opacity: 0.4;
       font-size: 13px;
     }
+
+    /* Phase 9: cache observability panels */
+    #cache-panels {
+      display: none;
+      padding: 8px 14px;
+      border-bottom: 1px solid var(--vscode-panel-border);
+      font-size: 11px;
+    }
+    .cache-panel { margin-bottom: 8px; }
+    .cache-panel-title {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      opacity: 0.6;
+      margin-bottom: 4px;
+    }
+    .cache-row { display: flex; gap: 16px; align-items: baseline; }
+    .cache-pair { display: flex; gap: 4px; }
+    .cache-key { opacity: 0.6; }
+    .cache-val { font-weight: 600; }
+    .cache-top-list {
+      list-style: none;
+      padding-left: 0;
+      margin: 4px 0 0 0;
+    }
+    .cache-top-list li {
+      display: flex;
+      gap: 6px;
+      font-size: 10px;
+      opacity: 0.8;
+    }
+    .cache-top-path {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
   </style>
 </head>
 <body>
@@ -187,6 +224,7 @@ export function getTraceDashboardHtml(
     <button class="btn" id="refresh-btn">Refresh</button>
   </div>
   <div id="metrics-bar" style="display:none;"></div>
+  <div id="cache-panels"></div>
   <div id="back-btn">&larr; Back to trace list</div>
   <div id="content">
     <div id="empty-state">No traces recorded yet.</div>
@@ -204,6 +242,7 @@ export function getTraceDashboardHtml(
       const backBtn = document.getElementById('back-btn');
       const refreshBtn = document.getElementById('refresh-btn');
       const metricsBar = document.getElementById('metrics-bar');
+      const cachePanelsEl = document.getElementById('cache-panels');
       let currentView = 'list';
 
       refreshBtn.addEventListener('click', () => {
@@ -340,6 +379,69 @@ export function getTraceDashboardHtml(
         spanDetailEl.style.display = '';
       }
 
+      function formatBytes(n) {
+        if (n == null || isNaN(n)) return '0 B';
+        if (n < 1024) return n + ' B';
+        if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+        return (n / (1024 * 1024)).toFixed(2) + ' MB';
+      }
+
+      function renderCachePanels(payload) {
+        if (!payload) {
+          cachePanelsEl.style.display = 'none';
+          cachePanelsEl.innerHTML = '';
+          return;
+        }
+        const tool = payload.toolOutputCache || { entries: 0, hits: 0, misses: 0, bytes: 0, topByHits: [] };
+        const web = payload.webResponseCache;
+        const compTotal = tool.hits + tool.misses;
+        const toolHitRate = compTotal === 0 ? 0 : tool.hits / compTotal;
+        const webTotal = web ? web.hits + web.misses : 0;
+        const webHitRate = webTotal === 0 ? 0 : web.hits / webTotal;
+
+        let html = '';
+        html += '<div class="cache-panel">';
+        html += '<div class="cache-panel-title">Compression savings</div>';
+        html += '<div class="cache-row">' +
+          '<span class="cache-pair"><span class="cache-key">Saved:</span><span class="cache-val">' + escapeHtml(formatBytes(payload.compressionSavedBytes)) + '</span></span>' +
+          '<span class="cache-pair"><span class="cache-key">Original:</span><span class="cache-val">' + escapeHtml(formatBytes(payload.compressionOriginalBytes)) + '</span></span>' +
+          '<span class="cache-pair"><span class="cache-key">Compressed:</span><span class="cache-val">' + escapeHtml(formatBytes(payload.compressionCompressedBytes)) + '</span></span>' +
+          '</div>';
+        html += '</div>';
+
+        html += '<div class="cache-panel">';
+        html += '<div class="cache-panel-title">Cache hit rate</div>';
+        html += '<div class="cache-row">' +
+          '<span class="cache-pair"><span class="cache-key">tool-output:</span><span class="cache-val">' + (toolHitRate * 100).toFixed(0) + '%</span></span>' +
+          '<span class="cache-pair"><span class="cache-key">hits/misses:</span><span class="cache-val">' + tool.hits + '/' + tool.misses + '</span></span>' +
+          (web
+            ? '<span class="cache-pair"><span class="cache-key">web:</span><span class="cache-val">' + (webHitRate * 100).toFixed(0) + '%</span></span>' +
+              '<span class="cache-pair"><span class="cache-key">hits/misses:</span><span class="cache-val">' + web.hits + '/' + web.misses + '</span></span>'
+            : '<span class="cache-pair"><span class="cache-key">web:</span><span class="cache-val">disabled</span></span>') +
+          '</div>';
+        html += '</div>';
+
+        html += '<div class="cache-panel">';
+        html += '<div class="cache-panel-title">Top cached files (' + tool.entries + ' total)</div>';
+        if (tool.topByHits.length === 0) {
+          html += '<div class="cache-pair" style="opacity:0.5;">No cached files yet.</div>';
+        } else {
+          html += '<ul class="cache-top-list">';
+          for (let i = 0; i < tool.topByHits.length && i < 10; i++) {
+            const row = tool.topByHits[i];
+            html += '<li>' +
+              '<span class="cache-top-path" title="' + escapeAttr(row.absolutePath) + '">' + escapeHtml(row.absolutePath) + '</span>' +
+              '<span class="cache-val">' + row.hits + '</span>' +
+            '</li>';
+          }
+          html += '</ul>';
+        }
+        html += '</div>';
+
+        cachePanelsEl.innerHTML = html;
+        cachePanelsEl.style.display = '';
+      }
+
       function renderMetrics(metrics) {
         metricsBar.innerHTML =
           '<div class="metric-item"><span class="metric-label">Tools:</span><span class="metric-value">' + metrics.toolStepCount + '</span></div>' +
@@ -360,6 +462,9 @@ export function getTraceDashboardHtml(
             break;
           case 'traceMetrics':
             renderMetrics(msg.metrics);
+            break;
+          case 'cacheStats':
+            renderCachePanels(msg);
             break;
         }
       });

@@ -11,7 +11,8 @@ export type BuiltinCommandName =
   | "mcp"
   | "verify"
   | "research"
-  | "cache";
+  | "cache"
+  | "operation-log";
 
 export interface CommandDescriptor {
   name: string;
@@ -45,6 +46,7 @@ const BUILTIN_DESCRIPTORS: CommandDescriptor[] = [
   { name: "verify", description: "Manually trigger verification of recent changes" },
   { name: "research", description: "Spawn a research sub-agent to gather information", argumentHint: "<query>" },
   { name: "cache", description: "Manage the persistent tool-output cache (status, clear, prune)", argumentHint: "<status|clear|prune>" },
+  { name: "operation-log", description: "Manage the opt-in append-only operation log (status, clear)", argumentHint: "<status|clear>" },
 ];
 
 const BUILTIN_NAMES = new Set<string>(BUILTIN_DESCRIPTORS.map((d) => d.name));
