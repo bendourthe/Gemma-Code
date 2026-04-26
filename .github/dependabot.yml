@@ -6,6 +6,13 @@
 #
 # Major-version bumps for vscode-related dependencies are ignored on purpose:
 # they need manual coordination with the engines.vscode pin.
+#
+# `labels` blocks are intentionally omitted. Dependabot rejects an entire
+# config update when any label in the list is missing from the repo, and
+# applying labels during PR creation requires the labels to exist first.
+# To re-enable labelling, create the labels in the GitHub repo Settings ->
+# Labels (e.g. `dependencies`, `auto-update`, `github-actions`,
+# `python-installer`) and then add a `labels:` block per ecosystem.
 
 version: 2
 updates:
@@ -17,9 +24,6 @@ updates:
       time: "06:00"
       timezone: "UTC"
     open-pull-requests-limit: 10
-    labels:
-      - "dependencies"
-      - "auto-update"
     groups:
       dev-dependencies:
         dependency-type: "development"
@@ -39,9 +43,6 @@ updates:
       time: "06:00"
       timezone: "UTC"
     open-pull-requests-limit: 5
-    labels:
-      - "dependencies"
-      - "github-actions"
 
   - package-ecosystem: "pip"
     directory: "/scripts/installer/pyqt"
@@ -51,6 +52,3 @@ updates:
       time: "06:00"
       timezone: "UTC"
     open-pull-requests-limit: 5
-    labels:
-      - "dependencies"
-      - "python-installer"
