@@ -24,11 +24,22 @@ updates:
       time: "06:00"
       timezone: "UTC"
     open-pull-requests-limit: 10
+    # Group only minor/patch updates. Major-version bumps come as
+    # individual PRs because each one needs an isolated review (breaking
+    # API changes, ecosystem-wide ramifications). Without the
+    # `update-types` filter Dependabot folds majors into the group, which
+    # produces grouped PRs that cannot safely be merged as a unit.
     groups:
-      dev-dependencies:
+      dev-dependencies-minor:
         dependency-type: "development"
-      runtime-dependencies:
+        update-types:
+          - "minor"
+          - "patch"
+      runtime-dependencies-minor:
         dependency-type: "production"
+        update-types:
+          - "minor"
+          - "patch"
     ignore:
       - dependency-name: "vscode"
         update-types: ["version-update:semver-major"]
