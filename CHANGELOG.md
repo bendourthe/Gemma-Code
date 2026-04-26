@@ -1,3 +1,11 @@
+## [0.5.3](https://github.com/bendourthe/Gemma-Code/compare/v0.5.2...v0.5.3) (2026-04-26)
+
+
+### Bug Fixes
+
+* **release:** wire @semantic-release/npm so package.json version bumps ([d0e4017](https://github.com/bendourthe/Gemma-Code/commit/d0e4017fcf2fef2f1d65650bbf08333edbf6ca70))
+* **tests:** rewrite token-estimation tests for tiktoken ([4b4840e](https://github.com/bendourthe/Gemma-Code/commit/4b4840e698794a52441afd77bc9531e5cce389b8))
+
 ## [0.5.2](https://github.com/bendourthe/Gemma-Code/compare/v0.5.1...v0.5.2) (2026-04-26)
 
 
