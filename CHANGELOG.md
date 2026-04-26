@@ -1,3 +1,12 @@
+## [0.5.1](https://github.com/bendourthe/Gemma-Code/compare/v0.5.0...v0.5.1) (2026-04-26)
+
+
+### Bug Fixes
+
+* **ci:** sync package-lock.json and unblock Dependabot ([d4bdcfd](https://github.com/bendourthe/Gemma-Code/commit/d4bdcfddaa6e33f54a3ed5098c7942ea6f12c22e)), closes [#7](https://github.com/bendourthe/Gemma-Code/issues/7)
+* **ci:** unblock semantic-release and drop opaque npm ci --silent ([6e3c1c4](https://github.com/bendourthe/Gemma-Code/commit/6e3c1c4dd4de188380ad0233c670e3bca0d3166e))
+* **deps:** split Dependabot major-version updates from minor groups ([c087d8c](https://github.com/bendourthe/Gemma-Code/commit/c087d8c4f61316ee7a37f92a52880978dbf212cb)), closes [#7](https://github.com/bendourthe/Gemma-Code/issues/7)
+
 # Changelog
 
 All notable changes to Gemma Code will be documented in this file.
