@@ -51,12 +51,20 @@ To debug the extension live, press `F5` in VS Code; this launches the Extension 
 - Keep behavioral commits separate from refactor commits.
 - Never weaken pre-commit hooks (`--no-verify`) or skip ESLint rules without an inline `// eslint-disable-next-line ...` comment that explains why.
 
+## Commit message format
+
+Commits follow [Conventional Commits](https://www.conventionalcommits.org/). The header is `<type>(<scope>): <subject>`; allowed types are `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `ci`, `build`, `perf`, `revert`, `style`. Header length capped at 100 chars. Configuration lives in [commitlint.config.cjs](./commitlint.config.cjs) and is enforced both locally (commit-msg hook) and in CI ([.github/workflows/commitlint.yml](./.github/workflows/commitlint.yml) — runs on every PR).
+
+`semantic-release` (configured in [.releaserc.json](./.releaserc.json)) consumes the conventional-commit history on push to `main`, regenerates `CHANGELOG.md`, bumps `package.json`, and pushes a `vX.Y.Z` tag. The tag triggers [release.yml](./.github/workflows/release.yml) which builds the VSIX. The plugin chain is `changelog -> git -> github` — there is no `@semantic-release/npm` because Gemma Code ships as a VSIX, not an npm package.
+
+Do **not** add a `prepare-commit-msg` hook injecting a `Co-Authored-By` template — `AGENTS.md` forbids it.
+
 ## Local git hooks
 
 `npm install` runs `husky` automatically and wires two repository-managed hooks:
 
 - **pre-commit** runs `npx lint-staged` against staged `src/**/*.ts`, failing on any lint error or warning. Scope is small so the hook stays under one second on a typical change-set.
-- **commit-msg** runs [scripts/hooks/check-commit-msg.mjs](./scripts/hooks/check-commit-msg.mjs) and rejects any commit message containing non-ASCII bytes (em-dashes, curly quotes, ellipsis, CJK). The hook prints the offending U+ codepoints so you can locate them.
+- **commit-msg** runs [scripts/hooks/check-commit-msg.mjs](./scripts/hooks/check-commit-msg.mjs) and rejects any commit message containing non-ASCII bytes (em-dashes, curly quotes, ellipsis, CJK). The hook prints the offending U+ codepoints so you can locate them. The conventional-commit format is enforced in CI by the commitlint workflow above; if you prefer to fail fast locally, add `npx commitlint --edit "$1"` to your own copy of [.husky/commit-msg](./.husky/commit-msg).
 
 `git commit --no-verify` skips both hooks. Reserve it for hot-fix scenarios; do not normalize bypassing the hooks for routine work.
 

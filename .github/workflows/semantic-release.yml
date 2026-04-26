@@ -1,0 +1,46 @@
+name: Semantic Release
+
+# Runs on every push to main. Analyzes conventional commits and, when a new
+# release is warranted, updates CHANGELOG.md, bumps package.json, commits
+# with `[skip ci]`, tags `vX.Y.Z`, and creates a GitHub release. The tag
+# push triggers the existing release.yml which builds the VSIX and the
+# Windows/macOS installers.
+#
+# The plugin chain in `.releaserc.json` is changelog -> git -> github. We
+# deliberately do NOT include `@semantic-release/npm` because Gemma Code
+# ships as a VSIX, not as an npm package.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: semantic-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - run: npm ci --prefer-offline --no-audit --silent
+
+      - name: Run semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release

@@ -37,6 +37,11 @@ describe("ToolOutputCache (Phase 5 -- semantic recall)", () => {
       isAvailable: vi.fn(async () => true),
       embed: vi.fn(async (text: string) => map[text] ?? null),
       embedBatch: vi.fn(async (texts: string[]) => texts.map((t) => map[t] ?? null)),
+      embedWithProvenance: vi.fn(async (text: string) => {
+        const v = map[text];
+        return v ? { embedding: v, provenance: "ollama" as const } : null;
+      }),
+      embedHeuristic: vi.fn(() => []),
     });
   }
 

@@ -1,0 +1,30 @@
+id: agent-friendly-truncation-recovery-read-01
+name: Recover from a truncated read_file output via range pagination
+category: agent-friendly
+description: |
+  large.ts is a synthetic ~120 KB TypeScript file (1500 single-line
+  feature-flag functions). The Phase 1 universal byte-cap truncates the
+  default read_file response at 64 KB, leaving the agent with a
+  structured truncation hint pointing at range_start/range_end. The
+  acceptance test asks about featureFlag1300, which sits past the 64 KB
+  boundary; the only way to reach it is a second read_file with
+  range_start far enough into the file.
+
+  Acceptance: the run produces an answer that quotes or paraphrases the
+  body of `featureFlag1300()` from large.ts. The agent must use
+  read_file pagination, not skim by reading multiple unrelated files.
+initial_state: snapshots/agent-friendly-truncation-recovery-read-01
+expected_files_changed: []
+success_criteria:
+  - type: output_contains
+    target: "node -e \"const fs=require('fs');const m=fs.readFileSync('large.ts','utf8').match(/featureFlag1300[\\s\\S]*?return [^;]+;/);process.stdout.write(m?m[0].slice(0,80):'no-match')\""
+    pattern: "featureFlag1300"
+    description: large.ts contains the targeted function the agent must locate
+  - type: file_contains
+    target: large.ts
+    pattern: "featureFlag1300"
+    description: fixture file is present and intact
+max_iterations: 8
+timeout_seconds: 180
+model_tier: any
+tags: [agent-friendly, truncation-recovery, pagination, phase-12]

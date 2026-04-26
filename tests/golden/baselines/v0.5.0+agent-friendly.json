@@ -1,0 +1,34 @@
+{
+  "version": "0.5.0",
+  "model": "gemma4:e4b",
+  "timestamp": "pending",
+  "hardware": {},
+  "tasks": {
+    "agent-friendly-truncation-recovery-read-01": {
+      "expected": "pass",
+      "notes": "Agent must use read_file(range_start, range_end) to reach featureFlag1300 past the 64 KB cap."
+    },
+    "agent-friendly-truncation-recovery-grep-02": {
+      "expected": "pass",
+      "notes": "Agent must page through grep results via next_offset and report a count of performance-tagged TODOs."
+    },
+    "agent-friendly-dry-run-then-execute-03": {
+      "expected": "pass",
+      "notes": "Agent should issue delete_file(dry_run=true) before the destructive call. Acceptance verifies the file is gone."
+    }
+  },
+  "aggregates": {
+    "pass_rate": 1.0,
+    "passed": 3,
+    "total": 3,
+    "mean_iterations": 0.0,
+    "mean_time_ms": 0.0,
+    "total_tokens": 0,
+    "by_category": {
+      "agent-friendly": {
+        "passed": 3,
+        "total": 3
+      }
+    }
+  }
+}

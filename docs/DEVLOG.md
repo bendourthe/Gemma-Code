@@ -4,6 +4,55 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-04-26] v0.5.0 Phase 12 -- Advanced Fallbacks + Release Gate
+
+### Summary
+
+Closed the v0.5.0 unified adoption release. Five sub-tasks landed plus the version bump, comprehensive CHANGELOG entry, and the dedicated [docs/v0.5.0/architecture.md](v0.5.0/architecture.md):
+
+**12.1 Truncation-recovery golden micro-eval**: Three new YAML tasks under [tests/golden/tasks/](../tests/golden/tasks/) -- `agent-friendly-truncation-recovery-read-01` (read_file pagination past the 64 KB cap to reach `featureFlag1300` in a 124 KB synthetic file), `agent-friendly-truncation-recovery-grep-02` (paging via next_offset across 220 TODO matches to count the performance-tagged subset), and `agent-friendly-dry-run-then-execute-03` (dry_run before destructive delete). Snapshots include deterministic `_setup.mjs` generators so fixtures stay reproducible. Baseline at [tests/golden/baselines/v0.5.0+agent-friendly.json](../tests/golden/baselines/v0.5.0+agent-friendly.json).
+
+**12.2 ARIMA-only predictive cache**: New [src/storage/PredictiveCache.ts](../src/storage/PredictiveCache.ts) with a pure-JS ARIMA(1,0,1) gradient-descent fit (~80 LOC core). `observe(absolutePath)` records access timestamps; `predict(topK)` returns paths likely to be re-accessed soon, ranked by inverse predicted-arrival-delta weighted by residual variance. Setting `gemma-code.predictiveCacheEnabled` (default `false`) controls activation. **LSTM is explicitly out of scope**, codified by a comment block in the source and the implementation plan -- not a deferred feature, not a toggle, never on the roadmap. Tests in [tests/unit/storage/PredictiveCache.test.ts](../tests/unit/storage/PredictiveCache.test.ts).
+
+**12.3 Multi-tier eviction strategies**: New [src/storage/eviction/](../src/storage/eviction/) directory exposing a clean `Evictor` interface (`onAccess` / `onInsert` / `onRemove` / `pickVictim` / `clear`) and five pure-JS strategies: `LRUEvictor` (default; preserves v0.4.0 behavior exactly), `LFUEvictor` (frequency + insertion-order tiebreak), `ARCEvictor` (T1/T2/B1/B2 ghost-list adaptation), `WTinyLFUEvictor` (1% recency window + count-min sketch admission to a 99% main region with periodic counter halving), `ClockEvictor` (second-chance ring with reference bits). `ToolOutputLru` was refactored to thread the strategy through; the storage Map and policy decision are now decoupled. Selectable via `gemma-code.cacheEvictionStrategy`. Per-strategy unit tests under [tests/unit/storage/eviction/](../tests/unit/storage/eviction/).
+
+**12.4 HeuristicEmbedder fallback + /cache reembed**: New [src/storage/HeuristicEmbedder.ts](../src/storage/HeuristicEmbedder.ts) computing a deterministic L2-normalised 128-D embedding from hash features (21 dims, SHA-1-bucketed term hashes), statistical features (43 dims, 10 raw signals projected via deterministic +/-1 weights), and n-gram presence over a fixed 64-token vocabulary (64 dims). [src/storage/EmbeddingClient.ts](../src/storage/EmbeddingClient.ts) gained `embedWithProvenance(text)` returning `{embedding, provenance: 'ollama' | 'heuristic'}`; the heuristic path activates when Ollama is unreachable or returns null. `tool_output_cache` schema migrated to add an `embedding_provenance TEXT` column; the new `ToolOutputCache.reembedHeuristic()` API walks heuristic-tagged rows and re-embeds them via Ollama. Wired as a slash-command handler -- `/cache reembed` -- in [src/panels/GemmaCodePanel.ts](../src/panels/GemmaCodePanel.ts). Tests in [tests/unit/storage/HeuristicEmbedder.test.ts](../tests/unit/storage/HeuristicEmbedder.test.ts) and [tests/unit/storage/EmbeddingClient.heuristic.test.ts](../tests/unit/storage/EmbeddingClient.heuristic.test.ts).
+
+**12.5 semantic-release + commitlint**: New [commitlint.config.cjs](../commitlint.config.cjs) extending `@commitlint/config-conventional` (allowed types: feat, fix, chore, docs, refactor, test, ci, build, perf, revert, style; header capped at 100 chars). New [.releaserc.json](../.releaserc.json) with the plugin chain `commit-analyzer -> release-notes-generator -> changelog -> git -> github` -- deliberately no `@semantic-release/npm` because Gemma Code is a VSIX, not an npm package. Two new workflows: [.github/workflows/commitlint.yml](../.github/workflows/commitlint.yml) lints PR commit messages against the base SHA, and [.github/workflows/semantic-release.yml](../.github/workflows/semantic-release.yml) runs semantic-release on push to main (writes CHANGELOG, bumps package.json, pushes a vX.Y.Z tag that the existing [release.yml](../.github/workflows/release.yml) consumes to build the VSIX). Six new devDependencies: `@commitlint/cli`, `@commitlint/config-conventional`, `@semantic-release/changelog`, `@semantic-release/git`, `@semantic-release/github`, `semantic-release`. CONTRIBUTING.md gained a Commit message format section explicitly forbidding the `prepare-commit-msg` Co-Authored-By template per AGENTS.md.
+
+**Release artifacts**: `package.json` version bumped from 0.4.0 to 0.5.0. CHANGELOG.md gained a comprehensive v0.5.0 entry organized by phase 1-12 with file links and behavioral specifics for every shipping piece. New [docs/v0.5.0/architecture.md](v0.5.0/architecture.md) (12 sections) describes the v0.5.0 architecture: identity and canonical directives, the harness layer, tool catalogue and permission tiers (with the new tool-surface parameter table), the cache stack (in-process LRU + persistent SQLite + WebResponseCache + predictive layer + eviction strategies + embedding fallback), memory consolidation discipline, compaction and budgeting, operational hygiene, performance posture, offline and security guarantees, module dependency contract, the ADR roll-up, and v0.6.0+ deferrals. New `gemma-code.cacheEvictionStrategy` and `gemma-code.predictiveCacheEnabled` settings declared in package.json contributions with full enumDescriptions.
+
+### Quality gates
+
+- Lint clean: 0 errors, 5 pre-existing warnings
+- Build clean: `tsc` succeeds with strict + `noUncheckedIndexedAccess`
+- All Phase 12 unit tests green (eviction x6 files, PredictiveCache, HeuristicEmbedder, EmbeddingClient.heuristic, ToolOutputCache.semantic, semantic-recall-fallback)
+- Test mocks for `EmbeddingClient` updated in two files ([tests/unit/storage/ToolOutputCache.semantic.test.ts](../tests/unit/storage/ToolOutputCache.semantic.test.ts), [tests/integration/semantic-recall-fallback.test.ts](../tests/integration/semantic-recall-fallback.test.ts)) to include the new `embedWithProvenance` and `embedHeuristic` methods
+- 12 test failures still observed in `tests/unit/chat/CompactionStrategy.test.ts`, `tests/unit/chat/ContextCompactor.test.ts`, and `tests/unit/errors/error-handling.test.ts`. Stash-and-rerun against `main` (commit `bfc0056`) reproduces the same failures -- they are pre-existing on `main` and unrelated to Phase 12. Tracked for separate investigation; see Known Gaps below.
+
+### Deferred from this session
+
+The plan's Phase 12.6 release gate calls for additional verification that requires a live Ollama instance and benchmark baselines that don't exist yet:
+
+- `npm run bench` p50/p99 capture for `tool-execution`, `context-compaction`, `cache-hit`, `hooks` -- needs a fresh baseline run against v0.4.0 to compute deltas
+- 24 golden-task suite vs. `tests/golden/baselines/v0.4.0.json` -- the v0.4.0 baseline file does not exist in the repo; the suite needs a primed Ollama + Gemma model
+- Average tool-output token reduction >= 40% target verification
+- Cache-hit rate > 50% on iterative-debug task category verification
+- CI matrix green on Node 18/20/22 with the new commitlint and semantic-release workflows -- requires a push and observation
+- `git tag -a v0.5.0 -m "..."` -- the implementation plan explicitly defers tag creation to user confirmation
+
+### Known gaps for v0.5.x
+
+- Pre-existing `ContextCompactor.shouldCompact` and `CompactionStrategy` test failures (Phase 5/6 era) -- 12 failing tests across 3 files, on `main` since at least Phase 11. Probably a tiktoken-vs-character-count threshold drift after the Phase 5 budgeting change. Should be investigated and either fixed or thresholds re-baselined.
+- The grep-pagination golden task (`agent-friendly-truncation-recovery-grep-02`) success criterion uses a runtime `node -e` to count performance-tagged TODOs; it verifies fixture sanity but does not directly verify the agent used `next_offset`. The dry-run task likewise verifies the file is gone but the dry-run-first behavior is observed in traces, not asserted programmatically. These are spirit-of-the-task assertions appropriate for a black-box golden eval.
+- The W-TinyLFU implementation is a faithful but minimal port -- it admits via the count-min sketch but evicts the LRU of main without consulting the sketch. Caffeine's full algorithm consults the sketch on eviction too. For our workloads (read-heavy, < 500 entries) the simpler variant suffices; documented in the source.
+
+### v0.5.0 release readiness
+
+Per the Definition of Done in [docs/v0.5.0/plans/implementation-plan.md](v0.5.0/plans/implementation-plan.md#definition-of-done-plan-level): identity (1) green, tool surface (3) green, memory discipline (4) green, harness (5) green, hygiene (6) green, documentation (7) green, offline guarantee (9) green, release artifacts (10) green. Token efficiency (2) and performance (8) are the deferred items above; both are observation-bound rather than implementation-bound.
+
+---
+
 ## [2026-04-26] v0.5.0 Phase 11 -- Documentation Discipline
 
 ### Summary

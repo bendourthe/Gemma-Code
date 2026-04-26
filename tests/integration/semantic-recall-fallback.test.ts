@@ -92,15 +92,20 @@ describe("Phase 5 -- semantic recall fallback (end-to-end)", () => {
       rag: [1, 0, 0, 0],
       ollama: [0, 1, 0, 0],
     };
+    const resolveVec = (text: string): number[] => {
+      if (text.includes("retrieval") || text.includes("Retrieval")) return vectors.rag!;
+      if (text.includes("Ollama") || text.includes("ollama")) return vectors.ollama!;
+      return vectors.rag!;
+    };
     const reachableEmbedder = mockOf<EmbeddingClient>({
       isAvailable: vi.fn(async () => true),
-      embed: vi.fn(async (text: string) => {
-        if (text.includes("retrieval") || text.includes("Retrieval")) return vectors.rag!;
-        if (text.includes("Ollama") || text.includes("ollama")) return vectors.ollama!;
-        // Default the query to the rag axis.
-        return vectors.rag!;
-      }),
+      embed: vi.fn(async (text: string) => resolveVec(text)),
       embedBatch: vi.fn(),
+      embedWithProvenance: vi.fn(async (text: string) => ({
+        embedding: resolveVec(text),
+        provenance: "ollama" as const,
+      })),
+      embedHeuristic: vi.fn(() => []),
     });
 
     cache.setEmbedder(reachableEmbedder);
@@ -145,6 +150,11 @@ describe("Phase 5 -- semantic recall fallback (end-to-end)", () => {
       isAvailable: vi.fn(async () => true),
       embed: vi.fn(async () => sharedVec),
       embedBatch: vi.fn(),
+      embedWithProvenance: vi.fn(async () => ({
+        embedding: sharedVec,
+        provenance: "ollama" as const,
+      })),
+      embedHeuristic: vi.fn(() => []),
     });
 
     cache.setEmbedder(paraphraseEmbedder);

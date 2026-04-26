@@ -555,7 +555,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
   }
 
   private async _handleSendMessage(text: string): Promise<void> {
-    const postMessage = (msg: ExtensionToWebviewMessage) =>
+    const postMessage = (msg: ExtensionToWebviewMessage): void =>
       this._postToWebview(msg);
 
     // Intercept messageComplete for server-side rendering.
@@ -614,7 +614,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     text: string,
     postWithRender: (msg: ExtensionToWebviewMessage) => void,
   ): Promise<void> {
-    const postMessage = (msg: ExtensionToWebviewMessage) =>
+    const postMessage = (msg: ExtensionToWebviewMessage): void =>
       this._postToWebview(msg);
 
     postMessage({ type: "status", state: "thinking" });
@@ -644,7 +644,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
   }
 
   private async _handleBuiltinCommand(name: string, args: string): Promise<void> {
-    const postMessage = (msg: ExtensionToWebviewMessage) =>
+    const postMessage = (msg: ExtensionToWebviewMessage): void =>
       this._postToWebview(msg);
 
     switch (name) {
@@ -1082,6 +1082,21 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
             this._postHistory();
             break;
           }
+          case "reembed": {
+            const result = await this._toolOutputCache.reembedHeuristic();
+            const text =
+              result.scanned === 0
+                ? "_No heuristic-tagged rows to re-embed._"
+                : `_Re-embedded ${result.reembedded} of ${result.scanned} heuristic row${result.scanned === 1 ? "" : "s"} via Ollama._`;
+            const msg = this._manager.addAssistantMessage(text);
+            postMessage({
+              type: "messageComplete",
+              messageId: msg.id,
+              renderedHtml: renderMarkdown(text),
+            });
+            this._postHistory();
+            break;
+          }
           case "status":
           default: {
             const stats = this._toolOutputCache.stats();
@@ -1262,7 +1277,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
   }
 
   private async _handleApproveStep(stepIndex: number): Promise<void> {
-    const postMessage = (msg: ExtensionToWebviewMessage) =>
+    const postMessage = (msg: ExtensionToWebviewMessage): void =>
       this._postToWebview(msg);
     const { currentPlan } = this._planMode.state;
     const step = currentPlan[stepIndex];

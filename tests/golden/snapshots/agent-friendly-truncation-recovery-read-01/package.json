@@ -1,0 +1,9 @@
+{
+  "name": "golden-agent-friendly-truncation-recovery-read-01",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "scaffold": "node _setup.mjs"
+  }
+}

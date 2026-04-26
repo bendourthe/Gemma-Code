@@ -1,0 +1,25 @@
+id: agent-friendly-truncation-recovery-grep-02
+name: Page through grep results that exceed max_results via next_offset
+category: agent-friendly
+description: |
+  The fixture repo contains over 200 lines tagged with the literal string
+  `TODO`, scattered across multiple files. The default Phase 1
+  grep_codebase max_results is 50, so the first call surfaces a
+  next_offset cursor and a structured truncation hint. The agent must
+  use the cursor to page through results and answer how many TODOs
+  mention the substring "performance".
+
+  Acceptance: the agent produces an answer matching the actual count of
+  TODOs containing "performance" in the fixture, and the run shows at
+  least one grep_codebase call that included a next_offset argument.
+initial_state: snapshots/agent-friendly-truncation-recovery-grep-02
+expected_files_changed: []
+success_criteria:
+  - type: output_contains
+    target: "node -e \"const fs=require('fs');const path=require('path');function walk(d){return fs.readdirSync(d,{withFileTypes:true}).flatMap(e=>e.isDirectory()?walk(path.join(d,e.name)):[path.join(d,e.name)])}let n=0;for(const f of walk('.')){const t=fs.readFileSync(f,'utf8');for(const l of t.split('\\n')){if(l.includes('TODO')&&/performance/i.test(l))n++}}process.stdout.write(String(n))"
+    pattern: "[1-9][0-9]*"
+    description: fixture contains a non-zero number of performance-tagged TODOs
+max_iterations: 10
+timeout_seconds: 180
+model_tier: any
+tags: [agent-friendly, truncation-recovery, pagination, phase-12]

@@ -1,0 +1,2 @@
+This is a fixture file the agent has been asked to delete safely.
+The expected behavior is: dry_run first, then the real delete.

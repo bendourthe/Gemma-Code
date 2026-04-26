@@ -15,7 +15,137 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
-## [0.4.0] -- Unreleased
+## [0.5.0] -- 2026-04-26
+
+Unified adoption release. Combines five comparison-driven adoption plans (token-optimizer-mcp, agent-friendly-CLIs, routa-harness, free-claude-code, foundry-vault) into a coherent dozen-phase roadmap. The product surface stays the same (offline VS Code extension on top of Gemma 4 via Ollama); the changes are inside the harness, the tool catalogue, the cache stack, and the operational hygiene.
+
+### Phase 1 -- Identity and Naming
+
+- AGENTS.md adopted as the sole canonical directive; no CLAUDE.md anywhere in the repo
+- Test-pyramid taxonomy split into "smoke" / "regression" / "scenario" with the rubric in [docs/v0.5.0/test-pyramid.md](./docs/v0.5.0/test-pyramid.md)
+- Generic naming convention applied across product files (no provider branding)
+
+### Phase 2 -- Tool Surface Hardening
+
+- Universal 64 KB byte-cap on every tool output via `OutputRedirector` with a structured truncation hint pointing at narrow-down parameters
+- `read_file(range_start, range_end)` pagination (1 MB max window; EOF marker on short reads)
+- `grep_codebase(max_results, next_offset)` pagination with opaque base64-encoded cursor; default 50 / max 500
+- Per-call `max_bytes` override (per-tool ceiling 1 MB)
+- `tool_output.truncated` metric on `MetricsCollector` for cap-fire calibration
+
+### Phase 3 -- Compression Foundation
+
+- Brotli-backed `Compressor` for cache and transcript payloads
+- Round-trip fidelity tests for ASCII / emoji / CJK / JSON / binary fixtures
+- Transcript integration: tool outputs > 12 KB serialize to disk compressed
+
+### Phase 4 -- Persistent Cache + Diff-Based Reads
+
+- `ToolOutputCache` (SQLite, chmod 0o600) keyed by `(absolute_path, mtime_ms, size_bytes)`
+- In-process LRU front (50 entries / 1 MB) for within-session re-reads
+- Diff-based read on cache hit when on-disk file changed
+- Secret-path denylist applied on every `store()`
+- `/cache status|clear|prune` slash command surface
+
+### Phase 5 -- Semantic Recall + Precise Budgeting
+
+- tiktoken-backed budgeting on prompt construction (replaces character-count heuristic)
+- Embedding column on `tool_output_cache` rows; cosine search via `searchByEmbedding`
+- FTS5 keyword fallback when Ollama is offline; `excerpt` column backfilled by migration
+- Default semantic threshold 0.85; sub-task `searchByKeyword` fallback path
+
+### Phase 6 -- Mutation Safety + Structured Outputs
+
+- `run_terminal(dry_run=true)` returns token list + allowlist verdict without spawning
+- `delete_file(dry_run=true)` returns size + SHA-256 (first 1 MB) without unlinking
+- `list_directory(format='json')` and `grep_codebase(format='json')` return RFC-8259 JSON; truncated form remains valid JSON
+- Adversarial property-based test confirms `child_process.spawn` and `fs.unlinkSync` are never called on dry-run
+
+### Phase 7 -- Memory Hygiene + N-Corroboration
+
+- `MemoryConsolidator` enforces N >= 2 corroboration before promoting an observation to a fact (default `gemma-code.memoryCorroborationThreshold = 2`; setting to 1 restores legacy behavior)
+- Migration backfills `corroboration_count = 1` on every existing row
+- `/memory lint` produces a parseable health report (counts, candidate rows, top corroborated)
+- New missed-fact golden eval `memory-hygiene-missed-fact-01` proves single-source candidates are not blindly trusted
+
+### Phase 8 -- Generic Harness + Specialist Externalization
+
+- Three generic Node ESM hook scripts under `scripts/hooks/` (`check-commit-msg.mjs`, `check-prompt-policy.mjs`, `check-tool-permission.mjs`); harness-agnostic by design
+- Sub-agent prompts externalized to `assets/specialists/*.md` and resolved through a priority chain (`<workspace>/.gemma-code/specialists/` overrides workspace, which overrides committed defaults)
+- No `.claude/` directory committed to the repository
+- Characterization tests prove behavior preservation against the pre-Phase-8 inline prompts
+
+### Phase 9 -- Coverage and Observability
+
+- `tests/benchmarks/` covers `tool-execution`, `context-compaction`, `cache-hit`, `hooks` with p50/p99 captures
+- Nightly benchmark regression gate via `scripts/check-bench-regressions.mjs` against committed baselines
+- `scripts/build-vsix.ps1` smoke-tests the packaged VSIX before tagging
+
+### Phase 10 -- Local Development Hygiene + CI Hardening
+
+- husky pre-commit (`lint-staged`) + commit-msg (ASCII-only enforcement) wired
+- ESLint blocks un-justified `@ts-ignore` (allow-with-description, 20-char min)
+- All GitHub Actions pinned to commit SHAs (40-char hex, version-tag preserved as a comment)
+- `concurrency: cancel-in-progress` on long-running workflows
+- CI matrix expanded to Node 18, 20, 22
+
+### Phase 11 -- Documentation Discipline
+
+- 4 new ADRs landed: 0002 memory subsystem layering, 0003 compaction strategy ordering, 0004 sub-agent isolation contract, 0005 tool permission tiers
+- Mermaid module-dependency diagram in [ARCHITECTURE.md](./ARCHITECTURE.md)
+- Module Authorship Contract in [AGENTS.md](./AGENTS.md)
+- [docs/refactor-playbook.md](./docs/refactor-playbook.md) published; cross-referenced from CONTRIBUTING.md
+- [docs/index.md](./docs/index.md) auto-generated by `scripts/generate-catalog.mjs`; CI gate via `npm run catalog:check`
+
+### Phase 12 -- Advanced Fallbacks + Release Gate
+
+**Eviction strategies (`src/storage/eviction/`)**
+- New pluggable `Evictor` interface with five pure-JS strategies: `LRUEvictor` (default; preserves v0.4.0 behavior), `LFUEvictor`, `ARCEvictor` (adaptive recency/frequency split), `WTinyLFUEvictor` (window LRU + count-min sketch admission), `ClockEvictor` (second-chance approximation)
+- Selectable via `gemma-code.cacheEvictionStrategy` (default `lru`)
+- `ToolOutputLru` threads the strategy through `onAccess` / `onInsert` / `onRemove` / `pickVictim` so the storage Map and the policy stay decoupled
+- Per-strategy unit tests under `tests/unit/storage/eviction/`
+
+**Predictive cache (`src/storage/PredictiveCache.ts`)**
+- Pure-JS ARIMA(1,0,1) forecaster fit by gradient descent; ~80 LOC core
+- Tracks per-path access timestamps (max 256 paths, 64 samples each)
+- `predict(topK)` ranks paths by inverse predicted-arrival-delta, weighted by residual variance
+- LSTM is **explicitly out of scope** -- not a model, not a toggle, not a future flag
+- Off by default; opt-in via `gemma-code.predictiveCacheEnabled`
+
+**Heuristic embedder fallback (`src/storage/HeuristicEmbedder.ts`)**
+- Deterministic 128-D embedding from hash features (21 dims) + statistical features (43 dims) + n-gram presence over a 64-token vocabulary (64 dims)
+- L2-normalised; pure JS; no model file
+- Wired into `EmbeddingClient.embedWithProvenance` -- callers receive `{ embedding, provenance: 'ollama' | 'heuristic' }`
+- `tool_output_cache.embedding_provenance` column added (migration); rows tagged `'heuristic'` are upgradable
+- New `/cache reembed` slash command walks heuristic-tagged rows and re-embeds them via Ollama once the model is back online
+
+**Truncation-recovery golden micro-eval**
+- 3 new golden tasks under `tests/golden/tasks/agent-friendly-*.yaml`
+  - `agent-friendly-truncation-recovery-read-01` -- `read_file(range_start, range_end)` past the 64 KB cap
+  - `agent-friendly-truncation-recovery-grep-02` -- `grep_codebase(next_offset)` paging through > 200 matches
+  - `agent-friendly-dry-run-then-execute-03` -- `delete_file(dry_run=true)` before the destructive call
+- Snapshots include deterministic `_setup.mjs` generators so fixtures stay reproducible
+- Baseline at [tests/golden/baselines/v0.5.0+agent-friendly.json](./tests/golden/baselines/v0.5.0+agent-friendly.json)
+
+**semantic-release + commitlint**
+- [commitlint.config.cjs](./commitlint.config.cjs) extending `@commitlint/config-conventional` (allowed types: feat, fix, chore, docs, refactor, test, ci, build, perf, revert, style)
+- [.releaserc.json](./.releaserc.json) plugin chain: `commit-analyzer -> release-notes-generator -> changelog -> git -> github` (deliberately no `@semantic-release/npm` because Gemma is a VSIX, not an npm package)
+- New workflows: [.github/workflows/commitlint.yml](./.github/workflows/commitlint.yml) (PR commits) and [.github/workflows/semantic-release.yml](./.github/workflows/semantic-release.yml) (push to main)
+- New devDependencies: `@commitlint/cli`, `@commitlint/config-conventional`, `@semantic-release/changelog`, `@semantic-release/git`, `@semantic-release/github`, `semantic-release`
+
+**Release artifacts**
+- `package.json` version bumped to 0.5.0
+- This CHANGELOG entry
+- [docs/v0.5.0/architecture.md](./docs/v0.5.0/architecture.md) describing the v0.5.0 architecture
+- v0.5.0 git tag prepared (push deferred to explicit user confirmation)
+
+### Deferred / Out of Scope
+
+The following are recorded for v0.6.0+: LSTM predictive caching (hard constraint), multi-provider LLM proxy, voice transcription, distributed cache, `/memory prune` and `/memory lint --apply`, auto-merge for Dependabot, `format=json` on `read_file` and `run_terminal`. See [docs/v0.5.0/plans/implementation-plan.md](./docs/v0.5.0/plans/implementation-plan.md) "Out of Scope" section for the full table.
+
+---
+
+## [0.4.0] -- 2026-04-22
 
 Code-review remediation release closing all 14 P0 findings from the v0.3.0 review.
 

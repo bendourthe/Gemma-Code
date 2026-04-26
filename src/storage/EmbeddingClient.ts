@@ -1,5 +1,16 @@
 import { OllamaHttp } from "../llm/OllamaHttp.js";
 import { getLogger } from "../utils/logger.js";
+import {
+  HeuristicEmbedder,
+  HEURISTIC_DIMENSION,
+} from "./HeuristicEmbedder.js";
+
+export type EmbeddingProvenance = "ollama" | "heuristic";
+
+export interface ProvenancedEmbedding {
+  readonly embedding: number[];
+  readonly provenance: EmbeddingProvenance;
+}
 
 /**
  * Wraps Ollama's /api/embed endpoint for generating text embeddings.
@@ -7,15 +18,27 @@ import { getLogger } from "../utils/logger.js";
  *
  * Shares the HTTP primitives (timeouts, URL normalization, /api/tags
  * availability probing) with the chat `OllamaClient` via `OllamaHttp`.
+ *
+ * Phase 12 (v0.5.0): exposes `embedWithProvenance` which falls back to a
+ * deterministic 128-D `HeuristicEmbedder` when Ollama is unreachable so
+ * semantic search keeps functioning offline. Heuristic vectors are tagged
+ * so callers (e.g. `ToolOutputCache.searchByEmbedding`) can raise the
+ * cosine threshold for the noisier signal.
  */
 export class EmbeddingClient {
   private readonly _http: OllamaHttp;
   private readonly _model: string;
+  private readonly _heuristic = new HeuristicEmbedder();
   private _available: boolean | null = null;
 
   constructor(baseUrl: string, model: string, timeoutMs = 30000) {
     this._http = new OllamaHttp(baseUrl, timeoutMs);
     this._model = model;
+  }
+
+  /** Dimensionality of the heuristic fallback embedder. */
+  static heuristicDimension(): number {
+    return HEURISTIC_DIMENSION;
   }
 
   /** Check whether the configured embedding model is available on the Ollama server. */
@@ -66,6 +89,29 @@ export class EmbeddingClient {
       getLogger().warn("[EmbeddingClient] embed failed:", err);
       return null;
     }
+  }
+
+  /**
+   * Embed `text` and report which embedder produced the vector. When Ollama
+   * succeeds, returns provenance `'ollama'`. When Ollama is offline or
+   * errors, falls back to the deterministic 128-D heuristic embedder and
+   * returns provenance `'heuristic'`. Returns null only for empty input.
+   */
+  async embedWithProvenance(text: string): Promise<ProvenancedEmbedding | null> {
+    if (!text) return null;
+    const ollamaVec = await this.embed(text);
+    if (ollamaVec) {
+      return { embedding: ollamaVec, provenance: "ollama" };
+    }
+    return {
+      embedding: this._heuristic.embed(text),
+      provenance: "heuristic",
+    };
+  }
+
+  /** Direct heuristic embedding without trying Ollama first. */
+  embedHeuristic(text: string): number[] {
+    return this._heuristic.embed(text);
   }
 
   /**

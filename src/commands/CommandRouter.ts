@@ -45,7 +45,7 @@ const BUILTIN_DESCRIPTORS: CommandDescriptor[] = [
   { name: "mcp", description: "Manage MCP connections (status, connect, disconnect)", argumentHint: "<status|connect|disconnect> [name]" },
   { name: "verify", description: "Manually trigger verification of recent changes" },
   { name: "research", description: "Spawn a research sub-agent to gather information", argumentHint: "<query>" },
-  { name: "cache", description: "Manage the persistent tool-output cache (status, clear, prune)", argumentHint: "<status|clear|prune>" },
+  { name: "cache", description: "Manage the persistent tool-output cache (status, clear, prune, reembed)", argumentHint: "<status|clear|prune|reembed>" },
   { name: "operation-log", description: "Manage the opt-in append-only operation log (status, clear)", argumentHint: "<status|clear>" },
 ];
 
