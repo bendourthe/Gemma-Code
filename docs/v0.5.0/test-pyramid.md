@@ -76,7 +76,7 @@ The two helpers below live in [tests/helpers/factories.ts](../../tests/helpers/f
 
 ### Relationship to the Blocker / Friction / Optimization rubric
 
-The agent-friendly-tools severity rubric in [docs/v0.5.0/comparison-7-principles-for-agent-friendly-clis.md](./comparison-7-principles-for-agent-friendly-clis.md) (and, when Phase 11 lands, `docs/v0.5.0/tool-audit.md`) is for tool-output quality. The four-class rubric above is for test-suite stability. Both are vocabulary tools, and contributors are expected to use the right one for the right problem.
+The agent-friendly-tools severity rubric in [docs/v0.5.0/comparison/comparison-7-principles-for-agent-friendly-clis.md](./comparison/comparison-7-principles-for-agent-friendly-clis.md) (and, when Phase 11 lands, `docs/v0.5.0/tool-audit.md`) is for tool-output quality. The four-class rubric above is for test-suite stability. Both are vocabulary tools, and contributors are expected to use the right one for the right problem.
 
 ### Cross-references
 

@@ -19,8 +19,14 @@ import {
 } from "../tools/handlers/filesystem.js";
 import { RunTerminalTool } from "../tools/handlers/terminal.js";
 import { WebSearchTool, FetchPageTool } from "../tools/handlers/webSearch.js";
+import { SpecialistLoader } from "./SpecialistLoader.js";
+import type { Specialist } from "./SpecialistLoader.js";
 
-/** Tools available to each sub-agent type. */
+/**
+ * Hardcoded fallback tool-scope per sub-agent type. Only used when the
+ * SpecialistLoader is not configured (legacy callers). When a SpecialistLoader
+ * is supplied, the resolved Specialist.toolScope is the source of truth.
+ */
 const TOOLS_BY_TYPE: Record<SubAgentType, readonly string[]> = {
   verification: ["read_file", "grep_codebase", "list_directory", "run_terminal"],
   research: ["read_file", "grep_codebase", "list_directory", "web_search", "fetch_page"],
@@ -42,6 +48,7 @@ export class SubAgentManager {
     private readonly _ollamaOptions: OllamaOptions,
     private readonly _modelName: string,
     private readonly _tracer: Tracer = new Tracer(),
+    private readonly _specialistLoader: SpecialistLoader | null = null,
   ) {
     this._promptBuilder = promptBuilder;
   }
@@ -64,11 +71,21 @@ export class SubAgentManager {
     });
 
     try {
+      // Resolve specialist definition via the priority chain:
+      // workspace override -> bundled assets -> hardcoded fallback. When no
+      // SpecialistLoader is wired, fall back to the static TOOLS_BY_TYPE map
+      // to preserve byte-equivalent behavior with pre-Phase-8 callers.
+      const specialist: Specialist | null = this._specialistLoader
+        ? await this._specialistLoader.load(config.type)
+        : null;
+
       // Build a scoped tool registry with only the allowed tools.
-      const registry = this._buildScopedRegistry(config.type);
+      const registry = this._buildScopedRegistry(config.type, specialist);
 
       // Get enabled tool metadata for prompt building.
-      const allowedNames = new Set(TOOLS_BY_TYPE[config.type]);
+      const allowedNames = new Set(
+        specialist ? specialist.toolScope : TOOLS_BY_TYPE[config.type],
+      );
       const allToolMeta = TOOL_CATALOG.map(toDynamicMetadata);
       const scopedToolMeta = allToolMeta.filter((t) => allowedNames.has(t.name));
 
@@ -200,10 +217,12 @@ export class SubAgentManager {
    * Build a fresh ToolRegistry with only the tools allowed for the given sub-agent type.
    * Read-only tools are instantiated without a ConfirmationGate.
    * For verification's run_terminal, a no-op gate with "never" mode is used.
+   * When a Specialist is provided, its toolScope drives allowed tools;
+   * otherwise the legacy hardcoded TOOLS_BY_TYPE map is used.
    */
-  private _buildScopedRegistry(type: SubAgentType): ToolRegistry {
+  private _buildScopedRegistry(type: SubAgentType, specialist: Specialist | null = null): ToolRegistry {
     const registry = new ToolRegistry();
-    const allowed = new Set(TOOLS_BY_TYPE[type]);
+    const allowed = new Set<string>(specialist ? specialist.toolScope : TOOLS_BY_TYPE[type]);
 
     if (allowed.has("read_file")) {
       registry.register("read_file", new ReadFileTool());

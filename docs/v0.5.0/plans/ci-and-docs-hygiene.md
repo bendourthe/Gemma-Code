@@ -5,7 +5,7 @@
 **Slug**: ci-and-docs-hygiene
 **Plan Type**: Feature / Enhancement
 **Created**: 2026-04-24
-**Source Comparison**: [docs/v0.5.0/comparison-free-claude-code.md](../comparison-free-claude-code.md)
+**Source Comparison**: [docs/v0.5.0/comparison/comparison-free-claude-code.md](../comparison/comparison-free-claude-code.md)
 **Scope Filter**: `all` (P0 + P1 + P2 + P3)
 **Hard Constraint**: 100% offline-first single-GPU. No runtime network egress, no cloud APIs. **Do not adopt** the multi-provider proxy / `BaseProvider` abstraction (conflicts with offline-first thesis); Discord/Telegram messaging integration; voice transcription via Whisper local + Riva/NIM (multi-GB dep).
 
@@ -13,7 +13,7 @@
 
 ## Overview
 
-This plan adopts the 8 in-scope items from [docs/v0.5.0/comparison-free-claude-code.md](../comparison-free-claude-code.md) plus a **structural strengthening**: based on user direction, `AGENTS.md` becomes the canonical agent-agnostic directive file and `CLAUDE.md` is **deleted entirely**. Gemma Code is an independent local system inspired by Claude Code but is not a Claude dependent — its identity and naming conventions are generic and agent-agnostic. Any AI coding agent (Claude Code, Cursor, Copilot, Gemini CLI, future agents, or Gemma Code itself running against this repo) reads `AGENTS.md`. Claude Code's own auto-discovery convention reads `CLAUDE.md` by default; users running Claude Code against this repository can either point Claude Code at `AGENTS.md` via its session-start convention, or simply paste `AGENTS.md` into context — the project does not bend its naming to accommodate any single agent's discovery convention.
+This plan adopts the 8 in-scope items from [docs/v0.5.0/comparison/comparison-free-claude-code.md](../comparison/comparison-free-claude-code.md) plus a **structural strengthening**: based on user direction, `AGENTS.md` becomes the canonical agent-agnostic directive file and `CLAUDE.md` is **deleted entirely**. Gemma Code is an independent local system inspired by Claude Code but is not a Claude dependent — its identity and naming conventions are generic and agent-agnostic. Any AI coding agent (Claude Code, Cursor, Copilot, Gemini CLI, future agents, or Gemma Code itself running against this repo) reads `AGENTS.md`. Claude Code's own auto-discovery convention reads `CLAUDE.md` by default; users running Claude Code against this repository can either point Claude Code at `AGENTS.md` via its session-start convention, or simply paste `AGENTS.md` into context — the project does not bend its naming to accommodate any single agent's discovery convention.
 
 The user-visible delta is a small set of CI tightening (Dependabot opens weekly PRs; superseded CI runs cancel; `@ts-ignore` without an issue link fails lint; action versions are SHA-pinned), one structural file move (rules migrate from `CLAUDE.md` to `AGENTS.md`; `CLAUDE.md` is deleted), and one documentation addition (the cognitive-workflow stanza is appended to `AGENTS.md`, encoding ANALYZE → PLAN → EXECUTE → VERIFY as the project's expected agent rhythm). The smoke-test rubric reclassifies existing integration tests so contributors know exactly when a test should skip vs. fail. The mermaid module-dependency diagram is coordinated with the parallel `routa-harness-adoption` plan: whichever plan lands first writes the diagram; the other checks it off. None of these changes touches runtime behavior.
 
@@ -158,7 +158,7 @@ Success is measured against four artifacts: an `AGENTS.md` that contains every r
 > 1. Run `npm run lint`, `npm run build`, `npm run test`. Fix every failure.
 > 2. Run the snapshot test for `AGENTS.md` and `CLAUDE.md`; confirm green.
 > 3. **Migration completeness audit**: diff the rules. Take the original `CLAUDE.md` (from `git show HEAD~1:CLAUDE.md`); for each non-blank, non-comment line, grep `AGENTS.md` to confirm it (or its rewritten equivalent) appears. Report any line that did NOT migrate; restore the rule if it was accidentally dropped.
-> 4. **Reference sweep**: run `git grep -i 'CLAUDE\.md\|CLAUDE\.MD'` and confirm zero matches in the repository (excluding the comparison report `docs/v0.5.0/comparison-free-claude-code.md` and this plan file, which legitimately reference the historical filename for traceability — exclude those two paths from the grep).
+> 4. **Reference sweep**: run `git grep -i 'CLAUDE\.md\|CLAUDE\.MD'` and confirm zero matches in the repository (excluding the comparison report `docs/v0.5.0/comparison/comparison-free-claude-code.md` and this plan file, which legitimately reference the historical filename for traceability — exclude those two paths from the grep).
 > 5. **Agent-behavior baseline**: pick one representative task from `tests/golden/tasks/` (e.g. a multi-file edit). Run it twice through the golden-task framework — once with the new `AGENTS.md` (CLAUDE.md gone), once with the pre-migration `CLAUDE.md` (use `git worktree` or a temporary branch checkout). Compare the agent's behavior (tool-call count, tokens, success). They must be statistically equivalent (within the existing baseline tolerance).
 > 6. Manually verify on GitHub preview: `AGENTS.md` renders correctly; the file shows up in the repo root listing; no broken links anywhere referencing `CLAUDE.md`.
 > 7. Update `README.md`, `CONTRIBUTING.md`, and `ARCHITECTURE.md` to reference `AGENTS.md` as the canonical directive (no remaining mentions of `CLAUDE.md` outside the comparison report and this plan file).
@@ -225,7 +225,7 @@ Success is measured against four artifacts: an `AGENTS.md` that contains every r
 >
 > Document the matching helper utilities (likely in `tests/helpers/factories.ts` already): `skipIfNoOllama()`, `skipIfMissingEnv(...keys)`, etc.
 >
-> Reference Trevin Chow's Blocker / Friction / Optimization rubric (from `docs/v0.5.0/comparison-7-principles-for-agent-friendly-clis.md`) and explain the relationship: that rubric is for tool-output quality; this rubric is for test-suite stability. Both vocabulary tools, both worth using.
+> Reference Trevin Chow's Blocker / Friction / Optimization rubric (from `docs/v0.5.0/comparison/comparison-7-principles-for-agent-friendly-clis.md`) and explain the relationship: that rubric is for tool-output quality; this rubric is for test-suite stability. Both vocabulary tools, both worth using.
 >
 > Cross-reference from `CONTRIBUTING.md` "Testing" section.
 >

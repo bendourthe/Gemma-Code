@@ -11,6 +11,7 @@ assets/**
 !assets/icon.svg
 !assets/sidebar-icon.svg
 !assets/vector.svg
+!assets/specialists/**
 coverage/**
 
 # Build artifacts that are not extension output

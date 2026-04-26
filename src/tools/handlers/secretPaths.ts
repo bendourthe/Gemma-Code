@@ -2,6 +2,13 @@
  * Patterns matching filesystem paths that may contain secrets and therefore
  * must not be read/listed/grepped without explicit user confirmation.
  *
+ * **Canonical source**: `scripts/hooks/lib/secret-paths.mjs` is the
+ * agent-agnostic, harness-facing source of truth. This array must stay in
+ * lock-step with that file; `tests/unit/hooks/secret-paths-sync.test.ts`
+ * enforces equality. The list is duplicated (rather than imported) because
+ * `scripts/**` is excluded from the packaged VS Code extension, so the
+ * bundled runtime cannot read the .mjs file from disk.
+ *
  * Each entry is a simple glob: `**\/` means "at any depth", `*` means "any
  * characters except path separator". Matching is case-insensitive on Windows
  * and case-sensitive elsewhere.

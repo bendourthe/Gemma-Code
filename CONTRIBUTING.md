@@ -66,6 +66,22 @@ To debug the extension live, press `F5` in VS Code; this launches the Extension 
 - Update [docs/DEVLOG.md](./docs/DEVLOG.md) for user-visible changes; update [CHANGELOG.md](./CHANGELOG.md) when you bump the version.
 - ASCII-only commit messages (no em-dashes, curly quotes, ellipsis characters); use `-`, `'`, and `...` instead. Pre-commit hooks enforce this.
 
+## Optional developer harness
+
+`scripts/hooks/` contains three Node ESM scripts you can wire into your personal agent harness (Claude Code, Cursor, husky pre-commit, or any other shell-callable hook surface). The repository deliberately does not commit any agent-specific wiring. See [docs/harness-integration.md](docs/harness-integration.md) for full instructions and the workspace-local override schema for `check-prompt-policy.mjs`.
+
+The git control-plane hook respects `GEMMA_HOOK_DIRTY_LIMIT` (default 50) for the maximum tolerated dirty-file count at session start.
+
+## Sub-agent specialists
+
+Sub-agent system prompts and tool scopes live in `assets/specialists/<role>.md` (one file per role). The runtime priority chain is:
+
+1. `<workspace>/.gemma-code/specialists/<role>.md` (workspace override; not committed)
+2. `<extension>/assets/specialists/<role>.md` (bundled with the extension)
+3. Hardcoded fallback in `src/agents/SubAgentPrompts.ts`
+
+Workspace overrides are validated via Zod at load time. A malformed override logs a warning and falls through to the bundled file; the agent harness layer (the optional developer harness above) is the place to enforce policy on what an override may contain.
+
 ## Where to ask
 
 Open a GitHub issue for design questions; tag with `discussion`. Day-to-day code questions belong in PR review threads.

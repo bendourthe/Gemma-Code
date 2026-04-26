@@ -98,3 +98,21 @@ The workflow is iterative — looping back to ANALYZE when EXECUTE reveals an un
 ## Module Authorship Contract
 
 This section is reserved for the Module Authorship Contract that will be added by the parallel memory-hygiene plan in Phase 11. Until that plan lands, refer to `ARCHITECTURE.md` and `configs/dependency-cruiser.cjs` (when present) for the authoritative module-boundary rules.
+
+## Optional Developer Harness
+
+Gemma Code ships three agent-agnostic harness scripts under `scripts/hooks/` that you can wire into your personal agent harness (Claude Code, Cursor, husky pre-commit, or any other shell-callable hook surface). The repository does not commit any agent-specific wiring. See [docs/harness-integration.md](docs/harness-integration.md) for example wirings and the workspace-local override schema.
+
+| Script | Purpose |
+| --- | --- |
+| `scripts/hooks/check-tool-permission.mjs` | Defense-in-depth check on Bash/Write/Edit against the secret-path denylist and workspace boundary |
+| `scripts/hooks/check-git-control-plane.mjs` | Refuse to start a session on `main`/`master` or with a too-dirty working tree |
+| `scripts/hooks/check-prompt-policy.mjs` | Reject prompts containing accidentally-pasted secrets (AWS keys, GitHub PATs, JWTs, SSH/PEM headers, Slack tokens) |
+
+Each script reads a JSON event payload from stdin, exits 0 to allow, exits 2 with `BLOCKED: <reason>` on stderr to deny. All three target less than 50 ms p99 wall-clock on benign payloads; the benchmark `tests/benchmarks/hooks.bench.ts` enforces this.
+
+## Sub-Agent Specialists
+
+Sub-agent system prompts and tool scopes are loaded from `assets/specialists/<role>.md` Markdown files (one per role: `research`, `verification`, `planning`, `orchestration`). Each file declares its `modelTier` and `toolScope` in YAML frontmatter.
+
+A workspace-local override at `.gemma-code/specialists/<role>.md` takes precedence over the bundled file, which in turn takes precedence over a hardcoded fallback in `src/agents/SubAgentPrompts.ts`. Overrides are validated against a Zod schema; malformed overrides log a warning and fall through to the bundled file.

@@ -12,11 +12,11 @@ This plan is the canonical execution path for v0.5.0. It merges and orders 5 ado
 
 | Source | Comparison | Sub-Plan |
 |--------|------------|----------|
-| token-optimizer-mcp | [comparison-token-optimizer-mcp.md](../comparison-token-optimizer-mcp.md) | [token-optimizer-adoption.md](token-optimizer-adoption.md) |
-| routa | [comparison-routa.md](../comparison-routa.md) | [routa-harness-adoption.md](routa-harness-adoption.md) |
-| 7 Principles for Agent-Friendly CLIs | [comparison-7-principles-for-agent-friendly-clis.md](../comparison-7-principles-for-agent-friendly-clis.md) | [agent-friendly-tools.md](agent-friendly-tools.md) |
-| foundry-vault | [comparison-foundry-vault.md](../comparison-foundry-vault.md) | [memory-hygiene.md](memory-hygiene.md) |
-| free-claude-code | [comparison-free-claude-code.md](../comparison-free-claude-code.md) | [ci-and-docs-hygiene.md](ci-and-docs-hygiene.md) |
+| token-optimizer-mcp | [comparison/comparison-token-optimizer-mcp.md](../comparison/comparison-token-optimizer-mcp.md) | [token-optimizer-adoption.md](token-optimizer-adoption.md) |
+| routa | [comparison/comparison-routa.md](../comparison/comparison-routa.md) | [routa-harness-adoption.md](routa-harness-adoption.md) |
+| 7 Principles for Agent-Friendly CLIs | [comparison/comparison-7-principles-for-agent-friendly-clis.md](../comparison/comparison-7-principles-for-agent-friendly-clis.md) | [agent-friendly-tools.md](agent-friendly-tools.md) |
+| foundry-vault | [comparison/comparison-foundry-vault.md](../comparison/comparison-foundry-vault.md) | [memory-hygiene.md](memory-hygiene.md) |
+| free-claude-code | [comparison/comparison-free-claude-code.md](../comparison/comparison-free-claude-code.md) | [ci-and-docs-hygiene.md](ci-and-docs-hygiene.md) |
 
 If a phase below conflicts with a sub-plan, this implementation plan wins.
 
@@ -69,7 +69,7 @@ Success is measured through three artifacts: a `tests/golden/baselines/v0.5.0.js
 
 **Objective**: Migrate every rule from `CLAUDE.md` to a new `AGENTS.md` (rewriting tool-specific rules as tool-agnostic where possible); delete `CLAUDE.md`; update every cross-reference.
 
-**Prompt**: Run sub-task 1.1 from [ci-and-docs-hygiene.md](ci-and-docs-hygiene.md#11--create-agentsmd-as-canonical-agent-agnostic-directive-delete-claudemd). Verify acceptance criteria: full Vitest suite green; snapshot test confirms `CLAUDE.md` non-existence and `AGENTS.md` content; `git grep -i 'CLAUDE\.md\|CLAUDE\.MD'` returns zero matches outside `docs/v0.5.0/comparison-free-claude-code.md` and this implementation-plan.
+**Prompt**: Run sub-task 1.1 from [ci-and-docs-hygiene.md](ci-and-docs-hygiene.md#11--create-agentsmd-as-canonical-agent-agnostic-directive-delete-claudemd). Verify acceptance criteria: full Vitest suite green; snapshot test confirms `CLAUDE.md` non-existence and `AGENTS.md` content; `git grep -i 'CLAUDE\.md\|CLAUDE\.MD'` returns zero matches outside `docs/v0.5.0/comparison/comparison-free-claude-code.md` and this implementation-plan.
 
 ### 1.2 — Smoke-test classification rubric
 
@@ -322,7 +322,7 @@ Success is measured through three artifacts: a `tests/golden/baselines/v0.5.0.js
 
 **Objective**: Implement sub-task 1.1 from [routa-harness-adoption.md](routa-harness-adoption.md#11--bootstrap-claudesettingslocaljson-and-pretooluse-tool-permission-hook), with this **structural override**: do NOT create `.claude/settings.local.json` in the repository. Generate only the Node ESM script at `scripts/hooks/check-tool-permission.mjs` plus the shared module `scripts/hooks/lib/secret-paths.mjs`. Document in `AGENTS.md` how a developer can wire the script into their personal agent harness if they choose (but the wiring is not part of the repository).
 
-**Prompt**: Implement the script per the routa sub-plan, but skip the `.claude/settings.local.json` step. Add a documentation paragraph in `AGENTS.md` under a new "Optional Developer Harness" section describing how to wire `scripts/hooks/*.mjs` into Claude Code, Cursor, husky, or any other agent harness via that agent's own configuration — example wirings can live in `docs/v0.5.0/harness-integration.md` (a new file) but not as a committed `.claude/` directory.
+**Prompt**: Implement the script per the routa sub-plan, but skip the `.claude/settings.local.json` step. Add a documentation paragraph in `AGENTS.md` under a new "Optional Developer Harness" section describing how to wire `scripts/hooks/*.mjs` into Claude Code, Cursor, husky, or any other agent harness via that agent's own configuration — example wirings can live in `docs/harness-integration.md` (a new file) but not as a committed `.claude/` directory.
 
 ### 8.2 — `scripts/hooks/check-git-control-plane.mjs`
 
@@ -349,7 +349,7 @@ Success is measured through three artifacts: a `tests/golden/baselines/v0.5.0.js
 - [ ] `scripts/hooks/check-tool-permission.mjs`, `check-git-control-plane.mjs`, `check-prompt-policy.mjs` exist
 - [ ] `scripts/hooks/lib/secret-paths.mjs` is the single source of truth for path patterns
 - [ ] No `.claude/settings.local.json` committed to the repository
-- [ ] `docs/v0.5.0/harness-integration.md` documents optional wiring patterns for various agents
+- [ ] `docs/harness-integration.md` documents optional wiring patterns for various agents
 - [ ] All hook scripts complete < 50 ms p99
 - [ ] Characterization tests still byte-equivalent after specialist refactor
 - [ ] `assets/specialists/{research,verification,planning,orchestration}.md` exist
@@ -592,7 +592,7 @@ Success is measured through three artifacts: a `tests/golden/baselines/v0.5.0.js
 > 4. **Compute average tool-output-token reduction across the 24 existing golden tasks: must be ≥ 40%.** If lower, identify offending tasks and tune (Brotli quality, cache cap, threshold) before declaring failure.
 > 5. **Compute cache-hit rate on iterative-debug task category: must be > 50%.** If lower, examine cache invalidation rules.
 > 6. Push to a fresh branch; confirm CI matrix runs green on Node 18/20/22 with SHA-pinned actions; commitlint passes on a `feat: v0.5.0 unified release` commit.
-> 7. Verify `git grep -i 'CLAUDE\.md\|CLAUDE\.MD'` returns zero matches outside `docs/v0.5.0/comparison-free-claude-code.md` and this implementation plan.
+> 7. Verify `git grep -i 'CLAUDE\.md\|CLAUDE\.MD'` returns zero matches outside `docs/v0.5.0/comparison/comparison-free-claude-code.md` and this implementation plan.
 > 8. Update `docs/v0.5.0/architecture.md` (a new file, copied from `docs/v0.3.0/architecture.md` and extended) to document: AGENTS.md as canonical directive, the harness layer, the ToolOutputCache + WebResponseCache + LRU stack, the SpecialistLoader, the N-corroboration consolidation rule, the new tool-surface parameters (`max_bytes`, `range_*`, `dry_run`, `format`).
 > 9. Bump `package.json` `version` from `0.4.0` to `0.5.0`. Update `CHANGELOG.md` with a comprehensive v0.5.0 entry organized by phase (1–12) summarizing what landed.
 > 10. Run `/generate-session-history` to document Phase 12 (the release).

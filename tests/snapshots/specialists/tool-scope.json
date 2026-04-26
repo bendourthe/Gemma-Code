@@ -1,0 +1,20 @@
+{
+  "verification": [
+    "read_file",
+    "grep_codebase",
+    "list_directory",
+    "run_terminal"
+  ],
+  "research": [
+    "read_file",
+    "grep_codebase",
+    "list_directory",
+    "web_search",
+    "fetch_page"
+  ],
+  "planning": [
+    "read_file",
+    "grep_codebase",
+    "list_directory"
+  ]
+}

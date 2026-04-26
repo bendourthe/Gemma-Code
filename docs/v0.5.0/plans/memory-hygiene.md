@@ -5,7 +5,7 @@
 **Slug**: memory-hygiene
 **Plan Type**: Feature / Enhancement
 **Created**: 2026-04-24
-**Source Comparison**: [docs/v0.5.0/comparison-foundry-vault.md](../comparison-foundry-vault.md)
+**Source Comparison**: [docs/v0.5.0/comparison/comparison-foundry-vault.md](../comparison/comparison-foundry-vault.md)
 **Scope Filter**: `all` (P0 + P1 + P2 + P3)
 **Hard Constraint**: 100% offline-first single-GPU. No runtime network egress, no cloud APIs. **Do not adopt** Foundry's `/foundry-ingest`, `/foundry-compile`, or `/foundry-ask` commands as Gemma slash commands (out of scope: knowledge management); the "no CI / no automation" discipline (Gemma actively benefits from CI); Obsidian-style plugin recommendations (Gemma is bound to VS Code); and the auto-generated *wiki* under `docs/` (a synthesized concept-wiki — different from the in-scope auto-generated *catalog* at `docs/index.md`, which is a per-module summary index).
 
@@ -13,7 +13,7 @@
 
 ## Overview
 
-This plan adopts the 6 in-scope items from [docs/v0.5.0/comparison-foundry-vault.md](../comparison-foundry-vault.md), grouped into 3 dependency-ordered phases. Phase 1 ships the `/memory lint` slash command (with a `--dry-run` alias) that walks every memory entry and emits a `memory-health.md` report covering stale entries, broken file-path references, embedding-failed rows, and duplicate facts — report-only, never destructive. Phase 2 hardens `MemoryConsolidator` with an N-corroboration rule (default N=2): a single-turn observation is recorded as a *candidate* with `corroboration_count = 1`; a fact is only promoted to retrievable semantic memory once N independent turns corroborate it. Phase 3 lands documentation discipline: a who-writes-where contract section in `CLAUDE.md`, an opt-in append-only `.gemma-code/operation-log.md` (grep-friendly, one line per tool call), and a regenerated `docs/index.md` per-module summary that contributors can read at a glance.
+This plan adopts the 6 in-scope items from [docs/v0.5.0/comparison/comparison-foundry-vault.md](../comparison/comparison-foundry-vault.md), grouped into 3 dependency-ordered phases. Phase 1 ships the `/memory lint` slash command (with a `--dry-run` alias) that walks every memory entry and emits a `memory-health.md` report covering stale entries, broken file-path references, embedding-failed rows, and duplicate facts — report-only, never destructive. Phase 2 hardens `MemoryConsolidator` with an N-corroboration rule (default N=2): a single-turn observation is recorded as a *candidate* with `corroboration_count = 1`; a fact is only promoted to retrievable semantic memory once N independent turns corroborate it. Phase 3 lands documentation discipline: a who-writes-where contract section in `CLAUDE.md`, an opt-in append-only `.gemma-code/operation-log.md` (grep-friendly, one line per tool call), and a regenerated `docs/index.md` per-module summary that contributors can read at a glance.
 
 The user-visible delta is small but measurable. The agent's recall behavior shifts subtly: paranoid one-off observations stop being treated as facts. The user gains a `/memory lint` command they can invoke any time to see what's wrong with the memory store. Future contributors land in `docs/index.md` and see the project's module map at one screen. The operation log is opt-in (default off) and provides a forensic timeline for any single session.
 

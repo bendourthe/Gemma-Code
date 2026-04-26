@@ -5,7 +5,7 @@
 **Slug**: token-optimizer-adoption
 **Plan Type**: Feature / Enhancement
 **Created**: 2026-04-24
-**Source Comparison**: [docs/v0.5.0/comparison-token-optimizer-mcp.md](../comparison-token-optimizer-mcp.md)
+**Source Comparison**: [docs/v0.5.0/comparison/comparison-token-optimizer-mcp.md](../comparison/comparison-token-optimizer-mcp.md)
 **Scope Filter**: `all` (P0 + P1 + P2 + P3)
 **Hard Constraint**: 100% offline-first single-GPU. No runtime network egress, no cloud APIs, no models that require more than a single consumer GPU via Ollama. Predictive-cache adopts ARIMA only (pure-JS); LSTM variant explicitly excluded.
 
@@ -13,7 +13,7 @@
 
 ## Overview
 
-This plan adopts the 16 in-scope items from [docs/v0.5.0/comparison-token-optimizer-mcp.md](../comparison-token-optimizer-mcp.md), grouped into 5 dependency-ordered phases. Phase 1 lands the compression foundation that every later phase builds on; Phase 2 adds the persistent SQLite tool-output cache and diff-based file re-reads (the largest single token-savings lever); Phase 3 layers semantic recall and tiktoken-precision budgeting on top of that cache; Phase 4 fans the cache infrastructure out to the rest of the tool surface and adds operator-visible analytics; Phase 5 closes the loop with CI hygiene and advanced cache strategies behind feature flags.
+This plan adopts the 16 in-scope items from [docs/v0.5.0/comparison/comparison-token-optimizer-mcp.md](../comparison/comparison-token-optimizer-mcp.md), grouped into 5 dependency-ordered phases. Phase 1 lands the compression foundation that every later phase builds on; Phase 2 adds the persistent SQLite tool-output cache and diff-based file re-reads (the largest single token-savings lever); Phase 3 layers semantic recall and tiktoken-precision budgeting on top of that cache; Phase 4 fans the cache infrastructure out to the rest of the tool surface and adds operator-visible analytics; Phase 5 closes the loop with CI hygiene and advanced cache strategies behind feature flags.
 
 The user-visible delta is minimal: tool calls return the same logical content, but the conversation transcript carries far less token weight. Power users see new dashboard panels (cache-hit rate, compression savings, top-cached files), a new `/cache` slash-command surface, and tighter prompt budgets. The agent loop itself does not change behavior — every cached path has a `full=true` escape hatch, every compressed payload is decoded transparently before re-injection, and every new SQLite file is `chmod 0o600` via `src/storage/dbPermissions.ts`.
 

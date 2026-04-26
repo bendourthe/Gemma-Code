@@ -5,7 +5,7 @@
 **Slug**: agent-friendly-tools
 **Plan Type**: Feature / Enhancement
 **Created**: 2026-04-24
-**Source Comparison**: [docs/v0.5.0/comparison-7-principles-for-agent-friendly-clis.md](../comparison-7-principles-for-agent-friendly-clis.md)
+**Source Comparison**: [docs/v0.5.0/comparison/comparison-7-principles-for-agent-friendly-clis.md](../comparison/comparison-7-principles-for-agent-friendly-clis.md)
 **Scope Filter**: `all` (P0 + P1 + P2 + P3) — article-format report, Adoption Plan in Section 5
 **Hard Constraint**: 100% offline-first single-GPU. No runtime network egress, no cloud APIs. **Do not add a `--non-interactive` flag** — Gemma's tools are non-interactive by construction. **Do not introduce stdin-pipe / `-` aliases** — Gemma's tool inputs are JSON objects, not stdin streams.
 
@@ -13,7 +13,7 @@
 
 ## Overview
 
-This plan adopts the 8 in-scope items from [docs/v0.5.0/comparison-7-principles-for-agent-friendly-clis.md](../comparison-7-principles-for-agent-friendly-clis.md), grouped into 4 dependency-ordered phases. Phase 1 is the foundation: every tool output is hard-capped at 64 KB with a truncation hint explaining how to narrow, and `read_file` plus `grep_codebase` accept pagination parameters so the agent can request additional windows on demand. Phase 2 audits and rewrites every error message in `src/tools/handlers/*.ts` so each contains the failing parameter name and a one-line usage hint that teaches the agent how to retry; this is locked in via property-based tests. Phase 3 adds a `dry_run` parameter to `run_terminal` and `delete_file` (which prints what would happen without executing) and a `format=json` parameter to `list_directory` and `grep_codebase` so the agent can opt into a stable structured shape. Phase 4 formalizes the Blocker / Friction / Optimization severity rubric in the docs and documents the existing `get_tool_schema` tool as the in-extension `--help` analog.
+This plan adopts the 8 in-scope items from [docs/v0.5.0/comparison/comparison-7-principles-for-agent-friendly-clis.md](../comparison/comparison-7-principles-for-agent-friendly-clis.md), grouped into 4 dependency-ordered phases. Phase 1 is the foundation: every tool output is hard-capped at 64 KB with a truncation hint explaining how to narrow, and `read_file` plus `grep_codebase` accept pagination parameters so the agent can request additional windows on demand. Phase 2 audits and rewrites every error message in `src/tools/handlers/*.ts` so each contains the failing parameter name and a one-line usage hint that teaches the agent how to retry; this is locked in via property-based tests. Phase 3 adds a `dry_run` parameter to `run_terminal` and `delete_file` (which prints what would happen without executing) and a `format=json` parameter to `list_directory` and `grep_codebase` so the agent can opt into a stable structured shape. Phase 4 formalizes the Blocker / Friction / Optimization severity rubric in the docs and documents the existing `get_tool_schema` tool as the in-extension `--help` analog.
 
 The user-visible delta is small: nothing changes for casual chat. The agent sees richer error messages, smaller tool outputs by default, and explicit pagination. The trace dashboard surfaces a new "tool truncations" counter so we can measure how often the cap fires; if it fires constantly on a representative workload, the cap is too tight and Phase 1's stabilization step retunes it. Every change is additive — existing tool callers keep working without touching new parameters.
 
@@ -467,7 +467,7 @@ Success is measured against three artifacts: a property-based error-message test
 >
 > 3. **Severity is not a CI gate**. The labels are vocabulary for tool-quality discussions and PR descriptions; they do not fail builds.
 >
-> 4. **References**: link to `docs/v0.5.0/comparison-7-principles-for-agent-friendly-clis.md` and Trevin Chow's article URL.
+> 4. **References**: link to `docs/v0.5.0/comparison/comparison-7-principles-for-agent-friendly-clis.md` and Trevin Chow's article URL.
 >
 > Cross-reference from `CONTRIBUTING.md` "Testing" section and from `docs/v0.5.0/test-pyramid.md`.
 >

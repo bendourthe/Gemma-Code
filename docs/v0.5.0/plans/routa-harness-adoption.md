@@ -5,7 +5,7 @@
 **Slug**: routa-harness-adoption
 **Plan Type**: Feature / Enhancement
 **Created**: 2026-04-24
-**Source Comparison**: [docs/v0.5.0/comparison-routa.md](../comparison-routa.md)
+**Source Comparison**: [docs/v0.5.0/comparison/comparison-routa.md](../comparison/comparison-routa.md)
 **Scope Filter**: `all` (P0 + P1 + P2 + P3)
 **Hard Constraint**: 100% offline-first single-GPU. No runtime network egress, no cloud APIs, no Tauri/Axum/Drizzle/Postgres infrastructure, no `api-contract.yaml` dual-backend pattern, no Storybook + governance workflow, no Entrix Rust crate, no `prepare-commit-msg` co-author template (forbidden by `CLAUDE.md`).
 
@@ -13,7 +13,7 @@
 
 ## Overview
 
-This plan adopts the 13 in-scope items from [docs/v0.5.0/comparison-routa.md](../comparison-routa.md), grouped into 5 dependency-ordered phases. Phase 1 stands up the Claude Code harness layer (`.claude/settings.local.json` with PreToolUse / SessionStart / UserPromptSubmit hooks) — this is the load-bearing scaffolding for everything else and must come first. Phase 2 externalizes the four sub-agent specialist prompts (`research`, `verification`, `planning`, plus the orchestration role) so users can override them without recompiling, with characterization tests guaranteeing identical pre-/post-refactor behavior. Phase 3 lands local-development hygiene (husky pre-commit + commit-msg, dependency-cruiser baseline, project-local `.claude/commands/`). Phase 4 is documentation discipline — four ADRs, a mermaid module-dependency diagram, a refactor playbook, and the docs/issues template. Phase 5 closes the loop with `.github/CODEOWNERS` and a branch-cleanup workflow.
+This plan adopts the 13 in-scope items from [docs/v0.5.0/comparison/comparison-routa.md](../comparison/comparison-routa.md), grouped into 5 dependency-ordered phases. Phase 1 stands up the Claude Code harness layer (`.claude/settings.local.json` with PreToolUse / SessionStart / UserPromptSubmit hooks) — this is the load-bearing scaffolding for everything else and must come first. Phase 2 externalizes the four sub-agent specialist prompts (`research`, `verification`, `planning`, plus the orchestration role) so users can override them without recompiling, with characterization tests guaranteeing identical pre-/post-refactor behavior. Phase 3 lands local-development hygiene (husky pre-commit + commit-msg, dependency-cruiser baseline, project-local `.claude/commands/`). Phase 4 is documentation discipline — four ADRs, a mermaid module-dependency diagram, a refactor playbook, and the docs/issues template. Phase 5 closes the loop with `.github/CODEOWNERS` and a branch-cleanup workflow.
 
 The user-visible delta is small but high-leverage: hooks fire before tool execution to add a defense-in-depth layer over `pathGuard.ts` and `secretPaths.ts`; sub-agent prompts can be tuned by editing Markdown files; commits are blocked at git time if they fail lint or contain non-ASCII characters; and the architectural intent of memory, compaction, sub-agent isolation, and tool tiers is captured for posterity. Every hook target is < 50 ms p99 (asserted in benchmarks), so the harness layer is invisible at runtime.
 
@@ -711,7 +711,7 @@ Success is measured against three artifacts: characterization tests that lock th
 >
 > Document the pattern in `CONTRIBUTING.md` under a new "Issue records" section. Note that this is an *opt-in* convention — small issues do not need a `docs/issues/` entry; multi-week investigations or recurring patterns should.
 >
-> Use the severity rubric from the 7-principles article (`Blocker / Friction / Optimization`) — referenced in the parallel `docs/v0.5.0/comparison-7-principles-for-agent-friendly-clis.md` adoption.
+> Use the severity rubric from the 7-principles article (`Blocker / Friction / Optimization`) — referenced in the parallel `docs/v0.5.0/comparison/comparison-7-principles-for-agent-friendly-clis.md` adoption.
 >
 > Constraints:
 > - The template is a reference; populating it is voluntary. Do not retroactively backfill issues.
