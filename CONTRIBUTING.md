@@ -51,6 +51,33 @@ To debug the extension live, press `F5` in VS Code; this launches the Extension 
 - Keep behavioral commits separate from refactor commits.
 - Never weaken pre-commit hooks (`--no-verify`) or skip ESLint rules without an inline `// eslint-disable-next-line ...` comment that explains why.
 
+## Local git hooks
+
+`npm install` runs `husky` automatically and wires two repository-managed hooks:
+
+- **pre-commit** runs `npx lint-staged` against staged `src/**/*.ts`, failing on any lint error or warning. Scope is small so the hook stays under one second on a typical change-set.
+- **commit-msg** runs [scripts/hooks/check-commit-msg.mjs](./scripts/hooks/check-commit-msg.mjs) and rejects any commit message containing non-ASCII bytes (em-dashes, curly quotes, ellipsis, CJK). The hook prints the offending U+ codepoints so you can locate them.
+
+`git commit --no-verify` skips both hooks. Reserve it for hot-fix scenarios; do not normalize bypassing the hooks for routine work.
+
+## TypeScript suppressions
+
+`@typescript-eslint/ban-ts-comment` is configured at error severity. `@ts-expect-error`, `@ts-ignore`, and `@ts-nocheck` are all `allow-with-description` with a 20-character minimum description length:
+
+```ts
+// @ts-expect-error TypeScript inference fails because <reason>; tracked in issue #N
+```
+
+Aim to remove suppressions once the upstream issue is resolved. The 20-char minimum permits legitimate notes ("Type from upstream is wrong (issue #42)") but rejects "fix later".
+
+## Module boundary rules
+
+`configs/dependency-cruiser.cjs` codifies the architecture's module boundaries. CI runs `npm run deps:check` on every push; local checks via `npm run deps:check`, local SVG render via `npm run deps:graph` (requires graphviz). Hard rules (error severity): `no-llm-outside-llm-folder`, `no-panels-from-tools`, `no-tools-from-storage`, `no-storage-from-panels`. Pre-existing violations are grandfathered with a documented `BASELINE-2026-04-25; ratchet by v0.6.0` annotation; new violations always fail CI.
+
+## Dependency updates
+
+[`.github/dependabot.yml`](./.github/dependabot.yml) opens grouped weekly PRs every Monday at 06:00 UTC across three ecosystems: `npm` (split into dev-dependencies and runtime-dependencies groups so the noise stays at ~2 PRs/week), `github-actions` (bumps the SHA pin and the version-tag comment in the same PR), and `pip` (PyQt5 installer venv). Auto-merge is intentionally disabled; let CI run, review the PR, then merge. Major-version bumps for `vscode` and `@types/vscode` are ignored by config -- they require manual coordination with `engines.vscode`. GitHub Actions are pinned to commit SHAs (40-char hex, with the version tag preserved as a trailing comment for readability); a meta-test asserts every `uses:` reference satisfies the SHA-pin rule.
+
 ## Testing
 
 - Unit tests: `npm test` (Vitest, ~1s per file).

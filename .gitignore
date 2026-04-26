@@ -215,3 +215,8 @@ golden-results-*.json
 golden-report-*.md
 golden-task-results.json
 golden-task-report.md
+
+# ==============================================================================
+# Dependency-cruiser local graph output (v0.5.0 Phase 10)
+# ==============================================================================
+docs/v0.5.0/dep-graph.svg

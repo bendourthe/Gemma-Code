@@ -11,7 +11,8 @@
     "url": "https://github.com/bendourthe/Gemma-Code"
   },
   "engines": {
-    "vscode": "^1.90.0"
+    "vscode": "^1.90.0",
+    "node": ">=18.0.0"
   },
   "categories": [
     "AI",
@@ -319,7 +320,15 @@
     "lint": "eslint src",
     "package": "powershell -NonInteractive -ExecutionPolicy Bypass -File scripts/build-vsix.ps1",
     "package:quick": "vsce package",
-    "bench": "vitest bench --config configs/vitest.config.ts"
+    "bench": "vitest bench --config configs/vitest.config.ts",
+    "deps:check": "depcruise --config configs/dependency-cruiser.cjs src tests",
+    "deps:graph": "depcruise --config configs/dependency-cruiser.cjs --output-type dot src | dot -Tsvg > docs/v0.5.0/dep-graph.svg",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "src/**/*.ts": [
+      "eslint --max-warnings=0"
+    ]
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.3",
@@ -332,7 +341,10 @@
     "@typescript-eslint/parser": "^7.0.0",
     "@vitest/coverage-v8": "^1.0.0",
     "@vscode/vsce": "^2.24.0",
+    "dependency-cruiser": "^16.10.4",
     "eslint": "^8.57.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.5.2",
     "msw": "^2.13.4",
     "typescript": "^5.4.0",
     "vitest": "^1.0.0"

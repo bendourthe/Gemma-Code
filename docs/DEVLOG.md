@@ -4,6 +4,73 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-04-25] v0.5.0 Phase 10 -- Local Development Hygiene + CI Hardening
+
+### Summary
+
+Landed every adoption item from Phase 10 of [docs/v0.5.0/plans/implementation-plan.md](v0.5.0/plans/implementation-plan.md): husky 9 pre-commit (`npx lint-staged` on staged TS) plus an ASCII-only commit-msg hook backed by [scripts/hooks/check-commit-msg.mjs](../scripts/hooks/check-commit-msg.mjs); a `dependency-cruiser` baseline at [configs/dependency-cruiser.cjs](../configs/dependency-cruiser.cjs) codifying four module-boundary rules (`no-llm-outside-llm-folder`, `no-panels-from-tools`, `no-tools-from-storage`, `no-storage-from-panels`) plus circular / orphan / deprecated-API checks; a Dependabot v2 weekly grouped config at [.github/dependabot.yml](../.github/dependabot.yml) for npm dev / npm runtime / GitHub Actions / pip (installer); the ESLint `@typescript-eslint/ban-ts-comment` rule with `allow-with-description` and `minimumDescriptionLength: 20`; SHA pins on every action across all 5 workflows; `concurrency: cancel-in-progress` on the nightly workflow (the other three long workflows already had it); and a Node 18.x / 20.x / 22.x matrix on the lint-ts / test-ts / build-ts CI jobs. The `prepare-commit-msg` co-author template that the routa source plan suggested is explicitly NOT adopted, per AGENTS.md. Quality gates: lint clean (0 errors / 5 pre-existing warnings), build clean, `npm run deps:check` exits 0 (2 grandfathered circular warnings documented), 18/18 new Phase 10 tests pass.
+
+Full phase write-up: [docs/v0.5.0/development/history/2026-04_phase-10-hygiene-and-ci-hardening.md](v0.5.0/development/history/2026-04_phase-10-hygiene-and-ci-hardening.md).
+
+### Sub-task closures
+
+**10.1 -- husky pre-commit + commit-msg hooks** ([.husky/pre-commit](../.husky/pre-commit), [.husky/commit-msg](../.husky/commit-msg), [scripts/hooks/check-commit-msg.mjs](../scripts/hooks/check-commit-msg.mjs), [package.json](../package.json))
+
+Installed `husky@^9.1.7` and `lint-staged@^15.5.2` as devDependencies. `npx husky init` adds a `prepare` script that runs `husky` on `npm install`; `.husky/pre-commit` invokes `npx lint-staged` instead of the default `npm test` so only staged TS files are linted (kept under 1 s on a small change-set). `lint-staged` config in [package.json](../package.json) targets `src/**/*.ts` with `eslint --max-warnings=0`. The commit-msg hook delegates to a Node ESM script ([scripts/hooks/check-commit-msg.mjs](../scripts/hooks/check-commit-msg.mjs)) that strips comment lines (lines starting with `#`) before scanning every byte for charCode > 0x7F; on any non-ASCII byte the hook prints `BLOCKED: commit message contains non-ASCII characters`, lists up to five offending code points (with U+XXXX hex), and exits 1. The 20-line scan is fast and dependency-free. `--no-verify` remains available as the documented escape hatch for hot-fix scenarios.
+
+**10.2 -- dependency-cruiser baseline** ([configs/dependency-cruiser.cjs](../configs/dependency-cruiser.cjs))
+
+`dependency-cruiser@^16` codifies the module-boundary rules from `ARCHITECTURE.md`. Four hard rules are at error severity; three soft rules (`no-circular`, `no-orphans`, `not-to-deprecated`) are at warn severity. Pre-existing violations are grandfathered with a documented `BASELINE-2026-04-25` exception list and a `ratchet by v0.6.0` note in each rule's comment: 3 `no-llm-outside-llm-folder` (EmbeddingClient, GemmaCodePanel bootstrap, extension.ts bootstrap), 3 `no-tools-from-storage` (ToolOutputCache, MemoryHealthCheck reach into pure helpers under tools/), 11 `no-storage-from-panels` (the three current panels predate the messaging boundary), and 2 circular cycles (the `MemoryLayers.types <-> MemoryStore.types` co-recursion and `SubAgentManager <-> AgentLoop`). The exception lists name specific files only -- the rules still apply to every other module, so any *new* boundary regression fails CI. New scripts: `npm run deps:check` (CI gate) and `npm run deps:graph` (local SVG render via graphviz).
+
+**10.3 -- Dependabot weekly config** ([.github/dependabot.yml](../.github/dependabot.yml))
+
+Three ecosystems on a weekly Monday 06:00 UTC cadence: `npm` (grouped into `dev-dependencies` and `runtime-dependencies` so the noise stays at ~2 PRs/week instead of one PR per package), `github-actions` (Dependabot v2 bumps the SHA and the version-tag comment in the same PR, keeping the SHA pins from sub-task 10.5 fresh), and `pip` for the installer venv at [scripts/installer/pyqt](../scripts/installer/pyqt). Major-version bumps for `vscode` and `@types/vscode` are explicitly ignored to avoid surprise `engines.vscode` invalidation; manual coordination is required.
+
+**10.4 -- ESLint ban-ts-comment** ([eslint.config.mjs](../eslint.config.mjs))
+
+`@typescript-eslint/ban-ts-comment` is now configured at error severity with `ts-expect-error`, `ts-ignore`, and `ts-nocheck` all `allow-with-description` and `minimumDescriptionLength: 20`. The 20-character minimum is the tradeoff target: short enough to permit `// @ts-ignore: Type from upstream lib is wrong (issue #42)` (legitimate justification with linked issue), long enough to reject `// @ts-ignore` and `// @ts-ignore: fix later`. The current codebase contains zero TS suppressions in `src/`, so the rule is a forward-only constraint -- a meta-test at [tests/unit/lint-discipline.test.ts](../tests/unit/lint-discipline.test.ts) walks every `.ts` file under `src/` and asserts the absence of un-justified suppression comments.
+
+**10.5 -- SHA-pin GitHub Actions** ([.github/workflows/](../.github/workflows/))
+
+Every `uses:` reference across [ci.yml](../.github/workflows/ci.yml), [nightly.yml](../.github/workflows/nightly.yml), [golden-tasks.yml](../.github/workflows/golden-tasks.yml), [release.yml](../.github/workflows/release.yml), and [installer-smoke.yml](../.github/workflows/installer-smoke.yml) is now pinned to a 40-character commit SHA with the version tag preserved as a trailing comment for readability. SHAs were resolved against the live GitHub API at the time of authoring: actions/checkout@v4.2.2, actions/setup-node@v4.4.0, actions/setup-python@v5.6.0, actions/upload-artifact@v4.6.2, actions/download-artifact@v4.3.0, actions/cache@v4.2.3, astral-sh/setup-uv@v4, and softprops/action-gh-release@v2.2.2. A meta-test at [tests/unit/workflow-discipline.test.ts](../tests/unit/workflow-discipline.test.ts) walks every workflow file, regex-matches every `uses:` line, and asserts the version after `@` is a 40-character hex SHA.
+
+**10.6 -- Workflow concurrency cancellation** ([.github/workflows/nightly.yml](../.github/workflows/nightly.yml))
+
+The nightly workflow gains a top-level `concurrency: { group: nightly-${{ github.ref }}, cancel-in-progress: true }` block. The other three long workflows (ci, golden-tasks, installer-smoke) already had concurrency cancellation in place from earlier phases. The release workflow is intentionally left without concurrency: cancelling a release mid-build can leave broken artifacts. The same meta-test asserts the three long workflows declare `cancel-in-progress: true`.
+
+**10.7 -- Node-version CI matrix** ([.github/workflows/ci.yml](../.github/workflows/ci.yml))
+
+The `lint-ts`, `test-ts`, and `build-ts` jobs now run under `strategy.matrix.node: ["18.x", "20.x", "22.x"]` with `fail-fast: false`. `actions/setup-node` consumes `${{ matrix.node }}`. The `ts-coverage` and `ts-build` upload-artifact steps are gated on `matrix.node == '20.x'` so the coverage-gate downstream job and the build artifact remain unique. `engines.node` in [package.json](../package.json) is set to `>=18.0.0` (the floor of the matrix). No syntax in the codebase requires Node 20+ features.
+
+### Tests added (3 files, 18 cases)
+
+- [tests/unit/hooks/check-commit-msg.test.ts](../tests/unit/hooks/check-commit-msg.test.ts) -- 9 cases: ASCII commit allowed (single line + multi-line + empty), em-dash / en-dash / curly-quote / ellipsis / CJK rejected with U+ codepoint diagnostics, em-dash inside a `#`-comment line allowed, multi-byte sequences correctly attributed.
+- [tests/unit/lint-discipline.test.ts](../tests/unit/lint-discipline.test.ts) -- 4 cases: ban-ts-comment configured at error severity, `allow-with-description` set on all three suppression types, `minimumDescriptionLength` >= 20, src/ has zero un-justified suppressions today.
+- [tests/unit/workflow-discipline.test.ts](../tests/unit/workflow-discipline.test.ts) -- 5 cases: every `uses:` reference across the 5 workflow files pins a 40-char SHA, the three long workflows declare `concurrency: cancel-in-progress: true`, the expected workflow inventory is present.
+
+### Quality gates
+
+| Gate | Result |
+|------|--------|
+| Lint (`npm run lint`) | 0 errors, 5 pre-existing warnings (no new ban-ts-comment violations) |
+| Build (`npm run build`) | Clean |
+| Dependency-cruiser (`npm run deps:check`) | 0 errors, 2 grandfathered circular warnings |
+| Phase 10 meta-tests | 18/18 pass (commit-msg + lint-discipline + workflow-discipline) |
+
+### Deviations
+
+- **`prepare-commit-msg` co-author template**: The routa source plan suggests adding a `prepare-commit-msg` hook that injects a `Co-Authored-By: <agent>` line into commit messages. AGENTS.md explicitly forbids `Co-Authored-By` lines, AI attribution footers, or AI-generated signatures. The hook is not adopted; the deviation is documented here and in the Phase 10 prompt itself.
+- **Dependency-cruiser baseline grandfathering**: The plan authorizes either fixing each violation or grandfathering with `BASELINE-YYYY-MM-DD; ratchet by v0.X.0` annotations. Phase 10's scope is hygiene + CI hardening, not architectural refactor; the 19 pre-existing boundary violations across 4 rules are grandfathered with named-file exceptions and a v0.6.0 ratchet target. New code adding the same boundary edges still fails CI.
+- **`pip` ecosystem in Dependabot**: The sub-task lists only `npm` and `github-actions`. The plan also lands a `pip` group for the PyQt5 installer venv so the installer's runtime deps stay current alongside the rest of the toolchain.
+- **Node-matrix coverage upload**: To avoid three coverage uploads racing for the same artifact name, only the Node 20.x leg uploads `ts-coverage` (consumed by the existing `coverage-gate` job). Coverage on Node 18 and 22 is captured in the test logs but not artifact-uploaded.
+- **release.yml concurrency**: Per the plan note (cancelling a release mid-build can leave broken artifacts), release.yml deliberately does NOT get `cancel-in-progress: true`. The workflow-discipline meta-test asserts only the three long workflows have it.
+
+### Pre-existing test failures (out of scope)
+
+Running the full unit suite surfaces 12 pre-existing failures in three test files unrelated to Phase 10 ([tests/unit/chat/CompactionStrategy.test.ts](../tests/unit/chat/CompactionStrategy.test.ts), [tests/unit/chat/ContextCompactor.test.ts](../tests/unit/chat/ContextCompactor.test.ts), [tests/unit/errors/error-handling.test.ts](../tests/unit/errors/error-handling.test.ts)). They predate Phase 10 (last edited in v0.4.0 / v0.3.0 / v0.2.0; `git diff c4944d5 -- <file>` is empty for each). The compaction failures look like tiktoken-vs-heuristic divergence after Phase 5; the error-handling failure is unrelated. Phase 10 does not touch [src/chat/CompactionStrategy.ts](../src/chat/CompactionStrategy.ts), [src/chat/ContextCompactor.ts](../src/chat/ContextCompactor.ts), or [src/errors/](../src/errors/). Per AGENTS.md ("Every changed line must trace directly to the user's request; do not clean up adjacent code, pre-existing dead code, or style issues outside the stated scope"), Phase 10 does not silently fix them. Tracking for future phase (likely Phase 12 release gate).
+
+---
+
 ## [2026-04-25] v0.5.0 Phase 6 -- Mutation Safety + Structured Outputs
 
 ### Summary

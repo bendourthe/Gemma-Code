@@ -1,0 +1,56 @@
+# Dependabot v2 configuration for Gemma Code v0.5.0
+#
+# Opens grouped dependency PRs every Monday at 06:00 UTC. Grouping keeps the
+# noise down: at most ~3 PRs per week (npm dev, npm runtime, github-actions)
+# instead of one PR per package. CI gates run on each PR; do NOT auto-merge.
+#
+# Major-version bumps for vscode-related dependencies are ignored on purpose:
+# they need manual coordination with the engines.vscode pin.
+
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "auto-update"
+    groups:
+      dev-dependencies:
+        dependency-type: "development"
+      runtime-dependencies:
+        dependency-type: "production"
+    ignore:
+      - dependency-name: "vscode"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/vscode"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+
+  - package-ecosystem: "pip"
+    directory: "/scripts/installer/pyqt"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python-installer"
