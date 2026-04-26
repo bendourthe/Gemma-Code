@@ -85,6 +85,35 @@ Aim to remove suppressions once the upstream issue is resolved. The 20-char mini
 - Add tests next to the unit you change. Mirror source paths under `tests/unit/`.
 - New tracing/runtime work must use a per-test `new Tracer()` instance -- the singleton was retired in v0.4.0.
 - Tests that depend on environment variables or upstream services must follow the Smoke-Test Classification Rubric in [docs/v0.5.0/test-pyramid.md](./docs/v0.5.0/test-pyramid.md). Use `skipIfNoOllama()` / `skipIfMissingEnv()` from [tests/helpers/factories.ts](./tests/helpers/factories.ts); do not write bare `if (!process.env.X) return;` early returns.
+- For non-trivial refactors and any externalization of compiled state to runtime data, follow the [refactor playbook](./docs/refactor-playbook.md) — write characterization tests *before* touching the module so behavior preservation is provable.
+
+## Branch hygiene
+
+[`.github/workflows/branch-cleanup.yml`](./.github/workflows/branch-cleanup.yml) runs Sundays at 06:00 UTC and deletes stale `dependabot/`, `copilot/`, and `feature/` branches that satisfy *both* (a) older than 30 days, and (b) already merged into `main`. The first two weeks of scheduled runs are intentionally dry-run only; the workflow summary lists candidates so the merged-into-main safety net can be reviewed before any branch is deleted. Flip the cron path to `dry_run: false` only after two consecutive dry-run summaries look correct.
+
+Manual dispatch supports `dry_run` and `max_age_days` inputs. Add `WIP:` to a commit message on a branch tip to grandfather it; protected names (`main`, `master`, `develop`, `release/*`, `hotfix/*`) are never deleted.
+
+## Code ownership and review
+
+[`.github/CODEOWNERS`](./.github/CODEOWNERS) declares the default owner for the repository plus explicit owners for security-sensitive paths (`SECURITY.md`, `src/utils/ssrf.ts`, `src/tools/handlers/`, `src/guardrails/`, `scripts/installer/`, `scripts/hooks/`, `.github/`, `configs/dependency-cruiser.cjs`, `docs/adr/`). GitHub auto-requests review from the listed owner when a PR touches one of those paths. The repository is single-author today; the file sets the contract for future contributors and can be updated when team aliases are introduced.
+
+## Adding a new tool
+
+When you ship a new tool (built-in handler or MCP-side):
+
+- Update [src/tools/ToolCatalog.ts](./src/tools/ToolCatalog.ts) with the schema (name, description with one usage example, parameters with `required` flags).
+- Update [docs/v0.5.0/tool-audit.md](./docs/v0.5.0/tool-audit.md) with a row classifying the tool against the severity rubric (`blocker | friction | optimization`).
+- Ensure every error returned by the handler contains the failing parameter name and a `Usage:` hint per the actionability convention. Property-based tests in [tests/unit/tools/errors.test.ts](./tests/unit/tools/errors.test.ts) enforce this on every PR.
+
+## Tool quality and severity
+
+When discussing tool surfaces (existing or proposed), use the severity rubric in [docs/v0.5.0/tool-audit.md](./docs/v0.5.0/tool-audit.md): `blocker | friction | optimization`. The labels are vocabulary, not a CI gate; they keep PR descriptions and review threads grounded in the same definitions. If you add a new tool or change an existing tool's schema, update the audit table in the same PR.
+
+## Issue records
+
+For multi-week investigations and recurring patterns, capture a forensic record under [docs/issues/](./docs/issues/) using [docs/issues/_template.md](./docs/issues/_template.md). The template is YAML-frontmatter Markdown with four sections: What, Why, Resolution, References. Use the severity rubric from [docs/v0.5.0/tool-audit.md](./docs/v0.5.0/tool-audit.md) (`blocker | friction | optimization`).
+
+This is an opt-in convention. Small issues do not need an entry. Do not retroactively backfill closed issues; start the practice from the next investigation forward. Filenames follow `<id>-<short-slug>.md` (e.g. `0001-ollama-warm-up-latency.md`).
 
 ## Filing changes
 

@@ -1,0 +1,136 @@
+name: Branch cleanup
+
+# Delete stale dependabot/, copilot/, and feature/ branches that are both
+# (a) older than max_age_days and (b) already merged into main. Defaults
+# to dry-run mode; the first two weeks of scheduled runs are intentionally
+# dry-run only so the merged-into-main safety net can be validated against
+# real branch history before any deletion happens. Flip the schedule to
+# `dry_run: false` (or dispatch manually) once the dry-run output has been
+# reviewed for two consecutive weekly runs.
+#
+# Protected names (NEVER deleted regardless of age/merge state):
+#   main, master, develop, release/*, hotfix/*, and any branch with a
+#   commit message containing 'WIP:' on the tip.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run only (list candidates without deleting)"
+        type: boolean
+        default: true
+      max_age_days:
+        description: "Minimum age in days before a branch is eligible"
+        type: number
+        default: 30
+  schedule:
+    # Sunday 06:00 UTC weekly. Dry-run-only at this trigger; flip the
+    # `dry_run` input to false once the rollout has been validated.
+    - cron: "0 6 * * 0"
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    name: Identify and (optionally) delete stale branches
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Configure dry-run flag
+        id: config
+        env:
+          INPUT_DRY_RUN: ${{ inputs.dry_run }}
+          INPUT_MAX_AGE_DAYS: ${{ inputs.max_age_days }}
+        run: |
+          # Scheduled runs are always dry-run during the rollout window.
+          # Manual dispatches honor the input.
+          if [[ "${{ github.event_name }}" == "schedule" ]]; then
+            echo "dry_run=true" >> "$GITHUB_OUTPUT"
+            echo "max_age_days=30" >> "$GITHUB_OUTPUT"
+          else
+            echo "dry_run=${INPUT_DRY_RUN:-true}" >> "$GITHUB_OUTPUT"
+            echo "max_age_days=${INPUT_MAX_AGE_DAYS:-30}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Identify candidate branches
+        id: candidates
+        env:
+          MAX_AGE_DAYS: ${{ steps.config.outputs.max_age_days }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin --prune --quiet
+
+          # Cutoff in seconds-since-epoch.
+          cutoff=$(($(date +%s) - MAX_AGE_DAYS * 86400))
+          patterns='^(dependabot|copilot|feature)/.+$'
+
+          candidates=()
+          while IFS=$'\t' read -r ref committerdate; do
+            branch="${ref#refs/remotes/origin/}"
+            # Skip protected names defensively, even though the regex above
+            # already excludes them.
+            case "$branch" in
+              main|master|develop|HEAD) continue ;;
+              release/*|hotfix/*) continue ;;
+            esac
+            if ! [[ "$branch" =~ $patterns ]]; then
+              continue
+            fi
+            if [[ "$committerdate" -ge "$cutoff" ]]; then
+              continue
+            fi
+
+            # Must be already merged into origin/main.
+            if ! git merge-base --is-ancestor "origin/$branch" origin/main; then
+              continue
+            fi
+
+            # Skip if the tip commit message contains 'WIP:' (escape hatch).
+            tip_msg=$(git log -1 --format=%B "origin/$branch" || true)
+            if printf '%s' "$tip_msg" | grep -q 'WIP:'; then
+              continue
+            fi
+
+            candidates+=("$branch")
+          done < <(git for-each-ref --format='%(refname)\t%(committerdate:unix)' refs/remotes/origin/)
+
+          {
+            echo "## Branch cleanup candidates"
+            echo ""
+            echo "- dry_run: ${{ steps.config.outputs.dry_run }}"
+            echo "- max_age_days: $MAX_AGE_DAYS"
+            echo "- candidate count: ${#candidates[@]}"
+            echo ""
+            if [[ ${#candidates[@]} -eq 0 ]]; then
+              echo "_No candidates._"
+            else
+              echo "| Branch | Last commit |"
+              echo "|--------|-------------|"
+              for b in "${candidates[@]}"; do
+                d=$(git log -1 --format=%ci "origin/$b")
+                echo "| \`$b\` | $d |"
+              done
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # Persist the list for the delete step.
+          printf '%s\n' "${candidates[@]}" > /tmp/branch-cleanup-candidates.txt
+          echo "count=${#candidates[@]}" >> "$GITHUB_OUTPUT"
+
+      - name: Delete branches (skipped on dry_run)
+        if: steps.config.outputs.dry_run != 'true' && steps.candidates.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r branch; do
+            [[ -z "$branch" ]] && continue
+            echo "Deleting origin/$branch"
+            git push origin --delete "$branch"
+          done < /tmp/branch-cleanup-candidates.txt

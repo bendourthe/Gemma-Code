@@ -525,16 +525,16 @@ Success is measured through three artifacts: a `tests/golden/baselines/v0.5.0.js
 
 ### Phase 11 Exit Checklist
 
-- [ ] ADR-0002, 0003, 0004, 0005 present and indexed
-- [ ] `ARCHITECTURE.md` mermaid module-dependency diagram present
-- [ ] `AGENTS.md` includes Module Authorship Contract section
-- [ ] `docs/refactor-playbook.md`, `docs/issues/_template.md`, `docs/v0.5.0/tool-audit.md` published
-- [ ] `get_tool_schema` documented in `AGENTS.md` and `README.md`
-- [ ] `scripts/generate-catalog.mjs` regenerates `docs/index.md` idempotently; CI catalog-sync green
-- [ ] `.github/CODEOWNERS` recognized
-- [ ] `.github/workflows/branch-cleanup.yml` present; first run dry-run only
-- [ ] All cross-references resolve
-- [ ] Session history generated
+- [x] ADR-0002, 0003, 0004, 0005 present and indexed -- [docs/adr/0002-memory-subsystem-layering.md](../../adr/0002-memory-subsystem-layering.md), [0003](../../adr/0003-compaction-strategy-ordering.md), [0004](../../adr/0004-sub-agent-isolation-contract.md), [0005](../../adr/0005-tool-permission-tiers.md); index updated in [docs/adr/README.md](../../adr/README.md)
+- [x] `ARCHITECTURE.md` mermaid module-dependency diagram present -- new `## Module Dependency Graph` section in [ARCHITECTURE.md](../../../ARCHITECTURE.md) with forbidden edges dashed-red and annotated by rule name
+- [x] `AGENTS.md` includes Module Authorship Contract section -- replaced placeholder with eight-rule contract in [AGENTS.md](../../../AGENTS.md) `## Module Authorship Contract`
+- [x] `docs/refactor-playbook.md`, `docs/issues/_template.md`, `docs/v0.5.0/tool-audit.md` published -- [refactor-playbook.md](../../refactor-playbook.md), [issues/_template.md](../../issues/_template.md), [tool-audit.md](../tool-audit.md)
+- [x] `get_tool_schema` documented in `AGENTS.md` and `README.md` -- "Tool Catalogue and Help Discovery" sections added to [ARCHITECTURE.md](../../../ARCHITECTURE.md), [AGENTS.md](../../../AGENTS.md), and [README.md](../../../README.md)
+- [x] `scripts/generate-catalog.mjs` regenerates `docs/index.md` idempotently; CI catalog-sync green -- [scripts/generate-catalog.mjs](../../../scripts/generate-catalog.mjs), [docs/index.md](../../index.md), `catalog-sync` job in [.github/workflows/ci.yml](../../../.github/workflows/ci.yml); idempotency verified locally (zero diff on rerun)
+- [x] `.github/CODEOWNERS` recognized -- [.github/CODEOWNERS](../../../.github/CODEOWNERS) with default + security-path owners
+- [x] `.github/workflows/branch-cleanup.yml` present; first run dry-run only -- [.github/workflows/branch-cleanup.yml](../../../.github/workflows/branch-cleanup.yml) forces `dry_run: true` on cron-triggered runs
+- [x] All cross-references resolve -- CONTRIBUTING.md gained sections for Code ownership / Branch hygiene / Adding a new tool / Tool quality / Issue records / Refactor playbook
+- [x] Session history generated -- [docs/v0.5.0/development/history/2026-04_phase-11-documentation-discipline.md](../development/history/2026-04_phase-11-documentation-discipline.md)
 
 ---
 

@@ -31,6 +31,7 @@ The following structural improvements from v0.4.0 remain in force at the start o
 - **Assertion strength** — weak `toBeDefined`/`toBeTruthy`/`toBeFalsy` assertions tightened where feasible; remaining ones are legitimate pre-specific-assertion null guards.
 - **Golden-task cross-check** — [scripts/generate-golden-tasks.mjs](../../scripts/generate-golden-tasks.mjs) regenerates [src/evaluation/goldenTasksYaml.generated.ts](../../src/evaluation/goldenTasksYaml.generated.ts) on `prebuild`/`pretest`.
 - **Installer test disambiguation** — nightly `installer-package-check-*` (verifies PyQt installer package); weekly `installer-smoke-*` (canonical full smoke surface).
+- **Characterization-test discipline for refactors** — non-trivial refactors and externalization work follow the [refactor playbook](../refactor-playbook.md): capture a behavior snapshot before touching the module, refactor, then re-verify byte-equivalence. Phase 8 (specialist externalization) is the canonical worked example.
 
 ## Smoke-Test Classification Rubric
 

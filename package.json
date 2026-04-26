@@ -323,6 +323,8 @@
     "bench": "vitest bench --config configs/vitest.config.ts",
     "deps:check": "depcruise --config configs/dependency-cruiser.cjs src tests",
     "deps:graph": "depcruise --config configs/dependency-cruiser.cjs --output-type dot src | dot -Tsvg > docs/v0.5.0/dep-graph.svg",
+    "catalog": "node scripts/generate-catalog.mjs",
+    "catalog:check": "node scripts/generate-catalog.mjs && git diff --exit-code docs/index.md",
     "prepare": "husky"
   },
   "lint-staged": {

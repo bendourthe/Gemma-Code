@@ -1,0 +1,31 @@
+# GitHub CODEOWNERS file for Gemma Code.
+#
+# Format reference: https://docs.github.com/en/repositories/managing-your-repositories-settings-and-security/customizing-your-repository/about-code-owners
+#
+# Single-author repository today; this file establishes the contract for
+# future contributors. When teams are introduced, replace the individual
+# handle with team aliases (e.g. @bendourthe/maintainers).
+#
+# The default owner is listed first; security-sensitive paths require an
+# explicit owner review even on routine edits, so they appear later in the
+# file (later patterns win).
+
+# Default owner for everything in the repo.
+*                                @bendourthe
+
+# Critical security paths require owner review even on routine edits.
+/SECURITY.md                     @bendourthe
+/src/utils/ssrf.ts               @bendourthe
+/src/utils/errors.ts             @bendourthe
+/src/tools/handlers/             @bendourthe
+/src/guardrails/                 @bendourthe
+/scripts/installer/              @bendourthe
+/scripts/hooks/                  @bendourthe
+
+# Repository governance and harness wiring.
+/.github/                        @bendourthe
+/.husky/                         @bendourthe
+/configs/dependency-cruiser.cjs  @bendourthe
+
+# Architecture decision records: history is immutable; only the owner edits.
+/docs/adr/                       @bendourthe

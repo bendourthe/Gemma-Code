@@ -158,6 +158,10 @@ All settings are under `gemma-code.*` in VS Code settings (`Ctrl+,`).
 | `/analyze-codebase` | Produce a structured codebase analysis |
 | `/setup-project` | Bootstrap project structure and configuration |
 
+### Help discovery for the agent
+
+Gemma 4 itself sees the available tools through [src/tools/ToolCatalog.ts](src/tools/ToolCatalog.ts), projected into its system prompt on every turn. The agent uses `get_tool_schema` as its in-extension `--help` analog when it needs to refresh a tool's parameter list mid-task. Users do not invoke `get_tool_schema` directly — the agent does, and the result feeds back into its next reasoning step. See [docs/v0.5.0/tool-audit.md](docs/v0.5.0/tool-audit.md) for the per-tool quality audit.
+
 ### Custom skills
 
 Add your own skills to `~/.gemma-code/skills/<name>/SKILL.md`. Gemma Code hot-reloads skills as you add or modify them. See [docs/v0.1.0/tool-protocol.md](docs/v0.1.0/tool-protocol.md) for the SKILL.md format.

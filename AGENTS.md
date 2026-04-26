@@ -97,7 +97,18 @@ The workflow is iterative — looping back to ANALYZE when EXECUTE reveals an un
 
 ## Module Authorship Contract
 
-This section is reserved for the Module Authorship Contract that will be added by the parallel memory-hygiene plan in Phase 11. Until that plan lands, refer to `ARCHITECTURE.md` and `configs/dependency-cruiser.cjs` (when present) for the authoritative module-boundary rules.
+This contract documents which module owns which kind of write. It is the spirit of the rules in [configs/dependency-cruiser.cjs](configs/dependency-cruiser.cjs); when in doubt, the dependency-cruiser config is authoritative because CI gates on it.
+
+- **`src/llm/`** is the **only module that may import or call Ollama directly.** Every other module consumes the vendor-neutral port at [src/llm/types.ts](src/llm/types.ts). Baseline exceptions (`EmbeddingClient`, `GemmaCodePanel`, `extension.ts`) are grandfathered with a v0.6.0 ratchet and listed in `configs/dependency-cruiser.cjs`.
+- **`src/storage/`** is the **only module that may open SQLite databases.** Tool handlers, panels, sub-agents, and the agent loop consume `MemoryStore`, `ChatHistoryStore`, `ToolOutputCache`, and `UnifiedMemoryRetriever` as their public APIs.
+- **`src/tools/handlers/`** are the **only modules that perform side-effecting operations** (filesystem mutations, terminal commands, network requests through `web_search` / `fetch_page`). Every handler routes through `pathGuard.ts`, `secretPaths.ts`, and `ConfirmationGate.ts`.
+- **`src/panels/`** never imports `src/storage/` directly; communication goes through [src/panels/messages.ts](src/panels/messages.ts) so the webview sandbox cannot bypass guardrails. Pre-baseline panels (`GemmaCodePanel`, `SessionListPanel`, `TraceDashboardPanel`) are grandfathered.
+- **Memory writes** are owned by `MemoryStore` and `MemoryConsolidator`; tool handlers must not insert memory rows themselves.
+- **Confirmation prompts** are owned by `ConfirmationGate.ts`; individual tool handlers do not raise prompts of their own.
+- **Trace events** are emitted via `MetricsCollector.ts` / `Tracer.ts`; modules never write directly to `TraceStore`.
+- **Settings** are read through `src/config/settings.ts`; modules must not call `vscode.workspace.getConfiguration` directly except inside the settings module.
+
+Forward reference: the same rules drive the mermaid module-dependency diagram in [ARCHITECTURE.md](ARCHITECTURE.md). When a refactor changes a boundary, update `configs/dependency-cruiser.cjs`, the mermaid diagram, and this section together.
 
 ## Optional Developer Harness
 
@@ -110,6 +121,10 @@ Gemma Code ships three agent-agnostic harness scripts under `scripts/hooks/` tha
 | `scripts/hooks/check-prompt-policy.mjs` | Reject prompts containing accidentally-pasted secrets (AWS keys, GitHub PATs, JWTs, SSH/PEM headers, Slack tokens) |
 
 Each script reads a JSON event payload from stdin, exits 0 to allow, exits 2 with `BLOCKED: <reason>` on stderr to deny. All three target less than 50 ms p99 wall-clock on benign payloads; the benchmark `tests/benchmarks/hooks.bench.ts` enforces this.
+
+## Tool Catalogue and Help Discovery
+
+The agent's help-discovery surface is [src/tools/ToolCatalog.ts](src/tools/ToolCatalog.ts), projected into the system prompt by [src/chat/PromptBuilder.ts](src/chat/PromptBuilder.ts) on every turn. The catalogue is the in-extension `--help`: name, one-line description with a usage example, parameter map, required flags. When an agent emits a tool call by an unknown name, [src/tools/ToolRegistry.ts](src/tools/ToolRegistry.ts) returns a structured error pointing the agent at `get_tool_schema` so it can recover without a re-prompt. See [docs/v0.5.0/tool-audit.md](docs/v0.5.0/tool-audit.md) for the per-tool severity audit and [ARCHITECTURE.md](ARCHITECTURE.md#tool-catalogue-and-help-discovery) for the long-form description.
 
 ## Sub-Agent Specialists
 

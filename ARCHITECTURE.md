@@ -122,6 +122,157 @@ This replaces the v0.1.0 custom XML protocol. See [docs/v0.1.0/tool-protocol.md]
 | Golden task perf bench | `tests/benchmarks/golden-task-perf.bench.ts` | Per-category wall-clock, iterations, tokens |
 | E2E integration tests | `tests/integration/e2e/` | Composed-module checks without live Ollama |
 
+## Tool Catalogue and Help Discovery
+
+Gemma 4 discovers the available tools through the static tool catalogue in [src/tools/ToolCatalog.ts](src/tools/ToolCatalog.ts). Each entry declares the tool's `name` (the exact string the agent emits inside `<|tool_call>`), a one-line `description` with a usage example for non-obvious calls, and a `parameters` map of `{ type, description, required }` per parameter that maps directly onto the JSON Schema the Ollama tool API expects.
+
+[src/chat/PromptBuilder.ts](src/chat/PromptBuilder.ts) projects the catalogue (filtered through [src/tools/ToolActivationRules.ts](src/tools/ToolActivationRules.ts) for the current session context) into the system prompt on every turn. The agent therefore sees an up-to-date schema without having to ask. When a model picks a name not in the catalogue, [src/tools/ToolRegistry.ts](src/tools/ToolRegistry.ts) returns a structured error pointing the agent at `get_tool_schema` — the in-extension equivalent of `--help`. The discovery surface is the catalogue metadata itself; `get_tool_schema` is the named recovery handle for the model when it has drifted off the registered names.
+
+When you add a new tool, update [src/tools/ToolCatalog.ts](src/tools/ToolCatalog.ts), document it in [docs/v0.5.0/tool-audit.md](docs/v0.5.0/tool-audit.md), and ensure every error path in the handler carries the parameter name and a `Usage:` hint per the actionability convention from v0.5.0 Phase 2.
+
+## Module Dependency Graph
+
+The graph below visualizes the top-level module relationships and the **forbidden** edges enforced by [configs/dependency-cruiser.cjs](configs/dependency-cruiser.cjs). Solid arrows are allowed flows; dashed red arrows are rules that fail CI on violation. Module groupings (Storage, Tools, Guardrails, etc.) match the directory layout under `src/`. Keep this diagram and `configs/dependency-cruiser.cjs` in sync — the dependency-cruiser config is authoritative when they disagree.
+
+```mermaid
+flowchart TD
+  ext[extension.ts]
+  cmd[commands/CommandRouter]
+  runtime[runtime/GemmaRuntime]
+  evalSuite[evaluation/GoldenTaskSuite]
+
+  subgraph Panels["Panels (webview)"]
+    panel[GemmaCodePanel]
+    msgs[panels/messages]
+    sessionPanel[SessionListPanel]
+    tracePanel[TraceDashboardPanel]
+  end
+
+  subgraph Chat["Chat (prompt + compaction)"]
+    pb[PromptBuilder]
+    sp[StreamingPipeline]
+    cs[CompactionStrategy]
+    cc[ContextCompactor]
+    rfs[RegenerateFromSource]
+    plan[PlanMode]
+  end
+
+  subgraph Agents["Agents"]
+    sam[SubAgentManager]
+    sl[SpecialistLoader]
+    sap[SubAgentPrompts]
+  end
+
+  subgraph Orchestration["Orchestration"]
+    orch[Orchestrator]
+    pa[PlannerAgent]
+    dag[DAGExecutor]
+    refl[ReflexionEngine]
+  end
+
+  subgraph Tools["Tools"]
+    al[AgentLoop]
+    tr[ToolRegistry]
+    tc[ToolCatalog]
+    or[OutputRedirector]
+    cg[ConfirmationGate]
+    handlers[handlers/*]
+  end
+
+  subgraph Storage["Storage"]
+    ms[MemoryStore]
+    umr[UnifiedMemoryRetriever]
+    toc[ToolOutputCache]
+    chs[ChatHistoryStore]
+    gm[GraphMemory]
+    em[EpisodicMemory]
+    wm[WorkingMemory]
+    mc[MemoryConsolidator]
+    mhc[MemoryHealthCheck]
+  end
+
+  subgraph LLM["LLM port + adapter"]
+    llmt[llm/types]
+    oc[OllamaClient]
+    oh[OllamaHttp]
+  end
+
+  subgraph Guardrails["Guardrails"]
+    ac[ActionClassifier]
+    gsn[GitSafetyNet]
+    ld[LoopDetector]
+    be[BudgetEnforcer]
+    pt[PermissionTiers]
+  end
+
+  subgraph Observability["Observability"]
+    tr2[Tracer]
+    ts[TraceStore]
+    mco[MetricsCollector]
+    otlp[OtlpExporter]
+  end
+
+  subgraph Mcp["MCP"]
+    mcpm[McpManager]
+  end
+
+  config[config/settings]
+  utils[utils/*]
+  skills[skills/SkillLoader]
+
+  %% Allowed flows
+  ext --> runtime
+  ext --> panel
+  runtime --> Chat
+  runtime --> Tools
+  runtime --> Agents
+  runtime --> Storage
+  runtime --> Guardrails
+  runtime --> Observability
+  panel --> msgs
+  msgs --> Chat
+  msgs --> Tools
+  Chat --> llmt
+  Tools --> llmt
+  Tools --> Guardrails
+  Tools --> Observability
+  Tools --> Storage
+  Agents --> Tools
+  Agents --> Chat
+  Agents --> llmt
+  Orchestration --> Agents
+  Orchestration --> Tools
+  Mcp --> Tools
+  cmd --> Tools
+  cmd --> Chat
+  evalSuite --> Tools
+  skills --> Tools
+  Storage --> utils
+  Tools --> utils
+  Chat --> utils
+  config --> utils
+  oc --> oh
+  oc -.implements.-> llmt
+
+  %% Forbidden edges (dashed red); rule names from configs/dependency-cruiser.cjs
+  Tools -. "x [no-panels-from-tools]" .-> Panels
+  Storage -. "x [no-tools-from-storage]" .-> Tools
+  Panels -. "x [no-storage-from-panels]" .-> Storage
+  Panels -. "x [no-llm-outside-llm-folder]" .-> oc
+  Tools -. "x [no-llm-outside-llm-folder]" .-> oc
+  Chat -. "x [no-llm-outside-llm-folder]" .-> oc
+
+  classDef forbidden stroke:#c00,color:#c00,stroke-dasharray:5 5;
+  linkStyle 28 stroke:#c00,stroke-width:1.5px,stroke-dasharray:5 5;
+  linkStyle 29 stroke:#c00,stroke-width:1.5px,stroke-dasharray:5 5;
+  linkStyle 30 stroke:#c00,stroke-width:1.5px,stroke-dasharray:5 5;
+  linkStyle 31 stroke:#c00,stroke-width:1.5px,stroke-dasharray:5 5;
+  linkStyle 32 stroke:#c00,stroke-width:1.5px,stroke-dasharray:5 5;
+  linkStyle 33 stroke:#c00,stroke-width:1.5px,stroke-dasharray:5 5;
+```
+
+Pre-existing baseline exceptions (grandfathered until v0.6.0) are documented inline in [configs/dependency-cruiser.cjs](configs/dependency-cruiser.cjs); they are not drawn on this diagram so the long-term shape is the one a new contributor reads.
+
 ## Further Reading
 
 - [Full Architecture (v0.3.0)](docs/v0.3.0/architecture.md) -- v0.3.0 design including installer + evaluation framework
