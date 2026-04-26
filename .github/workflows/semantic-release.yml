@@ -33,12 +33,16 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      # semantic-release v25 requires Node >= 22.14.0 || >= 24.10.0. The rest
+      # of the project still targets Node 18 (engines.node), but this
+      # workflow is the only consumer of semantic-release, so it pins a
+      # newer Node here in isolation.
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: "20"
+          node-version: "22"
           cache: "npm"
 
-      - run: npm ci --prefer-offline --no-audit --silent
+      - run: npm ci --prefer-offline --no-audit
 
       - name: Run semantic-release
         env:

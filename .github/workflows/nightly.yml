@@ -34,7 +34,7 @@ jobs:
           node-version: "20"
           cache: "npm"
 
-      - run: npm ci --prefer-offline --no-audit --silent
+      - run: npm ci --prefer-offline --no-audit
       - run: npm run build
 
       - name: Run integration tests
@@ -63,7 +63,7 @@ jobs:
           node-version: "20"
           cache: "npm"
 
-      - run: npm ci --prefer-offline --no-audit --silent
+      - run: npm ci --prefer-offline --no-audit
       - run: npm run build
 
       - name: Run benchmarks

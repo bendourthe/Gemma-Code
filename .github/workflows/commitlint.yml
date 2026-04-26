@@ -26,7 +26,7 @@ jobs:
           node-version: "20"
           cache: "npm"
 
-      - run: npm ci --prefer-offline --no-audit --silent
+      - run: npm ci --prefer-offline --no-audit
 
       - name: Lint pull request commits
         run: npx commitlint --from "${{ github.event.pull_request.base.sha }}" --to HEAD --verbose
