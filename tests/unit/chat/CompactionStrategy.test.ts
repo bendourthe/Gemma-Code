@@ -52,26 +52,41 @@ function makeClient(summaryText: string): OllamaClient {
 // ---------------------------------------------------------------------------
 
 describe("estimateTokensForMessages", () => {
-  it("estimates tokens as char_count / 4 for plain text", () => {
-    const messages = [msg("user", "a".repeat(400))];
-    expect(estimateTokensForMessages(messages)).toBe(100);
-  });
+  // Phase 5+ delegates to tiktoken cl100k_base. The pre-Phase-5 char/4
+  // heuristic with a 1.3x code-block multiplier is gone; assertions here
+  // verify behavior (positivity, monotonicity, sum) rather than magic
+  // numbers tied to the old algorithm.
 
-  it("applies 1.3x multiplier for messages containing code blocks", () => {
-    const messages = [msg("assistant", "```js\n" + "a".repeat(400) + "\n```")];
-    expect(estimateTokensForMessages(messages)).toBeGreaterThan(100);
+  it("produces a positive estimate for non-empty content", () => {
+    const messages = [msg("user", "hello world")];
+    expect(estimateTokensForMessages(messages)).toBeGreaterThan(0);
   });
 
   it("returns 0 for an empty array", () => {
     expect(estimateTokensForMessages([])).toBe(0);
   });
 
+  it("scales monotonically with content length", () => {
+    const shortMessages = [msg("user", "hi")];
+    const longMessages = [msg("user", "word1 word2 word3 ".repeat(40))];
+    expect(estimateTokensForMessages(longMessages)).toBeGreaterThan(
+      estimateTokensForMessages(shortMessages),
+    );
+  });
+
   it("sums tokens across multiple messages", () => {
-    const messages = [
-      msg("user", "a".repeat(200)),   // 50 tokens
-      msg("assistant", "b".repeat(200)), // 50 tokens
+    // Sum of two identical messages should be ~2x a single one. The
+    // assertion is approximate (within 20%) to tolerate tokenizer edge
+    // effects at message boundaries without re-introducing magic numbers.
+    const single = [msg("user", "word1 word2 word3 ".repeat(20))];
+    const double = [
+      msg("user", "word1 word2 word3 ".repeat(20)),
+      msg("assistant", "word1 word2 word3 ".repeat(20)),
     ];
-    expect(estimateTokensForMessages(messages)).toBe(100);
+    const singleTokens = estimateTokensForMessages(single);
+    const doubleTokens = estimateTokensForMessages(double);
+    expect(doubleTokens).toBeGreaterThanOrEqual(2 * singleTokens * 0.8);
+    expect(doubleTokens).toBeLessThanOrEqual(2 * singleTokens * 1.2);
   });
 });
 
@@ -95,7 +110,9 @@ describe("CompactionPipeline", () => {
 
   it("calls strategies in order until under budget", async () => {
     const callOrder: string[] = [];
-    const bigMessages = [msg("user", "a".repeat(4000))]; // 1000 tokens
+    // ~1201 tokens of varied prose (`"a".repeat(4000)` only counts as ~500
+    // tokens under tiktoken because of BPE merges).
+    const bigMessages = [msg("user", "word1 word2 word3 ".repeat(200))];
 
     const s1: CompactionStrategy = {
       name: "first",
@@ -464,8 +481,8 @@ describe("LlmSummary", () => {
   });
 
   it("canApply returns true when more than 5% over budget", () => {
-    // 400 chars = 100 tokens. Budget = 50. 100 > 50 * 1.05 = 52.5.
-    const messages = [msg("user", "a".repeat(400))];
+    // ~241 tokens of varied prose vs. budget of 50 (well above 50 * 1.05).
+    const messages = [msg("user", "word1 word2 word3 ".repeat(40))];
     const strategy = new LlmSummary(makeClient(""), "gemma4", 1);
     expect(strategy.canApply(messages, 50)).toBe(true);
   });

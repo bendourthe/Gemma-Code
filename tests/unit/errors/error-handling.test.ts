@@ -139,8 +139,11 @@ describe("ContextCompactor — shouldCompact threshold", () => {
 
   it("triggers compaction when token estimate exceeds 80% of maxTokens", () => {
     const manager = new ConversationManager("Test system prompt.");
-    // 8192 * 0.8 = 6553.6 tokens → ~26 215 characters.
-    const longMsg = "a".repeat(27_000);
+    // Phase 5+ (tiktoken cl100k_base): need ~6554 tokens to clear the 80%
+    // threshold against an 8192-token budget. Repeated `aaaa...` collapses
+    // under BPE merging (`"a".repeat(27000)` ~= 3375 tokens), so use
+    // varied prose that tokenizes predictably (~6 tokens per repeat unit).
+    const longMsg = "word1 word2 word3 ".repeat(1500);
     manager.addUserMessage(longMsg);
     const compactor = new ContextCompactor(manager, {} as never, "gemma4", 8192);
     expect(compactor.shouldCompact()).toBe(true);

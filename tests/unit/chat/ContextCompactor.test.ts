@@ -52,20 +52,34 @@ describe("ContextCompactor", () => {
   // -------------------------------------------------------------------------
 
   describe("estimateTokens", () => {
-    it("estimates tokens as char_count / 4 for plain text", () => {
-      const manager = makeManager([
-        { role: "user", content: "a".repeat(400) }, // 400 chars -> 100 tokens
+    // Phase 5+ uses tiktoken cl100k_base via PromptBudget.countTokens. The
+    // pre-Phase-5 char/4 heuristic (with a 1.3x code-block multiplier) is
+    // gone; we no longer assert magic numbers, only the behavior we care
+    // about: estimates are non-negative, monotonic with input length, and
+    // produce a positive count for any non-empty content.
+    it("produces a positive estimate that scales with input length", () => {
+      const shortManager = makeManager([{ role: "user", content: "hello" }]);
+      const longManager = makeManager([
+        { role: "user", content: "word1 word2 word3 ".repeat(40) },
       ]);
-      const compactor = new ContextCompactor(manager, makeClient(""), MODEL, MAX_TOKENS);
-      expect(compactor.estimateTokens()).toBe(100);
+      const shortCompactor = new ContextCompactor(
+        shortManager, makeClient(""), MODEL, MAX_TOKENS,
+      );
+      const longCompactor = new ContextCompactor(
+        longManager, makeClient(""), MODEL, MAX_TOKENS,
+      );
+      expect(shortCompactor.estimateTokens()).toBeGreaterThan(0);
+      expect(longCompactor.estimateTokens()).toBeGreaterThan(
+        shortCompactor.estimateTokens(),
+      );
     });
 
-    it("applies a 1.3x multiplier for messages containing code blocks", () => {
+    it("produces a positive estimate for code-block content", () => {
       const manager = makeManager([
         { role: "assistant", content: "```js\n" + "a".repeat(400) + "\n```" },
       ]);
       const compactor = new ContextCompactor(manager, makeClient(""), MODEL, 1000);
-      expect(compactor.estimateTokens()).toBeGreaterThan(100);
+      expect(compactor.estimateTokens()).toBeGreaterThan(0);
     });
   });
 
@@ -81,8 +95,11 @@ describe("ContextCompactor", () => {
     });
 
     it("returns true when token count reaches 80% of limit", () => {
+      // Varied prose tokenizes predictably under tiktoken (~6 tokens per
+      // repeat unit). 14 reps ~= 85 tokens, comfortably above the 80%
+      // threshold against MAX_TOKENS=100.
       const manager = makeManager([
-        { role: "user", content: "a".repeat(320) }, // 80 tokens = 80% of 100
+        { role: "user", content: "word1 word2 word3 ".repeat(14) },
       ]);
       const compactor = new ContextCompactor(manager, makeClient(""), MODEL, MAX_TOKENS);
       expect(compactor.shouldCompact()).toBe(true);
@@ -90,24 +107,24 @@ describe("ContextCompactor", () => {
 
     it("returns true when token count exceeds the limit", () => {
       const manager = makeManager([
-        { role: "user", content: "a".repeat(600) }, // 150 tokens > 100
+        { role: "user", content: "word1 word2 word3 ".repeat(40) }, // ~241 tokens
       ]);
       const compactor = new ContextCompactor(manager, makeClient(""), MODEL, MAX_TOKENS);
       expect(compactor.shouldCompact()).toBe(true);
     });
 
     it("uses custom compaction threshold when provided", () => {
-      // 70 tokens = 70% of 100 => below default 80% but at custom 0.7 threshold
+      // 12 reps ~= 73 tokens: below default 0.8 (80) but above custom 0.7 (70).
       const manager = makeManager([
-        { role: "user", content: "a".repeat(280) }, // 70 tokens
+        { role: "user", content: "word1 word2 word3 ".repeat(12) },
       ]);
       const compactorDefault = new ContextCompactor(manager, makeClient(""), MODEL, MAX_TOKENS);
-      expect(compactorDefault.shouldCompact()).toBe(false); // 70% < 80%
+      expect(compactorDefault.shouldCompact()).toBe(false);
 
       const compactorCustom = new ContextCompactor(
         manager, makeClient(""), MODEL, MAX_TOKENS, undefined, undefined, 0.7,
       );
-      expect(compactorCustom.shouldCompact()).toBe(true); // 70% >= 70%
+      expect(compactorCustom.shouldCompact()).toBe(true);
     });
   });
 
@@ -127,7 +144,7 @@ describe("ContextCompactor", () => {
 
     it("runs pipeline and calls replaceMessages when threshold is crossed", async () => {
       const manager = makeManager([
-        { role: "user", content: "a".repeat(400) }, // 100 tokens = threshold
+        { role: "user", content: "word1 word2 word3 ".repeat(40) }, // ~241 tokens, well above MAX_TOKENS=100
       ]);
       const compactor = new ContextCompactor(manager, makeClient("summary"), MODEL, MAX_TOKENS);
 
