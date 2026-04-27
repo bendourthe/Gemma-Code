@@ -61,9 +61,15 @@ describe("PermissionTiers", () => {
       expect(shouldRequireConfirmation("fetch_page")).toBe(true);
     });
 
-    it("respects user overrides", () => {
+    it("clamps tier-2 overrides to CONFIRM (cannot drop tier-2 to auto-approve)", () => {
+      // Phase 1.2 (v0.6.0) clamp: pen-test F-003 / Attack Path A auto-approve leg.
       const overrides = { run_terminal: PermissionTier.AUTO_APPROVE };
-      expect(shouldRequireConfirmation("run_terminal", overrides)).toBe(false);
+      expect(shouldRequireConfirmation("run_terminal", overrides)).toBe(true);
+    });
+
+    it("honors override that elevates baseline (no upper clamp)", () => {
+      const overrides = { read_file: PermissionTier.DANGEROUS };
+      expect(shouldRequireConfirmation("read_file", overrides)).toBe(true);
     });
   });
 

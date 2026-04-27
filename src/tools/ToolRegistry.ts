@@ -137,7 +137,12 @@ export class ToolRegistry {
       const warning = tier === PermissionTier.DANGEROUS
         ? getDangerousWarning(call.tool, call.parameters)
         : `Tool "${call.tool}" requires confirmation.`;
-      const approved = await this._confirmationGate.request(call.id, warning);
+      const approved = await this._confirmationGate.request(
+        call.id,
+        warning,
+        undefined,
+        call.source,
+      );
       if (!approved) {
         return {
           id: call.id,

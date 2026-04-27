@@ -70,4 +70,29 @@ describe("ConfirmationGate", () => {
     // Second resolve should be a no-op (pending map is empty)
     expect(() => gate.resolve("id1", false)).not.toThrow();
   });
+
+  // ---- peer attribution (pen-test F-004) -----------------------------------
+
+  describe("peer attribution", () => {
+    it("does not prefix when source is local-agent or undefined", () => {
+      void gate.request("a", "Run command?", undefined, "local-agent");
+      void gate.request("b", "Run command?");
+      expect(posted[0]).toMatchObject({ description: "Run command?" });
+      expect(posted[1]).toMatchObject({ description: "Run command?" });
+    });
+
+    it("prefixes with 'External MCP client' when source is mcp", () => {
+      void gate.request("c", "delete file foo.txt", undefined, "mcp");
+      expect(posted[0]).toMatchObject({
+        description: "External MCP client wants to: delete file foo.txt",
+      });
+    });
+
+    it("prefixes with 'verification sub-agent' when source is sub-agent", () => {
+      void gate.request("d", "run a check", undefined, "sub-agent");
+      expect(posted[0]).toMatchObject({
+        description: "The verification sub-agent wants to: run a check",
+      });
+    });
+  });
 });

@@ -282,3 +282,45 @@ All 14 P0 findings closed plus version bump. See [docs/DEVLOG.md](DEVLOG.md) and
 ### Phase 7 — Simplification & Release [PENDING]
 
 17 simplification findings; ~800 LOC target deletion; v0.4.0 tag + VSIX publish.
+
+---
+
+## v0.5.0 — Unified Adoption Release [SHIPPED 2026-04-26]
+
+12-phase consolidation cycle adopting five external comparisons (Claude Code, Routa, Foundry Vault, Token Optimizer MCP, agent-friendly CLI rubric). All phases landed; tag `v0.5.4` cut. Plan: [docs/v0.5.0/plans/implementation-plan.md](v0.5.0/plans/implementation-plan.md). Architecture: [docs/v0.5.0/architecture.md](v0.5.0/architecture.md).
+
+- [x] Phase 1 — Identity & Naming (AGENTS.md canonical; CLAUDE.md removed)
+- [x] Phase 2 — Tool Surface Hardening (max_bytes, range_start/end, next_offset)
+- [x] Phase 3 — Compression Foundation
+- [x] Phase 4 — Persistent Cache + Diff-Based Reads
+- [x] Phase 5 — Semantic Recall + Budgeting
+- [x] Phase 6 — Mutation Safety + Structured Outputs (dry_run, format=json)
+- [x] Phase 7 — Memory Hygiene + Corroboration
+- [x] Phase 8 — Generic Harness + Specialist Externalization
+- [x] Phase 9 — Coverage + Observability
+- [x] Phase 10 — Local-Dev Hygiene + CI Hardening
+- [x] Phase 11 — Documentation Discipline (ADRs, catalog, governance)
+- [x] Phase 12 — Advanced Fallbacks (PredictiveCache, eviction strategies, HeuristicEmbedder, semantic-release)
+
+---
+
+## v0.6.0 — Review-Driven Cycle [IN PROGRESS]
+
+Hygiene/ratchet cycle closing the v0.6.0 review pass (1 P0, 6 P1, 9 P2, 11 P3). No new product surface; pays down v0.5.0 technical debt. Plan: [docs/v0.6.0/plans/v0.6.0-cycle.md](v0.6.0/plans/v0.6.0-cycle.md).
+
+### Phase 1 — Security chain closure [COMPLETED 2026-04-26]
+
+Closes pen-test F-001, F-003, F-004; both legs of Attack Path A refuse the operation. See [docs/v0.6.0/development/history/2026-04_phase-1-security-chain-closure.md](v0.6.0/development/history/2026-04_phase-1-security-chain-closure.md).
+
+- [x] 1.1 Unify path resolution behind realpath-aware `pathGuard.resolveInsideWorkspace` (with ancestor walk for non-existent leaves) + 7-tool symlink regression test
+- [x] 1.2 Clamp `permissionOverrides` so confirmation-tier tools cannot drop to AUTO_APPROVE (with logger warning + dedupe)
+- [x] 1.3 Tag MCP-originated tool calls with `source: "mcp"` peer attribution in ConfirmationGate; add `gemma-code.mcpExposedTools` allowlist (read-only by default)
+- [x] 1.4 Phase 1 testing and stabilization (17 new tests + lint + deps:check + catalog:check green)
+
+### Phase 2 — Test pipeline reliability + release-gate baselines [PENDING]
+### Phase 3 — Defense-in-depth ratchets [PENDING]
+### Phase 4 — Module-boundary ratchet [PENDING]
+### Phase 5 — Doc/code drift + dead-code cleanup [PENDING]
+### Phase 6 — Panel decomposition [PENDING]
+### Phase 7 — Polish + simplification [PENDING]
+### Phase 8 — Release gate + ADRs + CHANGELOG [PENDING]

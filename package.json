@@ -275,7 +275,19 @@
         "gemma-code.permissionOverrides": {
           "type": "object",
           "default": {},
-          "description": "Override default permission tiers for individual tools. Values: 0 = auto-approve, 1 = confirm, 2 = dangerous."
+          "description": "Override default permission tiers for individual tools. Values: 0 = auto-approve, 1 = confirm, 2 = dangerous. Floor: tools whose baseline tier requires confirmation (delete_file, run_terminal, fetch_page, web_search, write_file, edit_file, create_file, MCP tools) cannot be dropped to 0; the override is silently clamped to 1 with a logger warning."
+        },
+        "gemma-code.mcpExposedTools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "read_file",
+            "list_directory",
+            "grep_codebase"
+          ],
+          "description": "Built-in tools exposed to external MCP clients when the Gemma Code MCP server is enabled. Defaults to the read-only subset; broaden cautiously. Confirmation-tier tools still require user approval per call."
         },
         "gemma-code.otlpEnabled": {
           "type": "boolean",

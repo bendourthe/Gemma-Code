@@ -36,10 +36,18 @@ export const BUILTIN_TOOL_NAMES: readonly BuiltinToolName[] = [
 /** @deprecated Use BUILTIN_TOOL_NAMES instead. */
 export const TOOL_NAMES: readonly BuiltinToolName[] = BUILTIN_TOOL_NAMES;
 
+/**
+ * Where the tool call originates. Used by ConfirmationGate to attribute the
+ * confirmation prompt to the correct peer so a user can distinguish a local
+ * agent action from an external MCP-driven request. Closes pen-test F-004.
+ */
+export type ToolCallSource = "local-agent" | "sub-agent" | "mcp";
+
 export interface ToolCall {
   readonly tool: ToolName;
   readonly id: string;
   readonly parameters: Record<string, unknown>;
+  readonly source?: ToolCallSource;
 }
 
 export interface ToolResult {

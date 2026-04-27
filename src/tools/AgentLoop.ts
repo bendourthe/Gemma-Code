@@ -64,6 +64,12 @@ export interface AgentLoopOptions {
    * the loop emits `limit: 0` to signal "unknown" (legacy behavior).
    */
   readonly maxTokens?: number;
+  /**
+   * Default tool-call source attribution. Used by ConfirmationGate to label
+   * confirmation prompts with the originating peer (local agent vs.
+   * verification sub-agent). Closes pen-test F-004.
+   */
+  readonly toolCallSource?: import("./types.js").ToolCallSource;
 }
 
 export class AgentLoop {
@@ -85,6 +91,7 @@ export class AgentLoop {
   private readonly _maxTokens: number;
   private readonly _tracer: Tracer;
   private readonly _operationLog?: OperationLog;
+  private readonly _toolCallSource?: import("./types.js").ToolCallSource;
   private _gitCheckpoint: GitCheckpoint | null = null;
   private _traceId = "";
   private _rootSpanId = "";
@@ -112,6 +119,7 @@ export class AgentLoop {
     this._maxTokens = options?.maxTokens ?? 0;
     this._tracer = options?.tracer ?? new Tracer();
     this._operationLog = options?.operationLog;
+    this._toolCallSource = options?.toolCallSource;
   }
 
   /** Set or replace the budget middleware (used for async tier config updates). */
@@ -379,6 +387,7 @@ export class AgentLoop {
     const result = await this._registry.execute({
       ...call,
       parameters: { ...call.parameters, _callId: call.id },
+      source: call.source ?? this._toolCallSource,
     });
 
     tracer.endSpan(toolSpanId, result.success ? "ok" : "error", {

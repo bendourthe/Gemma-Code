@@ -27,6 +27,7 @@ export interface GemmaCodeSettings {
   memoryCorroborationThreshold: number;
   mcpEnabled: boolean;
   mcpServerMode: "stdio" | "off";
+  mcpExposedTools: string[];
   verificationEnabled: boolean;
   verificationThreshold: number;
   subAgentMaxIterations: number;
@@ -83,6 +84,7 @@ export function getSettings(): GemmaCodeSettings {
       Math.max(1, Math.min(5, config.get<number>("memoryCorroborationThreshold") ?? 2)),
     mcpEnabled: config.get<boolean>("mcpEnabled") ?? false,
     mcpServerMode: (config.get<string>("mcpServerMode") as "stdio" | "off" | undefined) ?? "off",
+    mcpExposedTools: config.get<string[]>("mcpExposedTools") ?? ["read_file", "list_directory", "grep_codebase"],
     verificationEnabled: config.get<boolean>("verificationEnabled") ?? true,
     verificationThreshold: config.get<number>("verificationThreshold") ?? 3,
     subAgentMaxIterations: config.get<number>("subAgentMaxIterations") ?? 10,

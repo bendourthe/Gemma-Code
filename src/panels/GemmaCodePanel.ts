@@ -341,7 +341,11 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     }
 
     if (settings.mcpServerMode === "stdio") {
-      this._mcpServer = new McpServer(this._registry, TOOL_CATALOG);
+      this._mcpServer = new McpServer(
+        this._registry,
+        TOOL_CATALOG,
+        settings.mcpExposedTools,
+      );
       void this._mcpServer.start().catch((err) => {
         getLogger().warn("[McpServer] Failed to start:", err);
       });

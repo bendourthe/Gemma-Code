@@ -4,6 +4,93 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-04-26] v0.6.0 Phase 1 -- Security chain closure
+
+### Goal
+
+Break Attack Path A (the only chained P0 finding from the v0.6.0 review pass): a hostile workspace combining a workspace-internal symlink with a `gemma-code.permissionOverrides` downgrade that auto-approves a dangerous tool. Phase 1 closes both legs of that chain plus a small, paired hardening for MCP-driven tool calls (peer attribution + read-only allowlist by default).
+
+Plan reference: [docs/v0.6.0/plans/v0.6.0-cycle.md](v0.6.0/plans/v0.6.0-cycle.md) Phase 1 (sub-tasks 1.1, 1.2, 1.3, 1.4). Findings closed: pen-test F-001 / F-003 / F-004; codebase-review #1 and #6.
+
+### Attempted Solutions
+
+#### Approach 1 (filesystem path-guard unification): straight delegation
+
+In [src/tools/handlers/filesystem.ts](../src/tools/handlers/filesystem.ts), replaced the body of the local lexical `resolveWorkspacePath` helper with a thin delegation to `resolveInsideWorkspace` from [src/tools/handlers/pathGuard.ts](../src/tools/handlers/pathGuard.ts). The path-guard helper was already realpath-aware via `safeRealpath` -> `fs.realpathSync`. Initial test run showed 5 of 7 filesystem tools rejecting symlink escapes correctly.
+
+*Result*: Partially worked. **`write_file` and `create_file` still allowed escape through the symlink.**
+
+*Error*: `expected true to be false // Object.is equality` -- the new file's leaf did not exist yet, so `fs.realpathSync(absolute)` threw ENOENT and `safeRealpath` fell back to `path.resolve(absolute)`, which is purely lexical and silently honours symlinks in the parent chain.
+
+*Analysis*: The unified guard's symlink-following only worked for paths whose leaf exists. For write/create, the leaf is by definition new -- so symlinks in the parent chain were never resolved. This is a real gap not called out by the plan.
+
+#### Approach 2 (the fix): walk to the deepest existing ancestor
+
+Added `realpathThroughExistingAncestor` to [src/tools/handlers/pathGuard.ts](../src/tools/handlers/pathGuard.ts): try `fs.realpathSync(absolute)` first; on failure, walk up the path one segment at a time, accumulating non-existent tail segments, until an ancestor *does* exist. Realpath that ancestor and re-attach the tail. The boundary check is then performed on a path whose existing components have all had their symlinks resolved.
+
+*Result*: All 7 filesystem tool symlink-escape tests pass. The existing 27 filesystem unit tests still pass with one assertion-string update (`"Path traversal"` -> `"resolves outside the workspace"`).
+
+#### Approach 3 (permissionOverrides clamp): naive read-side floor
+
+In [src/guardrails/PermissionTiers.ts](../src/guardrails/PermissionTiers.ts), `getPermissionTier` was extended to read the baseline tier (`TOOL_PERMISSION_MAP[name]` or `DANGEROUS` for unknown/MCP tools) before applying `userOverrides[name]`. If the baseline >= CONFIRM and the requested override < CONFIRM, the override is clamped to CONFIRM with `getLogger().warn(...)`. The plan's prompt cited "tier-2 tools (run_terminal, delete_file)" but its test description asserted the clamp also applies to `delete_file` (which has baseline tier 1, not 2). The strict interpretation of the prompt would have honoured `delete_file: 0` as auto-approve -- defeating the security goal.
+
+*Result*: Implemented the broader and more accurate semantic: any tool whose baseline requires confirmation cannot be dropped to AUTO_APPROVE. Updated the warning text to match. All three test cases pass: run_terminal (baseline DANGEROUS) -> CONFIRM, delete_file (baseline CONFIRM) -> CONFIRM, read_file (baseline AUTO_APPROVE) -> AUTO_APPROVE honoured.
+
+Added a small dedupe set (`_warnedOverrides`) so a permanent workspace-level override does not flood the log on every tool execution. Exported `_resetPermissionOverrideWarnings()` for test isolation.
+
+#### Approach 4 (MCP peer attribution): thread `source` through ToolCall
+
+Added `ToolCallSource = "local-agent" | "sub-agent" | "mcp"` to [src/tools/types.ts](../src/tools/types.ts) and an optional `source?: ToolCallSource` on `ToolCall`. [src/tools/ConfirmationGate.ts](../src/tools/ConfirmationGate.ts) `request(id, description, detail, source?)` now prefixes the description: `"External MCP client wants to: ..."` for `mcp`, `"The verification sub-agent wants to: ..."` for `sub-agent`, unprefixed otherwise. [src/tools/ToolRegistry.ts](../src/tools/ToolRegistry.ts) threads `call.source` to the gate. [src/tools/AgentLoop.ts](../src/tools/AgentLoop.ts) gained `AgentLoopOptions.toolCallSource` so a constructor can stamp every dispatch (used by SubAgentManager for `"sub-agent"`). [src/mcp/McpServer.ts](../src/mcp/McpServer.ts) stamps `source: "mcp"` on every dispatched call AND introduces a `DEFAULT_MCP_EXPOSED_TOOLS = ["read_file", "list_directory", "grep_codebase"]` allowlist that filters which tools are registered with the SDK; broaden via the new `gemma-code.mcpExposedTools` setting.
+
+*Result*: External MCP clients can no longer drive write/delete/terminal tools by default, and the user-visible confirmation prompt now correctly attributes the request when something does require confirmation.
+
+### Changes
+
+- Added [tests/unit/tools/handlers/filesystem-symlink.test.ts](../tests/unit/tools/handlers/filesystem-symlink.test.ts): 7-tool symlink-escape regression on a real workspace + outside dir + symlink/junction. Includes a runtime probe that detects whether the host can create symlinks (Linux: yes; Windows: requires Developer Mode or junction) and skips the suite gracefully when not.
+- Added [tests/integration/permission-overrides-clamp.test.ts](../tests/integration/permission-overrides-clamp.test.ts): full-stack integration through `getSettings()` + `getPermissionTier()` + a capturing logger covering the tier-2 clamp, the CONFIRM-baseline clamp, the AUTO_APPROVE honour, MCP-tool clamping, and warning dedupe.
+- Modified [src/tools/handlers/pathGuard.ts](../src/tools/handlers/pathGuard.ts): ancestor-walking realpath for non-existent leaves.
+- Modified [src/tools/handlers/filesystem.ts](../src/tools/handlers/filesystem.ts): unified path-guard delegation; `list_directory` also routed through the guard (it had been bypassing).
+- Modified [src/guardrails/PermissionTiers.ts](../src/guardrails/PermissionTiers.ts): baseline-aware override clamp + dedupe.
+- Modified [src/tools/types.ts](../src/tools/types.ts), [src/tools/ConfirmationGate.ts](../src/tools/ConfirmationGate.ts), [src/tools/ToolRegistry.ts](../src/tools/ToolRegistry.ts), [src/tools/AgentLoop.ts](../src/tools/AgentLoop.ts): peer-attribution plumbing.
+- Modified [src/agents/SubAgentManager.ts](../src/agents/SubAgentManager.ts): `AgentLoop` constructed with `{ toolCallSource: "sub-agent" }`.
+- Modified [src/mcp/McpServer.ts](../src/mcp/McpServer.ts): `DEFAULT_MCP_EXPOSED_TOOLS` allowlist; `source: "mcp"` stamping on dispatch.
+- Modified [src/panels/GemmaCodePanel.ts](../src/panels/GemmaCodePanel.ts): forwards `settings.mcpExposedTools` to the McpServer constructor.
+- Modified [src/config/settings.ts](../src/config/settings.ts), [package.json](../package.json): new `gemma-code.mcpExposedTools` setting and updated description for `gemma-code.permissionOverrides` documenting the floor.
+- Modified [tests/unit/guardrails/PermissionTiers.test.ts](../tests/unit/guardrails/PermissionTiers.test.ts), [tests/unit/tools/handlers/filesystem.test.ts](../tests/unit/tools/handlers/filesystem.test.ts), [tests/unit/tools/ConfirmationGate.test.ts](../tests/unit/tools/ConfirmationGate.test.ts), [tests/unit/mcp/McpServer.test.ts](../tests/unit/mcp/McpServer.test.ts): assertion updates and 5 new test cases.
+- Modified [docs/v0.5.0/architecture.md](v0.5.0/architecture.md): Section 2 documents the MCP allowlist + peer attribution; Section 9 documents the unified path-guard and the override clamp.
+- Added [docs/v0.6.0/development/history/2026-04_phase-1-security-chain-closure.md](v0.6.0/development/history/2026-04_phase-1-security-chain-closure.md): full Phase 1 session history.
+- Added [docs/git/gitignore-audit-2026-04-26.md](git/gitignore-audit-2026-04-26.md): clean gitignore audit (zero findings).
+- Regenerated [docs/index.md](index.md) catalogue (line counts shifted in tools / guardrails / mcp / agents / config / panels modules).
+
+### Lessons Learned
+
+- **`fs.realpathSync` throws ENOENT for non-existent paths.** Any path-boundary guard that depends on realpath must walk up to an existing ancestor when the leaf is new. The Node.js stdlib does not expose a `realpath(path, {strict: false})` mode equivalent to Python's `Path.resolve(strict=False)` -- you have to implement it manually. The minimal correct implementation is in `realpathThroughExistingAncestor` at [src/tools/handlers/pathGuard.ts](../src/tools/handlers/pathGuard.ts).
+- **Symlinks vs. junctions on Windows.** A test that creates a symlink with default options will fail on stock Windows (no admin / no Developer Mode). The same `fs.symlinkSync(target, path, 'junction')` call works without elevation when `target` is a directory. New tests that need an FS escape vector should auto-detect via a probe and either use the junction fallback or `describe.skipIf(!available)`. The pattern is in [tests/unit/tools/handlers/filesystem-symlink.test.ts](../tests/unit/tools/handlers/filesystem-symlink.test.ts).
+- **`vscode.workspace.workspaceFolders` is mockable per-test via `Object.defineProperty`.** Existing reference: [tests/integration/dry-run-end-to-end.test.ts](../tests/integration/dry-run-end-to-end.test.ts). Save the original descriptor in `beforeAll`/`beforeEach` and restore in `afterAll`/`afterEach` so other tests are unaffected.
+- **The full `npm run test` segfaults at process exit on Windows + Node 24 + better-sqlite3.** This is a pre-existing flake on `main` (verified by stashing all Phase 1 changes and re-running). All test files show ✓ before the segfault; the issue is at native-module cleanup. Subsystem-targeted runs print clean summaries. Until this is debugged, prefer `npx vitest run --config configs/vitest.config.ts <subdirs>` for verification.
+
+### Quality gates
+
+- Lint clean: 0 errors, 1 pre-existing warning in `src/config/GpuDetector.ts` (out-of-phase scope).
+- Build clean: `tsc --noEmit -p tsconfig.json` succeeds.
+- Subsystem unit tests: `tests/unit/tools/`, `tests/unit/guardrails/`, `tests/unit/mcp/`, `tests/unit/panels/`, `tests/unit/agents/`, `tests/unit/chat/` -- 51 files, 759 tests, all passing.
+- Subsystem integration tests: `tests/integration/permission-overrides-clamp.test.ts`, `tests/integration/config-reload.test.ts`, `tests/integration/dry-run-end-to-end.test.ts`, `tests/integration/format-json-end-to-end.test.ts` -- 4 files, 25 tests, all passing.
+- New tests: 7 (symlink) + 5 (override clamp) + 3 (ConfirmationGate peer attribution) + 2 (McpServer allowlist + source) = **17 new tests**, all passing.
+- `npm run deps:check`: 0 errors, 3 pre-existing baseline warnings unchanged (PredictiveCache orphan + 2 circular deps slated for Phase 4).
+- `npm run catalog:check`: regenerated `docs/index.md` to track the line-count delta.
+- `npm run lint && npm run test:integration`: subsystem-targeted runs green; full-suite runs all-green-then-segfault at process exit (pre-existing).
+
+### Deferred from this session
+
+- Manual end-to-end exercise of Attack Path A in a dev VS Code instance (the on-disk regression tests cover both legs; manual traversal is a confirmation step, not a correctness check).
+- Phase 1.4 also calls for `/generate-session-history` -- the dedicated session-history file at [docs/v0.6.0/development/history/2026-04_phase-1-security-chain-closure.md](v0.6.0/development/history/2026-04_phase-1-security-chain-closure.md) replaces that step.
+
+### Current Status
+
+Verified. Phase 1 closes the only P0 chain identified by the v0.6.0 review pass. The test pipeline now has the safety net for Phase 2 to verify CI fail-on-error wiring and rewrite the 12 failing token-estimation assertions before Phase 3-7 do meaningful refactoring.
+
+---
+
 ## [2026-04-26] v0.5.0 Phase 12 -- Advanced Fallbacks + Release Gate
 
 ### Summary

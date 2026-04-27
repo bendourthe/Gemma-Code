@@ -1,15 +1,40 @@
 import type { PostMessageFn } from "../chat/StreamingPipeline.js";
+import type { ToolCallSource } from "./types.js";
 
 const TIMEOUT_MS = 60_000;
+
+/**
+ * Prefix the confirmation description with the originating peer so the user
+ * can distinguish a local-agent request from an external MCP client request
+ * or a verification sub-agent request. Pen-test F-004.
+ */
+function attributeDescription(
+  description: string,
+  source: ToolCallSource | undefined,
+): string {
+  switch (source) {
+    case "mcp":
+      return `External MCP client wants to: ${description}`;
+    case "sub-agent":
+      return `The verification sub-agent wants to: ${description}`;
+    case "local-agent":
+    case undefined:
+    default:
+      return description;
+  }
+}
 
 /**
  * Bridges the webview confirmation UI to a Promise-based API.
  *
  * Usage:
- *   1. `await gate.request(id, description, detail)` — posts a confirmationRequest
- *      to the webview and resolves when the user approves or rejects (or times out).
- *   2. `gate.resolve(id, approved)` — called by GemmaCodePanel when it receives
- *      a confirmationResponse message from the webview.
+ *   1. `await gate.request(id, description, detail, source?)` -- posts a
+ *      confirmationRequest to the webview and resolves when the user
+ *      approves or rejects (or times out). When `source` is provided, the
+ *      description is prefixed with peer attribution so the user can tell a
+ *      local-agent request from an MCP-driven request.
+ *   2. `gate.resolve(id, approved)` -- called by GemmaCodePanel when it
+ *      receives a confirmationResponse message from the webview.
  */
 export class ConfirmationGate {
   private readonly _pending = new Map<string, (approved: boolean) => void>();
@@ -20,14 +45,19 @@ export class ConfirmationGate {
    * Post a confirmation request to the webview and wait for the user's response.
    * Returns true if approved, false if rejected or the 60-second timeout expires.
    */
-  request(id: string, description: string, detail?: string): Promise<boolean> {
+  request(
+    id: string,
+    description: string,
+    detail?: string,
+    source?: ToolCallSource,
+  ): Promise<boolean> {
     return new Promise<boolean>((resolve) => {
       this._pending.set(id, resolve);
 
       this._postMessage({
         type: "confirmationRequest",
         id,
-        description,
+        description: attributeDescription(description, source),
         detail,
       });
 

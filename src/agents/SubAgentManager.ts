@@ -149,6 +149,7 @@ export class SubAgentManager {
         undefined, // no compactor
         this._ollamaOptions,
         ollamaTools,
+        { toolCallSource: "sub-agent" },
       );
 
       await agentLoop.run(trackingPostMessage);

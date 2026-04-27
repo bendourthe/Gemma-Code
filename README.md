@@ -129,6 +129,8 @@ All settings are under `gemma-code.*` in VS Code settings (`Ctrl+,`).
 | `gemma-code.compactionToolResultsKeep` | `8` | Recent tool results to preserve during compaction |
 | `gemma-code.mcpEnabled` | `false` | Enable Model Context Protocol (MCP) support |
 | `gemma-code.mcpServerMode` | `off` | MCP server mode: `stdio` (expose tools) or `off` |
+| `gemma-code.mcpExposedTools` | `["read_file", "list_directory", "grep_codebase"]` | Allowlist of built-in tools exposed to external MCP clients (read-only subset by default) |
+| `gemma-code.permissionOverrides` | `{}` | Per-tool tier override (`0` auto, `1` confirm, `2` dangerous). Tools whose baseline requires confirmation cannot be dropped to `0`; the override is silently clamped to `1` |
 | `gemma-code.verificationEnabled` | `true` | Enable auto-verification sub-agent after file edits |
 | `gemma-code.verificationThreshold` | `3` | Number of file edits before verification triggers |
 | `gemma-code.subAgentMaxIterations` | `10` | Maximum iterations for sub-agent tool loops |

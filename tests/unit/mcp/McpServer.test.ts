@@ -124,4 +124,38 @@ describe("McpServer", () => {
 
     expect(mockServerClose).not.toHaveBeenCalled();
   });
+
+  // ---- Phase 1.3 (v0.6.0): allowlist + source attribution ------------------
+
+  it("registers only tools in the exposed-tools allowlist", async () => {
+    const registry = new ToolRegistry();
+    registry.register("read_file", makeHandler({ id: "1", success: true, output: "" }));
+    registry.register("list_directory", makeHandler({ id: "2", success: true, output: "" }));
+
+    // Allowlist contains only one of the two catalog tools.
+    const server = new McpServer(registry, TEST_CATALOG, ["read_file"]);
+    await server.start();
+
+    expect(mockServerTool).toHaveBeenCalledTimes(1);
+    expect(mockServerTool.mock.calls[0]![0]).toBe("read_file");
+  });
+
+  it("forwards source: 'mcp' to ToolRegistry.execute so ConfirmationGate can attribute the peer", async () => {
+    const handler = makeHandler({ id: "1", success: true, output: "ok" });
+    const registry = new ToolRegistry();
+    registry.register("read_file", handler);
+
+    const executeSpy = vi.spyOn(registry, "execute");
+    const server = new McpServer(registry, [TEST_CATALOG[0]!], ["read_file"]);
+    await server.start();
+
+    const toolHandler = mockServerTool.mock.calls[0]![2] as (
+      params: Record<string, unknown>,
+    ) => Promise<{ content: Array<{ type: string; text: string }>; isError: boolean }>;
+    await toolHandler({ path: "src/index.ts" });
+
+    expect(executeSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ tool: "read_file", source: "mcp" }),
+    );
+  });
 });

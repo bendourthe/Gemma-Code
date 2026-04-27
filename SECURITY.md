@@ -4,9 +4,10 @@
 
 | Version | Supported |
 |---------|-----------|
-| 0.4.0   | Yes |
-| 0.3.0   | Security fixes only |
-| < 0.3.0 | No |
+| 0.6.x   | Yes |
+| 0.5.x   | Yes |
+| 0.4.x   | Security fixes only |
+| < 0.4.0 | No |
 
 ## Reporting a Vulnerability
 
@@ -44,10 +45,12 @@ Gemma Code is designed with a privacy-first, local-only architecture:
 
 - **No external API calls**: all inference runs locally via Ollama on `localhost:11434`. No telemetry, no cloud dependencies.
 - **DNS-resolving SSRF protection**: `FetchPageTool`, `WebSearchTool`, and the optional OTLP exporter validate every URL through `src/utils/ssrf.ts`, which resolves hostnames via DNS and rejects any address (v4 or v6) in loopback, link-local, or RFC-1918 private ranges. Redirects are re-validated on every hop.
-- **Path traversal guard**: all filesystem tools enforce a workspace-root boundary check via `src/tools/handlers/pathGuard.ts`; `run_terminal` reuses the same helper on its `cwd` parameter.
+- **Path traversal guard**: all filesystem tools enforce a workspace-root boundary check via `src/tools/handlers/pathGuard.ts`; `run_terminal` reuses the same helper on its `cwd` parameter. v0.6.0 unified every filesystem handler behind `pathGuard.resolveInsideWorkspace`, which is realpath-aware: symlinks in any path segment are followed, and for write/create targets whose leaf does not yet exist, the deepest existing ancestor is realpath'd before the boundary check. This closes the symlink leg of pen-test Attack Path A.
 - **Shell command safety**: `RunTerminalTool` prefers an allowlist of developer-common commands (`git`, `npm`, `pnpm`, `yarn`, `node`, `python`, `python3`, `pytest`, `cargo`, `go`, `make`, `ls`, `cat`, `echo`, `pwd`) and keeps a hardened hard-blocklist (`rm -rf /`, `mkfs`, `dd if=/dev/zero`, etc.) as defense in depth. All terminal commands are always DANGEROUS-tier and flow through the confirmation gate regardless of edit mode. Commands not on the allowlist are surfaced with an explicit "OUTSIDE the allowlist" warning in the confirmation prompt.
 - **Secret-path denylist**: `ReadFileTool`, `ListDirectoryTool`, and `GrepCodebaseTool` reject paths matching `**/.env*`, `**/id_rsa*`, `**/id_ed25519*`, `**/*.pem`, `**/*.key`, `**/credentials*`, `**/.aws/**`, `**/.ssh/**`, `**/secrets/**`, and `**/.gemma-code/mcp.json` by default. Users may override per-call via `allow_secrets: true`, which triggers an explicit confirmation prompt. Extra patterns can be contributed via `gemma-code.secretPathDenyExtra`.
 - **MCP hardening**: MCP is disabled by default (`mcpEnabled: false`). Workspace-local `.gemma-code/mcp.json` files require explicit user approval on first load, remembered per-workspace in `workspaceState`. Configs are parsed through a Zod schema (bounded name length, command string, transport literal `stdio`). Spawned MCP subprocesses inherit **only** `PATH`, `HOME`, `USERPROFILE`, `APPDATA` (plus any explicitly-configured `env` keys matching the `SHOUTING_SNAKE_CASE` pattern). Tool descriptions are HTML-stripped and capped at 500 chars; tool names must match `^[a-zA-Z0-9_]{1,64}$`.
+- **MCP server allowlist + peer attribution (v0.6.0)**: when `mcpServerMode = "stdio"` exposes Gemma Code's tools to external MCP clients, only the tools listed in `gemma-code.mcpExposedTools` are registered with the SDK; the default is the read-only subset `read_file`, `list_directory`, `grep_codebase`. Every MCP-driven tool call carries a `source: "mcp"` tag through `ToolRegistry.execute`, and the user-visible confirmation prompt is prefixed with `"External MCP client wants to: ..."` so the request cannot masquerade as a local-agent action. Sub-agent calls are similarly attributed.
+- **permissionOverrides floor (v0.6.0)**: `gemma-code.permissionOverrides` cannot drop a tool whose baseline tier requires confirmation to AUTO_APPROVE. Workspace-level `.vscode/settings.json` settings that try to silently auto-approve `delete_file`, `run_terminal`, `web_search`, `fetch_page`, `write_file`, `edit_file`, `create_file`, or any MCP tool are clamped to tier 1 at runtime with a single `getLogger().warn(...)` per (tool, override) pair. Closes the auto-approve leg of pen-test Attack Path A.
 - **ReDoS defense**: `GrepCodebaseTool` rejects regex patterns with nested quantifiers or patterns longer than 512 characters before compilation, and aborts the scan loop if it exceeds a 500 ms time budget.
 - **Sub-agent tool scoping**: research sub-agents have no write tools; verification sub-agents have no delete tools. Each sub-agent gets an isolated, ephemeral conversation.
 - **Webview CSP**: both webview hosts serve a strict Content-Security-Policy (`default-src 'none'; img-src 'none'; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'; require-trusted-types-for 'script'`). Model/tool/memory-rendered HTML is sanitized through DOMPurify before reaching any `innerHTML` sink. Attribute-context interpolations use a dedicated `escapeAttr` helper.
@@ -85,6 +88,8 @@ The v0.1.0 security audit (`docs/v0.1.0/security-audit.md`) identified and resol
 | `gemma-code.editMode` | `"auto"` | Controls file edit confirmation behavior |
 | `gemma-code.mcpEnabled` | `false` | Enables MCP client/server support |
 | `gemma-code.mcpServerMode` | `"off"` | Controls MCP server exposure mode |
+| `gemma-code.mcpExposedTools` | `["read_file", "list_directory", "grep_codebase"]` | Allowlist of built-in tools exposed to external MCP clients (v0.6.0) |
+| `gemma-code.permissionOverrides` | `{}` | Per-tool tier overrides; values < 1 are clamped to 1 for tools whose baseline requires confirmation (v0.6.0) |
 | `gemma-code.verificationEnabled` | `true` | Enables auto-verification sub-agent after file edits |
 | `gemma-code.secretPathDenyExtra` | `[]` | Extra glob patterns treated as secret-path denylist entries |
 | `gemma-code.otlpEnabled` | `false` | Gate for the optional OTLP trace exporter (off by default to preserve the local-only guarantee) |

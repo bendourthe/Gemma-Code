@@ -12,8 +12,11 @@ export function workspaceRoot(): string {
 
 /**
  * Resolve a path (absolute or workspace-relative) and assert it is inside the
- * current workspace root. Symlinks are followed via realpathSync when the
- * resolved target exists, so escaping the root via a symlink is rejected.
+ * current workspace root. Symlinks are followed via realpathSync; for paths
+ * that do not exist on disk yet (e.g. write_file/create_file targets), the
+ * deepest existing ancestor is realpath'd and the missing tail is appended,
+ * so a symlink in the parent chain still resolves through realpath. This
+ * closes the symlink leg of Attack Path A.
  */
 export function resolveInsideWorkspace(userPath: string): string {
   const root = workspaceRoot();
@@ -22,7 +25,7 @@ export function resolveInsideWorkspace(userPath: string): string {
   const absolute = path.isAbsolute(userPath)
     ? userPath
     : path.resolve(rootReal, userPath);
-  const real = safeRealpath(absolute);
+  const real = realpathThroughExistingAncestor(absolute);
 
   if (real !== rootReal && !real.startsWith(rootReal + path.sep)) {
     throw new Error(
@@ -37,5 +40,37 @@ function safeRealpath(p: string): string {
     return fs.realpathSync(p);
   } catch {
     return path.resolve(p);
+  }
+}
+
+/**
+ * Walk upward until an existing ancestor is found, realpath that, then
+ * re-attach the non-existent tail. This makes the boundary check
+ * symlink-correct for paths whose leaf does not yet exist.
+ */
+function realpathThroughExistingAncestor(absolute: string): string {
+  const normalized = path.resolve(absolute);
+  try {
+    return fs.realpathSync(normalized);
+  } catch {
+    // Fall through to ancestor walk.
+  }
+
+  const segments: string[] = [];
+  let current = normalized;
+  while (true) {
+    const parent = path.dirname(current);
+    if (parent === current) {
+      // Reached the filesystem root; nothing exists, return lexical resolution.
+      return normalized;
+    }
+    segments.unshift(path.basename(current));
+    current = parent;
+    try {
+      const realParent = fs.realpathSync(current);
+      return path.join(realParent, ...segments);
+    } catch {
+      // keep climbing
+    }
   }
 }

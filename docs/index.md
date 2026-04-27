@@ -8,21 +8,21 @@ For the ADR-level architecture see [../ARCHITECTURE.md](../ARCHITECTURE.md) and 
 
 | Module | Files | LOC | Entry point | Top exports |
 |--------|------:|----:|-------------|-------------|
-| `agents` | 4 | 608 | [src/agents/SubAgentManager.ts](../src/agents/SubAgentManager.ts) | `__testing`, `buildSubAgentContextMessage`, `getSubAgentInstructions` |
+| `agents` | 4 | 609 | [src/agents/SubAgentManager.ts](../src/agents/SubAgentManager.ts) | `__testing`, `buildSubAgentContextMessage`, `getSubAgentInstructions` |
 | `chat` | 9 | 1636 | [src/chat/PromptBuilder.ts](../src/chat/PromptBuilder.ts) | `CodeBlockTruncation`, `CompactionPipeline`, `CompactionSettingsProvider` |
 | `commands` | 2 | 227 | [src/commands/memoryLintCommand.ts](../src/commands/memoryLintCommand.ts) | `BuiltinCommand`, `BuiltinCommandName`, `Command` |
-| `config` | 6 | 878 | [src/config/GpuDetector.ts](../src/config/GpuDetector.ts) | `BudgetAllocation`, `BudgetOverrides`, `calculateBudget` |
+| `config` | 6 | 880 | [src/config/GpuDetector.ts](../src/config/GpuDetector.ts) | `BudgetAllocation`, `BudgetOverrides`, `calculateBudget` |
 | `evaluation` | 2 | 173 | [src/evaluation/GoldenTaskSuite.ts](../src/evaluation/GoldenTaskSuite.ts) | `GOLDEN_TASKS`, `GoldenTask`, `GoldenTaskCategory` |
-| `guardrails` | 6 | 495 | [src/guardrails/index.ts](../src/guardrails/index.ts) | `ActionClassification`, `ActionRisk`, `BLOCKED_PATTERNS` |
+| `guardrails` | 6 | 528 | [src/guardrails/index.ts](../src/guardrails/index.ts) | `_resetPermissionOverrideWarnings`, `ActionClassification`, `ActionRisk` |
 | `llm` | 3 | 351 | [src/llm/OllamaClient.ts](../src/llm/OllamaClient.ts) | `OllamaError`, `createOllamaClient`, `CreateOllamaClientOptions` |
-| `mcp` | 5 | 631 | [src/mcp/McpManager.ts](../src/mcp/McpManager.ts) | `McpClient`, `McpConfigFile`, `McpConnectionStatus` |
+| `mcp` | 5 | 649 | [src/mcp/McpManager.ts](../src/mcp/McpManager.ts) | `DEFAULT_MCP_EXPOSED_TOOLS`, `McpClient`, `McpConfigFile` |
 | `observability` | 5 | 1427 | [src/observability/TraceStore.ts](../src/observability/TraceStore.ts) | `AggregateMetrics`, `MetricsCollector`, `MetricsTrend` |
 | `orchestration` | 8 | 1572 | [src/orchestration/TaskDAG.ts](../src/orchestration/TaskDAG.ts) | `PostMessageFn`, `buildSubAgentRequest`, `CodeTaskInput` |
-| `panels` | 6 | 4604 | [src/panels/webview/index.ts](../src/panels/webview/index.ts) | `ActionClassificationMessage`, `ApproveStepMessage`, `CacheStatsMessage` |
+| `panels` | 6 | 4608 | [src/panels/webview/index.ts](../src/panels/webview/index.ts) | `ActionClassificationMessage`, `ApproveStepMessage`, `CacheStatsMessage` |
 | `runtime` | 1 | 59 | [src/runtime/GemmaRuntime.ts](../src/runtime/GemmaRuntime.ts) | `GemmaRuntime` |
 | `skills` | 1 | 185 | [src/skills/SkillLoader.ts](../src/skills/SkillLoader.ts) | `Skill`, `SkillLoader` |
 | `storage` | 29 | 6543 | [src/storage/eviction/index.ts](../src/storage/eviction/index.ts) | `ARCEvictor`, `BrokenPathIssue`, `CACHE_DIRNAME` |
-| `tools` | 18 | 4508 | [src/tools/handlers/filesystem.ts](../src/tools/handlers/filesystem.ts) | `AgentLoop`, `AgentLoopOptions`, `ALLOWED_COMMANDS` |
+| `tools` | 18 | 4589 | [src/tools/handlers/filesystem.ts](../src/tools/handlers/filesystem.ts) | `AgentLoop`, `AgentLoopOptions`, `ALLOWED_COMMANDS` |
 | `utils` | 4 | 521 | [src/utils/MarkdownRenderer.ts](../src/utils/MarkdownRenderer.ts) | `DnsLookupFn`, `formatForLog`, `formatForUser` |
 
 ## Module purposes

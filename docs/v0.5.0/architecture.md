@@ -20,7 +20,9 @@ The "harness" is the shell that an agent (Claude Code, Cursor, custom CLI, husky
    - `check-prompt-policy.mjs` -- per-workspace policy override surface for sub-agent prompts
    - `check-tool-permission.mjs` -- maps tool calls onto the permission tier (auto / confirm / dangerous)
    - `check-git-control-plane.mjs` -- guards destructive `git` flags (`--force`, `reset --hard`, etc.)
-3. **Specialist prompts externalized.** Sub-agent prompts ship as Markdown under `assets/specialists/` (`research.md`, `planning.md`, `verification.md`, `orchestration.md`) and are loaded via a priority chain by `SpecialistLoader`:
+3. **MCP server peer-attribution and allowlist (v0.6.0).** When `gemma-code.mcpServerMode = "stdio"` is enabled, the harness exposes only the tools listed in `gemma-code.mcpExposedTools` (default: read-only subset `read_file`, `list_directory`, `grep_codebase`). MCP-originated tool calls thread `source: "mcp"` through `ToolRegistry.execute`, so the user-visible confirmation prompt is prefixed with `"External MCP client wants to: ..."` rather than masquerading as a local-agent request. Sub-agent calls are similarly attributed.
+
+4. **Specialist prompts externalized.** Sub-agent prompts ship as Markdown under `assets/specialists/` (`research.md`, `planning.md`, `verification.md`, `orchestration.md`) and are loaded via a priority chain by `SpecialistLoader`:
 
 ```
 <workspace>/.gemma-code/specialists/<role>.md   (workspace override; not committed)
@@ -153,6 +155,8 @@ When Ollama is unreachable, `EmbeddingClient.embedWithProvenance` falls back to 
 - Secret-path denylist applies to `tool_output_cache.store()`, `WebResponseCache.store()`, and operation-log entries
 - `gemma-code.secretPathDenyExtra` extends the built-in denylist with workspace-specific glob patterns
 - DOMPurify sanitizes every webview HTML sink; CSP locked down (Phase 4 of v0.4.0)
+- v0.6.0: every filesystem tool routes user-supplied paths through the unified `pathGuard.resolveInsideWorkspace`. The guard is realpath-aware, follows symlinks even when the leaf does not yet exist (write/create targets), and rejects any path whose realpath escapes the workspace root. Closes Attack Path A's symlink leg.
+- v0.6.0: `gemma-code.permissionOverrides` cannot drop a tool whose baseline tier requires confirmation to AUTO_APPROVE. Workspace-level `.vscode/settings.json` settings that try to silently auto-approve `delete_file`, `run_terminal`, or other confirmation-tier tools are clamped to tier 1 at runtime with a logger warning.
 
 ## 10. Module dependency contract
 

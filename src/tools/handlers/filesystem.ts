@@ -17,6 +17,7 @@ import type {
 import type { ConfirmationGate } from "../ConfirmationGate.js";
 import type { ToolOutputCache } from "../../storage/ToolOutputCache.js";
 import { matchesSecretPath } from "./secretPaths.js";
+import { resolveInsideWorkspace, workspaceRoot as guardedWorkspaceRoot } from "./pathGuard.js";
 
 const MAX_READ_LINES = 500;
 const MAX_GREP_RESULTS = 50;
@@ -33,21 +34,14 @@ const FORMAT_JSON_BYTE_CAP = 64 * 1024;
 // ---------------------------------------------------------------------------
 
 function workspaceRoot(): string {
-  const folders = vscode.workspace.workspaceFolders;
-  if (!folders || folders.length === 0) {
-    throw new Error("No workspace folder is open.");
-  }
-  return folders[0]!.uri.fsPath;
+  return guardedWorkspaceRoot();
 }
 
+// Realpath-aware resolution: every filesystem tool routes user-supplied paths
+// through the unified pathGuard so symlinks that point outside the workspace
+// are rejected. See docs/v0.6.0/plans/v0.6.0-cycle.md sub-task 1.1.
 function resolveWorkspacePath(relativePath: string): string {
-  const root = workspaceRoot();
-  const resolved = path.resolve(root, relativePath);
-  // Path traversal guard: ensure the resolved path stays inside the workspace root.
-  if (!resolved.startsWith(root + path.sep) && resolved !== root) {
-    throw new Error(`Path traversal detected: "${relativePath}" resolves outside the workspace.`);
-  }
-  return resolved;
+  return resolveInsideWorkspace(relativePath);
 }
 
 function uriFromRelative(relativePath: string): vscode.Uri {
@@ -764,7 +758,7 @@ export class ListDirectoryTool implements ToolHandler {
 
     let uri: vscode.Uri;
     try {
-      const resolved = path.resolve(workspaceRoot(), relativePath);
+      const resolved = resolveWorkspacePath(relativePath);
       uri = vscode.Uri.file(resolved);
     } catch (err) {
       return failResult(

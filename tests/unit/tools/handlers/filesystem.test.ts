@@ -92,7 +92,7 @@ describe("ReadFileTool", () => {
     const tool = new ReadFileTool();
     const result = await tool.execute(params({ path: "../../etc/passwd" }));
     expect(result.success).toBe(false);
-    expect(result.error).toMatch(/Path traversal/i);
+    expect(result.error).toMatch(/resolves outside the workspace/i);
   });
 });
 

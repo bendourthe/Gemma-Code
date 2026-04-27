@@ -2,8 +2,20 @@ import type { ToolMetadata } from "../tools/ToolCatalog.js";
 import type { ToolRegistry } from "../tools/ToolRegistry.js";
 
 /**
+ * Default subset of tools exposed to external MCP clients. Read-only by
+ * default so a hostile peer cannot use the MCP transport to drive write,
+ * delete, or terminal operations without the user broadening the allowlist
+ * via `gemma-code.mcpExposedTools`.
+ */
+export const DEFAULT_MCP_EXPOSED_TOOLS: readonly string[] = [
+  "read_file",
+  "list_directory",
+  "grep_codebase",
+];
+
+/**
  * Exposes Gemma Code's built-in tools as an MCP server via stdio transport.
- * External MCP clients can connect and use Gemma Code's tools remotely.
+ * External MCP clients can connect and use the allowlisted tools remotely.
  *
  * The MCP SDK is loaded via dynamic import to avoid ESM/CJS interop issues.
  */
@@ -14,6 +26,7 @@ export class McpServer {
   constructor(
     private readonly _registry: ToolRegistry,
     private readonly _catalog: readonly ToolMetadata[],
+    private readonly _exposedTools: readonly string[] = DEFAULT_MCP_EXPOSED_TOOLS,
   ) {}
 
   get isRunning(): boolean {
@@ -32,10 +45,14 @@ export class McpServer {
     );
 
     const registry = this._registry;
+    const allowed = new Set(this._exposedTools);
 
-    // Register each built-in tool as an MCP tool using the simple (name, description, cb) overload.
+    // Register only allowlisted tools. Pen-test F-004 hardening: an MCP peer
+    // cannot drive write/delete/terminal tools by default.
     for (const tool of this._catalog) {
       const toolName = tool.name;
+
+      if (!allowed.has(toolName)) continue;
 
       server.tool(
         toolName,
@@ -45,6 +62,7 @@ export class McpServer {
             tool: toolName,
             id: `mcp-${Date.now()}`,
             parameters: params,
+            source: "mcp",
           });
 
           return {
