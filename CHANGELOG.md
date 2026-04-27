@@ -1,3 +1,10 @@
+## [0.5.4](https://github.com/bendourthe/Gemma-Code/compare/v0.5.3...v0.5.4) (2026-04-27)
+
+
+### Bug Fixes
+
+* **ci:** drop Node 18 from matrix; bump engines.node to >=20 ([ad39bc1](https://github.com/bendourthe/Gemma-Code/commit/ad39bc1e7bf9fa75f4c7640fa5166495dd6e65ed)), closes [#77](https://github.com/bendourthe/Gemma-Code/issues/77)
+
 ## [0.5.3](https://github.com/bendourthe/Gemma-Code/compare/v0.5.2...v0.5.3) (2026-04-26)
 
 
