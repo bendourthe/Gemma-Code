@@ -1,3 +1,10 @@
+# [0.6.0](https://github.com/bendourthe/Gemma-Code/compare/v0.5.5...v0.6.0) (2026-04-27)
+
+
+### Features
+
+* **v0.6.0:** security chain closure (Phase 1) ([4ddcec0](https://github.com/bendourthe/Gemma-Code/commit/4ddcec0d4ddee6b9271907956bda0575e6cc381b))
+
 ## [0.5.5](https://github.com/bendourthe/Gemma-Code/compare/v0.5.4...v0.5.5) (2026-04-27)
 
 
