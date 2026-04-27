@@ -4,6 +4,7 @@
  * Clicking "New Session" opens a fresh chat editor panel.
  */
 import * as vscode from "vscode";
+import { randomUUID } from "node:crypto";
 import type { ChatHistoryStore } from "../storage/ChatHistoryStore.js";
 
 export const SESSION_VIEW_ID = "gemma-code.chatView";
@@ -35,7 +36,7 @@ export class SessionListPanel implements vscode.WebviewViewProvider {
       localResourceRoots: [this._extensionUri],
     };
 
-    const nonce = crypto.randomUUID().replace(/-/g, "");
+    const nonce = randomUUID().replace(/-/g, "");
     const cspSource = webviewView.webview.cspSource;
 
     webviewView.webview.html = this._getHtml(nonce, cspSource);
