@@ -1,3 +1,10 @@
+## [0.5.5](https://github.com/bendourthe/Gemma-Code/compare/v0.5.4...v0.5.5) (2026-04-27)
+
+
+### Bug Fixes
+
+* **ci:** regenerate docs/index.md after SessionListPanel import change ([9e86640](https://github.com/bendourthe/Gemma-Code/commit/9e86640c9f70f51a6ed28afeed2532afd2999c0a))
+
 ## [0.5.4](https://github.com/bendourthe/Gemma-Code/compare/v0.5.3...v0.5.4) (2026-04-27)
 
 
