@@ -395,10 +395,10 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "better-sqlite3": "^12.8.0",
+    "better-sqlite3": "^12.9.0",
     "diff": "^5.2.2",
     "highlight.js": "^11.11.1",
-    "isomorphic-dompurify": "^3.9.0",
+    "isomorphic-dompurify": "^3.10.0",
     "marked": "^4.3.0",
     "node-html-parser": "^6.1.13",
     "tiktoken": "^1.0.17",
