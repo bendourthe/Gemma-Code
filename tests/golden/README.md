@@ -87,6 +87,8 @@ OLLAMA_URL=http://localhost:11434 TEST_MODEL=gemma4:e4b \
   python -m pytest -m live_ollama
 ```
 
+> **Status (v0.6.0)**: the `_run_live()` helper in `framework/task_runner.py` posts to `${GEMMA_BACKEND_URL:-http://localhost:11435}/chat`, which was the Python FastAPI backend deleted by [ADR-0001](../../docs/adr/0001-python-backend-disposition.md). No TS-side runner replaces it yet, so live runs across every shipping version (v0.4.0+) currently return `"backend call failed"` for every task. See [v0.6.0 Phase 2 history](../../docs/v0.6.0/development/history/2026-04_phase-2-test-pipeline.md) section 3.5 for the reasoning. Until a TS-native runner lands, treat this directory as a dry-mode evaluation harness only.
+
 ## Running a single task programmatically
 
 ```python

@@ -1,0 +1,136 @@
+{
+  "note": "Captured on the v0.6.0 main branch post-Phase-1 (security chain closure) per docs/v0.6.0/plans/v0.6.0-cycle.md sub-task 2.4. Live-Ollama benches (model-tier-matrix, time-to-first-token) auto-skip when OLLAMA_URL is unset; the captured set is the deterministic in-process subset.",
+  "version": "0.6.0",
+  "thresholds": {
+    "regressionPct": 20
+  },
+  "benchmarks": {
+    "ToolOutputCache throughput": {
+      "rme": 0
+    },
+    "hit on populated cache": {
+      "hz": 9732.352314352178,
+      "mean": 0.10275008216927295,
+      "rme": 1.5321800190178587
+    },
+    "miss on populated cache": {
+      "hz": 14081.783140539274,
+      "mean": 0.07101373384462617,
+      "rme": 0.601759849654357
+    },
+    "eviction-strategy throughput": {
+      "rme": 0
+    },
+    "lru: full Zipf trace replay": {
+      "hz": 4589.029879083378,
+      "mean": 0.2179109803921656,
+      "rme": 0.4663675980745941
+    },
+    "lfu: full Zipf trace replay": {
+      "hz": 4375.8258421314495,
+      "mean": 0.22852829067641858,
+      "rme": 0.5043064146373686
+    },
+    "arc: full Zipf trace replay": {
+      "hz": 4197.798505671748,
+      "mean": 0.23822010481181402,
+      "rme": 0.4323325065074224
+    },
+    "wtinylfu: full Zipf trace replay": {
+      "hz": 2294.953501203242,
+      "mean": 0.43573867595822785,
+      "rme": 0.4770073676041213
+    },
+    "clock: full Zipf trace replay": {
+      "hz": 5347.620318957802,
+      "mean": 0.18699906507103894,
+      "rme": 0.34247370762244916
+    },
+    "hook throughput": {
+      "rme": 0
+    },
+    "check-tool-permission (benign Write)": {
+      "hz": 19.446944457192984,
+      "mean": 51.421960000000034,
+      "rme": 2.9921868972457832
+    },
+    "check-prompt-policy (64 KB benign prompt)": {
+      "hz": 20.363623977167602,
+      "mean": 49.10717272727263,
+      "rme": 5.388107917110747
+    },
+    "PredictiveCache throughput": {
+      "rme": 0
+    },
+    "observe(): record 1000 accesses across 32 paths": {
+      "hz": 84451.05414820084,
+      "mean": 0.011841178420877108,
+      "rme": 0.4623478532855013
+    },
+    "predict(top=5) on a fully-warmed cache": {
+      "hz": 1231.8556265205307,
+      "mean": 0.8117834415584686,
+      "rme": 0.6560884849424399
+    },
+    "forecastARIMA101 single-step": {
+      "hz": 17490.938122510757,
+      "mean": 0.05717246227708076,
+      "rme": 0.5571884856152561
+    },
+    "MarkdownRenderer throughput": {
+      "rme": 0
+    },
+    "render ~100-token message": {
+      "hz": 1390.7260948970375,
+      "mean": 0.7190488505747317,
+      "rme": 5.514330482111165
+    },
+    "render ~500-token message": {
+      "hz": 498.9081893185031,
+      "mean": 2.004376799999969,
+      "rme": 4.657340256447921
+    },
+    "render ~2000-token message": {
+      "hz": 133.44513512813776,
+      "mean": 7.4937164179104165,
+      "rme": 5.566470092430322
+    },
+    "SkillLoader throughput": {
+      "rme": 0
+    },
+    "load 10 skills": {
+      "hz": 727602.9813557116,
+      "mean": 0.0013743758967792335,
+      "rme": 0.44820969260795573
+    },
+    "load 50 skills": {
+      "hz": 735419.9999993178,
+      "mean": 0.0013597672078552768,
+      "rme": 0.3771834702190704
+    },
+    "load 100 skills": {
+      "hz": 727269.9999998757,
+      "mean": 0.0013750051562695712,
+      "rme": 0.5763230134971694
+    },
+    "ReadFileTool throughput": {
+      "rme": 0
+    },
+    "read 100-line file": {
+      "hz": 75670.66819624779,
+      "mean": 0.013215160164920891,
+      "rme": 0.44348089761480913
+    },
+    "read 1000-line file": {
+      "hz": 76009.65035560697,
+      "mean": 0.013156224181029054,
+      "rme": 0.33081904180416405
+    },
+    "read 10000-line file": {
+      "hz": 75812.92345648489,
+      "mean": 0.013190363257446209,
+      "rme": 0.3807464590756815
+    }
+  },
+  "createdAt": "2026-04-27T15:09:57.474Z"
+}

@@ -4,6 +4,72 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-04-27] v0.6.0 Phase 2 -- Test pipeline reliability + release-gate baselines
+
+### Goal
+
+Make the test pipeline a real safety net for the deep restructuring in Phases 3-7. Verify CI fails on `vitest` non-zero exit. Land the missing v0.6.0-cycle test files. Capture release-gate bench baselines for v0.4.0 / v0.5.0 / v0.6.0. Either verify or retract the unverified `>=40%` token-savings claim from v0.5.0.
+
+Plan reference: [docs/v0.6.0/plans/v0.6.0-cycle.md](v0.6.0/plans/v0.6.0-cycle.md) Phase 2 (sub-tasks 2.1 ... 2.6). Findings closed: known-gaps 1.2, 2.1, 2.4 (bench portion), codebase-review #4 (CI fail-on-error). Findings deferred: known-gaps 2.2 / 2.3 and the golden portion of codebase-review #5 -- the Python golden runner's `_run_live()` calls a deleted FastAPI backend (post-ADR-0001) and is non-functional across all in-scope versions.
+
+### Attempted Solutions
+
+#### Sub-task 2.1: live CI fail-on-error verification
+
+Static audit of [.github/workflows/ci.yml:42-64](../.github/workflows/ci.yml#L42-L64) showed the chain should fail-fast: `npm run test` invokes `vitest run` (one-shot, non-zero on assertion failure); no `passWithNoTests` / `|| true` / `continue-on-error` anywhere. Local proof: a `dummy-fail.test.ts` with `expect(true).toBe(false)` made `npm run test` exit 1 (verified via `; echo $?` after the npm call, not through a `tail` pipe whose `$?` reflects `tail`'s exit).
+
+Live proof on GitHub Actions:
+- Branch `chore/v0.6.0-ci-fail-on-error-audit`. Commit `af215a0` adds the deliberate failing test; commit `a9b1b18` removes it.
+- [Run on `af215a0`](https://github.com/bendourthe/Gemma-Code/actions/runs/25003351181): `Test TypeScript (Node 20.x)` and `(Node 22.x)` -> **failure**. `Coverage gate (80%)` -> **skipped** (correct -- `needs: [test-ts]`). Lint, Build, Catalog sync, Audit -> success. Overall: **failure**.
+- Run on `a9b1b18`: every job -> **success**. Overall: **success**.
+
+The fail-on-error contract is verified end-to-end.
+
+#### Sub-task 2.2: 12 token-estimation assertions
+
+The plan describes 12 failing assertions in `CompactionStrategy.test.ts` / `ContextCompactor.test.ts` / `errors/error-handling.test.ts`. Pre-implementation review showed all three files now pass (71/71); full suite is 1562 passed / 4 skipped / 0 failed. Already fixed by commit `4b4840e fix(tests): rewrite token-estimation tests for tiktoken` (2026-04-26, pre-Phase-1). No code work needed.
+
+#### Sub-task 2.5: missing test files
+
+Built four files (one more than the plan called for, because `vitest bench` does not execute `it()` blocks and `vitest run` excludes `**/*.bench.ts` -- so the latency-gate `it()`s the plan asked for inside the bench file would not have run anywhere):
+- [tests/benchmarks/predictive-cache.bench.ts](../tests/benchmarks/predictive-cache.bench.ts) -- 3 `bench()` cases. Captured in v0.6.0 bench baseline.
+- [tests/benchmarks/eviction-strategies.bench.ts](../tests/benchmarks/eviction-strategies.bench.ts) -- 5 `bench()` cases (one per strategy: LRU, LFU, ARC, W-TinyLFU, Clock). On the captured v0.6.0 trace: clock > lru > lfu > arc > wtinylfu by throughput.
+- [tests/unit/storage/PredictiveCache.budget.test.ts](../tests/unit/storage/PredictiveCache.budget.test.ts) -- 2 `it()` assertions (the real ARIMA-budget gates). Both pass at p99 ~1-3 ms vs. the 50 ms ceiling.
+- [tests/integration/heuristic-fallback.test.ts](../tests/integration/heuristic-fallback.test.ts) -- 3 `it.todo` assertions for the F-007 threshold-elevation contract; flip to `it()` when Phase 5 sub-task 5.1 lands.
+- [tests/fixtures/access-trace.json](../tests/fixtures/access-trace.json) -- 2048-entry deterministic Zipfian fixture (skew 1.1, 64 paths) consumed by the eviction-strategy bench.
+
+#### Sub-task 2.4: bench baselines for v0.4.0 / v0.5.0 / v0.6.0
+
+Captured three real `npm run bench` runs (with live-Ollama benches auto-skipping because `OLLAMA_URL` was unset -- those are hardware-dependent and not comparable across worktrees) and seeded the corresponding baseline files via `node scripts/check-bench-regressions.mjs --update-baseline`:
+- [tests/benchmarks/baselines/v0.4.0.json](../tests/benchmarks/baselines/v0.4.0.json) (12 cases) from a `git worktree` at tag `v0.4.0`. Replaces the empty seed-time placeholder.
+- [tests/benchmarks/baselines/v0.5.0.json](../tests/benchmarks/baselines/v0.5.0.json) (18 cases) from a worktree at `v0.5.4`.
+- [tests/benchmarks/baselines/v0.6.0.json](../tests/benchmarks/baselines/v0.6.0.json) (28 cases) from main post-Phase-1.
+
+Regression check `--baseline v0.5.0 --floor v0.4.0 --current v0.6.0`: **OK, no regressions beyond 20% across 28 benchmarks.** The 15 new bench names from sub-task 2.5 are tracked from v0.6.0 onward.
+
+#### Sub-tasks 2.3 + 2.4 (golden parts): infrastructure gap
+
+The Python golden framework's [`tests/golden/framework/task_runner.py:79-122`](../tests/golden/framework/task_runner.py) `_run_live()` posts to `${GEMMA_BACKEND_URL:-http://localhost:11435}/chat`. That endpoint was the FastAPI backend deleted by [ADR-0001](adr/0001-python-backend-disposition.md) (Accepted 2026-04-18, shipped at v0.4.0). No `src/backend/` exists at v0.4.0, v0.5.4, or main. The framework has no TS-side equivalent. Live golden runs are infeasible across every in-scope version without first building a TS-native runner -- which is product/test-infra surface and out of scope per v0.6.0 hard constraint #1.
+
+The CHANGELOG `>=40% token-savings` retraction was a no-op: a careful re-read of CHANGELOG.md shows the explicit claim is not present in the v0.5.0 entry. It lives only in `docs/v0.5.0/plans/implementation-plan.md` (a planning artifact). `docs/v0.6.0/review/known-gaps.md` cited the wrong host. The published changelog was already honest.
+
+### Tests Added / Modified
+
+- 2 new `bench()` files (predictive-cache, eviction-strategies)
+- 2 new `.test.ts` files (PredictiveCache.budget, heuristic-fallback)
+- 1 new fixture (access-trace.json)
+- 3 new bench baseline JSONs (v0.4.0 re-seeded; v0.5.0 + v0.6.0 new)
+
+### Commits
+
+Will be produced via `/generate-commit-message` against the staged diff. Tentative scope: `feat(v0.6.0)` for the Phase 2 deliverables.
+
+### Next Step
+
+Phase 3: Defense-in-depth ratchets (per [docs/v0.6.0/plans/v0.6.0-cycle.md](v0.6.0/plans/v0.6.0-cycle.md) Phase 3). Body-cap on outbound HTTP, npm audit gate at moderate, SHA-256 in cache fingerprint, ESLint rule against `innerHTML` concatenation, doc obfuscation of example webhook URLs.
+
+---
+
 ## [2026-04-26] v0.6.0 Phase 1 -- Security chain closure
 
 ### Goal

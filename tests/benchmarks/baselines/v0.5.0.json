@@ -1,0 +1,90 @@
+{
+  "note": "Captured on the v0.5.4 release tag (the v0.5.0 line) per docs/v0.6.0/plans/v0.6.0-cycle.md sub-task 2.4. Live-Ollama benches (model-tier-matrix, time-to-first-token) auto-skip when OLLAMA_URL is unset; the captured set is the deterministic in-process subset.",
+  "version": "0.5.0",
+  "thresholds": {
+    "regressionPct": 20
+  },
+  "benchmarks": {
+    "ToolOutputCache throughput": {
+      "rme": 0
+    },
+    "hit on populated cache": {
+      "hz": 8791.071662832574,
+      "mean": 0.11375177434030719,
+      "rme": 1.5479487692840945
+    },
+    "miss on populated cache": {
+      "hz": 13204.54749977449,
+      "mean": 0.07573148568832656,
+      "rme": 2.1421838865337874
+    },
+    "hook throughput": {
+      "rme": 0
+    },
+    "check-tool-permission (benign Write)": {
+      "hz": 16.226243157393267,
+      "mean": 61.62855999999997,
+      "rme": 38.700342582688144
+    },
+    "check-prompt-policy (64 KB benign prompt)": {
+      "hz": 16.913573836460294,
+      "mean": 59.12410999999997,
+      "rme": 38.68420603683696
+    },
+    "MarkdownRenderer throughput": {
+      "rme": 0
+    },
+    "render ~100-token message": {
+      "hz": 1264.9318463445131,
+      "mean": 0.7905564263322713,
+      "rme": 5.91524325417628
+    },
+    "render ~500-token message": {
+      "hz": 456.3848540016844,
+      "mean": 2.191133187772943,
+      "rme": 6.024200339349405
+    },
+    "render ~2000-token message": {
+      "hz": 130.84762496691818,
+      "mean": 7.6424772727271675,
+      "rme": 4.6653416038143884
+    },
+    "SkillLoader throughput": {
+      "rme": 0
+    },
+    "load 10 skills": {
+      "hz": 715631.2843687403,
+      "mean": 0.0013973676414693104,
+      "rme": 0.4875398791913404
+    },
+    "load 50 skills": {
+      "hz": 717764.7080234224,
+      "mean": 0.0013932142230199587,
+      "rme": 0.39749468173895197
+    },
+    "load 100 skills": {
+      "hz": 724371.4205030021,
+      "mean": 0.0013805072531790418,
+      "rme": 0.3275174173138707
+    },
+    "ReadFileTool throughput": {
+      "rme": 0
+    },
+    "read 100-line file": {
+      "hz": 77121.56811921176,
+      "mean": 0.012966541324136922,
+      "rme": 0.3976077718512244
+    },
+    "read 1000-line file": {
+      "hz": 74624.88062678617,
+      "mean": 0.013400356444135548,
+      "rme": 0.3869804756439925
+    },
+    "read 10000-line file": {
+      "hz": 75944.90639336176,
+      "mean": 0.013167440023171965,
+      "rme": 0.36121406806978873
+    }
+  },
+  "createdAt": "2026-04-27T15:20:52.665Z"
+}

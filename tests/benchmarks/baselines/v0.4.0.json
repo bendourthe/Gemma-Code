@@ -1,10 +1,65 @@
 {
-  "note": "Baseline performance numbers for Gemma Code v0.4.0 benchmarks. Populated by the nightly CI workflow via `node scripts/check-bench-regressions.mjs --update-baseline` after v0.4.0 tags. Until then, the gating script uses v0.3.0.json as the floor (both baselines are empty objects at seed time, so the gate is a no-op -- every bench name is treated as new).",
+  "note": "Captured retroactively from a v0.4.0 git worktree (tag v0.4.0) per docs/v0.6.0/plans/v0.6.0-cycle.md sub-task 2.4. Replaces the seed-time empty placeholder. Live-Ollama benches (model-tier-matrix, time-to-first-token) auto-skip when OLLAMA_URL is unset; the captured set is the deterministic in-process subset that existed in v0.4.0 (8 bench files; cache-hit and hooks were added in v0.5.0 and are absent here).",
   "version": "0.4.0",
-  "createdAt": null,
+  "createdAt": "2026-04-28T02:38:53.707Z",
   "thresholds": {
     "regressionPct": 20,
     "improvementPct": 50
   },
-  "benchmarks": {}
+  "benchmarks": {
+    "MarkdownRenderer throughput": {
+      "rme": 0
+    },
+    "render ~100-token message": {
+      "hz": 1284.8544237958104,
+      "mean": 0.7782982892690109,
+      "rme": 7.263886981742895
+    },
+    "render ~500-token message": {
+      "hz": 463.72408416992175,
+      "mean": 2.156454741379297,
+      "rme": 6.3958760034635604
+    },
+    "render ~2000-token message": {
+      "hz": 128.4683743473572,
+      "mean": 7.784016923076846,
+      "rme": 5.3146770973053705
+    },
+    "SkillLoader throughput": {
+      "rme": 0
+    },
+    "load 10 skills": {
+      "hz": 705781.1530625176,
+      "mean": 0.001416869798323193,
+      "rme": 0.45605795146527334
+    },
+    "load 50 skills": {
+      "hz": 691589.3084092032,
+      "mean": 0.0014459448517216156,
+      "rme": 2.493389615639822
+    },
+    "load 100 skills": {
+      "hz": 739705.2602942148,
+      "mean": 0.00135188980486938,
+      "rme": 0.34117247584025395
+    },
+    "ReadFileTool throughput": {
+      "rme": 0
+    },
+    "read 100-line file": {
+      "hz": 80002.15995032113,
+      "mean": 0.012499662516874158,
+      "rme": 0.39725912779434824
+    },
+    "read 1000-line file": {
+      "hz": 74959.9250400759,
+      "mean": 0.013340461579508904,
+      "rme": 0.3702409779233081
+    },
+    "read 10000-line file": {
+      "hz": 79452.71286605106,
+      "mean": 0.01258610265059036,
+      "rme": 0.4417713698631954
+    }
+  }
 }

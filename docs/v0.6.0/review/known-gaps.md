@@ -62,9 +62,11 @@ The Phase 12.6 release gate calls for: hooks p99 < 50 ms, `tool-execution` p99 w
 
 The plan's Definition of Done #2 ("Token efficiency: ≥40% average tool-output token reduction on the 24 golden tasks vs. v0.4.0 baseline") cannot be verified because the v0.4.0 baseline file was never written. The most recent baselines in the repo are `tests/golden/baselines/v0.3.0-e2b.json` and `v0.3.0-e4b.json` (Phase 8 of v0.3.0 work), then jump to `v0.5.0+memory-hygiene.json` (Phase 7 of v0.5.0) and `v0.5.0+agent-friendly.json` (Phase 12 of v0.5.0). **No v0.4.0 golden baseline ever existed.**
 
-This means the "≥40% token-savings" claim in `CHANGELOG.md` is **unverified**. It may or may not be true; we have no data.
+This means the "≥40% token-savings" claim is **unverified**. It may or may not be true; we have no data.
 
-**Action**: Either (a) generate a v0.4.0 baseline by checking out `ef6d8b3`, running the golden-task suite against a live Ollama, saving to `tests/golden/baselines/v0.4.0.json`, then re-running on v0.5.0 and computing the delta -- and updating the CHANGELOG honestly with the measured number; or (b) drop the ≥40% claim from the CHANGELOG and architecture.md and replace it with "qualitative reduction observed in iterative-debug workflows; quantitative regression suite not run for the v0.5.0 release."
+**v0.6.0 Phase 2 update (2026-04-27)**: a careful re-read of `CHANGELOG.md` shows the explicit ≥40% claim is **not** present in the published v0.5.0 entry -- it lives only in [docs/v0.5.0/plans/implementation-plan.md](../../v0.5.0/plans/implementation-plan.md) (Phase 12 goal) and in this document. The published changelog was already honest. Additionally, the Python golden runner's `_run_live()` calls the FastAPI backend deleted by [ADR-0001](../../adr/0001-python-backend-disposition.md), so live golden runs are infeasible across all shipping versions until a TS-native runner is built. See [v0.6.0 Phase 2 history](../development/history/2026-04_phase-2-test-pipeline.md) for the full analysis.
+
+**Action**: Either (a) build a TS-native golden runner that drives `AgentLoop` directly (recommended for v0.7.0; significant scope), then run it across v0.4.0 / v0.5.0 / v0.6.0 worktrees and update the plan-doc claim with measured numbers; or (b) remove the ≥40% claim from `docs/v0.5.0/plans/implementation-plan.md` and this gap entry, replacing it with "qualitative reduction observed in iterative-debug workflows; quantitative regression suite was never wired to a working backend post-ADR-0001."
 
 ### 2.3 No `tests/golden/baselines/v0.5.0-tiktoken.json` (Phase 5 deferral)
 
