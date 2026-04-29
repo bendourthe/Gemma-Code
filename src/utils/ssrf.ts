@@ -115,17 +115,104 @@ export async function isSsrfBlocked(
 export interface SsrfFetchOptions extends RequestInit {
   readonly timeoutMs?: number;
   readonly lookup?: DnsLookupFn;
+  /**
+   * Maximum total response body size in bytes. When the upstream advertises a
+   * larger `Content-Length` or the streaming reader exceeds this threshold,
+   * the request is aborted and an error is thrown. Defaults to 5 MB.
+   */
+  readonly maxBodyBytes?: number;
+}
+
+/** Default body-size cap for `fetchWithSsrfGuard`. */
+export const DEFAULT_MAX_BODY_BYTES = 5 * 1024 * 1024;
+
+function _bodyTooLargeError(len: number, max: number): Error {
+  return new Error(`Response body too large: ${len} bytes (max ${max})`);
+}
+
+async function _enforceBodyCap(
+  response: Response,
+  maxBodyBytes: number,
+): Promise<Response> {
+  const contentLengthHeader =
+    typeof response.headers?.get === "function"
+      ? response.headers.get("content-length")
+      : null;
+  if (contentLengthHeader) {
+    const parsed = Number.parseInt(contentLengthHeader, 10);
+    if (Number.isFinite(parsed) && parsed > maxBodyBytes) {
+      try {
+        await response.body?.cancel();
+      } catch {
+        // ignore
+      }
+      throw _bodyTooLargeError(parsed, maxBodyBytes);
+    }
+  }
+
+  if (!response.body) {
+    return response;
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) {
+        total += value.byteLength;
+        if (total > maxBodyBytes) {
+          try {
+            await reader.cancel();
+          } catch {
+            // ignore
+          }
+          throw _bodyTooLargeError(total, maxBodyBytes);
+        }
+        chunks.push(value);
+      }
+    }
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch {
+      // ignore
+    }
+  }
+
+  const buffered = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    buffered.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  return new Response(buffered, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
 }
 
 /**
  * Fetch wrapper that re-validates each URL in a redirect chain against the
- * SSRF check. Uses `redirect: "manual"` so each 3xx hop is inspected.
+ * SSRF check. Uses `redirect: "manual"` so each 3xx hop is inspected. The
+ * final response body is bounded to `maxBodyBytes` (default 5 MB) to prevent
+ * memory-exhaustion DoS via crafted large responses.
  */
 export async function fetchWithSsrfGuard(
   initialUrl: string,
   init: SsrfFetchOptions = {},
 ): Promise<Response> {
-  const { timeoutMs = 10_000, lookup, ...fetchInit } = init;
+  const {
+    timeoutMs = 10_000,
+    lookup,
+    maxBodyBytes = DEFAULT_MAX_BODY_BYTES,
+    ...fetchInit
+  } = init;
 
   let url = initialUrl;
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
@@ -147,11 +234,11 @@ export async function fetchWithSsrfGuard(
     }
 
     if (response.status < 300 || response.status >= 400) {
-      return response;
+      return _enforceBodyCap(response, maxBodyBytes);
     }
 
     const location = response.headers.get("location");
-    if (!location) return response;
+    if (!location) return _enforceBodyCap(response, maxBodyBytes);
 
     try {
       url = new URL(location, url).toString();

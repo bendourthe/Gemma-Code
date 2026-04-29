@@ -2,6 +2,8 @@
  * Returns the complete HTML for the trace dashboard webview.
  * Self-contained: all CSS and JS are inlined.
  */
+import { getWebviewHelpersScript } from "./util.js";
+
 export function getTraceDashboardHtml(
   nonce: string,
   cspSource: string,
@@ -232,10 +234,13 @@ export function getTraceDashboardHtml(
   <div id="waterfall"></div>
   <div id="span-detail"></div>
 
+  ${getWebviewHelpersScript(nonce)}
   <script nonce="${nonce}">
     (function() {
       'use strict';
       const vscode = acquireVsCodeApi();
+      const escapeHtml = window.__gemmaWebviewHelpers.escapeHtml;
+      const escapeAttr = window.__gemmaWebviewHelpers.escapeAttr;
       const contentEl = document.getElementById('content');
       const waterfallEl = document.getElementById('waterfall');
       const spanDetailEl = document.getElementById('span-detail');
@@ -271,15 +276,7 @@ export function getTraceDashboardHtml(
         spanDetailEl.style.display = 'none';
       }
 
-      function formatDate(ts) {
-        const d = new Date(ts);
-        const now = new Date();
-        const diff = now - d;
-        if (diff < 60000) return 'Just now';
-        if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
-        if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
-        return d.toLocaleDateString();
-      }
+      const formatDate = window.__gemmaWebviewHelpers.formatDate;
 
       function formatDuration(ms) {
         if (ms == null || ms === 0) return '-';
@@ -287,16 +284,18 @@ export function getTraceDashboardHtml(
         return (ms / 1000).toFixed(1) + 's';
       }
 
-      function escapeHtml(s) {
-        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-      }
-      function escapeAttr(s) {
-        return String(s)
-          .replace(/&/g,'&amp;')
-          .replace(/"/g,'&quot;')
-          .replace(/'/g,'&#39;')
-          .replace(/</g,'&lt;')
-          .replace(/>/g,'&gt;');
+      function createMetricItem(label, value) {
+        const item = document.createElement('div');
+        item.className = 'metric-item';
+        const labelEl = document.createElement('span');
+        labelEl.className = 'metric-label';
+        labelEl.textContent = label;
+        const valueEl = document.createElement('span');
+        valueEl.className = 'metric-value';
+        valueEl.textContent = value;
+        item.appendChild(labelEl);
+        item.appendChild(valueEl);
+        return item;
       }
 
       function renderTraceList(traces) {
@@ -443,11 +442,12 @@ export function getTraceDashboardHtml(
       }
 
       function renderMetrics(metrics) {
-        metricsBar.innerHTML =
-          '<div class="metric-item"><span class="metric-label">Tools:</span><span class="metric-value">' + metrics.toolStepCount + '</span></div>' +
-          '<div class="metric-item"><span class="metric-label">LLM:</span><span class="metric-value">' + metrics.llmCallCount + '</span></div>' +
-          '<div class="metric-item"><span class="metric-label">Success:</span><span class="metric-value">' + (metrics.successRate * 100).toFixed(0) + '%</span></div>' +
-          '<div class="metric-item"><span class="metric-label">Retries:</span><span class="metric-value">' + metrics.retryCount + '</span></div>';
+        metricsBar.replaceChildren(
+          createMetricItem('Tools:', String(metrics.toolStepCount)),
+          createMetricItem('LLM:', String(metrics.llmCallCount)),
+          createMetricItem('Success:', (metrics.successRate * 100).toFixed(0) + '%'),
+          createMetricItem('Retries:', String(metrics.retryCount)),
+        );
         metricsBar.style.display = '';
       }
 

@@ -151,13 +151,13 @@ Success is measured against three artifacts: characterization tests that lock th
 >   - AWS access key (`AKIA[0-9A-Z]{16}`)
 >   - GitHub PAT (`ghp_[A-Za-z0-9]{36}`)
 >   - JWT (`eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*`)
->   - Slack token (`xox[baprs]-[A-Za-z0-9-]{10,}`)
->   - Anthropic API key (`sk-ant-[A-Za-z0-9_-]{20,}`)
->   - OpenAI API key (`sk-[A-Za-z0-9]{48}`)
+>   - Slack token (Slack-style `xox<kind>-<long-id>` opaque-token shape)
+>   - Anthropic API key (Anthropic-style `sk-<provider>-<id>` opaque-key shape)
+>   - OpenAI API key (OpenAI-style `sk-<id>` opaque-key shape)
 >   - Generic high-entropy 40+ char hex / base64 strings (with bounded false-positive rate)
 >   - SSH private key header (`-----BEGIN (RSA|OPENSSH|EC) PRIVATE KEY-----`)
 >   - PEM private key (`-----BEGIN PRIVATE KEY-----`)
->   - Slack webhook URL (`https://hooks\.slack\.com/services/T[A-Z0-9]+/B[A-Z0-9]+/[A-Za-z0-9]+`)
+>   - Slack webhook URL (`https://hooks\.slack\.example/services/T[A-Z0-9]+/B[A-Z0-9]+/[A-Za-z0-9]+` shape; the deployed regex matches the live Slack hostname)
 > - Apply each pattern with a 5 ms timeout per regex (cumulative budget ≤ 50 ms p99).
 > - On a match, exit 2 with `BLOCKED: prompt contains a likely <pattern-name>; remove or obfuscate before submitting`.
 > - Otherwise exit 0.

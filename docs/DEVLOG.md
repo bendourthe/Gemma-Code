@@ -4,6 +4,68 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-04-28] v0.6.0 Phase 3 -- Defense-in-depth ratchets
+
+### Goal
+
+Land the medium-severity hardening items in the v0.6.0 cycle: bound `fetchWithSsrfGuard` response bodies to 5 MB, tighten the npm audit gate from `high` to `moderate`, replace SHA-1 with SHA-256 in the cache-probe fingerprint, add an ESLint regression guard against `innerHTML = a + b` patterns paired with a webview-helper hoist, and obfuscate the lone real-shape Slack webhook URL surviving in shipped docs.
+
+Plan reference: [docs/v0.6.0/plans/v0.6.0-cycle.md](v0.6.0/plans/v0.6.0-cycle.md) Phase 3 (sub-tasks 3.1 ... 3.6). Findings closed: pen-test F-002, F-005, F-006, F-010, F-011 + security-audit F-001, F-005, F-006, F-008 + codebase-review #8-#11, #17, #23.
+
+### Attempted Solutions
+
+#### Sub-task 3.1: bounded SSRF body cap
+
+Added `DEFAULT_MAX_BODY_BYTES = 5 * 1024 * 1024` and a `maxBodyBytes` option to `SsrfFetchOptions` in [src/utils/ssrf.ts](../src/utils/ssrf.ts). Extracted `_enforceBodyCap(response, maxBodyBytes)`: inspects `Content-Length`, then streams `response.body` via `getReader()`, accumulating chunks and aborting if the running total crosses the cap. Re-emits the buffered bytes as a fresh `Response` so callers' `.text()` / `.arrayBuffer()` paths stay unchanged. Wired into both terminal branches of the redirect loop.
+
+Wrote [tests/integration/ssrf-body-size.test.ts](../tests/integration/ssrf-body-size.test.ts) with 5 cases. Initial attempt used `msw` but its `HttpResponse` constructor recomputes `Content-Length` from actual body bytes, breaking the pre-stream rejection test. Switched to `vi.stubGlobal('fetch', mockFn)` constructing real `Response` objects locally; tests now run in ~20 ms. Defended `_enforceBodyCap` with `typeof response.headers?.get === 'function'` so existing `mockOf<Response>({ ok, status, text })` test mocks (which lack a `headers` object) keep working.
+
+#### Sub-task 3.2: npm audit gate at moderate
+
+`npm audit fix` (no `--force`) absorbed the `hono < 4.12.14` GHSA-458j-xx4x-4375 finding (`hono 4.12.12 -> 4.12.15`) plus incidental `@azure/msal-node`, `postcss`, `uuid` bumps; no package.json declarations changed. Re-running `npm audit --production --audit-level=moderate` now reports `found 0 vulnerabilities`. Tightened [.github/workflows/ci.yml](../.github/workflows/ci.yml) `audit-ts` step from `--audit-level=high` to `--audit-level=moderate`. The 5 remaining moderate dev-only findings (vitest / vite / vite-node / @vitest/coverage-v8) become a non-blocking informational job in Phase 7 sub-task 7.2.
+
+#### Sub-task 3.3: SHA-256 in cache fingerprint
+
+Verified [src/tools/Compressor.ts](../src/tools/Compressor.ts) `_probeKey` is in-memory only -- never persisted to SQLite, never written to a length-constrained column. Swapped `crypto.createHash("sha1")` for `"sha256"` plus a one-line audit-defensive comment. The 23 tests in `tests/unit/tools/Compressor.test.ts` had no hex-shape assertions and pass unchanged.
+
+#### Sub-task 3.4: ESLint rule + webview helper hoist
+
+Added `no-restricted-syntax` rule to [eslint.config.mjs](../eslint.config.mjs) with the plan's selector `AssignmentExpression[left.property.name='innerHTML'][right.type='BinaryExpression'][right.operator='+']`. Created [src/panels/webview/util.ts](../src/panels/webview/util.ts) exporting `WEBVIEW_HELPERS_JS` (idempotent inline-script source defining `escapeHtml` / `escapeAttr` / `formatDate` and attaching to `window.__gemmaWebviewHelpers`) plus `getWebviewHelpersScript(nonce)` to wrap it in a CSP-compatible `<script>` tag. Updated [src/panels/SessionListPanel.ts](../src/panels/SessionListPanel.ts) and [src/panels/webview/traceDashboard.ts](../src/panels/webview/traceDashboard.ts) to embed the shared helpers and removed the three-way duplication. Refactored the explicit `BinaryExpression +` patterns:
+
+- `SessionListPanel.renderSessions()` -> `replaceChildren(...sessions.map(createSessionItem))` with DOM-node builder using `createElement` + `textContent`.
+- `traceDashboard.renderMetrics()` -> `replaceChildren(createMetricItem(label, value), ...)` using a private element factory.
+- `webview/index.ts` `subAgentStatus` handler (running / complete / error states) -> `replaceChildren(strongEl, document.createTextNode(...))`. Eliminates the trust assumption on the `label` interpolation.
+
+Added [tests/unit/panels/webview/util.test.ts](../tests/unit/panels/webview/util.test.ts) with 10 cases covering all three helpers, idempotent re-definition, and the `<script>`-tag wrapper.
+
+**Scope decision (deferred to Phase 6.4)**: The remaining `innerHTML = arr.map(...).join('')` patterns in `traceDashboard.ts` use proper `escapeHtml` / `escapeAttr` escaping and are `CallExpression`-shaped (not matched by the ESLint rule). They live inside template-literal strings that ESLint cannot parse. Phase 6 sub-task 6.4 ("Split `panels/webview/index.ts` into scaffold/render/messages") is the natural place to convert them to DOM-node builders during the webview decomposition.
+
+#### Sub-task 3.5: obfuscate example webhook URLs
+
+`grep -rnE 'hooks\.slack\.com|xoxb-|sk-ant-' docs/` returned matches in three buckets: one operational (line 160 of `docs/v0.5.0/plans/routa-harness-adoption.md`), several meta-references in the v0.6.0 review/plan folder (descriptions of the finding), and zero in the test fixtures (already cleaned in v0.5.0 commit `dd111cc`). Rewrote line 160 to use `hooks\.slack\.example` and replaced surrounding `xoxb-` / `sk-ant-` regex examples with prose summaries. Left the v0.6.0 review docs intact -- obfuscating their meta-references would erase the audit's meaning, and they are not user-facing surfaces.
+
+### Tests Added / Modified
+
+- 1 new integration test (`ssrf-body-size.test.ts`, 5 cases)
+- 1 new unit test (`panels/webview/util.test.ts`, 10 cases)
+- 0 modified existing tests (`webSearch.test.ts` and `Compressor.test.ts` pass without change)
+
+### Suite delta vs. main
+
+- Pre-Phase-3: `82 failed test files | 3 failed tests | 660 passed | 3 todo`
+- Post-Phase-3: `81 failed test files | 0 failed tests | 663 passed | 3 todo` (+15 net-new tests)
+- The 81 "failed test files" are the pre-existing vscode-resolution issue documented in Phase 2; no new failures introduced.
+
+### Commits
+
+Will be produced via `/generate-commit-message` against the staged diff. Tentative scope: `feat(v0.6.0)` for the Phase 3 deliverables.
+
+### Next Step
+
+Phase 4: Module-boundary ratchet (per [docs/v0.6.0/plans/v0.6.0-cycle.md](v0.6.0/plans/v0.6.0-cycle.md) Phase 4). Drop the four `BASELINE-2026-04-25` exceptions in `configs/dependency-cruiser.cjs`, untangle the two warning cycles (`MemoryLayers.types <-> MemoryStore.types` and `SubAgentManager <-> AgentLoop`), move `secretPaths.ts` and `Compressor.ts` to `src/utils/`, route `EmbeddingClient` through the LLM port.
+
+---
+
 ## [2026-04-27] v0.6.0 Phase 2 -- Test pipeline reliability + release-gate baselines
 
 ### Goal

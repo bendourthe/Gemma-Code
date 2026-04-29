@@ -6,6 +6,7 @@
 import * as vscode from "vscode";
 import { randomUUID } from "node:crypto";
 import type { ChatHistoryStore } from "../storage/ChatHistoryStore.js";
+import { getWebviewHelpersScript } from "./webview/util.js";
 
 export const SESSION_VIEW_ID = "gemma-code.chatView";
 
@@ -178,6 +179,7 @@ export class SessionListPanel implements vscode.WebviewViewProvider {
     <div id="empty-state">No sessions yet. Click "New Session" to start.</div>
   </div>
 
+  ${getWebviewHelpersScript(nonce)}
   <script nonce="${nonce}">
     (function() {
       'use strict';
@@ -185,6 +187,7 @@ export class SessionListPanel implements vscode.WebviewViewProvider {
       const sessionsEl = document.getElementById('sessions');
       const searchEl = document.getElementById('search');
       const newChatBtn = document.getElementById('new-chat-btn');
+      const formatDate = window.__gemmaWebviewHelpers.formatDate;
       let allSessions = [];
 
       newChatBtn.addEventListener('click', () => {
@@ -196,44 +199,48 @@ export class SessionListPanel implements vscode.WebviewViewProvider {
         renderSessions(allSessions.filter(s => s.title.toLowerCase().includes(q)));
       });
 
-      function formatDate(ts) {
-        const d = new Date(ts);
-        const now = new Date();
-        const diff = now - d;
-        if (diff < 60000) return 'Just now';
-        if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
-        if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
-        if (diff < 604800000) return Math.floor(diff / 86400000) + 'd ago';
-        return d.toLocaleDateString();
+      function createSessionItem(s) {
+        const item = document.createElement('div');
+        item.className = 'session-item';
+        item.dataset.id = s.id;
+
+        const titleEl = document.createElement('div');
+        titleEl.className = 'session-title';
+        titleEl.textContent = s.title;
+
+        const metaEl = document.createElement('div');
+        metaEl.className = 'session-meta';
+
+        const dateEl = document.createElement('span');
+        dateEl.textContent = formatDate(s.updatedAt);
+
+        const countEl = document.createElement('span');
+        countEl.textContent = s.messageCount + ' messages';
+
+        metaEl.appendChild(dateEl);
+        metaEl.appendChild(countEl);
+        item.appendChild(titleEl);
+        item.appendChild(metaEl);
+
+        item.addEventListener('click', () => {
+          vscode.postMessage({ type: 'openSession', sessionId: s.id });
+        });
+        return item;
+      }
+
+      function createEmptyState(message) {
+        const div = document.createElement('div');
+        div.id = 'empty-state';
+        div.textContent = message;
+        return div;
       }
 
       function renderSessions(sessions) {
         if (sessions.length === 0) {
-          sessionsEl.innerHTML = '<div id="empty-state">No sessions found.</div>';
+          sessionsEl.replaceChildren(createEmptyState('No sessions found.'));
           return;
         }
-        sessionsEl.innerHTML = sessions.map(s =>
-          '<div class="session-item" data-id="' + escapeAttr(s.id) + '">' +
-            '<div class="session-title">' + escapeHtml(s.title) + '</div>' +
-            '<div class="session-meta">' +
-              '<span>' + formatDate(s.updatedAt) + '</span>' +
-              '<span>' + s.messageCount + ' messages</span>' +
-            '</div>' +
-          '</div>'
-        ).join('');
-
-        sessionsEl.querySelectorAll('.session-item').forEach(el => {
-          el.addEventListener('click', () => {
-            vscode.postMessage({ type: 'openSession', sessionId: el.dataset.id });
-          });
-        });
-      }
-
-      function escapeHtml(s) {
-        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-      }
-      function escapeAttr(s) {
-        return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        sessionsEl.replaceChildren(...sessions.map(createSessionItem));
       }
 
       window.addEventListener('message', (e) => {

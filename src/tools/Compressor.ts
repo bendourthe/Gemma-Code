@@ -109,7 +109,10 @@ function _probeKey(input: string | Buffer): string {
   const head = Buffer.isBuffer(input)
     ? input.subarray(0, PROBE_KEY_BYTES)
     : Buffer.from(input.slice(0, PROBE_KEY_BYTES), "utf8");
-  return crypto.createHash("sha1").update(head).digest("hex");
+  // SHA-256 fingerprint for the in-memory probe LRU. No security claim is
+  // attached; the upgrade from SHA-1 silences audit-tool noise per pen-test
+  // F-010.
+  return crypto.createHash("sha256").update(head).digest("hex");
 }
 
 function _probeRemember(key: string, value: boolean): void {

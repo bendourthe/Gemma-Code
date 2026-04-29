@@ -157,6 +157,9 @@ When Ollama is unreachable, `EmbeddingClient.embedWithProvenance` falls back to 
 - DOMPurify sanitizes every webview HTML sink; CSP locked down (Phase 4 of v0.4.0)
 - v0.6.0: every filesystem tool routes user-supplied paths through the unified `pathGuard.resolveInsideWorkspace`. The guard is realpath-aware, follows symlinks even when the leaf does not yet exist (write/create targets), and rejects any path whose realpath escapes the workspace root. Closes Attack Path A's symlink leg.
 - v0.6.0: `gemma-code.permissionOverrides` cannot drop a tool whose baseline tier requires confirmation to AUTO_APPROVE. Workspace-level `.vscode/settings.json` settings that try to silently auto-approve `delete_file`, `run_terminal`, or other confirmation-tier tools are clamped to tier 1 at runtime with a logger warning.
+- v0.6.0 Phase 3: `fetchWithSsrfGuard` (`src/utils/ssrf.ts`) enforces a 5 MB response-body cap by default (`DEFAULT_MAX_BODY_BYTES`, override via `maxBodyBytes`). Both `Content-Length` and the streamed total are bounded; exceeding the cap aborts the body reader and throws `Response body too large`. Closes pen-test F-002 (Attack Path C: memory-exhaustion DoS via crafted large responses). The `tool-output cache` probe-LRU fingerprint is now SHA-256 (Compressor.ts `_probeKey`); audit-defensive only -- no security claim attached.
+- v0.6.0 Phase 3: `npm audit --production --audit-level=moderate` is now the CI gate (was `high`). The `hono < 4.12.14` JSX-attribute injection finding is absorbed.
+- v0.6.0 Phase 3: ESLint `no-restricted-syntax` rule blocks `el.innerHTML = a + b` BinaryExpression patterns at the TS-source level. Webview helpers (`escapeHtml`, `escapeAttr`, `formatDate`) are hoisted to `src/panels/webview/util.ts` and embedded into panel HTML via a single nonce-pinned `<script>` block (`getWebviewHelpersScript(nonce)`).
 
 ## 10. Module dependency contract
 

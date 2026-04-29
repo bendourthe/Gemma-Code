@@ -1314,25 +1314,31 @@ export function getWebviewHtml(
             const labels = { verification: 'Verification', research: 'Research', planning: 'Planning' };
             const label = labels[msg.agentType] || msg.agentType;
             subAgentBanner.classList.remove('error');
+            const labelEl = document.createElement('strong');
+            labelEl.textContent = label;
             if (msg.state === 'running') {
-              subAgentBanner.innerHTML =
-                '<span class="sub-agent-spinner"></span>' +
-                '<strong>' + label + '</strong> agent running\u2026';
+              const spinner = document.createElement('span');
+              spinner.className = 'sub-agent-spinner';
+              const suffix = document.createTextNode(' agent running\u2026');
+              subAgentBanner.replaceChildren(spinner, labelEl, suffix);
               subAgentBanner.classList.add('visible');
             } else if (msg.state === 'complete') {
-              subAgentBanner.innerHTML = '<strong>' + label + '</strong> agent complete.';
+              subAgentBanner.replaceChildren(labelEl, document.createTextNode(' agent complete.'));
               subAgentBanner.classList.add('visible');
               setTimeout(() => {
                 subAgentBanner.classList.remove('visible');
-                subAgentBanner.innerHTML = '';
+                subAgentBanner.replaceChildren();
               }, 3000);
             } else if (msg.state === 'error') {
-              subAgentBanner.innerHTML =
-                '<strong>' + label + '</strong> agent error: ' + (msg.summary || 'unknown');
+              const summary = msg.summary || 'unknown';
+              subAgentBanner.replaceChildren(
+                labelEl,
+                document.createTextNode(' agent error: ' + summary),
+              );
               subAgentBanner.classList.add('visible', 'error');
               setTimeout(() => {
                 subAgentBanner.classList.remove('visible', 'error');
-                subAgentBanner.innerHTML = '';
+                subAgentBanner.replaceChildren();
               }, 5000);
             }
             break;

@@ -18,12 +18,12 @@ For the ADR-level architecture see [../ARCHITECTURE.md](../ARCHITECTURE.md) and 
 | `mcp` | 5 | 649 | [src/mcp/McpManager.ts](../src/mcp/McpManager.ts) | `DEFAULT_MCP_EXPOSED_TOOLS`, `McpClient`, `McpConfigFile` |
 | `observability` | 5 | 1427 | [src/observability/TraceStore.ts](../src/observability/TraceStore.ts) | `AggregateMetrics`, `MetricsCollector`, `MetricsTrend` |
 | `orchestration` | 8 | 1572 | [src/orchestration/TaskDAG.ts](../src/orchestration/TaskDAG.ts) | `PostMessageFn`, `buildSubAgentRequest`, `CodeTaskInput` |
-| `panels` | 6 | 4608 | [src/panels/webview/index.ts](../src/panels/webview/index.ts) | `ActionClassificationMessage`, `ApproveStepMessage`, `CacheStatsMessage` |
+| `panels` | 7 | 4691 | [src/panels/webview/index.ts](../src/panels/webview/index.ts) | `ActionClassificationMessage`, `ApproveStepMessage`, `CacheStatsMessage` |
 | `runtime` | 1 | 59 | [src/runtime/GemmaRuntime.ts](../src/runtime/GemmaRuntime.ts) | `GemmaRuntime` |
 | `skills` | 1 | 185 | [src/skills/SkillLoader.ts](../src/skills/SkillLoader.ts) | `Skill`, `SkillLoader` |
 | `storage` | 29 | 6543 | [src/storage/eviction/index.ts](../src/storage/eviction/index.ts) | `ARCEvictor`, `BrokenPathIssue`, `CACHE_DIRNAME` |
-| `tools` | 18 | 4589 | [src/tools/handlers/filesystem.ts](../src/tools/handlers/filesystem.ts) | `AgentLoop`, `AgentLoopOptions`, `ALLOWED_COMMANDS` |
-| `utils` | 4 | 521 | [src/utils/MarkdownRenderer.ts](../src/utils/MarkdownRenderer.ts) | `DnsLookupFn`, `formatForLog`, `formatForUser` |
+| `tools` | 18 | 4592 | [src/tools/handlers/filesystem.ts](../src/tools/handlers/filesystem.ts) | `AgentLoop`, `AgentLoopOptions`, `ALLOWED_COMMANDS` |
+| `utils` | 4 | 608 | [src/utils/ssrf.ts](../src/utils/ssrf.ts) | `DEFAULT_MAX_BODY_BYTES`, `DnsLookupFn`, `formatForLog` |
 
 ## Module purposes
 

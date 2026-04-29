@@ -179,8 +179,8 @@ jobs:
           node-version: "20"
           cache: "npm"
       - run: npm ci --prefer-offline --no-audit
-      - name: npm audit --production --audit-level=high
-        run: npm audit --production --audit-level=high
+      - name: npm audit --production --audit-level=moderate
+        run: npm audit --production --audit-level=moderate
 
   audit-py:
     name: pip-audit (installer venv)
