@@ -2,7 +2,7 @@ import type { OllamaClient, OllamaMessage, OllamaOptions, OllamaToolDefinition }
 import type { ConversationManager } from "../chat/ConversationManager.js";
 import type { PostMessageFn } from "../chat/StreamingPipeline.js";
 import type { ContextCompactor } from "../chat/ContextCompactor.js";
-import type { SubAgentManager } from "../agents/SubAgentManager.js";
+import type { SubAgentSpawner } from "../agents/SubAgentSpawner.types.js";
 import type { SubAgentConfig, SubAgentResult } from "../agents/types.js";
 import { parseToolCalls, stripToolCalls, formatToolResult } from "./ToolCallParser.js";
 import type { ToolRegistry } from "./ToolRegistry.js";
@@ -36,7 +36,7 @@ function estimateTokensForString(text: string): number {
 }
 
 export interface AgentLoopOptions {
-  readonly subAgentManager?: SubAgentManager;
+  readonly subAgentManager?: SubAgentSpawner;
   readonly verificationThreshold?: number;
   readonly verificationEnabled?: boolean;
   readonly budgetMiddleware?: BudgetMiddleware;
@@ -79,7 +79,7 @@ export class AgentLoop {
   private readonly _modifiedFiles: string[] = [];
   private readonly _recentToolResults: string[] = [];
 
-  private readonly _subAgentManager?: SubAgentManager;
+  private readonly _subAgentManager?: SubAgentSpawner;
   private readonly _verificationThreshold: number;
   private readonly _verificationEnabled: boolean;
   private _budgetMiddleware?: BudgetMiddleware;

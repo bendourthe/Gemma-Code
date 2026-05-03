@@ -130,15 +130,21 @@ describe("SessionListPanel", () => {
     expect(postMessage).not.toHaveBeenCalled();
   });
 
-  it("escapeAttr is wired into the HTML template to prevent attribute-context injection", () => {
-    // The webview-side template must include an escapeAttr helper when
-    // rendering session ids into data-id attributes.
+  it("renders session ids via DOM-builder API rather than innerHTML concat", () => {
+    // Phase 3 (v0.6.0): the webview template no longer concatenates session
+    // ids into innerHTML. Session items are built with document.createElement
+    // and `item.dataset.id = s.id`, which the DOM API escapes automatically.
+    // This is the regression bar the Phase 3 ESLint rule was designed to keep.
     const panel = new SessionListPanel(extensionUri, store, vi.fn(), vi.fn());
     const { view } = makeMockWebviewView();
     panel.resolveWebviewView(view, resolveContext, cancellationToken);
 
-    expect(view.webview.html).toContain("escapeAttr");
-    expect(view.webview.html).toMatch(/data-id="' \+ escapeAttr\(s\.id\)/);
+    const html = view.webview.html;
+    // The DOM-builder path is in use.
+    expect(html).toContain("document.createElement");
+    expect(html).toMatch(/item\.dataset\.id\s*=\s*s\.id/);
+    // The fragile innerHTML-concat pattern is absent.
+    expect(html).not.toMatch(/innerHTML\s*=\s*[^=]+\+/);
   });
 
   it("refreshSessions() is a no-op before resolveWebviewView is called", () => {

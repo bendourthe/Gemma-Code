@@ -1,11 +1,14 @@
 import { Tracer } from "../observability/Tracer.js";
 import { getSettings, onSettingsChange, type GemmaCodeSettings } from "../config/settings.js";
+import { createOllamaClient } from "../llm/OllamaClient.js";
+import type { LLMClient } from "../llm/types.js";
 
 /**
  * Composition root for the extension. Owns the singleton-like cross-cutting
- * concerns (Tracer, settings snapshot + change subscription) so individual
- * subsystems no longer reach into shared static state. The runtime is created
- * once in `extension.ts` activation and threaded into every consumer.
+ * concerns (Tracer, settings snapshot + change subscription, LLM port) so
+ * individual subsystems no longer reach into shared static state. The
+ * runtime is created once in `extension.ts` activation and threaded into
+ * every consumer.
  *
  * This is the v0.4.0 starting point for the panel-split work. The full
  * `ChatController` / `ChatWebviewHost` extraction (Phase 6 sub-task 6.2) is
@@ -19,16 +22,48 @@ export class GemmaRuntime {
   private _settings: GemmaCodeSettings;
   private readonly _settingsListeners: Array<(s: GemmaCodeSettings) => void> = [];
   private readonly _settingsSubscription: { dispose(): void };
+  private _llmClient: LLMClient | null = null;
+  private _llmClientKey: string | null = null;
 
   constructor() {
     this.tracer = new Tracer();
     this._settings = getSettings();
     this._settingsSubscription = onSettingsChange((next) => {
+      const prev = this._settings;
       this._settings = next;
+      // Invalidate the cached LLM client when its inputs change so the next
+      // `getOllamaClient` call picks up the new URL or timeout.
+      if (
+        prev.ollamaUrl !== next.ollamaUrl ||
+        prev.requestTimeout !== next.requestTimeout
+      ) {
+        this._llmClient = null;
+        this._llmClientKey = null;
+      }
       for (const listener of this._settingsListeners) {
         listener(next);
       }
     });
+  }
+
+  /**
+   * Vendor-neutral LLM port. Caches a single instance per `(ollamaUrl,
+   * requestTimeout)` pair so subsystems do not allocate one per use; the
+   * cache is invalidated automatically when either input changes via
+   * `onSettingsChange`. Phase 4 (v0.6.0) sub-task 4.3.
+   */
+  getOllamaClient(): LLMClient {
+    const s = this._settings;
+    const key = `${s.ollamaUrl}|${s.requestTimeout}`;
+    if (this._llmClient && this._llmClientKey === key) {
+      return this._llmClient;
+    }
+    this._llmClient = createOllamaClient({
+      baseUrl: s.ollamaUrl,
+      timeoutMs: s.requestTimeout,
+    });
+    this._llmClientKey = key;
+    return this._llmClient;
   }
 
   /** Current settings snapshot. Always returns the latest known value. */

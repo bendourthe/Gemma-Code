@@ -70,6 +70,17 @@ export class LLMError extends Error {
   }
 }
 
+/**
+ * Result returned by `LLMClient.embed`. `available` lets the caller distinguish
+ * "embedding model is not loaded" (a hard miss that should bypass retries)
+ * from a transient failure (returned as `embedding === null` with
+ * `available === true`).
+ */
+export interface LLMEmbedResult {
+  readonly embedding: number[] | null;
+  readonly available: boolean;
+}
+
 export interface LLMClient {
   checkHealth(): Promise<boolean>;
   listModels(): Promise<LLMModel[]>;
@@ -77,6 +88,15 @@ export interface LLMClient {
     request: LLMChatRequest,
     signal?: AbortSignal,
   ): AsyncGenerator<LLMStreamChunk>;
+  /**
+   * Optional embedding capability. Returns `available: false` when the
+   * configured embedding model is not loaded; returns `embedding: null` with
+   * `available: true` when a transient error occurred. Implementations that
+   * do not support embeddings can omit this method.
+   */
+  embed?(text: string, model: string): Promise<LLMEmbedResult>;
+  /** Optional batch embedding. Implementations may polyfill via `embed`. */
+  embedBatch?(texts: readonly string[], model: string): Promise<LLMEmbedResult[]>;
 }
 
 // ---------------------------------------------------------------------------

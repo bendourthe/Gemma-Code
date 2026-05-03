@@ -24,19 +24,19 @@ import {
 import {
   resetCompressionStats,
   getCompressionStats,
-} from "../../src/tools/Compressor.js";
+} from "../../src/utils/Compressor.js";
 
 function buildGrepResult(byteTarget: number): string {
   // Realistic-shaped grep output: src-relative paths and a code excerpt per
   // line. This compresses well because the path prefix and structure repeat.
   const sample = [
-    "src/tools/Compressor.ts:42: export async function compress(input: string): Promise<CompressionResult> {",
-    "src/tools/Compressor.ts:51: const data = await _brotliCompressAsync(inputBuf, BROTLI_OPTIONS);",
-    "src/tools/Compressor.ts:60: return { data, originalBytes, compressedBytes, ratio };",
+    "src/utils/Compressor.ts:42: export async function compress(input: string): Promise<CompressionResult> {",
+    "src/utils/Compressor.ts:51: const data = await _brotliCompressAsync(inputBuf, BROTLI_OPTIONS);",
+    "src/utils/Compressor.ts:60: return { data, originalBytes, compressedBytes, ratio };",
     "src/tools/OutputRedirector.ts:185: filePath = path.join(this._outputDir, `${callId}.txt.br`);",
     "src/tools/OutputRedirector.ts:192: fs.writeFileSync(filePath, dataBuf);",
     "src/chat/ContextCompactor.ts:128: const cleared = message.content.replace(TOOL_RESULT_RE, summary);",
-    "tests/unit/tools/Compressor.test.ts:88: expect(result.ratio).toBeGreaterThanOrEqual(0.5);",
+    "tests/unit/utils/Compressor.test.ts:88: expect(result.ratio).toBeGreaterThanOrEqual(0.5);",
   ];
   let out = "";
   let i = 0;

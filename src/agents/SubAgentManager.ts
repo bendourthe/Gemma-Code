@@ -2,6 +2,7 @@ import type { OllamaClient, OllamaOptions, OllamaToolDefinition } from "../llm/t
 import type { MemoryStore } from "../storage/MemoryStore.js";
 import type { PostMessageFn } from "../chat/StreamingPipeline.js";
 import type { SubAgentConfig, SubAgentResult, SubAgentType } from "./types.js";
+import type { SubAgentSpawner } from "./SubAgentSpawner.types.js";
 import { buildSubAgentContextMessage } from "./SubAgentPrompts.js";
 import { PromptBuilder } from "../chat/PromptBuilder.js";
 import { ConversationManager } from "../chat/ConversationManager.js";
@@ -37,8 +38,12 @@ const TOOLS_BY_TYPE: Record<SubAgentType, readonly string[]> = {
  * Creates and runs isolated sub-agents with scoped tools and ephemeral conversations.
  * Each sub-agent gets its own ConversationManager and AgentLoop; the conversation
  * is discarded after the run completes.
+ *
+ * Phase 4 (v0.6.0) sub-task 4.6: implements `SubAgentSpawner`. AgentLoop now
+ * imports only that interface, breaking the bidirectional cycle that
+ * previously existed between this module and `tools/AgentLoop`.
  */
-export class SubAgentManager {
+export class SubAgentManager implements SubAgentSpawner {
   private readonly _promptBuilder: PromptBuilder;
 
   constructor(

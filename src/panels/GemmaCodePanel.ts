@@ -21,7 +21,6 @@ import {
 } from "../tools/handlers/filesystem.js";
 import { RunTerminalTool } from "../tools/handlers/terminal.js";
 import { WebSearchTool, FetchPageTool } from "../tools/handlers/webSearch.js";
-import { createOllamaClient } from "../llm/OllamaClient.js";
 import { getSettings, type GemmaCodeSettings } from "../config/settings.js";
 import { TOOL_CATALOG, toDynamicMetadata } from "../tools/ToolCatalog.js";
 import type { DynamicToolMetadata } from "../tools/ToolCatalog.js";
@@ -160,8 +159,13 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     // unconditionally; `setEnabled(...)` controls whether writes happen.
     this._operationLog = this._initOperationLog(settings);
 
+    // The vendor-neutral LLM port -- built once and threaded into every
+    // consumer (chat streaming, sub-agents, the embedding port wired into
+    // MemorySubsystem).
+    const client = this._runtime.getOllamaClient();
+
     // Initialize 4-layer memory system through the MemorySubsystem factory.
-    const memory = this._buildMemorySubsystem(settings, this._toolOutputCache);
+    const memory = this._buildMemorySubsystem(settings, client, this._toolOutputCache);
     this._memorySubsystem = memory;
     this._memoryStore = memory.memoryStore;
     this._workingMemory = memory.workingMemory;
@@ -177,8 +181,6 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     this._promptBuilder = new PromptBuilder();
     const initialPrompt = this._promptBuilder.buildSync(this._buildPromptContext());
     this._manager = new ConversationManager(initialPrompt, this._store ?? undefined);
-
-    const client = createOllamaClient(settings.ollamaUrl);
 
     // postMessage is not available until resolveWebviewView; use a late-binding closure.
     const postRaw = (msg: ExtensionToWebviewMessage): void => {
@@ -734,8 +736,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
       }
 
       case "model": {
-        const settings = this._getSettings();
-        const client = createOllamaClient(settings.ollamaUrl);
+        const client = this._runtime.getOllamaClient();
         const models = await client.listModels().catch(() => []);
 
         if (models.length === 0) {
@@ -1533,6 +1534,7 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
 
   private _buildMemorySubsystem(
     settings: ReturnType<typeof getSettings>,
+    llmClient: import("../llm/types.js").LLMClient,
     toolOutputCache: ToolOutputCache | null,
   ): MemorySubsystem {
     if (!settings.memoryEnabled || !this._globalStorageUri) {
@@ -1541,9 +1543,8 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     const dbPath = path.join(this._globalStorageUri.fsPath, "memory.db");
     return new MemorySubsystem({
       dbPath,
-      ollamaUrl: settings.ollamaUrl,
+      llmClient,
       embeddingModel: settings.embeddingModel ?? null,
-      requestTimeout: settings.requestTimeout,
       toolOutputCache,
       corroborationThreshold: settings.memoryCorroborationThreshold,
     });

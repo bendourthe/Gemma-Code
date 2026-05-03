@@ -1,5 +1,24 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { MemorySubsystem } from "../../../src/storage/MemorySubsystem.js";
+import type {
+  LLMClient,
+  LLMStreamChunk,
+} from "../../../src/llm/types.js";
+
+/**
+ * Phase 4 (v0.6.0): MemorySubsystem accepts an `LLMClient` port instead of
+ * the (ollamaUrl, requestTimeout) pair. These tests pass a no-op fake; with
+ * `embeddingModel: null` the subsystem never calls into it.
+ */
+function fakeClient(): LLMClient {
+  return {
+    checkHealth: vi.fn().mockResolvedValue(true),
+    listModels: vi.fn().mockResolvedValue([]),
+    streamChat: function* (): AsyncGenerator<LLMStreamChunk> {
+      /* unused */
+    } as unknown as LLMClient["streamChat"],
+  };
+}
 
 describe("MemorySubsystem", () => {
   it("disabled() returns a subsystem with every layer set to null", () => {
@@ -19,9 +38,8 @@ describe("MemorySubsystem", () => {
   it("constructs every layer when given a valid in-memory dbPath", () => {
     const sub = new MemorySubsystem({
       dbPath: ":memory:",
-      ollamaUrl: "http://localhost:11434",
+      llmClient: fakeClient(),
       embeddingModel: null,
-      requestTimeout: 60_000,
     });
 
     expect(sub.memoryStore).not.toBeNull();
@@ -38,9 +56,8 @@ describe("MemorySubsystem", () => {
   it("wires the graph engine into the memory store", () => {
     const sub = new MemorySubsystem({
       dbPath: ":memory:",
-      ollamaUrl: "http://localhost:11434",
+      llmClient: fakeClient(),
       embeddingModel: null,
-      requestTimeout: 60_000,
     });
 
     // The MemoryStore should hold the same graph engine instance.
@@ -52,9 +69,8 @@ describe("MemorySubsystem", () => {
     const disabled = MemorySubsystem.disabled();
     const enabled = new MemorySubsystem({
       dbPath: ":memory:",
-      ollamaUrl: "http://localhost:11434",
+      llmClient: fakeClient(),
       embeddingModel: null,
-      requestTimeout: 60_000,
     });
 
     expect(disabled.isReady).toBe(false);

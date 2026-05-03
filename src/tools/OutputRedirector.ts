@@ -7,7 +7,7 @@ import {
   compressSyncLarge,
   decompressSync,
   SYNC_COMPRESS_CEILING,
-} from "./Compressor.js";
+} from "../utils/Compressor.js";
 import type {
   ToolHandler,
   ToolResult,

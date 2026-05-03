@@ -3,7 +3,7 @@ import * as path from "path";
 import type { MemoryStore } from "./MemoryStore.js";
 import type { MemoryEntry } from "./MemoryStore.types.js";
 import type { MemoryLayerId } from "./MemoryLayers.types.js";
-import { matchesSecretPath } from "../tools/handlers/secretPaths.js";
+import { matchesSecretPath } from "../utils/secretPaths.js";
 
 /** Workspace-relative path regex for broken-path detection. */
 const PATH_REFERENCE_REGEX =

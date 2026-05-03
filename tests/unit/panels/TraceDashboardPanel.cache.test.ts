@@ -7,7 +7,7 @@ import { TraceDashboardPanel } from "../../../src/panels/TraceDashboardPanel.js"
 import {
   resetCompressionStats,
   compressSync,
-} from "../../../src/tools/Compressor.js";
+} from "../../../src/utils/Compressor.js";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";

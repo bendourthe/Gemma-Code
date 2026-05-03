@@ -21,16 +21,14 @@ module.exports = {
       severity: 'error',
       comment:
         'Only files under src/llm/ may import the concrete Ollama clients. ' +
-        'Other modules must consume the port in src/llm/types.ts. ' +
-        'BASELINE-2026-04-25 exceptions: EmbeddingClient (uses OllamaHttp ' +
-        'directly for /api/embeddings), GemmaCodePanel + extension.ts ' +
-        '(bootstrap the OllamaClient before the runtime exists). Ratchet by v0.6.0.',
+        'Other modules must consume the port in src/llm/types.ts. The ' +
+        'composition root (`src/runtime/GemmaRuntime.ts`) constructs the ' +
+        'concrete client via `createOllamaClient` and threads the port to ' +
+        'every consumer.',
       from: {
         pathNot: [
           '^src/llm/',
-          '^src/storage/EmbeddingClient\\.ts$',
-          '^src/panels/GemmaCodePanel\\.ts$',
-          '^src/extension\\.ts$',
+          '^src/runtime/GemmaRuntime\\.ts$',
         ],
       },
       to: { path: '^src/llm/(?:OllamaClient|OllamaHttp)\\.ts$' },
@@ -49,18 +47,8 @@ module.exports = {
       severity: 'error',
       comment:
         'Storage modules must not depend on tool handlers. Storage is a ' +
-        'foundation layer; tools sit on top of it. ' +
-        'BASELINE-2026-04-25 exceptions: ToolOutputCache and ' +
-        'MemoryHealthCheck reach into tool-side helpers (secretPaths, ' +
-        'Compressor) that are pure utilities. Move shared helpers under ' +
-        'src/utils/ and ratchet by v0.6.0.',
-      from: {
-        path: '^src/storage/',
-        pathNot: [
-          '^src/storage/ToolOutputCache\\.ts$',
-          '^src/storage/MemoryHealthCheck\\.ts$',
-        ],
-      },
+        'foundation layer; tools sit on top of it.',
+      from: { path: '^src/storage/' },
       to: { path: '^src/tools/' },
     },
     {
@@ -69,9 +57,13 @@ module.exports = {
       comment:
         'Panels must not import storage directly; route through ' +
         'src/panels/messages.ts so the webview sandbox cannot bypass guardrails. ' +
-        'BASELINE-2026-04-25 exceptions: GemmaCodePanel, SessionListPanel, and ' +
-        'TraceDashboardPanel pre-date the messaging boundary. ' +
-        'Ratchet by v0.6.0.',
+        'BASELINE-2026-04-25 exceptions deferred to Phase 6 of the v0.6.0 ' +
+        'cycle (panel decomposition): GemmaCodePanel hosts the full memory ' +
+        'stack; SessionListPanel and TraceDashboardPanel run real-time reads ' +
+        'against ChatHistoryStore and ToolOutputCache respectively. The plan ' +
+        '(docs/v0.6.0/plans/v0.6.0-cycle.md sub-task 4.4) explicitly permits ' +
+        'this deferral so the messaging port is designed once during the ' +
+        'ChatController / ChatWebviewHost split rather than retrofitted twice.',
       from: {
         path: '^src/panels/',
         pathNot: [

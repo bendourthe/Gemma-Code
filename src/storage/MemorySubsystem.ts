@@ -11,12 +11,17 @@ import { GraphQueryEngine } from "./GraphQueryEngine.js";
 import { MemoryConsolidator } from "./MemoryConsolidator.js";
 import { UnifiedMemoryRetriever } from "./UnifiedMemoryRetriever.js";
 import type { ToolOutputCache } from "./ToolOutputCache.js";
+import type { LLMClient } from "../llm/types.js";
 
 export interface MemorySubsystemOptions {
   dbPath: string;
-  ollamaUrl: string;
+  /**
+   * Vendor-neutral LLM port used for embedding generation. The composition
+   * root constructs the concrete client and passes it in; storage modules
+   * never depend on a specific provider.
+   */
+  llmClient: LLMClient;
   embeddingModel: string | null;
-  requestTimeout: number;
   /**
    * Phase 5 (v0.5.0): optional persistent tool-output cache. When provided,
    * the subsystem wires its EmbeddingClient into the cache for async
@@ -109,7 +114,7 @@ function buildSubsystem(options: MemorySubsystemOptions): Built {
   let sharedDb: Database.Database | null = null;
   try {
     const embedder = options.embeddingModel
-      ? new EmbeddingClient(options.ollamaUrl, options.embeddingModel, options.requestTimeout)
+      ? new EmbeddingClient(options.llmClient, options.embeddingModel)
       : null;
 
     // Single connection shared across MemoryStore, EpisodicMemory, and

@@ -1,6 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
-import { matchesSecretPath } from "../tools/handlers/secretPaths.js";
+import { matchesSecretPath } from "../utils/secretPaths.js";
 import { getLogger } from "../utils/logger.js";
 import { formatForLog } from "../utils/errors.js";
 

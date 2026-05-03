@@ -1,6 +1,5 @@
 import * as path from "path";
 import * as vscode from "vscode";
-import { createOllamaClient } from "./llm/OllamaClient.js";
 import { formatForUser } from "./utils/errors.js";
 import { GemmaCodePanel } from "./panels/GemmaCodePanel.js";
 import { SessionListPanel, SESSION_VIEW_ID } from "./panels/SessionListPanel.js";
@@ -38,13 +37,14 @@ const OLLAMA_POLL_SLOW_MS = 30_000;
 
 function startOllamaPoller(
   panel: GemmaCodePanel,
-  channel: vscode.OutputChannel
+  channel: vscode.OutputChannel,
+  runtime: GemmaRuntime,
 ): void {
   let ollamaWasReachable = false;
   // Client is created once and reused across every tick. Previously a fresh
   // client was allocated per tick, generating ~17k allocations/day on an idle
   // 8-hour session.
-  const client = createOllamaClient();
+  const client = runtime.getOllamaClient();
 
   const tick = async (): Promise<void> => {
     const healthy = await client.checkHealth().catch(() => false);
@@ -90,7 +90,7 @@ export function activate(context: vscode.ExtensionContext): void {
       channel.show(true);
       channel.appendLine("[Gemma Code] Pinging Ollama...");
 
-      const client = createOllamaClient();
+      const client = runtime.getOllamaClient();
 
       const healthy = await client.checkHealth().catch(() => false);
       if (!healthy) {
@@ -352,7 +352,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(openSessionCommand);
 
   // ── Ollama availability poller ────────────────────────────────────────────
-  startOllamaPoller(chatPanel, outputChannel);
+  startOllamaPoller(chatPanel, outputChannel, runtime);
 
   // Dispose the poller when the extension deactivates.
   context.subscriptions.push({
@@ -365,7 +365,8 @@ export function activate(context: vscode.ExtensionContext): void {
   });
 
   // ── Initial Ollama health check ───────────────────────────────────────────
-  createOllamaClient()
+  runtime
+    .getOllamaClient()
     .checkHealth()
     .then((healthy) => {
       void chatPanel.setOllamaReachable(healthy);

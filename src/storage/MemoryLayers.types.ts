@@ -2,28 +2,22 @@
 // Memory Layer Architecture -- Type Definitions
 // ---------------------------------------------------------------------------
 // Defines the 4-layer memory stack: working, episodic, semantic, graph.
-// All interfaces use readonly fields. No runtime code in this file except
-// the isStale/isExpired utility functions.
+// All interfaces use readonly fields. Foundation types (MemoryEntry,
+// MemoryProvenance, MemoryTTL, MemoryType) live in MemoryShared.types.ts so
+// this file no longer cycles with MemoryStore.types.
 // ---------------------------------------------------------------------------
 
-import type { MemoryEntry } from "./MemoryStore.types.js";
+import type {
+  MemoryEntry,
+  MemoryProvenance,
+  MemoryTTL,
+} from "./MemoryShared.types.js";
 
-// ---------------------------------------------------------------------------
-// Provenance
-// ---------------------------------------------------------------------------
-
-export interface MemoryProvenance {
-  readonly source:
-    | "user_stated"
-    | "tool_verified"
-    | "llm_extracted"
-    | "pattern_detected"
-    | "consolidated";
-  readonly sourceSessionId: string | null;
-  readonly sourceMessageId: string | null;
-  readonly timestamp: number;
-  readonly confidence: number; // 0.0 to 1.0
-}
+// Re-export foundation types so existing call sites (`from
+// "./MemoryLayers.types.js"` for MemoryProvenance, MemoryTTL, isStale,
+// isExpired) keep working.
+export type { MemoryProvenance, MemoryTTL } from "./MemoryShared.types.js";
+export { isStale, isExpired } from "./MemoryShared.types.js";
 
 // ---------------------------------------------------------------------------
 // Write Policy
@@ -47,30 +41,6 @@ export interface WriteGate {
   readonly policy: WritePolicy;
   readonly minRecurrences: number; // for pattern_recurring, default 2
   readonly requireVerification: boolean; // must be confirmed by tool result
-}
-
-// ---------------------------------------------------------------------------
-// TTL and Staleness
-// ---------------------------------------------------------------------------
-
-export interface MemoryTTL {
-  readonly createdAt: number;
-  readonly expiresAt: number | null; // null = no expiry
-  readonly lastVerifiedAt: number;
-  readonly staleAfterMs: number; // mark stale after this duration without access
-}
-
-/** Returns true when the memory has not been verified within its staleAfterMs window. */
-export function isStale(ttl: MemoryTTL, now?: number): boolean {
-  const ts = now ?? Date.now();
-  return ts - ttl.lastVerifiedAt > ttl.staleAfterMs;
-}
-
-/** Returns true when the memory has passed its expiresAt timestamp. */
-export function isExpired(ttl: MemoryTTL, now?: number): boolean {
-  if (ttl.expiresAt === null) return false;
-  const ts = now ?? Date.now();
-  return ts >= ttl.expiresAt;
 }
 
 // ---------------------------------------------------------------------------

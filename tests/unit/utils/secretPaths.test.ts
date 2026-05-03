@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { matchesSecretPath } from "../../../../src/tools/handlers/secretPaths.js";
+import { matchesSecretPath } from "../../../src/utils/secretPaths.js";
 
 describe("matchesSecretPath", () => {
   it.each([

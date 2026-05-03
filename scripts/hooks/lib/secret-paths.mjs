@@ -1,6 +1,6 @@
 /**
  * Canonical list of glob patterns matching filesystem paths that may contain
- * secrets. Mirrored by `src/tools/handlers/secretPaths.ts` (which re-imports
+ * secrets. Mirrored by `src/utils/secretPaths.ts` (which re-imports
  * the array). Keep this file as the single source of truth so the agent-agnostic
  * harness hooks and the in-process runtime guard cannot drift apart.
  *

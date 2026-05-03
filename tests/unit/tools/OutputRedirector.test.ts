@@ -11,7 +11,7 @@ import {
 import {
   resetCompressionStats,
   getCompressionStats,
-} from "../../../src/tools/Compressor.js";
+} from "../../../src/utils/Compressor.js";
 
 describe("OutputRedirector", () => {
   let tmpDir: string;

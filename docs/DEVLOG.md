@@ -4,6 +4,52 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-03] v0.6.0 Phase 4 -- Module-boundary ratchet
+
+### Goal
+
+Ratchet the four `BASELINE-2026-04-25` exceptions in [configs/dependency-cruiser.cjs](../configs/dependency-cruiser.cjs) and untangle the two pre-existing circular dependencies. The four boundary rules carried grandfathered exceptions for: pre-runtime LLM bootstrap (`extension.ts`, `GemmaCodePanel`), `EmbeddingClient` reaching into `OllamaHttp`, two storage modules reaching into tool-side helpers (`secretPaths`, `Compressor`), three panels importing storage directly, and two cycles (`MemoryLayers.types <-> MemoryStore.types`; `SubAgentManager <-> AgentLoop`).
+
+Plan reference: [docs/v0.6.0/plans/v0.6.0-cycle.md](v0.6.0/plans/v0.6.0-cycle.md) Phase 4 (sub-tasks 4.1 ... 4.7). Findings closed: codebase-review #14, #15, #21 + known-gaps 6.4. Sub-task 4.4 (`no-storage-from-panels`) is deferred to Phase 6 panel decomposition per the plan note.
+
+### Attempted Solutions
+
+#### Sub-task 4.1: move `secretPaths` and `Compressor` to `src/utils/`
+
+`git mv` moved both files; followed by their tests to `tests/unit/utils/`. Updated 6 importers in `src/` (`OperationLog`, `MemoryHealthCheck`, `ToolOutputCache`, `filesystem.ts` handler, `OutputRedirector`, `TraceDashboardPanel`) and 6 test files. Updated the cross-reference docstring in [scripts/hooks/lib/secret-paths.mjs](../scripts/hooks/lib/secret-paths.mjs). Dropped the `pathNot` exception list from `no-tools-from-storage` and removed its `BASELINE-2026-04-25` annotation; the rule is now its long-term shape.
+
+#### Sub-task 4.2: `EmbeddingClient` consumes the LLM port
+
+Extended [src/llm/types.ts](../src/llm/types.ts) `LLMClient` with optional `embed?` and `embedBatch?` methods returning `LLMEmbedResult { embedding, available }`. The two-field result lets callers distinguish "model not loaded" (cache the verdict) from "transient failure" (allow retry). Implemented both in [src/llm/OllamaClient.ts](../src/llm/OllamaClient.ts) using cached `/api/tags` availability so repeated `embed` calls do not pay round-trip cost. Rewrote [src/storage/EmbeddingClient.ts](../src/storage/EmbeddingClient.ts) to take `(client: LLMClient, model: string)` -- no more `OllamaHttp`. Updated [src/storage/MemorySubsystem.ts](../src/storage/MemorySubsystem.ts) `MemorySubsystemOptions` to receive `llmClient` instead of `(ollamaUrl, requestTimeout)`. Three test files rewritten to mock the port directly.
+
+#### Sub-task 4.3: `GemmaRuntime.getOllamaClient()`
+
+Added `getOllamaClient(): LLMClient` to [src/runtime/GemmaRuntime.ts](../src/runtime/GemmaRuntime.ts). The method caches the client per `(ollamaUrl, requestTimeout)` and the existing settings-change subscription invalidates it when either input changes. Updated [src/extension.ts](../src/extension.ts) (`startOllamaPoller` now takes `runtime` and reuses the cached client; ping command and initial health check the same) and [src/panels/GemmaCodePanel.ts](../src/panels/GemmaCodePanel.ts) (constructor builds the client once via `runtime.getOllamaClient()` before the memory subsystem so the embedder shares the same instance). After 4.2 + 4.3, `OllamaClient` and `OllamaHttp` are imported only inside `src/llm/` and from `GemmaRuntime`. The `no-llm-outside-llm-folder` rule's exception list shrinks to `^src/llm/` + `^src/runtime/GemmaRuntime\.ts$`; the BASELINE annotation is removed.
+
+#### Sub-task 4.4: panels-through-messages -- DEFERRED to Phase 6
+
+The plan note explicitly permits this deferral: *"this sub-task has overlap with Phase 6 panel decomposition; it is acceptable to defer 4.4 to Phase 6 if the dependency graph there is cleaner."* The reason is that Phase 6 sub-task 6.1 introduces `ChatController` + `ChatWebviewHost` + `ChatCommandHandlers`, defining the long-term postMessage boundary. Designing the storage-routing port now would build a contract that the Phase 6 split must redesign once. The `no-storage-from-panels` exception list is preserved with all three panels (`GemmaCodePanel`, `SessionListPanel`, `TraceDashboardPanel`) and an updated comment that explicitly cross-references Phase 6 so future readers see the deferral rather than a stale BASELINE.
+
+#### Sub-task 4.5: `MemoryLayers.types <-> MemoryStore.types` cycle
+
+Created [src/storage/MemoryShared.types.ts](../src/storage/MemoryShared.types.ts) hosting the truly shared foundation types: `MemoryProvenance`, `MemoryTTL`, `isStale`, `isExpired`, `MemoryEntry`, `MemoryType`, `CorroborationTier`. Rewrote `MemoryLayers.types.ts` and `MemoryStore.types.ts` to import from the shared file rather than from each other; both still re-export the moved types so existing call sites keep their import paths. The cycle disappears from `deps:check`.
+
+#### Sub-task 4.6: `SubAgentManager <-> AgentLoop` cycle
+
+Created [src/agents/SubAgentSpawner.types.ts](../src/agents/SubAgentSpawner.types.ts) with a single-method interface mirroring `SubAgentManager.run`'s signature. `AgentLoop` now imports only the interface; `SubAgentManager implements SubAgentSpawner` and keeps its one-way edge to `AgentLoop`. The cycle warning disappears.
+
+### Resolution
+
+`npm run deps:check`: 0 errors, 0 cycle warnings. The remaining `no-orphans` warning on `PredictiveCache.ts` is the unrelated Phase 5 wire-or-delete decision. `npm run lint`: 0 errors. Full test suite: all Phase-4-affected tests pass (134 tests across 9 files); `tests/unit/panels/SessionListPanel.test.ts` had a stale Phase-3-leftover assertion (it asserted the old `escapeAttr` concat shape; Phase 3 had refactored to `document.createElement` + `dataset.id`), updated to verify the new safer DOM-builder pattern. `npm run catalog:check`: regenerated `docs/index.md` to reflect the moves.
+
+### Outcome
+
+Three of four module-boundary BASELINE annotations removed (`no-llm-outside-llm-folder`, `no-tools-from-storage`, `no-circular`). The fourth (`no-storage-from-panels`) is deferred to Phase 6 with an explicit cross-reference. Both circular dependencies eliminated. The composition root pattern is now real: `OllamaClient`/`OllamaHttp` live behind `GemmaRuntime.getOllamaClient()`; storage modules consume only the LLM port; panels carry the only remaining baseline exception, sequenced for closure during the panel decomposition.
+
+Session history: [docs/v0.6.0/development/history/2026-04_phase-4-module-boundary-ratchet.md](v0.6.0/development/history/2026-04_phase-4-module-boundary-ratchet.md).
+
+---
+
 ## [2026-04-28] v0.6.0 Phase 3 -- Defense-in-depth ratchets
 
 ### Goal
