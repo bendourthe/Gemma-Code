@@ -51,6 +51,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### Removed
+
+- Legacy `gemma-code.gpuTier` string setting removed. Use `gemma-code.gpuTierOverride: number | null` instead.
+- `PredictiveCache` module and its `gemma-code.predictiveCacheEnabled` setting removed. The opt-in ARIMA pre-warmer was never wired into `ToolOutputCache.lookup()` or any runtime; the v0.6.0 cycle resolves the dead-code surface (codebase-review #7, pen-test F-008) by deleting the layer rather than completing it.
+
+### Planned
+
 - Rust performance components for file indexing and grep
 - Go CLI tooling for project scaffolding
 - ripgrep-backed GrepCodebaseTool
@@ -190,7 +197,7 @@ The following are recorded for v0.6.0+: LSTM predictive caching (hard constraint
 
 ---
 
-## [0.4.0] -- 2026-04-22
+## [0.4.0] -- 2026-04-25
 
 Code-review remediation release closing all 14 P0 findings from the v0.3.0 review.
 

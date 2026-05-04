@@ -320,7 +320,19 @@ Closes pen-test F-001, F-003, F-004; both legs of Attack Path A refuse the opera
 ### Phase 2 — Test pipeline reliability + release-gate baselines [PENDING]
 ### Phase 3 — Defense-in-depth ratchets [PENDING]
 ### Phase 4 — Module-boundary ratchet [PENDING]
-### Phase 5 — Doc/code drift + dead-code cleanup [PENDING]
+
+### Phase 5 — Doc/code drift + dead-code cleanup [COMPLETED 2026-05-03]
+
+Closes pen-test F-007, F-008, F-014; known-gaps 4.2, 4.3, 5.1, 5.3, 5.4, sections 8 + 9.7; codebase-review #4, #7, #13, #20. See [docs/v0.6.0/development/history/2026-05_phase-5-doc-code-drift.md](v0.6.0/development/history/2026-05_phase-5-doc-code-drift.md).
+
+- [x] 5.1 Decide PredictiveCache: deleted (Option B). Hard constraint #1 forbids new product surface; setting was unwired; bench measured latency, not hit-rate.
+- [x] 5.2 Decide threshold elevation: implemented (Option A). Per-row provenance threshold in `searchByEmbedding`; `gemma-code.ollamaEmbeddingThreshold` (0.85) + `gemma-code.heuristicEmbeddingThreshold` (0.95) settings; 3 real heuristic-fallback tests replace the `it.todo`.
+- [x] 5.3 Delete legacy `gemma-code.gpuTier` setting fallback; CHANGELOG `### Removed` entry.
+- [x] 5.4 Architecture-doc inaccuracies: meta-test path corrected; v0.4.0 ship date bumped to 2026-04-25; permission-tier table now generated from `PermissionTiers.ts` via `scripts/generate-tool-permission-table.mjs` and CI-gated in `catalog-sync` (also fixed two inverted tier rows -- delete_file is tier 1, web_search is tier 2).
+- [x] 5.5 FIFO-vs-LRU reconciled: `accessed_at` column + index added; `lookup()` bumps it; `_enforceCapacity()` orders by it; hot-vs-cold regression test.
+- [x] 5.6 Migration-ordering regression test (4 cases) seeds v0.4.0 schema, asserts all four migrations land cleanly + are idempotent.
+- [x] 5.7 Lint + test + build + deps stabilization (1579 pass / 0 fail; 0 lint errors).
+
 ### Phase 6 — Panel decomposition [PENDING]
 ### Phase 7 — Polish + simplification [PENDING]
 ### Phase 8 — Release gate + ADRs + CHANGELOG [PENDING]

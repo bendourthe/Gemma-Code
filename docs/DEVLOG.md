@@ -4,6 +4,52 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-03] v0.6.0 Phase 5 -- Doc/code drift + dead-code cleanup
+
+### Goal
+
+Resolve every documented-but-not-implemented claim that survived v0.5.0: decide PredictiveCache (wire or delete), decide threshold elevation (implement or retract), delete the legacy `gemma-code.gpuTier` setting, fix three architecture-doc inaccuracies, reconcile the FIFO-vs-LRU mismatch in `ToolOutputCache.prune()`, and add a migration-idempotency regression test.
+
+Plan reference: [docs/v0.6.0/plans/v0.6.0-cycle.md](v0.6.0/plans/v0.6.0-cycle.md) Phase 5 (sub-tasks 5.1 ... 5.7). Findings closed: pen-test F-007, F-008, F-014; known-gaps 4.2, 4.3, 5.1, 5.3, 5.4, section 8, section 9.7; codebase-review #7, #20.
+
+### Decisions
+
+#### 5.1: Delete `PredictiveCache` (Option B)
+
+The ARIMA(1,0,1) pre-warmer shipped in v0.5.0 Phase 12 was never imported by any production module: the `gemma-code.predictiveCacheEnabled` setting lit no codepath, no debounced timer was ever wired, and the bench file measured fit-and-forecast latency rather than actual hit-rate uplift. Wiring it would have required a new 30-second debounced timer plus pre-warm logic in the runtime -- new product surface, which v0.6.0's hard constraint #1 forbids. Deleted [src/storage/PredictiveCache.ts](../src/storage/PredictiveCache.ts), `tests/unit/storage/PredictiveCache.test.ts`, `tests/unit/storage/PredictiveCache.budget.test.ts`, [tests/benchmarks/predictive-cache.bench.ts](../tests/benchmarks/predictive-cache.bench.ts), the `gemma-code.predictiveCacheEnabled` setting in [package.json](../package.json), the matching paragraph in [docs/v0.5.0/architecture.md](v0.5.0/architecture.md) Section 4, and the three PredictiveCache benchmark entries in [tests/benchmarks/baselines/v0.6.0.json](../tests/benchmarks/baselines/v0.6.0.json). CHANGELOG entry under `### Removed` records the deletion. Closes pen-test F-008 / codebase-review #7 / known-gaps 4.3 by eliminating the dead-code attack surface rather than completing the feature.
+
+#### 5.2: Implement threshold elevation (Option A)
+
+Added `DEFAULT_HEURISTIC_SEMANTIC_THRESHOLD = 0.95` to [src/storage/ToolOutputCache.ts](../src/storage/ToolOutputCache.ts). `searchByEmbedding` now also `SELECT`s `embedding_provenance` and applies a per-row threshold: rows with `provenance = 'heuristic'` must clear 0.95; rows with `provenance = 'ollama'` (or NULL) keep the legacy 0.85 bar. Made both thresholds configurable via two new settings (`gemma-code.ollamaEmbeddingThreshold = 0.85`, `gemma-code.heuristicEmbeddingThreshold = 0.95`) with `[0, 1]` clamping in [src/config/settings.ts](../src/config/settings.ts). Plumbed `heuristicThreshold` through `UnifiedMemoryRetriever.searchToolOutputs`. Promoted `tests/integration/heuristic-fallback.test.ts` from three `it.todo` placeholders to three real tests asserting (a) heuristic-tagged rows below 0.95 are filtered, (b) ollama-tagged rows still pass at 0.85, (c) the FTS5 fallback fires when the elevated bar leaves zero rows. Closes pen-test F-007, security-audit F-002, codebase-review #4, known-gaps 4.2.
+
+#### 5.3: Delete legacy `gemma-code.gpuTier` fallback
+
+The `readGpuTierOverride` helper in [src/config/settings.ts:46-58](../src/config/settings.ts#L46-L58) carried a one-release shim mapping the v0.4.x string setting onto the v0.5.x numeric `gpuTierOverride`. The inline NOTE said `remove in v0.5`; we are in v0.6. Deleted the helper plus its call site; users with stale `gemma-code.gpuTier` values fall back to auto-detect. Removed `"gpuTier"` from `tests/integration/config-reload.test.ts` non-reactive-keys list. CHANGELOG entry under `### Removed` records the migration. Closes known-gaps 5.x carry-over / pen-test F-014 / codebase-review #20.
+
+#### 5.4: Architecture-doc inaccuracies fixed
+
+(a) Updated `tests/unit/meta/no-claude-md.test.ts` reference to the actual file path `tests/unit/docs/AGENTS-md.test.ts` in [docs/v0.5.0/architecture.md](v0.5.0/architecture.md) Section 1. (b) CHANGELOG `## [0.4.0] -- 2026-04-22` heading bumped to `2026-04-25` to match the commit date of `ef6d8b3`. (c) Replaced the hand-written tool-permission-tier table in architecture.md Section 3 with a programmatically-generated block delimited by `<!-- BEGIN:TOOL-PERMISSION-TABLE -->` / `<!-- END:TOOL-PERMISSION-TABLE -->`. Added [scripts/generate-tool-permission-table.mjs](../scripts/generate-tool-permission-table.mjs) that parses `TOOL_PERMISSION_MAP` out of [src/guardrails/PermissionTiers.ts](../src/guardrails/PermissionTiers.ts) and emits the markdown block, plus npm scripts `perm-tier` and `perm-tier:check`. Extended the `catalog-sync` job in [.github/workflows/ci.yml](../.github/workflows/ci.yml) to run `npm run perm-tier:check` so future doc drift fails CI. The hand-written table had two errors: `delete_file` was wrongly listed at tier 2 (it is tier 1); `web_search` was at tier 1 (it is tier 2). The generated table is now the source of truth. Closes known-gaps 5.1, 5.3, 5.4.
+
+#### 5.5: True LRU eviction in `ToolOutputCache`
+
+Added the `accessed_at INTEGER NOT NULL DEFAULT 0` column via an additive migration; backfilled `accessed_at = stored_at` for pre-existing rows; created `idx_tool_output_cache_accessed_at`. `lookup()` now bumps `accessed_at = Date.now()` alongside the `hits` increment on every cache hit (both LRU-hit and SQLite-row-hit branches). `_enforceCapacity()` orders by `accessed_at ASC` (was `stored_at ASC`). Updated the existing capacity test description from "(LRU by stored_at)" to "(LRU by accessed_at)" and added a new "preserves a hot row and evicts a cold row" regression that proves the FIFO-vs-LRU mismatch is closed. Closes known-gaps section 8 / codebase-review #13.
+
+#### 5.6: Migration-ordering regression test
+
+Added [tests/integration/tool-output-cache-migration.test.ts](../tests/integration/tool-output-cache-migration.test.ts) (4 cases). Test 1: seed a fresh SQLite file with the v0.4.0 schema (no `embedding`, no `embedding_provenance`, no `excerpt`, no `accessed_at`); open through the current `ToolOutputCache`; assert all four columns now exist. Test 2: confirm the `accessed_at = stored_at` backfill on a pre-migration row. Test 3: open + close the same file three times in a row, confirming column shape is identical after each pass (idempotency). Test 4: write + read through the migrated schema and assert the excerpt / accessed_at fields are populated. Closes known-gaps 9.7 / pen-test F-014.
+
+### Resolution
+
+`npm run build`: tsc clean. `npm run lint`: 0 errors, 1 pre-existing warning. `npm run deps:check`: 0 errors, 0 cycles, 121 modules / 432 dependencies. `npm run test`: 1579 passed / 4 skipped / 0 failed across 142 test files (30s). The new tests are: 3 in `tests/integration/heuristic-fallback.test.ts` (was `it.todo`), 4 in `tests/integration/tool-output-cache-migration.test.ts`, 1 hot-vs-cold case in `tests/unit/storage/ToolOutputCache.test.ts`. `npm run perm-tier:check`: doc in sync with `PermissionTiers.ts`. `npm run catalog`: regenerated `docs/index.md` to reflect the storage module dropping from 30 to 29 (PredictiveCache deletion).
+
+### Outcome
+
+All seven sub-tasks complete; every doc/code drift item from the review pass is now resolved. The cache layer is materially simpler (one fewer module, one fewer setting), the search path applies the elevated cosine threshold the architecture has always claimed, the persistent cache evicts by true access-recency, the migration ladder is regression-tested, and the architecture-doc table is wired to fail CI on drift. CHANGELOG entries under `### Removed` document both deletions for users who relied on `gemma-code.gpuTier` or `gemma-code.predictiveCacheEnabled`.
+
+Session history: [docs/v0.6.0/development/history/2026-05_phase-5-doc-code-drift.md](v0.6.0/development/history/2026-05_phase-5-doc-code-drift.md).
+
+---
+
 ## [2026-05-03] v0.6.0 Phase 4 -- Module-boundary ratchet
 
 ### Goal

@@ -35,11 +35,14 @@ const TRIM_PRIORITY: Record<MemoryLayerId, number> = {
 
 /**
  * Phase 5 (v0.5.0) -- Options for `searchToolOutputs`. `topK` caps the result
- * count; `threshold` overrides the default 0.85 cosine similarity bar.
+ * count; `threshold` overrides the default 0.85 cosine similarity bar applied
+ * to Ollama-provenance rows. `heuristicThreshold` (v0.6.0) overrides the
+ * elevated 0.95 bar applied to heuristic-provenance rows.
  */
 export interface ToolOutputSearchOptions {
   readonly topK: number;
   readonly threshold?: number;
+  readonly heuristicThreshold?: number;
 }
 
 /**
@@ -107,6 +110,7 @@ export class UnifiedMemoryRetriever {
     if (!query) return [];
 
     const threshold = options.threshold ?? DEFAULT_SEMANTIC_THRESHOLD;
+    const heuristicThreshold = options.heuristicThreshold;
 
     if (this._embedder) {
       let queryVec: number[] | null = null;
@@ -123,6 +127,7 @@ export class UnifiedMemoryRetriever {
         const semantic = this._toolOutputCache.searchByEmbedding(queryVec, {
           topK: options.topK,
           threshold,
+          ...(heuristicThreshold !== undefined ? { heuristicThreshold } : {}),
         });
         if (semantic.length > 0) return semantic;
       }

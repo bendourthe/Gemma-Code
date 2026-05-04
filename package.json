@@ -214,6 +214,20 @@
           "maximum": 5,
           "description": "Number of independent observations required before a semantic memory is treated as a fact. Single-source observations are kept as candidates and only retrieved when no fact-tier match is available. Set to 1 to disable (legacy behavior: every observation is a fact)."
         },
+        "gemma-code.ollamaEmbeddingThreshold": {
+          "type": "number",
+          "default": 0.85,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Minimum cosine similarity for tool-output rows whose embedding came from Ollama (high-quality nomic-embed-text vectors)."
+        },
+        "gemma-code.heuristicEmbeddingThreshold": {
+          "type": "number",
+          "default": 0.95,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Minimum cosine similarity for tool-output rows whose embedding came from the deterministic heuristic fallback. Higher than the Ollama-tier threshold because the 128-D heuristic embedder is noisier."
+        },
         "gemma-code.mcpEnabled": {
           "type": "boolean",
           "default": false,
@@ -335,11 +349,6 @@
           ],
           "default": "lru",
           "description": "Eviction policy for the in-process tool-output cache. All strategies are pure JS (no native modules)."
-        },
-        "gemma-code.predictiveCacheEnabled": {
-          "type": "boolean",
-          "default": false,
-          "description": "Opt-in: pre-warm the tool-output cache by predicting the next files the agent will read using a small pure-JS ARIMA(1,0,1) model. Memory budget capped at 250 KB. Off by default for v0.5.0 -- enable only after measuring on a representative workload."
         }
       }
     }
@@ -361,6 +370,8 @@
     "deps:graph": "depcruise --config configs/dependency-cruiser.cjs --output-type dot src | dot -Tsvg > docs/v0.5.0/dep-graph.svg",
     "catalog": "node scripts/generate-catalog.mjs",
     "catalog:check": "node scripts/generate-catalog.mjs && git diff --exit-code docs/index.md",
+    "perm-tier": "node scripts/generate-tool-permission-table.mjs",
+    "perm-tier:check": "node scripts/generate-tool-permission-table.mjs --check",
     "prepare": "husky"
   },
   "lint-staged": {

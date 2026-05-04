@@ -94,19 +94,17 @@ describe("ToolOutputCache", () => {
     expect(cache.size()).toBe(0);
   });
 
-  it("evicts the oldest entry when capacity is exceeded (LRU by stored_at)", async () => {
+  it("evicts the least-recently-accessed entry when capacity is exceeded (LRU by accessed_at)", async () => {
     // Capacity is 5 from beforeEach.
     const paths: string[] = [];
     for (let i = 0; i < 5; i++) {
       const p = writeFile(`f${i}.txt`, `content-${i}`);
       paths.push(p);
       cache.store(p, `content-${i}`);
-      // Tiny delay so stored_at differs between rows.
       await new Promise((r) => setTimeout(r, 5));
     }
     expect(cache.size()).toBe(5);
 
-    // 6th insert should evict the oldest (f0).
     const p6 = writeFile("f5.txt", "content-5");
     cache.store(p6, "content-5");
 
@@ -115,6 +113,41 @@ describe("ToolOutputCache", () => {
     const newest = cache.lookup(p6);
     expect(newest).not.toBeNull();
     expect(newest!.content).toBe("content-5");
+  });
+
+  it("preserves a hot row and evicts a cold row even when the cold row was stored later (true LRU)", async () => {
+    // Stored order: hot, c1, c2, c3, c4 (capacity = 5). Without an accessed_at
+    // bump, FIFO-by-stored_at would evict `hot` first. With the v0.6.0 LRU
+    // ratchet, repeated lookups on `hot` push its accessed_at past every cold
+    // row, so a 6th insert evicts the oldest *cold* row instead.
+    const hot = writeFile("hot.txt", "hot-content");
+    cache.store(hot, "hot-content");
+    await new Promise((r) => setTimeout(r, 5));
+
+    const cold: string[] = [];
+    for (let i = 0; i < 4; i++) {
+      const p = writeFile(`cold${i}.txt`, `cold-${i}`);
+      cold.push(p);
+      cache.store(p, `cold-${i}`);
+      await new Promise((r) => setTimeout(r, 5));
+    }
+    expect(cache.size()).toBe(5);
+
+    // Bump `hot` accessed_at past every cold row.
+    await new Promise((r) => setTimeout(r, 5));
+    expect(cache.lookup(hot)!.fresh).toBe(true);
+
+    // Force eviction of one row.
+    const filler = writeFile("filler.txt", "filler-content");
+    cache.store(filler, "filler-content");
+
+    expect(cache.size()).toBe(5);
+    // `hot` survives because its accessed_at is the most recent.
+    const stillHot = cache.lookup(hot);
+    expect(stillHot).not.toBeNull();
+    expect(stillHot!.content).toBe("hot-content");
+    // The oldest cold row (cold0) is evicted instead.
+    expect(cache.lookup(cold[0]!)).toBeNull();
   });
 
   it("clear() removes all entries and returns the count removed", () => {

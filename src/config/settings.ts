@@ -25,6 +25,8 @@ export interface GemmaCodeSettings {
   embeddingModel: string;
   memoryMaxEntries: number;
   memoryCorroborationThreshold: number;
+  ollamaEmbeddingThreshold: number;
+  heuristicEmbeddingThreshold: number;
   mcpEnabled: boolean;
   mcpServerMode: "stdio" | "off";
   mcpExposedTools: string[];
@@ -39,23 +41,6 @@ export interface GemmaCodeSettings {
   otlpHeaders: string;
   secretPathDenyExtra: string[];
   operationLogEnabled: boolean;
-}
-
-// NOTE(v0.5): remove gpuTier fallback. Reads the legacy `gemma-code.gpuTier`
-// string setting and maps it onto the canonical `gpuTierOverride` numeric tier
-// for one release so users with the old preference do not regress.
-function readGpuTierOverride(
-  config: vscode.WorkspaceConfiguration,
-): HardwareTierId | null {
-  const explicit = config.get<number | null>("gpuTierOverride");
-  if (explicit === 1 || explicit === 2 || explicit === 3) {
-    return explicit;
-  }
-  const legacy = config.get<string>("gpuTier");
-  if (legacy === "1" || legacy === "2" || legacy === "3") {
-    return Number(legacy) as HardwareTierId;
-  }
-  return null;
 }
 
 export function getSettings(): GemmaCodeSettings {
@@ -82,6 +67,10 @@ export function getSettings(): GemmaCodeSettings {
     memoryMaxEntries: config.get<number>("memoryMaxEntries") ?? 10000,
     memoryCorroborationThreshold:
       Math.max(1, Math.min(5, config.get<number>("memoryCorroborationThreshold") ?? 2)),
+    ollamaEmbeddingThreshold:
+      Math.max(0, Math.min(1, config.get<number>("ollamaEmbeddingThreshold") ?? 0.85)),
+    heuristicEmbeddingThreshold:
+      Math.max(0, Math.min(1, config.get<number>("heuristicEmbeddingThreshold") ?? 0.95)),
     mcpEnabled: config.get<boolean>("mcpEnabled") ?? false,
     mcpServerMode: (config.get<string>("mcpServerMode") as "stdio" | "off" | undefined) ?? "off",
     mcpExposedTools: config.get<string[]>("mcpExposedTools") ?? ["read_file", "list_directory", "grep_codebase"],
@@ -89,7 +78,10 @@ export function getSettings(): GemmaCodeSettings {
     verificationThreshold: config.get<number>("verificationThreshold") ?? 3,
     subAgentMaxIterations: config.get<number>("subAgentMaxIterations") ?? 10,
     autoDetectGpu: config.get<boolean>("autoDetectGpu") ?? true,
-    gpuTierOverride: readGpuTierOverride(config),
+    gpuTierOverride: (() => {
+      const v = config.get<number | null>("gpuTierOverride");
+      return v === 1 || v === 2 || v === 3 ? (v as HardwareTierId) : null;
+    })(),
     permissionOverrides: config.get<Record<string, number>>("permissionOverrides") ?? {},
     otlpEnabled: config.get<boolean>("otlpEnabled") ?? false,
     otlpEndpoint: config.get<string>("otlpEndpoint") ?? "http://localhost:4318/v1/traces",

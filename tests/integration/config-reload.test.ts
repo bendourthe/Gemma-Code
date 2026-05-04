@@ -141,7 +141,6 @@ describe("non-reactive key surfaces", () => {
   // change that adds reactivity has a clear contract to update.
   const nonReactiveKeys: readonly string[] = [
     "permissionOverrides",
-    "gpuTier",
     "autoDetectGpu",
     "gpuTierOverride",
   ];

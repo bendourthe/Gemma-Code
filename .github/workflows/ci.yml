@@ -107,6 +107,8 @@ jobs:
             echo "Run \`npm run catalog\` and commit the regenerated file."
             exit 1
           fi
+      - name: Regenerate tool-permission-tier table
+        run: npm run perm-tier:check
 
   # ── Coverage gate ──────────────────────────────────────────────────────────
 

@@ -59,24 +59,6 @@
       "mean": 49.10717272727263,
       "rme": 5.388107917110747
     },
-    "PredictiveCache throughput": {
-      "rme": 0
-    },
-    "observe(): record 1000 accesses across 32 paths": {
-      "hz": 84451.05414820084,
-      "mean": 0.011841178420877108,
-      "rme": 0.4623478532855013
-    },
-    "predict(top=5) on a fully-warmed cache": {
-      "hz": 1231.8556265205307,
-      "mean": 0.8117834415584686,
-      "rme": 0.6560884849424399
-    },
-    "forecastARIMA101 single-step": {
-      "hz": 17490.938122510757,
-      "mean": 0.05717246227708076,
-      "rme": 0.5571884856152561
-    },
     "MarkdownRenderer throughput": {
       "rme": 0
     },
