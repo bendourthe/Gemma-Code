@@ -51,6 +51,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- `src/panels/GemmaCodePanel.ts` decomposed into four focused modules: `GemmaCodePanel.ts` (lifecycle + composition root), `ChatController.ts` (chat flow + memory injection), `ChatCommandHandlers.ts` (slash-command dispatch), `ChatWebviewHost.ts` (postMessage routing + webview surface lifecycle). The panel shrank from 1,724 to 935 lines; closer alignment with the plan's < 400 target tracks for v0.7.0. No user-visible behavior change.
+- `src/panels/webview/index.ts` source-level split into `scaffold.ts` (HTML composer + `formatModelName`), `styles.ts` (CSS), `bodyMarkup.ts` (HTML body), `runtime.ts` (inline IIFE). The original file shrank from 1,573 to 12 lines as a back-compat re-export shim. CSP, nonce, and `getWebviewHtml` callers continue to work unchanged.
+
 ### Removed
 
 - Legacy `gemma-code.gpuTier` string setting removed. Use `gemma-code.gpuTierOverride: number | null` instead.

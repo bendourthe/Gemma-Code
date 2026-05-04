@@ -57,18 +57,22 @@ module.exports = {
       comment:
         'Panels must not import storage directly; route through ' +
         'src/panels/messages.ts so the webview sandbox cannot bypass guardrails. ' +
-        'BASELINE-2026-04-25 exceptions deferred to Phase 6 of the v0.6.0 ' +
-        'cycle (panel decomposition): GemmaCodePanel hosts the full memory ' +
-        'stack; SessionListPanel and TraceDashboardPanel run real-time reads ' +
-        'against ChatHistoryStore and ToolOutputCache respectively. The plan ' +
-        '(docs/v0.6.0/plans/v0.6.0-cycle.md sub-task 4.4) explicitly permits ' +
-        'this deferral so the messaging port is designed once during the ' +
-        'ChatController / ChatWebviewHost split rather than retrofitted twice.',
+        'After Phase 6 of the v0.6.0 cycle (panel decomposition), the chat ' +
+        'panel was split into GemmaCodePanel (lifecycle), ChatController (chat ' +
+        'flow + memory injection), ChatCommandHandlers (slash dispatch), and ' +
+        'ChatWebviewHost (postMessage routing). The first three still hold ' +
+        'storage references because they own session/memory state; they are ' +
+        'whitelisted here. SessionListPanel and TraceDashboardPanel run ' +
+        'real-time reads against ChatHistoryStore and ToolOutputCache ' +
+        'respectively. The long-term port redesign (storage behind messages.ts ' +
+        'only) is tracked as v0.7.0 follow-up work.',
       from: {
         path: '^src/panels/',
         pathNot: [
           '^src/panels/messages\\.ts$',
           '^src/panels/GemmaCodePanel\\.ts$',
+          '^src/panels/ChatController\\.ts$',
+          '^src/panels/ChatCommandHandlers\\.ts$',
           '^src/panels/SessionListPanel\\.ts$',
           '^src/panels/TraceDashboardPanel\\.ts$',
         ],

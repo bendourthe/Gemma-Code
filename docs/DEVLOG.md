@@ -4,6 +4,56 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-03] v0.6.0 Phase 6 -- Panel decomposition
+
+### Goal
+
+Split the two god-classes in `src/panels/`. Extract `ChatController`, `ChatWebviewHost`, and `ChatCommandHandlers` from `GemmaCodePanel.ts` (1,724 lines). Split `panels/webview/index.ts` (1,573 lines) into scaffold/render/messages files at the source level.
+
+Plan reference: [docs/v0.6.0/plans/v0.6.0-cycle.md](v0.6.0/plans/v0.6.0-cycle.md) Phase 6 (sub-tasks 6.1, 6.2, 6.3, 6.4, 6.5, 6.6). Findings closed: codebase-review #2, #3, #16 (deferred), #23.
+
+### Decisions
+
+#### 6.3: Extract `ChatCommandHandlers` first (executed before 6.1)
+
+`/memory`, `/cache`, `/skills`, `/mcp`, `/verify`, `/research`, `/operation-log`, plus the lighter built-ins (`/help`, `/clear`, `/history`, `/plan`, `/compact`, `/model`) all dispatched out of one 600-line `switch` inside `_handleBuiltinCommand`. Extracted into [src/panels/ChatCommandHandlers.ts](../src/panels/ChatCommandHandlers.ts) with a `ChatCommandContext` getter bag so handlers see live state (mcpTools grow after async MCP init; settings cache invalidates on config change). `ChatCommandHandlers.dispatch(name, args)` is the single entry point. The class is composed by `ChatController`, so 6.1 doesn't have to re-wire it. Tests: [tests/unit/panels/ChatCommandHandlers.test.ts](../tests/unit/panels/ChatCommandHandlers.test.ts) (33 cases, 86% statement coverage).
+
+#### 6.1: Extract `ChatController`
+
+[src/panels/ChatController.ts](../src/panels/ChatController.ts) owns the user-message flow: slash-command routing, skill expansion (with `$ARGUMENTS` substitution), the orchestrator path (plan-mode + complex request -> DAG), the streaming pipeline call, plan-detection, plan-step approval, and pre-prompt memory injection. The agent-loop / pipeline / orchestrator construction stays in the panel for now; the controller takes them via getter callbacks. Reason: the constructor wires together a deeply-coupled object graph (memory subsystem -> pipeline -> agent loop -> orchestrator -> sub-agent manager all sharing a single `OllamaClient`). Hoisting that graph into the controller would require a second large refactor of the constructor itself, out of scope for Phase 6. v0.7.0 follow-up tracks moving the wiring inward. Tests: [tests/unit/panels/ChatController.test.ts](../tests/unit/panels/ChatController.test.ts) (12 cases, 90% statement coverage).
+
+#### 6.2: Extract `ChatWebviewHost`
+
+[src/panels/ChatWebviewHost.ts](../src/panels/ChatWebviewHost.ts) owns the sidebar `WebviewView` and the optional editor-area `WebviewPanel`, plus the focus tracking that decides which surface receives streaming traffic (`token` and `messageComplete` route to focused only; everything else broadcasts). Constructor takes the extension URI, an `_onMessage` callback, a `_getModelName()` callback (so the model label refreshes when settings change), and an `_onEditorPanelRehydrate` callback (called when the editor panel becomes visible after being hidden). The panel's `resolveWebviewView` collapsed from 22 lines to 1; `attachToWebviewPanel` from 34 to 1; `_postToWebview` + `_postToFocusedWebview` + `_isStreamingMessage` (49 lines) collapsed to a 3-line forwarder. Tests: [tests/unit/panels/ChatWebviewHost.test.ts](../tests/unit/panels/ChatWebviewHost.test.ts) (7 cases, 99% statement coverage).
+
+#### 6.4: Webview source-level split (Option B)
+
+Two paths considered. **Option A**: wire esbuild into `scripts/build-vsix.ps1`, restructure the inline IIFE into typed TS modules, emit `out/webview-bundle.js`, reference via `<script src=>`. **Option B**: keep the runtime IIFE as a string literal but extract it from `index.ts` along with the CSS and the body markup -- compose at the source level only, no build-system change. Took option B with explicit user sign-off in the pre-flight; option A is a build-system change that warrants its own ADR and is tracked for v0.7.0. The split: `styles.ts` (CSS, 689 lines, `String.raw`-wrapped since no interpolations), `bodyMarkup.ts` (HTML body via `getBodyMarkup(modelName, displayName)`), `runtime.ts` (the IIFE as a `String.raw` constant), and `scaffold.ts` (the `getChatWebviewHtml` composer). The original `index.ts` shrank from 1,573 to 12 lines as a back-compat re-export shim. Tests: [tests/unit/panels/webview/scaffold.test.ts](../tests/unit/panels/webview/scaffold.test.ts) (9 cases) plus existing CSP suite still green.
+
+#### 6.5: Deferred
+
+Plan-permitted. The plan's own note marks 6.5 as "Lower-priority; defer if Phase 6 is already large." The `filesystem.ts` 1,239-line per-tool split carries to a future cycle.
+
+#### Dependency-cruiser whitelist updated
+
+The new files (`ChatController.ts`, `ChatCommandHandlers.ts`) import from `src/storage/`, which the `no-storage-from-panels` rule blocks. Added both files to the whitelist in [configs/dependency-cruiser.cjs](../configs/dependency-cruiser.cjs) with an updated comment cross-referencing the v0.7.0 storage-port redesign. The long-term contract (panels-via-messages-only) is unchanged; the post-Phase-6 whitelist is a precise enumeration of where storage references land after decomposition.
+
+### Resolution
+
+`npm run lint`: 0 errors, 1 pre-existing warning. `tsc --noEmit`: clean. Unit tests for the four new modules: 56 cases passing, 86-100% statement coverage. `npm run test:integration`: all suites green (Vitest's pre-existing post-run segfault is unrelated). `npm run deps:check`: 0 violations across 128 modules / 467 dependencies. `npm run catalog:check`: regenerated `docs/index.md` (panel modules 7 -> 14, panel LoC 4,692 -> 4,808).
+
+### Deviation
+
+`GemmaCodePanel.ts` is now 935 lines (down from 1,724 -- a 46% reduction). The plan's < 400-line target is partially achieved; the residual 935 lines are dominated by constructor wiring, the tool-registry build, and the post-* helpers (which act as the messaging-projection layer between conversation state and the webview). None of these naturally fit the three extracted modules without further factory work that is out of scope for Phase 6. Tracked as v0.7.0 follow-up: a `PanelComposition.ts` factory plus a `ChatViewProjector.ts` for the post-* helpers will close the gap to < 400.
+
+### Outcome
+
+The two god-classes are split. Slash-command behavior, agent-loop wiring, webview surface management, and HTML composition are each in their own file with focused tests. The `<script>` IIFE inside the webview HTML is a single string literal (option B) instead of a typed bundle; that is acceptable because the CSP locks scripts to the per-render nonce and the runtime is now in its own file. Manual flow verification (5 end-to-end paths) is on the operator: see [docs/v0.6.0/development/history/2026-05_phase-6-panel-decomposition.md](v0.6.0/development/history/2026-05_phase-6-panel-decomposition.md) section 4.
+
+Session history: [docs/v0.6.0/development/history/2026-05_phase-6-panel-decomposition.md](v0.6.0/development/history/2026-05_phase-6-panel-decomposition.md).
+
+---
+
 ## [2026-05-03] v0.6.0 Phase 5 -- Doc/code drift + dead-code cleanup
 
 ### Goal

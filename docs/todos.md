@@ -333,6 +333,18 @@ Closes pen-test F-007, F-008, F-014; known-gaps 4.2, 4.3, 5.1, 5.3, 5.4, section
 - [x] 5.6 Migration-ordering regression test (4 cases) seeds v0.4.0 schema, asserts all four migrations land cleanly + are idempotent.
 - [x] 5.7 Lint + test + build + deps stabilization (1579 pass / 0 fail; 0 lint errors).
 
-### Phase 6 — Panel decomposition [PENDING]
+### Phase 6 — Panel decomposition [COMPLETED 2026-05-03]
+
+Closes codebase-review #2, #3, #16 (deferred), #23. See [docs/v0.6.0/development/history/2026-05_phase-6-panel-decomposition.md](v0.6.0/development/history/2026-05_phase-6-panel-decomposition.md).
+
+- [x] 6.1 Extract `ChatController.ts` (agent-loop wiring + slash-command dispatch composition). Routes `submitUserMessage`, `cancelInFlight`, `approveStep`, plan detection, and pre-prompt memory injection. Tests: 12 cases, 90% coverage.
+- [x] 6.2 Extract `ChatWebviewHost.ts` (sidebar view + editor panel + postMessage routing + focus tracking). Tests: 7 cases, 99% coverage.
+- [x] 6.3 Extract `ChatCommandHandlers.ts` (12 slash commands moved out of the panel). Tests: 33 cases, 86% coverage.
+- [x] 6.4 Source-level webview split (Option B): `scaffold.ts` / `bodyMarkup.ts` / `runtime.ts` / `styles.ts`. `index.ts` shrank from 1,573 to 12 lines. Tests: 9 scaffold + 4 CSP cases.
+- [ ] 6.5 Optional: split `filesystem.ts` per-tool. **Deferred per plan note** ("Lower-priority; defer if Phase 6 is already large").
+- [x] 6.6 Stabilization: lint clean, typecheck clean, deps:check clean, catalog regenerated. Manual flow verification (5 paths) is on the operator -- see history file section 4.
+
+**Partial deviation**: `GemmaCodePanel.ts` is 935 lines (down from 1,724); the plan's < 400 target requires further factory work (PanelComposition + post-helper move) tracked as v0.7.0 follow-up. See history file section 3.1.
+
 ### Phase 7 — Polish + simplification [PENDING]
 ### Phase 8 — Release gate + ADRs + CHANGELOG [PENDING]
