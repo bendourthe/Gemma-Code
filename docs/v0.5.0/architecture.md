@@ -180,8 +180,13 @@ See [ARCHITECTURE.md](../../ARCHITECTURE.md) for the full Mermaid module-depende
 | 0003 | Compaction strategy ordering | v0.5.0 Phase 11 |
 | 0004 | Sub-agent isolation contract | v0.5.0 Phase 11 |
 | 0005 | Tool permission tiers | v0.5.0 Phase 11 |
+| 0006 | Unified path-guard for filesystem tool handlers | v0.6.0 Phase 1 |
+| 0007 | Permission-tier floor for confirmation-class tools | v0.6.0 Phase 1 |
+| 0008 | Panel decomposition (ChatController + ChatWebviewHost + handlers) | v0.6.0 Phase 6 |
+| 0009 | Delete PredictiveCache (wire-or-delete decision) | v0.6.0 Phase 5 |
+| 0010 | Per-provenance semantic threshold elevation | v0.6.0 Phase 5 |
 
-See [docs/adr/](../adr/) for the canonical text.
+See [docs/adr/](../adr/) for the canonical text. The post-cycle architecture document for v0.6.0 lives at [docs/v0.6.0/architecture.md](../v0.6.0/architecture.md).
 
 ## 12. Out of scope (recorded for v0.6.0+)
 

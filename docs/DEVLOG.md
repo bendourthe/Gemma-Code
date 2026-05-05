@@ -4,6 +4,62 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-04] v0.6.0 Phase 8 -- Release gate + ADRs + CHANGELOG
+
+### Goal
+
+Close the v0.6.0 cycle: capture release-gate baselines, write five ADRs for the material decisions made across Phases 1-7, generate the v0.6.0 architecture document, write the CHANGELOG `## [0.6.0]` entry honestly (including the v0.5.0 `>=40%` claim resolution), fix the two Phase 7.7 carryovers, run the full local exit-verification gate, bump the version, and stage the operator-action items (live-Ollama baselines, release tag, push). Plan reference: [docs/v0.6.0/plans/v0.6.0-cycle.md](v0.6.0/plans/v0.6.0-cycle.md) Phase 8 (sub-tasks 8.1 .. 8.6).
+
+### Decisions
+
+#### 8.2: Five new ADRs accepted (0006..0010)
+
+ADR-0006 (unified path-guard) and ADR-0007 (permission-tier floor) jointly close Attack Path A from the v0.5.0 review — the symlink leg via realpath-aware `resolveInsideWorkspace` for every filesystem tool, and the auto-approve leg via a clamp on `permissionOverrides` so CONFIRM/DANGEROUS-baseline tools cannot drop below tier 1. ADR-0008 documents the panel decomposition (1,724 -> 935 lines, four focused modules) and explicitly accepts the < 400-line target as a partial deviation deferred to v0.7.0; full ownership hoist would require re-architecting `OllamaClient` injection. ADR-0009 records the `PredictiveCache` deletion (Option B) — the layer was never wired and wiring it would have violated the cycle's "no new product surface" constraint. ADR-0010 records the per-provenance threshold elevation (Option A) — heuristic rows clear 0.95, ollama rows clear 0.85, exposed via two new settings.
+
+#### 8.4: v0.5.0 `>=40%` claim resolved by retrospective note, not deletion
+
+The plan's instruction was to "edit the existing `## [0.5.0]` entry to either confirm with a measured number or replace with the deferred wording". Investigation showed the `>=40%` claim never appeared in the v0.5.0 CHANGELOG entry itself; it lived in `docs/v0.5.0/plans/implementation-plan.md` and the Phase 12 history. The honest move was a retrospective note at the end of the new `## [0.6.0]` entry that (a) acknowledges it was a target, not a verified shipping claim, (b) documents that `tests/golden/baselines/v0.4.0.json` was never captured, (c) points operators at the Phase 8 history's capture procedure. The number itself is left unstated until the operator runs the long-arc compare.
+
+#### 8.1: v0.4.0 golden baseline cannot be recovered from the v0.4.0 tag
+
+The plan implied checking out the v0.4.0 tag to capture its golden baseline. `git show v0.4.0:tests/golden/baselines/` confirms only `v0.3.0-{e2b,e4b}.json` existed at that tag — there is no historical v0.4.0 capture to copy. The Phase 8 history doc gives the procedure: `git worktree add ../Gemma-Code-v0.4.0 v0.4.0`, copy the *current* framework into it (so the comparison is apples-to-apples), `npm ci`, run the suite against live Ollama with `gemma4:e4b`, copy the output back. Operator-action item.
+
+#### 7.7 carryover: bench `EventEmitter` mock added
+
+The `createConversationManager` import fix was straightforward (the factory function was renamed to the class export). After that fix, the bench surfaced a second issue: `ConversationManager` constructs `new vscode.EventEmitter<...>()` in its initializer, but the bench's inline `vi.mock("vscode", ...)` did not export `EventEmitter`. Added a minimal `StubEventEmitter` class to the mock that satisfies `event` / `fire` / `dispose`. Bench now runs to completion with zero failures.
+
+#### 7.7 carryover: GpuDetector lint warning fixed at one line
+
+The pre-existing `@typescript-eslint/explicit-function-return-type` warning at [src/config/GpuDetector.ts:18](../src/config/GpuDetector.ts#L18) closed by adding `: void` to the inner `cb` callback. `npm run lint` is now zero errors, zero warnings — the first time since v0.5.0.
+
+#### 8.5: Version bump applied to both `package.json` and `package-lock.json`
+
+`package.json` and `package-lock.json` both moved from `0.5.5` to `0.6.0`. `npm run build` and `npm run lint` are clean post-bump. Per the operator's pre-flight choice, the `chore(release): 0.6.0` commit + `git tag v0.6.0` + `git push origin main --tags` are operator-action items; the agent does not push automatically. The Phase 8 history doc has the full sequence.
+
+### Tests
+
+- Two Phase 7.7 carryovers fixed; the context-compaction bench runs to completion (3 throughput rows, p99 < 500 ms latency gate passes); GpuDetector lint warning eliminated.
+- All 8.6 local CI gates green: lint, build (tsc), test (all suites pass; pre-existing better-sqlite3 + Node 24 teardown segfault truncates the summary line but does not affect results), bench (7 bench files green), `deps:check` (0 violations across 128 modules / 467 deps), `catalog:check` (regenerated and in sync), `perm-tier:check` (in sync), `npm audit --production --audit-level=moderate` (0 vulnerabilities).
+- Five new ADRs cross-referenced from [docs/adr/README.md](adr/README.md) and [docs/v0.5.0/architecture.md](v0.5.0/architecture.md) Section 11; full v0.6.0 ADR roll-up table also lives in [docs/v0.6.0/architecture.md](v0.6.0/architecture.md) Section 11.
+
+### Files
+
+- 5 ADRs ([docs/adr/0006..0010.md](adr/))
+- [docs/v0.6.0/analysis.md](v0.6.0/analysis.md), [docs/v0.6.0/architecture.md](v0.6.0/architecture.md)
+- [docs/v0.6.0/development/history/2026-05_phase-8-release-gate.md](v0.6.0/development/history/2026-05_phase-8-release-gate.md)
+- [docs/adr/README.md](adr/README.md), [docs/v0.5.0/architecture.md](v0.5.0/architecture.md) (index + roll-up updates)
+- [CHANGELOG.md](../CHANGELOG.md) (`## [0.6.0]` entry)
+- [package.json](../package.json), [package-lock.json](../package-lock.json) (version 0.6.0)
+- [src/config/GpuDetector.ts](../src/config/GpuDetector.ts), [tests/benchmarks/context-compaction.bench.ts](../tests/benchmarks/context-compaction.bench.ts) (Phase 7.7 carryovers)
+
+### Operator-action items (cycle exit)
+
+1. Capture live-Ollama baselines per [Phase 8 history](v0.6.0/development/history/2026-05_phase-8-release-gate.md) Section 3.1: `tests/golden/baselines/v0.4.0.json` (via worktree against the v0.4.0 tag), regenerate `tests/golden/baselines/v0.6.0.json` and `tests/benchmarks/baselines/v0.6.0.json` against the post-Phase-7 build, run the bench-regression check, document the deltas, update the CHANGELOG retrospective note with the measured number.
+2. `git commit -m "chore(release): 0.6.0"`; `git tag v0.6.0`; `git push origin main --tags`; verify the GitHub release artifact contains the VSIX.
+3. Re-run the exit-verification gate on the tagged commit per Section 3.3 of the Phase 8 history.
+
+---
+
 ## [2026-05-04] v0.6.0 Phase 7 -- Polish + simplification
 
 ### Goal

@@ -15,7 +15,7 @@ function execWithTimeout(
   useShell = false,
 ): Promise<string | null> {
   return new Promise((resolve) => {
-    const cb = (error: Error | null, stdout: string | Buffer) => {
+    const cb = (error: Error | null, stdout: string | Buffer): void => {
       if (error) {
         getLogger().debug(`[GpuDetector] Command failed: ${command} ${args.join(" ")} -- ${error.message}`);
         resolve(null);

@@ -16,10 +16,20 @@ import { vi } from "vitest";
 // Minimal stubs — avoids vscode module resolution at bench time
 // ---------------------------------------------------------------------------
 
-vi.mock("vscode", () => ({ workspace: { workspaceFolders: [] }, window: {} }));
+class StubEventEmitter<T> {
+  readonly event = (_listener: (e: T) => unknown): { dispose: () => void } => ({ dispose: (): void => {} });
+  fire(_e: T): void {}
+  dispose(): void {}
+}
+
+vi.mock("vscode", () => ({
+  workspace: { workspaceFolders: [] },
+  window: {},
+  EventEmitter: StubEventEmitter,
+}));
 
 const { ContextCompactor } = await import("../../src/chat/ContextCompactor.js");
-const { createConversationManager } = await import("../../src/chat/ConversationManager.js");
+const { ConversationManager } = await import("../../src/chat/ConversationManager.js");
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -28,8 +38,8 @@ const { createConversationManager } = await import("../../src/chat/ConversationM
 const SHORT_MSG = "This is a short user message with no code blocks.";
 const CODE_MSG = `Here is some code:\n\`\`\`typescript\nconst x = 1;\nconst y = 2;\nconst z = x + y;\n\`\`\`\nDone.`;
 
-function buildConversation(messageCount: number) {
-  const manager = createConversationManager();
+function buildConversation(messageCount: number): InstanceType<typeof ConversationManager> {
+  const manager = new ConversationManager("");
   for (let i = 0; i < messageCount; i++) {
     if (i % 3 === 0) {
       manager.addUserMessage(SHORT_MSG);

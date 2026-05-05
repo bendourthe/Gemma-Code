@@ -29,3 +29,8 @@ Use [template.md](./template.md) as a starting point for new ADRs.
 | [ADR-0003](./0003-compaction-strategy-ordering.md) | Compaction strategy ordering (six-stage cheapest-first pipeline) | Accepted | 2026-04-26 |
 | [ADR-0004](./0004-sub-agent-isolation-contract.md) | Sub-agent isolation contract (verification / research / planning) | Accepted | 2026-04-26 |
 | [ADR-0005](./0005-tool-permission-tiers.md) | Tool permission tiers (AUTO_APPROVE / CONFIRM / DANGEROUS) | Accepted | 2026-04-26 |
+| [ADR-0006](./0006-unified-path-guard.md) | Unified path-guard for filesystem tool handlers | Accepted | 2026-05-04 |
+| [ADR-0007](./0007-permission-tier-floor.md) | Permission-tier floor for confirmation-class tools | Accepted | 2026-05-04 |
+| [ADR-0008](./0008-panel-decomposition.md) | Panel decomposition (ChatController + ChatWebviewHost + handlers) | Accepted | 2026-05-04 |
+| [ADR-0009](./0009-predictive-cache-decision.md) | Delete PredictiveCache (wire-or-delete decision) | Accepted | 2026-05-03 |
+| [ADR-0010](./0010-threshold-elevation-decision.md) | Per-provenance semantic threshold elevation (heuristic vs. ollama) | Accepted | 2026-05-03 |

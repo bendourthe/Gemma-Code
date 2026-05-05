@@ -271,15 +271,20 @@ flowchart TD
   linkStyle 33 stroke:#c00,stroke-width:1.5px,stroke-dasharray:5 5;
 ```
 
-Pre-existing baseline exceptions (grandfathered until v0.6.0) are documented inline in [configs/dependency-cruiser.cjs](configs/dependency-cruiser.cjs); they are not drawn on this diagram so the long-term shape is the one a new contributor reads.
+In v0.6.0 every `BASELINE-2026-04-25; ratchet by v0.6.0` exception was removed from [configs/dependency-cruiser.cjs](configs/dependency-cruiser.cjs); `npm run deps:check` now reports zero violations across 128 modules / 467 dependencies.
 
 ## Further Reading
 
+- [Architecture (v0.6.0)](docs/v0.6.0/architecture.md) -- post-cycle shape: zero baseline exceptions, decomposed panels, unified path-guard, ten ADRs
+- [Codebase Analysis (v0.6.0)](docs/v0.6.0/analysis.md) -- 12-section analysis with import-graph hot spots and reading order
+- [Architecture (v0.5.0)](docs/v0.5.0/architecture.md) -- v0.5.0 deep technical reference (memory hygiene, MCP, sub-agents, Brotli cache stack)
+- [Architecture Decision Records](docs/adr/) -- ADR-0001 .. ADR-0010, immutable design history
 - [Full Architecture (v0.3.0)](docs/v0.3.0/architecture.md) -- v0.3.0 design including installer + evaluation framework
 - [Full Architecture (v0.2.0)](docs/v0.2.0/architecture.md) -- comprehensive component descriptions and data flow diagrams
 - [Architecture (v0.1.0)](docs/v0.1.0/architecture.md) -- original architecture document
 - [Tool Protocol (v0.1.0)](docs/v0.1.0/tool-protocol.md) -- legacy XML tool protocol specification
 - [Security Audit](docs/v0.1.0/security-audit.md) -- security findings and remediations
+- [Implementation Plan (v0.6.0)](docs/v0.6.0/plans/v0.6.0-cycle.md) -- v0.6.0 cycle plan
 - [Implementation Plan (v0.2.0)](docs/v0.2.0/development/implementation-plan.md) -- v0.2.0 phase breakdown
 - [Implementation Plan (v0.3.0)](docs/v0.3.0/implementation-plan.md) -- v0.3.0 harness engineering plan
 - [Performance Benchmarks (v0.3.0)](docs/v0.3.0/performance-benchmarks.md) -- targets, regression detection, runner commands

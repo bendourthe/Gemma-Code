@@ -51,16 +51,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
-### Changed
-
-- `src/panels/GemmaCodePanel.ts` decomposed into four focused modules: `GemmaCodePanel.ts` (lifecycle + composition root), `ChatController.ts` (chat flow + memory injection), `ChatCommandHandlers.ts` (slash-command dispatch), `ChatWebviewHost.ts` (postMessage routing + webview surface lifecycle). The panel shrank from 1,724 to 935 lines; closer alignment with the plan's < 400 target tracks for v0.7.0. No user-visible behavior change.
-- `src/panels/webview/index.ts` source-level split into `scaffold.ts` (HTML composer + `formatModelName`), `styles.ts` (CSS), `bodyMarkup.ts` (HTML body), `runtime.ts` (inline IIFE). The original file shrank from 1,573 to 12 lines as a back-compat re-export shim. CSP, nonce, and `getWebviewHtml` callers continue to work unchanged.
-
-### Removed
-
-- Legacy `gemma-code.gpuTier` string setting removed. Use `gemma-code.gpuTierOverride: number | null` instead.
-- `PredictiveCache` module and its `gemma-code.predictiveCacheEnabled` setting removed. The opt-in ARIMA pre-warmer was never wired into `ToolOutputCache.lookup()` or any runtime; the v0.6.0 cycle resolves the dead-code surface (codebase-review #7, pen-test F-008) by deleting the layer rather than completing it.
-
 ### Planned
 
 - Rust performance components for file indexing and grep
@@ -69,6 +59,80 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Extension Marketplace publication
 - Tree-sitter AST parsing for semantic code understanding
 - SSE transport for MCP server
+
+---
+
+## [0.6.0] -- 2026-05-04
+
+Hygiene and ratchet release. Closes the only chained P0 security finding from the v0.5.0 review pass, fixes the test pipeline that was masking failures, decomposes two god-class panel modules, removes four `BASELINE-2026-04-25` dependency-cruiser exceptions, and either wires or retracts every `documented-but-not-implemented` claim from v0.5.0. No new product surface beyond what the closure of those findings required. Five new ADRs (0006-0010) capture the material decisions.
+
+### Added
+
+- `gemma-code.mcpExposedTools: string[]` setting controls which tools the MCP server exposes to external peers. Defaults to read-only (`read_file`, `list_directory`, `grep_codebase`); operators can broaden but must opt in explicitly. Closes pen-test F-004's MCP-attack-surface leg.
+- `gemma-code.ollamaEmbeddingThreshold` (default 0.85) and `gemma-code.heuristicEmbeddingThreshold` (default 0.95) settings expose the per-provenance cosine similarity bars applied by `searchByEmbedding`. See [ADR-0010](./docs/adr/0010-threshold-elevation-decision.md).
+- `SubAgentSpawner` interface extracted from `SubAgentManager` to break the `SubAgentManager <-> SubAgentTool` circular import. Closes the `BASELINE-2026-04-25` exception for `agents -> tools/handlers/subAgent`.
+- `MemoryShared.types.ts` extracted to break the `MemoryStore <-> MemoryConsolidator` circular import.
+- `tests/unit/tools/handlers/filesystem-symlink.test.ts` -- regression test for ADR-0006. Exercises every filesystem tool against a workspace-internal symlink that resolves outside the root and asserts each refuses with a workspace-boundary error.
+- `tests/integration/permission-overrides-clamp.test.ts` -- regression test for ADR-0007. Asserts CONFIRM/DANGEROUS-baseline tools cannot be auto-approved via `permissionOverrides`.
+- `tests/integration/tool-output-cache-migration.test.ts` -- four-case idempotency test for the SQLite migration ladder (v0.4.0 -> v0.6.0 schema).
+- `tests/integration/memory-consolidator-large.test.ts` -- 10K-event stress test for the `db.transaction`-wrapped consolidation pass; asserts wall-time below 5 s.
+- `tests/unit/tools/handlers/pathGuard.test.ts` -- four mutation-survivor regression tests added during the Stryker pass (workspaceRoot null/empty, lexical fallback, absolute-out-of-root rejection).
+- `tests/unit/storage/eviction/` -- per-strategy unit tests across the five `Evictor` implementations.
+- `tests/golden/baselines/v0.6.0.json` (post-Phase-1 measurement; final regeneration scheduled against the post-Phase-7 build with live Ollama -- see [docs/v0.6.0/development/history/2026-05_phase-8-release-gate.md](./docs/v0.6.0/development/history/2026-05_phase-8-release-gate.md)).
+- `tests/benchmarks/baselines/v0.6.0.json` (regeneration vs. v0.5.0 baseline scheduled per the same release-gate procedure).
+
+### Changed
+
+- All filesystem tool handlers (`read_file`, `write_file`, `edit_file`, `create_file`, `delete_file`, `list_directory`, `grep_codebase`) now route path resolution through `pathGuard.resolveInsideWorkspace`. The lexical `resolveWorkspacePath` helper is deleted; one realpath-aware guard for every tool. See [ADR-0006](./docs/adr/0006-unified-path-guard.md).
+- `getPermissionTier()` clamps `permissionOverrides` so CONFIRM and DANGEROUS-baseline tools cannot be lowered to AUTO_APPROVE. A workspace-controlled `settings.json` that tries to silently auto-approve `run_terminal` or `delete_file` is neutralized at runtime with a deduped log warning. See [ADR-0007](./docs/adr/0007-permission-tier-floor.md).
+- MCP-originated tool calls are tagged with `source: 'mcp'` and produce a peer-attributed confirmation prompt ("External MCP client wants to ...") distinct from local-agent and sub-agent prompts.
+- `fetchWithSsrfGuard` enforces a 5 MB body cap on outbound HTTP responses (closes pen-test F-002).
+- `ToolOutputCache._enforceCapacity()` is now true LRU. Added `accessed_at INTEGER NOT NULL DEFAULT 0` column with backfill from `stored_at`; `lookup()` bumps `accessed_at` on every hit; eviction orders by `accessed_at ASC`. The original docstring claimed LRU; the SQL now matches. New hot-vs-cold regression test in `tests/unit/storage/ToolOutputCache.test.ts`.
+- `searchByEmbedding` applies a per-row threshold based on `embedding_provenance`: `'heuristic'` rows must clear 0.95; `'ollama'` rows (and legacy NULL) clear 0.85. See [ADR-0010](./docs/adr/0010-threshold-elevation-decision.md).
+- `GemmaCodePanel.ts` decomposed into four focused modules: `GemmaCodePanel.ts` (lifecycle + composition root), `ChatController.ts` (chat flow + memory injection), `ChatCommandHandlers.ts` (slash-command dispatch), `ChatWebviewHost.ts` (postMessage routing + webview surface lifecycle). The panel shrank from 1,724 to 935 lines. See [ADR-0008](./docs/adr/0008-panel-decomposition.md).
+- `panels/webview/index.ts` source-level split into `scaffold.ts` (HTML composer + `formatModelName`), `styles.ts` (CSS), `bodyMarkup.ts` (HTML body), `runtime.ts` (inline IIFE). The original file shrank from 1,573 to 12 lines as a back-compat re-export shim. CSP, nonce, and `getWebviewHtml` callers unchanged.
+- `secretPaths.ts` and `Compressor.ts` moved from `tools/handlers/` to `utils/` (utility shape, not handler shape; closes the `BASELINE-2026-04-25` exception for `tools -> chat`).
+- `EmbeddingClient` consumes the abstract `LLMClient` port instead of `OllamaHttp` directly; `GemmaRuntime.getOllamaClient()` is the composition root for shared client construction. Closes the `BASELINE-2026-04-25` exception for `storage -> services`.
+- `MemoryConsolidator.consolidate` is wrapped in `GraphMemory.transaction()`; a 10K-event stress run drops from tens of thousands of fsyncs to one transactional commit (~1.3 s wall time vs. multi-second pre-Phase-7).
+- `npm audit` CI gate elevated from `--audit-level=high` to `--audit-level=moderate` for production dependencies. A new non-blocking `audit-ts-dev` job covers dev-deps with a 30-day artifact upload (does not gate merges).
+- `cache-probe` fingerprint switched from MD5 to SHA-256 (closes pen-test F-005).
+- New ESLint rule blocks `innerHTML` string concatenation in `src/panels/webview/runtime.ts`. Approved sinks use the existing DOMPurify-sanitised path. Closes pen-test F-006.
+- Coverage CI gate now reads `coverage/coverage-summary.json` (`.total.lines.pct >= 80`, `.total.branches.pct >= 75`) instead of regex-scraping the lcov HTML report.
+- `secretPaths` matcher swapped from a hand-rolled `globToRegex` compiler to `minimatch` with a per-glob cache. Five new edge-case tests (empty globs, brace expansion, backslash escape, exact-match, Windows separators) lock the behaviour parity.
+- Documentation example webhook URLs in `docs/v0.5.0/comparison/comparison-token-optimizer-mcp.md` obfuscated to `https://example.invalid/<redacted>` placeholders (closes pen-test F-011).
+- `CompactionStrategy` interface is now `agents/-> chat/` rather than `chat/ -> agents/`, eliminating the directional baseline exception.
+
+### Fixed
+
+- 12 token-estimation tests in `tests/unit/chat/ContextCompactor.test.ts` rewritten as property-based tests against the `tiktoken` cross-check helper. The pre-existing failures inherited from v0.5.0 Phase 5 are gone (closes known-gaps 1.1).
+- `tests/benchmarks/context-compaction.bench.ts` no longer imports the non-existent `createConversationManager` factory; instantiates `new ConversationManager("")` directly. Bench runs to completion.
+- `src/config/GpuDetector.ts:18` -- explicit `void` return type on the `execWithTimeout` callback closes the pre-existing lint warning carried since v0.5.0.
+- 3 architecture-doc inaccuracies corrected: meta-test path now points at `tests/unit/docs/AGENTS-md.test.ts`, v0.4.0 ship date corrected to `2026-04-25`, hand-written tool-permission-tier table replaced with a programmatically-generated marker block driven by `scripts/generate-tool-permission-table.mjs` and CI-gated via `npm run perm-tier:check`.
+- FIFO-vs-LRU doc/code mismatch in `ToolOutputCache.prune()` reconciled (see Changed section).
+- CI verifiably fails on test failures. Pre-v0.6.0, a vitest/Node 24 native-cleanup segfault during process teardown was masking exit codes; the `bench` npm script now passes `--run` so the bench process exits cleanly with the actual result.
+
+### Removed
+
+- Legacy `gemma-code.gpuTier` string setting removed. Use `gemma-code.gpuTierOverride: number | null` instead. The v0.5 migration shim that mapped legacy values is also gone; users with a stale `gpuTier` setting will see a one-time "unknown setting" warning.
+- `PredictiveCache` module + `tests/unit/storage/PredictiveCache.test.ts` + `tests/unit/storage/PredictiveCache.budget.test.ts` + `tests/benchmarks/predictive-cache.bench.ts` deleted; `gemma-code.predictiveCacheEnabled` setting removed. Never wired into `ToolOutputCache.lookup()` or any runtime. See [ADR-0009](./docs/adr/0009-predictive-cache-decision.md).
+- All four `BASELINE-2026-04-25; ratchet by v0.6.0` annotations removed from `configs/dependency-cruiser.cjs`. `npm run deps:check` reports zero violations across 121+ modules.
+
+### Security
+
+- Attack Path A closed at both legs: ADR-0006 closes the symlink leg by routing every filesystem tool through realpath-aware path resolution; ADR-0007 closes the auto-approve leg by clamping `permissionOverrides` so CONFIRM/DANGEROUS tools cannot drop to AUTO_APPROVE.
+- Pen-test F-001 (split-brain path resolution), F-003 (permissionOverrides downgrade), F-004 (MCP peer attribution), F-002 (outbound HTTP body cap), F-005 (SHA-256 cache fingerprint), F-006 (innerHTML concatenation ESLint rule), F-007 (per-provenance threshold elevation), F-008 (PredictiveCache dead-code removal), F-011 (obfuscated example URLs) -- all closed.
+- ESLint rule blocks `innerHTML` string concatenation in webview runtime; the only approved DOM sink remains the DOMPurify-sanitised path introduced in v0.4.0 Phase 1.
+
+### Deferred to v0.7.0+
+
+- `marked` v4 -> v12 migration (per Phase 7 sub-task 7.5 conditional escape; v12 reshapes the `Renderer` API and is non-trivial; DOMPurify already provides the sanitisation layer that was the original rationale).
+- Filesystem tool handler split (Phase 6 sub-task 6.5 deferred per the plan's "lower-priority" note).
+- Hoisting agent-loop / pipeline / orchestrator construction into `ChatController` (full ownership split per ADR-0008's neutral consequence).
+- LSTM predictive caching, multi-provider LLM proxy, voice transcription, distributed cache, `/memory prune --apply`, `format=json` on `read_file` / `run_terminal`, severity-rubric CI gate that fails builds, streaming reads for files > 1 MB, auto-merge for Dependabot.
+
+### v0.5.0 retrospective note
+
+The v0.5.0 plan stated a target of `>=40% average tool-output token reduction vs. v0.4.0`. This claim never appeared in the v0.5.0 CHANGELOG entry below; it lived in `docs/v0.5.0/plans/implementation-plan.md` and the Phase 12 history. The measured number was deferred at v0.5.0 ship time (`tests/golden/baselines/v0.4.0.json` was not captured). v0.6.0 captures `v0.6.0.json` against live Ollama as part of the release-gate procedure documented in `docs/v0.6.0/development/history/2026-05_phase-8-release-gate.md`; the long-arc compare against `v0.4.0.json` is logged as the first action of the post-cycle measurement window. The `>=40%` figure remains a *target*, not a verified shipping claim, until the comparison run lands.
 
 ---
 
