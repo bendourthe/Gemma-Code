@@ -368,6 +368,18 @@ describe("AST meta-test: every tool error literal contains Usage:", () => {
   it("scans tool source files and asserts every error string carries 'Usage:'", () => {
     if (process.env["SKIP_ERROR_PROPERTY_TEST"] === "1") return;
 
+    // Auto-skip under Stryker mutation runs: Stryker copies the source files
+    // into a sandbox and rewrites each mutable expression with a wrapper call
+    // (stryMutAct_*). The wrapper turns string literals into call expressions
+    // that the AST walker can no longer resolve back to a literal, so the
+    // "every error contains Usage:" claim cannot be checked against mutated
+    // source. The meta-test runs to completion in the regular test suite.
+    const probe = fs.readFileSync(
+      path.resolve(process.cwd(), SOURCES_TO_SCAN[0]!),
+      "utf-8",
+    );
+    if (probe.includes("stryMutAct_")) return;
+
     const violations: ErrorLiteralSite[] = [];
     for (const file of SOURCES_TO_SCAN) {
       for (const site of collectErrorLiterals(file)) {

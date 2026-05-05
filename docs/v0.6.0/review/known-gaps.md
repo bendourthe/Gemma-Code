@@ -342,3 +342,23 @@ Given the catalog above, an efficient sequencing for the upcoming reviews:
 5. **Last, the penetration test** -- by then the documentation is honest, the code matches the docs, and the deferred verifications have settled the "did the offline thesis hold?" question.
 
 This ordering puts the cheapest fixes first, the most expensive verifications next, and the deeper reviews on top of a clean foundation.
+
+---
+
+## 11. v0.6.0 deferrals to v0.7.0
+
+### 11.1 `marked` v4 -> v12 upgrade (Phase 7.5 deferral)
+
+**Severity**: P2
+**File**: [src/utils/MarkdownRenderer.ts](../../../src/utils/MarkdownRenderer.ts)
+**Plan reference**: docs/v0.6.0/plans/v0.6.0-cycle.md sub-task 7.5
+
+The Phase 7.5 prompt specified "bump only if behavior preserved; otherwise revert and defer to v0.7.0 with a tracked issue." The v12 release is a non-trivial breaking change for our renderer customisations:
+
+- The `Renderer` API moved from positional arguments (e.g. `renderer.code(code: string, lang: string)`) to a single token-object argument (`renderer.code({ text, lang, escaped })`). Same for `renderer.link({ href, title, tokens })` and `renderer.image(...)`.
+- The `marked.use({ renderer })` extension model still exists but the renderer methods must be rewritten against the new signatures.
+- `headerIds` and `mangle` defaults differ in v12; both need explicit configuration.
+
+DOMPurify (in the same file) currently provides the sanitization layer that was the original rationale for the upgrade ("pick up marked's built-in sanitizer"). The risk/value ratio is poor for v0.6.0: rewriting three renderer methods, retesting byte-for-byte HTML output across the streaming pipeline, with no security gain on top of DOMPurify. v0.7.0 is the right cycle.
+
+**Action for v0.7.0**: Rewrite `MarkdownRenderer.ts` against the v12 token-object renderer API. Confirm rendered HTML is byte-identical to v4 output for the existing `MarkdownRenderer.test.ts` corpus (or document the diff if minor whitespace changes only). Remove this deferral entry once landed.

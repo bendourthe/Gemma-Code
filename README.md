@@ -214,6 +214,9 @@ npm run bench
 
 # Package as VSIX
 npm run package
+
+# One-shot mutation testing on guardrails + tool handlers (slow; ~20 min)
+npm run mutate
 ```
 
 ### Golden task suite (v0.3.0)

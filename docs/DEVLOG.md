@@ -4,6 +4,75 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-04] v0.6.0 Phase 7 -- Polish + simplification
+
+### Goal
+
+Land the small, low-effort hygiene items from the v0.6.0 plan: switch the coverage gate to JSON, add a non-blocking dev-dep audit job, wrap `MemoryConsolidator.consolidate()` in a transaction, swap the hand-rolled glob compiler for `minimatch`, re-evaluate the `marked` v4 -> v12 upgrade, and run a one-shot Stryker mutation pass on the security-critical directories. Plan reference: [docs/v0.6.0/plans/v0.6.0-cycle.md](v0.6.0/plans/v0.6.0-cycle.md) Phase 7 (sub-tasks 7.1 .. 7.7).
+
+### Decisions
+
+#### 7.1: Coverage gate uses `coverage-summary.json`, not lcov-HTML regex
+
+Replaced the inline `python3` regex scrape of `coverage/lcov-report/index.html` with a `jq` + `awk` pipeline that reads `.total.lines.pct` and `.total.branches.pct` from `coverage/coverage-summary.json`. The vitest config now emits `json-summary` alongside `text` and `lcov`. The thresholds (lines >= 80, branches >= 75) are the same; the parser is now resilient to upstream HTML formatter changes and uses one tool installation (`jq`) instead of inline Python.
+
+#### 7.2: `audit-ts-dev` is a separate, non-blocking job
+
+The existing `audit-ts` job stays (gates moderate-severity CVEs in production deps). The new `audit-ts-dev` job runs `npm audit --audit-level=high --json` over the full graph (prod + dev), uploads `audit-dev.json` as a 30-day-retention artifact, and uses `continue-on-error: true` so a new dev-dep CVE never blocks a release. Visibility, not gating.
+
+#### 7.3: Wrap only the per-event upsert loop, not the whole `consolidate()`
+
+`MemoryConsolidator.consolidate()` is async (the `_memoryStore.saveWithProvenance()` path computes embeddings via the embedder, which is a network call). better-sqlite3's `transaction()` only supports synchronous callbacks, so wrapping the entire async function is impossible without a substantial pipeline restructure. The chosen scope: wrap step 2 (the per-event entity/relation extraction loop), which is the actual "iterate rows and emit per-row UPDATEs" hot path. Pattern promotion (step 4) emits at most one row per pattern and stays unwrapped; not the bottleneck. Added `transaction<T>(fn: () => T): T` to [src/storage/GraphMemory.ts](../src/storage/GraphMemory.ts) (the writes are graph-level upserts) and consumed it from [src/storage/MemoryConsolidator.ts](../src/storage/MemoryConsolidator.ts).
+
+#### 7.3 stress test: 10K events under 5 s
+
+[tests/integration/memory-consolidator-large.test.ts](../tests/integration/memory-consolidator-large.test.ts) seeds 10K events with a narrow file/verb pool (so the upsert path follows the existing-row branch) and asserts wall-time < 5 s. Locally the pass completes in ~1.3 s in isolation and ~4.3 s under full-suite load; both within budget. Without the transaction wrap, the same load produces tens of thousands of fsyncs and runs many times longer.
+
+#### 7.4: minimatch swap is byte-equivalent for the documented pattern set
+
+Replaced the 28-line `globToRegex` compiler in [src/utils/secretPaths.ts](../src/utils/secretPaths.ts) with a cached `Minimatch` per pattern (`{matchBase: false, dot: true, nocase: process.platform === "win32"}`). All 11 built-in patterns and the existing 23-case test suite produce identical outputs; the matcher cache avoids re-parsing on every check. Five new edge-case tests pin behavior parity (empty glob, brace expansion, backslash escape, exact-match no-wildcard, mixed Windows separators).
+
+#### 7.5: `marked` v4 -> v12 deferred to v0.7.0 (per plan's conditional escape)
+
+The plan said: "If breaking changes leak into the streaming pipeline non-trivially, revert and defer to v0.7.0 with a tracked issue." v12 reshapes the `Renderer` API to a single token-object argument (`renderer.code({text, lang, escaped})` instead of `renderer.code(text, lang)`), which is a non-trivial rewrite of the three custom renderer methods we rely on. DOMPurify already provides the sanitisation layer that was the original rationale for the bump, so the upgrade is API modernisation with no security gain. Tracked at [docs/v0.6.0/review/known-gaps.md](v0.6.0/review/known-gaps.md) Section 11.1; the inline `NOTE(v0.5)` in [src/utils/MarkdownRenderer.ts](../src/utils/MarkdownRenderer.ts) was rewritten to point at that entry.
+
+#### 7.6: Stryker uses vitest-runner v8, not v9
+
+`@stryker-mutator/vitest-runner@^9` requires vitest 2.x (uses `this.ctx.provide`, a vitest-2-only API); we are on vitest 1.x. Pinned the runner at `^8` instead. Configuration lives at [configs/stryker.config.json](../configs/stryker.config.json) with a focused [configs/vitest.stryker.config.ts](../configs/vitest.stryker.config.ts) that narrows the runner to `tests/unit/guardrails/**`, `tests/unit/tools/handlers/**`, and `tests/unit/utils/secretPaths.test.ts`. The narrow set excludes `Orchestrator.test.ts` (asserts `totalTimeMs > 0` and is flaky under Stryker's per-test sandbox) and other non-target suites that would gate the dry-run unnecessarily.
+
+#### 7.6: AST meta-test auto-skips under Stryker
+
+[tests/unit/tools/errors.test.ts](../tests/unit/tools/errors.test.ts) reads the source files via the TypeScript compiler API and asserts every error literal contains `Usage:`. Stryker rewrites those sources with mutant placeholder calls (`stryMutAct_*`), which the AST walker cannot resolve back to literals. The meta-test now probes for the placeholder marker and self-skips during mutation runs; in the regular test suite it runs to completion as before.
+
+#### 7.6: Mutation report and prioritised regression tests
+
+Mutation score: 50.64% overall (58.92% covered) across 1,878 mutants. Killed 934, survived 663, timeout 17, no-coverage 264. Per-file numbers in the [Phase 7 session history](v0.6.0/development/history/2026-05_phase-7-polish.md). Added focused regression tests for the most security-critical surviving mutants in PermissionTiers (CONFIRM-baseline clamp boundary, override-equals-baseline parity, out-of-domain override values) and pathGuard (workspaceFolders undefined and empty-array branches, ancestor-walk termination, outside-workspace rejection).
+
+#### 7.7: `npm run bench` script fix
+
+The pre-existing `bench` script invoked `vitest bench` without `--run`, leaving vitest in interactive watch mode after the benches completed -- the script never exited. Added `--run`. One pre-existing bench failure surfaced (`context-compaction.bench.ts` imports a non-existent `createConversationManager` factory); carried over to Phase 8 where the bench harness is the natural target of the release-gate baseline-capture work.
+
+### Tests
+
+- 12 existing MemoryConsolidator tests still pass after the transaction wrap
+- New stress test: `tests/integration/memory-consolidator-large.test.ts` (1 case, 10K events under 5 s)
+- 23 existing secretPaths tests pass after the minimatch swap; 5 new edge-case tests added
+- 4 new Phase 7.6 regression tests in `tests/unit/guardrails/PermissionTiers.test.ts`
+- New file: `tests/unit/tools/handlers/pathGuard.test.ts` (4 cases)
+- Stryker mutation report at `reports/stryker/mutation-report.html` (gitignored; generated on demand via `npm run mutate`)
+
+### Carry-overs to v0.7.0
+
+- Marked v4 -> v12 upgrade (known-gaps Section 11.1)
+- ActionClassifier and terminal mutation survivors (one-shot Stryker is quarterly; revisit at next pass)
+
+### Carry-overs to v0.6.0 Phase 8
+
+- `context-compaction.bench.ts` factory mismatch (the pre-existing bench failure)
+- v0.6.0 bench baseline capture itself (Phase 8 release gate)
+
+---
+
 ## [2026-05-03] v0.6.0 Phase 6 -- Panel decomposition
 
 ### Goal

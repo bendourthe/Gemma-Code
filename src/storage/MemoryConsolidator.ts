@@ -169,32 +169,42 @@ export class MemoryConsolidator {
     }
 
     // 2. Extract entities and relations.
-    for (const event of events) {
-      try {
-        const text = `${event.action} ${event.context} ${event.outcome ?? ""}`;
-        const entities = this._entityExtractor.extractFromText(text);
-        const relations = this._entityExtractor.extractRelationsFromText(text, entities);
+    //
+    // Wrap the per-event upserts in a single transaction. Without this,
+    // each `upsertEntity` / `upsertRelation` call commits independently --
+    // a 10K-event session triggers tens of thousands of fsyncs and can run
+    // for minutes. better-sqlite3's `transaction()` only supports
+    // synchronous callbacks, which is fine here: extraction and upserts
+    // are both sync. Errors on individual events are still captured per
+    // event so partial-pipeline progress is preserved.
+    this._graphMemory.transaction(() => {
+      for (const event of events) {
+        try {
+          const text = `${event.action} ${event.context} ${event.outcome ?? ""}`;
+          const entities = this._entityExtractor.extractFromText(text);
+          const relations = this._entityExtractor.extractRelationsFromText(text, entities);
 
-        for (const entity of entities) {
-          this._graphMemory.upsertEntity(entity.name, entity.type);
-          entitiesAdded++;
-        }
+          for (const entity of entities) {
+            this._graphMemory.upsertEntity(entity.name, entity.type);
+            entitiesAdded++;
+          }
 
-        for (const relation of relations) {
-          this._graphMemory.upsertRelation(
-            relation.source.name,
-            relation.source.type,
-            relation.target.name,
-            relation.target.type,
-            relation.type,
-            event.provenance,
-          );
-          relationsAdded++;
+          for (const relation of relations) {
+            this._graphMemory.upsertRelation(
+              relation.source.name,
+              relation.source.type,
+              relation.target.name,
+              relation.target.type,
+              relation.type,
+              event.provenance,
+            );
+            relationsAdded++;
+          }
+        } catch (err) {
+          errors.push(`Entity extraction failed for event ${event.id}: ${String(err)}`);
         }
-      } catch (err) {
-        errors.push(`Entity extraction failed for event ${event.id}: ${String(err)}`);
       }
-    }
+    });
 
     // 3. Detect patterns.
     const patterns = this.detectPatterns(events);

@@ -347,6 +347,16 @@ export class GraphMemory {
   }
 
   /**
+   * Run `fn` inside a single SQLite transaction on the underlying graph
+   * database. The callback must be synchronous: better-sqlite3 transactions
+   * cannot bridge an `await`. Used by `MemoryConsolidator` to batch the
+   * per-event entity/relation upserts of a session into one fsync.
+   */
+  transaction<T>(fn: () => T): T {
+    return this._db.transaction(fn)();
+  }
+
+  /**
    * Remove entities with mentionCount < minMentions AND
    * lastSeenAt < now - olderThanMs. Cascade-deletes their relations.
    */

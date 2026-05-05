@@ -1,0 +1,46 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "One-shot quarterly mutation audit (v0.6.0 Phase 7.6). Mutates only the highest-risk directories -- guardrails and tool handlers -- where surviving mutants reveal genuine test gaps. Not wired into CI; run on demand: 'npx stryker run --config-file configs/stryker.config.json'.",
+  "packageManager": "npm",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "configs/vitest.stryker.config.ts"
+  },
+  "reporters": [
+    "html",
+    "clear-text",
+    "progress",
+    "json"
+  ],
+  "htmlReporter": {
+    "fileName": "reports/stryker/mutation-report.html"
+  },
+  "jsonReporter": {
+    "fileName": "reports/stryker/mutation.json"
+  },
+  "mutate": [
+    "src/guardrails/**/*.ts",
+    "src/tools/handlers/**/*.ts",
+    "!src/guardrails/index.ts",
+    "!**/*.test.ts",
+    "!**/*.bench.ts"
+  ],
+  "_testFilesComment": "Limit the test-runner to suites that actually exercise the mutated directories. The wider unit-test suite contains a small number of timing-sensitive checks (e.g. Orchestrator.test.ts asserts totalTimeMs > 0) that are flaky under Stryker's per-test sandbox; running them gates the dry-run unnecessarily and they cover code we are not mutating.",
+  "testFiles": [
+    "tests/unit/guardrails/**/*.test.ts",
+    "tests/unit/tools/handlers/**/*.test.ts",
+    "tests/unit/utils/secretPaths.test.ts"
+  ],
+  "thresholds": {
+    "high": 80,
+    "low": 60,
+    "break": null
+  },
+  "concurrency": 2,
+  "timeoutMS": 60000,
+  "tempDirName": ".stryker-tmp",
+  "cleanTempDir": true,
+  "disableTypeChecks": "{src,tests}/**/*.{ts,tsx}",
+  "tsconfigFile": "tsconfig.json",
+  "coverageAnalysis": "perTest"
+}

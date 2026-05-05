@@ -125,18 +125,23 @@ jobs:
           path: coverage/
 
       - name: Check TypeScript coverage threshold
+        # Reads coverage-summary.json (structured data) instead of scraping
+        # the lcov-report HTML with a regex. jq + awk is portable, single
+        # tool installation, and resilient to formatter changes upstream.
         run: |
-          python3 -c "
-          import re, pathlib
-          html = pathlib.Path('coverage/lcov-report/index.html').read_text()
-          # Pattern: percentage on a line preceding 'Lines'
-          m = re.search(r'<span class=\"strong\">([\d.]+)%\s*</span>\s*\n\s*<span[^>]*>Lines</span>', html)
-          lines = float(m.group(1)) if m else 0
-          print(f'TypeScript line coverage: {lines:.1f}%')
-          if lines < 80:
-              raise SystemExit(f'TS coverage {lines:.1f}% is below the 80% threshold')
-          print(f'TS coverage {lines:.1f}% — OK')
-          "
+          set -euo pipefail
+          summary=coverage/coverage-summary.json
+          if [ ! -f "$summary" ]; then
+            echo "Missing $summary -- the test job must emit the json-summary reporter."
+            exit 1
+          fi
+          lines=$(jq -r '.total.lines.pct' "$summary")
+          branches=$(jq -r '.total.branches.pct' "$summary")
+          printf 'TS line coverage:   %s%%\n' "$lines"
+          printf 'TS branch coverage: %s%%\n' "$branches"
+          awk -v v="$lines"    'BEGIN { exit (v + 0 < 80) }' || { echo "TS line coverage $lines% is below the 80% threshold"; exit 1; }
+          awk -v v="$branches" 'BEGIN { exit (v + 0 < 75) }' || { echo "TS branch coverage $branches% is below the 75% threshold"; exit 1; }
+          echo "TS coverage gates: OK"
 
   # -- Installer unit tests --------------------------------------------------
 
@@ -183,6 +188,31 @@ jobs:
       - run: npm ci --prefer-offline --no-audit
       - name: npm audit --production --audit-level=moderate
         run: npm audit --production --audit-level=moderate
+
+  # Visibility-only audit covering both prod and dev dependencies. Captures
+  # the full CVE picture (including build/test toolchain) without gating the
+  # merge -- runs with continue-on-error so a new dev-dep CVE never blocks a
+  # release. Artifact retention lets us spot drift over time.
+  audit-ts-dev:
+    name: npm audit (dev + prod, non-blocking)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci --prefer-offline --no-audit
+      - name: npm audit --audit-level=high (json)
+        continue-on-error: true
+        run: npm audit --audit-level=high --json > audit-dev.json || true
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: audit-dev
+          path: audit-dev.json
+          retention-days: 30
 
   audit-py:
     name: pip-audit (installer venv)

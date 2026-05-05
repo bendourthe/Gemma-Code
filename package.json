@@ -365,13 +365,14 @@
     "lint": "eslint src",
     "package": "powershell -NonInteractive -ExecutionPolicy Bypass -File scripts/build-vsix.ps1",
     "package:quick": "vsce package",
-    "bench": "vitest bench --config configs/vitest.config.ts",
+    "bench": "vitest bench --run --config configs/vitest.config.ts",
     "deps:check": "depcruise --config configs/dependency-cruiser.cjs src tests",
     "deps:graph": "depcruise --config configs/dependency-cruiser.cjs --output-type dot src | dot -Tsvg > docs/v0.5.0/dep-graph.svg",
     "catalog": "node scripts/generate-catalog.mjs",
     "catalog:check": "node scripts/generate-catalog.mjs && git diff --exit-code docs/index.md",
     "perm-tier": "node scripts/generate-tool-permission-table.mjs",
     "perm-tier:check": "node scripts/generate-tool-permission-table.mjs --check",
+    "mutate": "stryker run configs/stryker.config.json",
     "prepare": "husky"
   },
   "lint-staged": {
@@ -386,6 +387,8 @@
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/git": "^10.0.1",
     "@semantic-release/github": "^11.0.1",
+    "@stryker-mutator/core": "^9.6.1",
+    "@stryker-mutator/vitest-runner": "^8.7.1",
     "@types/better-sqlite3": "^7.6.13",
     "@types/diff": "^5.2.3",
     "@types/marked": "^4.3.2",
@@ -411,6 +414,7 @@
     "highlight.js": "^11.11.1",
     "isomorphic-dompurify": "^3.9.0",
     "marked": "^4.3.0",
+    "minimatch": "^10.2.5",
     "node-html-parser": "^6.1.13",
     "tiktoken": "^1.0.17",
     "zod": "^3.23.8"
