@@ -4,6 +4,69 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-05] v0.7.0 Phase 1 -- skill expansion (zero-code first)
+
+### Goal
+
+Ship six new skills as static MD files before any infrastructure work, so the catalog change is the first thing visible to the user on a v0.7.0 install. Plan reference: [docs/v0.7.0/plans/v0.7.0-cycle.md](v0.7.0/plans/v0.7.0-cycle.md) Phase 1 (sub-tasks 1.1 and 1.2). This phase is intentionally MD-only -- no TypeScript code paths changed.
+
+### Decisions
+
+#### 1.1: five general-purpose code-improvement skills (`polish`, `critique`, `distill`, `harden`, `animate`)
+
+All five skills define their prompt text from scratch rather than copying from impeccable's frontend-only schema (which is Apache 2.0 and frontend-specific). Each ships with hard rules that constrain scope and prevent over-application:
+
+- `polish` -- behaviour-preserving final-pass cleanup (naming, dead branches, docstrings, formatting). Hard rule: never change exported signatures or wire-format constants.
+- `critique` -- structured five-axis review (correctness / readability / performance / security / test coverage). Findings only -- the skill explicitly does NOT edit code, leaving that to `/polish`, `/harden`, or `/distill`.
+- `distill` -- behaviour-preserving simplification (inline single-consumer helpers, collapse abstractions). Hard rule: keep testability seams, public APIs, and validation at boundaries.
+- `harden` -- targeted error handling and validation, each addition tracing to a real failure mode. Hard rule: no defensive checks against scenarios that cannot occur given the type system.
+- `animate` -- restricted to webview / extension UI surfaces. Hard rule: respect `prefers-reduced-motion`, no animation longer than 500 ms, no magic numbers in component code.
+
+The skills compose: `/critique` produces findings, `/polish` / `/distill` / `/harden` apply edits without changing observable behaviour. None of them runs without explicit user invocation.
+
+#### 1.2: `build-second-brain` ships as a Phase 1 skill but is non-functional until Phase 2
+
+The skill ships now (zero-code-first ordering rule for Phase 1) but its first action is to detect the absence of `~/.gemma-code/memory/<workspace-id>/{Instructions,Memory,Context}.md` and refer the user to `/memory init`. The schema definition lives in [docs/v0.7.0/architecture.md](v0.7.0/architecture.md) Section 1 (Phase 1) and Section 2 (Phase 2 placeholder); the skill cross-references that doc rather than duplicating the schema.
+
+### Files added
+
+- `src/skills/catalog/polish/SKILL.md`
+- `src/skills/catalog/critique/SKILL.md`
+- `src/skills/catalog/distill/SKILL.md`
+- `src/skills/catalog/harden/SKILL.md`
+- `src/skills/catalog/animate/SKILL.md`
+- `src/skills/catalog/build-second-brain/SKILL.md`
+- `docs/v0.7.0/architecture.md` (new -- Section 1 filled in for Phase 1, Sections 2-5 are placeholders for later phases)
+
+### Files modified
+
+- `tests/unit/skills/SkillLoader.test.ts` -- new `describe("v0.7.0 skill expansion")` block with seven new tests (one per skill plus an argument-hint presence check), reading the real on-disk catalog so a malformed frontmatter ships as a test failure rather than a silent skip.
+- `tests/integration/commands/skill-execution.test.ts` -- updated the count assertion from 7 to 13 built-in skills.
+
+### Verification
+
+- `npm run lint` -- green.
+- `npm run build` -- green.
+- `npm test` -- 153 test files, 0 FAIL markers; trailing SIGSEGV is the documented Node 24 + better-sqlite3 native-cleanup issue (known-gaps 5.1), not a test failure.
+- `npm run deps:check` -- 134 modules, 553 dependencies, 0 violations.
+- `npm run catalog:check` -- 16 modules, no diff.
+- `npm run perm-tier:check` -- green.
+
+### Phase 1 Exit Checklist
+
+- [x] 6 new SKILL.md files exist under `src/skills/catalog/`
+- [x] All 6 parse via `SkillLoader` with non-empty `description` and `prompt`
+- [x] `/help` lists all 13 skills (counted in integration test)
+- [x] Lint and full unit + integration test gate green
+- [x] Architecture doc updated (`docs/v0.7.0/architecture.md` Section 1)
+
+### Out of scope (deferred to later phases)
+
+- Phase 2: `~/.gemma-code/memory/` file architecture (the `build-second-brain` skill is a no-op until Phase 2 lands).
+- Phase 6: skill packaging script (`scripts/package-skills.mjs`) that exports the catalog for other harnesses.
+
+---
+
 ## [2026-05-05] v0.7.0 Phase 0 -- v0.6.0 close-out + carryovers (partial)
 
 ### Goal

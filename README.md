@@ -159,6 +159,12 @@ All settings are under `gemma-code.*` in VS Code settings (`Ctrl+,`).
 | `/generate-tests` | Generate a comprehensive test suite |
 | `/analyze-codebase` | Produce a structured codebase analysis |
 | `/setup-project` | Bootstrap project structure and configuration |
+| `/polish [target]` | Final-pass quality cleanup (naming, dead branches, formatting). Behaviour-preserving. |
+| `/critique [target]` | Five-axis structured code review (correctness / readability / performance / security / tests). Findings only. |
+| `/distill [target]` | Strip code to its essence -- inline single-consumer helpers, collapse abstractions. Behaviour-preserving. |
+| `/harden [target]` | Add error handling, validation, and edge-case coverage where a specific risk justifies it. |
+| `/animate [target]` | Add purposeful motion to webview / extension UI. Respects `prefers-reduced-motion`. |
+| `/build-second-brain [path]` | Populate `Instructions.md` / `Memory.md` / `Context.md` from notes or an interview (requires Phase 2 memory file architecture). |
 
 ### Help discovery for the agent
 

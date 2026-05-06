@@ -39,7 +39,7 @@ describe("Built-in skill catalog integration", () => {
     expect(expanded).not.toContain("$ARGUMENTS");
   });
 
-  it("lists all seven built-in skills", () => {
+  it("lists all thirteen built-in skills", () => {
     const loader = new SkillLoader(CATALOG_DIR, path.join(CATALOG_DIR, "__nonexistent_user__"));
     loader.load();
 
@@ -52,6 +52,13 @@ describe("Built-in skill catalog integration", () => {
       "generate-tests",
       "analyze-codebase",
       "setup-project",
+      // v0.7.0 Phase 1 skill expansion
+      "polish",
+      "critique",
+      "distill",
+      "harden",
+      "animate",
+      "build-second-brain",
     ];
 
     for (const name of expected) {

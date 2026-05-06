@@ -1,8 +1,12 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
+import * as url from "url";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { SkillLoader } from "../../../src/skills/SkillLoader.js";
+
+const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
+const REAL_CATALOG_DIR = path.resolve(__dirname, "../../../src/skills/catalog");
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -176,5 +180,52 @@ describe("SkillLoader", () => {
     const skill = loader.getSkill("hot-skill");
     expect(skill).toBeDefined();
     expect(skill?.name).toBe("hot-skill");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// v0.7.0 Phase 1 -- skill expansion
+// Asserts each of the 6 new skill MD files loads cleanly with a non-empty
+// description and prompt. Reads the real on-disk catalog so a malformed
+// frontmatter ships as a test failure rather than a silent skip.
+// ---------------------------------------------------------------------------
+
+describe("v0.7.0 skill expansion", () => {
+  const newSkills = [
+    "polish",
+    "critique",
+    "distill",
+    "harden",
+    "animate",
+    "build-second-brain",
+  ];
+
+  for (const name of newSkills) {
+    it(`loads "${name}" with non-empty description and prompt`, () => {
+      const loader = new SkillLoader(
+        REAL_CATALOG_DIR,
+        path.join(REAL_CATALOG_DIR, "__nonexistent_user__")
+      );
+      loader.load();
+
+      const skill = loader.getSkill(name);
+      expect(skill, `${name} did not load from the catalog`).toBeDefined();
+      expect(skill?.name).toBe(name);
+      expect(skill?.description.trim().length).toBeGreaterThan(0);
+      expect(skill?.prompt.trim().length).toBeGreaterThan(0);
+    });
+  }
+
+  it("every new skill has an argument-hint declared", () => {
+    const loader = new SkillLoader(
+      REAL_CATALOG_DIR,
+      path.join(REAL_CATALOG_DIR, "__nonexistent_user__")
+    );
+    loader.load();
+
+    for (const name of newSkills) {
+      const skill = loader.getSkill(name);
+      expect(skill?.argumentHint, `${name} missing argument-hint`).toBeTruthy();
+    }
   });
 });
