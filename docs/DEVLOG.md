@@ -4,6 +4,46 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-05] v0.7.0 Phase 0 -- v0.6.0 close-out + carryovers (partial)
+
+### Goal
+
+Discharge the agent-runnable items in v0.7.0 known-gaps Sections 2 and 4: stage the cycle-plan trio (Section 5.3), bump `marked` past v4 (Section 2.1), hoist the chat-panel construction graph (Sections 2.3 + 2.4), close the mutation-testing gaps where targeted regression tests can pin behaviour (Sections 4.1, 4.2, 4.3, 4.4, 4.5), and formally defer the optional filesystem tool-handler split (Section 2.2). Plan reference: [docs/v0.7.0/plans/v0.7.0-cycle.md](v0.7.0/plans/v0.7.0-cycle.md) Phase 0 (sub-tasks 0.3, 0.4, 0.5, 0.6, 0.7). Operator-action items 0.1 (live-Ollama baselines), 0.2 (post-tag verification), and 0.8 (pre-cycle benchmark baseline) remain owner-driven.
+
+### Decisions
+
+#### 0.4: Panel decomposition via static factories on `ChatController` and a free `bootstrapChatPanel` function
+
+The plan called for moving construction logic for AgentLoop, CompactionPipeline (actually `ContextCompactor`), and Orchestrator from `GemmaCodePanel` into `ChatController`. The static-factory shape (`ChatController.buildContextCompactor` and friends) was chosen over instance methods because the controller's existing unit tests inject 12 mock subsystems through `ChatControllerContext`; making the controller construct its own dependencies would have invalidated the entire test surface. The `bootstrapChatPanel` free function in `src/panels/ChatPanelBootstrap.ts` is the only caller of those factories and the only place that ties the construction order together. The panel itself shrunk from 935 to 305 lines (-67%, well under the 400-line ADR-0008 target). Five companion modules also extracted: `ChatPanelInit`, `ChatStatusReporter`, `ChatMessageRouter`, `ToolActivationContext`, `ToolRegistryBuilder`. Logged as ADR-0011.
+
+#### 0.4 deviation: ADR number 0011, not 0009 as the plan called for
+
+The v0.7.0 plan was written before v0.6.0 Phase 8 landed five ADRs in the 0006-0010 range. The plan's "ADR-0009: OllamaClient injection pattern" would collide with the existing ADR-0009 (Predictive Cache Decision). The new ADR ships as 0011. The plan's later cross-references to ADR-0006 / ADR-0007 / ADR-0008 (compress tool, memory architecture, webview render protocol) will face the same shift; cycle-plan documents will be updated as those phases land.
+
+#### 0.5: stay on `marked@^12` rather than chase the token-object Renderer API
+
+The plan describes `marked` v12 as reshaping the Renderer API to a token-object signature (`renderer.code({text, lang, escaped})`). In reality, the v12 line still uses the v4-positional Renderer signature; the token-object API was introduced in v15, and v15+ is ESM-only (incompatible with the CJS extension). The choice is between staying at v12 (positional API, no Renderer rewrite needed, gets security fixes) or migrating the entire extension to ESM. v0.7.0 chooses the former; v0.8.0 may revisit when CJS-to-ESM conversion is on the cycle plan. Renderer code is unchanged-by-need; the only code change is `marked.parse(text, { async: false })` (the recommended v12 entry point). 8 renderer tests green.
+
+#### 0.7: targeted regression tests for the highest-leverage Stryker survivors
+
+Without re-running Stryker first, the targeted tests pin the surfaces that any plausible mutation would flip: `BLOCKED_PATTERNS` table entries (every entry tested through `classifyAction`), `READ_ONLY_COMMANDS` and `DESTRUCTIVE_COMMAND_PATTERNS` tables (every entry parametric), `ALLOWED_COMMANDS` allowlist (every entry both bare and chained), every `BLOCKED_PATTERNS` segment-aware variant, and the `findBlockedPattern` ordering contract. Filesystem error paths cover the no-coverage cluster the v0.6.0 Stryker pass identified: missing parameters, EACCES, ENOENT, ENOSPC, file-already-exists, user-rejected confirmation, defensive empty-directory walks, and the secret-path denylist gate. 184 new assertions across four new test files; full unit-test suite passes; `npm run deps:check` and `npm run lint` both green.
+
+#### 0.6: filesystem tool-handler split deferred to v0.8.0
+
+The plan flagged 0.6 as optional. Phase 0 already absorbed three large items (panel decomposition + ChatController hoist; marked migration; mutation-testing gap fixes). Splitting `filesystem.ts` (1239 lines, 7 handlers) cleanly requires updating ~25 import sites across `src/` and `tests/`, with no behaviour change. Cost/benefit ratio below the bar for inclusion in the foundation phase. Logged as resolution in known-gaps Section 2.2.
+
+### Operator carryovers
+
+- **0.1 / 0.2 / 0.8**: live-Ollama baselines, post-tag exit verification, pre-cycle benchmark baseline. All three require `ollama serve` running with `gemma4:e4b` pulled and a clean checkout of the v0.6.0 tag. Owner-driven.
+
+### Files touched
+
+- New: `docs/adr/0011-ollama-client-injection.md`, `src/panels/ChatPanelBootstrap.ts`, `src/panels/ChatPanelInit.ts`, `src/panels/ChatStatusReporter.ts`, `src/panels/ChatMessageRouter.ts`, `src/panels/ToolActivationContext.ts`, `src/tools/ToolRegistryBuilder.ts`, `tests/unit/runtime/GemmaRuntime.test.ts`, `tests/unit/guardrails/policy.test.ts`, `tests/unit/guardrails/ActionClassifier.coverage.test.ts`, `tests/unit/tools/handlers/terminal.coverage.test.ts`, `tests/unit/tools/handlers/filesystem.coverage.test.ts`.
+- Modified: `src/panels/GemmaCodePanel.ts` (-630 lines), `src/panels/ChatController.ts` (+150 lines for static factories), `src/utils/MarkdownRenderer.ts`, `package.json` (`marked@^12.0.0`), `configs/dependency-cruiser.cjs` (allowlist new panel modules), `configs/stryker.config.json` (re-include `src/orchestration/`), `tests/unit/orchestration/Orchestrator.test.ts` (`>=0` timing assertion), `docs/v0.7.0/known-gaps.md` (Resolution blocks for Sections 2.1, 2.2, 2.3, 2.4, 4.1, 4.2, 4.3, 4.4, 4.5, 5.3).
+- Committed earlier in Phase 0 (sub-task 0.3): `docs/v0.7.0/comparison-multi-source.md`, `docs/v0.7.0/plans/adoption-multi-source.md`, `docs/v0.7.0/plans/v0.7.0-cycle.md`.
+
+---
+
 ## [2026-05-04] v0.6.0 Phase 8 -- Release gate + ADRs + CHANGELOG
 
 ### Goal

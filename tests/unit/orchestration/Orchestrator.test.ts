@@ -100,7 +100,10 @@ describe("Orchestrator", () => {
 
       const result = await orch.execute("Implement auth", "src/auth/");
 
-      expect(result.totalTimeMs).toBeGreaterThan(0);
+      // Use >= 0 rather than > 0 so the assertion does not flake on fast
+      // machines (Stryker per-test sandboxes can record sub-millisecond
+      // execution times that round to 0). v0.7.0 known-gaps Section 4.5.
+      expect(result.totalTimeMs).toBeGreaterThanOrEqual(0);
       expect(result.replanCount).toBe(0);
       expect(result.allDags).toHaveLength(1);
       expect(result.summary).toContain("Orchestration Complete");

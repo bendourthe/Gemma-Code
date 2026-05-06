@@ -1,9 +1,3 @@
-// NOTE(v0.7.0): tracked deferral -- bump marked from v4 to v12. Re-evaluated
-// in v0.6.0 Phase 7.5 and deferred again: v12 reshapes the Renderer API to a
-// token-object signature (renderer.code({text,lang,escaped}) instead of
-// renderer.code(text,lang)), which is a non-trivial rewrite of the three
-// custom renderer methods below with no security gain on top of DOMPurify.
-// See docs/v0.6.0/review/known-gaps.md section 11.1 for the action checklist.
 import { marked, Renderer } from "marked";
 // Import the core highlight.js entry and register only the languages we ship
 // syntax highlighting for. The default `highlight.js` export registers the
@@ -37,16 +31,13 @@ hljs.registerLanguage("shell", bash);
 hljs.registerLanguage("yaml", yaml);
 hljs.registerLanguage("yml", yaml);
 
-/**
- * Server-side Markdown renderer using `marked` (v4, CJS), `highlight.js`, and
- * DOMPurify. Runs in the extension (Node.js) context and produces sanitised
- * HTML that is injected into the webview. DOMPurify is the primary defence;
- * the webview CSP is a second layer.
- */
+// Server-side Markdown renderer using `marked` (v12, CJS via the published
+// `marked.cjs` entry), `highlight.js`, and DOMPurify. Runs in the extension
+// (Node.js) context and produces sanitised HTML that is injected into the
+// webview. DOMPurify is the primary defence; the webview CSP is a second
+// layer. The token-object Renderer API landed in marked@15 and that line is
+// ESM-only, so v0.7.0 stays on the v12 line (still positional Renderer).
 
-// DOMPurify configuration: allow the tags/attrs our renderer produces, strip
-// everything else. `data-href` / `data-code` are needed for the ext-link and
-// copy-btn wiring in GemmaCodePanel's message bridge.
 const PURIFY_CONFIG = {
   ALLOWED_TAGS: [
     "a",
@@ -92,7 +83,6 @@ const PURIFY_CONFIG = {
 
 const renderer = new Renderer();
 
-/** Render fenced code blocks with highlight.js syntax colouring. */
 renderer.code = function (code: string, lang: string | undefined): string {
   const language = lang && hljs.getLanguage(lang) ? lang : null;
 
@@ -117,16 +107,14 @@ renderer.code = function (code: string, lang: string | undefined): string {
   );
 };
 
-/** Open links via an external handler in the webview. */
 renderer.link = function (
   href: string,
   _title: string | null | undefined,
-  text: string
+  text: string,
 ): string {
   return `<a href="${escapeHtml(href)}" class="ext-link" data-href="${escapeHtml(href)}">${text}</a>`;
 };
 
-/** Replace images with a placeholder to avoid loading external resources. */
 renderer.image = function (): string {
   return `<span class="img-placeholder">[image]</span>`;
 };
@@ -144,7 +132,7 @@ marked.use({ renderer });
 export function renderMarkdown(text: string): string {
   let html: string;
   try {
-    html = marked(text) as string;
+    html = marked.parse(text, { async: false }) as string;
   } catch {
     html = `<pre>${escapeHtml(text)}</pre>`;
   }
@@ -163,4 +151,3 @@ function escapeHtml(str: string): string {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 }
-

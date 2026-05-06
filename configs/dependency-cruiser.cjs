@@ -57,22 +57,32 @@ module.exports = {
       comment:
         'Panels must not import storage directly; route through ' +
         'src/panels/messages.ts so the webview sandbox cannot bypass guardrails. ' +
-        'After Phase 6 of the v0.6.0 cycle (panel decomposition), the chat ' +
-        'panel was split into GemmaCodePanel (lifecycle), ChatController (chat ' +
-        'flow + memory injection), ChatCommandHandlers (slash dispatch), and ' +
-        'ChatWebviewHost (postMessage routing). The first three still hold ' +
-        'storage references because they own session/memory state; they are ' +
+        'After Phase 6 of the v0.6.0 cycle (panel decomposition) and Phase 0 ' +
+        'sub-task 0.4 of the v0.7.0 cycle (ChatController construction-graph ' +
+        'hoist), the chat panel is split into GemmaCodePanel (lifecycle), ' +
+        'ChatPanelBootstrap (construction graph), ChatController (chat flow + ' +
+        'memory injection), ChatCommandHandlers (slash dispatch), ' +
+        'ChatStatusReporter (status pushes + render cache), ChatMessageRouter ' +
+        '(webview message dispatch), ToolActivationContext (prompt context + ' +
+        'tool metadata), ChatPanelInit (storage/cache init helpers), and ' +
+        'ChatWebviewHost (postMessage routing). All hold storage references ' +
+        'because they own or compose session/memory state; they are ' +
         'whitelisted here. SessionListPanel and TraceDashboardPanel run ' +
         'real-time reads against ChatHistoryStore and ToolOutputCache ' +
         'respectively. The long-term port redesign (storage behind messages.ts ' +
-        'only) is tracked as v0.7.0 follow-up work.',
+        'only) is tracked as v0.8.0 follow-up work.',
       from: {
         path: '^src/panels/',
         pathNot: [
           '^src/panels/messages\\.ts$',
           '^src/panels/GemmaCodePanel\\.ts$',
+          '^src/panels/ChatPanelBootstrap\\.ts$',
+          '^src/panels/ChatPanelInit\\.ts$',
           '^src/panels/ChatController\\.ts$',
           '^src/panels/ChatCommandHandlers\\.ts$',
+          '^src/panels/ChatMessageRouter\\.ts$',
+          '^src/panels/ChatStatusReporter\\.ts$',
+          '^src/panels/ToolActivationContext\\.ts$',
           '^src/panels/SessionListPanel\\.ts$',
           '^src/panels/TraceDashboardPanel\\.ts$',
         ],

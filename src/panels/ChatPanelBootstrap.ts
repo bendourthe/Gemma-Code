@@ -1,0 +1,390 @@
+import * as path from "path";
+import * as vscode from "vscode";
+import { ConversationManager } from "../chat/ConversationManager.js";
+import type { ContextCompactor } from "../chat/ContextCompactor.js";
+import type { StreamingPipeline } from "../chat/StreamingPipeline.js";
+import { PlanMode } from "../chat/PlanMode.js";
+import { PromptBuilder } from "../chat/PromptBuilder.js";
+import { CommandRouter } from "../commands/CommandRouter.js";
+import { SkillLoader } from "../skills/SkillLoader.js";
+import { McpManager } from "../mcp/McpManager.js";
+import { McpServer } from "../mcp/McpServer.js";
+import {
+  ChatController,
+  buildOllamaTuning,
+} from "./ChatController.js";
+import { ChatStatusReporter } from "./ChatStatusReporter.js";
+import { ChatMessageRouter } from "./ChatMessageRouter.js";
+import { ToolActivationContext } from "./ToolActivationContext.js";
+import {
+  initStore,
+  initToolOutputCache,
+  initWebResponseCache,
+  initOperationLog,
+  buildMemorySubsystem,
+} from "./ChatPanelInit.js";
+import type { ChatHistoryStore } from "../storage/ChatHistoryStore.js";
+import type { MemoryStore } from "../storage/MemoryStore.js";
+import type { MemorySubsystem } from "../storage/MemorySubsystem.js";
+import type { ToolOutputCache } from "../storage/ToolOutputCache.js";
+import type { WebResponseCache } from "../tools/handlers/webCache.js";
+import type { OperationLog } from "../observability/OperationLog.js";
+import type { WorkingMemory } from "../storage/WorkingMemory.js";
+import type { EpisodicMemory } from "../storage/EpisodicMemory.js";
+import type { GraphMemory } from "../storage/GraphMemory.js";
+import type { MemoryConsolidator } from "../storage/MemoryConsolidator.js";
+import type { UnifiedMemoryRetriever } from "../storage/UnifiedMemoryRetriever.js";
+import type { GemmaCodeSettings } from "../config/settings.js";
+import { TOOL_CATALOG } from "../tools/ToolCatalog.js";
+import type { DynamicToolMetadata } from "../tools/ToolCatalog.js";
+import type { HardwareTierConfig } from "../config/HardwareTier.types.js";
+import { getTierConfig } from "../config/HardwareTier.js";
+import { GitSafetyNet } from "../guardrails/GitSafetyNet.js";
+import type { Orchestrator } from "../orchestration/Orchestrator.js";
+import type { SubAgentManager } from "../agents/SubAgentManager.js";
+import type { AgentLoop } from "../tools/AgentLoop.js";
+import { ConfirmationGate } from "../tools/ConfirmationGate.js";
+import type { ToolRegistry } from "../tools/ToolRegistry.js";
+import { buildToolRegistry } from "../tools/ToolRegistryBuilder.js";
+import { renderMarkdown } from "../utils/MarkdownRenderer.js";
+import { getLogger } from "../utils/logger.js";
+import type { GemmaRuntime } from "../runtime/GemmaRuntime.js";
+import type { EditMode } from "../tools/types.js";
+import type {
+  WebviewToExtensionMessage,
+  ExtensionToWebviewMessage,
+} from "./messages.js";
+
+/**
+ * Late-binding hooks the panel exposes to the bootstrap so the helper graphs
+ * see live mutable state (settings cache, mcp tools, edit mode, ollama
+ * reachability, hardware tier). Extracted as part of v0.7.0 Phase 0
+ * sub-task 0.4 so {@link GemmaCodePanel} no longer carries the wiring
+ * graph as constructor body.
+ */
+export interface ChatPanelHooks {
+  getSettings(): GemmaCodeSettings;
+  invalidateSettingsCache(): void;
+  getMcpTools(): DynamicToolMetadata[];
+  setMcpTools(tools: DynamicToolMetadata[]): void;
+  getCurrentEditMode(): EditMode;
+  setCurrentEditMode(mode: EditMode): void;
+  getOllamaReachable(): boolean;
+  getTierConfig(): HardwareTierConfig | undefined;
+  getOutputChannel(): vscode.OutputChannel;
+  postRaw(msg: ExtensionToWebviewMessage): void;
+  handleWebviewMessage(msg: WebviewToExtensionMessage): Promise<void>;
+}
+
+export interface ChatPanelBootstrapInput {
+  readonly extensionUri: vscode.Uri;
+  readonly runtime: GemmaRuntime;
+  readonly globalStorageUri?: vscode.Uri;
+  readonly workspaceState?: vscode.Memento;
+  readonly hooks: ChatPanelHooks;
+  readonly hostPostMessage: (msg: ExtensionToWebviewMessage) => void;
+}
+
+export interface BootstrappedPanel {
+  readonly settings: GemmaCodeSettings;
+  readonly store: ChatHistoryStore | null;
+  readonly toolOutputCache: ToolOutputCache | null;
+  readonly webResponseCache: WebResponseCache | null;
+  readonly operationLog: OperationLog | null;
+  readonly memorySubsystem: MemorySubsystem;
+  readonly memoryStore: MemoryStore | null;
+  readonly workingMemory: WorkingMemory | null;
+  readonly episodicMemory: EpisodicMemory | null;
+  readonly graphMemory: GraphMemory | null;
+  readonly unifiedRetriever: UnifiedMemoryRetriever | null;
+  readonly memoryConsolidator: MemoryConsolidator | null;
+  readonly planMode: PlanMode;
+  readonly promptBuilder: PromptBuilder;
+  readonly toolActivation: ToolActivationContext;
+  readonly manager: ConversationManager;
+  readonly confirmationGate: ConfirmationGate;
+  readonly registry: ToolRegistry;
+  readonly compactor: ContextCompactor;
+  readonly subAgentManager: SubAgentManager;
+  readonly gitSafetyNet: GitSafetyNet | null;
+  readonly orchestrator: Orchestrator;
+  readonly agentLoop: AgentLoop;
+  readonly pipeline: StreamingPipeline;
+  readonly skillLoader: SkillLoader;
+  readonly commandRouter: CommandRouter;
+  readonly statusReporter: ChatStatusReporter;
+  readonly controller: ChatController;
+  readonly messageRouter: ChatMessageRouter;
+  readonly mcpManager: McpManager | null;
+  readonly mcpServer: McpServer | null;
+}
+
+/**
+ * Build the entire chat-panel construction graph. The panel owns lifecycle
+ * (resolveWebviewView, dispose, settings change subscription) and exposes
+ * mutable state via {@link ChatPanelHooks}; everything else lives in
+ * helper modules ({@link ChatStatusReporter}, {@link ChatMessageRouter},
+ * {@link ToolActivationContext}, {@link ChatPanelInit}, the static
+ * factories on {@link ChatController}).
+ */
+export function bootstrapChatPanel(input: ChatPanelBootstrapInput): BootstrappedPanel {
+  const { extensionUri, runtime, globalStorageUri, workspaceState, hooks } = input;
+  const settings = hooks.getSettings();
+
+  const store = initStore(globalStorageUri);
+  const toolOutputCache = initToolOutputCache(settings);
+  const webResponseCache = initWebResponseCache();
+  const operationLog = initOperationLog(settings);
+
+  const client = runtime.getOllamaClient();
+
+  const memorySubsystem = buildMemorySubsystem(
+    settings,
+    client,
+    toolOutputCache,
+    globalStorageUri,
+  );
+
+  const planMode = new PlanMode();
+  const promptBuilder = new PromptBuilder();
+
+  // The ToolActivation reads late-binding state via callbacks so prompt
+  // rebuilds reflect the latest mcpTools, settings, ollama reachability and
+  // tier config without a full panel reconstruction.
+  let registry: ToolRegistry | null = null;
+  const toolActivation = new ToolActivationContext({
+    planMode,
+    getSettings: () => hooks.getSettings(),
+    getRegistry: () => registry,
+    getMcpTools: () => hooks.getMcpTools(),
+    getOllamaReachable: () => hooks.getOllamaReachable(),
+    getTierConfig: () => hooks.getTierConfig(),
+    getWorkingMemory: () => memorySubsystem.workingMemory,
+    getUnifiedRetriever: () => memorySubsystem.unifiedRetriever,
+  });
+
+  const initialPrompt = promptBuilder.buildSync(toolActivation.buildPromptContext());
+  const manager = new ConversationManager(initialPrompt, store ?? undefined);
+
+  const postWithRender = (msg: ExtensionToWebviewMessage): void => {
+    if (msg.type === "messageComplete" && !msg.renderedHtml) {
+      const history = manager.getHistory();
+      const found = history.find((m) => m.id === msg.messageId);
+      input.hostPostMessage({
+        ...msg,
+        renderedHtml: found ? renderMarkdown(found.content) : "",
+      });
+      return;
+    }
+    input.hostPostMessage(msg);
+  };
+
+  const confirmationGate = new ConfirmationGate(postWithRender);
+
+  registry = buildToolRegistry({
+    gate: confirmationGate,
+    editMode: settings.editMode,
+    secretPathDenyExtra: settings.secretPathDenyExtra,
+    permissionOverrides: settings.permissionOverrides,
+    toolOutputCache,
+    webResponseCache,
+  });
+
+  const ollamaOptions = buildOllamaTuning(settings);
+  const ollamaTools = toolActivation.buildOllamaTools();
+
+  const compactor = ChatController.buildContextCompactor({
+    manager,
+    client,
+    settings,
+    ollamaOptions,
+    memoryStore: memorySubsystem.memoryStore,
+    memoryConsolidator: memorySubsystem.memoryConsolidator,
+    tracer: runtime.tracer,
+    getSettings: () => runtime.settings,
+  });
+
+  const subAgentManager = ChatController.buildSubAgentManager({
+    client,
+    promptBuilder,
+    memoryStore: memorySubsystem.memoryStore,
+    ollamaOptions,
+    modelName: settings.modelName,
+    tracer: runtime.tracer,
+  });
+
+  const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  const gitSafetyNet = workspacePath ? new GitSafetyNet(workspacePath) : null;
+
+  const initialTier = getTierConfig(settings.gpuTierOverride ?? 2);
+
+  const orchestrator = ChatController.buildOrchestrator({
+    client,
+    modelName: settings.modelName,
+    ollamaOptions,
+    subAgentManager,
+    hardwareTier: initialTier,
+    memoryStore: memorySubsystem.memoryStore,
+    postMessage: input.hostPostMessage,
+  });
+
+  const agentLoop = ChatController.buildAgentLoop({
+    client,
+    manager,
+    registry,
+    modelName: settings.modelName,
+    maxIterations: initialTier.maxAgentIterations,
+    compactor,
+    ollamaOptions,
+    ollamaTools,
+    subAgentManager,
+    settings,
+    workingMemory: memorySubsystem.workingMemory,
+    episodicMemory: memorySubsystem.episodicMemory,
+    gitSafetyNet,
+    tracer: runtime.tracer,
+    operationLog,
+  });
+
+  const pipeline = ChatController.buildStreamingPipeline({
+    client,
+    manager,
+    modelName: settings.modelName,
+    agentLoop,
+    ollamaOptions,
+    ollamaTools,
+  });
+
+  const extensionFsPath = extensionUri.fsPath ?? "";
+  const catalogDir = path.join(extensionFsPath, "src", "skills", "catalog");
+  const skillLoader = new SkillLoader(catalogDir);
+  skillLoader.load();
+  skillLoader.watch();
+
+  const commandRouter = new CommandRouter(() =>
+    skillLoader.listSkills().map((s) => ({
+      name: s.name,
+      description: s.description,
+      argumentHint: s.argumentHint || undefined,
+    })),
+  );
+
+  const statusReporter = new ChatStatusReporter({
+    manager,
+    compactor,
+    getSettings: () => hooks.getSettings(),
+    getMemoryStore: () => memorySubsystem.memoryStore,
+    getMcpManager: () => mcpManager,
+    getMcpTools: () => hooks.getMcpTools(),
+    postMessage: input.hostPostMessage,
+  });
+
+  const controller = new ChatController({
+    manager,
+    planMode,
+    promptBuilder,
+    compactor,
+    commandRouter,
+    runtime,
+    subAgentManager,
+    agentLoop,
+    pipeline,
+    orchestrator,
+    skillLoader,
+    getStore: () => store,
+    getMemoryStore: () => memorySubsystem.memoryStore,
+    getToolOutputCache: () => toolOutputCache,
+    getOperationLog: () => operationLog,
+    getMcpManager: () => mcpManager,
+    getMcpTools: () => hooks.getMcpTools(),
+    setMcpTools: (tools) => hooks.setMcpTools(tools),
+    getUnifiedRetriever: () => memorySubsystem.unifiedRetriever,
+    getSettings: () => hooks.getSettings(),
+    buildPromptContext: (memoryContext) =>
+      toolActivation.buildPromptContext(memoryContext),
+    postMessage: input.hostPostMessage,
+    postHistory: () => statusReporter.postHistory(),
+    postTokenCount: () => statusReporter.postTokenCount(),
+    postMemoryStatus: () => statusReporter.postMemoryStatus(),
+    postMcpStatus: () => statusReporter.postMcpStatus(),
+  });
+
+  const messageRouter = new ChatMessageRouter({
+    controller,
+    status: statusReporter,
+    manager,
+    planMode,
+    promptBuilder,
+    commandRouter,
+    confirmationGate,
+    agentLoop,
+    gitSafetyNet,
+    getSettings: () => hooks.getSettings(),
+    getCurrentEditMode: () => hooks.getCurrentEditMode(),
+    setCurrentEditMode: (mode) => hooks.setCurrentEditMode(mode),
+    buildPromptContext: (memoryContext) =>
+      toolActivation.buildPromptContext(memoryContext),
+    postMessage: input.hostPostMessage,
+    getOutputChannel: () => hooks.getOutputChannel(),
+  });
+
+  // MCP wiring: the McpManager is constructed when enabled, and its async
+  // initialize() is fired-and-forgotten. McpServer is started when stdio
+  // mode is selected.
+  let mcpManager: McpManager | null = null;
+  let mcpServer: McpServer | null = null;
+  if (settings.mcpEnabled) {
+    mcpManager = new McpManager(registry, workspacePath, workspaceState);
+    void mcpManager
+      .initialize()
+      .then(() => {
+        const tools = mcpManager?.getAllToolMetadata() ?? [];
+        hooks.setMcpTools(tools);
+        const prompt = promptBuilder.build(toolActivation.buildPromptContext());
+        manager.rebuildSystemPrompt(prompt);
+      })
+      .catch((err) => {
+        getLogger().warn("[McpManager] Initialization failed:", err);
+      });
+  }
+  if (settings.mcpServerMode === "stdio") {
+    mcpServer = new McpServer(registry, TOOL_CATALOG, settings.mcpExposedTools);
+    void mcpServer.start().catch((err) => {
+      getLogger().warn("[McpServer] Failed to start:", err);
+    });
+  }
+
+  return {
+    settings,
+    store,
+    toolOutputCache,
+    webResponseCache,
+    operationLog,
+    memorySubsystem,
+    memoryStore: memorySubsystem.memoryStore,
+    workingMemory: memorySubsystem.workingMemory,
+    episodicMemory: memorySubsystem.episodicMemory,
+    graphMemory: memorySubsystem.graphMemory,
+    unifiedRetriever: memorySubsystem.unifiedRetriever,
+    memoryConsolidator: memorySubsystem.memoryConsolidator,
+    planMode,
+    promptBuilder,
+    toolActivation,
+    manager,
+    confirmationGate,
+    registry,
+    compactor,
+    subAgentManager,
+    gitSafetyNet,
+    orchestrator,
+    agentLoop,
+    pipeline,
+    skillLoader,
+    commandRouter,
+    statusReporter,
+    controller,
+    messageRouter,
+    mcpManager,
+    mcpServer,
+  };
+}

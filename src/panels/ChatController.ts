@@ -1,14 +1,101 @@
 import * as vscode from "vscode";
-import type { StreamingPipeline } from "../chat/StreamingPipeline.js";
+import { StreamingPipeline } from "../chat/StreamingPipeline.js";
 import { detectPlan } from "../chat/PlanMode.js";
-import type { Orchestrator } from "../orchestration/Orchestrator.js";
+import type { ConversationManager } from "../chat/ConversationManager.js";
+import { ContextCompactor } from "../chat/ContextCompactor.js";
+import type { PromptBuilder } from "../chat/PromptBuilder.js";
+import { Orchestrator } from "../orchestration/Orchestrator.js";
 import type { SkillLoader } from "../skills/SkillLoader.js";
 import type { MemoryStore } from "../storage/MemoryStore.js";
 import type { UnifiedMemoryRetriever } from "../storage/UnifiedMemoryRetriever.js";
+import type { WorkingMemory } from "../storage/WorkingMemory.js";
+import type { EpisodicMemory } from "../storage/EpisodicMemory.js";
+import type { MemoryConsolidator } from "../storage/MemoryConsolidator.js";
+import { SubAgentManager } from "../agents/SubAgentManager.js";
+import { AgentLoop } from "../tools/AgentLoop.js";
+import type { ToolRegistry } from "../tools/ToolRegistry.js";
+import type { OllamaToolDefinition } from "../llm/types.js";
+import type { LLMClient } from "../llm/types.js";
+import type { GitSafetyNet } from "../guardrails/GitSafetyNet.js";
+import { LoopDetector } from "../guardrails/LoopDetector.js";
+import type { OperationLog } from "../observability/OperationLog.js";
+import type { Tracer } from "../observability/Tracer.js";
+import type { HardwareTierConfig } from "../config/HardwareTier.types.js";
+import type { GemmaCodeSettings } from "../config/settings.js";
 import { calculateBudget } from "../config/PromptBudget.js";
 import { renderMarkdown } from "../utils/MarkdownRenderer.js";
+import { getLogger } from "../utils/logger.js";
 import type { ExtensionToWebviewMessage } from "./messages.js";
 import { ChatCommandHandlers, type ChatCommandContext } from "./ChatCommandHandlers.js";
+
+/**
+ * Common Ollama tunables passed into every subsystem that calls the LLM.
+ * Sourced from {@link GemmaCodeSettings}; identical to what
+ * `GemmaCodePanel` previously assembled inline.
+ */
+export interface OllamaTuning {
+  readonly num_ctx: number;
+  readonly temperature: number;
+  readonly top_p: number;
+  readonly top_k: number;
+}
+
+export function buildOllamaTuning(settings: GemmaCodeSettings): OllamaTuning {
+  return {
+    num_ctx: settings.maxTokens,
+    temperature: settings.temperature,
+    top_p: settings.topP,
+    top_k: settings.topK,
+  };
+}
+
+export interface ContextCompactorBuildDeps {
+  readonly manager: ConversationManager;
+  readonly client: LLMClient;
+  readonly settings: GemmaCodeSettings;
+  readonly ollamaOptions: OllamaTuning;
+  readonly memoryStore: MemoryStore | null;
+  readonly memoryConsolidator: MemoryConsolidator | null;
+  readonly tracer: Tracer;
+  getSettings(): GemmaCodeSettings;
+}
+
+export interface SubAgentManagerBuildDeps {
+  readonly client: LLMClient;
+  readonly promptBuilder: PromptBuilder;
+  readonly memoryStore: MemoryStore | null;
+  readonly ollamaOptions: OllamaTuning;
+  readonly modelName: string;
+  readonly tracer: Tracer;
+}
+
+export interface OrchestratorBuildDeps {
+  readonly client: LLMClient;
+  readonly modelName: string;
+  readonly ollamaOptions: OllamaTuning;
+  readonly subAgentManager: SubAgentManager;
+  readonly hardwareTier: HardwareTierConfig;
+  readonly memoryStore: MemoryStore | null;
+  readonly postMessage: (msg: ExtensionToWebviewMessage) => void;
+}
+
+export interface AgentLoopBuildDeps {
+  readonly client: LLMClient;
+  readonly manager: ConversationManager;
+  readonly registry: ToolRegistry;
+  readonly modelName: string;
+  readonly maxIterations: number;
+  readonly compactor: ContextCompactor;
+  readonly ollamaOptions: OllamaTuning;
+  readonly ollamaTools: OllamaToolDefinition[];
+  readonly subAgentManager: SubAgentManager;
+  readonly settings: GemmaCodeSettings;
+  readonly workingMemory: WorkingMemory | null;
+  readonly episodicMemory: EpisodicMemory | null;
+  readonly gitSafetyNet: GitSafetyNet | null;
+  readonly tracer: Tracer;
+  readonly operationLog: OperationLog | null;
+}
 
 /**
  * Dependencies the controller needs in addition to the slash-command context.
@@ -36,6 +123,115 @@ export class ChatController {
 
   constructor(private readonly _ctx: ChatControllerContext) {
     this._commandHandlers = new ChatCommandHandlers(_ctx);
+  }
+
+  // -------------------------------------------------------------------------
+  // Static factories — v0.7.0 Phase 0 sub-task 0.4 hoist. The owning panel
+  // builds primitives (settings, runtime, memory subsystem) then asks the
+  // controller to assemble the agent-loop construction graph. Keeping these
+  // as static methods preserves the existing `ChatControllerContext`
+  // injection contract used by the unit tests.
+  // -------------------------------------------------------------------------
+
+  static buildContextCompactor(deps: ContextCompactorBuildDeps): ContextCompactor {
+    const { manager, client, settings, ollamaOptions, memoryStore, memoryConsolidator, tracer } = deps;
+    const compactor = new ContextCompactor(
+      manager,
+      client,
+      settings.modelName,
+      settings.maxTokens,
+      ollamaOptions,
+      settings.memoryEnabled && memoryStore
+        ? async (messages) => {
+            try {
+              await memoryStore.extractAndSave(
+                messages,
+                manager.sessionId ?? undefined,
+              );
+              memoryStore.prune(settings.memoryMaxEntries);
+            } catch (err) {
+              getLogger().warn("[MemoryStore] Pre-compaction extraction failed:", err);
+            }
+          }
+        : undefined,
+      0.8,
+      undefined,
+      tracer,
+      () => deps.getSettings(),
+    );
+    if (memoryConsolidator) {
+      compactor.setPostCompactionHook(async (sessionId) => {
+        await memoryConsolidator.consolidate(sessionId);
+      });
+    }
+    return compactor;
+  }
+
+  static buildSubAgentManager(deps: SubAgentManagerBuildDeps): SubAgentManager {
+    return new SubAgentManager(
+      deps.client,
+      deps.promptBuilder,
+      deps.memoryStore,
+      deps.ollamaOptions,
+      deps.modelName,
+      deps.tracer,
+    );
+  }
+
+  static buildOrchestrator(deps: OrchestratorBuildDeps): Orchestrator {
+    return new Orchestrator({
+      client: deps.client,
+      modelName: deps.modelName,
+      ollamaOptions: deps.ollamaOptions,
+      subAgentManager: deps.subAgentManager,
+      hardwareTier: deps.hardwareTier,
+      memoryStore: deps.memoryStore,
+      postMessage: deps.postMessage,
+    });
+  }
+
+  static buildAgentLoop(deps: AgentLoopBuildDeps): AgentLoop {
+    return new AgentLoop(
+      deps.client,
+      deps.manager,
+      deps.registry,
+      deps.modelName,
+      deps.maxIterations,
+      deps.compactor,
+      deps.ollamaOptions,
+      deps.ollamaTools,
+      {
+        subAgentManager: deps.subAgentManager,
+        verificationThreshold: deps.settings.verificationThreshold,
+        verificationEnabled: deps.settings.verificationEnabled,
+        workingMemory: deps.workingMemory ?? undefined,
+        episodicMemory: deps.episodicMemory ?? undefined,
+        sessionId: deps.manager.sessionId ?? undefined,
+        gitSafetyNet: deps.gitSafetyNet ?? undefined,
+        loopDetector: new LoopDetector(),
+        maxTokens: deps.settings.maxTokens,
+        tracer: deps.tracer,
+        operationLog: deps.operationLog ?? undefined,
+      },
+    );
+  }
+
+  static buildStreamingPipeline(deps: {
+    client: LLMClient;
+    manager: ConversationManager;
+    modelName: string;
+    agentLoop: AgentLoop;
+    ollamaOptions: OllamaTuning;
+    ollamaTools: OllamaToolDefinition[];
+  }): StreamingPipeline {
+    return new StreamingPipeline(
+      deps.client,
+      deps.manager,
+      deps.modelName,
+      (pm) => deps.agentLoop.run(pm),
+      deps.ollamaOptions,
+      deps.ollamaTools,
+    );
   }
 
   /** Cancel the in-flight stream and the agent loop. */

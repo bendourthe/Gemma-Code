@@ -21,14 +21,16 @@
   "mutate": [
     "src/guardrails/**/*.ts",
     "src/tools/handlers/**/*.ts",
+    "src/orchestration/**/*.ts",
     "!src/guardrails/index.ts",
     "!**/*.test.ts",
     "!**/*.bench.ts"
   ],
-  "_testFilesComment": "Limit the test-runner to suites that actually exercise the mutated directories. The wider unit-test suite contains a small number of timing-sensitive checks (e.g. Orchestrator.test.ts asserts totalTimeMs > 0) that are flaky under Stryker's per-test sandbox; running them gates the dry-run unnecessarily and they cover code we are not mutating.",
+  "_testFilesComment": "Limit the test-runner to suites that actually exercise the mutated directories. v0.7.0 Phase 0 sub-task 0.7 re-included orchestration after fixing the timing-sensitive assertion in Orchestrator.test.ts (now >= 0 rather than > 0).",
   "testFiles": [
     "tests/unit/guardrails/**/*.test.ts",
     "tests/unit/tools/handlers/**/*.test.ts",
+    "tests/unit/orchestration/**/*.test.ts",
     "tests/unit/utils/secretPaths.test.ts"
   ],
   "thresholds": {

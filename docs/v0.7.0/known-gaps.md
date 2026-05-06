@@ -63,6 +63,8 @@ v12 reshapes the `Renderer` API to a single token-object argument (`renderer.cod
 
 **Action for v0.7.0**: rewrite the three custom renderers; verify the streaming pipeline still surfaces partial-render fragments correctly; verify the CSP and DOMPurify chain still strip script/style/event-handler tags; bump `marked` to ^12.
 
+**Resolution (2026-05-05, Phase 0 sub-task 0.5)**: `marked` bumped to `^12.0.0` (resolved at 12.0.2). The premise that v12 reshapes the Renderer API turned out to be incorrect: marked v12 still uses the v4-positional Renderer signature; the token-object API was introduced in v15, and v15+ is ESM-only (incompatible with the CJS extension). The MarkdownRenderer file is updated to use `marked.parse(text, { async: false })` (the recommended v12 entry point) but the three custom renderers are unchanged-by-need. All 8 renderer tests green; sanitization chain intact. v0.8.0 may revisit a v15+/ESM migration once the broader CJS-to-ESM conversion is on the cycle plan.
+
 ### 2.2 Filesystem tool handler split
 
 **Severity**: P2
@@ -72,6 +74,8 @@ v12 reshapes the `Renderer` API to a single token-object argument (`renderer.cod
 The single filesystem.ts handler module ships v0.6.0 with all seven tool handlers (`read_file`, `write_file`, `edit_file`, `create_file`, `delete_file`, `list_directory`, `grep_codebase`). The plan allowed splitting into per-tool files; deferred so the panel decomposition (Phase 6 sub-tasks 6.1-6.4) could be the dominant restructure in the cycle.
 
 **Action for v0.7.0**: optional split into `read.ts`, `write.ts`, `delete.ts`, `directory.ts`, `grep.ts`. Each file imports `pathGuard.resolveInsideWorkspace` and exports its handler. Re-export from a `filesystem/index.ts` to keep the import surface stable.
+
+**Resolution (2026-05-05, Phase 0 sub-task 0.6)**: Formally deferred to v0.8.0. The v0.7.0 Phase 0 plan flagged this sub-task as optional and Phase 0 already absorbed three large items (panel decomposition + ChatController hoist; marked migration; mutation-testing gap fixes). Splitting `filesystem.ts` cleanly requires updating ~25 import sites across `src/` and `tests/`, and the file is functioning correctly today; the cost/benefit ratio is below the bar for inclusion in the foundation phase. Will revisit in v0.8.0 once new compaction commands surface in Phase 5.
 
 ### 2.3 `GemmaCodePanel.ts` < 400 lines target (partial deviation)
 
@@ -83,12 +87,16 @@ The plan's panel-decomposition target was < 400 lines. Phase 6 reached 935 lines
 
 **Action for v0.7.0**: ADR for the new `OllamaClient` injection pattern, then hoist construction into `ChatController`. Target: panel < 400 lines after the hoist; controller takes wiring responsibility from the panel.
 
+**Resolution (2026-05-05, Phase 0 sub-task 0.4)**: panel down to 305 lines from 935 (-67%). Construction graph extracted to `src/panels/ChatPanelBootstrap.ts` and to static factories on `ChatController` (`buildContextCompactor`, `buildSubAgentManager`, `buildOrchestrator`, `buildAgentLoop`, `buildStreamingPipeline`). Helpers extracted: `ChatPanelInit.ts`, `ChatStatusReporter.ts`, `ChatMessageRouter.ts`, `ToolActivationContext.ts`, `ToolRegistryBuilder.ts`. ADR-0011 documents the new pattern. New regression test `tests/unit/runtime/GemmaRuntime.test.ts` asserts the OllamaClient factory contract. Module-boundary check (`npm run deps:check`) green; all 101 panel unit tests green.
+
 ### 2.4 Full panel ownership hoist into `ChatController`
 
 **Severity**: P1
 **Source**: ADR-0008 neutral consequence; tracked dependency for 2.3
 
 Same scope as 2.3 from the controller side. The `ChatController` currently owns *flow* (submitUserMessage, cancelInFlight, approveStep, plan detection, memory injection) but not *wiring*. The plan called for full ownership; the Phase 6 weaker variant kept wiring in the panel. v0.7.0 should move wiring inward.
+
+**Resolution (2026-05-05, Phase 0 sub-task 0.4)**: closed alongside 2.3. `ChatController` now owns the wiring contract via static factories; `ChatPanelBootstrap` is the canonical caller. The static-factory shape (rather than instance methods) preserves the existing `ChatControllerContext` injection contract used by the controller's unit tests.
 
 ---
 
@@ -139,6 +147,8 @@ The file is a static lookup table. Mutations either change tier values (caught b
 
 **Action for v0.7.0**: either add a line-level lookup test, or expand the Stryker runner to include the behavioural tests that catch the table-value mutations.
 
+**Resolution (2026-05-05, Phase 0 sub-task 0.7)**: new test file [tests/unit/guardrails/policy.test.ts](../../tests/unit/guardrails/policy.test.ts) exercises every entry of `BLOCKED_PATTERNS` through the public `classifyAction` API. 18 assertions; pins the contract so any mutation that swaps a literal value or empties the array surfaces as a failing test.
+
 ### 4.2 `ActionClassifier.ts` 108 surviving mutants
 
 **Severity**: P2
@@ -147,6 +157,8 @@ The file is a static lookup table. Mutations either change tier values (caught b
 Largest absolute survivor count. The module is pattern-matching code: many mutations replace one regex/string variant with another that is functionally indistinguishable from the agent's perspective. Closing every survivor would mean pinning every regex literal or rewriting the module.
 
 **Action for v0.7.0**: targeted regression tests for the 5-10 highest-impact survivors (the ones that change classifier output for a real agent input).
+
+**Resolution (2026-05-05, Phase 0 sub-task 0.7)**: new test file [tests/unit/guardrails/ActionClassifier.coverage.test.ts](../../tests/unit/guardrails/ActionClassifier.coverage.test.ts) iterates the SAFE_TOOLS, READ_ONLY_COMMANDS, and DESTRUCTIVE_COMMAND_PATTERNS tables (the three mutation-rich surfaces) through 113 parametric assertions. Documents a pre-existing case-sensitivity quirk (READ_ONLY_COMMANDS has uppercase entries that never match the lowercased input) inline so a future read does not propose a behavioural change accidentally.
 
 ### 4.3 `terminal.ts` 128 surviving mutants
 
@@ -157,6 +169,8 @@ Same root cause as 4.2: regex-heavy allowlist + denylist code where many mutatio
 
 **Action for v0.7.0**: targeted regression tests for the survivors that change allowlist verdicts or that bypass the denylist segment-check from v0.1.0 Phase 8.
 
+**Resolution (2026-05-05, Phase 0 sub-task 0.7)**: new test file [tests/unit/tools/handlers/terminal.coverage.test.ts](../../tests/unit/tools/handlers/terminal.coverage.test.ts) covers `isAllowlisted` (per-command + chained-segment behaviour), `isBlocked` and `findBlockedPattern` (every BLOCKED_PATTERNS entry both bare and embedded in a chained command), and the chain-separator semantics of the internal `shellSegments` helper observed via the public exports. 58 parametric assertions.
+
 ### 4.4 `filesystem.ts` 287 surviving mutants
 
 **Severity**: P2
@@ -166,6 +180,8 @@ Largest absolute total in the focused runner. 183 mutants have no coverage at al
 
 **Action for v0.7.0**: identify the no-coverage clusters (probably the create_file / delete_file / list_directory error branches) and add targeted error-path tests.
 
+**Resolution (2026-05-05, Phase 0 sub-task 0.7)**: new test file [tests/unit/tools/handlers/filesystem.coverage.test.ts](../../tests/unit/tools/handlers/filesystem.coverage.test.ts) adds 13 error-path tests covering `CreateFileTool` (missing path, missing content, file-already-exists, ENOSPC writeFile failure, user-rejected confirmation), `DeleteFileTool` (missing path, EACCES, ENOENT), and `ListDirectoryTool` (missing path defaults, ENOENT defensive walk, EACCES defensive walk, empty directory, secret-path denylist). The next quarterly Stryker pass should re-evaluate the survivor count.
+
 ### 4.5 `Orchestrator.test.ts` excluded from Stryker runner
 
 **Severity**: P3
@@ -174,6 +190,8 @@ Largest absolute total in the focused runner. 183 mutants have no coverage at al
 The test asserts `totalTimeMs > 0` and is timing-sensitive; under Stryker's per-test sandbox it flakes. The Phase 7 narrow runner excludes it. Mutation coverage of the orchestration layer is therefore untested.
 
 **Action for v0.7.0**: rewrite the timing assertion as `totalTimeMs >= 0` (it can legitimately be 0 on fast machines) so the test is Stryker-safe, then re-include the orchestration directory in the Stryker config.
+
+**Resolution (2026-05-05, Phase 0 sub-task 0.7)**: timing assertion rewritten as `>=`. `configs/stryker.config.json` `mutate` and `testFiles` extended to include `src/orchestration/**/*.ts` and `tests/unit/orchestration/**/*.test.ts`. Stryker now mutates the orchestration layer.
 
 ---
 
@@ -205,6 +223,8 @@ Cosmetic only -- git's autocrlf normalization on Windows rewrites the file's lin
 These files appeared in the working tree before Phase 8 began (likely from a parallel exploration session). v0.6.0 Phase 8 explicitly did **not** stage or commit them per the project's scope-discipline rule ("Every changed line must trace directly to the user's request"). They are still untracked as of the v0.6.0 tag.
 
 **Action for v0.7.0**: review the files, decide whether they form a valid v0.7.0 cycle plan or should be reset, and stage/commit accordingly. Until then they are pre-existing local state, not part of v0.6.0.
+
+**Resolution (2026-05-05, Phase 0 sub-task 0.3)**: All three files reviewed and accepted as the formal v0.7.0 cycle kickoff. Committed as `feat(v0.7.0): cycle plan kickoff`.
 
 ---
 
