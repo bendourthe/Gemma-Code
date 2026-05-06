@@ -331,6 +331,21 @@
           "default": false,
           "description": "Append one Markdown-friendly line per tool call to <workspace>/.gemma-code/operation-log.md (default off). Records only metadata: tool name, outcome, optional path, session id; never tool inputs. Trade-off: small disk-cost and visibility into past actions vs. privacy of having a persistent audit trail."
         },
+        "gemma-code.memoryAutoArchive": {
+          "type": "string",
+          "enum": [
+            "off",
+            "weekly",
+            "monthly"
+          ],
+          "enumDescriptions": [
+            "Never auto-archive (default). Run /memory archive manually when desired.",
+            "Take a snapshot of Instructions.md / Memory.md / Context.md when the latest archive is older than 7 days.",
+            "Take a snapshot when the latest archive is older than 30 days."
+          ],
+          "default": "off",
+          "description": "v0.7.0 Phase 2 -- schedule for automatic memory file snapshots into ~/.gemma-code/memory/<workspace-id>/Archive/<YYYY-MM-DD>/. Auto-archive runs silently on session start when due."
+        },
         "gemma-code.cacheEvictionStrategy": {
           "type": "string",
           "enum": [

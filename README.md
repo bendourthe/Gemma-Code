@@ -121,6 +121,7 @@ All settings are under `gemma-code.*` in VS Code settings (`Ctrl+,`).
 | `gemma-code.toolConfirmationMode` | `ask` | When to ask before running terminal commands: `always`, `ask`, `never` |
 | `gemma-code.maxAgentIterations` | `20` | Maximum agentic tool-use iterations per message |
 | `gemma-code.memoryEnabled` | `true` | Enable persistent cross-session memory |
+| `gemma-code.memoryAutoArchive` | `off` | Schedule automatic snapshots of `~/.gemma-code/memory/<workspace-id>/{Instructions,Memory,Context}.md` into `Archive/<YYYY-MM-DD>/`. `off`, `weekly` (7-day threshold), or `monthly` (30-day threshold). |
 | `gemma-code.embeddingModel` | `nomic-embed-text` | Ollama embedding model for semantic memory search (empty string disables) |
 | `gemma-code.memoryAutoSaveInterval` | `15` | Messages between automatic memory extraction runs |
 | `gemma-code.memoryMaxEntries` | `10000` | Maximum memory entries before automatic pruning |
@@ -147,7 +148,10 @@ All settings are under `gemma-code.*` in VS Code settings (`Ctrl+,`).
 | `/plan` | Toggle plan mode on/off |
 | `/compact` | Manually trigger context compaction |
 | `/model [name]` | Switch the active model |
-| `/memory <subcommand>` | Manage persistent memory (search, save, clear, status, lint) |
+| `/memory <subcommand>` | Manage persistent memory (search, save, clear, status, lint, init, archive, edit) |
+| `/memory init [--force]` | Scaffold the file-backed memory architecture at `~/.gemma-code/memory/<workspace-id>/` (Instructions.md, Memory.md, Context.md). `--force` overwrites existing files. |
+| `/memory archive` | Snapshot the three memory files into `Archive/<YYYY-MM-DD>/`. Idempotent for the day. |
+| `/memory edit [instructions\|memory\|context]` | Open a memory file in VS Code for direct editing. Defaults to `memory`. |
 | `/memory lint [--dry-run\|--apply\|--full\|--limit=N]` | Scan semantic memory for stale, broken-path, embedding-failed, and duplicate entries. Report-only; writes `.gemma-code/memory-health.md`. `--apply` is reserved for future destructive cleanup. |
 | `/mcp <subcommand>` | Manage MCP connections (status, connect, disconnect) |
 | `/verify` | Manually trigger verification sub-agent on recent changes |

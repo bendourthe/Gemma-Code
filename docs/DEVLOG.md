@@ -4,6 +4,87 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-05] v0.7.0 Phase 2 -- memory file architecture
+
+### Goal
+
+Land the user-editable Instructions.md / Memory.md / Context.md / Archive directory structure under `~/.gemma-code/memory/<workspace-id>/`, wire PromptBuilder to consume it on every turn, and provide `/memory init|archive|edit` slash commands plus an opt-in weekly-or-monthly auto-archive scheduler. Plan reference: [docs/v0.7.0/plans/v0.7.0-cycle.md](v0.7.0/plans/v0.7.0-cycle.md) Phase 2 (sub-tasks 2.1, 2.2, 2.3). Adopts comparison findings C17, C18, C19 and unblocks the `build-second-brain` skill shipped (non-functional) in Phase 1.
+
+### Decisions
+
+#### 2.1: `MemoryFiles` owns scaffold / read / archive / append / remove / export / import
+
+[src/storage/MemoryFiles.ts](../src/storage/MemoryFiles.ts) is the single owner of the on-disk architecture. Constructor takes `(workspaceId, baseDir)` with a lazy `os.homedir()` default so test harnesses can override; `deriveWorkspaceId(absolutePath)` produces a stable `<basename>-<10-hex>` ID using SHA-1 of the absolute path. Reads are mtime-cached to avoid stat'ing three files on every prompt build. Append / remove / export / import all gate through the `matchesSecretPath` denylist (mirrored from [src/utils/secretPaths.ts](../src/utils/secretPaths.ts)) so a malicious skill cannot inject a credential path. `removeFromMemory` rejects catastrophic patterns (`.*`, `.+`, `.`) so a typo cannot blow Memory.md away.
+
+#### 2.2: PromptBuilder splits file-memory into pre and post sections
+
+The plan stipulated merge order `bundled prompt -> Instructions -> Context -> SQL filtered -> Memory`. PromptBuilder now accepts an optional `MemoryFiles` constructor argument; when present, two new sections inject:
+
+- `file-memory-pre` (priority 2, always-include) -- Instructions + Context, immediately after the bundled system prompt.
+- `file-memory-post` (priority 31, conditional) -- Memory.md last so the model sees the user's most-recent on-disk edits with maximum recency.
+
+Combined file-memory tokens are capped at 50% of the system-prompt budget. When the cap is exceeded, Memory.md is truncated section-by-section in this order: `Preferences -> Corrections -> Patterns -> Decisions`. Decisions stays last because it represents locked-in calls the user is least willing to lose. The shadow-drop pass runs SQL-injected memoryContext lines through a case-insensitive substring match against Memory.md and drops shadowed lines so the on-disk file wins on conflict, per the plan's precedence rule.
+
+#### 2.3: `/memory init|archive|edit` extend the existing `/memory` builtin in place
+
+The plan's `memoryCommand.ts` was a planning artefact -- the actual codebase routes `/memory` through `ChatCommandHandlers._handleMemory`. New verbs were appended there (rather than creating a new file) to match the existing pattern. The three file-backed verbs (`init`, `archive`, `edit`) bypass the `MemoryStore` null check because they operate purely on disk; only the SQL-backed verbs (`search`, `save`, `clear`, `lint`, `status`) require `memoryEnabled=true`. The `gemma-code.memoryAutoArchive` setting (`"off" | "weekly" | "monthly"`, default `"off"`) is enforced in `buildMemoryFiles`; the bootstrap helper checks the most-recent archive's age on session start and silently runs `archive()` when the threshold is exceeded.
+
+#### Workspace ID derivation
+
+`deriveWorkspaceId(workspacePath)` returns `<basename-sanitised>-<sha1[0..10]>`. The hash disambiguates two workspaces with the same basename on a single machine; the basename gives the directory a human-readable prefix when browsing `~/.gemma-code/memory/`. Filesystem-unsafe characters in the basename are collapsed to `_` so the resulting path is portable across Windows/macOS/Linux.
+
+#### Test-time path injection for Windows
+
+Windows `os.homedir()` reads `GetUserProfileDirectoryW` directly and ignores `process.env.USERPROFILE`. The integration test for `buildMemoryFiles` originally tried to redirect via env vars; that fails silently on Windows. The fix added an optional `baseDir` override parameter to `buildMemoryFiles(settings, baseDir?)` so tests can inject a temp directory explicitly. Production callers leave it undefined.
+
+### Files added
+
+- `src/storage/MemoryFiles.ts` -- `MemoryFiles` class + `deriveWorkspaceId` helper.
+- `tests/unit/storage/MemoryFiles.test.ts` -- 23 tests covering scaffold / read / archive / append / remove / export / import / secret-path rejection / mtime-cache.
+- `tests/integration/memory-files-prompt-merge.test.ts` -- 5 tests exercising PromptBuilder's pre/post placement, shadow drop, and 50%-budget truncation.
+- `tests/integration/memory-auto-archive.test.ts` -- 5 tests exercising `buildMemoryFiles` scaffold-on-first-session and the weekly/monthly auto-archive scheduler.
+
+### Files modified
+
+- `src/chat/PromptBuilder.ts` -- accepts `MemoryFiles | null` constructor arg; new `file-memory-pre` / `file-memory-post` sections; new `_buildFileMemoryAllocation` helper for the 50%-budget cap; `_buildMemorySection` filters SQL lines shadowed by Memory.md.
+- `src/panels/ChatPanelInit.ts` -- new `buildMemoryFiles(settings, baseDir?)` helper plus `runAutoArchive` scheduler.
+- `src/panels/ChatPanelBootstrap.ts` -- threads `memoryFiles` through `BootstrappedPanel` and `ChatCommandContext`.
+- `src/panels/ChatCommandHandlers.ts` -- `_handleMemory` routes `init|archive|edit` ahead of the SQL-store check; new `parseInitArgs` and `resolveMemorySection` helpers exported for unit tests.
+- `src/config/settings.ts` -- new `memoryAutoArchive: "off" | "weekly" | "monthly"` field with validated default.
+- `package.json` -- new `gemma-code.memoryAutoArchive` configuration property with enum descriptions.
+- `docs/v0.7.0/architecture.md` -- Section 2 filled in (was a Phase 2 placeholder).
+- `tests/unit/panels/ChatCommandHandlers.test.ts` -- 7 new tests for the init / archive / edit verbs and FakeContextOptions extended with `memoryFiles`.
+- `docs/index.md` -- regenerated by `npm run catalog`.
+
+### Verification
+
+- `npm run lint` -- green.
+- `npm run build` -- green.
+- `npm test` -- 157 test file references, 0 FAIL markers across the run; the trailing SIGSEGV on Windows is the documented Node + better-sqlite3 native-cleanup issue, not a test failure.
+- `npm run deps:check` -- 135 modules, 564 dependencies, 0 violations.
+- `npm run catalog:check` -- regenerated docs/index.md (16 modules); the diff is committed alongside the source changes.
+- `npm run perm-tier:check` -- green (no permission-tier changes).
+
+### Phase 2 Exit Checklist
+
+- [x] `src/storage/MemoryFiles.ts` exists with mtime-cached reads
+- [x] First-session auto-scaffold of Instructions.md / Memory.md / Context.md
+- [x] PromptBuilder injects file-memory between bundled prompt and SQL memory
+- [x] On-disk wins on conflict (case-insensitive line-shadow drop)
+- [x] `/memory archive` snapshots into `Archive/<YYYY-MM-DD>/`
+- [x] `gemma-code.memoryAutoArchive` setting honored on session start
+- [x] Path-guard / secret-path denylist applied to writes
+- [x] Unit + integration tests added per the plan
+- [x] Architecture doc updated
+
+### Out of scope (deferred to later phases)
+
+- Phase 5: `/memory forget|export|import` slash commands (the `MemoryFiles` methods exist; the slash-command surface is Phase 5's responsibility).
+- Phase 5: manual memory page UI (webview tab over the three files).
+- Phase 5: per-model `gemma-code.contextLimitsPerModel` setting.
+
+---
+
 ## [2026-05-05] v0.7.0 Phase 1 -- skill expansion (zero-code first)
 
 ### Goal

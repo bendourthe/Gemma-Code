@@ -22,10 +22,12 @@ import {
   initWebResponseCache,
   initOperationLog,
   buildMemorySubsystem,
+  buildMemoryFiles,
 } from "./ChatPanelInit.js";
 import type { ChatHistoryStore } from "../storage/ChatHistoryStore.js";
 import type { MemoryStore } from "../storage/MemoryStore.js";
 import type { MemorySubsystem } from "../storage/MemorySubsystem.js";
+import type { MemoryFiles } from "../storage/MemoryFiles.js";
 import type { ToolOutputCache } from "../storage/ToolOutputCache.js";
 import type { WebResponseCache } from "../tools/handlers/webCache.js";
 import type { OperationLog } from "../observability/OperationLog.js";
@@ -98,6 +100,7 @@ export interface BootstrappedPanel {
   readonly graphMemory: GraphMemory | null;
   readonly unifiedRetriever: UnifiedMemoryRetriever | null;
   readonly memoryConsolidator: MemoryConsolidator | null;
+  readonly memoryFiles: MemoryFiles | null;
   readonly planMode: PlanMode;
   readonly promptBuilder: PromptBuilder;
   readonly toolActivation: ToolActivationContext;
@@ -145,8 +148,13 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
     globalStorageUri,
   );
 
+  // v0.7.0 Phase 2: file-backed memory (Instructions/Memory/Context) lives
+  // under ~/.gemma-code/memory/<workspace-id>/. Constructed before
+  // PromptBuilder so the read result is wired into every prompt build.
+  const memoryFiles = buildMemoryFiles(settings);
+
   const planMode = new PlanMode();
-  const promptBuilder = new PromptBuilder();
+  const promptBuilder = new PromptBuilder(memoryFiles);
 
   // The ToolActivation reads late-binding state via callbacks so prompt
   // rebuilds reflect the latest mcpTools, settings, ollama reachability and
@@ -293,6 +301,7 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
     skillLoader,
     getStore: () => store,
     getMemoryStore: () => memorySubsystem.memoryStore,
+    getMemoryFiles: () => memoryFiles,
     getToolOutputCache: () => toolOutputCache,
     getOperationLog: () => operationLog,
     getMcpManager: () => mcpManager,
@@ -367,6 +376,7 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
     graphMemory: memorySubsystem.graphMemory,
     unifiedRetriever: memorySubsystem.unifiedRetriever,
     memoryConsolidator: memorySubsystem.memoryConsolidator,
+    memoryFiles,
     planMode,
     promptBuilder,
     toolActivation,

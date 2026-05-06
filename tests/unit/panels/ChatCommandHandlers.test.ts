@@ -10,10 +10,13 @@ vi.mock("vscode", () => ({
     getConfiguration: vi.fn(() => ({
       update: vi.fn().mockResolvedValue(undefined),
     })),
+    openTextDocument: vi.fn().mockResolvedValue({ uri: { fsPath: "/ws/Memory.md" } }),
   },
   window: {
     showQuickPick: vi.fn(),
+    showTextDocument: vi.fn().mockResolvedValue(undefined),
   },
+  Uri: { file: (p: string) => ({ fsPath: p }) },
   ConfigurationTarget: { Global: 1 },
 }));
 
@@ -32,6 +35,7 @@ interface PostedMessage {
 
 interface FakeContextOptions {
   memoryStore?: unknown;
+  memoryFiles?: unknown;
   toolOutputCache?: unknown;
   operationLog?: unknown;
   store?: unknown;
@@ -126,6 +130,7 @@ function makeFakeCtx(opts: FakeContextOptions = {}): {
     agentLoop,
     getStore: () => opts.store as never,
     getMemoryStore: () => opts.memoryStore as never,
+    getMemoryFiles: () => opts.memoryFiles as never,
     getToolOutputCache: () => opts.toolOutputCache as never,
     getOperationLog: () => opts.operationLog as never,
     getMcpManager: () => opts.mcpManager as never,
@@ -553,5 +558,106 @@ describe("ChatCommandHandlers", () => {
     await h.dispatch("memory", "lint --dry-run");
 
     expect(added[0]).toContain("_lint ok_");
+  });
+
+  it("/memory init scaffolds the file architecture", async () => {
+    const memoryFiles = {
+      init: vi.fn(() => ({
+        instructions: "created" as const,
+        memory: "created" as const,
+        context: "created" as const,
+        instructionsPath: "/ws/Instructions.md",
+        memoryPath: "/ws/Memory.md",
+        contextPath: "/ws/Context.md",
+      })),
+      workspaceDir: "/home/u/.gemma-code/memory/ws",
+    };
+    const { ctx, added } = makeFakeCtx({ memoryFiles });
+    const h = new ChatCommandHandlers(ctx);
+    await h.dispatch("memory", "init");
+
+    expect(memoryFiles.init).toHaveBeenCalledWith(false);
+    expect(added[0]).toContain("Memory file initialisation");
+    expect(added[0]).toContain("Instructions.md");
+  });
+
+  it("/memory init --force passes the overwrite flag", async () => {
+    const memoryFiles = {
+      init: vi.fn(() => ({
+        instructions: "created" as const,
+        memory: "created" as const,
+        context: "created" as const,
+        instructionsPath: "/ws/Instructions.md",
+        memoryPath: "/ws/Memory.md",
+        contextPath: "/ws/Context.md",
+      })),
+      workspaceDir: "/home/u/.gemma-code/memory/ws",
+    };
+    const { ctx } = makeFakeCtx({ memoryFiles });
+    const h = new ChatCommandHandlers(ctx);
+    await h.dispatch("memory", "init --force");
+
+    expect(memoryFiles.init).toHaveBeenCalledWith(true);
+  });
+
+  it("/memory init without a workspace surfaces a hint", async () => {
+    const { ctx, added } = makeFakeCtx({ memoryFiles: null });
+    const h = new ChatCommandHandlers(ctx);
+    await h.dispatch("memory", "init");
+    expect(added[0]).toContain("requires an open workspace");
+  });
+
+  it("/memory archive snapshots the three files", async () => {
+    const memoryFiles = {
+      archive: vi.fn(() => ({
+        archivedPath: "/home/u/.gemma-code/memory/ws/Archive/2026-05-05",
+        archivedAt: new Date("2026-05-05T12:00:00Z"),
+      })),
+    };
+    const { ctx, added } = makeFakeCtx({ memoryFiles });
+    const h = new ChatCommandHandlers(ctx);
+    await h.dispatch("memory", "archive");
+    expect(memoryFiles.archive).toHaveBeenCalled();
+    expect(added[0]).toContain("Memory archive");
+    expect(added[0]).toContain("Archive/2026-05-05");
+  });
+
+  it("/memory edit defaults to Memory.md", async () => {
+    const vscode = await import("vscode");
+    const memoryFiles = {
+      memoryPath: "/ws/Memory.md",
+      instructionsPath: "/ws/Instructions.md",
+      contextPath: "/ws/Context.md",
+    };
+    const { ctx } = makeFakeCtx({ memoryFiles });
+    const h = new ChatCommandHandlers(ctx);
+    await h.dispatch("memory", "edit");
+    expect(vscode.workspace.openTextDocument).toHaveBeenCalledWith({ fsPath: "/ws/Memory.md" });
+    expect(vscode.window.showTextDocument).toHaveBeenCalled();
+  });
+
+  it("/memory edit context opens Context.md", async () => {
+    const vscode = await import("vscode");
+    const memoryFiles = {
+      memoryPath: "/ws/Memory.md",
+      instructionsPath: "/ws/Instructions.md",
+      contextPath: "/ws/Context.md",
+    };
+    const { ctx } = makeFakeCtx({ memoryFiles });
+    const h = new ChatCommandHandlers(ctx);
+    await h.dispatch("memory", "edit context");
+    expect(vscode.workspace.openTextDocument).toHaveBeenCalledWith({ fsPath: "/ws/Context.md" });
+  });
+
+  it("/memory edit unknown surfaces usage help", async () => {
+    const memoryFiles = {
+      memoryPath: "/ws/Memory.md",
+      instructionsPath: "/ws/Instructions.md",
+      contextPath: "/ws/Context.md",
+    };
+    const { ctx, added } = makeFakeCtx({ memoryFiles });
+    const h = new ChatCommandHandlers(ctx);
+    await h.dispatch("memory", "edit bogus");
+    expect(added[0]).toContain("Usage:");
   });
 });

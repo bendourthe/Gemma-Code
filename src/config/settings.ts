@@ -41,6 +41,14 @@ export interface GemmaCodeSettings {
   otlpHeaders: string;
   secretPathDenyExtra: string[];
   operationLogEnabled: boolean;
+  /**
+   * v0.7.0 Phase 2: schedule for automatic Memory.md / Instructions.md /
+   * Context.md snapshots into `~/.gemma-code/memory/<workspace-id>/Archive/<YYYY-MM-DD>/`.
+   * `weekly` triggers when the most recent archive is older than 7 days,
+   * `monthly` waits 30 days. `off` (default) means archives only run on an
+   * explicit `/memory archive` invocation.
+   */
+  memoryAutoArchive: "off" | "weekly" | "monthly";
 }
 
 export function getSettings(): GemmaCodeSettings {
@@ -88,6 +96,10 @@ export function getSettings(): GemmaCodeSettings {
     otlpHeaders: config.get<string>("otlpHeaders") ?? "",
     secretPathDenyExtra: config.get<string[]>("secretPathDenyExtra") ?? [],
     operationLogEnabled: config.get<boolean>("operationLog.enabled") ?? false,
+    memoryAutoArchive: ((): "off" | "weekly" | "monthly" => {
+      const raw = config.get<string>("memoryAutoArchive") ?? "off";
+      return raw === "weekly" || raw === "monthly" ? raw : "off";
+    })(),
   };
 }
 

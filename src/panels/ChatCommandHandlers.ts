@@ -13,6 +13,7 @@ import {
 } from "../commands/memoryLintCommand.js";
 import type { ChatHistoryStore } from "../storage/ChatHistoryStore.js";
 import type { MemoryStore } from "../storage/MemoryStore.js";
+import type { MemoryFiles } from "../storage/MemoryFiles.js";
 import type { ToolOutputCache } from "../storage/ToolOutputCache.js";
 import type { OperationLog } from "../observability/OperationLog.js";
 import type { McpManager } from "../mcp/McpManager.js";
@@ -42,6 +43,7 @@ export interface ChatCommandContext {
   readonly agentLoop: AgentLoop;
   getStore(): ChatHistoryStore | null;
   getMemoryStore(): MemoryStore | null;
+  getMemoryFiles(): MemoryFiles | null;
   getToolOutputCache(): ToolOutputCache | null;
   getOperationLog(): OperationLog | null;
   getMcpManager(): McpManager | null;
@@ -199,6 +201,22 @@ export class ChatCommandHandlers {
 
   private async _handleMemory(args: string): Promise<void> {
     const ctx = this._ctx;
+    const [subcommand, ...rest] = args ? args.split(" ") : ["status"];
+    const subArgs = rest.join(" ").trim();
+
+    // v0.7.0 Phase 2: file-backed verbs (init / archive / edit) operate on
+    // the on-disk memory architecture and do NOT require the SQL-backed
+    // MemoryStore to be enabled.
+    if (subcommand === "init") {
+      return this._handleMemoryInit(subArgs);
+    }
+    if (subcommand === "archive") {
+      return this._handleMemoryArchive();
+    }
+    if (subcommand === "edit") {
+      return this._handleMemoryEdit(subArgs);
+    }
+
     const memoryStore = ctx.getMemoryStore();
     if (!memoryStore) {
       this._emitMarkdown(
@@ -206,9 +224,6 @@ export class ChatCommandHandlers {
       );
       return;
     }
-
-    const [subcommand, ...rest] = args ? args.split(" ") : ["status"];
-    const subArgs = rest.join(" ").trim();
 
     switch (subcommand) {
       case "search": {
@@ -296,6 +311,97 @@ export class ChatCommandHandlers {
         this._emitMarkdown(lines.join("\n"));
         return;
       }
+    }
+  }
+
+  /**
+   * v0.7.0 Phase 2: scaffold the on-disk Instructions/Memory/Context files
+   * for the active workspace. `--force` overwrites existing files (caller is
+   * warned in the report).
+   */
+  private _handleMemoryInit(rawArgs: string): void {
+    const memoryFiles = this._ctx.getMemoryFiles();
+    if (!memoryFiles) {
+      this._emitMarkdown(
+        "_/memory init requires an open workspace. Open a folder and try again._",
+      );
+      return;
+    }
+
+    const { force } = parseInitArgs(rawArgs);
+    let result;
+    try {
+      result = memoryFiles.init(force);
+    } catch (err) {
+      this._emitMarkdown(`_/memory init failed: ${formatForUser(err)}_`);
+      return;
+    }
+
+    const lines: string[] = ["## Memory file initialisation", ""];
+    lines.push(`- **Instructions.md** -- ${result.instructions}`);
+    lines.push(`- **Memory.md** -- ${result.memory}`);
+    lines.push(`- **Context.md** -- ${result.context}`);
+    lines.push("");
+    lines.push(`Files live under \`${memoryFiles.workspaceDir}\`.`);
+    if (!force) {
+      lines.push("");
+      lines.push("_Use `/memory init --force` to overwrite existing files with scaffolds._");
+    }
+    this._emitMarkdown(lines.join("\n"));
+  }
+
+  /**
+   * Snapshot the three memory files into Archive/<YYYY-MM-DD>/. Idempotent
+   * for the day -- a second invocation overwrites the same dated snapshot.
+   */
+  private _handleMemoryArchive(): void {
+    const memoryFiles = this._ctx.getMemoryFiles();
+    if (!memoryFiles) {
+      this._emitMarkdown(
+        "_/memory archive requires an open workspace. Open a folder and try again._",
+      );
+      return;
+    }
+    let result;
+    try {
+      result = memoryFiles.archive();
+    } catch (err) {
+      this._emitMarkdown(`_/memory archive failed: ${formatForUser(err)}_`);
+      return;
+    }
+    this._emitMarkdown(
+      [
+        "## Memory archive",
+        "",
+        `Snapshot written to \`${result.archivedPath}\` at ${result.archivedAt.toISOString()}.`,
+      ].join("\n"),
+    );
+  }
+
+  /**
+   * Open one of the three memory files in VS Code so the user can edit it
+   * directly. Section defaults to `memory` (the most-edited file).
+   */
+  private async _handleMemoryEdit(section: string): Promise<void> {
+    const memoryFiles = this._ctx.getMemoryFiles();
+    if (!memoryFiles) {
+      this._emitMarkdown(
+        "_/memory edit requires an open workspace. Open a folder and try again._",
+      );
+      return;
+    }
+    const target = resolveMemorySection(memoryFiles, section);
+    if (!target) {
+      this._emitMarkdown(
+        "Usage: `/memory edit [instructions|memory|context]`. Default section is `memory`.",
+      );
+      return;
+    }
+    try {
+      const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(target));
+      await vscode.window.showTextDocument(doc, { preview: false });
+    } catch (err) {
+      this._emitMarkdown(`_/memory edit failed: ${formatForUser(err)}_`);
     }
   }
 
@@ -514,5 +620,37 @@ export class ChatCommandHandlers {
         return;
       }
     }
+  }
+}
+
+/**
+ * Parse the argument string after `/memory init`. Currently the only flag is
+ * `--force`, which signals an explicit overwrite of existing scaffolds.
+ * Exported for unit-testability without instantiating the full panel.
+ */
+export function parseInitArgs(rawArgs: string): { force: boolean } {
+  const tokens = rawArgs.split(/\s+/).filter(Boolean);
+  return { force: tokens.includes("--force") };
+}
+
+/**
+ * Resolve a `/memory edit <section>` argument to an absolute file path.
+ * Returns `null` for unknown sections so the caller can surface usage help.
+ */
+export function resolveMemorySection(
+  memoryFiles: MemoryFiles,
+  section: string,
+): string | null {
+  const normalized = section.trim().toLowerCase();
+  const target = normalized || "memory";
+  switch (target) {
+    case "instructions":
+      return memoryFiles.instructionsPath;
+    case "memory":
+      return memoryFiles.memoryPath;
+    case "context":
+      return memoryFiles.contextPath;
+    default:
+      return null;
   }
 }

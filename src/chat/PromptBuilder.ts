@@ -4,6 +4,8 @@ import type { DynamicToolMetadata, ToolMetadata } from "../tools/ToolCatalog.js"
 import { getSubAgentInstructions } from "../agents/SubAgentPrompts.js";
 import { serializeToolDefinitions } from "../tools/Gemma4ToolFormat.js";
 import { calculateBudget, countTokens } from "../config/PromptBudget.js";
+import type { MemoryFiles, MemoryFilesContents } from "../storage/MemoryFiles.js";
+import { getLogger } from "../utils/logger.js";
 import { PLAN_MODE_SYSTEM_ADDENDUM } from "./PlanMode.js";
 
 /**
@@ -70,6 +72,14 @@ export class PromptBuilder {
    * reuses the result until the set changes.
    */
   private readonly _toolSectionCache = new Map<string, PromptSection | null>();
+
+  /**
+   * v0.7.0 Phase 2: optional file-backed memory architecture. When provided,
+   * Instructions.md / Context.md inject between the bundled system prompt
+   * and the SQL-backed memory; Memory.md injects last so the model sees the
+   * user's most recent on-disk edits with the highest recency.
+   */
+  constructor(private readonly _memoryFiles: MemoryFiles | null = null) {}
 
   /**
    * Assemble the system prompt from the given runtime context.
@@ -155,6 +165,18 @@ export class PromptBuilder {
       const subAgent = this._buildSubAgentSection(context);
       if (subAgent) sections.push(subAgent);
     } else {
+      // v0.7.0 Phase 2: file-backed memory architecture splits across two
+      // priorities: Instructions + Context inject early (between the bundled
+      // system prompt and the conversation), while Memory.md injects last so
+      // the model sees the user's most-recent on-disk edits with maximum
+      // recency. Both halves share a single token budget against the system
+      // prompt reserve.
+      const fileMem = this._readFileMemory();
+      const fileMemTokens = this._buildFileMemoryAllocation(context, fileMem);
+
+      const fileMemPre = this._buildFileMemoryPreSection(fileMem, fileMemTokens.preContent);
+      if (fileMemPre) sections.push(fileMemPre);
+
       const plan = this._buildPlanModeSection(context);
       if (plan) sections.push(plan);
 
@@ -164,14 +186,28 @@ export class PromptBuilder {
       const skill = this._buildSkillSection(context);
       if (skill) sections.push(skill);
 
-      const memory = this._buildMemorySection(context);
+      const memory = this._buildMemorySection(context, fileMem);
       if (memory) sections.push(memory);
+
+      const fileMemPost = this._buildFileMemoryPostSection(fileMem, fileMemTokens.postContent);
+      if (fileMemPost) sections.push(fileMemPost);
 
       const subAgent = this._buildSubAgentSection(context);
       if (subAgent) sections.push(subAgent);
     }
 
     return sections;
+  }
+
+  /** v0.7.0 Phase 2: pull the merged file-memory contents (mtime-cached). */
+  private _readFileMemory(): MemoryFilesContents | null {
+    if (!this._memoryFiles) return null;
+    try {
+      return this._memoryFiles.read();
+    } catch (err) {
+      getLogger().debug("[PromptBuilder] MemoryFiles.read failed:", err);
+      return null;
+    }
   }
 
   /** Identity paragraph and general instructions. Always included. */
@@ -299,7 +335,10 @@ export class PromptBuilder {
   }
 
   /** Memory context injection. Truncates to fit within the memory token budget. */
-  private _buildMemorySection(context: PromptContext): PromptSection | null {
+  private _buildMemorySection(
+    context: PromptContext,
+    fileMem: MemoryFilesContents | null,
+  ): PromptSection | null {
     const budget = calculateBudget(context.maxTokens, {
       systemPromptPercent: context.systemPromptBudgetPercent,
     });
@@ -316,9 +355,12 @@ export class PromptBuilder {
       }
     }
 
-    // Recalled memories (existing memoryContext string).
+    // Recalled memories (existing memoryContext string). v0.7.0 Phase 2: drop
+    // any line already present verbatim in Memory.md so the on-disk file wins
+    // when the same fact appears in both stores.
     if (context.memoryContext) {
-      parts.push(context.memoryContext);
+      const filtered = filterShadowedByFileMemory(context.memoryContext, fileMem?.memory ?? "");
+      if (filtered) parts.push(filtered);
     }
 
     if (parts.length === 0) return null;
@@ -332,6 +374,96 @@ export class PromptBuilder {
       id: "memory",
       content,
       priority: 30,
+      alwaysInclude: false,
+      estimatedTokens: estimateTokens(content),
+    };
+  }
+
+  /**
+   * Compute how many tokens the file-memory pair (Instructions+Context vs
+   * Memory.md) gets to spend, capping the combined size at 50% of the
+   * system-prompt budget. When the user's on-disk content blows past the cap
+   * we trim Memory.md from the oldest section (Preferences) downward, leaving
+   * Decisions intact, and emit a single warning per build call.
+   */
+  private _buildFileMemoryAllocation(
+    context: PromptContext,
+    fileMem: MemoryFilesContents | null,
+  ): { preContent: string; postContent: string } {
+    if (!fileMem) return { preContent: "", postContent: "" };
+
+    const budget = calculateBudget(context.maxTokens, {
+      systemPromptPercent: context.systemPromptBudgetPercent,
+    });
+    const cap = Math.max(0, Math.floor(budget.systemPromptBudget * 0.5));
+
+    const pre = joinNonEmpty(
+      [fileMem.instructions, fileMem.context],
+      "## Instructions (from Instructions.md)\n\n",
+      "## Project Context (from Context.md)\n\n",
+    );
+    let post = fileMem.memory
+      ? `## Memory (from Memory.md)\n\n${fileMem.memory.trim()}`
+      : "";
+
+    const preTokens = pre ? estimateTokens(pre) : 0;
+    let postTokens = post ? estimateTokens(post) : 0;
+    if (preTokens + postTokens > cap) {
+      // Truncate Memory.md by dropping its oldest sections first. Order:
+      // Preferences -> Corrections -> Patterns -> Decisions (Decisions stays
+      // last because it represents locked-in calls the user is least willing
+      // to lose).
+      const remaining = Math.max(0, cap - preTokens);
+      post = trimMemoryToTokenBudget(post, remaining);
+      postTokens = post ? estimateTokens(post) : 0;
+      if (preTokens + postTokens > cap || preTokens > cap) {
+        getLogger().warn(
+          `[PromptBuilder] File-memory exceeds 50% of system-prompt budget; truncated. ` +
+            `pre=${preTokens}t post=${postTokens}t cap=${cap}t.`,
+        );
+      } else {
+        getLogger().debug(
+          `[PromptBuilder] Memory.md truncated to fit budget. pre=${preTokens}t post=${postTokens}t cap=${cap}t.`,
+        );
+      }
+    }
+
+    return { preContent: pre, postContent: post };
+  }
+
+  /**
+   * Inject Instructions.md + Context.md immediately after the bundled system
+   * prompt. Always-include because losing the user's identity / project
+   * background would silently degrade output quality.
+   */
+  private _buildFileMemoryPreSection(
+    fileMem: MemoryFilesContents | null,
+    content: string,
+  ): PromptSection | null {
+    if (!fileMem || !content) return null;
+    return {
+      id: "file-memory-pre",
+      content,
+      priority: 2,
+      alwaysInclude: true,
+      estimatedTokens: estimateTokens(content),
+    };
+  }
+
+  /**
+   * Inject Memory.md last so the model sees the most-recent user edits as
+   * the highest-recency context. Conditional so it drops out cleanly when
+   * the file is empty.
+   */
+  private _buildFileMemoryPostSection(
+    fileMem: MemoryFilesContents | null,
+    content: string,
+  ): PromptSection | null {
+    if (!fileMem || !content) return null;
+    return {
+      id: "file-memory-post",
+      content,
+      priority: 31,
       alwaysInclude: false,
       estimatedTokens: estimateTokens(content),
     };
@@ -356,4 +488,131 @@ export class PromptBuilder {
       estimatedTokens: estimateTokens(content),
     };
   }
+}
+
+/**
+ * Compose the file-memory pre-section content. Empty inputs collapse so the
+ * heading does not surface in the rendered prompt.
+ */
+function joinNonEmpty(
+  parts: readonly string[],
+  ...headings: readonly string[]
+): string {
+  const out: string[] = [];
+  for (let i = 0; i < parts.length; i++) {
+    const text = parts[i]?.trim();
+    if (!text) continue;
+    out.push(`${headings[i] ?? ""}${text}`);
+  }
+  return out.join("\n\n");
+}
+
+/**
+ * Drop SQL-backed memory lines that already appear verbatim inside Memory.md.
+ * The matcher is line-based and case-insensitive; multi-line shadows are
+ * unusual in practice (SQL memory rows are typically a single sentence) so
+ * the simpler test keeps the hot path cheap.
+ */
+function filterShadowedByFileMemory(memoryContext: string, memoryMd: string): string {
+  if (!memoryMd) return memoryContext;
+  const haystack = memoryMd.toLowerCase();
+  const lines = memoryContext.split(/\r?\n/);
+  const kept: string[] = [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed && haystack.includes(trimmed.toLowerCase())) continue;
+    kept.push(line);
+  }
+  // Collapse runs of blank lines created by deletions so the joined prompt
+  // stays compact.
+  const compacted: string[] = [];
+  let lastBlank = false;
+  for (const line of kept) {
+    const blank = line.trim() === "";
+    if (blank && lastBlank) continue;
+    compacted.push(line);
+    lastBlank = blank;
+  }
+  return compacted.join("\n").trim();
+}
+
+/**
+ * When Memory.md exceeds its share of the system-prompt budget, drop sections
+ * from the oldest (Preferences) down toward the most-recent (Decisions). The
+ * "## Memory" heading and any preserved sections come back joined; an empty
+ * string indicates everything had to be dropped.
+ */
+function trimMemoryToTokenBudget(memoryContent: string, tokenBudget: number): string {
+  if (!memoryContent) return "";
+  const sectionOrder = ["Preferences", "Corrections", "Patterns", "Decisions"];
+
+  // Split the content into a header, a leading paragraph, and per-section
+  // chunks. Sections we cannot identify are kept as-is at the head of the
+  // chunk list so user-authored extras are not silently dropped.
+  const parts = splitMemorySections(memoryContent);
+
+  // Drop in order until we fit the budget.
+  for (const name of sectionOrder) {
+    const joined = renderTrimmedMemory(parts);
+    if (countTokens(joined) <= tokenBudget) return joined;
+    parts.sections = parts.sections.filter((s) => s.heading.toLowerCase() !== name.toLowerCase());
+  }
+  const final = renderTrimmedMemory(parts);
+  if (countTokens(final) <= tokenBudget) return final;
+  // Last resort: drop unknown sections (anything left), keeping just the head.
+  parts.sections = [];
+  const head = renderTrimmedMemory(parts);
+  return countTokens(head) <= tokenBudget ? head : "";
+}
+
+interface SplitMemory {
+  head: string;
+  sections: { heading: string; body: string }[];
+}
+
+function splitMemorySections(content: string): SplitMemory {
+  const lines = content.split(/\r?\n/);
+  const sections: { heading: string; body: string }[] = [];
+  const head: string[] = [];
+  let currentHeading: string | null = null;
+  let currentBody: string[] = [];
+
+  const flush = (): void => {
+    if (currentHeading != null) {
+      sections.push({ heading: currentHeading, body: currentBody.join("\n").trim() });
+    }
+  };
+
+  for (const line of lines) {
+    const m = /^##\s+(.+?)\s*$/.exec(line);
+    if (m && currentHeading === null) {
+      // First H2 encountered.
+      currentHeading = m[1]!;
+      currentBody = [];
+      continue;
+    }
+    if (m) {
+      flush();
+      currentHeading = m[1]!;
+      currentBody = [];
+      continue;
+    }
+    if (currentHeading === null) {
+      head.push(line);
+    } else {
+      currentBody.push(line);
+    }
+  }
+  flush();
+
+  return { head: head.join("\n").trim(), sections };
+}
+
+function renderTrimmedMemory(parts: SplitMemory): string {
+  const out: string[] = [];
+  if (parts.head) out.push(parts.head);
+  for (const s of parts.sections) {
+    out.push(`## ${s.heading}\n\n${s.body}`.trimEnd());
+  }
+  return out.join("\n\n").trim();
 }

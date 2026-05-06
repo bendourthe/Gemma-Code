@@ -37,17 +37,56 @@ Two tests cover the catalog:
 
 ---
 
-## 2. Memory file architecture (Phase 2 -- TBD)
+## 2. Memory file architecture (Phase 2)
 
-Lands in Phase 2. See [docs/v0.7.0/plans/v0.7.0-cycle.md](./plans/v0.7.0-cycle.md) "Phase 2" for the planned shape; this section will be filled in once Phase 2 ships.
+Phase 2 introduces a user-editable, on-disk memory architecture that lives at `~/.gemma-code/memory/<workspace-id>/`. Three Markdown files plus a dated `Archive/` directory provide the human-readable counterpart to the SQL-backed memory subsystem; the user can `vim`/`code` them directly, the agent reads them on every prompt build, and an opt-in scheduled archive captures snapshots so prior states are recoverable.
 
-The schema referenced by the `build-second-brain` skill (Phase 1) will be defined here:
-- `Instructions.md` -- who you are / what you do / rules / what good outputs look like.
-- `Memory.md` -- preferences / corrections / patterns / decisions.
-- `Context.md` -- about this project / audience / tools and stack / important background.
-- `Archive/<YYYY-MM-DD>/` -- weekly snapshots, opt-in via `gemma-code.memoryAutoArchive`.
+### Files and schema
 
-Until Phase 2 lands, the `build-second-brain` skill detects the absence of these files and refers the user to `/memory init`.
+| File | Purpose | Section headings |
+|---|---|---|
+| `Instructions.md` | The user's persistent identity and ground rules. Read first by the model. | `Who you are`, `What you do`, `Rules`, `What good outputs look like` |
+| `Memory.md` | Accumulated preferences, corrections, recurring patterns, locked-in decisions. The `build-second-brain` skill writes here. | `Preferences`, `Corrections`, `Patterns`, `Decisions` |
+| `Context.md` | Project background -- what is this workspace, who is its audience, what stack does it run on. | `About this project`, `Audience`, `Tools & stack`, `Important background` |
+| `Archive/<YYYY-MM-DD>/` | Dated snapshot of the three files at the time of the archive. Idempotent for the day. | (mirrors the three files) |
+
+### Module shape
+
+[src/storage/MemoryFiles.ts](../../src/storage/MemoryFiles.ts) owns every read/write/scaffold/archive concern. The class is constructed with `(workspaceId, baseDir)`; `deriveWorkspaceId(absolutePath)` produces the stable `<basename>-<10-hex>` identifier so two workspaces with the same name on a single machine never collide. Reads are mtime-cached because PromptBuilder runs on every turn and stat'ing three files per call would amplify into thousands of syscalls per session.
+
+### Integration with PromptBuilder
+
+[src/chat/PromptBuilder.ts](../../src/chat/PromptBuilder.ts) takes an optional `MemoryFiles` argument in its constructor. When provided, the builder injects two new prompt sections:
+
+1. **`file-memory-pre`** (priority 2, always-include) -- joins Instructions.md and Context.md verbatim, placed immediately after the bundled system prompt and tool declarations, before plan / thinking / skill / SQL-memory sections.
+2. **`file-memory-post`** (priority 31, conditional) -- Memory.md verbatim, placed last so the model sees the user's most-recent on-disk edits with the highest recency.
+
+The combined token cost of file-memory is capped at 50% of the system-prompt budget. When the user's content exceeds the cap, Memory.md is truncated section-by-section in this order: `Preferences -> Corrections -> Patterns -> Decisions`. The `Decisions` section is dropped last because it represents locked-in calls that the user is least willing to lose. A logger warning fires once per build call when truncation engages.
+
+**Precedence**: when the same fact appears in both file-backed and SQL-backed memory, the file wins. The SQL-injection path runs each candidate line through a case-insensitive substring check against `Memory.md`; matches are dropped before the prompt is rendered. Multi-line shadows are not handled (SQL rows are typically a single sentence so the simpler test keeps the hot path cheap).
+
+### Integration with the slash-command surface
+
+Three new verbs join the existing `/memory` builtin (handled in [src/panels/ChatCommandHandlers.ts](../../src/panels/ChatCommandHandlers.ts)):
+
+- `/memory init [--force]` -- scaffold the three files. Without `--force` an existing file is left untouched so the user's edits remain authoritative.
+- `/memory archive` -- snapshot the three files into `Archive/<YYYY-MM-DD>/`. Idempotent for the day.
+- `/memory edit [instructions|memory|context]` -- open the requested file in VS Code. Defaults to `memory`.
+
+A new setting `gemma-code.memoryAutoArchive` (`"off" | "weekly" | "monthly"`, default `"off"`) enables the silent auto-archive trigger on session start. The bootstrap helper `buildMemoryFiles` in [src/panels/ChatPanelInit.ts](../../src/panels/ChatPanelInit.ts) checks the most-recent archive's age; when older than 7 days (`weekly`) or 30 days (`monthly`), an archive is taken before the panel finishes loading.
+
+### Security posture
+
+- The secret-path denylist (mirrored from [src/utils/secretPaths.ts](../../src/utils/secretPaths.ts)) gates `appendToMemory`, `export`, and `import`. A line that mentions a path matching `**/.env*`, `**/id_rsa*`, `**/.aws/**`, etc. is rejected before reaching the file.
+- `removeFromMemory` rejects catastrophic patterns (raw `.*`, `.+`, `.`) so a typo cannot blow Memory.md away.
+- The architecture lives under `~/.gemma-code/memory/`; the workspace itself is never written to. Other gemma-code state (skills, mcp.json, operation-log.md) follows the same per-workspace-then-home convention.
+
+### Test contract
+
+- [tests/unit/storage/MemoryFiles.test.ts](../../tests/unit/storage/MemoryFiles.test.ts) -- init / read / archive / append / remove / export / import round-trips, secret-path rejections, mtime-cache invalidation.
+- [tests/integration/memory-files-prompt-merge.test.ts](../../tests/integration/memory-files-prompt-merge.test.ts) -- end-to-end PromptBuilder ordering plus the SQL-shadow-drop precedence rule.
+- [tests/integration/memory-auto-archive.test.ts](../../tests/integration/memory-auto-archive.test.ts) -- bootstrap scaffold + auto-archive scheduler.
+- [tests/unit/panels/ChatCommandHandlers.test.ts](../../tests/unit/panels/ChatCommandHandlers.test.ts) -- `/memory init|archive|edit` verbs.
 
 ---
 

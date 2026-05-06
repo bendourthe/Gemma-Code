@@ -9,19 +9,19 @@ For the ADR-level architecture see [../ARCHITECTURE.md](../ARCHITECTURE.md) and 
 | Module | Files | LOC | Entry point | Top exports |
 |--------|------:|----:|-------------|-------------|
 | `agents` | 5 | 638 | [src/agents/SubAgentManager.ts](../src/agents/SubAgentManager.ts) | `__testing`, `buildSubAgentContextMessage`, `getSubAgentInstructions` |
-| `chat` | 9 | 1636 | [src/chat/PromptBuilder.ts](../src/chat/PromptBuilder.ts) | `CodeBlockTruncation`, `CompactionPipeline`, `CompactionSettingsProvider` |
+| `chat` | 9 | 1895 | [src/chat/PromptBuilder.ts](../src/chat/PromptBuilder.ts) | `CodeBlockTruncation`, `CompactionPipeline`, `CompactionSettingsProvider` |
 | `commands` | 2 | 227 | [src/commands/memoryLintCommand.ts](../src/commands/memoryLintCommand.ts) | `BuiltinCommand`, `BuiltinCommandName`, `Command` |
-| `config` | 6 | 872 | [src/config/GpuDetector.ts](../src/config/GpuDetector.ts) | `BudgetAllocation`, `BudgetOverrides`, `calculateBudget` |
+| `config` | 6 | 884 | [src/config/GpuDetector.ts](../src/config/GpuDetector.ts) | `BudgetAllocation`, `BudgetOverrides`, `calculateBudget` |
 | `evaluation` | 2 | 173 | [src/evaluation/GoldenTaskSuite.ts](../src/evaluation/GoldenTaskSuite.ts) | `GOLDEN_TASKS`, `GoldenTask`, `GoldenTaskCategory` |
 | `guardrails` | 6 | 528 | [src/guardrails/index.ts](../src/guardrails/index.ts) | `_resetPermissionOverrideWarnings`, `ActionClassification`, `ActionRisk` |
 | `llm` | 3 | 476 | [src/llm/OllamaClient.ts](../src/llm/OllamaClient.ts) | `OllamaError`, `createOllamaClient`, `CreateOllamaClientOptions` |
 | `mcp` | 5 | 649 | [src/mcp/McpManager.ts](../src/mcp/McpManager.ts) | `DEFAULT_MCP_EXPOSED_TOOLS`, `McpClient`, `McpConfigFile` |
 | `observability` | 5 | 1427 | [src/observability/TraceStore.ts](../src/observability/TraceStore.ts) | `AggregateMetrics`, `MetricsCollector`, `MetricsTrend` |
 | `orchestration` | 8 | 1572 | [src/orchestration/TaskDAG.ts](../src/orchestration/TaskDAG.ts) | `PostMessageFn`, `buildSubAgentRequest`, `CodeTaskInput` |
-| `panels` | 19 | 5270 | [src/panels/webview/index.ts](../src/panels/webview/index.ts) | `ActionClassificationMessage`, `AgentLoopBuildDeps`, `ApproveStepMessage` |
+| `panels` | 19 | 5478 | [src/panels/webview/index.ts](../src/panels/webview/index.ts) | `ActionClassificationMessage`, `AgentLoopBuildDeps`, `ApproveStepMessage` |
 | `runtime` | 1 | 94 | [src/runtime/GemmaRuntime.ts](../src/runtime/GemmaRuntime.ts) | `GemmaRuntime` |
 | `skills` | 1 | 185 | [src/skills/SkillLoader.ts](../src/skills/SkillLoader.ts) | `Skill`, `SkillLoader` |
-| `storage` | 29 | 6436 | [src/storage/eviction/index.ts](../src/storage/eviction/index.ts) | `ARCEvictor`, `BrokenPathIssue`, `CACHE_DIRNAME` |
+| `storage` | 30 | 6952 | [src/storage/eviction/index.ts](../src/storage/eviction/index.ts) | `ARCEvictor`, `ArchiveResult`, `BrokenPathIssue` |
 | `tools` | 17 | 4254 | [src/tools/handlers/filesystem.ts](../src/tools/handlers/filesystem.ts) | `AgentLoop`, `AgentLoopOptions`, `ALLOWED_COMMANDS` |
 | `utils` | 6 | 979 | [src/utils/Compressor.ts](../src/utils/Compressor.ts) | `BROTLI_QUALITY`, `CompressedToolOutput`, `CompressionResult` |
 
