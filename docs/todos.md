@@ -348,3 +348,32 @@ Closes codebase-review #2, #3, #16 (deferred), #23. See [docs/v0.6.0/development
 
 ### Phase 7 — Polish + simplification [PENDING]
 ### Phase 8 — Release gate + ADRs + CHANGELOG [PENDING]
+
+---
+
+## v0.7.0 — Multi-Source Adoption Cycle [IN PROGRESS]
+
+Phased adoption of comparison-multi-source findings across skills, memory architecture, compaction, render protocol, and per-model context overrides. Plan: [docs/v0.7.0/plans/v0.7.0-cycle.md](v0.7.0/plans/v0.7.0-cycle.md).
+
+### Phase 0 — Close-out + carryovers [COMPLETED 2026-05-05]
+### Phase 1 — Skill expansion (zero-code first) [COMPLETED 2026-05-05]
+### Phase 2 — Memory file architecture [COMPLETED 2026-05-05]
+
+### Phase 3 — Compaction stack expansion [COMPLETED 2026-05-05]
+
+Adopts C12 / C13 / C14 / C15 / C16. Adds two deterministic strategies (deduplication, purgeErrors), a model-callable compress tool with two modes (range, message-experimental), per-session CompressionState, six `/compact` verbs, per-model context overrides, and ADR-0012. See [docs/DEVLOG.md](DEVLOG.md) for details.
+
+- [x] 3.1 Deduplication compaction strategy (`src/chat/strategies/deduplication.ts` + 8 tests)
+- [x] 3.2 Purge-errors compaction strategy (`src/chat/strategies/purgeErrors.ts` + 5 tests)
+- [x] 3.3 CompressionState module + block ID allocation (`src/chat/state/CompressionState.ts` + 6 tests)
+- [x] 3.4 `compress_range` tool handler (`src/tools/handlers/compress.ts` + prompt md + 6 tests)
+- [x] 3.5 `compress_message` tool handler (experimental, flag-gated; 3 tests)
+- [x] 3.6 `/compact <verb>` commands (`src/commands/compactCommand.ts` + 9 tests; sweep auto-issue deferred to Phase 4)
+- [x] 3.7 Per-model context-limit overrides (`gemma-code.contextLimitsPerModel` + `resolveModelContextLimit` + 6 tests)
+- [x] 3.8 ADR-0012 model-callable compress tool design (renumbered from plan's ADR-0006 because 0006 is taken)
+
+### Phase 4 — Webview render protocol expansion [PENDING]
+### Phase 5 — Memory commands + manual memory page UI [PENDING]
+### Phase 6 — Multi-harness skill packaging [PENDING]
+### Phase 7 — HNSW vector index (optional) [PENDING]
+### Phase 8 — Release gate + ADRs + CHANGELOG [PENDING]

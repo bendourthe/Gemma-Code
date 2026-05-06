@@ -4,6 +4,80 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-05] v0.7.0 Phase 3 -- compaction stack expansion
+
+### Goal
+
+Adopt the heart of S5's compaction contribution: a model-callable `compress` tool plus deterministic `deduplication` and `purgeErrors` strategies that run alongside the v0.6.0 chain. The compress tool is the largest single piece of code in v0.7.0 and is registered at permission tier 0 (auto-approve, no filesystem / terminal / network side effects) so the model can invoke it autonomously without prompting the user. Plan reference: [docs/v0.7.0/plans/v0.7.0-cycle.md](v0.7.0/plans/v0.7.0-cycle.md) Phase 3 (sub-tasks 3.1 through 3.8). Adopts comparison findings C12 / C13 / C14 / C15 / C16.
+
+### Decisions
+
+#### 3.1 + 3.2: Two new deterministic strategies run BEFORE the v0.6.0 chain
+
+[src/chat/strategies/deduplication.ts](../src/chat/strategies/deduplication.ts) walks the conversation, parses `<|tool_call>` and `<|tool_result>` blocks via the existing `parseToolCalls` helper, and replaces older tool-result payloads whose `(toolName, canonicalArgs)` signature collides with a more-recent call. The replacement is a one-line placeholder pointing at the surviving result -- the model still sees that the call happened, but the bulky payload is dropped. Errored results are skipped (those are the domain of `purgeErrors`); protected tools and `protectedFilePatterns` are skipped so a watched file dump can never be deduplicated.
+
+[src/chat/strategies/purgeErrors.ts](../src/chat/strategies/purgeErrors.ts) finds errored tool calls older than `compactionErrorPurgeTurns` user-message turns and rewrites their `args` field to `{ purged: true, purgedAt, originalSize }` metadata. The error result message itself stays verbatim so the model can still see why the call failed; only the args of the originating call are purged.
+
+Both strategies are no-ops when there is nothing to compress, so the per-tick cost is essentially zero. They run before `ToolResultClearing` in `ContextCompactor` so the cheaper deterministic wins land first.
+
+#### 3.3: `CompressionState` is the durable per-session ID and run register
+
+[src/chat/state/CompressionState.ts](../src/chat/state/CompressionState.ts) owns the stable `mNNNN` (zero-padded message) and `bN` (block) IDs the model uses to refer to messages and prior compression blocks. `recordRun` snapshots the messages a run replaced; `decompressBlock` returns the snapshot for re-injection; `recompressBlock` reverts the decompress. Manual-only mode is a session-scoped flag the user toggles via `/compact manual on|off`. `serialise` / `deserialise` are present so a future v0.8.0 change can persist state into the chat-history SQLite DB; v0.7.0 keeps the state in-memory because the schema migration is a separate concern.
+
+#### 3.4 + 3.5: `compress_range` (always on) and `compress_message` (experimental flag)
+
+[src/tools/handlers/compress.ts](../src/tools/handlers/compress.ts) exports two ToolHandlers. `CompressRangeTool` accepts `{ topic, ranges: [{ startId, endId, summary }] }` and replaces every message in `[startId..endId]` with a single placeholder block `[BLOCK bN: topic]\nsummary`. Multiple ranges in one call are allowed but they must not overlap each other in the same call; ranges that overlap an EARLIER block automatically embed the prior block's ID via the `findNestedBlockIds` helper so nested compressions stay traceable. Protected tool outputs (per `compactionProtectedTools`) are appended verbatim to the end of the placeholder block.
+
+`CompressMessageTool` is gated behind `gemma-code.compactExperimentalMessageMode` (default `false`). It compresses individual messages by stable ID and refuses to orphan a tool-call / tool-result pair (compressing only one half would confuse the model). The model-facing description in [src/chat/prompts/compress-range.md](../src/chat/prompts/compress-range.md) is written from scratch (S5 is AGPL-3.0, so we did not copy any text) and explains when to compress, what to preserve verbatim, and which spans to leave alone.
+
+Permission tier 0 is added to [src/guardrails/PermissionTiers.ts](../src/guardrails/PermissionTiers.ts) for both tools. Tier-0 tools never trigger the `ConfirmationGate`, so the model can use the compress tool autonomously the same way it currently uses `read_file`.
+
+#### 3.6: `/compact <verb>` surfaces the lifecycle
+
+[src/commands/compactCommand.ts](../src/commands/compactCommand.ts) is a pure-function module factored out of the panel handler so the verb logic is unit-testable without spinning up a webview. Six verbs land:
+
+- `/compact` -- legacy behaviour (force a sliding-window compaction); preserved.
+- `/compact context` -- per-role token breakdown plus headroom percentage.
+- `/compact stats` -- cumulative pruning stats from `CompressionState` (active runs, blocks, source vs. summary chars, tokens-saved estimate).
+- `/compact sweep [n]` -- plans a span over the last N tool-result messages since the last *human* user message (skipping user-role tool_result messages); v0.7.0 emits the plan as a markdown notice; auto-issuing the compress call is deferred to Phase 4 once the render protocol lands.
+- `/compact decompress <blockId>` -- splices the snapshot back into the conversation.
+- `/compact recompress <blockId>` -- re-applies a prior decompression.
+- `/compact manual on|off` -- toggles the session-scoped `manualOnly` flag on `CompressionState`; both compress handlers refuse autonomously while it is on.
+
+#### 3.7: Per-model context-limit override
+
+`gemma-code.contextLimitsPerModel` is a `Record<string, { maxTokens?: number; minContextLimit?: number }>`. `resolveModelContextLimit` (new helper in [src/config/PromptBudget.ts](../src/config/PromptBudget.ts)) consults the map first; falls back to the global `gemma-code.maxTokens` if no override exists. `maxTokens` is authoritative; `minContextLimit` only acts as a floor when `maxTokens` is unset, so a misconfigured override can never silently shrink the model's effective window. `ChatController.buildContextCompactor` consumes the resolved limit so the compactor's threshold reflects the per-model window.
+
+#### 3.8: ADR-0012 (the original plan reference to ADR-0006 collides)
+
+The v0.7.0 plan called for ADR-0006 documenting the compress tool design, but `0006-unified-path-guard.md` is already taken by v0.6.0 Phase 1. Shipped as [docs/adr/0012-model-callable-compress-tool.md](adr/0012-model-callable-compress-tool.md) instead.
+
+### Tests
+
+Six new test files, 43 new assertions, all passing:
+
+- [tests/unit/chat/strategies/deduplication.test.ts](../tests/unit/chat/strategies/deduplication.test.ts) -- 8 tests: duplicate detection, path-based skip, errored tool skip, protectedFilePatterns honoured, input non-mutation, strategy adapter parity.
+- [tests/unit/chat/strategies/purgeErrors.test.ts](../tests/unit/chat/strategies/purgeErrors.test.ts) -- 5 tests: age threshold, protected tool skip, no-op when nothing errored, strategy adapter parity.
+- [tests/unit/chat/state/CompressionState.test.ts](../tests/unit/chat/state/CompressionState.test.ts) -- 6 tests: monotonic ID allocation, run recording, decompress snapshot return, recompress reversal, manualOnly toggle, serialise / deserialise round-trip preserves IDs and continues monotonic allocation.
+- [tests/unit/tools/handlers/compress.test.ts](../tests/unit/tools/handlers/compress.test.ts) -- 9 tests: range mode happy path, in-call overlap rejection, unknown ID rejection, nested-block embedding, protected-tool tail preservation, manual-only refusal, message mode happy path, orphan-pair rejection, decompress round-trip.
+- [tests/unit/commands/compactCommand.test.ts](../tests/unit/commands/compactCommand.test.ts) -- 9 tests: verb parsing for every verb, context breakdown render, stats render with decompressed-run filtering, sweep planning (handles user-role tool_result messages correctly), decompress + recompress flow.
+- [tests/unit/config/contextLimitsPerModel.test.ts](../tests/unit/config/contextLimitsPerModel.test.ts) -- 6 tests: empty override fallback, explicit maxTokens, minContextLimit floor, maxTokens-over-minContextLimit precedence, zero / negative override rejection.
+
+Full suite (`vitest run`) passes; the segfault during process teardown after all tests have completed reporting is the documented Windows native-module-cleanup issue, not a test failure.
+
+### Deviations from the plan
+
+- **ADR-0012 instead of ADR-0006**: see 3.8 above. Tracked here so a future plan reader who searches for "ADR-0006: compress tool" finds the redirect.
+- **`/compact sweep` does not auto-issue a `compress_range` call**: the plan called for it to do so; auto-issuing requires the agent loop to inject a tool call mid-stream, which is much cleaner once the Phase 4 render protocol is in place. v0.7.0 ships the planning step (the sweep span is computed and reported) but defers the auto-issue. The user can copy the suggested IDs into a manual model prompt if they want immediate action.
+- **`CompressionState` persistence is in-memory only for v0.7.0**: the plan referenced a new `compression_state` JSON column on the chat-history table. The schema migration is non-trivial (FTS triggers, schema-version bump, backfill semantics) so it was scoped out -- `serialise` / `deserialise` are present so the column add is purely additive in a future cycle.
+- **`compactionProtectedFilePatterns` setting added** (not in the plan but implied by sub-task 3.1's "tool calls whose args contain a path matching `config.protectedFilePatterns`"). Defaults to `[]`; users can populate it to exempt specific watched files.
+
+### Next phase
+
+Phase 4 (Webview render protocol expansion). The agent loop will gain new structured event types (`tool_call_started / tool_call_succeeded / tool_call_failed / todo_update / compaction_event / completion`); the render protocol will consume them. The auto-issuing of `/compact sweep` will fold into that work cleanly.
+
+---
+
 ## [2026-05-05] v0.7.0 Phase 2 -- memory file architecture
 
 ### Goal

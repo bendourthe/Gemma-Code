@@ -44,7 +44,7 @@ Permission tiers, codified in [docs/adr/0005-tool-permission-tiers.md](../adr/00
 
 | Tier | Tools | Default behavior |
 |------|-------|-------------------|
-| 0 -- auto | `grep_codebase`, `grep_output`, `list_directory`, `read_file`, `tail_output` | Run silently |
+| 0 -- auto | `compress_message`, `compress_range`, `grep_codebase`, `grep_output`, `list_directory`, `read_file`, `tail_output` | Run silently |
 | 1 -- confirm | `create_file`, `delete_file`, `edit_file`, `write_file` | One-click confirmation |
 | 2 -- dangerous | `fetch_page`, `run_terminal`, `web_search` | Blocking confirmation; `editMode: plan` shows a diff |
 

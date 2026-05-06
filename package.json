@@ -346,6 +346,49 @@
           "default": "off",
           "description": "v0.7.0 Phase 2 -- schedule for automatic memory file snapshots into ~/.gemma-code/memory/<workspace-id>/Archive/<YYYY-MM-DD>/. Auto-archive runs silently on session start when due."
         },
+        "gemma-code.contextLimitsPerModel": {
+          "type": "object",
+          "default": {},
+          "description": "v0.7.0 Phase 3 -- per-model overrides for max context tokens. Keys are model names (e.g. 'gemma4:e4b'), values are objects with optional 'maxTokens' (number) and 'minContextLimit' (number). Falls back to gemma-code.maxTokens when no override applies."
+        },
+        "gemma-code.compactionProtectedTools": {
+          "type": "array",
+          "default": [
+            "compress_range",
+            "compress_message",
+            "verify",
+            "research",
+            "memory",
+            "write_file",
+            "edit_file",
+            "create_file",
+            "delete_file"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "description": "v0.7.0 Phase 3 -- tool names that every compaction strategy (deduplication, purge-errors, compress) must skip. Protects causally-load-bearing or destructive tool calls."
+        },
+        "gemma-code.compactionErrorPurgeTurns": {
+          "type": "number",
+          "default": 4,
+          "minimum": 1,
+          "maximum": 50,
+          "description": "v0.7.0 Phase 3 -- after this many user-message turns elapse since an errored tool call, its args are purged (the error result message itself is preserved verbatim)."
+        },
+        "gemma-code.compactionProtectedFilePatterns": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "description": "v0.7.0 Phase 3 -- substring patterns; tool calls whose args contain a matching path are exempt from deduplication."
+        },
+        "gemma-code.compactExperimentalMessageMode": {
+          "type": "boolean",
+          "default": false,
+          "description": "v0.7.0 Phase 3 -- when true, registers the experimental compress_message tool. Less surgical than compress_range and may fragment causally-linked tool sequences."
+        },
         "gemma-code.cacheEvictionStrategy": {
           "type": "string",
           "enum": [

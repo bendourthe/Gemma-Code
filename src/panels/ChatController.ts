@@ -22,7 +22,7 @@ import type { OperationLog } from "../observability/OperationLog.js";
 import type { Tracer } from "../observability/Tracer.js";
 import type { HardwareTierConfig } from "../config/HardwareTier.types.js";
 import type { GemmaCodeSettings } from "../config/settings.js";
-import { calculateBudget } from "../config/PromptBudget.js";
+import { calculateBudget, resolveModelContextLimit } from "../config/PromptBudget.js";
 import { renderMarkdown } from "../utils/MarkdownRenderer.js";
 import { getLogger } from "../utils/logger.js";
 import type { ExtensionToWebviewMessage } from "./messages.js";
@@ -135,11 +135,17 @@ export class ChatController {
 
   static buildContextCompactor(deps: ContextCompactorBuildDeps): ContextCompactor {
     const { manager, client, settings, ollamaOptions, memoryStore, memoryConsolidator, tracer } = deps;
+    // v0.7.0 Phase 3 sub-task 3.7: per-model context override.
+    const effectiveMaxTokens = resolveModelContextLimit(
+      settings.modelName,
+      settings.maxTokens,
+      settings.contextLimitsPerModel ?? {},
+    );
     const compactor = new ContextCompactor(
       manager,
       client,
       settings.modelName,
-      settings.maxTokens,
+      effectiveMaxTokens,
       ollamaOptions,
       settings.memoryEnabled && memoryStore
         ? async (messages) => {

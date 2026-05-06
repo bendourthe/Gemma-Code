@@ -11,6 +11,7 @@ import {
 } from "./handlers/filesystem.js";
 import { RunTerminalTool } from "./handlers/terminal.js";
 import { WebSearchTool, FetchPageTool } from "./handlers/webSearch.js";
+import { CompressRangeTool, CompressMessageTool, type CompressToolDeps } from "./handlers/compress.js";
 import type { ToolOutputCache } from "../storage/ToolOutputCache.js";
 import type { WebResponseCache } from "./handlers/webCache.js";
 import type { EditMode } from "./types.js";
@@ -22,6 +23,16 @@ export interface ToolRegistryBuildOptions {
   readonly permissionOverrides?: Record<string, number>;
   readonly toolOutputCache: ToolOutputCache | null;
   readonly webResponseCache: WebResponseCache | null;
+  /**
+   * v0.7.0 Phase 3: optional wiring for the model-callable compress tool.
+   * When supplied, `compress_range` is registered (and `compress_message`
+   * when its experimental flag is on). When omitted, neither tool is
+   * registered, so legacy callers and the test harness keep working.
+   */
+  readonly compress?: {
+    readonly deps: CompressToolDeps;
+    readonly experimentalMessageMode: boolean;
+  };
 }
 
 /**
@@ -48,6 +59,13 @@ export function buildToolRegistry(opts: ToolRegistryBuildOptions): ToolRegistry 
   registry.register("run_terminal", new RunTerminalTool());
   registry.register("web_search", new WebSearchTool(opts.webResponseCache));
   registry.register("fetch_page", new FetchPageTool());
+
+  if (opts.compress) {
+    registry.register("compress_range", new CompressRangeTool(opts.compress.deps));
+    if (opts.compress.experimentalMessageMode) {
+      registry.register("compress_message", new CompressMessageTool(opts.compress.deps));
+    }
+  }
 
   registry.setConfirmationGate(gate, permissionOverrides, editMode);
 

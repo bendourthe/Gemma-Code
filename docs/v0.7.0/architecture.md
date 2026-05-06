@@ -90,9 +90,71 @@ A new setting `gemma-code.memoryAutoArchive` (`"off" | "weekly" | "monthly"`, de
 
 ---
 
-## 3. Compaction stack (Phase 3 -- TBD)
+## 3. Compaction stack (Phase 3)
 
-Lands in Phase 3. See [docs/v0.7.0/plans/v0.7.0-cycle.md](./plans/v0.7.0-cycle.md) "Phase 3".
+Phase 3 ships the model-callable `compress` tool (range mode + experimental message mode), two new deterministic strategies (`deduplication`, `purgeErrors`), per-session [CompressionState](../../src/chat/state/CompressionState.ts) for stable IDs and run history, six `/compact` verbs for user-facing lifecycle control, and a `gemma-code.contextLimitsPerModel` per-model context-window override. Permission tier 0 (auto-approve) is registered for both compress tool variants; the registry builder accepts `compress: { deps, experimentalMessageMode }` to wire them.
+
+### 3.1 Pipeline order
+
+`ContextCompactor` runs strategies in this order:
+
+1. `DeduplicationStrategy` -- collapse same-tool-same-args repeats (zero LLM cost).
+2. `PurgeErrorsStrategy` -- drop args of errored tool calls older than `compactionErrorPurgeTurns`.
+3. `ToolResultClearing` -- v0.6.0 behaviour, preserves last N tool results.
+4. `SlidingWindow` -- v0.6.0 behaviour.
+5. `CodeBlockTruncation` -- v0.6.0 behaviour.
+6. `RegenerateFromSource` (when workspacePath is set) -- v0.6.0 behaviour.
+7. `LlmSummary` -- v0.6.0 behaviour, last-resort summarisation.
+8. `EmergencyTrim` -- v0.6.0 behaviour, hard cap.
+
+The two new strategies run BEFORE the v0.6.0 chain so the cheaper deterministic wins land first. Both are no-ops when there is nothing to do.
+
+### 3.2 Compress tool schema
+
+`compress_range` arguments:
+
+```
+{
+  topic: string,                       // 3-5 word label
+  ranges: Array<{
+    startId: string,                   // mNNNN or bN, inclusive
+    endId: string,                     // mNNNN or bN, inclusive
+    summary: string,                   // technical summary
+  }>
+}
+```
+
+`compress_message` arguments (gated behind `gemma-code.compactExperimentalMessageMode`):
+
+```
+{
+  topic?: string,                      // defaults to "message-mode"
+  compressions: Array<{
+    messageId: string,                 // mNNNN
+    summary: string,
+  }>
+}
+```
+
+### 3.3 Lifecycle (`/compact <verb>`)
+
+- `/compact` -- legacy sliding-window compaction (preserved).
+- `/compact context` -- per-role token breakdown + headroom percentage.
+- `/compact stats` -- cumulative pruning stats from `CompressionState`.
+- `/compact sweep [n]` -- plan a span over the last N tool-result messages (auto-issue deferred to Phase 4).
+- `/compact decompress <blockId>` -- splice the snapshot back into the conversation.
+- `/compact recompress <blockId>` -- re-apply a prior decompression.
+- `/compact manual on|off` -- toggle session-scoped manual-only mode (refuses autonomous compress calls).
+
+### 3.4 Settings introduced in Phase 3
+
+- `gemma-code.contextLimitsPerModel` -- per-model context overrides.
+- `gemma-code.compactionProtectedTools` -- tool names every compaction strategy and the compress tool must skip.
+- `gemma-code.compactionErrorPurgeTurns` -- threshold (in user-message turns) for purgeErrors.
+- `gemma-code.compactionProtectedFilePatterns` -- substring patterns; tool calls whose args contain a matching path are exempt from deduplication.
+- `gemma-code.compactExperimentalMessageMode` -- gates `compress_message`.
+
+See [ADR-0012](../adr/0012-model-callable-compress-tool.md) for the full design rationale.
 
 ---
 

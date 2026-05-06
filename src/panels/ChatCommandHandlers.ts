@@ -23,6 +23,17 @@ import type { SubAgentConfig } from "../agents/types.js";
 import type { AgentLoop } from "../tools/AgentLoop.js";
 import type { GemmaRuntime } from "../runtime/GemmaRuntime.js";
 import type { GemmaCodeSettings } from "../config/settings.js";
+import type { CompressionState } from "../chat/state/CompressionState.js";
+import {
+  parseCompactArgs,
+  computeContextBreakdown,
+  renderContextBreakdown,
+  computeCompactionStats,
+  renderCompactionStats,
+  planSweep,
+  decompressBlockInConversation,
+  recompressBlockInConversation,
+} from "../commands/compactCommand.js";
 import { renderMarkdown } from "../utils/MarkdownRenderer.js";
 import { formatForUser } from "../utils/errors.js";
 import type { ExtensionToWebviewMessage } from "./messages.js";
@@ -46,6 +57,7 @@ export interface ChatCommandContext {
   getMemoryFiles(): MemoryFiles | null;
   getToolOutputCache(): ToolOutputCache | null;
   getOperationLog(): OperationLog | null;
+  getCompressionState(): CompressionState | null;
   getMcpManager(): McpManager | null;
   getMcpTools(): DynamicToolMetadata[];
   setMcpTools(tools: DynamicToolMetadata[]): void;
@@ -79,7 +91,7 @@ export class ChatCommandHandlers {
       case "plan":
         return this._handlePlan();
       case "compact":
-        return this._handleCompact();
+        return this._handleCompact(args);
       case "model":
         return this._handleModel(args);
       case "memory":
@@ -154,23 +166,124 @@ export class ChatCommandHandlers {
     );
   }
 
-  private async _handleCompact(): Promise<void> {
+  private async _handleCompact(args: string): Promise<void> {
     const ctx = this._ctx;
-    const postWithRender = (msg: ExtensionToWebviewMessage): void => {
-      if (msg.type === "messageComplete" && !msg.renderedHtml) {
-        const history = ctx.manager.getHistory();
-        const found = history.find((m) => m.id === msg.messageId);
-        this._post({
-          ...msg,
-          renderedHtml: found ? renderMarkdown(found.content) : "",
-        });
+    const parsed = parseCompactArgs(args);
+
+    if (parsed.verb === "legacy") {
+      const postWithRender = (msg: ExtensionToWebviewMessage): void => {
+        if (msg.type === "messageComplete" && !msg.renderedHtml) {
+          const history = ctx.manager.getHistory();
+          const found = history.find((m) => m.id === msg.messageId);
+          this._post({
+            ...msg,
+            renderedHtml: found ? renderMarkdown(found.content) : "",
+          });
+          return;
+        }
+        this._post(msg);
+      };
+      await ctx.compactor.compact(postWithRender, true);
+      ctx.postTokenCount();
+      ctx.postHistory();
+      return;
+    }
+
+    const settings = ctx.getSettings();
+    const state = ctx.getCompressionState();
+
+    if (parsed.verb === "context") {
+      const breakdown = computeContextBreakdown(ctx.manager.getHistory(), settings.maxTokens);
+      this._emitMarkdown(renderContextBreakdown(breakdown));
+      return;
+    }
+
+    if (parsed.verb === "stats") {
+      if (!state) {
+        this._emitMarkdown("Compression state is not available in this session.");
         return;
       }
-      this._post(msg);
-    };
-    await ctx.compactor.compact(postWithRender, true);
-    ctx.postTokenCount();
-    ctx.postHistory();
+      const stats = computeCompactionStats(state);
+      this._emitMarkdown(renderCompactionStats(stats));
+      return;
+    }
+
+    if (parsed.verb === "sweep") {
+      const n = parsed.numericArg ?? settings.compactionToolResultsKeep;
+      const plan = planSweep(ctx.manager.getHistory(), n);
+      if (!plan) {
+        this._emitMarkdown("No tool-result messages since the last user message; nothing to sweep.");
+        return;
+      }
+      this._emitMarkdown(
+        `Manual sweep planned over messages [${plan.fromIndex}..${plan.toIndex}] (${plan.count} messages). ` +
+          "Auto-issued sweep is deferred to v0.7.0 Phase 4 (render protocol). " +
+          "For now, ask the model to call `compress_range` covering this span.",
+      );
+      return;
+    }
+
+    if (parsed.verb === "decompress") {
+      if (!state) {
+        this._emitMarkdown("Compression state is not available in this session.");
+        return;
+      }
+      if (!parsed.stringArg) {
+        this._emitMarkdown("Usage: /compact decompress <blockId>");
+        return;
+      }
+      const result = decompressBlockInConversation(ctx.manager, state, parsed.stringArg);
+      if (!result.ok) {
+        this._emitMarkdown(`Decompress failed: ${result.reason}.`);
+      } else {
+        this._emitMarkdown(`Decompressed block ${parsed.stringArg}: ${result.restored} message(s) restored.`);
+        ctx.postHistory();
+        ctx.postTokenCount();
+      }
+      return;
+    }
+
+    if (parsed.verb === "recompress") {
+      if (!state) {
+        this._emitMarkdown("Compression state is not available in this session.");
+        return;
+      }
+      if (!parsed.stringArg) {
+        this._emitMarkdown("Usage: /compact recompress <blockId>");
+        return;
+      }
+      const result = recompressBlockInConversation(ctx.manager, state, parsed.stringArg);
+      if (!result.ok) {
+        this._emitMarkdown(`Recompress failed: ${result.reason}.`);
+      } else {
+        this._emitMarkdown(`Re-applied block ${parsed.stringArg}.`);
+        ctx.postHistory();
+        ctx.postTokenCount();
+      }
+      return;
+    }
+
+    if (parsed.verb === "manual") {
+      if (!state) {
+        this._emitMarkdown("Compression state is not available in this session.");
+        return;
+      }
+      if (parsed.stringArg === "on") {
+        state.setManualOnly(true);
+        this._emitMarkdown("Compress tool: **manual-only mode ON**. The model will no longer auto-compress.");
+      } else if (parsed.stringArg === "off") {
+        state.setManualOnly(false);
+        this._emitMarkdown("Compress tool: **manual-only mode OFF**. The model may auto-compress again.");
+      } else {
+        this._emitMarkdown("Usage: /compact manual on|off");
+      }
+      return;
+    }
+
+    this._emitMarkdown(
+      `Unknown compact verb \`${parsed.stringArg ?? ""}\`. ` +
+        "Verbs: context, stats, sweep [n], decompress <id>, recompress <id>, manual on|off.",
+    );
   }
 
   private async _handleModel(args: string): Promise<void> {

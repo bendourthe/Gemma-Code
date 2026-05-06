@@ -215,3 +215,35 @@ export function calculateBudget(
 export function calculateTierBudget(tierConfig: HardwareTierConfig): BudgetAllocation {
   return calculateBudget(tierConfig.contextWindow, tierConfig.budgetOverrides);
 }
+
+/**
+ * v0.7.0 Phase 3 sub-task 3.7 -- per-model context-window override map.
+ *
+ * Returns the effective max-token count for `modelName`, falling back to
+ * `globalMaxTokens` when no model-specific override exists.
+ *
+ * Resolution order:
+ * 1. Exact match on `modelName` -> use its override.
+ * 2. Otherwise -> fall back to `globalMaxTokens`.
+ *
+ * If both `maxTokens` and `minContextLimit` are present, `maxTokens` is
+ * authoritative. `minContextLimit` only acts as a floor when `maxTokens` is
+ * unset, so a misconfigured override can never silently shrink the model's
+ * effective window below `minContextLimit`.
+ */
+export function resolveModelContextLimit(
+  modelName: string,
+  globalMaxTokens: number,
+  perModelOverrides: Record<string, { maxTokens?: number; minContextLimit?: number }>,
+): number {
+  const override = perModelOverrides[modelName];
+  if (!override) return globalMaxTokens;
+
+  if (typeof override.maxTokens === "number" && override.maxTokens > 0) {
+    return override.maxTokens;
+  }
+  if (typeof override.minContextLimit === "number" && override.minContextLimit > 0) {
+    return Math.max(globalMaxTokens, override.minContextLimit);
+  }
+  return globalMaxTokens;
+}

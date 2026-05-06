@@ -3,8 +3,10 @@ import { TOOL_CATALOG } from "../../../src/tools/ToolCatalog.js";
 import { TOOL_NAMES } from "../../../src/tools/types.js";
 
 describe("TOOL_CATALOG", () => {
-  it("contains exactly 10 entries (advertised tools only)", () => {
-    expect(TOOL_CATALOG).toHaveLength(10);
+  it("contains exactly 12 entries (advertised tools only)", () => {
+    // v0.7.0 Phase 3 added compress_range + compress_message, both
+    // permission-tier 0 model-callable compression tools.
+    expect(TOOL_CATALOG).toHaveLength(12);
   });
 
   it("every entry name matches a value from TOOL_NAMES", () => {

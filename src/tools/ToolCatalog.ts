@@ -174,4 +174,37 @@ export const TOOL_CATALOG: readonly ToolMetadata[] = [
       url: { type: "string", description: "URL to fetch", required: true },
     },
   },
+  {
+    name: "compress_range",
+    description:
+      "Replace a contiguous span of conversation messages with a single technical summary block. " +
+      "Use this proactively after a sub-task completes to free context tokens BEFORE hitting the limit. " +
+      "Pass a 'topic' (3-5 word label) and a 'ranges' array of {startId, endId, summary}. " +
+      "Stable IDs (m0001 / b1) refer to existing messages or prior compression blocks. " +
+      "Permission tier 0: never touches files, terminal, or network. Reversible via /compact decompress.",
+    parameters: {
+      topic: { type: "string", description: "3-5 word label for the compression run.", required: true },
+      ranges: {
+        type: "array",
+        description:
+          "Array of {startId, endId, summary} objects. Each range is inclusive on both ends; ranges in a single call must NOT overlap each other.",
+        required: true,
+      },
+    },
+  },
+  {
+    name: "compress_message",
+    description:
+      "Experimental message-mode of the compress tool: replace one or more individual messages with their summaries. " +
+      "Less surgical than compress_range -- more flexible but easier to fragment causally-linked tool sequences. " +
+      "Gated behind 'gemma-code.compactExperimentalMessageMode'.",
+    parameters: {
+      topic: { type: "string", description: "3-5 word label (defaults to 'message-mode')." },
+      compressions: {
+        type: "array",
+        description: "Array of {messageId, summary} objects. messageId is a stable mNNNN id.",
+        required: true,
+      },
+    },
+  },
 ];

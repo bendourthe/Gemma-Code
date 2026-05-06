@@ -49,6 +49,16 @@ export interface GemmaCodeSettings {
    * explicit `/memory archive` invocation.
    */
   memoryAutoArchive: "off" | "weekly" | "monthly";
+  /** v0.7.0 Phase 3: per-model context-window overrides (C15). */
+  contextLimitsPerModel: Record<string, { maxTokens?: number; minContextLimit?: number }>;
+  /** v0.7.0 Phase 3: tool names skipped by every compaction strategy and the compress tool. */
+  compactionProtectedTools: string[];
+  /** v0.7.0 Phase 3: errored tool calls older than N user-message turns are purged. */
+  compactionErrorPurgeTurns: number;
+  /** v0.7.0 Phase 3: file-path patterns whose tool calls are exempt from deduplication. */
+  compactionProtectedFilePatterns: string[];
+  /** v0.7.0 Phase 3: when true, registers the experimental compress_message tool. */
+  compactExperimentalMessageMode: boolean;
 }
 
 export function getSettings(): GemmaCodeSettings {
@@ -100,6 +110,26 @@ export function getSettings(): GemmaCodeSettings {
       const raw = config.get<string>("memoryAutoArchive") ?? "off";
       return raw === "weekly" || raw === "monthly" ? raw : "off";
     })(),
+    contextLimitsPerModel: config.get<Record<string, { maxTokens?: number; minContextLimit?: number }>>(
+      "contextLimitsPerModel",
+    ) ?? {},
+    compactionProtectedTools: config.get<string[]>("compactionProtectedTools") ?? [
+      "compress_range",
+      "compress_message",
+      "verify",
+      "research",
+      "memory",
+      "write_file",
+      "edit_file",
+      "create_file",
+      "delete_file",
+    ],
+    compactionErrorPurgeTurns: Math.max(
+      1,
+      Math.min(50, config.get<number>("compactionErrorPurgeTurns") ?? 4),
+    ),
+    compactionProtectedFilePatterns: config.get<string[]>("compactionProtectedFilePatterns") ?? [],
+    compactExperimentalMessageMode: config.get<boolean>("compactExperimentalMessageMode") ?? false,
   };
 }
 

@@ -2,6 +2,7 @@ import * as path from "path";
 import * as vscode from "vscode";
 import { ConversationManager } from "../chat/ConversationManager.js";
 import type { ContextCompactor } from "../chat/ContextCompactor.js";
+import { CompressionState } from "../chat/state/CompressionState.js";
 import type { StreamingPipeline } from "../chat/StreamingPipeline.js";
 import { PlanMode } from "../chat/PlanMode.js";
 import { PromptBuilder } from "../chat/PromptBuilder.js";
@@ -189,6 +190,9 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
 
   const confirmationGate = new ConfirmationGate(postWithRender);
 
+  // v0.7.0 Phase 3: per-session CompressionState owns block IDs and runs.
+  const compressionState = new CompressionState();
+
   registry = buildToolRegistry({
     gate: confirmationGate,
     editMode: settings.editMode,
@@ -196,6 +200,15 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
     permissionOverrides: settings.permissionOverrides,
     toolOutputCache,
     webResponseCache,
+    compress: {
+      deps: {
+        conversation: manager,
+        state: compressionState,
+        protectedTools: settings.compactionProtectedTools,
+        protectUserMessages: false,
+      },
+      experimentalMessageMode: settings.compactExperimentalMessageMode,
+    },
   });
 
   const ollamaOptions = buildOllamaTuning(settings);
@@ -304,6 +317,7 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
     getMemoryFiles: () => memoryFiles,
     getToolOutputCache: () => toolOutputCache,
     getOperationLog: () => operationLog,
+    getCompressionState: () => compressionState,
     getMcpManager: () => mcpManager,
     getMcpTools: () => hooks.getMcpTools(),
     setMcpTools: (tools) => hooks.setMcpTools(tools),

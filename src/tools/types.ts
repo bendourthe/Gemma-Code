@@ -10,7 +10,9 @@ export type BuiltinToolName =
   | "web_search"
   | "fetch_page"
   | "tail_output"
-  | "grep_output";
+  | "grep_output"
+  | "compress_range"
+  | "compress_message";
 
 /** Namespaced MCP tool name: `mcp:serverName/toolName`. */
 export type McpToolName = `mcp:${string}`;
@@ -31,6 +33,8 @@ export const BUILTIN_TOOL_NAMES: readonly BuiltinToolName[] = [
   "fetch_page",
   "tail_output",
   "grep_output",
+  "compress_range",
+  "compress_message",
 ];
 
 /** @deprecated Use BUILTIN_TOOL_NAMES instead. */
@@ -166,4 +170,14 @@ export interface GrepOutputParams {
   path: string;
   pattern: string;
   max_results?: number;
+}
+
+export interface CompressRangeParams {
+  topic: string;
+  ranges: Array<{ startId: string; endId: string; summary: string }>;
+}
+
+export interface CompressMessageParams {
+  topic?: string;
+  compressions: Array<{ messageId: string; summary: string }>;
 }

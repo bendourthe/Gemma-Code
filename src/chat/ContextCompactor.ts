@@ -12,6 +12,8 @@ import {
   EmergencyTrim,
   estimateTokensForMessages,
 } from "./CompactionStrategy.js";
+import { DeduplicationStrategy } from "./strategies/deduplication.js";
+import { PurgeErrorsStrategy } from "./strategies/purgeErrors.js";
 import { RegenerateFromSource } from "./RegenerateFromSource.js";
 import { calculateBudget } from "../config/PromptBudget.js";
 import { Tracer } from "../observability/Tracer.js";
@@ -20,9 +22,19 @@ import { Tracer } from "../observability/Tracer.js";
  * The slice of `GemmaCodeSettings` the compactor reads on each invocation.
  * Provided via callback so reactivity to settings changes does not require
  * reconstructing the compactor.
+ *
+ * v0.7.0 Phase 3 extends the slice with the new compaction settings. The
+ * fields are optional so legacy callers that constructed the compactor with
+ * the v0.6.0 shape keep working; missing values fall back to safe defaults.
  */
 export interface CompactionSettingsProvider {
-  (): { compactionToolResultsKeep: number; compactionKeepRecent: number };
+  (): {
+    compactionToolResultsKeep: number;
+    compactionKeepRecent: number;
+    compactionProtectedTools?: readonly string[];
+    compactionProtectedFilePatterns?: readonly string[];
+    compactionErrorPurgeTurns?: number;
+  };
 }
 
 export class ContextCompactor {
@@ -102,7 +114,26 @@ export class ContextCompactor {
     const settings = this._settingsProvider();
     const budget = calculateBudget(this._maxTokens);
 
+    // v0.7.0 Phase 3: deduplication + purge-errors run BEFORE the v0.6.0
+    // strategies. Both are no-ops when there is nothing to compress, so the
+    // pipeline cost stays zero in the common case.
+    const protectedTools = settings.compactionProtectedTools ?? [
+      "compress_range",
+      "compress_message",
+      "verify",
+      "research",
+      "memory",
+      "write_file",
+      "edit_file",
+      "create_file",
+      "delete_file",
+    ];
+    const protectedFilePatterns = settings.compactionProtectedFilePatterns ?? [];
+    const errorPurgeTurns = settings.compactionErrorPurgeTurns ?? 4;
+
     const pipeline = new CompactionPipeline([
+      new DeduplicationStrategy({ protectedTools, protectedFilePatterns }),
+      new PurgeErrorsStrategy({ protectedTools, errorPurgeTurns }),
       new ToolResultClearing(settings.compactionToolResultsKeep),
       new SlidingWindow(settings.compactionKeepRecent),
       new CodeBlockTruncation(),
