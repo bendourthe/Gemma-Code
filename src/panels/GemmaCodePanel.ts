@@ -12,6 +12,8 @@ import type { ToolActivationContext } from "./ToolActivationContext.js";
 import { bootstrapChatPanel } from "./ChatPanelBootstrap.js";
 import type { ChatHistoryStore } from "../storage/ChatHistoryStore.js";
 import type { MemorySubsystem } from "../storage/MemorySubsystem.js";
+import type { MemoryStore } from "../storage/MemoryStore.js";
+import type { MemoryFiles } from "../storage/MemoryFiles.js";
 import type { ToolOutputCache } from "../storage/ToolOutputCache.js";
 import type { WebResponseCache } from "../tools/handlers/webCache.js";
 import type { OperationLog } from "../observability/OperationLog.js";
@@ -62,6 +64,8 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
   private readonly _promptBuilder: PromptBuilder;
   private readonly _store: ChatHistoryStore | null;
   private readonly _memorySubsystem: MemorySubsystem;
+  private readonly _memoryStore: MemoryStore | null;
+  private readonly _memoryFiles: MemoryFiles | null;
   private readonly _toolOutputCache: ToolOutputCache | null;
   private readonly _webResponseCache: WebResponseCache | null;
   private readonly _operationLog: OperationLog | null;
@@ -130,6 +134,8 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
     this._webResponseCache = bootstrapped.webResponseCache;
     this._operationLog = bootstrapped.operationLog;
     this._memorySubsystem = bootstrapped.memorySubsystem;
+    this._memoryStore = bootstrapped.memoryStore;
+    this._memoryFiles = bootstrapped.memoryFiles;
     this._planMode = bootstrapped.planMode;
     this._promptBuilder = bootstrapped.promptBuilder;
     this._toolActivation = bootstrapped.toolActivation;
@@ -260,6 +266,16 @@ export class GemmaCodePanel implements vscode.WebviewViewProvider {
   /** Expose the API-response cache for the trace dashboard. */
   getWebResponseCache(): WebResponseCache | null {
     return this._webResponseCache;
+  }
+
+  /** v0.7.0 Phase 5 -- expose the on-disk memory files for the MemoryPanel. */
+  getMemoryFiles(): MemoryFiles | null {
+    return this._memoryFiles;
+  }
+
+  /** v0.7.0 Phase 5 -- expose the SQL-backed memory store for the MemoryPanel. */
+  getMemoryStore(): MemoryStore | null {
+    return this._memoryStore;
   }
 
   /** Load a saved session by ID. */

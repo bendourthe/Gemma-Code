@@ -12,9 +12,11 @@ import {
 import { RunTerminalTool } from "./handlers/terminal.js";
 import { WebSearchTool, FetchPageTool } from "./handlers/webSearch.js";
 import { CompressRangeTool, CompressMessageTool, type CompressToolDeps } from "./handlers/compress.js";
+import { UpdateTodosTool, type TodoState } from "./handlers/todos.js";
 import type { ToolOutputCache } from "../storage/ToolOutputCache.js";
 import type { WebResponseCache } from "./handlers/webCache.js";
 import type { EditMode } from "./types.js";
+import type { PostMessageFn } from "../chat/StreamingPipeline.js";
 
 export interface ToolRegistryBuildOptions {
   readonly gate: ConfirmationGate;
@@ -32,6 +34,15 @@ export interface ToolRegistryBuildOptions {
   readonly compress?: {
     readonly deps: CompressToolDeps;
     readonly experimentalMessageMode: boolean;
+  };
+  /**
+   * v0.7.0 Phase 4.4: optional wiring for the `update_todos` tool. When
+   * supplied, the tool is registered with permission tier 0 and emits
+   * `renderTodoUpdate` messages through `post`.
+   */
+  readonly todos?: {
+    readonly state: TodoState;
+    readonly post: PostMessageFn;
   };
 }
 
@@ -65,6 +76,13 @@ export function buildToolRegistry(opts: ToolRegistryBuildOptions): ToolRegistry 
     if (opts.compress.experimentalMessageMode) {
       registry.register("compress_message", new CompressMessageTool(opts.compress.deps));
     }
+  }
+
+  if (opts.todos) {
+    registry.register(
+      "update_todos",
+      new UpdateTodosTool(opts.todos.state, opts.todos.post),
+    );
   }
 
   registry.setConfirmationGate(gate, permissionOverrides, editMode);

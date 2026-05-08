@@ -207,4 +207,22 @@ export const TOOL_CATALOG: readonly ToolMetadata[] = [
       },
     },
   },
+  {
+    name: "update_todos",
+    description:
+      "Publish a structured to-do list to the chat panel. Use for any non-trivial multi-step task " +
+      "so the user can see progress in real time. Each todo is an object with `content` (imperative " +
+      "form, e.g. \"Add tests\"), `activeForm` (present-continuous form shown while in_progress, e.g. " +
+      "\"Adding tests\"), and `status` (\"pending\" | \"in_progress\" | \"completed\"). Submit the FULL " +
+      "list every time -- the renderer diffs against the previous publish to show transitions. Permission " +
+      "tier 0: no file, terminal, or network side effects.",
+    parameters: {
+      todos: {
+        type: "array",
+        description:
+          "Array of {content, activeForm, status} objects. Submit the full list on every call.",
+        required: true,
+      },
+    },
+  },
 ];

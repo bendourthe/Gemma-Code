@@ -1,7 +1,18 @@
 import type { PostMessageFn } from "../chat/StreamingPipeline.js";
 import type { ToolCallSource } from "./types.js";
+import { defaultPermissionOptions } from "../panels/webview/render/permissionPrompt.js";
 
 const TIMEOUT_MS = 60_000;
+
+/**
+ * Outcome of a numbered permission prompt (Phase 4.3). Decoupled from the
+ * legacy boolean ConfirmationGate.request() so callers can branch on
+ * "yes-for-all" (persist override) or "freeform" (treat as new user turn).
+ */
+export interface PermissionPromptResult {
+  value: "yes" | "yes-for-all" | "no" | "freeform";
+  freeformText?: string;
+}
 
 /**
  * Prefix the confirmation description with the originating peer so the user
@@ -38,8 +49,56 @@ function attributeDescription(
  */
 export class ConfirmationGate {
   private readonly _pending = new Map<string, (approved: boolean) => void>();
+  private readonly _pendingPrompts = new Map<
+    string,
+    (result: PermissionPromptResult) => void
+  >();
 
   constructor(private readonly _postMessage: PostMessageFn) {}
+
+  /**
+   * Phase 4.3 -- numbered permission prompt. Posts a `renderPermissionPrompt`
+   * message with the canonical 4-option layout and resolves with the user's
+   * choice. The legacy boolean `request()` API remains for callers that do
+   * not yet branch on "yes-for-all"/"freeform" (they treat any non-"yes" as
+   * a rejection). Auto-resolves to `{ value: "no" }` after TIMEOUT_MS.
+   */
+  requestPrompt(
+    id: string,
+    toolName: string,
+    description: string,
+    commandEcho: string | null,
+    source?: ToolCallSource,
+  ): Promise<PermissionPromptResult> {
+    return new Promise<PermissionPromptResult>((resolve) => {
+      this._pendingPrompts.set(id, resolve);
+
+      this._postMessage({
+        type: "renderPermissionPrompt",
+        id,
+        toolName,
+        description: attributeDescription(description, source),
+        commandEcho,
+        options: defaultPermissionOptions(toolName),
+      });
+
+      setTimeout(() => {
+        if (this._pendingPrompts.has(id)) {
+          this._pendingPrompts.delete(id);
+          resolve({ value: "no" });
+        }
+      }, TIMEOUT_MS);
+    });
+  }
+
+  /** Phase 4.3 -- called by the panel when a `permissionPromptResponse` arrives. */
+  resolvePrompt(id: string, result: PermissionPromptResult): void {
+    const resolver = this._pendingPrompts.get(id);
+    if (resolver !== undefined) {
+      this._pendingPrompts.delete(id);
+      resolver(result);
+    }
+  }
 
   /**
    * Post a confirmation request to the webview and wait for the user's response.

@@ -210,6 +210,92 @@ export interface TraceMetricsMessage {
   metrics: SessionMetrics;
 }
 
+// ---------------------------------------------------------------------------
+// v0.7.0 Phase 4 -- Webview render protocol expansion (ADR-0008)
+// ---------------------------------------------------------------------------
+
+/** Phase 4.2 -- a tool call has begun executing. */
+export interface RenderToolCallStartedMessage {
+  type: "renderToolCallStarted";
+  callId: string;
+  toolName: string;
+  /** Whitelisted to scalar values; the runtime renders them as the action target. */
+  params: Record<string, string | number | boolean | null>;
+}
+
+/** Phase 4.1 + 4.2 -- a tool call has completed; for edits this carries before/after for the diff card. */
+export interface RenderToolCallCompletedMessage {
+  type: "renderToolCallCompleted";
+  callId: string;
+  toolName: string;
+  /** Optional before/after pair for edit-class tools (write_file, edit_file, create_file). */
+  diff?: {
+    filePath: string;
+    before: string;
+    after: string;
+  };
+  /** Optional badge text (e.g., "5.16s", "Lines 23-150", "Added 128 lines"). */
+  badge?: string;
+}
+
+/** Phase 4.2 -- a tool call has failed. */
+export interface RenderToolCallFailedMessage {
+  type: "renderToolCallFailed";
+  callId: string;
+  toolName: string;
+  error: string;
+}
+
+/** Phase 4.4 -- the agent's structured todo list. */
+export interface RenderTodoUpdateMessage {
+  type: "renderTodoUpdate";
+  todos: Array<{
+    content: string;
+    activeForm: string;
+    status: "pending" | "in_progress" | "completed";
+  }>;
+}
+
+/** Phase 4 -- compaction events emitted by the agent loop. */
+export interface RenderCompactionEventMessage {
+  type: "renderCompactionEvent";
+  text: string;
+}
+
+/** Phase 4.7 -- end-of-task completion report. */
+export interface RenderCompletionReportMessage {
+  type: "renderCompletionReport";
+  items: Array<{
+    field: string;
+    value: string;
+    /** When set, the value is rendered as a clickable link. */
+    href?: string;
+  }>;
+}
+
+/** Phase 4.5 -- thought-for-Xs meta-row events. */
+export interface RenderThoughtMetaRowMessage {
+  type: "renderThoughtMetaRow";
+  status: "thinking" | "complete";
+  durationMs: number | null;
+}
+
+/** Phase 4.3 -- numbered permission prompt (replaces the legacy modal Yes/No card). */
+export interface RenderPermissionPromptMessage {
+  type: "renderPermissionPrompt";
+  id: string;
+  toolName: string;
+  description: string;
+  /** Optional command echo (e.g., shell command line for run_terminal). */
+  commandEcho: string | null;
+  options: Array<{
+    key: "1" | "2" | "3" | "4";
+    label: string;
+    value: "yes" | "yes-for-all" | "no" | "freeform";
+    aliases: string[];
+  }>;
+}
+
 /**
  * Phase 9 (v0.5.0) -- Sends cache and compression observability data to the
  * trace dashboard. Refresh cadence matches MetricsCollector buffer flush
@@ -267,7 +353,15 @@ export type ExtensionToWebviewMessage =
   | TraceListMessage
   | TraceDetailMessage
   | TraceMetricsMessage
-  | CacheStatsMessage;
+  | CacheStatsMessage
+  | RenderToolCallStartedMessage
+  | RenderToolCallCompletedMessage
+  | RenderToolCallFailedMessage
+  | RenderTodoUpdateMessage
+  | RenderCompactionEventMessage
+  | RenderCompletionReportMessage
+  | RenderThoughtMetaRowMessage
+  | RenderPermissionPromptMessage;
 
 // ---------------------------------------------------------------------------
 // Webview → Extension
@@ -344,6 +438,15 @@ export interface RequestCacheStatsMessage {
   type: "requestCacheStats";
 }
 
+/** Phase 4.3 -- the user's choice from a numbered permission prompt. */
+export interface PermissionPromptResponseMessage {
+  type: "permissionPromptResponse";
+  id: string;
+  /** Which option was chosen. `freeform` carries the user's instruction in `freeformText`. */
+  value: "yes" | "yes-for-all" | "no" | "freeform";
+  freeformText?: string;
+}
+
 export type WebviewToExtensionMessage =
   | SendMessageRequest
   | ClearChatRequest
@@ -358,4 +461,5 @@ export type WebviewToExtensionMessage =
   | RequestTraceListMessage
   | RequestTraceDetailMessage
   | RequestTraceMetricsMessage
-  | RequestCacheStatsMessage;
+  | RequestCacheStatsMessage
+  | PermissionPromptResponseMessage;

@@ -57,14 +57,18 @@ describe("StreamingPipeline", () => {
     await pipeline.send("hi", postMessage);
 
     const types = postMessage.mock.calls.map((c) => c[0]?.type);
-    expect(types[0]).toBe("status"); // thinking
-    expect(types[1]).toBe("status"); // streaming
+    // v0.7.0 Phase 4.5 inserts renderThoughtMetaRow events around the
+    // thinking phase; filter to status messages to assert the canonical
+    // thinking -> streaming -> idle state machine.
+    const statuses = postMessage.mock.calls
+      .map((c) => c[0])
+      .filter((m): m is { type: "status"; state: string } => m?.type === "status")
+      .map((m) => m.state);
+    expect(statuses[0]).toBe("thinking");
+    expect(statuses[1]).toBe("streaming");
     expect(types).toContain("token");
     expect(types).toContain("messageComplete");
-    const lastStatus = [...postMessage.mock.calls]
-      .reverse()
-      .find((c) => c[0]?.type === "status");
-    expect((lastStatus?.[0] as { state: string })?.state).toBe("idle");
+    expect(statuses[statuses.length - 1]).toBe("idle");
   });
 
   it("adds the user message to the manager before streaming", async () => {

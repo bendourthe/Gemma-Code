@@ -686,4 +686,259 @@ export const STYLES = String.raw`
     }
     .confirm-buttons { display: flex; gap: 6px; }
     .confirm-buttons button { font-size: 11px; padding: 4px 10px; }
+
+    /* ---- v0.7.0 Phase 4.1 -- inline diff card ---- */
+    .diff-card {
+      align-self: flex-start;
+      max-width: 96%;
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 6px;
+      overflow: hidden;
+      font-family: var(--vscode-editor-font-family, monospace);
+      font-size: 11px;
+    }
+    .diff-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 5px 10px;
+      background: var(--vscode-sideBarSectionHeader-background);
+      border-bottom: 1px solid var(--vscode-panel-border);
+    }
+    .diff-card-path {
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .diff-card-badge {
+      font-size: 10px;
+      opacity: 0.7;
+      flex-shrink: 0;
+    }
+    .diff-card-scroll {
+      max-height: 320px;
+      overflow: auto;
+    }
+    .diff-line {
+      display: block;
+      padding: 1px 8px;
+      max-width: 80ch;
+      white-space: pre;
+      overflow-x: auto;
+    }
+    .diff-line.added {
+      background: var(--vscode-diffEditor-insertedTextBackground, rgba(0, 200, 0, 0.12));
+    }
+    .diff-line.removed {
+      background: var(--vscode-diffEditor-removedTextBackground, rgba(200, 0, 0, 0.12));
+    }
+    .diff-line.context {
+      opacity: 0.65;
+    }
+
+    /* ---- v0.7.0 Phase 4.2 -- action-type tag ---- */
+    .action-tag {
+      align-self: flex-start;
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      font-family: var(--vscode-editor-font-family, monospace);
+      font-size: 11px;
+      padding: 3px 6px;
+      border-radius: 3px;
+    }
+    .action-tag.action-status-started { opacity: 0.65; }
+    .action-tag.action-status-completed { color: var(--vscode-testing-iconPassed, #73c991); }
+    .action-tag.action-status-failed { color: var(--vscode-testing-iconFailed, #f48771); }
+    .action-tag .action-label {
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .action-tag .action-target {
+      opacity: 0.85;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 60ch;
+    }
+    .action-tag .action-badge {
+      margin-left: auto;
+      opacity: 0.65;
+      font-size: 10px;
+      flex-shrink: 0;
+    }
+
+    /* ---- v0.7.0 Phase 4.3 -- numbered permission prompt ---- */
+    .permission-prompt {
+      align-self: flex-start;
+      max-width: 92%;
+      border: 1px solid var(--vscode-inputValidation-warningBorder, #b89500);
+      border-radius: 6px;
+      padding: 10px 12px;
+      background: var(--vscode-inputValidation-warningBackground, rgba(184, 149, 0, 0.1));
+      outline: none;
+    }
+    .permission-prompt-header { font-weight: 600; margin-bottom: 4px; }
+    .permission-prompt-tool {
+      font-family: var(--vscode-editor-font-family, monospace);
+      font-size: 12px;
+    }
+    .permission-prompt-description { font-size: 12px; margin-bottom: 6px; }
+    .permission-prompt-command {
+      background: var(--vscode-textCodeBlock-background, rgba(0, 0, 0, 0.2));
+      border-radius: 3px;
+      padding: 5px 8px;
+      font-size: 11px;
+      overflow-x: auto;
+      margin-bottom: 8px;
+    }
+    .permission-prompt-options {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .permission-prompt-option { padding: 0; }
+    .permission-prompt-button {
+      width: 100%;
+      text-align: left;
+      font-size: 12px;
+      padding: 6px 10px;
+    }
+    .permission-prompt-freeform { margin-top: 8px; }
+    .permission-prompt-freeform-input {
+      width: 100%;
+      background: var(--vscode-input-background);
+      color: var(--vscode-input-foreground);
+      border: 1px solid var(--vscode-input-border, rgba(128, 128, 128, 0.3));
+      border-radius: 4px;
+      padding: 6px 8px;
+      font-family: inherit;
+      font-size: 12px;
+      resize: vertical;
+    }
+    .permission-prompt-resolved { opacity: 0.55; pointer-events: none; }
+
+    /* ---- v0.7.0 Phase 4.4 -- todo block ---- */
+    .todo-block {
+      align-self: flex-start;
+      max-width: 92%;
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 6px;
+      padding: 8px 12px;
+      background: var(--vscode-editor-background, transparent);
+    }
+    .todo-block-heading {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      opacity: 0.65;
+      margin-bottom: 6px;
+    }
+    .todo-block-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 3px; }
+    .todo-item { display: flex; align-items: baseline; gap: 8px; font-size: 12px; }
+    .todo-item .todo-glyph { font-family: var(--vscode-editor-font-family, monospace); flex-shrink: 0; }
+    .todo-item .todo-text { flex: 1; line-height: 1.45; }
+    .todo-item.todo-status-completed .todo-text { text-decoration: line-through; opacity: 0.6; }
+    .todo-item.todo-status-completed .todo-glyph { color: var(--vscode-testing-iconPassed, #73c991); }
+    .todo-item.todo-status-in_progress .todo-glyph { color: var(--vscode-progressBar-background, #0e70c0); }
+    .todo-item.todo-glow {
+      background: rgba(14, 112, 192, 0.08);
+      border-radius: 3px;
+      padding: 1px 4px;
+      margin: 0 -4px;
+    }
+
+    /* ---- v0.7.0 Phase 4.5 -- thought-for-Xs meta-row ---- */
+    .thought-meta-row {
+      align-self: flex-start;
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      padding: 2px 6px;
+      font-size: 11px;
+      opacity: 0.55;
+    }
+    .thought-meta-row .thought-meta-bullet { font-family: var(--vscode-editor-font-family, monospace); }
+    .thought-meta-row.thought-meta-thinking .thought-meta-bullet { animation: pulse 1.2s ease-in-out infinite; }
+
+    /* ---- v0.7.0 Phase 4.6 -- queued-message field ---- */
+    .queued-message-field {
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+      padding: 6px 8px;
+      border: 1px dashed var(--vscode-input-border, rgba(128, 128, 128, 0.3));
+      border-radius: 8px;
+      background: var(--vscode-input-background);
+    }
+    .queued-message-field .queued-input {
+      flex: 1;
+      resize: none;
+      background: transparent;
+      color: var(--vscode-input-foreground);
+      border: none;
+      padding: 4px 0;
+      font-family: inherit;
+      font-size: 13px;
+      line-height: 1.4;
+      min-height: 28px;
+      max-height: 120px;
+    }
+    .queued-message-field .queued-input:focus { outline: none; }
+    .queued-message-field .queued-attach-btn,
+    .queued-message-field .queued-stop-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    /* ---- v0.7.0 Phase 4.7 -- completion report ---- */
+    .completion-report {
+      align-self: flex-start;
+      max-width: 96%;
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 6px;
+      padding: 8px 12px;
+      background: var(--vscode-editor-background, transparent);
+    }
+    .completion-report-heading {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      opacity: 0.65;
+      margin-bottom: 6px;
+    }
+    .completion-report-table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 12px;
+    }
+    .completion-report-row td { padding: 2px 8px 2px 0; vertical-align: baseline; }
+    .completion-report-field {
+      font-weight: 600;
+      opacity: 0.7;
+      width: 28%;
+      white-space: nowrap;
+    }
+    .completion-report-value {
+      font-family: var(--vscode-editor-font-family, monospace);
+    }
+    .completion-report-link {
+      color: var(--vscode-textLink-foreground, #3794ff);
+      text-decoration: underline;
+    }
+    .completion-report-empty { display: none; }
 `;

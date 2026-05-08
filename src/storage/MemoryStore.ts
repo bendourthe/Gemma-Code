@@ -622,6 +622,20 @@ export class MemoryStore {
     return row?.corroboration_count ?? null;
   }
 
+  /**
+   * v0.7.0 Phase 5 -- delete a single memory by id. Returns true when a row
+   * was removed, false when no row matched the id. Used by `/memory forget
+   * --include-sql` and the MemoryPanel's "Promote to Memory.md" action.
+   */
+  deleteById(id: string): boolean {
+    const result = this._db.prepare("DELETE FROM memories WHERE id = ?").run(id);
+    if (result.changes > 0) {
+      this._invalidateEmbeddingCache(id);
+      return true;
+    }
+    return false;
+  }
+
   /** Return all entries (no pagination). Intended for health-check use; bounded by `limit`. */
   listAll(limit = 1000): MemoryEntry[] {
     const rows = this._db

@@ -9,6 +9,7 @@ import type { HardwareTierId } from "./config/HardwareTier.types.js";
 import { TraceStore } from "./observability/TraceStore.js";
 import { MetricsCollector } from "./observability/MetricsCollector.js";
 import { TraceDashboardPanel, TRACE_DASHBOARD_VIEW_ID } from "./panels/TraceDashboardPanel.js";
+import { MemoryPanel, MEMORY_PANEL_VIEW_ID } from "./panels/MemoryPanel.js";
 import { OtlpExporter, parseOtlpHeaders } from "./observability/OtlpExporter.js";
 import { GemmaRuntime } from "./runtime/GemmaRuntime.js";
 import { disposeEncoder as disposeTokenEncoder } from "./config/PromptBudget.js";
@@ -316,6 +317,18 @@ export function activate(context: vscode.ExtensionContext): void {
     traceDashboardPanel,
   );
   context.subscriptions.push(traceDashboardDisposable);
+
+  // v0.7.0 Phase 5: Memory panel webview (manual editor for the four-file
+  // architecture, SQL-backed memory promotion, archive snapshot management).
+  const memoryPanel = new MemoryPanel(context.extensionUri, {
+    getMemoryFiles: () => chatPanel.getMemoryFiles(),
+    getMemoryStore: () => chatPanel.getMemoryStore(),
+  });
+  const memoryPanelDisposable = vscode.window.registerWebviewViewProvider(
+    MEMORY_PANEL_VIEW_ID,
+    memoryPanel,
+  );
+  context.subscriptions.push(memoryPanelDisposable);
 
   // Chat panel is only used via the editor panel (not sidebar).
   context.subscriptions.push(chatPanel);

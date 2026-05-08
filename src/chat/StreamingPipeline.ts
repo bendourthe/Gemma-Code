@@ -35,10 +35,20 @@ export class StreamingPipeline {
    * 2. Stream from Ollama, posting token updates to the webview.
    * 3. Commit the assistant response on completion.
    * Always posts `status: idle` when done, even on error.
+   *
+   * v0.7.0 Phase 4.5 -- emits `renderThoughtMetaRow` around the thinking
+   * phase so the webview can replace the legacy three-dots indicator with a
+   * "Thinking..." -> "Thought for Ns" meta-row.
    */
   async send(text: string, postMessage: PostMessageFn): Promise<void> {
     this._manager.addUserMessage(text);
+    const thinkStart = Date.now();
     postMessage({ type: "status", state: "thinking" });
+    postMessage({
+      type: "renderThoughtMetaRow",
+      status: "thinking",
+      durationMs: null,
+    });
 
     try {
       if (this._runAgentLoop !== undefined) {
@@ -47,6 +57,11 @@ export class StreamingPipeline {
         await this._attemptStream(postMessage);
       }
     } finally {
+      postMessage({
+        type: "renderThoughtMetaRow",
+        status: "complete",
+        durationMs: Date.now() - thinkStart,
+      });
       postMessage({ type: "status", state: "idle" });
     }
   }

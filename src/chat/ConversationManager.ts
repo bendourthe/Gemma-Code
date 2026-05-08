@@ -15,6 +15,14 @@ export class ConversationManager {
   private _sessionId: string | null = null;
   private _titleSet = false;
 
+  /**
+   * v0.7.0 Phase 4.6 -- buffer for messages the user typed while a stream
+   * was active (queued via the webview's queued-message-field). The panel
+   * drains this on the next idle tick. Cleared by `dropQueued()` when the
+   * user clicks the stop button.
+   */
+  private _queuedMessages: string[] = [];
+
   // Running total of Message.content character lengths across all messages.
   // Maintained by every mutation path so estimators can read it in O(1)
   // without iterating the array. Divide by ~4 for a rough token estimate.
@@ -249,6 +257,29 @@ export class ConversationManager {
     this._totalChars = remaining;
 
     this._onDidChange.fire(this.getHistory());
+  }
+
+  /** Phase 4.6 -- buffer a follow-up message while a stream is in flight. */
+  enqueueMessage(text: string): void {
+    const trimmed = text.trim();
+    if (trimmed.length > 0) this._queuedMessages.push(trimmed);
+  }
+
+  /** Phase 4.6 -- drain the buffer (caller dispatches each as a new turn). */
+  drainQueued(): string[] {
+    const drained = this._queuedMessages.slice();
+    this._queuedMessages.length = 0;
+    return drained;
+  }
+
+  /** Phase 4.6 -- discard buffered follow-ups (stop button). */
+  dropQueued(): void {
+    this._queuedMessages.length = 0;
+  }
+
+  /** Phase 4.6 -- inspector for tests. */
+  get queuedCount(): number {
+    return this._queuedMessages.length;
   }
 
   dispose(): void {

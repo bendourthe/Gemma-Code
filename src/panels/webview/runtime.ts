@@ -1,3 +1,11 @@
+import { DIFF_CARD_FN_SOURCE } from "./render/diffCard.js";
+import { ACTION_TAG_FN_SOURCE } from "./render/actionTag.js";
+import { PERMISSION_PROMPT_FN_SOURCE } from "./render/permissionPrompt.js";
+import { TODO_BLOCK_FN_SOURCE } from "./render/todoBlock.js";
+import { THOUGHT_META_ROW_FN_SOURCE } from "./render/thoughtMetaRow.js";
+import { QUEUED_MESSAGE_FIELD_FN_SOURCE } from "./render/queuedMessageField.js";
+import { COMPLETION_REPORT_FN_SOURCE } from "./render/completionReport.js";
+
 /**
  * The IIFE that runs in the webview context. Loaded inline into the HTML
  * scaffold under a `script` tag with a per-render nonce; the CSP enforces
@@ -9,10 +17,28 @@
  * happen at IIFE start). Splitting it into typed TS modules requires an
  * esbuild bundle step; that is deferred to v0.7.0 (Phase 6 source-level
  * split only).
+ *
+ * v0.7.0 Phase 4: each render primitive lives in `./render/*.ts` and is
+ * inlined here as a pre-stringified function source, so the same code is
+ * used in tests (jsdom + new Function) and at runtime (template inline).
  */
 export const RUNTIME_SCRIPT = String.raw`
     (function () {
       'use strict';
+
+      // ---------------------------------------------------------------------
+      // v0.7.0 Phase 4 -- render primitives (single source of truth in
+      // src/panels/webview/render/*.ts; inlined here at build time).
+      // ---------------------------------------------------------------------
+` +
+  DIFF_CARD_FN_SOURCE +
+  ACTION_TAG_FN_SOURCE +
+  PERMISSION_PROMPT_FN_SOURCE +
+  TODO_BLOCK_FN_SOURCE +
+  THOUGHT_META_ROW_FN_SOURCE +
+  QUEUED_MESSAGE_FIELD_FN_SOURCE +
+  COMPLETION_REPORT_FN_SOURCE +
+  String.raw`
 
       const vscode = acquireVsCodeApi();
 
@@ -622,6 +648,99 @@ export const RUNTIME_SCRIPT = String.raw`
             scrollToBottom();
             break;
           }
+
+          // ---- v0.7.0 Phase 4 render protocol -----------------------------
+
+          case 'renderToolCallStarted': {
+            const tag = renderActionTag(msg.toolName, msg.params || {}, 'started');
+            tag.dataset.callId = msg.callId;
+            messagesEl.appendChild(tag);
+            scrollToBottom();
+            break;
+          }
+
+          case 'renderToolCallCompleted': {
+            const existing = messagesEl.querySelector('[data-call-id="' + msg.callId + '"]');
+            if (existing) existing.remove();
+            const tag = renderActionTag(msg.toolName, {}, 'completed', msg.badge);
+            tag.dataset.callId = msg.callId;
+            messagesEl.appendChild(tag);
+            if (msg.diff) {
+              const card = renderDiffCard(msg.diff.before, msg.diff.after, msg.diff.filePath);
+              card.dataset.callId = msg.callId;
+              messagesEl.appendChild(card);
+            }
+            scrollToBottom();
+            break;
+          }
+
+          case 'renderToolCallFailed': {
+            const existing = messagesEl.querySelector('[data-call-id="' + msg.callId + '"]');
+            if (existing) existing.remove();
+            const tag = renderActionTag(msg.toolName, {}, 'failed', msg.error);
+            tag.dataset.callId = msg.callId;
+            messagesEl.appendChild(tag);
+            scrollToBottom();
+            break;
+          }
+
+          case 'renderTodoUpdate': {
+            // Replace any prior todo block; the agent submits the FULL list every time.
+            const prior = messagesEl.querySelector('.todo-block');
+            if (prior) prior.remove();
+            const block = renderTodoBlock(msg.todos);
+            messagesEl.appendChild(block);
+            scrollToBottom();
+            break;
+          }
+
+          case 'renderCompactionEvent': {
+            if (msg.text) {
+              compactionBanner.textContent = msg.text;
+              compactionBanner.classList.add('visible');
+            } else {
+              compactionBanner.classList.remove('visible');
+              compactionBanner.textContent = '';
+            }
+            break;
+          }
+
+          case 'renderCompletionReport': {
+            const card = renderCompletionReport(msg.items || []);
+            if (!card.classList.contains('completion-report-empty')) {
+              messagesEl.appendChild(card);
+              scrollToBottom();
+            }
+            break;
+          }
+
+          case 'renderThoughtMetaRow': {
+            // Replace any prior meta-row so the row finalises to "Thought for Ns".
+            const prior = messagesEl.querySelector('.thought-meta-row');
+            if (prior) prior.remove();
+            if (msg.status === 'thinking' || (msg.status === 'complete' && msg.durationMs && msg.durationMs > 250)) {
+              const row = renderThoughtMetaRow(msg.status, msg.durationMs);
+              messagesEl.appendChild(row);
+              scrollToBottom();
+            }
+            break;
+          }
+
+          case 'renderPermissionPrompt': {
+            const card = renderPermissionPrompt(msg, function (resolution) {
+              vscode.postMessage({
+                type: 'permissionPromptResponse',
+                id: msg.id,
+                value: resolution.value,
+                freeformText: resolution.freeformText
+              });
+            });
+            messagesEl.appendChild(card);
+            scrollToBottom();
+            break;
+          }
+
+          // ---- legacy confirmation card (kept for backwards compatibility) ----
 
           case 'confirmationRequest': {
             const card = document.createElement('div');

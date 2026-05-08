@@ -237,4 +237,37 @@ describe("ConversationManager", () => {
     const unique = new Set(ids);
     expect(unique.size).toBe(ids.length);
   });
+
+  // ---- v0.7.0 Phase 4.6 -- queued-message buffer ---------------------------
+
+  describe("queued-message buffer", () => {
+    it("starts empty", () => {
+      expect(manager.queuedCount).toBe(0);
+    });
+
+    it("buffers a follow-up and drains it on next turn", () => {
+      manager.enqueueMessage("follow-up one");
+      manager.enqueueMessage("follow-up two");
+      expect(manager.queuedCount).toBe(2);
+      const drained = manager.drainQueued();
+      expect(drained).toEqual(["follow-up one", "follow-up two"]);
+      expect(manager.queuedCount).toBe(0);
+    });
+
+    it("trims and skips empty entries", () => {
+      manager.enqueueMessage("   ");
+      manager.enqueueMessage("");
+      manager.enqueueMessage("  real  ");
+      expect(manager.queuedCount).toBe(1);
+      expect(manager.drainQueued()).toEqual(["real"]);
+    });
+
+    it("dropQueued discards every buffered follow-up", () => {
+      manager.enqueueMessage("a");
+      manager.enqueueMessage("b");
+      manager.dropQueued();
+      expect(manager.queuedCount).toBe(0);
+      expect(manager.drainQueued()).toEqual([]);
+    });
+  });
 });

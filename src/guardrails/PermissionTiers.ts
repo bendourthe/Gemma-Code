@@ -23,6 +23,7 @@ const TOOL_PERMISSION_MAP: Record<BuiltinToolName, PermissionTier> = {
   fetch_page: PermissionTier.DANGEROUS,
   compress_range: PermissionTier.AUTO_APPROVE,
   compress_message: PermissionTier.AUTO_APPROVE,
+  update_todos: PermissionTier.AUTO_APPROVE,
 };
 
 /** Baseline tier for any tool, including unknown/MCP tools. */

@@ -318,3 +318,42 @@ A draft v0.7.0 cycle plan exists at [docs/v0.7.0/plans/v0.7.0-cycle.md](./plans/
 | P3 | 6 | 4.5, 5.3, 7.3 (3 entries) |
 
 Zero P0 carryovers means the v0.6.0 Definition-of-Done criterion "Zero P0 findings post-cycle" is satisfied. The five P1 items are the v0.7.0 floor.
+
+---
+
+## 10. v0.7.0 in-cycle gap log
+
+This section is appended phase-by-phase as v0.7.0 lands. Each entry records the source phase, plan reference, reason, and suggested next step. Items are moved to `## Resolved` when closed in a later phase, and the `## Summary` at the bottom of the section is recomputed each pass.
+
+**Last updated**: 2026-05-07 (Phase 5 close)
+
+### 10.1 Open Items
+
+| ID | Source phase | Plan reference | Category | Severity | Reason | Suggested next step |
+|---|---|---|---|---|---|---|
+| 10.O.1 | Phase 4 | docs/v0.7.0/plans/v0.7.0-cycle.md Phase 4 stability gate | NI | P1 | Panel host does not yet swap the input row for the queued-message field during streaming. The render primitive ships; the swap is intentionally deferred. | Wire `renderQueuedMessageField` toggle in [src/panels/ChatWebviewHost.ts](../../src/panels/ChatWebviewHost.ts) from the streaming start / end events. |
+| 10.O.2 | Phase 4 | docs/v0.7.0/plans/v0.7.0-cycle.md Phase 4 stability gate | NI | P1 | `ChatMessageRouter` does not yet route `permissionPromptResponse` to `ConfirmationGate.resolvePrompt`. | Add the `permissionPromptResponse` case to [src/panels/ChatMessageRouter.ts](../../src/panels/ChatMessageRouter.ts) and resolve via the gate. |
+| 10.O.3 | Phase 4 | docs/v0.7.0/plans/v0.7.0-cycle.md Phase 4 stability gate | NI | P1 | `ToolRegistryBuilder.todos` is not yet wired into panel bootstrap. | Toggle `todos: true` for the active session inside [src/panels/ChatPanelBootstrap.ts](../../src/panels/ChatPanelBootstrap.ts) registry construction. |
+| 10.O.4 | Phase 5 | docs/v0.7.0/plans/v0.7.0-cycle.md Phase 5 sub-task 5.3 | DF | P3 | Plan called for ADR-0007 but `0007-permission-tier-floor.md` was already shipped. ADR landed as ADR-0014. | None. The deviation is documented inline in [docs/adr/0014-memory-file-architecture.md](../adr/0014-memory-file-architecture.md) "Numbering note" and mirrors the same pattern Phase 4 used for ADR-0013 (plan said 0008). Phase 8 must update the plan's ADR cross-references. |
+| 10.O.5 | Phase 5 | docs/v0.7.0/plans/v0.7.0-cycle.md Phase 5 stability gate item (e) | DF | P2 | The MemoryPanel's "Promote to Memory.md" action picks the section heading via a static `sectionForType` mapping (`decision -> Decisions`, `preference -> Preferences`, `error_resolution -> Corrections`, `file_pattern -> Patterns`, fallback `Preferences`). The plan did not specify a target section; this is a deliberate UX choice. | If user feedback in v0.7.0 testing surfaces a different mapping, revisit before v0.7.0 ship. Otherwise document in CHANGELOG. |
+| 10.O.6 | Phase 5 | docs/v0.7.0/plans/v0.7.0-cycle.md Phase 5 stability gate | DF | P3 | "Finalize per-model context limits" was already accomplished in Phase 3 sub-task 3.7. Phase 5 has no additional code to add. | Document in Phase 5 devlog and architecture.md cross-link. |
+
+### 10.2 Resolved
+
+| ID | Source phase | Plan reference | Category | Resolved in | Notes |
+|---|---|---|---|---|---|
+| -- | -- | -- | -- | -- | (no Phase 5 items resolved earlier in cycle) |
+
+### 10.3 Summary (v0.7.0 in-cycle)
+
+| Category | Open | Resolved |
+|---|---|---|
+| NI (not implemented) | 3 | 0 |
+| DF (deferred) | 3 | 0 |
+| BG (bug) | 0 | 0 |
+| MT (missing tests) | 0 | 0 |
+| WN (warning) | 0 | 0 |
+| QG (gate bypass) | 0 | 0 |
+| **Total** | **6** | **0** |
+
+**Severity roll-up (in-cycle)**: P1 = 3 (10.O.1, 10.O.2, 10.O.3 -- all Phase 4 panel-host wiring carryovers); P2 = 1 (10.O.5); P3 = 2 (10.O.4, 10.O.6).

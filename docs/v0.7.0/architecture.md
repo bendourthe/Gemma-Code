@@ -84,6 +84,25 @@ A new setting `gemma-code.memoryAutoArchive` (`"off" | "weekly" | "monthly"`, de
 ### Test contract
 
 - [tests/unit/storage/MemoryFiles.test.ts](../../tests/unit/storage/MemoryFiles.test.ts) -- init / read / archive / append / remove / export / import round-trips, secret-path rejections, mtime-cache invalidation.
+
+### Phase 5 surface: slash-command verbs and the manual MemoryPanel
+
+v0.7.0 Phase 5 layers two user-facing surfaces on top of the [MemoryFiles](../../src/storage/MemoryFiles.ts) primitives:
+
+1. **Slash-command verbs** -- [src/panels/ChatCommandHandlers.ts](../../src/panels/ChatCommandHandlers.ts) gains three new `/memory` verbs:
+   - `/memory forget <pattern> [--include-sql]` -- removes matching lines from `Memory.md`. With `--include-sql`, also deletes matching rows from the SQL-backed [MemoryStore](../../src/storage/MemoryStore.ts) via `MemoryStore.deleteById`. Catastrophic patterns (raw `.*`) are rejected by `MemoryFiles.removeFromMemory`.
+   - `/memory export <path>` -- writes a JSON dump of the three files plus a snapshot of SQL-backed memories (provenance-marked) to `<path>`. Path-guard rejects secret-path destinations.
+   - `/memory import <path> [--mode=merge|replace]` -- merges (default) or overwrites the three files from a JSON export. SQL-backed memories from a foreign export are NEVER silently re-imported -- the user must re-issue them via `/memory save`.
+2. **Manual MemoryPanel webview** -- [src/panels/MemoryPanel.ts](../../src/panels/MemoryPanel.ts) registers a sidebar webview at `gemma-code.memoryPanel`. Five tabs:
+   - Instructions / Memory / Context -- raw file contents with an "Open in editor" button that pipes through `vscode.workspace.openTextDocument`.
+   - SQL-backed -- rows grouped by type with a "Promote to Memory.md" action (calls `appendToMemory` then `deleteById`) and a "Delete" action.
+   - Archive -- a list of `Archive/<YYYY-MM-DD>/` snapshots with a "Restore" action that copies the dated snapshot back over the live three files. An "Archive now" button triggers an immediate snapshot.
+
+Per the [Module Authorship Contract](../../AGENTS.md), the MemoryPanel webview iframe never imports `fs` / `better-sqlite3` directly; every interactive button posts a typed message (`promoteSqlMemory`, `deleteSqlMemory`, `archiveMemoryNow`, `restoreArchive`, `openMemoryFile`) to the panel host, which dispatches to MemoryFiles / MemoryStore on the extension side.
+
+The data-build helpers `buildMemorySnapshot`, `listArchiveSnapshots`, `promoteSqlMemoryToFile`, and `restoreArchiveSnapshot` are exported as pure functions so the panel logic can be unit-tested without a live `vscode.WebviewView`. See [tests/unit/panels/MemoryPanel.test.ts](../../tests/unit/panels/MemoryPanel.test.ts).
+
+See [ADR-0014](../adr/0014-memory-file-architecture.md) for the precedence and lifecycle rationale (file > SQL on conflict; Archive on schedule).
 - [tests/integration/memory-files-prompt-merge.test.ts](../../tests/integration/memory-files-prompt-merge.test.ts) -- end-to-end PromptBuilder ordering plus the SQL-shadow-drop precedence rule.
 - [tests/integration/memory-auto-archive.test.ts](../../tests/integration/memory-auto-archive.test.ts) -- bootstrap scaffold + auto-archive scheduler.
 - [tests/unit/panels/ChatCommandHandlers.test.ts](../../tests/unit/panels/ChatCommandHandlers.test.ts) -- `/memory init|archive|edit` verbs.

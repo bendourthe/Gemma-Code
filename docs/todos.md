@@ -372,8 +372,32 @@ Adopts C12 / C13 / C14 / C15 / C16. Adds two deterministic strategies (deduplica
 - [x] 3.7 Per-model context-limit overrides (`gemma-code.contextLimitsPerModel` + `resolveModelContextLimit` + 6 tests)
 - [x] 3.8 ADR-0012 model-callable compress tool design (renumbered from plan's ADR-0006 because 0006 is taken)
 
-### Phase 4 — Webview render protocol expansion [PENDING]
-### Phase 5 — Memory commands + manual memory page UI [PENDING]
+### Phase 4 — Webview render protocol expansion [COMPLETED 2026-05-06]
+
+Adopt the seven Claude-Code-style chat-UI primitives (S7 / C21-C27): inline diff cards, action-type tags, numbered permission prompts, structured todo blocks, "Thought for Ns" meta-rows, queued-message fields, and end-of-task completion reports. History: [docs/v0.7.0/development/history/2026-05_phase-4-webview-render-protocol.md](v0.7.0/development/history/2026-05_phase-4-webview-render-protocol.md).
+
+- [x] 4.1 Inline diff card (`src/panels/webview/render/diffCard.ts` + 6 tests)
+- [x] 4.2 Action-type tag (`src/panels/webview/render/actionTag.ts` + 10 tests)
+- [x] 4.3 Numbered permission prompt (`src/panels/webview/render/permissionPrompt.ts` + 10 tests; `ConfirmationGate.requestPrompt`)
+- [x] 4.4 Todo block + `update_todos` tool (5 + 4 tests; `src/tools/handlers/todos.ts` permission tier 0)
+- [x] 4.5 Thought-for-Ns meta-row (`src/panels/webview/render/thoughtMetaRow.ts` + 5 tests; StreamingPipeline emits)
+- [x] 4.6 Queued-message field (renderer 6 tests + ConversationManager queue 4 tests; UX wiring deferred to v0.8.0)
+- [x] 4.7 Completion-report block (`src/panels/webview/render/completionReport.ts` + 7 tests; `buildCompletionReport`)
+- [x] 4.8 ADR-0013 webview render protocol (renumbered from plan's ADR-0008 because 0006-0012 are taken)
+
+**Follow-ups (deferred to v0.8.0 Phase 1)**: panel-host adoption of the new render protocol -- (a) replace input row with queued-message field during streaming, (b) route `permissionPromptResponse` through `ChatMessageRouter` to `gate.resolvePrompt`, (c) wire `ToolRegistryBuilder.todos` in the panel bootstrap. All three share the same surface; bundling is intentional.
+
+### Phase 5 — Memory commands + manual memory page UI + per-model context limits [COMPLETED 2026-05-07]
+
+Polish the memory experience: complete `/memory` slash-command surface, ship a sidebar `MemoryPanel` webview, and confirm the per-model context-limit override is wired. Plan: [docs/v0.7.0/plans/v0.7.0-cycle.md](v0.7.0/plans/v0.7.0-cycle.md) Phase 5.
+
+- [x] 5.1 `/memory forget`, `/memory export`, `/memory import` slash commands (extends `ChatCommandHandlers.dispatch("memory", ...)`; new helpers `parseForgetArgs`, `parseImportArgs`, `forgetMatchingSqlRows`; new `MemoryStore.deleteById`; 13 cases + 4 parser cases in `tests/unit/panels/ChatCommandHandlers.test.ts`)
+- [x] 5.2 MemoryPanel webview tab (`src/panels/MemoryPanel.ts`, `src/panels/webview/memoryView.ts`, view registered in `package.json`, wired in `src/extension.ts` via `chatPanel.getMemoryFiles()` / `chatPanel.getMemoryStore()`; 13 cases in `tests/unit/panels/MemoryPanel.test.ts`)
+- [x] 5.3 ADR-0014 memory file architecture (renumbered from plan's ADR-0007 because 0007 is taken; same pattern as ADR-0013)
+- [x] Per-model context limits finalised (no new code; Phase 3 sub-task 3.7 already shipped `resolveModelContextLimit` + 6 tests; tracked as in-cycle gap 10.O.6 for the audit trail)
+
+**Follow-ups carried into v0.8.0**: same three Phase 4 panel-host items (queued-field swap, permissionPromptResponse routing, todos opt-in wiring); no new follow-ups from Phase 5.
+
 ### Phase 6 — Multi-harness skill packaging [PENDING]
 ### Phase 7 — HNSW vector index (optional) [PENDING]
 ### Phase 8 — Release gate + ADRs + CHANGELOG [PENDING]

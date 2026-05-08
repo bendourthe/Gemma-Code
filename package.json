@@ -41,6 +41,11 @@
           "type": "webview"
         },
         {
+          "id": "gemma-code.memoryPanel",
+          "name": "Memory",
+          "type": "webview"
+        },
+        {
           "id": "gemma-code.traceDashboard",
           "name": "Traces",
           "type": "webview"

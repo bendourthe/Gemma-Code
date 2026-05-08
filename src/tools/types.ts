@@ -12,7 +12,8 @@ export type BuiltinToolName =
   | "tail_output"
   | "grep_output"
   | "compress_range"
-  | "compress_message";
+  | "compress_message"
+  | "update_todos";
 
 /** Namespaced MCP tool name: `mcp:serverName/toolName`. */
 export type McpToolName = `mcp:${string}`;
@@ -35,6 +36,7 @@ export const BUILTIN_TOOL_NAMES: readonly BuiltinToolName[] = [
   "grep_output",
   "compress_range",
   "compress_message",
+  "update_todos",
 ];
 
 /** @deprecated Use BUILTIN_TOOL_NAMES instead. */

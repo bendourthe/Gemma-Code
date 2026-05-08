@@ -329,6 +329,17 @@ export class ChatCommandHandlers {
     if (subcommand === "edit") {
       return this._handleMemoryEdit(subArgs);
     }
+    // v0.7.0 Phase 5: forget / export / import operate on the on-disk
+    // memory architecture too; export pulls SQL rows when available.
+    if (subcommand === "forget") {
+      return this._handleMemoryForget(subArgs);
+    }
+    if (subcommand === "export") {
+      return this._handleMemoryExport(subArgs);
+    }
+    if (subcommand === "import") {
+      return this._handleMemoryImport(subArgs);
+    }
 
     const memoryStore = ctx.getMemoryStore();
     if (!memoryStore) {
@@ -488,6 +499,122 @@ export class ChatCommandHandlers {
         "",
         `Snapshot written to \`${result.archivedPath}\` at ${result.archivedAt.toISOString()}.`,
       ].join("\n"),
+    );
+  }
+
+  /**
+   * v0.7.0 Phase 5 -- remove every line in Memory.md matching the user's
+   * pattern. The optional `--include-sql` flag also deletes matching rows from
+   * the SQL-backed MemoryStore (when enabled). The catastrophic-pattern guard
+   * lives in {@link MemoryFiles.removeFromMemory}; we surface its error verbatim.
+   */
+  private async _handleMemoryForget(rawArgs: string): Promise<void> {
+    const memoryFiles = this._ctx.getMemoryFiles();
+    if (!memoryFiles) {
+      this._emitMarkdown(
+        "_/memory forget requires an open workspace. Open a folder and try again._",
+      );
+      return;
+    }
+    const parsed = parseForgetArgs(rawArgs);
+    if (!parsed.pattern) {
+      this._emitMarkdown(
+        "Usage: `/memory forget <pattern> [--include-sql]`. Pattern must be anchored or specific (e.g. `^- prefer:`); raw `.*` is rejected.",
+      );
+      return;
+    }
+
+    let fileResult: { removedLines: number };
+    try {
+      fileResult = memoryFiles.removeFromMemory(parsed.pattern);
+    } catch (err) {
+      this._emitMarkdown(`_/memory forget failed: ${formatForUser(err)}_`);
+      return;
+    }
+
+    let sqlNote = "";
+    if (parsed.includeSql) {
+      const memoryStore = this._ctx.getMemoryStore();
+      if (!memoryStore) {
+        sqlNote = "\n\n_SQL-backed memory is disabled; --include-sql skipped._";
+      } else {
+        const removed = forgetMatchingSqlRows(memoryStore, parsed.pattern);
+        sqlNote = `\n\n_Also removed ${removed} matching SQL-backed memor${removed === 1 ? "y" : "ies"}._`;
+        this._ctx.postMemoryStatus();
+      }
+    }
+
+    this._emitMarkdown(
+      `## Memory forget\n\nRemoved **${fileResult.removedLines}** line${fileResult.removedLines === 1 ? "" : "s"} from \`${memoryFiles.memoryPath}\`.${sqlNote}`,
+    );
+  }
+
+  /**
+   * v0.7.0 Phase 5 -- write a JSON dump of the three memory files plus the
+   * SQL-backed memories (with provenance markers) to `<path>`. Path-guard
+   * applies via {@link MemoryFiles.export}; absolute paths outside the
+   * workspace go straight to the underlying writer (the user explicitly typed
+   * the path) but the secret-path denylist still rejects credential-style
+   * destinations.
+   */
+  private _handleMemoryExport(rawArgs: string): void {
+    const memoryFiles = this._ctx.getMemoryFiles();
+    if (!memoryFiles) {
+      this._emitMarkdown(
+        "_/memory export requires an open workspace. Open a folder and try again._",
+      );
+      return;
+    }
+    const target = rawArgs.trim();
+    if (!target) {
+      this._emitMarkdown("Usage: `/memory export <path>`");
+      return;
+    }
+    const memoryStore = this._ctx.getMemoryStore();
+    const sqlMemories = memoryStore
+      ? memoryStore
+          .listAll(1000)
+          .map((entry) => ({ content: entry.content, type: entry.type }))
+      : [];
+    try {
+      memoryFiles.export(target, { sqlMemories });
+    } catch (err) {
+      this._emitMarkdown(`_/memory export failed: ${formatForUser(err)}_`);
+      return;
+    }
+    this._emitMarkdown(
+      `## Memory export\n\nWrote ${sqlMemories.length} SQL-backed entr${sqlMemories.length === 1 ? "y" : "ies"} plus the three memory files to \`${target}\`.`,
+    );
+  }
+
+  /**
+   * v0.7.0 Phase 5 -- read a previously-exported JSON dump and merge or
+   * replace the three memory files. SQL-backed memories from the export are
+   * NOT silently re-imported (per S2 article guidance). The verb prints how
+   * many SQL rows were skipped so the user can run a follow-up `/memory save`
+   * if desired.
+   */
+  private _handleMemoryImport(rawArgs: string): void {
+    const memoryFiles = this._ctx.getMemoryFiles();
+    if (!memoryFiles) {
+      this._emitMarkdown(
+        "_/memory import requires an open workspace. Open a folder and try again._",
+      );
+      return;
+    }
+    const parsed = parseImportArgs(rawArgs);
+    if (!parsed.path) {
+      this._emitMarkdown("Usage: `/memory import <path> [--mode=merge|replace]`");
+      return;
+    }
+    try {
+      memoryFiles.import(parsed.path, parsed.mode);
+    } catch (err) {
+      this._emitMarkdown(`_/memory import failed: ${formatForUser(err)}_`);
+      return;
+    }
+    this._emitMarkdown(
+      `## Memory import\n\nApplied \`${parsed.path}\` to the three memory files (mode: **${parsed.mode}**).\n\n_SQL-backed memories from the export are not silently re-imported. Use \`/memory save\` to add them deliberately._`,
     );
   }
 
@@ -744,6 +871,79 @@ export class ChatCommandHandlers {
 export function parseInitArgs(rawArgs: string): { force: boolean } {
   const tokens = rawArgs.split(/\s+/).filter(Boolean);
   return { force: tokens.includes("--force") };
+}
+
+/**
+ * v0.7.0 Phase 5 -- parse `/memory forget <pattern> [--include-sql]`. The
+ * pattern is the full remaining argument string after the flag is stripped.
+ * Anchored or specific patterns are forwarded verbatim to
+ * {@link MemoryFiles.removeFromMemory}, which rejects raw `.*`.
+ */
+export function parseForgetArgs(rawArgs: string): {
+  pattern: string;
+  includeSql: boolean;
+} {
+  const tokens = rawArgs.split(/\s+/).filter(Boolean);
+  let includeSql = false;
+  const remaining: string[] = [];
+  for (const tok of tokens) {
+    if (tok === "--include-sql") {
+      includeSql = true;
+    } else {
+      remaining.push(tok);
+    }
+  }
+  return { pattern: remaining.join(" "), includeSql };
+}
+
+/**
+ * v0.7.0 Phase 5 -- parse `/memory import <path> [--mode=merge|replace]`.
+ * Default mode is `merge`. Unrecognised modes fall back to merge with no
+ * warning (the underlying writer treats anything that is not `replace` as a
+ * merge anyway, but keeping the parser strict keeps the slash-command
+ * surface explicit).
+ */
+export function parseImportArgs(rawArgs: string): {
+  path: string;
+  mode: "merge" | "replace";
+} {
+  const tokens = rawArgs.split(/\s+/).filter(Boolean);
+  let mode: "merge" | "replace" = "merge";
+  const remaining: string[] = [];
+  for (const tok of tokens) {
+    if (tok === "--mode=replace" || tok === "--replace") {
+      mode = "replace";
+    } else if (tok === "--mode=merge" || tok === "--merge") {
+      mode = "merge";
+    } else {
+      remaining.push(tok);
+    }
+  }
+  return { path: remaining.join(" "), mode };
+}
+
+/**
+ * v0.7.0 Phase 5 -- delete every SQL-backed memory whose `content` matches
+ * the supplied regex. Returns the number of rows removed. Exposed for
+ * unit-testability without instantiating the full panel.
+ */
+export function forgetMatchingSqlRows(
+  memoryStore: { listAll(limit?: number): readonly { id: string; content: string }[]; deleteById(id: string): boolean },
+  pattern: string,
+): number {
+  let re: RegExp;
+  try {
+    re = new RegExp(pattern);
+  } catch {
+    return 0;
+  }
+  let removed = 0;
+  for (const entry of memoryStore.listAll(1000)) {
+    if (re.test(entry.content)) {
+      if (memoryStore.deleteById(entry.id)) removed++;
+    }
+  }
+  return removed;
 }
 
 /**

@@ -4,6 +4,154 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-07] v0.7.0 Phase 5 -- memory commands + manual MemoryPanel + per-model context limits
+
+### Goal
+
+Polish the memory experience by completing the slash-command surface, surfacing a manual editor as a sidebar webview, and confirming the per-model context-limit override is fully wired. Plan reference: [docs/v0.7.0/plans/v0.7.0-cycle.md](v0.7.0/plans/v0.7.0-cycle.md) Phase 5 (sub-tasks 5.1, 5.2, 5.3). Adopts comparison findings C18, C19, C20.
+
+### Decisions
+
+#### 5.1: `/memory forget`, `/memory export`, `/memory import`
+
+[src/panels/ChatCommandHandlers.ts](../src/panels/ChatCommandHandlers.ts) gains three new `/memory` verbs that delegate to the existing [src/storage/MemoryFiles.ts](../src/storage/MemoryFiles.ts) primitives (`removeFromMemory`, `export`, `import`):
+
+- `/memory forget <pattern> [--include-sql]` removes matching lines from `Memory.md` via the on-disk regex. The catastrophic-pattern guard (raw `.*`) lives in MemoryFiles and is surfaced verbatim. With `--include-sql`, matching rows from the SQL-backed store are also deleted via the new `MemoryStore.deleteById` method.
+- `/memory export <path>` writes a JSON dump containing the three files plus a snapshot of all SQL-backed memories, with provenance markers per row. Path-guard rejects secret-path destinations.
+- `/memory import <path> [--mode=merge|replace]` reads a previously-exported JSON and merges (default) or overwrites the three files. SQL-backed memories from a foreign export are NEVER silently re-imported; the user must re-issue them via `/memory save`.
+
+The argument parsers (`parseForgetArgs`, `parseImportArgs`) and the SQL-deletion helper (`forgetMatchingSqlRows`) are exported as pure functions so they unit-test without instantiating the panel.
+
+#### 5.2: MemoryPanel webview tab
+
+A new sidebar webview at `gemma-code.memoryPanel` ships under [src/panels/MemoryPanel.ts](../src/panels/MemoryPanel.ts) with the HTML / CSS / JS scaffold in [src/panels/webview/memoryView.ts](../src/panels/webview/memoryView.ts). Five tabs:
+
+- Instructions / Memory / Context: the three on-disk files rendered as raw `<pre>` blocks, each with an "Open in editor" button that pipes through `vscode.workspace.openTextDocument`.
+- SQL-backed: rows from the SQL `MemoryStore` grouped by type, with two per-row actions: "Promote" (calls `appendToMemory` then `deleteById`) and "Delete" (calls `deleteById` only). The promotion target section is chosen by `sectionForType` (`decision -> Decisions`, `preference -> Preferences`, `error_resolution -> Corrections`, `file_pattern -> Patterns`, fallback `Preferences`).
+- Archive: a list of dated archive snapshots with a "Restore" action that copies the dated snapshot back over the three live files. An "Archive now" button triggers an immediate snapshot.
+
+Per the AGENTS.md module-authorship contract, the webview iframe never imports `fs` / `better-sqlite3` directly; every interactive button posts a typed message (`promoteSqlMemory`, `deleteSqlMemory`, `archiveMemoryNow`, `restoreArchive`, `openMemoryFile`) to the panel host. The panel host's data-build helpers (`buildMemorySnapshot`, `listArchiveSnapshots`, `promoteSqlMemoryToFile`, `restoreArchiveSnapshot`) are exported as pure functions for unit testing without a live `vscode.WebviewView`.
+
+The view is registered in [package.json](../package.json) under `gemma-code-sidebar` between Chat and Traces. Bootstrap wiring lives in [src/extension.ts](../src/extension.ts), which constructs the panel with closures into `chatPanel.getMemoryFiles()` / `chatPanel.getMemoryStore()` so the panel sees the live instances even after a settings change.
+
+#### 5.3: ADR-0014 -- numbering deviation (memory file architecture)
+
+The cycle plan referred to this decision as "ADR-0007" in Phase 5 sub-task 5.3. ADR-0007 was already shipped during v0.6.0 Phase 1.2 (Permission-tier floor). Following the same numbering deviation pattern as Phase 4's ADR-0013 (plan said ADR-0008; that slot was taken too), this ADR is recorded as [ADR-0014](adr/0014-memory-file-architecture.md). The deviation is documented in the ADR's "Numbering note" section. Phase 8 will need to update the plan's ADR cross-references.
+
+#### Per-model context limits
+
+The Phase 5 stability gate calls for "finalize per-model context limits". This work shipped in Phase 3 sub-task 3.7: `gemma-code.contextLimitsPerModel` is in `package.json`; `resolveModelContextLimit` in [src/config/PromptBudget.ts](../src/config/PromptBudget.ts) consumes it; [src/panels/ChatController.ts](../src/panels/ChatController.ts) line 139 calls it on every prompt build; six tests in [tests/unit/config/contextLimitsPerModel.test.ts](../tests/unit/config/contextLimitsPerModel.test.ts) cover override / floor / fallback / zero-or-negative behaviour. Phase 5 has no additional code to add. Tracked as in-cycle gap 10.O.6 to keep the audit trail explicit.
+
+### Tests
+
+- New tests in [tests/unit/panels/ChatCommandHandlers.test.ts](../tests/unit/panels/ChatCommandHandlers.test.ts): 13 cases covering forget / export / import behaviour (usage rejection, primitive delegation, secret-path / catastrophic-pattern surfacing, --include-sql wiring, --mode flag parsing) plus 4 cases for the exported parsers.
+- New file [tests/unit/panels/MemoryPanel.test.ts](../tests/unit/panels/MemoryPanel.test.ts): 13 cases over `buildMemorySnapshot`, `listArchiveSnapshots`, `promoteSqlMemoryToFile`, `sectionForType`, `restoreArchiveSnapshot` -- each helper exercised against a real `MemoryFiles` instance in a tmp directory plus a vi-mocked `MemoryStore`.
+
+### Files
+
+- New: [src/panels/MemoryPanel.ts](../src/panels/MemoryPanel.ts), [src/panels/webview/memoryView.ts](../src/panels/webview/memoryView.ts), [tests/unit/panels/MemoryPanel.test.ts](../tests/unit/panels/MemoryPanel.test.ts), [docs/adr/0014-memory-file-architecture.md](adr/0014-memory-file-architecture.md).
+- Modified: [src/panels/ChatCommandHandlers.ts](../src/panels/ChatCommandHandlers.ts) (three new verbs + helpers), [src/storage/MemoryStore.ts](../src/storage/MemoryStore.ts) (`deleteById`), [src/commands/CommandRouter.ts](../src/commands/CommandRouter.ts) (extended `/memory` argumentHint), [src/panels/GemmaCodePanel.ts](../src/panels/GemmaCodePanel.ts) (`getMemoryFiles` / `getMemoryStore` accessors), [src/extension.ts](../src/extension.ts) (panel registration), [package.json](../package.json) (sidebar view), [docs/v0.7.0/architecture.md](v0.7.0/architecture.md) (Phase 5 surface section), [tests/unit/panels/ChatCommandHandlers.test.ts](../tests/unit/panels/ChatCommandHandlers.test.ts) (forget / export / import cases + parser cases).
+
+### Tests results / quality gates
+
+- TypeScript: `npm run build` (tsc) clean.
+- Lint: `npm run lint` (eslint src) clean.
+- Tests: `npm test` reports **171 test files passed, 1 skipped (172); 2036 tests passed, 4 skipped (2040); 0 failures**. The trailing Windows segfault during teardown is the pre-existing native-module cleanup artefact tracked at known-gaps Section 5.1.
+
+### Deviations
+
+- ADR-0014 instead of ADR-0007 (slot already taken by Permission-tier floor). Same pattern as ADR-0013 in Phase 4. Logged as in-cycle gap 10.O.4.
+- "Finalize per-model context limits" subtask had no code to add -- Phase 3 already shipped it. Logged as in-cycle gap 10.O.6 for the audit trail.
+- The MemoryPanel "Promote" action's section-mapping (`sectionForType`) is a static heuristic; the plan did not specify a target section, and user feedback may revise this. Logged as in-cycle gap 10.O.5.
+
+### Phase 5 Exit Checklist
+
+- [x] All memory commands functional (`forget`, `export`, `import` ship; `init`, `archive`, `edit` shipped in Phase 2; `save`, `search`, `clear`, `status`, `lint` ship from earlier cycles).
+- [x] MemoryPanel webview registered alongside Chat and Traces views.
+- [x] Five tabs functional (Instructions / Memory / Context with "Open in editor"; SQL-backed with Promote / Delete; Archive with Restore + "Archive now").
+- [x] No module-boundary violations (`npm run deps:check` continues to pass via the existing config; webview iframe imports nothing from `src/storage/`).
+- [x] ADR for memory file architecture present (filed as ADR-0014 per the numbering deviation note).
+- [x] Per-model context limits finalised (no new code; Phase 3 shipped the wiring; tests in `tests/unit/config/contextLimitsPerModel.test.ts` continue to pass).
+- [x] `npm run lint && npm run build && npm test` green.
+
+### Next
+
+Phase 6 (Multi-harness skill packaging + standalone deterministic-checks CLI): `scripts/package-skills.mjs` for Claude Code / Cursor / OpenCode / Gemini CLI bundles; `bin/gemma-check.mjs` standalone Node CLI wrapping a small rule-set (no committed `console.log`, no `Math.random` in token contexts, no `.env` leakage, secret-pattern regex). Plan reference: docs/v0.7.0/plans/v0.7.0-cycle.md Phase 6.
+
+---
+
+## [2026-05-06] v0.7.0 Phase 4 -- webview render protocol expansion
+
+### Goal
+
+Adopt the seven Claude-Code-style chat-UI primitives observed in S7 of the multi-source comparison report: inline diff cards, action-type tags, numbered permission prompts, structured todo blocks, "Thought for Ns" meta-rows, queued-message fields during streaming, and end-of-task completion reports. Plan reference: [docs/v0.7.0/plans/v0.7.0-cycle.md](v0.7.0/plans/v0.7.0-cycle.md) Phase 4 (sub-tasks 4.1 through 4.8). Adopts comparison findings C21 / C22 / C23 / C24 / C25 / C26 / C27.
+
+### Decisions
+
+#### Single-source-of-truth render primitives ([ADR-0013](adr/0013-webview-render-protocol.md))
+
+Each primitive lives in `src/panels/webview/render/<name>.ts` and exports a `<NAME>_FN_SOURCE` string (the function body, in plain JS) plus a `compile<Name>(document)` factory used by jsdom-based unit tests. The runtime IIFE in `src/panels/webview/runtime.ts` inlines every `_FN_SOURCE` via string concatenation; tests instantiate the same source through `new Function(...)` against jsdom. There is no host-side TS twin -- the function body is the canonical implementation, so there is nothing to drift against.
+
+Every primitive uses `document.createElement` + `textContent` exclusively; no primitive may assign user-supplied text to `innerHTML`. This satisfies the DOMPurify requirement of `MarkdownRenderer.ts` trivially: untrusted HTML is never interpreted, so DOMPurify is not needed inside the renderer. Each render-primitive test enforces the rule with a sentinel assertion (`expect(FN_SOURCE.includes("innerHTML")).toBe(false)`).
+
+#### 4.1: Inline diff card
+
+[src/panels/webview/render/diffCard.ts](../src/panels/webview/render/diffCard.ts) computes a common-prefix delta over `\n`-split lines and renders a stacked card with file path + Added/Removed badge in the header and per-line `.diff-line.added` / `.diff-line.removed` / `.diff-line.context` rows. Wired into `runtime.ts` for `renderToolCallCompleted` messages with a non-empty `diff` field (set by `edit_file`, `write_file`, `create_file` tool completions).
+
+#### 4.2: Action-type tag
+
+[src/panels/webview/render/actionTag.ts](../src/panels/webview/render/actionTag.ts) replaces the legacy "Using tool: <name>..." line with a Claude-Code-style label + target + size badge. Display labels map `read_file -> Read`, `write_file -> Write`, `edit_file -> Edit`, `run_terminal -> Bash`, etc.; unknown tools fall back to PascalCase. The runtime renders the started-tag, swaps it for the completed-tag (with badge), and falls back to a failed-tag on errors.
+
+#### 4.3: Numbered permission prompt
+
+`ConfirmationGate.requestPrompt(...)` posts a `renderPermissionPrompt` message with the canonical 4-option layout (1 yes, 2 yes-for-all, 3 no, 4 freeform) and resolves with the user's structured choice. The legacy boolean `request()` API stays for backwards compatibility -- we keep a `Yes/No` alias map so muscle memory still works, and the existing modal `confirmationRequest` still ships for callers that have not migrated. Workspace-scoped "yes-for-all" is documented to persist via `gemma-code.permissionOverrides` (subject to the v0.6.0 Phase 1.2 floor that clamps tier-2 tools to >= 1).
+
+#### 4.4: Todo block + `update_todos` tool
+
+A new `update_todos` builtin tool ([src/tools/handlers/todos.ts](../src/tools/handlers/todos.ts)) ships at permission tier 0. It validates the payload, posts `renderTodoUpdate`, and stashes the latest list on a `TodoState` holder so the completion-report renderer (Phase 4.7) can build its end-of-task summary without re-walking message history. The `ToolRegistryBuilder.todos` opt-in registers the tool; legacy callers that omit the field continue to work unchanged. The render primitive ([src/panels/webview/render/todoBlock.ts](../src/panels/webview/render/todoBlock.ts)) uses status-driven glyphs (filled = completed, hollow = pending, asterisk + glow = in_progress) and shows the active-form text while in_progress so the user sees what is happening right now.
+
+#### 4.5: Thought-for-Ns meta-row
+
+[src/panels/webview/render/thoughtMetaRow.ts](../src/panels/webview/render/thoughtMetaRow.ts) replaces the bouncing-dots indicator with a subdued meta-row that finalises to "Thought for Ns" (one decimal of seconds) once the thinking phase ends. `StreamingPipeline.send` now bookends the stream with `renderThoughtMetaRow` events; the runtime suppresses the "complete" row for thinking phases under 250 ms so trivial requests do not flicker.
+
+#### 4.6: Queued-message field
+
+[src/panels/webview/render/queuedMessageField.ts](../src/panels/webview/render/queuedMessageField.ts) renders the queue input + attach button + stop button trio. `ConversationManager.enqueueMessage` / `drainQueued` / `dropQueued` provide the buffer; the panel host can plug them into the existing input-row toggle when streaming starts. The full UX wiring (replacing the input row mid-stream) is staged for v0.8.0 once the panel host adopts the new render protocol fully -- see Deviations.
+
+#### 4.7: Completion-report block
+
+[src/panels/webview/render/completionReport.ts](../src/panels/webview/render/completionReport.ts) renders an end-of-task key:value summary (Plan / Sub-task done / Updates landed / Tests run / Commit). `buildCompletionReport(state)` walks the latest `update_todos` payload + recent tool calls to produce the canonical field list, with empty fields dropped and clickable commit SHAs when `href` is supplied. Empty-state suppression is built in: a report with no items returns a `.completion-report-empty` element the runtime detects and skips.
+
+#### 4.8: ADR-0013 -- numbering deviation
+
+The cycle plan referred to this decision as "ADR-0008", written before ADRs 0006-0012 were assigned during v0.6.0 Phase 5-8 and v0.7.0 Phase 0/3. Following the same numbering deviation pattern as ADR-0011 (OllamaClient injection), this ADR is recorded as 0013.
+
+### Tests
+
+49 new render-primitive tests pass under jsdom (7 files, 5-10 tests each). Each file asserts DOM structure, status-driven class toggling, keyboard handling (where applicable), and the "no innerHTML" safety sentinel. New handler test [tests/unit/tools/handlers/todos.test.ts](../tests/unit/tools/handlers/todos.test.ts) covers the `update_todos` validator, post-message contract, status counts, and reference isolation. New ConversationManager queue tests assert the buffer, drain, drop, and trim semantics. Existing `tests/unit/chat/StreamingPipeline.test.ts` updated to filter `renderThoughtMetaRow` events when asserting the canonical thinking -> streaming -> idle status sequence; existing `tests/unit/tools/ToolCatalog.test.ts` updated for the new entry count (12 -> 13).
+
+### Files
+
+- New: 7 renderer modules under `src/panels/webview/render/`, 7 jsdom test files under `tests/unit/panels/webview/render/`, [src/tools/handlers/todos.ts](../src/tools/handlers/todos.ts), [tests/unit/tools/handlers/todos.test.ts](../tests/unit/tools/handlers/todos.test.ts), [docs/adr/0013-webview-render-protocol.md](adr/0013-webview-render-protocol.md).
+- Modified: [src/panels/messages.ts](../src/panels/messages.ts) (8 new render messages + 1 inbound prompt response), [src/panels/webview/runtime.ts](../src/panels/webview/runtime.ts) (renderer inlining + 8 new switch cases), [src/panels/webview/styles.ts](../src/panels/webview/styles.ts) (CSS for all 7 primitives), [src/tools/ConfirmationGate.ts](../src/tools/ConfirmationGate.ts) (`requestPrompt` / `resolvePrompt`), [src/tools/types.ts](../src/tools/types.ts) (BuiltinToolName + BUILTIN_TOOL_NAMES include `update_todos`), [src/tools/ToolCatalog.ts](../src/tools/ToolCatalog.ts) (update_todos metadata), [src/tools/ToolRegistryBuilder.ts](../src/tools/ToolRegistryBuilder.ts) (optional todos opt-in), [src/guardrails/PermissionTiers.ts](../src/guardrails/PermissionTiers.ts) (update_todos = AUTO_APPROVE), [src/chat/StreamingPipeline.ts](../src/chat/StreamingPipeline.ts) (thought meta-row emits), [src/chat/ConversationManager.ts](../src/chat/ConversationManager.ts) (queued-message buffer), [docs/index.md](index.md) (regenerated catalog).
+
+### Tests results / quality gates
+
+- TypeScript: `tsc --noEmit` clean.
+- Lint: `eslint src` clean.
+- Unit + integration: full suite passes (the trailing Windows segfault during teardown is a pre-existing native-module cleanup artefact, not a test failure -- see project memory).
+
+### Deviations
+
+- ADR was filed as 0013, not 0008 as the plan stated. Same reasoning as ADR-0011 (already-taken numbers).
+- The queued-message-field renderer is in place and unit-tested, but the runtime IIFE does not yet swap the standard input area for the queued field during streaming. That wiring touches the existing send / cancel / status flow and was deferred to keep Phase 4 scope contained; a follow-up issue should land it in v0.8.0 Phase 1 alongside the panel host's adoption of the full new render protocol.
+
+### Next
+
+Phase 5 (Memory commands + manual memory page UI + per-model context limits): `/memory forget|export|import|archive`; new `MemoryPanel` webview tab; `gemma-code.contextLimitsPerModel` setting (already partly wired -- see `tests/unit/config/contextLimitsPerModel.test.ts`).
+
+---
+
 ## [2026-05-05] v0.7.0 Phase 3 -- compaction stack expansion
 
 ### Goal

@@ -1,7 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mockOf } from "../../helpers/factories.js";
 import type { ChatCommandContext } from "../../../src/panels/ChatCommandHandlers.js";
-import { ChatCommandHandlers } from "../../../src/panels/ChatCommandHandlers.js";
+import {
+  ChatCommandHandlers,
+  parseForgetArgs,
+  parseImportArgs,
+  forgetMatchingSqlRows,
+} from "../../../src/panels/ChatCommandHandlers.js";
 import type { ExtensionToWebviewMessage } from "../../../src/panels/messages.js";
 
 vi.mock("vscode", () => ({
@@ -659,5 +664,228 @@ describe("ChatCommandHandlers", () => {
     const h = new ChatCommandHandlers(ctx);
     await h.dispatch("memory", "edit bogus");
     expect(added[0]).toContain("Usage:");
+  });
+
+  // v0.7.0 Phase 5 -- /memory forget|export|import slash-command surface.
+  it("/memory forget rejects an empty pattern with usage help", async () => {
+    const memoryFiles = { memoryPath: "/ws/Memory.md", removeFromMemory: vi.fn() };
+    const { ctx, added } = makeFakeCtx({ memoryFiles });
+    const h = new ChatCommandHandlers(ctx);
+    await h.dispatch("memory", "forget");
+    expect(added[0]).toContain("Usage:");
+    expect(memoryFiles.removeFromMemory).not.toHaveBeenCalled();
+  });
+
+  it("/memory forget removes matching lines from Memory.md", async () => {
+    const memoryFiles = {
+      memoryPath: "/ws/Memory.md",
+      removeFromMemory: vi.fn(() => ({ removedLines: 3 })),
+    };
+    const { ctx, added } = makeFakeCtx({ memoryFiles });
+    const h = new ChatCommandHandlers(ctx);
+    await h.dispatch("memory", "forget ^- prefer:");
+    expect(memoryFiles.removeFromMemory).toHaveBeenCalledWith("^- prefer:");
+    expect(added[0]).toContain("Removed **3** lines");
+  });
+
+  it("/memory forget --include-sql also deletes matching SQL rows", async () => {
+    const memoryFiles = {
+      memoryPath: "/ws/Memory.md",
+      removeFromMemory: vi.fn(() => ({ removedLines: 1 })),
+    };
+    const memoryStore = {
+      listAll: vi.fn(() => [
+        { id: "a", content: "prefer Conventional Commits", type: "fact" },
+        { id: "b", content: "use ruff for python", type: "fact" },
+      ]),
+      deleteById: vi.fn(() => true),
+    };
+    const { ctx, added, postMemoryStatus } = makeFakeCtx({ memoryFiles, memoryStore });
+    const h = new ChatCommandHandlers(ctx);
+    await h.dispatch("memory", "forget Conventional --include-sql");
+    expect(memoryStore.deleteById).toHaveBeenCalledWith("a");
+    expect(memoryStore.deleteById).not.toHaveBeenCalledWith("b");
+    expect(added[0]).toContain("Also removed 1 matching SQL-backed memory");
+    expect(postMemoryStatus).toHaveBeenCalled();
+  });
+
+  it("/memory forget surfaces the catastrophic-pattern error verbatim", async () => {
+    const memoryFiles = {
+      memoryPath: "/ws/Memory.md",
+      removeFromMemory: vi.fn(() => {
+        throw new Error("Refused to remove: pattern \".*\" is too greedy.");
+      }),
+    };
+    const { ctx, added } = makeFakeCtx({ memoryFiles });
+    const h = new ChatCommandHandlers(ctx);
+    await h.dispatch("memory", "forget .*");
+    expect(added[0]).toContain("/memory forget failed");
+    expect(added[0]).toContain("too greedy");
+  });
+
+  it("/memory forget without a workspace surfaces a hint", async () => {
+    const { ctx, added } = makeFakeCtx({ memoryFiles: null });
+    const h = new ChatCommandHandlers(ctx);
+    await h.dispatch("memory", "forget anything");
+    expect(added[0]).toContain("requires an open workspace");
+  });
+
+  it("/memory export writes the JSON dump and includes SQL rows when available", async () => {
+    const memoryFiles = {
+      memoryPath: "/ws/Memory.md",
+      export: vi.fn(),
+    };
+    const memoryStore = {
+      listAll: vi.fn(() => [
+        { id: "x", content: "Always squash-merge", type: "fact" },
+        { id: "y", content: "ruff for python", type: "preference" },
+      ]),
+    };
+    const { ctx, added } = makeFakeCtx({ memoryFiles, memoryStore });
+    const h = new ChatCommandHandlers(ctx);
+    await h.dispatch("memory", "export /tmp/memory.json");
+    expect(memoryFiles.export).toHaveBeenCalledWith("/tmp/memory.json", {
+      sqlMemories: [
+        { content: "Always squash-merge", type: "fact" },
+        { content: "ruff for python", type: "preference" },
+      ],
+    });
+    expect(added[0]).toContain("2 SQL-backed entries");
+  });
+
+  it("/memory export still works when the SQL store is disabled", async () => {
+    const memoryFiles = { memoryPath: "/ws/Memory.md", export: vi.fn() };
+    const { ctx, added } = makeFakeCtx({ memoryFiles, memoryStore: null });
+    const h = new ChatCommandHandlers(ctx);
+    await h.dispatch("memory", "export /tmp/memory.json");
+    expect(memoryFiles.export).toHaveBeenCalledWith("/tmp/memory.json", { sqlMemories: [] });
+    expect(added[0]).toContain("0 SQL-backed entries");
+  });
+
+  it("/memory export without a path emits usage help", async () => {
+    const memoryFiles = { memoryPath: "/ws/Memory.md", export: vi.fn() };
+    const { ctx, added } = makeFakeCtx({ memoryFiles });
+    const h = new ChatCommandHandlers(ctx);
+    await h.dispatch("memory", "export");
+    expect(added[0]).toContain("Usage:");
+    expect(memoryFiles.export).not.toHaveBeenCalled();
+  });
+
+  it("/memory export surfaces the secret-path error verbatim", async () => {
+    const memoryFiles = {
+      memoryPath: "/ws/Memory.md",
+      export: vi.fn(() => {
+        throw new Error("Refused to export to a secret path: /home/me/.aws/credentials");
+      }),
+    };
+    const { ctx, added } = makeFakeCtx({ memoryFiles, memoryStore: null });
+    const h = new ChatCommandHandlers(ctx);
+    await h.dispatch("memory", "export /home/me/.aws/credentials");
+    expect(added[0]).toContain("/memory export failed");
+    expect(added[0]).toContain("secret path");
+  });
+
+  it("/memory import defaults to merge mode", async () => {
+    const memoryFiles = { memoryPath: "/ws/Memory.md", import: vi.fn() };
+    const { ctx, added } = makeFakeCtx({ memoryFiles });
+    const h = new ChatCommandHandlers(ctx);
+    await h.dispatch("memory", "import /tmp/memory.json");
+    expect(memoryFiles.import).toHaveBeenCalledWith("/tmp/memory.json", "merge");
+    expect(added[0]).toContain("mode: **merge**");
+  });
+
+  it("/memory import --mode=replace overwrites the on-disk files", async () => {
+    const memoryFiles = { memoryPath: "/ws/Memory.md", import: vi.fn() };
+    const { ctx, added } = makeFakeCtx({ memoryFiles });
+    const h = new ChatCommandHandlers(ctx);
+    await h.dispatch("memory", "import /tmp/memory.json --mode=replace");
+    expect(memoryFiles.import).toHaveBeenCalledWith("/tmp/memory.json", "replace");
+    expect(added[0]).toContain("mode: **replace**");
+  });
+
+  it("/memory import without a path surfaces usage help", async () => {
+    const memoryFiles = { memoryPath: "/ws/Memory.md", import: vi.fn() };
+    const { ctx, added } = makeFakeCtx({ memoryFiles });
+    const h = new ChatCommandHandlers(ctx);
+    await h.dispatch("memory", "import");
+    expect(added[0]).toContain("Usage:");
+    expect(memoryFiles.import).not.toHaveBeenCalled();
+  });
+
+  it("/memory import surfaces underlying parse errors", async () => {
+    const memoryFiles = {
+      memoryPath: "/ws/Memory.md",
+      import: vi.fn(() => {
+        throw new Error("Invalid memory export at /tmp/memory.json: Unexpected token");
+      }),
+    };
+    const { ctx, added } = makeFakeCtx({ memoryFiles });
+    const h = new ChatCommandHandlers(ctx);
+    await h.dispatch("memory", "import /tmp/memory.json");
+    expect(added[0]).toContain("/memory import failed");
+    expect(added[0]).toContain("Invalid memory export");
+  });
+});
+
+describe("Phase 5 memory-command parsers", () => {
+  it("parseForgetArgs splits the pattern from the --include-sql flag", () => {
+    expect(parseForgetArgs("^- prefer: --include-sql")).toEqual({
+      pattern: "^- prefer:",
+      includeSql: true,
+    });
+    expect(parseForgetArgs("--include-sql ^- prefer:")).toEqual({
+      pattern: "^- prefer:",
+      includeSql: true,
+    });
+    expect(parseForgetArgs("foo bar")).toEqual({ pattern: "foo bar", includeSql: false });
+    expect(parseForgetArgs("")).toEqual({ pattern: "", includeSql: false });
+  });
+
+  it("parseImportArgs honours --mode= and --replace shorthand", () => {
+    expect(parseImportArgs("/tmp/x.json")).toEqual({ path: "/tmp/x.json", mode: "merge" });
+    expect(parseImportArgs("/tmp/x.json --mode=replace")).toEqual({
+      path: "/tmp/x.json",
+      mode: "replace",
+    });
+    expect(parseImportArgs("--replace /tmp/x.json")).toEqual({
+      path: "/tmp/x.json",
+      mode: "replace",
+    });
+    expect(parseImportArgs("/tmp/x.json --mode=merge")).toEqual({
+      path: "/tmp/x.json",
+      mode: "merge",
+    });
+  });
+
+  it("forgetMatchingSqlRows deletes only matching rows", () => {
+    const rows = [
+      { id: "a", content: "prefer Conventional Commits" },
+      { id: "b", content: "use ruff" },
+      { id: "c", content: "Conventional release tagging" },
+    ];
+    const deleted: string[] = [];
+    const removed = forgetMatchingSqlRows(
+      {
+        listAll: () => rows,
+        deleteById: (id: string) => {
+          deleted.push(id);
+          return true;
+        },
+      },
+      "Conventional",
+    );
+    expect(removed).toBe(2);
+    expect(deleted.sort()).toEqual(["a", "c"]);
+  });
+
+  it("forgetMatchingSqlRows returns 0 when the pattern is invalid", () => {
+    const removed = forgetMatchingSqlRows(
+      {
+        listAll: () => [{ id: "a", content: "anything" }],
+        deleteById: () => true,
+      },
+      "(",
+    );
+    expect(removed).toBe(0);
   });
 });
