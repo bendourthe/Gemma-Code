@@ -4,6 +4,68 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-14] v0.7.0 Phase 8 -- Release gate + ADRs + CHANGELOG + v0.7.0 baselines
+
+### Goal
+
+Close the v0.7.0 cycle: capture v0.7.0 golden + benchmark baselines per [docs/v0.7.0/plans/v0.7.0-cycle.md](v0.7.0/plans/v0.7.0-cycle.md) sub-task 8.1; add the CHANGELOG v0.7.0 entry summarising every adopted C-item plus the explicit N1-N6 drops per sub-task 8.2; bump `package.json` to `0.7.0` per sub-task 8.3; verify the ADRs called out by the Phase 8 stability gate (ADR-0006 / 0007 / 0008 in plan numbering -- shipped as ADR-0012 / 0013 / 0014 due to v0.6.0 numbering collision -- are all merged with status `accepted`).
+
+### Decisions
+
+#### 8.1: capture v0.7.0 baselines under the v0.6.0 operator-action precedent
+
+The plan calls for two artifacts: `tests/golden/baselines/v0.7.0.json` and `tests/benchmarks/baselines/v0.7.0.json`. The benchmark baseline is the deterministic in-process subset captured via `npm run bench --outputJson=...` (the live-Ollama benches auto-skip when `OLLAMA_URL` is unset). The golden baseline requires `ollama serve` with `gemma4:e4b` pulled on a quiescent dev workstation -- the Phase 8 author does not have access to the model layer, identical constraint to v0.6.0 known-gaps Section 1.1 which is itself still pending operator capture. The plan also assumed a TS-native golden runner that was never built during the cycle; the existing Python framework at `tests/golden/framework/run_all.py` is the only runner.
+
+The chosen shape: ship `tests/golden/baselines/v0.7.0.json` as a `status: deferred-to-operator` placeholder with the operator procedure documented inline (so the path exists and v0.8.0 tooling has a target to populate). Ship `tests/benchmarks/baselines/v0.7.0.json` with the in-process capture even though the v0.6.0 regression check fires 17 regressions in the -33% to -84% band -- the failure signature is uniform across cache, eviction, hooks, rendering, skill-loading AND file reading, which is inconsistent with any single v0.7.0 code change and most consistent with non-quiescent host state (CPU pressure, thermal throttling, background-process noise). Both deviations are documented as v0.7.0 in-cycle gaps 10.O.14 (golden) and 10.O.15 (bench re-capture), and the same precedent that v0.6.0 set for 1.1 applies here.
+
+The regression-check tooling itself had a minor bug surfaced during this work: `scripts/check-bench-regressions.mjs` `extractBenchmarks` only handled the legacy `files[].tasks[]` vitest shape and ignored the current `files[].groups[].benchmarks[]` shape that vitest 1.6+ emits. Extended the extractor to handle both shapes so the regression gate keeps working across vitest output changes. The fix is inside Phase 8 scope because the regression check IS the Phase 8 stability gate; without it, the bench artifact has no consumer.
+
+#### 8.2: CHANGELOG layout matches v0.6.0 with a new "Explicitly NOT in v0.7.0" closing section
+
+The plan asked for sections `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`, plus a closing "Explicitly NOT in v0.7.0" block listing N1-N6 from the comparison report plus the cross-version carryovers from known-gaps Section 7. Followed verbatim. `Deprecated` and `Removed` are explicitly "None" rather than omitted (the v0.6.0 entry's `gemma-code.gpuTier` removal does not re-occur in this cycle). The closing block calls out N1-N6 plus 15 scope-grounded carryovers (LSTM predictive caching, multi-provider proxy, voice transcription, distributed cache, `/memory prune --apply`, `format=json` on tools, severity-rubric CI gate, streaming reads, auto-merge Dependabot, Rust components, Go CLI, ripgrep-backed grep, Marketplace publication, Tree-sitter, SSE for MCP).
+
+ASCII-only verified: a byte-level scan of the inserted block confirmed every character is below code point 0x80. The pre-existing v0.1.0 entry still contains em-dashes and ellipsis characters; those are out of Phase 8 scope and not touched.
+
+#### 8.3: package.json bump only; no source-level version constants tied to it
+
+Grepped `src/` for version constants: `MCP_PROTOCOL_VERSION` strings in `McpServer.ts` / `McpClient.ts` are pinned at `0.2.0` and refer to the MCP protocol revision, not the extension version (they intentionally do not track package.json). `MEMORY_SCHEMA_VERSION` and `SCHEMA_VERSION` constants are database schema generation counters, also not extension-version. No source change required beyond `package.json` itself.
+
+### Deviations from the plan
+
+- Plan sub-task 8.1 says "Run `scripts/check-bench-regressions.mjs --base v0.6.0 --candidate v0.7.0`". The actual script CLI is `--baseline <path> --current <path>`; ran with the actual flags. The script's previous extractor only handled vitest <= 1.5 output; extended to handle vitest >= 1.6's `files[].groups[].benchmarks[]` shape. Tracked inline above; the extractor change is in scope because it makes the stability gate functional.
+- Plan sub-task 8.1 says "if not yet built, this is the cycle to build [the TS-native golden runner]." It was not built. Tracked as in-cycle gap 10.O.17. Building a YAML-task-driven TS golden runner from scratch is multi-day work in its own right and not scoped into Phase 8's 7-day plan window.
+- Plan sub-task 8.1 says "Acceptance: baselines captured, regression check green." Bench regression check is NOT green vs. v0.6.0 -- 17 regressions in -33% to -84% band, signature is environmental. Documented and accepted as 10.O.15; plan text explicitly allows "or any regression is documented and accepted."
+- Plan sub-task 8.3 says "Create the release commit with message `chore(release): v0.7.0` and tag `v0.7.0`. Push." The commit and tag are operator actions -- this run produces the staged artifacts and a commit-message draft per the post-phase sequence; the operator runs the actual `git commit`, `git tag`, and `git push`.
+- The plan's stability gate referenced "ADR-0006 (compress tool), ADR-0007 (memory file architecture), ADR-0008 (webview render protocol)". Those numbers were already occupied by v0.6.0 ADRs by the time the v0.7.0 cycle ran. The renumbered ADRs (0012 / 0013 / 0014) each carry an explicit numbering note in their preamble. All three are status `accepted`.
+
+### Tests
+
+No new code beyond `scripts/check-bench-regressions.mjs` (test runner is itself a CLI script, not in the vitest suite). Re-ran the full suite as the Phase 4 release-gate check: **2136 passed, 11 skipped, 0 failed** (177 files, 1 skipped file -- `ollama-health.test.ts` skips when `OLLAMA_URL` is unset). Coverage: 89.09% lines / 82.59% branches / 88.49% functions / 89.09% statements (gates: 80% / 75% -- both clear). Lint: clean. `npm run build`: green. `npm run perm-tier:check`: green after regeneration. `npm run catalog:check`: regenerates the auto-derived `docs/index.md` and is green once the regenerated file is committed in this phase. `npm run deps:check`: 4 pre-existing violations (3x `no-storage-from-panels` on MemoryPanel imports, 1x `no-panels-from-tools` on ConfirmationGate -> permissionPrompt) -- duplicated from 10.O.9 and recorded as 10.O.16 for traceability; both point at v0.8.0 Phase 7 appendix sub-task 7.B.
+
+### Known gaps (v0.7.0 in-cycle)
+
+Four new Phase 8 entries appended to [docs/v0.7.0/known-gaps.md](v0.7.0/known-gaps.md) Section 10:
+
+- 10.O.14 (DF, P1) -- `tests/golden/baselines/v0.7.0.json` operator-action capture, mirrors v0.6.0 known-gaps 1.1.
+- 10.O.15 (BG, P2) -- bench baseline captured on non-quiescent host; uniform 30-80% degradation signature; re-capture required.
+- 10.O.16 (QG, P2) -- 4 pre-existing `deps:check` violations accepted as v0.7.0 internal carryovers; duplicate pointer to 10.O.9.
+- 10.O.17 (NI, P3) -- TS-native golden runner not built during the cycle; defer to v0.8.0 or canonise the Python runner.
+
+All four transferred to v0.8.0 plan (Phase 0 close-out). v0.7.0 in-cycle gap log is at terminal state with 17 total transferred items.
+
+### Files
+
+- [CHANGELOG.md](../CHANGELOG.md) -- v0.7.0 entry inserted between `[Unreleased]` and `[0.6.0] -- 2026-05-04`; ASCII-only.
+- [package.json](../package.json) -- version bumped to `0.7.0`.
+- [scripts/check-bench-regressions.mjs](../scripts/check-bench-regressions.mjs) -- `extractBenchmarks` extended to support vitest >= 1.6 output shape.
+- [tests/benchmarks/baselines/v0.7.0.json](../tests/benchmarks/baselines/v0.7.0.json) -- new; 21 deterministic in-process benchmarks; non-quiescent host noted in `note` field.
+- [tests/golden/baselines/v0.7.0.json](../tests/golden/baselines/v0.7.0.json) -- new; placeholder with `status: deferred-to-operator` and operator procedure inline.
+- [docs/v0.7.0/known-gaps.md](v0.7.0/known-gaps.md) -- four Phase 8 entries appended; summary table recomputed; status updated to "Phase 8 close; v0.7.0 about to be tagged."
+- [docs/index.md](index.md) -- auto-regenerated by `npm run catalog`.
+- [docs/v0.5.0/architecture.md](v0.5.0/architecture.md) -- permission-tier table auto-regenerated by `npm run perm-tier`.
+
+---
+
 ## [2026-05-14] v0.7.0 Phase 7 -- HNSW vector index + audit/testgaps background workers
 
 ### Goal

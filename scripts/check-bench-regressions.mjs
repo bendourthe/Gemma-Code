@@ -54,7 +54,9 @@ function parseArgs() {
 
 /**
  * Extract { [benchName]: { hz, mean, rme } } from a vitest JSON bench report.
- * Vitest bench JSON has the shape { files: [{ result: { tasks: [{ name, result: { benchmark: {...} }}] }}] }.
+ * Handles both the legacy { files: [{ tasks: [{ result: { benchmark } }] }] }
+ * shape (vitest <= 1.5) and the current { files: [{ groups: [{ benchmarks: [...] }] }] }
+ * shape (vitest >= 1.6, which emits benchmark stats directly on each entry).
  */
 function extractBenchmarks(report) {
   const bench = {};
@@ -72,6 +74,13 @@ function extractBenchmarks(report) {
   };
   for (const file of report.files ?? []) {
     walkTasks(file.result?.tasks ?? file.tasks ?? []);
+    for (const group of file.groups ?? []) {
+      for (const b of group.benchmarks ?? []) {
+        if (typeof b?.hz === "number") {
+          bench[b.name] = { hz: b.hz, mean: b.mean, rme: b.rme };
+        }
+      }
+    }
   }
   return bench;
 }

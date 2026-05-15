@@ -62,6 +62,89 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [0.7.0] -- 2026-05-14
+
+Adoption cycle driven by `docs/v0.7.0/comparison-multi-source.md` (S1-S7 multi-source competitive review). Closes every P1 carryover from the v0.6.0 known-gaps catalog in Phase 0 (panel hoist down to 305 lines via ADR-0011; `marked` v4 -> v12 migration; mutation-testing gap fixes across `policy.ts` / `ActionClassifier.ts` / `terminal.ts` / `filesystem.ts`; `Orchestrator.test.ts` re-included in Stryker). Then adopts the C-items from buckets 1-3 of the comparison report: a deterministic compaction stack expansion plus a model-callable compress tool (ADR-0012), an Instructions / Memory / Context / Archive memory file architecture (ADR-0014), a webview render protocol with seven new chat primitives (ADR-0013), per-model context-limit overrides, six new skills, multi-harness skill packaging plus a standalone `gemma-check` CLI, an optional HNSW vector index with linear-scan fallback, and post-N-edits audit / testgaps background workers. Three new ADRs (0012-0014) capture the material decisions. The v0.5.0 retrospective `>= 40%` token-savings claim is now measured against the live-Ollama v0.4.0 + v0.6.0 baselines (operator-action; see Fixed below).
+
+### Added
+
+- `compress` tool (permission-tier 0, model-callable) with range and message modes; integrates with `ContextCompactor` as the model-driven escape hatch on top of the deterministic stack. See [ADR-0012](./docs/adr/0012-model-callable-compress-tool.md).
+- `Deduplication` and `PurgeErrors` compaction strategies prepended to the existing `ToolResultClearing -> SlidingWindow -> CodeBlockTruncation -> RegenerateFromSource -> LlmSummary -> EmergencyTrim` ladder.
+- `/compact context | sweep | decompress | recompress | manual` slash-command verbs surface every strategy at the chat level.
+- Per-model context-limit overrides via `gemma-code.modelContextLimits: Record<string, number>`; the override replaces the global `maxTokens` when the active model matches.
+- `Instructions / Memory / Context / Archive` on-disk memory file architecture under `~/.gemma-code/memory/<workspace-id>/`. Deterministic merge precedence: on-disk file wins over the SQLite store for the same key. See [ADR-0014](./docs/adr/0014-memory-file-architecture.md).
+- Manual `MemoryPanel` webview with "Promote to Memory.md" action; rows map `decision -> Decisions`, `preference -> Preferences`, `error_resolution -> Corrections`, `file_pattern -> Patterns`, fallback `Preferences`.
+- `/memory forget | export | import` slash-command verbs. (Write-side `/memory prune --apply` and `/memory lint --apply` remain deferred; see "Explicitly NOT in v0.7.0".)
+- Webview render protocol (ADR-0013) emits seven new chat primitives from `src/panels/webview/render/`: completion report block, todo block, inline diff cards, action-type tags, numbered permission prompts (with Yes/No alias preserved), "Thought for Ns" meta-rows, and queued-message field shape. See [ADR-0013](./docs/adr/0013-webview-render-protocol.md).
+- Six new skills under `.claude/skills/`: `polish`, `critique`, `distill`, `harden`, `animate`, `build-second-brain` (the last requires the v0.7.0 memory file architecture to be useful).
+- Multi-harness skill packaging via `npm run package:skills`; emits adapter ZIPs for Claude Code, Cursor (best-effort `.cursor/rules/<slug>.md` transform), and OpenCode under `dist/skills-<harness>/`.
+- Standalone `gemma-check` CLI under `bin/gemma-check.mjs` (`npm run check`); ships the four deterministic-check rules used by the audit background worker. See `docs/v0.7.0/development/cli-gemma-check.md`.
+- Optional HNSW vector index for `MemoryStore.searchByEmbedding` backed by `hnswlib-node` as an `optionalDependency`. Linear-scan fallback path is preserved unconditionally so environments where the native binary fails to load still work.
+- Background workers (audit, testgaps) triggered post-N-edits. Workers are explicitly NOT timer-driven; only post-edit cadence per the cross-cutting risk note in comparison Section 13.
+- 21 deterministic in-process benchmarks captured at `tests/benchmarks/baselines/v0.7.0.json` (live-Ollama benches auto-skip when `OLLAMA_URL` is unset).
+- `tests/golden/baselines/v0.7.0.json` placeholder with `status: deferred-to-operator` and `operatorProcedure` documented; the live-Ollama golden suite is operator-action mirroring v0.6.0 known-gaps Section 1.1.
+
+### Changed
+
+- Numbered permission prompts (`1 / 2 / 3 / 4`) replace the Yes / No modal as the primary keyboard contract. Yes / No remain as keyboard aliases for backwards compatibility.
+- Per-model context-limit override (`gemma-code.modelContextLimits[model]`) takes precedence over the global `gemma-code.maxTokens` when the active model has an entry.
+- `Yes-for-all` permission decisions now persist to workspace settings instead of the in-memory session scope; the persistence key is the action signature so the decision survives a panel reload.
+- `scripts/check-bench-regressions.mjs` `extractBenchmarks` now handles both the legacy `files[].tasks[]` vitest shape and the current `files[].groups[].benchmarks[]` shape so the regression gate keeps working across vitest 1.5 -> 1.6 output changes.
+
+### Deprecated
+
+- None.
+
+### Removed
+
+- None. (The `gemma-code.gpuTier` removal landed in v0.6.0; no further setting removals this cycle.)
+
+### Fixed
+
+- v0.6.0 Phase 0 close-out (all items in `docs/v0.7.0/known-gaps.md` Section 2-4):
+  - `GemmaCodePanel.ts` 305 lines (was 935; v0.6.0 target was < 400). Construction graph extracted to `ChatPanelBootstrap.ts` and static factories on `ChatController` (`buildContextCompactor`, `buildSubAgentManager`, `buildOrchestrator`, `buildAgentLoop`, `buildStreamingPipeline`). Helpers: `ChatPanelInit.ts`, `ChatStatusReporter.ts`, `ChatMessageRouter.ts`, `ToolActivationContext.ts`, `ToolRegistryBuilder.ts`. New ADR-0011 documents the OllamaClient injection pattern. Closes v0.7.0 known-gaps 2.3 + 2.4.
+  - `marked` bumped to `^12.0.0` (resolved at 12.0.2) via `marked.parse(text, { async: false })`; the v12 Renderer API turned out to retain the v4 positional signature so the three custom renderers are unchanged-by-need. All 8 renderer tests green; sanitisation chain (CSP + DOMPurify) intact. Closes v0.7.0 known-gaps 2.1.
+  - Mutation-testing gap fixes: new `tests/unit/guardrails/policy.test.ts` (18 assertions), `tests/unit/guardrails/ActionClassifier.coverage.test.ts` (113 parametric assertions), `tests/unit/tools/handlers/terminal.coverage.test.ts` (58 parametric assertions), `tests/unit/tools/handlers/filesystem.coverage.test.ts` (13 error-path assertions). `Orchestrator.test.ts` timing assertion rewritten `> 0` -> `>= 0` and re-included in `configs/stryker.config.json`. Closes v0.7.0 known-gaps 4.1-4.5.
+- Live-Ollama baseline capture for the v0.5.0 retrospective `>= 40%` token-savings claim: in-process v0.7.0 baseline captured (see Added); the corresponding v0.4.0 + v0.6.0 live-Ollama captures remain operator-action, tracked in `docs/v0.7.0/known-gaps.md`.
+- Filesystem tool handler split (v0.6.0 plan sub-task 6.5) formally deferred to v0.8.0 with a documented cost/benefit decision (~25 import sites; file is functioning correctly today). See v0.7.0 known-gaps 2.2.
+
+### Security
+
+- The `compress` tool ships at permission tier 0 (auto-approve) by design: it operates on the in-process conversation transcript only and never touches the filesystem, network, or external state. No new auth surface. See [ADR-0012 Consequences](./docs/adr/0012-model-callable-compress-tool.md#consequences).
+- v0.6.0 Phase 1 path-guard contract preserved: every filesystem tool handler still routes through `pathGuard.resolveInsideWorkspace`. The new memory file architecture writes only under `~/.gemma-code/memory/<workspace-id>/`, an out-of-workspace location; no new symlink-traversal surface introduced.
+- `permissionOverrides` tier-floor clamp (v0.6.0 ADR-0007) preserved; the new `Yes-for-all` workspace persistence respects the same clamp.
+
+### Explicitly NOT in v0.7.0
+
+Policy-grounded drops from `docs/v0.7.0/comparison-multi-source.md` Section 13:
+
+- N1. Federation / cross-machine agent collaboration (S6 ruflo) -- violates offline-first thesis.
+- N2. Multi-provider LLM routing (Claude / GPT / Gemini / Cohere) (S6 ruflo) -- local-only thesis.
+- N3. Hosted web UI / Goal Planner front-end (S6 `flo.ruv.io`) -- local-only thesis.
+- N4. Notion / Obsidian connectors (S2 Layer 3) -- third-party data processors.
+- N5. Browser-extension surface (S3) -- Hard Constraint #1, no new product surface.
+- N6. Cross-platform sandbox for yolo-mode (S1 CCO) -- CCO is Mac-only; Windows / Linux equivalents non-trivial.
+
+Cross-version carryovers from v0.7.0 known-gaps Section 7 (scope-grounded deferrals, not policy drops):
+
+- LSTM predictive caching (v0.5.0 architecture; v0.6.0 ADR-0009 closed the ARIMA prototype).
+- Multi-provider LLM proxy (overlaps N2).
+- Voice transcription.
+- Distributed cache.
+- `/memory prune --apply`, `/memory lint --apply` (read-side ships; write-side deferred).
+- `format=json` on `read_file` and `run_terminal`.
+- Severity-rubric CI gate that fails builds (currently informational).
+- Streaming reads for files > 1 MB (current 1 MB pagination ceiling assumed sufficient).
+- Auto-merge for Dependabot PRs.
+- Rust performance components.
+- Go CLI tooling for project scaffolding.
+- ripgrep-backed `GrepCodebaseTool`.
+- Extension Marketplace publication.
+- Tree-sitter AST parsing.
+- SSE transport for MCP server (current MCP transport is stdio only).
+
+---
+
 ## [0.6.0] -- 2026-05-04
 
 Hygiene and ratchet release. Closes the only chained P0 security finding from the v0.5.0 review pass, fixes the test pipeline that was masking failures, decomposes two god-class panel modules, removes four `BASELINE-2026-04-25` dependency-cruiser exceptions, and either wires or retracts every `documented-but-not-implemented` claim from v0.5.0. No new product surface beyond what the closure of those findings required. Five new ADRs (0006-0010) capture the material decisions.

@@ -1,0 +1,19 @@
+{
+  "version": "0.7.0",
+  "model": "gemma4:e4b",
+  "timestamp": "pending",
+  "hardware": {},
+  "status": "deferred-to-operator",
+  "deferralReason": "Live-Ollama capture requires `ollama serve` with `gemma4:e4b` pulled on a quiescent dev workstation; the v0.7.0 cycle agent does not have access to the model layer. The plan also assumed a TS-native golden runner that was never built during the cycle. Following the same precedent as v0.6.0 known-gaps Section 1.1 (the v0.6.0 cycle deferred its own golden baseline capture for the same reason), this file ships as a placeholder so the path exists and the regression-check tooling has a fixed target to populate when the operator runs the live suite.",
+  "operatorProcedure": "Run `python tests/golden/framework/run_all.py --model gemma4:e4b --output tests/golden/baselines/v0.7.0.json` against live Ollama on a quiescent workstation. Then run `python tests/golden/framework/regression.py --baseline tests/golden/baselines/v0.6.0.json --candidate tests/golden/baselines/v0.7.0.json` to verify no regression vs. v0.6.0. Note: `tests/golden/baselines/v0.6.0.json` is itself a v0.6.0 known-gaps carryover (Section 1.1); both v0.6.0 and v0.7.0 captures should land together.",
+  "tasks": {},
+  "aggregates": {
+    "pass_rate": null,
+    "passed": null,
+    "total": 29,
+    "mean_iterations": null,
+    "mean_time_ms": null,
+    "total_tokens": null,
+    "by_category": {}
+  }
+}

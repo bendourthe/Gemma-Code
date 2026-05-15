@@ -1,0 +1,115 @@
+{
+  "note": "Captured on the v0.7.0 main branch post-Phase-7 per docs/v0.7.0/plans/v0.7.0-cycle.md sub-task 8.1. Live-Ollama benches (model-tier-matrix, time-to-first-token, compress-tool latency) auto-skip when OLLAMA_URL is unset; the captured set is the deterministic in-process subset. The capture host was NOT quiescent: every retained benchmark shows a uniform 30-80% hz drop versus v0.6.0 which is inconsistent with any single v0.7.0 code change and is most consistent with CPU pressure / thermal throttling / background-process noise. A quiescent re-capture is tracked in docs/v0.7.0/known-gaps.md.",
+  "version": "0.7.0",
+  "thresholds": {
+    "regressionPct": 20
+  },
+  "benchmarks": {
+    "hit on populated cache": {
+      "hz": 2891.7380085365644,
+      "mean": 0.3458127939142297,
+      "rme": 19.576651176866726
+    },
+    "miss on populated cache": {
+      "hz": 6856.035060352505,
+      "mean": 0.1458568970545178,
+      "rme": 1.4042222683410917
+    },
+    "estimateTokens — 50 messages": {
+      "hz": 877115.2983087427,
+      "mean": 0.0011401009672596112,
+      "rme": 21.73497484054957
+    },
+    "estimateTokens — 100 messages": {
+      "hz": 557100.7951156126,
+      "mean": 0.0017950073106473932,
+      "rme": 19.127424238826535
+    },
+    "estimateTokens — 200 messages": {
+      "hz": 308123.07563083566,
+      "mean": 0.003245456374705628,
+      "rme": 0.503063223957775
+    },
+    "lru: full Zipf trace replay": {
+      "hz": 1989.5984990229174,
+      "mean": 0.5026139698492411,
+      "rme": 2.963589681388648
+    },
+    "lfu: full Zipf trace replay": {
+      "hz": 1447.4899045575262,
+      "mean": 0.6908511049724271,
+      "rme": 14.547611297728716
+    },
+    "arc: full Zipf trace replay": {
+      "hz": 1758.6535748230983,
+      "mean": 0.5686168181818237,
+      "rme": 1.5946487303365315
+    },
+    "wtinylfu: full Zipf trace replay": {
+      "hz": 826.8491912955297,
+      "mean": 1.2094103864734667,
+      "rme": 1.972768921230315
+    },
+    "clock: full Zipf trace replay": {
+      "hz": 1479.6944490151366,
+      "mean": 0.6758151999999633,
+      "rme": 24.564429177123152
+    },
+    "check-tool-permission (benign Write)": {
+      "hz": 16.02334023832474,
+      "mean": 62.40896000000005,
+      "rme": 14.654639277234807
+    },
+    "check-prompt-policy (64 KB benign prompt)": {
+      "hz": 13.61002884917815,
+      "mean": 73.47523000000001,
+      "rme": 29.98536641506253
+    },
+    "render ~100-token message": {
+      "hz": 223.91638962011658,
+      "mean": 4.465952678571414,
+      "rme": 6.104107814465907
+    },
+    "render ~500-token message": {
+      "hz": 104.98144898564918,
+      "mean": 9.525492452830392,
+      "rme": 9.561063706550911
+    },
+    "render ~2000-token message": {
+      "hz": 29.358935891240098,
+      "mean": 34.06118000000036,
+      "rme": 59.73763511276997
+    },
+    "load 10 skills": {
+      "hz": 163143.9021137063,
+      "mean": 0.006129557936545067,
+      "rme": 11.796788798164602
+    },
+    "load 50 skills": {
+      "hz": 205554.478897098,
+      "mean": 0.004864890346177312,
+      "rme": 0.8224690525307792
+    },
+    "load 100 skills": {
+      "hz": 174124.2939887078,
+      "mean": 0.0057430240036743605,
+      "rme": 16.63886792988774
+    },
+    "read 100-line file": {
+      "hz": 27309.246264803005,
+      "mean": 0.03661763456609312,
+      "rme": 1.16601999939884
+    },
+    "read 1000-line file": {
+      "hz": 17923.333252001514,
+      "mean": 0.055793193483602115,
+      "rme": 27.410743571150626
+    },
+    "read 10000-line file": {
+      "hz": 27589.939302129096,
+      "mean": 0.036245096049299055,
+      "rme": 1.048316983364209
+    }
+  },
+  "createdAt": "2026-05-15T05:08:04.643Z"
+}

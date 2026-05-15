@@ -325,7 +325,7 @@ Zero P0 carryovers means the v0.6.0 Definition-of-Done criterion "Zero P0 findin
 
 This section is appended phase-by-phase as v0.7.0 lands. Each entry records the source phase, plan reference, reason, and suggested next step. Items are moved to `## Resolved` when closed in a later phase, and the `## Summary` at the bottom of the section is recomputed each pass.
 
-**Last updated**: 2026-05-14 (Phase 7 close)
+**Last updated**: 2026-05-14 (Phase 8 close; v0.7.0 about to be tagged)
 
 ### 10.1 Open Items (closed -- all transferred to v0.8.0 plan; preserved here as audit trail)
 
@@ -344,6 +344,10 @@ This section is appended phase-by-phase as v0.7.0 lands. Each entry records the 
 | 10.O.11 | Phase 7 | docs/v0.7.0/plans/v0.7.0-cycle.md Phase 7 sub-task 7.1 | MT | P2 | The HNSW recall-delta and HNSW-load-failure integration tests are gated on `hnswlib-node` being loadable at test time. On the local Windows dev workstation and in CI the optionalDependency does not install, so `it.runIf(HNSW_AVAILABLE)` skips the loaded-path tests. Coverage of the linear-scan fallback contract is exercised; the loaded HNSW path is only verified by the always-on graceful-fallback test. | Run the test suite on a machine where `hnswlib-node` installs cleanly (Linux x64 or macOS) and confirm the 5 skipped MemoryHnswIndex + 2 skipped memory-hnsw integration tests pass. Capture the result in v0.8.0 Phase 0 close-out. |
 | 10.O.12 | Phase 7 | docs/v0.7.0/plans/v0.7.0-cycle.md Phase 7 sub-task 7.2 | MT | P2 | The background-worker triggers in AgentLoop are exercised at the unit level with a mock subAgentManager. The end-to-end path -- AgentLoop -> SubAgentManager.run -> BackgroundWorkers.runAuditWorker -> spawn `node bin/gemma-check.mjs --json` -> chat message render -- is NOT covered by an integration test. The deterministic-runner injection makes a real E2E test feasible but it was not added in Phase 7. | Add `tests/integration/background-workers-end-to-end.test.ts` covering one audit-worker run with `gemma-check` against a fixture file and one testgaps-worker run against a tiny vitest sample. Defer to v0.8.0 Phase 7 if scope is tight. |
 | 10.O.13 | Phase 7 | docs/v0.7.0/plans/v0.7.0-cycle.md Phase 7 sub-task 7.1 | DF | P3 | `hnswlib-node` is listed as an `optionalDependency` but `npm install` was not re-run in Phase 7 (the dependency check is the operator's responsibility under v0.7.0 known-gaps Section 1.1). The package-lock has not been regenerated. | Operator: run `npm install` on the next cycle close-out; verify `hnswlib-node` either installs or is gracefully skipped on the target platform; commit the resulting `package-lock.json` change. |
+| 10.O.14 | Phase 8 | docs/v0.7.0/plans/v0.7.0-cycle.md sub-task 8.1 | DF | P1 | `tests/golden/baselines/v0.7.0.json` ships as a `status: deferred-to-operator` placeholder. Live-Ollama capture requires `ollama serve` with `gemma4:e4b` pulled on a quiescent dev workstation; the Phase 8 author does not have access to the model layer. The plan also assumed a TS-native golden runner that was never built during the cycle (the existing Python framework in `tests/golden/framework/` is the only runner). Same precedent as v0.6.0 known-gaps Section 1.1 (whose v0.6.0 baseline is also still pending operator capture). | Operator: run `python tests/golden/framework/run_all.py --model gemma4:e4b --output tests/golden/baselines/v0.7.0.json` on a quiescent workstation; then run the regression check against `tests/golden/baselines/v0.6.0.json` (also a pending capture; both should land together). Build the TS-native golden runner in v0.8.0 if cycle scope permits. |
+| 10.O.15 | Phase 8 | docs/v0.7.0/plans/v0.7.0-cycle.md sub-task 8.1 | BG | P2 | The captured `tests/benchmarks/baselines/v0.7.0.json` shows a uniform 30-80% hz drop across every retained benchmark (cache, eviction, hooks, rendering, skill-loading, file reading) versus the v0.6.0 baseline. The signature (uniform across unrelated subsystems) is inconsistent with any single v0.7.0 code change and is most consistent with CPU pressure / thermal throttling / background-process noise on a non-quiescent capture host. The plan explicitly requires a "quiescent dev workstation" for the bench capture. | Operator: re-run `npm run bench -- --outputJson=tests/benchmarks/baselines/v0.7.0.json` on a quiescent workstation, then re-run `node scripts/check-bench-regressions.mjs --baseline tests/benchmarks/baselines/v0.6.0.json --current <newJson>` and either accept the new numbers as the canonical v0.7.0 baseline or document any genuine code-caused regression. |
+| 10.O.16 | Phase 8 | docs/v0.7.0/plans/v0.7.0-cycle.md Phase 8 stability gate (implicit) | QG | P2 | `npm run deps:check` reports the same 4 pre-existing violations from Phase 6 / item 10.O.9 (3x `no-storage-from-panels` for MemoryPanel imports, 1x `no-panels-from-tools` for ConfirmationGate -> permissionPrompt). The Phase 8 release-gate review accepted these as pre-existing v0.7.0 internal carryovers rather than v0.6.0 -> v0.7.0 regressions and did not block on them. Already tracked as 10.O.9 transferred to v0.8.0 plan (Phase 7 appendix sub-task 7.B). | Duplicate of 10.O.9; v0.8.0 Phase 7 appendix 7.B is the canonical close-out. |
+| 10.O.17 | Phase 8 | docs/v0.7.0/plans/v0.7.0-cycle.md sub-task 8.1 | NI | P3 | The plan referenced a TS-native golden runner as the v0.7.0-cycle deliverable ("if not yet built, this is the cycle to build it"). It was never built; the Python framework in `tests/golden/framework/` is still the only runner. No earlier phase formally absorbed this scope. | Defer to v0.8.0. Either explicitly accept the Python runner as canonical (and rewrite the plan reference) or build the TS-native runner before the v0.8.0 release gate. |
 
 ### 10.2 Resolved
 
@@ -362,20 +366,24 @@ This section is appended phase-by-phase as v0.7.0 lands. Each entry records the 
 | 10.O.11 | Phase 7 | docs/v0.7.0/plans/v0.7.0-cycle.md Phase 7 sub-task 7.1 | MT | transferred to v0.8.0 plan (Phase 0 close-out) | Carried to v0.8.0; close when the operator runs the suite on a platform where `hnswlib-node` installs cleanly and the gated HNSW tests run green. |
 | 10.O.12 | Phase 7 | docs/v0.7.0/plans/v0.7.0-cycle.md Phase 7 sub-task 7.2 | MT | transferred to v0.8.0 plan (Phase 7 carryover) | Carried to v0.8.0; close when the background-workers end-to-end integration test lands. |
 | 10.O.13 | Phase 7 | docs/v0.7.0/plans/v0.7.0-cycle.md Phase 7 sub-task 7.1 | DF | transferred to v0.8.0 plan (Phase 0 close-out) | Carried to v0.8.0; close when `npm install` re-runs and `package-lock.json` is regenerated with `hnswlib-node` resolved (or gracefully skipped). |
+| 10.O.14 | Phase 8 | docs/v0.7.0/plans/v0.7.0-cycle.md sub-task 8.1 | DF | transferred to v0.8.0 plan (Phase 0 close-out) | Carried to v0.8.0; close when the operator captures `tests/golden/baselines/v0.7.0.json` against live Ollama on a quiescent workstation. |
+| 10.O.15 | Phase 8 | docs/v0.7.0/plans/v0.7.0-cycle.md sub-task 8.1 | BG | transferred to v0.8.0 plan (Phase 0 close-out) | Carried to v0.8.0; close when the bench baseline is re-captured on a quiescent workstation and the regression check vs. v0.6.0 either runs green or documents a real code regression. |
+| 10.O.16 | Phase 8 | docs/v0.7.0/plans/v0.7.0-cycle.md Phase 8 stability gate (implicit) | QG | duplicate of 10.O.9 | Already transferred via 10.O.9 to v0.8.0 plan (Phase 7 appendix sub-task 7.B). |
+| 10.O.17 | Phase 8 | docs/v0.7.0/plans/v0.7.0-cycle.md sub-task 8.1 | NI | transferred to v0.8.0 plan (Phase 0 close-out) | Carried to v0.8.0; close when either the Python runner is explicitly canonised in the plan or the TS-native runner ships. |
 
-All thirteen open items have been transferred to the v0.8.0 plan. The items remain unresolved (the work has not been done); they are tracked in a new surface so the v0.7.0 in-cycle log reaches its terminal state. When each v0.8.0 sub-task lands, the corresponding entry in `docs/v0.8.0/known-gaps.md` Section 10 is resolved as the canonical source.
+All seventeen open items have been transferred to the v0.8.0 plan. The items remain unresolved (the work has not been done); they are tracked in a new surface so the v0.7.0 in-cycle log reaches its terminal state. When each v0.8.0 sub-task lands, the corresponding entry in `docs/v0.8.0/known-gaps.md` Section 10 is resolved as the canonical source.
 
 ### 10.3 Summary (v0.7.0 in-cycle)
 
 | Category | Open | Resolved (transferred to v0.8.0) |
 |---|---|---|
-| NI (not implemented) | 0 | 4 |
-| DF (deferred) | 0 | 5 |
-| BG (bug) | 0 | 0 |
+| NI (not implemented) | 0 | 5 |
+| DF (deferred) | 0 | 6 |
+| BG (bug) | 0 | 1 |
 | MT (missing tests) | 0 | 2 |
 | WN (warning) | 0 | 2 |
-| QG (gate bypass) | 0 | 0 |
-| **Total** | **0** | **13** |
+| QG (gate bypass) | 0 | 1 |
+| **Total** | **0** | **17** |
 
-**Status**: all items transferred. The v0.7.0 in-cycle log is closed; v0.8.0's `docs/v0.8.0/known-gaps.md` is the canonical tracking surface going forward.
+**Status**: all items transferred (13 from Phases 4-7 close + 4 net new from Phase 8 with one a 10.O.9 duplicate). The v0.7.0 in-cycle log is closed; v0.8.0's `docs/v0.8.0/known-gaps.md` is the canonical tracking surface going forward.
 

@@ -17,7 +17,7 @@ Gemma Code brings a Claude Code-style agentic workflow to VS Code, running entir
 - **Persistent history** — sessions are stored in a local SQLite database; resume any past conversation
 - **4-layer memory system** — working memory (ephemeral task state), episodic memory (structured session events), semantic memory (FTS5 + embeddings), and graph memory (entity-relationship triples) with unified cross-layer retrieval
 - **Hardware-aware** — auto-detects GPU/VRAM, classifies into three tiers (constrained/balanced/full), and adjusts context budgets, compaction thresholds, and iteration limits accordingly
-- **Multi-strategy context compaction** — 6-stage pipeline (tool result clearing, sliding window, code block truncation, regenerate-from-source, LLM summary, emergency trim) keeps long sessions within context limits
+- **Multi-strategy context compaction** — 8-stage pipeline (deduplication, purge-errors, tool result clearing, sliding window, code block truncation, regenerate-from-source, LLM summary, emergency trim) keeps long sessions within context limits, with a model-callable `compress` tool as the on-demand escape hatch
 - **Conditional tool activation** — tools are enabled/disabled based on runtime context (Ollama reachability, network availability, session mode); keeps the prompt clean for better model reliability
 - **Sub-agent orchestration** — spawns isolated verification, research, and planning sub-agents with scoped tools; auto-verification triggers after file edits to catch bugs early; `/verify` and `/research` slash commands for manual control
 - **MCP support** — Model Context Protocol client connects to external MCP servers; MCP server exposes Gemma Code's tools to external clients (opt-in, off by default)
@@ -146,9 +146,9 @@ All settings are under `gemma-code.*` in VS Code settings (`Ctrl+,`).
 | `/clear` | Clear the current conversation |
 | `/history` | Browse and resume past sessions |
 | `/plan` | Toggle plan mode on/off |
-| `/compact` | Manually trigger context compaction |
+| `/compact [context\|sweep\|decompress\|recompress\|manual]` | Manually trigger context compaction. Bare `/compact` is the legacy summary trigger; the verbs surface the new v0.7.0 strategies (`context` runs the deterministic 8-stage pipeline, `sweep` purges error / dedup clusters, `decompress`/`recompress` work with the model-callable `compress` tool, `manual` accepts a verbatim summary). |
 | `/model [name]` | Switch the active model |
-| `/memory <subcommand>` | Manage persistent memory (search, save, clear, status, lint, init, archive, edit) |
+| `/memory <subcommand>` | Manage persistent memory (`search`, `save`, `clear`, `status`, `lint`, `init`, `archive`, `edit`, `forget`, `export`, `import`) |
 | `/memory init [--force]` | Scaffold the file-backed memory architecture at `~/.gemma-code/memory/<workspace-id>/` (Instructions.md, Memory.md, Context.md). `--force` overwrites existing files. |
 | `/memory archive` | Snapshot the three memory files into `Archive/<YYYY-MM-DD>/`. Idempotent for the day. |
 | `/memory edit [instructions\|memory\|context]` | Open a memory file in VS Code for direct editing. Defaults to `memory`. |
