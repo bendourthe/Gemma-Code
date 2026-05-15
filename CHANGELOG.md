@@ -1,3 +1,10 @@
+## [0.7.3](https://github.com/bendourthe/Gemma-Code/compare/v0.7.2...v0.7.3) (2026-05-15)
+
+
+### Bug Fixes
+
+* **nightly:** suppress MarkdownRenderer benches in bench gate while marked v12 perf regression is investigated ([0cc6cf3](https://github.com/bendourthe/Gemma-Code/commit/0cc6cf31dc439313e2186e4d4a2b5f60f236bbc2))
+
 ## [0.7.2](https://github.com/bendourthe/Gemma-Code/compare/v0.7.1...v0.7.2) (2026-05-15)
 
 
