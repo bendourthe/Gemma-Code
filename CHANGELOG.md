@@ -1,3 +1,10 @@
+## [0.7.1](https://github.com/bendourthe/Gemma-Code/compare/v0.7.0...v0.7.1) (2026-05-15)
+
+
+### Bug Fixes
+
+* **ci:** align stryker pins so npm ci resolves on CI ([bcd037c](https://github.com/bendourthe/Gemma-Code/commit/bcd037c792dc8fddef57753d597e20fa59fc40f2))
+
 # [0.6.0](https://github.com/bendourthe/Gemma-Code/compare/v0.5.5...v0.6.0) (2026-04-27)
 
 
