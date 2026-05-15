@@ -183,9 +183,43 @@ Lands in Phase 4. See [docs/v0.7.0/plans/v0.7.0-cycle.md](./plans/v0.7.0-cycle.m
 
 ---
 
-## 5. Multi-harness skill packaging (Phase 6 -- TBD)
+## 5. Multi-harness skill packaging (Phase 6)
 
-Lands in Phase 6. See [docs/v0.7.0/plans/v0.7.0-cycle.md](./plans/v0.7.0-cycle.md) "Phase 6".
+Phase 6 adds `scripts/package-skills.mjs`, an LLM-free Node script that exports the gemma-code skill catalog into four sibling agentic harnesses:
+
+| Harness | Output path (relative to `dist/<harness>/`) | Transform |
+|---|---|---|
+| Claude Code | `.claude/skills/<slug>/SKILL.md` | byte-identical copy |
+| OpenCode | `.opencode/skills/<slug>/SKILL.md` | byte-identical copy |
+| Gemini CLI | `.gemini/skills/<slug>/SKILL.md` | byte-identical copy |
+| Cursor | `.cursor/rules/<slug>.md` | rewrites frontmatter to `rule: SKILL` and preserves the original `name` / `description` / `argument-hint` fields as inline comments |
+
+Each harness output also gets a `README.md` explaining the source, the schema mapping, and the no-edit-in-place rule. The Cursor adapter logs a warning at run-time because Cursor's native rule format (`.cursor/rules/<slug>.mdc` with `description` / `globs` / `alwaysApply`) differs enough from the Anthropic SKILL.md schema that a 1:1 conversion is non-trivial; a fully-native conversion is tracked as a follow-up.
+
+`dist/` is gitignored. The CI job `package-skills` (in [.github/workflows/ci.yml](../../.github/workflows/ci.yml)) runs the script on every push and uploads the four trees as separate artifacts (`skills-claude-code`, `skills-cursor`, `skills-opencode`, `skills-gemini-cli`) so the v0.7.0 release pipeline can attach them to the GitHub release without an extra manual step.
+
+Local entry point: `npm run package:skills` (or `npm run package:skills -- --quiet --no-clean`).
+
+---
+
+## 6. gemma-check standalone CLI (Phase 6)
+
+Phase 6 also ships `bin/gemma-check.mjs`, a LLM-free deterministic checks CLI. It walks a directory or file and runs a small, hand-curated rule set. The CLI is registered as a published `bin` (`gemma-check`) and can be invoked locally with `npm run check` or via `node bin/gemma-check.mjs`.
+
+Shipped rules (severity in parentheses):
+
+| Rule id | Severity | What it flags |
+|---|---|---|
+| `no-secret-patterns` | error | AWS access keys, GitHub PATs, JWT triplets, PEM / SSH private-key block headers (mirrors `scripts/hooks/check-prompt-policy.mjs`) |
+| `no-math-random-for-tokens` | error | `Math.random()` in files whose path contains `auth` / `token` / `crypto` / `secret` / `password` / `jwt` / `session` |
+| `no-committed-console-log` | warning | `console.log(` in production code (skips test files) |
+| `no-env-file-leakage` | warning | string-literal `.env` references in production code (skips test / example / docs files, allows `.env.example`) |
+
+Rule modules live under `lib/checks/`. Each exports `{ id, severity, scan(filePath, contents): Finding[] }`; the central registry is [lib/checks/index.mjs](../../lib/checks/index.mjs).
+
+Allowlist mechanism: any rule can be suppressed inline with a `gemma-check-allow` comment (same line) or `gemma-check-allow-next-line` (immediately preceding line), optionally with a `: <rule-id>` suffix to scope the suppression to one rule. The helper that interprets the markers lives in [lib/checks/helpers.mjs](../../lib/checks/helpers.mjs).
+
+CI gate: the `gemma-check` job runs `node bin/gemma-check.mjs src/` on every push; the gate is "no findings". The CLI is the first piece of the optional Phase 7 audit-worker pipeline.
 
 ---
 

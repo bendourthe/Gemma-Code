@@ -21,7 +21,7 @@ For the ADR-level architecture see [../ARCHITECTURE.md](../ARCHITECTURE.md) and 
 | `panels` | 28 | 7923 | [src/panels/webview/index.ts](../src/panels/webview/index.ts) | `ACTION_TAG_FN_SOURCE`, `ActionClassificationMessage`, `actionLabelFor` |
 | `runtime` | 1 | 94 | [src/runtime/GemmaRuntime.ts](../src/runtime/GemmaRuntime.ts) | `GemmaRuntime` |
 | `skills` | 1 | 185 | [src/skills/SkillLoader.ts](../src/skills/SkillLoader.ts) | `Skill`, `SkillLoader` |
-| `storage` | 30 | 6966 | [src/storage/eviction/index.ts](../src/storage/eviction/index.ts) | `ARCEvictor`, `ArchiveResult`, `BrokenPathIssue` |
+| `storage` | 30 | 6967 | [src/storage/eviction/index.ts](../src/storage/eviction/index.ts) | `ARCEvictor`, `ArchiveResult`, `BrokenPathIssue` |
 | `tools` | 19 | 4986 | [src/tools/handlers/filesystem.ts](../src/tools/handlers/filesystem.ts) | `AgentLoop`, `AgentLoopOptions`, `ALLOWED_COMMANDS` |
 | `utils` | 6 | 979 | [src/utils/Compressor.ts](../src/utils/Compressor.ts) | `BROTLI_QUALITY`, `CompressedToolOutput`, `CompressionResult` |
 

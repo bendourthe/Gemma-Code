@@ -416,6 +416,9 @@
       }
     }
   },
+  "bin": {
+    "gemma-check": "./bin/gemma-check.mjs"
+  },
   "scripts": {
     "generate:golden-tasks": "node scripts/generate-golden-tasks.mjs",
     "prebuild": "npm run generate:golden-tasks",
@@ -428,6 +431,8 @@
     "lint": "eslint src",
     "package": "powershell -NonInteractive -ExecutionPolicy Bypass -File scripts/build-vsix.ps1",
     "package:quick": "vsce package",
+    "package:skills": "node scripts/package-skills.mjs",
+    "check": "node bin/gemma-check.mjs",
     "bench": "vitest bench --run --config configs/vitest.config.ts",
     "deps:check": "depcruise --config configs/dependency-cruiser.cjs src tests",
     "deps:graph": "depcruise --config configs/dependency-cruiser.cjs --output-type dot src | dot -Tsvg > docs/v0.5.0/dep-graph.svg",

@@ -178,6 +178,30 @@ Gemma 4 itself sees the available tools through [src/tools/ToolCatalog.ts](src/t
 
 Add your own skills to `~/.gemma-code/skills/<name>/SKILL.md`. Gemma Code hot-reloads skills as you add or modify them. See [docs/v0.1.0/tool-protocol.md](docs/v0.1.0/tool-protocol.md) for the SKILL.md format.
 
+### Use Gemma Code's skills in other agentic harnesses
+
+The skill catalog is exported on every release as four ready-to-drop-in bundles for Claude Code, Cursor, OpenCode, and Gemini CLI. To regenerate locally:
+
+```bash
+npm run package:skills
+# writes dist/{claude-code,cursor,opencode,gemini-cli}/
+```
+
+Each output tree contains a `README.md` describing the source and the schema mapping; the Claude Code / OpenCode / Gemini CLI bundles are byte-identical copies, while the Cursor bundle uses a placeholder `rule: SKILL` marker because Cursor's native rule format (`.cursor/rules/<slug>.mdc`) differs from the Anthropic SKILL.md schema. See [docs/v0.7.0/architecture.md](docs/v0.7.0/architecture.md) section 5 for details.
+
+### `gemma-check` -- standalone deterministic checks CLI
+
+Gemma Code ships a small LLM-free checks CLI that scans a directory for committed `console.log`, `Math.random()` in security-sensitive files, hardcoded `.env` references, and AWS / GitHub / JWT / PEM secret patterns. It is published as the `gemma-check` binary:
+
+```bash
+npx gemma-check src/                 # walk src/ recursively
+npx gemma-check --json src/          # JSON output for CI / tooling
+npx gemma-check --rule no-secret-patterns src/
+npx gemma-check --list-rules         # print rule ids and severities
+```
+
+Exit codes: `0` = no findings, `1` = at least one finding, `2` = invalid invocation or I/O error. Findings can be suppressed inline with a `// gemma-check-allow` comment (same line) or `// gemma-check-allow-next-line` (preceding line), optionally scoped to one rule via `: <rule-id>`. See [docs/v0.7.0/architecture.md](docs/v0.7.0/architecture.md) section 6 for the rule reference.
+
 ---
 
 ## Troubleshooting

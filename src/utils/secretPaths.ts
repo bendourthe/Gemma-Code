@@ -17,7 +17,7 @@ import { Minimatch } from "minimatch";
  * be case-insensitive on Windows.
  */
 export const SECRET_PATH_PATTERNS: readonly string[] = [
-  "**/.env*",
+  "**/.env*", // gemma-check-allow: no-env-file-leakage
   "**/id_rsa*",
   "**/id_ed25519*",
   "**/id_ecdsa*",

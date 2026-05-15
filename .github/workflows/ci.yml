@@ -143,6 +143,68 @@ jobs:
           awk -v v="$branches" 'BEGIN { exit (v + 0 < 75) }' || { echo "TS branch coverage $branches% is below the 75% threshold"; exit 1; }
           echo "TS coverage gates: OK"
 
+  # -- Multi-harness skill packaging ----------------------------------------
+  #
+  # Runs `scripts/package-skills.mjs` and uploads the dist/{harness}/ trees
+  # as build artifacts so the v0.7.0+ release pipeline can attach them to
+  # the GitHub release without an additional manual step. The script is
+  # deterministic, so this also serves as a sync check: if the catalog
+  # changes, the artifact diff makes that visible.
+
+  package-skills:
+    name: Package skills for sibling harnesses
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci --prefer-offline --no-audit
+      - name: Package skills (claude-code, cursor, opencode, gemini-cli)
+        run: npm run package:skills -- --quiet
+      - name: Upload Claude Code bundle
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: skills-claude-code
+          path: dist/claude-code/
+          retention-days: 30
+      - name: Upload Cursor bundle
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: skills-cursor
+          path: dist/cursor/
+          retention-days: 30
+      - name: Upload OpenCode bundle
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: skills-opencode
+          path: dist/opencode/
+          retention-days: 30
+      - name: Upload Gemini CLI bundle
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: skills-gemini-cli
+          path: dist/gemini-cli/
+          retention-days: 30
+
+  # -- gemma-check self-scan ------------------------------------------------
+  #
+  # Runs the standalone deterministic-checks CLI against `src/`. The CLI is
+  # LLM-free and the gate is "no findings" -- it serves both as a sanity
+  # check on the new tool and as a regression guard against accidental
+  # console.log / hardcoded-secret leaks in the production source tree.
+
+  gemma-check:
+    name: gemma-check (src/)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+      - run: node bin/gemma-check.mjs src/
+
   # -- Installer unit tests --------------------------------------------------
 
   test-installer:

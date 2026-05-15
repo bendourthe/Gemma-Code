@@ -4,6 +4,102 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-14] v0.7.0 Phase 6 -- multi-harness skill packaging + standalone deterministic-checks CLI
+
+### Goal
+
+Ship two LLM-free release artifacts: (1) a packaging script that exports the gemma-code skill catalog into four sibling agentic harnesses (Claude Code, Cursor, OpenCode, Gemini CLI), and (2) a standalone Node CLI (`gemma-check`) that runs a small hand-curated rule set against a directory and exits non-zero on findings. Plan reference: [docs/v0.7.0/plans/v0.7.0-cycle.md](v0.7.0/plans/v0.7.0-cycle.md) Phase 6 (sub-tasks 6.1, 6.2). Adopts comparison findings C29, C30.
+
+### Decisions
+
+#### 6.1: `scripts/package-skills.mjs` and the per-harness adapter table
+
+The packaging script reads `src/skills/catalog/<slug>/SKILL.md` for every skill and writes a per-harness output tree under `dist/<harness>/`. Three of the four harnesses (Claude Code, OpenCode, Gemini CLI) follow the Anthropic SKILL.md schema verbatim, so the script emits byte-identical copies under their conventional paths (`.claude/skills/<slug>/SKILL.md`, `.opencode/skills/<slug>/SKILL.md`, `.gemini/skills/<slug>/SKILL.md`).
+
+Cursor was the open question. Its native rule format is `.cursor/rules/<slug>.mdc` with frontmatter `description` / `globs` / `alwaysApply` -- a real 1:1 conversion is non-trivial because `argument-hint` does not map cleanly onto `globs` (the semantics differ) and `alwaysApply` has no SKILL counterpart. Rather than ship a half-baked mapping, the Cursor adapter emits `.cursor/rules/<slug>.md` (not `.mdc`) with a placeholder `rule: SKILL` frontmatter, preserves the body verbatim, and inlines the original SKILL frontmatter as `# original: ...` comment lines so a future converter can recover them. The adapter logs a per-run warning, the bundled `README.md` inside `dist/cursor/` documents the limitation, and the deferral is tracked as in-cycle gap 10.O.7.
+
+The harness adapter table (`HARNESSES`) and the SKILL parser (`parseSkill`) are exported from the script so unit tests can exercise the transforms without spawning a child process or touching `dist/`. The `main()` entry is guarded with the standard `import.meta.url === pathToFileURL(process.argv[1]).href` idiom so importing the script does not trigger writes.
+
+Each output directory gets a generated `README.md` (`buildHarnessReadme`) explaining: source path, schema mapping, installation steps, and the no-edit-in-place rule. The list of skills is sorted alphabetically for determinism.
+
+CI integration: a new `package-skills` job in [.github/workflows/ci.yml](../.github/workflows/ci.yml) runs the script with `--quiet` and uploads each `dist/<harness>/` tree as a separate `actions/upload-artifact@v4` artifact (`skills-claude-code`, `skills-cursor`, `skills-opencode`, `skills-gemini-cli`) with a 30-day retention. The v0.7.0 release pipeline will attach these to the GitHub release.
+
+Local entry point: `npm run package:skills` (or `npm run package:skills -- --quiet --no-clean`).
+
+#### 6.2: `bin/gemma-check.mjs` -- standalone deterministic checks CLI
+
+A new published `bin` (`gemma-check`) wraps a small rule set under `lib/checks/`. Each rule module exports `{ id, severity, scan(filePath, contents): Finding[] }`. The CLI walks a directory or file recursively, applies the selected rules to every file whose extension is in `SCANNED_EXTENSIONS` (`.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.mts`, `.cts`), and emits findings either as human-readable lines or as `{findings: [...]}` JSON. Exit codes: `0` = no findings, `1` = one or more findings, `2` = invalid invocation or I/O error.
+
+Shipped rules:
+
+- **`no-secret-patterns`** (error): AWS access keys, GitHub PATs, JWT triplets, PEM / SSH private-key block headers. Patterns are identical to `scripts/hooks/check-prompt-policy.mjs` (gitleaks-derived, ReDoS-resistant via bounded quantifiers).
+- **`no-math-random-for-tokens`** (error): `Math.random()` in files whose path contains `auth` / `token` / `crypto` / `secret` / `password` / `jwt` / `session`. The "path" check is the full normalised path so a file under `src/auth/` counts even if its basename is generic.
+- **`no-committed-console-log`** (warning): `console.log(` outside test files; mirrors the project's `no-console` ESLint rule and extends coverage to `.mjs` / `.js` files that ESLint does not lint.
+- **`no-env-file-leakage`** (warning): string-literal `.env` references outside test / example / docs files. A negative lookbehind `(?<![A-Za-z0-9_$])` rejects property accessors (`process.env`, `vscode.env.openExternal`, `this._config.env`); a same-line `.env.example` literal is allow-listed; matches inside line comments and JSDoc continuations are skipped via the shared `isInComment` helper.
+
+The 5th optional rule from the plan (`no-bare-promise-rejection`) is deferred and logged as in-cycle gap 10.O.8.
+
+Two cross-cutting helpers live in [lib/checks/helpers.mjs](../lib/checks/helpers.mjs):
+
+- **`isAllowed(contents, offset, ruleId)`**: recognises `gemma-check-allow` (same line) and `gemma-check-allow-next-line` (immediately preceding line) markers, optionally with a `: <rule-id>` suffix to scope the suppression. A bare marker suppresses any rule on that line; a marker with a rule list suppresses only the listed rule ids. The disambiguation between `gemma-check-allow` and `gemma-check-allow-next-line` is handled with a guard on the trailing characters so the shorter marker does not falsely match the longer one.
+- **`isInComment(contents, offset)`**: best-effort detector for matches sitting inside `//` line comments, trailing `// ...` comments, JSDoc `/* ... */` blocks, and JSDoc `* ...` continuation lines. Block-comment detection is a partial heuristic rather than a full `/*` -> `*/` scanner -- sufficient for production rule use.
+
+Allow markers were added inline to two production source files that legitimately reference patterns the rules detect:
+
+- [src/utils/secretPaths.ts](../src/utils/secretPaths.ts) line 20: the `"**/.env*"` entry in `SECRET_PATH_PATTERNS` (the denylist that detects env files -- it has to reference the literal).
+- [src/storage/MemoryHealthCheck.ts](../src/storage/MemoryHealthCheck.ts) line 19: the `SECRET_TOKEN_REGEX` that detects `.env.*` tokens (same reason).
+
+The CLI also surfaces a `--list-rules`, `--rule <id>` (repeatable), `--json`, and `--help` switch set. The `--rule` flag funnels through `selectRules`, which throws on unknown ids (exit code 2).
+
+CI integration: a new `gemma-check` job in [.github/workflows/ci.yml](../.github/workflows/ci.yml) runs `node bin/gemma-check.mjs src/` on every push. The gate is "no findings". Local entry point: `npm run check` or `npx gemma-check src/`.
+
+### Tests
+
+- New file [tests/unit/cli/gemma-check.test.ts](../tests/unit/cli/gemma-check.test.ts): 60 cases. Layered as (a) helpers (`isTestFile`, `isSecuritySensitiveFile`, `offsetToPosition`, `lineBounds`, `isInComment`, `isAllowed`), (b) each of the four rules exercised in isolation with positive / negative / allowlist / comment cases, (c) `RULES` registry sanity checks, (d) CLI helpers (`parseArgs`, `walk`, `selectRules`, `scanPath`), and (e) end-to-end spawn tests driving the published binary with each documented flag combination.
+- New file [tests/unit/scripts/package-skills.test.ts](../tests/unit/scripts/package-skills.test.ts): 14 cases over `parseSkill`, `renderCursor`, `buildHarnessReadme`, and the `HARNESSES` adapter table; plus one spawn-driven end-to-end test that runs the real script against the real catalog and asserts the dist tree shape per harness.
+
+### Files
+
+- New: [scripts/package-skills.mjs](../scripts/package-skills.mjs), [bin/gemma-check.mjs](../bin/gemma-check.mjs), [lib/checks/index.mjs](../lib/checks/index.mjs), [lib/checks/helpers.mjs](../lib/checks/helpers.mjs), [lib/checks/no-committed-console-log.mjs](../lib/checks/no-committed-console-log.mjs), [lib/checks/no-math-random-for-tokens.mjs](../lib/checks/no-math-random-for-tokens.mjs), [lib/checks/no-env-file-leakage.mjs](../lib/checks/no-env-file-leakage.mjs), [lib/checks/no-secret-patterns.mjs](../lib/checks/no-secret-patterns.mjs), [tests/unit/cli/gemma-check.test.ts](../tests/unit/cli/gemma-check.test.ts), [tests/unit/scripts/package-skills.test.ts](../tests/unit/scripts/package-skills.test.ts).
+- Modified: [package.json](../package.json) (new `bin.gemma-check` entry; new `package:skills` and `check` scripts), [.github/workflows/ci.yml](../.github/workflows/ci.yml) (two new jobs: `package-skills`, `gemma-check`), [README.md](../README.md) (two new sections under `## Slash Commands`), [docs/v0.7.0/architecture.md](v0.7.0/architecture.md) (Phase 6 surface sections 5 and 6 fleshed out), [docs/index.md](index.md) (storage LOC tick after MemoryHealthCheck.ts allow-marker), [src/utils/secretPaths.ts](../src/utils/secretPaths.ts) (one inline allow marker), [src/storage/MemoryHealthCheck.ts](../src/storage/MemoryHealthCheck.ts) (one inline allow marker), [docs/v0.7.0/known-gaps.md](v0.7.0/known-gaps.md) (Phase 6 in-cycle gap rows + summary recompute).
+
+### Tests results / quality gates
+
+- TypeScript: `npm run build` (tsc) clean.
+- Lint: `npm run lint` (eslint src) clean.
+- Tests: `npm test` reports **173 test files passed, 1 skipped (174); 2110 tests passed, 4 skipped (2114); 0 failures**. Up 74 from the Phase 5 baseline (2036 passing). The trailing Windows segfault during teardown is the pre-existing native-module cleanup artefact tracked at known-gaps Section 5.1.
+- Coverage: `vitest run --coverage` reports **89.68% lines, 83.06% branches** on `src/**/*.ts`, well above the 80% / 75% CI thresholds.
+- Catalog sync: `npm run catalog` was re-run after the `MemoryHealthCheck.ts` allow-marker added one line; [docs/index.md](index.md) updated.
+- Self-check: `node bin/gemma-check.mjs src/` exits 0 (no findings).
+- Skill packaging: `node scripts/package-skills.mjs` writes 13 skills across 4 harnesses (52 SKILL files + 4 README.md files) deterministically.
+- Dependency-cruiser: `npm run deps:check` continues to surface the 4 pre-existing violations from Phases 4 / 5 (3 `no-storage-from-panels` + 1 `no-panels-from-tools`); count is unchanged before vs. after Phase 6 (verified via `git stash` baseline). Tracked as in-cycle gap 10.O.9.
+
+### Deviations
+
+- Cursor adapter ships a best-effort transform (`.cursor/rules/<slug>.md` with placeholder `rule: SKILL` frontmatter) rather than a native `.cursor/rules/<slug>.mdc` because the schema gap is too wide for a one-shot translation. Logged as in-cycle gap 10.O.7.
+- Optional `no-bare-promise-rejection` rule deferred; the 4 mandatory rules ship. Logged as in-cycle gap 10.O.8.
+- Two production source files received single-line `gemma-check-allow` markers (secretPaths.ts and MemoryHealthCheck.ts) because they legitimately reference the literal patterns the rules detect. The markers are scoped to one rule id each.
+- Legacy `scripts/check-bench-regressions.mjs` and `scripts/hooks/check-prompt-policy.mjs` are flagged by `gemma-check` on direct scan; the Phase 6 acceptance gate is scoped to `src/` per the plan. Cleanup is opportunistic and logged as in-cycle gap 10.O.10.
+
+### Phase 6 Exit Checklist
+
+- [x] `scripts/package-skills.mjs` ships and writes deterministic output for 4 harnesses.
+- [x] Each output tree includes a generated `README.md` explaining schema and source.
+- [x] `dist/` remains gitignored (verified -- `git status -uall` shows no `dist/` entries).
+- [x] CI job `package-skills` uploads 4 separate artifacts.
+- [x] `bin/gemma-check.mjs` ships with 4 rules (the 5th optional rule is deferred per plan).
+- [x] `package.json` registers `gemma-check` as a published bin.
+- [x] CI job `gemma-check` runs against `src/` with zero findings.
+- [x] Each rule has at least one positive, one negative, and one allowlist test case.
+- [x] Allow-marker mechanism (`gemma-check-allow` / `gemma-check-allow-next-line`) works same-line and previous-line, scoped or unscoped.
+- [x] `npm run lint && npm run build && npm test && npm run catalog:check` all green (deps:check carries 4 pre-existing violations from Phases 4/5; see 10.O.9).
+
+### Next
+
+Phase 7 (HNSW vector index + background workers) is optional / time-permitting per the cycle plan. Phase 8 (release gate + ADRs + CHANGELOG + v0.7.0 baselines) closes the cycle and is mandatory. The Phase 8 ADR slate (ADR-0006 compress tool, ADR-0007 memory file architecture, ADR-0008 webview render protocol) needs cross-reference updates given the actual ADR landings (ADR-0013 for the render protocol, ADR-0014 for the memory file architecture).
+
+---
+
 ## [2026-05-07] v0.7.0 Phase 5 -- memory commands + manual MemoryPanel + per-model context limits
 
 ### Goal

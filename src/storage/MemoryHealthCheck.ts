@@ -16,6 +16,7 @@ const PATH_REFERENCE_REGEX =
  * recognised extension. Surface them so the redactor can swap the body out.
  */
 const SECRET_TOKEN_REGEX =
+  // gemma-check-allow-next-line: no-env-file-leakage
   /(?:\.env(?:\.[A-Za-z0-9_-]+)*|id_(?:rsa|ed25519|ecdsa)\b|credentials(?:\.[A-Za-z0-9_-]+)?)/g;
 
 /** Default lookback for the "stale" check: 60 days. */
