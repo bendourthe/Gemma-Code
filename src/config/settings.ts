@@ -59,6 +59,27 @@ export interface GemmaCodeSettings {
   compactionProtectedFilePatterns: string[];
   /** v0.7.0 Phase 3: when true, registers the experimental compress_message tool. */
   compactExperimentalMessageMode: boolean;
+  /**
+   * v0.7.0 Phase 7 (C32): row-count threshold for activating the optional HNSW
+   * vector index over memory embeddings. When the entry count exceeds this
+   * value AND `hnswlib-node` is loadable, MemoryStore switches from the
+   * FTS5-pre-filtered linear scan to the persistent ANN index. Set to 0 to
+   * disable HNSW entirely (linear-scan fallback only).
+   */
+  memoryHnswThreshold: number;
+  /**
+   * v0.7.0 Phase 7 (C34): when true, every time the file-edit threshold trips
+   * the audit background worker invokes `bin/gemma-check --json` on the
+   * changed files and posts findings as a chat message. Off by default.
+   */
+  auditWorkerEnabled: boolean;
+  /**
+   * v0.7.0 Phase 7 (C34): when true, every time the file-edit threshold trips
+   * the testgaps background worker runs `vitest --coverage --json` on the
+   * test files matching the changed source and posts uncovered branches as a
+   * chat message. Off by default.
+   */
+  testgapsWorkerEnabled: boolean;
 }
 
 export function getSettings(): GemmaCodeSettings {
@@ -130,6 +151,12 @@ export function getSettings(): GemmaCodeSettings {
     ),
     compactionProtectedFilePatterns: config.get<string[]>("compactionProtectedFilePatterns") ?? [],
     compactExperimentalMessageMode: config.get<boolean>("compactExperimentalMessageMode") ?? false,
+    memoryHnswThreshold: Math.max(
+      0,
+      Math.min(1_000_000, config.get<number>("memoryHnswThreshold") ?? 1000),
+    ),
+    auditWorkerEnabled: config.get<boolean>("workers.audit.enabled") ?? false,
+    testgapsWorkerEnabled: config.get<boolean>("workers.testgaps.enabled") ?? false,
   };
 }
 

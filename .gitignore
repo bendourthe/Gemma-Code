@@ -226,3 +226,11 @@ docs/v0.5.0/dep-graph.svg
 # ==============================================================================
 .stryker-tmp/
 reports/stryker/
+
+# ==============================================================================
+# HNSW vector index artifacts (v0.7.0 Phase 7)
+# ==============================================================================
+# Persisted under ~/.gemma-code/<workspace-id>/memory.hnsw at runtime; never
+# committed. The pattern below catches any stray local copies.
+*.hnsw
+memory.hnsw

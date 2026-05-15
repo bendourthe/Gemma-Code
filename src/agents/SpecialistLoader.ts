@@ -115,12 +115,19 @@ const SUB_AGENT_TIER_FALLBACK: Record<SubAgentType, SpecialistTier> = {
   verification: "balanced",
   research: "balanced",
   planning: "balanced",
+  // v0.7.0 Phase 7: workers run deterministic CLIs; tier is informational only.
+  "audit-worker": "balanced",
+  "testgaps-worker": "balanced",
 };
 
 const SUB_AGENT_TOOLS_FALLBACK: Record<SubAgentType, readonly string[]> = {
   verification: ["read_file", "grep_codebase", "list_directory", "run_terminal"],
   research: ["read_file", "grep_codebase", "list_directory", "web_search", "fetch_page"],
   planning: ["read_file", "grep_codebase", "list_directory"],
+  // v0.7.0 Phase 7: workers do not use the tool registry; the empty scope is
+  // a marker that SubAgentManager dispatches to runWorker before building one.
+  "audit-worker": [],
+  "testgaps-worker": [],
 };
 
 /**

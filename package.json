@@ -394,6 +394,23 @@
           "default": false,
           "description": "v0.7.0 Phase 3 -- when true, registers the experimental compress_message tool. Less surgical than compress_range and may fragment causally-linked tool sequences."
         },
+        "gemma-code.memoryHnswThreshold": {
+          "type": "number",
+          "default": 1000,
+          "minimum": 0,
+          "maximum": 1000000,
+          "description": "v0.7.0 Phase 7 (C32) -- row-count threshold for activating the optional HNSW vector index over memory embeddings. When the entry count exceeds this value AND `hnswlib-node` is loadable, MemoryStore switches from the FTS5-pre-filtered linear scan to the persistent ANN index. Set to 0 to disable HNSW (linear-scan fallback only)."
+        },
+        "gemma-code.workers.audit.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "v0.7.0 Phase 7 (C34) -- when true, every time the file-edit threshold trips the audit background worker invokes `gemma-check --json` on the changed files and posts findings as a chat message. Off by default."
+        },
+        "gemma-code.workers.testgaps.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "v0.7.0 Phase 7 (C34) -- when true, every time the file-edit threshold trips the testgaps background worker runs `vitest --coverage --json` on the test files matching the changed source and posts uncovered branches as a chat message. Off by default."
+        },
         "gemma-code.cacheEvictionStrategy": {
           "type": "string",
           "enum": [
@@ -485,5 +502,8 @@
     "node-html-parser": "^6.1.13",
     "tiktoken": "^1.0.17",
     "zod": "^3.23.8"
+  },
+  "optionalDependencies": {
+    "hnswlib-node": "^3.0.0"
   }
 }

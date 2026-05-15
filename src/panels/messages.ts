@@ -115,7 +115,12 @@ export interface DiffPreviewMessage {
 /** Shows sub-agent status in the webview (spinner while running, summary on complete). */
 export interface SubAgentStatusMessage {
   type: "subAgentStatus";
-  agentType: "verification" | "research" | "planning";
+  agentType:
+    | "verification"
+    | "research"
+    | "planning"
+    | "audit-worker"
+    | "testgaps-worker";
   state: "running" | "complete" | "error";
   summary?: string;
 }

@@ -563,7 +563,13 @@ export const RUNTIME_SCRIPT = String.raw`
             break;
 
           case 'subAgentStatus': {
-            const labels = { verification: 'Verification', research: 'Research', planning: 'Planning' };
+            const labels = {
+              verification: 'Verification',
+              research: 'Research',
+              planning: 'Planning',
+              'audit-worker': 'Audit',
+              'testgaps-worker': 'Test Gaps',
+            };
             const label = labels[msg.agentType] || msg.agentType;
             subAgentBanner.classList.remove('error');
             const labelEl = document.createElement('strong');

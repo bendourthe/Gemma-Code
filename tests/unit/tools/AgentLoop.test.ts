@@ -262,6 +262,85 @@ describe("AgentLoop", () => {
       expect(config.type).toBe("verification");
       expect(config.modifiedFiles.length).toBeGreaterThanOrEqual(1);
     });
+
+    it("fires the audit-worker sub-agent when auditWorkerEnabled and threshold met", async () => {
+      const subAgentManager = {
+        run: vi.fn<any>().mockResolvedValue({
+          type: "audit-worker",
+          success: true,
+          output: "### Audit Worker\n\nclean.",
+          toolCallCount: 1,
+          iterationsUsed: 0,
+        }),
+      };
+      const client = makeMultiClient([writeCallText, writeCallText, writeCallText, "Done."]);
+      const loop = new AgentLoop(client, manager, registry, "gemma3:27b", 20, undefined, undefined, undefined, {
+        subAgentManager: subAgentManager as any,
+        verificationThreshold: 3,
+        verificationEnabled: false,
+        auditWorkerEnabled: true,
+      });
+      const { postMessage } = collectMessages();
+
+      await loop.run(postMessage);
+
+      expect(subAgentManager.run).toHaveBeenCalledOnce();
+      const config = subAgentManager.run.mock.calls[0]![0];
+      expect(config.type).toBe("audit-worker");
+    });
+
+    it("fires the testgaps-worker sub-agent when testgapsWorkerEnabled and threshold met", async () => {
+      const subAgentManager = {
+        run: vi.fn<any>().mockResolvedValue({
+          type: "testgaps-worker",
+          success: true,
+          output: "### Test Gaps Worker\n\nclean.",
+          toolCallCount: 0,
+          iterationsUsed: 0,
+        }),
+      };
+      const client = makeMultiClient([writeCallText, writeCallText, writeCallText, "Done."]);
+      const loop = new AgentLoop(client, manager, registry, "gemma3:27b", 20, undefined, undefined, undefined, {
+        subAgentManager: subAgentManager as any,
+        verificationThreshold: 3,
+        verificationEnabled: false,
+        testgapsWorkerEnabled: true,
+      });
+      const { postMessage } = collectMessages();
+
+      await loop.run(postMessage);
+
+      expect(subAgentManager.run).toHaveBeenCalledOnce();
+      const config = subAgentManager.run.mock.calls[0]![0];
+      expect(config.type).toBe("testgaps-worker");
+    });
+
+    it("fires verification + both workers in order when all three are enabled", async () => {
+      const subAgentManager = {
+        run: vi.fn<any>().mockImplementation(async (config: { type: string }) => ({
+          type: config.type,
+          success: true,
+          output: `${config.type} ok`,
+          toolCallCount: 0,
+          iterationsUsed: 1,
+        })),
+      };
+      const client = makeMultiClient([writeCallText, writeCallText, writeCallText, "Done."]);
+      const loop = new AgentLoop(client, manager, registry, "gemma3:27b", 20, undefined, undefined, undefined, {
+        subAgentManager: subAgentManager as any,
+        verificationThreshold: 3,
+        verificationEnabled: true,
+        auditWorkerEnabled: true,
+        testgapsWorkerEnabled: true,
+      });
+      const { postMessage } = collectMessages();
+
+      await loop.run(postMessage);
+
+      expect(subAgentManager.run).toHaveBeenCalledTimes(3);
+      const types = subAgentManager.run.mock.calls.map((c) => c[0].type);
+      expect(types).toEqual(["verification", "audit-worker", "testgaps-worker"]);
+    });
   });
 
   describe("budget middleware integration", () => {

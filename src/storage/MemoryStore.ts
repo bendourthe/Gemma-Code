@@ -20,6 +20,19 @@ import {
   sanitizeFtsQuery,
 } from "./embeddingUtils.js";
 import { createFtsTableAndTriggers } from "./sqliteFts.js";
+import { MemoryHnswIndex } from "./MemoryHnswIndex.js";
+
+/**
+ * v0.7.0 Phase 7 -- options for activating the optional HNSW vector index.
+ * When omitted (or hnswlib-node fails to load) the store falls back to the
+ * existing FTS5-pre-filtered linear cosine scan.
+ */
+export interface MemoryStoreOptions {
+  readonly hnswThreshold?: number;
+  readonly hnswIndexPath?: string;
+  readonly hnswDimensions?: number;
+  readonly hnswMaxElements?: number;
+}
 
 const CHARS_PER_TOKEN = 4;
 
@@ -57,13 +70,22 @@ export class MemoryStore {
   private _graphEngine: GraphQueryEngine | null = null;
   /** id -> deserialized Float32 vector. Invalidated on save/delete/prune/clear. */
   private readonly _embeddingCache = new Map<string, Float32Array>();
+  /** v0.7.0 Phase 7 -- optional HNSW index. Null when disabled or load failed. */
+  private _hnswIndex: MemoryHnswIndex | null = null;
+  private readonly _hnswOptions: MemoryStoreOptions;
+  /** Cached count for HNSW activation threshold; cleared on mutating writes. */
+  private _cachedCount: number | null = null;
 
   /**
    * Construct a MemoryStore backed either by a path (self-opens and owns the
    * connection) or an existing Database (caller owns the connection -- used
    * by MemorySubsystem for connection sharing, see finding #65).
    */
-  constructor(dbOrPath: string | Database.Database, embedder?: EmbeddingClient | null) {
+  constructor(
+    dbOrPath: string | Database.Database,
+    embedder?: EmbeddingClient | null,
+    options?: MemoryStoreOptions,
+  ) {
     if (typeof dbOrPath === "string") {
       this._db = new Database(dbOrPath);
       secureDbPermissions(dbOrPath);
@@ -74,6 +96,7 @@ export class MemoryStore {
       this._ownsDb = false;
     }
     this._embedder = embedder ?? null;
+    this._hnswOptions = options ?? {};
     this._initSchema();
   }
 
@@ -165,13 +188,19 @@ export class MemoryStore {
       }
     }
 
-    this._db
+    const insertResult = this._db
       .prepare(
         `INSERT INTO memories (id, session_id, content, type, embedding, created_at, accessed_at, corroboration_count)
          VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
       )
       .run(id, sessionId ?? null, content, type, embeddingBuf, now, now);
     this._invalidateEmbeddingCache(id);
+    this._cachedCount = null;
+
+    // v0.7.0 Phase 7: feed the optional HNSW index with the new embedding.
+    if (embeddingBuf) {
+      this._hnswInsertIfActive(Number(insertResult.lastInsertRowid), embeddingBuf);
+    }
 
     return {
       id,
@@ -280,6 +309,15 @@ export class MemoryStore {
     if (!queryVec) return [];
     const queryVec32 = Float32Array.from(queryVec);
 
+    // v0.7.0 Phase 7: HNSW path -- when entry count crosses the configured
+    // threshold AND hnswlib-node is loadable, use the persistent ANN index
+    // instead of the FTS5-pre-filtered linear scan. Falls back automatically
+    // when the index returns empty or HNSW yields fewer than `limit` results.
+    const hnswResults = this._searchHnsw(queryVec32, limit);
+    if (hnswResults && hnswResults.length > 0) {
+      return this._finalizeSemanticResults(hnswResults);
+    }
+
     // Pre-filter candidates via FTS5 so we don't scan the full embeddings table.
     // If the query has no FTS tokens (e.g., pure symbols) or the FTS query fails,
     // fall back to a bounded scan of the most recently accessed rows.
@@ -294,7 +332,20 @@ export class MemoryStore {
       .sort((a, b) => b.similarity - a.similarity)
       .slice(0, limit);
 
-    // Update access metadata.
+    return this._finalizeSemanticResults(
+      scored.map((s) => ({ row: s.row, similarity: s.similarity })),
+    );
+  }
+
+  /**
+   * Mark the rows in `scored` as accessed and project them into the public
+   * MemorySearchResult shape. Shared by both the HNSW and linear-scan paths.
+   */
+  private _finalizeSemanticResults(
+    scored: Array<{ row: MemoryRow; similarity: number }>,
+  ): MemorySearchResult[] {
+    if (scored.length === 0) return [];
+
     const now = Date.now();
     const update = this._db.prepare(
       "UPDATE memories SET accessed_at = ?, access_count = access_count + 1 WHERE id = ?",
@@ -628,9 +679,18 @@ export class MemoryStore {
    * --include-sql` and the MemoryPanel's "Promote to Memory.md" action.
    */
   deleteById(id: string): boolean {
+    const row = this._db
+      .prepare("SELECT rowid FROM memories WHERE id = ?")
+      .get(id) as { rowid: number } | undefined;
     const result = this._db.prepare("DELETE FROM memories WHERE id = ?").run(id);
     if (result.changes > 0) {
       this._invalidateEmbeddingCache(id);
+      this._cachedCount = null;
+      if (row && this._hnswIndex) {
+        this._hnswIndex.remove(row.rowid);
+        if (this._hnswIndex.needsRebuild()) this._rebuildHnswIndex(this._hnswIndex);
+        this._hnswIndex.persist();
+      }
       return true;
     }
     return false;
@@ -681,6 +741,10 @@ export class MemoryStore {
     // Cache is keyed by id and we don't know which ids were pruned without a
     // second query; clear wholesale. Rehydration cost is bounded by N rows.
     this._invalidateEmbeddingCache();
+    this._cachedCount = null;
+    if (this._hnswIndex) {
+      this._rebuildHnswIndex(this._hnswIndex);
+    }
 
     return result.changes;
   }
@@ -693,6 +757,10 @@ export class MemoryStore {
   clear(): void {
     this._db.exec("DELETE FROM memories");
     this._invalidateEmbeddingCache();
+    this._cachedCount = null;
+    if (this._hnswIndex) {
+      this._rebuildHnswIndex(this._hnswIndex);
+    }
   }
 
   /** Return aggregate statistics about the memory store. */
@@ -810,6 +878,153 @@ export class MemoryStore {
 
   private _cosineSimilarity32(a: Float32Array, b: Float32Array): number {
     return cosineSimilarity(a, b);
+  }
+
+  // ---------------------------------------------------------------------------
+  // v0.7.0 Phase 7 -- HNSW vector index helpers
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Return true when the HNSW path should be considered: the entry count has
+   * crossed the configured threshold AND a `hnswIndexPath` was supplied. The
+   * native binary load is attempted lazily inside `_ensureHnswIndex`.
+   */
+  private _shouldUseHnsw(): boolean {
+    const opts = this._hnswOptions;
+    if (!opts.hnswIndexPath) return false;
+    const threshold = opts.hnswThreshold ?? 1000;
+    if (this._cachedCount === null) {
+      this._cachedCount = this.count();
+    }
+    return this._cachedCount >= threshold;
+  }
+
+  /**
+   * Lazily build / load the HNSW index on first access. Returns null when the
+   * native dependency cannot be loaded -- callers fall back to linear scan.
+   */
+  private _ensureHnswIndex(): MemoryHnswIndex | null {
+    if (this._hnswIndex) return this._hnswIndex;
+    const opts = this._hnswOptions;
+    if (!opts.hnswIndexPath) return null;
+
+    const dimensions = opts.hnswDimensions ?? this._inferEmbeddingDimensions();
+    if (!dimensions) return null;
+
+    const maxElements = opts.hnswMaxElements ?? Math.max(1024, (this._cachedCount ?? this.count()) * 2);
+
+    const index = MemoryHnswIndex.tryCreate({
+      dimensions,
+      maxElements,
+      persistPath: opts.hnswIndexPath,
+      fullRebuildEvery: 1000,
+    });
+    if (!index) return null;
+
+    this._hnswIndex = index;
+
+    // Hydrate the index on first activation: stream every embedding row in
+    // and persist once at the end.
+    this._hydrateHnswIndex(index, dimensions);
+    return index;
+  }
+
+  private _inferEmbeddingDimensions(): number | null {
+    const row = this._db
+      .prepare(`SELECT embedding FROM memories WHERE embedding IS NOT NULL LIMIT 1`)
+      .get() as { embedding: Buffer } | undefined;
+    if (!row) return null;
+    return row.embedding.byteLength / 8; // stored as Float64
+  }
+
+  private _hydrateHnswIndex(index: MemoryHnswIndex, dimensions: number): void {
+    const rows = this._db
+      .prepare(
+        `SELECT rowid, embedding FROM memories WHERE embedding IS NOT NULL`,
+      )
+      .all() as Array<{ rowid: number; embedding: Buffer }>;
+
+    for (const r of rows) {
+      const buf = r.embedding;
+      const f64 = new Float64Array(buf.buffer, buf.byteOffset, buf.byteLength / 8);
+      if (f64.length !== dimensions) continue;
+      index.insert(r.rowid, Float32Array.from(f64));
+    }
+    index.persist();
+  }
+
+  /**
+   * Incremental insert into the HNSW index when active. No-op when the index
+   * has not been activated yet (it will be hydrated lazily on first search).
+   */
+  private _hnswInsertIfActive(rowid: number, embeddingBuf: Buffer): void {
+    if (!this._shouldUseHnsw()) return;
+    const index = this._ensureHnswIndex();
+    if (!index) return;
+
+    const f64 = new Float64Array(embeddingBuf.buffer, embeddingBuf.byteOffset, embeddingBuf.byteLength / 8);
+    index.insert(rowid, Float32Array.from(f64));
+    if (index.needsRebuild()) {
+      this._rebuildHnswIndex(index);
+    }
+    index.persist();
+  }
+
+  private _rebuildHnswIndex(index: MemoryHnswIndex): void {
+    const rows = this._db
+      .prepare(`SELECT rowid, embedding FROM memories WHERE embedding IS NOT NULL`)
+      .all() as Array<{ rowid: number; embedding: Buffer }>;
+
+    function* entries(): Generator<{ label: number; vector: Float32Array }> {
+      for (const r of rows) {
+        const buf = r.embedding;
+        const f64 = new Float64Array(buf.buffer, buf.byteOffset, buf.byteLength / 8);
+        yield { label: r.rowid, vector: Float32Array.from(f64) };
+      }
+    }
+    index.rebuild(entries());
+    index.persist();
+  }
+
+  /**
+   * Query the HNSW index for top-K candidates and join back to memory rows.
+   * Returns null when the index is not active; returns empty array when the
+   * index is active but produced no usable results.
+   */
+  private _searchHnsw(
+    queryVec: Float32Array,
+    limit: number,
+  ): Array<{ row: MemoryRow; similarity: number }> | null {
+    if (!this._shouldUseHnsw()) return null;
+    const index = this._ensureHnswIndex();
+    if (!index || index.size() === 0) return null;
+
+    const k = Math.max(limit, Math.min(50, limit * 5));
+    const hits = index.search(queryVec, k);
+    if (hits.length === 0) return [];
+
+    const rowids = hits.map((h) => h.label);
+    const placeholders = rowids.map(() => "?").join(",");
+    const rows = this._db
+      .prepare(
+        `SELECT * FROM memories WHERE rowid IN (${placeholders}) AND embedding IS NOT NULL`,
+      )
+      .all(...rowids) as MemoryRow[];
+
+    const byRowid = new Map<number, MemoryRow>();
+    for (const r of rows) byRowid.set(r.rowid, r);
+
+    const scored: Array<{ row: MemoryRow; similarity: number }> = [];
+    for (const hit of hits) {
+      const row = byRowid.get(hit.label);
+      if (!row) continue;
+      // hnswlib-node returns squared cosine distance in [0, 2]; map to
+      // similarity in [-1, 1] then clamp to [0, 1] for caller compatibility.
+      const similarity = 1 - hit.distance;
+      scored.push({ row, similarity });
+    }
+    scored.sort((a, b) => b.similarity - a.similarity);
+    return scored.slice(0, limit);
   }
 
   /** Word-level token set for Jaccard similarity. Lowercased, length > 2. */

@@ -102,6 +102,12 @@ export function buildMemorySubsystem(
     embeddingModel: settings.embeddingModel ?? null,
     toolOutputCache,
     corroborationThreshold: settings.memoryCorroborationThreshold,
+    hnsw: settings.memoryHnswThreshold > 0
+      ? {
+          indexPath: path.join(globalStorageUri.fsPath, "memory.hnsw"),
+          threshold: settings.memoryHnswThreshold,
+        }
+      : undefined,
   });
 }
 

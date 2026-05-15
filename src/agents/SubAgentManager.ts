@@ -22,6 +22,8 @@ import { RunTerminalTool } from "../tools/handlers/terminal.js";
 import { WebSearchTool, FetchPageTool } from "../tools/handlers/webSearch.js";
 import { SpecialistLoader } from "./SpecialistLoader.js";
 import type { Specialist } from "./SpecialistLoader.js";
+import { runAuditWorker, runTestgapsWorker } from "./BackgroundWorkers.js";
+import type { WorkerCommandRunner } from "./BackgroundWorkers.js";
 
 /**
  * Hardcoded fallback tool-scope per sub-agent type. Only used when the
@@ -32,6 +34,11 @@ const TOOLS_BY_TYPE: Record<SubAgentType, readonly string[]> = {
   verification: ["read_file", "grep_codebase", "list_directory", "run_terminal"],
   research: ["read_file", "grep_codebase", "list_directory", "web_search", "fetch_page"],
   planning: ["read_file", "grep_codebase", "list_directory"],
+  // v0.7.0 Phase 7 (C34): workers do not call the LLM; they spawn an external
+  // CLI directly. The tool scope is empty -- their run path short-circuits in
+  // SubAgentManager.run before AgentLoop is constructed.
+  "audit-worker": [],
+  "testgaps-worker": [],
 };
 
 /**
@@ -46,6 +53,13 @@ const TOOLS_BY_TYPE: Record<SubAgentType, readonly string[]> = {
 export class SubAgentManager implements SubAgentSpawner {
   private readonly _promptBuilder: PromptBuilder;
 
+  /**
+   * v0.7.0 Phase 7 -- injectable runner for the audit/testgaps workers.
+   * Tests replace this with a fake; production callers leave it null so the
+   * workers default to `child_process.spawn`.
+   */
+  private _workerRunner: WorkerCommandRunner | null = null;
+
   constructor(
     private readonly _client: OllamaClient,
     promptBuilder: PromptBuilder,
@@ -56,6 +70,11 @@ export class SubAgentManager implements SubAgentSpawner {
     private readonly _specialistLoader: SpecialistLoader | null = null,
   ) {
     this._promptBuilder = promptBuilder;
+  }
+
+  /** Override the worker command runner. Used in tests; no-op when null. */
+  setWorkerRunner(runner: WorkerCommandRunner | null): void {
+    this._workerRunner = runner;
   }
 
   async run(config: SubAgentConfig, postMessage: PostMessageFn, parentTraceId?: string, parentSpanId?: string): Promise<SubAgentResult> {
@@ -74,6 +93,12 @@ export class SubAgentManager implements SubAgentSpawner {
       agentType: config.type,
       state: "running",
     });
+
+    // v0.7.0 Phase 7 (C34): worker types run deterministic CLI commands; they
+    // do not go through PromptBuilder / AgentLoop / ConversationManager.
+    if (config.type === "audit-worker" || config.type === "testgaps-worker") {
+      return this._runWorker(config, postMessage, subAgentSpanId);
+    }
 
     try {
       // Resolve specialist definition via the priority chain:
@@ -250,6 +275,70 @@ export class SubAgentManager implements SubAgentSpawner {
     }
 
     return registry;
+  }
+
+  /**
+   * v0.7.0 Phase 7 (C34) -- worker dispatch. Spawns the external CLI via
+   * `BackgroundWorkers` (audit -> `gemma-check --json`, testgaps -> `vitest
+   * --coverage --reporter=json`), formats the output as a chat message, and
+   * returns a SubAgentResult with the chat-ready text in `output`.
+   *
+   * The runner is injectable; production calls leave it null so workers
+   * default to `child_process.spawn`. The trace span is closed here so the
+   * worker shows up alongside verification/research in the trace dashboard.
+   */
+  private async _runWorker(
+    config: SubAgentConfig,
+    postMessage: PostMessageFn,
+    spanId: string,
+  ): Promise<SubAgentResult> {
+    const tracer = this._tracer;
+    try {
+      const runnerOpts = this._workerRunner ? { runner: this._workerRunner } : {};
+      const result = config.type === "audit-worker"
+        ? await runAuditWorker(config.modifiedFiles, runnerOpts)
+        : await runTestgapsWorker(config.modifiedFiles, runnerOpts);
+
+      const status: "complete" | "error" = result.success ? "complete" : "error";
+      postMessage({
+        type: "subAgentStatus",
+        agentType: config.type,
+        state: status,
+        summary: (result.error ?? result.output).slice(0, 200),
+      });
+
+      tracer.endSpan(spanId, result.success ? "ok" : "error", {
+        success: result.success,
+        toolCallCount: result.toolCallCount,
+        outputLength: result.output.length,
+      });
+
+      return {
+        type: config.type,
+        success: result.success,
+        output: result.output,
+        toolCallCount: result.toolCallCount,
+        iterationsUsed: 0,
+        error: result.error,
+      };
+    } catch (err) {
+      const errorMessage = formatForUser(err);
+      tracer.endSpan(spanId, "error", { error: errorMessage });
+      postMessage({
+        type: "subAgentStatus",
+        agentType: config.type,
+        state: "error",
+        summary: errorMessage.slice(0, 200),
+      });
+      return {
+        type: config.type,
+        success: false,
+        output: "",
+        toolCallCount: 0,
+        iterationsUsed: 0,
+        error: errorMessage,
+      };
+    }
   }
 
   private _buildOllamaTools(tools: readonly DynamicToolMetadata[]): OllamaToolDefinition[] {

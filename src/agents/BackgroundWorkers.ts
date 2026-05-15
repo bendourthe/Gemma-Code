@@ -1,0 +1,346 @@
+import { spawn } from "child_process";
+import { existsSync } from "fs";
+import * as path from "path";
+import * as vscode from "vscode";
+import { formatForLog } from "../utils/errors.js";
+import { getLogger } from "../utils/logger.js";
+
+/**
+ * v0.7.0 Phase 7 (C34) -- deterministic background workers.
+ *
+ * Both workers follow the verification-sub-agent trigger pattern (post-N
+ * file edits) but bypass the LLM: they spawn an external CLI and report the
+ * parsed output as a chat message. Tests reach into the `runner` injection
+ * to avoid spawning real processes.
+ */
+
+export interface WorkerRunResult {
+  readonly success: boolean;
+  readonly output: string;
+  readonly toolCallCount: number;
+  readonly error?: string;
+}
+
+export type WorkerCommandRunner = (
+  command: string,
+  args: readonly string[],
+  cwd: string,
+) => Promise<{ stdout: string; stderr: string; exitCode: number }>;
+
+const defaultRunner: WorkerCommandRunner = (command, args, cwd) => {
+  return new Promise((resolve) => {
+    const child = spawn(command, args, { cwd, shell: false });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString("utf8");
+    });
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString("utf8");
+    });
+    child.on("error", (err) => {
+      resolve({ stdout, stderr: stderr + formatForLog(err), exitCode: 1 });
+    });
+    child.on("close", (code) => {
+      resolve({ stdout, stderr, exitCode: code ?? 1 });
+    });
+  });
+};
+
+function resolveCwd(): string {
+  const folders = vscode.workspace.workspaceFolders;
+  if (folders && folders.length > 0) {
+    return folders[0]!.uri.fsPath;
+  }
+  return process.cwd();
+}
+
+// Build-output is CommonJS (no `type: module` in package.json). `__dirname`
+// is therefore available at runtime; declare it for the type-checker.
+declare const __dirname: string;
+
+/**
+ * Locate the bundled `bin/gemma-check.mjs` script. Resolved relative to the
+ * compiled extension layout (`out/agents/BackgroundWorkers.js` -> repo root
+ * -> bin). Returns null when the file does not exist (e.g., a malformed
+ * install).
+ */
+function findGemmaCheckScript(): string | null {
+  // The compiled file lives at <ext>/out/agents/BackgroundWorkers.js, so the
+  // repo / extension root is two levels up.
+  const here = typeof __dirname === "string" ? __dirname : process.cwd();
+  const candidates = [
+    path.resolve(here, "..", "..", "bin", "gemma-check.mjs"),
+    path.resolve(here, "..", "..", "..", "bin", "gemma-check.mjs"),
+    path.resolve(process.cwd(), "bin", "gemma-check.mjs"),
+  ];
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
+/**
+ * Run `gemma-check --json` on the changed files and summarize findings for a
+ * chat message. The runner is injectable for tests. Returns an empty-output
+ * success when no findings are emitted (so callers can suppress the chat
+ * surface).
+ */
+export async function runAuditWorker(
+  modifiedFiles: readonly string[],
+  options: {
+    runner?: WorkerCommandRunner;
+    scriptPath?: string | null;
+    cwd?: string;
+  } = {},
+): Promise<WorkerRunResult> {
+  if (modifiedFiles.length === 0) {
+    return { success: true, output: "", toolCallCount: 0 };
+  }
+
+  const runner = options.runner ?? defaultRunner;
+  const script = options.scriptPath !== undefined ? options.scriptPath : findGemmaCheckScript();
+  if (!script) {
+    return {
+      success: false,
+      output: "",
+      toolCallCount: 0,
+      error: "gemma-check script not found; install gemma-code with bin/gemma-check.mjs available.",
+    };
+  }
+
+  const cwd = options.cwd ?? resolveCwd();
+  const args = ["--json", ...modifiedFiles];
+
+  try {
+    const { stdout, stderr, exitCode } = await runner(process.execPath, [script, ...args], cwd);
+    const parsed = parseGemmaCheckJson(stdout);
+    const findings = parsed?.findings ?? [];
+
+    if (findings.length === 0 && exitCode === 0) {
+      return { success: true, output: "", toolCallCount: modifiedFiles.length };
+    }
+
+    const summary = formatAuditFindings(findings, modifiedFiles, exitCode, stderr);
+    return { success: exitCode <= 1, output: summary, toolCallCount: modifiedFiles.length };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      toolCallCount: modifiedFiles.length,
+      error: formatForLog(err),
+    };
+  }
+}
+
+/**
+ * Run `vitest --coverage --json` scoped to the test files matching the
+ * changed source files. Reports uncovered branches in the changed lines.
+ */
+export async function runTestgapsWorker(
+  modifiedFiles: readonly string[],
+  options: {
+    runner?: WorkerCommandRunner;
+    cwd?: string;
+  } = {},
+): Promise<WorkerRunResult> {
+  const sourceFiles = modifiedFiles.filter((f) => looksLikeSourceFile(f));
+  if (sourceFiles.length === 0) {
+    return { success: true, output: "", toolCallCount: 0 };
+  }
+
+  const runner = options.runner ?? defaultRunner;
+  const cwd = options.cwd ?? resolveCwd();
+  const testFiles = sourceFiles
+    .map((src) => candidateTestFile(src))
+    .filter((f): f is string => f !== null);
+
+  if (testFiles.length === 0) {
+    return {
+      success: true,
+      output: `### Test Gaps Worker\n\nNo matching test files found for: ${sourceFiles.join(", ")}.`,
+      toolCallCount: sourceFiles.length,
+    };
+  }
+
+  try {
+    const args = [
+      "vitest",
+      "run",
+      "--coverage",
+      "--reporter=json",
+      ...testFiles,
+    ];
+    const { stdout, stderr, exitCode } = await runner("npx", args, cwd);
+    const summary = formatTestgapsOutput(stdout, stderr, exitCode, testFiles);
+    return { success: exitCode === 0, output: summary, toolCallCount: testFiles.length };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      toolCallCount: testFiles.length,
+      error: formatForLog(err),
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Output parsers
+// ---------------------------------------------------------------------------
+
+interface GemmaCheckFinding {
+  readonly rule: string;
+  readonly file: string;
+  readonly line: number;
+  readonly message: string;
+  readonly severity?: string;
+}
+
+interface GemmaCheckJsonOutput {
+  readonly findings: GemmaCheckFinding[];
+}
+
+export function parseGemmaCheckJson(stdout: string): GemmaCheckJsonOutput | null {
+  const trimmed = stdout.trim();
+  if (!trimmed) return { findings: [] };
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (parsed && Array.isArray(parsed.findings)) {
+      return parsed as GemmaCheckJsonOutput;
+    }
+    return { findings: [] };
+  } catch (err) {
+    getLogger().debug("[BackgroundWorkers] gemma-check JSON parse failed:", formatForLog(err));
+    return null;
+  }
+}
+
+export function formatAuditFindings(
+  findings: readonly GemmaCheckFinding[],
+  modifiedFiles: readonly string[],
+  exitCode: number,
+  stderr: string,
+): string {
+  if (findings.length === 0) {
+    if (exitCode === 0) {
+      return `### Audit Worker\n\ngemma-check clean on ${modifiedFiles.length} file(s).`;
+    }
+    const stderrTrim = stderr.trim();
+    return `### Audit Worker\n\ngemma-check exited ${exitCode} with no parseable findings.${stderrTrim ? `\n\n\`\`\`\n${stderrTrim}\n\`\`\`` : ""}`;
+  }
+
+  const lines: string[] = [`### Audit Worker`, ``, `Found ${findings.length} finding(s) across ${new Set(findings.map((f) => f.file)).size} file(s):`, ``];
+  for (const f of findings) {
+    const sev = f.severity ? ` [${f.severity}]` : "";
+    lines.push(`- **${f.rule}**${sev} \`${f.file}:${f.line}\` -- ${f.message}`);
+  }
+  return lines.join("\n");
+}
+
+export function formatTestgapsOutput(
+  stdout: string,
+  stderr: string,
+  exitCode: number,
+  testFiles: readonly string[],
+): string {
+  const trimmed = stdout.trim();
+  if (!trimmed) {
+    const stderrTrim = stderr.trim();
+    return `### Test Gaps Worker\n\nvitest exited ${exitCode} (no JSON output)${stderrTrim ? `\n\n\`\`\`\n${stderrTrim.slice(0, 800)}\n\`\`\`` : ""}.`;
+  }
+
+  let report: unknown;
+  try {
+    report = JSON.parse(trimmed);
+  } catch {
+    return `### Test Gaps Worker\n\nUnable to parse vitest JSON output (exit ${exitCode}). Test files scanned: ${testFiles.length}.`;
+  }
+
+  const summary = summarizeVitestJson(report);
+  return `### Test Gaps Worker\n\n${summary}`;
+}
+
+function summarizeVitestJson(report: unknown): string {
+  if (typeof report !== "object" || report === null) {
+    return "Empty test report.";
+  }
+
+  const obj = report as Record<string, unknown>;
+  const numTotal = numericField(obj, "numTotalTests");
+  const numPassed = numericField(obj, "numPassedTests");
+  const numFailed = numericField(obj, "numFailedTests");
+  const lines: string[] = [];
+  lines.push(`Tests: ${numPassed}/${numTotal} passed, ${numFailed} failed.`);
+
+  const coverage = obj["coverageMap"] ?? obj["coverage"];
+  if (coverage && typeof coverage === "object") {
+    const uncoveredLines: string[] = [];
+    for (const [file, fileCov] of Object.entries(coverage as Record<string, unknown>)) {
+      if (typeof fileCov !== "object" || fileCov === null) continue;
+      const branches = (fileCov as Record<string, unknown>)["b"] ?? (fileCov as Record<string, unknown>)["branches"];
+      if (!branches || typeof branches !== "object") continue;
+      const uncoveredCount = countUncoveredBranches(branches);
+      if (uncoveredCount > 0) {
+        uncoveredLines.push(`- \`${file}\`: ${uncoveredCount} uncovered branch(es)`);
+      }
+    }
+    if (uncoveredLines.length > 0) {
+      lines.push("", "Uncovered branches:");
+      lines.push(...uncoveredLines.slice(0, 20));
+      if (uncoveredLines.length > 20) {
+        lines.push(`- ... and ${uncoveredLines.length - 20} more file(s).`);
+      }
+    }
+  }
+  return lines.join("\n");
+}
+
+function countUncoveredBranches(branches: unknown): number {
+  if (!branches || typeof branches !== "object") return 0;
+  let uncovered = 0;
+  for (const counts of Object.values(branches as Record<string, unknown>)) {
+    if (!Array.isArray(counts)) continue;
+    for (const c of counts) {
+      if (c === 0) uncovered++;
+    }
+  }
+  return uncovered;
+}
+
+function numericField(obj: Record<string, unknown>, key: string): number {
+  const v = obj[key];
+  return typeof v === "number" ? v : 0;
+}
+
+const SOURCE_FILE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
+
+function looksLikeSourceFile(filePath: string): boolean {
+  const ext = path.extname(filePath).toLowerCase();
+  if (!SOURCE_FILE_EXTENSIONS.has(ext)) return false;
+  return !/(?:^|[\\/])tests?[\\/]/.test(filePath) && !/\.test\.[tj]sx?$/.test(filePath);
+}
+
+/**
+ * Map a source file to its conventional test path. v0.7.0 layout convention:
+ * `src/foo/bar.ts` -> `tests/unit/foo/bar.test.ts`. Returns null when no
+ * matching file exists on disk.
+ */
+function candidateTestFile(sourceFile: string): string | null {
+  const normalized = sourceFile.replace(/\\/g, "/");
+  const ext = path.extname(normalized);
+  const stem = normalized.slice(0, normalized.length - ext.length);
+
+  const candidates: string[] = [];
+  if (stem.startsWith("src/")) {
+    const tail = stem.slice("src/".length);
+    candidates.push(`tests/unit/${tail}.test${ext}`);
+    candidates.push(`tests/integration/${tail}.test${ext}`);
+  }
+  candidates.push(`${stem}.test${ext}`);
+  candidates.push(`${stem}.spec${ext}`);
+
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
+}

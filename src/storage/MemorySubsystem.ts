@@ -35,6 +35,16 @@ export interface MemorySubsystemOptions {
    * match is available. Set to 1 to disable (legacy behavior).
    */
   corroborationThreshold?: number;
+  /**
+   * v0.7.0 Phase 7: optional HNSW vector index activation. When `indexPath`
+   * is supplied AND the row count exceeds `threshold`, MemoryStore switches
+   * from FTS5-pre-filtered linear scan to the persistent ANN index. Falls
+   * back automatically when hnswlib-node cannot be loaded at runtime.
+   */
+  hnsw?: {
+    indexPath: string;
+    threshold?: number;
+  };
 }
 
 /**
@@ -124,7 +134,10 @@ function buildSubsystem(options: MemorySubsystemOptions): Built {
     secureDbPermissions(options.dbPath);
     sharedDb.pragma("journal_mode = WAL");
 
-    const memoryStore = new MemoryStore(sharedDb, embedder);
+    const memoryStore = new MemoryStore(sharedDb, embedder, options.hnsw ? {
+      hnswIndexPath: options.hnsw.indexPath,
+      hnswThreshold: options.hnsw.threshold,
+    } : undefined);
     const workingMemory = createWorkingMemory();
     const episodicMemory = new EpisodicMemory(sharedDb, embedder);
     const graphMemory = new GraphMemory(sharedDb);

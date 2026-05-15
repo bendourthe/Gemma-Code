@@ -147,6 +147,31 @@ describe("MemoryStore", () => {
 
       storeWithEmbedder.close();
     });
+
+    it("falls back to the linear scan when HNSW is unavailable", async () => {
+      // v0.7.0 Phase 7 -- when `hnswIndexPath` is supplied but hnswlib-node
+      // fails to load (or the threshold has not been crossed), the existing
+      // FTS5-pre-filtered scan path must continue to produce results.
+      const embedder = makeMockEmbedder([
+        [1, 0, 0],
+        [0, 1, 0],
+        [1, 0, 0], // query embedding
+      ]);
+      const storeWithEmbedder = new MemoryStore(":memory:", embedder, {
+        hnswIndexPath: "/tmp/never-created-hnsw.bin",
+        hnswThreshold: 1_000_000,
+      });
+
+      await storeWithEmbedder.save("Similar content", "fact");
+      await storeWithEmbedder.save("Different content", "fact");
+
+      const results = await storeWithEmbedder.searchSemantic("query");
+
+      expect(results.length).toBeGreaterThan(0);
+      expect(results[0]?.entry.content).toBe("Similar content");
+
+      storeWithEmbedder.close();
+    });
   });
 
   // -------------------------------------------------------------------------

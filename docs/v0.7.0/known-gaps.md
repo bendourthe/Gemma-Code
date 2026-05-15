@@ -325,7 +325,7 @@ Zero P0 carryovers means the v0.6.0 Definition-of-Done criterion "Zero P0 findin
 
 This section is appended phase-by-phase as v0.7.0 lands. Each entry records the source phase, plan reference, reason, and suggested next step. Items are moved to `## Resolved` when closed in a later phase, and the `## Summary` at the bottom of the section is recomputed each pass.
 
-**Last updated**: 2026-05-14 (Phase 6 close)
+**Last updated**: 2026-05-14 (Phase 7 close)
 
 ### 10.1 Open Items (closed -- all transferred to v0.8.0 plan; preserved here as audit trail)
 
@@ -341,6 +341,9 @@ This section is appended phase-by-phase as v0.7.0 lands. Each entry records the 
 | 10.O.8 | Phase 6 | docs/v0.7.0/plans/v0.7.0-cycle.md Phase 6 sub-task 6.2 | NI | P3 | The plan listed `no-bare-promise-rejection` (regex match `\.catch(\s*\)`) as an optional 5th rule. Not shipped; the 4 mandatory rules are in. | Add `lib/checks/no-bare-promise-rejection.mjs` mirroring the existing rule contract if a real-world incident appears, or leave for v0.8.0. |
 | 10.O.9 | Phase 6 | docs/v0.7.0/plans/v0.7.0-cycle.md Phase 6 stability gate | WN | P3 | `npm run deps:check` reports 4 pre-existing dependency-cruiser violations: 3 `no-storage-from-panels` (MemoryPanel imports MemoryStore / MemoryShared.types / MemoryFiles) and 1 `no-panels-from-tools` (ConfirmationGate imports webview/render/permissionPrompt). The count is unchanged before vs. after Phase 6 (verified via `git stash` baseline). Carryovers from Phases 4 / 5. | Address in Phase 8 ratchet pass: either relax the rule with an inline `dependency-cruiser-disable-next-line` for the MemoryPanel case (it owns the store by design) and refactor ConfirmationGate to receive a prompt-renderer callback rather than import the panel module, or accept and update the rule. |
 | 10.O.10 | Phase 6 | docs/v0.7.0/plans/v0.7.0-cycle.md Phase 6 sub-task 6.2 | WN | P3 | The legacy `scripts/check-bench-regressions.mjs` (~6 `console.log` calls) and `scripts/hooks/check-prompt-policy.mjs` + `scripts/hooks/lib/secret-paths.mjs` are flagged by `gemma-check` because they contain `console.log` and inline pattern definitions matching the new rules. The Phase 6 acceptance gate runs on `src/` only (which is clean); the script files are intentionally out of scope. | Either convert the legacy scripts' `console.log` to `process.stdout.write` (preferred, matches project style) or add `gemma-check-allow` markers on the pattern-definition lines. Not blocking; opportunistic cleanup. |
+| 10.O.11 | Phase 7 | docs/v0.7.0/plans/v0.7.0-cycle.md Phase 7 sub-task 7.1 | MT | P2 | The HNSW recall-delta and HNSW-load-failure integration tests are gated on `hnswlib-node` being loadable at test time. On the local Windows dev workstation and in CI the optionalDependency does not install, so `it.runIf(HNSW_AVAILABLE)` skips the loaded-path tests. Coverage of the linear-scan fallback contract is exercised; the loaded HNSW path is only verified by the always-on graceful-fallback test. | Run the test suite on a machine where `hnswlib-node` installs cleanly (Linux x64 or macOS) and confirm the 5 skipped MemoryHnswIndex + 2 skipped memory-hnsw integration tests pass. Capture the result in v0.8.0 Phase 0 close-out. |
+| 10.O.12 | Phase 7 | docs/v0.7.0/plans/v0.7.0-cycle.md Phase 7 sub-task 7.2 | MT | P2 | The background-worker triggers in AgentLoop are exercised at the unit level with a mock subAgentManager. The end-to-end path -- AgentLoop -> SubAgentManager.run -> BackgroundWorkers.runAuditWorker -> spawn `node bin/gemma-check.mjs --json` -> chat message render -- is NOT covered by an integration test. The deterministic-runner injection makes a real E2E test feasible but it was not added in Phase 7. | Add `tests/integration/background-workers-end-to-end.test.ts` covering one audit-worker run with `gemma-check` against a fixture file and one testgaps-worker run against a tiny vitest sample. Defer to v0.8.0 Phase 7 if scope is tight. |
+| 10.O.13 | Phase 7 | docs/v0.7.0/plans/v0.7.0-cycle.md Phase 7 sub-task 7.1 | DF | P3 | `hnswlib-node` is listed as an `optionalDependency` but `npm install` was not re-run in Phase 7 (the dependency check is the operator's responsibility under v0.7.0 known-gaps Section 1.1). The package-lock has not been regenerated. | Operator: run `npm install` on the next cycle close-out; verify `hnswlib-node` either installs or is gracefully skipped on the target platform; commit the resulting `package-lock.json` change. |
 
 ### 10.2 Resolved
 
@@ -356,20 +359,23 @@ This section is appended phase-by-phase as v0.7.0 lands. Each entry records the 
 | 10.O.8 | Phase 6 | docs/v0.7.0/plans/v0.7.0-cycle.md Phase 6 sub-task 6.2 | NI | transferred to v0.8.0 plan (Phase 7 appendix sub-task 7.A) | Carried to v0.8.0; close when `no-bare-promise-rejection` rule lands. |
 | 10.O.9 | Phase 6 | docs/v0.7.0/plans/v0.7.0-cycle.md Phase 6 stability gate | WN | transferred to v0.8.0 plan (Phase 7 appendix sub-task 7.B) | Carried to v0.8.0; close when 4 pre-existing dep-cruiser violations are resolved. |
 | 10.O.10 | Phase 6 | docs/v0.7.0/plans/v0.7.0-cycle.md Phase 6 sub-task 6.2 | WN | transferred to v0.8.0 plan (Phase 7 appendix sub-task 7.C) | Carried to v0.8.0; close when legacy script `console.log` calls are converted to `process.stdout.write`. |
+| 10.O.11 | Phase 7 | docs/v0.7.0/plans/v0.7.0-cycle.md Phase 7 sub-task 7.1 | MT | transferred to v0.8.0 plan (Phase 0 close-out) | Carried to v0.8.0; close when the operator runs the suite on a platform where `hnswlib-node` installs cleanly and the gated HNSW tests run green. |
+| 10.O.12 | Phase 7 | docs/v0.7.0/plans/v0.7.0-cycle.md Phase 7 sub-task 7.2 | MT | transferred to v0.8.0 plan (Phase 7 carryover) | Carried to v0.8.0; close when the background-workers end-to-end integration test lands. |
+| 10.O.13 | Phase 7 | docs/v0.7.0/plans/v0.7.0-cycle.md Phase 7 sub-task 7.1 | DF | transferred to v0.8.0 plan (Phase 0 close-out) | Carried to v0.8.0; close when `npm install` re-runs and `package-lock.json` is regenerated with `hnswlib-node` resolved (or gracefully skipped). |
 
-All ten open items have been transferred to the v0.8.0 plan. The items remain unresolved (the work has not been done); they are tracked in a new surface so the v0.7.0 in-cycle log reaches its terminal state. When each v0.8.0 sub-task lands, the corresponding entry in `docs/v0.8.0/known-gaps.md` Section 10 is resolved as the canonical source.
+All thirteen open items have been transferred to the v0.8.0 plan. The items remain unresolved (the work has not been done); they are tracked in a new surface so the v0.7.0 in-cycle log reaches its terminal state. When each v0.8.0 sub-task lands, the corresponding entry in `docs/v0.8.0/known-gaps.md` Section 10 is resolved as the canonical source.
 
 ### 10.3 Summary (v0.7.0 in-cycle)
 
 | Category | Open | Resolved (transferred to v0.8.0) |
 |---|---|---|
 | NI (not implemented) | 0 | 4 |
-| DF (deferred) | 0 | 4 |
+| DF (deferred) | 0 | 5 |
 | BG (bug) | 0 | 0 |
-| MT (missing tests) | 0 | 0 |
+| MT (missing tests) | 0 | 2 |
 | WN (warning) | 0 | 2 |
 | QG (gate bypass) | 0 | 0 |
-| **Total** | **0** | **10** |
+| **Total** | **0** | **13** |
 
 **Status**: all items transferred. The v0.7.0 in-cycle log is closed; v0.8.0's `docs/v0.8.0/known-gaps.md` is the canonical tracking surface going forward.
 

@@ -4,6 +4,73 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-14] v0.7.0 Phase 7 -- HNSW vector index + audit/testgaps background workers
+
+### Goal
+
+Adopt the two P2 items in v0.7.0 Phase 7: (1) C32 -- swap the FTS5-pre-filtered linear cosine scan in [src/storage/MemoryStore.ts](../src/storage/MemoryStore.ts) for an HNSW ANN index (via the optional `hnswlib-node` native binary) when the entry count crosses a configurable threshold, with the existing linear path as the guaranteed fallback; and (2) C34 -- add `audit-worker` and `testgaps-worker` sub-agent types that run deterministic CLIs (`bin/gemma-check.mjs` and `vitest --coverage`) on a post-N-edits trigger and render their findings as chat messages via the Phase 4 render protocol. Plan reference: [docs/v0.7.0/plans/v0.7.0-cycle.md](v0.7.0/plans/v0.7.0-cycle.md) Phase 7 (sub-tasks 7.1, 7.2).
+
+### Decisions
+
+#### 7.1: `MemoryHnswIndex` as a separate module with a feature-detect entry point
+
+The HNSW logic lives in [src/storage/MemoryHnswIndex.ts](../src/storage/MemoryHnswIndex.ts), not inside `MemoryStore.ts` directly. The reasoning: keep the optional native dependency isolated behind a single `tryCreate` static factory that returns `null` on any failure (missing optionalDependency, ABI mismatch, corrupted persisted index, unwritable directory). MemoryStore consumes that nullable handle through a small set of private methods (`_shouldUseHnsw`, `_ensureHnswIndex`, `_searchHnsw`, `_hnswInsertIfActive`, `_rebuildHnswIndex`) so the search path branches at exactly one place and the fallback contract is mechanical, not a "best effort" code path. Labels are SQL `rowid` (positive integers) so the join back to memory rows is a single `WHERE rowid IN (...)` query; no parallel id map is needed.
+
+The activation guard combines three independent inputs: a non-empty `hnswIndexPath` (the caller opted in), a row count above the threshold (default 1000, settable via `gemma-code.memoryHnswThreshold`), and the runtime success of the lazy `require("hnswlib-node")`. Any of the three failing routes the query through the existing FTS5-pre-filtered linear scan. The cached row count (`_cachedCount`) is invalidated on every mutation so the threshold check stays current without scanning the table on every search.
+
+Persistence: the index is written to `~/.gemma-code/<workspaceId>/memory.hnsw` (configured via `ChatPanelInit.buildMemorySubsystem`). The `MemoryStoreOptions` are threaded through the existing `MemorySubsystemOptions` so callers that already construct `MemorySubsystem` need no other change. Inserts are incremental; `MemoryHnswIndex.needsRebuild()` returns true after 1000 mutations (configurable) and triggers a full rebuild from `SELECT rowid, embedding FROM memories WHERE embedding IS NOT NULL`, which bounds drift from `markDelete` markers that hnswlib-node does not reclaim incrementally.
+
+The `cosine` distance metric returned by `searchKnn` is `1 - cosine_similarity` per hnswlib-node's convention, so the similarity score that callers see is `1 - distance` -- the same range as the cosine path. `_finalizeSemanticResults` was extracted from `searchSemantic` so both code paths share the access-metadata update and the projection into `MemorySearchResult`.
+
+Required to install on Windows: hnswlib-node is an `optionalDependency`. The local dev workstation does not currently have the prebuilt binary; therefore the integration tests use `it.runIf(HNSW_AVAILABLE)` and skip when the require throws. The fallback path is exercised by an always-on test. The operator action to confirm the loaded-path runs green on Linux x64 / macOS is tracked as in-cycle gap 10.O.11.
+
+#### 7.2: `audit-worker` and `testgaps-worker` as SubAgentType variants with a deterministic dispatch path
+
+The plan says "Extend SubAgentManager.ts with two new sub-agent types." The literal reading would route workers through the same `AgentLoop` + `ConversationManager` + Ollama call sequence that verification uses, but that buys nothing: both workers are deterministic CLI invocations whose output format is fixed. So the chosen shape is: extend the `SubAgentType` union ([src/agents/types.ts](../src/agents/types.ts)) with `"audit-worker"` and `"testgaps-worker"`, register them in every existing per-type fallback table (TOOLS_BY_TYPE, SUB_AGENT_TIER_FALLBACK, SUB_AGENT_TOOLS_FALLBACK) with empty tool scope, and short-circuit `SubAgentManager.run` to a `_runWorker` branch BEFORE PromptBuilder / AgentLoop construction.
+
+`_runWorker` calls into [src/agents/BackgroundWorkers.ts](../src/agents/BackgroundWorkers.ts), which exposes pure functions (`runAuditWorker`, `runTestgapsWorker`) plus stand-alone output parsers (`parseGemmaCheckJson`, `formatAuditFindings`, `formatTestgapsOutput`). The command runner is injectable via `SubAgentManager.setWorkerRunner` so tests never spawn real processes. The default runner is a thin wrapper over `child_process.spawn` with stderr / exitCode capture; failures route to a `success=false` `SubAgentResult` rather than throwing.
+
+The audit worker invokes `process.execPath` against the resolved `bin/gemma-check.mjs` (the resolution walks two compiled-output levels up and falls back to `process.cwd()/bin`). It always passes `--json` and the changed-files list; the JSON output is parsed and rendered as a markdown findings table, or as a clean-suite acknowledgement when no findings appear and exit was 0. Non-zero exits with empty findings include the captured stderr so the chat surface is still actionable.
+
+The testgaps worker filters the modified-files list to source files (`.ts/.tsx/.js/.jsx/.mjs/.cjs` minus anything under `tests/` or matching `*.test.ts*`), maps each one to its conventional test path (`src/foo/bar.ts -> tests/unit/foo/bar.test.ts`, with `tests/integration/` and `<stem>.test.<ext>` / `<stem>.spec.<ext>` as fallbacks), checks each candidate exists on disk, then invokes `npx vitest run --coverage --reporter=json <testFiles...>`. The JSON output is summarized as pass/fail counts plus a per-file list of files with uncovered branches (capped at 20 entries). When no matching test files are found the worker still returns success but with an informational chat message.
+
+The AgentLoop trigger refactor: the previous code reset `_fileEditCount = 0` inside an `if (verificationEnabled)` guard, so adding workers required either a separate counter per worker or a refactor. The chosen refactor wraps all three workers in a single block: capture the modified-files / recent-tool-results snapshots first, reset the counter once, then fire `verification` / `audit-worker` / `testgaps-worker` in that order conditional on their individual enabled flags. Each worker's output, when non-empty, is appended to the conversation as a `[Verification Report]` / `[Audit Report]` / `[Test Gaps Report]` user message so subsequent model turns can react to the findings.
+
+Settings: `gemma-code.workers.audit.enabled` and `gemma-code.workers.testgaps.enabled` (default `false`) appear in [package.json](../package.json) configuration and in [src/config/settings.ts](../src/config/settings.ts). They are threaded through `ChatController.buildAgentLoop` -> `AgentLoopOptions`. Off by default per the plan; the workers are an opt-in observability layer.
+
+The webview's `subAgentStatus` handler in [src/panels/webview/runtime.ts](../src/panels/webview/runtime.ts) was extended with `'audit-worker': 'Audit'` and `'testgaps-worker': 'Test Gaps'` labels; the `SubAgentStatusMessage` agentType union in [src/panels/messages.ts](../src/panels/messages.ts) was widened to match.
+
+### Deviations from the plan
+
+- Plan prompt 7.1 says "Add `hnswlib-node@^3.0.0` as an `optionalDependency`". Done. The on-disk `package-lock.json` was NOT regenerated as part of this phase because `npm install` is an operator action under v0.7.0 Section 1.1 (live-Ollama capture also requires the operator). Tracked as in-cycle gap 10.O.13.
+- Plan prompt 7.1 says "The index rebuilds on insert/update/delete (incremental for inserts, full rebuild every 1000 mutations)." Implemented as described. Note that "update" of an existing memory's content is not a path that exists in MemoryStore today (`save` only inserts; mutations flow through `deleteById` + insert). Recall delta vs. linear is asserted by `tests/integration/memory-hnsw.test.ts` `runIf(HNSW_AVAILABLE)`.
+- Plan prompt 7.2 says "The audit worker calls `bin/gemma-check --json` on each changed file". Implemented by passing all changed files as positional arguments in a single invocation rather than spawning one process per file. The gemma-check CLI already supports a `paths[]` arg list and its walking logic is identical; this saves N spawns.
+
+### Tests
+
+Added 33 tests in five files (27 always-on, 6 gated on `hnswlib-node` being loadable):
+
+- [tests/unit/storage/MemoryHnswIndex.test.ts](../tests/unit/storage/MemoryHnswIndex.test.ts) -- 6 tests covering `tryCreate` failure, fresh-index size, insert + search, persist + reload, dimension mismatch, empty-index search. 5 `runIf` tests skip when hnswlib-node is absent locally.
+- [tests/unit/agents/BackgroundWorkers.test.ts](../tests/unit/agents/BackgroundWorkers.test.ts) -- 18 tests covering `parseGemmaCheckJson`, `formatAuditFindings`, `formatTestgapsOutput`, plus the runner-injected smoke paths for both worker functions.
+- [tests/unit/agents/SubAgentManager.test.ts](../tests/unit/agents/SubAgentManager.test.ts) -- 2 new tests for worker dispatch (audit and testgaps both bypass `client.streamChat`).
+- [tests/unit/tools/AgentLoop.test.ts](../tests/unit/tools/AgentLoop.test.ts) -- 3 new tests for the worker triggers (audit-only, testgaps-only, all three workers fire in order).
+- [tests/unit/storage/MemoryStore.test.ts](../tests/unit/storage/MemoryStore.test.ts) -- 1 new test confirming graceful fallback when an HNSW index path is supplied but the threshold is unreachable.
+- [tests/integration/memory-hnsw.test.ts](../tests/integration/memory-hnsw.test.ts) -- 3 tests; the always-on test confirms graceful fallback when hnswlib-node is missing; the two `runIf` tests cover threshold activation and recall-delta vs. linear scan.
+
+Full suite: **2136 passed, 11 skipped (177 files, 1 skipped)**. Baseline before Phase 7 was 2130 passed, 11 skipped -- +6 net new tests counted (the +27 from new test files were already in both baselines because untracked test files survived `git stash`; the +6 reflects additions to modified test files).
+
+### Known gaps
+
+Four new in-cycle gaps logged in [docs/v0.7.0/known-gaps.md](v0.7.0/known-gaps.md) Section 10:
+
+- **10.O.11 (MT, P2)**: HNSW loaded-path tests are gated; operator must run on a platform where `hnswlib-node` installs cleanly to confirm.
+- **10.O.12 (MT, P2)**: Background-workers end-to-end test (real `gemma-check` + `vitest` invocations) not yet written. Unit-level coverage of the trigger and runner contract is in.
+- **10.O.13 (DF, P3)**: `npm install` was not re-run; `package-lock.json` is unchanged. Operator close-out.
+
+All thirteen v0.7.0 in-cycle items have been transferred to the v0.8.0 plan; v0.7.0's in-cycle log reaches its terminal state with Phase 7 close.
+
+---
+
 ## [2026-05-14] v0.7.0 Phase 6 -- multi-harness skill packaging + standalone deterministic-checks CLI
 
 ### Goal

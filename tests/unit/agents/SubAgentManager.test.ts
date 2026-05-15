@@ -129,6 +129,60 @@ describe("SubAgentManager", () => {
     expect(result.toolCallCount).toBe(1);
   });
 
+  it("dispatches audit-worker to the deterministic worker path", async () => {
+    const client = makeClient("");
+    const manager = new SubAgentManager(client, promptBuilder, null, ollamaOptions, "gemma4");
+    const { posted, postMessage } = collectMessages();
+
+    const runner = vi.fn().mockResolvedValue({
+      stdout: JSON.stringify({ findings: [] }),
+      stderr: "",
+      exitCode: 0,
+    });
+    manager.setWorkerRunner(runner);
+
+    const config: SubAgentConfig = {
+      ...baseConfig,
+      type: "audit-worker",
+      maxIterations: 1,
+      userRequest: "Run gemma-check",
+    };
+    const result = await manager.run(config, postMessage);
+
+    expect(result.type).toBe("audit-worker");
+    expect(result.success).toBe(true);
+    expect(result.iterationsUsed).toBe(0);
+    expect(client.streamChat).not.toHaveBeenCalled();
+    const statuses = posted.filter((m) => m.type === "subAgentStatus") as Array<{
+      agentType: string;
+      state: string;
+    }>;
+    expect(statuses.some((s) => s.agentType === "audit-worker")).toBe(true);
+  });
+
+  it("dispatches testgaps-worker to the deterministic worker path", async () => {
+    const client = makeClient("");
+    const manager = new SubAgentManager(client, promptBuilder, null, ollamaOptions, "gemma4");
+    const { postMessage } = collectMessages();
+
+    const runner = vi.fn();
+    manager.setWorkerRunner(runner);
+
+    const config: SubAgentConfig = {
+      ...baseConfig,
+      type: "testgaps-worker",
+      maxIterations: 1,
+      userRequest: "Run vitest --coverage",
+      modifiedFiles: ["docs/note.md"], // not a source file -> short-circuits
+    };
+    const result = await manager.run(config, postMessage);
+
+    expect(result.type).toBe("testgaps-worker");
+    expect(result.success).toBe(true);
+    expect(result.iterationsUsed).toBe(0);
+    expect(client.streamChat).not.toHaveBeenCalled();
+  });
+
   it("sub-agent conversation is ephemeral (does not persist)", async () => {
     // Use a factory that returns fresh generators for each streamChat call
     let callCount = 0;

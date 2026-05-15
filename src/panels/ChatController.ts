@@ -210,6 +210,8 @@ export class ChatController {
         subAgentManager: deps.subAgentManager,
         verificationThreshold: deps.settings.verificationThreshold,
         verificationEnabled: deps.settings.verificationEnabled,
+        auditWorkerEnabled: deps.settings.auditWorkerEnabled,
+        testgapsWorkerEnabled: deps.settings.testgapsWorkerEnabled,
         workingMemory: deps.workingMemory ?? undefined,
         episodicMemory: deps.episodicMemory ?? undefined,
         sessionId: deps.manager.sessionId ?? undefined,

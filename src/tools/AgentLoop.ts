@@ -39,6 +39,16 @@ export interface AgentLoopOptions {
   readonly subAgentManager?: SubAgentSpawner;
   readonly verificationThreshold?: number;
   readonly verificationEnabled?: boolean;
+  /**
+   * v0.7.0 Phase 7 (C34): fire the audit-worker sub-agent at the same
+   * post-N-edits trigger as verification. Off by default.
+   */
+  readonly auditWorkerEnabled?: boolean;
+  /**
+   * v0.7.0 Phase 7 (C34): fire the testgaps-worker sub-agent at the same
+   * post-N-edits trigger as verification. Off by default.
+   */
+  readonly testgapsWorkerEnabled?: boolean;
   readonly budgetMiddleware?: BudgetMiddleware;
   readonly workingMemory?: WorkingMemory;
   readonly episodicMemory?: EpisodicMemory;
@@ -82,6 +92,8 @@ export class AgentLoop {
   private readonly _subAgentManager?: SubAgentSpawner;
   private readonly _verificationThreshold: number;
   private readonly _verificationEnabled: boolean;
+  private readonly _auditWorkerEnabled: boolean;
+  private readonly _testgapsWorkerEnabled: boolean;
   private _budgetMiddleware?: BudgetMiddleware;
   private readonly _workingMemory?: WorkingMemory;
   private readonly _episodicMemory?: EpisodicMemory;
@@ -110,6 +122,8 @@ export class AgentLoop {
     this._subAgentManager = options?.subAgentManager;
     this._verificationThreshold = options?.verificationThreshold ?? 3;
     this._verificationEnabled = options?.verificationEnabled ?? true;
+    this._auditWorkerEnabled = options?.auditWorkerEnabled ?? false;
+    this._testgapsWorkerEnabled = options?.testgapsWorkerEnabled ?? false;
     this._budgetMiddleware = options?.budgetMiddleware;
     this._workingMemory = options?.workingMemory;
     this._episodicMemory = options?.episodicMemory;
@@ -312,23 +326,58 @@ export class AgentLoop {
     this._budgetMiddleware?.recordIteration();
     tracer.endSpan(iterSpanId, "ok");
 
-    // Auto-verification: trigger after enough file edits.
+    // Auto-verification + v0.7.0 Phase 7 (C34) audit/testgaps workers:
+    // trigger after enough file edits. All three share the same threshold;
+    // the count is reset only once they have all had a chance to fire.
     if (
-      this._verificationEnabled &&
       this._subAgentManager &&
-      this._fileEditCount >= this._verificationThreshold
+      this._fileEditCount >= this._verificationThreshold &&
+      (this._verificationEnabled || this._auditWorkerEnabled || this._testgapsWorkerEnabled)
     ) {
+      const modifiedFiles = [...this._modifiedFiles];
+      const recentToolResults = [...this._recentToolResults];
       this._fileEditCount = 0;
-      const verifyConfig: SubAgentConfig = {
-        type: "verification",
-        maxIterations: 10,
-        userRequest: "Verify recent changes for correctness, check for bugs and run relevant tests.",
-        modifiedFiles: [...this._modifiedFiles],
-        recentToolResults: [...this._recentToolResults],
-      };
-      const verifyResult = await this._subAgentManager.run(verifyConfig, postMessage);
-      if (verifyResult.output) {
-        this._manager.addUserMessage(`[Verification Report]\n\n${verifyResult.output}`);
+
+      if (this._verificationEnabled) {
+        const verifyConfig: SubAgentConfig = {
+          type: "verification",
+          maxIterations: 10,
+          userRequest: "Verify recent changes for correctness, check for bugs and run relevant tests.",
+          modifiedFiles,
+          recentToolResults,
+        };
+        const verifyResult = await this._subAgentManager.run(verifyConfig, postMessage);
+        if (verifyResult.output) {
+          this._manager.addUserMessage(`[Verification Report]\n\n${verifyResult.output}`);
+        }
+      }
+
+      if (this._auditWorkerEnabled) {
+        const auditConfig: SubAgentConfig = {
+          type: "audit-worker",
+          maxIterations: 1,
+          userRequest: "Run gemma-check on the changed files.",
+          modifiedFiles,
+          recentToolResults,
+        };
+        const auditResult = await this._subAgentManager.run(auditConfig, postMessage);
+        if (auditResult.output) {
+          this._manager.addUserMessage(`[Audit Report]\n\n${auditResult.output}`);
+        }
+      }
+
+      if (this._testgapsWorkerEnabled) {
+        const testgapsConfig: SubAgentConfig = {
+          type: "testgaps-worker",
+          maxIterations: 1,
+          userRequest: "Run vitest --coverage on the test files matching changed source files.",
+          modifiedFiles,
+          recentToolResults,
+        };
+        const testgapsResult = await this._subAgentManager.run(testgapsConfig, postMessage);
+        if (testgapsResult.output) {
+          this._manager.addUserMessage(`[Test Gaps Report]\n\n${testgapsResult.output}`);
+        }
       }
     }
 
