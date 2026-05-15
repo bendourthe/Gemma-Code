@@ -499,7 +499,7 @@
     "isomorphic-dompurify": "^3.9.0",
     "marked": "^12.0.0",
     "minimatch": "^10.2.5",
-    "node-html-parser": "^6.1.13",
+    "node-html-parser": "^7.1.0",
     "tiktoken": "^1.0.17",
     "zod": "^3.23.8"
   },
