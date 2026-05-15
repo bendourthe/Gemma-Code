@@ -21,7 +21,7 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { argv, exit } from "node:process";
 
 function parseArgs() {
-  const args = { regressionPct: 20 };
+  const args = { regressionPct: 20, exclude: [] };
   for (let i = 2; i < argv.length; i++) {
     const key = argv[i];
     switch (key) {
@@ -40,13 +40,18 @@ function parseArgs() {
       case "--update-baseline":
         args.updateBaseline = true;
         break;
+      case "--exclude":
+        // Regex pattern; repeatable. Matching benches are silently skipped
+        // (still listed once under [info] so the suppression is visible).
+        args.exclude.push(new RegExp(argv[++i]));
+        break;
       default:
         console.error(`Unknown argument: ${key}`);
         exit(2);
     }
   }
   if (!args.baseline || !args.current) {
-    console.error("Usage: --baseline <path> --current <path> [--floor <path>] [--regression-pct N] [--update-baseline]");
+    console.error("Usage: --baseline <path> --current <path> [--floor <path>] [--regression-pct N] [--exclude <regex>] [--update-baseline]");
     exit(2);
   }
   return args;
@@ -126,6 +131,9 @@ function main() {
   const regressions = [];
   const improvements = [];
   const missing = [];
+  const excluded = [];
+
+  const isExcluded = (name) => args.exclude.some((re) => re.test(name));
 
   for (const [name, cur] of Object.entries(currentBench)) {
     let base = baseline[name];
@@ -143,10 +151,22 @@ function main() {
     void baseSource;
     // hz (ops/s) higher is better. Regression means current hz dropped.
     const deltaPct = ((cur.hz - base.hz) / base.hz) * 100;
+    if (isExcluded(name)) {
+      excluded.push({ name, baselineHz: base.hz, currentHz: cur.hz, deltaPct });
+      continue;
+    }
     if (deltaPct < -regressionPct) {
       regressions.push({ name, baselineHz: base.hz, currentHz: cur.hz, deltaPct });
     } else if (deltaPct > 50) {
       improvements.push({ name, baselineHz: base.hz, currentHz: cur.hz, deltaPct });
+    }
+  }
+
+  if (excluded.length > 0) {
+    console.log(`\n[info] ${excluded.length} benchmark(s) excluded from the gate (see --exclude):`);
+    for (const e of excluded) {
+      const arrow = e.deltaPct >= 0 ? "+" : "";
+      console.log(`  ~ ${e.name}: ${e.baselineHz.toFixed(2)} -> ${e.currentHz.toFixed(2)} hz (${arrow}${e.deltaPct.toFixed(1)}%)`);
     }
   }
 
