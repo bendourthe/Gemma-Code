@@ -1,3 +1,10 @@
+## [0.7.2](https://github.com/bendourthe/Gemma-Code/compare/v0.7.1...v0.7.2) (2026-05-15)
+
+
+### Bug Fixes
+
+* **ci:** make pathGuard mutant-pin tests platform-portable + clear transitive CVEs ([6743849](https://github.com/bendourthe/Gemma-Code/commit/6743849d35a0c67be5477f2d1c87e4bbe0a7ffab))
+
 ## [0.7.1](https://github.com/bendourthe/Gemma-Code/compare/v0.7.0...v0.7.1) (2026-05-15)
 
 
