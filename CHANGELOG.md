@@ -1,3 +1,10 @@
+# [0.10.0](https://github.com/bendourthe/Gemma-Code/compare/v0.9.0...v0.10.0) (2026-05-16)
+
+
+### Features
+
+* **v0.8.0:** Phase 2 harness artifacts + memory snapshot + injection defense ([f69cb2b](https://github.com/bendourthe/Gemma-Code/commit/f69cb2baac4f4ca2271b61bc874d5150b06c2d88))
+
 # [0.9.0](https://github.com/bendourthe/Gemma-Code/compare/v0.8.0...v0.9.0) (2026-05-16)
 
 
