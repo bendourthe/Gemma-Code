@@ -8,6 +8,7 @@ import type {
 import { resolveInsideWorkspace } from "./pathGuard.js";
 import { BLOCKED_PATTERNS } from "../../guardrails/policy.js";
 import { formatForUser } from "../../utils/errors.js";
+import { compressToolOutput } from "./preToolHook.js";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
@@ -92,6 +93,16 @@ export function isAllowlisted(command: string): boolean {
   return true;
 }
 
+function readCompressionSetting(): boolean {
+  try {
+    const config = vscode.workspace.getConfiguration("gemma-code");
+    const value = config.get<boolean>("preToolCompression");
+    return value !== false;
+  } catch {
+    return true;
+  }
+}
+
 function workspaceRoot(): string {
   const folders = vscode.workspace.workspaceFolders;
   if (!folders || folders.length === 0) {
@@ -106,8 +117,32 @@ function failResult(id: string, error: string): ToolResult {
 
 export class RunTerminalTool implements ToolHandler {
   constructor(
-    private readonly _timeoutMs: number = DEFAULT_TIMEOUT_MS
+    private readonly _timeoutMs: number = DEFAULT_TIMEOUT_MS,
+    /**
+     * v0.8.0 Phase 5 sub-task 5.7: when true (default), apply the pre-tool
+     * command compressor to long stdout produced by `npm test` / `git diff` /
+     * `cargo test` / `npm install`. Set false to bypass the compressor (e.g.
+     * for byte-identical replays in golden tests).
+     */
+    private readonly _compressOutput: boolean = readCompressionSetting(),
   ) {}
+
+  private _maybeCompress(input: {
+    command: string;
+    stdout: string;
+    stderr: string;
+    exitCode: number;
+  }): { stdout: string; stderr: string; compressionRatio: number } {
+    if (!this._compressOutput) {
+      return { stdout: input.stdout, stderr: input.stderr, compressionRatio: 0 };
+    }
+    const compressed = compressToolOutput(input);
+    return {
+      stdout: compressed.stdout,
+      stderr: compressed.stderr,
+      compressionRatio: compressed.compressionRatio,
+    };
+  }
 
   async execute(parameters: Record<string, unknown>): Promise<ToolResult> {
     const id = (parameters["_callId"] as string | undefined) ?? "";
@@ -210,10 +245,18 @@ export class RunTerminalTool implements ToolHandler {
           return;
         }
         const exitCode = code ?? -1;
+        const compressed = this._maybeCompress({ command, stdout, stderr, exitCode });
         resolve({
           id,
           success: exitCode === 0,
-          output: JSON.stringify({ stdout, stderr, exitCode }),
+          output: JSON.stringify({
+            stdout: compressed.stdout,
+            stderr: compressed.stderr,
+            exitCode,
+            ...(compressed.compressionRatio > 0
+              ? { compressionRatio: compressed.compressionRatio }
+              : {}),
+          }),
           error:
             exitCode !== 0
               ? `Command "${command}" exited with code ${exitCode}. ` +

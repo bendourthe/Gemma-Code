@@ -1,8 +1,22 @@
 #!/usr/bin/env node
 /**
  * PreToolUse hook: agent-agnostic defense-in-depth check for Bash / Write / Edit
- * tool calls. Reads a JSON event payload from stdin (`{ tool_name, tool_input }`),
- * exits 0 to allow, exits 2 with `BLOCKED: <reason>` on stderr to deny.
+ * tool calls.
+ *
+ * Two interchangeable I/O protocols are supported (v0.8.0 Phase 5 sub-task 5.6,
+ * item G6):
+ *
+ *  1. **Exit-code protocol (legacy)**: read JSON `{ tool_name, tool_input }`
+ *     from stdin, exit 0 to allow, exit 2 with `BLOCKED: <reason>` on stderr
+ *     to deny. This is the v0.7.0 contract and remains the default.
+ *
+ *  2. **stdin-JSON / stdout-decision protocol (new)**: when the stdin payload
+ *     also includes an `"event"` field (e.g. `{ event: "PreToolUse", tool, args,
+ *     peer, sessionId }`), the hook writes a JSON decision document to stdout
+ *     (`{"decision":"allow"}` or `{"decision":"block","reason":"..."}`) and
+ *     exits 0 in both cases. The legacy `tool_name` / `tool_input` field
+ *     names are accepted as aliases for `tool` / `args` so the same payload
+ *     can drive either protocol.
  *
  * The script is invoked by the agent's harness layer (Claude Code, Cursor, husky,
  * any other tool); see `docs/harness-integration.md` for example wirings.
@@ -10,14 +24,44 @@
  * Budget: < 50 ms wall-clock. No SQLite, no large file reads, no network.
  *
  * Exit codes:
- *   0  - allowed
- *   2  - blocked (with `BLOCKED: <reason>` on stderr)
+ *   0  - allowed (exit-code protocol) or decision emitted (new protocol)
+ *   2  - blocked (exit-code protocol only; new protocol always exits 0)
  *   1  - script error (malformed payload, internal failure)
  */
 
-import { readFileSync } from "node:fs";
-import { resolve, isAbsolute, relative, sep } from "node:path";
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
+import { homedir } from "node:os";
+import { resolve, isAbsolute, relative, sep, join, dirname } from "node:path";
 import { matchesSecretPath } from "./lib/secret-paths.mjs";
+
+const CONSENT_FILE =
+  process.env["GEMMA_HOOK_CONSENT_FILE"] ??
+  join(homedir(), ".gemma-code", "hooks-consent.json");
+
+function recordConsentIfNeeded(sessionId) {
+  if (!sessionId) return;
+  try {
+    let payload = { version: 1, sessions: {} };
+    if (existsSync(CONSENT_FILE)) {
+      try {
+        const raw = readFileSync(CONSENT_FILE, "utf-8");
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object" && parsed["sessions"]) {
+          payload = parsed;
+        }
+      } catch {
+        // fall through to fresh payload
+      }
+    }
+    if (!payload.sessions[sessionId]) {
+      payload.sessions[sessionId] = { firstSeenAt: new Date().toISOString() };
+      mkdirSync(dirname(CONSENT_FILE), { recursive: true });
+      writeFileSync(CONSENT_FILE, JSON.stringify(payload, null, 2), "utf-8");
+    }
+  } catch {
+    // Consent recording is best-effort; never break the hook on a write failure.
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -39,9 +83,11 @@ function readStdinSync() {
 }
 
 /**
- * Parse the harness event payload. Expected shape:
- *   { tool_name: string; tool_input: Record<string, unknown> }
- * Returns null on malformed input.
+ * Parse the harness event payload. Supports both protocols:
+ *   - Exit-code (legacy): `{ tool_name, tool_input }`
+ *   - stdin-JSON (new):  `{ event, tool, args, peer, sessionId }`
+ * Returns `{ toolName, toolInput, protocol, event, sessionId, peer }` on
+ * success, or null when malformed.
  */
 function parsePayload(raw) {
   if (!raw || raw.trim() === "") return null;
@@ -57,22 +103,40 @@ function parsePayload(raw) {
     const toolInput =
       obj["tool_input"] && typeof obj["tool_input"] === "object"
         ? obj["tool_input"]
+        : obj["args"] && typeof obj["args"] === "object"
+        ? obj["args"]
         : obj["parameters"] && typeof obj["parameters"] === "object"
         ? obj["parameters"]
         : {};
     if (!toolName) return null;
-    return { toolName, toolInput };
+    const event = typeof obj["event"] === "string" ? obj["event"] : null;
+    const sessionId = typeof obj["sessionId"] === "string" ? obj["sessionId"] : null;
+    const peer = typeof obj["peer"] === "string" ? obj["peer"] : null;
+    const protocol = event !== null ? "stdin-decision" : "exit-code";
+    return { toolName, toolInput, protocol, event, sessionId, peer };
   } catch {
     return null;
   }
 }
 
+// `_protocol` is captured at parse time and forwarded into block/allow so the
+// pair of helpers can switch on whether to print stdout JSON or rely on exit
+// codes. Default to the legacy contract when an entry point forgets to set it.
+let _protocol = "exit-code";
+
 function block(reason) {
+  if (_protocol === "stdin-decision") {
+    process.stdout.write(`${JSON.stringify({ decision: "block", reason })}\n`);
+    process.exit(0);
+  }
   process.stderr.write(`BLOCKED: ${reason}\n`);
   process.exit(2);
 }
 
 function allow() {
+  if (_protocol === "stdin-decision") {
+    process.stdout.write(`${JSON.stringify({ decision: "allow" })}\n`);
+  }
   process.exit(0);
 }
 
@@ -162,6 +226,8 @@ function main() {
     allow();
     return;
   }
+  _protocol = payload.protocol;
+  recordConsentIfNeeded(payload.sessionId);
   const { toolName, toolInput } = payload;
 
   if (toolName === "Bash" || toolName === "bash" || toolName === "run_terminal") {

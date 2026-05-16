@@ -177,16 +177,48 @@ function extractPrompt(raw) {
 // Main
 // ---------------------------------------------------------------------------
 
+/**
+ * v0.8.0 Phase 5 sub-task 5.6 (item G6) -- detect the stdin-JSON protocol.
+ * When the harness sends `{ event, ... }` JSON, emit a JSON decision document
+ * to stdout and exit 0 instead of using exit-code 2.
+ */
+let _protocol = "exit-code";
+
+function detectProtocol(raw) {
+  if (!raw || raw.trim() === "") return "exit-code";
+  try {
+    const obj = JSON.parse(raw);
+    if (obj && typeof obj === "object" && typeof obj["event"] === "string") {
+      return "stdin-decision";
+    }
+  } catch {
+    // not JSON - legacy
+  }
+  return "exit-code";
+}
+
 function block(reason) {
+  if (_protocol === "stdin-decision") {
+    process.stdout.write(`${JSON.stringify({ decision: "block", reason })}\n`);
+    process.exit(0);
+  }
   process.stderr.write(`BLOCKED: ${reason}\n`);
   process.exit(2);
 }
 
+function allow() {
+  if (_protocol === "stdin-decision") {
+    process.stdout.write(`${JSON.stringify({ decision: "allow" })}\n`);
+  }
+  process.exit(0);
+}
+
 function main() {
   const raw = readStdinSync();
+  _protocol = detectProtocol(raw);
   const prompt = extractPrompt(raw);
   if (prompt === "") {
-    process.exit(0);
+    allow();
     return;
   }
 
@@ -202,7 +234,7 @@ function main() {
     );
   }
 
-  process.exit(0);
+  allow();
 }
 
 main();

@@ -1,5 +1,13 @@
+import * as fs from "fs";
+import * as path from "path";
 import { ToolRegistry } from "./ToolRegistry.js";
 import { ConfirmationGate } from "./ConfirmationGate.js";
+import {
+  scanHandlerDirectory,
+  reportRegistryDrift,
+  type ScannedModule,
+} from "./AstToolScanner.js";
+import { getLogger } from "../utils/logger.js";
 import {
   ReadFileTool,
   WriteFileTool,
@@ -88,4 +96,55 @@ export function buildToolRegistry(opts: ToolRegistryBuildOptions): ToolRegistry 
   registry.setConfirmationGate(gate, permissionOverrides, editMode);
 
   return registry;
+}
+
+/**
+ * v0.8.0 Phase 5 sub-task 5.3 (item D2) -- AST scan of the handler directory.
+ *
+ * The builder above stays the source of truth for which handlers are wired;
+ * this helper exposes the scanner result so a build / CI step can warn when
+ * a handler module exists with no registration, or when a non-handler module
+ * is lurking under `handlers/`. Non-fatal: the function returns a structured
+ * report instead of throwing so the production startup path remains
+ * import-cheap.
+ */
+export interface RegistryAstAuditOptions {
+  readonly handlersDir?: string;
+  readonly wiredClassNames: readonly string[];
+}
+
+export function auditToolRegistryAst(opts: RegistryAstAuditOptions): {
+  scans: readonly ScannedModule[];
+  drift: ReturnType<typeof reportRegistryDrift>;
+} {
+  const handlersDir = opts.handlersDir ?? defaultHandlersDir();
+  if (!fs.existsSync(handlersDir)) {
+    getLogger().debug(
+      `[ToolRegistryBuilder] AST audit skipped: ${handlersDir} not found`,
+    );
+    return { scans: [], drift: { skippableModules: [], unwiredHandlers: [] } };
+  }
+  const scans = scanHandlerDirectory(handlersDir);
+  const drift = reportRegistryDrift(scans, opts.wiredClassNames);
+  if (drift.skippableModules.length > 0) {
+    getLogger().debug(
+      `[ToolRegistryBuilder] AST audit found ${drift.skippableModules.length} skippable module(s) ` +
+        `(no handler exports): ${drift.skippableModules.join(", ")}`,
+    );
+  }
+  if (drift.unwiredHandlers.length > 0) {
+    getLogger().warn(
+      `[ToolRegistryBuilder] AST audit found ${drift.unwiredHandlers.length} unwired handler(s): ` +
+        drift.unwiredHandlers.map((h) => `${h.className} (${h.filePath})`).join(", "),
+    );
+  }
+  return { scans, drift };
+}
+
+function defaultHandlersDir(): string {
+  // Resolve relative to the source tree. Compiled `out/` mirrors `src/`, so
+  // walking up two levels from the file location lands on the project root.
+  // The audit is intended for dev/CI runs that operate against `src/`.
+  const here = path.resolve(__dirname);
+  return path.resolve(here, "..", "..", "src", "tools", "handlers");
 }

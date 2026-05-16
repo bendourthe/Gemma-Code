@@ -4,6 +4,71 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-16] v0.8.0 Phase 5 -- Skill ecosystem maturation
+
+### Goal
+
+Add per-skill rolling 30-day success metrics + Tracer events, ship the dual-loop curator background worker with dry-run / apply / rollback, expose an AST-scanned drift detector for the tool registry, cache `check_fn` availability probes for 30 s, walk `.gemma.md` files from cwd up to the git root, upgrade the three shell hooks to the new stdin-JSON / stdout-decision protocol while preserving exit-code parity, layer a whitelist-driven pre-tool command compressor into `run_terminal`, ship a single `scripts/test.mjs --mode=X` test runner, extend `gemma-check` with five prompt / skill markdown rules plus a cross-file `flush()` pattern, document + override the Memory.md promotion mapping, and add the architecture cross-link for v0.7.0 Phase 3.7. Closes v0.8.0 plan sub-tasks 5.1 through 5.12 and v0.7.0 known-gap rows 10.O.5 and 10.O.6.
+
+### Decisions
+
+#### 5.1: SkillMetrics is file-backed and Tracer-aware
+
+`SkillMetrics.recordInvocation(skill, outcome, durationMs)` writes one event per invocation to `~/.gemma-code/metrics.json` (rolling 30-day window pruned on every write) and emits a Tracer span tagged `skill.<name>.<outcome>`. Outcome enum: `success` / `failure` / `retry` / `user-corrected`. The `/skill-metrics [name]` slash command renders the table.
+
+#### 5.2: CurationLoop is split into dryRun / apply / rollback with on-disk manifests
+
+The dry-run writes a manifest to `~/.gemma-code/curator/<stamp>-dryrun.json` listing `archive-stale-skill` / `consolidate-duplicate-memory-entries` / `patch-skill-frontmatter` actions; `apply(id)` reads the manifest, writes an `<stamp>-applied-from-<id>.json` rollback companion, and returns the rollback id; `rollback(id)` walks the rollback manifest. The `curator-worker` SubAgentType joins `audit-worker` / `testgaps-worker` on the deterministic-CLI dispatch branch in `SubAgentManager._runWorker`. AgentLoop's automatic trigger is approximated by gating the existing post-N-edits hook on a 12 h minimum-interval; the genuine idle-time scheduler is deferred to v0.9.0 (10.O.P).
+
+#### 5.3: AST-scanned tool registry is a drift detector, not a lazy-import driver
+
+`AstToolScanner` parses each handler module via the TypeScript compiler API and exposes `scanHandlerFile` / `scanHandlerDirectory` plus a `reportRegistryDrift` helper that flags (a) handler modules with no real export and (b) exported handlers that the registry does not wire. `ToolRegistryBuilder.buildToolRegistry` is unchanged at runtime; the new `auditToolRegistryAst` helper is intended for CI / dev-only consumption. A full lazy-import refactor is deferred (10.O.Q).
+
+#### 5.4: 30 s TTL cache keyed by `(name, argSignature)`
+
+`cachedCheck` / `cachedCheckSync` live alongside `computeToolActivation` in `ToolActivationRules.ts`. Cache key is `name::JSON.stringify(args)` so the same probe with different arguments produces independent entries. `invalidateCheck(name?)` drops by name or globally.
+
+#### 5.5: `.gemma.md` walk uses git-root stop, deepest-first ordering
+
+`discoverGemmaContextFiles(cwd)` walks parents until a `.git` directory or the filesystem root, deepest-first, applying the existing secret-path denylist. `PromptBuilder._buildGemmaContextWalkSection` injects the merged content at priority 18 (between memory snapshot at 2 and skill index at 20).
+
+#### 5.6: Hooks speak both protocols; `event` field is the discriminator
+
+When stdin contains a JSON payload with an `event` field, the hooks emit `{"decision":"allow"|"block","reason":"..."}` to stdout and exit 0. Otherwise they fall back to the v0.7.0 exit-code contract (0 = allow, 2 = block, `BLOCKED: ...` on stderr). `check-tool-permission.mjs` additionally records first-seen `sessionId` values to `~/.gemma-code/hooks-consent.json`.
+
+#### 5.7: Pre-tool compressor preserves stderr; recognises seven command families
+
+`preToolHook.compressToolOutput({command, stdout, stderr, exitCode})` classifies on the first command tokens (`npm test` / `vitest` / `jest` / `pytest` / `cargo test` / `git diff` / `npm install` / `pnpm install` / `yarn`) and applies a per-family compressor: tests keep failures + summary + last 20 lines, `git diff` keeps 30 lines per file, installs keep summary lines. Stderr passes through verbatim. Setting `gemma-code.preToolCompression` (default true) gates the rewrite. `RunTerminalTool` calls `_maybeCompress` before serialising the JSON `output`.
+
+#### 5.8: `scripts/test.mjs` maps `--mode=X` to existing npm scripts
+
+Modes: `unit / integration / golden / bench / mutation / coverage / all`. Passthrough args via `--`. `npm run t` shortcut.
+
+#### 5.9: Prompt rules use `appliesTo` for scope gating; cross-file rules use `flush()`
+
+Five new rules under `lib/checks/prompt-*.mjs` + `lib/checks/skill-duplicate-name.mjs`. Each rule that targets markdown exposes an `appliesTo(filePath)` predicate; the gemma-check runner walks `.md` files only when at least one rule with `appliesTo` is selected. The cross-file `skill-duplicate-name` rule accumulates state on every `scan()` and emits findings via `flush()` (documented as the pattern for future cross-file rules). `npm run check:prompts` invokes the canonical command line. The 42 pre-existing findings in the bundled catalog are tracked as 10.O.O for Phase 7 cleanup.
+
+#### 5.10: `sectionForType` accepts an override map; settings drive it
+
+`MemoryPanel.sectionForType(type, override?)` and `DEFAULT_PROMOTION_MAPPING` are exported. The `gemma-code.memory.promotionMapping` setting feeds the override; invalid values fall back to the default. `docs/v0.8.0/memory-promotion-mapping.md` documents the contract. Closes v0.7.0 10.O.5.
+
+#### 5.11: Architecture cross-link replaces the Phase 5 stub
+
+`docs/v0.7.0/architecture.md` Phase 5 section gains a blockquote pointing at v0.7.0 Phase 3.7 (where per-model context limits actually shipped). Closes v0.7.0 10.O.6.
+
+### Tests
+
+- 88 new unit tests (full layout in `docs/v0.8.0/development/history/phase-05.md`).
+- `npm test` is non-failing in the Phase 5 commits; the full-suite teardown segfault (10.O.N) and the 10.O.D test-file collection bug are pre-existing and unaffected.
+- `npm run lint` and `npm run build` green.
+
+### Known gaps
+
+Added: 10.O.O (prompt linter has 42 pre-existing findings in the catalog, Phase 7 polish), 10.O.P (curator scheduler is cadence-gated, not idle-timer-driven, v0.9.0), 10.O.Q (AST tool registry is detection-only, v0.9.0), 10.O.R (new prompt-rule test suite relocated to `tests/unit/lib/` to side-step 10.O.D).
+Resolved: v0.7.0 10.O.5 (Memory.md promotion mapping documented + overridable) and 10.O.6 (architecture cross-link).
+
+---
+
 ## [2026-05-16] v0.8.0 Phase 4 -- Observability, runtime, and hybrid scoring
 
 ### Goal

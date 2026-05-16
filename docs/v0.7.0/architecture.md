@@ -100,6 +100,8 @@ A new setting `gemma-code.memoryAutoArchive` (`"off" | "weekly" | "monthly"`, de
 
 ### Phase 5 surface: slash-command verbs and the manual MemoryPanel
 
+> **Cross-reference (closed in v0.8.0 Phase 5.11)**: the v0.7.0 plan listed "finalise per-model context limits" as a Phase 5 deliverable, but the actual implementation shipped earlier in **Phase 3 sub-task 3.7** alongside the `compress` tool and `/compact` verbs. No Phase 5 code change was needed; the `gemma-code.contextLimitsPerModel` setting referenced under Phase 3 below is the surface that closed the work. See `docs/v0.7.0/known-gaps.md` row 10.O.6 and `docs/v0.8.0/plans/v0.8.0-cycle.md` Phase 5.11. The v0.8.0 Phase 5 surface additionally adds the documented + overridable `sectionForType` mapping (see `docs/v0.8.0/memory-promotion-mapping.md` and `gemma-code.memory.promotionMapping`) which closes 10.O.5 alongside this cross-link.
+
 v0.7.0 Phase 5 layers two user-facing surfaces on top of the [MemoryFiles](../../src/storage/MemoryFiles.ts) primitives:
 
 1. **Slash-command verbs** -- [src/panels/ChatCommandHandlers.ts](../../src/panels/ChatCommandHandlers.ts) gains three new `/memory` verbs:

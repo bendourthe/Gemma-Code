@@ -24,6 +24,9 @@ import type { AgentLoop } from "../tools/AgentLoop.js";
 import type { GemmaRuntime } from "../runtime/GemmaRuntime.js";
 import type { GemmaCodeSettings } from "../config/settings.js";
 import type { CompressionState } from "../chat/state/CompressionState.js";
+import type { SkillMetrics } from "../skills/SkillMetrics.js";
+import { formatMetricsTable } from "../skills/SkillMetrics.js";
+import type { CurationLoop } from "../skills/CurationLoop.js";
 import {
   parseCompactArgs,
   computeContextBreakdown,
@@ -62,6 +65,8 @@ export interface ChatCommandContext {
   getMcpTools(): DynamicToolMetadata[];
   setMcpTools(tools: DynamicToolMetadata[]): void;
   getSettings(): GemmaCodeSettings;
+  getSkillMetrics(): SkillMetrics | null;
+  getCurationLoop(): CurationLoop | null;
   buildPromptContext(memoryContext?: string): PromptContext;
   postMessage(msg: ExtensionToWebviewMessage): void;
   postHistory(): void;
@@ -110,6 +115,10 @@ export class ChatCommandHandlers {
         return this._handleTrace(args);
       case "thinking-mode":
         return this._handleThinkingMode(args);
+      case "skill-metrics":
+        return this._handleSkillMetrics(args);
+      case "curate":
+        return this._handleCurate(args);
     }
   }
 
@@ -971,6 +980,114 @@ export class ChatCommandHandlers {
         this._emitMarkdown(lines.join("\n"));
         return;
       }
+    }
+  }
+
+  /**
+   * v0.8.0 Phase 5 sub-task 5.1 -- `/skill-metrics [name]`. Prints the rolling
+   * 30-day per-skill table; with an argument, scoped to a single skill.
+   */
+  private _handleSkillMetrics(args: string): void {
+    const metrics = this._ctx.getSkillMetrics();
+    if (!metrics) {
+      this._emitMarkdown("_Skill metrics are not initialized in this session._");
+      return;
+    }
+    const target = args.trim() || undefined;
+    const stats = metrics.getMetrics(target);
+    if (target && stats.length === 0) {
+      this._emitMarkdown(`_No invocations recorded for skill \`${target}\` in the past 30 days._`);
+      return;
+    }
+    this._emitMarkdown(formatMetricsTable(stats));
+  }
+
+  /**
+   * v0.8.0 Phase 5 sub-task 5.2 -- `/curate <--dry-run|--apply <id>|--rollback <id>|--status>`.
+   */
+  private async _handleCurate(args: string): Promise<void> {
+    const ctx = this._ctx;
+    const loop = ctx.getCurationLoop();
+    if (!loop) {
+      this._emitMarkdown("_Curator unavailable; enable via `gemma-code.workers.curator.enabled`._");
+      return;
+    }
+    const tokens = args.split(/\s+/).filter(Boolean);
+    const verb = (tokens[0] ?? "--status").toLowerCase();
+    const rest = tokens.slice(1);
+    try {
+      if (verb === "--dry-run") {
+        const manifest = await loop.dryRun();
+        const lines = [
+          "## Curator dry-run",
+          "",
+          `- **Manifest ID:** \`${manifest.id}\``,
+          `- **Actions proposed:** ${manifest.actions.length}`,
+          `- **Manifest path:** \`${manifest.manifestPath}\``,
+          "",
+        ];
+        if (manifest.actions.length === 0) {
+          lines.push("_No proposed actions._");
+        } else {
+          for (let i = 0; i < manifest.actions.length; i++) {
+            const a = manifest.actions[i]!;
+            lines.push(`${i + 1}. **${a.type}** -- \`${a.target}\` (${a.rationale})`);
+          }
+        }
+        lines.push("", `Apply with \`/curate --apply ${manifest.id}\`.`);
+        this._emitMarkdown(lines.join("\n"));
+        return;
+      }
+      if (verb === "--apply") {
+        const id = rest[0];
+        if (!id) {
+          this._emitMarkdown("_Usage: `/curate --apply <manifest-id>`._");
+          return;
+        }
+        const result = await loop.apply(id);
+        this._emitMarkdown(
+          [
+            "## Curator apply",
+            "",
+            `- **Applied from:** \`${id}\``,
+            `- **Rollback ID:** \`${result.rollbackId}\``,
+            `- **Actions executed:** ${result.actionsExecuted}`,
+            "",
+            `Roll back with \`/curate --rollback ${result.rollbackId}\`.`,
+          ].join("\n"),
+        );
+        return;
+      }
+      if (verb === "--rollback") {
+        const id = rest[0];
+        if (!id) {
+          this._emitMarkdown("_Usage: `/curate --rollback <rollback-id>`._");
+          return;
+        }
+        const result = await loop.rollback(id);
+        this._emitMarkdown(
+          [
+            "## Curator rollback",
+            "",
+            `- **Restored from:** \`${id}\``,
+            `- **Actions reverted:** ${result.actionsReverted}`,
+          ].join("\n"),
+        );
+        return;
+      }
+      const status = loop.status();
+      this._emitMarkdown(
+        [
+          "## Curator status",
+          "",
+          `- **Enabled:** ${status.enabled ? "yes" : "no"}`,
+          `- **Manifests directory:** \`${status.manifestDir}\``,
+          `- **Last dry-run:** ${status.lastDryRunId ?? "_(none)_"}`,
+          `- **Last applied:** ${status.lastAppliedId ?? "_(none)_"}`,
+        ].join("\n"),
+      );
+    } catch (err) {
+      this._emitMarkdown(`_Curator failed: ${formatForUser(err)}_`);
     }
   }
 }

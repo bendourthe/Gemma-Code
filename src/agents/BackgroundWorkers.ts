@@ -2,6 +2,8 @@ import { spawn } from "child_process";
 import { existsSync } from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
+import type { CurationLoop, CuratorManifest } from "../skills/CurationLoop.js";
+import { describeManifest } from "../skills/CurationLoop.js";
 import { formatForLog } from "../utils/errors.js";
 import { getLogger } from "../utils/logger.js";
 
@@ -182,6 +184,64 @@ export async function runTestgapsWorker(
       error: formatForLog(err),
     };
   }
+}
+
+/**
+ * v0.8.0 Phase 5 sub-task 5.2 -- curator background worker.
+ *
+ * Runs the dual-loop `CurationLoop.dryRun()`, writes the manifest, and emits a
+ * chat-friendly `[Curator Report]` body. Unlike audit / testgaps which spawn
+ * external CLIs, the curator runs entirely in-process: the manifest write
+ * itself is the side-effect under test.
+ */
+export async function runCuratorWorker(
+  loop: CurationLoop | null,
+): Promise<WorkerRunResult> {
+  if (!loop) {
+    return {
+      success: false,
+      output: "",
+      toolCallCount: 0,
+      error: "Curator loop not initialized; set gemma-code.workers.curator.enabled to true to enable.",
+    };
+  }
+  try {
+    const manifest = await loop.dryRun();
+    return {
+      success: true,
+      output: formatCuratorManifest(manifest),
+      toolCallCount: manifest.actions.length,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      toolCallCount: 0,
+      error: formatForLog(err),
+    };
+  }
+}
+
+export function formatCuratorManifest(manifest: CuratorManifest): string {
+  if (manifest.actions.length === 0) {
+    return `### Curator Worker\n\nDry-run \`${manifest.id}\` proposed 0 actions.`;
+  }
+  const summary = describeManifest(manifest);
+  const lines: string[] = [
+    `### Curator Worker`,
+    ``,
+    `Dry-run \`${manifest.id}\` proposed ${manifest.actions.length} action(s) (${summary}):`,
+    ``,
+  ];
+  for (const action of manifest.actions.slice(0, 20)) {
+    lines.push(`- **${action.type}** \`${action.target}\` -- ${action.rationale}`);
+  }
+  if (manifest.actions.length > 20) {
+    lines.push(`- ... and ${manifest.actions.length - 20} more.`);
+  }
+  lines.push(``);
+  lines.push(`Apply with \`/curate --apply ${manifest.id}\` after reviewing \`${manifest.manifestPath}\`.`);
+  return lines.join("\n");
 }
 
 // ---------------------------------------------------------------------------

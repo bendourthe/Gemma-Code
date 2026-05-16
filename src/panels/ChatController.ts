@@ -230,6 +230,7 @@ export class ChatController {
         verificationEnabled: deps.settings.verificationEnabled,
         auditWorkerEnabled: deps.settings.auditWorkerEnabled,
         testgapsWorkerEnabled: deps.settings.testgapsWorkerEnabled,
+        curatorWorkerEnabled: deps.settings.curatorWorkerEnabled,
         workingMemory: deps.workingMemory ?? undefined,
         episodicMemory: deps.episodicMemory ?? undefined,
         sessionId: deps.manager.sessionId ?? undefined,
@@ -313,7 +314,19 @@ export class ChatController {
       const combinedText = `${expandedPrompt}\n\n${command.args}`.trim();
 
       await this._injectMemoryContext(command.args || combinedText);
-      await ctx.pipeline.send(combinedText, postWithRender);
+      // v0.8.0 Phase 5 sub-task 5.1 -- record per-skill invocation. Outcome is
+      // success unless `pipeline.send` throws, which we surface as `failure`.
+      // The optional getSkillMetrics getter is missing on legacy test contexts;
+      // guard before reading so older tests stay green.
+      const metrics = ctx.getSkillMetrics?.() ?? null;
+      const startedAt = Date.now();
+      try {
+        await ctx.pipeline.send(combinedText, postWithRender);
+        metrics?.recordInvocation(command.name, "success", Date.now() - startedAt);
+      } catch (err) {
+        metrics?.recordInvocation(command.name, "failure", Date.now() - startedAt);
+        throw err;
+      }
       this._checkForPlan();
       return;
     }

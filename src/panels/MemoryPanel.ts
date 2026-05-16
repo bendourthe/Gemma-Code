@@ -144,7 +144,7 @@ export function promoteSqlMemoryToFile(
   const rows = memoryStore.listAll(2000);
   const row = rows.find((r) => r.id === id);
   if (!row) return { ok: false, reason: "Memory not found" };
-  const section = sectionForType(row.type);
+  const section = sectionForType(row.type, readPromotionMappingOverride());
   try {
     memoryFiles.appendToMemory(section, row.content);
   } catch (err) {
@@ -157,23 +157,68 @@ export function promoteSqlMemoryToFile(
 }
 
 /**
- * Map a SQL-backed memory type to a Memory.md section heading. The mapping is
- * intentionally simple -- the user can edit Memory.md directly to refile.
+ * v0.8.0 Phase 5 sub-task 5.10 -- documented + override-able section mapping.
+ *
+ * The default mapping was set in v0.7.0 Phase 5 and now lives in
+ * `docs/v0.8.0/memory-promotion-mapping.md`. Users can override any entry via
+ * the `gemma-code.memory.promotionMapping` setting (a flat object of
+ * SQL-type -> section heading). Unknown SQL types fall back to "Preferences".
  */
+export type MemorySectionHeading =
+  | "Preferences"
+  | "Corrections"
+  | "Patterns"
+  | "Decisions";
+
+export const DEFAULT_PROMOTION_MAPPING: Readonly<Record<string, MemorySectionHeading>> =
+  Object.freeze({
+    decision: "Decisions",
+    preference: "Preferences",
+    error_resolution: "Corrections",
+    file_pattern: "Patterns",
+  });
+
 export function sectionForType(
   type: string,
-): "Preferences" | "Corrections" | "Patterns" | "Decisions" {
-  switch (type) {
-    case "decision":
-      return "Decisions";
-    case "preference":
-      return "Preferences";
-    case "error_resolution":
-      return "Corrections";
-    case "file_pattern":
-      return "Patterns";
-    default:
-      return "Preferences";
+  override: Readonly<Record<string, MemorySectionHeading>> | null = null,
+): MemorySectionHeading {
+  if (override && override[type] && isValidSection(override[type]!)) {
+    return override[type]!;
+  }
+  if (DEFAULT_PROMOTION_MAPPING[type]) {
+    return DEFAULT_PROMOTION_MAPPING[type]!;
+  }
+  return "Preferences";
+}
+
+function isValidSection(value: string): value is MemorySectionHeading {
+  return (
+    value === "Preferences" ||
+    value === "Corrections" ||
+    value === "Patterns" ||
+    value === "Decisions"
+  );
+}
+
+/**
+ * Read the user's optional override map from VS Code settings. Skipped in
+ * non-VS-Code contexts (tests, CLI scripts) so the function stays pure when
+ * the workspace API is unavailable.
+ */
+function readPromotionMappingOverride(): Readonly<Record<string, MemorySectionHeading>> | null {
+  try {
+    const config = vscode.workspace.getConfiguration("gemma-code");
+    const raw = config.get<Record<string, string>>("memory.promotionMapping");
+    if (!raw || typeof raw !== "object") return null;
+    const out: Record<string, MemorySectionHeading> = {};
+    for (const [key, value] of Object.entries(raw)) {
+      if (typeof value === "string" && isValidSection(value)) {
+        out[key] = value;
+      }
+    }
+    return Object.keys(out).length > 0 ? Object.freeze(out) : null;
+  } catch {
+    return null;
   }
 }
 

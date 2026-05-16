@@ -4,6 +4,93 @@ import type { BuiltinToolName, ToolName } from "./types.js";
 /** Maximum number of tools to include in the prompt for reliable Gemma 4 tool calling. */
 const MAX_TOOL_COUNT = 15;
 
+/**
+ * v0.8.0 Phase 5 sub-task 5.4 (item D3) -- 30 s TTL for expensive availability
+ * probes. Used by callers that need to ask "is Docker reachable", "is the
+ * Playwright binary on disk", "is Ollama up": instead of hitting the network /
+ * filesystem on every prompt build, the result is cached for the TTL window.
+ *
+ * The cache is keyed by (name, argSignature) so the same `name` with different
+ * arguments produces independent entries. The default TTL matches the source
+ * registry pattern (30 s); callers can override via the `ttlMs` option.
+ */
+
+export const DEFAULT_CHECK_TTL_MS = 30_000;
+
+interface CacheEntry {
+  readonly expiresAt: number;
+  readonly value: unknown;
+}
+
+const _checkCache = new Map<string, CacheEntry>();
+
+function cacheKey(name: string, args: readonly unknown[]): string {
+  if (args.length === 0) return name;
+  return `${name}::${JSON.stringify(args)}`;
+}
+
+/**
+ * Run `probe` and cache its result for `ttlMs`. A second call within the
+ * window returns the cached value without invoking `probe`. Useful for
+ * Docker / playwright / Ollama / MCP availability checks that are expensive
+ * but stable over short windows.
+ */
+export async function cachedCheck<T>(
+  name: string,
+  args: readonly unknown[],
+  probe: () => Promise<T> | T,
+  options: { ttlMs?: number; now?: () => number } = {},
+): Promise<T> {
+  const ttlMs = options.ttlMs ?? DEFAULT_CHECK_TTL_MS;
+  const now = (options.now ?? Date.now)();
+  const key = cacheKey(name, args);
+  const cached = _checkCache.get(key);
+  if (cached && cached.expiresAt > now) {
+    return cached.value as T;
+  }
+  const value = await probe();
+  _checkCache.set(key, { expiresAt: now + ttlMs, value });
+  return value;
+}
+
+/** Synchronous variant for callers whose probe is itself synchronous. */
+export function cachedCheckSync<T>(
+  name: string,
+  args: readonly unknown[],
+  probe: () => T,
+  options: { ttlMs?: number; now?: () => number } = {},
+): T {
+  const ttlMs = options.ttlMs ?? DEFAULT_CHECK_TTL_MS;
+  const now = (options.now ?? Date.now)();
+  const key = cacheKey(name, args);
+  const cached = _checkCache.get(key);
+  if (cached && cached.expiresAt > now) {
+    return cached.value as T;
+  }
+  const value = probe();
+  _checkCache.set(key, { expiresAt: now + ttlMs, value });
+  return value;
+}
+
+/** Drop a single cache entry by name (all argument variants) or the entire cache. */
+export function invalidateCheck(name?: string): void {
+  if (!name) {
+    _checkCache.clear();
+    return;
+  }
+  const prefix = `${name}::`;
+  for (const key of [..._checkCache.keys()]) {
+    if (key === name || key.startsWith(prefix)) {
+      _checkCache.delete(key);
+    }
+  }
+}
+
+/** Test-only: peek at the cache size. */
+export function _checkCacheSizeForTests(): number {
+  return _checkCache.size;
+}
+
 export interface ToolActivationContext {
   readonly ollamaReachable: boolean;
   readonly networkAvailable: boolean;

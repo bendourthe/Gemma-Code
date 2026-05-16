@@ -120,7 +120,8 @@ export interface SubAgentStatusMessage {
     | "research"
     | "planning"
     | "audit-worker"
-    | "testgaps-worker";
+    | "testgaps-worker"
+    | "curator-worker";
   state: "running" | "complete" | "error";
   summary?: string;
 }

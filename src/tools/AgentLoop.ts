@@ -67,6 +67,14 @@ export interface AgentLoopOptions {
    * post-N-edits trigger as verification. Off by default.
    */
   readonly testgapsWorkerEnabled?: boolean;
+  /**
+   * v0.8.0 Phase 5 sub-task 5.2: fire the curator-worker sub-agent. Unlike
+   * audit/testgaps the curator is cadence-gated (12 h minimum between runs)
+   * and reuses the same edit-threshold trigger as a cheap idle proxy. Off by
+   * default. Tests can lower the cadence via `curatorWorkerMinIntervalMs`.
+   */
+  readonly curatorWorkerEnabled?: boolean;
+  readonly curatorWorkerMinIntervalMs?: number;
   readonly budgetMiddleware?: BudgetMiddleware;
   readonly workingMemory?: WorkingMemory;
   readonly episodicMemory?: EpisodicMemory;
@@ -121,6 +129,9 @@ export class AgentLoop {
   private readonly _verificationEnabled: boolean;
   private readonly _auditWorkerEnabled: boolean;
   private readonly _testgapsWorkerEnabled: boolean;
+  private readonly _curatorWorkerEnabled: boolean;
+  private readonly _curatorWorkerMinIntervalMs: number;
+  private _curatorLastRunAt = 0;
   private _budgetMiddleware?: BudgetMiddleware;
   private readonly _workingMemory?: WorkingMemory;
   private readonly _episodicMemory?: EpisodicMemory;
@@ -165,6 +176,9 @@ export class AgentLoop {
     this._verificationEnabled = options?.verificationEnabled ?? true;
     this._auditWorkerEnabled = options?.auditWorkerEnabled ?? false;
     this._testgapsWorkerEnabled = options?.testgapsWorkerEnabled ?? false;
+    this._curatorWorkerEnabled = options?.curatorWorkerEnabled ?? false;
+    this._curatorWorkerMinIntervalMs =
+      options?.curatorWorkerMinIntervalMs ?? 12 * 60 * 60 * 1000;
     this._budgetMiddleware = options?.budgetMiddleware;
     this._workingMemory = options?.workingMemory;
     this._episodicMemory = options?.episodicMemory;
@@ -401,7 +415,7 @@ export class AgentLoop {
     if (
       this._subAgentManager &&
       this._fileEditCount >= this._verificationThreshold &&
-      (this._verificationEnabled || this._auditWorkerEnabled || this._testgapsWorkerEnabled)
+      (this._verificationEnabled || this._auditWorkerEnabled || this._testgapsWorkerEnabled || this._curatorWorkerEnabled)
     ) {
       const modifiedFiles = [...this._modifiedFiles];
       const recentToolResults = [...this._recentToolResults];
@@ -446,6 +460,24 @@ export class AgentLoop {
         const testgapsResult = await this._subAgentManager.run(testgapsConfig, postMessage);
         if (testgapsResult.output) {
           this._manager.addUserMessage(`[Test Gaps Report]\n\n${testgapsResult.output}`);
+        }
+      }
+
+      if (this._curatorWorkerEnabled) {
+        const now = Date.now();
+        if (now - this._curatorLastRunAt >= this._curatorWorkerMinIntervalMs) {
+          this._curatorLastRunAt = now;
+          const curatorConfig: SubAgentConfig = {
+            type: "curator-worker",
+            maxIterations: 1,
+            userRequest: "Propose curator actions (archive stale skills, dedup memory, patch frontmatter).",
+            modifiedFiles,
+            recentToolResults,
+          };
+          const curatorResult = await this._subAgentManager.run(curatorConfig, postMessage);
+          if (curatorResult.output) {
+            this._manager.addUserMessage(`[Curator Report]\n\n${curatorResult.output}`);
+          }
         }
       }
     }

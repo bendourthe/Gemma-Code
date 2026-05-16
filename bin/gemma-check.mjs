@@ -27,7 +27,15 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { RULES, RULE_BY_ID } from "../lib/checks/index.mjs";
 
-const SCANNED_EXTENSIONS = new Set([
+/**
+ * v0.7.0 Phase 6: the walker originally limited itself to JS/TS source files
+ * because every shipped rule operated on code. v0.8.0 Phase 5 sub-task 5.9
+ * added markdown-targeted prompt / skill rules. To avoid scanning the entire
+ * documentation tree, .md files are walked only when at least one rule with
+ * an `appliesTo` predicate is selected; the predicate then narrows the file
+ * set per rule.
+ */
+const CODE_EXTENSIONS = new Set([
   ".ts",
   ".tsx",
   ".js",
@@ -37,6 +45,8 @@ const SCANNED_EXTENSIONS = new Set([
   ".mts",
   ".cts",
 ]);
+
+const MARKDOWN_EXTENSIONS = new Set([".md"]);
 
 const SKIPPED_DIRECTORIES = new Set([
   "node_modules",
@@ -111,7 +121,7 @@ export function parseArgs(argv) {
  * SCANNED_EXTENSIONS. Symlinks are not followed (avoids cycles and reads
  * outside the target tree).
  */
-export function* walk(root) {
+export function* walk(root, { includeMarkdown = false } = {}) {
   let stats;
   try {
     stats = statSync(root);
@@ -119,7 +129,7 @@ export function* walk(root) {
     return;
   }
   if (stats.isFile()) {
-    if (isScannable(root)) yield root;
+    if (isScannable(root, includeMarkdown)) yield root;
     return;
   }
   if (!stats.isDirectory()) return;
@@ -141,15 +151,18 @@ export function* walk(root) {
         stack.push(full);
         continue;
       }
-      if (entry.isFile() && isScannable(full)) yield full;
+      if (entry.isFile() && isScannable(full, includeMarkdown)) yield full;
     }
   }
 }
 
-function isScannable(filePath) {
+function isScannable(filePath, includeMarkdown) {
   const dot = filePath.lastIndexOf(".");
   if (dot === -1) return false;
-  return SCANNED_EXTENSIONS.has(filePath.slice(dot).toLowerCase());
+  const ext = filePath.slice(dot).toLowerCase();
+  if (CODE_EXTENSIONS.has(ext)) return true;
+  if (includeMarkdown && MARKDOWN_EXTENSIONS.has(ext)) return true;
+  return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -169,7 +182,8 @@ export function selectRules(requestedIds) {
 
 export function scanPath(target, rules) {
   const findings = [];
-  for (const filePath of walk(target)) {
+  const includeMarkdown = rules.some((r) => typeof r.appliesTo === "function");
+  for (const filePath of walk(target, { includeMarkdown })) {
     let contents;
     try {
       contents = readFileSync(filePath, "utf-8");
@@ -177,7 +191,18 @@ export function scanPath(target, rules) {
       continue;
     }
     for (const rule of rules) {
+      if (typeof rule.appliesTo === "function" && !rule.appliesTo(filePath)) {
+        continue;
+      }
       findings.push(...rule.scan(filePath, contents));
+    }
+  }
+  // v0.8.0 Phase 5 sub-task 5.9 (item G5): drain any cross-file rule state
+  // (`skill-duplicate-name` is the seed example). `flush()` is optional;
+  // a rule that does not expose it returns no extra findings here.
+  for (const rule of rules) {
+    if (typeof rule.flush === "function") {
+      findings.push(...rule.flush());
     }
   }
   return findings;
@@ -269,4 +294,5 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
 
 // Export helpers so tests can drive the CLI in-process without spawning a
 // child. The main() entry above is the only side-effectful path.
-export { SCANNED_EXTENSIONS, SKIPPED_DIRECTORIES, HELP };
+// Re-export the legacy name alongside the new one so existing tests keep working.
+export { CODE_EXTENSIONS as SCANNED_EXTENSIONS, CODE_EXTENSIONS, MARKDOWN_EXTENSIONS, SKIPPED_DIRECTORIES, HELP };

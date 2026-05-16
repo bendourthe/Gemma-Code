@@ -8,6 +8,8 @@ import { PlanMode } from "../chat/PlanMode.js";
 import { PromptBuilder } from "../chat/PromptBuilder.js";
 import { CommandRouter } from "../commands/CommandRouter.js";
 import { SkillLoader } from "../skills/SkillLoader.js";
+import { SkillMetrics } from "../skills/SkillMetrics.js";
+import { CurationLoop, makeStaticInputs } from "../skills/CurationLoop.js";
 import { McpManager } from "../mcp/McpManager.js";
 import { McpServer } from "../mcp/McpServer.js";
 import {
@@ -119,6 +121,8 @@ export interface BootstrappedPanel {
   readonly agentLoop: AgentLoop;
   readonly pipeline: StreamingPipeline;
   readonly skillLoader: SkillLoader;
+  readonly skillMetrics: SkillMetrics;
+  readonly curationLoop: CurationLoop;
   readonly commandRouter: CommandRouter;
   readonly statusReporter: ChatStatusReporter;
   readonly controller: ChatController;
@@ -316,6 +320,27 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
   skillLoader.load();
   skillLoader.watch();
 
+  // v0.8.0 Phase 5 sub-task 5.1: per-skill rolling 30-day metrics. The recorder
+  // emits Tracer events tagged `skill.<name>.<outcome>` so trace dashboards
+  // pick up the same data.
+  const skillMetrics = new SkillMetrics(undefined, runtime.tracer);
+
+  // v0.8.0 Phase 5 sub-task 5.2: dual-loop curator. Inputs are wired to the
+  // SkillLoader + bundled catalog directory; the memory-deduplication probe is
+  // left as an empty list until the MemoryStore.searchHybrid round-trip lands
+  // in v0.9.0 (the curator surface ships now without a dedup source so the
+  // dry-run path still emits stale-skill and patch-frontmatter proposals).
+  const curationLoop = new CurationLoop(
+    skillMetrics,
+    makeStaticInputs({
+      skills: skillLoader.listSkills().map((s) => s.name),
+      resolveSkillSkillMdPath: (name) => path.join(catalogDir, name, "SKILL.md"),
+    }),
+    undefined,
+    settings.curatorWorkerEnabled,
+  );
+  subAgentManager.setCurationLoop(curationLoop);
+
   const commandRouter = new CommandRouter(() =>
     skillLoader.listSkills().map((s) => ({
       name: s.name,
@@ -358,6 +383,8 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
     setMcpTools: (tools) => hooks.setMcpTools(tools),
     getUnifiedRetriever: () => memorySubsystem.unifiedRetriever,
     getSettings: () => hooks.getSettings(),
+    getSkillMetrics: () => skillMetrics,
+    getCurationLoop: () => curationLoop,
     buildPromptContext: (memoryContext) =>
       toolActivation.buildPromptContext(memoryContext),
     postMessage: input.hostPostMessage,
@@ -440,6 +467,8 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
     agentLoop,
     pipeline,
     skillLoader,
+    skillMetrics,
+    curationLoop,
     commandRouter,
     statusReporter,
     controller,

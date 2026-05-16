@@ -81,6 +81,19 @@ export interface GemmaCodeSettings {
    */
   testgapsWorkerEnabled: boolean;
   /**
+   * v0.8.0 Phase 5 sub-task 5.2 (items D6, D7): when true, the curator
+   * background worker proposes stale-skill / duplicate-memory / frontmatter-
+   * patch actions on a 12 h cadence. Off by default; the user must review and
+   * apply the manifest via `/curate --apply`.
+   */
+  curatorWorkerEnabled: boolean;
+  /**
+   * v0.8.0 Phase 5 sub-task 5.7 (item E5): when true (default), `run_terminal`
+   * routes long stdout through the pre-tool compressor (npm test / git diff /
+   * cargo test / npm install summaries instead of raw output).
+   */
+  preToolCompression: boolean;
+  /**
    * v0.8.0 Phase 2 (item C8): when true (default), `AgentLoop` refuses to
    * terminate via a no-tool-call response unless at least one
    * verification-class tool call has succeeded since the last user message.
@@ -197,6 +210,8 @@ export function getSettings(): GemmaCodeSettings {
     ),
     auditWorkerEnabled: config.get<boolean>("workers.audit.enabled") ?? false,
     testgapsWorkerEnabled: config.get<boolean>("workers.testgaps.enabled") ?? false,
+    curatorWorkerEnabled: config.get<boolean>("workers.curator.enabled") ?? false,
+    preToolCompression: config.get<boolean>("preToolCompression") ?? true,
     passStateGating: config.get<boolean>("passStateGating") ?? true,
     memorySnapshotMode: ((): "frozen" | "live" => {
       const raw = config.get<string>("memorySnapshotMode") ?? "frozen";

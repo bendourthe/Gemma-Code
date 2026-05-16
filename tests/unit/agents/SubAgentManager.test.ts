@@ -160,6 +160,55 @@ describe("SubAgentManager", () => {
     expect(statuses.some((s) => s.agentType === "audit-worker")).toBe(true);
   });
 
+  it("dispatches curator-worker to the deterministic worker path", async () => {
+    const client = makeClient("");
+    const manager = new SubAgentManager(client, promptBuilder, null, ollamaOptions, "gemma4");
+    const { posted, postMessage } = collectMessages();
+
+    const { CurationLoop, makeStaticInputs } = await import(
+      "../../../src/skills/CurationLoop.js"
+    );
+    const { SkillMetrics } = await import("../../../src/skills/SkillMetrics.js");
+    const fs = await import("node:fs");
+    const os = await import("node:os");
+    const path = await import("node:path");
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "gemma-curator-dispatch-"));
+    const metrics = new SkillMetrics(
+      path.join(tmpDir, "metrics.json"),
+      null,
+      () => 1_700_000_000_000,
+    );
+    const loop = new CurationLoop(
+      metrics,
+      makeStaticInputs({ skills: ["stale-skill"] }),
+      path.join(tmpDir, "curator"),
+      true,
+      () => 1_700_000_000_000,
+    );
+    manager.setCurationLoop(loop);
+
+    const config: SubAgentConfig = {
+      ...baseConfig,
+      type: "curator-worker",
+      maxIterations: 1,
+      userRequest: "Propose curator actions",
+    };
+    const result = await manager.run(config, postMessage);
+
+    expect(result.type).toBe("curator-worker");
+    expect(result.success).toBe(true);
+    expect(result.iterationsUsed).toBe(0);
+    expect(result.output).toContain("Curator Worker");
+    expect(client.streamChat).not.toHaveBeenCalled();
+    const statuses = posted.filter((m) => m.type === "subAgentStatus") as Array<{
+      agentType: string;
+      state: string;
+    }>;
+    expect(statuses.some((s) => s.agentType === "curator-worker")).toBe(true);
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
   it("dispatches testgaps-worker to the deterministic worker path", async () => {
     const client = makeClient("");
     const manager = new SubAgentManager(client, promptBuilder, null, ollamaOptions, "gemma4");

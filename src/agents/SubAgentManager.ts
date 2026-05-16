@@ -22,8 +22,9 @@ import { RunTerminalTool } from "../tools/handlers/terminal.js";
 import { WebSearchTool, FetchPageTool } from "../tools/handlers/webSearch.js";
 import { SpecialistLoader } from "./SpecialistLoader.js";
 import type { Specialist } from "./SpecialistLoader.js";
-import { runAuditWorker, runTestgapsWorker } from "./BackgroundWorkers.js";
+import { runAuditWorker, runTestgapsWorker, runCuratorWorker } from "./BackgroundWorkers.js";
 import type { WorkerCommandRunner } from "./BackgroundWorkers.js";
+import type { CurationLoop } from "../skills/CurationLoop.js";
 
 /**
  * Hardcoded fallback tool-scope per sub-agent type. Only used when the
@@ -39,6 +40,9 @@ const TOOLS_BY_TYPE: Record<SubAgentType, readonly string[]> = {
   // SubAgentManager.run before AgentLoop is constructed.
   "audit-worker": [],
   "testgaps-worker": [],
+  // v0.8.0 Phase 5: curator worker runs the CurationLoop directly; the empty
+  // scope marks it as deterministic-only.
+  "curator-worker": [],
 };
 
 /**
@@ -60,6 +64,12 @@ export class SubAgentManager implements SubAgentSpawner {
    */
   private _workerRunner: WorkerCommandRunner | null = null;
 
+  /**
+   * v0.8.0 Phase 5 sub-task 5.2 -- the curator worker delegates to a
+   * CurationLoop. Set via `setCurationLoop`; null disables curator dispatch.
+   */
+  private _curationLoop: CurationLoop | null = null;
+
   constructor(
     private readonly _client: OllamaClient,
     promptBuilder: PromptBuilder,
@@ -75,6 +85,15 @@ export class SubAgentManager implements SubAgentSpawner {
   /** Override the worker command runner. Used in tests; no-op when null. */
   setWorkerRunner(runner: WorkerCommandRunner | null): void {
     this._workerRunner = runner;
+  }
+
+  /**
+   * Inject the CurationLoop used by the curator-worker dispatch. Production
+   * callers wire this from `ChatPanelBootstrap`; tests construct an in-memory
+   * fake loop and pass it through directly.
+   */
+  setCurationLoop(loop: CurationLoop | null): void {
+    this._curationLoop = loop;
   }
 
   async run(config: SubAgentConfig, postMessage: PostMessageFn, parentTraceId?: string, parentSpanId?: string): Promise<SubAgentResult> {
@@ -96,7 +115,12 @@ export class SubAgentManager implements SubAgentSpawner {
 
     // v0.7.0 Phase 7 (C34): worker types run deterministic CLI commands; they
     // do not go through PromptBuilder / AgentLoop / ConversationManager.
-    if (config.type === "audit-worker" || config.type === "testgaps-worker") {
+    // v0.8.0 Phase 5 (D6/D7): `curator-worker` joins the deterministic branch.
+    if (
+      config.type === "audit-worker" ||
+      config.type === "testgaps-worker" ||
+      config.type === "curator-worker"
+    ) {
       return this._runWorker(config, postMessage, subAgentSpanId);
     }
 
@@ -305,7 +329,9 @@ export class SubAgentManager implements SubAgentSpawner {
       const runnerOpts = this._workerRunner ? { runner: this._workerRunner } : {};
       const result = config.type === "audit-worker"
         ? await runAuditWorker(config.modifiedFiles, runnerOpts)
-        : await runTestgapsWorker(config.modifiedFiles, runnerOpts);
+        : config.type === "testgaps-worker"
+        ? await runTestgapsWorker(config.modifiedFiles, runnerOpts)
+        : await runCuratorWorker(this._curationLoop);
 
       const status: "complete" | "error" = result.success ? "complete" : "error";
       postMessage({

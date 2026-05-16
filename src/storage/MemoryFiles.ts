@@ -147,6 +147,67 @@ export function deriveWorkspaceId(workspacePath: string): string {
   return `${safeBase}-${hash}`;
 }
 
+/**
+ * v0.8.0 Phase 5 sub-task 5.5 (item G2) -- walk from `startDir` up to the
+ * filesystem root (or the workspace root), collecting any `.gemma.md` file at
+ * each level. The walk stops at:
+ *
+ *   - a directory containing `.git/` (treated as the project root)
+ *   - the filesystem root (`path.parse(p).root`)
+ *
+ * Files matching the secret-path denylist (e.g. inside `~/.ssh/`) are skipped
+ * defensively. The return order is deepest-first: callers downstream
+ * (PromptBuilder) concatenate them so the closest file overrides outer ones.
+ */
+export function discoverGemmaContextFiles(startDir: string): string[] {
+  const out: string[] = [];
+  let current = path.resolve(startDir);
+  const visited = new Set<string>();
+  const fsRoot = path.parse(current).root;
+  while (current && !visited.has(current)) {
+    visited.add(current);
+    const candidate = path.join(current, ".gemma.md");
+    try {
+      if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+        if (!matchesSecretPath(candidate)) {
+          out.push(candidate);
+        }
+      }
+    } catch {
+      // Non-fatal: directory may be unreadable.
+    }
+    // Stop at git root (inclusive of its .gemma.md) or filesystem root.
+    if (fs.existsSync(path.join(current, ".git"))) break;
+    if (current === fsRoot) break;
+    const parent = path.dirname(current);
+    if (!parent || parent === current) break;
+    current = parent;
+  }
+  return out;
+}
+
+/**
+ * Read and concatenate every `.gemma.md` file from `discoverGemmaContextFiles`
+ * with a section header per file. Returns the empty string when no file is
+ * discovered. Used by PromptBuilder to inject the merged context after the
+ * memory snapshot but before the skill index.
+ */
+export function readGemmaContextFiles(startDir: string): string {
+  const files = discoverGemmaContextFiles(startDir);
+  if (files.length === 0) return "";
+  const blocks: string[] = [];
+  for (const filePath of files) {
+    try {
+      const content = fs.readFileSync(filePath, "utf8");
+      const rel = path.basename(filePath);
+      blocks.push(`### ${rel} (\`${filePath}\`)\n\n${content.trim()}`);
+    } catch {
+      // Skip unreadable file but continue walking.
+    }
+  }
+  return blocks.join("\n\n---\n\n");
+}
+
 export class MemoryFiles {
   public readonly baseDir: string;
 

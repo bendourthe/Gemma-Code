@@ -118,6 +118,8 @@ const SUB_AGENT_TIER_FALLBACK: Record<SubAgentType, SpecialistTier> = {
   // v0.7.0 Phase 7: workers run deterministic CLIs; tier is informational only.
   "audit-worker": "balanced",
   "testgaps-worker": "balanced",
+  // v0.8.0 Phase 5: curator runs the CurationLoop dry-run / apply pipeline.
+  "curator-worker": "balanced",
 };
 
 const SUB_AGENT_TOOLS_FALLBACK: Record<SubAgentType, readonly string[]> = {
@@ -128,6 +130,9 @@ const SUB_AGENT_TOOLS_FALLBACK: Record<SubAgentType, readonly string[]> = {
   // a marker that SubAgentManager dispatches to runWorker before building one.
   "audit-worker": [],
   "testgaps-worker": [],
+  // v0.8.0 Phase 5: curator worker is deterministic; the SubAgentManager
+  // dispatches to runCuratorWorker before constructing a registry.
+  "curator-worker": [],
 };
 
 /**

@@ -5,6 +5,7 @@ import { getSubAgentInstructions } from "../agents/SubAgentPrompts.js";
 import { serializeToolDefinitions } from "../tools/Gemma4ToolFormat.js";
 import { calculateBudget, countTokens } from "../config/PromptBudget.js";
 import type { MemoryFiles, MemoryFilesContents } from "../storage/MemoryFiles.js";
+import { readGemmaContextFiles } from "../storage/MemoryFiles.js";
 import { readWithSnapshot, type MemorySnapshot } from "../storage/MemorySnapshot.js";
 import { getLogger } from "../utils/logger.js";
 import { PLAN_MODE_SYSTEM_ADDENDUM, PLAN_MODE_CAPABILITIES_REMINDER } from "./PlanMode.js";
@@ -223,6 +224,9 @@ export class PromptBuilder {
 
       const thinking = this._buildThinkingModeSection(context);
       if (thinking) sections.push(thinking);
+
+      const gemmaCtx = this._buildGemmaContextWalkSection(context);
+      if (gemmaCtx) sections.push(gemmaCtx);
 
       const skill = this._buildSkillSection(context);
       if (skill) sections.push(skill);
@@ -525,6 +529,34 @@ export class PromptBuilder {
       priority: 31,
       alwaysInclude: false,
       estimatedTokens: estimateTokens(content),
+    };
+  }
+
+  /**
+   * v0.8.0 Phase 5 sub-task 5.5 (item G2) -- cascading .gemma.md context.
+   * Walks from the workspace cwd up to .git and concatenates each level's
+   * file. Sits between the memory snapshot and the skill section so the
+   * model sees the user's per-project context with reasonable recency but
+   * still below the per-turn skill prompt.
+   */
+  private _buildGemmaContextWalkSection(context: PromptContext): PromptSection | null {
+    const cwd = context.workspacePath;
+    if (!cwd) return null;
+    let content: string;
+    try {
+      content = readGemmaContextFiles(cwd);
+    } catch (err) {
+      getLogger().debug("[PromptBuilder] .gemma.md walk failed:", err);
+      return null;
+    }
+    if (!content) return null;
+    const wrapped = `## .gemma.md (cascaded)\n\n${content}`;
+    return {
+      id: "gemma-context-walk",
+      content: wrapped,
+      priority: 18,
+      alwaysInclude: false,
+      estimatedTokens: estimateTokens(wrapped),
     };
   }
 
