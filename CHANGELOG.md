@@ -1,3 +1,10 @@
+# [0.13.0](https://github.com/bendourthe/Gemma-Code/compare/v0.12.0...v0.13.0) (2026-05-16)
+
+
+### Features
+
+* **v0.8.0:** Phase 5 skill ecosystem maturation ([9534b87](https://github.com/bendourthe/Gemma-Code/commit/9534b87a5d95dbf45874530588f2f6c2aea9d05c))
+
 # [0.12.0](https://github.com/bendourthe/Gemma-Code/compare/v0.11.0...v0.12.0) (2026-05-16)
 
 
