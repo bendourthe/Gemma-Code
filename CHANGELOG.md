@@ -1,3 +1,10 @@
+# [0.9.0](https://github.com/bendourthe/Gemma-Code/compare/v0.8.0...v0.9.0) (2026-05-16)
+
+
+### Features
+
+* **v0.8.0:** Phase 1 skill-native quick wins (prompt-only) ([d313ced](https://github.com/bendourthe/Gemma-Code/commit/d313ced70de49eb9d094dfe88b928658910bb4f8))
+
 # [0.8.0](https://github.com/bendourthe/Gemma-Code/compare/v0.7.3...v0.8.0) (2026-05-16)
 
 
