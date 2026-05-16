@@ -15,7 +15,7 @@ Instructions:
 2. If nothing is staged, run `git diff HEAD` and note that changes are unstaged.
 3. Analyse the diff: identify the type (feat, fix, refactor, docs, test, chore, perf, style, ci), the scope (optional, the module or component affected), and a concise subject line.
 4. Write a commit message following the Conventional Commits specification:
-   - First line: `<type>(<scope>): <subject>` — 72 chars max, imperative mood, no period
+   - First line: `<type>(<scope>): <subject>` -- 72 chars max, imperative mood, no period
    - Blank line
    - Body (optional): explain *why* the change was made, not *what*; wrap at 72 chars
 5. If the user passed arguments, treat them as a hint for the commit message subject or scope.

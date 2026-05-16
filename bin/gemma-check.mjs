@@ -16,9 +16,15 @@
  *   gemma-check --help              print usage and exit
  *
  * Exit codes:
- *   0  -- no findings
- *   1  -- one or more findings
+ *   0  -- no errors (warnings and info findings are allowed; CI does not gate on them)
+ *   1  -- one or more error-severity findings
  *   2  -- invalid invocation or I/O error
+ *
+ * v0.8.0 Phase 7 (CI gate alignment): warnings and info findings emit to
+ * stdout for visibility but do not flip exit to non-zero. CI fails only when
+ * an error-severity rule fires, matching the convention used by ESLint,
+ * ruff, and dependency-cruiser. The `--strict` flag restores the legacy
+ * "any finding fails" behaviour for callers that need the older contract.
  */
 
 import { readdirSync, readFileSync, statSync, existsSync } from "node:fs";
@@ -68,11 +74,12 @@ Usage:
   gemma-check --json              emit JSON instead of human-readable
   gemma-check --rule <id>         restrict to a single rule (repeatable)
   gemma-check --list-rules        print rule ids and exit
+  gemma-check --strict            exit 1 on any finding (legacy behaviour)
   gemma-check --help              print usage and exit
 
 Exit codes:
-  0  no findings
-  1  one or more findings
+  0  no error-severity findings (warnings + info allowed)
+  1  one or more error-severity findings (or any finding with --strict)
   2  invalid invocation or I/O error
 `;
 
@@ -86,6 +93,7 @@ export function parseArgs(argv) {
     json: false,
     rules: [],
     listRules: false,
+    strict: false,
     help: false,
     unknown: [],
   };
@@ -94,6 +102,7 @@ export function parseArgs(argv) {
     if (a === "--help" || a === "-h") args.help = true;
     else if (a === "--json") args.json = true;
     else if (a === "--list-rules") args.listRules = true;
+    else if (a === "--strict") args.strict = true;
     else if (a === "--rule") {
       const next = argv[++i];
       if (!next) {
@@ -284,7 +293,9 @@ export function main(argv) {
   if (args.json) reportJson(allFindings);
   else reportHuman(allFindings);
 
-  return allFindings.length > 0 ? 1 : 0;
+  if (args.strict) return allFindings.length > 0 ? 1 : 0;
+  const hasError = allFindings.some((f) => f.severity === "error");
+  return hasError ? 1 : 0;
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {

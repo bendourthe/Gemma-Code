@@ -22,7 +22,7 @@ You are generating thorough tests for this codebase. Follow these steps:
    - Rust: #[cfg(test)] mod tests
 4. Follow AAA (Arrange, Act, Assert) structure. One logical assertion per test.
 5. Mock external dependencies at the module boundary. Do not test implementation details.
-6. Aim for ≥ 80% line and branch coverage on the targeted files.
+6. Aim for >= 80% line and branch coverage on the targeted files.
 7. Place tests in the correct location (co-located or in the tests/ directory, matching the project convention).
 8. After writing, summarise: files created, number of test cases, and estimated coverage.
 

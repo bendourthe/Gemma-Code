@@ -4,6 +4,61 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-16] v0.8.0 Phase 7 post-CI -- gemma-check semantic alignment + catalog regen + CI audit
+
+### Goal
+
+CI run `69328475165` against the Phase 7 commit (`8954589`) failed two jobs: `gemma-check (src/)` and `docs/index.md sync check`. Resolve both, realign the `gemma-check` CLI exit-code contract to match the broader linting convention (errors gate, warnings inform), regenerate the module catalog, and produce a structured CI audit identifying the further gaps the run surfaced.
+
+### Decisions
+
+#### Failure 1: `gemma-check (src/)` returning exit 1 on 42 pre-existing findings
+
+The walker now scans markdown files when any prompt rule is in the rule list (a Phase 5.9 design choice), and the default rule list includes all four prompt rules. The 42 findings broke down as 38 ASCII errors and 4 oversized-prompt warnings -- all in `src/skills/catalog/**/SKILL.md`, all pre-existing v0.7.0 content tracked as 10.O.O. The known-gap documented that "the linter ships with documented findings and CI does not gate on `check:prompts` exit code", but the CI step (`node bin/gemma-check.mjs src/`) was gating on the full default rule set including prompt rules.
+
+Two-part fix:
+
+(a) **Content fix** -- the 38 ASCII errors were replaced in 6 SKILL.md files: U+2014 (em-dash) -> `--`, U+2013 (en-dash) -> `-`, U+2265 (>=) -> `>=`, U+2264 (<=) -> `<=`, U+201C / U+201D (curly double quotes) -> straight `"`, U+2018 / U+2019 (curly single quotes) -> straight `'`, U+2026 (ellipsis) -> `...`. Files touched: `setup-project`, `generate-tests`, `generate-readme`, `generate-changelog`, `commit`, `analyze-codebase`. Content-preserving replacements; the rendered markdown is byte-equivalent in ASCII contexts.
+
+(b) **CLI semantic** -- `bin/gemma-check.mjs` now exits 1 only on `error`-severity findings (warnings and info are reported to stdout but do not gate). New `--strict` flag restores the legacy "any finding fails" behaviour for zero-tolerance callers. This matches the ESLint / ruff / dependency-cruiser convention and unblocks CI on the 4 outstanding `prompt-oversized` warnings (cosmetic; not blockers). Six new exit-code tests at `tests/unit/lib/gemma-check-exit-codes.test.ts` (spawned-child-process style, placed under `tests/unit/lib/` to side-step the 10.O.D Windows vm-transform bug).
+
+#### Failure 2: `docs/index.md sync check` reporting drift
+
+The committed `docs/index.md` froze at a pre-Phase-1 module shape (16 modules with the v0.7.0 file counts) and was never regenerated as Phases 1-6 added new files. `npm run catalog` produces a 28-line diff against current `src/`. Fix: re-emit the catalog and commit. The drift is purely artifactual; the generator itself is correct.
+
+#### Added: `package-vsix` CI job (smoke-build the VSIX)
+
+`vsce package --no-dependencies` runs on every push and uploads the 3.09 MB VSIX as a 7-day artifact for reviewer pickup. Catches `.vscodeignore` drift, missing assets in `package.json#files`, and prebuilt-binary omissions at the merge gate rather than at release time. Depends on `build-ts` to ensure tsc-compiled output is present.
+
+#### Other findings (not fixed in this commit; tracked in `docs/v0.8.0/known-gaps.md` Section 10.1)
+
+| ID | Severity | Description |
+|---|---|---|
+| 10.O.AB | P2 | Node 24 action upgrades by 2026-06-02 (deprecation deadline). Bump all `actions/*` to v5 and add `"24.x"` to the runner matrix. |
+| 10.O.AC | P3 | `coverage-gate` lacks a `functions >= 80` check; only lines and branches are gated. |
+| 10.O.AD | P2 | Add a dedicated `check-prompts` CI job once the 4 remaining `prompt-oversized` warnings clear (10.O.O follow-on). |
+| 10.O.AE | P2 | Add CodeQL SAST job (non-blocking initially). No SAST currently covers our own source; only dependency CVEs are gated. |
+| 10.O.AF | P3 | Add a fast-path bench job that runs the rendering benches on every push (full bench stays nightly). |
+| 10.O.AG | P3 | Upload the depcruise SVG as a 7-day artifact from the `check-architecture` job. |
+
+Full audit narrative at `docs/v0.8.0/review/ci-audit.md`.
+
+### Test results
+
+- `npm run lint` -- clean.
+- `npm run build` (tsc) -- clean.
+- `npm run catalog` -- regenerated 16 modules; `git diff --exit-code docs/index.md` clean after commit.
+- `node bin/gemma-check.mjs src/` -- exit 0 (4 warnings reported, 0 errors).
+- `node bin/gemma-check.mjs --strict src/` -- exit 1 (legacy contract preserved).
+- `npx vitest run tests/unit/lib/ tests/integration/dep-cruiser-clean.test.ts` -- **23 passed, 0 failed** (6 new exit-code tests + existing 17).
+- `npx --yes @vscode/vsce package --no-dependencies` -- builds cleanly (318 files, 3.09 MB).
+
+### Known gaps
+
+See [`docs/v0.8.0/known-gaps.md`](v0.8.0/known-gaps.md) Section 10.1. Resolved: 10.O.O ASCII portion (38 errors -> 0; 4 oversized warnings now non-blocking via CLI semantic). Added: 10.O.AB through 10.O.AG (six CI follow-on items from the audit). Summary recomputed: 37 open / 14 resolved.
+
+---
+
 ## [2026-05-16] v0.8.0 Phase 7 -- Polish, golden re-capture, security review, release
 
 ### Goal

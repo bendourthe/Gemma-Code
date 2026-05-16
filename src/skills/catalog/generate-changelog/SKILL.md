@@ -15,12 +15,12 @@ Steps:
 2. If a CHANGELOG.md already exists, read it to find the most recent documented version/date so you only add new entries.
 3. Group commits by version tag (`git tag --sort=-version:refname`) or by date if no tags exist.
 4. For each version/group, categorise commits into:
-   - **Added** — new features
-   - **Changed** — changes to existing behaviour
-   - **Deprecated** — features that will be removed in a future release
-   - **Removed** — features removed in this release
-   - **Fixed** — bug fixes
-   - **Security** — security patches
+   - **Added** -- new features
+   - **Changed** -- changes to existing behaviour
+   - **Deprecated** -- features that will be removed in a future release
+   - **Removed** -- features removed in this release
+   - **Fixed** -- bug fixes
+   - **Security** -- security patches
 5. Write entries as user-facing descriptions, not raw commit messages. Translate technical diffs into plain-language change notes.
 6. Format:
    ```

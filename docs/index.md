@@ -8,22 +8,22 @@ For the ADR-level architecture see [../ARCHITECTURE.md](../ARCHITECTURE.md) and 
 
 | Module | Files | LOC | Entry point | Top exports |
 |--------|------:|----:|-------------|-------------|
-| `agents` | 6 | 1092 | [src/agents/SubAgentManager.ts](../src/agents/SubAgentManager.ts) | `__testing`, `buildSubAgentContextMessage`, `formatAuditFindings` |
-| `chat` | 12 | 2611 | [src/chat/PromptBuilder.ts](../src/chat/PromptBuilder.ts) | `BlockRef`, `BlockSummary`, `CodeBlockTruncation` |
-| `commands` | 3 | 492 | [src/commands/compactCommand.ts](../src/commands/compactCommand.ts) | `BuiltinCommand`, `BuiltinCommandName`, `Command` |
-| `config` | 6 | 973 | [src/config/GpuDetector.ts](../src/config/GpuDetector.ts) | `BudgetAllocation`, `BudgetOverrides`, `calculateBudget` |
-| `evaluation` | 2 | 173 | [src/evaluation/GoldenTaskSuite.ts](../src/evaluation/GoldenTaskSuite.ts) | `GOLDEN_TASKS`, `GoldenTask`, `GoldenTaskCategory` |
-| `guardrails` | 6 | 531 | [src/guardrails/index.ts](../src/guardrails/index.ts) | `_resetPermissionOverrideWarnings`, `ActionClassification`, `ActionRisk` |
-| `llm` | 3 | 476 | [src/llm/OllamaClient.ts](../src/llm/OllamaClient.ts) | `OllamaError`, `createOllamaClient`, `CreateOllamaClientOptions` |
+| `agents` | 6 | 1192 | [src/agents/BackgroundWorkers.ts](../src/agents/BackgroundWorkers.ts) | `__testing`, `buildSubAgentContextMessage`, `formatAuditFindings` |
+| `chat` | 16 | 3575 | [src/chat/PromptBuilder.ts](../src/chat/PromptBuilder.ts) | `BlockRef`, `BlockSummary`, `buildApprovedWithNotesMessage` |
+| `commands` | 3 | 500 | [src/commands/compactCommand.ts](../src/commands/compactCommand.ts) | `BuiltinCommand`, `BuiltinCommandName`, `Command` |
+| `config` | 7 | 1148 | [src/config/GpuDetector.ts](../src/config/GpuDetector.ts) | `BudgetAllocation`, `BudgetOverrides`, `calculateBudget` |
+| `evaluation` | 3 | 438 | [src/evaluation/FeatureList.ts](../src/evaluation/FeatureList.ts) | `defaultFeatureListPath`, `FeatureList`, `FeatureRow` |
+| `guardrails` | 7 | 717 | [src/guardrails/index.ts](../src/guardrails/index.ts) | `_resetPermissionOverrideWarnings`, `ActionClassification`, `ActionRisk` |
+| `llm` | 5 | 899 | [src/llm/LmStudioClient.ts](../src/llm/LmStudioClient.ts) | `OllamaError`, `createLmStudioClient`, `CreateLmStudioClientOptions` |
 | `mcp` | 5 | 649 | [src/mcp/McpManager.ts](../src/mcp/McpManager.ts) | `DEFAULT_MCP_EXPOSED_TOOLS`, `McpClient`, `McpConfigFile` |
-| `observability` | 5 | 1427 | [src/observability/TraceStore.ts](../src/observability/TraceStore.ts) | `AggregateMetrics`, `MetricsCollector`, `MetricsTrend` |
+| `observability` | 6 | 1636 | [src/observability/TraceStore.ts](../src/observability/TraceStore.ts) | `AggregateMetrics`, `defaultTracePath`, `MetricsCollector` |
 | `orchestration` | 8 | 1572 | [src/orchestration/TaskDAG.ts](../src/orchestration/TaskDAG.ts) | `PostMessageFn`, `buildSubAgentRequest`, `CodeTaskInput` |
-| `panels` | 28 | 7942 | [src/panels/webview/index.ts](../src/panels/webview/index.ts) | `ACTION_TAG_FN_SOURCE`, `ActionClassificationMessage`, `actionLabelFor` |
-| `runtime` | 1 | 94 | [src/runtime/GemmaRuntime.ts](../src/runtime/GemmaRuntime.ts) | `GemmaRuntime` |
-| `skills` | 1 | 185 | [src/skills/SkillLoader.ts](../src/skills/SkillLoader.ts) | `Skill`, `SkillLoader` |
-| `storage` | 31 | 7427 | [src/storage/eviction/index.ts](../src/storage/eviction/index.ts) | `ARCEvictor`, `ArchiveResult`, `BrokenPathIssue` |
-| `tools` | 19 | 5035 | [src/tools/handlers/filesystem.ts](../src/tools/handlers/filesystem.ts) | `AgentLoop`, `AgentLoopOptions`, `ALLOWED_COMMANDS` |
-| `utils` | 6 | 979 | [src/utils/Compressor.ts](../src/utils/Compressor.ts) | `BROTLI_QUALITY`, `CompressedToolOutput`, `CompressionResult` |
+| `panels` | 31 | 9225 | [src/panels/webview/index.ts](../src/panels/webview/index.ts) | `ACTION_TAG_FN_SOURCE`, `ActionClassificationMessage`, `actionLabelFor` |
+| `runtime` | 1 | 127 | [src/runtime/GemmaRuntime.ts](../src/runtime/GemmaRuntime.ts) | `GemmaRuntime` |
+| `skills` | 4 | 942 | [src/skills/CurationLoop.ts](../src/skills/CurationLoop.ts) | `CurationInputs`, `CurationLoop`, `CuratorAction` |
+| `storage` | 37 | 8707 | [src/storage/eviction/index.ts](../src/storage/eviction/index.ts) | `ARCEvictor`, `ArchiveResult`, `BrokenPathIssue` |
+| `tools` | 21 | 5774 | [src/tools/handlers/filesystem.ts](../src/tools/handlers/filesystem.ts) | `_checkCacheSizeForTests`, `_internal`, `AgentLoop` |
+| `utils` | 6 | 987 | [src/utils/Compressor.ts](../src/utils/Compressor.ts) | `BROTLI_QUALITY`, `CompressedToolOutput`, `CompressionResult` |
 
 ## Module purposes
 
