@@ -7,6 +7,7 @@ import {
   CodeBlockTruncation,
   LlmSummary,
   EmergencyTrim,
+  COMPACTION_SUMMARY_PREFIX,
 } from "../../../src/chat/CompactionStrategy.js";
 import type { CompactionStrategy } from "../../../src/chat/CompactionStrategy.js";
 import type { Message } from "../../../src/chat/types.js";
@@ -485,6 +486,24 @@ describe("LlmSummary", () => {
     const messages = [msg("user", "word1 word2 word3 ".repeat(40))];
     const strategy = new LlmSummary(makeClient(""), "gemma4", 1);
     expect(strategy.canApply(messages, 50)).toBe(true);
+  });
+
+  it("includes the BACKGROUND REFERENCE framing prefix in the summary message", async () => {
+    const client = makeClient("Some summary body.");
+    const messages: Message[] = [
+      msg("system", "sys prompt"),
+      msg("user", "a".repeat(4000)),
+      msg("assistant", "response"),
+    ];
+
+    const strategy = new LlmSummary(client, "gemma4", 1);
+    const result = await strategy.apply(messages, 100);
+
+    const summaryMsg = result[1];
+    expect(summaryMsg?.role).toBe("assistant");
+    expect(summaryMsg?.content).toContain(COMPACTION_SUMMARY_PREFIX);
+    expect(summaryMsg?.content).toContain("BACKGROUND REFERENCE ONLY");
+    expect(summaryMsg?.content).toContain("Some summary body.");
   });
 });
 

@@ -39,7 +39,7 @@ describe("Built-in skill catalog integration", () => {
     expect(expanded).not.toContain("$ARGUMENTS");
   });
 
-  it("lists all thirteen built-in skills", () => {
+  it("lists all sixteen built-in skills", () => {
     const loader = new SkillLoader(CATALOG_DIR, path.join(CATALOG_DIR, "__nonexistent_user__"));
     loader.load();
 
@@ -59,6 +59,10 @@ describe("Built-in skill catalog integration", () => {
       "harden",
       "animate",
       "build-second-brain",
+      // v0.8.0 Phase 1 skill-native quick wins
+      "lens",
+      "incident-commander",
+      "council",
     ];
 
     for (const name of expected) {

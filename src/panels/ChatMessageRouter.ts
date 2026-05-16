@@ -106,6 +106,28 @@ export class ChatMessageRouter {
         await deps.controller.approveStep(message.step);
         break;
 
+      case "planApproveWithNotes": {
+        // v0.8.0 Phase 1.4: approve the entire plan with attached implementation
+        // notes; inject the rendered notes template as a system message so the
+        // executor sees it on the next turn.
+        const rendered = deps.planMode.approveWithNotes(message.notes);
+        deps.manager.addSystemMessage(rendered);
+        deps.status.postHistory();
+        deps.status.postTokenCount();
+        break;
+      }
+
+      case "planDeny": {
+        // v0.8.0 Phase 1.2: deny the plan with feedback; the rendered strong-
+        // directive template is appended as a system message so the model knows
+        // it must revise rather than resubmit.
+        const rendered = deps.planMode.denyPlan(message.feedback);
+        deps.manager.addSystemMessage(rendered);
+        deps.status.postHistory();
+        deps.status.postTokenCount();
+        break;
+      }
+
       case "loadSession":
         this._handleLoadSession(message.sessionId);
         break;

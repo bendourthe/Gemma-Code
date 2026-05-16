@@ -6,7 +6,7 @@ import { serializeToolDefinitions } from "../tools/Gemma4ToolFormat.js";
 import { calculateBudget, countTokens } from "../config/PromptBudget.js";
 import type { MemoryFiles, MemoryFilesContents } from "../storage/MemoryFiles.js";
 import { getLogger } from "../utils/logger.js";
-import { PLAN_MODE_SYSTEM_ADDENDUM } from "./PlanMode.js";
+import { PLAN_MODE_SYSTEM_ADDENDUM, PLAN_MODE_CAPABILITIES_REMINDER } from "./PlanMode.js";
 
 /**
  * Phase 5 (v0.5.0): delegates to the shared `countTokens` so PromptBuilder
@@ -285,12 +285,13 @@ export class PromptBuilder {
   private _buildPlanModeSection(context: PromptContext): PromptSection | null {
     if (!context.planModeActive) return null;
 
+    const content = PLAN_MODE_SYSTEM_ADDENDUM + "\n\n" + PLAN_MODE_CAPABILITIES_REMINDER;
     return {
       id: "plan-mode",
-      content: PLAN_MODE_SYSTEM_ADDENDUM,
+      content,
       priority: 10,
       alwaysInclude: false,
-      estimatedTokens: estimateTokens(PLAN_MODE_SYSTEM_ADDENDUM),
+      estimatedTokens: estimateTokens(content),
     };
   }
 

@@ -417,6 +417,18 @@ export interface ApproveStepMessage {
   step: number;
 }
 
+/** v0.8.0 Phase 1.4 -- approve the entire plan with attached implementation notes. */
+export interface PlanApproveWithNotesMessage {
+  type: "planApproveWithNotes";
+  notes: string;
+}
+
+/** v0.8.0 Phase 1.2 -- deny the current plan with feedback for the model. */
+export interface PlanDenyMessage {
+  type: "planDeny";
+  feedback: string;
+}
+
 /** Sent when the user clicks a session in the history list. */
 export interface LoadSessionRequest {
   type: "loadSession";
@@ -473,6 +485,8 @@ export type WebviewToExtensionMessage =
   | ConfirmationResponseMessage
   | RequestCommandListMessage
   | ApproveStepMessage
+  | PlanApproveWithNotesMessage
+  | PlanDenyMessage
   | LoadSessionRequest
   | SetEditModeRequest
   | RollbackRequest

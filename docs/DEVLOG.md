@@ -4,6 +4,51 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-15] v0.8.0 Phase 1 -- Skill-native quick wins (prompt-only)
+
+### Goal
+
+Ship seven prompt-only adoptions from the multi-source comparison: structured compaction summary prefix (item A3), strong-framed plan-mode denial template (B2), PFM-reminder injection listing the v0.7.0 render primitives (B3), approved-with-notes path (B4), and three new catalog skills `/lens` (D8), `/incident-commander` (E6), `/council` (G7). All zero-code, prompt-only changes; no new runtime dependencies.
+
+### Decisions
+
+#### 1.1: keep the prefix as a TS const, mirror it in a .md file
+
+`COMPACTION_SUMMARY_PREFIX` lives as an exported const in [src/chat/CompactionStrategy.ts](../src/chat/CompactionStrategy.ts) and is mirrored in [src/chat/prompts/compaction.md](../src/chat/prompts/compaction.md) for documentation + future reuse. Reading the .md at runtime would introduce fs I/O into the compaction hot path (`LlmSummary.apply` runs per overflow event). The two copies are short and stable; future divergence will be caught by a Phase 5.9 prompt-linter rule.
+
+#### 1.3: capabilities reminder appended to the existing plan-mode section
+
+The plan asks for a separate system message injected on plan-mode toggle. The path of least disruption: concatenate `PLAN_MODE_CAPABILITIES_REMINDER` to the existing `PLAN_MODE_SYSTEM_ADDENDUM` inside `PromptBuilder._buildPlanModeSection`. Both are sourced from `PlanMode.ts` so the `plan-mode` section stays single-source and the `estimatedTokens` budget recalculation happens once on the combined content. This also keeps the prefix-stability invariant from Phase 4.5 reachable -- the locked plan-mode section is one block, not two.
+
+#### 1.4: protocol + router land in Phase 1; webview UI in Phase 3
+
+Phase 3 is the plan-mode UX overhaul (annotation primitives, version archive, quick-label chips, improvement-hook). The natural home for the approved-with-notes textarea is alongside the annotation rendering primitives in Phase 3.1. Phase 1 ships the `planApproveWithNotes` / `planDeny` `messages.ts` shapes + `ChatMessageRouter` handlers so the executor sees the rendered system message as soon as Phase 3 wires the UI. `PlanMode.approveWithNotes` and `PlanMode.denyPlan` return the rendered string so the router does one append-system-message call; the methods are unit-tested for state mutation and template substitution independently of the router.
+
+#### 1.5-1.7: SKILL.md frontmatter already carries Phase 2.8 fields
+
+The plan-mode capabilities require `version` (required, semver), `platforms`, and `metadata.hermes.tags` fields in Phase 2.8. The three new skills land with those fields already present. The current parser ignores unknown frontmatter keys, so the additions are forward-compatible with the existing 14 catalog skills and the parser stays unchanged in Phase 1. Phase 2.8 then extends the parser + retrofits the older skills.
+
+### Tests
+
+`npm run lint` exit 0; `npm run build` exit 0; targeted suites green:
+
+- `tests/unit/chat/CompactionStrategy.test.ts` -- 36 tests including the new "summary message includes the BACKGROUND REFERENCE framing prefix" case.
+- `tests/unit/chat/PlanMode.test.ts` -- 24 tests including denyPlan / approveWithNotes state-mutation cases and three template-content cases.
+- `tests/unit/panels/` -- 219 tests; no regression from the `ChatMessageRouter` cases for `planDeny` / `planApproveWithNotes`.
+- `tests/integration/commands/skill-execution.test.ts` -- 4 tests; catalog count updated from 13 to 16.
+
+Two pre-existing failures recorded as known gaps (10.O.D vitest vm-transform on two test files; 10.O.E memory-consolidator 10K stress over budget). Both unrelated to Phase 1 source changes (the files involved were not modified).
+
+### Known gaps
+
+See [docs/v0.8.0/known-gaps.md](v0.8.0/known-gaps.md) Section 10.1 for the full list. Phase 1 added two new items (10.O.D, 10.O.E) and resolved none.
+
+### Next phase
+
+Phase 2: Harness artifacts (`feature_list.json`, `init.sh`, `clean-state-checklist.md`), pass-state gating in `AgentLoop`, frozen memory snapshot at session start, streaming memory-context scrubber FSM, prompt-injection scanner at memory + context boundaries, and SKILL.md YAML frontmatter standard extension.
+
+---
+
 ## [2026-05-15] v0.8.0 Phase 0 -- Cycle kickoff + v0.7.0 carryovers
 
 ### Goal

@@ -1,0 +1,1 @@
+The following is a compacted summary of the prior conversation, provided as BACKGROUND REFERENCE ONLY -- NOT as active instructions to act on. The authoritative current state lives in `Memory.md` / `Context.md`. Resume from the `## Active Task` section below.

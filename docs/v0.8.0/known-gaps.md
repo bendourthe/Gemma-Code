@@ -70,7 +70,7 @@ These sections mirror `docs/v0.7.0/known-gaps.md` Sections 2-9 and will be popul
 
 This section is appended phase-by-phase as v0.8.0 lands. Each entry records the source phase, plan reference, category, severity, reason, and suggested next step. Items are moved to `## Resolved` when closed in a later phase, and the `## Summary` at the bottom of the section is recomputed each pass.
 
-**Last updated**: 2026-05-15 (Phase 0 close).
+**Last updated**: 2026-05-15 (Phase 1 close).
 
 ### 10.1 Open Items
 
@@ -79,6 +79,8 @@ This section is appended phase-by-phase as v0.8.0 lands. Each entry records the 
 | 10.O.A | Phase 0 | docs/v0.8.0/plans/v0.8.0-cycle.md sub-task 0.2 + 0.12 | DF | P1 | Live-Ollama golden + benchmark baseline capture (v0.4.0, v0.6.0, v0.7.0) requires `ollama serve` running with `gemma4:e4b` pulled on a quiescent workstation; the agent is not authorized to run live inference. Carries v0.7.0 items 10.O.14 + 10.O.15. | Operator: run the three captures per sub-task 0.2 procedure; document deltas in this file Section 1. |
 | 10.O.B | Phase 0 | docs/v0.8.0/plans/v0.8.0-cycle.md sub-task 0.6 | DF | P1 | v0.7.0 post-tag exit verification requires a fresh worktree (`git worktree add`) and the full gate run; the agent should not modify worktree state autonomously. | Operator: run sub-task 0.6 procedure; document result in this file Section 1. |
 | 10.O.C | Phase 0 | docs/v0.8.0/plans/v0.8.0-cycle.md sub-task 0.10 | DF | P3 | `package-lock.json` regeneration with `hnswlib-node` resolved + cross-platform HNSW test run. The lockfile regen runs locally; the cross-platform test run requires Linux x64 or macOS access. Carries v0.7.0 items 10.O.13 + 10.O.11. | Operator: run `npm install` locally; commit `package-lock.json`; run gated HNSW tests on Linux/macOS host (CI runner counts). |
+| 10.O.D | Phase 1 | (discovered) | BG | P2 | `tests/unit/cli/gemma-check.test.ts` and `tests/unit/scripts/package-skills.test.ts` fail to load under `npm run test` with `SyntaxError: Invalid or unexpected token` thrown from `node:vm new Script`. Neither file was modified during Phase 1; both predate the v0.8.0 cycle and the suites pointed at the same files in isolation produce the same error. Probable cause: vitest 1.6.1 Node-vm transform path on Windows mis-handles certain non-ASCII characters in the docstring or import list. | Phase 5 sub-task tied to `bin/gemma-check.mjs` rule expansion (5.9) should reproduce on Linux to confirm cross-platform; if Linux-only fix is viable, treat as a vitest config/version bump; otherwise temporarily move the two suites behind an env-gate while the upstream issue is filed. |
+| 10.O.E | Phase 1 | (discovered) | BG | P2 | `tests/integration/memory-consolidator-large.test.ts` "consolidates 10K episodic events in under 5 seconds" times out at ~11s on the dev workstation (assertion: `expected 11255.9 to be less than 5000`). The 5 s budget was set in v0.7.0 and appears unrelated to Phase 1 changes (no consolidator code paths touched). | Phase 6 sub-task 6.3 (Reflect Job) will refactor the consolidator stress path; bump the threshold to a measured + headroom value during that work, or split the stress test into a separate `bench:integration` mode. |
 
 ### 10.2 Resolved
 
@@ -98,10 +100,10 @@ This section is appended phase-by-phase as v0.8.0 lands. Each entry records the 
 |---|---|---|
 | NI (not implemented) | 0 | 4 |
 | DF (deferred) | 3 | 0 |
-| BG (bug) | 0 | 2 |
+| BG (bug) | 2 | 2 |
 | MT (missing tests) | 0 | 1 |
 | WN (warning) | 0 | 0 |
 | QG (gate bypass) | 0 | 0 |
-| **Total** | **3** | **7** |
+| **Total** | **5** | **7** |
 
-**Status (Phase 0 close)**: Three open items remain, all operator-action (10.O.A, 10.O.B, 10.O.C) blocked on environment access (live Ollama, fresh worktree, Linux/macOS host). Seven v0.7.0 carryovers resolved by Phase 0 sub-tasks 0.3/0.4/0.5/0.8/0.9/0.11/0.13. The v0.7.0 in-cycle log items 10.O.4-10 are carried in v0.7.0's audit trail and close in their natural target phases (5.10, 5.11, 6.A, 7.1, 7.A-C); they are not duplicated in this log.
+**Status (Phase 1 close)**: Five open items. Three operator-action (10.O.A/B/C) blocked on environment access. Two newly-discovered pre-existing bugs (10.O.D vitest vm transform on two test files; 10.O.E memory-consolidator stress test exceeds its 5 s budget) recorded for fix in their natural target phases (5.9 and 6.3 respectively). All seven Phase 1 sub-tasks (1.1 compaction prefix, 1.2 plan denial template, 1.3 PFM reminder, 1.4 approved-with-notes, 1.5 lens, 1.6 incident-commander, 1.7 council) landed clean with passing tests; `npm run lint` and `npm run build` both green; `tests/unit/chat/CompactionStrategy.test.ts` and `tests/unit/chat/PlanMode.test.ts` cover the new templates and methods (60 tests passing). The three new skills lift the catalog count from 13 to 16, and `tests/integration/commands/skill-execution.test.ts` was updated accordingly. The v0.7.0 in-cycle log items 10.O.4-10 are carried in v0.7.0's audit trail and close in their natural target phases (5.10, 5.11, 6.A, 7.1, 7.A-C); they are not duplicated in this log.

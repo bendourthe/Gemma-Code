@@ -1,5 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { PlanMode, detectPlan, PLAN_MODE_SYSTEM_ADDENDUM } from "../../../src/chat/PlanMode.js";
+import {
+  PlanMode,
+  detectPlan,
+  PLAN_MODE_SYSTEM_ADDENDUM,
+  PLAN_MODE_CAPABILITIES_REMINDER,
+  PLAN_DENIAL_TEMPLATE,
+  PLAN_APPROVED_WITH_NOTES_TEMPLATE,
+  buildDenialMessage,
+  buildApprovedWithNotesMessage,
+} from "../../../src/chat/PlanMode.js";
 
 describe("detectPlan()", () => {
   it("returns null when response has no numbered list", () => {
@@ -120,5 +129,82 @@ describe("PlanMode", () => {
     pm.approveStep(0);
     // Snapshot should not reflect the mutation.
     expect(snapshot.currentPlan[0]?.status).toBe("pending");
+  });
+
+  it("denyPlan() returns the rendered denial template with feedback inlined", () => {
+    const pm = new PlanMode();
+    pm.setPlan(["Step A", "Step B"]);
+    pm.approveStep(0);
+    const msg = pm.denyPlan("step 2 deletes production data");
+    expect(msg).toContain("YOUR PLAN WAS NOT APPROVED");
+    expect(msg).toContain("Do NOT resubmit the same plan unchanged");
+    expect(msg).toContain("step 2 deletes production data");
+  });
+
+  it("denyPlan() resets non-done steps to pending and clears the step pointer", () => {
+    const pm = new PlanMode();
+    pm.setPlan(["Step A", "Step B"]);
+    pm.approveStep(0);
+    pm.markStepDone(0);
+    pm.approveStep(1);
+    pm.denyPlan("reconsider step 2");
+    expect(pm.state.currentStep).toBe(0);
+    expect(pm.state.currentPlan[0]?.status).toBe("done"); // done preserved
+    expect(pm.state.currentPlan[1]?.status).toBe("pending"); // approved reverts
+  });
+
+  it("approveWithNotes() approves every non-done step and returns the rendered notes template", () => {
+    const pm = new PlanMode();
+    pm.setPlan(["Step A", "Step B", "Step C"]);
+    pm.markStepDone(0);
+    const msg = pm.approveWithNotes("prefer dependency injection over globals");
+    expect(msg).toContain("Plan approved with notes!");
+    expect(msg).toContain("Implementation Notes");
+    expect(msg).toContain("prefer dependency injection over globals");
+    expect(pm.state.currentPlan[0]?.status).toBe("done");
+    expect(pm.state.currentPlan[1]?.status).toBe("approved");
+    expect(pm.state.currentPlan[2]?.status).toBe("approved");
+    expect(pm.state.currentStep).toBe(3);
+  });
+});
+
+describe("PLAN_DENIAL_TEMPLATE", () => {
+  it("contains the strong-directive framing", () => {
+    expect(PLAN_DENIAL_TEMPLATE).toContain("YOUR PLAN WAS NOT APPROVED");
+    expect(PLAN_DENIAL_TEMPLATE).toContain("Do NOT resubmit");
+    expect(PLAN_DENIAL_TEMPLATE).toContain("{{feedback}}");
+  });
+
+  it("buildDenialMessage() substitutes feedback and trims surrounding whitespace", () => {
+    const out = buildDenialMessage("  please drop step 3  ");
+    expect(out).toContain("please drop step 3");
+    expect(out).not.toContain("{{feedback}}");
+    expect(out).not.toContain("  please drop");
+  });
+});
+
+describe("PLAN_APPROVED_WITH_NOTES_TEMPLATE", () => {
+  it("contains the implementation-notes framing", () => {
+    expect(PLAN_APPROVED_WITH_NOTES_TEMPLATE).toContain("Plan approved with notes");
+    expect(PLAN_APPROVED_WITH_NOTES_TEMPLATE).toContain("Implementation Notes");
+    expect(PLAN_APPROVED_WITH_NOTES_TEMPLATE).toContain("{{notes}}");
+  });
+
+  it("buildApprovedWithNotesMessage() substitutes notes", () => {
+    const out = buildApprovedWithNotesMessage("use vitest fake timers");
+    expect(out).toContain("use vitest fake timers");
+    expect(out).not.toContain("{{notes}}");
+  });
+});
+
+describe("PLAN_MODE_CAPABILITIES_REMINDER", () => {
+  it("lists the v0.7.0 Phase 4 render primitives", () => {
+    expect(PLAN_MODE_CAPABILITIES_REMINDER).toContain("TODO_BLOCK");
+    expect(PLAN_MODE_CAPABILITIES_REMINDER).toContain("DIFF_CARD");
+    expect(PLAN_MODE_CAPABILITIES_REMINDER).toContain("ACTION_TAG");
+    expect(PLAN_MODE_CAPABILITIES_REMINDER).toContain("PERMISSION_PROMPT");
+    expect(PLAN_MODE_CAPABILITIES_REMINDER).toContain("THOUGHT_META_ROW");
+    expect(PLAN_MODE_CAPABILITIES_REMINDER).toContain("QUEUED_MESSAGE_FIELD");
+    expect(PLAN_MODE_CAPABILITIES_REMINDER).toContain("COMPLETION_REPORT");
   });
 });

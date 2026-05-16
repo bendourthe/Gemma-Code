@@ -26,6 +26,60 @@ export const PLAN_MODE_SYSTEM_ADDENDUM =
   "Do not proceed beyond step 1 until the user approves it.";
 
 /**
+ * Plan-mode capabilities reminder. Lists the v0.7.0 Phase 4 webview render
+ * primitives the model can reference inside its plans. Kept as a runtime
+ * const so PromptBuilder can append it without fs at hot-path time; the
+ * authoritative copy is `src/chat/prompts/planModeCapabilities.md`.
+ */
+export const PLAN_MODE_CAPABILITIES_REMINDER =
+  "## Plan-mode rendering capabilities\n\n" +
+  "When emitting a plan in PLAN MODE, you may use any of the v0.7.0 render primitives below. The Gemma-Code webview will detect and render them with structured UI affordances; using them is preferred over plain prose when the content fits.\n\n" +
+  "- TODO_BLOCK: Emit numbered or bulleted task lists with `- [ ]` and `- [x]` checkboxes. The webview renders them as an interactive checklist. Use this for the plan itself; one checkbox per step.\n" +
+  "- DIFF_CARD: When proposing a code change, emit a fenced ```diff block. The webview renders it as a side-by-side diff card.\n" +
+  "- ACTION_TAG: Inline tags like `[action: read file `foo.ts`]` render as small clickable chips. Surface concrete next-step actions inside step descriptions.\n" +
+  "- PERMISSION_PROMPT: When a step needs explicit user confirmation before running a tool, emit a permission-prompt block. The user can approve or deny inline.\n" +
+  "- THOUGHT_META_ROW: One-line meta annotations such as `> meta: this step depends on step 2` render as a faint sidebar callout. Use sparingly.\n" +
+  "- QUEUED_MESSAGE_FIELD: During streaming, the input row may be swapped for a queued-message field; you don't emit this directly, but assume the user may queue a follow-up while you stream.\n" +
+  "- COMPLETION_REPORT: When all approved steps are `[DONE]`, emit a single completion-report block summarising what was accomplished and what was deferred.\n\n" +
+  "Plans that use these primitives produce a richer review surface than plain prose. Prefer them when applicable.";
+
+/**
+ * Strong-directive denial template emitted as a system message when the user
+ * denies a plan or step with feedback. The `{{feedback}}` placeholder is
+ * replaced via `buildDenialMessage(feedback)`.
+ */
+export const PLAN_DENIAL_TEMPLATE =
+  "YOUR PLAN WAS NOT APPROVED.\n\n" +
+  "You MUST revise the plan to address ALL of the feedback below before re-submitting.\n\n" +
+  "Rules:\n" +
+  "- Do NOT resubmit the same plan unchanged.\n" +
+  "- Do NOT change the plan title (first `#` heading) unless the user explicitly asks you to.\n\n" +
+  "USER FEEDBACK:\n{{feedback}}";
+
+/**
+ * Approved-with-notes template: the user accepted the plan but attached
+ * additional implementation notes for the executor. Emitted as a system
+ * message when `PlanMode.approveWithNotes(notes)` is invoked. The
+ * `{{notes}}` placeholder is replaced via `buildApprovedWithNotesMessage`.
+ */
+export const PLAN_APPROVED_WITH_NOTES_TEMPLATE =
+  "Plan approved with notes! Execute the plan.\n\n" +
+  "## Implementation Notes\n\n" +
+  "The user approved your plan but added the following notes to consider during implementation:\n\n" +
+  "{{notes}}\n\n" +
+  "Proceed with implementation, incorporating these notes where applicable.";
+
+/** Render the plan-denial template with the user's feedback inlined. */
+export function buildDenialMessage(feedback: string): string {
+  return PLAN_DENIAL_TEMPLATE.replace("{{feedback}}", feedback.trim());
+}
+
+/** Render the approved-with-notes template with the user's notes inlined. */
+export function buildApprovedWithNotesMessage(notes: string): string {
+  return PLAN_APPROVED_WITH_NOTES_TEMPLATE.replace("{{notes}}", notes.trim());
+}
+
+/**
  * Detects a numbered plan in a model response.
  * A response is considered a plan if it contains at least 2 numbered list items
  * within the first 500 characters.
@@ -104,5 +158,33 @@ export class PlanMode {
   resetPlan(): void {
     this._state.currentPlan = [];
     this._state.currentStep = 0;
+  }
+
+  /**
+   * Deny the current plan (or a specific step) with feedback. All pending steps
+   * revert to `pending` and the step counter resets to 0 so the model produces
+   * a revised plan from scratch. Returns the rendered denial message that the
+   * caller should inject as a system message.
+   */
+  denyPlan(feedback: string): string {
+    for (const step of this._state.currentPlan) {
+      if (step.status !== "done") step.status = "pending";
+    }
+    this._state.currentStep = 0;
+    return buildDenialMessage(feedback);
+  }
+
+  /**
+   * Approve the plan as a whole with attached implementation notes. Transitions
+   * every non-done step to `approved` (same as a full approve) and returns the
+   * rendered "approved with notes" message for the caller to inject as a
+   * system message.
+   */
+  approveWithNotes(notes: string): string {
+    for (const step of this._state.currentPlan) {
+      if (step.status !== "done") step.status = "approved";
+    }
+    this._state.currentStep = this._state.currentPlan.length;
+    return buildApprovedWithNotesMessage(notes);
   }
 }
