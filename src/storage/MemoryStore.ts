@@ -22,6 +22,12 @@ import {
 } from "./embeddingUtils.js";
 import { createFtsTableAndTriggers } from "./sqliteFts.js";
 import { MemoryHnswIndex } from "./MemoryHnswIndex.js";
+import {
+  HybridRanker,
+  type FusionMethod,
+  type LexicalCandidate,
+  type VectorCandidate,
+} from "./HybridRanker.js";
 
 /**
  * v0.7.0 Phase 7 -- options for activating the optional HNSW vector index.
@@ -374,6 +380,61 @@ export class MemoryStore {
       entry: this._rowToEntry(s.row),
       score: Math.max(0, s.similarity),
       matchSource: "semantic" as const,
+    }));
+  }
+
+  // ---------------------------------------------------------------------------
+  // Hybrid scoring (v0.8.0 Phase 4 sub-task 4.6)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Hybrid memory retrieval. Fuses keyword (FTS5) and semantic (HNSW or
+   * linear-scan) candidate lists via `HybridRanker`. Each returned entry
+   * carries a `reason` array explaining provenance ("HNSW rank #1 (cosine
+   * 0.83)", "FTS5 rank #2", "Updated 3 minutes ago"). The matchSource is
+   * always "hybrid" so consumers can branch on which path produced the
+   * ranking.
+   *
+   * Falls through to an empty list cleanly when neither sub-ranker returns
+   * anything. The function never throws -- internal errors degrade to
+   * partial results.
+   */
+  async searchHybrid(
+    query: string,
+    limit = 10,
+    method: FusionMethod = "rrf",
+  ): Promise<MemorySearchResult[]> {
+    if (!query) return [];
+    const keywordResults = this.searchKeyword(query, Math.max(limit, 20));
+    let semanticResults: MemorySearchResult[] = [];
+    try {
+      semanticResults = await this.searchSemantic(query, Math.max(limit, 20));
+    } catch (err) {
+      getLogger().debug(
+        "[MemoryStore] searchHybrid semantic step failed:",
+        formatForLog(err),
+      );
+    }
+
+    if (keywordResults.length === 0 && semanticResults.length === 0) return [];
+
+    const vectorCandidates: VectorCandidate[] = semanticResults.map((r) => ({
+      entry: r.entry,
+      similarity: r.score,
+      source: "linear-scan",
+    }));
+    const lexicalCandidates: LexicalCandidate[] = keywordResults.map((r) => ({
+      entry: r.entry,
+      score: r.score,
+    }));
+
+    const ranker = new HybridRanker({ method, limit });
+    const ranked = ranker.rank(vectorCandidates, lexicalCandidates);
+    return ranked.map((r) => ({
+      entry: r.entry,
+      score: r.score,
+      matchSource: "hybrid" as const,
+      reason: r.reason,
     }));
   }
 

@@ -23,13 +23,19 @@ export interface MemorySearchResult {
   readonly entry: MemoryEntry;
   /** Combined relevance score in the range 0..1. */
   readonly score: number;
-  readonly matchSource: "keyword" | "semantic" | "both";
+  readonly matchSource: "keyword" | "semantic" | "both" | "hybrid";
   /**
    * Corroboration tier derived from `entry.corroborationCount` and the
    * configured threshold. Surfaced so retrieval consumers can prefer
    * fact-tier rows over candidate-tier rows.
    */
   readonly corroborationTier?: import("./MemoryShared.types.js").CorroborationTier;
+  /**
+   * v0.8.0 Phase 4 sub-task 4.6 -- optional "why retrieved" explanation
+   * (one-sentence strings) produced by `HybridRanker`. The MemoryPanel
+   * surfaces these as a collapsible affordance per entry.
+   */
+  readonly reason?: readonly string[];
 }
 
 export interface MemoryStats {

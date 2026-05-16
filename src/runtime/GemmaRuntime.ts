@@ -1,24 +1,24 @@
 import { Tracer } from "../observability/Tracer.js";
-import { getSettings, onSettingsChange, type GemmaCodeSettings } from "../config/settings.js";
+import { TraceFile } from "../observability/TraceFile.js";
+import {
+  getSettings,
+  onSettingsChange,
+  type GemmaCodeSettings,
+} from "../config/settings.js";
 import { createOllamaClient } from "../llm/OllamaClient.js";
+import { createLmStudioClient } from "../llm/LmStudioClient.js";
 import type { LLMClient } from "../llm/types.js";
 
 /**
  * Composition root for the extension. Owns the singleton-like cross-cutting
- * concerns (Tracer, settings snapshot + change subscription, LLM port) so
- * individual subsystems no longer reach into shared static state. The
- * runtime is created once in `extension.ts` activation and threaded into
+ * concerns (Tracer, TraceFile, settings snapshot + change subscription, LLM
+ * port) so individual subsystems no longer reach into shared static state.
+ * The runtime is created once in `extension.ts` activation and threaded into
  * every consumer.
- *
- * This is the v0.4.0 starting point for the panel-split work. The full
- * `ChatController` / `ChatWebviewHost` extraction (Phase 6 sub-task 6.2) is
- * deferred — `GemmaCodePanel` continues to host the agent loop wiring for
- * now, but it now receives `GemmaRuntime` rather than reaching for shared
- * statics. Subsequent versions can extract Controller and Host without
- * disturbing the contract this class exposes.
  */
 export class GemmaRuntime {
   readonly tracer: Tracer;
+  readonly traceFile: TraceFile;
   private _settings: GemmaCodeSettings;
   private readonly _settingsListeners: Array<(s: GemmaCodeSettings) => void> = [];
   private readonly _settingsSubscription: { dispose(): void };
@@ -27,15 +27,23 @@ export class GemmaRuntime {
 
   constructor() {
     this.tracer = new Tracer();
+    this.traceFile = new TraceFile();
     this._settings = getSettings();
+    if (this._settings.traceAutoEnable) {
+      try {
+        this.traceFile.enable();
+      } catch {
+        /* non-fatal */
+      }
+    }
     this._settingsSubscription = onSettingsChange((next) => {
       const prev = this._settings;
       this._settings = next;
-      // Invalidate the cached LLM client when its inputs change so the next
-      // `getOllamaClient` call picks up the new URL or timeout.
       if (
         prev.ollamaUrl !== next.ollamaUrl ||
-        prev.requestTimeout !== next.requestTimeout
+        prev.requestTimeout !== next.requestTimeout ||
+        prev.llmBackend !== next.llmBackend ||
+        prev.lmStudioBaseUrl !== next.lmStudioBaseUrl
       ) {
         this._llmClient = null;
         this._llmClientKey = null;
@@ -47,23 +55,48 @@ export class GemmaRuntime {
   }
 
   /**
-   * Vendor-neutral LLM port. Caches a single instance per `(ollamaUrl,
-   * requestTimeout)` pair so subsystems do not allocate one per use; the
-   * cache is invalidated automatically when either input changes via
-   * `onSettingsChange`. Phase 4 (v0.6.0) sub-task 4.3.
+   * Vendor-neutral LLM port. Returns either the Ollama or LM Studio adapter
+   * per `llmBackend`. The `auto` mode probes LM Studio first on macOS only
+   * (the runtime cannot reliably detect macOS from a webview-only context, so
+   * we use `process.platform`); other platforms default to Ollama unless
+   * `lmstudio` is selected explicitly.
+   *
+   * v0.8.0 Phase 4 sub-task 4.2 (item F1).
    */
   getOllamaClient(): LLMClient {
     const s = this._settings;
-    const key = `${s.ollamaUrl}|${s.requestTimeout}`;
+    const backend = this._resolveBackend(s);
+    const key = `${backend}|${s.ollamaUrl}|${s.lmStudioBaseUrl}|${s.requestTimeout}`;
     if (this._llmClient && this._llmClientKey === key) {
       return this._llmClient;
     }
-    this._llmClient = createOllamaClient({
-      baseUrl: s.ollamaUrl,
-      timeoutMs: s.requestTimeout,
-    });
+    this._llmClient =
+      backend === "lmstudio"
+        ? createLmStudioClient({
+            baseUrl: s.lmStudioBaseUrl,
+            timeoutMs: s.requestTimeout,
+          })
+        : createOllamaClient({
+            baseUrl: s.ollamaUrl,
+            timeoutMs: s.requestTimeout,
+          });
     this._llmClientKey = key;
     return this._llmClient;
+  }
+
+  /**
+   * Resolve `llm.backend` to a concrete adapter id. `auto` becomes `lmstudio`
+   * on macOS only -- this matches LM Studio's primary distribution; on
+   * Windows / Linux we keep Ollama as the default. The auto probe is
+   * synchronous-best-effort: a live `/v1/models` ping happens lazily inside
+   * the LmStudio client itself, so a wrong guess degrades to a clear error
+   * rather than silently hanging.
+   */
+  private _resolveBackend(s: GemmaCodeSettings): "ollama" | "lmstudio" {
+    if (s.llmBackend === "ollama") return "ollama";
+    if (s.llmBackend === "lmstudio") return "lmstudio";
+    if (process.platform === "darwin") return "lmstudio";
+    return "ollama";
   }
 
   /** Current settings snapshot. Always returns the latest known value. */

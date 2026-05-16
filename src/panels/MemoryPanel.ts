@@ -45,6 +45,13 @@ export interface MemorySnapshotMessage {
     readonly type: string;
     readonly createdAt: number;
     readonly accessCount: number;
+    /**
+     * v0.8.0 Phase 4 sub-task 4.6 -- optional "why retrieved" reasons attached
+     * by `HybridRanker`. Empty/undefined when the entry was loaded via the
+     * plain `listAll` path with no ranker-produced explanation.
+     */
+    readonly reason?: readonly string[];
+    readonly matchSource?: "keyword" | "semantic" | "both" | "hybrid";
   }[];
   readonly archive: {
     readonly archiveDir: string;

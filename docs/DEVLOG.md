@@ -4,6 +4,60 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-16] v0.8.0 Phase 4 -- Observability, runtime, and hybrid scoring
+
+### Goal
+
+Ship a single `/trace` bug-report primitive, add LM Studio as a second `LLMClient` adapter with auto-detect on Apple Silicon, reverse-engineer a Gemma 4 channel parser into a pure module, formalize sampler presets with three thinking modes, lock the system-prompt prefix order so KV caches stay warm across tool turns, layer reciprocal-rank-fusion (RRF) hybrid scoring on top of the existing HNSW index with per-result "why retrieved" explanations, and ship the evaluator-rubric + session-handoff/progress template family for `/wrap-up-session`. Closes plan sub-tasks 4.1 through 4.7.
+
+### Decisions
+
+#### 4.1: `TraceFile` is JSONL, append-only, opt-in
+
+[src/observability/TraceFile.ts](../src/observability/TraceFile.ts) writes one JSON event per line to `~/.gemma-code/trace/<session-id>.jsonl` while enabled. Redaction runs before every write: `password|token|secret|api_key|authorization|bearer` keys collapse to `<redacted>`; string values that look like paths are passed through `matchesSecretPath` (the `secretPaths.ts` denylist); embedded env-style secrets (`API_KEY=...`) replace the value portion with `<env=<redacted>>`. The trace file is owned by `GemmaRuntime` and surfaced to users via `/trace <enable|disable|dump|clear|status>` in `ChatCommandHandlers._handleTrace`. The `traceAutoEnable` setting (default off) pre-enables at session start. Disk cost is opt-in by design.
+
+#### 4.2: LM Studio is a second `LLMClient`, not a replacement
+
+[src/llm/LmStudioClient.ts](../src/llm/LmStudioClient.ts) implements the `LLMClient` port against LM Studio's OpenAI-compatible `:1234/v1/{chat/completions,embeddings,models}` surface. Stream parsing handles SSE frames (`data: {...}\n` lines, terminated by `data: [DONE]`). `GemmaRuntime._resolveBackend` picks per the new `gemma-code.llm.backend` setting: `"ollama"` (default), `"lmstudio"`, or `"auto"` (LM Studio on macOS, Ollama elsewhere). The client is cached per `(backend, ollamaUrl, lmStudioBaseUrl, requestTimeout)` so settings changes invalidate cleanly. ADR-0016 captures the local-only thesis preservation (both backends loopback to `127.0.0.1`). The omlx third backend is deferred to v0.9.0 as planned.
+
+#### 4.3: Gemma 4 channel parser ships as a pure module
+
+[src/llm/Gemma4Parser.ts](../src/llm/Gemma4Parser.ts) `parseChannel(text)` returns `{visible, thought, toolResponse?}`. Recognises `<|channel>thought...<channel|>`, `<|tool_response>...<tool_response|>`, `<turn|>`, `<start_function_call>`, and legacy `<think>...</think>` blocks. An Apache-2.0-clean rewrite -- no copied lines from `omlx/adapter/gemma4.py`. `stripLeadingThinkBlocks(text)` is the focused helper for `ConversationManager.replayForCompaction`. Phase 4 ships the module + full unit test coverage; wiring into `StreamingPipeline._attemptStream` is deferred to v0.9.0 (logged as 10.O.K) to avoid the Ollama-path regression risk before LM Studio stream-parity tests land.
+
+#### 4.4: Three thinking-mode presets with budget-aware downgrade
+
+[src/config/SamplerPresets.ts](../src/config/SamplerPresets.ts) exports `SAMPLER_PRESETS` for `nothink` (temp 0.7, top_p 0.95, top_k 64), `think` (temp 0.6, top_p 0.95, top_k 20 -- Qwen/jola tuned), and `think-max` (think values + 32K max output budget, reasoning enabled). `resolvePresetForBudget(mode, budget)` auto-downgrades `think-max` to `think` when context < 64K so prompt assembly never blows past `num_ctx`. `/thinking-mode <preset>` updates the `gemma-code.thinkingModePreset` setting via `vscode.workspace.getConfiguration("gemma-code").update`. The setting applies on the next streaming request (logged as 10.O.L for the mid-stream behaviour).
+
+#### 4.5: Prompt prefix order is locked in code and asserted by a property test
+
+`PromptBuilder` already ordered sections by priority. Phase 4 ratifies the locked-prefix invariant in a class-level comment: priorities 0..5 (identity, tools, frozen file-memory-pre, plan-mode capabilities, sub-agent directive) form the stable prefix that an Ollama / LM Studio KV cache can re-use across tool turns; per-turn variable content (thinking mode, skill prompt, recalled memory, post-memory file content) runs at priorities >= 15. Plan-mode capabilities priority moved from 10 to 3 so it sits inside the locked prefix when plan mode is active. [tests/unit/chat/PromptBuilder.prefix.test.ts](../tests/unit/chat/PromptBuilder.prefix.test.ts) asserts byte-stability of the identity+tools prefix across two prompt builds that differ only in `memoryContext`.
+
+#### 4.6: Hybrid RRF over HNSW is opt-in for v0.8.0
+
+[src/storage/HybridRanker.ts](../src/storage/HybridRanker.ts) is a pure fusion module that takes pre-fetched `VectorCandidate[]` + `LexicalCandidate[]` lists and returns `RankedEntry[]` with a `reason: readonly string[]` per entry. Two methods: `rrf` (default, k=60) and `weighted` (50/30/20 vector/lexical/recency). Recency is an exponential decay from `entry.accessedAt` with a 7-day half-life. `MemoryStore.searchHybrid(query, limit, method)` wires the FTS5 keyword path + HNSW-or-linear-scan semantic path through the fusion and stamps `matchSource: "hybrid"`. `MemorySearchResult` gained an optional `reason` field; `MemoryPanel`'s `MemorySnapshotMessage.sqlMemories` gained optional `reason` + `matchSource` so the webview can surface a "why retrieved" affordance. ADR-0018 documents why we don't replace HNSW -- it's the vector retrieval engine, RRF is the fusion layer. For v0.8.0, `searchHybrid` is a new method; the default `retrieve` / `UnifiedMemoryRetriever.retrieve` paths are unchanged so v0.7.0 callers see no behaviour drift (logged as 10.O.M for the v0.9.0 default flip).
+
+#### 4.7: Evaluator rubric, quality document, session handoff/progress
+
+[docs/v0.8.0/review/evaluator-rubric.md](v0.8.0/review/evaluator-rubric.md) ships a 15-criterion / 5-category / 1-5-scored rubric. [docs/v0.8.0/review/quality-document.md](v0.8.0/review/quality-document.md) maps the rubric average to a letter grade and captures three strengths + three risks. [src/chat/SessionDocs.ts](../src/chat/SessionDocs.ts) exports `renderSessionHandoff`, `renderSessionProgress`, and `writeSessionDocs(docsRoot, version, sessionId, handoff, progress)` -- the writer emits both `session-handoff.md` (forward-looking) and `session-progress.md` (chronological) under `docs/<version>/development/<sessionId>/`. The split mirrors hermes-agent's separation of "what next" from "what happened" so the next session's first prompt lifts off the handoff alone.
+
+### Code changes
+
+- **New source files (6)**: `src/observability/TraceFile.ts`, `src/llm/LmStudioClient.ts`, `src/llm/Gemma4Parser.ts`, `src/config/SamplerPresets.ts`, `src/storage/HybridRanker.ts`, `src/chat/SessionDocs.ts`.
+- **Modified source files**: `src/runtime/GemmaRuntime.ts` (owns `TraceFile`, multi-backend selection), `src/commands/CommandRouter.ts` (new `/trace`, `/thinking-mode`), `src/panels/ChatCommandHandlers.ts` (handlers), `src/config/settings.ts` (5 new fields), `src/chat/PromptBuilder.ts` (locked-prefix doc + plan-mode priority), `src/storage/MemoryStore.ts` (`searchHybrid`), `src/storage/MemoryStore.types.ts` (`reason`, `"hybrid"` source), `src/panels/MemoryPanel.ts` (optional `reason`/`matchSource` on snapshot), `package.json` (5 new settings).
+- **New test files (8, 53 cases)**: TraceFile (10), LmStudioClient (7), Gemma4Parser (10), SamplerPresets (9), HybridRanker (7), MemoryStore.searchHybrid (4), PromptBuilder.prefix (3), SessionDocs (3).
+- **New ADRs**: 0016 (second LLM backend), 0018 (hybrid scoring over HNSW).
+- **New doc templates**: evaluator-rubric.md, quality-document.md.
+
+### Tests
+
+`npm run lint` clean. `npm run build` clean. New unit suite (53 cases) all pass. Full `npm run test` shows no Phase 4 regressions; pre-existing carryovers (10.O.D vitest VM transform on two test files; Windows segfault during teardown) tracked as 10.O.N in known-gaps.
+
+### Known gaps added in Phase 4
+
+See `docs/v0.8.0/known-gaps.md` Section 10.1 entries 10.O.J through 10.O.N (LM Studio live test deferred, channel parser wiring deferred, thinking-mode mid-stream behaviour, hybrid scoring opt-in default, Windows segfault carryover).
+
+---
+
 ## [2026-05-16] v0.8.0 Phase 3 -- Plan-mode UX overhaul
 
 ### Goal

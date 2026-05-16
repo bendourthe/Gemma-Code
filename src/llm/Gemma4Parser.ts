@@ -1,0 +1,121 @@
+/**
+ * v0.8.0 Phase 4 sub-task 4.3 (item F3) -- Gemma 4 channel parser.
+ *
+ * Pure parsing module with no runtime dependencies. Extracts the visible
+ * answer, the hidden thought, and (when present) the tool response from a
+ * raw Gemma 4 channel-formatted response.
+ *
+ * Channel tokens this parser recognises (best-effort, the model's exact
+ * spelling has shifted across releases so we accept a small family):
+ *
+ *   <|channel>thought
+ *   ...content...
+ *   <channel|>
+ *
+ *   <|tool_response>
+ *   ...content...
+ *   <tool_response|>
+ *
+ *   <turn|>                  (turn separator)
+ *   <start_function_call>    (start-of-function marker)
+ *   <think>...</think>       (legacy single-block reasoning span)
+ *
+ * The parser also strips a leading `<think>...</think>` block so multi-turn
+ * replay (via `ConversationManager.replayForCompaction()`) does not
+ * accumulate stale reasoning into the prompt history.
+ *
+ * Implementation note: an Apache-2.0-clean rewrite. No code lines are
+ * copied from `omlx/adapter/gemma4.py`; only the channel-token vocabulary
+ * is shared, which is part of the Gemma 4 model output contract.
+ */
+
+export interface Gemma4ParsedChannels {
+  /** User-visible content (with all channel tokens stripped). */
+  readonly visible: string;
+  /** Concatenated thought blocks (empty string when none present). */
+  readonly thought: string;
+  /** Tool response block (undefined when none present). */
+  readonly toolResponse?: string;
+}
+
+const CHANNEL_THOUGHT_OPEN = /<\|channel>thought\s*/g;
+const CHANNEL_THOUGHT_CLOSE = /<channel\|>/g;
+const TOOL_RESPONSE_OPEN = /<\|tool_response>\s*/g;
+const TOOL_RESPONSE_CLOSE = /<tool_response\|>/g;
+const TURN_TOKEN = /<turn\|>/g;
+const START_FN_TOKEN = /<start_function_call>/g;
+const THINK_BLOCK = /<think>([\s\S]*?)<\/think>/g;
+
+/**
+ * Parse a raw Gemma 4 channel-formatted string. Returns an object with the
+ * three split channels. Any unrecognised tokens pass through unchanged so a
+ * model-side format shift does not silently mangle output.
+ */
+export function parseChannel(text: string): Gemma4ParsedChannels {
+  if (!text) {
+    return { visible: "", thought: "" };
+  }
+
+  let working = text;
+  const thoughts: string[] = [];
+  let toolResponse: string | undefined;
+
+  // Extract <think>...</think> spans first because their delimiters do not
+  // overlap with the channel-token family. The legacy block historically
+  // surfaced at the very start of a reply; the replacement is global so
+  // mid-stream blocks are also dropped from the visible channel.
+  working = working.replace(THINK_BLOCK, (_m, body: string) => {
+    const cleaned = body.trim();
+    if (cleaned) thoughts.push(cleaned);
+    return "";
+  });
+
+  // <|channel>thought ... <channel|>
+  working = working.replace(
+    /<\|channel>thought\s*([\s\S]*?)<channel\|>/g,
+    (_m, body: string) => {
+      const cleaned = body.trim();
+      if (cleaned) thoughts.push(cleaned);
+      return "";
+    },
+  );
+
+  // <|tool_response> ... <tool_response|>
+  const toolMatch = /<\|tool_response>\s*([\s\S]*?)<tool_response\|>/.exec(working);
+  if (toolMatch && typeof toolMatch[1] === "string") {
+    toolResponse = toolMatch[1].trim();
+    working = working.replace(/<\|tool_response>\s*[\s\S]*?<tool_response\|>/g, "");
+  }
+
+  // Remaining stand-alone tokens have no semantic content; drop them.
+  working = working
+    .replace(CHANNEL_THOUGHT_OPEN, "")
+    .replace(CHANNEL_THOUGHT_CLOSE, "")
+    .replace(TOOL_RESPONSE_OPEN, "")
+    .replace(TOOL_RESPONSE_CLOSE, "")
+    .replace(TURN_TOKEN, "")
+    .replace(START_FN_TOKEN, "");
+
+  return {
+    visible: working.trim(),
+    thought: thoughts.join("\n\n").trim(),
+    ...(toolResponse !== undefined ? { toolResponse } : {}),
+  };
+}
+
+/**
+ * Strip leading `<think>...</think>` blocks from a multi-turn replay buffer.
+ * Unlike `parseChannel`, this preserves the rest of the document byte-for-byte
+ * so downstream renderers see the same layout as the original.
+ *
+ * Used by `ConversationManager.replayForCompaction()` to keep the compaction
+ * prompt focused on visible content.
+ */
+export function stripLeadingThinkBlocks(text: string): string {
+  if (!text) return "";
+  let working = text;
+  // Strip ALL <think>...</think> blocks (leading or otherwise) so the
+  // compaction input is dominated by the user-facing answer.
+  working = working.replace(THINK_BLOCK, "");
+  return working.trim();
+}

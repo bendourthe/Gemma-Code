@@ -106,6 +106,10 @@ export class ChatCommandHandlers {
         return this._handleCache(args);
       case "operation-log":
         return this._handleOperationLog(args);
+      case "trace":
+        return this._handleTrace(args);
+      case "thinking-mode":
+        return this._handleThinkingMode(args);
     }
   }
 
@@ -815,6 +819,114 @@ export class ChatCommandHandlers {
         this._emitMarkdown(lines.join("\n"));
         return;
       }
+    }
+  }
+
+  /**
+   * v0.8.0 Phase 4 sub-task 4.1 -- `/trace <enable|dump|clear|status> [path]`.
+   * Manages the single bug-report JSONL primitive owned by `GemmaRuntime`.
+   */
+  private _handleTrace(args: string): void {
+    const ctx = this._ctx;
+    const traceFile = ctx.runtime.traceFile;
+    const tokens = args.split(/\s+/).filter(Boolean);
+    const sub = (tokens[0] ?? "status").toLowerCase();
+    const target = tokens.slice(1).join(" ").trim();
+
+    switch (sub) {
+      case "enable": {
+        try {
+          const written = traceFile.enable(target || undefined);
+          this._emitMarkdown(
+            `_Trace recording enabled. Events append to \`${written}\`._`,
+          );
+        } catch (err) {
+          this._emitMarkdown(`_Failed to enable trace: ${formatForUser(err)}_`);
+        }
+        return;
+      }
+      case "disable": {
+        traceFile.disable();
+        this._emitMarkdown("_Trace recording disabled. Existing file kept in place._");
+        return;
+      }
+      case "dump": {
+        try {
+          const written = traceFile.dump(
+            target || `${traceFile.filePath ?? "trace"}.dump.jsonl`,
+          );
+          this._emitMarkdown(`_Trace dumped to \`${written}\`._`);
+        } catch (err) {
+          this._emitMarkdown(`_Trace dump failed: ${formatForUser(err)}_`);
+        }
+        return;
+      }
+      case "clear": {
+        traceFile.clear();
+        this._emitMarkdown("_Trace file cleared._");
+        return;
+      }
+      case "status":
+      default: {
+        const stats = traceFile.stats();
+        const lines = [
+          "## Trace",
+          "",
+          `- **Enabled:** ${stats.enabled ? "yes" : "no"}`,
+          `- **File:** ${stats.filePath ?? "_(not initialized)_"}`,
+          `- **Size:** ${(stats.fileSizeBytes / 1024).toFixed(1)} KB`,
+          `- **Events appended this session:** ${stats.eventCount}`,
+        ];
+        this._emitMarkdown(lines.join("\n"));
+        return;
+      }
+    }
+  }
+
+  /**
+   * v0.8.0 Phase 4 sub-task 4.4 -- `/thinking-mode <nothink|think|think-max>`.
+   * Stores the user's choice via VS Code settings so the next prompt build
+   * picks up the new sampler preset.
+   */
+  private async _handleThinkingMode(args: string): Promise<void> {
+    const { parseThinkingMode, SAMPLER_PRESETS } = await import(
+      "../config/SamplerPresets.js"
+    );
+    const requested = args.trim();
+    if (!requested) {
+      const current = this._ctx.getSettings().thinkingModePreset;
+      const lines = [
+        "## Thinking Mode",
+        "",
+        `- **Active preset:** \`${current}\``,
+        "",
+        "Available presets:",
+      ];
+      for (const preset of Object.values(SAMPLER_PRESETS)) {
+        lines.push(`- \`${preset.mode}\` -- ${preset.description}`);
+      }
+      this._emitMarkdown(lines.join("\n"));
+      return;
+    }
+
+    const mode = parseThinkingMode(requested);
+    if (!mode) {
+      this._emitMarkdown(
+        "_Usage: `/thinking-mode <nothink|think|think-max>` -- unrecognised preset._",
+      );
+      return;
+    }
+    try {
+      await vscode.workspace
+        .getConfiguration("gemma-code")
+        .update("thinkingModePreset", mode, vscode.ConfigurationTarget.Global);
+      this._emitMarkdown(
+        `_Thinking mode set to \`${mode}\`. Sampler preset applies to the next streaming request._`,
+      );
+    } catch (err) {
+      this._emitMarkdown(
+        `_Failed to update setting: ${formatForUser(err)}_`,
+      );
     }
   }
 

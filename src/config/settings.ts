@@ -94,6 +94,32 @@ export interface GemmaCodeSettings {
    * `live` re-reads on every prompt build (v0.7.0 behaviour).
    */
   memorySnapshotMode: "frozen" | "live";
+  /**
+   * v0.8.0 Phase 4 sub-task 4.2 (item F1): LLM backend selector. `auto`
+   * probes LM Studio at `:1234` on macOS and falls back to Ollama; `ollama`
+   * forces the existing client; `lmstudio` forces the new adapter.
+   */
+  llmBackend: "ollama" | "lmstudio" | "auto";
+  /** LM Studio base URL. Defaults to `http://127.0.0.1:1234`. */
+  lmStudioBaseUrl: string;
+  /**
+   * v0.8.0 Phase 4 sub-task 4.4 (items F4/F5/E4): active thinking-mode preset.
+   * `nothink` (concise default), `think` (Qwen/jola sampler), `think-max`
+   * (extended budget, auto-downgrades when context < 64K).
+   */
+  thinkingModePreset: "nothink" | "think" | "think-max";
+  /**
+   * v0.8.0 Phase 4 sub-task 4.6 (items A5/A6): hybrid memory scoring method.
+   * `rrf` (default) fuses vector + lexical + recency via reciprocal-rank
+   * fusion; `weighted` blends with a 50/30/20 split.
+   */
+  memoryScoringMethod: "rrf" | "weighted";
+  /**
+   * v0.8.0 Phase 4 sub-task 4.1 (item G3): when true, the trace file is
+   * pre-enabled at session start so users can reproduce a bug without
+   * needing to remember to call `/trace enable` first.
+   */
+  traceAutoEnable: boolean;
 }
 
 export function getSettings(): GemmaCodeSettings {
@@ -176,6 +202,20 @@ export function getSettings(): GemmaCodeSettings {
       const raw = config.get<string>("memorySnapshotMode") ?? "frozen";
       return raw === "live" ? "live" : "frozen";
     })(),
+    llmBackend: ((): "ollama" | "lmstudio" | "auto" => {
+      const raw = config.get<string>("llm.backend") ?? "ollama";
+      return raw === "lmstudio" || raw === "auto" ? raw : "ollama";
+    })(),
+    lmStudioBaseUrl: config.get<string>("lmstudio.baseUrl") ?? "http://127.0.0.1:1234",
+    thinkingModePreset: ((): "nothink" | "think" | "think-max" => {
+      const raw = config.get<string>("thinkingModePreset") ?? "nothink";
+      return raw === "think" || raw === "think-max" ? raw : "nothink";
+    })(),
+    memoryScoringMethod: ((): "rrf" | "weighted" => {
+      const raw = config.get<string>("memory.scoringMethod") ?? "rrf";
+      return raw === "weighted" ? "weighted" : "rrf";
+    })(),
+    traceAutoEnable: config.get<boolean>("trace.autoEnable") ?? false,
   };
 }
 

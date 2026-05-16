@@ -274,6 +274,45 @@
           "default": "frozen",
           "description": "v0.8.0 Phase 2 -- memory snapshot semantics for prefix-cache preservation. See ADR-0014 and src/storage/MemorySnapshot.ts."
         },
+        "gemma-code.llm.backend": {
+          "type": "string",
+          "enum": [
+            "ollama",
+            "lmstudio",
+            "auto"
+          ],
+          "default": "ollama",
+          "description": "v0.8.0 Phase 4 -- LLM backend selector. `auto` probes LM Studio at :1234 on macOS first and falls back to Ollama at :11434. See ADR-0016."
+        },
+        "gemma-code.lmstudio.baseUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:1234",
+          "description": "v0.8.0 Phase 4 -- LM Studio base URL. Defaults to the loopback address LM Studio exposes by default."
+        },
+        "gemma-code.thinkingModePreset": {
+          "type": "string",
+          "enum": [
+            "nothink",
+            "think",
+            "think-max"
+          ],
+          "default": "nothink",
+          "description": "v0.8.0 Phase 4 -- Sampler/thinking-mode preset. `think` uses the Qwen/jola-tuned values (temp 0.6, top_p 0.95, top_k 20); `think-max` extends the output budget to 32K (auto-downgrades to `think` when context < 64K)."
+        },
+        "gemma-code.memory.scoringMethod": {
+          "type": "string",
+          "enum": [
+            "rrf",
+            "weighted"
+          ],
+          "default": "rrf",
+          "description": "v0.8.0 Phase 4 -- Hybrid memory scoring method. `rrf` fuses vector + lexical + recency via reciprocal-rank fusion (k=60). `weighted` blends 50/30/20."
+        },
+        "gemma-code.trace.autoEnable": {
+          "type": "boolean",
+          "default": false,
+          "description": "v0.8.0 Phase 4 -- Pre-enable the `/trace` JSONL bug-report file at session start. Default off so disk cost is opt-in."
+        },
         "gemma-code.verificationThreshold": {
           "type": "number",
           "default": 3,

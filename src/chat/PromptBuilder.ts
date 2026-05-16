@@ -64,6 +64,29 @@ const SHARED_PATH_RULE = "All file paths are relative to the workspace root.";
  * Always-include sections are packed first regardless of budget.
  * Conditional sections are packed in priority order; over-budget
  * sections are dropped starting from the lowest priority.
+ *
+ * **v0.8.0 Phase 4 sub-task 4.5 -- locked prefix ordering.**
+ * The prefix-stable section IDs and their fixed priorities are:
+ *
+ *   priority 0 -- `base`            (identity + tool-use protocol)
+ *   priority 1 -- `tools`           (tool declarations)
+ *   priority 2 -- `file-memory-pre` (frozen Instructions.md + Context.md)
+ *   priority 3 -- `plan-mode`       (plan-mode capabilities, when active)
+ *   priority 5 -- `sub-agent`       (sub-agent directive, when applicable)
+ *   priority 15 -- `thinking-mode`  (variable; reasoning toggle)
+ *   priority 20 -- `skill`          (active skill prompt, per turn)
+ *   priority 30 -- `memory`         (recalled memory context, per turn)
+ *   priority 31 -- `file-memory-post` (frozen Memory.md)
+ *
+ * The first five IDs (0..5) are the locked prefix that an Ollama / LM Studio
+ * KV cache can re-use across tool turns; their content is computed from
+ * session-stable inputs (the memory snapshot is frozen at session start by
+ * default; tool declarations are memoized on the enabled-tool set). Higher
+ * priorities are variable per turn and are expected to bust the cache.
+ *
+ * A property test in `tests/unit/chat/PromptBuilder.prefix.test.ts` asserts
+ * that the first N tokens (where N = locked-prefix length) are byte-stable
+ * across two adjacent tool turns of the same session.
  */
 export class PromptBuilder {
   /**
@@ -308,7 +331,15 @@ export class PromptBuilder {
     return section;
   }
 
-  /** Plan mode instructions. Conditional on planModeActive. */
+  /**
+   * Plan mode instructions. Conditional on planModeActive.
+   *
+   * v0.8.0 Phase 4 sub-task 4.5 -- assigned a high priority (3) so it
+   * stabilises immediately after the frozen file-memory-pre section. The
+   * full locked-prefix ordering is documented in the class-level comment
+   * above. Variable per-turn content (memory results, sub-agent context)
+   * runs at priorities >=20.
+   */
   private _buildPlanModeSection(context: PromptContext): PromptSection | null {
     if (!context.planModeActive) return null;
 
@@ -316,7 +347,7 @@ export class PromptBuilder {
     return {
       id: "plan-mode",
       content,
-      priority: 10,
+      priority: 3,
       alwaysInclude: false,
       estimatedTokens: estimateTokens(content),
     };

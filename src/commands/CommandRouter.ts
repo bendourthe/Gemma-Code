@@ -12,7 +12,9 @@ export type BuiltinCommandName =
   | "verify"
   | "research"
   | "cache"
-  | "operation-log";
+  | "operation-log"
+  | "trace"
+  | "thinking-mode";
 
 export interface CommandDescriptor {
   name: string;
@@ -47,6 +49,8 @@ const BUILTIN_DESCRIPTORS: CommandDescriptor[] = [
   { name: "research", description: "Spawn a research sub-agent to gather information", argumentHint: "<query>" },
   { name: "cache", description: "Manage the persistent tool-output cache (status, clear, prune, reembed)", argumentHint: "<status|clear|prune|reembed>" },
   { name: "operation-log", description: "Manage the opt-in append-only operation log (status, clear)", argumentHint: "<status|clear>" },
+  { name: "trace", description: "Single bug-report trace file primitive (enable, dump, clear, status)", argumentHint: "<enable|dump|clear|status> [path]" },
+  { name: "thinking-mode", description: "Switch sampler-preset / thinking mode for the active model", argumentHint: "<nothink|think|think-max>" },
 ];
 
 const BUILTIN_NAMES = new Set<string>(BUILTIN_DESCRIPTORS.map((d) => d.name));
