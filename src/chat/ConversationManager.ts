@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { randomUUID } from "crypto";
 import type { Message, Role } from "./types.js";
 import type { ChatHistoryStore } from "../storage/ChatHistoryStore.js";
+import { stripLeadingThinkBlocks } from "../llm/Gemma4Parser.js";
 
 /** Maximum characters used as the session title (truncated first user message). */
 const SESSION_TITLE_MAX_CHARS = 60;
@@ -128,6 +129,23 @@ export class ConversationManager {
 
   getHistory(): readonly Message[] {
     return this._messages;
+  }
+
+  /**
+   * v0.9.0 Phase 2.1 (from v0.8.0 known-gaps 10.O.K) -- conversation view
+   * with hidden Gemma 4 reasoning stripped from assistant messages.
+   *
+   * Used by `ContextCompactor` (and any future replay surface) so the
+   * compaction prompt does not re-feed `<think>` blocks back through the
+   * model. User and system messages pass through unchanged.
+   */
+  replayForCompaction(): readonly Message[] {
+    return this._messages.map((m) => {
+      if (m.role !== "assistant") return m;
+      const cleaned = stripLeadingThinkBlocks(m.content);
+      if (cleaned === m.content) return m;
+      return { ...m, content: cleaned };
+    });
   }
 
   /** Current running total of message content chars. O(1). */
@@ -304,6 +322,11 @@ export class ConversationManager {
    * Persist the rendered bytes for a tool call. LRU-evict oldest entries
    * past {@link MAX_TOOL_CALL_BYTES}. Re-inserting an existing id moves it
    * to the end of the insertion order (LRU touch).
+   *
+   * v0.9.0 Phase 2.8: also write through to `ChatHistoryStore` (when wired
+   * and the session id is known) so the bytes survive a session restart.
+   * Failures here are non-fatal -- the in-memory LRU stays authoritative
+   * for the live session.
    */
   storeToolCallBytes(toolCallId: string, bytes: string): void {
     if (this._toolCallBytes.has(toolCallId)) {
@@ -315,11 +338,31 @@ export class ConversationManager {
       if (oldest === undefined) break;
       this._toolCallBytes.delete(oldest);
     }
+    if (this._store && this._sessionId) {
+      try {
+        this._store.saveToolCallBytes(this._sessionId, toolCallId, bytes);
+      } catch {
+        // Non-fatal: in-memory LRU still serves the live session.
+      }
+    }
   }
 
-  /** Retrieve the rendered bytes for a tool call, or null if not stored. */
+  /**
+   * Retrieve the rendered bytes for a tool call. Prefers the in-memory LRU;
+   * falls through to the persistent `tool_call_bytes` table when wired so
+   * bytes that pre-date this process invocation are still recoverable.
+   */
   getToolCallBytes(toolCallId: string): string | null {
-    return this._toolCallBytes.get(toolCallId) ?? null;
+    const hit = this._toolCallBytes.get(toolCallId);
+    if (hit !== undefined) return hit;
+    if (this._store && this._sessionId) {
+      try {
+        return this._store.getToolCallBytes(this._sessionId, toolCallId);
+      } catch {
+        return null;
+      }
+    }
+    return null;
   }
 
   /** Inspector for tests. */

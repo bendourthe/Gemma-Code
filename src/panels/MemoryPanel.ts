@@ -12,6 +12,8 @@ import type { MemoryFiles } from "../storage/MemoryFiles.js";
 import type { MemoryStore } from "../storage/MemoryStore.js";
 // dependency-cruiser-disable-next-line no-storage-from-panels
 import type { MemoryEntry } from "../storage/MemoryShared.types.js";
+// dependency-cruiser-disable-next-line no-storage-from-panels
+import type { IntuitionCache } from "../storage/IntuitionCache.js";
 import { getMemoryViewHtml } from "./webview/memoryView.js";
 import { getLogger } from "../utils/logger.js";
 import { formatForUser } from "../utils/errors.js";
@@ -30,7 +32,10 @@ type MemoryViewInbound =
   | { type: "promoteSqlMemory"; id: string }
   | { type: "deleteSqlMemory"; id: string }
   | { type: "archiveMemoryNow" }
-  | { type: "restoreArchive"; date: string };
+  | { type: "restoreArchive"; date: string }
+  | { type: "inspectProposedSkill"; slug: string }
+  | { type: "acceptProposedSkill"; slug: string }
+  | { type: "dismissProposedSkill"; slug: string };
 
 /**
  * v0.7.0 Phase 5 -- outbound shape sent back to the webview. The shape is
@@ -64,6 +69,39 @@ export interface MemorySnapshotMessage {
     readonly archiveDir: string;
     readonly snapshots: readonly { readonly date: string }[];
   };
+  /**
+   * v0.9.0 Phase 2.4 (from v0.8.0 known-gaps 10.O.T) -- anticipated context
+   * entries returned by the active `IntuitionCache`. Empty when the cache
+   * is disabled or the warmth window has not been primed.
+   */
+  readonly anticipated: readonly {
+    readonly id: string;
+    readonly content: string;
+    readonly type: string;
+    readonly reason?: readonly string[];
+  }[];
+  /**
+   * v0.9.0 Phase 2.6 (from v0.8.0 known-gaps 10.O.V) -- proposed skill
+   * drafts written by `WorkflowDetector` to
+   * `~/.gemma-code/skills/proposed/<slug>/SKILL.md`. The webview renders an
+   * Inspect / Accept / Dismiss action row per entry.
+   */
+  readonly proposedSkills: readonly {
+    readonly slug: string;
+    readonly path: string;
+    readonly preview: string;
+    readonly modifiedAt: number;
+  }[];
+}
+
+/**
+ * v0.9.0 Phase 2.4 / 2.6 -- additional state surfaced by the panel beyond
+ * the legacy memory snapshot. Passed through `buildMemorySnapshot` so the
+ * existing unit-test signature stays compatible.
+ */
+export interface MemoryExtras {
+  readonly anticipated?: readonly MemoryEntry[];
+  readonly proposedSkillsRoot?: string;
 }
 
 /**
@@ -73,6 +111,7 @@ export interface MemorySnapshotMessage {
 export function buildMemorySnapshot(
   memoryFiles: MemoryFiles | null,
   memoryStore: MemoryStore | null,
+  extras: MemoryExtras = {},
 ): MemorySnapshotMessage {
   if (!memoryFiles) {
     return {
@@ -86,6 +125,8 @@ export function buildMemorySnapshot(
       contextPath: "",
       sqlMemories: [],
       archive: { archiveDir: "", snapshots: [] },
+      anticipated: [],
+      proposedSkills: [],
     };
   }
   const contents = memoryFiles.read();
@@ -97,6 +138,14 @@ export function buildMemorySnapshot(
         createdAt: entry.createdAt,
         accessCount: entry.accessCount,
       }))
+    : [];
+  const anticipated = (extras.anticipated ?? []).map((entry) => ({
+    id: entry.id,
+    content: entry.content,
+    type: entry.type,
+  }));
+  const proposedSkills = extras.proposedSkillsRoot
+    ? listProposedSkills(extras.proposedSkillsRoot)
     : [];
   return {
     type: "memorySnapshot",
@@ -112,7 +161,52 @@ export function buildMemorySnapshot(
       archiveDir: memoryFiles.archiveDir,
       snapshots: listArchiveSnapshots(memoryFiles.archiveDir),
     },
+    anticipated,
+    proposedSkills,
   };
+}
+
+const PROPOSED_SKILL_PREVIEW_BYTES = 240;
+
+/**
+ * v0.9.0 Phase 2.6 -- enumerate `<skillsRoot>/proposed/<slug>/SKILL.md`.
+ * Returns empty when the directory does not exist. Each entry carries a
+ * short preview (first ~240 bytes) so the webview can render a hint
+ * without paying a full read on the list path.
+ */
+export function listProposedSkills(skillsRoot: string): {
+  slug: string;
+  path: string;
+  preview: string;
+  modifiedAt: number;
+}[] {
+  const proposedDir = path.join(skillsRoot, "proposed");
+  if (!fs.existsSync(proposedDir)) return [];
+  const out: { slug: string; path: string; preview: string; modifiedAt: number }[] = [];
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(proposedDir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const skillPath = path.join(proposedDir, entry.name, "SKILL.md");
+    if (!fs.existsSync(skillPath)) continue;
+    let preview = "";
+    let modifiedAt = 0;
+    try {
+      const stat = fs.statSync(skillPath);
+      modifiedAt = stat.mtimeMs;
+      const bytes = fs.readFileSync(skillPath, "utf-8");
+      preview = bytes.slice(0, PROPOSED_SKILL_PREVIEW_BYTES);
+    } catch {
+      continue;
+    }
+    out.push({ slug: entry.name, path: skillPath, preview, modifiedAt });
+  }
+  out.sort((a, b) => b.modifiedAt - a.modifiedAt);
+  return out;
 }
 
 /**
@@ -275,10 +369,32 @@ export interface MemoryPanelDeps {
   getMemoryFiles(): MemoryFiles | null;
   /** Returns the live MemoryStore instance, or null when SQL memory is disabled. */
   getMemoryStore(): MemoryStore | null;
+  /**
+   * v0.9.0 Phase 2.4 -- the active IntuitionCache. Returning `null` keeps the
+   * "Anticipated context" section empty and skips the editor-change subscription.
+   */
+  getIntuitionCache?(): IntuitionCache | null;
+  /**
+   * v0.9.0 Phase 2.4 -- the most recent tool names (most-recent first) used
+   * as a prefetch signal. Optional; an empty array is fine.
+   */
+  getRecentTools?(): readonly string[];
+  /**
+   * v0.9.0 Phase 2.6 -- absolute path to the active skills root (typically
+   * `<extensionPath>/src/skills/catalog` or the bundled equivalent). When
+   * present the panel enumerates `proposed/<slug>/SKILL.md` drafts.
+   */
+  getSkillsRoot?(): string | null;
 }
+
+/** v0.9.0 Phase 2.4 -- debounce window for editor-change prefetches. */
+const ANTICIPATORY_PREFETCH_DEBOUNCE_MS = 250;
 
 export class MemoryPanel implements vscode.WebviewViewProvider {
   private _view: vscode.WebviewView | undefined;
+  private _editorChangeSubscription: vscode.Disposable | null = null;
+  private _editorChangeTimer: NodeJS.Timeout | null = null;
+  private _anticipated: readonly MemoryEntry[] = [];
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
@@ -303,16 +419,63 @@ export class MemoryPanel implements vscode.WebviewViewProvider {
       void this._handle(msg);
     });
 
+    this._registerEditorChangeSubscription();
+
     webviewView.onDidDispose(() => {
       this._view = undefined;
+      this._editorChangeSubscription?.dispose();
+      this._editorChangeSubscription = null;
+      if (this._editorChangeTimer) {
+        clearTimeout(this._editorChangeTimer);
+        this._editorChangeTimer = null;
+      }
     });
+  }
+
+  /** v0.9.0 Phase 2.4 -- subscribe to active-editor changes for prefetch. */
+  private _registerEditorChangeSubscription(): void {
+    const cache = this._deps.getIntuitionCache?.();
+    if (!cache || !cache.enabled) return;
+    this._editorChangeSubscription = vscode.window.onDidChangeActiveTextEditor(
+      (editor) => {
+        if (this._editorChangeTimer) clearTimeout(this._editorChangeTimer);
+        this._editorChangeTimer = setTimeout(() => {
+          this._editorChangeTimer = null;
+          void this._prefetchAnticipated(editor);
+        }, ANTICIPATORY_PREFETCH_DEBOUNCE_MS);
+      },
+    );
+  }
+
+  private async _prefetchAnticipated(
+    editor: vscode.TextEditor | undefined,
+  ): Promise<void> {
+    const cache = this._deps.getIntuitionCache?.();
+    if (!cache) return;
+    const signals = {
+      currentFile: editor?.document.uri.fsPath,
+      recentTools: this._deps.getRecentTools?.() ?? [],
+    };
+    try {
+      const entries = await cache.prefetch(signals);
+      this._anticipated = entries;
+      this.refresh();
+    } catch (err) {
+      getLogger().debug(
+        "[MemoryPanel] anticipatoryCache prefetch failed:",
+        formatForUser(err),
+      );
+    }
   }
 
   /** Refresh the snapshot view. Safe to call from external triggers. */
   refresh(): void {
     if (!this._view) return;
     void this._view.webview.postMessage(
-      buildMemorySnapshot(this._deps.getMemoryFiles(), this._deps.getMemoryStore()),
+      buildMemorySnapshot(this._deps.getMemoryFiles(), this._deps.getMemoryStore(), {
+        anticipated: this._anticipated,
+        proposedSkillsRoot: this._deps.getSkillsRoot?.() ?? undefined,
+      }),
     );
   }
 
@@ -337,8 +500,103 @@ export class MemoryPanel implements vscode.WebviewViewProvider {
       case "restoreArchive":
         this._restoreArchive(msg.date);
         return;
+      case "inspectProposedSkill":
+        await this._inspectProposedSkill(msg.slug);
+        return;
+      case "acceptProposedSkill":
+        this._acceptProposedSkill(msg.slug);
+        return;
+      case "dismissProposedSkill":
+        this._dismissProposedSkill(msg.slug);
+        return;
       default:
         return;
+    }
+  }
+
+  private _resolveProposedSkillPath(slug: string): string | null {
+    if (!/^[a-zA-Z0-9._\-]+$/.test(slug)) return null;
+    const root = this._deps.getSkillsRoot?.();
+    if (!root) return null;
+    const candidate = path.join(root, "proposed", slug, "SKILL.md");
+    return fs.existsSync(candidate) ? candidate : null;
+  }
+
+  private async _inspectProposedSkill(slug: string): Promise<void> {
+    const target = this._resolveProposedSkillPath(slug);
+    if (!target) {
+      this._toast("Proposed skill not found.");
+      return;
+    }
+    try {
+      const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(target));
+      await vscode.window.showTextDocument(doc, { preview: false });
+    } catch (err) {
+      this._toast(`Inspect failed: ${formatForUser(err)}`);
+    }
+  }
+
+  /**
+   * v0.9.0 Phase 2.6 -- promote a proposed draft to the active catalog
+   * directory. Validation (`gemma-check`) and commit-staging are out of
+   * scope here; the operator runs them manually after the move.
+   */
+  private _acceptProposedSkill(slug: string): void {
+    const root = this._deps.getSkillsRoot?.();
+    if (!root) {
+      this._toast("Skills root not configured.");
+      return;
+    }
+    const sourcePath = this._resolveProposedSkillPath(slug);
+    if (!sourcePath) {
+      this._toast("Proposed skill not found.");
+      return;
+    }
+    const targetDir = path.join(root, slug);
+    const targetPath = path.join(targetDir, "SKILL.md");
+    try {
+      if (fs.existsSync(targetPath)) {
+        this._toast(`A skill named '${slug}' already exists.`);
+        return;
+      }
+      fs.mkdirSync(targetDir, { recursive: true });
+      fs.copyFileSync(sourcePath, targetPath);
+      fs.unlinkSync(sourcePath);
+      const proposedParent = path.dirname(sourcePath);
+      try {
+        if (fs.existsSync(proposedParent)) {
+          fs.rmdirSync(proposedParent);
+        }
+      } catch {
+        // Non-fatal: leftover empty dir is harmless.
+      }
+      this._toast(`Accepted ${slug}. Run \`gemma-check\` and commit.`);
+      this.refresh();
+    } catch (err) {
+      this._toast(`Accept failed: ${formatForUser(err)}`);
+    }
+  }
+
+  private _dismissProposedSkill(slug: string): void {
+    const target = this._resolveProposedSkillPath(slug);
+    if (!target) {
+      this._toast("Proposed skill not found.");
+      return;
+    }
+    try {
+      fs.unlinkSync(target);
+      const proposedParent = path.dirname(target);
+      try {
+        if (fs.existsSync(proposedParent)) {
+          fs.rmdirSync(proposedParent);
+        }
+      } catch {
+        // Non-fatal.
+      }
+      this._toast(`Dismissed ${slug}.`);
+      this.refresh();
+    } catch (err) {
+      this._toast(`Dismiss failed: ${formatForUser(err)}`);
     }
   }
 

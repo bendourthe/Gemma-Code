@@ -22,6 +22,8 @@ function makeManager(messages: Array<{ role: string; content: string }>): Conver
 
   return mockOf<ConversationManager>({
     getHistory: () => history,
+    // v0.9.0 Phase 2.1: ContextCompactor feeds the pipeline a replay view.
+    replayForCompaction: () => history,
     replaceWithSummary: vi.fn(),
     replaceMessages: vi.fn(),
     addAssistantMessage: vi.fn(),
@@ -312,6 +314,97 @@ describe("ContextCompactor", () => {
       }
       // Pipeline should NOT have run, so replaceMessages stays untouched.
       expect(manager.replaceMessages).not.toHaveBeenCalled();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // v0.9.0 Phase 2.3 -- rebuild-from-snapshot branch
+  // -------------------------------------------------------------------------
+
+  describe("rebuild-needed snapshot recovery (Phase 2.3)", () => {
+    function makeManagerWithSession(
+      messages: Array<{ role: string; content: string }>,
+      sessionId: string,
+    ): ConversationManager {
+      const history = messages.map((m, i) => ({
+        id: `msg-${i}`,
+        role: m.role as "user" | "assistant" | "system",
+        content: m.content,
+        timestamp: Date.now() + i,
+      }));
+      return mockOf<ConversationManager>({
+        getHistory: () => history,
+        replayForCompaction: () => history,
+        replaceWithSummary: vi.fn(),
+        replaceMessages: vi.fn(),
+        addAssistantMessage: vi.fn(),
+        addUserMessage: vi.fn(),
+        addSystemMessage: vi.fn(),
+        clearHistory: vi.fn(),
+        dispose: vi.fn(),
+        sessionId,
+        loadSession: vi.fn(),
+        trimToContextLimit: vi.fn(),
+        rebuildSystemPrompt: vi.fn(),
+      });
+    }
+
+    it("rebuilds the conversation from the provider snapshot and returns state=ok", async () => {
+      const manager = makeManagerWithSession(
+        [{ role: "user", content: "word1 word2 word3 ".repeat(500) }],
+        "sess-rebuild-1",
+      );
+      const compactor = new ContextCompactor(manager, makeClient(""), MODEL, 10);
+      const tailMessages = [
+        { id: "tail-1", role: "user" as const, content: "later", timestamp: 1 },
+        { id: "tail-2", role: "assistant" as const, content: "yo", timestamp: 2 },
+      ];
+      compactor.setRebuildSnapshotProvider({
+        loadLatest: async () => ({ messages: tailMessages, capturedAt: 1700000000000 }),
+      });
+
+      const result = await compactor.compact(postMessage, true);
+
+      expect(result.state).toBe("ok");
+      if (result.state === "ok") {
+        expect(result.summary).toMatch(/rebuilt from snapshot/);
+      }
+      expect(manager.replaceMessages).toHaveBeenCalledTimes(2);
+      // The second call is the snapshot replay; verify the payload.
+      expect(manager.replaceMessages).toHaveBeenLastCalledWith(tailMessages);
+    });
+
+    it("falls back to rebuild-needed when the provider returns null", async () => {
+      const manager = makeManagerWithSession(
+        [{ role: "user", content: "word1 word2 word3 ".repeat(500) }],
+        "sess-rebuild-2",
+      );
+      const compactor = new ContextCompactor(manager, makeClient(""), MODEL, 10);
+      compactor.setRebuildSnapshotProvider({
+        loadLatest: async () => null,
+      });
+
+      const result = await compactor.compact(postMessage, true);
+
+      expect(result.state).toBe("rebuild-needed");
+      if (result.state === "rebuild-needed") {
+        expect(result.reason).toMatch(/No durable snapshot available/);
+      }
+    });
+
+    it("swallows provider throws and surfaces rebuild-needed", async () => {
+      const manager = makeManagerWithSession(
+        [{ role: "user", content: "word1 word2 word3 ".repeat(500) }],
+        "sess-rebuild-3",
+      );
+      const compactor = new ContextCompactor(manager, makeClient(""), MODEL, 10);
+      compactor.setRebuildSnapshotProvider({
+        loadLatest: async () => { throw new Error("disk corrupt"); },
+      });
+
+      const result = await compactor.compact(postMessage, true);
+
+      expect(result.state).toBe("rebuild-needed");
     });
   });
 });

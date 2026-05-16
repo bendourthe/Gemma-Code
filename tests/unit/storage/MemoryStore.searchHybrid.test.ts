@@ -65,4 +65,30 @@ describe("MemoryStore.searchHybrid", () => {
       expect(r.reason).toBeDefined();
     }
   });
+
+  // v0.9.0 Phase 2.2 ------------------------------------------------------
+
+  describe("retrieveHybrid (Phase 2.2)", () => {
+    it("returns empty string for an empty query", async () => {
+      expect(await store.retrieveHybrid("", 1000)).toBe("");
+    });
+
+    it("packs hybrid results into a Recalled Memories block with reasons", async () => {
+      await store.save("authentication uses OAuth tokens", "decision");
+      await store.save("frontend uses Vite for bundling", "fact");
+      const out = await store.retrieveHybrid("authentication", 1000);
+      expect(out).toMatch(/## Recalled Memories/);
+      expect(out).toContain("authentication");
+      expect(out).toMatch(/\[.*?\]$/m);
+    });
+
+    it("respects the token budget", async () => {
+      for (let i = 0; i < 10; i++) {
+        await store.save(`entry ${i} content content content`, "fact");
+      }
+      const full = await store.retrieveHybrid("entry", 1000);
+      const tiny = await store.retrieveHybrid("entry", 40);
+      expect(tiny.length).toBeLessThanOrEqual(full.length);
+    });
+  });
 });

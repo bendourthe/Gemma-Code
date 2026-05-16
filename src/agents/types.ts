@@ -10,7 +10,8 @@ export type SubAgentType =
   | "planning"
   | "audit-worker"
   | "testgaps-worker"
-  | "curator-worker";
+  | "curator-worker"
+  | "reflect-worker";
 
 export interface SubAgentConfig {
   readonly type: SubAgentType;

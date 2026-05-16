@@ -5,6 +5,7 @@ import * as path from "path";
 import {
   buildMemorySnapshot,
   listArchiveSnapshots,
+  listProposedSkills,
   promoteSqlMemoryToFile,
   restoreArchiveSnapshot,
   sectionForType,
@@ -219,6 +220,45 @@ describe("MemoryPanel data flow", () => {
       const result = restoreArchiveSnapshot(memoryFiles, "2099-01-01");
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.reason).toContain("does not exist");
+    });
+  });
+
+  // v0.9.0 Phase 2.6 ------------------------------------------------------
+
+  describe("listProposedSkills (Phase 2.6)", () => {
+    it("returns an empty array when the proposed dir does not exist", () => {
+      expect(listProposedSkills(path.join(tmpdir, "nope"))).toEqual([]);
+    });
+
+    it("enumerates proposed/<slug>/SKILL.md entries newest-first", () => {
+      const skillsRoot = path.join(tmpdir, "catalog");
+      const olderDir = path.join(skillsRoot, "proposed", "alpha");
+      const newerDir = path.join(skillsRoot, "proposed", "beta");
+      fs.mkdirSync(olderDir, { recursive: true });
+      fs.mkdirSync(newerDir, { recursive: true });
+      fs.writeFileSync(path.join(olderDir, "SKILL.md"), "alpha body");
+      fs.writeFileSync(path.join(newerDir, "SKILL.md"), "beta body");
+      // Force a clear mtime gap so the ordering is deterministic.
+      const older = Date.now() - 60_000;
+      const newer = Date.now();
+      fs.utimesSync(path.join(olderDir, "SKILL.md"), older / 1000, older / 1000);
+      fs.utimesSync(path.join(newerDir, "SKILL.md"), newer / 1000, newer / 1000);
+
+      const out = listProposedSkills(skillsRoot);
+      expect(out.map((e) => e.slug)).toEqual(["beta", "alpha"]);
+      expect(out[0].preview).toContain("beta body");
+    });
+
+    it("buildMemorySnapshot includes proposedSkills when a skillsRoot is supplied", () => {
+      const skillsRoot = path.join(tmpdir, "catalog");
+      const dir = path.join(skillsRoot, "proposed", "demo");
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, "SKILL.md"), "draft");
+      const snap = buildMemorySnapshot(memoryFiles, null, {
+        proposedSkillsRoot: skillsRoot,
+      });
+      expect(snap.proposedSkills).toHaveLength(1);
+      expect(snap.proposedSkills[0]?.slug).toBe("demo");
     });
   });
 });

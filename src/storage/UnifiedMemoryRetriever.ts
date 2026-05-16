@@ -46,6 +46,14 @@ export interface ToolOutputSearchOptions {
 }
 
 /**
+ * v0.9.0 Phase 2.2 -- retrieval routing. `hybrid` (default) sends the
+ * semantic-layer call to `MemoryStore.retrieveHybrid` (HNSW + FTS5 +
+ * recency fusion); `legacy` preserves the keyword + cosine merge path
+ * for one cycle as a fallback.
+ */
+export type RetrievalRoute = "legacy" | "hybrid";
+
+/**
  * Unified memory retrieval across all four layers.
  *
  * Distributes a token budget across layers, queries each in parallel,
@@ -62,6 +70,7 @@ export class UnifiedMemoryRetriever {
   private readonly _toolOutputCache: ToolOutputCache | null;
   private readonly _embedder: EmbeddingClient | null;
   private _corroborationThreshold: number;
+  private _retrievalRoute: RetrievalRoute;
 
   constructor(
     workingMemory: WorkingMemory | null,
@@ -71,6 +80,7 @@ export class UnifiedMemoryRetriever {
     toolOutputCache: ToolOutputCache | null = null,
     embedder: EmbeddingClient | null = null,
     corroborationThreshold = 1,
+    retrievalRoute: RetrievalRoute = "hybrid",
   ) {
     this._workingMemory = workingMemory;
     this._episodicMemory = episodicMemory;
@@ -79,11 +89,22 @@ export class UnifiedMemoryRetriever {
     this._toolOutputCache = toolOutputCache;
     this._embedder = embedder;
     this._corroborationThreshold = corroborationThreshold;
+    this._retrievalRoute = retrievalRoute;
   }
 
   /** Update the corroboration tier threshold at runtime (settings change). */
   setCorroborationThreshold(threshold: number): void {
     this._corroborationThreshold = Math.max(1, Math.floor(threshold));
+  }
+
+  /** v0.9.0 Phase 2.2 -- switch between the hybrid and legacy retrieval paths. */
+  setRetrievalRoute(route: RetrievalRoute): void {
+    this._retrievalRoute = route;
+  }
+
+  /** Read the active retrieval route. */
+  getRetrievalRoute(): RetrievalRoute {
+    return this._retrievalRoute;
   }
 
   /** Read the active corroboration threshold. */
@@ -183,8 +204,19 @@ export class UnifiedMemoryRetriever {
 
     if (layerBudgets.has("semantic")) {
       const budget = layerBudgets.get("semantic")!;
+      // v0.9.0 Phase 2.2: hybrid routes through `searchHybrid` (HNSW + FTS5
+      // + recency fusion); legacy preserves the v0.7.0 keyword + cosine
+      // merge for one cycle as a fallback.
+      const fetch =
+        this._retrievalRoute === "hybrid"
+          ? this._semanticMemory!.retrieveHybrid(query.query, budget)
+          : this._semanticMemory!.retrieve(
+              query.query,
+              budget,
+              this._corroborationThreshold,
+            );
       promises.push(
-        this._semanticMemory!.retrieve(query.query, budget, this._corroborationThreshold)
+        fetch
           .then((content) => { if (content) results.set("semantic", content); })
           .catch(() => { /* non-fatal */ }),
       );

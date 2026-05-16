@@ -128,6 +128,26 @@ export interface GemmaCodeSettings {
    */
   memoryScoringMethod: "rrf" | "weighted";
   /**
+   * v0.9.0 Phase 2.2 (from v0.8.0 known-gaps 10.O.M): default memory
+   * retrieval path. `hybrid` (default) routes `UnifiedMemoryRetriever` /
+   * `MemoryStore` through `searchHybrid` (HNSW + FTS5 + recency fusion);
+   * `legacy` preserves the v0.7.0 keyword + semantic merge for one cycle
+   * as a fallback.
+   */
+  memoryScoringDefault: "legacy" | "hybrid";
+  /**
+   * v0.9.0 Phase 2.4 (from v0.8.0 known-gaps 10.O.T): opt-in anticipatory
+   * memory cache. When true, `MemoryPanel` subscribes to active-editor
+   * changes and surfaces likely-relevant memory entries under an
+   * "Anticipated context" section.
+   */
+  memoryAnticipatoryCache: boolean;
+  /**
+   * v0.9.0 Phase 2.5 (from v0.8.0 known-gaps 10.O.U): scheduled `ReflectJob`
+   * worker. Default `true` on balanced/full tiers, `false` on constrained.
+   */
+  reflectWorkerEnabled: boolean;
+  /**
    * v0.8.0 Phase 4 sub-task 4.1 (item G3): when true, the trace file is
    * pre-enabled at session start so users can reproduce a bug without
    * needing to remember to call `/trace enable` first.
@@ -230,6 +250,12 @@ export function getSettings(): GemmaCodeSettings {
       const raw = config.get<string>("memory.scoringMethod") ?? "rrf";
       return raw === "weighted" ? "weighted" : "rrf";
     })(),
+    memoryScoringDefault: ((): "legacy" | "hybrid" => {
+      const raw = config.get<string>("memory.scoringDefault") ?? "hybrid";
+      return raw === "legacy" ? "legacy" : "hybrid";
+    })(),
+    memoryAnticipatoryCache: config.get<boolean>("memory.anticipatoryCache") ?? false,
+    reflectWorkerEnabled: config.get<boolean>("workers.reflect.enabled") ?? true,
     traceAutoEnable: config.get<boolean>("trace.autoEnable") ?? false,
   };
 }

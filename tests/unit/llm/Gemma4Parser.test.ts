@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   parseChannel,
   stripLeadingThinkBlocks,
+  Gemma4StreamScrubber,
 } from "../../../src/llm/Gemma4Parser.js";
 
 describe("Gemma4Parser", () => {
@@ -74,6 +75,54 @@ describe("Gemma4Parser", () => {
 
     it("returns empty string for empty input", () => {
       expect(stripLeadingThinkBlocks("")).toBe("");
+    });
+  });
+
+  describe("Gemma4StreamScrubber (v0.9.0 Phase 2.1)", () => {
+    it("passes plain text through unchanged", () => {
+      const s = new Gemma4StreamScrubber();
+      expect(s.feed("hello ")).toBe("hello ");
+      expect(s.feed("world")).toBe("world");
+      expect(s.flush()).toBe("");
+    });
+
+    it("strips a complete think block in a single chunk", () => {
+      const s = new Gemma4StreamScrubber();
+      expect(s.feed("a<think>secret</think>b")).toBe("ab");
+    });
+
+    it("holds back partial opener bytes across chunks", () => {
+      const s = new Gemma4StreamScrubber();
+      let out = "";
+      out += s.feed("answer: <thi");
+      out += s.feed("nk>hidden</thi");
+      out += s.feed("nk> visible");
+      out += s.flush();
+      expect(out).toBe("answer:  visible");
+    });
+
+    it("strips channel-format thought blocks streamed in chunks", () => {
+      const s = new Gemma4StreamScrubber();
+      let out = "";
+      out += s.feed("pre <|chan");
+      out += s.feed("nel>thought\nreason\n<chann");
+      out += s.feed("el|>post");
+      out += s.flush();
+      expect(out).toBe("pre post");
+    });
+
+    it("strips standalone turn separators without buffering", () => {
+      const s = new Gemma4StreamScrubber();
+      expect(s.feed("a<turn|>b")).toBe("ab");
+    });
+
+    it("drops a partial-opener residue at flush time", () => {
+      const s = new Gemma4StreamScrubber();
+      let out = "";
+      out += s.feed("done<tu");
+      out += s.flush();
+      // Pre-flush bytes already emitted; the partial token is discarded.
+      expect(out).toBe("done");
     });
   });
 });

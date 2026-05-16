@@ -4,6 +4,8 @@ import * as path from "path";
 import * as vscode from "vscode";
 import type { CurationLoop, CuratorManifest } from "../skills/CurationLoop.js";
 import { describeManifest } from "../skills/CurationLoop.js";
+import type { ReflectJob, ReflectManifest, HardwareTier } from "../storage/ReflectJob.js";
+import { shouldRunReflectJob } from "../storage/ReflectJob.js";
 import { formatForLog } from "../utils/errors.js";
 import { getLogger } from "../utils/logger.js";
 
@@ -220,6 +222,103 @@ export async function runCuratorWorker(
       error: formatForLog(err),
     };
   }
+}
+
+/**
+ * v0.9.0 Phase 2.5 (from v0.8.0 known-gaps 10.O.U) -- reflect background
+ * worker.
+ *
+ * Runs `ReflectJob.dryRun()` when the hardware tier supports lesson
+ * generation and the configured cadence gate has elapsed. The worker
+ * never applies the manifest automatically; the operator must run
+ * `/reflect apply <id>` after reviewing the proposed lessons.
+ */
+export interface ReflectWorkerCadenceState {
+  /** Epoch ms of the most recent run for cadence-gating. `0` means never. */
+  readonly lastRunAt: number;
+}
+
+export interface RunReflectWorkerOptions {
+  readonly cadenceMs?: number;
+  readonly hardwareTier?: HardwareTier;
+  /** Read + advance the cadence cursor; defaults to in-memory state. */
+  readonly cadence?: {
+    read(): ReflectWorkerCadenceState;
+    write(state: ReflectWorkerCadenceState): void;
+  };
+  readonly now?: () => number;
+}
+
+const DEFAULT_REFLECT_CADENCE_MS = 24 * 60 * 60 * 1000;
+
+export async function runReflectWorker(
+  job: ReflectJob | null,
+  options: RunReflectWorkerOptions = {},
+): Promise<WorkerRunResult> {
+  if (!job) {
+    return {
+      success: false,
+      output: "",
+      toolCallCount: 0,
+      error:
+        "Reflect job not initialized; set gemma-code.workers.reflect.enabled to true on a balanced/full tier to enable.",
+    };
+  }
+  const tier = options.hardwareTier ?? "balanced";
+  if (!shouldRunReflectJob(tier)) {
+    return {
+      success: true,
+      output: `### Reflect Worker\n\nSkipped: hardware tier '${tier}' does not run reflect-lesson generation.`,
+      toolCallCount: 0,
+    };
+  }
+  const cadenceMs = options.cadenceMs ?? DEFAULT_REFLECT_CADENCE_MS;
+  const now = options.now ?? Date.now;
+  const cadence = options.cadence ?? null;
+  const lastRunAt = cadence ? cadence.read().lastRunAt : 0;
+  if (cadenceMs > 0 && lastRunAt > 0 && now() - lastRunAt < cadenceMs) {
+    const minutesLeft = Math.ceil((cadenceMs - (now() - lastRunAt)) / 60000);
+    return {
+      success: true,
+      output: `### Reflect Worker\n\nSkipped: next eligible run in ~${minutesLeft} min (cadence ${cadenceMs} ms).`,
+      toolCallCount: 0,
+    };
+  }
+  try {
+    const manifest = await job.dryRun();
+    if (cadence) cadence.write({ lastRunAt: now() });
+    return {
+      success: true,
+      output: formatReflectManifest(manifest),
+      toolCallCount: manifest.clusters.length,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: "",
+      toolCallCount: 0,
+      error: formatForLog(err),
+    };
+  }
+}
+
+export function formatReflectManifest(manifest: ReflectManifest): string {
+  if (manifest.clusters.length === 0) {
+    return `### Reflect Worker\n\nDry-run \`${manifest.id}\` found 0 recurring action clusters.`;
+  }
+  const head = manifest.lessons.length > 0
+    ? `Dry-run \`${manifest.id}\` proposed ${manifest.lessons.length} lesson(s) across ${manifest.clusters.length} cluster(s):`
+    : `Dry-run \`${manifest.id}\` clustered ${manifest.clusters.length} action group(s) but produced no lessons (tier=${manifest.hardwareTier}).`;
+  const lines: string[] = [`### Reflect Worker`, ``, head, ``];
+  for (const cluster of manifest.clusters.slice(0, 10)) {
+    lines.push(`- \`${cluster.actionKey}\` -- ${cluster.occurrences} occurrences`);
+  }
+  if (manifest.clusters.length > 10) {
+    lines.push(`- ... and ${manifest.clusters.length - 10} more cluster(s).`);
+  }
+  lines.push("");
+  lines.push(`Apply with \`/reflect apply ${manifest.id}\` after reviewing \`${manifest.manifestPath}\`.`);
+  return lines.join("\n");
 }
 
 export function formatCuratorManifest(manifest: CuratorManifest): string {

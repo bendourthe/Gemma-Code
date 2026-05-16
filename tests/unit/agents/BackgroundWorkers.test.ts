@@ -2,10 +2,13 @@ import { describe, it, expect, vi } from "vitest";
 import {
   runAuditWorker,
   runTestgapsWorker,
+  runReflectWorker,
   parseGemmaCheckJson,
   formatAuditFindings,
+  formatReflectManifest,
   formatTestgapsOutput,
 } from "../../../src/agents/BackgroundWorkers.js";
+import type { ReflectJob, ReflectManifest } from "../../../src/storage/ReflectJob.js";
 
 /**
  * v0.7.0 Phase 7 (C34) -- background worker tests.
@@ -200,5 +203,83 @@ describe("BackgroundWorkers.runTestgapsWorker", () => {
     expect(result.success).toBe(true);
     expect(result.output).toContain("No matching test files");
     expect(runner).not.toHaveBeenCalled();
+  });
+});
+
+// v0.9.0 Phase 2.5 ---------------------------------------------------------
+
+describe("BackgroundWorkers.runReflectWorker (Phase 2.5)", () => {
+  function makeManifest(overrides: Partial<ReflectManifest> = {}): ReflectManifest {
+    return {
+      version: 1,
+      id: "manifest-1",
+      createdAt: new Date(1_700_000_000_000).toISOString(),
+      lookbackMs: 24 * 60 * 60 * 1000,
+      clusters: [
+        { actionKey: "edit::src", events: [], occurrences: 4, firstSeen: 1, lastSeen: 2 },
+        { actionKey: "test::tests", events: [], occurrences: 3, firstSeen: 3, lastSeen: 4 },
+      ],
+      lessons: [
+        { id: "lesson-1", actionKey: "edit::src", clusterSize: 4, lesson: "ship smaller diffs", generatedAt: 0 },
+      ],
+      hardwareTier: "balanced",
+      manifestPath: "/tmp/manifest-1.json",
+      ...overrides,
+    };
+  }
+
+  it("returns a not-initialized error when no ReflectJob is wired", async () => {
+    const result = await runReflectWorker(null);
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/not initialized/i);
+  });
+
+  it("skips on constrained hardware tiers", async () => {
+    const job = { dryRun: vi.fn() } as unknown as ReflectJob;
+    const result = await runReflectWorker(job, { hardwareTier: "constrained" });
+    expect(result.success).toBe(true);
+    expect(result.output).toMatch(/Skipped: hardware tier 'constrained'/);
+    expect(job.dryRun).not.toHaveBeenCalled();
+  });
+
+  it("skips when the cadence window has not elapsed", async () => {
+    const dry = vi.fn();
+    const job = { dryRun: dry } as unknown as ReflectJob;
+    const result = await runReflectWorker(job, {
+      cadenceMs: 60_000,
+      cadence: {
+        read: () => ({ lastRunAt: 1_000 }),
+        write: () => {},
+      },
+      now: () => 2_000,
+    });
+    expect(result.success).toBe(true);
+    expect(result.output).toMatch(/Skipped: next eligible run/);
+    expect(dry).not.toHaveBeenCalled();
+  });
+
+  it("runs ReflectJob.dryRun and formats the manifest when cadence passes", async () => {
+    const writes: Array<{ lastRunAt: number }> = [];
+    const job = {
+      dryRun: vi.fn().mockResolvedValue(makeManifest()),
+    } as unknown as ReflectJob;
+    const result = await runReflectWorker(job, {
+      cadenceMs: 1_000,
+      cadence: {
+        read: () => ({ lastRunAt: 0 }),
+        write: (state) => writes.push(state),
+      },
+      now: () => 5_000,
+    });
+    expect(result.success).toBe(true);
+    expect(result.output).toContain("Reflect Worker");
+    expect(result.output).toMatch(/proposed 1 lesson/);
+    expect(writes).toEqual([{ lastRunAt: 5_000 }]);
+  });
+
+  it("formats an empty manifest as a zero-cluster note", () => {
+    const empty = makeManifest({ clusters: [], lessons: [] });
+    const body = formatReflectManifest(empty);
+    expect(body).toContain("0 recurring action clusters");
   });
 });

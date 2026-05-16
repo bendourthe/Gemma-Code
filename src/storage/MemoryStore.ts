@@ -443,6 +443,48 @@ export class MemoryStore {
   // ---------------------------------------------------------------------------
 
   /**
+   * v0.9.0 Phase 2.2 (from v0.8.0 known-gaps 10.O.M) -- formatted hybrid
+   * retrieval surface.
+   *
+   * Wraps `searchHybrid` so callers (UnifiedMemoryRetriever, PromptBuilder
+   * via UnifiedMemoryRetriever.retrieve) get a budget-packed memory-context
+   * string. Per-result `reason` arrays from the ranker pass through into
+   * the rendered output so the operator can audit why each entry was
+   * surfaced.
+   */
+  async retrieveHybrid(
+    query: string,
+    tokenBudget: number,
+    method: FusionMethod = "rrf",
+  ): Promise<string> {
+    if (!query) return "";
+    const results = await this.searchHybrid(query, 20, method);
+    if (results.length === 0 && !this._graphEngine) return "";
+
+    const header = "## Recalled Memories\n\n";
+    let usedTokens = header.length / CHARS_PER_TOKEN;
+    const lines: string[] = [];
+    for (const r of results) {
+      const date = new Date(r.entry.createdAt).toLocaleDateString();
+      const reasonTail =
+        r.reason && r.reason.length > 0 ? ` [${r.reason.join("; ")}]` : "";
+      const line = `- [${r.entry.type}] ${r.entry.content} (from ${date})${reasonTail}`;
+      const lineTokens = line.length / CHARS_PER_TOKEN;
+      if (usedTokens + lineTokens > tokenBudget) break;
+      lines.push(line);
+      usedTokens += lineTokens;
+    }
+    let out = lines.length > 0 ? header + lines.join("\n") : "";
+    if (this._graphEngine) {
+      const graphBudget = Math.floor(tokenBudget * 0.25);
+      const graphResult = this._graphEngine.queryContextFor(query, 10);
+      const graphContext = this._graphEngine.formatAsContext(graphResult, graphBudget);
+      if (graphContext) out = out ? `${out}\n\n${graphContext}` : graphContext;
+    }
+    return out;
+  }
+
+  /**
    * Retrieve memories relevant to a query, packed within a token budget.
    * Returns a formatted string ready for injection into PromptContext.memoryContext.
    *

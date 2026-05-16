@@ -4,8 +4,18 @@ import type { ConversationManager } from "./ConversationManager.js";
 import type { ExtensionToWebviewMessage } from "../panels/messages.js";
 import { formatForUser } from "../utils/errors.js";
 import { MemoryContextScrubber } from "./MemoryContextScrubber.js";
+import { Gemma4StreamScrubber, parseChannel } from "../llm/Gemma4Parser.js";
+import { ToolCallStreamParser } from "./ToolCallStreamParser.js";
 
 export type PostMessageFn = (message: ExtensionToWebviewMessage) => void;
+
+/**
+ * v0.9.0 Phase 2.7 -- callback that derives the keep_alive hint for the
+ * model about to stream. Returning `null` skips the field entirely so the
+ * legacy code path (Ollama's default 5-minute idle eviction) is preserved
+ * when no `ModelPinRegistry` is wired.
+ */
+export type KeepAliveResolver = (model: string) => number | string | null;
 
 /** Maximum number of retry attempts after an early stream failure (< 3 tokens). */
 const MAX_RETRIES = 1;
@@ -15,6 +25,7 @@ const EARLY_FAILURE_TOKEN_THRESHOLD = 3;
 
 export class StreamingPipeline {
   private _abortController: AbortController | null = null;
+  private readonly _resolveKeepAlive: KeepAliveResolver | null;
 
   constructor(
     private readonly _client: OllamaClient,
@@ -22,8 +33,11 @@ export class StreamingPipeline {
     private readonly _modelName: string,
     private readonly _runAgentLoop?: (postMessage: PostMessageFn) => Promise<void>,
     private readonly _ollamaOptions?: OllamaOptions,
-    private readonly _tools?: OllamaToolDefinition[]
-  ) {}
+    private readonly _tools?: OllamaToolDefinition[],
+    resolveKeepAlive?: KeepAliveResolver | null,
+  ) {
+    this._resolveKeepAlive = resolveKeepAlive ?? null;
+  }
 
   /** Abort any in-flight stream request. */
   cancel(): void {
@@ -76,6 +90,13 @@ export class StreamingPipeline {
       // streamed tokens. The scrubber holds back partial-tag tails across
       // chunk boundaries so a tag split between chunks does not leak.
       const scrubber = new MemoryContextScrubber();
+      // v0.9.0 Phase 2.1: strip Gemma 4 channel tokens (think / tool_response
+      // blocks, turn separators) from the visible stream.
+      const channelScrubber = new Gemma4StreamScrubber();
+      // v0.9.0 Phase 2.9: forward toolCallHeader / toolCallArgDelta /
+      // toolCallComplete events to the webview so the progressive tool-call
+      // card can render before the model finishes the call.
+      const toolCallParser = new ToolCallStreamParser();
 
       try {
         const ollamaMessages: OllamaMessage[] = this._manager
@@ -84,30 +105,50 @@ export class StreamingPipeline {
 
         postMessage({ type: "status", state: "streaming" });
 
-        const stream = this._client.streamChat(
-          { model: this._modelName, messages: ollamaMessages, stream: true, options: this._ollamaOptions, tools: this._tools },
-          this._abortController.signal
-        );
+        const keepAlive = this._resolveKeepAlive?.(this._modelName) ?? null;
+        const request: Parameters<typeof this._client.streamChat>[0] = {
+          model: this._modelName,
+          messages: ollamaMessages,
+          stream: true,
+          ...(this._ollamaOptions ? { options: this._ollamaOptions } : {}),
+          ...(this._tools ? { tools: this._tools } : {}),
+          ...(keepAlive !== null ? { keep_alive: keepAlive } : {}),
+        };
+        const stream = this._client.streamChat(request, this._abortController.signal);
 
         for await (const chunk of stream) {
           const token = chunk.message.content;
           if (token) {
-            const cleaned = scrubber.feed(token);
-            if (cleaned) {
-              postMessage({ type: "token", value: cleaned });
-              accumulated += cleaned;
-              tokenCount++;
+            const memCleaned = scrubber.feed(token);
+            if (memCleaned) {
+              const channelCleaned = channelScrubber.feed(memCleaned);
+              const events = toolCallParser.feed(channelCleaned);
+              for (const ev of events) postMessage(ev);
+              if (channelCleaned) {
+                postMessage({ type: "token", value: channelCleaned });
+                accumulated += channelCleaned;
+                tokenCount++;
+              }
             }
           }
         }
 
-        const tail = scrubber.flush();
-        if (tail) {
-          postMessage({ type: "token", value: tail });
-          accumulated += tail;
+        const memTail = scrubber.flush();
+        const channelTail = channelScrubber.feed(memTail) + channelScrubber.flush();
+        const tailEvents = [
+          ...toolCallParser.feed(channelTail),
+          ...toolCallParser.flush(),
+        ];
+        for (const ev of tailEvents) postMessage(ev);
+        if (channelTail) {
+          postMessage({ type: "token", value: channelTail });
+          accumulated += channelTail;
         }
 
-        const msg = this._manager.addAssistantMessage(accumulated);
+        // v0.9.0 Phase 2.1: persist only the visible channel so replay /
+        // compaction does not re-feed hidden reasoning into the next prompt.
+        const visible = parseChannel(accumulated).visible || accumulated;
+        const msg = this._manager.addAssistantMessage(visible);
         // renderedHtml is populated by GemmaCodePanel's postMessage interceptor.
         postMessage({ type: "messageComplete", messageId: msg.id, renderedHtml: "" });
         return;

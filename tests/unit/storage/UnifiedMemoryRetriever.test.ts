@@ -45,10 +45,12 @@ function mockEpisodicMemory(): EpisodicMemory {
 function mockSemanticMemory(): MemoryStore {
   return mockOf<MemoryStore>({
     retrieve: vi.fn(async (_q: string, _b: number) => "## Recalled Memories\n\n- [fact] We use SQLite for storage"),
+    retrieveHybrid: vi.fn(async (_q: string, _b: number) => "## Recalled Memories\n\n- [fact] Hybrid path [HNSW]"),
     save: vi.fn(),
     saveWithProvenance: vi.fn(),
     searchKeyword: vi.fn(),
     searchSemantic: vi.fn(),
+    searchHybrid: vi.fn(),
     extractAndSave: vi.fn(),
     prune: vi.fn(),
     clear: vi.fn(),
@@ -135,7 +137,19 @@ describe("UnifiedMemoryRetriever", () => {
 
     it("redistributes budget when some layers are null", async () => {
       const semantic = mockSemanticMemory();
-      const retriever = new UnifiedMemoryRetriever(null, null, semantic, null);
+      // v0.9.0 Phase 2.2: pass the legacy route so the assertion on
+      // `retrieve` (not `retrieveHybrid`) still holds. The hybrid-route
+      // case is covered in its own describe block below.
+      const retriever = new UnifiedMemoryRetriever(
+        null,
+        null,
+        semantic,
+        null,
+        null,
+        null,
+        1,
+        "legacy",
+      );
 
       await retriever.retrieve({
         query: "test",
@@ -408,6 +422,69 @@ describe("UnifiedMemoryRetriever", () => {
         topK: 7,
         threshold: 0.99,
       });
+    });
+  });
+
+  // v0.9.0 Phase 2.2 ------------------------------------------------------
+
+  describe("retrieval route (Phase 2.2)", () => {
+    it("defaults to the hybrid route", async () => {
+      const retriever = new UnifiedMemoryRetriever(
+        null,
+        null,
+        mockSemanticMemory(),
+        null,
+      );
+      expect(retriever.getRetrievalRoute()).toBe("hybrid");
+    });
+
+    it("hybrid route routes the semantic layer through retrieveHybrid", async () => {
+      const semantic = mockSemanticMemory();
+      const retriever = new UnifiedMemoryRetriever(
+        null,
+        null,
+        semantic,
+        null,
+        null,
+        null,
+        1,
+        "hybrid",
+      );
+      const out = await retriever.retrieveForPrompt("question", 1000);
+      expect(semantic.retrieveHybrid).toHaveBeenCalled();
+      expect(semantic.retrieve).not.toHaveBeenCalled();
+      expect(out).toContain("Hybrid path");
+    });
+
+    it("legacy route preserves the v0.7.0 keyword + cosine merge path", async () => {
+      const semantic = mockSemanticMemory();
+      const retriever = new UnifiedMemoryRetriever(
+        null,
+        null,
+        semantic,
+        null,
+        null,
+        null,
+        1,
+        "legacy",
+      );
+      const out = await retriever.retrieveForPrompt("question", 1000);
+      expect(semantic.retrieve).toHaveBeenCalled();
+      expect(semantic.retrieveHybrid).not.toHaveBeenCalled();
+      expect(out).toContain("SQLite for storage");
+    });
+
+    it("setRetrievalRoute swaps routes at runtime", async () => {
+      const semantic = mockSemanticMemory();
+      const retriever = new UnifiedMemoryRetriever(
+        null,
+        null,
+        semantic,
+        null,
+      );
+      retriever.setRetrievalRoute("legacy");
+      await retriever.retrieveForPrompt("question", 1000);
+      expect(semantic.retrieve).toHaveBeenCalled();
     });
   });
 });

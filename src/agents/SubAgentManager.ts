@@ -22,9 +22,19 @@ import { RunTerminalTool } from "../tools/handlers/terminal.js";
 import { WebSearchTool, FetchPageTool } from "../tools/handlers/webSearch.js";
 import { SpecialistLoader } from "./SpecialistLoader.js";
 import type { Specialist } from "./SpecialistLoader.js";
-import { runAuditWorker, runTestgapsWorker, runCuratorWorker } from "./BackgroundWorkers.js";
-import type { WorkerCommandRunner } from "./BackgroundWorkers.js";
+import {
+  runAuditWorker,
+  runTestgapsWorker,
+  runCuratorWorker,
+  runReflectWorker,
+} from "./BackgroundWorkers.js";
+import type {
+  WorkerCommandRunner,
+  RunReflectWorkerOptions,
+  ReflectWorkerCadenceState,
+} from "./BackgroundWorkers.js";
 import type { CurationLoop } from "../skills/CurationLoop.js";
+import type { ReflectJob } from "../storage/ReflectJob.js";
 
 /**
  * Hardcoded fallback tool-scope per sub-agent type. Only used when the
@@ -43,6 +53,8 @@ const TOOLS_BY_TYPE: Record<SubAgentType, readonly string[]> = {
   // v0.8.0 Phase 5: curator worker runs the CurationLoop directly; the empty
   // scope marks it as deterministic-only.
   "curator-worker": [],
+  // v0.9.0 Phase 2.5: reflect worker runs the ReflectJob directly.
+  "reflect-worker": [],
 };
 
 /**
@@ -70,6 +82,18 @@ export class SubAgentManager implements SubAgentSpawner {
    */
   private _curationLoop: CurationLoop | null = null;
 
+  /**
+   * v0.9.0 Phase 2.5 -- the reflect worker delegates to a ReflectJob.
+   * Set via `setReflectJob`; null disables reflect dispatch.
+   */
+  private _reflectJob: ReflectJob | null = null;
+
+  /** v0.9.0 Phase 2.5 -- cadence cursor for reflect worker (in-memory). */
+  private _reflectCadence: ReflectWorkerCadenceState = { lastRunAt: 0 };
+
+  /** v0.9.0 Phase 2.5 -- caller-supplied override for reflect-worker options. */
+  private _reflectOptions: Partial<RunReflectWorkerOptions> | null = null;
+
   constructor(
     private readonly _client: OllamaClient,
     promptBuilder: PromptBuilder,
@@ -96,6 +120,20 @@ export class SubAgentManager implements SubAgentSpawner {
     this._curationLoop = loop;
   }
 
+  /**
+   * v0.9.0 Phase 2.5 -- inject the ReflectJob used by the reflect-worker
+   * dispatch. Production callers wire this from `ChatPanelBootstrap` when
+   * the hardware tier supports lesson generation.
+   */
+  setReflectJob(job: ReflectJob | null): void {
+    this._reflectJob = job;
+  }
+
+  /** v0.9.0 Phase 2.5 -- override the reflect-worker cadence / tier options. */
+  setReflectWorkerOptions(opts: Partial<RunReflectWorkerOptions> | null): void {
+    this._reflectOptions = opts;
+  }
+
   async run(config: SubAgentConfig, postMessage: PostMessageFn, parentTraceId?: string, parentSpanId?: string): Promise<SubAgentResult> {
     const tracer = this._tracer;
     const traceId = parentTraceId || tracer.startTrace();
@@ -116,10 +154,12 @@ export class SubAgentManager implements SubAgentSpawner {
     // v0.7.0 Phase 7 (C34): worker types run deterministic CLI commands; they
     // do not go through PromptBuilder / AgentLoop / ConversationManager.
     // v0.8.0 Phase 5 (D6/D7): `curator-worker` joins the deterministic branch.
+    // v0.9.0 Phase 2.5: `reflect-worker` joins the deterministic branch.
     if (
       config.type === "audit-worker" ||
       config.type === "testgaps-worker" ||
-      config.type === "curator-worker"
+      config.type === "curator-worker" ||
+      config.type === "reflect-worker"
     ) {
       return this._runWorker(config, postMessage, subAgentSpanId);
     }
@@ -331,7 +371,15 @@ export class SubAgentManager implements SubAgentSpawner {
         ? await runAuditWorker(config.modifiedFiles, runnerOpts)
         : config.type === "testgaps-worker"
         ? await runTestgapsWorker(config.modifiedFiles, runnerOpts)
-        : await runCuratorWorker(this._curationLoop);
+        : config.type === "curator-worker"
+        ? await runCuratorWorker(this._curationLoop)
+        : await runReflectWorker(this._reflectJob, {
+            cadence: {
+              read: () => this._reflectCadence,
+              write: (s) => { this._reflectCadence = s; },
+            },
+            ...(this._reflectOptions ?? {}),
+          });
 
       const status: "complete" | "error" = result.success ? "complete" : "error";
       postMessage({

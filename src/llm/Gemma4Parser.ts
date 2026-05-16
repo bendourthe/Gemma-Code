@@ -119,3 +119,147 @@ export function stripLeadingThinkBlocks(text: string): string {
   working = working.replace(THINK_BLOCK, "");
   return working.trim();
 }
+
+/**
+ * v0.9.0 Phase 2.1 (from v0.8.0 known-gaps 10.O.K) -- streaming-friendly
+ * Gemma 4 channel-token scrubber.
+ *
+ * Holds back any partial channel-token bytes across chunk boundaries so a
+ * `<|tool_response>` split between two stream chunks does not leak the
+ * literal `<|tool_` prefix to the webview. Once a complete channel-token
+ * block is observed (open token + body + close token), the block is
+ * removed from the emitted stream. Tokens with no body (turn separators,
+ * start-function-call markers) are also stripped.
+ *
+ * Pure, stateful, single-threaded. Build one per stream attempt.
+ */
+const STREAM_CHANNEL_TOKEN_OPENERS = [
+  "<|channel>thought",
+  "<|tool_response>",
+  "<think>",
+] as const;
+
+const STREAM_CHANNEL_TOKEN_CLOSERS: Readonly<Record<string, string>> = {
+  "<|channel>thought": "<channel|>",
+  "<|tool_response>": "<tool_response|>",
+  "<think>": "</think>",
+};
+
+const STREAM_STANDALONE_TOKENS = ["<turn|>", "<start_function_call>"] as const;
+
+const STREAM_MAX_HOLDBACK = 32; // longest opener / closer + small slack.
+
+export class Gemma4StreamScrubber {
+  private _buffer = "";
+  private _insideToken: keyof typeof STREAM_CHANNEL_TOKEN_CLOSERS | null = null;
+
+  /** Feed a new chunk; returns the user-visible portion to emit downstream. */
+  feed(chunk: string): string {
+    if (!chunk) return "";
+    this._buffer += chunk;
+    let out = "";
+
+    // Drive the state machine until no further progress is possible without
+    // more bytes.
+    while (true) {
+      if (this._insideToken !== null) {
+        const closer = STREAM_CHANNEL_TOKEN_CLOSERS[this._insideToken];
+        if (closer === undefined) {
+          this._insideToken = null;
+          continue;
+        }
+        const closeIdx = this._buffer.indexOf(closer);
+        if (closeIdx === -1) {
+          // Closer not yet seen. The body bytes are discarded (we are
+          // stripping the block from the visible stream), but we must keep
+          // enough trailing bytes to recognise a closer that straddles the
+          // next chunk boundary.
+          const safeKeep = closer.length - 1;
+          if (this._buffer.length > safeKeep) {
+            this._buffer = this._buffer.slice(this._buffer.length - safeKeep);
+          }
+          return out;
+        }
+        this._buffer = this._buffer.slice(closeIdx + closer.length);
+        this._insideToken = null;
+        continue;
+      }
+
+      const opener = this._findEarliestOpener();
+      if (opener === null) {
+        const partial = this._partialOpenerSuffix(this._buffer);
+        if (partial > 0) {
+          out += this._buffer.slice(0, this._buffer.length - partial);
+          this._buffer = this._buffer.slice(this._buffer.length - partial);
+        } else {
+          out += parseChannelStripStandalone(this._buffer);
+          this._buffer = "";
+        }
+        return out;
+      }
+
+      const preface = parseChannelStripStandalone(this._buffer.slice(0, opener.index));
+      out += preface;
+      this._buffer = this._buffer.slice(opener.index + opener.token.length);
+      this._insideToken = opener.token as keyof typeof STREAM_CHANNEL_TOKEN_CLOSERS;
+    }
+  }
+
+  /** Emit any residue once the upstream stream ends. */
+  flush(): string {
+    if (this._insideToken !== null) {
+      this._buffer = "";
+      this._insideToken = null;
+      return "";
+    }
+    // Drop a trailing partial opener: the stream has closed without
+    // completing the token, so emitting `<thi` etc. would leak gibberish.
+    const partial = this._partialOpenerSuffix(this._buffer);
+    const remainder = partial > 0
+      ? this._buffer.slice(0, this._buffer.length - partial)
+      : this._buffer;
+    const out = parseChannelStripStandalone(remainder);
+    this._buffer = "";
+    return out;
+  }
+
+  private _findEarliestOpener(): { token: string; index: number } | null {
+    let best: { token: string; index: number } | null = null;
+    for (const token of STREAM_CHANNEL_TOKEN_OPENERS) {
+      const idx = this._buffer.indexOf(token);
+      if (idx === -1) continue;
+      if (!best || idx < best.index) best = { token, index: idx };
+    }
+    return best;
+  }
+
+  /**
+   * Return the size of the longest suffix of `text` that could be the start
+   * of a partial channel opener. Used to hold back bytes across chunks so a
+   * tag split mid-stream is not leaked.
+   */
+  private _partialOpenerSuffix(text: string): number {
+    const limit = Math.min(text.length, STREAM_MAX_HOLDBACK);
+    for (let n = limit; n > 0; n--) {
+      const tail = text.slice(text.length - n);
+      for (const token of STREAM_CHANNEL_TOKEN_OPENERS) {
+        if (token.startsWith(tail)) return n;
+      }
+      for (const token of STREAM_STANDALONE_TOKENS) {
+        if (token.startsWith(tail)) return n;
+      }
+    }
+    return 0;
+  }
+}
+
+function parseChannelStripStandalone(text: string): string {
+  if (!text) return "";
+  let working = text;
+  for (const token of STREAM_STANDALONE_TOKENS) {
+    while (working.includes(token)) {
+      working = working.replace(token, "");
+    }
+  }
+  return working;
+}

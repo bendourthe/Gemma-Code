@@ -4,6 +4,66 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-16] v0.9.0 Phase 2 -- Wire deferred v0.8.0 pure modules into production code paths
+
+### Goal
+
+Land the nine wirings that v0.8.0 deferred for safety: each pure module already ships with unit-test coverage, so Phase 2 only adds the production call sites + targeted unit coverage. Plan reference: [docs/v0.9.0/plans/v0.9.0-cycle.md](v0.9.0/plans/v0.9.0-cycle.md) Phase 2, sub-tasks 2.1 through 2.10.
+
+### Decisions
+
+#### Sub-task 2.1 -- Streaming-friendly Gemma 4 channel scrubbing
+
+`Gemma4Parser.parseChannel` is stateless and assumes a full document; the streaming hot path needed a stateful sibling that holds back partial channel-token bytes across chunk boundaries. The new `Gemma4StreamScrubber` mirrors the design of `MemoryContextScrubber` (already used at the same call site): a tiny state machine drives an in/out-of-block toggle, retaining at most `closer.length - 1` trailing bytes when the closer is incomplete so a `<channel|>` split mid-stream cannot leak the literal `<channel` prefix. `parseChannel` still runs once at end-of-stream against the accumulated buffer to extract the `visible` channel before persisting the assistant message; `replayForCompaction()` on `ConversationManager` strips `<think>` blocks from the replay view so the compaction prompt isn't dominated by hidden reasoning.
+
+#### Sub-task 2.2 -- HybridRanker as the default retrieval path
+
+Routed the semantic layer through `searchHybrid` by default. Rather than mutate `MemoryStore.retrieve` (the v0.7.0 keyword + cosine merge), added a new `retrieveHybrid` wrapper that packs `searchHybrid` results into the same `## Recalled Memories` block including per-result `reason` arrays. `UnifiedMemoryRetriever` carries a `RetrievalRoute` constructor argument + `setRetrievalRoute(route)` runtime switch so the choice is dynamic per call. `gemma-code.memory.scoringDefault = "hybrid" | "legacy"` (default `hybrid`) drives the choice from settings; `legacy` is kept for exactly one cycle as a safety hatch.
+
+#### Sub-task 2.3 -- Snapshot-driven rebuild branch
+
+`ContextCompactor` already returned `state: "rebuild-needed"` when EmergencyTrim couldn't shrink under the budget; the caller paths (AgentLoop + ChatCommandHandlers) only surfaced an error message. The Phase 2 fix is dependency-injected: a new `RebuildSnapshotProvider` interface + `setRebuildSnapshotProvider(provider)` setter lets the compactor call `provider.loadLatest(sessionId)` before surfacing `rebuild-needed`. On a non-empty snapshot it replaces conversation messages, emits a `[Context rebuilt from snapshot at <ts>]` chat affordance, and returns `state: "ok"`. On null / throw it returns the improved `rebuild-needed` reason ("No durable snapshot available for this session. Start a new session."). Backwards-compatible: callers that don't wire a provider keep the pre-2.3 error string verbatim.
+
+#### Sub-task 2.4 -- IntuitionCache via MemoryPanel
+
+`MemoryPanelDeps` gained three optional accessors (`getIntuitionCache()`, `getRecentTools()`, `getSkillsRoot()`) so the panel can prefetch on editor change with a 250 ms debounce. The cache's existing `setEnabled(false)` path short-circuits to the empty result, so opting out via the new `gemma-code.memory.anticipatoryCache` setting (default `false`) hides the section entirely. The render snapshot exposes an `anticipated` field on the message; the webview's rendering of the new "Anticipated context" section is staged for the next phase (10.N.C).
+
+#### Sub-task 2.5 -- ReflectJob as the fourth background worker
+
+Added a `reflect-worker` value to `SubAgentType` and a `runReflectWorker(job, options)` function alongside the existing audit / testgaps / curator workers. Cadence-gating is intentionally injectable rather than read from a global timer subsystem: the worker takes a `cadence: { read(), write() }` accessor so production wiring can persist the cursor and tests can stub it deterministically. Hardware-tier gating reuses `shouldRunReflectJob` (already exported by `ReflectJob`). `SubAgentManager.setReflectJob(job)` + `setReflectWorkerOptions(opts)` setters route the dispatch.
+
+#### Sub-task 2.6 -- WorkflowDetector proposed-skill drafts
+
+Added a `listProposedSkills(skillsRoot)` enumerator and three new inbound messages (`inspectProposedSkill`, `acceptProposedSkill`, `dismissProposedSkill`). Accept copies the proposed `<root>/proposed/<slug>/SKILL.md` to the active `<root>/<slug>/SKILL.md` and removes the proposed copy; Dismiss deletes the proposed file; both refresh the panel. Slug regex (`/^[a-zA-Z0-9._\-]+$/`) guards against `..` traversal.
+
+#### Sub-task 2.7 -- ModelPinRegistry keep_alive
+
+`LLMChatRequest.keep_alive?: number | string` added at the top level (Ollama's actual wire shape; the field doesn't live inside `options`). `StreamingPipeline` accepts an optional `KeepAliveResolver` callback in its constructor; when present, the resolved hint is merged into the streamed request body. Test sites that don't supply a resolver are unaffected. The plan also called for `ModelPinRegistry` to be constructed in `ChatPanelBootstrap` and persisted via `vscode.Memento.workspaceState`; the production composition root wiring is intentionally deferred to Phase 6 (10.N.A) so this phase ships the plumbing without changing the runtime behaviour of pre-existing tests.
+
+#### Sub-task 2.8 -- tool-call-bytes persistence
+
+`ChatHistoryStore` schema bumped to v2 with a new `tool_call_bytes(session_id, call_id, bytes, ts)` table; `ON DELETE CASCADE` follows the parent session. `ConversationManager.storeToolCallBytes` writes through to the persistent store (non-fatal on failure); `getToolCallBytes` falls back to the store on in-memory LRU miss so bytes survive a session restart. The 256-entry in-memory LRU stays authoritative for the live session.
+
+#### Sub-task 2.9 -- ToolCallStreamParser wiring
+
+`ToolCallStreamParser` is driven from `StreamingPipeline._attemptStream` immediately after the channel scrubber; emitted `toolCallHeader` / `toolCallArgDelta` / `toolCallComplete` events forward to the webview verbatim via the existing `messages.ts` union (which already carried those types since v0.8.0 Phase 6.9). The progressive card rendering is webview-side work, deferred to Phase 3 or 4 (10.N.B).
+
+### Test results
+
+- `npm run build` -- clean (TypeScript)
+- `npm run lint` -- clean (ESLint on `src/`)
+- `npm test` -- 218 files, 2497 passed, 4 skipped, 0 failed (was 2464 passed before Phase 2)
+- `npm run deps:check` -- 0 errors (3 pre-existing orphan warnings unchanged)
+- `npm run catalog:check` -- regenerated `docs/index.md` (committed alongside)
+- `npm run perm-tier:check` -- clean
+- `npm run bench` -- deferred to operator per 10.N.D
+
+### Known gaps
+
+Phase 2 closed 9 v0.8.0 carryovers (10.O.K / M / S / T / U / V / W / Y / Z) and opened 5 new in-cycle deferrals (10.N.A through 10.N.E) covering production composition-root wiring (`ModelPinRegistry` in `ChatPanelBootstrap`), webview-side rendering (progressive tool-call card, anticipated-context section, proposed-skills action row), the operator-driven bench-regression check, and the consolidated-commit deviation. See [docs/v0.9.0/known-gaps.md](v0.9.0/known-gaps.md) Sections 10.1 and 10.2 for the full list.
+
+---
+
 ## [2026-05-16] v0.9.0 Phase 1 -- Foundational fixes + operator-action tracking
 
 ### Goal

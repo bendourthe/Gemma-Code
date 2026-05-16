@@ -31,14 +31,17 @@ Eight items in v0.8.0 Section 10.1 required authorized operator execution (live-
 
 ## 10. v0.9.0 in-cycle gap log
 
-**Last updated**: 2026-05-16 (Phase 1 close).
+**Last updated**: 2026-05-16 (Phase 2 close).
 
 ### 10.1 Open Items
 
 | ID | Source phase | Plan reference | Category | Severity | Reason | Suggested next step |
 |---|---|---|---|---|---|---|
-
-(No new open items added during Phase 1. The Phase 1 sub-tasks 1.1, 1.2, and 1.3 closed five carryovers from v0.8.0 -- see Resolved table below -- and did not introduce new gaps.)
+| 10.N.A | v0.9.0 Phase 2.7 | docs/v0.9.0/plans/v0.9.0-cycle.md sub-task 2.7 | DF | P3 | `ModelPinRegistry` is instantiable and `StreamingPipeline` accepts a `KeepAliveResolver` callback, but no production composition root currently constructs the registry or wires the resolver. The plumbing is non-breaking (omitting the resolver preserves Ollama's 5-minute default), so pinned-model behaviour will not take effect until a Phase 6 wiring landingstep grafts the registry into `ChatPanelBootstrap`. | Phase 6 (or earlier): construct `ModelPinRegistry` in `ChatPanelBootstrap`, persist pins via `vscode.Memento.workspaceState`, and pass `(model) => registry.keepAliveFor(model)` into `ChatController.buildStreamingPipeline`. |
+| 10.N.B | v0.9.0 Phase 2.9 | docs/v0.9.0/plans/v0.9.0-cycle.md sub-task 2.9 | DF | P3 | The backend now emits `toolCallHeader` / `toolCallArgDelta` / `toolCallComplete` reliably, but the webview's tool-call card (`src/panels/webview/render/toolCallCard.ts`) still renders the legacy `toolUse` / `toolResult` shape. The protocol union already carries the three new types so a webview-only update can land them progressively. | Phase 3 or Phase 4: update `toolCallCard.ts` to switch on the three new event types and render a header-spinner -> arg-stream -> result-preview layout. No backend changes required. |
+| 10.N.C | v0.9.0 Phase 2.4 / 2.6 | docs/v0.9.0/plans/v0.9.0-cycle.md sub-tasks 2.4, 2.6 | DF | P3 | `MemoryPanel` exposes the new `anticipated` and `proposedSkills` fields on its snapshot but the webview's memory-view HTML (`src/panels/webview/memoryView.ts`) has not been extended yet to render the two new sections or wire the Inspect / Accept / Dismiss buttons. The host-side handlers are in place; only the webview templates and JS need to consume the new fields. | Phase 3 (or sooner if reordered): extend `getMemoryViewHtml` to render an "Anticipated context" faded section and a "Proposed skills" action row, posting `inspectProposedSkill` / `acceptProposedSkill` / `dismissProposedSkill` to the host. |
+| 10.N.D | v0.9.0 Phase 2.10 | docs/v0.9.0/plans/v0.9.0-cycle.md sub-task 2.10 | DF | P2 | Phase 2's "Latency regression check" (`npm run bench` rendering + retrieval p50 vs. v0.8.0 baselines) and "Manual smoke (Windows, real Ollama)" both require live inference on a quiescent workstation; the agent is not authorized to drive live Ollama. The benches do not run as part of `npm test` and were not executed in the Phase 2 implementation pass. | Operator: run `npm run bench` after the v0.8.0 baseline file is captured (see operator-actions.md Section 1) and compare rendering + retrieval p50 deltas to v0.8.0; if any sub-task introduces >10% regression, file a follow-up tracked here. |
+| 10.N.E | v0.9.0 Phase 2.10 | docs/v0.9.0/plans/v0.9.0-cycle.md sub-task 2.10 | NI | P3 | Phase 2 deviated from the "Atomic commits per sub-task" guidance: the nine wirings landed as one consolidated commit because the changes share types (`SubAgentType`, `MemorySnapshotMessage`) and tests cross-reference each other. The plan called for ~9 atomic commits; the user's invocation explicitly requested a single commit + push to main, which overrides that guidance. | Future phases that touch independent files should keep the atomic-commit pattern. No follow-up needed for Phase 2. |
 
 ### 10.2 Resolved
 
@@ -49,18 +52,29 @@ Eight items in v0.8.0 Section 10.1 required authorized operator execution (live-
 | 10.O.G (v0.8.0) | v0.8.0 Phase 2 | docs/v0.8.0/plans/v0.8.0-cycle.md sub-task 2.8 | MT | v0.9.0 Phase 1.1 | SkillLoader round-trip tests in `tests/unit/scripts/package-skills.test.ts` now load and pass alongside the shebang fix. `scripts/package-skills.mjs.parseSkill` made CRLF-tolerant so Windows `core.autocrlf=true` working trees round-trip cleanly. |
 | 10.O.N (v0.8.0) | v0.8.0 Phase 4 | (discovered) | BG | v0.9.0 Phase 1.1 | Full vitest run on Windows no longer segfaults after `MemoryStore.migration.test.ts` teardown. 218 files, 2464 tests, 0 failed. |
 | 10.O.R (v0.8.0) | v0.8.0 Phase 5 | docs/v0.8.0/plans/v0.8.0-cycle.md sub-task 5.9 | MT | v0.9.0 Phase 1.1 | `tests/unit/cli/gemma-check.test.ts` (62 tests) now loads and passes end-to-end against `bin/gemma-check.mjs`, restoring the full spawn-level coverage that the scan-level sibling at `tests/unit/lib/checks-prompt-rules.test.ts` complements. |
+| 10.O.K (v0.8.0) | v0.8.0 Phase 4 | docs/v0.9.0/plans/v0.9.0-cycle.md sub-task 2.1 | DF | v0.9.0 Phase 2.1 | `Gemma4StreamScrubber` wired into `StreamingPipeline._attemptStream` between the memory-context scrubber and the new `ToolCallStreamParser`. `ConversationManager.replayForCompaction()` strips `<think>` blocks from assistant messages before the compaction pipeline runs; `ContextCompactor.compact` consumes the replay view. Final assistant message persists only `parseChannel(...).visible`. |
+| 10.O.M (v0.8.0) | v0.8.0 Phase 4 | docs/v0.9.0/plans/v0.9.0-cycle.md sub-task 2.2 | DF | v0.9.0 Phase 2.2 | `MemoryStore.retrieveHybrid` packs hybrid-ranked results with reason arrays into a budget-bounded Recalled Memories block. `UnifiedMemoryRetriever` routes the semantic layer through `retrieveHybrid` when the new `gemma-code.memory.scoringDefault` setting is `hybrid` (default); `legacy` preserves the v0.7.0 path for one cycle. |
+| 10.O.S (v0.8.0) | v0.8.0 Phase 6 | docs/v0.9.0/plans/v0.9.0-cycle.md sub-task 2.3 | DF | v0.9.0 Phase 2.3 | `ContextCompactor.setRebuildSnapshotProvider(provider)` lets the rebuild branch rehydrate from a durable snapshot. On a non-empty snapshot it replaces conversation messages, emits an affordance, and returns `state: "ok"`; on null/throw it surfaces an improved `rebuild-needed` reason. Production wiring against `ChatHistoryStore.getSession` is staged for Phase 6 alongside the snapshot-restore UX. |
+| 10.O.T (v0.8.0) | v0.8.0 Phase 6 | docs/v0.9.0/plans/v0.9.0-cycle.md sub-task 2.4 | DF | v0.9.0 Phase 2.4 | `MemoryPanel` subscribes to `vscode.window.onDidChangeActiveTextEditor` with 250ms debounce and calls `IntuitionCache.prefetch({currentFile, recentTools})` when the cache is wired and enabled. Snapshot payload exposes the prefetched entries as `anticipated`. New `gemma-code.memory.anticipatoryCache` setting (default `false`). Webview rendering of the section tracked under 10.N.C. |
+| 10.O.U (v0.8.0) | v0.8.0 Phase 6 | docs/v0.9.0/plans/v0.9.0-cycle.md sub-task 2.5 | DF | v0.9.0 Phase 2.5 | New `reflect-worker` `SubAgentType` + `runReflectWorker(job, options)` worker dispatch. Cadence-gated (default 24h with injectable cursor) and hardware-tier-gated (`balanced`/`full` only). New `gemma-code.workers.reflect.enabled` setting. Production wiring of an idle-time scheduler (the v0.8.0 10.O.P carryover) is the natural place to advance the cadence cursor automatically. |
+| 10.O.V (v0.8.0) | v0.8.0 Phase 6 | docs/v0.9.0/plans/v0.9.0-cycle.md sub-task 2.6 | DF | v0.9.0 Phase 2.6 | New `listProposedSkills(skillsRoot)` + `MemoryPanel` Inspect / Accept / Dismiss handlers for `<root>/proposed/<slug>/SKILL.md` drafts. Accept copies the draft to `<root>/<slug>/SKILL.md` and removes the proposed copy; Dismiss deletes the proposed file. Webview rendering tracked under 10.N.C. |
+| 10.O.W (v0.8.0) | v0.8.0 Phase 6 | docs/v0.9.0/plans/v0.9.0-cycle.md sub-task 2.7 | DF | v0.9.0 Phase 2.7 | `LLMChatRequest.keep_alive?: number | string` added; `StreamingPipeline` accepts an optional `KeepAliveResolver` callback that merges the registry hint into each streamed chat request. Production wiring of `ModelPinRegistry` into `ChatPanelBootstrap` tracked under 10.N.A. |
+| 10.O.Y (v0.8.0) | v0.8.0 Phase 6 | docs/v0.9.0/plans/v0.9.0-cycle.md sub-task 2.8 | DF | v0.9.0 Phase 2.8 | `ChatHistoryStore` schema v2 introduces `tool_call_bytes(session_id, call_id, bytes, ts)` with cascade-on-session-delete. `ConversationManager.storeToolCallBytes` writes through to the persistent store; `getToolCallBytes` falls back to it on in-memory LRU miss. |
+| 10.O.Z (v0.8.0) | v0.8.0 Phase 6 | docs/v0.9.0/plans/v0.9.0-cycle.md sub-task 2.9 | DF | v0.9.0 Phase 2.9 | `ToolCallStreamParser` driven from `StreamingPipeline._attemptStream`; emitted events forward to the webview verbatim. `SubAgentStatusMessage.agentType` extended for `reflect-worker`. Progressive card rendering tracked under 10.N.B. |
 
 ### 10.3 Summary (v0.9.0 in-cycle)
 
 | Category | Open | Resolved |
 |---|---|---|
-| NI (not implemented) | 0 | 0 |
-| DF (deferred) | 0 | 0 |
+| NI (not implemented) | 1 | 0 |
+| DF (deferred) | 4 | 9 |
 | BG (bug) | 0 | 3 |
 | MT (missing tests) | 0 | 2 |
 | WN (warning) | 0 | 0 |
 | QG (gate bypass) | 0 | 0 |
-| **Total** | **0** | **5** |
+| **Total** | **5** | **14** |
+
+**Status (Phase 2 close, 2026-05-16)**: Nine v0.8.0 carryovers closed (10.O.K / M / S / T / U / V / W / Y / Z). Five new in-cycle deferrals (10.N.A through 10.N.E) cover the production composition-root wiring and the webview-side rendering that remain after the backend wiring landed. Full Windows test suite green: 218 files, 2497 tests, 0 failed. `npm run lint`, `npm run build`, `npm run deps:check`, `npm run catalog:check`, and `npm run perm-tier:check` all exit 0. The bench latency-regression check and Windows + live-Ollama manual smoke are operator-driven (tracked as 10.N.D).
 
 **Status (Phase 1 close, 2026-05-16)**: Five carryovers from v0.8.0 closed (10.O.D / E / G / N / R). Full Windows test suite is now green: 218 files, 2464 tests, 0 failed, no segfault. `npm run lint`, `npm run check src/`, `npm run deps:check`, `npm run catalog:check`, and `npm run perm-tier:check` all exit 0. The eight operator-only carryovers are tracked separately in [operator-actions.md](operator-actions.md). Phase 1 introduced no new in-cycle gaps.
 

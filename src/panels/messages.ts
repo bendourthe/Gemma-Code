@@ -157,7 +157,8 @@ export interface SubAgentStatusMessage {
     | "planning"
     | "audit-worker"
     | "testgaps-worker"
-    | "curator-worker";
+    | "curator-worker"
+    | "reflect-worker";
   state: "running" | "complete" | "error";
   summary?: string;
 }

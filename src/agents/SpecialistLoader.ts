@@ -120,6 +120,8 @@ const SUB_AGENT_TIER_FALLBACK: Record<SubAgentType, SpecialistTier> = {
   "testgaps-worker": "balanced",
   // v0.8.0 Phase 5: curator runs the CurationLoop dry-run / apply pipeline.
   "curator-worker": "balanced",
+  // v0.9.0 Phase 2.5: reflect worker runs ReflectJob.dryRun directly.
+  "reflect-worker": "balanced",
 };
 
 const SUB_AGENT_TOOLS_FALLBACK: Record<SubAgentType, readonly string[]> = {
@@ -133,6 +135,8 @@ const SUB_AGENT_TOOLS_FALLBACK: Record<SubAgentType, readonly string[]> = {
   // v0.8.0 Phase 5: curator worker is deterministic; the SubAgentManager
   // dispatches to runCuratorWorker before constructing a registry.
   "curator-worker": [],
+  // v0.9.0 Phase 2.5: reflect worker is deterministic.
+  "reflect-worker": [],
 };
 
 /**

@@ -59,10 +59,28 @@ export interface RebuildContext {
   readonly maxTokens: number;
 }
 
+/**
+ * v0.9.0 Phase 2.3 (from v0.8.0 known-gaps 10.O.S) -- durable rebuild
+ * snapshot provider.
+ *
+ * When EmergencyTrim cannot shrink the conversation under the budget, the
+ * compactor calls the provider for a tail of recent messages from a
+ * durable source (typically `ChatHistoryStore` -- the on-disk session
+ * record). Returning `null` reproduces the pre-2.3 behaviour: surface
+ * `rebuild-needed` to the caller so the operator can start a new session.
+ */
+export interface RebuildSnapshotProvider {
+  loadLatest(sessionId: string): Promise<{
+    messages: readonly Message[];
+    capturedAt: number;
+  } | null>;
+}
+
 export class ContextCompactor {
   private _postCompactionHook?: (sessionId: string) => Promise<void>;
   private _traceId = "";
   private _traceParentSpanId?: string;
+  private _rebuildProvider: RebuildSnapshotProvider | null = null;
 
   constructor(
     private readonly _manager: ConversationManager,
@@ -79,6 +97,15 @@ export class ContextCompactor {
       compactionKeepRecent: 6,
     }),
   ) {}
+
+  /**
+   * v0.9.0 Phase 2.3 -- supply a durable snapshot source for the rebuild
+   * branch. Production callers wire `ChatHistoryStore`; tests inject an
+   * in-memory fake. Passing `null` removes the wiring.
+   */
+  setRebuildSnapshotProvider(provider: RebuildSnapshotProvider | null): void {
+    this._rebuildProvider = provider;
+  }
 
   /** Set the trace context so compaction spans are linked to the agent trace. */
   setTraceContext(traceId: string, parentSpanId?: string): void {
@@ -181,8 +208,11 @@ export class ContextCompactor {
 
     let compacted;
     try {
+      // v0.9.0 Phase 2.1: feed the compaction pipeline a replay view that
+      // strips Gemma 4 `<think>` blocks from assistant messages so the
+      // compaction prompt is dominated by user-visible content.
       compacted = await pipeline.run(
-        this._manager.getHistory(),
+        this._manager.replayForCompaction(),
         budget.conversationBudget,
       );
     } catch (err) {
@@ -216,12 +246,45 @@ export class ContextCompactor {
         type: "compactionStatus",
         text: "Context still over budget after compaction. Rebuilding from snapshot...",
       });
+      // v0.9.0 Phase 2.3: prefer the durable snapshot path when a provider
+      // is wired. Falls back to surfacing `rebuild-needed` to the caller
+      // when no provider exists or the snapshot is empty.
+      const sessionId = this._manager.sessionId;
+      if (this._rebuildProvider && sessionId) {
+        let snapshot: Awaited<ReturnType<RebuildSnapshotProvider["loadLatest"]>> = null;
+        try {
+          snapshot = await this._rebuildProvider.loadLatest(sessionId);
+        } catch (err) {
+          getLogger().warn(
+            "[ContextCompactor] Rebuild snapshot provider threw:",
+            err,
+          );
+        }
+        if (snapshot && snapshot.messages.length > 0) {
+          this._manager.replaceMessages(snapshot.messages);
+          const stamp = new Date(snapshot.capturedAt).toISOString();
+          postMessage({
+            type: "compactionStatus",
+            text: `[Context rebuilt from snapshot at ${stamp}]`,
+          });
+          setTimeout(() => {
+            postMessage({ type: "compactionStatus", text: "" });
+          }, 3000);
+          return {
+            state: "ok",
+            summary: `rebuilt from snapshot captured ${stamp} (${snapshot.messages.length} messages)`,
+          };
+        }
+      }
       setTimeout(() => {
         postMessage({ type: "compactionStatus", text: "" });
       }, 3000);
       return {
         state: "rebuild-needed",
-        reason: `tokensAfter=${tokensAfter} exceeds maxTokens=${this._maxTokens}`,
+        reason:
+          this._rebuildProvider === null
+            ? `tokensAfter=${tokensAfter} exceeds maxTokens=${this._maxTokens}`
+            : "No durable snapshot available for this session. Start a new session.",
       };
     }
 

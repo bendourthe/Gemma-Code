@@ -44,6 +44,13 @@ export interface LLMChatRequest {
   stream: boolean;
   options?: LLMOptions;
   tools?: LLMToolDefinition[];
+  /**
+   * v0.9.0 Phase 2.7 (from v0.8.0 known-gaps 10.O.W) -- Ollama keep_alive
+   * hint. `-1` disables idle eviction (pinned), a duration string like
+   * `"5m"` or a numeric second count sets a custom retention. The
+   * StreamingPipeline derives this from the active `ModelPinRegistry`.
+   */
+  keep_alive?: number | string;
 }
 
 export interface LLMStreamChunk {

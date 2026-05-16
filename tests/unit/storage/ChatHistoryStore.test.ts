@@ -266,4 +266,41 @@ describe("ChatHistoryStore", () => {
       expect(staleHits.map((h) => h.messageId)).not.toContain(original.id);
     });
   });
+
+  // -------------------------------------------------------------------------
+  // v0.9.0 Phase 2.8 -- tool_call_bytes persistence
+  // -------------------------------------------------------------------------
+
+  describe("toolCallBytes (Phase 2.8)", () => {
+    it("persists and retrieves bytes per (session_id, call_id)", () => {
+      const session = store.createSession("tool bytes");
+      store.saveToolCallBytes(session.id, "call-1", "rendered <tool_use>x</tool_use>");
+      expect(store.getToolCallBytes(session.id, "call-1")).toBe(
+        "rendered <tool_use>x</tool_use>",
+      );
+      expect(store.countToolCallBytes(session.id)).toBe(1);
+      expect(store.countToolCallBytes()).toBeGreaterThanOrEqual(1);
+    });
+
+    it("returns null for an unknown call id", () => {
+      const session = store.createSession("absent");
+      expect(store.getToolCallBytes(session.id, "missing")).toBeNull();
+    });
+
+    it("upserts on conflict (latest bytes win)", () => {
+      const session = store.createSession("upsert");
+      store.saveToolCallBytes(session.id, "c", "first");
+      store.saveToolCallBytes(session.id, "c", "second");
+      expect(store.getToolCallBytes(session.id, "c")).toBe("second");
+      expect(store.countToolCallBytes(session.id)).toBe(1);
+    });
+
+    it("cascades on session delete", () => {
+      const session = store.createSession("cascade");
+      store.saveToolCallBytes(session.id, "c1", "abc");
+      expect(store.countToolCallBytes(session.id)).toBe(1);
+      store.deleteSession(session.id);
+      expect(store.countToolCallBytes(session.id)).toBe(0);
+    });
+  });
 });

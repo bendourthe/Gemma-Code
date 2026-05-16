@@ -16,7 +16,9 @@ interface SessionRow {
 // Schema version persisted via PRAGMA user_version. Bump when the schema or
 // FTS configuration changes so the next cold start rebuilds the FTS index
 // exactly once. Rebuilds on an unchanged DB are now a no-op.
-const SCHEMA_VERSION = 1;
+// v0.9.0 Phase 2.8 (from v0.8.0 known-gaps 10.O.Y): bumped to 2 to add the
+// `tool_call_bytes` table.
+const SCHEMA_VERSION = 2;
 
 /** Default cap on rows returned by searchSessions -- see 4.6. */
 const DEFAULT_SEARCH_LIMIT = 100;
@@ -55,6 +57,18 @@ export class ChatHistoryStore {
         timestamp INTEGER NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, timestamp);
+      -- v0.9.0 Phase 2.8 (from v0.8.0 known-gaps 10.O.Y): exact rendered
+      -- bytes for each tool call. RegenerateFromSource / CompactionStrategy
+      -- prefer stored bytes by call_id when available so replay re-emits
+      -- the operator-visible output verbatim.
+      CREATE TABLE IF NOT EXISTS tool_call_bytes (
+        session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+        call_id TEXT NOT NULL,
+        bytes BLOB NOT NULL,
+        ts INTEGER NOT NULL,
+        PRIMARY KEY (session_id, call_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_tool_call_bytes_session ON tool_call_bytes(session_id, ts);
     `);
 
     createFtsTableAndTriggers(this._db, {
@@ -277,6 +291,46 @@ export class ChatHistoryStore {
         rank: 0,
       }));
     }
+  }
+
+  /**
+   * v0.9.0 Phase 2.8 (from v0.8.0 known-gaps 10.O.Y) -- persist the rendered
+   * bytes for a tool call so subsequent replay / compaction surfaces the
+   * exact same output. Upserts on (session_id, call_id).
+   */
+  saveToolCallBytes(sessionId: string, callId: string, bytes: string): void {
+    this._db
+      .prepare(
+        `INSERT INTO tool_call_bytes (session_id, call_id, bytes, ts)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(session_id, call_id) DO UPDATE SET bytes = excluded.bytes, ts = excluded.ts`,
+      )
+      .run(sessionId, callId, bytes, Date.now());
+  }
+
+  /** v0.9.0 Phase 2.8 -- lookup. Returns null when the row does not exist. */
+  getToolCallBytes(sessionId: string, callId: string): string | null {
+    const row = this._db
+      .prepare(
+        "SELECT bytes FROM tool_call_bytes WHERE session_id = ? AND call_id = ?",
+      )
+      .get(sessionId, callId) as { bytes: string | Buffer } | undefined;
+    if (!row) return null;
+    return typeof row.bytes === "string" ? row.bytes : row.bytes.toString("utf-8");
+  }
+
+  /** v0.9.0 Phase 2.8 -- diagnostic count, used by tests + status reporter. */
+  countToolCallBytes(sessionId?: string): number {
+    if (sessionId) {
+      const row = this._db
+        .prepare("SELECT COUNT(*) AS n FROM tool_call_bytes WHERE session_id = ?")
+        .get(sessionId) as { n: number };
+      return row.n;
+    }
+    const row = this._db
+      .prepare("SELECT COUNT(*) AS n FROM tool_call_bytes")
+      .get() as { n: number };
+    return row.n;
   }
 
   close(): void {

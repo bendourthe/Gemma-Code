@@ -303,4 +303,77 @@ describe("ConversationManager", () => {
       expect(manager.getToolCallBytes("id-259")).toBe("bytes-259");
     });
   });
+
+  // ---- v0.9.0 Phase 2.1 -- replayForCompaction -------------------------
+
+  describe("replayForCompaction", () => {
+    it("strips <think> blocks from assistant content while preserving identity", () => {
+      manager.addUserMessage("question");
+      const original = manager.addAssistantMessage(
+        "<think>plan</think>final answer",
+      );
+      const replay = manager.replayForCompaction();
+      const last = replay[replay.length - 1];
+      expect(last?.role).toBe("assistant");
+      expect(last?.content).toBe("final answer");
+      // The live history is untouched.
+      expect(manager.getHistory()[2]?.content).toContain("<think>");
+      // The id is preserved so trace correlation still works.
+      expect(last?.id).toBe(original.id);
+    });
+
+    it("returns assistant messages unchanged when no think blocks are present", () => {
+      manager.addAssistantMessage("clean answer");
+      const replay = manager.replayForCompaction();
+      expect(replay[1]?.content).toBe("clean answer");
+    });
+
+    it("never alters system or user messages", () => {
+      manager.addUserMessage("<think>user-typed</think>request");
+      const replay = manager.replayForCompaction();
+      expect(replay[0]?.role).toBe("system");
+      expect(replay[1]?.role).toBe("user");
+      expect(replay[1]?.content).toBe("<think>user-typed</think>request");
+    });
+  });
+
+  // ---- v0.9.0 Phase 2.8 -- ChatHistoryStore write-through --------------
+
+  describe("toolCallBytes store write-through", () => {
+    it("calls saveToolCallBytes on the wired store with the session id", () => {
+      const saves: Array<{ sessionId: string; callId: string; bytes: string }> = [];
+      const fakeStore = {
+        listSessions: () => [{ id: "sess-1", title: "t", createdAt: 0, updatedAt: 0, messages: [] }],
+        createSession: () => ({ id: "sess-1", title: "t", createdAt: 0, updatedAt: 0, messages: [] }),
+        saveMessage: () => {},
+        updateSessionTitle: () => {},
+        saveToolCallBytes: (sessionId: string, callId: string, bytes: string) => {
+          saves.push({ sessionId, callId, bytes });
+        },
+        getToolCallBytes: () => null,
+      };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const m = new ConversationManager(TEST_SYSTEM_PROMPT, fakeStore as any);
+      m.storeToolCallBytes("c1", "rendered bytes");
+      expect(saves).toEqual([
+        { sessionId: "sess-1", callId: "c1", bytes: "rendered bytes" },
+      ]);
+    });
+
+    it("falls back to the persistent store on a miss in the in-memory LRU", () => {
+      const fakeStore = {
+        listSessions: () => [{ id: "sess-9", title: "t", createdAt: 0, updatedAt: 0, messages: [] }],
+        createSession: () => ({ id: "sess-9", title: "t", createdAt: 0, updatedAt: 0, messages: [] }),
+        saveMessage: () => {},
+        updateSessionTitle: () => {},
+        saveToolCallBytes: () => {},
+        getToolCallBytes: (_sid: string, callId: string) =>
+          callId === "persisted" ? "from-disk" : null,
+      };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const m = new ConversationManager(TEST_SYSTEM_PROMPT, fakeStore as any);
+      expect(m.getToolCallBytes("persisted")).toBe("from-disk");
+      expect(m.getToolCallBytes("missing")).toBeNull();
+    });
+  });
 });
