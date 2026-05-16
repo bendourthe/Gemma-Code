@@ -428,9 +428,31 @@ describe("gemma-check CLI (spawn)", () => {
     expect(r.stdout).toContain("no-secret-patterns");
   });
 
-  it("exits 1 when a finding is present", async () => {
+  it("exits 0 on a warning-only finding (default semantics)", async () => {
+    // v0.8.0 Phase 7 post-CI: the CLI no longer gates on warnings.
+    // `no-committed-console-log` is severity=warning, so the leak is
+    // reported on stdout but the exit code stays 0. Use --strict to
+    // restore the legacy any-finding-fails behaviour.
     writeFile("src/leaky.ts", "console.log('hi');\n");
     const r = await runCli([tmpRoot]);
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).toContain("no-committed-console-log");
+  });
+
+  it("exits 1 when an error-severity finding fires", async () => {
+    // `no-secret-patterns` is severity=error, so the leak gates the build.
+    writeFile(
+      "src/auth/secret.ts",
+      `export const KEY = "AKIAIOSFODNN7EXAMPLE";\n`,
+    );
+    const r = await runCli([tmpRoot]);
+    expect(r.exitCode).toBe(1);
+    expect(r.stdout).toContain("no-secret-patterns");
+  });
+
+  it("--strict flips warning-only findings to a failing exit", async () => {
+    writeFile("src/leaky.ts", "console.log('hi');\n");
+    const r = await runCli(["--strict", tmpRoot]);
     expect(r.exitCode).toBe(1);
     expect(r.stdout).toContain("no-committed-console-log");
   });
