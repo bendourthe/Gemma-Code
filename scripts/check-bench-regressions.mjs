@@ -107,7 +107,7 @@ function main() {
     baselineObj.createdAt = new Date().toISOString();
     baselineObj.benchmarks = currentBench;
     writeFileSync(args.baseline, JSON.stringify(baselineObj, null, 2) + "\n");
-    console.log(`Baseline updated with ${Object.keys(currentBench).length} benchmarks at ${args.baseline}`);
+    process.stdout.write(`Baseline updated with ${Object.keys(currentBench).length} benchmarks at ${args.baseline}\n`);
     exit(0);
   }
 
@@ -163,22 +163,22 @@ function main() {
   }
 
   if (excluded.length > 0) {
-    console.log(`\n[info] ${excluded.length} benchmark(s) excluded from the gate (see --exclude):`);
+    process.stdout.write(`\n[info] ${excluded.length} benchmark(s) excluded from the gate (see --exclude):\n`);
     for (const e of excluded) {
       const arrow = e.deltaPct >= 0 ? "+" : "";
-      console.log(`  ~ ${e.name}: ${e.baselineHz.toFixed(2)} -> ${e.currentHz.toFixed(2)} hz (${arrow}${e.deltaPct.toFixed(1)}%)`);
+      process.stdout.write(`  ~ ${e.name}: ${e.baselineHz.toFixed(2)} -> ${e.currentHz.toFixed(2)} hz (${arrow}${e.deltaPct.toFixed(1)}%)\n`);
     }
   }
 
   if (missing.length > 0) {
-    console.log(`\n[info] ${missing.length} benchmark(s) have no baseline entry (new or renamed):`);
-    for (const m of missing) console.log(`  - ${m}`);
+    process.stdout.write(`\n[info] ${missing.length} benchmark(s) have no baseline entry (new or renamed):\n`);
+    for (const m of missing) process.stdout.write(`  - ${m}\n`);
   }
 
   if (improvements.length > 0) {
-    console.log(`\n[info] ${improvements.length} improvement(s) over baseline:`);
+    process.stdout.write(`\n[info] ${improvements.length} improvement(s) over baseline:\n`);
     for (const i of improvements) {
-      console.log(`  + ${i.name}: ${i.baselineHz.toFixed(2)} -> ${i.currentHz.toFixed(2)} hz (+${i.deltaPct.toFixed(1)}%)`);
+      process.stdout.write(`  + ${i.name}: ${i.baselineHz.toFixed(2)} -> ${i.currentHz.toFixed(2)} hz (+${i.deltaPct.toFixed(1)}%)\n`);
     }
   }
 
@@ -190,7 +190,7 @@ function main() {
     exit(1);
   }
 
-  console.log(`\n[ok] No regressions beyond ${regressionPct}% across ${Object.keys(currentBench).length} benchmarks.`);
+  process.stdout.write(`\n[ok] No regressions beyond ${regressionPct}% across ${Object.keys(currentBench).length} benchmarks.\n`);
   exit(0);
 }
 

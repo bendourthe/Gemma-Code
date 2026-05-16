@@ -4,6 +4,52 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-16] v0.8.0 Phase 7 -- Polish, golden re-capture, security review, release
+
+### Goal
+
+Final cycle close. Ship the four v0.7.0 known-gaps carryovers (10.O.4 ADR cross-references, 10.O.8 `no-bare-promise-rejection` lint rule, 10.O.9 dep-cruiser violations, 10.O.10 legacy `console.log` cleanup), refresh the README + Features for the v0.8.0 surface, and document every cycle-close obligation the agent cannot run autonomously (live-Ollama capture, mutation re-run, pen-test re-run, GitHub release publication) as Phase 7 known-gaps for the operator. Closes v0.8.0 plan sub-tasks 7.1 / 7.A / 7.B / 7.C / 7.5 / 7.7 with operator-action deferrals on 7.2 / 7.3 / 7.4 / 7.6.
+
+### Decisions
+
+#### 7.1: ADR cross-references rewritten in the v0.7.0 plan; v0.8.0 plan numbers verified
+
+The v0.7.0 cycle plan was authored before the ADR pool was allocated, so it referenced provisional numbers (ADR-0006 compress, ADR-0007 memory file architecture, ADR-0008 webview render protocol). The actual shipped ADRs are 0012 / 0014 / 0013 respectively (the allocation order was driven by ADR-0007 permission-tier-floor / ADR-0008 panel-decomposition / ADR-0009 predictive-cache / ADR-0010 threshold-elevation / ADR-0011 ollama-client-injection landing first in v0.6.0 and early v0.7.0). The plan body was rewritten across sub-tasks 3.8, 4.8, 5.3, and the Phase-table summary row, each with an inline "v0.8.0 Phase 7.1 fix" annotation so the rewrite is auditable. The v0.8.0 plan ADRs (0015 pass-state-gating, 0016 second-llm-backend, 0017 golden-runner-disposition, 0018 hybrid-scoring-over-hnsw) were checked against the repository's actual `docs/adr/` directory -- no drift.
+
+#### 7.A: `no-bare-promise-rejection` ships as a warning, with a regex that ignores any handler argument
+
+`PATTERN = /\.catch\s*\(\s*\)/g` deliberately matches **only** the empty-argument shape, so `.catch(handler)`, `.catch(() => undefined)`, `.catch((err) => log(err))`, and the method-reference style all produce zero findings. Test files are allow-listed at the top of `scan()`; `gemma-check-allow` markers (line-local or next-line) override the warning per the standard rule contract. Severity stays at `warning` rather than `error` because legitimate fire-and-forget patterns (background telemetry, optional sweeps) exist and the rule is meant to surface intent rather than block. Located in the `RULES` registry as the 5th code rule (slotted before the prompt-rule group introduced in Phase 5.9). Unit tests at `tests/unit/lib/no-bare-promise-rejection.test.ts` follow the same `tests/unit/lib/` placement convention as the Phase 5.9 prompt-rule tests to side-step the v0.7.0 10.O.D vitest-vm-transform parse bug. Closes v0.7.0 in-cycle gap 10.O.8.
+
+#### 7.B: ConfirmationGate refactor + MemoryPanel whitelist
+
+Two distinct fixes for the four pre-existing dep-cruiser violations. (a) The three `no-storage-from-panels` violations on `src/panels/MemoryPanel.ts` are resolved by adding `MemoryPanel` to the rule's `pathNot` whitelist in `configs/dependency-cruiser.cjs` -- the panel is the canonical view-owner for memory state (it composes the store and renders user-editable memory directly) so a port indirection would only add noise. Inline `dependency-cruiser-disable-next-line` markers on the three storage type imports in `MemoryPanel.ts` keep the rule audit-traceable per the v0.7.0 known-gap suggested action. (b) The one `no-panels-from-tools` violation (`ConfirmationGate` -> `panels/webview/render/permissionPrompt`) is resolved by refactoring `ConfirmationGate` to receive a `PermissionOptionsBuilder` callback via its constructor; the call site (`ChatPanelBootstrap`) now passes `defaultPermissionOptions` through. A tool-side fallback option-builder remains so existing tests that pass only the `postMessage` argument keep working (`new ConfirmationGate(vi.fn())` is unchanged). Regression test at `tests/integration/dep-cruiser-clean.test.ts` spawns the platform-correct `depcruise` binary and asserts exit 0. Closes v0.7.0 in-cycle gap 10.O.9.
+
+#### 7.C: `console.log` -> `process.stdout.write` in `scripts/check-bench-regressions.mjs`
+
+All eight `console.log` calls converted to `process.stdout.write` with explicit `\n` terminators so the output is byte-identical to the previous shape; `console.error` is intentionally retained for the regression-detected error path because its stderr routing is part of the script's exit-code contract. `scripts/hooks/check-prompt-policy.mjs` and `scripts/hooks/lib/secret-paths.mjs` were audited and found already clean (the v0.7.0 known-gap note had over-estimated their scope). `gemma-check --rule no-committed-console-log` against all three returns 0 findings. Closes v0.7.0 in-cycle gap 10.O.10.
+
+#### 7.5: README v0.8.0 surface added; CHANGELOG remains semantic-release-owned
+
+The README "Features" section gains 12 new bullets covering the v0.8.0 surface (LM Studio backend, thinking modes, pass-state gating, trace dashboard, dual-loop curator, per-skill metrics, workflow harvest, hybrid memory retrieval, anticipatory cache, plan annotation, expanded `gemma-check` rule set, Cursor-native skill packaging). Four new slash-command rows (`/trace`, `/thinking-mode`, `/skill-metrics`, `/curate`) and 12 new settings rows (`llm.backend`, `lmstudio.baseUrl`, `thinkingModePreset`, `passStateGating`, `memorySnapshotMode`, `memory.scoringMethod`, `memory.anticipatoryCache`, `skills.harvest`, `skills.harvestMinRecurrence`, `skills.harvestWindowDays`) land in their respective tables. `CHANGELOG.md` is intentionally **not** manually edited because semantic-release rewrites it on every `feat()` / `fix()` push to `main`; a manual edit would be clobbered on the next release commit. The cycle-wide narrative is preserved in the per-phase history files and in the v0.8.0 `known-gaps.md` Summary rows. An optional consolidated `docs/v0.8.0/CHANGELOG-CYCLE.md` is tracked as 10.O.EE.
+
+#### Operator-action sub-tasks deferred (7.2 / 7.3 / 7.4 / 7.6)
+
+Each of these requires authorization or environment access that the agent cannot grant itself: `npm run mutate` is a multi-hour pass under Stryker that fork-loops on the documented 10.O.D Windows segfault; `npm run bench -- --update-baseline` and `python tests/golden/framework/run_all.py` both require live Ollama with `gemma4:e4b` pulled on a quiescent dev workstation; the full pen-test re-run is a manual multi-turn adversarial exercise against production code; the v0.8.0 GitHub release publication needs operator-owned VSIX-build + tag-push + release-create + post-tag exit verification. Each is recorded as an open known-gap (10.O.AA / BB / CC / DD) with a specific suggested next step. The post-Phase-7 commit + push lands the code-level work; the release publication is a separate operator step.
+
+### Test results
+
+- `npm run lint` -- clean (0 findings on `src`).
+- `npm run build` (tsc) -- clean.
+- `npm run deps:check` -- clean (0 errors; 4 pre-existing orphan warnings on v0.8.0 wiring stubs tracked as 10.O.M / 10.O.J / 10.O.K).
+- Targeted vitest (`tests/unit/lib/`, `tests/unit/tools/ConfirmationGate.test.ts`, `tests/integration/dep-cruiser-clean.test.ts`, `tests/integration/panels/permissionPrompt.test.ts`) -- **20 passed, 0 failed**.
+- Full `npm run test` still terminates with the documented 10.O.D / 10.O.N Windows segfault in vitest teardown after `MemoryStore.migration.test.ts`; all tests that emit results before the crash still pass, including the new Phase 7 additions.
+
+### Known gaps
+
+See [`docs/v0.8.0/known-gaps.md`](v0.8.0/known-gaps.md) Section 10 for the structured list. Phase 7 added five new entries (10.O.AA through 10.O.EE) -- all `DF` deferrals because the remaining work requires operator authorization. Four v0.7.0 carryovers closed: 10.O.4 (ADR cross-references), 10.O.8 (`no-bare-promise-rejection` rule), 10.O.9 (dep-cruiser violations), 10.O.10 (`console.log` cleanup). Summary table recomputed: 31 open / 14 resolved.
+
+---
+
 ## [2026-05-16] v0.8.0 Phase 6 -- P2 backlog
 
 ### Goal

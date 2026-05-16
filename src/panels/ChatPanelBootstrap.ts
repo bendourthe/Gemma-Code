@@ -51,6 +51,7 @@ import type { Orchestrator } from "../orchestration/Orchestrator.js";
 import type { SubAgentManager } from "../agents/SubAgentManager.js";
 import type { AgentLoop } from "../tools/AgentLoop.js";
 import { ConfirmationGate } from "../tools/ConfirmationGate.js";
+import { defaultPermissionOptions } from "./webview/render/permissionPrompt.js";
 import type { ToolRegistry } from "../tools/ToolRegistry.js";
 import { buildToolRegistry } from "../tools/ToolRegistryBuilder.js";
 import { TodoState } from "../tools/handlers/todos.js";
@@ -217,7 +218,7 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
     input.hostPostMessage(msg);
   };
 
-  const confirmationGate = new ConfirmationGate(postWithRender);
+  const confirmationGate = new ConfirmationGate(postWithRender, defaultPermissionOptions);
 
   // v0.7.0 Phase 3: per-session CompressionState owns block IDs and runs.
   const compressionState = new CompressionState();

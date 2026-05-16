@@ -69,8 +69,11 @@ module.exports = {
         'because they own or compose session/memory state; they are ' +
         'whitelisted here. SessionListPanel and TraceDashboardPanel run ' +
         'real-time reads against ChatHistoryStore and ToolOutputCache ' +
-        'respectively. The long-term port redesign (storage behind messages.ts ' +
-        'only) is tracked as v0.8.0 follow-up work.',
+        'respectively. v0.8.0 Phase 7.B (carryover from v0.7.0 known-gaps ' +
+        '10.O.9): MemoryPanel is the canonical view-owner for memory state ' +
+        '(MemoryStore + MemoryFiles + MemoryShared.types) and is whitelisted ' +
+        'here -- the panel renders user-editable memory and owns the store ' +
+        'lifecycle by design, so a port indirection would only add noise.',
       from: {
         path: '^src/panels/',
         pathNot: [
@@ -85,6 +88,7 @@ module.exports = {
           '^src/panels/ToolActivationContext\\.ts$',
           '^src/panels/SessionListPanel\\.ts$',
           '^src/panels/TraceDashboardPanel\\.ts$',
+          '^src/panels/MemoryPanel\\.ts$',
         ],
       },
       to: { path: '^src/storage/' },

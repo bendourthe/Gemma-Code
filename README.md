@@ -21,6 +21,18 @@ Gemma Code brings a Claude Code-style agentic workflow to VS Code, running entir
 - **Conditional tool activation** — tools are enabled/disabled based on runtime context (Ollama reachability, network availability, session mode); keeps the prompt clean for better model reliability
 - **Sub-agent orchestration** — spawns isolated verification, research, and planning sub-agents with scoped tools; auto-verification triggers after file edits to catch bugs early; `/verify` and `/research` slash commands for manual control
 - **MCP support** — Model Context Protocol client connects to external MCP servers; MCP server exposes Gemma Code's tools to external clients (opt-in, off by default)
+- **Second LLM backend (v0.8.0)** — LM Studio backend via the OpenAI-compatible API, swappable with the existing Ollama path through `gemma-code.llm.backend = "auto" | "ollama" | "lmstudio"`; auto-detect probes LM Studio on macOS, falls back to Ollama on Windows / Linux
+- **Thinking modes (v0.8.0)** — per-model sampler presets via `/thinking-mode <nothink|think|think-max>`; updates the active streaming pipeline's sampling options for the next request
+- **Pass-state gating (v0.8.0)** — agent loop refuses to terminate a turn unless at least one verification tool call (terminal exit 0, lint, build, test, golden task) has succeeded since the last user message; one system nudge before the loop terminates, configurable via `gemma-code.passStateGating`
+- **Trace dashboard (v0.8.0)** — `/trace enable | dump | clear | status` writes a single bug-report-grade trace file with secret-path redaction, ready for paste-back-and-share triage
+- **Dual-loop curator (v0.8.0)** — `/curate --dry-run | --apply | --rollback | --status` runs the skill / memory curator over snapshots and applies a manifest, with full rollback support and an idle-time worker cadence (12 h floor on the existing edit-trigger)
+- **Per-skill metrics (v0.8.0)** — `/skill-metrics [skill-name]` surfaces 30-day rolling invocation counts so curator decisions are evidence-driven
+- **Workflow harvest (v0.8.0)** — `WorkflowDetector` watches episodic memory for repeated tool-call sequences and writes a SKILL.md draft to `~/.gemma-code/skills/proposed/` on the configurable Nth recurrence (default 3)
+- **Hybrid memory retrieval (v0.8.0)** — `HybridRanker` fuses HNSW vector rank, FTS5 lexical rank, and exponential recency decay via reciprocal rank fusion (`gemma-code.memory.scoringMethod = "rrf" | "weighted"`); opt-in `searchHybrid` surface in v0.8.0, on by default in v0.9.0
+- **Anticipatory memory cache (v0.8.0)** — opt-in `IntuitionCache` prefetches likely-relevant memory entries on editor change and tool completion (`gemma-code.memory.anticipatoryCache`, 30 s warmth)
+- **Plan annotation (v0.8.0)** — plan mode now ships inline diff annotation and three-state sync return (`ok | partial | rebuild-needed`) for context compaction
+- **Standalone deterministic checks CLI (v0.7.0, expanded in v0.8.0)** — `gemma-check` ships 10 rules: no-secret-patterns, no-math-random-for-tokens, no-committed-console-log, no-env-file-leakage, **no-bare-promise-rejection (v0.8.0 Phase 7.A)**, prompt-no-ascii-violation, prompt-oversized, prompt-trailing-whitespace, prompt-bom, skill-duplicate-name
+- **Cursor-native skill packaging (v0.8.0)** — skill bundle exporter now emits native `.cursor/rules/<slug>.mdc` files with `description` / `globs` / `alwaysApply` frontmatter (the v0.7.0 `.md` placeholder is gone)
 - **Windows installer** — a single `setup.exe` installs everything: VS Code extension, Ollama, and the model
 - **Privacy-first** — your code and prompts never leave your machine
 
@@ -135,6 +147,16 @@ All settings are under `gemma-code.*` in VS Code settings (`Ctrl+,`).
 | `gemma-code.verificationEnabled` | `true` | Enable auto-verification sub-agent after file edits |
 | `gemma-code.verificationThreshold` | `3` | Number of file edits before verification triggers |
 | `gemma-code.subAgentMaxIterations` | `10` | Maximum iterations for sub-agent tool loops |
+| `gemma-code.llm.backend` | `auto` | v0.8.0 -- LLM backend selection: `ollama`, `lmstudio`, or `auto` (probes LM Studio on macOS first, falls back to Ollama). |
+| `gemma-code.lmstudio.baseUrl` | `http://127.0.0.1:1234` | v0.8.0 -- LM Studio OpenAI-compatible base URL. |
+| `gemma-code.thinkingModePreset` | (model default) | v0.8.0 -- sampler preset for the active model: `nothink`, `think`, `think-max`. |
+| `gemma-code.passStateGating` | `true` | v0.8.0 -- refuse to terminate a turn without at least one verification-class tool call since the last user message. Disable for non-coding workflows. |
+| `gemma-code.memorySnapshotMode` | `frozen` | v0.8.0 -- memory snapshot mode for compaction replay: `frozen` (captured at compaction time) or `live` (reflects current state). |
+| `gemma-code.memory.scoringMethod` | `rrf` | v0.8.0 -- HybridRanker fusion method: `rrf` (reciprocal rank fusion, k=60) or `weighted` (50/30/20 vector/lexical/recency). |
+| `gemma-code.memory.anticipatoryCache` | `false` | v0.8.0 -- opt-in `IntuitionCache` that prefetches likely-relevant memory entries on editor change and tool completion (30 s warmth). |
+| `gemma-code.skills.harvest` | `true` | v0.8.0 -- detect repeated tool-call sequences in episodic memory and surface a SKILL.md draft on the Nth recurrence. |
+| `gemma-code.skills.harvestMinRecurrence` | `3` | v0.8.0 -- minimum repeat count before a workflow becomes a SKILL.md proposal (2-10). |
+| `gemma-code.skills.harvestWindowDays` | `7` | v0.8.0 -- rolling window over which recurrences are counted (1-90 days). |
 
 ---
 
@@ -169,6 +191,10 @@ All settings are under `gemma-code.*` in VS Code settings (`Ctrl+,`).
 | `/harden [target]` | Add error handling, validation, and edge-case coverage where a specific risk justifies it. |
 | `/animate [target]` | Add purposeful motion to webview / extension UI. Respects `prefers-reduced-motion`. |
 | `/build-second-brain [path]` | Populate `Instructions.md` / `Memory.md` / `Context.md` from notes or an interview (requires Phase 2 memory file architecture). |
+| `/trace <enable\|dump\|clear\|status> [path]` | v0.8.0 -- single bug-report trace file primitive: enable starts capture, dump writes the JSON trace with secret-path redaction, clear resets, status reports the current state. |
+| `/thinking-mode <nothink\|think\|think-max>` | v0.8.0 -- switch sampler / thinking-mode preset for the active model; next streamed request picks up the new preset (in-flight stream keeps the prior preset). |
+| `/skill-metrics [skill-name]` | v0.8.0 -- per-skill rolling 30-day invocation metrics; without an argument lists the full table. |
+| `/curate <--dry-run\|--apply <id>\|--rollback <id>\|--status>` | v0.8.0 -- dual-loop curator over skills and memory snapshots: dry-run produces a manifest, apply commits it, rollback restores the prior snapshot. |
 
 ### Help discovery for the agent
 

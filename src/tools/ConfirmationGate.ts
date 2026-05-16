@@ -1,6 +1,5 @@
 import type { PostMessageFn } from "../chat/StreamingPipeline.js";
 import type { ToolCallSource } from "./types.js";
-import { defaultPermissionOptions } from "../panels/webview/render/permissionPrompt.js";
 
 const TIMEOUT_MS = 60_000;
 
@@ -13,6 +12,40 @@ export interface PermissionPromptResult {
   value: "yes" | "yes-for-all" | "no" | "freeform";
   freeformText?: string;
 }
+
+/**
+ * v0.8.0 Phase 7.B -- option-builder callback contract. The shape mirrors
+ * `PermissionPromptOption` in `src/panels/webview/render/permissionPrompt.ts`
+ * but lives here so the gate has no `panels/` import (dep-cruiser
+ * no-panels-from-tools).
+ */
+export interface PermissionPromptOptionSpec {
+  key: "1" | "2" | "3" | "4";
+  label: string;
+  value: "yes" | "yes-for-all" | "no" | "freeform";
+  aliases: string[];
+}
+
+/** Builder injected by the call site so the tool layer never reaches into panels. */
+export type PermissionOptionsBuilder = (toolName: string) => PermissionPromptOptionSpec[];
+
+/** Fallback used when the call site does not inject a builder (test seams only). */
+const fallbackPermissionOptions: PermissionOptionsBuilder = (toolName) => [
+  { key: "1", label: "Yes", value: "yes", aliases: ["y"] },
+  {
+    key: "2",
+    label: `Yes, allow ${toolName} for all projects`,
+    value: "yes-for-all",
+    aliases: ["a"],
+  },
+  { key: "3", label: "No", value: "no", aliases: ["n"] },
+  {
+    key: "4",
+    label: "Tell Gemma what to do instead",
+    value: "freeform",
+    aliases: ["t"],
+  },
+];
 
 /**
  * Prefix the confirmation description with the originating peer so the user
@@ -54,7 +87,14 @@ export class ConfirmationGate {
     (result: PermissionPromptResult) => void
   >();
 
-  constructor(private readonly _postMessage: PostMessageFn) {}
+  private readonly _optionsBuilder: PermissionOptionsBuilder;
+
+  constructor(
+    private readonly _postMessage: PostMessageFn,
+    optionsBuilder?: PermissionOptionsBuilder,
+  ) {
+    this._optionsBuilder = optionsBuilder ?? fallbackPermissionOptions;
+  }
 
   /**
    * Phase 4.3 -- numbered permission prompt. Posts a `renderPermissionPrompt`
@@ -79,7 +119,7 @@ export class ConfirmationGate {
         toolName,
         description: attributeDescription(description, source),
         commandEcho,
-        options: defaultPermissionOptions(toolName),
+        options: this._optionsBuilder(toolName),
       });
 
       setTimeout(() => {

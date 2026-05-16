@@ -2,8 +2,15 @@ import * as vscode from "vscode";
 import * as fs from "fs";
 import * as path from "path";
 import { randomUUID } from "crypto";
+// MemoryPanel is the canonical view-owner for memory state; it composes the
+// store and renders user-editable memory entries directly. Whitelisted in
+// configs/dependency-cruiser.cjs (rule no-storage-from-panels) per v0.8.0
+// Phase 7.B (carryover from v0.7.0 known-gaps 10.O.9).
+// dependency-cruiser-disable-next-line no-storage-from-panels
 import type { MemoryFiles } from "../storage/MemoryFiles.js";
+// dependency-cruiser-disable-next-line no-storage-from-panels
 import type { MemoryStore } from "../storage/MemoryStore.js";
+// dependency-cruiser-disable-next-line no-storage-from-panels
 import type { MemoryEntry } from "../storage/MemoryShared.types.js";
 import { getMemoryViewHtml } from "./webview/memoryView.js";
 import { getLogger } from "../utils/logger.js";
