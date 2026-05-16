@@ -4,6 +4,56 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-16] v0.9.0 Phase 3 -- Skill-native adoptions (reverse-engineered, zero-code)
+
+### Goal
+
+Ship five markdown-only artifacts reverse-engineered from the v0.8.0 openhuman audit, each rewritten Gemma-Code-native with no copied prose, no third-party data processors, and no remote review-as-service dependencies. Plan reference: [docs/v0.9.0/plans/v0.9.0-cycle.md](v0.9.0/plans/v0.9.0-cycle.md) Phase 3, sub-tasks 3.1 through 3.6.
+
+### Decisions
+
+#### Sub-task 3.1 -- Enriched `review-pr` SKILL
+
+Rewrote [src/skills/catalog/review-pr/SKILL.md](../src/skills/catalog/review-pr/SKILL.md) from v1.0.0 to v2.0.0. The new structure follows the reverse-engineered pattern (walkthrough -> per-file analysis -> severity-x-confidence classification -> review-first / edits-after-confirm), with Gemma-Code-native references throughout: `pathGuard.ts` for path traversal, `secretPaths.ts` for secrets, `src/utils/logger.ts` for no-`console.*`, [AGENTS.md](../AGENTS.md) for project conventions, the local-gate command list (`npm run lint && npm run check && npm test && npm run deps:check && npm run catalog:check && npm run perm-tier:check`). Two phases: analysis emits the review body read-only; apply only after the user picks findings. No third-party review-as-service call.
+
+#### Sub-task 3.1 footnote -- token-budget tension
+
+The plan stated "under 8 KB to avoid `prompt-oversized`" but the actual rule budget (`lib/checks/prompt-oversized.mjs`) is 800 approximate tokens via the `chars/4` heuristic -- much tighter than 8 KB. To clear the warning the SKILL was trimmed from a verbose v2.0.0 draft down to ~800 tokens; the reverse-engineered structure is intact but the prose is compressed. Tracked as 10.N.F in [docs/v0.9.0/known-gaps.md](v0.9.0/known-gaps.md).
+
+#### Sub-task 3.2 -- `pr-manager` + `pr-manager-lite` subagents
+
+Created [.claude/agents/pr-manager.md](../.claude/agents/pr-manager.md) (~4.8 KB; full seven-phase loop with `gh api` + GraphQL `resolveReviewThread` mutations) and [.claude/agents/pr-manager-lite.md](../.claude/agents/pr-manager-lite.md) (~1.8 KB; trimmed single-pass variant for fast iterations). Both target `bendourthe/Gemma-Code:main`; `origin` is the canonical remote (no fork-flow language). Severity-x-confidence classification mirrors the `review-pr` SKILL. Safety gates: never push to main, stop before any force-push, never bypass hooks on someone else's PR, no external service calls beyond `gh` and `git`.
+
+#### Sub-task 3.3 -- `ship-and-babysit` slash command
+
+Created [.claude/commands/ship-and-babysit.md](../.claude/commands/ship-and-babysit.md) (~5.9 KB). Reverse-engineered the commit -> push -> open PR -> babysit -> resolve loop. Polls Gemma-Code's own GitHub Actions workflows only (`ci.yml`, `installer-smoke.yml`, `golden-tasks.yml`, `commitlint.yml`, plus `coverage-diff.yml` and `pr-quality.yml` once Phases 4.2 / 5.2 ship). Explicit exclusion: NO CodeRabbit polling, NO OpenHuman cloud calls -- reviewer comments are out of scope for this loop, delegated to the `pr-manager` subagent on operator demand. `ScheduleWakeup` cadence of 270 seconds (under the 300s prompt-cache window) with a hard cap of 12 ticks (~60 min). Local repro commands keyed by which check is red. Branch-name guard refuses to run on `main`; never force-pushes; never skips hooks for own changes unless the operator explicitly authorizes one commit.
+
+#### Sub-task 3.4 -- `CONTRIBUTING-BEGINNERS.md`
+
+Created [CONTRIBUTING-BEGINNERS.md](../CONTRIBUTING-BEGINNERS.md) (~6.8 KB, within the plan's 6-10 KB target). Audience: someone who has never contributed to open source and may not have Node installed. Eleven sections covering prerequisites (Node 20+, Git, gh, VS Code, Ollama with `gemma4:e4b`), `gh repo fork --clone`, `npm install && npm run build`, F5 Extension Development Host, finding an issue, branching, the local gate (`npm run lint && npm test && npm run check`), commit conventions, PR opening, post-PR loop, and a Troubleshooting block covering Windows long-paths / `node-gyp` / Ollama not reachable / model not pulled / port 11434 in use / push rejected. ASCII-only; cross-link from [CONTRIBUTING.md](../CONTRIBUTING.md) first paragraph added.
+
+#### Sub-task 3.5 -- `taskmaster` subagent
+
+Created [.claude/agents/taskmaster.md](../.claude/agents/taskmaster.md) (~3.3 KB, under the plan's 5 KB target). Read-only on every file except [docs/todos.md](todos.md); the only file the agent writes. Rules: never delete a row (closed rows stay checked with citation in line so history is traceable), never invent work without a commit / issue / PR / known-gaps source, cite the source SHA / # / ID for every check-off, convert relative dates to ISO `YYYY-MM-DD`. Output gate: if more than 10 rows change, ask "Apply this update? (y/n)" first.
+
+#### Sub-task 3.6 -- Stabilization
+
+`node bin/gemma-check.mjs` clean on all five new files; `npm run check:prompts` shows the four pre-existing 800-token oversize warnings (`harden`, `distill`, `build-second-brain`, `animate` SKILLs -- tracked as 10.O.O / Phase 6.8) with zero new warnings from Phase 3. `npm run lint` exits 0; `npm run build` exits 0; `npm test` is 2497 passed / 4 skipped / 0 failed across 218 files in ~40s on Windows; `npm run deps:check` exits 0 (the three orphan warnings are 10.N.A / B / C carryovers, not regressions); `npm run catalog:check` exits 0; `npm run perm-tier:check` exits 0.
+
+#### `.gitignore` adjustment
+
+The plan instructed Phase 3 to ship the subagent and slash-command artifacts under `.claude/agents/` and `.claude/commands/`, but the root [.gitignore](../.gitignore) previously excluded the entire `/.claude/` tree per [AGENTS.md](../AGENTS.md) (which calls the directory personal IDE/agent configuration). To track only the agent-agnostic markdown artifacts while keeping personal Claude Code state ignored, `.gitignore` was changed from `/.claude/` to `/.claude/*` with `!/.claude/agents/` + `!/.claude/commands/` exceptions. AGENTS.md's "Development-time tooling" sentence is intentionally left for Phase 8 cycle close to update; tracked as 10.N.G.
+
+### Tests added or changed
+
+No tests added or removed this phase -- Phase 3 was markdown-only by design. Existing test suite remains 2497 passed / 4 skipped / 0 failed.
+
+### Known gaps
+
+Eight items open at Phase 3 close: 10.N.A (ModelPinRegistry composition-root wiring -- Phase 6 candidate); 10.N.B / 10.N.C (webview render protocol consumers -- migrated suggested-next-step from "Phase 3" to "Phase 4"); 10.N.D (live-Ollama bench regression check -- operator); 10.N.E (atomic-commit deviation, user-requested single commit + push to main); 10.N.F (`review-pr` SKILL token-budget compression vs. plan's 8 KB ideal); 10.N.G (AGENTS.md `.claude/` sentence still says "not committed" while two subdirectories now ship in-repo); 10.N.H (extend `prompt-*` rule globs to `.claude/agents` + `.claude/commands` as a v0.10.0 candidate). Fourteen items closed (the v0.8.0 carryovers from Phase 1 and Phase 2).
+
+---
+
 ## [2026-05-16] v0.9.0 Phase 2 -- Wire deferred v0.8.0 pure modules into production code paths
 
 ### Goal

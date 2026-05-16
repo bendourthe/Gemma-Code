@@ -1,6 +1,6 @@
 # Contributing to Gemma Code
 
-Thanks for your interest in improving Gemma Code. This document covers the minimum you need to know to land a change.
+Thanks for your interest in improving Gemma Code. This document covers the minimum you need to know to land a change. If you are new to open source or do not yet have Node.js installed, start with [CONTRIBUTING-BEGINNERS.md](CONTRIBUTING-BEGINNERS.md) -- the step-by-step variant of this same workflow.
 
 ## Project tour
 

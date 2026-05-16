@@ -106,7 +106,13 @@ out/
 # ==============================================================================
 # Claude Code Settings
 # ==============================================================================
-/.claude/
+# Default-ignore everything under /.claude/ ...
+/.claude/*
+# ... then re-track the committed agent-agnostic subagent / slash-command
+# artifacts (the markdown is reverse-engineered Gemma-Code-native and contains
+# no Anthropic-specific bindings; per v0.9.0 Phase 3.2 / 3.3 / 3.5).
+!/.claude/agents/
+!/.claude/commands/
 settings.local.json
 
 # ==============================================================================
