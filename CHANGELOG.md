@@ -1,3 +1,10 @@
+# [0.8.0](https://github.com/bendourthe/Gemma-Code/compare/v0.7.3...v0.8.0) (2026-05-16)
+
+
+### Features
+
+* **v0.8.0:** Phase 0 cycle kickoff + v0.7.0 carryovers ([cccb043](https://github.com/bendourthe/Gemma-Code/commit/cccb043ce3df64593cd175e59e822ea7c6c9251c)), closes [#input-row](https://github.com/bendourthe/Gemma-Code/issues/input-row)
+
 ## [0.7.3](https://github.com/bendourthe/Gemma-Code/compare/v0.7.2...v0.7.3) (2026-05-15)
 
 
