@@ -1,3 +1,10 @@
+## [0.15.2](https://github.com/bendourthe/Gemma-Code/compare/v0.15.1...v0.15.2) (2026-05-16)
+
+
+### Bug Fixes
+
+* **test:** align tests/unit/cli/gemma-check.test.ts with new exit-code semantics ([13f630e](https://github.com/bendourthe/Gemma-Code/commit/13f630e1a6b0eda9bfe3e50bf4167dc7b38b7eaa))
+
 ## [0.15.1](https://github.com/bendourthe/Gemma-Code/compare/v0.15.0...v0.15.1) (2026-05-16)
 
 
