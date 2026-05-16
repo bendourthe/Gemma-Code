@@ -55,7 +55,21 @@ describe("e2e: real AgentLoop with mocked OllamaClient", () => {
     const manager = new ConversationManager("You are Gemma Code.");
     const registry = new ToolRegistry();
     registry.register("read_file", makeToolHandler(""));
-    const loop = new AgentLoop(client, manager, registry, "gemma4:e4b");
+    // v0.8.0 Phase 2: this e2e validates single-turn no-tool flow; the
+    // pass-state gate would inject a verification nudge and rerun an
+    // empty iteration. Disable the gate so the test stays focused on
+    // the original mechanics.
+    const loop = new AgentLoop(
+      client,
+      manager,
+      registry,
+      "gemma4:e4b",
+      20,
+      undefined,
+      undefined,
+      undefined,
+      { passStateGating: false },
+    );
     const { posted, postMessage } = collectPosted();
 
     manager.addUserMessage("What is 1 + 1?");
@@ -83,7 +97,17 @@ describe("e2e: real AgentLoop with mocked OllamaClient", () => {
     );
     registry.register("read_file", readFileHandler);
     const executeSpy = vi.spyOn(registry, "execute");
-    const loop = new AgentLoop(client, manager, registry, "gemma4:e4b");
+    const loop = new AgentLoop(
+      client,
+      manager,
+      registry,
+      "gemma4:e4b",
+      20,
+      undefined,
+      undefined,
+      undefined,
+      { passStateGating: false },
+    );
     const { posted, postMessage } = collectPosted();
 
     manager.addUserMessage("Read src/extension.ts please.");

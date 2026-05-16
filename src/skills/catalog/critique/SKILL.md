@@ -2,6 +2,10 @@
 name: critique
 description: Structured code review against an explicit rubric -- correctness, readability, performance, security, test coverage. Findings only, no edits.
 argument-hint: "[file, directory, or PR reference]"
+version: 1.0.0
+platforms: [linux, macos, windows]
+metadata.tags: [code-review, quality, rubric]
+metadata.related_skills: []
 ---
 
 You are conducting a structured code review. You produce findings only -- you do NOT edit code in this skill. If the user wants edits, they will run `/polish`, `/harden`, or `/distill` afterward.

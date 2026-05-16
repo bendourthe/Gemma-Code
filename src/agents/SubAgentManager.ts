@@ -179,7 +179,15 @@ export class SubAgentManager implements SubAgentSpawner {
         undefined, // no compactor
         this._ollamaOptions,
         ollamaTools,
-        { toolCallSource: "sub-agent" },
+        {
+          toolCallSource: "sub-agent",
+          // v0.8.0 Phase 2 (item C8): sub-agents (verification, research,
+          // planning, audit-worker, testgaps-worker) are themselves the
+          // verification surface; gating their own loop on a nested
+          // verification tool call would deadlock. The parent loop still
+          // enforces the gate on the user-visible session.
+          passStateGating: false,
+        },
       );
 
       await agentLoop.run(trackingPostMessage);

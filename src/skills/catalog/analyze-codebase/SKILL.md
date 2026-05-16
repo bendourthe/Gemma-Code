@@ -2,6 +2,10 @@
 name: analyze-codebase
 description: Produce a structured 12-section analysis of the codebase with architecture overview and Mermaid diagrams
 argument-hint: "[focus area or output path]"
+version: 1.0.0
+platforms: [linux, macos, windows]
+metadata.tags: [analysis, documentation, architecture]
+metadata.related_skills: []
 ---
 
 You are performing a comprehensive codebase analysis. Produce a structured report saved to `docs/analysis.md` (or the path specified in the arguments).

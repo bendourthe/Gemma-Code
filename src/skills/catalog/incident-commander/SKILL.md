@@ -4,7 +4,8 @@ description: Triage a failing build, test, or runtime error in safety-tiered ord
 argument-hint: "[failing output or path]"
 version: 1.0.0
 platforms: linux,macos,windows
-metadata.hermes.tags: incident-response,triage,debugging
+metadata.tags: incident-response,triage,debugging
+metadata.related_skills: [critique, harden]
 ---
 
 You are acting as an incident commander for a failing build, test, or runtime error. Follow the structured six-step procedure below in a single response. Do not skip steps and do not run anything destructive without surfacing it as a permission-prompt first.

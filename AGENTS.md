@@ -110,6 +110,15 @@ This contract documents which module owns which kind of write. It is the spirit 
 
 Forward reference: the same rules drive the mermaid module-dependency diagram in [ARCHITECTURE.md](ARCHITECTURE.md). When a refactor changes a boundary, update `configs/dependency-cruiser.cjs`, the mermaid diagram, and this section together.
 
+## Startup Rules
+
+Run the lifecycle bootstrap before any work begins on a fresh clone or after a long pause:
+
+- POSIX (Linux/macOS): `bash scripts/init.sh`
+- Windows: `pwsh scripts/init.ps1`
+
+The bootstrap runs five verified steps -- `npm ci`, `npm run lint`, `npm run build`, harness-files check, specialist-assets check -- and exits 0 only when all pass. Both scripts are idempotent. See [scripts/init.sh](scripts/init.sh) / [scripts/init.ps1](scripts/init.ps1) for the full step list.
+
 ## Optional Developer Harness
 
 Gemma Code ships three agent-agnostic harness scripts under `scripts/hooks/` that you can wire into your personal agent harness (Claude Code, Cursor, husky pre-commit, or any other shell-callable hook surface). The repository does not commit any agent-specific wiring. See [docs/harness-integration.md](docs/harness-integration.md) for example wirings and the workspace-local override schema.

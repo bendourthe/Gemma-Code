@@ -4,7 +4,8 @@ description: Run three adversarial perspectives on a major decision before commi
 argument-hint: "[decision or change]"
 version: 1.0.0
 platforms: linux,macos,windows
-metadata.hermes.tags: decision-making,reasoning,multi-perspective
+metadata.tags: decision-making,reasoning,multi-perspective
+metadata.related_skills: [lens]
 ---
 
 You are about to evaluate a major decision (architectural change, dependency choice, API contract, refactor scope, technology selection). Before producing a verdict, run a three-pass adversarial council. Each pass speaks in its own voice and reaches its own conclusion; the synthesis at the end reconciles them.

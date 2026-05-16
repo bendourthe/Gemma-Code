@@ -2,6 +2,10 @@
 name: generate-tests
 description: Generate a comprehensive test suite for the current codebase or a specified file
 argument-hint: "[file path or module to test]"
+version: 1.0.0
+platforms: [linux, macos, windows]
+metadata.tags: [testing, vitest]
+metadata.related_skills: []
 ---
 
 You are generating thorough tests for this codebase. Follow these steps:

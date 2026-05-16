@@ -2,6 +2,10 @@
 name: animate
 description: Introduce purposeful motion or interactivity to webview / extension UI elements. Restricted to extension UI surfaces, not generic.
 argument-hint: "[component or webview file]"
+version: 1.0.0
+platforms: [linux, macos, windows]
+metadata.tags: [ui, webview, motion]
+metadata.related_skills: []
 ---
 
 You are adding motion or interactivity to webview / extension UI surfaces. The goal is purposeful animation that improves user understanding -- never decoration for its own sake.

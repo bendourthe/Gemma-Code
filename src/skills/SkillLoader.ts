@@ -3,10 +3,35 @@ import * as path from "path";
 import * as os from "os";
 import { getLogger } from "../utils/logger.js";
 
+export type SkillPlatform = "linux" | "macos" | "windows";
+
+export const DEFAULT_SKILL_PLATFORMS: readonly SkillPlatform[] = [
+  "linux",
+  "macos",
+  "windows",
+];
+
+export const DEFAULT_SKILL_VERSION = "1.0.0";
+
+/**
+ * v0.8.0 Phase 2 (item D1) -- agentskills.io-aligned metadata. The fields
+ * are forward-compatible: pre-v0.8.0 SKILL.md files default to a single
+ * version of `1.0.0`, all three platforms, and empty tag / related lists.
+ */
+export interface SkillMetadata {
+  tags: readonly string[];
+  relatedSkills: readonly string[];
+}
+
 export interface Skill {
   name: string;
   description: string;
   argumentHint: string;
+  /** Semver. Defaults to `1.0.0` when the file omits the field. */
+  version: string;
+  /** Defaults to all three platforms when the file omits the field. */
+  platforms: readonly SkillPlatform[];
+  metadata: SkillMetadata;
   prompt: string;
 }
 
@@ -15,13 +40,26 @@ export interface Skill {
 // ---------------------------------------------------------------------------
 
 /**
- * Parses a SKILL.md file with YAML frontmatter:
+ * Parses a SKILL.md file with YAML frontmatter. The v0.7.0 fields
+ * (`name`, `description`, `argument-hint`) are preserved as-is; v0.8.0
+ * adds `version`, `platforms`, `metadata.tags`, `metadata.related_skills`.
+ *
+ * The parser stays intentionally small (no full YAML dependency): it
+ * supports flow-style arrays (`platforms: [linux, macos]`) and nested
+ * `metadata.tags` / `metadata.related_skills` keys via dotted access in
+ * the raw map. That mirrors the surface the `package-skills.mjs` adapter
+ * already consumes.
+ *
+ * Example frontmatter:
  *   ---
  *   name: commit
  *   description: Generate a commit message
  *   argument-hint: "[message]"
+ *   version: 1.2.0
+ *   platforms: [linux, macos, windows]
+ *   metadata.tags: [git, workflow]
+ *   metadata.related_skills: [polish]
  *   ---
- *   Prompt body here.
  */
 function parseFrontmatter(content: string): { meta: Record<string, string>; body: string } | null {
   const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(content);
@@ -37,6 +75,33 @@ function parseFrontmatter(content: string): { meta: Record<string, string>; body
   }
 
   return { meta, body: (match[2] ?? "").trim() };
+}
+
+/**
+ * Parse a flow-style YAML array (`[a, b, c]`) or comma-separated string.
+ * Returns an empty array when the input is empty / undefined. Items are
+ * trimmed and stripped of surrounding quotes.
+ */
+function parseFlowArray(raw: string | undefined): string[] {
+  if (!raw) return [];
+  let inner = raw.trim();
+  if (inner.startsWith("[") && inner.endsWith("]")) {
+    inner = inner.slice(1, -1);
+  }
+  return inner
+    .split(",")
+    .map((item) => item.trim().replace(/^["']|["']$/g, ""))
+    .filter((item) => item.length > 0);
+}
+
+function parsePlatforms(raw: string | undefined): SkillPlatform[] {
+  const values = parseFlowArray(raw);
+  if (values.length === 0) return [...DEFAULT_SKILL_PLATFORMS];
+  const allowed = new Set<SkillPlatform>(["linux", "macos", "windows"]);
+  const filtered = values.filter((v): v is SkillPlatform => allowed.has(v as SkillPlatform));
+  // Treat an all-unknown list as a parse failure and fall back to the
+  // default so a typo cannot silently disable the skill everywhere.
+  return filtered.length > 0 ? filtered : [...DEFAULT_SKILL_PLATFORMS];
 }
 
 function loadSkillFromDir(skillDir: string): Skill | null {
@@ -66,6 +131,12 @@ function loadSkillFromDir(skillDir: string): Skill | null {
     name: meta["name"],
     description: meta["description"],
     argumentHint: meta["argument-hint"] ?? "",
+    version: meta["version"] || DEFAULT_SKILL_VERSION,
+    platforms: parsePlatforms(meta["platforms"]),
+    metadata: {
+      tags: parseFlowArray(meta["metadata.tags"]),
+      relatedSkills: parseFlowArray(meta["metadata.related_skills"]),
+    },
     prompt: body,
   };
 }

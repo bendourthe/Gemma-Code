@@ -4,6 +4,11 @@ import * as os from "os";
 import * as path from "path";
 import { matchesSecretPath } from "../utils/secretPaths.js";
 import { getLogger } from "../utils/logger.js";
+import {
+  redactInvisibleUnicode,
+  scan as scanForInjection,
+  summarize as summarizeFindings,
+} from "../guardrails/PromptInjectionScanner.js";
 
 /**
  * v0.7.0 Phase 2 -- file-backed memory architecture. Owns the four user-editable
@@ -394,7 +399,15 @@ export class MemoryFiles {
     if (cached && cached.mtimeMs === stat.mtimeMs) {
       return cached.content;
     }
-    const content = fs.readFileSync(target, "utf8");
+    const raw = fs.readFileSync(target, "utf8");
+    // v0.8.0 Phase 2 (item G1): fail-open scanner on the read boundary.
+    // Legacy content may already contain invisible-unicode steganography
+    // from an earlier model run, and a hard throw here would lock the
+    // user out of their own Memory.md. Instead we log the findings and
+    // strip the invisibles before caching. Findings other than
+    // invisible-unicode are reported but the content still flows through
+    // so the user can edit it out by hand.
+    const content = sanitizeForRead(raw, target);
     this._cache.set(target, { mtimeMs: stat.mtimeMs, content });
     return content;
   }
@@ -483,6 +496,24 @@ function isCatastrophicPattern(re: RegExp): boolean {
     getLogger().debug(`[MemoryFiles] removeFromMemory called with empty pattern; treating as no-op.`);
   }
   return false;
+}
+
+/**
+ * v0.8.0 Phase 2 (item G1) -- fail-open read-path scanner. Invisible
+ * unicode is stripped; other findings are logged but the content is
+ * passed through so the user is never locked out of their own memory
+ * files. The write boundary in `MemoryStore.save` is the hard rejection
+ * point.
+ */
+function sanitizeForRead(raw: string, target: string): string {
+  if (!raw) return raw;
+  const scanResult = scanForInjection(raw);
+  if (!scanResult.ok) {
+    getLogger().warn(
+      `[MemoryFiles] prompt-injection patterns detected in ${target} on read (fail-open): ${summarizeFindings(scanResult.findings)}`,
+    );
+  }
+  return redactInvisibleUnicode(raw);
 }
 
 function containsSecretPathReference(line: string): boolean {

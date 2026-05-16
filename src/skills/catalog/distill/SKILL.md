@@ -2,6 +2,10 @@
 name: distill
 description: Strip code to its essence -- remove indirection, simplify conditionals, collapse single-consumer abstractions. Behaviour-preserving.
 argument-hint: "[file, function, or area]"
+version: 1.0.0
+platforms: [linux, macos, windows]
+metadata.tags: [refactoring, simplification]
+metadata.related_skills: [polish, harden]
 ---
 
 You are simplifying code while preserving its observable behaviour. The goal is to make the same code do the same thing with less structural overhead.

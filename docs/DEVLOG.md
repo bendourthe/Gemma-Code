@@ -4,6 +4,71 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-15] v0.8.0 Phase 2 -- Harness artifacts + memory snapshot + injection defense
+
+### Goal
+
+Ship the discrete harness artifact set, install pass-state gating in `AgentLoop`, freeze the memory snapshot at session start, add a streaming memory-context scrubber FSM, install a prompt-injection scanner at memory write/read boundaries, and extend the SKILL.md frontmatter to the agentskills.io schema. Closes plan sub-tasks 2.1 through 2.8.
+
+### Decisions
+
+#### 2.1: feature_list.json + golden-suite stamp wiring
+
+The contract lives at the repo root and carries 21 rows for the v0.8.0 cycle. [src/evaluation/FeatureList.ts](../src/evaluation/FeatureList.ts) ships `loadFeatureList`, `saveFeatureList`, `validate`, and `markPassing`; [src/evaluation/GoldenTaskSuite.ts](../src/evaluation/GoldenTaskSuite.ts) adds `stampGoldenTaskPass(taskId, repoRoot)` and a static `GOLDEN_TASK_TO_FEATURE_ID` map. The Python runner (canonical per ADR-0017) calls `stampGoldenTaskPass` via `node -e` after each task completes; the helper persists with deterministic JSON formatting. Validation rules (id `fNNN`, semver version, ISO testedAt) ship with the loader and run on every CI build via the operator-action workflow.
+
+#### 2.2: init.sh / init.ps1 are five sequential gates, no fallthrough
+
+[scripts/init.sh](../scripts/init.sh) and [scripts/init.ps1](../scripts/init.ps1) run `npm ci`, `npm run lint`, `npm run build`, harness-files check, specialist-assets check. Each step has explicit exit-on-failure (no `|| true` fallthroughs), and the harness-files check enumerates the six required files (`AGENTS.md`, `ARCHITECTURE.md`, `feature_list.json`, `clean-state-checklist.md`, the active plan, `known-gaps.md`) plus the four specialist asset files. CI gets two new jobs (`init-check-posix` Linux + `init-check-windows` Windows) on top of the existing matrix so a missing harness file blocks the merge.
+
+#### 2.3: cleanup-scanner stays read-only and prints JSON or text
+
+[scripts/cleanup-scanner.mjs](../scripts/cleanup-scanner.mjs) runs over the workspace and the per-workspace memory directory; it never mutates anything. It opens `MemoryStore`'s SQLite db read-only when available (gracefully skips DB checks if `better-sqlite3` is not installed). Outputs two modes: human-readable text (default) and JSON for downstream tooling. The 30-item [clean-state-checklist.md](../clean-state-checklist.md) maps 9 boxes to the `[scan]` automated subset; the rest stay operator-audited.
+
+#### 2.4: pass-state gating is verification-class tools + one nudge + one extra iteration
+
+[src/tools/AgentLoop.ts](../src/tools/AgentLoop.ts) introduces `_verifiedSinceUserMessage` and `_gateNudgeIssued`, reset at the start of every `run()`. Successful `run_terminal` calls flip `_verifiedSinceUserMessage = true`; when the model emits a no-tool-call response and the flag is still false, the loop commits the would-be-final assistant turn, injects a nudge user message, and runs one more iteration. A second tool-less response terminates so the operator can see the trace rather than the loop spinning. Sub-agents disable the gate (the verification sub-agent IS the verification surface; gating its inner loop on yet another verification tool would deadlock). [ADR-0015](adr/0015-pass-state-gating.md) records the design. New setting `gemma-code.passStateGating` (default `true`) lets non-coding workflows opt out.
+
+#### 2.5: frozen memory snapshot wins over live-reads for prefix-cache stability
+
+[src/storage/MemorySnapshot.ts](../src/storage/MemorySnapshot.ts) captures Instructions.md, Memory.md, Context.md at session start. The snapshot is frozen via `Object.freeze` so the contents object cannot be tampered with at runtime. `PromptBuilder` accepts an optional snapshot in its constructor (plus a `setMemorySnapshot` setter for hot-reload). When attached in `frozen` mode (the default), `_readFileMemory` returns the captured content; in `live` mode it falls back to the v0.7.0 mtime-cached read. ADR-0014 amended with the new semantics; new setting `gemma-code.memorySnapshotMode` (default `frozen`) exposes the trade-off.
+
+#### 2.6: scrubber FSM caps held-back bytes at `</memory-context>`.length
+
+[src/chat/MemoryContextScrubber.ts](../src/chat/MemoryContextScrubber.ts) is a three-state FSM (`outside` / `inside_tag` / `inside_span`). The maximum held-back tail across a chunk boundary is the longer of the two tags (`</memory-context>` = 17 chars) so an attacker cannot use the scrubber as a denial-of-service amplifier by feeding 100 MB of `<<<<<<...`. EOF semantics: a partial-tag tail in `outside`/`inside_tag` is emitted verbatim (the model produced literal `<` chars that did not turn into a tag); an unfinished span at `inside_span` is dropped (the model abandoned the wrap). Wired into `StreamingPipeline._attemptStream` so the scrubber runs on the streamed-token path; `accumulated` carries the cleaned text into the assistant message.
+
+#### 2.7: write-boundary throws; read-boundary fails open
+
+[src/guardrails/PromptInjectionScanner.ts](../src/guardrails/PromptInjectionScanner.ts) exports `scan(text)`, `redactInvisibleUnicode(text)`, and `summarize(findings)`. `MemoryStore.save()` throws synchronously on any finding so the operator sees the rejection at the call site; `MemoryFiles._readCached` calls a `sanitizeForRead` helper that logs findings via `getLogger().warn` and strips invisible-unicode codepoints before caching. The fail-open read keeps the user from being locked out of their own Memory.md when legacy content matches a pattern. Coverage in [tests/unit/guardrails/PromptInjectionScanner.test.ts](../tests/unit/guardrails/PromptInjectionScanner.test.ts) (15 tests, every pattern row + the redaction helper). Penetration-test Attack Path D documented in [docs/v0.6.0/review/penetration-test.md](v0.6.0/review/penetration-test.md).
+
+#### 2.8: forward-compatible extension keeps the parser tiny
+
+Pre-v0.8.0 SKILL.md files load unchanged: `version` defaults to `1.0.0`, `platforms` defaults to all three OSes, `metadata.tags` / `metadata.related_skills` default to empty arrays. The parser (`SkillLoader.parseFlowArray`) accepts both bracketed `[a, b]` and bare `a, b` lists. The mirror parser in `scripts/package-skills.mjs` exposes a `normalized` object so each harness adapter round-trips the new fields without information loss. All 16 catalog skills migrated to the canonical schema via a one-off migration helper (committed transiently and then removed -- the git diff IS the migration trail).
+
+### Tests
+
+`npm run lint` exit 0; `npm run build` exit 0; full unit + integration suite: **182 passed, 2 pre-existing failed (10.O.D), 1 skipped**.
+
+New test coverage added in Phase 2:
+- `tests/unit/evaluation/FeatureList.test.ts` (8 tests) -- round-trip, validation, markPassing, stampGoldenTaskPass mapping.
+- `tests/unit/storage/MemorySnapshot.test.ts` (7 tests) -- capture, immutability, frozen vs live, readWithSnapshot.
+- `tests/unit/chat/MemoryContextScrubber.test.ts` (13 tests) -- single-chunk strip, byte-by-byte split, multi-span, EOF semantics.
+- `tests/unit/guardrails/PromptInjectionScanner.test.ts` (15 tests) -- every pattern row, invisible-unicode redaction, summary.
+- `tests/unit/skills/SkillLoader.test.ts` (+5 v0.8.0 tests) -- full schema, default fallbacks, CSV platforms, invalid platforms, real-catalog smoke.
+- `tests/unit/tools/AgentLoop.test.ts` (+4 pass-state gating tests) -- verified path, nudge-then-terminate, opt-out, failed run_terminal does not credit.
+- `tests/integration/storage/cleanupScanner.test.ts` (5 tests) -- empty-workspace JSON shape, stale cache, deleted-path reference, text format, unknown format rejection.
+
+`tests/unit/scripts/package-skills.test.ts` (3 new round-trip tests) lands at the source level but cannot execute on the dev workstation because the file collides with the pre-existing 10.O.D vitest 1.6.1 Node-vm parse error. SkillLoader's own suite covers the same shape end-to-end and is green.
+
+### Known gaps
+
+See [docs/v0.8.0/known-gaps.md](v0.8.0/known-gaps.md) Section 10.1 for the full list. Phase 2 added two new items (10.O.F sub-agent pass-state-gate carve-out, 10.O.G round-trip tests blocked by 10.O.D) and resolved none.
+
+### Next phase
+
+Phase 3: Plan-mode UX overhaul -- three annotation primitives, plan version archive + diff, quick-label chips, improvement-hook file.
+
+---
+
 ## [2026-05-15] v0.8.0 Phase 1 -- Skill-native quick wins (prompt-only)
 
 ### Goal

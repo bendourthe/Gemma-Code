@@ -2,6 +2,10 @@
 name: polish
 description: Final-pass quality cleanup -- tighten naming, remove dead branches, improve docstrings, format, and verify tests pass
 argument-hint: "[file or area]"
+version: 1.0.0
+platforms: [linux, macos, windows]
+metadata.tags: [refactoring, style, quality]
+metadata.related_skills: [distill, harden]
 ---
 
 You are performing a final-pass quality cleanup on code that already works. The goal is presentation, not behaviour change. Behaviour must be preserved exactly.

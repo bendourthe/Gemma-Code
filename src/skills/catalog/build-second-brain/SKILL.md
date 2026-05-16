@@ -2,6 +2,10 @@
 name: build-second-brain
 description: Help the user populate Instructions.md / Memory.md / Context.md from existing notes, project documentation, or interview prompts.
 argument-hint: "[path-to-existing-notes]"
+version: 1.0.0
+platforms: [linux, macos, windows]
+metadata.tags: [memory, onboarding, documentation]
+metadata.related_skills: []
 ---
 
 You are helping the user bootstrap a personal "second brain" stored in the gemma-code memory file architecture introduced in v0.7.0 Phase 2. The four files live under `~/.gemma-code/memory/<workspace-id>/` and are user-editable on disk.

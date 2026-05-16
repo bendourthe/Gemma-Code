@@ -2,6 +2,10 @@
 name: review-pr
 description: Review the current diff or a pull request for correctness, style, and security
 argument-hint: "[PR number or branch name]"
+version: 1.0.0
+platforms: [linux, macos, windows]
+metadata.tags: [code-review, git, workflow]
+metadata.related_skills: [critique, commit]
 ---
 
 You are conducting a thorough code review. Follow these steps:

@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import { randomUUID } from "crypto";
 import type { Message } from "../chat/types.js";
+import { scan as scanForInjection, summarize as summarizeFindings } from "../guardrails/PromptInjectionScanner.js";
 import type {
   MemoryEntry,
   MemoryType,
@@ -171,12 +172,26 @@ export class MemoryStore {
   // Save
   // ---------------------------------------------------------------------------
 
-  /** Save a memory entry. Computes embedding asynchronously if embedder is available. */
+  /**
+   * Save a memory entry. Computes embedding asynchronously if embedder is
+   * available.
+   *
+   * v0.8.0 Phase 2 (item G1): the content is scanned for prompt-injection
+   * patterns at the write boundary. Anything that fires throws synchronously
+   * so the caller (slash command, sub-agent return path, consolidation job)
+   * sees the rejection at the source rather than at next-prompt-build time.
+   */
   async save(
     content: string,
     type: MemoryType,
     sessionId?: string,
   ): Promise<MemoryEntry> {
+    const scanResult = scanForInjection(content);
+    if (!scanResult.ok) {
+      throw new Error(
+        `MemoryStore.save rejected: prompt-injection patterns detected (${summarizeFindings(scanResult.findings)})`,
+      );
+    }
     const id = randomUUID();
     const now = Date.now();
 

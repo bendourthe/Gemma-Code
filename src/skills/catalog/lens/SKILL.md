@@ -4,7 +4,8 @@ description: Generate an analytical lens for a complex problem before answering
 argument-hint: "[question]"
 version: 1.0.0
 platforms: linux,macos,windows
-metadata.hermes.tags: reasoning,meta-prompting
+metadata.tags: reasoning,meta-prompting
+metadata.related_skills: [council]
 ---
 
 You are about to answer a complex question. Before producing the final answer, generate an explicit analytical lens so the reasoning is auditable and the answer is grounded in the right angles.

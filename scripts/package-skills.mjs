@@ -143,6 +143,12 @@ function renderCursor(raw, slug) {
  * Tiny frontmatter parser. SKILL.md frontmatter is a `---`-fenced YAML-ish
  * block with one `key: value` per line. Quotes around values are stripped.
  * Returns `{ frontmatter, body }`; throws if the fences are missing.
+ *
+ * v0.8.0 Phase 2 (item D1): also normalises the agentskills.io extension
+ * fields (`version`, `platforms`, `metadata.tags`,
+ * `metadata.related_skills`) into `normalized` so each harness adapter
+ * can round-trip them without losing information. The raw frontmatter
+ * `frontmatter` map is retained for backwards-compatible callers.
  */
 function parseSkill(raw) {
   if (!raw.startsWith("---\n")) {
@@ -169,7 +175,38 @@ function parseSkill(raw) {
     frontmatter[key] = value;
   }
   const body = raw.slice(end + "\n---\n".length);
-  return { frontmatter, body };
+
+  const normalized = {
+    name: frontmatter["name"] ?? "",
+    description: frontmatter["description"] ?? "",
+    argumentHint: frontmatter["argument-hint"] ?? "",
+    version: frontmatter["version"] || "1.0.0",
+    platforms: parseFlowArray(frontmatter["platforms"], ["linux", "macos", "windows"]),
+    metadata: {
+      tags: parseFlowArray(frontmatter["metadata.tags"], []),
+      relatedSkills: parseFlowArray(frontmatter["metadata.related_skills"], []),
+    },
+  };
+
+  return { frontmatter, normalized, body };
+}
+
+/**
+ * Mirror of SkillLoader.parseFlowArray. Returns the supplied default
+ * when the input is empty so callers do not have to special-case missing
+ * frontmatter fields.
+ */
+function parseFlowArray(raw, fallback) {
+  if (!raw) return [...fallback];
+  let inner = String(raw).trim();
+  if (inner.startsWith("[") && inner.endsWith("]")) {
+    inner = inner.slice(1, -1);
+  }
+  const items = inner
+    .split(",")
+    .map((item) => item.trim().replace(/^["']|["']$/g, ""))
+    .filter((item) => item.length > 0);
+  return items.length > 0 ? items : [...fallback];
 }
 
 // ---------------------------------------------------------------------------

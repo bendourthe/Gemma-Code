@@ -2,6 +2,10 @@
 name: harden
 description: Add error handling, input validation, and edge-case coverage where a specific risk justifies it. Each addition must trace to a real failure mode.
 argument-hint: "[file or area]"
+version: 1.0.0
+platforms: [linux, macos, windows]
+metadata.tags: [robustness, error-handling, security]
+metadata.related_skills: [distill, critique]
 ---
 
 You are hardening code against realistic failure modes. The goal is robustness, NOT defensive paranoia. Every line you add must trace to a specific, identifiable risk.

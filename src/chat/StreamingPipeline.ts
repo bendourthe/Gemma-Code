@@ -3,6 +3,7 @@ import { OllamaError } from "../llm/types.js";
 import type { ConversationManager } from "./ConversationManager.js";
 import type { ExtensionToWebviewMessage } from "../panels/messages.js";
 import { formatForUser } from "../utils/errors.js";
+import { MemoryContextScrubber } from "./MemoryContextScrubber.js";
 
 export type PostMessageFn = (message: ExtensionToWebviewMessage) => void;
 
@@ -71,6 +72,10 @@ export class StreamingPipeline {
       this._abortController = new AbortController();
       let tokenCount = 0;
       let accumulated = "";
+      // v0.8.0 Phase 2 (item A2): strip <memory-context> spans from the
+      // streamed tokens. The scrubber holds back partial-tag tails across
+      // chunk boundaries so a tag split between chunks does not leak.
+      const scrubber = new MemoryContextScrubber();
 
       try {
         const ollamaMessages: OllamaMessage[] = this._manager
@@ -87,10 +92,19 @@ export class StreamingPipeline {
         for await (const chunk of stream) {
           const token = chunk.message.content;
           if (token) {
-            postMessage({ type: "token", value: token });
-            accumulated += token;
-            tokenCount++;
+            const cleaned = scrubber.feed(token);
+            if (cleaned) {
+              postMessage({ type: "token", value: cleaned });
+              accumulated += cleaned;
+              tokenCount++;
+            }
           }
+        }
+
+        const tail = scrubber.flush();
+        if (tail) {
+          postMessage({ type: "token", value: tail });
+          accumulated += tail;
         }
 
         const msg = this._manager.addAssistantMessage(accumulated);

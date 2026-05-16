@@ -35,6 +35,19 @@ Two tests cover the catalog:
 - [tests/unit/skills/SkillLoader.test.ts](../../tests/unit/skills/SkillLoader.test.ts) -- per-skill load assertion against the real on-disk catalog for each of the six new skills, plus argument-hint presence check.
 - [tests/integration/commands/skill-execution.test.ts](../../tests/integration/commands/skill-execution.test.ts) -- counts thirteen built-in skills total and exercises `$ARGUMENTS` substitution.
 
+### v0.8.0 Phase 2 amendment (item D1) -- extended agentskills.io schema
+
+v0.8.0 extends the SKILL.md frontmatter with four forward-compatible fields aligned with the agentskills.io schema. Pre-v0.8.0 files load unchanged: missing fields default to `version: 1.0.0`, all three platforms, and empty `metadata.tags` / `metadata.related_skills` lists.
+
+| Field | Type | Default | Purpose |
+|---|---|---|---|
+| `version` | semver string | `1.0.0` | Bump when the skill body changes meaningfully. |
+| `platforms` | flow array of `linux|macos|windows` | all three | Constrain which OSes the skill is offered on. |
+| `metadata.tags` | flow array of strings | `[]` | Free-form discovery tags (e.g. `git`, `testing`). |
+| `metadata.related_skills` | flow array of slugs | `[]` | Cross-references the catalogue uses for `/help` and the multi-harness packaging. |
+
+The parsers in [src/skills/SkillLoader.ts](../../src/skills/SkillLoader.ts) and [scripts/package-skills.mjs](../../scripts/package-skills.mjs) share the same `parseFlowArray` shape so the four harness adapters round-trip the fields without loss. Test coverage in [tests/unit/skills/SkillLoader.test.ts](../../tests/unit/skills/SkillLoader.test.ts) (full-schema parse, partial-schema parse with defaults) and [tests/unit/scripts/package-skills.test.ts](../../tests/unit/scripts/package-skills.test.ts) (round-trip invariance through `parseSkill`) keeps the two parsers in lockstep.
+
 ---
 
 ## 2. Memory file architecture (Phase 2)

@@ -205,6 +205,34 @@ jobs:
           node-version: "20"
       - run: node bin/gemma-check.mjs src/
 
+  # -- v0.8.0 Phase 2 (item C2) ---------------------------------------------
+  # Lifecycle bootstrap must exit 0 on Linux/macOS (init.sh) and Windows
+  # (init.ps1). Five verified steps before any work begins: install, lint,
+  # build, harness-files check, specialist-assets check.
+
+  init-check-posix:
+    name: init.sh (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: bash scripts/init.sh
+
+  init-check-windows:
+    name: init.ps1 (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: pwsh -File scripts/init.ps1
+        shell: pwsh
+
   # -- Installer unit tests --------------------------------------------------
 
   test-installer:

@@ -2,6 +2,10 @@
 name: generate-readme
 description: Create or update a production-quality README.md for the current project
 argument-hint: "[sections to include or focus area]"
+version: 1.0.0
+platforms: [linux, macos, windows]
+metadata.tags: [documentation, onboarding]
+metadata.related_skills: [analyze-codebase, generate-changelog]
 ---
 
 You are generating a professional README.md for this project. Follow these steps:

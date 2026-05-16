@@ -2,6 +2,10 @@
 name: commit
 description: Generate a conventional commit message from staged changes
 argument-hint: "[message hint or scope]"
+version: 1.0.0
+platforms: [linux, macos, windows]
+metadata.tags: [git, workflow]
+metadata.related_skills: [review-pr, polish]
 ---
 
 You are helping the user write a high-quality Git commit message for their staged changes.

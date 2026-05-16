@@ -1,4 +1,11 @@
 import type { SessionMetrics } from "../observability/MetricsCollector.js";
+import {
+  defaultFeatureListPath,
+  loadFeatureList,
+  markPassing,
+  saveFeatureList,
+  type FeatureList,
+} from "./FeatureList.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -122,4 +129,51 @@ export const GOLDEN_TASKS: readonly GoldenTask[] = [
     timeoutMs: 180_000,
   },
 ];
+
+// ---------------------------------------------------------------------------
+// v0.8.0 Phase 2 (item C1) -- feature_list.json stamp wiring.
+//
+// Maps the in-process golden task ids to the feature_list.json row they
+// verify. When a golden task passes we mark the matching feature row as
+// `passing` so the file self-updates as the suite runs.
+//
+// The YAML-driven golden runner (Python -- see ADR-0017) can call the same
+// helper via the JSON contract `node -e "require('./out/evaluation/...').stampGoldenTaskPass('gt-file-read', 'feature_list.json')"`.
+// ---------------------------------------------------------------------------
+
+const GOLDEN_TASK_TO_FEATURE_ID: Readonly<Record<string, string>> = {
+  "gt-file-read": "f005",
+  "gt-code-gen": "f002",
+  "gt-refactor": "f002",
+  "gt-debug": "f002",
+  "gt-test-gen": "f002",
+};
+
+/**
+ * Flip the feature row matching `taskId` to `passing` and persist the list.
+ * Returns `true` when a row was updated, `false` when no mapping or feature
+ * row exists. Errors (file missing, parse failure) propagate to the caller
+ * so the runner can decide whether to fail the suite or warn.
+ *
+ * `listPath` defaults to the project's `feature_list.json` at the supplied
+ * `repoRoot`. The `now` option is exposed for deterministic tests.
+ */
+export function stampGoldenTaskPass(
+  taskId: string,
+  repoRoot: string,
+  options: { listPath?: string; now?: Date } = {},
+): boolean {
+  const featureId = GOLDEN_TASK_TO_FEATURE_ID[taskId];
+  if (!featureId) return false;
+  const listPath = options.listPath ?? defaultFeatureListPath(repoRoot);
+  const list: FeatureList = loadFeatureList(listPath);
+  const changed = markPassing(list, featureId, { now: options.now });
+  if (changed) saveFeatureList(listPath, list);
+  return changed;
+}
+
+/** Exposed for tests + future runner integrations. */
+export function getGoldenTaskFeatureId(taskId: string): string | undefined {
+  return GOLDEN_TASK_TO_FEATURE_ID[taskId];
+}
 

@@ -229,3 +229,114 @@ describe("v0.7.0 skill expansion", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// v0.8.0 Phase 2 (item D1) -- agentskills.io schema extension
+// ---------------------------------------------------------------------------
+
+describe("v0.8.0 SKILL.md schema extension", () => {
+  let catalogDir: string;
+  let userDir: string;
+
+  beforeEach(() => {
+    catalogDir = makeTmpDir();
+    userDir = makeTmpDir();
+  });
+
+  afterEach(() => {
+    fs.rmSync(catalogDir, { recursive: true, force: true });
+    fs.rmSync(userDir, { recursive: true, force: true });
+  });
+
+  it("parses the full extended schema", () => {
+    writeSkill(
+      catalogDir,
+      "fancy",
+      {
+        name: "fancy",
+        description: "Does a thing",
+        "argument-hint": "[arg]",
+        version: "2.1.3",
+        platforms: "[linux, macos]",
+        "metadata.tags": "[git, workflow, docs]",
+        "metadata.related_skills": "[commit, polish]",
+      },
+      "Body",
+    );
+
+    const loader = new SkillLoader(catalogDir, userDir);
+    loader.load();
+    const skill = loader.getSkill("fancy");
+
+    expect(skill?.version).toBe("2.1.3");
+    expect(skill?.platforms).toEqual(["linux", "macos"]);
+    expect(skill?.metadata.tags).toEqual(["git", "workflow", "docs"]);
+    expect(skill?.metadata.relatedSkills).toEqual(["commit", "polish"]);
+  });
+
+  it("applies forward-compatible defaults when the new fields are missing", () => {
+    writeSkill(
+      catalogDir,
+      "legacy",
+      { name: "legacy", description: "Old skill", "argument-hint": "[arg]" },
+      "Body",
+    );
+
+    const loader = new SkillLoader(catalogDir, userDir);
+    loader.load();
+    const skill = loader.getSkill("legacy");
+
+    expect(skill?.version).toBe("1.0.0");
+    expect(skill?.platforms).toEqual(["linux", "macos", "windows"]);
+    expect(skill?.metadata.tags).toEqual([]);
+    expect(skill?.metadata.relatedSkills).toEqual([]);
+  });
+
+  it("accepts comma-separated platforms without brackets", () => {
+    writeSkill(
+      catalogDir,
+      "csv",
+      {
+        name: "csv",
+        description: "Comma form",
+        "argument-hint": "[x]",
+        platforms: "linux, macos",
+      },
+      "Body",
+    );
+
+    const loader = new SkillLoader(catalogDir, userDir);
+    loader.load();
+    expect(loader.getSkill("csv")?.platforms).toEqual(["linux", "macos"]);
+  });
+
+  it("falls back to default platforms when all entries are unknown", () => {
+    writeSkill(
+      catalogDir,
+      "bogus-platform",
+      {
+        name: "bogus-platform",
+        description: "Bad platforms",
+        "argument-hint": "[x]",
+        platforms: "[atari, beos]",
+      },
+      "Body",
+    );
+
+    const loader = new SkillLoader(catalogDir, userDir);
+    loader.load();
+    expect(loader.getSkill("bogus-platform")?.platforms).toEqual(["linux", "macos", "windows"]);
+  });
+
+  it("real catalog skills load with extended fields", () => {
+    const loader = new SkillLoader(
+      REAL_CATALOG_DIR,
+      path.join(REAL_CATALOG_DIR, "__nonexistent_user__"),
+    );
+    loader.load();
+    const commit = loader.getSkill("commit");
+    expect(commit?.version).toBe("1.0.0");
+    expect(commit?.platforms.length).toBeGreaterThan(0);
+    expect(commit?.metadata.tags.length).toBeGreaterThan(0);
+  });
+});

@@ -24,7 +24,25 @@ const DEFAULT_MAX_ITERATIONS = 20;
 const FILE_EDIT_TOOLS = new Set(["write_file", "edit_file", "create_file"]);
 const EPISODIC_TOOLS = new Set(["write_file", "edit_file", "create_file", "run_terminal", "grep_codebase"]);
 
+/**
+ * v0.8.0 Phase 2 (item C8) -- tools whose successful invocation counts as
+ * "verification" for pass-state gating. A run_terminal call that exited 0
+ * (lint, build, test, golden task, custom check command) is the canonical
+ * signal that the work was actually verified rather than self-declared.
+ */
+const VERIFICATION_TOOLS = new Set(["run_terminal"]);
+
 const MAX_RECENT_TOOL_RESULTS = 5;
+
+/**
+ * v0.8.0 Phase 2 (item C8) -- system message injected when the agent tries
+ * to terminate without a verification-class tool call since the last user
+ * message. The wording is paired with `passStateGating` so the agent can
+ * recover by running a real check rather than re-emitting "done".
+ */
+const PASS_STATE_GATING_NUDGE =
+  "[SYSTEM] Task cannot complete without verification. Run a verification tool " +
+  "(lint, build, test, or relevant check) and re-emit the completion signal.";
 
 /**
  * Phase 5 (v0.5.0): delegates to `countTokens` so AgentLoop's per-turn
@@ -80,6 +98,15 @@ export interface AgentLoopOptions {
    * verification sub-agent). Closes pen-test F-004.
    */
   readonly toolCallSource?: import("./types.js").ToolCallSource;
+  /**
+   * v0.8.0 Phase 2 (item C8) -- when true (default), the loop refuses to
+   * terminate via a no-tool-call "done" response unless at least one
+   * verification-class tool call has succeeded since the last user message.
+   * When the gate trips, a nudge system message is injected and the loop
+   * continues for one more iteration so the agent can run the missing check.
+   * Disable for non-coding workflows or tests that cannot run real commands.
+   */
+  readonly passStateGating?: boolean;
 }
 
 export class AgentLoop {
@@ -104,6 +131,20 @@ export class AgentLoop {
   private readonly _tracer: Tracer;
   private readonly _operationLog?: OperationLog;
   private readonly _toolCallSource?: import("./types.js").ToolCallSource;
+  private readonly _passStateGating: boolean;
+  /**
+   * Resets at the start of `run()` and flips to true when a
+   * verification-class tool call succeeds. Used by the pass-state gate to
+   * reject "done" terminations that have not been backed by a real check.
+   */
+  private _verifiedSinceUserMessage = false;
+  /**
+   * Tracks whether the gate has already injected the nudge this turn so a
+   * model that keeps emitting "done" cannot bounce between the nudge and
+   * a fresh user-visible error forever. After one nudge the gate falls
+   * through, the agent terminates, and the operator sees the trace.
+   */
+  private _gateNudgeIssued = false;
   private _gitCheckpoint: GitCheckpoint | null = null;
   private _traceId = "";
   private _rootSpanId = "";
@@ -134,6 +175,7 @@ export class AgentLoop {
     this._tracer = options?.tracer ?? new Tracer();
     this._operationLog = options?.operationLog;
     this._toolCallSource = options?.toolCallSource;
+    this._passStateGating = options?.passStateGating ?? true;
   }
 
   /** Set or replace the budget middleware (used for async tier config updates). */
@@ -189,6 +231,12 @@ export class AgentLoop {
     }
     this._cancelled = false;
     this._loopDetector?.reset();
+
+    // v0.8.0 Phase 2 (item C8): pass-state gate resets per user message.
+    // A new top-level run() call corresponds to a new user message, so any
+    // verification credit from the previous turn does not carry over.
+    this._verifiedSinceUserMessage = false;
+    this._gateNudgeIssued = false;
 
     // Start a trace for this agent loop session.
     const tracer = this._tracer;
@@ -298,6 +346,27 @@ export class AgentLoop {
     const { results: parseResults, hasAny } = parseToolCalls(accumulated);
 
     if (!hasAny) {
+      // v0.8.0 Phase 2 (item C8): pass-state gate. Refuse to terminate
+      // unless a verification-class tool call has succeeded since the
+      // last user message. The gate fires once per turn; if the agent
+      // still emits a tool-less response after the nudge we let it
+      // terminate so the operator can inspect the trace rather than
+      // bouncing forever.
+      if (
+        this._passStateGating &&
+        !this._verifiedSinceUserMessage &&
+        !this._gateNudgeIssued
+      ) {
+        this._gateNudgeIssued = true;
+        // Commit the would-be-final response as the assistant turn so the
+        // model's reasoning is preserved, then inject the nudge as a user
+        // message and let the loop run another iteration.
+        this._manager.addAssistantMessage(accumulated);
+        this._manager.addUserMessage(PASS_STATE_GATING_NUDGE);
+        tracer.endSpan(iterSpanId, "ok", { finalResponse: false, gateNudge: true });
+        return "continue";
+      }
+
       // No tool calls -> final response. Commit and finish.
       const msg = this._manager.addAssistantMessage(accumulated);
       postMessage({ type: "messageComplete", messageId: msg.id, renderedHtml: "" });
@@ -470,6 +539,13 @@ export class AgentLoop {
       if (filePath && !this._modifiedFiles.includes(filePath)) {
         this._modifiedFiles.push(filePath);
       }
+    }
+
+    // v0.8.0 Phase 2 (item C8): a successful verification-class tool call
+    // satisfies the pass-state gate. Failures do not credit the gate so
+    // the agent cannot launder a failing run_terminal into a "done" claim.
+    if (VERIFICATION_TOOLS.has(call.tool) && result.success) {
+      this._verifiedSinceUserMessage = true;
     }
 
     // Update working memory based on tool results.

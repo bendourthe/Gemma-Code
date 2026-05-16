@@ -46,6 +46,16 @@ Adopt the four-file architecture as a co-equal memory layer sitting alongside th
 - Neutral:
   - The SQL store is unchanged in shape; `MemoryStore.deleteById` is the only addition Phase 5 made (used by `/memory forget --include-sql` and the MemoryPanel "Promote / Delete" actions).
 
+### v0.8.0 Phase 2 amendment (item A1) -- frozen memory snapshot
+
+The original v0.7.0 design has `PromptBuilder` calling `MemoryFiles.read()` (mtime-cached) on every prompt build. That kept memory edits *live* across mid-session writes, but every disk write changed the prompt prefix bytes and busted the LLM's prefix cache.
+
+v0.8.0 Phase 2 introduces `MemorySnapshot` (`src/storage/MemorySnapshot.ts`). The host captures an immutable snapshot of the three files at session start and pins it on `PromptBuilder` via the new constructor argument / `setMemorySnapshot()` setter. While the snapshot is attached and in `frozen` mode (the default), `_readFileMemory()` returns the captured contents -- mid-session writes still land on disk via `appendToMemory` / `import` (so the next session sees them) but the rendered prompt remains byte-stable.
+
+A new setting `gemma-code.memorySnapshotMode = "frozen" | "live"` (default `frozen`) exposes the trade-off. `live` preserves the v0.7.0 behaviour for users who want real-time prompt reflection at the cost of cache churn.
+
+Tests: `tests/unit/storage/MemorySnapshot.test.ts` (snapshot capture immutability, frozen vs live mode), and `tests/unit/chat/PromptBuilder.test.ts` (prompt byte-stability across mid-session write in `frozen` mode; prompt reflects new content in `live` mode).
+
 ## Alternatives considered
 
 - **Replace SQL with files.** Rejected -- the SQL store backs FTS5 keyword search and Ollama-generated embedding similarity. Replacing it with raw files would have forced an in-memory index rebuild on every prompt build, breaking the v0.5.0 latency budget.

@@ -5,6 +5,7 @@ import { getSubAgentInstructions } from "../agents/SubAgentPrompts.js";
 import { serializeToolDefinitions } from "../tools/Gemma4ToolFormat.js";
 import { calculateBudget, countTokens } from "../config/PromptBudget.js";
 import type { MemoryFiles, MemoryFilesContents } from "../storage/MemoryFiles.js";
+import { readWithSnapshot, type MemorySnapshot } from "../storage/MemorySnapshot.js";
 import { getLogger } from "../utils/logger.js";
 import { PLAN_MODE_SYSTEM_ADDENDUM, PLAN_MODE_CAPABILITIES_REMINDER } from "./PlanMode.js";
 
@@ -78,8 +79,25 @@ export class PromptBuilder {
    * Instructions.md / Context.md inject between the bundled system prompt
    * and the SQL-backed memory; Memory.md injects last so the model sees the
    * user's most recent on-disk edits with the highest recency.
+   *
+   * v0.8.0 Phase 2 (item A1): an optional `MemorySnapshot` lets the host
+   * pin the file content for the lifetime of a session so prefix caches
+   * stay warm across mid-session writes. When omitted, every build reads
+   * fresh from `MemoryFiles` (v0.7.0 behaviour).
    */
-  constructor(private readonly _memoryFiles: MemoryFiles | null = null) {}
+  constructor(
+    private readonly _memoryFiles: MemoryFiles | null = null,
+    private _memorySnapshot: MemorySnapshot | null = null,
+  ) {}
+
+  /**
+   * Attach (or detach) a memory snapshot. The host calls this once after
+   * session-start capture so subsequent `build()` calls read from the
+   * frozen content. Pass `null` to revert to live reads.
+   */
+  setMemorySnapshot(snapshot: MemorySnapshot | null): void {
+    this._memorySnapshot = snapshot;
+  }
 
   /**
    * Assemble the system prompt from the given runtime context.
@@ -199,8 +217,17 @@ export class PromptBuilder {
     return sections;
   }
 
-  /** v0.7.0 Phase 2: pull the merged file-memory contents (mtime-cached). */
+  /**
+   * v0.7.0 Phase 2 / v0.8.0 Phase 2 (item A1): pull the merged file-memory
+   * contents. When a `MemorySnapshot` in `frozen` mode is attached, its
+   * captured content is returned directly so the rendered prompt remains
+   * byte-stable across mid-session disk writes; otherwise the merged
+   * contents are read live from `MemoryFiles` (mtime-cached).
+   */
   private _readFileMemory(): MemoryFilesContents | null {
+    if (this._memorySnapshot && this._memorySnapshot.info.mode === "frozen") {
+      return readWithSnapshot(this._memorySnapshot, this._memoryFiles);
+    }
     if (!this._memoryFiles) return null;
     try {
       return this._memoryFiles.read();

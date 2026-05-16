@@ -2,6 +2,10 @@
 name: setup-project
 description: Bootstrap a new project with standard structure, configuration files, and documentation
 argument-hint: "[project type: ts | python | go | rust]"
+version: 1.0.0
+platforms: [linux, macos, windows]
+metadata.tags: [scaffolding, project-setup, onboarding]
+metadata.related_skills: []
 ---
 
 You are bootstrapping a new project. Follow these steps:

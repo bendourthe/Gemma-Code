@@ -252,6 +252,24 @@
           "default": true,
           "description": "Automatically run a verification sub-agent after multiple file edits to check for bugs and test failures."
         },
+        "gemma-code.passStateGating": {
+          "type": "boolean",
+          "default": true,
+          "description": "v0.8.0 Phase 2 -- refuse to terminate a turn via a no-tool-call 'done' response unless at least one verification-class tool call (run_terminal returning exit 0, lint, build, test, golden task) has succeeded since the last user message. When the gate trips, the agent gets one system nudge and one more iteration to run the missing check before the loop terminates. Disable for non-coding workflows or tests that cannot run real commands."
+        },
+        "gemma-code.memorySnapshotMode": {
+          "type": "string",
+          "enum": [
+            "frozen",
+            "live"
+          ],
+          "enumDescriptions": [
+            "Capture Instructions.md / Memory.md / Context.md once at session start; mid-session writes go to disk but the rendered prompt keeps reading from the captured snapshot so LLM prefix caches stay warm.",
+            "Read the three memory files fresh on every prompt build (v0.7.0 behaviour). Mid-session edits show up in the next turn at the cost of busting the prefix cache."
+          ],
+          "default": "frozen",
+          "description": "v0.8.0 Phase 2 -- memory snapshot semantics for prefix-cache preservation. See ADR-0014 and src/storage/MemorySnapshot.ts."
+        },
         "gemma-code.verificationThreshold": {
           "type": "number",
           "default": 3,
@@ -450,6 +468,8 @@
     "package:quick": "vsce package",
     "package:skills": "node scripts/package-skills.mjs",
     "check": "node bin/gemma-check.mjs",
+    "cleanup:scan": "node scripts/cleanup-scanner.mjs",
+    "cleanup:scan:json": "node scripts/cleanup-scanner.mjs --format=json",
     "bench": "vitest bench --run --config configs/vitest.config.ts",
     "deps:check": "depcruise --config configs/dependency-cruiser.cjs src tests",
     "deps:graph": "depcruise --config configs/dependency-cruiser.cjs --output-type dot src | dot -Tsvg > docs/v0.5.0/dep-graph.svg",

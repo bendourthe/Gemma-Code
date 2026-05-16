@@ -80,6 +80,20 @@ export interface GemmaCodeSettings {
    * chat message. Off by default.
    */
   testgapsWorkerEnabled: boolean;
+  /**
+   * v0.8.0 Phase 2 (item C8): when true (default), `AgentLoop` refuses to
+   * terminate via a no-tool-call response unless at least one
+   * verification-class tool call has succeeded since the last user message.
+   * See ADR-0015 and `src/tools/AgentLoop.ts`.
+   */
+  passStateGating: boolean;
+  /**
+   * v0.8.0 Phase 2 (item A1): memory snapshot semantics. `frozen` (default)
+   * captures Instructions.md / Memory.md / Context.md once at session start
+   * so the rendered prompt stays byte-stable for prefix-cache stability.
+   * `live` re-reads on every prompt build (v0.7.0 behaviour).
+   */
+  memorySnapshotMode: "frozen" | "live";
 }
 
 export function getSettings(): GemmaCodeSettings {
@@ -157,6 +171,11 @@ export function getSettings(): GemmaCodeSettings {
     ),
     auditWorkerEnabled: config.get<boolean>("workers.audit.enabled") ?? false,
     testgapsWorkerEnabled: config.get<boolean>("workers.testgaps.enabled") ?? false,
+    passStateGating: config.get<boolean>("passStateGating") ?? true,
+    memorySnapshotMode: ((): "frozen" | "live" => {
+      const raw = config.get<string>("memorySnapshotMode") ?? "frozen";
+      return raw === "live" ? "live" : "frozen";
+    })(),
   };
 }
 

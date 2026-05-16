@@ -220,6 +220,7 @@ export class ChatController {
         maxTokens: deps.settings.maxTokens,
         tracer: deps.tracer,
         operationLog: deps.operationLog ?? undefined,
+        passStateGating: deps.settings.passStateGating,
       },
     );
   }

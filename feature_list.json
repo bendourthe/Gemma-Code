@@ -1,0 +1,194 @@
+{
+  "version": "v0.8.0",
+  "features": [
+    {
+      "id": "f001",
+      "name": "4-layer memory subsystem",
+      "description": "Working / episodic / semantic / graph layers backed by SQLite + FTS5 + optional HNSW vector index.",
+      "status": "passing",
+      "evidence": "src/storage/MemorySubsystem.ts",
+      "testedAt": "2026-05-06",
+      "verificationCommand": "npm run test -- tests/unit/storage/MemorySubsystem.test.ts"
+    },
+    {
+      "id": "f002",
+      "name": "6-stage compaction pipeline",
+      "description": "Hierarchical compaction with budget-aware section dropping and skill-budget reserve.",
+      "status": "passing",
+      "evidence": "src/chat/CompactionStrategy.ts",
+      "testedAt": "2026-05-06",
+      "verificationCommand": "npm run test -- tests/unit/chat/CompactionStrategy.test.ts"
+    },
+    {
+      "id": "f003",
+      "name": "Hardware tiers + auto-detection",
+      "description": "Three GPU tiers (Constrained / Balanced / Full) with auto-detect and override.",
+      "status": "passing",
+      "evidence": "src/runtime/HardwareTier.ts",
+      "testedAt": "2026-05-06",
+      "verificationCommand": "npm run test -- tests/unit/runtime"
+    },
+    {
+      "id": "f004",
+      "name": "Plan mode (toggle + step states)",
+      "description": "Plan mode toggle, draft / approve / reject step transitions, capability reminder.",
+      "status": "passing",
+      "evidence": "src/chat/PlanMode.ts",
+      "testedAt": "2026-05-06",
+      "verificationCommand": "npm run test -- tests/unit/chat/PlanMode.test.ts"
+    },
+    {
+      "id": "f005",
+      "name": "MCP client + opt-in server (stdio)",
+      "description": "MCP client integrates external MCP tools; opt-in stdio server exposes the read-only subset.",
+      "status": "passing",
+      "evidence": "src/mcp/",
+      "testedAt": "2026-05-06",
+      "verificationCommand": "npm run test -- tests/unit/mcp"
+    },
+    {
+      "id": "f006",
+      "name": "HNSW vector index for semantic search",
+      "description": "Optional hnswlib-node-backed index for memory semantic recall, activated at row-count threshold.",
+      "status": "passing",
+      "evidence": "src/storage/MemoryHnswIndex.ts",
+      "testedAt": "2026-05-06",
+      "verificationCommand": "npm run test -- tests/unit/storage/MemoryHnswIndex.test.ts"
+    },
+    {
+      "id": "f007",
+      "name": "Deterministic checks CLI (bin/gemma-check.mjs)",
+      "description": "Standalone CLI that runs deterministic rules (no-secret-patterns, console-noise, todo-without-issue, missing-tests) and emits JSON or text.",
+      "status": "passing",
+      "evidence": "bin/gemma-check.mjs",
+      "testedAt": "2026-05-06",
+      "verificationCommand": "node bin/gemma-check.mjs --json"
+    },
+    {
+      "id": "f008",
+      "name": "Background workers (audit + testgaps)",
+      "description": "Opt-in BackgroundWorkers that spawn gemma-check and vitest --coverage off the agent loop hot path.",
+      "status": "passing",
+      "evidence": "src/agents/BackgroundWorkers.ts",
+      "testedAt": "2026-05-06",
+      "verificationCommand": "npm run test -- tests/integration/background-workers-end-to-end.test.ts"
+    },
+    {
+      "id": "f009",
+      "name": "Webview render protocol (7 primitives)",
+      "description": "DIFF_CARD, ACTION_TAG, PERMISSION_PROMPT, TODO_BLOCK, THOUGHT_META_ROW, QUEUED_MESSAGE_FIELD, COMPLETION_REPORT.",
+      "status": "passing",
+      "evidence": "src/panels/webview/render/",
+      "testedAt": "2026-05-06",
+      "verificationCommand": "npm run test -- tests/unit/panels"
+    },
+    {
+      "id": "f010",
+      "name": "Compaction summary prefix framing",
+      "description": "Compaction outputs are prefixed with framing text that flags the summary as background reference, not active instructions.",
+      "status": "passing",
+      "evidence": "src/chat/prompts/compaction.md",
+      "testedAt": "2026-05-15",
+      "verificationCommand": "npm run test -- tests/unit/chat/CompactionStrategy.test.ts"
+    },
+    {
+      "id": "f011",
+      "name": "Plan-mode denial template",
+      "description": "Strong-framed denial template emitted as a system message on plan/step deny.",
+      "status": "passing",
+      "evidence": "src/chat/PlanMode.ts",
+      "testedAt": "2026-05-15",
+      "verificationCommand": "npm run test -- tests/unit/chat/PlanMode.test.ts"
+    },
+    {
+      "id": "f012",
+      "name": "Plan-mode capabilities reminder",
+      "description": "Capabilities note describing the 7 render primitives injected on plan-mode entry.",
+      "status": "passing",
+      "evidence": "src/chat/prompts/planModeCapabilities.md",
+      "testedAt": "2026-05-15",
+      "verificationCommand": "npm run test -- tests/unit/chat/PlanMode.test.ts"
+    },
+    {
+      "id": "f013",
+      "name": "Plan approveWithNotes path",
+      "description": "Plan can be approved while attaching implementation notes for the executor.",
+      "status": "passing",
+      "evidence": "src/chat/PlanMode.ts",
+      "testedAt": "2026-05-15",
+      "verificationCommand": "npm run test -- tests/unit/chat/PlanMode.test.ts"
+    },
+    {
+      "id": "f014",
+      "name": "feature_list.json scope contract",
+      "description": "Machine-readable feature list with loader, validator, and golden-suite pass-state stamping.",
+      "status": "not_started",
+      "evidence": "feature_list.json",
+      "testedAt": null,
+      "verificationCommand": "npm run test -- tests/unit/evaluation/FeatureList.test.ts"
+    },
+    {
+      "id": "f015",
+      "name": "init.sh / init.ps1 lifecycle bootstrap",
+      "description": "5-step verified bootstrap: install, lint, build, harness-files check, sample-assets check.",
+      "status": "not_started",
+      "evidence": "scripts/init.sh",
+      "testedAt": null,
+      "verificationCommand": "bash scripts/init.sh"
+    },
+    {
+      "id": "f016",
+      "name": "Clean-state end-of-session gate + scanner",
+      "description": "30-item end-of-session checklist plus cleanup-scanner.mjs that surfaces orphan rows, dangling embeddings, deleted-path references, and stale cache files.",
+      "status": "not_started",
+      "evidence": "clean-state-checklist.md",
+      "testedAt": null,
+      "verificationCommand": "node scripts/cleanup-scanner.mjs --format=json"
+    },
+    {
+      "id": "f017",
+      "name": "Pass-state gating in AgentLoop",
+      "description": "AgentLoop refuses to declare task done unless a verification-class tool call has succeeded since the last user message.",
+      "status": "not_started",
+      "evidence": "src/tools/AgentLoop.ts",
+      "testedAt": null,
+      "verificationCommand": "npm run test -- tests/unit/tools/AgentLoop.test.ts"
+    },
+    {
+      "id": "f018",
+      "name": "Frozen memory snapshot at session start",
+      "description": "MemorySnapshot captures Instructions.md / Memory.md / Context.md once per session so prefix caches stay warm.",
+      "status": "not_started",
+      "evidence": "src/storage/MemorySnapshot.ts",
+      "testedAt": null,
+      "verificationCommand": "npm run test -- tests/unit/storage/MemorySnapshot.test.ts"
+    },
+    {
+      "id": "f019",
+      "name": "Streaming memory-context scrubber FSM",
+      "description": "Stateful FSM that strips <memory-context> spans from streaming chunks across boundary splits.",
+      "status": "not_started",
+      "evidence": "src/chat/MemoryContextScrubber.ts",
+      "testedAt": null,
+      "verificationCommand": "npm run test -- tests/unit/chat/MemoryContextScrubber.test.ts"
+    },
+    {
+      "id": "f020",
+      "name": "Prompt-injection scanner",
+      "description": "Pattern + invisible-unicode scanner enforced at MemoryStore write and MemoryFiles read boundaries.",
+      "status": "not_started",
+      "evidence": "src/guardrails/PromptInjectionScanner.ts",
+      "testedAt": null,
+      "verificationCommand": "npm run test -- tests/unit/guardrails/PromptInjectionScanner.test.ts"
+    },
+    {
+      "id": "f021",
+      "name": "Extended SKILL.md YAML frontmatter",
+      "description": "Skill loader accepts version, platforms, metadata.tags, metadata.related_skills; mirror parser in package-skills.mjs round-trips through 4 harness adapters.",
+      "status": "not_started",
+      "evidence": "src/skills/SkillLoader.ts",
+      "testedAt": null,
+      "verificationCommand": "npm run test -- tests/unit/skills/SkillLoader.test.ts"
+    }
+  ]
+}

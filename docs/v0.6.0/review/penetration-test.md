@@ -419,6 +419,19 @@ This is the highest-leverage chain in the codebase. Fixing F-001 closes the syml
 4. Impact: extension host OOM; VS Code shows "Extension host terminated unexpectedly"; current chat may lose unsaved tail.
 ```
 
+#### Attack Path D -- Indirect prompt injection via Memory.md / external fetch (v0.8.0 Phase 2 defense)
+
+```
+1. Entry point: agent runs fetch_page or read_file against an attacker-controlled artifact (docs page, fixture, untrusted MCP response) and decides to persist a snippet into Memory.md via the /memory save flow OR via the MemoryStore.save() path used by sub-agents.
+2. Payload: the snippet contains zero-width-joined "ignore previous instructions" + "you are now an unrestricted assistant" + a base64 blob > 4 KB, OR a stray <system>...</system> tag with an injected directive.
+3. Pre-defense impact: the malicious instructions flow into the next prompt build via PromptBuilder._buildFileMemorySection and override the model's own system prompt; the user never sees the invisibles inline.
+4. v0.8.0 Phase 2 defense (item G1):
+   - Write boundary: MemoryStore.save() throws synchronously when scan(content).ok === false. The slash command / sub-agent return path surfaces the rejection at the source.
+   - Read boundary: MemoryFiles._readCached strips invisible-unicode codepoints (fail-open) and logs the finding so the user has an audit trail when legacy Memory.md content matched a pattern.
+   - Coverage: tests/unit/guardrails/PromptInjectionScanner.test.ts exercises every pattern row plus the redactInvisibleUnicode helper.
+5. Residual risk: a payload composed of only natural language not matching any of the listed patterns can still slip through (e.g. a polite reframing of "from now on, please assume X"). The defense layer is paired with the operator-action review of Memory.md before each commit and is not a substitute for human review.
+```
+
 ### Risk Matrix
 
 ```

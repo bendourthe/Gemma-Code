@@ -29,6 +29,7 @@ import type { ChatHistoryStore } from "../storage/ChatHistoryStore.js";
 import type { MemoryStore } from "../storage/MemoryStore.js";
 import type { MemorySubsystem } from "../storage/MemorySubsystem.js";
 import type { MemoryFiles } from "../storage/MemoryFiles.js";
+import { MemorySnapshot } from "../storage/MemorySnapshot.js";
 import type { ToolOutputCache } from "../storage/ToolOutputCache.js";
 import type { WebResponseCache } from "../tools/handlers/webCache.js";
 import type { OperationLog } from "../observability/OperationLog.js";
@@ -155,8 +156,21 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
   // PromptBuilder so the read result is wired into every prompt build.
   const memoryFiles = buildMemoryFiles(settings);
 
+  // v0.8.0 Phase 2 (item A1): capture an immutable snapshot of the three
+  // memory files at session start. `frozen` mode (default) keeps the
+  // rendered prompt byte-stable for the lifetime of the session so the
+  // LLM prefix cache survives mid-session writes; `live` mode preserves
+  // the v0.7.0 behaviour of re-reading on every build.
+  const memorySnapshot = memoryFiles
+    ? MemorySnapshot.captureAtSessionStart(
+        memoryFiles.workspaceId,
+        memoryFiles,
+        settings.memorySnapshotMode,
+      )
+    : null;
+
   const planMode = new PlanMode();
-  const promptBuilder = new PromptBuilder(memoryFiles);
+  const promptBuilder = new PromptBuilder(memoryFiles, memorySnapshot);
 
   // The ToolActivation reads late-binding state via callbacks so prompt
   // rebuilds reflect the latest mcpTools, settings, ollama reachability and

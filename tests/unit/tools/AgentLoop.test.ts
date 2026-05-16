@@ -606,4 +606,94 @@ describe("AgentLoop", () => {
       expect(posted.some((m) => m.type === "gitCheckpoint")).toBe(false);
     });
   });
+
+  describe("pass-state gating (v0.8.0 Phase 2 item C8)", () => {
+    const runTerminalCallText =
+      '<|tool_call>call:run_terminal{command:<|"|>npm test<|"|>}<tool_call|>';
+
+    it("verified task: run_terminal success counts as verification and the loop terminates normally", async () => {
+      const client = makeMultiClient([runTerminalCallText, "All tests pass."]);
+      const loop = new AgentLoop(client, manager, registry, "gemma3:27b");
+      const { posted, postMessage } = collectMessages();
+
+      await loop.run(postMessage);
+
+      expect(registry.execute).toHaveBeenCalledOnce();
+      expect(posted.some((m) => m.type === "messageComplete")).toBe(true);
+      // No nudge injected because the gate was satisfied.
+      const userCalls = (manager.addUserMessage as ReturnType<typeof vi.fn>).mock.calls.map(
+        (c: unknown[]) => c[0] as string,
+      );
+      expect(userCalls.some((c) => c.includes("Task cannot complete without verification"))).toBe(false);
+    });
+
+    it("unverified task: emits nudge once and gives the agent another iteration", async () => {
+      // No tool call on either turn -> first 'Done.' triggers nudge, second terminates.
+      const client = makeMultiClient(["Done.", "Done."]);
+      const loop = new AgentLoop(client, manager, registry, "gemma3:27b");
+      const { posted, postMessage } = collectMessages();
+
+      await loop.run(postMessage);
+
+      const userCalls = (manager.addUserMessage as ReturnType<typeof vi.fn>).mock.calls.map(
+        (c: unknown[]) => c[0] as string,
+      );
+      const nudgeCount = userCalls.filter((c) =>
+        c.includes("Task cannot complete without verification"),
+      ).length;
+      expect(nudgeCount).toBe(1);
+      // After the nudge the loop still terminates so the operator can inspect.
+      expect(posted.some((m) => m.type === "messageComplete")).toBe(true);
+    });
+
+    it("passStateGating: false disables the gate", async () => {
+      const client = makeClient("Done with no verification at all.");
+      const loop = new AgentLoop(
+        client,
+        manager,
+        registry,
+        "gemma3:27b",
+        20,
+        undefined,
+        undefined,
+        undefined,
+        { passStateGating: false },
+      );
+      const { postMessage } = collectMessages();
+
+      await loop.run(postMessage);
+
+      const userCalls = (manager.addUserMessage as ReturnType<typeof vi.fn>).mock.calls.map(
+        (c: unknown[]) => c[0] as string,
+      );
+      expect(userCalls.some((c) => c.includes("Task cannot complete without verification"))).toBe(false);
+    });
+
+    it("failed run_terminal does NOT credit the gate", async () => {
+      const failingRegistry = mockOf<ToolRegistry>({
+        execute: vi
+          .fn<[ToolCall], Promise<ToolResult>>()
+          .mockResolvedValue({
+            id: "call_001",
+            success: false,
+            output: "",
+            error: "exit 1",
+          }),
+        register: vi.fn(),
+        has: vi.fn(() => true),
+      });
+      const client = makeMultiClient([runTerminalCallText, "Done anyway.", "Done anyway."]);
+      const loop = new AgentLoop(client, manager, failingRegistry, "gemma3:27b");
+      const { postMessage } = collectMessages();
+
+      await loop.run(postMessage);
+
+      const userCalls = (manager.addUserMessage as ReturnType<typeof vi.fn>).mock.calls.map(
+        (c: unknown[]) => c[0] as string,
+      );
+      expect(
+        userCalls.some((c) => c.includes("Task cannot complete without verification")),
+      ).toBe(true);
+    });
+  });
 });

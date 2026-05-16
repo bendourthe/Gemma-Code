@@ -54,6 +54,72 @@ describe("parseSkill", () => {
     const { frontmatter } = parseSkill(raw);
     expect(frontmatter.description).toBe("bar");
   });
+
+  // v0.8.0 Phase 2 (item D1) -- extended agentskills.io schema. The
+  // mirror parser exposes a `normalized` object so harness adapters can
+  // round-trip the new fields without re-parsing the raw frontmatter.
+
+  it("normalizes the extended schema with sensible defaults", () => {
+    const raw = `---\nname: foo\ndescription: A skill\nargument-hint: "[arg]"\n---\nbody`;
+    const { normalized } = parseSkill(raw);
+    expect(normalized.version).toBe("1.0.0");
+    expect(normalized.platforms).toEqual(["linux", "macos", "windows"]);
+    expect(normalized.metadata.tags).toEqual([]);
+    expect(normalized.metadata.relatedSkills).toEqual([]);
+  });
+
+  it("parses explicit version, platforms, and metadata fields", () => {
+    const raw = [
+      "---",
+      "name: foo",
+      "description: A skill",
+      "argument-hint: [arg]",
+      "version: 2.3.4",
+      "platforms: [linux, macos]",
+      "metadata.tags: [git, docs]",
+      "metadata.related_skills: [bar, baz]",
+      "---",
+      "body",
+    ].join("\n");
+    const { normalized } = parseSkill(raw);
+    expect(normalized.version).toBe("2.3.4");
+    expect(normalized.platforms).toEqual(["linux", "macos"]);
+    expect(normalized.metadata.tags).toEqual(["git", "docs"]);
+    expect(normalized.metadata.relatedSkills).toEqual(["bar", "baz"]);
+  });
+
+  it("round-trips every harness adapter without losing the normalized fields", () => {
+    const raw = [
+      "---",
+      "name: roundtrip",
+      "description: A skill",
+      "argument-hint: [arg]",
+      "version: 1.5.0",
+      "platforms: [linux]",
+      "metadata.tags: [t1, t2]",
+      "metadata.related_skills: [r1]",
+      "---",
+      "Body of skill",
+    ].join("\n");
+    const before = parseSkill(raw).normalized;
+    for (const harness of HARNESSES) {
+      const rendered = harness.render(raw, "roundtrip");
+      // After render, the bytes may differ (cursor adapter rewrites the
+      // frontmatter), but `parseSkill` should still recover the
+      // normalized fields when the harness left them in the frontmatter.
+      // For cursor specifically the original fields are preserved as
+      // comments; we accept that the normalized fields can be empty for
+      // cursor and assert on the other three.
+      if (harness.id === "cursor") continue;
+      const after = parseSkill(rendered).normalized;
+      expect(after.version, `${harness.id} lost version`).toBe(before.version);
+      expect(after.platforms, `${harness.id} lost platforms`).toEqual(before.platforms);
+      expect(after.metadata.tags, `${harness.id} lost tags`).toEqual(before.metadata.tags);
+      expect(after.metadata.relatedSkills, `${harness.id} lost related_skills`).toEqual(
+        before.metadata.relatedSkills,
+      );
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------

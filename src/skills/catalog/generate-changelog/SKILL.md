@@ -2,6 +2,10 @@
 name: generate-changelog
 description: Generate or update CHANGELOG.md from the git history following Keep a Changelog format
 argument-hint: "[version or date range]"
+version: 1.0.0
+platforms: [linux, macos, windows]
+metadata.tags: [git, documentation, release]
+metadata.related_skills: [commit, generate-readme]
 ---
 
 You are generating a CHANGELOG.md for this project following the Keep a Changelog format (https://keepachangelog.com).
