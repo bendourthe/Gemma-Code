@@ -1,3 +1,10 @@
+# [0.14.0](https://github.com/bendourthe/Gemma-Code/compare/v0.13.0...v0.14.0) (2026-05-16)
+
+
+### Features
+
+* **v0.8.0:** Phase 6 P2 backlog (sync return, intuition, reflect, workflow, arch lint, model pins, tool replay, stream events, cursor mdc) ([f0f705f](https://github.com/bendourthe/Gemma-Code/commit/f0f705fcc4f7a1f7d1e368bd85dd2df1f6e3927e))
+
 # [0.13.0](https://github.com/bendourthe/Gemma-Code/compare/v0.12.0...v0.13.0) (2026-05-16)
 
 
