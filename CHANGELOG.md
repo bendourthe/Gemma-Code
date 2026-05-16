@@ -1,3 +1,10 @@
+## [0.15.3](https://github.com/bendourthe/Gemma-Code/compare/v0.15.2...v0.15.3) (2026-05-16)
+
+
+### Bug Fixes
+
+* **harness:** unblock Windows vitest suite + land v0.9.0 Phase 1 ([f094ba6](https://github.com/bendourthe/Gemma-Code/commit/f094ba605093a173b7b2f0761b25a86deaf04cee))
+
 ## [0.15.2](https://github.com/bendourthe/Gemma-Code/compare/v0.15.1...v0.15.2) (2026-05-16)
 
 
