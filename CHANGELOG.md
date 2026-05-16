@@ -1,3 +1,10 @@
+# [0.16.0](https://github.com/bendourthe/Gemma-Code/compare/v0.15.3...v0.16.0) (2026-05-16)
+
+
+### Features
+
+* **v0.9.0:** Phase 2 wire deferred v0.8.0 pure modules into production code paths ([df3153b](https://github.com/bendourthe/Gemma-Code/commit/df3153b399ca0b8f9d967af5a81cc165e7d97f31))
+
 ## [0.15.3](https://github.com/bendourthe/Gemma-Code/compare/v0.15.2...v0.15.3) (2026-05-16)
 
 
