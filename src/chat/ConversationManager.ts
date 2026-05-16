@@ -6,6 +6,12 @@ import type { ChatHistoryStore } from "../storage/ChatHistoryStore.js";
 /** Maximum characters used as the session title (truncated first user message). */
 const SESSION_TITLE_MAX_CHARS = 60;
 
+/**
+ * v0.8.0 Phase 6.8 -- upper bound on the in-memory tool-call-bytes LRU.
+ * Sized to cover ~3 long agent loops without unbounded growth.
+ */
+const MAX_TOOL_CALL_BYTES = 256;
+
 export class ConversationManager {
   private readonly _messages: Message[] = [];
   private readonly _onDidChange = new vscode.EventEmitter<readonly Message[]>();
@@ -22,6 +28,14 @@ export class ConversationManager {
    * user clicks the stop button.
    */
   private _queuedMessages: string[] = [];
+
+  /**
+   * v0.8.0 Phase 6.8 (item E1) -- exact rendered tool-call bytes keyed by
+   * `toolCallId`. On compaction replay the stored bytes are preferred over
+   * re-rendering so the operator sees the same text the model originally
+   * produced, char-for-char. LRU-bounded; see {@link MAX_TOOL_CALL_BYTES}.
+   */
+  private readonly _toolCallBytes = new Map<string, string>();
 
   // Running total of Message.content character lengths across all messages.
   // Maintained by every mutation path so estimators can read it in O(1)
@@ -280,6 +294,37 @@ export class ConversationManager {
   /** Phase 4.6 -- inspector for tests. */
   get queuedCount(): number {
     return this._queuedMessages.length;
+  }
+
+  // -------------------------------------------------------------------------
+  // v0.8.0 Phase 6.8 -- tool-call exact-bytes replay
+  // -------------------------------------------------------------------------
+
+  /**
+   * Persist the rendered bytes for a tool call. LRU-evict oldest entries
+   * past {@link MAX_TOOL_CALL_BYTES}. Re-inserting an existing id moves it
+   * to the end of the insertion order (LRU touch).
+   */
+  storeToolCallBytes(toolCallId: string, bytes: string): void {
+    if (this._toolCallBytes.has(toolCallId)) {
+      this._toolCallBytes.delete(toolCallId);
+    }
+    this._toolCallBytes.set(toolCallId, bytes);
+    while (this._toolCallBytes.size > MAX_TOOL_CALL_BYTES) {
+      const oldest = this._toolCallBytes.keys().next().value;
+      if (oldest === undefined) break;
+      this._toolCallBytes.delete(oldest);
+    }
+  }
+
+  /** Retrieve the rendered bytes for a tool call, or null if not stored. */
+  getToolCallBytes(toolCallId: string): string | null {
+    return this._toolCallBytes.get(toolCallId) ?? null;
+  }
+
+  /** Inspector for tests. */
+  get toolCallBytesCount(): number {
+    return this._toolCallBytes.size;
   }
 
   dispose(): void {

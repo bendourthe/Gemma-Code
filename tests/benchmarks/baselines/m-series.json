@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "description": "v0.8.0 Phase 6.7 (item F6) -- Measured tok/s and recommended quantisation per Apple Silicon unified-memory tier. Captured per machine (operator-action); rows added as data becomes available. The PyQt installer's macOS post-install flow reads this file to recommend a starting model + quant.",
+  "captures": [
+    {
+      "machine": "M3 Pro 18GB",
+      "unifiedMemoryGB": 18,
+      "tier": "balanced",
+      "model": "gemma4:e4b",
+      "quant": "Q4_K_S",
+      "tokensPerSecond": null,
+      "promptLatencyMs": null,
+      "outputLatencyMs": null,
+      "capturedAt": null,
+      "status": "deferred-to-operator",
+      "notes": "Placeholder row -- requires Apple Silicon hardware access. Operator must run `npm run bench -- --m-series --machine='M3 Pro 18GB'` on a quiescent host."
+    }
+  ],
+  "recommendations": {
+    "16": {
+      "model": "gemma4:e4b",
+      "quant": "Q4_K_S",
+      "rationale": "16 GB tier: 4-bit quant fits comfortably with overhead for the editor + VSCode."
+    },
+    "24": {
+      "model": "gemma4:e4b",
+      "quant": "Q4_K_M",
+      "rationale": "24 GB tier: 4-bit medium quant balances throughput and quality (anchor: jola.dev measured ~40 tok/s)."
+    },
+    "36": {
+      "model": "gemma4:e4b",
+      "quant": "Q5_K_M",
+      "rationale": "36 GB tier: 5-bit quant gives a measurable quality bump with headroom for the editor."
+    },
+    "64": {
+      "model": "gemma4:e4b",
+      "quant": "Q6_K",
+      "rationale": "64+ GB tier: 6-bit quant approaches FP16 quality; operator may also run the e8b checkpoint."
+    }
+  }
+}

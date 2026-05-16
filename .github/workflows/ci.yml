@@ -205,6 +205,22 @@ jobs:
           node-version: "20"
       - run: node bin/gemma-check.mjs src/
 
+  # -- v0.8.0 Phase 6.5 (item C6) -------------------------------------------
+  # Architecture boundary check via dependency-cruiser. Fails fast on any
+  # violation; re-run `bash scripts/check-architecture.sh --verbose` to inspect.
+
+  check-architecture:
+    name: check-architecture
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci --prefer-offline --no-audit
+      - run: bash scripts/check-architecture.sh
+
   # -- v0.8.0 Phase 2 (item C2) ---------------------------------------------
   # Lifecycle bootstrap must exit 0 on Linux/macOS (init.sh) and Windows
   # (init.ps1). Five verified steps before any work begins: install, lint,

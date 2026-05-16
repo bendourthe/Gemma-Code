@@ -314,7 +314,22 @@ export class AgentLoop {
       const check = this._budgetMiddleware.checkPreTurn();
       if (!check.allowed) {
         if (check.action === "compact" && this._compactor) {
-          await this._compactor.compact(postMessage, true);
+          // v0.8.0 Phase 6.1: inspect the three-state result. `rebuild-needed`
+          // means the snapshot path must take over; we currently fall back to
+          // a soft abort so the operator sees the reason rather than a silent
+          // truncation. A future cycle will wire snapshot restore here.
+          const compactResult = await this._compactor.compact(postMessage, true);
+          if (compactResult.state === "error") {
+            postMessage({ type: "error", text: `Compaction failed: ${compactResult.error}` });
+            return "abort";
+          }
+          if (compactResult.state === "rebuild-needed") {
+            postMessage({
+              type: "error",
+              text: `Conversation cannot be compacted further (${compactResult.reason}). Start a new session or restore from a memory snapshot.`,
+            });
+            return "abort";
+          }
           const recheck = this._budgetMiddleware.checkPreTurn();
           if (!recheck.allowed) {
             postMessage({ type: "error", text: `Budget exhausted: ${recheck.reason}` });
@@ -386,7 +401,15 @@ export class AgentLoop {
       postMessage({ type: "messageComplete", messageId: msg.id, renderedHtml: "" });
       this._postTokenCount(postMessage);
       if (this._compactor) {
-        await this._compactor.compact(postMessage);
+        // v0.8.0 Phase 6.1: log a warning for non-ok states but still complete
+        // the turn -- the next user message will trigger a fresh check.
+        const result = await this._compactor.compact(postMessage);
+        if (result.state === "rebuild-needed") {
+          postMessage({
+            type: "compactionStatus",
+            text: `Conversation should be rebuilt: ${result.reason}`,
+          });
+        }
       }
       tracer.endSpan(iterSpanId, "ok", { finalResponse: true });
       return "done";

@@ -4,6 +4,66 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-16] v0.8.0 Phase 6 -- P2 backlog
+
+### Goal
+
+Ship the nine P2 items from the multi-source comparison plus the v0.7.0 Phase 6 Cursor-adapter carryover: three-state sync return for `ContextCompactor`, an in-memory anticipatory context cache, a nightly Reflect job, a workflow detector that proposes skills after the 3rd recurrence, an architecture-linter wrapper invoked from `init.sh` and CI, per-model TTL + pin/unpin/unload UI, the M-series tier-recommendation table, exact-bytes tool-call replay storage, streaming-aware tool emission events, and a native `.cursor/rules/<slug>.mdc` shape for the Cursor adapter. Closes v0.8.0 plan sub-tasks 6.1 through 6.10 plus 6.A, and v0.7.0 in-cycle gap row 10.O.7.
+
+### Decisions
+
+#### 6.1: ContextCompactor returns `{state, ...}` instead of `void`
+
+`compact(postMessage, force)` now resolves to one of three discriminated objects: `{state: "ok", summary}` on success (covering both the "below threshold" no-op and a successful pipeline run), `{state: "error", error}` when the pre-compaction hook or the pipeline throws, and `{state: "rebuild-needed", reason}` when the pipeline finishes but the post-compaction estimate still exceeds `maxTokens`. Callers in `AgentLoop._runIteration` and `ChatCommandHandlers._handleCompact` inspect the discriminant; the AgentLoop pre-turn budget check treats `rebuild-needed` as a soft abort with an explicit chat message (a future cycle will wire `MemorySnapshot.loadLatest` into that branch -- see 10.O.S).
+
+#### 6.2: IntuitionCache is a pure LRU keyed by `(currentFile, recentTools[0:5])`
+
+`prefetch({currentFile, recentTools})` returns a cached `MemoryEntry[]` within the 30 s warmth window or runs the supplied ranker once on miss. The ranker is injection-typed (`IntuitionRanker`) so tests can wire deterministic stubs and the live caller can pass through `HybridRanker.rank`. Cache is disabled by default (`gemma-code.memory.anticipatoryCache = false`); enabling it does not change retrieval correctness because the panel surfaces the cached entries under "anticipated context" only -- the agent still re-fetches on the next turn. The panel-side wiring is deferred (10.O.T).
+
+#### 6.3: ReflectJob splits dryRun / apply / rollback with explicit hardware-tier gating
+
+`dryRun()` walks the last 24 h of episodic memory, buckets events by an `<action>::<context-head>` key, drops clusters under `minClusterSize=3`, and on `balanced`/`full` hardware tiers calls the injected `LessonGenerator` (the curator's auxiliary-call pattern from Phase 5.2) to produce a one-paragraph lesson per cluster. On `constrained` tiers the manifest lists clusters with empty lessons so the operator can review without paying the inference cost. `apply(manifestId)` appends each lesson to `Memory.md` under a `## Reflected Lessons` section (creating the section on first apply); a sibling `<rollback-id>-rollback.json` records the pre-apply bytes so `rollback(rollbackId)` can restore them exactly. The nightly scheduler is deferred (10.O.U) -- v0.9.0 will register `reflect` as a fourth background-worker dispatch branch.
+
+#### 6.4: WorkflowDetector extracts session-bounded n-grams (length 3-7) and writes drafts under `proposed/`
+
+`detect(events)` filters to the 7-day window, groups by `sessionId` so n-grams never cross session boundaries, and counts every length-3-to-7 slice. Proposals are returned with the **tool sequence**, **recurrence count**, **first/last seen**, and a deterministic `slug` (`slugifyTools` lowercases + kebabs the tool names, bounded at 80 chars). `writeProposedSkill(proposal, skillsRoot)` writes `<skillsRoot>/proposed/<slug>/SKILL.md` with a complete v0.8.0 Phase 2.8 frontmatter (`version: 0.1.0`, `platforms: [linux, macos, windows]`, `metadata.tags: [workflow, auto-harvested]`) -- the operator must move the file out of `proposed/` to activate. Three new settings are added to the `gemma-code.skills.*` namespace (`harvest`, `harvestMinRecurrence`, `harvestWindowDays`); the panel-banner UI is deferred (10.O.V).
+
+#### 6.5: `check-architecture.{sh,ps1}` is a thin wrapper over `npm run deps:check`
+
+Both scripts run `deps:check` (dep-cruise against `configs/dependency-cruiser.cjs`), exit `0` on success, exit `1` on any boundary violation, and exit `2` if `npm` is missing. With `--verbose`/`-Verbose` they dump the captured depcruise log; without verbose they print a one-line violation count. `init.sh` is bumped from "Step 5/5" to "Step 6/6" so a contributor running the bootstrap sees boundary issues immediately. A new `check-architecture` job in `.github/workflows/ci.yml` runs the script on every push/PR.
+
+#### 6.6: ModelPinRegistry computes the `keep_alive` hint; the streaming-pipeline wiring is staged
+
+`ModelPinRegistry` tracks per-model `lastLoadedAt` and `pinned` state. `keepAliveFor(model)` returns `-1` for pinned models (Ollama's "never evict" sentinel), `process.env.OLLAMA_KEEP_ALIVE` if the operator overrode it, or `"5m"` (Ollama's default) otherwise. The Memory panel gains a sixth tab (`Models`) with a "TTL since last load" readout, a `Pin`/`Unpin` toggle, and an `Unload` button; each button posts a typed message (`modelPin` / `modelUnpin` / `modelUnload`) defined in `src/panels/messages.ts`. The streaming-pipeline read of `registry.keepAliveFor` is deferred (10.O.W) so the wire change is staged behind the panel-side readout.
+
+#### 6.7: M-series tier baseline ships as a schema + recommendation table; live captures are operator-action
+
+`tests/benchmarks/baselines/m-series.json` has schema 1 with two top-level keys: `captures[]` (per-measurement rows with `machine` / `unifiedMemoryGB` / `tier` / `model` / `quant` / tok/s + latency / `capturedAt`) and `recommendations` (per-memory-tier `{model, quant, rationale}`). The dev workstation has no Apple Silicon access so the file ships with one placeholder row (`status: deferred-to-operator`) and the populated recommendation table the installer reads. The companion guide at `docs/v0.8.0/m-series-tier-guide.md` documents the capture procedure (`npm run bench -- --m-series --machine=...`) and maps tier to model + quant. Tracked as a P1 operator-action (10.O.X).
+
+#### 6.8: ConversationManager stores tool-call bytes in a 256-entry LRU, persistence deferred
+
+`storeToolCallBytes(callId, bytes)` and `getToolCallBytes(callId)` provide a `Map<string, string>` LRU bounded at 256 entries. Re-inserting an existing id moves it to the most-recently-used slot. The intent is to feed the v0.6.0 compaction pipeline so `RegenerateFromSource` and the LLM-summary fallback can prefer stored bytes over re-rendering -- but that integration ships in v0.9.0 because the existing compaction strategies already work and changing the replay contract mid-cycle would have widened the v0.8.0 surface. Persistence to a new `ChatHistoryStore.tool_call_bytes` table is also deferred (10.O.Y).
+
+#### 6.9: ToolCallStreamParser is a 3-event state machine; pipeline wiring is staged
+
+The parser walks streamed text and emits `toolCallHeader` (once on `<tool_use name="...">`), zero-or-more `toolCallArgDelta` events as the argument JSON streams in, then `toolCallComplete` on `</tool_use>`. The state machine holds back partial tags (`<tool_us` at chunk boundary) so the webview never sees ghost tag fragments. Three new message types are added to the `ExtensionToWebviewMessage` union but the parser is **not yet** called from `StreamingPipeline._attemptStream`; wiring it in would require coordinated webview-side render-protocol changes (a progressive tool-call card). Both pieces ship together in v0.9.0 (10.O.Z).
+
+#### 6.A: Cursor adapter emits native `.cursor/rules/<slug>.mdc`
+
+The v0.7.0 placeholder shape (`.cursor/rules/<slug>.md` with `rule: SKILL` frontmatter) is replaced by Cursor's native rule schema: `description` (mapped from the Anthropic `description`), `globs` (defaults to `['**/*']` unless the skill declares `metadata.globs`), and `alwaysApply: false`. The skill body is preserved verbatim so the rule reads identically to the source SKILL.md. The harness adapter's `warn` flag is removed since the conversion is now lossless within Cursor's contract. Closes v0.7.0 in-cycle gap 10.O.7.
+
+### Test results
+
+- `npm run lint` -- clean.
+- `npm run build` (tsc --noEmit) -- clean.
+- `npm run test` -- **2372 passed, 4 skipped**, 2 pre-existing test files still fail to load (`tests/unit/cli/gemma-check.test.ts`, `tests/unit/scripts/package-skills.test.ts`) due to the v0.7.0 10.O.D vitest-vm-transform parse bug. Both failures reproduce on `main` HEAD before any Phase 6 changes (stash-and-rerun verified).
+
+### Known gaps
+
+See [`docs/v0.8.0/known-gaps.md`](v0.8.0/known-gaps.md) Section 10 for the structured list. Phase 6 added eight new entries (10.O.S through 10.O.Z) -- all `DF` deferrals because the v0.8.0 commitment was the pure modules + unit tests, with panel surfacing, background-worker scheduling, persistence integration, and streaming-pipeline wiring all staged for v0.9.0. One carryover from v0.7.0 closed: 10.O.7 (Cursor `.mdc`).
+
+---
+
 ## [2026-05-16] v0.8.0 Phase 5 -- Skill ecosystem maturation
 
 ### Goal

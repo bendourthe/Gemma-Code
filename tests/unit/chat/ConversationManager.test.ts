@@ -270,4 +270,37 @@ describe("ConversationManager", () => {
       expect(manager.drainQueued()).toEqual([]);
     });
   });
+
+  // ---- v0.8.0 Phase 6.8 -- tool-call exact-bytes replay -----------------
+
+  describe("toolCallBytes", () => {
+    it("stores and retrieves the exact rendered bytes for a tool call", () => {
+      manager.storeToolCallBytes("call-1", "  <tool_use>x</tool_use>  ");
+      expect(manager.getToolCallBytes("call-1")).toBe("  <tool_use>x</tool_use>  ");
+    });
+
+    it("returns null for an unknown tool-call id", () => {
+      expect(manager.getToolCallBytes("nope")).toBeNull();
+    });
+
+    it("re-inserting a known id moves it to the most-recently-used slot", () => {
+      manager.storeToolCallBytes("a", "one");
+      manager.storeToolCallBytes("b", "two");
+      manager.storeToolCallBytes("a", "three");
+      expect(manager.getToolCallBytes("a")).toBe("three");
+      expect(manager.toolCallBytesCount).toBe(2);
+    });
+
+    it("LRU-evicts the oldest entries past the 256 cap", () => {
+      for (let i = 0; i < 260; i++) {
+        manager.storeToolCallBytes(`id-${i}`, `bytes-${i}`);
+      }
+      expect(manager.toolCallBytesCount).toBe(256);
+      // The first four ids should be gone.
+      expect(manager.getToolCallBytes("id-0")).toBeNull();
+      expect(manager.getToolCallBytes("id-3")).toBeNull();
+      // The most-recent ones should still be there.
+      expect(manager.getToolCallBytes("id-259")).toBe("bytes-259");
+    });
+  });
 });

@@ -127,23 +127,31 @@ describe("parseSkill", () => {
 // ---------------------------------------------------------------------------
 
 describe("renderCursor", () => {
-  it("replaces the SKILL frontmatter with a Cursor marker", () => {
+  it("emits Cursor-native frontmatter (description / globs / alwaysApply)", () => {
     const raw = `---\nname: commit\ndescription: A skill\n---\nBody\n`;
     const out = renderCursor(raw, "commit");
-    expect(out.startsWith("---\nrule: SKILL\nname: commit\n---\n")).toBe(true);
+    expect(out.startsWith("---\n")).toBe(true);
+    expect(out).toContain('description: "A skill"');
+    expect(out).toContain("globs: ['**/*']");
+    expect(out).toContain("alwaysApply: false");
   });
 
   it("preserves the body verbatim", () => {
-    const raw = `---\nname: foo\n---\nThis is the body.\n`;
+    const raw = `---\nname: foo\ndescription: A skill\n---\nThis is the body.\n`;
     const out = renderCursor(raw, "foo");
     expect(out).toContain("This is the body.");
   });
 
-  it("preserves the original frontmatter as comment lines", () => {
-    const raw = `---\nname: foo\ndescription: bar\n---\nbody`;
+  it("honours metadata.globs when declared in the frontmatter", () => {
+    const raw = `---\nname: foo\ndescription: bar\nmetadata.globs: [src/**/*.ts, src/**/*.tsx]\n---\nbody`;
     const out = renderCursor(raw, "foo");
-    expect(out).toContain("# original: name:");
-    expect(out).toContain("# original: description:");
+    expect(out).toContain("globs: ['src/**/*.ts', 'src/**/*.tsx']");
+  });
+
+  it("escapes embedded double quotes in description", () => {
+    const raw = `---\nname: foo\ndescription: He said "hello"\n---\nbody`;
+    const out = renderCursor(raw, "foo");
+    expect(out).toContain('description: "He said \\"hello\\""');
   });
 });
 
@@ -185,7 +193,7 @@ describe("HARNESSES adapter table", () => {
       ".gemini/skills/foo/SKILL.md",
     );
     expect(byId["cursor"].relativePath("foo").replace(/\\/g, "/")).toBe(
-      ".cursor/rules/foo.md",
+      ".cursor/rules/foo.mdc",
     );
   });
 
@@ -197,9 +205,20 @@ describe("HARNESSES adapter table", () => {
     expect(byId["gemini-cli"].render(raw, "foo")).toBe(raw);
   });
 
-  it("marks the cursor adapter with the warn flag", () => {
+  it("no longer flags cursor with a warn flag (v0.8.0 Phase 6.A native .mdc)", () => {
     const cursor = HARNESSES.find((h: { id: string }) => h.id === "cursor");
-    expect(cursor.warn).toBe(true);
+    expect(cursor.warn).toBeUndefined();
+  });
+
+  it("fixture-roundtrip: cursor .mdc parses back to the original description", () => {
+    const raw = `---\nname: foo\ndescription: A useful skill\nargument-hint: "[arg]"\n---\nBody content.\n`;
+    const cursor = HARNESSES.find((h: { id: string }) => h.id === "cursor");
+    const out = cursor.render(raw, "foo");
+    const reparsed = parseSkill(out);
+    expect(reparsed.frontmatter.description).toBe("A useful skill");
+    expect(reparsed.frontmatter.globs).toBe("['**/*']");
+    expect(reparsed.frontmatter.alwaysApply).toBe("false");
+    expect(reparsed.body).toContain("Body content.");
   });
 });
 
@@ -256,7 +275,7 @@ describe("package-skills (spawn, real catalog)", () => {
       fs.existsSync(path.join(distRoot, "gemini-cli", ".gemini", "skills", sample, "SKILL.md")),
     ).toBe(true);
     expect(
-      fs.existsSync(path.join(distRoot, "cursor", ".cursor", "rules", `${sample}.md`)),
+      fs.existsSync(path.join(distRoot, "cursor", ".cursor", "rules", `${sample}.mdc`)),
     ).toBe(true);
 
     for (const harness of ["claude-code", "opencode", "gemini-cli", "cursor"]) {

@@ -313,6 +313,30 @@
           "default": false,
           "description": "v0.8.0 Phase 4 -- Pre-enable the `/trace` JSONL bug-report file at session start. Default off so disk cost is opt-in."
         },
+        "gemma-code.memory.anticipatoryCache": {
+          "type": "boolean",
+          "default": false,
+          "description": "v0.8.0 Phase 6 -- Opt-in anticipatory context cache. When enabled, prefetches likely-relevant memory entries on editor change and tool completion (30s warmth window). Surfaces in the Memory panel under \"anticipated context\"."
+        },
+        "gemma-code.skills.harvest": {
+          "type": "boolean",
+          "default": true,
+          "description": "v0.8.0 Phase 6 -- Detect repeated tool-call sequences in episodic memory and surface a SKILL.md draft proposal on the third recurrence."
+        },
+        "gemma-code.skills.harvestMinRecurrence": {
+          "type": "number",
+          "default": 3,
+          "minimum": 2,
+          "maximum": 10,
+          "description": "v0.8.0 Phase 6 -- Minimum recurrence count before a workflow becomes a skill proposal."
+        },
+        "gemma-code.skills.harvestWindowDays": {
+          "type": "number",
+          "default": 7,
+          "minimum": 1,
+          "maximum": 90,
+          "description": "v0.8.0 Phase 6 -- Lookback window (in days) for the workflow detector."
+        },
         "gemma-code.verificationThreshold": {
           "type": "number",
           "default": 3,

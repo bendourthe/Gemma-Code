@@ -3,7 +3,7 @@
  * traceDashboard pattern: a single-file CSP-tight HTML document with all
  * styles and JS inlined under a per-render nonce.
  *
- * Five tabs:
+ * Six tabs (v0.8.0 Phase 6.6 adds Models):
  *   1. Instructions  -- raw Markdown view of Instructions.md
  *   2. Memory        -- raw Markdown view of Memory.md
  *   3. Context       -- raw Markdown view of Context.md
@@ -13,6 +13,9 @@
  *   5. Archive       -- list of dated archive snapshots with a "Restore"
  *                       action that copies the snapshot back over the live
  *                       three files.
+ *   6. Models        -- list of loaded Ollama models with per-model TTL
+ *                       (time since last load), pin/unpin toggle, and a
+ *                       manual unload button. v0.8.0 Phase 6.6 (item F8).
  *
  * Every interactive button posts a typed message to the panel host; no
  * direct fs / sqlite imports run inside the webview iframe.
@@ -211,6 +214,7 @@ export function getMemoryViewHtml(nonce: string, cspSource: string): string {
     <button class="tab" data-tab="context">Context</button>
     <button class="tab" data-tab="sql">SQL-backed</button>
     <button class="tab" data-tab="archive">Archive</button>
+    <button class="tab" data-tab="models">Models</button>
   </div>
   <div id="content">
     <div id="empty-state">Loading memory...</div>
@@ -387,6 +391,58 @@ export function getMemoryViewHtml(nonce: string, cspSource: string): string {
         return out;
       }
 
+      function buildModelsTab(models) {
+        const out = document.createDocumentFragment();
+        const list = (models && models.records) || [];
+        if (list.length === 0) {
+          const empty = document.createElement('div');
+          empty.id = 'empty-state';
+          empty.textContent = 'No models tracked yet. Run a chat turn or open a model to populate.';
+          out.appendChild(empty);
+          return out;
+        }
+        const now = (models && models.capturedAt) || Date.now();
+        list.forEach(function(rec) {
+          const row = document.createElement('div');
+          row.className = 'sql-row';
+          const left = document.createElement('div');
+          left.className = 'sql-row-content';
+          const title = document.createElement('div');
+          title.textContent = rec.model + (rec.pinned ? '  [PINNED]' : '');
+          left.appendChild(title);
+          const meta = document.createElement('div');
+          meta.className = 'sql-row-meta';
+          const ageMs = Math.max(0, now - (rec.lastLoadedAt || 0));
+          const ageSec = Math.floor(ageMs / 1000);
+          meta.textContent = 'TTL ' + ageSec + 's since last load';
+          left.appendChild(meta);
+          row.appendChild(left);
+          const actions = document.createElement('div');
+          actions.className = 'sql-row-actions';
+          const pinBtn = document.createElement('button');
+          pinBtn.className = 'btn';
+          pinBtn.textContent = rec.pinned ? 'Unpin' : 'Pin';
+          pinBtn.addEventListener('click', function() {
+            vscode.postMessage({
+              type: rec.pinned ? 'modelUnpin' : 'modelPin',
+              model: rec.model,
+            });
+          });
+          actions.appendChild(pinBtn);
+          const unloadBtn = document.createElement('button');
+          unloadBtn.className = 'btn btn-secondary';
+          unloadBtn.textContent = 'Unload';
+          unloadBtn.title = 'Send a one-shot keep_alive=0 to evict the model from memory';
+          unloadBtn.addEventListener('click', function() {
+            vscode.postMessage({ type: 'modelUnload', model: rec.model });
+          });
+          actions.appendChild(unloadBtn);
+          row.appendChild(actions);
+          out.appendChild(row);
+        });
+        return out;
+      }
+
       function render() {
         contentEl.replaceChildren();
         if (!snapshot) {
@@ -418,6 +474,9 @@ export function getMemoryViewHtml(nonce: string, cspSource: string): string {
             break;
           case 'archive':
             contentEl.appendChild(buildArchiveTab(snapshot.archive || { archiveDir: '', snapshots: [] }));
+            break;
+          case 'models':
+            contentEl.appendChild(buildModelsTab(snapshot.models || { records: [], capturedAt: Date.now() }));
             break;
           default:
             break;

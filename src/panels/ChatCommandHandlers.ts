@@ -196,7 +196,14 @@ export class ChatCommandHandlers {
         }
         this._post(msg);
       };
-      await ctx.compactor.compact(postWithRender, true);
+      const result = await ctx.compactor.compact(postWithRender, true);
+      if (result.state === "error") {
+        this._emitMarkdown(`_Compaction failed: ${result.error}_`);
+      } else if (result.state === "rebuild-needed") {
+        this._emitMarkdown(
+          `_Conversation cannot be compacted further (${result.reason}). Start a new session or restore from a memory snapshot._`,
+        );
+      }
       ctx.postTokenCount();
       ctx.postHistory();
       return;

@@ -37,6 +37,28 @@ export interface CompactionSettingsProvider {
   };
 }
 
+/**
+ * v0.8.0 Phase 6.1 (item A4) -- three-state sync return.
+ *
+ * Callers (AgentLoop, ChatCommandHandlers) inspect the state to decide
+ * whether to resume the turn (`ok`), surface an error to the user (`error`),
+ * or discard the in-memory conversation prefix and rebuild from the memory
+ * snapshot + recent N turns (`rebuild-needed`). The `rebuild-needed` state
+ * is emitted when the pipeline cannot shrink the conversation below the
+ * budget even after EmergencyTrim -- the only safe recovery is a full
+ * rebuild from the durable memory snapshot.
+ */
+export type CompactionResult =
+  | { readonly state: "ok"; readonly summary: string }
+  | { readonly state: "error"; readonly error: string }
+  | { readonly state: "rebuild-needed"; readonly reason: string };
+
+/** Caller-supplied rebuild context for the `rebuild-needed` state. */
+export interface RebuildContext {
+  readonly tokensAfter: number;
+  readonly maxTokens: number;
+}
+
 export class ContextCompactor {
   private _postCompactionHook?: (sessionId: string) => Promise<void>;
   private _traceId = "";
@@ -87,8 +109,10 @@ export class ContextCompactor {
    * @param postMessage - webview message sender for status updates
    * @param force - if true, compact regardless of the token count
    */
-  async compact(postMessage: PostMessageFn, force = false): Promise<void> {
-    if (!force && !this.shouldCompact()) return;
+  async compact(postMessage: PostMessageFn, force = false): Promise<CompactionResult> {
+    if (!force && !this.shouldCompact()) {
+      return { state: "ok", summary: "no-op (below threshold)" };
+    }
 
     const tracer = this._tracer;
     const tokensBefore = this.estimateTokens();
@@ -103,7 +127,13 @@ export class ContextCompactor {
     // Pre-compaction hook: invoked with the full history before any
     // compaction strategy runs. MemoryStore.extractAndSave can be wired here.
     if (this._preCompactionHook) {
-      await this._preCompactionHook(this._manager.getHistory());
+      try {
+        await this._preCompactionHook(this._manager.getHistory());
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        tracer.endSpan(compactSpanId, "error", { reason: "pre-hook-failed", errorMessage });
+        return { state: "error", error: `Pre-compaction hook failed: ${errorMessage}` };
+      }
     }
 
     postMessage({
@@ -149,10 +179,17 @@ export class ContextCompactor {
       new EmergencyTrim(),
     ]);
 
-    const compacted = await pipeline.run(
-      this._manager.getHistory(),
-      budget.conversationBudget,
-    );
+    let compacted;
+    try {
+      compacted = await pipeline.run(
+        this._manager.getHistory(),
+        budget.conversationBudget,
+      );
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      tracer.endSpan(compactSpanId, "error", { reason: "pipeline-failed", errorMessage });
+      return { state: "error", error: `Compaction pipeline failed: ${errorMessage}` };
+    }
 
     this._manager.replaceMessages(compacted);
 
@@ -171,6 +208,23 @@ export class ContextCompactor {
     const tokensAfter = this.estimateTokens();
     tracer.endSpan(compactSpanId, "ok", { tokensAfter });
 
+    // v0.8.0 Phase 6.1: if the pipeline could not shrink below the conversation
+    // budget after every strategy (including EmergencyTrim), the caller must
+    // discard the in-memory prefix and rebuild from the memory snapshot.
+    if (tokensAfter > this._maxTokens) {
+      postMessage({
+        type: "compactionStatus",
+        text: "Context still over budget after compaction. Rebuilding from snapshot...",
+      });
+      setTimeout(() => {
+        postMessage({ type: "compactionStatus", text: "" });
+      }, 3000);
+      return {
+        state: "rebuild-needed",
+        reason: `tokensAfter=${tokensAfter} exceeds maxTokens=${this._maxTokens}`,
+      };
+    }
+
     postMessage({
       type: "compactionStatus",
       text: "Context compacted. Continuing...",
@@ -180,5 +234,10 @@ export class ContextCompactor {
     setTimeout(() => {
       postMessage({ type: "compactionStatus", text: "" });
     }, 3000);
+
+    return {
+      state: "ok",
+      summary: `compacted ${tokensBefore} -> ${tokensAfter} tokens`,
+    };
   }
 }

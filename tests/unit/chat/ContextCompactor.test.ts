@@ -240,4 +240,78 @@ describe("ContextCompactor", () => {
       expect(manager.replaceMessages).toHaveBeenCalledOnce();
     });
   });
+
+  // -------------------------------------------------------------------------
+  // v0.8.0 Phase 6.1: three-state sync return
+  // -------------------------------------------------------------------------
+
+  describe("compact (Phase 6.1 three-state result)", () => {
+    it("returns state=ok with summary when no compaction is needed", async () => {
+      const manager = makeManager([{ role: "user", content: "tiny" }]);
+      const compactor = new ContextCompactor(manager, makeClient(""), MODEL, MAX_TOKENS);
+
+      const result = await compactor.compact(postMessage, false);
+
+      expect(result.state).toBe("ok");
+      if (result.state === "ok") {
+        expect(result.summary).toMatch(/no-op|below/i);
+      }
+    });
+
+    it("returns state=ok with token-delta summary after a successful compaction", async () => {
+      // Larger MAX_TOKENS budget so the pipeline can produce a result under
+      // the threshold even after compaction, exercising the `ok` branch.
+      const largeMax = 10_000;
+      const manager = makeManager([
+        { role: "user", content: "word1 word2 word3 ".repeat(40) }, // ~240 tokens
+      ]);
+      const compactor = new ContextCompactor(manager, makeClient("summary"), MODEL, largeMax);
+
+      const result = await compactor.compact(postMessage, true);
+
+      expect(result.state).toBe("ok");
+      if (result.state === "ok") {
+        expect(result.summary).toMatch(/compacted \d+ -> \d+ tokens|no-op/);
+      }
+    });
+
+    it("returns state=rebuild-needed when EmergencyTrim cannot shrink under the budget", async () => {
+      // Tiny token budget with very long content forces the rebuild path.
+      const manager = makeManager([
+        { role: "user", content: "word1 word2 word3 ".repeat(500) },
+      ]);
+      const compactor = new ContextCompactor(manager, makeClient(""), MODEL, 10);
+
+      const result = await compactor.compact(postMessage, true);
+
+      expect(result.state).toBe("rebuild-needed");
+      if (result.state === "rebuild-needed") {
+        expect(result.reason).toMatch(/tokensAfter=\d+ exceeds maxTokens=10/);
+      }
+    });
+
+    it("returns state=error when the pre-compaction hook throws", async () => {
+      const manager = makeManager([
+        { role: "user", content: "a".repeat(400) },
+      ]);
+      const hookFn = vi.fn().mockRejectedValue(new Error("hook boom"));
+      const compactor = new ContextCompactor(
+        manager,
+        makeClient("summary"),
+        MODEL,
+        MAX_TOKENS,
+        undefined,
+        hookFn,
+      );
+
+      const result = await compactor.compact(postMessage, true);
+
+      expect(result.state).toBe("error");
+      if (result.state === "error") {
+        expect(result.error).toMatch(/Pre-compaction hook failed.*hook boom/);
+      }
+      // Pipeline should NOT have run, so replaceMessages stays untouched.
+      expect(manager.replaceMessages).not.toHaveBeenCalled();
+    });
+  });
 });

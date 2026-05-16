@@ -88,7 +88,9 @@ function makeFakeCtx(opts: FakeContextOptions = {}): {
   });
 
   const compactor = mockOf<ChatCommandContext["compactor"]>({
-    compact: vi.fn().mockResolvedValue(undefined),
+    // v0.8.0 Phase 6.1: compact() now returns a three-state result; the
+    // mock yields the "ok" success path so legacy callers stay green.
+    compact: vi.fn().mockResolvedValue({ state: "ok", summary: "test mock" }),
   });
 
   const commandRouter = mockOf<ChatCommandContext["commandRouter"]>({

@@ -7,7 +7,7 @@
  * Inputs: src/skills/catalog/<skill-name>/SKILL.md
  * Outputs (relative to repo root, all under dist/):
  *   - dist/claude-code/.claude/skills/<skill-name>/SKILL.md  -- copy as-is
- *   - dist/cursor/.cursor/rules/<skill-name>.md              -- transformed
+ *   - dist/cursor/.cursor/rules/<skill-name>.mdc             -- native .mdc
  *   - dist/opencode/.opencode/skills/<skill-name>/SKILL.md   -- copy as-is
  *   - dist/gemini-cli/.gemini/skills/<skill-name>/SKILL.md   -- copy as-is
  *   - dist/<harness>/README.md                               -- usage note
@@ -18,13 +18,11 @@
  *
  * Claude Code, OpenCode, and Gemini CLI consume the Anthropic SKILL.md
  * schema verbatim (frontmatter `name` / `description` / `argument-hint`
- * plus a markdown body), so those three are byte-identical copies. Cursor's
- * native rule format is `.cursor/rules/<slug>.mdc` with frontmatter
- * `description` / `globs` / `alwaysApply` -- it differs enough that a real
- * 1:1 conversion is non-trivial. This script emits a best-effort `.md` file
- * with a minimal `rule: SKILL` frontmatter marker, logs a warning, and
- * defers a full Cursor-native conversion to a follow-up phase. The bundled
- * README.md inside dist/cursor/ documents the limitation for end-users.
+ * plus a markdown body), so those three are byte-identical copies.
+ *
+ * v0.8.0 Phase 6.A: Cursor adapter now emits native `.cursor/rules/<slug>.mdc`
+ * with the Cursor-native frontmatter (`description` / `globs` / `alwaysApply`).
+ * The skill body is preserved verbatim. Closes v0.7.0 in-cycle gap 10.O.7.
  *
  * Run via: `node scripts/package-skills.mjs`
  *   --quiet      suppress per-skill log lines (final summary only)
@@ -96,40 +94,35 @@ const HARNESSES = Object.freeze([
   {
     id: "cursor",
     title: "Cursor",
-    relativePath: (slug) => join(".cursor", "rules", `${slug}.md`),
+    relativePath: (slug) => join(".cursor", "rules", `${slug}.mdc`),
     render: renderCursor,
     schemaNote:
-      "Cursor's native rule format is .cursor/rules/<slug>.mdc with frontmatter `description` / `globs` / `alwaysApply`. The export below uses a placeholder `rule: SKILL` marker and preserves the original SKILL.md body; a fully-native Cursor rule conversion is tracked as a follow-up.",
-    warn: true,
+      "Cursor consumes .cursor/rules/<slug>.mdc files with frontmatter `description` / `globs` / `alwaysApply`. The export below maps the Anthropic SKILL.md description to Cursor's `description`, defaults `globs` to ['**/*'] (or the skill's `metadata.globs` if declared), and sets `alwaysApply: false`. The skill body is preserved verbatim.",
   },
 ]);
 
 /**
- * Cursor-specific transform: replace the SKILL frontmatter block with a
- * minimal Cursor marker, preserving the original frontmatter fields as a
- * comment so they survive a roundtrip. We intentionally do not try to map
- * `argument-hint` onto Cursor's `globs` (the semantics differ); the result
- * is a "rule that mirrors the SKILL body" rather than a native Cursor rule.
+ * Cursor-specific transform: emit a native `.mdc` rule. The Anthropic
+ * SKILL.md `description` becomes the Cursor `description`; `globs` defaults
+ * to `['**\/*']` unless the skill declares a `metadata.globs` flow array in
+ * its frontmatter; `alwaysApply` is `false` so the rule is consulted on
+ * demand rather than injected into every prompt. The body is preserved
+ * verbatim so the rule reads identically to the source SKILL.md.
+ *
+ * v0.8.0 Phase 6.A: this replaces the v0.7.0 placeholder `.cursor/rules/<slug>.md`
+ * with `rule: SKILL` frontmatter. Closes v0.7.0 in-cycle gap 10.O.7.
  */
-function renderCursor(raw, slug) {
+function renderCursor(raw, _slug) {
   const { frontmatter, body } = parseSkill(raw);
-  const frontmatterLines = Object.entries(frontmatter).map(
-    ([k, v]) => `# original: ${k}: ${JSON.stringify(v)}`,
-  );
+  const description = (frontmatter["description"] ?? "").replace(/"/g, '\\"');
+  const globs = parseFlowArray(frontmatter["metadata.globs"], ["**/*"]);
+  const globsLiteral = `[${globs.map((g) => `'${g}'`).join(", ")}]`;
   const header = [
     "---",
-    "rule: SKILL",
-    `name: ${slug}`,
+    `description: "${description}"`,
+    `globs: ${globsLiteral}`,
+    "alwaysApply: false",
     "---",
-    "",
-    "<!--",
-    "  Gemma Code SKILL exported for Cursor. The native Cursor rule format",
-    "  is .cursor/rules/<slug>.mdc with `description` / `globs` / `alwaysApply`",
-    "  frontmatter; this file mirrors the Anthropic SKILL.md body verbatim",
-    "  so the rule remains readable. Original frontmatter is preserved",
-    "  below as comments.",
-    ...frontmatterLines.map((line) => `  ${line}`),
-    "-->",
     "",
   ];
   return `${header.join("\n")}${body}`;

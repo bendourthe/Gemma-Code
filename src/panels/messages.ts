@@ -44,6 +44,42 @@ export interface ToolUseMessage {
   callId: string;
 }
 
+/**
+ * v0.8.0 Phase 6.9 (item E3) -- streaming-aware tool emission.
+ *
+ * Emitted exactly once per tool call when the opening `<tool_use>` tag is
+ * detected. The webview can render the tool-call card stub before any
+ * arguments stream in, which matches the ds4 reference protocol.
+ */
+export interface ToolCallHeaderMessage {
+  type: "toolCallHeader";
+  callId: string;
+  toolName: string;
+}
+
+/**
+ * v0.8.0 Phase 6.9 (item E3) -- streaming argument delta.
+ *
+ * Emitted zero-or-more times between `toolCallHeader` and
+ * `toolCallComplete` as the model streams the argument JSON. The
+ * webview accumulates these to build the live preview.
+ */
+export interface ToolCallArgDeltaMessage {
+  type: "toolCallArgDelta";
+  callId: string;
+  delta: string;
+}
+
+/**
+ * v0.8.0 Phase 6.9 (item E3) -- streaming tool-call terminator. Emitted
+ * once when the closing `</tool_use>` tag is detected. The webview
+ * finalises the card after this event.
+ */
+export interface ToolCallCompleteMessage {
+  type: "toolCallComplete";
+  callId: string;
+}
+
 export interface ToolResultMessage {
   type: "toolResult";
   callId: string;
@@ -424,7 +460,10 @@ export type ExtensionToWebviewMessage =
   | RenderPermissionPromptMessage
   | RenderQueuedMessageFieldMessage
   | RenderPlanAnnotationsMessage
-  | RenderPlanDiffMessage;
+  | RenderPlanDiffMessage
+  | ToolCallHeaderMessage
+  | ToolCallArgDeltaMessage
+  | ToolCallCompleteMessage;
 
 // ---------------------------------------------------------------------------
 // Webview → Extension
@@ -538,6 +577,24 @@ export interface RequestCacheStatsMessage {
   type: "requestCacheStats";
 }
 
+/** v0.8.0 Phase 6.6 -- pin a model so Ollama's idle eviction is bypassed. */
+export interface ModelPinMessage {
+  type: "modelPin";
+  model: string;
+}
+
+/** v0.8.0 Phase 6.6 -- remove a previously-set pin on a model. */
+export interface ModelUnpinMessage {
+  type: "modelUnpin";
+  model: string;
+}
+
+/** v0.8.0 Phase 6.6 -- request an immediate unload of a model from Ollama. */
+export interface ModelUnloadMessage {
+  type: "modelUnload";
+  model: string;
+}
+
 /** Phase 4.3 -- the user's choice from a numbered permission prompt. */
 export interface PermissionPromptResponseMessage {
   type: "permissionPromptResponse";
@@ -567,4 +624,7 @@ export type WebviewToExtensionMessage =
   | PermissionPromptResponseMessage
   | PlanAnnotationAddMessage
   | PlanAnnotationRemoveMessage
-  | PlanAnnotationsSubmitMessage;
+  | PlanAnnotationsSubmitMessage
+  | ModelPinMessage
+  | ModelUnpinMessage
+  | ModelUnloadMessage;
