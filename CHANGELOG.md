@@ -1,3 +1,10 @@
+# [0.12.0](https://github.com/bendourthe/Gemma-Code/compare/v0.11.0...v0.12.0) (2026-05-16)
+
+
+### Features
+
+* **v0.8.0:** Phase 4 observability + runtime + hybrid scoring ([d08da9a](https://github.com/bendourthe/Gemma-Code/commit/d08da9a5f1ed1e6f14bb2f457f1d7a25556fdee3))
+
 # [0.11.0](https://github.com/bendourthe/Gemma-Code/compare/v0.10.0...v0.11.0) (2026-05-16)
 
 
