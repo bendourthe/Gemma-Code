@@ -76,9 +76,26 @@ export class MemoryHnswIndex {
 
       const index = new lib.HierarchicalNSW("cosine", options.dimensions);
       const hasPersisted = fs.existsSync(options.persistPath);
+      // After read, the actual maxElements is whatever the saved index
+      // recorded; we reconcile our internal tracking with `getMaxElements()`
+      // so subsequent capacity-bump checks compare against the real ceiling.
+      // v0.8.0 Phase 0.8 (closes v0.7.0 10.O.18): the previous call passed
+      // `options.maxElements` as the second argument, but hnswlib-node v3's
+      // `readIndexSync(filename, allowReplaceDeleted?)` expects a boolean
+      // there. JavaScript coerced the integer to truthy, silently flipping
+      // `allowReplaceDeleted=true` and turning every loaded point into a
+      // candidate for reclamation; `getCurrentCount()` then reported 0
+      // after read. Dropping the second arg lets it default to false.
+      let effectiveMax = options.maxElements;
       if (hasPersisted) {
         try {
-          index.readIndexSync(options.persistPath, options.maxElements);
+          index.readIndexSync(options.persistPath);
+          try {
+            const saved = index.getMaxElements();
+            if (saved > 0) effectiveMax = saved;
+          } catch {
+            /* keep options.maxElements */
+          }
         } catch (err) {
           getLogger().debug(
             "[MemoryHnswIndex] persisted index unreadable; reinitializing:",
@@ -94,7 +111,7 @@ export class MemoryHnswIndex {
         index,
         options.persistPath,
         options.dimensions,
-        options.maxElements,
+        effectiveMax,
         Math.max(100, options.fullRebuildEvery ?? 1000),
       );
     } catch (err) {
@@ -209,13 +226,20 @@ export class MemoryHnswIndex {
 
 interface HnswIndexHandle {
   initIndex(maxElements: number): void;
-  readIndexSync(path: string, maxElements: number): void;
+  /**
+   * hnswlib-node v3: `readIndexSync(filename, allowReplaceDeleted?: boolean)`.
+   * The second parameter is a boolean (default false), NOT a maxElements
+   * number; passing a non-boolean silently coerces and breaks the loaded
+   * index. See v0.7.0 known-gap 10.O.18 / v0.8.0 ADR for the bug history.
+   */
+  readIndexSync(path: string, allowReplaceDeleted?: boolean): void;
   writeIndexSync(path: string): void;
   addPoint(vector: number[], label: number): void;
   markDelete(label: number): void;
   resizeIndex(newMax: number): void;
   searchKnn(vector: number[], k: number): { neighbors: number[]; distances: number[] };
   getCurrentCount(): number;
+  getMaxElements(): number;
 }
 
 interface HnswlibModule {

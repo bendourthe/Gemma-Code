@@ -4,6 +4,67 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-15] v0.8.0 Phase 0 -- Cycle kickoff + v0.7.0 carryovers
+
+### Goal
+
+Open the v0.8.0 cycle: create the `docs/v0.8.0/known-gaps.md` skeleton (sub-task 0.1); close the three P1 panel-wiring carryovers from v0.7.0 Phase 4 (sub-tasks 0.3 / 0.4 / 0.5 / v0.7.0 known-gaps 10.O.1 / 10.O.2 / 10.O.3); resolve the HNSW persist/reload bug and remove its env-gate (sub-task 0.8 / 10.O.18); resolve the marked v12 renderer perf regression and re-enable the renderer benches in the nightly gate (sub-task 0.9 / 10.O.19); land the background-workers end-to-end integration test (sub-task 0.11 / 10.O.12); canonise the Python golden runner via ADR-0017 (sub-task 0.13 / 10.O.17); and document the operator-action items (sub-tasks 0.2 / 0.6 / 0.10 / 0.12 -- live-Ollama captures and fresh-worktree post-tag verification) as deferred-to-operator in v0.8.0 known-gaps 10.O.A / 10.O.B / 10.O.C.
+
+### Decisions
+
+#### 0.5: introduce a session-scoped `TodoState` and wire `todos` into `buildToolRegistry`
+
+The v0.7.0 cycle shipped the `update_todos` tool plus its `TodoState` holder but never registered the tool in `ChatPanelBootstrap`. Fix: construct a per-session `TodoState` alongside `CompressionState`, pass it to `buildToolRegistry({..., todos: { state, post: input.hostPostMessage }})`. The `post` callback wires `renderTodoUpdate` messages to the host's broadcast path; no panel-private state leaks. Regression test in `tests/unit/panels/ChatPanelBootstrap.test.ts` constructs the bootstrap end-to-end and asserts `registry.has("update_todos")` plus the live `renderTodoUpdate` emission on tool execution.
+
+#### 0.3: queued-message-field swap rides on `status` transitions, not on a new event source
+
+The plan's wording ("from the streaming start / end events emitted by `StreamingPipeline.ts`") could be read as adding a new emit channel. The pipeline already publishes `status: streaming / thinking / idle` on every transition; the host watches those at the postMessage boundary and emits a `renderQueuedMessageField { visible }` toggle, broadcast on the same surfaces as the status itself. The toggle is idempotent (state-changed-only) so duplicate status messages don't double-render. Decision: `thinking` counts as an active stream too, so the queued field stays visible across the thinking <-> streaming flicker (queueing a follow-up while the agent composes is the whole point of the primitive). The webview-side runtime swaps the `#input-row` for the `.queued-message-field` element when visible, and restores when not.
+
+#### 0.4: `permissionPromptResponse` reuses the existing `(id, result)` resolvePrompt API
+
+The plan's prose says `ConfirmationGate.resolvePrompt(promptId, decision, peer)` but the existing API is `(id, result)` where `result` carries the four-option enum (`yes` / `yes-for-all` / `no` / `freeform`) plus optional `freeformText`. The legacy `confirmationResponse` boolean Yes/No card stays for tier-CONFIRM tools that still use the simple gate. Integration tests cover all four enum values plus the unknown-id path (silent ignore).
+
+#### 0.8: hnswlib-node v3 `readIndexSync` signature drift was the root cause
+
+The previous `tryCreate` called `index.readIndexSync(options.persistPath, options.maxElements)` -- passing a number where the v3 API expects `allowReplaceDeleted: boolean` (default false). JavaScript silently coerced the integer to truthy, switching the loaded index into deletion-replacement mode where points are reclaimed unexpectedly and `getCurrentCount()` reports 0 after read. Fix: drop the second arg (let it default to false) and reconcile our internal `_maxElements` tracking by calling `index.getMaxElements()` after read. Updated the `HnswIndexHandle` interface so the corrected signature is what the compiler enforces; removed the `HNSW_RUN_PERSIST` env-gate from `tests/unit/storage/MemoryHnswIndex.test.ts` so the persist/reload test runs unconditionally on any platform where `hnswlib-node` loads.
+
+#### 0.9: cache one configured `Marked` instance instead of using `marked.parse()` shorthand
+
+The v0.7.0 hot-fix nightly-bench data isolated the renderer regression as marked-v12-shorthand allocating an internal Marked instance per call. Switched `src/utils/MarkdownRenderer.ts` from the `marked.parse(text, { async: false })` shorthand to `new Marked({ async: false }).parse(text)` -- a single instance constructed at module load with the renderer pre-registered. The three custom renderers (`code`, `heading`, `link` -- only `code` and `link` are actually overridden; we never overrode `heading`) are unchanged. Removed the `--exclude '^render ~.*-token message$'` rule from `.github/workflows/nightly.yml`. The 8 existing renderer unit tests pass unchanged. Post-fix bench numbers tracked in `docs/v0.8.0/performance-baselines.md` (operator-capture pending on a quiescent workstation).
+
+#### 0.11: integration test exercises the real `node bin/gemma-check.mjs --json` spawn
+
+The test sits in `tests/integration/background-workers-end-to-end.test.ts` and uses the default `WorkerCommandRunner` (no spawn-side mocking). The fixture file at `tests/fixtures/background-workers/with-finding.mjs` carries a seeded AWS access key string that trips the `no-secret-patterns` rule. `tests/**` is excluded from ESLint and the TS compiler so the fixture cannot trip CI's lint or build gates. The test pre-checks `fs.existsSync` for both the `gemma-check` script and the fixture and reduces to a single `formatAuditFindings` deterministic-format assertion when the preconditions are not met (so the test does not flake on partial installs). The testgaps-worker path is exercised at the unit level already; the E2E path through `npx vitest` is left out of the integration test because npx PATH resolution on Windows CI sandboxes is unreliable -- the audit-worker is the higher-value E2E coverage anyway.
+
+#### 0.13: canonise the Python golden runner; no TS rewrite
+
+[ADR-0017](adr/0017-golden-runner-disposition.md) records the decision. The runner is operator-invoked (not CI), runs against a live Ollama backend, and has been validated against four prior baseline captures. A TS rewrite adds maintenance burden with no runtime benefit. README and CONTRIBUTING golden-suite sections updated to point at the canonical command.
+
+### Deviations from the plan
+
+- Sub-task 0.1 prose says to update `docs/v0.7.0/known-gaps.md` Section 10.1 to mark items 10.O.1-3 as `transferred to v0.8.0 plan (Phase 0)`, items 10.O.5 as `transferred to v0.8.0 plan (Phase 5)`, and items 10.O.4 + 10.O.6 as `transferred to v0.8.0 plan (Phase 7)`. Inspection of the v0.7.0 file shows those transfers were already done in the v0.7.0 Phase 8 close (Section 10.2's Resolved table carries the matching pointer rows). No re-edit needed; updated the rows for items now actually closed by Phase 0 sub-tasks (10.O.1 / 10.O.2 / 10.O.3 / 10.O.12 / 10.O.17 / 10.O.18 / 10.O.19) to point at the v0.8.0 resolution rather than "transferred".
+- Sub-tasks 0.2 / 0.6 / 0.10 / 0.12 are operator-action: they require live Ollama running with `gemma4:e4b` on a quiescent workstation (0.2 / 0.12), a fresh `git worktree add` for v0.7.0 (0.6), or a cross-platform host for the previously-gated HNSW test suite run (0.10's lockfile regen + 10.O.11 cross-platform run). The agent is not authorized to run live inference or to mutate worktree state autonomously, identical precedent to v0.6.0 known-gaps Section 1.1 and v0.7.0 known-gaps 10.O.14/10.O.15. Tracked as v0.8.0 known-gaps 10.O.A / 10.O.B / 10.O.C in Section 10.1.
+
+### Test results
+
+- Lint: clean (`npm run lint`).
+- Build: clean (`tsc`).
+- Unit suite: all green (regression test failures are zero; the trailing process-exit `Segmentation fault` is the pre-existing v0.7.0 known-gap 5.1 in better-sqlite3 destructor on Node 24 and does not affect exit codes or test results).
+- Integration suite: all green; 9 new tests added (4 ChatWebviewHost queued-field toggle tests, 5 permissionPrompt router tests, plus 2 ChatPanelBootstrap todos tests and 4 background-workers E2E tests).
+- Module boundaries: `npm run deps:check` reports the same 4 pre-existing dep-cruiser violations carried from v0.7.0 (10.O.9); no new violations.
+
+### Known gaps surfaced in Phase 0
+
+Tracked in [docs/v0.8.0/known-gaps.md](v0.8.0/known-gaps.md) Section 10:
+
+- **10.O.A** (DF P1): live-Ollama golden + benchmark baseline capture deferred to operator (sub-tasks 0.2 + 0.12).
+- **10.O.B** (DF P1): v0.7.0 post-tag exit verification deferred to operator (sub-task 0.6).
+- **10.O.C** (DF P3): `package-lock.json` regen with `hnswlib-node` resolution + cross-platform HNSW test run deferred to operator (sub-task 0.10).
+
+Seven v0.7.0 carryovers (10.O.1 / 10.O.2 / 10.O.3 / 10.O.12 / 10.O.17 / 10.O.18 / 10.O.19) are resolved by this phase. Three new operator-action items remain open; their resolution is environmental, not code-level.
+
+---
+
 ## [2026-05-14] v0.7.0 Phase 8 -- Release gate + ADRs + CHANGELOG + v0.7.0 baselines
 
 ### Goal

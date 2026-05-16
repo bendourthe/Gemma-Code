@@ -49,6 +49,7 @@ import type { AgentLoop } from "../tools/AgentLoop.js";
 import { ConfirmationGate } from "../tools/ConfirmationGate.js";
 import type { ToolRegistry } from "../tools/ToolRegistry.js";
 import { buildToolRegistry } from "../tools/ToolRegistryBuilder.js";
+import { TodoState } from "../tools/handlers/todos.js";
 import { renderMarkdown } from "../utils/MarkdownRenderer.js";
 import { getLogger } from "../utils/logger.js";
 import type { GemmaRuntime } from "../runtime/GemmaRuntime.js";
@@ -193,6 +194,11 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
   // v0.7.0 Phase 3: per-session CompressionState owns block IDs and runs.
   const compressionState = new CompressionState();
 
+  // v0.7.0 Phase 4.4 / v0.8.0 Phase 0.5 (closes 10.O.3): per-session TodoState
+  // holds the latest published todo list; the `update_todos` tool reads it and
+  // the completion-report renderer (Phase 4.7) consumes the latest snapshot.
+  const todoState = new TodoState();
+
   registry = buildToolRegistry({
     gate: confirmationGate,
     editMode: settings.editMode,
@@ -208,6 +214,10 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
         protectUserMessages: false,
       },
       experimentalMessageMode: settings.compactExperimentalMessageMode,
+    },
+    todos: {
+      state: todoState,
+      post: input.hostPostMessage,
     },
   });
 

@@ -20,6 +20,15 @@ export class ChatWebviewHost {
   private _editorPanel: vscode.WebviewPanel | undefined;
   private _editorPanelActive = true;
 
+  /**
+   * v0.8.0 Phase 0.3 (closes v0.7.0 10.O.1) -- tracks the last
+   * queued-message-field visibility we broadcast so we don't re-emit the same
+   * toggle on every status update. The webview is the source of truth for
+   * what's rendered; we just translate streaming-state transitions into the
+   * swap signal.
+   */
+  private _queuedFieldVisible = false;
+
   constructor(
     private readonly _extensionUri: vscode.Uri,
     private readonly _onMessage: WebviewMessageHandler,
@@ -80,6 +89,13 @@ export class ChatWebviewHost {
   /**
    * Post a message to the attached webview(s). Streaming-family messages go
    * to the focused surface only; everything else is broadcast.
+   *
+   * v0.8.0 Phase 0.3 (closes v0.7.0 10.O.1): a `status` transition is
+   * accompanied by a `renderQueuedMessageField` toggle so the webview replaces
+   * the input row with the queued-message field on stream start, and restores
+   * it on idle/cancel. The toggle is broadcast on the same surfaces as the
+   * status itself (i.e., everywhere) so both sidebar and editor-panel mirrors
+   * stay in sync; the swap is idempotent.
    */
   postMessage(msg: ExtensionToWebviewMessage): void {
     if (this._isStreamingMessage(msg)) {
@@ -88,6 +104,31 @@ export class ChatWebviewHost {
     }
     void this._editorPanel?.webview.postMessage(msg);
     void this._view?.webview.postMessage(msg);
+
+    if (msg.type === "status") {
+      this._maybeToggleQueuedField(msg.state);
+    }
+  }
+
+  /**
+   * Translate a status state into a queued-message-field visibility toggle.
+   * `streaming` shows the field (replacing the input row); `idle` hides it
+   * (restoring the input row). `thinking` is treated as an active stream so
+   * the user can queue follow-up messages while the agent is composing. The
+   * toggle is broadcast only when the visible state actually changes.
+   */
+  private _maybeToggleQueuedField(
+    state: "idle" | "thinking" | "streaming",
+  ): void {
+    const nextVisible = state === "streaming" || state === "thinking";
+    if (nextVisible === this._queuedFieldVisible) return;
+    this._queuedFieldVisible = nextVisible;
+    const toggle: ExtensionToWebviewMessage = {
+      type: "renderQueuedMessageField",
+      visible: nextVisible,
+    };
+    void this._editorPanel?.webview.postMessage(toggle);
+    void this._view?.webview.postMessage(toggle);
   }
 
   private _postToFocused(msg: ExtensionToWebviewMessage): void {

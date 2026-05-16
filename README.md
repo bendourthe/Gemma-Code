@@ -253,15 +253,20 @@ npm run package
 npm run mutate
 ```
 
-### Golden task suite (v0.3.0)
+### Golden task suite (v0.3.0; runner canonised in v0.8.0 ADR-0017)
 
-Declarative evaluation tasks live under [tests/golden/](tests/golden/). Each task is a YAML file paired with a self-contained git snapshot under [tests/golden/snapshots/](tests/golden/snapshots/).
+Declarative evaluation tasks live under [tests/golden/](tests/golden/). Each task is a YAML file paired with a self-contained git snapshot under [tests/golden/snapshots/](tests/golden/snapshots/). The runner is the **Python framework** at [tests/golden/framework/](tests/golden/framework/) -- canonised in [ADR-0017](docs/adr/0017-golden-runner-disposition.md) over a TS-native rewrite. Operator-invoked on a quiescent workstation with `ollama serve` running and `gemma4:e4b` pulled; not run in CI.
 
 ```bash
 # Framework-only tests (no Ollama required)
 cd tests/golden && python -m pytest framework/
 
-# Full suite against a running Ollama
+# Full suite against a running Ollama (capture a new baseline)
+python tests/golden/framework/run_all.py \
+  --model gemma4:e4b \
+  --output tests/golden/baselines/<version>.json
+
+# Pytest-marked live integration tests
 OLLAMA_URL=http://localhost:11434 TEST_MODEL=gemma4:e4b \
   python -m pytest -m live_ollama
 ```

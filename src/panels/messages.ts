@@ -285,6 +285,18 @@ export interface RenderThoughtMetaRowMessage {
   durationMs: number | null;
 }
 
+/**
+ * Phase 4.6 + v0.8.0 Phase 0.3 (closes v0.7.0 10.O.1) -- toggle the
+ * queued-message field. The host emits this alongside `status` transitions:
+ * `{ visible: true }` on stream start so the webview replaces the input row
+ * with the queued-message field; `{ visible: false }` on stream end (idle) or
+ * cancel so the input row is restored.
+ */
+export interface RenderQueuedMessageFieldMessage {
+  type: "renderQueuedMessageField";
+  visible: boolean;
+}
+
 /** Phase 4.3 -- numbered permission prompt (replaces the legacy modal Yes/No card). */
 export interface RenderPermissionPromptMessage {
   type: "renderPermissionPrompt";
@@ -366,7 +378,8 @@ export type ExtensionToWebviewMessage =
   | RenderCompactionEventMessage
   | RenderCompletionReportMessage
   | RenderThoughtMetaRowMessage
-  | RenderPermissionPromptMessage;
+  | RenderPermissionPromptMessage
+  | RenderQueuedMessageFieldMessage;
 
 // ---------------------------------------------------------------------------
 // Webview → Extension

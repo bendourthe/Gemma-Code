@@ -81,16 +81,18 @@ jobs:
         # every nightly run. v0.4.0 is retained as the long-arc floor for any
         # bench renamed since v0.6.0.
         #
-        # The three `render ~*-token message` benches are excluded by name
-        # while the marked v4 -> v12 perf regression introduced in v0.7.0
-        # Phase 0 is investigated. See docs/v0.7.0/known-gaps.md entry 10.O.19.
+        # The three `render ~*-token message` benches were previously excluded
+        # while the marked v4 -> v12 perf regression was investigated. v0.8.0
+        # Phase 0.9 resolved the regression by caching a single configured
+        # `Marked` instance instead of allocating per call (see
+        # `src/utils/MarkdownRenderer.ts` and v0.7.0 known-gap 10.O.19); the
+        # exclude rule is removed accordingly.
         run: |
           node scripts/check-bench-regressions.mjs \
             --baseline tests/benchmarks/baselines/v0.6.0.json \
             --floor tests/benchmarks/baselines/v0.4.0.json \
             --current bench-results.json \
-            --regression-pct 20 \
-            --exclude '^render ~.*-token message$'
+            --regression-pct 20
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()

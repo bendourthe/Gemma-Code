@@ -90,6 +90,7 @@ Aim to remove suppressions once the upstream issue is resolved. The 20-char mini
 
 - Unit tests: `npm test` (Vitest, ~1s per file).
 - Integration tests: `npm run test:integration`.
+- Golden suite (operator-invoked; not in CI): Python framework at [tests/golden/framework/](./tests/golden/framework/). Canonised in [ADR-0017](./docs/adr/0017-golden-runner-disposition.md). Capture a new baseline with `python tests/golden/framework/run_all.py --model gemma4:e4b --output tests/golden/baselines/<version>.json` on a quiescent workstation with `ollama serve` running.
 - Add tests next to the unit you change. Mirror source paths under `tests/unit/`.
 - New tracing/runtime work must use a per-test `new Tracer()` instance -- the singleton was retired in v0.4.0.
 - Tests that depend on environment variables or upstream services must follow the Smoke-Test Classification Rubric in [docs/v0.5.0/test-pyramid.md](./docs/v0.5.0/test-pyramid.md). Use `skipIfNoOllama()` / `skipIfMissingEnv()` from [tests/helpers/factories.ts](./tests/helpers/factories.ts); do not write bare `if (!process.env.X) return;` early returns.

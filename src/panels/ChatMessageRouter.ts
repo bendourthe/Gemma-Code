@@ -91,6 +91,17 @@ export class ChatMessageRouter {
         deps.confirmationGate.resolve(message.id, message.approved);
         break;
 
+      case "permissionPromptResponse":
+        // v0.8.0 Phase 0.4 (closes v0.7.0 10.O.1): route the numbered
+        // permission prompt's response to the gate. The legacy `confirmationResponse`
+        // path stays for the boolean Yes/No card; this case feeds the
+        // 4-option (`yes` / `yes-for-all` / `no` / `freeform`) prompt.
+        deps.confirmationGate.resolvePrompt(message.id, {
+          value: message.value,
+          freeformText: message.freeformText,
+        });
+        break;
+
       case "approveStep":
         await deps.controller.approveStep(message.step);
         break;

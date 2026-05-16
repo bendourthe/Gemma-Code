@@ -34,3 +34,8 @@ Use [template.md](./template.md) as a starting point for new ADRs.
 | [ADR-0008](./0008-panel-decomposition.md) | Panel decomposition (ChatController + ChatWebviewHost + handlers) | Accepted | 2026-05-04 |
 | [ADR-0009](./0009-predictive-cache-decision.md) | Delete PredictiveCache (wire-or-delete decision) | Accepted | 2026-05-03 |
 | [ADR-0010](./0010-threshold-elevation-decision.md) | Per-provenance semantic threshold elevation (heuristic vs. ollama) | Accepted | 2026-05-03 |
+| [ADR-0011](./0011-ollama-client-injection.md) | OllamaClient injection contract for the panel + controller graph | Accepted | 2026-05-05 |
+| [ADR-0012](./0012-model-callable-compress-tool.md) | Model-callable compress tool surface | Accepted | 2026-05-07 |
+| [ADR-0013](./0013-webview-render-protocol.md) | Webview render protocol expansion (7 primitives) | Accepted | 2026-05-06 |
+| [ADR-0014](./0014-memory-file-architecture.md) | Memory file architecture (Instructions / Memory / Context) | Accepted | 2026-05-07 |
+| [ADR-0017](./0017-golden-runner-disposition.md) | Canonise the Python golden runner; defer a TS-native rewrite | Accepted | 2026-05-15 |

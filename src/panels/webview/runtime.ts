@@ -50,6 +50,7 @@ export const RUNTIME_SCRIPT = String.raw`
       const historyListEl   = /** @type {HTMLElement} */ (document.getElementById('history-list'));
       const historyCloseBtn = /** @type {HTMLButtonElement} */ (document.getElementById('history-close-btn'));
       const inputEl         = /** @type {HTMLTextAreaElement} */ (document.getElementById('input'));
+      const inputRow        = /** @type {HTMLElement} */ (document.getElementById('input-row'));
       const sendBtn         = /** @type {HTMLButtonElement} */ (document.getElementById('send-btn'));
       const cancelBtn       = /** @type {HTMLButtonElement} */ (document.getElementById('cancel-btn'));
       const clearBtn        = /** @type {HTMLButtonElement} */ (document.getElementById('clear-btn'));
@@ -493,6 +494,30 @@ export const RUNTIME_SCRIPT = String.raw`
               streamingMessageId = null;
             }
             break;
+
+          case 'renderQueuedMessageField': {
+            // v0.8.0 Phase 0.3 (closes v0.7.0 10.O.1) -- swap the input row
+            // for the queued-message field while a stream is active. The host
+            // emits this on status transitions; we keep the swap idempotent
+            // so duplicate toggles are a no-op.
+            const parent = inputRow.parentNode;
+            const existing = parent ? parent.querySelector('.queued-message-field') : null;
+            if (msg.visible) {
+              if (!existing && parent) {
+                inputRow.style.display = 'none';
+                const field = renderQueuedMessageField({
+                  onAttach: function () { /* attach is a no-op for now */ },
+                  onStop: function () { vscode.postMessage({ type: 'cancelStream' }); },
+                  onQueue: function (text) { vscode.postMessage({ type: 'sendMessage', text: text }); },
+                });
+                parent.insertBefore(field, inputRow);
+              }
+            } else {
+              if (existing) existing.remove();
+              inputRow.style.display = '';
+            }
+            break;
+          }
 
           case 'error':
             applyStatus('idle');

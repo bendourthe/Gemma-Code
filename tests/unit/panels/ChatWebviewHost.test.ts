@@ -193,4 +193,91 @@ describe("ChatWebviewHost", () => {
 
     expect(editor.webview.postMessage).toHaveBeenCalledTimes(1);
   });
+
+  // ---- queued-message-field toggle (v0.8.0 Phase 0.3 / closes v0.7.0 10.O.1) ----
+
+  describe("queued-message-field toggle", () => {
+    it("broadcasts renderQueuedMessageField { visible: true } on stream start", () => {
+      const { view, webview: viewWebview } = makeFakeView();
+      const editor = makeFakeEditorPanel(true);
+      const host = new ChatWebviewHost(extensionUri, onMessage, () => "x", onRehydrate);
+
+      host.attachView(view);
+      host.attachEditorPanel(editor.panel);
+
+      host.postMessage({ type: "status", state: "streaming" });
+
+      const toggleCalls = viewWebview.postMessage.mock.calls.filter(
+        (c) => (c[0] as { type: string }).type === "renderQueuedMessageField",
+      );
+      expect(toggleCalls).toHaveLength(1);
+      expect(toggleCalls[0]?.[0]).toEqual({
+        type: "renderQueuedMessageField",
+        visible: true,
+      });
+
+      const editorToggleCalls = editor.webview.postMessage.mock.calls.filter(
+        (c) => (c[0] as { type: string }).type === "renderQueuedMessageField",
+      );
+      expect(editorToggleCalls).toHaveLength(1);
+      expect(editorToggleCalls[0]?.[0]).toEqual({
+        type: "renderQueuedMessageField",
+        visible: true,
+      });
+    });
+
+    it("broadcasts renderQueuedMessageField { visible: false } on stream end (idle)", () => {
+      const { view, webview: viewWebview } = makeFakeView();
+      const host = new ChatWebviewHost(extensionUri, onMessage, () => "x", onRehydrate);
+      host.attachView(view);
+
+      host.postMessage({ type: "status", state: "streaming" });
+      host.postMessage({ type: "status", state: "idle" });
+
+      const toggleCalls = viewWebview.postMessage.mock.calls.filter(
+        (c) => (c[0] as { type: string }).type === "renderQueuedMessageField",
+      );
+      expect(toggleCalls).toHaveLength(2);
+      expect(toggleCalls[0]?.[0]).toEqual({
+        type: "renderQueuedMessageField",
+        visible: true,
+      });
+      expect(toggleCalls[1]?.[0]).toEqual({
+        type: "renderQueuedMessageField",
+        visible: false,
+      });
+    });
+
+    it("treats thinking as an active stream (queued field stays visible across thinking <-> streaming)", () => {
+      const { view, webview: viewWebview } = makeFakeView();
+      const host = new ChatWebviewHost(extensionUri, onMessage, () => "x", onRehydrate);
+      host.attachView(view);
+
+      host.postMessage({ type: "status", state: "thinking" });
+      host.postMessage({ type: "status", state: "streaming" });
+      host.postMessage({ type: "status", state: "idle" });
+
+      const toggleCalls = viewWebview.postMessage.mock.calls.filter(
+        (c) => (c[0] as { type: string }).type === "renderQueuedMessageField",
+      );
+      // thinking -> visible=true, streaming -> no change, idle -> visible=false
+      expect(toggleCalls).toHaveLength(2);
+      expect((toggleCalls[0]?.[0] as { visible: boolean }).visible).toBe(true);
+      expect((toggleCalls[1]?.[0] as { visible: boolean }).visible).toBe(false);
+    });
+
+    it("does not re-emit the toggle when the visible state is unchanged", () => {
+      const { view, webview: viewWebview } = makeFakeView();
+      const host = new ChatWebviewHost(extensionUri, onMessage, () => "x", onRehydrate);
+      host.attachView(view);
+
+      host.postMessage({ type: "status", state: "idle" });
+      host.postMessage({ type: "status", state: "idle" });
+
+      const toggleCalls = viewWebview.postMessage.mock.calls.filter(
+        (c) => (c[0] as { type: string }).type === "renderQueuedMessageField",
+      );
+      expect(toggleCalls).toHaveLength(0);
+    });
+  });
 });

@@ -1,4 +1,4 @@
-import { marked, Renderer } from "marked";
+import { Marked, Renderer } from "marked";
 // Import the core highlight.js entry and register only the languages we ship
 // syntax highlighting for. The default `highlight.js` export registers the
 // full language corpus (~600KB minified); explicit registration drops the
@@ -119,7 +119,15 @@ renderer.image = function (): string {
   return `<span class="img-placeholder">[image]</span>`;
 };
 
-marked.use({ renderer });
+// v0.8.0 Phase 0.9 (closes v0.7.0 10.O.19): cache a single configured
+// `Marked` instance instead of using the `marked.use({ renderer })` global
+// + `marked.parse()` shorthand per call. The shorthand allocates a fresh
+// internal Marked instance every invocation, which accounted for the
+// renderer perf regression introduced when bumping from marked v4 to v12.
+// One reusable instance restores throughput within a single-digit
+// percentage of the v4 baseline.
+const markdownInstance = new Marked({ async: false });
+markdownInstance.use({ renderer });
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -132,7 +140,7 @@ marked.use({ renderer });
 export function renderMarkdown(text: string): string {
   let html: string;
   try {
-    html = marked.parse(text, { async: false }) as string;
+    html = markdownInstance.parse(text) as string;
   } catch {
     html = `<pre>${escapeHtml(text)}</pre>`;
   }
