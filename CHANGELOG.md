@@ -1,3 +1,10 @@
+# [0.11.0](https://github.com/bendourthe/Gemma-Code/compare/v0.10.0...v0.11.0) (2026-05-16)
+
+
+### Features
+
+* **v0.8.0:** Phase 3 plan-mode UX overhaul ([050417f](https://github.com/bendourthe/Gemma-Code/commit/050417f5bc03991e7231d1b1f8361778e4cb1e26))
+
 # [0.10.0](https://github.com/bendourthe/Gemma-Code/compare/v0.9.0...v0.10.0) (2026-05-16)
 
 
