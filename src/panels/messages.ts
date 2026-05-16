@@ -297,6 +297,48 @@ export interface RenderQueuedMessageFieldMessage {
   visible: boolean;
 }
 
+/**
+ * v0.8.0 Phase 3.1 -- annotation primitive payload exchanged with the
+ * webview. Three annotation types: `DELETION`, `COMMENT`, `GLOBAL_COMMENT`.
+ */
+export interface PlanAnnotationPayload {
+  id: string;
+  blockId: string;
+  startOffset: number;
+  endOffset: number;
+  type: "DELETION" | "COMMENT" | "GLOBAL_COMMENT";
+  text?: string;
+  originalText: string;
+  quickLabelTip?: string;
+}
+
+/**
+ * v0.8.0 Phase 3.1 -- push the current annotation set to the webview so it
+ * can re-render the overlay. The host emits this whenever the buffered set
+ * changes (added, removed, or cleared).
+ */
+export interface RenderPlanAnnotationsMessage {
+  type: "renderPlanAnnotations";
+  planSlug: string;
+  annotations: readonly PlanAnnotationPayload[];
+}
+
+/**
+ * v0.8.0 Phase 3.2 -- push a side-by-side plan diff to the webview when the
+ * agent revises an earlier plan version. The diff is pre-computed with the
+ * three modes (`clean`, `classic`, `raw`); the webview chooses which to
+ * display based on the user's preference toggle.
+ */
+export interface RenderPlanDiffMessage {
+  type: "renderPlanDiff";
+  planSlug: string;
+  fromVersion: number;
+  toVersion: number;
+  clean: string;
+  classic: string;
+  raw: string;
+}
+
 /** Phase 4.3 -- numbered permission prompt (replaces the legacy modal Yes/No card). */
 export interface RenderPermissionPromptMessage {
   type: "renderPermissionPrompt";
@@ -379,7 +421,9 @@ export type ExtensionToWebviewMessage =
   | RenderCompletionReportMessage
   | RenderThoughtMetaRowMessage
   | RenderPermissionPromptMessage
-  | RenderQueuedMessageFieldMessage;
+  | RenderQueuedMessageFieldMessage
+  | RenderPlanAnnotationsMessage
+  | RenderPlanDiffMessage;
 
 // ---------------------------------------------------------------------------
 // Webview → Extension
@@ -427,6 +471,31 @@ export interface PlanApproveWithNotesMessage {
 export interface PlanDenyMessage {
   type: "planDeny";
   feedback: string;
+}
+
+/** v0.8.0 Phase 3.1 -- add a single annotation to the in-flight buffer. */
+export interface PlanAnnotationAddMessage {
+  type: "planAnnotationAdd";
+  planSlug: string;
+  annotation: PlanAnnotationPayload;
+}
+
+/** v0.8.0 Phase 3.1 -- remove a single annotation from the in-flight buffer. */
+export interface PlanAnnotationRemoveMessage {
+  type: "planAnnotationRemove";
+  planSlug: string;
+  annotationId: string;
+}
+
+/**
+ * v0.8.0 Phase 3.1 -- submit the full buffered annotation set to the
+ * extension. Typically paired with a `planDeny` carrying the structured
+ * feedback derived from the annotations.
+ */
+export interface PlanAnnotationsSubmitMessage {
+  type: "planAnnotationsSubmit";
+  planSlug: string;
+  annotations: readonly PlanAnnotationPayload[];
 }
 
 /** Sent when the user clicks a session in the history list. */
@@ -494,4 +563,7 @@ export type WebviewToExtensionMessage =
   | RequestTraceDetailMessage
   | RequestTraceMetricsMessage
   | RequestCacheStatsMessage
-  | PermissionPromptResponseMessage;
+  | PermissionPromptResponseMessage
+  | PlanAnnotationAddMessage
+  | PlanAnnotationRemoveMessage
+  | PlanAnnotationsSubmitMessage;

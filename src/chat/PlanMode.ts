@@ -4,10 +4,27 @@ export interface PlanStep {
   status: "pending" | "approved" | "done";
 }
 
+/**
+ * v0.8.0 Phase 3.1 -- structured annotation produced by the user against the
+ * current plan. Three types: `DELETION` removes a span, `COMMENT` attaches an
+ * inline note to a span, `GLOBAL_COMMENT` applies to the whole plan.
+ */
+export interface PlanAnnotation {
+  id: string;
+  blockId: string;
+  startOffset: number;
+  endOffset: number;
+  type: "DELETION" | "COMMENT" | "GLOBAL_COMMENT";
+  text?: string;
+  originalText: string;
+  quickLabelTip?: string;
+}
+
 export interface PlanModeState {
   active: boolean;
   currentPlan: PlanStep[];
   currentStep: number;
+  annotations: PlanAnnotation[];
 }
 
 /**
@@ -103,6 +120,7 @@ export class PlanMode {
     active: false,
     currentPlan: [],
     currentStep: 0,
+    annotations: [],
   };
 
   get active(): boolean {
@@ -114,6 +132,7 @@ export class PlanMode {
       active: this._state.active,
       currentPlan: this._state.currentPlan.map((s) => ({ ...s })),
       currentStep: this._state.currentStep,
+      annotations: this._state.annotations.map((a) => ({ ...a })),
     };
   }
 
@@ -123,6 +142,7 @@ export class PlanMode {
     if (!this._state.active) {
       this._state.currentPlan = [];
       this._state.currentStep = 0;
+      this._state.annotations = [];
     }
     return this._state.active;
   }
@@ -135,6 +155,10 @@ export class PlanMode {
       status: "pending",
     }));
     this._state.currentStep = 0;
+    // Stale annotations from the prior plan version no longer apply once a
+    // new plan is recorded; clear them so the webview overlay does not point
+    // at offsets that no longer exist.
+    this._state.annotations = [];
   }
 
   /** Mark step at stepIndex as approved and advance the current step pointer. */
@@ -158,6 +182,68 @@ export class PlanMode {
   resetPlan(): void {
     this._state.currentPlan = [];
     this._state.currentStep = 0;
+    this._state.annotations = [];
+  }
+
+  /**
+   * v0.8.0 Phase 3.1 -- append (or replace, if `id` already exists) an
+   * annotation into the in-flight buffer. Returns the new buffer length.
+   */
+  addAnnotation(annotation: PlanAnnotation): number {
+    const existing = this._state.annotations.findIndex(
+      (a) => a.id === annotation.id,
+    );
+    if (existing >= 0) {
+      this._state.annotations[existing] = { ...annotation };
+    } else {
+      this._state.annotations.push({ ...annotation });
+    }
+    return this._state.annotations.length;
+  }
+
+  /**
+   * v0.8.0 Phase 3.1 -- remove a single annotation by id; no-op when the id
+   * is not in the buffer. Returns `true` if a row was removed.
+   */
+  removeAnnotation(annotationId: string): boolean {
+    const before = this._state.annotations.length;
+    this._state.annotations = this._state.annotations.filter(
+      (a) => a.id !== annotationId,
+    );
+    return this._state.annotations.length < before;
+  }
+
+  /** v0.8.0 Phase 3.1 -- snapshot the current annotation buffer. */
+  getAnnotations(): readonly PlanAnnotation[] {
+    return this._state.annotations.map((a) => ({ ...a }));
+  }
+
+  /** v0.8.0 Phase 3.1 -- drop every buffered annotation. */
+  clearAnnotations(): void {
+    this._state.annotations = [];
+  }
+
+  /**
+   * v0.8.0 Phase 3.1 -- format the buffered annotations as a human-readable
+   * feedback block suitable for the `planDeny` denial template. Skips empty
+   * buffers and falls back to the caller-supplied free-form feedback.
+   */
+  formatAnnotationsAsFeedback(): string {
+    if (this._state.annotations.length === 0) return "";
+    const lines: string[] = [];
+    for (const a of this._state.annotations) {
+      const label =
+        a.type === "DELETION"
+          ? "Delete"
+          : a.type === "GLOBAL_COMMENT"
+            ? "Global comment"
+            : "Comment";
+      const target =
+        a.originalText.length > 0 ? ` on "${a.originalText.trim()}"` : "";
+      const body = a.text ?? a.quickLabelTip ?? "";
+      lines.push(`- ${label}${target}: ${body}`.trim());
+    }
+    return lines.join("\n");
   }
 
   /**

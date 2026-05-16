@@ -76,6 +76,10 @@
       {
         "command": "gemma-code.detectGpu",
         "title": "Gemma Code: Detect GPU"
+      },
+      {
+        "command": "gemma-code.hooks.editPlanModeHook",
+        "title": "Gemma Code: Edit Plan-Mode Improvement Hook"
       }
     ],
     "menus": {

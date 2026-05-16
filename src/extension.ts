@@ -13,6 +13,8 @@ import { MemoryPanel, MEMORY_PANEL_VIEW_ID } from "./panels/MemoryPanel.js";
 import { OtlpExporter, parseOtlpHeaders } from "./observability/OtlpExporter.js";
 import { GemmaRuntime } from "./runtime/GemmaRuntime.js";
 import { disposeEncoder as disposeTokenEncoder } from "./config/PromptBudget.js";
+import * as fs from "fs";
+import { hookFilePath } from "./chat/ImprovementHook.js";
 
 let outputChannel: vscode.OutputChannel | undefined;
 let ollamaPoller: NodeJS.Timeout | undefined;
@@ -363,6 +365,39 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   );
   context.subscriptions.push(openSessionCommand);
+
+  // ── v0.8.0 Phase 3.4: open the plan-mode improvement-hook file ───────────
+  const editPlanModeHookCommand = vscode.commands.registerCommand(
+    "gemma-code.hooks.editPlanModeHook",
+    async () => {
+      const filePath = hookFilePath("enterplanmode-improve");
+      try {
+        fs.mkdirSync(path.dirname(filePath), { recursive: true });
+        if (!fs.existsSync(filePath)) {
+          fs.writeFileSync(
+            filePath,
+            "# Plan-mode improvement rules\n\n" +
+              "Add user-supplied rules below. Lines are appended verbatim to the prompt as a system message after the plan-mode addendum and capabilities reminder.\n\n" +
+              "Examples:\n" +
+              "- When the plan touches the storage layer, always include a migration step.\n" +
+              "- When the plan involves git operations, always include a backup checkpoint.\n",
+            "utf8",
+          );
+        }
+        const doc = await vscode.workspace.openTextDocument(filePath);
+        await vscode.window.showTextDocument(doc, { preview: false });
+      } catch (err) {
+        const message = formatForUser(err);
+        outputChannel?.appendLine(
+          `[Gemma Code] Failed to open plan-mode hook ${filePath}: ${message}`,
+        );
+        void vscode.window.showErrorMessage(
+          `Failed to open plan-mode improvement-hook file: ${message}`,
+        );
+      }
+    },
+  );
+  context.subscriptions.push(editPlanModeHookCommand);
 
   // ── Ollama availability poller ────────────────────────────────────────────
   startOllamaPoller(chatPanel, outputChannel, runtime);

@@ -168,6 +168,117 @@ describe("PlanMode", () => {
   });
 });
 
+describe("PlanMode annotations (Phase 3.1)", () => {
+  const baseAnnotation = (overrides = {}) => ({
+    id: "a1",
+    blockId: "step-1",
+    startOffset: 0,
+    endOffset: 4,
+    type: "COMMENT" as const,
+    text: "Inline a check.",
+    originalText: "step",
+    ...overrides,
+  });
+
+  it("addAnnotation() appends rows and returns the new length", () => {
+    const pm = new PlanMode();
+    expect(pm.addAnnotation(baseAnnotation())).toBe(1);
+    expect(pm.addAnnotation(baseAnnotation({ id: "a2" }))).toBe(2);
+    expect(pm.getAnnotations()).toHaveLength(2);
+  });
+
+  it("addAnnotation() replaces an existing row when the id matches", () => {
+    const pm = new PlanMode();
+    pm.addAnnotation(baseAnnotation({ text: "first body" }));
+    pm.addAnnotation(baseAnnotation({ text: "second body" }));
+    expect(pm.getAnnotations()).toHaveLength(1);
+    expect(pm.getAnnotations()[0]?.text).toBe("second body");
+  });
+
+  it("removeAnnotation() drops the matching row and returns true", () => {
+    const pm = new PlanMode();
+    pm.addAnnotation(baseAnnotation());
+    pm.addAnnotation(baseAnnotation({ id: "a2" }));
+    expect(pm.removeAnnotation("a1")).toBe(true);
+    expect(pm.getAnnotations()).toHaveLength(1);
+    expect(pm.getAnnotations()[0]?.id).toBe("a2");
+  });
+
+  it("removeAnnotation() returns false when the id is not buffered", () => {
+    const pm = new PlanMode();
+    pm.addAnnotation(baseAnnotation());
+    expect(pm.removeAnnotation("missing")).toBe(false);
+    expect(pm.getAnnotations()).toHaveLength(1);
+  });
+
+  it("setPlan() and resetPlan() both clear the annotation buffer", () => {
+    const pm = new PlanMode();
+    pm.addAnnotation(baseAnnotation());
+    pm.setPlan(["Step A"]);
+    expect(pm.getAnnotations()).toHaveLength(0);
+    pm.addAnnotation(baseAnnotation());
+    pm.resetPlan();
+    expect(pm.getAnnotations()).toHaveLength(0);
+  });
+
+  it("clearAnnotations() empties the buffer", () => {
+    const pm = new PlanMode();
+    pm.addAnnotation(baseAnnotation());
+    pm.addAnnotation(baseAnnotation({ id: "a2" }));
+    pm.clearAnnotations();
+    expect(pm.getAnnotations()).toHaveLength(0);
+  });
+
+  it("formatAnnotationsAsFeedback() returns an empty string when no annotations", () => {
+    const pm = new PlanMode();
+    expect(pm.formatAnnotationsAsFeedback()).toBe("");
+  });
+
+  it("formatAnnotationsAsFeedback() renders DELETION, COMMENT, GLOBAL_COMMENT rows", () => {
+    const pm = new PlanMode();
+    pm.addAnnotation(
+      baseAnnotation({
+        id: "a1",
+        type: "DELETION",
+        originalText: "rm -rf /",
+        text: undefined,
+      }),
+    );
+    pm.addAnnotation(
+      baseAnnotation({
+        id: "a2",
+        type: "COMMENT",
+        originalText: "compile module",
+        text: "Inline a check.",
+      }),
+    );
+    pm.addAnnotation(
+      baseAnnotation({
+        id: "a3",
+        type: "GLOBAL_COMMENT",
+        originalText: "",
+        text: "Touches migration; add backup.",
+      }),
+    );
+    const out = pm.formatAnnotationsAsFeedback();
+    expect(out).toContain('Delete on "rm -rf /"');
+    expect(out).toContain('Comment on "compile module": Inline a check.');
+    expect(out).toContain("Global comment: Touches migration; add backup.");
+  });
+
+  it("falls back to quickLabelTip when text is empty in formatAnnotationsAsFeedback", () => {
+    const pm = new PlanMode();
+    pm.addAnnotation(
+      baseAnnotation({
+        type: "COMMENT",
+        text: undefined,
+        quickLabelTip: "Add test coverage.",
+      }),
+    );
+    expect(pm.formatAnnotationsAsFeedback()).toContain("Add test coverage.");
+  });
+});
+
 describe("PLAN_DENIAL_TEMPLATE", () => {
   it("contains the strong-directive framing", () => {
     expect(PLAN_DENIAL_TEMPLATE).toContain("YOUR PLAN WAS NOT APPROVED");

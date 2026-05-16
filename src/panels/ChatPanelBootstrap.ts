@@ -30,6 +30,7 @@ import type { MemoryStore } from "../storage/MemoryStore.js";
 import type { MemorySubsystem } from "../storage/MemorySubsystem.js";
 import type { MemoryFiles } from "../storage/MemoryFiles.js";
 import { MemorySnapshot } from "../storage/MemorySnapshot.js";
+import { PlanArchive } from "../storage/PlanArchive.js";
 import type { ToolOutputCache } from "../storage/ToolOutputCache.js";
 import type { WebResponseCache } from "../tools/handlers/webCache.js";
 import type { OperationLog } from "../observability/OperationLog.js";
@@ -105,6 +106,7 @@ export interface BootstrappedPanel {
   readonly memoryConsolidator: MemoryConsolidator | null;
   readonly memoryFiles: MemoryFiles | null;
   readonly planMode: PlanMode;
+  readonly planArchive: PlanArchive;
   readonly promptBuilder: PromptBuilder;
   readonly toolActivation: ToolActivationContext;
   readonly manager: ConversationManager;
@@ -171,6 +173,14 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
 
   const planMode = new PlanMode();
   const promptBuilder = new PromptBuilder(memoryFiles, memorySnapshot);
+
+  // v0.8.0 Phase 3.2 (item A8): persistent plan-version archive. Reuses the
+  // memory-file workspace id so the archive sits under
+  // `~/.gemma-code/plans/<workspace>/` next to the memory files. Falling back
+  // to `default` when no workspace is loaded preserves the local-only path.
+  const planArchive = new PlanArchive({
+    workspaceId: memoryFiles?.workspaceId,
+  });
 
   // The ToolActivation reads late-binding state via callbacks so prompt
   // rebuilds reflect the latest mcpTools, settings, ollama reachability and
@@ -336,6 +346,7 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
     pipeline,
     orchestrator,
     skillLoader,
+    planArchive,
     getStore: () => store,
     getMemoryStore: () => memorySubsystem.memoryStore,
     getMemoryFiles: () => memoryFiles,
@@ -416,6 +427,7 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
     memoryConsolidator: memorySubsystem.memoryConsolidator,
     memoryFiles,
     planMode,
+    planArchive,
     promptBuilder,
     toolActivation,
     manager,

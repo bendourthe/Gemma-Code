@@ -9,6 +9,7 @@ import type { GitSafetyNet } from "../guardrails/GitSafetyNet.js";
 import type { ConfirmationGate } from "../tools/ConfirmationGate.js";
 import type { AgentLoop } from "../tools/AgentLoop.js";
 import type { EditMode } from "../tools/types.js";
+import { renderHookAsSystemMessage } from "../chat/ImprovementHook.js";
 import { formatForUser } from "../utils/errors.js";
 import type { ChatController } from "./ChatController.js";
 import type { ChatStatusReporter } from "./ChatStatusReporter.js";
@@ -120,11 +121,58 @@ export class ChatMessageRouter {
       case "planDeny": {
         // v0.8.0 Phase 1.2: deny the plan with feedback; the rendered strong-
         // directive template is appended as a system message so the model knows
-        // it must revise rather than resubmit.
-        const rendered = deps.planMode.denyPlan(message.feedback);
+        // it must revise rather than resubmit. v0.8.0 Phase 3.1: if the user
+        // accumulated structured annotations, fold them into the feedback so
+        // the revised plan addresses each row.
+        const annotations = deps.planMode.formatAnnotationsAsFeedback();
+        const composite = annotations
+          ? `${message.feedback.trim()}\n\n${annotations}`.trim()
+          : message.feedback;
+        const rendered = deps.planMode.denyPlan(composite);
+        deps.planMode.clearAnnotations();
         deps.manager.addSystemMessage(rendered);
         deps.status.postHistory();
         deps.status.postTokenCount();
+        break;
+      }
+
+      case "planAnnotationAdd": {
+        // v0.8.0 Phase 3.1: append (or replace) an annotation in the in-flight
+        // buffer and re-publish the canonical list so the webview overlay
+        // stays in sync with the host state.
+        deps.planMode.addAnnotation(message.annotation);
+        deps.postMessage({
+          type: "renderPlanAnnotations",
+          planSlug: message.planSlug,
+          annotations: deps.planMode.getAnnotations(),
+        });
+        break;
+      }
+
+      case "planAnnotationRemove": {
+        // v0.8.0 Phase 3.1: remove an annotation by id and re-publish.
+        deps.planMode.removeAnnotation(message.annotationId);
+        deps.postMessage({
+          type: "renderPlanAnnotations",
+          planSlug: message.planSlug,
+          annotations: deps.planMode.getAnnotations(),
+        });
+        break;
+      }
+
+      case "planAnnotationsSubmit": {
+        // v0.8.0 Phase 3.1: webview pushed the full buffered set (usually
+        // because the user is about to deny). Authoritative replace, then
+        // re-publish so both sides agree on the canonical order.
+        deps.planMode.clearAnnotations();
+        for (const annotation of message.annotations) {
+          deps.planMode.addAnnotation(annotation);
+        }
+        deps.postMessage({
+          type: "renderPlanAnnotations",
+          planSlug: message.planSlug,
+          annotations: deps.planMode.getAnnotations(),
+        });
         break;
       }
 
@@ -178,6 +226,19 @@ export class ChatMessageRouter {
         type: "planModeToggled",
         active: shouldPlan,
       });
+      // v0.8.0 Phase 3.4: when activating plan mode, fold any user-supplied
+      // overlay from `~/.gemma-code/hooks/enterplanmode-improve.md` into the
+      // conversation as an additional system message. The hook is purely
+      // additive; the built-in addendum and PFM reminder (already in the
+      // rebuilt prompt above) stay authoritative.
+      if (shouldPlan) {
+        const hookBody = renderHookAsSystemMessage("enterplanmode-improve");
+        if (hookBody !== null) {
+          deps.manager.addSystemMessage(hookBody);
+          deps.status.postHistory();
+          deps.status.postTokenCount();
+        }
+      }
     }
   }
 

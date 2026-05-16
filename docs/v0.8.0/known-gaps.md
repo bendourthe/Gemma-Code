@@ -70,7 +70,7 @@ These sections mirror `docs/v0.7.0/known-gaps.md` Sections 2-9 and will be popul
 
 This section is appended phase-by-phase as v0.8.0 lands. Each entry records the source phase, plan reference, category, severity, reason, and suggested next step. Items are moved to `## Resolved` when closed in a later phase, and the `## Summary` at the bottom of the section is recomputed each pass.
 
-**Last updated**: 2026-05-15 (Phase 2 close).
+**Last updated**: 2026-05-16 (Phase 3 close).
 
 ### 10.1 Open Items
 
@@ -83,6 +83,8 @@ This section is appended phase-by-phase as v0.8.0 lands. Each entry records the 
 | 10.O.E | Phase 1 | (discovered) | BG | P2 | `tests/integration/memory-consolidator-large.test.ts` "consolidates 10K episodic events in under 5 seconds" times out at ~11s on the dev workstation (assertion: `expected 11255.9 to be less than 5000`). The 5 s budget was set in v0.7.0 and appears unrelated to Phase 1 changes (no consolidator code paths touched). | Phase 6 sub-task 6.3 (Reflect Job) will refactor the consolidator stress path; bump the threshold to a measured + headroom value during that work, or split the stress test into a separate `bench:integration` mode. |
 | 10.O.F | Phase 2 | docs/v0.8.0/plans/v0.8.0-cycle.md sub-task 2.4 | NI | P3 | Pass-state gating disabled at the sub-agent layer to avoid a verification deadlock (a verification sub-agent cannot run another verification tool to satisfy its own gate). The user-visible parent loop still enforces the gate. A future refinement could track per-sub-agent-type verification credit (e.g. count `success: true` audit-worker output as gate satisfaction) so sub-agents also benefit. | Phase 5 sub-task tied to per-skill metrics (5.1) is the natural place to extend `VERIFICATION_TOOLS` semantics with sub-agent return values; or land a follow-on ADR in v0.9.0. |
 | 10.O.G | Phase 2 | docs/v0.8.0/plans/v0.8.0-cycle.md sub-task 2.8 | MT | P2 | The four new SkillLoader round-trip tests landed in `tests/unit/scripts/package-skills.test.ts` (carrying the `parseSkill.normalized` shape through every harness adapter) cannot run on the dev workstation because the file collides with the pre-existing 10.O.D vitest 1.6.1 Node-vm parse error. The new tests load cleanly when the upstream issue is resolved; SkillLoader's own unit suite (`tests/unit/skills/SkillLoader.test.ts`) covers the same shape end-to-end and is green. | Resolve once 10.O.D ships; no Phase 2 follow-up required. |
+| 10.O.H | Phase 3 | docs/v0.8.0/plans/v0.8.0-cycle.md sub-task 3.4 | NI | P3 | The improvement-hook file is read with no prompt-injection scan; the v0.8.0 Phase 2.7 scanner only guards `Memory.md` / `Context.md`. Rationale: the user authored the file themselves, so the threat model is shell-rc parity, not third-party content. Documented in `docs/v0.8.0/improvement-hooks.md` Safety section. | If a future hook ingests text from an external source (e.g. a workspace-checked-in hook file), extend the scanner to cover `~/.gemma-code/hooks/*.md` before that hook ships. |
+| 10.O.I | Phase 3 | docs/v0.8.0/plans/v0.8.0-cycle.md sub-task 3.2 | WN | P3 | The `clean` diff mode wraps additions whose payload includes a trailing newline as `**text\n**`, so the closing `**` sits on the next line. The webview's downstream markdown renderer still highlights the run correctly, but the raw classic+raw modes are unaffected. Behaviour matches the `diff` package's `diffWordsWithSpace` semantics. | If a richer inline-diff renderer lands later (Phase 6+), revisit whether to post-process the clean output to strip trailing newlines from add/del runs. |
 
 ### 10.2 Resolved
 
@@ -100,12 +102,14 @@ This section is appended phase-by-phase as v0.8.0 lands. Each entry records the 
 
 | Category | Open | Resolved |
 |---|---|---|
-| NI (not implemented) | 1 | 4 |
+| NI (not implemented) | 2 | 4 |
 | DF (deferred) | 3 | 0 |
 | BG (bug) | 2 | 2 |
 | MT (missing tests) | 1 | 1 |
-| WN (warning) | 0 | 0 |
+| WN (warning) | 1 | 0 |
 | QG (gate bypass) | 0 | 0 |
-| **Total** | **7** | **7** |
+| **Total** | **9** | **7** |
 
-**Status (Phase 1 close)**: Five open items. Three operator-action (10.O.A/B/C) blocked on environment access. Two newly-discovered pre-existing bugs (10.O.D vitest vm transform on two test files; 10.O.E memory-consolidator stress test exceeds its 5 s budget) recorded for fix in their natural target phases (5.9 and 6.3 respectively). All seven Phase 1 sub-tasks (1.1 compaction prefix, 1.2 plan denial template, 1.3 PFM reminder, 1.4 approved-with-notes, 1.5 lens, 1.6 incident-commander, 1.7 council) landed clean with passing tests; `npm run lint` and `npm run build` both green; `tests/unit/chat/CompactionStrategy.test.ts` and `tests/unit/chat/PlanMode.test.ts` cover the new templates and methods (60 tests passing). The three new skills lift the catalog count from 13 to 16, and `tests/integration/commands/skill-execution.test.ts` was updated accordingly. The v0.7.0 in-cycle log items 10.O.4-10 are carried in v0.7.0's audit trail and close in their natural target phases (5.10, 5.11, 6.A, 7.1, 7.A-C); they are not duplicated in this log.
+**Status (Phase 3 close)**: Seven open items. Three operator-action (10.O.A/B/C) blocked on environment access. Two pre-existing bugs surfaced in Phase 1 (10.O.D vitest vm transform on two test files; 10.O.E memory-consolidator stress test exceeds its 5 s budget) remain queued for their natural target phases (5.9 and 6.3 respectively). One pass-state gating carve-out from Phase 2 (10.O.F, sub-agent layer disabled to avoid verification deadlock) and one round-trip-test blocker (10.O.G, blocked on 10.O.D resolution) carry forward. Phase 3 added two new entries: 10.O.H (improvement-hook content is not scanned by the prompt-injection guardrail — the user is the author, so shell-rc parity is the threat model) and 10.O.I (clean-diff mode emits `**text\n**` runs when additions include trailing newlines — `diff` library semantics, downstream renderer still highlights correctly).
+
+All four Phase 3 sub-tasks (3.1 annotation primitives, 3.2 plan-version archive + 3-mode diff, 3.3 quick-label chips, 3.4 improvement-hook file) landed clean with passing tests; `npm run lint` and `npm run build` both green; new test files: `tests/unit/panels/webview/render/planAnnotation.test.ts` (8 cases), `tests/unit/panels/webview/render/planDiff.test.ts` (7 cases), `tests/unit/panels/webview/render/quickLabels.test.ts` (16 cases), `tests/unit/storage/PlanArchive.test.ts` (11 cases), `tests/unit/chat/ImprovementHook.test.ts` (5 cases), `tests/integration/panels/planDiffRevise.test.ts` (2 cases); plus 11 new `PlanMode` annotation cases extending the existing suite. The v0.7.0 in-cycle log items 10.O.4-10 are carried in v0.7.0's audit trail and close in their natural target phases (5.10, 5.11, 6.A, 7.1, 7.A-C); they are not duplicated in this log.

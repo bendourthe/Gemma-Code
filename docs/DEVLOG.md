@@ -4,6 +4,44 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-16] v0.8.0 Phase 3 -- Plan-mode UX overhaul
+
+### Goal
+
+Transform plan mode from "numbered list + step approval" into a plannotator-grade structured review: three annotation primitives (DELETION / COMMENT / GLOBAL_COMMENT), a persistent plan version archive with a 3-mode diff renderer, quick-label chips that prefill canonical comment tips, and a user-editable improvement-hook file read on every plan-mode entry. Closes plan sub-tasks 3.1 through 3.4.
+
+### Decisions
+
+#### 3.1: Annotation buffer lives on `PlanMode`, not in the router
+
+Three annotation types ship in one render primitive ([src/panels/webview/render/planAnnotation.ts](../src/panels/webview/render/planAnnotation.ts)) following the v0.7.0 Phase 4 `*_FN_SOURCE` + `compileX` pattern. The render function sorts annotations into three DOM buckets (`.plan-annotation-globals`, `.plan-annotation-sidebar`, `.plan-annotation-deletions`) so the consumer can position them without re-parsing the type. `PlanModeState` grew an `annotations` array; `addAnnotation` / `removeAnnotation` / `getAnnotations` / `clearAnnotations` / `formatAnnotationsAsFeedback` round out the API. Three new webview-to-extension messages (`planAnnotationAdd` / `planAnnotationRemove` / `planAnnotationsSubmit`) and one extension-to-webview message (`renderPlanAnnotations`) carry the structured set across the boundary. On `planDeny`, the router folds the formatted annotation block into the user's free-form feedback before invoking `PlanMode.denyPlan`, then clears the buffer -- so a denial driven entirely by annotations carries them into the strong-directive template automatically.
+
+#### 3.2: Plan archive is local-only with monotonic 4-digit versions; diff is 3-mode
+
+[src/storage/PlanArchive.ts](../src/storage/PlanArchive.ts) writes every detected plan revision to `~/.gemma-code/plans/<workspace>/<slug>/<NNNN>.md`. Slug components are whitelisted (`[A-Za-z0-9._-]+`) to prevent directory traversal; workspace ids derived from filesystem paths normalize via `replace(/[\\/]/g, "_")`. `appendVersion` always picks `listVersions(slug).length + 1`, so a manual `0001.md` deletion still advances rather than overwriting. `diff(slug, fromVersion, toVersion)` returns a `PlanDiffResult` with three modes: `clean` (word-level inline markdown with `**add**` / `~~del~~`), `classic` (line-level block diff with `+` / `-` / ` ` prefixes), and `raw` (`createPatch` unified diff). `ChatController._checkForPlan` invokes the archive on every detected plan and emits `renderPlanDiff` for the second-and-later versions. The render primitive at [src/panels/webview/render/planDiff.ts](../src/panels/webview/render/planDiff.ts) ships the side-by-side surface with a mode-toggle row. Integration test exercises the revise-then-diff flow end-to-end.
+
+#### 3.3: Quick-label chips ship 5 canonical tips plus a user overlay
+
+[src/panels/webview/render/quickLabels.ts](../src/panels/webview/render/quickLabels.ts) ships `DEFAULT_QUICK_LABELS` with five chips: "Out of scope", "Add test", "Risky", "Missing rationale", "Wrong file". Each chip carries a canonical `quickLabelTip` that the consumer can prefill into a `COMMENT` annotation; clicking a chip dispatches `onPick(label)`, the webview-side handler builds an annotation with the chip's tip text as the body, and the standard `planAnnotationAdd` message carries it back to the host. `loadCustomQuickLabels(filePath?)` reads optional `~/.gemma-code/plans/quick-labels.json` and filters malformed rows in-place; logging stays on `console.warn` so the render-primitive module imports nothing from `vscode` and stays jsdom-test-friendly. `PLAN_QUICK_LABELS_TIPS` exports a frozen `id -> tip` map for downstream docs-sync checks.
+
+#### 3.4: Improvement-hook file is additive, scanner-exempt, single-file
+
+[src/chat/ImprovementHook.ts](../src/chat/ImprovementHook.ts) exposes `loadHook(name, rootDir?)`, `renderHookAsSystemMessage(name, rootDir?)`, and `hookFilePath(name, rootDir?)`. Only `enterplanmode-improve` is recognised in Phase 3 (the `HookName` type is the authoritative list and extends as new hooks land). When `ChatMessageRouter._handleSetEditMode` transitions to `plan`, the router rebuilds the system prompt (so the built-in addendum + PFM reminder fire) and then -- if the hook file has non-empty content -- appends a `## User-supplied plan-mode rules` system message with the user's overlay. A new VS Code command `gemma-code.hooks.editPlanModeHook` opens (and lazily seeds) the file. The prompt-injection scanner deliberately does NOT run against the hook file (logged as 10.O.H): the user is the author, so the threat model is shell-rc parity, not third-party content. `docs/v0.8.0/improvement-hooks.md` documents the file format and the safety boundary.
+
+### Tests
+
+`npm run lint` exit 0; `npm run build` exit 0. New tests: `tests/unit/panels/webview/render/planAnnotation.test.ts` (8 cases), `tests/unit/panels/webview/render/planDiff.test.ts` (7 cases), `tests/unit/panels/webview/render/quickLabels.test.ts` (16 cases), `tests/unit/storage/PlanArchive.test.ts` (11 cases), `tests/unit/chat/ImprovementHook.test.ts` (5 cases), `tests/integration/panels/planDiffRevise.test.ts` (2 cases), plus 11 new `PlanMode` annotation cases extending `tests/unit/chat/PlanMode.test.ts` (now 33 total). Full unit + integration suite passes; the two pre-existing 10.O.D test-loader failures (`tests/unit/cli/gemma-check.test.ts`, `tests/unit/scripts/package-skills.test.ts`) carry forward unchanged from Phase 1.
+
+### Known gaps
+
+See [docs/v0.8.0/known-gaps.md](v0.8.0/known-gaps.md) Section 10. Phase 3 added: 10.O.H (improvement-hook file is not scanned by the prompt-injection guardrail -- user-authored content, shell-rc parity threat model) and 10.O.I (clean-diff mode wraps adds with trailing newlines as `**text\n**` -- `diff` library semantics, classic + raw modes unaffected).
+
+### Next steps
+
+Phase 4: Observability + runtime + hybrid scoring. The `/trace` single-file bug-report primitive, the LM Studio second `LLMClient` adapter with auto-detect on Apple Silicon, the omlx Gemma 4 channel parser reverse-engineered into TypeScript, per-model sampler presets + three thinking modes, prefix-aware system-prompt construction, hybrid RRF memory scoring with why-retrieved transparency, and the evaluator-rubric template.
+
+---
+
 ## [2026-05-15] v0.8.0 Phase 2 -- Harness artifacts + memory snapshot + injection defense
 
 ### Goal

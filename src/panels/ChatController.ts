@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { StreamingPipeline } from "../chat/StreamingPipeline.js";
 import { detectPlan } from "../chat/PlanMode.js";
+import { PlanArchive } from "../storage/PlanArchive.js";
 import type { ConversationManager } from "../chat/ConversationManager.js";
 import { ContextCompactor } from "../chat/ContextCompactor.js";
 import type { PromptBuilder } from "../chat/PromptBuilder.js";
@@ -106,7 +107,24 @@ export interface ChatControllerContext extends ChatCommandContext {
   readonly pipeline: StreamingPipeline;
   readonly orchestrator: Orchestrator;
   readonly skillLoader: SkillLoader;
+  /**
+   * v0.8.0 Phase 3.2 -- persistent plan-version archive. Optional because the
+   * legacy test harness does not always wire it. When present, the controller
+   * appends every detected plan and emits `renderPlanDiff` on the second-and-
+   * later versions.
+   */
+  readonly planArchive?: PlanArchiveLike;
   getUnifiedRetriever(): UnifiedMemoryRetriever | null;
+}
+
+/**
+ * Structural slice of {@link PlanArchive} the controller needs. Declared as a
+ * minimal port so tests can substitute an in-memory fake without depending on
+ * `node:fs`.
+ */
+export interface PlanArchiveLike {
+  appendVersion(slug: string, content: string): number;
+  getVersion(slug: string, version: number): string | null;
 }
 
 /**
@@ -374,6 +392,11 @@ export class ChatController {
   /**
    * Detect a numbered plan in the most recent assistant message and post the
    * step list to the webview if plan mode is active. No-op otherwise.
+   *
+   * v0.8.0 Phase 3.2 -- when a {@link PlanArchive} is wired in, every detected
+   * plan is appended as a new version. The second-and-later version emits a
+   * `renderPlanDiff` message so the webview can surface a side-by-side diff
+   * against the prior plan before the user approves or denies.
    */
   private _checkForPlan(): void {
     const ctx = this._ctx;
@@ -384,10 +407,58 @@ export class ChatController {
     if (!lastAssistant) return;
 
     const steps = detectPlan(lastAssistant.content);
-    if (steps && steps.length >= 2) {
-      ctx.planMode.setPlan(steps);
-      ctx.postMessage({ type: "planReady", steps });
+    if (!(steps && steps.length >= 2)) return;
+
+    ctx.planMode.setPlan(steps);
+    ctx.postMessage({ type: "planReady", steps });
+
+    if (!ctx.planArchive) return;
+    const slug = this._planSlug();
+    const planContent = this._formatPlanForArchive(steps);
+    try {
+      const previousVersion = ctx.planArchive.getVersion(slug, this._lastPlanVersion);
+      const newVersion = ctx.planArchive.appendVersion(slug, planContent);
+      this._lastPlanVersion = newVersion;
+      if (previousVersion !== null) {
+        const result = PlanArchive.computeDiff(
+          previousVersion,
+          planContent,
+          slug,
+          newVersion - 1,
+          newVersion,
+        );
+        ctx.postMessage({
+          type: "renderPlanDiff",
+          planSlug: slug,
+          fromVersion: newVersion - 1,
+          toVersion: newVersion,
+          clean: result.clean,
+          classic: result.classic,
+          raw: result.raw,
+        });
+      }
+    } catch (err) {
+      getLogger().warn("[PlanArchive] Failed to archive plan revision:", err);
     }
+  }
+
+  /**
+   * Derive a filesystem-safe plan slug. Uses the active session id when
+   * available so each chat has its own version line; falls back to
+   * `unsessioned` for ad-hoc tests and pre-session capture.
+   */
+  private _planSlug(): string {
+    const session = this._ctx.manager.sessionId;
+    if (!session) return "unsessioned";
+    return session.replace(/[^A-Za-z0-9._-]/g, "_");
+  }
+
+  /** Tracks the last successfully written version so diff() can resolve the prior content. */
+  private _lastPlanVersion = 0;
+
+  /** Render the canonical archive form for a plan -- a numbered markdown list. */
+  private _formatPlanForArchive(steps: readonly string[]): string {
+    return steps.map((s, i) => `${i + 1}. ${s}`).join("\n") + "\n";
   }
 
   /**
