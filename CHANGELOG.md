@@ -1,3 +1,10 @@
+# [0.15.0](https://github.com/bendourthe/Gemma-Code/compare/v0.14.0...v0.15.0) (2026-05-16)
+
+
+### Features
+
+* **v0.8.0:** Phase 7 polish and cycle close (ADR cross-refs, no-bare-promise-rejection rule, dep-cruiser violations, console.log cleanup, README v0.8.0 surface) ([8954589](https://github.com/bendourthe/Gemma-Code/commit/8954589deba74d081dc5b91ecd81627368a386dc))
+
 # [0.14.0](https://github.com/bendourthe/Gemma-Code/compare/v0.13.0...v0.14.0) (2026-05-16)
 
 
