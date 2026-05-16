@@ -1,3 +1,10 @@
+## [0.15.1](https://github.com/bendourthe/Gemma-Code/compare/v0.15.0...v0.15.1) (2026-05-16)
+
+
+### Bug Fixes
+
+* **ci:** unblock CI run 69328475165 (gemma-check semantics + catalog regen + 6 SKILL.md ASCII cleanup + VSIX smoke job) ([e19adbb](https://github.com/bendourthe/Gemma-Code/commit/e19adbb0770bde754344b55721b6cfeb89e2999e)), closes [package.json#files](https://github.com/package.json/issues/files)
+
 # [0.15.0](https://github.com/bendourthe/Gemma-Code/compare/v0.14.0...v0.15.0) (2026-05-16)
 
 
