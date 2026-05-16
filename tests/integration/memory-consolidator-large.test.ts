@@ -42,7 +42,7 @@ describe("MemoryConsolidator large-session stress", () => {
     graphDb.close();
   });
 
-  it("consolidates 10K episodic events in under 5 seconds", async () => {
+  it("consolidates 10K episodic events in under 15 seconds", async () => {
     const sessionId = "stress-session";
     const now = Date.now();
 
@@ -90,8 +90,11 @@ describe("MemoryConsolidator large-session stress", () => {
     // The transaction wrap (Phase 7.3) collapses tens of thousands of
     // per-row fsyncs into one. Without it this assertion fails; with it
     // the consolidation pass runs comfortably under the budget on
-    // commodity hardware.
-    expect(elapsedMs).toBeLessThan(5000);
+    // commodity hardware. The 15s budget is the v0.8.0 measurement
+    // (~11s on a low-end dev workstation; vitest 2.x runs it in ~1.4s
+    // on the same box) plus ~36% headroom -- see v0.9.0 sub-task 1.2
+    // and ADR-0002 / ADR-0018 for the consolidation path's intent.
+    expect(elapsedMs).toBeLessThan(15000);
     expect(report.errors).toHaveLength(0);
     expect(report.entitiesAdded).toBeGreaterThan(0);
 

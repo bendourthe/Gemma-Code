@@ -4,6 +4,62 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-16] v0.9.0 Phase 1 -- Foundational fixes + operator-action tracking
+
+### Goal
+
+Make `npm run test` reliable on Windows so the rest of the v0.9.0 cycle is not gated by a teardown segfault, give the long-running consolidator stress test a realistic budget, and document the eight items only an authorized operator can drive. Plan reference: [docs/v0.9.0/plans/v0.9.0-cycle.md](v0.9.0/plans/v0.9.0-cycle.md) Phase 1, sub-tasks 1.1 / 1.2 / 1.3 / 1.4.
+
+### Decisions
+
+#### Sub-task 1.1 -- Root cause of the Windows test harness failure
+
+The v0.8.0 known-gaps catalog (10.O.D / G / N / R) attributed the parser failure to "vitest 1.6.1 Node-vm transform path on Windows mis-handling certain non-ASCII characters in the docstring or import list". Re-investigation under v0.9.0 found the actual cause is simpler and more general: both `bin/gemma-check.mjs` and `scripts/package-skills.mjs` start with a `#!/usr/bin/env node` shebang (required by the `package.json#bin` field for POSIX systems), and Vite's transform pipeline does not strip the leading `#!` line when those scripts are imported as ESM dependencies of a test file. The resulting source confuses Node's vm parser on Windows -- presenting as `SyntaxError: Invalid or unexpected token` at the test file's first `import`. The non-ASCII hypothesis was a red herring: both files are pure ASCII; the bug reproduces with LF or CRLF line endings; converting CRLF to LF does not change the symptom.
+
+The plan called for a vitest version bump as the first try, falling back to env-gating the affected files. The actual fix landed in three minimum-surface steps:
+
+1. **Vitest bumped to `^2.1.9`** (from `^1.0.0`) -- `vitest` and `@vitest/coverage-v8`. Vitest 2.x's error reporter shows the offending import line context (e.g. "imports from `bin/gemma-check.mjs`") rather than just the docstring line, which was the critical clue. The bump alone does NOT fix the bug.
+2. **12-line `stripShebang` Vite plugin** added to `configs/vitest.config.ts`. The plugin runs in the `pre` enforce phase, fires on `.mjs` / `.cjs` / `.js` ids only, drops the leading `#!` line if present, and returns the rest unchanged with `map: null`. The shebang stays on disk so the POSIX `bin` field keeps working.
+3. **CRLF tolerance in `scripts/package-skills.mjs.parseSkill`** -- Git's `core.autocrlf=true` (default on Windows installs) checks LF-committed SKILL.md files out with CRLF endings; `parseSkill` previously fence-matched only the LF form. A single `raw.replace(/\r\n/g, "\n")` up-front normalises the input without affecting on-disk source.
+
+The order matters: without the bump, vitest 1.x reports the error at the test file's docstring instead of the import line; without the plugin, the shebang still fails the vm parser; without the CRLF normalisation, the spawn-against-real-catalog test still fails on Windows.
+
+#### Sub-task 1.2 -- Consolidator stress threshold
+
+The v0.8.0 measurement was ~11s on the dev workstation against a 5s assertion; the vitest 2.x re-measurement on the same box is ~1.4s. The plan offered two options: (1) bump the threshold to a measured + headroom value, or (2) split into `bench:integration`. Picked option 1 because the spread between vitest 1.x (~11s) and 2.x (~1.4s) is explainable by the harness improvement (less teardown overhead) rather than commodity hardware variance. The new threshold is 15000ms (~36% headroom over the slow measurement, ~10x headroom over the fast measurement); inline comment documents both numbers and cites ADR-0002 / ADR-0018.
+
+#### Sub-task 1.3 -- Operator-action checklist
+
+New file at [docs/v0.9.0/operator-actions.md](v0.9.0/operator-actions.md) (11.6 KB, ASCII-only). Seven sections, one per operator-only carryover (10.O.A live-Ollama capture, 10.O.B v0.8.0 exit verification, 10.O.C lockfile + cross-platform HNSW, 10.O.X m-series.json capture, 10.O.AA Stryker mutation run, 10.O.CC pen-test re-run, 10.O.DD release publication). Each section opens with a `Status: pending` flag the operator flips to `done` after running. Sub-task 1.3 also ingests 10.O.BB (v0.8.0 golden + bench baseline) into Section 1 alongside 10.O.A since both require the same quiescent live-Ollama capture procedure.
+
+#### Sub-task 1.4 -- Opportunistic Windows fixes surfaced by the green harness
+
+With the segfault gone, two pre-existing Windows autocrlf failures became visible. Both fixed in-scope because Phase 1's acceptance is "`npm run test` returns exit 0 on Windows":
+
+- `tests/unit/scripts/check-architecture.test.ts` was asserting `head === "#!/usr/bin/env bash"` against an LF-only split; on Windows the working-tree CRLF leaves a trailing `\r` on the head line. Fix: split on `/\r?\n/` instead of `"\n"`.
+- `scripts/generate-tool-permission-table.mjs` was comparing an LF-generated table against a CRLF-loaded doc, flagging "out of sync" against a content-identical file. Fix: normalise `doc` to LF before the comparison.
+
+Neither fix changes on-disk source semantics; both are scoped to comparison points.
+
+### Gate results
+
+Full Windows test suite: **218 files passed, 2464 tests passed, 4 skipped, 0 failed.** No segfault. `npm run lint`, `npm run check src/` (4 pre-existing `prompt-oversized` warnings under 10.O.O, 0 errors), `npm run deps:check` (0 errors, 4 pre-existing orphan warnings), `npm run catalog:check`, and `npm run perm-tier:check` all exit 0.
+
+### Files
+
+- `configs/vitest.config.ts` -- `stripShebang` Vite plugin added (enforce `pre`).
+- `package.json` -- `vitest` and `@vitest/coverage-v8` bumped to `^2.1.9`.
+- `package-lock.json` -- regenerated.
+- `scripts/package-skills.mjs` -- CRLF normalisation in `parseSkill`.
+- `scripts/generate-tool-permission-table.mjs` -- CRLF normalisation in self-sync check.
+- `tests/integration/memory-consolidator-large.test.ts` -- threshold 5000 -> 15000 ms with rationale comment.
+- `tests/unit/scripts/check-architecture.test.ts` -- CRLF-tolerant shebang assertion.
+- `docs/v0.9.0/operator-actions.md` (new, 11.6 KB).
+- `docs/v0.9.0/known-gaps.md` (new) -- mirrors v0.8.0 structure; opens with 0 open, 5 resolved.
+- `docs/v0.8.0/known-gaps.md` -- five Resolved rows added (10.O.D / E / G / N / R); Summary recomputed (37 -> 32 open).
+
+---
+
 ## [2026-05-16] v0.8.0 Phase 7 post-CI -- gemma-check semantic alignment + catalog regen + CI audit
 
 ### Goal

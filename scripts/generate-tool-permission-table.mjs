@@ -89,7 +89,11 @@ function regenerate(check) {
   const entries = parseToolMap(source);
   const table = renderTable(entries);
 
-  const doc = fs.readFileSync(docPath, "utf8");
+  // v0.9.0 Phase 1: normalise CRLF -> LF up-front. Git's `core.autocrlf=true`
+  // setting (default on Windows installs) checks LF-committed docs out with
+  // CRLF endings; without this normalisation the LF block we generate below
+  // is "out of sync" by line endings alone on Windows.
+  const doc = fs.readFileSync(docPath, "utf8").replace(/\r\n/g, "\n");
   const beginIdx = doc.indexOf(beginMarker);
   const endIdx = doc.indexOf(endMarker);
   if (beginIdx < 0 || endIdx < 0 || endIdx < beginIdx) {

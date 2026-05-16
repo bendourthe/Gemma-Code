@@ -144,6 +144,12 @@ function renderCursor(raw, _slug) {
  * `frontmatter` map is retained for backwards-compatible callers.
  */
 function parseSkill(raw) {
+  // v0.9.0 Phase 1: normalise CRLF -> LF up-front. Git's `core.autocrlf=true`
+  // setting (default on Windows installs) converts LF to CRLF in the working
+  // tree, so a checkout of an LF-committed SKILL.md fails the LF-only fence
+  // match. Round-tripping via normalisation keeps the parser cross-platform
+  // without altering the on-disk source.
+  raw = raw.replace(/\r\n/g, "\n");
   if (!raw.startsWith("---\n")) {
     throw new Error("SKILL.md is missing the leading `---` frontmatter fence");
   }
