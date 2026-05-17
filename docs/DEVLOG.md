@@ -4,6 +4,35 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-16] v0.9.0 Phase 7 -- CI hardening from v0.8.0 post-CI audit
+
+### Goal
+
+Close the six v0.8.0 post-CI audit follow-ups (10.O.AB through 10.O.AG) in a single phase, beating the 2026-09-16 GitHub deadline for removing Node 20 from runners. Plan reference: [docs/v0.9.0/plans/v0.9.0-cycle.md](v0.9.0/plans/v0.9.0-cycle.md) Phase 7, sub-tasks 7.1 through 7.7.
+
+### Changes
+
+- **7.1 Node 24 actions upgrade.** Every `actions/*` reference across `.github/workflows/*.yml` bumped to the v5 line (or v6 for `setup-python`) and SHA-pinned with `# v5.x.y` / `# v6.x.y` comments: `actions/checkout@93cb6efe` (v5.0.1), `actions/setup-node@a0853c24` (v5.0.0), `actions/setup-python@a309ff8b` (v6.2.0), `actions/upload-artifact@330a01c4` (v5.0.0), `actions/download-artifact@634f93cb` (v5.0.0), `actions/cache@27d5ce7f` (v5.0.5). The TypeScript matrix in [.github/workflows/ci.yml](../.github/workflows/ci.yml) (`lint-ts` / `test-ts` / `build-ts`) moved to `node: ["22.x", "24.x"]`. Standalone `node-version: "20"` references across all workflows upgraded to `"22"`. `tests/unit/workflow-discipline.test.ts` SHA-pinning gate stays green.
+- **7.2 Functions coverage gate.** `coverage-gate` job's awk script in [.github/workflows/ci.yml](../.github/workflows/ci.yml) extended with a third assertion (`functions >= 80`) reading `.total.functions.pct` from `coverage/coverage-summary.json`. [configs/vitest.config.ts](../configs/vitest.config.ts) thresholds extended likewise so local `npm test -- --coverage` enforces the same floor. Global function coverage 88.94% (1199 / 1348) clears the gate. The 31 individual files below the per-file 80% function floor (panels, `*.types.ts` shims) stay tracked under [10.N.T](v0.9.0/known-gaps.md).
+- **7.3 check-prompts CI job.** New `check-prompts` job in [.github/workflows/ci.yml](../.github/workflows/ci.yml) runs `npm run check:prompts` on every push and PR. Exercises the prompt-no-ascii-violation / prompt-oversized / prompt-trailing-whitespace / prompt-bom / skill-duplicate-name rules against `src/chat/prompts` and `src/skills/catalog`. Fails the workflow only when any finding is `severity: error` (warnings non-blocking per the v0.8.0 Phase 7 CLI realignment). The lone outstanding `prompt-oversized` warning (`review-pr/SKILL.md ~811 tokens`) does not block CI and remains tracked under [10.N.F](v0.9.0/known-gaps.md).
+- **7.4 CodeQL SAST workflow.** New [.github/workflows/codeql.yml](../.github/workflows/codeql.yml) runs `github/codeql-action@v3.35.5` (SHA-pinned) `init` + `analyze` against the `javascript-typescript` language pack with the `security-and-quality` query set. Triggers: push to `main`, PR to `main`, weekly cron (`27 4 * * 1`). Starts non-blocking (`continue-on-error: true` on `analyze`) so a fresh ruleset rollout cannot stall PRs; SARIF uploads to the GitHub Security tab so the baseline can be triaged. Flip-to-blocking after one clean week stays operator-driven under [10.N.U](v0.9.0/known-gaps.md).
+- **7.5 Fast-bench PR-time gate.** New `fast-bench` job in [.github/workflows/ci.yml](../.github/workflows/ci.yml) runs only `tests/benchmarks/rendering.bench.ts` (`-t render` vitest filter) on every push. Uses the existing custom JSON reporter at [scripts/vitest-bench-json-reporter.mjs](../scripts/vitest-bench-json-reporter.mjs) and drives [scripts/check-bench-regressions.mjs](../scripts/check-bench-regressions.mjs) against `tests/benchmarks/baselines/v0.7.0.json` with `--regression-pct 20 --fail-on-regression`. The script gains an explicit `--fail-on-regression` CLI flag (forward-compatible alias; default exit code unchanged). Bench results upload as a 14-day artifact. Full nightly bench in `nightly.yml` unchanged. v0.8.0 baseline migration tracked under [10.N.V](v0.9.0/known-gaps.md).
+- **7.6 Dep-graph SVG artifact upload.** `check-architecture` job in [.github/workflows/ci.yml](../.github/workflows/ci.yml) now installs Graphviz (`apt-get install -y --no-install-recommends graphviz`), regenerates `docs/v0.5.0/dep-graph.svg` via `npm run deps:graph`, and uploads it as the `dep-graph-svg` artifact with 7-day retention. Reviewers can download the post-refactor dep graph directly from the workflow summary without re-running depcruise locally.
+
+### Validation
+
+- `npm run lint` -- exit 0.
+- `npm run build` -- exit 0 (tsc clean).
+- `npm test -- --coverage` -- 227 files, 2636 passed, 5 skipped, 0 failed on Windows; line coverage 85.53% / branch 81.85% / function 88.94% all above their gate thresholds (80% / 75% / 80%).
+- `npm run check:prompts` -- 0 errors, 1 pre-existing warning (review-pr/SKILL.md ~811 tokens).
+- `tests/unit/workflow-discipline.test.ts` -- 5 tests passed (every `uses:` reference is SHA-pinned).
+
+### Known gaps
+
+Five new in-cycle deferrals added in [docs/v0.9.0/known-gaps.md](v0.9.0/known-gaps.md): 10.N.T (per-file function-coverage backfill), 10.N.U (CodeQL flip-to-blocking decision after one clean week), 10.N.V (v0.8.0-baseline migration for fast-bench once the baseline file lands), 10.N.W (live-PR Phase 7 smoke acceptance), 10.N.X (Phase 7 single-commit deviation -- six artifacts share `ci.yml` so the bundled commit is mechanically clean). All six v0.8.0 post-CI follow-ups (10.O.AB / AC / AD / AE / AF / AG) move from Open to Resolved in [docs/v0.8.0/known-gaps.md](v0.8.0/known-gaps.md); v0.8.0 in-cycle Open count drops from 15 to 9.
+
+---
+
 ## [2026-05-16] v0.9.0 Phase 6 -- Curator scheduler subsystem + UX polish + minor wirings
 
 ### Goal

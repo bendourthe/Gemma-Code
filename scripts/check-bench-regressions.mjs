@@ -40,6 +40,13 @@ function parseArgs() {
       case "--update-baseline":
         args.updateBaseline = true;
         break;
+      case "--fail-on-regression":
+        // v0.9.0 Phase 7 (sub-task 7.5) -- explicit opt-in alias for the
+        // PR-time fast-bench gate. The script already exits 1 on regression
+        // by default; this flag makes the CI workflow's intent self-documenting
+        // and forward-compatible if the default behaviour is ever softened.
+        args.failOnRegression = true;
+        break;
       case "--exclude":
         // Regex pattern; repeatable. Matching benches are silently skipped
         // (still listed once under [info] so the suppression is visible).
@@ -51,7 +58,7 @@ function parseArgs() {
     }
   }
   if (!args.baseline || !args.current) {
-    console.error("Usage: --baseline <path> --current <path> [--floor <path>] [--regression-pct N] [--exclude <regex>] [--update-baseline]");
+    console.error("Usage: --baseline <path> --current <path> [--floor <path>] [--regression-pct N] [--exclude <regex>] [--update-baseline] [--fail-on-regression]");
     exit(2);
   }
   return args;

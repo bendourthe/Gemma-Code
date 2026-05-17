@@ -29,10 +29,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ["20.x", "22.x"]
+        node: ["22.x", "24.x"]
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: ${{ matrix.node }}
           cache: "npm"
@@ -45,10 +45,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ["20.x", "22.x"]
+        node: ["22.x", "24.x"]
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: ${{ matrix.node }}
           cache: "npm"
@@ -56,8 +56,8 @@ jobs:
       - run: npm run test -- --reporter=verbose --coverage
         env:
           CI: "true"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: always() && matrix.node == '20.x'
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        if: always() && matrix.node == '22.x'
         with:
           name: ts-coverage
           path: coverage/
@@ -69,17 +69,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ["20.x", "22.x"]
+        node: ["22.x", "24.x"]
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: ${{ matrix.node }}
           cache: "npm"
       - run: npm ci --prefer-offline --no-audit
       - run: npm run build
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: matrix.node == '20.x'
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        if: matrix.node == '22.x'
         with:
           name: ts-build
           path: out/
@@ -91,10 +91,10 @@ jobs:
     name: docs/index.md sync check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: "20"
+          node-version: "22"
           cache: "npm"
       - run: npm ci --prefer-offline --no-audit
       - name: Regenerate module catalog
@@ -117,9 +117,9 @@ jobs:
     needs: [test-ts]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
 
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
           name: ts-coverage
           path: coverage/
@@ -137,10 +137,13 @@ jobs:
           fi
           lines=$(jq -r '.total.lines.pct' "$summary")
           branches=$(jq -r '.total.branches.pct' "$summary")
-          printf 'TS line coverage:   %s%%\n' "$lines"
-          printf 'TS branch coverage: %s%%\n' "$branches"
-          awk -v v="$lines"    'BEGIN { exit (v + 0 < 80) }' || { echo "TS line coverage $lines% is below the 80% threshold"; exit 1; }
-          awk -v v="$branches" 'BEGIN { exit (v + 0 < 75) }' || { echo "TS branch coverage $branches% is below the 75% threshold"; exit 1; }
+          functions=$(jq -r '.total.functions.pct' "$summary")
+          printf 'TS line coverage:     %s%%\n' "$lines"
+          printf 'TS branch coverage:   %s%%\n' "$branches"
+          printf 'TS function coverage: %s%%\n' "$functions"
+          awk -v v="$lines"     'BEGIN { exit (v + 0 < 80) }' || { echo "TS line coverage $lines% is below the 80% threshold"; exit 1; }
+          awk -v v="$branches"  'BEGIN { exit (v + 0 < 75) }' || { echo "TS branch coverage $branches% is below the 75% threshold"; exit 1; }
+          awk -v v="$functions" 'BEGIN { exit (v + 0 < 80) }' || { echo "TS function coverage $functions% is below the 80% threshold"; exit 1; }
           echo "TS coverage gates: OK"
 
   # -- Multi-harness skill packaging ----------------------------------------
@@ -155,34 +158,34 @@ jobs:
     name: Package skills for sibling harnesses
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: "20"
+          node-version: "22"
           cache: "npm"
       - run: npm ci --prefer-offline --no-audit
       - name: Package skills (claude-code, cursor, opencode, gemini-cli)
         run: npm run package:skills -- --quiet
       - name: Upload Claude Code bundle
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: skills-claude-code
           path: dist/claude-code/
           retention-days: 30
       - name: Upload Cursor bundle
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: skills-cursor
           path: dist/cursor/
           retention-days: 30
       - name: Upload OpenCode bundle
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: skills-opencode
           path: dist/opencode/
           retention-days: 30
       - name: Upload Gemini CLI bundle
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: skills-gemini-cli
           path: dist/gemini-cli/
@@ -205,11 +208,71 @@ jobs:
     name: gemma-check (src/)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: "20"
+          node-version: "22"
       - run: node bin/gemma-check.mjs src/
+
+  # -- v0.9.0 Phase 7 (sub-task 7.5) -- PR-time fast-bench gate --------------
+  #
+  # Runs ONLY the MarkdownRenderer benches (`render ~*-token message`) on every
+  # push so a rendering perf regression is caught at PR time rather than next
+  # day in `nightly.yml`. The full benchmark suite (eviction, memory, hooks,
+  # tool execution, golden tasks) still runs nightly because those benches are
+  # slower, noisier on shared runners, or require Ollama.
+  fast-bench:
+    name: fast-bench (rendering)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci --prefer-offline --no-audit
+      - run: npm run build
+      - name: Run rendering benches
+        # `-t render` matches the three `render ~*-token message` bench names.
+        # The custom JSON reporter (`scripts/vitest-bench-json-reporter.mjs`)
+        # mirrors what `nightly.yml` uses because Vitest 1.x bench mode lacks a
+        # built-in JSON reporter.
+        run: npm run bench -- -t render --reporter=verbose --reporter=./scripts/vitest-bench-json-reporter.mjs --outputFile=bench-results.json 2>&1 | tee bench-results.txt
+      - name: Check rendering bench regressions
+        run: |
+          node scripts/check-bench-regressions.mjs \
+            --baseline tests/benchmarks/baselines/v0.7.0.json \
+            --current bench-results.json \
+            --regression-pct 20 \
+            --fail-on-regression
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        if: always()
+        with:
+          name: fast-bench-results
+          path: |
+            bench-results.txt
+            bench-results.json
+          retention-days: 14
+
+  # -- v0.9.0 Phase 7 (sub-task 7.3) -- dedicated prompt-quality gate -------
+  #
+  # `npm run check:prompts` runs the prompt-specific lint rules
+  # (prompt-no-ascii-violation, prompt-oversized, prompt-trailing-whitespace,
+  # prompt-bom, skill-duplicate-name) against the chat prompts and the skill
+  # catalog. A separate job keeps a regressing prompt-asset PR distinct from
+  # general gemma-check noise: when this job fails, the diff lives in the
+  # prompts surface, which is high-value and small.
+  check-prompts:
+    name: check-prompts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci --prefer-offline --no-audit
+      - run: npm run check:prompts
 
   # -- VSIX packaging smoke check (v0.8.0 Phase 7 post-CI audit) ------------
   #
@@ -227,16 +290,16 @@ jobs:
     needs: [build-ts]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: "20"
+          node-version: "22"
           cache: "npm"
       - run: npm ci --prefer-offline --no-audit
       - run: npm run build
       - name: vsce package --no-dependencies
         run: npx --yes @vscode/vsce package --no-dependencies --out gemma-code-ci.vsix
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: vsix-smoke
           path: gemma-code-ci.vsix
@@ -250,13 +313,27 @@ jobs:
     name: check-architecture
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: "20"
+          node-version: "22"
           cache: "npm"
+      # v0.9.0 Phase 7 (sub-task 7.6) -- Graphviz is required for
+      # `npm run deps:graph` (depcruise pipes DOT through `dot -Tsvg`).
+      - name: Install graphviz
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends graphviz
       - run: npm ci --prefer-offline --no-audit
       - run: bash scripts/check-architecture.sh
+      # v0.9.0 Phase 7 (sub-task 7.6) -- regenerate and publish the dep graph
+      # as a 7-day artifact so reviewers can download the post-refactor SVG
+      # without re-running depcruise locally.
+      - name: Regenerate dependency graph SVG
+        run: npm run deps:graph
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: dep-graph-svg
+          path: docs/v0.5.0/dep-graph.svg
+          retention-days: 7
 
   # -- v0.8.0 Phase 2 (item C2) ---------------------------------------------
   # Lifecycle bootstrap must exit 0 on Linux/macOS (init.sh) and Windows
@@ -267,10 +344,10 @@ jobs:
     name: init.sh (Linux)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: "20"
+          node-version: "22"
           cache: "npm"
       - run: bash scripts/init.sh
 
@@ -278,10 +355,10 @@ jobs:
     name: init.ps1 (Windows)
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: "20"
+          node-version: "22"
           cache: "npm"
       - run: pwsh -File scripts/init.ps1
         shell: pwsh
@@ -292,9 +369,9 @@ jobs:
     name: Installer unit tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
 
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.12"
 
@@ -323,10 +400,10 @@ jobs:
     name: npm audit (production deps)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: "20"
+          node-version: "22"
           cache: "npm"
       - run: npm ci --prefer-offline --no-audit
       - name: npm audit --production --audit-level=moderate
@@ -341,16 +418,16 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: "20"
+          node-version: "22"
           cache: "npm"
       - run: npm ci --prefer-offline --no-audit
       - name: npm audit --audit-level=high (json)
         continue-on-error: true
         run: npm audit --audit-level=high --json > audit-dev.json || true
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         if: always()
         with:
           name: audit-dev
@@ -361,15 +438,15 @@ jobs:
     name: pip-audit (installer venv)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.12"
       - uses: astral-sh/setup-uv@e4db8464a088ece1b920f60402e813ea4de65b8f # v4
         with:
           version: "latest"
       - name: Cache pip-audit advisory DB
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.cache/pip-audit
           key: pip-audit-${{ runner.os }}-${{ hashFiles('scripts/installer/pyqt/uv.lock') }}
