@@ -1,0 +1,71 @@
+import { describe, expect, it } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import { Sidebar } from "../src/components/Sidebar";
+import { PERSISTENCE_KEYS } from "../src/lib/persistence";
+
+function renderAt(path: string) {
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <Sidebar />
+    </MemoryRouter>,
+  );
+}
+
+describe("Sidebar", () => {
+  it("renders all four primary module entries plus admin entries", () => {
+    renderAt("/");
+    expect(screen.getByTestId("nav-chatbot")).toBeInTheDocument();
+    expect(screen.getByTestId("nav-coding")).toBeInTheDocument();
+    expect(screen.getByTestId("nav-image")).toBeInTheDocument();
+    expect(screen.getByTestId("nav-video")).toBeInTheDocument();
+    expect(screen.getByTestId("nav-admin-settings")).toBeInTheDocument();
+    expect(screen.getByTestId("nav-admin-profile")).toBeInTheDocument();
+  });
+
+  it("marks the coding route as active when the route matches", () => {
+    renderAt("/coding");
+    const link = screen.getByTestId("nav-coding") as HTMLAnchorElement;
+    expect(link.getAttribute("aria-current")).toBe("page");
+  });
+
+  it("does not mark the chatbot entry as active when at /coding", () => {
+    renderAt("/coding");
+    const link = screen.getByTestId("nav-chatbot") as HTMLAnchorElement;
+    expect(link.getAttribute("aria-current")).toBeNull();
+  });
+
+  it("persists the active route in localStorage", () => {
+    renderAt("/images");
+    expect(window.localStorage.getItem(PERSISTENCE_KEYS.activeRoute)).toBe("/images");
+  });
+
+  it("Ctrl+3 navigates to /images", () => {
+    renderAt("/");
+    fireEvent.keyDown(window, { key: "3", ctrlKey: true });
+    expect(window.localStorage.getItem(PERSISTENCE_KEYS.activeRoute)).toBe("/images");
+  });
+
+  it("Ctrl+, navigates to /settings", () => {
+    renderAt("/");
+    fireEvent.keyDown(window, { key: ",", ctrlKey: true });
+    expect(window.localStorage.getItem(PERSISTENCE_KEYS.activeRoute)).toBe("/settings");
+  });
+
+  it("ignores Ctrl+digit when focus is on an input", () => {
+    renderAt("/");
+    const input = document.createElement("input");
+    document.body.appendChild(input);
+    input.focus();
+    fireEvent.keyDown(input, { key: "2", ctrlKey: true });
+    // Route should still be "/" - the persistence was last updated on mount.
+    expect(window.localStorage.getItem(PERSISTENCE_KEYS.activeRoute)).toBe("/");
+    document.body.removeChild(input);
+  });
+
+  it("ignores Ctrl+digit for unmapped digits", () => {
+    renderAt("/");
+    fireEvent.keyDown(window, { key: "9", ctrlKey: true });
+    expect(window.localStorage.getItem(PERSISTENCE_KEYS.activeRoute)).toBe("/");
+  });
+});

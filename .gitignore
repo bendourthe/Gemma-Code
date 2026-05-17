@@ -252,3 +252,16 @@ worktrees/
 # committed. The pattern below catches any stray local copies.
 *.hnsw
 memory.hnsw
+
+# ==============================================================================
+# Nexus desktop shell (v1.0.0 Phase 1)
+# ==============================================================================
+# Tauri + Vite build outputs, sidecar bundle, generated Tauri sources.
+# Covered by `dist/` and `target/` above; the patterns below pin them
+# explicitly so a future cleanup pass does not silently re-include them.
+desktop/dist/
+desktop/coverage/
+desktop/sidecar/dist/
+desktop/src-tauri/target/
+desktop/src-tauri/gen/
+desktop/src-tauri/Cargo.lock

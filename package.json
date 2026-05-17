@@ -531,10 +531,19 @@
   "bin": {
     "gemma-check": "./bin/gemma-check.mjs"
   },
+  "workspaces": [
+    "desktop"
+  ],
   "scripts": {
     "generate:golden-tasks": "node scripts/generate-golden-tasks.mjs",
     "prebuild": "npm run generate:golden-tasks",
     "build": "tsc",
+    "dev:shell": "npm run dev:shell --workspace @nexus/desktop",
+    "build:shell": "npm run build:shell --workspace @nexus/desktop",
+    "build:sidecar": "npm run build:sidecar --workspace @nexus/desktop",
+    "lint:shell": "npm run lint --workspace @nexus/desktop",
+    "test:shell": "npm run test --workspace @nexus/desktop",
+    "test:shell:coverage": "npm run test:coverage --workspace @nexus/desktop",
     "watch": "tsc -w",
     "dev": "tsc -w",
     "pretest": "npm run generate:golden-tasks",

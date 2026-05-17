@@ -1,0 +1,41 @@
+@import "./tokens.css";
+
+/* Utility classes that are referenced before Tailwind v4 lands; trimmed to
+ * what Phase 1 needs so we do not block on the Tailwind pipeline. Tailwind v4
+ * will be wired in Phase 2 once the rebrand carves the build pipeline. */
+
+.nx-stack {
+  display: flex;
+  flex-direction: column;
+}
+
+.nx-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+.nx-grow {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.nx-divider {
+  height: 1px;
+  background-color: var(--border-subtle);
+  margin: var(--space-3) 0;
+}
+
+.nx-card {
+  background-color: var(--bg-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+}
