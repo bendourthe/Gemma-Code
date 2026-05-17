@@ -547,6 +547,8 @@
     "perm-tier": "node scripts/generate-tool-permission-table.mjs",
     "perm-tier:check": "node scripts/generate-tool-permission-table.mjs --check",
     "mutate": "stryker run configs/stryker.config.json",
+    "debug": "node scripts/debug/cli.mjs",
+    "work": "node scripts/work.mjs",
     "prepare": "husky"
   },
   "lint-staged": {

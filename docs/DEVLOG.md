@@ -4,6 +4,48 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-16] v0.9.0 Phase 4 -- Internal RE builds: dev-loop ergonomics
+
+### Goal
+
+Ship four cross-platform dev-loop ergonomics artifacts reverse-engineered from public OpenHuman bash scripts and CI workflows, but built Node-only and Windows-first. No bash dependencies, no third-party services, no copied prose. Plan reference: [docs/v0.9.0/plans/v0.9.0-cycle.md](v0.9.0/plans/v0.9.0-cycle.md) Phase 4, sub-tasks 4.1 through 4.4.
+
+### Decisions
+
+#### Sub-task 4.1 -- Cross-platform `npm run debug ...` runners
+
+Wrote [scripts/debug/cli.mjs](../scripts/debug/cli.mjs) as the single dispatcher and five thin sibling delegates (`unit.mjs`, `integration.mjs`, `golden.mjs`, `bench.mjs`, `logs.mjs`) so contributors can invoke any kind directly or via `npm run debug <kind>`. The runner spawns `npx vitest` with the right `--config configs/vitest.config.ts` plus the appropriate `tests/` positional, tees combined stdout/stderr to `out/debug-logs/<kind>-<ISO-ts>.log` via a Node `PassThrough`, and appends `# exit <code>` as the last line so `logs list` can parse the run's exit code without re-running vitest. Summary-by-default behaviour: failures + the trailing test-files / tests / duration block are printed; full body is reserved for `--verbose`. The `logs` sub-command supports `list` (mtime-desc table), `last`, and `<run-id>` (with prefix matching) plus `--head N` / `--tail N` to bound output. `out/debug-logs/` added to `.gitignore`. The five sibling delegates are intentionally thin (re-export `main` and prepend the kind) so a contributor can invoke any of them directly without the `npm run debug` indirection.
+
+Rationale for Node-not-bash: Windows is a first-class development platform and the cycle's stability gate explicitly says "Windows-first". Reverse-engineering the pattern (tee-to-log, summary-first output, exit-code suffix, logs list/last/<id>) rather than translating bash gives us a single source that runs on Git Bash, PowerShell, macOS, and Linux without environment-specific shim scripts.
+
+#### Sub-task 4.2 -- `coverage-diff.yml` workflow
+
+[.github/workflows/coverage-diff.yml](../.github/workflows/coverage-diff.yml) is purely additive: it runs `diff-cover==9.2.0` (pinned) against `coverage/lcov.info` with `--compare-branch=origin/main --fail-under=80` on every `opened` / `synchronize` / `reopened` pull request against `main`. Reports are uploaded as a 14-day `diff-coverage` artifact (markdown + HTML). On failure, the markdown report is posted back as a PR comment via `gh pr comment <PR#> --body-file diff-coverage.md` so the changed-lines coverage drop is visible to the contributor without having to dig into the workflow logs. The global vitest thresholds in [configs/vitest.config.ts](../configs/vitest.config.ts) are NOT modified -- the existing `lines: 80, branches: 75` totals stay as the suite-wide floor; the diff-cover gate is an extra check on top, scoped to the PR's changed lines only.
+
+The `continue-on-error: true` step + an explicit "Fail job when diff-cover failed" step is the GitHub Actions idiom for "run the comment step regardless, but flip the job red". Setting `continue-on-error: false` on the diff-cover step would skip the comment step entirely and the contributor would be left without the actionable markdown report. Live PR validation (synthetic coverage-drop PR + noop PR) is tracked as operator follow-up 10.N.I.
+
+#### Sub-task 4.3 -- Pre-push hook with auto-fix-then-retry
+
+[.husky/pre-push](../.husky/pre-push) is POSIX shell so it runs on Git Bash on Windows alongside macOS/Linux. Five steps: (1) `npm run lint -- --fix` best-effort, allowed to fail; (2) `git diff --quiet` -- if the auto-fix actually changed files the push is refused with a re-stage / re-push prompt; (3) strict `npm run lint`, no `|| true` muting; (4) `npm run build` (`tsc`); (5) `npm run check src/`. The hook does NOT swallow strict-lint / build / check failures. The integration test [tests/integration/husky-prepush.test.ts](../tests/integration/husky-prepush.test.ts) asserts the textual contract (POSIX shebang, `set -e`, the five steps in the right order, no `|| true` muting on the strict steps) without spawning the hook end-to-end -- running the real hook from inside `npm test` would re-enter the same vitest invocation and would add a 30+ second build round-trip per test run. The real-branch smoke is tracked as operator follow-up 10.N.J.
+
+#### Sub-task 4.4 -- `npm run work <issue>`
+
+[scripts/work.mjs](../scripts/work.mjs) is a cross-platform dispatcher. It calls `gh issue view <num> --json number,title,body,labels,url,state,author`, derives `feat/issue-<num>-<slug>` (slug = lowercased, non-alphanum -> dash, capped at 40 chars, trailing dashes trimmed, falls back to `issue` when input collapses to empty), creates/switches the branch via `git fetch origin main && git checkout -b <branch> origin/main` (or reuses an existing branch), builds an agent prompt containing the issue title/body/link/labels and the Gemma-Code conventions reminder (strict TS, no `console.*`, Zod at boundaries, files <500 lines, ADR refs, ASCII-only, tests for new behaviour), prints the prompt to stdout, and copies it to the system clipboard via `clip` (Windows), `pbcopy` (macOS), or `xclip -selection clipboard` (Linux, if present). `--no-checkout` skips the git step (useful from a worktree); `--agent claude|codex|cursor` optionally spawns the agent CLI with the prompt piped on stdin. The `gh` invocation is the only external command and it talks to GitHub for the user's own repo (the intrinsic data destination per AGENTS.md MCP-Registry Policy bucket 4).
+
+### Tests
+
+- [tests/unit/scripts/debug.test.ts](../tests/unit/scripts/debug.test.ts) -- 14 tests covering `buildVitestArgs` (unit/integration/golden positionals, --watch, -t filter, extra positionals), `summarizeVitestOutput` (Test Files / Tests / Duration summary capture + FAIL block extraction), `extractFailureBlocks` (Error: fallback when no FAIL marker), `listLogs` (returns array, row shape), `main` (--help, no-arg, unknown command, `logs list` empty state), plus a spawn-level `--help` smoke.
+- [tests/unit/scripts/work.test.ts](../tests/unit/scripts/work.test.ts) -- 18 tests covering `parseArgs` (positional issue, extra prompt, --no-checkout, --agent / --agent=, --help), `slugify` (case + dash collapse + 40-char cap + empty-input fallback), `deriveBranchName` (short + long titles), `buildAgentPrompt` (title / number / link / body / labels both shapes / extra prompt / conventions / missing fields), `main` (--help, no-arg).
+- [tests/integration/husky-prepush.test.ts](../tests/integration/husky-prepush.test.ts) -- 7 textual-contract tests on the hook file.
+
+Full Windows suite: 222 files, 2536 tests passed + 4 skipped (pre-existing), 0 failed. `npm run lint`, `npm run build`, `npm run check src/`, `npm run deps:check`, `npm run catalog:check`, and `npm run perm-tier:check` all exit 0.
+
+### Known gaps
+
+See [docs/v0.9.0/known-gaps.md](v0.9.0/known-gaps.md) for the structured gap list. Phase 4 adds three new in-cycle items (10.N.I diff-cover live-PR smoke, 10.N.J pre-push real-branch smoke, 10.N.K Phase 4 atomic-commit deviation) and migrates the suggested next step of 10.N.B / 10.N.C from Phase 4 to Phase 6 "UX polish" (Phase 4 scope was dev-loop only, no webview).
+
+---
+
 ## [2026-05-16] v0.9.0 Phase 3 -- Skill-native adoptions (reverse-engineered, zero-code)
 
 ### Goal
