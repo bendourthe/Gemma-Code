@@ -1,3 +1,10 @@
+# [0.25.0](https://github.com/bendourthe/Nexus-AI/compare/v0.24.0...v0.25.0) (2026-05-17)
+
+
+### Features
+
+* **v1.0.0:** phase 3 Coding module IPC, multi-LLM catalog, idle scheduler ([06ae02b](https://github.com/bendourthe/Nexus-AI/commit/06ae02badd655b5cd8027a33f3beb61d73030d41))
+
 # [0.24.0](https://github.com/bendourthe/Nexus-AI/compare/v0.23.0...v0.24.0) (2026-05-17)
 
 
