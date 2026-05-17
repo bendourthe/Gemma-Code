@@ -1,3 +1,10 @@
+# [0.20.0](https://github.com/bendourthe/Gemma-Code/compare/v0.19.0...v0.20.0) (2026-05-17)
+
+
+### Features
+
+* **v0.9.0:** Phase 6 curator scheduler + UX polish + minor wirings ([521cb64](https://github.com/bendourthe/Gemma-Code/commit/521cb64d14d6d41402f04707ea65b78d1c7539ed))
+
 # [0.19.0](https://github.com/bendourthe/Gemma-Code/compare/v0.18.0...v0.19.0) (2026-05-17)
 
 
