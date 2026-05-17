@@ -1,3 +1,10 @@
+## [0.22.4](https://github.com/bendourthe/Nexus-AI/compare/v0.22.3...v0.22.4) (2026-05-17)
+
+
+### Bug Fixes
+
+* **ci:** unblock smoke and AGENTS-md tests post-rebrand ([2591ee4](https://github.com/bendourthe/Nexus-AI/commit/2591ee4bda07543994a0e55f7926537f26e822f2))
+
 ## [0.22.3](https://github.com/bendourthe/Nexus-AI/compare/v0.22.2...v0.22.3) (2026-05-17)
 
 
