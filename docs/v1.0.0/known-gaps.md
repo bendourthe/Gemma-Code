@@ -214,6 +214,41 @@ Each entry has a category tag:
 - **Reason**: The `<TopBar extraButtons>` slot renders the Dashboard's notification bell with a red-dot badge. The badge visibility is currently always-on (hard-coded markup) because no notification source exists yet; the previous Phase 1 implementation behaved identically. Genuine notifications surface in Phase 8 (telemetry) and Phase 10 (skills sync diffs).
 - **Suggested next step**: Phase 8 introduces a `notificationStream` prop on the Dashboard that drives the badge visibility; the TopBar already accepts `extraButtons` so the badge gating happens at the call site, no TopBar changes needed.
 
+### 5.P1.BB -- Settings UI is wired to a mock client (DF, P1)
+
+- **Source phase**: Phase 5 (5.5)
+- **Plan reference**: [phase-05-model-registry.md](plans/phase-05-model-registry.md) sub-task 5.5 ("Install shows a progress bar driven by the downloader's progress event (subscribe via IPC). Cancel button.").
+- **Reason**: `desktop/src/pages/settings/ModelsSettings.tsx` ships the full UI surface (Installed / Available / External sections, type / family filters, search, disk-usage summary, install progress + cancel, remove, reveal). The default route binds to `createMockModelsClient()` because the sidecar's `models.list` / `models.install` / `models.remove` / `models.diskUsage` IPC methods are still declared as `NotImplementedError` in `desktop/sidecar/src/handlers.ts` (Phase 1 contract surface). The mock client mimics download progress in real time so the UI is exercised end-to-end in tests.
+- **Suggested next step**: A Phase 5 follow-on commit wires four new handlers in `desktop/sidecar/src/handlers.ts` against a `NexusModelRegistry` instance (constructed once via `bootstrapCoding` + `NexusModelRegistry.create({ root: nexusHome() })`), adds schemas for `models.list` / `models.install` / `models.remove` / `models.diskUsage` to `protocol.ts`, and introduces a `sidecarModelsClient` in `desktop/src/pages/settings/` that satisfies `ModelsClient`. Install progress flows through the same `tauri::Channel` approach tracked by 3.P1.N / 3.P2.U.
+
+### 5.P2.CC -- Catalog SHA-256 digests for HTTP-sourced models are placeholders (NI, P2)
+
+- **Source phase**: Phase 5 (5.3)
+- **Plan reference**: [phase-05-model-registry.md](plans/phase-05-model-registry.md) sub-task 5.3 ("source: {protocol: 'ollama' | 'huggingface' | 'url', url, sha256}").
+- **Reason**: `core/registry/catalog.json` carries every Phase 6 image entry (SDXL Turbo, SDXL 1.0, Flux Schnell, SD 1.5) and Phase 7 video entry (LTX-Video, SVD) with `source.sha256: "0".repeat(64)` as a placeholder. The `Downloader` will reject any actual fetch against these specs (`DigestMismatch`), which is the safe failure mode -- but a user clicking "Install" today gets a digest-mismatch error rather than a verified download. Ollama-sourced entries delegate digest verification to `ollama pull` and are unaffected.
+- **Suggested next step**: Phase 6 (image studio) and Phase 7 (video lab) capture the canonical SHA-256 for each weights file from the hosting site (HuggingFace's `lfs.sha256` field or a manual `shasum -a 256` over the downloaded file) and replace the placeholder digests. A small `core/registry/catalog-digests.test.ts` is added at the same time that asserts every non-ollama entry has a non-zero digest.
+
+### 5.P2.DD -- StreamingPipeline keep-alive resolver hand-wiring is operator-driven (DF, P2)
+
+- **Source phase**: Phase 5 (5.6)
+- **Plan reference**: [phase-05-model-registry.md](plans/phase-05-model-registry.md) sub-task 5.6 ("inject the `keepAliveFor(modelId)` resolver into the streaming pipeline via the existing `KeepAliveResolver` callback in `StreamingPipeline`").
+- **Reason**: `core/registry/ModelPinRegistry` exposes `resolver()` -> `(model) => keepAliveFor(model)`, and `desktop/sidecar/src/runtime/codingBootstrap.ts` builds the `keepAliveResolver`. The actual hand-off into `src/chat/StreamingPipeline.ts`'s constructor argument is still operator-controlled by `src/panels/ChatPanelBootstrap.ts`, which lives under the VS Code-bound code path and continues to consume the legacy `src/storage/ModelPinRegistry.ts` (now a re-export). Once the engine relocates into `modules/coding/` (Phase 2.P2.I / 3.P1.M), the sidecar will own `StreamingPipeline` construction and pass `boot.keepAliveResolver` directly; until then, both code paths see the same underlying registry instance because the legacy module re-exports the core class.
+- **Suggested next step**: Bundle with the engine relocation (Phase 5 follow-on or Phase 6): construct `StreamingPipeline` in the sidecar's session manager and pass `bootstrap.keepAliveResolver` as the `resolveKeepAlive` argument. The VS Code adapter (item 3.P1.O) then no longer needs to thread its own resolver through.
+
+### 5.P2.EE -- Settings UI per-model "Keep loaded in VRAM" checkbox not yet bound (DF, P2)
+
+- **Source phase**: Phase 5 (5.6)
+- **Plan reference**: [phase-05-model-registry.md](plans/phase-05-model-registry.md) sub-task 5.6 ("Add a Settings UI checkbox per installed LLM: 'Keep loaded in VRAM' toggles the pin.").
+- **Reason**: The `ModelsClient` interface accepts optional `pin` / `isPinned` methods, and `ModelsSettings` renders a "Pin" action on installed entries when the client wires them. The default mock client in `desktop/src/pages/settings/mockModelsClient.ts` does not implement them yet (because the IPC bridge in 5.P1.BB is also stubbed). Once the sidecar client lands, a one-line `pin: (id, pinned) => ipc.call("models.pin", { id, pinned })` finishes the wiring; the UI side already exists.
+- **Suggested next step**: Same Phase 5 follow-on that wires 5.P1.BB also adds `models.pin` (calls `bootstrap.modelPins.setPinned(id, pinned)`) and `models.isPinned` IPC methods, plus the matching `sidecarModelsClient` implementation. Replace the "Pin" button with a checkbox in the Installed section once both ends are live.
+
+### 5.P3.FF -- Pre-existing test failures unchanged on Windows (DF, BG, P3)
+
+- **Source phase**: Phase 5 (5.7 test run)
+- **Plan reference**: [phase-05-model-registry.md](plans/phase-05-model-registry.md) sub-task 5.7 ("Run the test suite, fix all failures, iterate").
+- **Reason**: The full `npm test` run still shows 5 failures unchanged from Phase 2's recording in item 2.P3.L (4x `SubAgentManager.characterization.test.ts` CRLF/LF snapshot mismatches; 1x `workflow-discipline.test.ts` SHA-pin check against the Phase 1 `shell-build.yml` workflow). All Phase 5 tests (115 / 115) pass; the failure set is identical to a pre-Phase-5 stash-and-rerun.
+- **Suggested next step**: No new action. Tracked exhaustively under item 2.P3.L; this entry exists so the Phase 5 audit trail reflects the same baseline.
+
 ---
 
 ## 2. Resolved
@@ -221,6 +256,7 @@ Each entry has a category tag:
 | Item | Resolution | Phase / commit |
 |---|---|---|
 | [v0.9.0:10.N.Q] IdleTimeScheduler wiring | Sidecar bootstrap registers curator (5 min idle / 12 h cadence) + reflect (10 min idle / 24 h cadence) workers; 30-minute synthetic-idle integration test passes. Legacy `AgentLoop` curator-cadence fallback removal tracked as 3.P1.P. | Phase 3.4 (desktop/sidecar/src/runtime/idleScheduler.ts) |
+| [v0.9.0:10.N.A] ModelPinRegistry wiring | Ported `src/storage/ModelPinRegistry.ts` to `core/registry/ModelPinRegistry.ts`, persisted pin set through new `SettingsStore` (`nexus.llm.modelPins`), exposed `resolver()` for `StreamingPipeline`'s existing `KeepAliveResolver` callback. Sidecar bootstrap (`desktop/sidecar/src/runtime/codingBootstrap.ts`) hydrates the registry on startup. Legacy module is a compat re-export. | Phase 5.6 (core/registry/ModelPinRegistry.ts, core/storage/SettingsStore.ts, desktop/sidecar/src/runtime/codingBootstrap.ts) |
 
 ---
 
@@ -229,18 +265,18 @@ Each entry has a category tag:
 | Severity | Open | Resolved |
 |---|---|---|
 | P0 | 0 | 0 |
-| P1 | 12 | 1 |
-| P2 | 14 | 0 |
-| P3 | 2 | 0 |
-| **Total** | **28** | **1** |
+| P1 | 13 | 2 |
+| P2 | 17 | 0 |
+| P3 | 3 | 0 |
+| **Total** | **33** | **2** |
 
 | Category | Open | Resolved |
 |---|---|---|
-| NI | 3 | 0 |
-| DF | 24 | 1 |
-| BG | 1 | 0 |
+| NI | 4 | 0 |
+| DF | 28 | 2 |
+| BG | 2 | 0 |
 | MT | 3 | 0 |
 | WN | 0 | 0 |
 | QG | 0 | 0 |
 
-**Last updated**: 2026-05-17 (Phase 4 close; in-memory ChatExplorer + MemoryHub scopes shipped, SQLite/IPC wiring deferred to Phase 5 alongside items 3.P1.M / 3.P1.N / 3.P2.S)
+**Last updated**: 2026-05-17 (Phase 5 close; ModelStorage + Downloader + NexusModelRegistry + ExtraModelPaths + Settings UI + ModelPinRegistry wiring shipped; sidecar IPC for the registry deferred to a Phase 5 follow-on bundled with 3.P1.N / 3.P2.S engine relocation)

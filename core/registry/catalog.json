@@ -1,0 +1,282 @@
+{
+  "_meta": {
+    "version": 1,
+    "phase": "v1.0.0 Phase 5.3",
+    "comment": "Curated installable model catalog used by Settings UI. LLMs ship in Phase 5; image models are flagged for Phase 6 (Image Studio); video models for Phase 7 (Video Lab). Each entry's source.sha256 is the verifier digest for the primary weights blob; Ollama-sourced entries delegate digest verification to `ollama pull` and carry no sha256."
+  },
+  "models": [
+    {
+      "id": "gemma4:e2b",
+      "family": "gemma4",
+      "name": "gemma4",
+      "tag": "e2b",
+      "type": "llm",
+      "displayName": "Gemma 4 E2B",
+      "description": "Google Gemma 4 2B-parameter instruct model. Lightweight tier for 6 GB VRAM.",
+      "sizeGB": 1.6,
+      "vramGB": 4,
+      "license": "Gemma Terms of Use",
+      "source": { "protocol": "ollama", "url": "ollama://gemma4:e2b" }
+    },
+    {
+      "id": "gemma4:e4b",
+      "family": "gemma4",
+      "name": "gemma4",
+      "tag": "e4b",
+      "type": "llm",
+      "displayName": "Gemma 4 E4B",
+      "description": "Google Gemma 4 4B-parameter instruct model. Recommended default.",
+      "sizeGB": 2.7,
+      "vramGB": 6,
+      "license": "Gemma Terms of Use",
+      "source": { "protocol": "ollama", "url": "ollama://gemma4:e4b" },
+      "tags": ["recommended"]
+    },
+    {
+      "id": "gemma4:26b",
+      "family": "gemma4",
+      "name": "gemma4",
+      "tag": "26b",
+      "type": "llm",
+      "displayName": "Gemma 4 26B",
+      "description": "Gemma 4 26B-parameter instruct model. Mid tier; 16 GB VRAM minimum.",
+      "sizeGB": 14.5,
+      "vramGB": 18,
+      "license": "Gemma Terms of Use",
+      "source": { "protocol": "ollama", "url": "ollama://gemma4:26b" }
+    },
+    {
+      "id": "gemma4:31b",
+      "family": "gemma4",
+      "name": "gemma4",
+      "tag": "31b",
+      "type": "llm",
+      "displayName": "Gemma 4 31B",
+      "description": "Gemma 4 31B-parameter instruct model. Upper tier; 24 GB VRAM.",
+      "sizeGB": 17.5,
+      "vramGB": 22,
+      "license": "Gemma Terms of Use",
+      "source": { "protocol": "ollama", "url": "ollama://gemma4:31b" }
+    },
+    {
+      "id": "llama3.1:8b",
+      "family": "llama",
+      "name": "llama3.1",
+      "tag": "8b",
+      "type": "llm",
+      "displayName": "Llama 3.1 8B Instruct",
+      "description": "Meta Llama 3.1 8B instruction-tuned model.",
+      "sizeGB": 4.7,
+      "vramGB": 8,
+      "license": "Llama 3.1 Community License",
+      "source": { "protocol": "ollama", "url": "ollama://llama3.1:8b" }
+    },
+    {
+      "id": "llama3.1:70b",
+      "family": "llama",
+      "name": "llama3.1",
+      "tag": "70b",
+      "type": "llm",
+      "displayName": "Llama 3.1 70B Instruct",
+      "description": "Llama 3.1 70B; advanced tier (>= 40 GB VRAM or aggressive offload).",
+      "sizeGB": 39.0,
+      "vramGB": 40,
+      "license": "Llama 3.1 Community License",
+      "source": { "protocol": "ollama", "url": "ollama://llama3.1:70b" }
+    },
+    {
+      "id": "qwen2.5:7b",
+      "family": "qwen",
+      "name": "qwen2.5",
+      "tag": "7b",
+      "type": "llm",
+      "displayName": "Qwen 2.5 7B Instruct",
+      "description": "Alibaba Qwen 2.5 7B instruction-tuned model.",
+      "sizeGB": 4.4,
+      "vramGB": 7,
+      "license": "Apache-2.0",
+      "source": { "protocol": "ollama", "url": "ollama://qwen2.5:7b" }
+    },
+    {
+      "id": "qwen2.5:14b",
+      "family": "qwen",
+      "name": "qwen2.5",
+      "tag": "14b",
+      "type": "llm",
+      "displayName": "Qwen 2.5 14B Instruct",
+      "description": "Qwen 2.5 14B; mid tier.",
+      "sizeGB": 8.2,
+      "vramGB": 12,
+      "license": "Apache-2.0",
+      "source": { "protocol": "ollama", "url": "ollama://qwen2.5:14b" }
+    },
+    {
+      "id": "qwen2.5-coder:7b",
+      "family": "qwen",
+      "name": "qwen2.5-coder",
+      "tag": "7b",
+      "type": "llm",
+      "displayName": "Qwen 2.5 Coder 7B",
+      "description": "Qwen 2.5 Coder 7B; recommended for the Coding module.",
+      "sizeGB": 4.4,
+      "vramGB": 7,
+      "license": "Apache-2.0",
+      "source": { "protocol": "ollama", "url": "ollama://qwen2.5-coder:7b" },
+      "tags": ["recommended"]
+    },
+    {
+      "id": "qwen2.5-coder:14b",
+      "family": "qwen",
+      "name": "qwen2.5-coder",
+      "tag": "14b",
+      "type": "llm",
+      "displayName": "Qwen 2.5 Coder 14B",
+      "description": "Qwen 2.5 Coder 14B; mid tier.",
+      "sizeGB": 8.2,
+      "vramGB": 12,
+      "license": "Apache-2.0",
+      "source": { "protocol": "ollama", "url": "ollama://qwen2.5-coder:14b" }
+    },
+    {
+      "id": "deepseek-coder-v2:16b",
+      "family": "deepseek",
+      "name": "deepseek-coder-v2",
+      "tag": "16b",
+      "type": "llm",
+      "displayName": "DeepSeek Coder V2 16B",
+      "description": "DeepSeek Coder V2; advanced coding tier.",
+      "sizeGB": 8.9,
+      "vramGB": 14,
+      "license": "DeepSeek License",
+      "source": { "protocol": "ollama", "url": "ollama://deepseek-coder-v2:16b" }
+    },
+    {
+      "id": "nomic-embed-text",
+      "family": "nomic",
+      "name": "nomic-embed-text",
+      "tag": "latest",
+      "type": "embed",
+      "displayName": "Nomic Embed Text",
+      "description": "768-D embedding model used by the semantic memory layer.",
+      "sizeGB": 0.27,
+      "vramGB": 1,
+      "license": "Apache-2.0",
+      "source": { "protocol": "ollama", "url": "ollama://nomic-embed-text" },
+      "tags": ["recommended"]
+    },
+    {
+      "id": "sdxl-turbo",
+      "family": "sdxl",
+      "name": "sdxl-turbo",
+      "tag": "fp16",
+      "type": "image",
+      "displayName": "SDXL Turbo",
+      "description": "Stable Diffusion XL Turbo. 1-4 step generation. Flagged for Phase 6.",
+      "sizeGB": 6.9,
+      "vramGB": 8,
+      "license": "Stability AI Non-Commercial",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "stabilityai/sdxl-turbo",
+        "url": "https://huggingface.co/stabilityai/sdxl-turbo/resolve/main/sd_xl_turbo_1.0_fp16.safetensors",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "tags": ["phase-6", "image"]
+    },
+    {
+      "id": "sdxl-base-1.0",
+      "family": "sdxl",
+      "name": "sdxl-base",
+      "tag": "1.0",
+      "type": "image",
+      "displayName": "Stable Diffusion XL 1.0 Base",
+      "description": "SDXL 1.0 base checkpoint. Flagged for Phase 6.",
+      "sizeGB": 6.9,
+      "vramGB": 10,
+      "license": "OpenRAIL++",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "stabilityai/stable-diffusion-xl-base-1.0",
+        "url": "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "tags": ["phase-6", "image"]
+    },
+    {
+      "id": "flux-schnell",
+      "family": "flux",
+      "name": "flux",
+      "tag": "schnell",
+      "type": "image",
+      "displayName": "FLUX.1 Schnell",
+      "description": "Black Forest Labs FLUX.1 Schnell (4-step). Flagged for Phase 6.",
+      "sizeGB": 23.0,
+      "vramGB": 24,
+      "license": "Apache-2.0",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "black-forest-labs/FLUX.1-schnell",
+        "url": "https://huggingface.co/black-forest-labs/FLUX.1-schnell/resolve/main/flux1-schnell.safetensors",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "tags": ["phase-6", "image"]
+    },
+    {
+      "id": "sd1.5",
+      "family": "sd1",
+      "name": "sd1",
+      "tag": "5",
+      "type": "image",
+      "displayName": "Stable Diffusion 1.5",
+      "description": "Legacy SD 1.5 checkpoint. Flagged for Phase 6.",
+      "sizeGB": 4.0,
+      "vramGB": 4,
+      "license": "OpenRAIL",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "runwayml/stable-diffusion-v1-5",
+        "url": "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.safetensors",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "tags": ["phase-6", "image"]
+    },
+    {
+      "id": "ltx-video",
+      "family": "ltx",
+      "name": "ltx-video",
+      "tag": "0.9",
+      "type": "video",
+      "displayName": "LTX-Video 0.9",
+      "description": "Lightricks LTX-Video for text-to-video. Flagged for Phase 7.",
+      "sizeGB": 13.0,
+      "vramGB": 12,
+      "license": "OpenRAIL-M",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "Lightricks/LTX-Video",
+        "url": "https://huggingface.co/Lightricks/LTX-Video/resolve/main/ltx-video-2b-v0.9.safetensors",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "tags": ["phase-7", "video"]
+    },
+    {
+      "id": "svd",
+      "family": "svd",
+      "name": "stable-video-diffusion",
+      "tag": "1.1",
+      "type": "video",
+      "displayName": "Stable Video Diffusion 1.1",
+      "description": "Stability AI SVD image+text-to-video. Flagged for Phase 7.",
+      "sizeGB": 9.5,
+      "vramGB": 12,
+      "license": "Stability AI Non-Commercial",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "stabilityai/stable-video-diffusion-img2vid-xt-1-1",
+        "url": "https://huggingface.co/stabilityai/stable-video-diffusion-img2vid-xt-1-1/resolve/main/svd_xt_1_1.safetensors",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "tags": ["phase-7", "video"]
+    }
+  ]
+}
