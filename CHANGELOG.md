@@ -1,3 +1,10 @@
+# [0.17.0](https://github.com/bendourthe/Gemma-Code/compare/v0.16.0...v0.17.0) (2026-05-17)
+
+
+### Features
+
+* **v0.9.0:** Phase 3 skill-native adoptions (reverse-engineered, zero-code) ([6f38fae](https://github.com/bendourthe/Gemma-Code/commit/6f38fae0e24a24153177f247425f6a81a6732fe9))
+
 # [0.16.0](https://github.com/bendourthe/Gemma-Code/compare/v0.15.3...v0.16.0) (2026-05-16)
 
 
