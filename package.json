@@ -549,6 +549,9 @@
     "mutate": "stryker run configs/stryker.config.json",
     "debug": "node scripts/debug/cli.mjs",
     "work": "node scripts/work.mjs",
+    "deep-work": "node scripts/deep-work/cli.mjs",
+    "agent-batch": "node scripts/agent-batch/cli.mjs",
+    "review": "node scripts/review/cli.mjs",
     "prepare": "husky"
   },
   "lint-staged": {

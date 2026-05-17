@@ -1,0 +1,49 @@
+name: PR Quality
+
+# v0.9.0 Phase 5 sub-task 5.2 -- enforce the Submission Checklist in
+# `.github/PULL_REQUEST_TEMPLATE.md`. The gate fails any PR whose body has an
+# unchecked Submission Checklist box that is also NOT marked `N/A: <reason>`.
+# No third-party services are contacted; only `gh` (already authenticated
+# inside the runner) talks to GitHub for this repo.
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+    branches: ["main"]
+
+concurrency:
+  group: pr-quality-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checklist:
+    name: Submission Checklist gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+
+      - name: Fetch PR body
+        id: pr-body
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          body="$(gh pr view "$PR_NUMBER" --json body --jq .body || true)"
+          # Emit the body via the workflow's protected env so the next step can
+          # read it directly; never echo it to the log.
+          {
+            echo "PR_BODY<<__GEMMA_EOF__"
+            echo "$body"
+            echo "__GEMMA_EOF__"
+          } >> "$GITHUB_ENV"
+
+      - name: Run check-pr-checklist
+        run: node scripts/check-pr-checklist.mjs

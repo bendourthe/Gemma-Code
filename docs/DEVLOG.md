@@ -4,6 +4,53 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-16] v0.9.0 Phase 5 -- Internal RE builds: issue orchestration + PR ops
+
+### Goal
+
+Ship four more cross-platform Node CLIs reverse-engineered from public OpenHuman bash scripts: a worktree-lifecycle dispatcher, a PR-template-driven Submission Checklist gate, a multi-agent batch orchestrator with Zod-validated specs, and a per-step PR-review CLI. Windows-first, no bash dependencies, no third-party PR-as-service or review-as-service. Plan reference: [docs/v0.9.0/plans/v0.9.0-cycle.md](v0.9.0/plans/v0.9.0-cycle.md) Phase 5, sub-tasks 5.1 through 5.4.
+
+### Decisions
+
+#### Sub-task 5.1 -- `npm run deep-work` worktree lifecycle
+
+[scripts/deep-work/](../scripts/deep-work/) is a six-file dispatcher: [cli.mjs](../scripts/deep-work/cli.mjs) parses the sub-command and lazy-imports the right sibling so a `--help` invocation never reads the gh/git modules; [shared.mjs](../scripts/deep-work/shared.mjs) carries the pure helpers (slugify / deriveBranchName / deriveWorktreePath / ghIssueView / ghIssueList / runGit / parseWorktreeListPorcelain / buildDeepWorkPrompt / parseFlagArgs / DEEP_WORK_CONVENTIONS); [start.mjs](../scripts/deep-work/start.mjs) creates the worktree at `worktrees/issue-<num>-<slug>/` on `feat/issue-<num>-<slug>` cut from `origin/main` and prints the agent prompt (also copying it to the clipboard via `clip` / `pbcopy` / `xclip` when present); [pick.mjs](../scripts/deep-work/pick.mjs) lists the top-10 open `good first issue` candidates with `--first` to auto-dispatch the top entry to `startCommand`; [status.mjs](../scripts/deep-work/status.mjs) parses `git worktree list --porcelain` and tabulates path / branch / 7-char HEAD / dirty (the parser also tolerates `bare` and `detached` records); [continue.mjs](../scripts/deep-work/continue.mjs) prints the existing worktree path (title-derived first, then a worktree-list scan for the `issue-<num>-` tag); [cleanup.mjs](../scripts/deep-work/cleanup.mjs) refuses on dirty without `--force`, refuses without `--yes` when STDIN is non-interactive, and runs `git worktree remove` (or `--force` variant) when both gates pass. `worktrees/` added to [.gitignore](../.gitignore). The slug helper duplicates the `work.mjs` implementation rather than importing it because the two scripts touch different lifecycle stages and an inter-script dep would couple them inappropriately for a 40-line copy.
+
+Rationale for lazy-import dispatcher: keeping `cli.mjs` lean lets `--help` and the unknown-command path run without loading any sub-command's spawn surface. This matters because the test suite asserts those paths against synthetic argv arrays and we do not want a stray import-time `spawnSync` invocation to interfere.
+
+#### Sub-task 5.2 -- PR template + `check-pr-checklist` + `pr-quality.yml`
+
+[.github/PULL_REQUEST_TEMPLATE.md](../.github/PULL_REQUEST_TEMPLATE.md) provides Summary / Changes / Test plan / Linked issues / Submission Checklist sections; the Submission Checklist is the gated one. [scripts/check-pr-checklist.mjs](../scripts/check-pr-checklist.mjs) walks the `## Submission Checklist` section, classifies each `- [x]` / `- [X]` as passing-by-tick and each `- [ ]` line whose remainder begins with `N/A:` as passing-by-opt-out, and fails any other unchecked box. The script reads `process.env.PR_BODY` first (the workflow injection path); if the env var is absent and a numeric PR number is given as argv[2], it falls back to `gh pr view <pr> --json body --jq .body`. Exit codes: 0 = all pass, 1 = one or more fail, 2 = missing section or no body at all. [.github/workflows/pr-quality.yml](../.github/workflows/pr-quality.yml) injects the body via a here-doc into `GITHUB_ENV` (the `__GEMMA_EOF__` delimiter prevents bodies containing `EOF` from breaking the assignment) so the body never echoes into the workflow log, then runs the check script.
+
+Rationale for the `N/A: <reason>` opt-out: not every PR touches docs, not every PR adds new behaviour. Forcing a tick on irrelevant items would push contributors to lie. The opt-out makes the gate honest while still flagging silent unchecks as the failure mode.
+
+#### Sub-task 5.3 -- `npm run agent-batch` multi-agent dispatcher
+
+[scripts/agent-batch/](../scripts/agent-batch/) follows the same six-file pattern: [cli.mjs](../scripts/agent-batch/cli.mjs) (sub-command dispatch), [schema.mjs](../scripts/agent-batch/schema.mjs) (Zod `AgentBatchSpecSchema` with `batchId: z.string().min(1)` + `tasks: z.array(AgentBatchTaskSchema).min(1)`, each task = `{issue: positive int, agent: "claude"|"codex"|"cursor", extraPrompt?, dependsOn?: number[]}`), [validate.mjs](../scripts/agent-batch/validate.mjs) (load + parse + report), [overlap.mjs](../scripts/agent-batch/overlap.mjs) (detect duplicate issues, missing `dependsOn` entries, and dependency cycles via DFS-with-visited-on-stack), [launch.mjs](../scripts/agent-batch/launch.mjs) (Kahn's-algorithm topological sort + dispatch table renderer; defaults to dry-run, only creates worktrees on `--apply` by delegating to `scripts/deep-work/start.mjs`'s `startCommand`), and [status.mjs](../scripts/agent-batch/status.mjs) (classify each task pending / running / done by inspecting local worktree commit state -- no gh / network calls). Sample at [examples/agent-batch.spec.json](../examples/agent-batch.spec.json) ships three tasks: two independent + one dependent.
+
+Rationale for dry-run-by-default `launch`: side-effectful CLIs are a hazard when stitched into a script. The `--apply` requirement makes the destructive path explicit. The status command's worktree-only classification means it never needs network access and stays safe to invoke from `npm test`.
+
+#### Sub-task 5.4 -- `npm run review` PR-lifecycle CLI
+
+[scripts/review/](../scripts/review/) is the imperative cousin of the autonomous [/ship-and-babysit](../.claude/commands/ship-and-babysit.md) slash command (Phase 3.3). The overlap is documented in both [cli.mjs](../scripts/review/cli.mjs) and [shared.mjs](../scripts/review/shared.mjs) headers with a v0.10.0 "fold one if usage converges" decision-point. Sub-commands: `sync` (refuses on dirty tree, then `gh pr checkout <pr>` + `git fetch origin main` + `git merge --no-edit origin/main`), `review` (invokes the [Phase 3.1 review-pr SKILL](../src/skills/catalog/review-pr/SKILL.md) via the configured agent CLI when present on PATH, else prints the prompt for paste), `fix` (fetches reviewer comments via `gh api repos/{owner}/{repo}/pulls/<n>/comments` and `gh pr view --json comments`, then summarizes and hands off to the [.claude/agents/pr-manager](../.claude/agents/pr-manager.md) subagent), `coverage` (resolves the most-recent `Coverage Diff` workflow run for the PR's head branch, downloads the `diff-coverage` artifact via `gh run download --name diff-coverage`, parses uncovered file paths from the markdown, and suggests `tests/unit/<rel>.test.ts` mappings), and `merge` (refuses if `gh pr checks` shows any fail / failure / cancelled / timed_out / action_required / pending / queued / in_progress verdict; defaults to `--squash`; `--merge` and `--rebase` are accepted; post-merge cleanup checks out main and pulls but treats cleanup failures as warnings, not fatal). Every sub-command supports `--dry-run` for safe rehearsal.
+
+Rationale for the explicit overlap with /ship-and-babysit: the two surfaces serve different user-facing UX -- ship-and-babysit is a fire-and-forget loop, review is a per-step rehearsal. Premature collapse would prevent us from learning which UX the cycle actually converges on. The fold decision moves to v0.10.0 once we have PR-flow telemetry.
+
+### Tests
+
+- [tests/integration/scripts-deep-work.test.ts](../tests/integration/scripts-deep-work.test.ts) -- 19 tests covering the pure helpers (slugify, deriveBranchName, deriveWorktreePath, parseFlagArgs, parseWorktreeListPorcelain primary + feature + detached + bare + empty, buildDeepWorkPrompt with full + missing fields), the renderers (formatIssueMenu empty-state + populated, formatWorktreeTable empty-state + populated), the dispatcher (`main` --help / no-arg / unknown), plus a spawn-level `--help` smoke.
+- [tests/unit/scripts/check-pr-checklist.test.ts](../tests/unit/scripts/check-pr-checklist.test.ts) -- 7 tests covering the four cases the plan called out (fully checked / one unchecked non-N/A / unchecked with N/A: / no Submission Checklist section) plus an empty-section case and the extractor's section-stop-at-next-header behaviour.
+- [tests/unit/scripts/agent-batch.test.ts](../tests/unit/scripts/agent-batch.test.ts) -- 21 tests covering schema acceptance + rejection (unknown agent, negative issue, empty tasks), the three overlap detectors (duplicates / missing deps / cycles), the cycle-aware overlap renderer, topological order + dispatch table, status formatter, and the cli `main` --help / unknown sub-command / validate-against-disk paths.
+- [tests/integration/scripts-review.test.ts](../tests/integration/scripts-review.test.ts) -- 20 tests covering parseReviewArgs, parseGhPrChecks, summarizeChecks + checksAreGreen (green / red on fail / red on pending), extractUncoveredFromMarkdown, suggestTestFiles (src/* and scripts/* mappings), formatCoverageReport, summarizeReviewerComments, the cli `main` --help / unknown sub-command / sync --dry-run / merge --rebase --dry-run paths, plus a spawn-level `--help` smoke.
+
+Full Windows suite: 225 files, 2603 tests passed + 4 skipped (pre-existing), 0 failed. `npm run lint`, `npm run build`, `npm run check src/`, `npm run deps:check`, `npm run catalog:check`, and `npm run perm-tier:check` all exit 0.
+
+### Known gaps
+
+See [docs/v0.9.0/known-gaps.md](v0.9.0/known-gaps.md) for the structured gap list. Phase 5 adds five new in-cycle items: 10.N.L (deep-work live-issue smoke -- gh + git lifecycle is operator-driven), 10.N.M (pr-quality real-PR smoke), 10.N.N (agent-batch `--apply` dispatch against real issues), 10.N.O (review CLI live sync / merge + the v0.10.0 fold-one-if-usage-converges decision vs. /ship-and-babysit), and 10.N.P (Phase 5 atomic-commit deviation; same single-commit pattern Phases 2, 3, and 4 took at user request).
+
+---
+
 ## [2026-05-16] v0.9.0 Phase 4 -- Internal RE builds: dev-loop ergonomics
 
 ### Goal

@@ -1,0 +1,21 @@
+{
+  "batchId": "v0.9.0-phase-6-fanout",
+  "tasks": [
+    {
+      "issue": 101,
+      "agent": "claude",
+      "extraPrompt": "Wire ReflectJob into the idle scheduler; do not change cadence-gating defaults."
+    },
+    {
+      "issue": 102,
+      "agent": "codex",
+      "extraPrompt": "Render the anticipated-context section in the memory webview."
+    },
+    {
+      "issue": 103,
+      "agent": "cursor",
+      "extraPrompt": "Trim the four oversized SKILL.md files; keep the front-matter intact.",
+      "dependsOn": [101]
+    }
+  ]
+}
