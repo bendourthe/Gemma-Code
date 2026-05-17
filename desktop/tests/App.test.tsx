@@ -16,13 +16,22 @@ describe("App shell", () => {
     expect(screen.getByTestId("dashboard")).toBeInTheDocument();
   });
 
-  it("renders the module placeholder at /coding", () => {
+  it("renders the Coding module at /coding (Phase 3)", () => {
     render(
       <MemoryRouter initialEntries={["/coding"]}>
         <App telemetryStream={null} />
       </MemoryRouter>,
     );
-    expect(screen.getByTestId("placeholder-coding")).toBeInTheDocument();
+    expect(screen.getByTestId("coding-page")).toBeInTheDocument();
+  });
+
+  it("renders module placeholders for non-coding pillars", () => {
+    render(
+      <MemoryRouter initialEntries={["/chatbot"]}>
+        <App telemetryStream={null} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByTestId("placeholder-chatbot")).toBeInTheDocument();
   });
 
   it("renders the styleguide page at /_styleguide", () => {

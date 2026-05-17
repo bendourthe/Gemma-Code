@@ -4,6 +4,46 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-17] v1.0.0 Phase 3 -- Agentic AI Coding module + multi-LLM + thin VS Code adapter
+
+### Goal
+
+Run the engine as the desktop Coding module via shell IPC, expose Gemma 4 / Llama 3 / Qwen 2.5 / DeepSeek Coder as selectable backends with family-specific prompt + tool-call formats, ship the thin VS Code adapter's daemon-discovery + fallback decision logic, wire `IdleTimeScheduler` into the sidecar bootstrap (closes `[v0.9.0:10.N.Q]`), port the Memory / Trace / Sessions panels into the desktop module, and bring the twelve canonical slash commands into the desktop chat input. Plan reference: [docs/v1.0.0/plans/phase-03-coding-module.md](v1.0.0/plans/phase-03-coding-module.md).
+
+### What changed
+
+**3.1 Coding module behind the shell IPC.** Extended the JSON-RPC contract in [desktop/sidecar/src/protocol.ts](../desktop/sidecar/src/protocol.ts) with eight new methods covering session lifecycle (`coding.session.start` / `sendMessage` / `cancel` / `list` / `resume`) and panel data (`coding.memory.snapshot` / `coding.trace.subscribe` / `coding.sessions.list`); each method ships request + response Zod schemas. Added the `CodingSessionEvent` discriminated union (`token` / `toolCallHeader` / `toolCallArgDelta` / `toolCallComplete` / `done`) mirroring `src/panels/webview/render/protocol.ts`. New [desktop/sidecar/src/coding/sessionManager.ts](../desktop/sidecar/src/coding/sessionManager.ts) implements the session lifecycle in-memory with injectable clock + id factory for tests. New [desktop/src/modules/coding/CodingPage.tsx](../desktop/src/modules/coding/CodingPage.tsx) replaces the `/coding` placeholder with a full chat surface: model dropdown, message list, tool-call cards driven by [desktop/src/modules/coding/toolCallCard.ts](../desktop/src/modules/coding/toolCallCard.ts)'s event reducer, four left-rail tabs, Cancel button. Full `NexusCodingRuntime` wiring deferred to a Phase 3 follow-on (known-gap `3.P1.M`); the streaming notification channel is deferred to Phase 5 alongside the ModelRegistry IPC widening (known-gaps `3.P1.N` / `3.P2.U`).
+
+**3.2 Multi-LLM backend support.** New [core/registry/models.json](../core/registry/models.json) catalog with seven entries (Gemma 4 E4B, Llama 3.1 / 3.2 / 3.3, Qwen 2.5 / Qwen 2.5 Coder, DeepSeek Coder 6.7B) each carrying sampling defaults + `promptFormat` + `toolFormat`. [core/registry/ModelCatalog.ts](../core/registry/ModelCatalog.ts) is the typed TS mirror with a sync test against the JSON. [modules/coding/llm/PromptFormat.ts](../modules/coding/llm/PromptFormat.ts) implements four prompt-format strategies (Gemma 4 `<start_of_turn>` tokens, Llama 3 `<|begin_of_text|>` + header-id tags, Qwen `<|im_start|>` / `<|im_end|>`, DeepSeek `### Instruction:` / `### Response:` / `<|EOT|>`). [modules/coding/llm/ToolCallFormat.ts](../modules/coding/llm/ToolCallFormat.ts) implements four tool-call extractors that normalize each family's wire grammar back to a canonical `ParsedToolCall` shape; malformed JSON returns `[]` rather than throwing. The sidecar and frontend each inline a TS mirror of the catalog (known-gap `3.P2.S`) until the Phase 5 shared-core build collapses the duplication. Live golden-task validation against three resident Ollama backends is operator-driven (known-gap `3.P2.T`); unit tests cover every wire format with canned inputs.
+
+**3.3 VS Code extension thin adapter (daemon discovery).** New [src/desktop/daemonDiscovery.ts](../src/desktop/daemonDiscovery.ts) resolves the platform-conventional daemon socket path (named pipe on Windows: `\\.\pipe\nexus.<user>.sock`; UNIX socket on macOS / Linux: `~/.nexus/run/nexus.sock`) and returns one of three modes -- `proxy` when the daemon is detected, `extension-only` (opt-in) when the user has configured the fallback, `extension-only` (install hint) otherwise. Injectable hooks make the helper deterministic in unit tests. The full rewrite of `src/extension.ts` (445 lines) into a ~200-line proxy adapter is deferred (known-gap `3.P1.O`) because it depends on the streaming notification channel landing first.
+
+**3.4 IdleTimeScheduler wiring (closes `[v0.9.0:10.N.Q]`).** New [desktop/sidecar/src/runtime/idleScheduler.ts](../desktop/sidecar/src/runtime/idleScheduler.ts) ports the VS Code-bound `IdleTimeScheduler` from `src/agents/IdleTimeScheduler.ts` for the sidecar bootstrap. `bootstrapIdleScheduler({ curator, reflect })` registers the two production workers at their documented thresholds (curator: 5-min idle / 12-h cadence; reflect: 10-min idle / 24-h cadence) with the constants exported for downstream consumption. The 30-minute synthetic-idle integration test asserts the curator fires exactly once across 30 one-minute ticks. The legacy `AgentLoop._runOneIteration` curator-cadence fallback removal is deferred (known-gap `3.P1.P`) until the engine relocates into `modules/coding/`.
+
+**3.5 Memory / Trace / Sessions panels.** Three new React panels in [desktop/src/modules/coding/panels/](../desktop/src/modules/coding/panels/): `MemoryPanel.tsx` renders all four memory layers plus `anticipated` + `proposedSkills` (closes the rendering half of `[v0.9.0:10.N.C]`); `TraceDashboardPanel.tsx` renders chronological trace events with kind-tagged labels; `SessionListPanel.tsx` renders prior sessions with a resume callback. The sidecar handlers return placeholder data via [desktop/sidecar/src/coding/panelData.ts](../desktop/sidecar/src/coding/panelData.ts) with a `redactSecrets()` utility that strips AWS keys / OpenAI keys / GitHub PATs. Wiring to live `MemoryHub` + `TelemetryBus` deferred (known-gap `3.P1.Q`).
+
+**3.6 Slash command parity.** New [desktop/src/modules/coding/slashCommands.ts](../desktop/src/modules/coding/slashCommands.ts) catalog of the twelve canonical commands (`/plan`, `/clear`, `/commit`, `/review-pr`, `/curate`, `/trace`, `/thinking-mode`, `/skill-metrics`, `/memory`, `/verify`, `/research`, `/help`) with per-command description + composer pre-fill template. [desktop/src/modules/coding/CodingInput.tsx](../desktop/src/modules/coding/CodingInput.tsx) is the textarea + autocomplete dropdown that drives the catalog; Enter submits, Shift+Enter inserts newline, picking a suggestion pre-fills the composer. The cross-runtime equivalence test against the VS Code `SlashCommandRouter` is deferred (known-gap `3.P2.R`).
+
+**3.7 Testing and stabilization.** Added 52 new desktop tests and 37 new root tests. Coverage in `desktop/` lifts to 98.18% lines / 96.9% functions / 88.92% branches (gate: 80 / 80 / 70). The 5 pre-existing root failures (4 `SubAgentManager.characterization` CRLF snapshots, 1 `workflow-discipline` SHA-pin) are unchanged from the Phase 2 baseline (already tracked as `2.P3.L`).
+
+### Outcome
+
+- `npm test` (desktop): 145 / 145 pass.
+- `npm test:coverage` (desktop): 98.18% lines / 96.9% functions / 88.92% branches.
+- `npm test` (root): 2720 / 5 failed / 5 skipped (5 pre-existing failures unchanged from Phase 2 baseline; 37 new Phase 3 tests all pass).
+- `npm run lint` (desktop + root): clean.
+- `npm run typecheck` (desktop) + `npm run build` (root): clean.
+
+### Known gaps added
+
+See [docs/v1.0.0/known-gaps.md](v1.0.0/known-gaps.md) sections `3.P1.M` ... `3.P2.U` (nine new entries; one entry moved to the Resolved table for `[v0.9.0:10.N.Q]`).
+
+### Plan reference + history
+
+[docs/v1.0.0/plans/phase-03-coding-module.md](v1.0.0/plans/phase-03-coding-module.md), [docs/v1.0.0/development/history/2026-05-17_phase-03-coding-module.md](v1.0.0/development/history/2026-05-17_phase-03-coding-module.md).
+
+---
+
 ## [2026-05-17] v1.0.0 Phase 2 -- Rebrand sweep + shared-core extraction
 
 ### Goal

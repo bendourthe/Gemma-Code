@@ -3,7 +3,7 @@
 // Rust core (desktop/src-tauri/src/sidecar.rs) owns the lifecycle.
 
 import { createInterface } from "node:readline";
-import { dispatch } from "./handlers.js";
+import { createHandlerContext, dispatch } from "./handlers.js";
 
 interface JsonRpcRequest {
   jsonrpc?: string;
@@ -24,7 +24,7 @@ interface JsonRpcResponseErr {
   error: { code: number; message: string };
 }
 
-const ctx = { pid: process.pid, platform: process.platform };
+const ctx = createHandlerContext({ pid: process.pid, platform: process.platform });
 
 function write(payload: JsonRpcResponseOk | JsonRpcResponseErr): void {
   process.stdout.write(`${JSON.stringify(payload)}\n`);
