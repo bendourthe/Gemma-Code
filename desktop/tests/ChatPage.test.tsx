@@ -1,0 +1,94 @@
+/**
+ * v1.0.0 Phase 4.4 -- ChatPage integration tests.
+ *
+ * Covers: folder-tree + breadcrumb wiring, model selector reuse, the
+ * per-folder tools toggle (off by default), end-to-end "create folder
+ * - new chat - send message - see assistant echo".
+ */
+
+import { describe, it, expect } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { ChatPage } from "../src/modules/chat/ChatPage";
+import { InMemoryChatExplorerClient } from "../src/modules/chat/chatExplorerClient";
+
+describe("<ChatPage>", () => {
+  it("renders the empty-state when no chat is active", () => {
+    const client = new InMemoryChatExplorerClient();
+    render(<ChatPage client={client} />);
+    expect(screen.getByTestId("chat-page-empty")).toBeInTheDocument();
+    expect(screen.getByTestId("folder-tree-empty")).toBeInTheDocument();
+  });
+
+  it("opening a chat surfaces the message list and input", async () => {
+    const client = new InMemoryChatExplorerClient();
+    const folder = client.createFolder({ parentId: null, name: "Work" });
+    client.createChat({ folderId: folder.id, title: "draft", modelId: "gemma4:e4b" });
+    const user = userEvent.setup();
+    render(<ChatPage client={client} />);
+    // Expand the folder to surface the chat row.
+    await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
+    const chats = client.listTree().children[0]?.chats;
+    expect(chats?.length).toBe(1);
+    const chatId = chats![0]!.id;
+    await user.click(screen.getByTestId(`tree-row-chat-${chatId}`));
+    expect(screen.getByTestId("chat-input")).toBeInTheDocument();
+    expect(screen.getByTestId("chat-breadcrumb")).toHaveTextContent("Work");
+  });
+
+  it("submitting a message renders a user + echoed assistant bubble", async () => {
+    const client = new InMemoryChatExplorerClient();
+    const folder = client.createFolder({ parentId: null, name: "Work" });
+    const chat = client.createChat({ folderId: folder.id, title: "draft", modelId: "gemma4:e4b" });
+    const user = userEvent.setup();
+    render(<ChatPage client={client} />);
+    await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
+    await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
+    const textarea = screen.getByTestId("chat-input-textarea");
+    await user.type(textarea, "hello{Enter}");
+    expect(screen.getByText("hello")).toBeInTheDocument();
+    expect(screen.getByText(/Echo of your message/)).toBeInTheDocument();
+  });
+
+  it("tools are disabled by default and toggleable per chat", async () => {
+    const client = new InMemoryChatExplorerClient();
+    const folder = client.createFolder({ parentId: null, name: "Work" });
+    client.createChat({ folderId: folder.id, title: "draft", modelId: "gemma4:e4b" });
+    render(<ChatPage client={client} />);
+    const toggle = screen.getByTestId("chat-enable-tools") as HTMLInputElement;
+    expect(toggle.checked).toBe(false);
+    fireEvent.click(toggle);
+    expect(toggle.checked).toBe(true);
+  });
+
+  it("the model selector is disabled while a chat is active", async () => {
+    const client = new InMemoryChatExplorerClient();
+    const folder = client.createFolder({ parentId: null, name: "Work" });
+    const chat = client.createChat({ folderId: folder.id, title: "draft", modelId: "gemma4:e4b" });
+    const user = userEvent.setup();
+    render(<ChatPage client={client} />);
+    expect(screen.getByTestId("chat-model-select")).not.toBeDisabled();
+    await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
+    await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
+    expect(screen.getByTestId("chat-model-select")).toBeDisabled();
+  });
+
+  it("breadcrumb shows ancestor chain for nested chats", async () => {
+    const client = new InMemoryChatExplorerClient();
+    const projects = client.createFolder({ parentId: null, name: "Projects" });
+    const work = client.createFolder({ parentId: projects.id, name: "Work" });
+    const q3 = client.createFolder({ parentId: work.id, name: "Q3" });
+    const chat = client.createChat({ folderId: q3.id, title: "kickoff", modelId: "m" });
+    const user = userEvent.setup();
+    render(<ChatPage client={client} />);
+    // Expand the chain manually.
+    await user.click(screen.getByTestId(`tree-row-folder-${projects.id}`));
+    await user.click(screen.getByTestId(`tree-row-folder-${work.id}`));
+    await user.click(screen.getByTestId(`tree-row-folder-${q3.id}`));
+    await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
+    const crumb = screen.getByTestId("chat-breadcrumb");
+    expect(crumb).toHaveTextContent("Projects");
+    expect(crumb).toHaveTextContent("Work");
+    expect(crumb).toHaveTextContent("Q3");
+  });
+});

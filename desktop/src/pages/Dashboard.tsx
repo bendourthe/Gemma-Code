@@ -7,19 +7,23 @@ import {
   HelpCircle,
   Image as ImageIcon,
   MessageSquare,
-  Search,
-  Settings as SettingsIcon,
   Sparkles,
 } from "lucide-react";
 import { ModuleCard } from "../components/ModuleCard";
 import { LocalModelStatus } from "../components/LocalModelStatus";
+import { TopBar } from "../components/TopBar";
 import type { TelemetryStream } from "../components/LocalModelStatus.types";
 import { readProfileSync } from "../lib/profile";
 import { ipc } from "../lib/ipc";
+import type { ChatExplorerClient } from "../modules/chat/chatExplorerClient";
+import type { MemorySearchAdapter } from "../components/TopBar";
 
 interface DashboardProps {
   telemetryStream: TelemetryStream | null;
   recentProjects?: ReadonlyArray<{ name: string; model: string; updated: string }>;
+  /** Phase 4.5: search backends. Tests can inject mocks. */
+  chatClient?: ChatExplorerClient;
+  memoryAdapter?: MemorySearchAdapter;
 }
 
 const FALLBACK_PROJECTS = [
@@ -30,6 +34,8 @@ const FALLBACK_PROJECTS = [
 export function Dashboard({
   telemetryStream,
   recentProjects = FALLBACK_PROJECTS,
+  chatClient,
+  memoryAdapter,
 }: DashboardProps): JSX.Element {
   const navigate = useNavigate();
   const profile = useMemo(() => readProfileSync(), []);
@@ -79,72 +85,43 @@ export function Dashboard({
           NEXUS Dashboard: Your Local AI Workspace
         </h1>
         <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-          <label
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "var(--space-2)",
-              backgroundColor: "var(--bg-1)",
-              border: "1px solid var(--border-subtle)",
-              borderRadius: "var(--radius-md)",
-              padding: "var(--space-2) var(--space-3)",
-              color: "var(--fg-muted)",
-            }}
-          >
-            <Search size={16} aria-hidden />
-            <input
-              aria-label="Search"
-              placeholder="Search (coming soon)"
-              disabled
-              style={{
-                background: "transparent",
-                border: "none",
-                color: "var(--fg-1)",
-                outline: "none",
-                fontSize: "var(--text-sm)",
-                width: 220,
-              }}
-            />
-          </label>
-          <button
-            type="button"
-            aria-label="Notifications"
-            data-testid="dashboard-bell"
-            style={{
-              position: "relative",
-              background: "transparent",
-              border: "none",
-              color: "var(--fg-1)",
-            }}
-          >
-            <Bell size={18} aria-hidden />
-            <span
-              aria-hidden
-              data-testid="dashboard-bell-badge"
-              style={{
-                position: "absolute",
-                top: 0,
-                right: 0,
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                backgroundColor: "var(--status-err)",
-              }}
-            />
-          </button>
-          <button
-            type="button"
-            aria-label="Settings"
-            data-testid="dashboard-gear"
-            onClick={() => navigate("/settings")}
-            style={{
-              background: "transparent",
-              border: "none",
-              color: "var(--fg-1)",
-            }}
-          >
-            <SettingsIcon size={18} aria-hidden />
-          </button>
+          <TopBar
+            chatClient={chatClient}
+            memoryAdapter={memoryAdapter}
+            onChatClick={() => navigate("/chatbot")}
+            onFolderClick={() => navigate("/chatbot")}
+            onMemoryClick={() => navigate("/chatbot")}
+            extraButtons={
+              <button
+                type="button"
+                aria-label="Notifications"
+                data-testid="dashboard-bell"
+                style={{
+                  position: "relative",
+                  background: "transparent",
+                  border: "none",
+                  color: "var(--fg-1)",
+                }}
+              >
+                <Bell size={18} aria-hidden />
+                <span
+                  aria-hidden
+                  data-testid="dashboard-bell-badge"
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    right: 0,
+                    width: 8,
+                    height: 8,
+                    borderRadius: "50%",
+                    backgroundColor: "var(--status-err)",
+                  }}
+                />
+              </button>
+            }
+            onSettingsClick={() => navigate("/settings")}
+            settingsTestId="dashboard-gear"
+          />
         </div>
       </header>
 

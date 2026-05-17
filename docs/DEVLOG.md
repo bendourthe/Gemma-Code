@@ -4,6 +4,44 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-17] v1.0.0 Phase 4 -- Local Chatbot Explorer module
+
+### Goal
+
+Ship the second pillar: a folder-organized chat browser with nested folders, drag-drop chats, per-folder context isolation, breadcrumb navigation, a functional dashboard top-bar search, and a shared chat shell that the Coding module now composes against. The Phase 4 stability gate is "a user can create `Projects/Work/Q3-roadmap/`, drag two chats into it, switch between them, and the per-folder context isolation is verifiable". Plan reference: [docs/v1.0.0/plans/phase-04-chat-module.md](v1.0.0/plans/phase-04-chat-module.md).
+
+### What changed
+
+**4.1 ChatExplorerStore (SQLite + FTS5).** New [modules/chat/storage/ChatExplorerStore.ts](../modules/chat/storage/ChatExplorerStore.ts) implements the folder/chat persistence model backed by SQLite. Folders carry `{id, parentId, name, color?, icon?, createdAt, updatedAt}`; chats carry `{id, folderId, title, modelId, contextScopeId, createdAt, updatedAt, messageCount}`. Both tables are mirrored by FTS5 contentless-shadow indexes (`chat_folders_fts`, `chat_chats_fts`) over name / title columns so the dashboard top bar can `MATCH` queries against them; trigger maintenance reuses [src/storage/sqliteFts.ts](../src/storage/sqliteFts.ts). The store exposes `createFolder` / `renameFolder` / `moveFolder` / `deleteFolder` / `createChat` / `renameChat` / `moveChat` / `deleteChat` / `listTree` / `search` / `ancestors`. Move operations refuse cycles (folder-into-itself or folder-into-descendant). `deleteFolder` cascades via `ON DELETE CASCADE` on the parent-id FK; chats in deleted folders are also pruned. Migration SQL is checked in at [core/memory/migrations/0001_chat_explorer.sql](../core/memory/migrations/0001_chat_explorer.sql). 41 tests (38 unit + 3 integration against a real on-disk DB) cover the surface.
+
+**4.2 MemoryHub scopes.** Extended [core/memory/MemoryHub.ts](../core/memory/MemoryHub.ts) so every layer (working / episodic / semantic / graph) can accept an optional `scopeId` on writes and filter on it during retrieval. New `RetrieveOpts.scopeId` + `visibleScopes` fields drive ancestor-aware visibility: a chat in `Projects/Work/Q3-roadmap/` sees scopes `Q3-roadmap` + `Work` + `Projects` + root (`null`) but never sees sibling scopes like `Projects/Personal`. New helper `computeVisibleScopes(scopeId, getParent)` walks a `ChatExplorerStore`-style hierarchy to materialise the chain. New [modules/chat/memory/ChatScopedMemory.ts](../modules/chat/memory/ChatScopedMemory.ts) is the bridge: `retrieve(chat, query)` honours the chat's `contextScopeId`; `moveChat(chatId, newFolderId)` re-tags every memory entry from the old scope to the new one (the MoveChat action). 17 unit + 6 integration tests verify scope isolation, ancestry visibility, MoveChat re-tag, sibling exclusion, and the helper. The SQLite-backed engine memory layers don't carry `scope_id` columns yet (known-gap `4.P1.X`); the in-memory hub already does.
+
+**4.3 Sidebar folder tree.** New [desktop/src/modules/chat/FolderTree.tsx](../desktop/src/modules/chat/FolderTree.tsx) renders the tree with: HTML5 drag-and-drop for folder-into-folder and chat-into-folder moves (the plan called for `@dnd-kit/core`; the deviation is documented in known-gap `4.P1.V`); right-click context menu (New folder / New chat / Rename / Move / Delete / Change color); inline rename on F2 + double-click + context-menu Rename; keyboard navigation (ArrowUp / ArrowDown traverse, ArrowRight expand, ArrowLeft collapse, Enter open, Delete delete-with-confirm, F2 rename); folder color rendered as a 4px left border on the row; expanded-state persisted via an injectable storage adapter (localStorage in production, a `Map` in tests); empty-state CTA when no folders exist. 22 interaction tests cover every path. The frontend talks to a frontend-only [desktop/src/modules/chat/chatExplorerClient.ts](../desktop/src/modules/chat/chatExplorerClient.ts) (`InMemoryChatExplorerClient`) that mirrors the root store's API; the sidecar-backed bridge is deferred to Phase 5 (known-gap `4.P1.W`).
+
+**4.4 Shared chat shell.** Extracted four reusable components into [desktop/src/shared/chat/](../desktop/src/shared/chat/): `MessageBubble.tsx` (role-coloured bubble with optional tool-call cards), `MessageList.tsx` (list + empty-state), `ChatInput.tsx` (textarea + Enter-to-send / Shift+Enter newline), `ModelSelector.tsx` (dropdown driven by the frontend model catalog). The Coding module's `<CodingPage>` now consumes `<MessageList>` and `<ModelSelector>` via composition; existing tests pass unchanged after the swap. The new [desktop/src/modules/chat/ChatPage.tsx](../desktop/src/modules/chat/ChatPage.tsx) reuses the same shell, adds the breadcrumb header ([desktop/src/modules/chat/Breadcrumb.tsx](../desktop/src/modules/chat/Breadcrumb.tsx)), wires the per-folder `enableTools` toggle (default off per the plan), and disables the model selector while a chat is active. The `/chatbot` route in [desktop/src/App.tsx](../desktop/src/App.tsx) now renders `<ChatPage>` instead of the placeholder. Chat messages persist in an in-memory Map; the sidecar streaming hook is deferred to Phase 5 (known-gap `4.P2.Z`). 22 shared-shell + ChatPage tests.
+
+**4.5 Functional top-bar search.** New [desktop/src/components/TopBar.tsx](../desktop/src/components/TopBar.tsx) replaces the Phase 1 disabled search placeholder. Typing into the search field debounces 200 ms (configurable), then calls `ChatExplorerClient.search(query)` and an optional `MemorySearchAdapter`. Results render in a dropdown grouped `Folders | Chats | Memories`; click-handlers route navigation. `Ctrl+K` focuses the input; `Esc` closes the dropdown. The component is fully composable: `extraButtons` slot accepts the Dashboard's notification bell and `settingsTestId` lets the call site keep its existing test surface. The [desktop/src/pages/Dashboard.tsx](../desktop/src/pages/Dashboard.tsx) integration wires the TopBar with the right navigation callbacks. The `MemorySearchAdapter` slot is not bound in production yet (known-gap `4.P2.Y`); only the `chatClient` path is live. 13 TopBar tests cover every path.
+
+**4.6 Testing and stabilization.** Added 102 new tests across root + desktop (41 store / 23 scope memory / 24 client / 22 FolderTree / 22 shell + ChatPage / 13 TopBar + the App route adjustment). Per-tree coverage: `core/memory/` 100% lines / 98.55% branches, `modules/chat/storage/` 99.35% lines, `modules/chat/memory/` 100% lines. Desktop suite: 227 / 227 pass, 98% lines coverage maintained. Root suite: 2784 pass / 5 pre-existing Phase 2 failures unchanged (CRLF + SHA-pin, tracked under `2.P3.L`).
+
+### Outcome
+
+- `npm test` (desktop): 227 / 227 pass.
+- `npm test:coverage` (desktop): coverage gate green (>= 80 / 80 / 70).
+- `npm test` (root): 2784 pass / 5 pre-existing failures unchanged.
+- `npm run lint` (desktop + root): clean.
+- `npm run typecheck` (desktop): clean. `npm run build` (root): clean.
+
+### Known gaps added
+
+See [docs/v1.0.0/known-gaps.md](v1.0.0/known-gaps.md) sections `4.P1.V` ... `4.P2.AA` (seven new entries). Headline gaps: HTML5 dnd in place of `@dnd-kit/core` (`4.P1.V`), sidecar IPC wiring for the chat store deferred to Phase 5 (`4.P1.W`), SQLite memory tables don't yet carry the `scope_id` column (`4.P1.X`).
+
+### Plan reference + history
+
+[docs/v1.0.0/plans/phase-04-chat-module.md](v1.0.0/plans/phase-04-chat-module.md), [docs/v1.0.0/development/history/2026-05-17_phase-04-chat-module.md](v1.0.0/development/history/2026-05-17_phase-04-chat-module.md).
+
+---
+
 ## [2026-05-17] v1.0.0 Phase 3 -- Agentic AI Coding module + multi-LLM + thin VS Code adapter
 
 ### Goal

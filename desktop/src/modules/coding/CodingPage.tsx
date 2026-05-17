@@ -16,6 +16,7 @@ import { applyEvents, type RenderedTurn } from "./toolCallCard";
 import { MemoryPanel } from "./panels/MemoryPanel";
 import { TraceDashboardPanel } from "./panels/TraceDashboardPanel";
 import { SessionListPanel } from "./panels/SessionListPanel";
+import { MessageList, ModelSelector, type ChatMessage } from "../../shared/chat";
 
 type Tab = "chat" | "memory" | "trace" | "sessions";
 
@@ -23,6 +24,25 @@ interface Turn {
   id: string;
   prompt: string;
   rendered: RenderedTurn;
+}
+
+function turnsToMessages(turns: readonly Turn[]): readonly ChatMessage[] {
+  const messages: ChatMessage[] = [];
+  for (const turn of turns) {
+    messages.push({ id: `${turn.id}-user`, role: "user", content: turn.prompt });
+    messages.push({
+      id: `${turn.id}-assistant`,
+      role: "assistant",
+      content: turn.rendered.text,
+      toolCards: turn.rendered.cards.map((card) => ({
+        callId: card.callId,
+        name: card.name,
+        args: card.args,
+        result: card.result,
+      })),
+    });
+  }
+  return messages;
 }
 
 export interface CodingPageProps {
@@ -142,28 +162,13 @@ export function CodingPage({
     >
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h1 style={{ margin: 0, color: "var(--accent-coding)" }}>Agentic AI Coding</h1>
-        <label style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-          <span style={{ color: "var(--fg-muted)" }}>Model</span>
-          <select
-            data-testid="coding-model-select"
-            value={modelId}
-            onChange={(e) => setModelId(e.target.value)}
-            disabled={Boolean(sessionId)}
-            style={{
-              padding: "var(--space-1) var(--space-2)",
-              backgroundColor: "var(--bg-1)",
-              color: "var(--fg-0)",
-              border: "1px solid var(--border-1)",
-              borderRadius: "var(--radius-md)",
-            }}
-          >
-            {FRONTEND_MODELS.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.displayName}
-              </option>
-            ))}
-          </select>
-        </label>
+        <ModelSelector
+          testId="coding-model-select"
+          models={FRONTEND_MODELS}
+          value={modelId}
+          onChange={setModelId}
+          disabled={Boolean(sessionId)}
+        />
       </header>
 
       <nav role="tablist" style={{ display: "flex", gap: 0 }}>
@@ -191,50 +196,13 @@ export function CodingPage({
       <div style={{ flex: 1, overflow: "auto" }}>
         {tab === "chat" && (
           <div data-testid="coding-chat">
-            {turns.length === 0 ? (
-              <p style={{ color: "var(--fg-muted)" }}>
-                Start by asking a question or typing <code>/</code> for commands.
-              </p>
-            ) : (
-              <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-                {turns.map((turn) => (
-                  <li
-                    key={turn.id}
-                    data-testid={`turn-${turn.id}`}
-                    style={{ marginBottom: "var(--space-3)" }}
-                  >
-                    <p style={{ color: "var(--fg-muted)", margin: 0 }}>
-                      <strong>You:</strong> {turn.prompt}
-                    </p>
-                    <p style={{ whiteSpace: "pre-wrap", margin: "var(--space-1) 0" }}>
-                      {turn.rendered.text}
-                    </p>
-                    {turn.rendered.cards.map((card) => (
-                      <div
-                        key={card.callId}
-                        data-testid={`tool-card-${card.callId}`}
-                        style={{
-                          border: "1px solid var(--border-1)",
-                          padding: "var(--space-2)",
-                          borderRadius: "var(--radius-md)",
-                          backgroundColor: "var(--bg-1)",
-                        }}
-                      >
-                        <header>
-                          <strong>{card.name}</strong>
-                        </header>
-                        <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{card.args}</pre>
-                        {card.result !== null && (
-                          <p style={{ margin: "var(--space-1) 0 0", color: "var(--fg-muted)" }}>
-                            -&gt; {card.result}
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                  </li>
-                ))}
-              </ul>
-            )}
+            <MessageList
+              messages={turnsToMessages(turns)}
+              enableTools={true}
+              emptyMessage={
+                "Start by asking a question or typing / for commands."
+              }
+            />
           </div>
         )}
         {tab === "memory" && <MemoryPanel snapshot={memorySnapshot} />}
