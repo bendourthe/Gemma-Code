@@ -1,3 +1,10 @@
+## [0.22.2](https://github.com/bendourthe/Gemma-Code/compare/v0.22.1...v0.22.2) (2026-05-17)
+
+
+### Bug Fixes
+
+* **ci:** align nightly bench gate with fast-bench on v0.7.0 ([6415f52](https://github.com/bendourthe/Gemma-Code/commit/6415f52a6f2ccf417d02082d1996171d3231bc86))
+
 ## [0.22.1](https://github.com/bendourthe/Gemma-Code/compare/v0.22.0...v0.22.1) (2026-05-17)
 
 
