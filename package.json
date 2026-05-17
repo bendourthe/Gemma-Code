@@ -601,7 +601,7 @@
     "lint-staged": "^15.5.2",
     "msw": "^2.13.4",
     "semantic-release": "^25.0.0",
-    "typescript": "^5.4.0",
+    "typescript": "^6.0.3",
     "vitest": "^2.1.9"
   },
   "dependencies": {
