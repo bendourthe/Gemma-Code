@@ -12,13 +12,13 @@ Each section opens with a single-line status block; the operator updates it afte
 
 ## Section 1: Live-Ollama golden + benchmark baseline capture
 
-**Status**: bench-done (2026-05-17 nightly hotfix), golden-pending
-**Tracks**: 10.O.A (v0.8.0 known-gaps Section 10.1), 10.O.BB (v0.8.0 Phase 7), v0.9.0 10.N.V (resolved bench-side)
+**Status**: pending (bench attempt 2026-05-17 reverted - hardware mismatch; see note below)
+**Tracks**: 10.O.A (v0.8.0 known-gaps Section 10.1), 10.O.BB (v0.8.0 Phase 7)
 **Severity**: P1
 
 **Why this is operator-only**: the captures require a live `ollama serve` instance with `gemma4:e4b` pulled on a quiescent workstation (no other GPU/CPU contention) and a non-trivial wall-clock budget per run. The agent is not authorized to drive live inference and cannot block the user's workstation for tens of minutes per capture.
 
-**Bench portion (done 2026-05-17)**: `tests/benchmarks/baselines/v0.9.0.json` captured on the post-Phase-0.9 (cached `Marked` instance) renderer to unblock the failed 2026-05-17 nightly. `.github/workflows/nightly.yml` and `.github/workflows/ci.yml` `fast-bench` both now compare against v0.9.0 with v0.6.0 as the long-arc floor. The capture host was NOT strictly quiescent; two benches retain high rme (`render ~2000-token message` 36.27%, `check-tool-permission (benign Write)` 38.84%) which the 20% threshold absorbs for the other 26 benches. Step 3 below is considered complete; steps 1, 4, 5 (golden), and 6 (deltas doc) remain.
+**2026-05-17 attempt note**: a local-Windows bench capture was committed as `tests/benchmarks/baselines/v0.9.0.json` to unblock the failed 2026-05-17 nightly, then reverted on the follow-up CI run because Windows-workstation throughput sits ~30-40% above the Linux GitHub Actions runner. The local v0.9.0 file tripped 10 false-positive regressions on `ci.yml` `fast-bench`. The nightly + fast-bench gates both fall back to v0.7.0 baseline (closes v0.9.0 10.N.V); a CI-hardware-representative v0.9.0 baseline is still pending. The bench capture for Section 1 must therefore run on a Linux host with `ubuntu-latest`-equivalent specs, OR download the `bench-results.json` artifact from a recent nightly / fast-bench workflow run on `main` and rename it into place.
 
 **Procedure**:
 
