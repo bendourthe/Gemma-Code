@@ -1,3 +1,10 @@
+# [0.28.0](https://github.com/bendourthe/Nexus-AI/compare/v0.27.0...v0.28.0) (2026-05-17)
+
+
+### Features
+
+* **v1.0.0:** phase 7 Video Lab MVP ([1de1186](https://github.com/bendourthe/Nexus-AI/commit/1de1186abc3dfac5a0236e35e0b8dafe0ce4deb9))
+
 # [0.27.0](https://github.com/bendourthe/Nexus-AI/compare/v0.26.0...v0.27.0) (2026-05-17)
 
 
