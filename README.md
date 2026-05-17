@@ -6,6 +6,15 @@ Gemma Code brings a Claude Code-style agentic workflow to VS Code, running entir
 
 ---
 
+## v0.9.0 Highlights
+
+- **37 v0.8.0 in-cycle gaps cleared.** Every deferral surfaced during the v0.8.0 cycle is now Resolved or Transferred. The full closure map lives in [docs/v0.8.0/known-gaps.md](docs/v0.8.0/known-gaps.md) Section 10.2 and the per-phase narrative in [docs/v0.9.0/known-gaps.md](docs/v0.9.0/known-gaps.md).
+- **Reverse-engineered dev-loop tooling.** Cross-platform Node CLIs for `npm run debug`, `npm run work <issue>`, `npm run deep-work`, `npm run agent-batch`, and `npm run review` -- plus a `coverage-diff.yml` workflow, an auto-fix-retry pre-push hook, and a `pr-quality.yml` checklist gate. All vendor-neutral and offline-first; no third-party PR-review-as-service is wired into the production code paths.
+- **Skill-native artifacts shipped.** An enriched `review-pr` SKILL, the `.claude/agents/pr-manager` + `.claude/agents/pr-manager-lite` + `.claude/agents/taskmaster` subagents, the `.claude/commands/ship-and-babysit.md` slash command, and a [CONTRIBUTING-BEGINNERS.md](CONTRIBUTING-BEGINNERS.md) walkthrough. All five are zero-code (markdown-only) and consume the existing `gh` / `git` / `npm` toolchain.
+- **CI hardened.** Node matrix moved to `["22.x", "24.x"]` (beats the 2026-09-16 GitHub deadline for Node 20), `coverage-gate` extended with `functions >= 80`, new `check-prompts` / `fast-bench` / `codeql.yml` jobs, and the `check-architecture` job now uploads the dependency graph as an artifact.
+
+---
+
 ## Features
 
 - **Fully offline** — all inference runs locally via Ollama; zero data is sent to external servers
@@ -279,6 +288,50 @@ npm run package
 npm run mutate
 ```
 
+### Bounded-output test runners (v0.9.0)
+
+`npm run debug <kind> [options]` is a thin wrapper around vitest that tees stdout/stderr to `out/debug-logs/<kind>-<ISO-ts>.log`, appends `# exit <code>` as the last line, and prints a per-failure summary by default. Use it when a noisy vitest run would otherwise blow past the context window of a chat-attached agent.
+
+```bash
+npm run debug unit                  # vitest run, summary-only output, log saved to out/debug-logs/
+npm run debug integration           # same for integration tests
+npm run debug golden                # golden-task framework tests
+npm run debug bench                 # vitest bench mode
+npm run debug logs list             # list past debug runs
+npm run debug logs last             # tail the most recent log
+npm run debug logs <run-id>         # tail a specific run by id
+npm run debug unit --verbose        # pass-through full vitest output
+```
+
+Logs live under `out/debug-logs/` and are gitignored.
+
+### Working with issues (v0.9.0)
+
+```bash
+npm run work <issue-number>             # one-shot: branch + prompt + clipboard for the named issue
+npm run deep-work start <issue-number>  # full lifecycle: worktree at worktrees/issue-<num>-<slug>
+npm run deep-work pick                  # interactive: list `good first issue` candidates, pick one
+npm run deep-work continue <num>        # cd into the worktree and re-print the prompt
+npm run deep-work status                # tabulate worktrees: branch / HEAD / dirty
+npm run deep-work list                  # list all gemma-code-managed worktrees
+npm run deep-work cleanup <num>         # remove a worktree (refuses on dirty without --force)
+npm run agent-batch validate <spec>     # Zod-validate an agent-batch spec
+npm run agent-batch overlap <spec>      # detect duplicate issues + dependency cycles
+npm run agent-batch launch <spec>       # dry-run by default; pass --apply to actually dispatch
+npm run agent-batch status              # classify each task pending/running/done
+```
+
+All three CLIs are cross-platform Node, talk only to `git` and `gh` (which contacts the user's own GitHub repo), and refuse non-interactive destructive operations without `--yes`. Sample spec at [examples/agent-batch.spec.json](examples/agent-batch.spec.json).
+
+### PR lifecycle (v0.9.0)
+
+Two complementary surfaces are available -- pick the one that matches the moment:
+
+- `npm run review <subcommand> <pr>` is the **imperative** PR-ops CLI. It exposes five sub-commands -- `sync` (checkout + fetch + merge `origin/main`), `review` (invokes the [review-pr SKILL](src/skills/catalog/review-pr/SKILL.md) via the configured agent CLI or prints the prompt), `fix` (fetches reviewer comments and hands off to the `pr-manager` subagent), `coverage` (downloads + summarises the `diff-coverage` artifact from the coverage-diff workflow), and `merge` (refuses on red/pending checks; defaults to `--squash`). Best for surgical, one-off PR work.
+- [.claude/commands/ship-and-babysit.md](.claude/commands/ship-and-babysit.md) is the **autonomous** Claude Code slash command. `/ship-and-babysit` commits + pushes + opens a PR against `bendourthe/Gemma-Code:main`, then polls Gemma-Code's own CI every ~270 s up to a hard cap of 12 ticks, resolves failures, and exits when checks are green. Best for "open a PR and walk away" loops. It explicitly does NOT poll CodeRabbit or any third-party review-as-service.
+
+The two surfaces overlap by design; the v0.10.0 cycle will fold one into the other based on observed usage. Decision tracking in [docs/v0.9.0/known-gaps.md](docs/v0.9.0/known-gaps.md) 10.N.O.
+
 ### Golden task suite (v0.3.0; runner canonised in v0.8.0 ADR-0017)
 
 Declarative evaluation tasks live under [tests/golden/](tests/golden/). Each task is a YAML file paired with a self-contained git snapshot under [tests/golden/snapshots/](tests/golden/snapshots/). The runner is the **Python framework** at [tests/golden/framework/](tests/golden/framework/) -- canonised in [ADR-0017](docs/adr/0017-golden-runner-disposition.md) over a TS-native rewrite. Operator-invoked on a quiescent workstation with `ollama serve` running and `gemma4:e4b` pulled; not run in CI.
@@ -351,10 +404,13 @@ scripts/
 
 ## Contributing
 
-Contributions are welcome. Please open an issue to discuss significant changes before submitting a pull request. See [CONTRIBUTING.md](CONTRIBUTING.md) for the project tour, conventions, daily loop, and the one-command dev-setup scripts ([scripts/dev-setup.sh](scripts/dev-setup.sh) on macOS/Linux, [scripts/dev-setup.ps1](scripts/dev-setup.ps1) on Windows).
+Contributions are welcome. Please open an issue to discuss significant changes before submitting a pull request.
+
+- **First time?** Read [CONTRIBUTING-BEGINNERS.md](CONTRIBUTING-BEGINNERS.md) (v0.9.0) for an end-to-end first-PR walkthrough -- pick an issue, run `npm run work <num>`, write tests, push, open the PR.
+- **General contributor guide.** [CONTRIBUTING.md](CONTRIBUTING.md) covers the project tour, conventions, daily loop, and the one-command dev-setup scripts ([scripts/dev-setup.sh](scripts/dev-setup.sh) on macOS/Linux, [scripts/dev-setup.ps1](scripts/dev-setup.ps1) on Windows).
 
 **Commit convention:** conventional commits (`feat:`, `fix:`, `chore:`, etc.); ASCII-only.
-**CI:** all PRs must pass `lint-ts` and `test-ts` with coverage ≥ 80%.
+**CI:** all PRs must pass `lint-ts` and `test-ts` with coverage ≥ 80% lines / 75% branches / 80% functions.
 
 ---
 

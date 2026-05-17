@@ -2,7 +2,7 @@
 
 This file is the canonical agent-agnostic directive for working in this repository. Any AI coding agent (Cursor, Copilot, Gemini CLI, Claude Code, future agents, or Gemma Code itself running against this repository) should read this file to understand project conventions, constraints, and the expected cognitive workflow.
 
-Gemma Code is an independent local agentic coding assistant. Claude Code is its inspiration, but every file and convention in this repository uses generic agent-agnostic naming — there is no `CLAUDE.md`, no Claude-specific instructions, no Anthropic-bound assumptions in product files. (Development-time tooling such as `.claude/`, `.vscode/`, or `.idea/` directories that individual contributors may keep locally are personal IDE/agent configuration, not part of Gemma Code's identity, and are not committed to the repository.)
+Gemma Code is an independent local agentic coding assistant. Claude Code is its inspiration, but every file and convention in this repository uses generic agent-agnostic naming — there is no `CLAUDE.md`, no Claude-specific instructions, no Anthropic-bound assumptions in product files. Development-time tooling such as `.vscode/` or `.idea/` directories, and most of `.claude/` (hooks, settings.local.json, scheduled_tasks.lock), is personal IDE/agent configuration and is not committed. Two `.claude/` subdirectories are exceptions, carved out in `.gitignore` and tracked in-repo as agent-agnostic markdown artifacts: `.claude/agents/` (subagent prompt definitions) and `.claude/commands/` (slash-command definitions). They are written in plain Markdown, read by Claude Code today, and could be consumed by any other agent harness without translation; see the "Claude Code addenda" section at the bottom of this file for the per-file inventory.
 
 ## Project Overview
 
@@ -140,3 +140,22 @@ The agent's help-discovery surface is [src/tools/ToolCatalog.ts](src/tools/ToolC
 Sub-agent system prompts and tool scopes are loaded from `assets/specialists/<role>.md` Markdown files (one per role: `research`, `verification`, `planning`, `orchestration`). Each file declares its `modelTier` and `toolScope` in YAML frontmatter.
 
 A workspace-local override at `.gemma-code/specialists/<role>.md` takes precedence over the bundled file, which in turn takes precedence over a hardcoded fallback in `src/agents/SubAgentPrompts.ts`. Overrides are validated against a Zod schema; malformed overrides log a warning and fall through to the bundled file.
+
+## Onboarding for New Contributors
+
+First-time contributors: read [CONTRIBUTING-BEGINNERS.md](CONTRIBUTING-BEGINNERS.md) for an end-to-end first-PR walkthrough (pick an issue, run `npm run work <num>`, write tests, push, open the PR). The general contributor guide remains [CONTRIBUTING.md](CONTRIBUTING.md); the beginners doc layers on the first-day specifics without duplicating the conventions.
+
+## Claude Code addenda (v0.9.0)
+
+The repository tracks a small number of agent-agnostic Markdown artifacts under `.claude/agents/` and `.claude/commands/`. Despite the directory name, these files are plain Markdown -- they contain no agent-specific runtime hooks. Claude Code is the harness that reads them today; any future harness that maps subagent-prompt / slash-command files to its own format can consume them without translation. The rest of `.claude/` (hooks/, settings.local.json, scheduled_tasks.lock) remains personal-only and is gitignored.
+
+The "no `CLAUDE.md`" tool-agnostic invariant is preserved: this file (AGENTS.md) remains the single canonical agent directive. Nothing under `.claude/` overrides repository-level conventions; the files below extend them with PR-ops / issue-orchestration helpers.
+
+| Path | Role | One-line description |
+| --- | --- | --- |
+| `.claude/agents/pr-manager.md` | Subagent | Iteratively addresses existing reviewer comments on an open PR -- fetches `gh pr view` comments + `gh api pulls/<n>/comments`, applies in-scope fixes, replies to / dismisses out-of-scope ones, resolves threads via the GraphQL `resolveReviewThread` mutation, commits, pushes. Read-write, plain `gh` only; never calls a third-party review-as-service. |
+| `.claude/agents/pr-manager-lite.md` | Subagent | Trimmed variant of `pr-manager` for fast iterations. Same comment-fetch + comment-reply flow, but skips the thread-resolution mutations to cut round-trips. Use when speed matters and resolution can be done by hand at the end. |
+| `.claude/agents/taskmaster.md` | Subagent | Read-only over the repo except for `docs/todos.md`. Refreshes the progress tracker by ingesting recent commits, open issues, merged PRs, and known-gaps files; ticks completed items, adds newly identified work, never deletes a row, always cites the source SHA / issue number / known-gaps ID. |
+| `.claude/commands/ship-and-babysit.md` | Slash command | Autonomous PR loop: commits, pushes to origin, opens a PR against `bendourthe/Gemma-Code:main`, then polls Gemma-Code's own CI every ~270 s up to a hard cap of 12 ticks, resolves failures, and exits when checks are green. Explicit exclusion of CodeRabbit / OpenHuman / any third-party review-as-service polling. Complements `npm run review` (the imperative cousin); see [README.md](README.md) PR lifecycle section. |
+
+When the cycle author adds a new file under `.claude/agents/` or `.claude/commands/`, add it to the table above in the same commit and confirm the `prompt-*` rule globs in `lib/checks/prompt-oversized.mjs` cover the new path (currently scoped to `src/chat/prompts` and `src/skills/catalog`; extension to `.claude/` is tracked under [docs/v0.9.0/known-gaps.md](docs/v0.9.0/known-gaps.md) 10.N.H).
