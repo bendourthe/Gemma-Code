@@ -43,13 +43,13 @@ describe("App shell", () => {
     expect(screen.getByTestId("image-studio-page")).toBeInTheDocument();
   });
 
-  it("still renders module placeholders for non-Image pillars (e.g. /videos)", () => {
+  it("renders the Video Lab page at /videos (Phase 7)", () => {
     render(
       <MemoryRouter initialEntries={["/videos"]}>
         <App telemetryStream={null} />
       </MemoryRouter>,
     );
-    expect(screen.getByTestId("placeholder-video")).toBeInTheDocument();
+    expect(screen.getByTestId("video-lab-page")).toBeInTheDocument();
   });
 
   it("renders the styleguide page at /_styleguide", () => {

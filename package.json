@@ -676,7 +676,8 @@
   "bin": {
     "nexus-check": "./bin/nexus-check.mjs",
     "gemma-check": "./bin/gemma-check-compat.mjs",
-    "nexus-image": "./bin/nexus-image.mjs"
+    "nexus-image": "./bin/nexus-image.mjs",
+    "nexus-video": "./bin/nexus-video.mjs"
   },
   "workspaces": [
     "desktop"

@@ -34,6 +34,9 @@ export const IPC_METHODS = [
   "diffusion.outpaint",
   "diffusion.job.drainEvents",
   "diffusion.workflow.extract",
+  "diffusion.video.text2video",
+  "diffusion.video.image2video",
+  "diffusion.video.workflow.extract",
 ] as const;
 
 export type Method = (typeof IPC_METHODS)[number];
@@ -367,6 +370,93 @@ export type DiffusionWorkflowExtractResponseT = z.infer<
   typeof DiffusionWorkflowExtractResponse
 >;
 
+// ---- Video pipeline (Phase 7) -----------------------------------------------
+
+export const VideoMode = z.enum(["text2video", "image2video"]);
+export type VideoModeT = z.infer<typeof VideoMode>;
+
+export const VideoFps = z.union([z.literal(12), z.literal(16), z.literal(24)]);
+export type VideoFpsT = z.infer<typeof VideoFps>;
+
+const VideoResolutionTuple = z.union([
+  z.tuple([z.literal(854), z.literal(480)]),
+  z.tuple([z.literal(1280), z.literal(720)]),
+]);
+export type VideoResolutionTupleT = z.infer<typeof VideoResolutionTuple>;
+
+const VideoBase = z.object({
+  modelId: z.string().min(1),
+  prompt: z.string().min(1).max(4000),
+  negativePrompt: z.string().max(4000).optional(),
+  width: z.union([z.literal(854), z.literal(1280)]),
+  height: z.union([z.literal(480), z.literal(720)]),
+  durationSeconds: z.number().int().min(1).max(10),
+  fps: VideoFps,
+  steps: z.number().int().min(1).max(150),
+  cfgScale: z.number().min(0).max(30),
+  sampler: DiffusionSampler.default("euler_a"),
+  seed: z.number().int().nonnegative(),
+  latentPreview: z.boolean().default(true),
+});
+
+export const DiffusionVideoText2VideoRequest = VideoBase.strict();
+export type DiffusionVideoText2VideoRequestT = z.infer<
+  typeof DiffusionVideoText2VideoRequest
+>;
+
+export const DiffusionVideoImage2VideoRequest = VideoBase.extend({
+  sourceImage: z.string().min(1),
+}).strict();
+export type DiffusionVideoImage2VideoRequestT = z.infer<
+  typeof DiffusionVideoImage2VideoRequest
+>;
+
+export const DiffusionVideoJobAccepted = z
+  .object({
+    jobId: z.string().min(1),
+    mode: VideoMode,
+    offloadStrategy: z.string().optional(),
+    estimatedSeconds: z.number().nonnegative().optional(),
+    frameCount: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+export type DiffusionVideoJobAcceptedT = z.infer<typeof DiffusionVideoJobAccepted>;
+
+export const DiffusionVideoWorkflow = z
+  .object({
+    tool: z.string(),
+    version: z.string(),
+    kind: z.literal("video"),
+    mode: VideoMode,
+    modelId: z.string(),
+    prompt: z.string(),
+    negativePrompt: z.string().optional(),
+    width: z.number(),
+    height: z.number(),
+    durationSeconds: z.number(),
+    fps: z.number(),
+    frameCount: z.number(),
+    steps: z.number(),
+    cfgScale: z.number(),
+    sampler: z.string(),
+    seed: z.number(),
+    timestamp: z.string(),
+    sourceImageHash: z.string().optional(),
+  })
+  .passthrough();
+export type DiffusionVideoWorkflowT = z.infer<typeof DiffusionVideoWorkflow>;
+
+export const DiffusionVideoWorkflowExtractRequest = z
+  .object({ mp4Path: z.string().min(1) })
+  .strict();
+
+export const DiffusionVideoWorkflowExtractResponse = z
+  .object({ workflow: DiffusionVideoWorkflow.nullable() })
+  .strict();
+export type DiffusionVideoWorkflowExtractResponseT = z.infer<
+  typeof DiffusionVideoWorkflowExtractResponse
+>;
+
 const NotImplementedAny = z.unknown();
 
 interface MethodSchema {
@@ -462,6 +552,21 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
   "diffusion.workflow.extract": {
     request: DiffusionWorkflowExtractRequest,
     response: DiffusionWorkflowExtractResponse,
+    implemented: true,
+  },
+  "diffusion.video.text2video": {
+    request: DiffusionVideoText2VideoRequest,
+    response: DiffusionVideoJobAccepted,
+    implemented: true,
+  },
+  "diffusion.video.image2video": {
+    request: DiffusionVideoImage2VideoRequest,
+    response: DiffusionVideoJobAccepted,
+    implemented: true,
+  },
+  "diffusion.video.workflow.extract": {
+    request: DiffusionVideoWorkflowExtractRequest,
+    response: DiffusionVideoWorkflowExtractResponse,
     implemented: true,
   },
 };

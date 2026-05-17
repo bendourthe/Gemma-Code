@@ -1,0 +1,297 @@
+/**
+ * v1.0.0 Phase 7.2 -- Video Lab prompt form (left sidebar).
+ *
+ * Houses every parameter the user can tune for both text2video and
+ * image2video modes: prompt + negative, model, mode toggle, duration,
+ * fps, resolution, steps, CFG, seed, sampler. Keeps its own controlled
+ * state so the page only sees the final `VideoFormValues` snapshot when
+ * the user clicks Generate.
+ */
+
+import { useEffect, useRef, useState } from "react";
+import type { VideoMode } from "./videoClient";
+
+export interface VideoFormValues {
+  readonly prompt: string;
+  readonly negativePrompt: string;
+  readonly modelId: string;
+  readonly mode: VideoMode;
+  readonly durationSeconds: number;
+  readonly fps: 12 | 16 | 24;
+  readonly width: 854 | 1280;
+  readonly height: 480 | 720;
+  readonly steps: number;
+  readonly cfgScale: number;
+  readonly sampler: string;
+  readonly seed: number;
+}
+
+export interface VideoPromptFormProps {
+  readonly initial?: Partial<VideoFormValues>;
+  readonly availableModels: readonly { id: string; displayName: string; mode: VideoMode }[];
+  readonly disabled?: boolean;
+  readonly onChange?: (values: VideoFormValues) => void;
+}
+
+const SAMPLERS = ["euler", "euler_a", "dpmpp_2m", "dpmpp_sde", "ddim", "lms"];
+const FPS_VALUES: Array<12 | 16 | 24> = [12, 16, 24];
+const RESOLUTIONS: Array<{
+  label: string;
+  width: 854 | 1280;
+  height: 480 | 720;
+}> = [
+  { label: "480p (854x480)", width: 854, height: 480 },
+  { label: "720p (1280x720)", width: 1280, height: 720 },
+];
+
+export const DEFAULT_VIDEO_FORM_VALUES: VideoFormValues = {
+  prompt: "",
+  negativePrompt: "",
+  modelId: "ltx-video",
+  mode: "text2video",
+  durationSeconds: 4,
+  fps: 24,
+  width: 854,
+  height: 480,
+  steps: 30,
+  cfgScale: 3.5,
+  sampler: "euler_a",
+  seed: 0,
+};
+
+export function VideoPromptForm({
+  initial,
+  availableModels,
+  disabled,
+  onChange,
+}: VideoPromptFormProps): JSX.Element {
+  const [values, setValues] = useState<VideoFormValues>({
+    ...DEFAULT_VIDEO_FORM_VALUES,
+    ...initial,
+  });
+  const skipFirstEffect = useRef(true);
+  useEffect(() => {
+    if (skipFirstEffect.current) {
+      skipFirstEffect.current = false;
+      return;
+    }
+    onChange?.(values);
+  }, [values, onChange]);
+
+  function update<K extends keyof VideoFormValues>(
+    key: K,
+    value: VideoFormValues[K],
+  ): void {
+    setValues((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function updateMode(mode: VideoMode): void {
+    setValues((prev) => {
+      const first = availableModels.find((m) => m.mode === mode);
+      const modelId =
+        first && first.id !== prev.modelId ? first.id : prev.modelId;
+      return { ...prev, mode, modelId };
+    });
+  }
+
+  function updateResolution(width: 854 | 1280, height: 480 | 720): void {
+    setValues((prev) => ({ ...prev, width, height }));
+  }
+
+  const modelsForMode = availableModels.filter((m) => m.mode === values.mode);
+
+  return (
+    <div
+      data-testid="video-prompt-form"
+      style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}
+    >
+      <label>
+        Mode
+        <select
+          data-testid="video-mode"
+          value={values.mode}
+          disabled={disabled}
+          onChange={(e) => updateMode(e.target.value as VideoMode)}
+        >
+          <option value="text2video">Text -&gt; Video</option>
+          <option value="image2video">Image -&gt; Video</option>
+        </select>
+      </label>
+
+      <label>
+        Prompt
+        <textarea
+          data-testid="video-prompt"
+          value={values.prompt}
+          disabled={disabled}
+          rows={3}
+          onChange={(e) => update("prompt", e.target.value)}
+        />
+      </label>
+
+      <label>
+        Negative Prompt
+        <textarea
+          data-testid="video-negative-prompt"
+          value={values.negativePrompt}
+          disabled={disabled}
+          rows={2}
+          onChange={(e) => update("negativePrompt", e.target.value)}
+        />
+      </label>
+
+      <label>
+        Model
+        <select
+          data-testid="video-model"
+          value={values.modelId}
+          disabled={disabled || modelsForMode.length === 0}
+          onChange={(e) => update("modelId", e.target.value)}
+        >
+          {modelsForMode.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.displayName}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label>
+        Duration (s)
+        <input
+          data-testid="video-duration"
+          type="number"
+          min={1}
+          max={10}
+          value={values.durationSeconds}
+          disabled={disabled}
+          onChange={(e) =>
+            update("durationSeconds", clamp(Number(e.target.value), 1, 10))
+          }
+        />
+      </label>
+
+      <label>
+        FPS
+        <select
+          data-testid="video-fps"
+          value={values.fps}
+          disabled={disabled}
+          onChange={(e) => update("fps", Number(e.target.value) as 12 | 16 | 24)}
+        >
+          {FPS_VALUES.map((f) => (
+            <option key={f} value={f}>
+              {f}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label>
+        Resolution
+        <select
+          data-testid="video-resolution"
+          value={`${values.width}x${values.height}`}
+          disabled={disabled}
+          onChange={(e) => {
+            const found = RESOLUTIONS.find(
+              (r) => `${r.width}x${r.height}` === e.target.value,
+            );
+            if (!found) return;
+            updateResolution(found.width, found.height);
+          }}
+        >
+          {RESOLUTIONS.map((r) => (
+            <option key={r.label} value={`${r.width}x${r.height}`}>
+              {r.label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label>
+        Steps
+        <input
+          data-testid="video-steps"
+          type="number"
+          min={1}
+          max={150}
+          value={values.steps}
+          disabled={disabled}
+          onChange={(e) =>
+            update("steps", clamp(Number(e.target.value), 1, 150))
+          }
+        />
+      </label>
+
+      <label>
+        CFG Scale
+        <input
+          data-testid="video-cfg"
+          type="number"
+          min={0}
+          max={30}
+          step={0.1}
+          value={values.cfgScale}
+          disabled={disabled}
+          onChange={(e) => update("cfgScale", Number(e.target.value))}
+        />
+      </label>
+
+      <label>
+        Seed
+        <input
+          data-testid="video-seed"
+          type="number"
+          min={0}
+          value={values.seed}
+          disabled={disabled}
+          onChange={(e) => update("seed", Number(e.target.value))}
+        />
+      </label>
+
+      <details>
+        <summary>Advanced</summary>
+        <label>
+          Sampler
+          <select
+            data-testid="video-sampler"
+            value={values.sampler}
+            disabled={disabled}
+            onChange={(e) => update("sampler", e.target.value)}
+          >
+            {SAMPLERS.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </label>
+      </details>
+    </div>
+  );
+}
+
+export function videoFormToRequest(
+  values: VideoFormValues,
+): Omit<import("./videoClient").VideoBaseRequest, "sourceImage"> {
+  return {
+    modelId: values.modelId,
+    prompt: values.prompt,
+    negativePrompt: values.negativePrompt || undefined,
+    width: values.width,
+    height: values.height,
+    durationSeconds: values.durationSeconds,
+    fps: values.fps,
+    steps: values.steps,
+    cfgScale: values.cfgScale,
+    sampler: values.sampler,
+    seed: values.seed,
+    latentPreview: true,
+  };
+}
+
+function clamp(n: number, lo: number, hi: number): number {
+  if (!Number.isFinite(n)) return lo;
+  return Math.min(hi, Math.max(lo, Math.round(n)));
+}

@@ -291,6 +291,62 @@ Each entry has a category tag:
 - **Reason**: The new `diffusion-ipcClient.test.ts` covers the seven production paths through `createIpcDiffusionClient` and the unwrap helper. The remaining uncovered lines are the lazy `import("@tauri-apps/api/core")` branch inside `desktop/src/lib/ipc.ts` (only reachable when `__TAURI_INTERNALS__` is set, which jsdom does not simulate). Coverage overall is 94.24% lines / 80.75% functions / 85.65% branches, comfortably above the gate; the `image/` directory specifically is at 86.52% lines and 46.77% functions because the InMemoryDiffusionClient class members are bound paths that vitest considers separate functions.
 - **Suggested next step**: Acceptable as-is for Phase 6. If the function-coverage threshold for `image/` becomes a concern, add a tiny test that constructs an `InMemoryDiffusionClient` and calls every method directly (no UI). Bundled into the same Phase 8 polish pass as 6.P2.KK.
 
+### 7.P1.MM -- Video pipelines ship with stub executors (no live PyTorch + imageio) (DF, P1)
+
+- **Source phase**: Phase 7 (7.1)
+- **Plan reference**: [phase-07-video-lab.md](plans/phase-07-video-lab.md) sub-task 7.1 (LTX-Video / SVD / CogVideoX text2video + image2video pipelines).
+- **Reason**: Each video pipeline (`video_text2video`, `video_image2video`) registers a `VideoPipelineRunner` whose executor defaults to `video_base.stub_execute(method)`. The runner orchestration (param validation -> video-upgraded offload decision via `device.choose_offload` + `_upgrade_for_video` -> `vram_scope` -> execution -> workflow JSON build) is exercised end-to-end by 39 pytest tests; the stub returns one deterministic 1x1 JPEG thumbnail per generated second and no real MP4, so the JSON-RPC contract + thumbnail-strip UI flow + workflow-JSON shape are verified in CI without a CUDA / `diffusers` / `imageio` install. The Phase 7 stability gate's <= 5-minute LTX-Video 4 s @ 24 fps timing is an operator action.
+- **Suggested next step**: Operator captures a real-host run in `docs/v1.0.0/operator-actions.md`: `pip install -r runtimes/diffusion/requirements.txt` (adding `imageio[ffmpeg]` to the requirements), drop a real diffusers-backed `_execute(ctx)` into each video pipeline module (replacing `video_base.stub_execute(method)`), and record LTX-Video / SVD / CogVideoX 5B / CogVideoX 2B timings on the RTX 4070 baseline rig.
+
+### 7.P1.NN -- ffmpeg / ffprobe assumed on $PATH; installer-bundled binaries land in Phase 9 (DF, P1)
+
+- **Source phase**: Phase 7 (7.3)
+- **Plan reference**: [phase-07-video-lab.md](plans/phase-07-video-lab.md) sub-task 7.3 ("Bundled ffmpeg / ffprobe come from the installer (Phase 9)").
+- **Reason**: `core/video/WorkflowMetadata.ts` resolves ffmpeg + ffprobe via an injected `FfmpegContext { ffmpegPath, ffprobePath, spawnFn? }`. The sidecar default (`DEFAULT_FFMPEG_CONTEXT`) reads `NEXUS_FFMPEG_PATH` / `NEXUS_FFPROBE_PATH` env vars and falls back to the generic `ffmpeg` / `ffprobe` names on `$PATH`. On a fresh Windows / macOS / Linux host with no ffmpeg installed, `diffusion.video.workflow.extract` (and the on-host executor's MP4 writer) will fail with `ENOENT`. The unit-test suite injects a stub `spawnFn` so the IPC contract + extract / round-trip path are verified without a system ffmpeg.
+- **Suggested next step**: Phase 9 installer drops `ffmpeg.exe` / `ffprobe.exe` into `~/.nexus/runtimes/ffmpeg/` and sets `NEXUS_FFMPEG_PATH` / `NEXUS_FFPROBE_PATH` in the Nexus desktop process environment. Adopted via the existing injection seam; no production code change in `core/video/`.
+
+### 7.P1.OO -- Tauri Rust core does not yet spawn the Python sidecar for video (DF, P1)
+
+- **Source phase**: Phase 7 (7.1)
+- **Plan reference**: [phase-07-video-lab.md](plans/phase-07-video-lab.md) sub-task 7.1 (Python sidecar hosts both image + video pipelines).
+- **Reason**: This is the same blocker tracked as `6.P1.HH` for image diffusion -- the Tauri Rust core still spawns only the Node sidecar, and the Node-side handler binds to `InMemoryDiffusionRuntime` until the Rust core can also launch `python -m runtimes.diffusion.main` and Node can be told where to reach it. Phase 7's video runtime piggybacks on the same sidecar process, so once the Python spawn lands in Phase 9 (installer), `ChildProcessDiffusionRuntime` carries both image and video traffic without further wiring. The Phase 7 unit + integration tests exercise the IPC contract through the in-memory client.
+- **Suggested next step**: Bundled into the same Phase 9 follow-on tracked by `6.P1.HH`. No separate work required for video.
+
+### 7.P2.PP -- Video Lab UI uses a hard-coded model list (NI, P2)
+
+- **Source phase**: Phase 7 (7.2)
+- **Plan reference**: [phase-07-video-lab.md](plans/phase-07-video-lab.md) sub-task 7.2 ("Model dropdown filtered to video models").
+- **Reason**: `desktop/src/modules/video/VideoLabPage.tsx` ships `DEFAULT_VIDEO_MODELS` as an inline constant (LTX-Video + CogVideoX 5B / 2B for text2video, SVD + CogVideoX-I2V for image2video). The proper source is the `ModelRegistry` (`type: "video"`) reachable via the `models.list` IPC that `5.P1.BB` still gates on. Once that bridge lands, the dropdowns subscribe to the catalog filtered by `type: "video"` + `mode`. Until then, the user sees the five planned video checkpoints for UX testing.
+- **Suggested next step**: When the Phase 5 follow-on that closes `5.P1.BB` lands, pass `ipc.call("models.list", { type: "video" })` results into VideoLabPage as a `models` prop (or expose a `useVideoModelCatalog` hook). The form does not change.
+
+### 7.P2.QQ -- MP4 source-of-truth resolution for the previewer is a placeholder (DF, P2)
+
+- **Source phase**: Phase 7 (7.2)
+- **Plan reference**: [phase-07-video-lab.md](plans/phase-07-video-lab.md) sub-task 7.2 ("timeline previewer scrubber (HTML5 video element) for completed clips").
+- **Reason**: `VideoLabPage` accepts a `resolveMp4Url(mp4Path: string) => string` prop that maps the sidecar's local-disk MP4 path into a URL the HTML5 `<video>` element can play. The default identity mapping ("path-as-URL") works inside Tauri once the `fs` allow-list grants read access to `~/.nexus/outputs/videos/`, but the Tauri config has not been updated to whitelist that directory yet. Until then, real playback in a packaged Tauri build will fail; tests inject a stub resolver (`(path) => "mock://" + path`) so the UI surface is exercised.
+- **Suggested next step**: Phase 9 installer adds `~/.nexus/outputs/videos/` to the Tauri allow-list. The default `resolveMp4Url` then wraps the path with `convertFileSrc()` from `@tauri-apps/api/core` to translate it into a `tauri://localhost/<id>` URL the webview can play.
+
+### 7.P2.RR -- Save As / Use Last Frame as Image actions not yet wired (NI, P2)
+
+- **Source phase**: Phase 7 (7.2)
+- **Plan reference**: [phase-07-video-lab.md](plans/phase-07-video-lab.md) sub-task 7.2 ("Output context menu: Open, Save As..., Copy Workflow (workflow embedded in the MP4 via ffmpeg metadata), Use Last Frame as Image (sends to Image Studio)").
+- **Reason**: The Video Lab gallery context-menu actions ship with the first two surfaces from the plan: "Open" (loads into the timeline previewer) and "Copy Workflow" (forwards extracted JSON to the clipboard adapter). "Save As..." requires a Tauri dialog handler (`dialog.save()`) plus a sidecar `video.save` IPC that copies the local MP4 to the user-chosen target, and "Use Last Frame as Image" requires either a follow-on ffmpeg call (`ffmpeg -ss <end> -frames:v 1 -f image2`) or harvesting the trailing JPEG preview from the progress stream. Both depend on plumbing not present in the Phase 7 surface.
+- **Suggested next step**: Phase 8 polish pass adds a `video.export.lastFrame` IPC backed by the Python sidecar (calls into the existing pipeline output to read the final frame as a PIL image -> PNG -> base64), and wires "Save As..." through the existing Tauri `dialog` plugin. The UI buttons land in the same commit.
+
+### 7.P2.SS -- Tauri Channel for video progress events not yet wired (DF, P2)
+
+- **Source phase**: Phase 7 (7.2)
+- **Plan reference**: [phase-07-video-lab.md](plans/phase-07-video-lab.md) sub-task 7.2 ("thumbnail strip updates").
+- **Reason**: Same blocker as image diffusion (`6.P2.KK`): the VideoLabPage polls `diffusion.job.drainEvents(jobId)` every 100 ms instead of subscribing to a server-initiated `tauri::Channel`. The polling is correct and bounded (drain is cheap, every event is consumed at most once) but suboptimal. The Phase 5 follow-on that introduces the channel for `coding.session.event` (item `3.P1.N` / `3.P2.U`) and `diffusion.job.progress` covers video at the same time.
+- **Suggested next step**: When the channel lands, add a `diffusion.video.job.events` channel (or share the existing `diffusion.job.events` from `6.P2.KK`); Node forwards every event line from the Python sidecar to the channel; the VideoLabPage swaps the polling loop for a channel listener.
+
+### 7.P3.TT -- Operator acceptance on real GPU rig deferred (DF, MT, P3)
+
+- **Source phase**: Phase 7 (7.5)
+- **Plan reference**: [phase-07-video-lab.md](plans/phase-07-video-lab.md) sub-task 7.5 acceptance ("operator-driven acceptance on a real GPU rig... (RTX 4070: LTX-Video 4 s @ 24 fps @ 480p in <= 5 min; SVD image+prompt to 4 s clip in <= 4 min; CogVideoX opt-in works)").
+- **Reason**: The Phase 7 stability gate (<= 5 minutes for a 4-second LTX-Video clip on a 12 GB RTX 4070) requires three resident video models on the host (~31 GB total: LTX-Video 12 GB + SVD 9 GB + CogVideoX 5B 10 GB) and is therefore operator-driven, in line with the v0.9.0 P3 pattern that rolled forward into v1.0.0 as item set `10.N.live-bench`. The Python orchestration is fully unit-tested with stubs.
+- **Suggested next step**: Operator captures the timings in `docs/v1.0.0/operator-actions.md` once the live-PyTorch wiring lands (item `7.P1.MM`). Fixture clips committed back under `tests/golden/v1.0.0/video/` for regression checks.
+
 ---
 
 ## 2. Resolved
@@ -307,18 +363,18 @@ Each entry has a category tag:
 | Severity | Open | Resolved |
 |---|---|---|
 | P0 | 0 | 0 |
-| P1 | 16 | 2 |
-| P2 | 20 | 0 |
-| P3 | 3 | 0 |
-| **Total** | **39** | **2** |
+| P1 | 19 | 2 |
+| P2 | 24 | 0 |
+| P3 | 4 | 0 |
+| **Total** | **47** | **2** |
 
 | Category | Open | Resolved |
 |---|---|---|
-| NI | 5 | 0 |
-| DF | 33 | 2 |
+| NI | 7 | 0 |
+| DF | 40 | 2 |
 | BG | 2 | 0 |
-| MT | 4 | 0 |
+| MT | 5 | 0 |
 | WN | 0 | 0 |
 | QG | 0 | 0 |
 
-**Last updated**: 2026-05-17 (Phase 6 close; DiffusionRuntime sidecar + smart-offload helper + txt2img / img2img / inpaint / outpaint pipelines + LoRA + ControlNet preprocessor stubs + ImageStudioPage with mask editor + workflow-in-PNG read/write + `nexus-image extract-workflow` CLI shipped; live PyTorch / diffusers execution, Tauri-side Python spawn, and Channel-based progress streaming deferred to operator action + Phase 8/9 follow-ons)
+**Last updated**: 2026-05-17 (Phase 7 close; VideoRuntime sidecar extension + LTX-Video / SVD / CogVideoX text2video + image2video pipelines with video-upgraded smart-offload + VRAM lifecycle scope + telemetry envelope; `core/video/WorkflowMetadata.ts` ffmpeg / ffprobe MP4 comment embed/extract + `nexus-video extract-workflow` CLI; `VideoLabPage` with form, live thumbnail strip, HTML5 timeline previewer with frame-stepping, and Outputs gallery shipped; live PyTorch / diffusers execution, installer-bundled ffmpeg, Tauri-side Python spawn, and Channel-based progress streaming deferred to operator action + Phase 8/9 follow-ons)

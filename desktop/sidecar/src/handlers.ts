@@ -21,6 +21,9 @@ import {
   DiffusionInpaintRequest,
   DiffusionOutpaintRequest,
   DiffusionTxt2ImgRequest,
+  DiffusionVideoImage2VideoRequest,
+  DiffusionVideoText2VideoRequest,
+  DiffusionVideoWorkflowExtractRequest,
   DiffusionWorkflowExtractRequest,
   IPC_METHODS,
   METHOD_SCHEMAS,
@@ -40,6 +43,11 @@ import {
   buildJobRequest,
   extractWorkflowFromBase64Png,
 } from "./diffusion/dispatcher.js";
+import { buildVideoJobRequest } from "./diffusion/videoDispatcher.js";
+import {
+  type FfmpegContext,
+  extractWorkflow as extractVideoWorkflow,
+} from "../../../core/video/WorkflowMetadata.js";
 
 export const SIDECAR_VERSION = "1.0.0-alpha.0";
 
@@ -48,16 +56,23 @@ export interface HandlerContext {
   platform: NodeJS.Platform;
   sessions: CodingSessionManager;
   diffusion: DiffusionRuntimeClient;
+  ffmpeg: FfmpegContext;
 }
 
 export type HandlerFn = (params: unknown, ctx: HandlerContext) => Promise<unknown>;
+
+export const DEFAULT_FFMPEG_CONTEXT: FfmpegContext = {
+  ffmpegPath: process.env.NEXUS_FFMPEG_PATH ?? "ffmpeg",
+  ffprobePath: process.env.NEXUS_FFPROBE_PATH ?? "ffprobe",
+};
 
 export function createHandlerContext(
   base: { pid: number; platform: NodeJS.Platform },
   sessions: CodingSessionManager = new CodingSessionManager(),
   diffusion: DiffusionRuntimeClient = new InMemoryDiffusionRuntime(),
+  ffmpeg: FfmpegContext = DEFAULT_FFMPEG_CONTEXT,
 ): HandlerContext {
-  return { ...base, sessions, diffusion };
+  return { ...base, sessions, diffusion, ffmpeg };
 }
 
 export const handlers: Record<Method, HandlerFn> = {
@@ -156,6 +171,19 @@ export const handlers: Record<Method, HandlerFn> = {
   "diffusion.workflow.extract": async (params) => {
     const req = DiffusionWorkflowExtractRequest.parse(params ?? {});
     const workflow = extractWorkflowFromBase64Png(req.pngBase64);
+    return { workflow };
+  },
+  "diffusion.video.text2video": async (params, ctx) => {
+    const req = DiffusionVideoText2VideoRequest.parse(params ?? {});
+    return buildVideoJobRequest("text2video", req, ctx.diffusion);
+  },
+  "diffusion.video.image2video": async (params, ctx) => {
+    const req = DiffusionVideoImage2VideoRequest.parse(params ?? {});
+    return buildVideoJobRequest("image2video", req, ctx.diffusion);
+  },
+  "diffusion.video.workflow.extract": async (params, ctx) => {
+    const req = DiffusionVideoWorkflowExtractRequest.parse(params ?? {});
+    const workflow = await extractVideoWorkflow(req.mp4Path, ctx.ffmpeg);
     return { workflow };
   },
 };

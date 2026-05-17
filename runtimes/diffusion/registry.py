@@ -25,6 +25,8 @@ _PIPELINE_MODULES = (
     "runtimes.diffusion.pipelines.img2img",
     "runtimes.diffusion.pipelines.inpaint",
     "runtimes.diffusion.pipelines.outpaint",
+    "runtimes.diffusion.pipelines.video_text2video",
+    "runtimes.diffusion.pipelines.video_image2video",
 )
 
 

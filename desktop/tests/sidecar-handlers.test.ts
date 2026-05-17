@@ -61,6 +61,10 @@ describe("sidecar handlers", () => {
           "diffusion.outpaint",
           "diffusion.job.drainEvents",
           "diffusion.workflow.extract",
+          // v1.0.0 Phase 7 wired the video surface.
+          "diffusion.video.text2video",
+          "diffusion.video.image2video",
+          "diffusion.video.workflow.extract",
         ].includes(m),
     );
     for (const m of unimplemented) {
@@ -156,6 +160,135 @@ describe("sidecar handlers", () => {
         sessions: unknown[];
       };
       expect(a).toEqual(b);
+    });
+  });
+
+  describe("video handlers", () => {
+    function videoCtx(): HandlerContext {
+      const runtime = makeCtx().diffusion;
+      // The default in-memory runtime needs a stubbed response for the
+      // two video methods so `buildVideoJobRequest` resolves cleanly.
+      (runtime as unknown as {
+        setResponse: (method: string, value: unknown) => void;
+      }).setResponse("diffusion.video.text2video", {
+        ok: true,
+        offloadStrategy: "model_cpu_offload",
+        extra: { frameCount: 96 },
+      });
+      (runtime as unknown as {
+        setResponse: (method: string, value: unknown) => void;
+      }).setResponse("diffusion.video.image2video", {
+        ok: true,
+        offloadStrategy: "sequential_cpu_offload",
+      });
+      return createHandlerContext(
+        { pid: 1, platform: process.platform },
+        new CodingSessionManager(),
+        runtime,
+        {
+          ffmpegPath: "ffmpeg",
+          ffprobePath: "ffprobe",
+          // Stub spawn that always emits an empty ffprobe JSON.
+          spawnFn: ((command: string) => {
+            const emitter = new (require("node:events").EventEmitter)();
+            emitter.stdout = new (require("node:events").EventEmitter)();
+            emitter.stderr = new (require("node:events").EventEmitter)();
+            queueMicrotask(() => {
+              if (command.endsWith("ffprobe") || command === "ffprobe") {
+                emitter.stdout.emit(
+                  "data",
+                  Buffer.from(JSON.stringify({ format: { tags: {} } })),
+                );
+              }
+              emitter.emit("close", 0);
+            });
+            return emitter as unknown as ReturnType<typeof import("node:child_process").spawn>;
+          }) as typeof import("node:child_process").spawn,
+        },
+      );
+    }
+
+    it("diffusion.video.text2video returns a job envelope", async () => {
+      const ctx = videoCtx();
+      const result = (await dispatch(
+        "diffusion.video.text2video",
+        {
+          modelId: "ltx-video",
+          prompt: "fox",
+          width: 854,
+          height: 480,
+          durationSeconds: 4,
+          fps: 24,
+          steps: 30,
+          cfgScale: 3.5,
+          seed: 7,
+        },
+        ctx,
+      )) as { jobId: string; mode: string; offloadStrategy?: string };
+      expect(result.jobId).toMatch(/^video-/);
+      expect(result.mode).toBe("text2video");
+      expect(result.offloadStrategy).toBe("model_cpu_offload");
+    });
+
+    it("diffusion.video.image2video requires sourceImage", async () => {
+      await expect(
+        dispatch(
+          "diffusion.video.image2video",
+          {
+            modelId: "svd",
+            prompt: "fox",
+            width: 854,
+            height: 480,
+            durationSeconds: 4,
+            fps: 24,
+            steps: 30,
+            cfgScale: 3.5,
+            seed: 7,
+          },
+          videoCtx(),
+        ),
+      ).rejects.toThrow();
+    });
+
+    it("diffusion.video.image2video accepts a sourceImage", async () => {
+      const ctx = videoCtx();
+      const result = (await dispatch(
+        "diffusion.video.image2video",
+        {
+          modelId: "svd",
+          prompt: "fox",
+          width: 854,
+          height: 480,
+          durationSeconds: 4,
+          fps: 24,
+          steps: 30,
+          cfgScale: 3.5,
+          seed: 7,
+          sourceImage: "data:image/png;base64,AAAA",
+        },
+        ctx,
+      )) as { mode: string };
+      expect(result.mode).toBe("image2video");
+    });
+
+    it("diffusion.video.workflow.extract returns null when ffprobe finds no comment", async () => {
+      const ctx = videoCtx();
+      const result = (await dispatch(
+        "diffusion.video.workflow.extract",
+        { mp4Path: "/tmp/x.mp4" },
+        ctx,
+      )) as { workflow: unknown | null };
+      expect(result.workflow).toBeNull();
+    });
+
+    it("diffusion.video.workflow.extract rejects an empty path", async () => {
+      await expect(
+        dispatch(
+          "diffusion.video.workflow.extract",
+          { mp4Path: "" },
+          videoCtx(),
+        ),
+      ).rejects.toThrow();
     });
   });
 
