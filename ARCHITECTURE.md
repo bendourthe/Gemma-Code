@@ -1,6 +1,50 @@
 # Architecture
 
-> High-level overview of Gemma Code's architecture. For the full document with data flow diagrams and component details, see [docs/v0.2.0/architecture.md](docs/v0.2.0/architecture.md).
+> **Scope of this document.** This file documents the architecture of the **current** code in `src/` — the agentic-coding engine that shipped as Gemma Code v0.1.0 - v0.22.x. The repository is now pivoting to **Nexus**, a four-module local AI desktop application. The v1.0.0 desktop-shell architecture, module decomposition, and IPC surface are designed under [docs/v1.0.0/architecture.md](docs/v1.0.0/architecture.md) (once the v1.0.0 plan lands). Until that ships, the structures below describe the engine that will become the **Agentic AI Coding** module of Nexus.
+>
+> For the per-version architecture history, see [docs/v0.2.0/architecture.md](docs/v0.2.0/architecture.md) through [docs/v0.9.0/](docs/v0.9.0/).
+
+## Nexus v1.0.0 (target architecture, in planning)
+
+Nexus is a single native desktop application with a permanent left-hand sidebar and a dynamic dashboard. Four generative pillars share a common core (model registry, telemetry, memory, settings, telemetry redaction) and are isolated as modules so a failure in one (e.g. a diffusion OOM in Image Studio) does not take down the others.
+
+```
++--------------------------------------------------------------------------+
+|  Nexus Desktop Shell  (Electron / Tauri - decision pending)              |
+|                                                                          |
+|  +---------------+   +-----------------------------------------------+   |
+|  |  Sidebar      |   |  Dashboard / Module Workspace                 |   |
+|  |               |   |                                               |   |
+|  |  - Chatbot    |   |   Agentic AI Coding   Local Chatbot Explorer |   |
+|  |  - Agentic AI |   |   Image Studio        Video Lab              |   |
+|  |  - Images     |   |                                               |   |
+|  |  - Videos     |   |   Local Model Status (always visible)         |   |
+|  |               |   +-----------------------------------------------+   |
+|  |  - Settings   |                                                       |
+|  |  - Profile    |                                                       |
+|  +---------------+                                                       |
+|                                                                          |
+|  Shared Core: ModelRegistry | MemoryHub | TelemetryBus | SkillCatalog    |
+|               SettingsStore | InstallerHooks | SecretRedactor            |
+|                                                                          |
+|  Module Runtimes:                                                        |
+|    coding/    -> inherits today's AgentLoop + ToolRegistry + PlanMode    |
+|    chat/      -> nested-folder chat explorer over ChatHistoryStore       |
+|    image/     -> local diffusion pipelines (text->image, edit, mask)     |
+|    video/     -> local video-synthesis pipelines (text/image -> video)   |
+|                                                                          |
+|  Local Inference: Ollama / LM Studio / native runners for diffusion +    |
+|                   video models. Single-GPU budget, hardware-tier-aware.  |
++--------------------------------------------------------------------------+
+```
+
+The four modules consume the same `ModelRegistry`, `MemoryHub`, `TelemetryBus`, and `SkillCatalog` so that, for example, a skill installed for the coding module can also be referenced from chat, and the GPU telemetry shown in the dashboard reflects whichever module currently holds the GPU.
+
+The detailed module-by-module architecture (process model, IPC, GPU scheduling, model-download manager, installer carriage of CUDA / Python / Node / models) is the subject of the v1.0.0 plan in [docs/v1.0.0/](docs/v1.0.0/).
+
+---
+
+## Current engine architecture (the v0.1.0 - v0.22.x design that becomes the Coding module)
 
 ## Three-Process Architecture
 

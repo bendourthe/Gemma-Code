@@ -1,6 +1,8 @@
-# Contributing to Gemma Code
+# Contributing to Nexus
 
-Thanks for your interest in improving Gemma Code. This document covers the minimum you need to know to land a change. If you are new to open source or do not yet have Node.js installed, start with [CONTRIBUTING-BEGINNERS.md](CONTRIBUTING-BEGINNERS.md) -- the step-by-step variant of this same workflow.
+Thanks for your interest in improving Nexus. This document covers the minimum you need to know to land a change. If you are new to open source or do not yet have Node.js installed, start with [CONTRIBUTING-BEGINNERS.md](CONTRIBUTING-BEGINNERS.md) -- the step-by-step variant of this same workflow.
+
+> **Heads-up: project in pivot.** Nexus is the successor product to **Gemma Code** (v0.1.0 - v0.22.x). The repository name, branding, and target shape are mid-transition from a single VS Code extension to a four-module native desktop app. While the v1.0.0 plan in [docs/v1.0.0/](./docs/v1.0.0/) is landing, the `src/` tree, `package.json`, settings keys (`gemma-code.*`), installer namespace (`gemma_installer`), and many docs still use the legacy Gemma-Code naming. Treat code identifiers as the source of truth, and update them in lockstep with the rename phases of the v1.0.0 plan rather than ad-hoc.
 
 ## Project tour
 
