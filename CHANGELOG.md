@@ -1,3 +1,10 @@
+# [0.26.0](https://github.com/bendourthe/Nexus-AI/compare/v0.25.0...v0.26.0) (2026-05-17)
+
+
+### Features
+
+* **v1.0.0:** phase 4 Local Chatbot Explorer module ([933e52b](https://github.com/bendourthe/Nexus-AI/commit/933e52b8bcdbde5e14fe203d48e482e14ded630e))
+
 # [0.25.0](https://github.com/bendourthe/Nexus-AI/compare/v0.24.0...v0.25.0) (2026-05-17)
 
 
