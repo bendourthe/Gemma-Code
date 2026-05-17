@@ -1,3 +1,10 @@
+## [0.22.1](https://github.com/bendourthe/Gemma-Code/compare/v0.22.0...v0.22.1) (2026-05-17)
+
+
+### Bug Fixes
+
+* **ci:** adopt v0.9.0 bench baseline for nightly ([f67af7a](https://github.com/bendourthe/Gemma-Code/commit/f67af7a8c3741a40b0584fed65f3777820d1cb73)), closes [hi#rme](https://github.com/hi/issues/rme) [hi#rme](https://github.com/hi/issues/rme)
+
 # [0.22.0](https://github.com/bendourthe/Gemma-Code/compare/v0.21.0...v0.22.0) (2026-05-17)
 
 
