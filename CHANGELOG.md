@@ -1,3 +1,11 @@
+# [0.27.0](https://github.com/bendourthe/Nexus-AI/compare/v0.26.0...v0.27.0) (2026-05-17)
+
+
+### Features
+
+* **v1.0.0:** phase 5 ModelRegistry + native model downloader ([fac5e49](https://github.com/bendourthe/Nexus-AI/commit/fac5e496db9273aa7e2a839709edd228062df880))
+* **v1.0.0:** phase 6 DiffusionRuntime + Image Studio MVP ([fcdd53b](https://github.com/bendourthe/Nexus-AI/commit/fcdd53baf466d4e96889595b848305e9485e915f))
+
 # [0.26.0](https://github.com/bendourthe/Nexus-AI/compare/v0.25.0...v0.26.0) (2026-05-17)
 
 
