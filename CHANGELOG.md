@@ -1,3 +1,10 @@
+# [0.21.0](https://github.com/bendourthe/Gemma-Code/compare/v0.20.0...v0.21.0) (2026-05-17)
+
+
+### Features
+
+* **v0.9.0:** Phase 7 CI hardening from v0.8.0 post-CI audit ([ae8ffc1](https://github.com/bendourthe/Gemma-Code/commit/ae8ffc1c50a1f7bbe018caf7c070cb0cb2fb3789))
+
 # [0.20.0](https://github.com/bendourthe/Gemma-Code/compare/v0.19.0...v0.20.0) (2026-05-17)
 
 
