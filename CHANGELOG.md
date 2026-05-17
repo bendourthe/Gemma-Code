@@ -1,3 +1,10 @@
+# [0.22.0](https://github.com/bendourthe/Gemma-Code/compare/v0.21.0...v0.22.0) (2026-05-17)
+
+
+### Features
+
+* **v0.9.0:** Phase 8 cycle close (37 v0.8.0 gaps cleared) ([06c4df9](https://github.com/bendourthe/Gemma-Code/commit/06c4df9630bd85c2b3da1f217155129ab6ea5673))
+
 # [0.21.0](https://github.com/bendourthe/Gemma-Code/compare/v0.20.0...v0.21.0) (2026-05-17)
 
 
