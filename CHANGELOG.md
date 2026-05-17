@@ -1,3 +1,10 @@
+# [0.18.0](https://github.com/bendourthe/Gemma-Code/compare/v0.17.0...v0.18.0) (2026-05-17)
+
+
+### Features
+
+* **v0.9.0:** Phase 4 internal RE builds -- dev-loop ergonomics ([ee1bd0b](https://github.com/bendourthe/Gemma-Code/commit/ee1bd0b634dc5009c719322bbcd9d126025531c3))
+
 # [0.17.0](https://github.com/bendourthe/Gemma-Code/compare/v0.16.0...v0.17.0) (2026-05-17)
 
 
