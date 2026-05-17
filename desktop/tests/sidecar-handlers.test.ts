@@ -52,6 +52,15 @@ describe("sidecar handlers", () => {
           "coding.memory.snapshot",
           "coding.trace.subscribe",
           "coding.sessions.list",
+          // v1.0.0 Phase 6 wired the diffusion surface.
+          "diffusion.health",
+          "diffusion.version",
+          "diffusion.txt2img",
+          "diffusion.img2img",
+          "diffusion.inpaint",
+          "diffusion.outpaint",
+          "diffusion.job.drainEvents",
+          "diffusion.workflow.extract",
         ].includes(m),
     );
     for (const m of unimplemented) {

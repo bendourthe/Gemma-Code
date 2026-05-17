@@ -249,6 +249,48 @@ Each entry has a category tag:
 - **Reason**: The full `npm test` run still shows 5 failures unchanged from Phase 2's recording in item 2.P3.L (4x `SubAgentManager.characterization.test.ts` CRLF/LF snapshot mismatches; 1x `workflow-discipline.test.ts` SHA-pin check against the Phase 1 `shell-build.yml` workflow). All Phase 5 tests (115 / 115) pass; the failure set is identical to a pre-Phase-5 stash-and-rerun.
 - **Suggested next step**: No new action. Tracked exhaustively under item 2.P3.L; this entry exists so the Phase 5 audit trail reflects the same baseline.
 
+### 6.P1.GG -- Diffusion runtime ships with stub executors (no live PyTorch) (DF, P1)
+
+- **Source phase**: Phase 6 (6.2, 6.3, 6.4)
+- **Plan reference**: [phase-06-image-studio.md](plans/phase-06-image-studio.md) sub-tasks 6.2 ("StableDiffusionXLPipeline"), 6.3 ("img2img / inpaint / outpaint pipelines"), 6.4 ("LoRA + ControlNet (pose / depth / canny)").
+- **Reason**: Each pipeline's `register(handlers)` selects between `base.stub_execute(mode)` and a real diffusers-backed executor via `base.select_executor`. The implementing session ran on a Windows 11 host without CUDA / `torch` / `diffusers` available, so the stub executor is the active path. The runner orchestration (param validation -> smart-offload decision via `device.choose_offload` -> execution -> PIL-free PNG workflow embed) is exercised end-to-end by 12 pytest tests; the stub returns a deterministic 1x1 PNG with full workflow metadata embedded so the JSON-RPC contract and the round-trip test still verify the wiring. The 30-second SDXL Turbo 1024x1024 timing target in the phase stability gate is an operator action.
+- **Suggested next step**: Operator captures a real-host run in `docs/v1.0.0/operator-actions.md`: `pip install -r runtimes/diffusion/requirements.txt`, drop a real diffusers-backed `_execute(ctx)` into each pipeline module (replacing `base.stub_execute(mode)`), and record SDXL Turbo / SDXL 1.0 / img2img / inpaint / outpaint timings on the RTX 4070 baseline rig.
+
+### 6.P1.HH -- Tauri Rust core does not yet spawn the Python sidecar (DF, P1)
+
+- **Source phase**: Phase 6 (6.1)
+- **Plan reference**: [phase-06-image-studio.md](plans/phase-06-image-studio.md) sub-task 6.1 ("The Tauri Rust core spawns the Python sidecar at app launch alongside the Node sidecar").
+- **Reason**: `desktop/src-tauri/src/sidecar.rs` spawns the Node sidecar only. The Python runtime contract is wired end-to-end through Node (`desktop/sidecar/src/diffusion/runtimeClient.ts` ships both `InMemoryDiffusionRuntime` for CI and `ChildProcessDiffusionRuntime` for production), but the production handler binds to the in-memory client until the Rust core can also spawn `python -m runtimes.diffusion.main` and Node can be told where to reach it. The Phase 6.1 unit + integration tests exercise the IPC contract through the in-memory client (job IDs, payload forwarding, error surfacing, event queueing).
+- **Suggested next step**: Bundle with the Phase 9 installer rework: the installer provisions the Python venv at `~/.nexus/runtimes/diffusion/.venv/`, the Rust core then spawns it the same way it spawns Node (`Sidecar::spawn_python`), and the Node sidecar swaps `InMemoryDiffusionRuntime` for `ChildProcessDiffusionRuntime` pointing at the spawned process. The IPC contract does not change.
+
+### 6.P1.II -- Real ControlNet preprocessors are stubbed in CI (DF, P1)
+
+- **Source phase**: Phase 6 (6.4)
+- **Plan reference**: [phase-06-image-studio.md](plans/phase-06-image-studio.md) sub-task 6.4 ("Preprocessors: pose via controlnet_aux.OpenposeDetector, depth via controlnet_aux.MidasDetector, canny via OpenCV's Canny").
+- **Reason**: `runtimes/diffusion/preprocessors/{canny,pose,depth}.py` each try to import the real backend lazily and fall back to a tagged byte string (`b"canny-stub:<bytes>"`, etc.) when the import fails. CI runs the fallback path; the real path is only exercised on a host where `cv2` (canny) or `controlnet_aux` (pose / depth) is installed.
+- **Suggested next step**: Same operator-actions follow-on as 6.P1.GG: install `controlnet-aux` + `opencv-python` in the runtime venv, replace `b"<x>-stub:"` returns with the real annotator output, capture a sample of pose / depth / canny conditioning preview PNGs in `docs/v1.0.0/operator-actions.md`.
+
+### 6.P2.JJ -- Image Studio UI uses a hard-coded model / LoRA / ControlNet list (NI, P2)
+
+- **Source phase**: Phase 6 (6.5)
+- **Plan reference**: [phase-06-image-studio.md](plans/phase-06-image-studio.md) sub-task 6.5 ("Model dropdown, ... collapsible Advanced for LoRAs and ControlNet").
+- **Reason**: `desktop/src/modules/image/ImageStudioPage.tsx` ships `DEFAULT_MODELS`, `DEFAULT_LORAS`, `DEFAULT_CONTROLNETS` as inline constants. The proper source is the `ModelRegistry` (`type: "image"`, `type: "lora"`, etc.) which is reachable from the desktop frontend via the same `models.list` IPC that 5.P1.BB still gates on. Once that IPC bridge lands, the dropdowns subscribe to the catalog. Until then, the user sees the four headline checkpoints (SDXL Turbo, SDXL 1.0 Base, SD 1.5, FLUX.1 Schnell) and a synthetic LoRA / ControlNet shortlist for UX testing.
+- **Suggested next step**: When the Phase 5 follow-on that closes 5.P1.BB lands, pass `ipc.call("models.list", { type: "image" })` results into ImageStudioPage as a `models` prop (or expose a `useModelCatalog` hook). The form does not change.
+
+### 6.P2.KK -- Tauri Channel for diffusion progress events not yet wired (DF, P2)
+
+- **Source phase**: Phase 6 (6.2, 6.5)
+- **Plan reference**: [phase-06-image-studio.md](plans/phase-06-image-studio.md) sub-task 6.2 ("streams `diffusion.job.progress` events"), sub-task 6.5 ("Generate button shows a progress bar and the live latent preview").
+- **Reason**: The ImageStudioPage polls `diffusion.job.drainEvents(jobId)` every 100 ms while a job is running. Polling is correct and bounded (drain is cheap, every event is consumed at most once) but suboptimal versus a server-initiated notification channel. The same blocker keeps `coding.session.event` and `chat.session.event` on polling (item 3.P1.N). The Phase 5 follow-on that introduces `tauri::Channel` covers all three at once.
+- **Suggested next step**: When the channel lands (item 3.P2.U), add a `diffusion.job.events` channel; Node forwards every event line from the Python sidecar to the channel; the ImageStudioPage swaps the polling loop for a channel listener.
+
+### 6.P2.LL -- Coverage on `desktop/src/modules/image/diffusionClient.ts` is partial (MT, P2)
+
+- **Source phase**: Phase 6 (6.7)
+- **Plan reference**: [phase-06-image-studio.md](plans/phase-06-image-studio.md) sub-task 6.7 ("coverage gate at lines >= 80, functions >= 80").
+- **Reason**: The new `diffusion-ipcClient.test.ts` covers the seven production paths through `createIpcDiffusionClient` and the unwrap helper. The remaining uncovered lines are the lazy `import("@tauri-apps/api/core")` branch inside `desktop/src/lib/ipc.ts` (only reachable when `__TAURI_INTERNALS__` is set, which jsdom does not simulate). Coverage overall is 94.24% lines / 80.75% functions / 85.65% branches, comfortably above the gate; the `image/` directory specifically is at 86.52% lines and 46.77% functions because the InMemoryDiffusionClient class members are bound paths that vitest considers separate functions.
+- **Suggested next step**: Acceptable as-is for Phase 6. If the function-coverage threshold for `image/` becomes a concern, add a tiny test that constructs an `InMemoryDiffusionClient` and calls every method directly (no UI). Bundled into the same Phase 8 polish pass as 6.P2.KK.
+
 ---
 
 ## 2. Resolved
@@ -265,18 +307,18 @@ Each entry has a category tag:
 | Severity | Open | Resolved |
 |---|---|---|
 | P0 | 0 | 0 |
-| P1 | 13 | 2 |
-| P2 | 17 | 0 |
+| P1 | 16 | 2 |
+| P2 | 20 | 0 |
 | P3 | 3 | 0 |
-| **Total** | **33** | **2** |
+| **Total** | **39** | **2** |
 
 | Category | Open | Resolved |
 |---|---|---|
-| NI | 4 | 0 |
-| DF | 28 | 2 |
+| NI | 5 | 0 |
+| DF | 33 | 2 |
 | BG | 2 | 0 |
-| MT | 3 | 0 |
+| MT | 4 | 0 |
 | WN | 0 | 0 |
 | QG | 0 | 0 |
 
-**Last updated**: 2026-05-17 (Phase 5 close; ModelStorage + Downloader + NexusModelRegistry + ExtraModelPaths + Settings UI + ModelPinRegistry wiring shipped; sidecar IPC for the registry deferred to a Phase 5 follow-on bundled with 3.P1.N / 3.P2.S engine relocation)
+**Last updated**: 2026-05-17 (Phase 6 close; DiffusionRuntime sidecar + smart-offload helper + txt2img / img2img / inpaint / outpaint pipelines + LoRA + ControlNet preprocessor stubs + ImageStudioPage with mask editor + workflow-in-PNG read/write + `nexus-image extract-workflow` CLI shipped; live PyTorch / diffusers execution, Tauri-side Python spawn, and Channel-based progress streaming deferred to operator action + Phase 8/9 follow-ons)

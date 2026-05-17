@@ -23,6 +23,13 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src", "sidecar/src", "tests", "vite.config.ts", "vitest.config.ts"],
+  "include": [
+    "src",
+    "sidecar/src",
+    "tests",
+    "vite.config.ts",
+    "vitest.config.ts",
+    "../core/image"
+  ],
   "exclude": ["node_modules", "src-tauri/target", "sidecar/dist"]
 }

@@ -34,13 +34,22 @@ describe("App shell", () => {
     expect(screen.getByTestId("chat-page")).toBeInTheDocument();
   });
 
-  it("renders module placeholders for non-coding pillars", () => {
+  it("renders the Image Studio page at /images (Phase 6)", () => {
     render(
       <MemoryRouter initialEntries={["/images"]}>
         <App telemetryStream={null} />
       </MemoryRouter>,
     );
-    expect(screen.getByTestId("placeholder-image")).toBeInTheDocument();
+    expect(screen.getByTestId("image-studio-page")).toBeInTheDocument();
+  });
+
+  it("still renders module placeholders for non-Image pillars (e.g. /videos)", () => {
+    render(
+      <MemoryRouter initialEntries={["/videos"]}>
+        <App telemetryStream={null} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByTestId("placeholder-video")).toBeInTheDocument();
   });
 
   it("renders the styleguide page at /_styleguide", () => {

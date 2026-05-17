@@ -6,6 +6,7 @@ import { ModulePlaceholder } from "./pages/ModulePlaceholder";
 import { StyleguidePage } from "./pages/Styleguide";
 import { CodingPage } from "./modules/coding/CodingPage";
 import { ChatPage } from "./modules/chat/ChatPage";
+import { ImageStudioPage } from "./modules/image/ImageStudioPage";
 import { SettingsPage } from "./pages/settings/SettingsPage";
 import { createMockTelemetryStream } from "./lib/telemetryMock";
 import type { TelemetryStream } from "./components/LocalModelStatus.types";
@@ -46,7 +47,7 @@ export function App({ telemetryStream }: AppProps = {}): JSX.Element {
           <Route path="/" element={<Dashboard telemetryStream={stream} />} />
           <Route path="/chatbot" element={<ChatPage />} />
           <Route path="/coding" element={<CodingPage />} />
-          <Route path="/images" element={<ModulePlaceholder moduleId="image" />} />
+          <Route path="/images" element={<ImageStudioPage />} />
           <Route path="/videos" element={<ModulePlaceholder moduleId="video" />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route
