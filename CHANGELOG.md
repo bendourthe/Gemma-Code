@@ -1,3 +1,10 @@
+# [0.23.0](https://github.com/bendourthe/Nexus-AI/compare/v0.22.4...v0.23.0) (2026-05-17)
+
+
+### Features
+
+* **v1.0.0:** phase 1 Tauri desktop shell foundation ([54656ff](https://github.com/bendourthe/Nexus-AI/commit/54656ff482ecaca30553bafec558b5f70cb93ecb)), closes [#22d3ee](https://github.com/bendourthe/Nexus-AI/issues/22d3ee) [#ec4899](https://github.com/bendourthe/Nexus-AI/issues/ec4899) [#f97316](https://github.com/bendourthe/Nexus-AI/issues/f97316) [#22c55e](https://github.com/bendourthe/Nexus-AI/issues/22c55e)
+
 ## [0.22.4](https://github.com/bendourthe/Nexus-AI/compare/v0.22.3...v0.22.4) (2026-05-17)
 
 
