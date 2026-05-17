@@ -28,6 +28,22 @@ function Test-Command {
     return $null -ne (Get-Command $Name -ErrorAction SilentlyContinue)
 }
 
+# Refresh PATH from the registry: tools that the CI workflow just installed
+# (e.g. Chocolatey-provided VS Code) write their bin directories to the User /
+# Machine PATH, but PowerShell's $env:Path is captured at process launch. Merge
+# both registry layers in so Test-Command sees the freshly-installed tools.
+function Update-PathFromRegistry {
+    $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+    $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+    $segments = @($machinePath, $userPath, $env:Path) |
+        Where-Object { $_ } |
+        ForEach-Object { $_ -split ';' } |
+        Where-Object { $_ -and (Test-Path -LiteralPath $_ -ErrorAction SilentlyContinue) }
+    $env:Path = ($segments | Select-Object -Unique) -join ';'
+}
+
+Update-PathFromRegistry
+
 Write-Header "Checking prerequisites"
 if (-not (Test-Command code)) { throw "VS Code (code CLI) not on PATH" }
 if (-not (Test-Command python)) { throw "Python 3.11+ not on PATH" }

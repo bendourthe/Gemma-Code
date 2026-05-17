@@ -14,7 +14,7 @@ describe("AGENTS.md canonical agent directive", () => {
   it("contains every required section heading from the migration spec", () => {
     const body = readFileSync(agentsMdPath, "utf8");
     const required = [
-      "Gemma Code Agent Directive",
+      "Nexus Agent Directive",
       "Tech Stack",
       "Project Layout",
       "Key Commands",
@@ -45,7 +45,7 @@ describe("AGENTS.md canonical agent directive", () => {
   });
 });
 
-describe("CLAUDE.md is removed (Gemma Code uses agent-agnostic naming)", () => {
+describe("CLAUDE.md is removed (Nexus uses agent-agnostic naming)", () => {
   it("does not exist at the repository root", () => {
     expect(existsSync(claudeMdPath)).toBe(false);
   });

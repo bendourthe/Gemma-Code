@@ -99,6 +99,24 @@ def _run_headless(args: argparse.Namespace) -> int:
         if args.debug or not args.json_output:
             print(f"[{level.upper()}] {msg}", file=sys.stderr)
 
+    # Headless mode runs in CI smoke tests where Ollama is pre-installed and
+    # serving (via brew / winget / curl install.sh). Probe the local API first
+    # so the install step short-circuits instead of re-downloading. The same
+    # detection runs at GUI launch via the PrerequisitesPage probe.
+    try:
+        import httpx as _httpx_probe
+
+        _probe = _httpx_probe.get(f"{state.ollama_url}/api/tags", timeout=2)
+        if _probe.status_code == 200:
+            state.ollama_installed = True
+            log(
+                f"Detected running Ollama at {state.ollama_url}; "
+                "skipping the install step.",
+                "info",
+            )
+    except Exception:  # noqa: BLE001  -- probe is best-effort
+        pass
+
     def run_step(name: str, fn: callable) -> bool:  # type: ignore[valid-type]
         log(f"--- {name} ---")
         try:
