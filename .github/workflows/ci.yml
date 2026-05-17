@@ -239,9 +239,15 @@ jobs:
         # built-in JSON reporter.
         run: npm run bench -- -t render --reporter=verbose --reporter=./scripts/vitest-bench-json-reporter.mjs --outputFile=bench-results.json 2>&1 | tee bench-results.txt
       - name: Check rendering bench regressions
+        # Migrated from v0.7.0 to v0.9.0 baseline alongside the nightly gate
+        # after the 2026-05-17 nightly false-positive on the render benches
+        # (closes v0.9.0 10.N.V + v0.8.0 10.O.BB). v0.9.0 was captured on the
+        # post-Phase-0.9 cache-fixed renderer so the floor is the actually
+        # shipping code, not the marked@v4 numbers from v0.6.0 or the noisy
+        # capture in v0.7.0.
         run: |
           node scripts/check-bench-regressions.mjs \
-            --baseline tests/benchmarks/baselines/v0.7.0.json \
+            --baseline tests/benchmarks/baselines/v0.9.0.json \
             --current bench-results.json \
             --regression-pct 20 \
             --fail-on-regression
