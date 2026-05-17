@@ -17,6 +17,23 @@ import * as os from "node:os";
 import * as path from "node:path";
 
 import { getLogger } from "../utils/logger.js";
+import { scan as scanForInjection, summarize as summarizeFindings } from "../guardrails/PromptInjectionScanner.js";
+
+/**
+ * v0.9.0 Phase 6.5 (from v0.8.0 known-gaps 10.O.H) -- hook-file scan options.
+ *
+ * `scanInjection` toggles the defensive prompt-injection scan when reading
+ * a hook file. When enabled (the default in production), a hook that
+ * matches an injection pattern is dropped with a warning so the model
+ * never sees the indirect-prompt payload. The user can disable the scan
+ * via `gemma-code.hooks.scanInjection: false` if they need to authoritatively
+ * include text that overlaps with the heuristic (e.g. a security-research
+ * hook intentionally containing "ignore previous instructions").
+ */
+export interface LoadHookOptions {
+  /** When true, drop the hook on any injection-pattern match. Default: true. */
+  readonly scanInjection?: boolean;
+}
 
 /** Canonical hook names recognised by the runtime. Extend as new hooks land. */
 export type HookName = "enterplanmode-improve";
@@ -46,6 +63,7 @@ export function hookFilePath(
 export function loadHook(
   name: HookName,
   rootDir: string = defaultHooksDir(),
+  options: LoadHookOptions = {},
 ): string | null {
   const filePath = hookFilePath(name, rootDir);
   let content: string;
@@ -58,7 +76,22 @@ export function loadHook(
     return null;
   }
   const trimmed = content.trim();
-  return trimmed.length > 0 ? trimmed : null;
+  if (trimmed.length === 0) return null;
+  // v0.9.0 Phase 6.5: defensive injection scan. The hook file is on disk
+  // under the user's home, so the threat model is shell-rc parity, but a
+  // workspace-checked-in hook (future scenario, e.g. shared dotfiles) could
+  // inject prompts. The scan defaults to on; logged-and-dropped on match.
+  const scanEnabled = options.scanInjection ?? true;
+  if (scanEnabled) {
+    const result = scanForInjection(trimmed);
+    if (!result.ok) {
+      getLogger().warn(
+        `[ImprovementHook] dropping ${filePath} -- injection pattern(s) detected: ${summarizeFindings(result.findings)}`,
+      );
+      return null;
+    }
+  }
+  return trimmed;
 }
 
 /**
@@ -69,8 +102,9 @@ export function loadHook(
 export function renderHookAsSystemMessage(
   name: HookName,
   rootDir: string = defaultHooksDir(),
+  options: LoadHookOptions = {},
 ): string | null {
-  const body = loadHook(name, rootDir);
+  const body = loadHook(name, rootDir, options);
   if (body === null) return null;
   const heading =
     name === "enterplanmode-improve"

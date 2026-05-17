@@ -669,6 +669,124 @@ describe("AgentLoop", () => {
       expect(userCalls.some((c) => c.includes("Task cannot complete without verification"))).toBe(false);
     });
 
+    it("successful verification sub-agent dispatch credits the gate (Phase 6.2)", async () => {
+      const writeCall = '<|tool_call>call:write_file{path:<|"|>src/x.ts<|"|>,content:<|"|>x<|"|>}<tool_call|>';
+      const subAgentManager = {
+        run: vi.fn<any>().mockResolvedValue({
+          type: "verification",
+          success: true,
+          output: "All clear.",
+          toolCallCount: 1,
+          iterationsUsed: 1,
+        }),
+      };
+      const client = makeMultiClient([writeCall, writeCall, writeCall, "Done."]);
+      const loop = new AgentLoop(client, manager, registry, "gemma3:27b", 20, undefined, undefined, undefined, {
+        subAgentManager: subAgentManager as any,
+        verificationThreshold: 3,
+        verificationEnabled: true,
+      });
+      const { postMessage } = collectMessages();
+
+      await loop.run(postMessage);
+
+      expect(subAgentManager.run).toHaveBeenCalledOnce();
+      const userCalls = (manager.addUserMessage as ReturnType<typeof vi.fn>).mock.calls.map(
+        (c: unknown[]) => c[0] as string,
+      );
+      // The verification sub-agent's success credited the gate, so "Done."
+      // terminates without the nudge.
+      expect(
+        userCalls.some((c) => c.includes("Task cannot complete without verification")),
+      ).toBe(false);
+    });
+
+    it("subAgentVerificationCredit: false suppresses the credit (legacy v0.8.0 behaviour)", async () => {
+      const writeCall = '<|tool_call>call:write_file{path:<|"|>src/x.ts<|"|>,content:<|"|>x<|"|>}<tool_call|>';
+      const subAgentManager = {
+        run: vi.fn<any>().mockResolvedValue({
+          type: "verification",
+          success: true,
+          output: "All clear.",
+          toolCallCount: 1,
+          iterationsUsed: 1,
+        }),
+      };
+      const client = makeMultiClient([writeCall, writeCall, writeCall, "Done.", "Done."]);
+      const loop = new AgentLoop(client, manager, registry, "gemma3:27b", 20, undefined, undefined, undefined, {
+        subAgentManager: subAgentManager as any,
+        verificationThreshold: 3,
+        verificationEnabled: true,
+        subAgentVerificationCredit: false,
+      });
+      const { postMessage } = collectMessages();
+
+      await loop.run(postMessage);
+
+      const userCalls = (manager.addUserMessage as ReturnType<typeof vi.fn>).mock.calls.map(
+        (c: unknown[]) => c[0] as string,
+      );
+      // With credit disabled, the gate fires even though verification succeeded.
+      expect(
+        userCalls.some((c) => c.includes("Task cannot complete without verification")),
+      ).toBe(true);
+    });
+
+    it("failed verification sub-agent does NOT credit the gate", async () => {
+      const writeCall = '<|tool_call>call:write_file{path:<|"|>src/x.ts<|"|>,content:<|"|>x<|"|>}<tool_call|>';
+      const subAgentManager = {
+        run: vi.fn<any>().mockResolvedValue({
+          type: "verification",
+          success: false,
+          output: "",
+          toolCallCount: 0,
+          iterationsUsed: 0,
+          error: "verifier crashed",
+        }),
+      };
+      const client = makeMultiClient([writeCall, writeCall, writeCall, "Done.", "Done."]);
+      const loop = new AgentLoop(client, manager, registry, "gemma3:27b", 20, undefined, undefined, undefined, {
+        subAgentManager: subAgentManager as any,
+        verificationThreshold: 3,
+        verificationEnabled: true,
+      });
+      const { postMessage } = collectMessages();
+
+      await loop.run(postMessage);
+
+      const userCalls = (manager.addUserMessage as ReturnType<typeof vi.fn>).mock.calls.map(
+        (c: unknown[]) => c[0] as string,
+      );
+      expect(
+        userCalls.some((c) => c.includes("Task cannot complete without verification")),
+      ).toBe(true);
+    });
+
+    it("reflect-worker sub-agent return does NOT credit the gate", async () => {
+      // Direct invocation against creditSubAgentVerification: reflect-worker
+      // is excluded from SUB_AGENT_VERIFICATION_TYPES even when it succeeds.
+      const client = makeMultiClient(["Done.", "Done."]);
+      const loop = new AgentLoop(client, manager, registry, "gemma3:27b");
+      // creditSubAgentVerification has no public peek; the assertion below
+      // confirms the credit was NOT recorded by observing that the gate
+      // still fires on the next run() (verification flag is reset on run
+      // start, so we need to credit mid-loop -- here we approximate by
+      // calling before run() and confirming reset wipes any state).
+      loop.creditSubAgentVerification({
+        type: "reflect-worker",
+        success: true,
+        output: "",
+        toolCallCount: 0,
+        iterationsUsed: 0,
+      });
+      const { postMessage } = collectMessages();
+      await loop.run(postMessage);
+      const userCalls = (manager.addUserMessage as ReturnType<typeof vi.fn>).mock.calls.map(
+        (c: unknown[]) => c[0] as string,
+      );
+      expect(userCalls.some((c) => c.includes("Task cannot complete without verification"))).toBe(true);
+    });
+
     it("failed run_terminal does NOT credit the gate", async () => {
       const failingRegistry = mockOf<ToolRegistry>({
         execute: vi

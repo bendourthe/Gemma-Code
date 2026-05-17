@@ -936,8 +936,13 @@ export class ChatCommandHandlers {
       await vscode.workspace
         .getConfiguration("gemma-code")
         .update("thinkingModePreset", mode, vscode.ConfigurationTarget.Global);
+      // v0.9.0 Phase 6.3 (from v0.8.0 known-gaps 10.O.L) -- one-line chat
+      // affordance so the user sees the change immediately. An already-in-
+      // flight stream finishes with the prior preset; the next streaming
+      // request picks up the new preset via the panel's settings-change
+      // listener.
       this._emitMarkdown(
-        `_Thinking mode set to \`${mode}\`. Sampler preset applies to the next streaming request._`,
+        `_[Thinking mode: \`${mode}\`] Sampler preset applies to the next streaming request._`,
       );
     } catch (err) {
       this._emitMarkdown(

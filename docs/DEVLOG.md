@@ -4,6 +4,39 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-16] v0.9.0 Phase 6 -- Curator scheduler subsystem + UX polish + minor wirings
+
+### Goal
+
+Close eight v0.8.0 in-cycle carryovers in a single phase: extract a reusable idle-time scheduler, credit successful sub-agent verification toward the parent pass-state gate, surface a `/thinking-mode` chat affordance, polish the clean-diff trailing-newline rendering, scan improvement-hook files for prompt-injection patterns, introduce a lazy-import driver for tier `confirm` / `dangerous` tool handlers, add an env-gated LM Studio live integration test, and trim four oversized SKILL.md bodies under the 800-token budget. Plan reference: [docs/v0.9.0/plans/v0.9.0-cycle.md](v0.9.0/plans/v0.9.0-cycle.md) Phase 6, sub-tasks 6.1 through 6.8.
+
+### Changes
+
+- **6.1 IdleTimeScheduler subsystem.** New [src/agents/IdleTimeScheduler.ts](../src/agents/IdleTimeScheduler.ts) pure module with injectable clock / timers / activity source. `register(task)` accepts `{id, idleThresholdMs, cadenceMs, run()}`; `tick()` evaluates each task against both gates; throwing tasks do NOT advance the cadence cursor so failures retry naturally. 10 unit tests cover idle / cadence / activity-reset / multi-task gating. Curator-recommended thresholds: 5 min idle / 12 h cadence. Reflect-recommended thresholds: 10 min idle / 24 h cadence. Production wiring into `ChatPanelBootstrap` deferred under [10.N.Q](v0.9.0/known-gaps.md).
+- **6.2 Sub-agent pass-state gating credit.** New `AgentLoop.creditSubAgentVerification(result)` method credits the parent `_verifiedSinceUserMessage` flag when verification / audit-worker / testgaps-worker / curator-worker returns `{success: true}`. Wired into the four in-loop dispatch sites in `_runOneIteration`. New option `subAgentVerificationCredit` (default `true`); new setting `gemma-code.passStateGating.subAgentCredit` (default `true`). Failed sub-agents and `reflect-worker` returns do NOT credit. 4 new tests.
+- **6.3 /thinking-mode mid-flight affordance.** Edited `_handleThinkingMode` in [src/panels/ChatCommandHandlers.ts](../src/panels/ChatCommandHandlers.ts) to emit `_[Thinking mode: <preset>] Sampler preset applies to the next streaming request._` after the setting update via the existing `_emitMarkdown` -> `messageComplete` path. In-flight stream finishes with prior preset; next request picks up new preset.
+- **6.4 Clean diff trailing-newline polish.** New `wrapDiffRun(value, marker)` helper in [src/storage/PlanArchive.ts](../src/storage/PlanArchive.ts) strips trailing newlines before applying `**` / `~~` markers, then re-emits newlines AFTER the closing marker. Two new regression tests assert `**...\n**` orphan-marker patterns no longer appear.
+- **6.5 Improvement-hook prompt-injection scan.** `loadHook` (and `renderHookAsSystemMessage`) now invokes [PromptInjectionScanner.scan](../src/guardrails/PromptInjectionScanner.ts) on the hook body. Matching content is dropped with a logged warning. New `LoadHookOptions.scanInjection` (default `true`); new setting `gemma-code.hooks.scanInjection`. [ChatMessageRouter](../src/panels/ChatMessageRouter.ts) forwards the setting into the renderer. 5 new tests.
+- **6.6 AST tool-registry -> lazy-import driver.** New `ToolRegistry.registerLazy(name, factory)` API stores a factory in `_lazyFactories`; `execute()` resolves the factory once on first invocation via `resolveLazy(name)`. [src/tools/ToolRegistryBuilder.ts](../src/tools/ToolRegistryBuilder.ts) wires tier `confirm` / `dangerous` tools (write / edit / create / delete / run_terminal / web_search / fetch_page) via `registerLazy` and keeps tier `auto-approve` tools eager. New `listLazyToolNames` / `listEagerToolNames` exports drive the integration test. 6 new lazy-mechanism unit tests + 4 integration tests. Boot-time savings limited by transitive imports tracked under [10.N.R](v0.9.0/known-gaps.md).
+- **6.7 LM Studio live integration test.** New [tests/integration/llm/LmStudioClient.live.test.ts](../tests/integration/llm/LmStudioClient.live.test.ts) skipped by default via `describe.runIf(process.env.LMSTUDIO_LIVE === "1")`. Opt-in via `LMSTUDIO_LIVE=1`; URL override via `LMSTUDIO_BASE_URL`. CONTRIBUTING.md Testing section updated.
+- **6.8 Oversized SKILL.md trims.** `src/skills/catalog/{harden,distill,build-second-brain,animate}/SKILL.md` all trimmed under the 800-token budget (`gemma-check --rule prompt-oversized` returns 0 findings on the four). For `build-second-brain` the verbose interview script + extraction examples extracted to a sibling [examples.md](../src/skills/catalog/build-second-brain/examples.md). `docs/index.md` regenerated.
+
+### Validation
+
+- `npm run lint` -- exit 0.
+- `npm run build` -- exit 0 (tsc clean).
+- `npm test` -- 227 files, 2636 passed, 5 skipped, 0 failed on Windows.
+- `npm run check src/` -- 0 errors, 1 warning (pre-existing review-pr/SKILL.md ~811 tokens, tracked under 10.N.F).
+- `npm run deps:check` -- 0 errors, 3 pre-existing orphan warnings.
+- `npm run perm-tier:check` -- exit 0.
+- `LMSTUDIO_LIVE` unset live test -- 1 skipped, 0 failed (runIf gate works).
+
+### Known gaps
+
+See [docs/v0.9.0/known-gaps.md](v0.9.0/known-gaps.md) for the structured gap list. Phase 6 closes 8 v0.8.0 carryovers (10.O.F / H / I / J / L / O / P / Q) and adds three new in-cycle items: 10.N.Q (IdleTimeScheduler production wiring -- needs `ChatPanelBootstrap` integration with the VSCode activity source, deferred to Phase 8 cycle close or v0.10.0), 10.N.R (lazy-import transitive-imports cleanup -- carve `isAllowlisted` / `isBlocked` / `stripHtmlTags` out of the handler modules; v0.10.0 candidate), and 10.N.S (Phase 6 atomic-commit deviation -- same single-commit pattern Phases 2 through 5 took at user request).
+
+---
+
 ## [2026-05-16] v0.9.0 Phase 5 -- Internal RE builds: issue orchestration + PR ops
 
 ### Goal

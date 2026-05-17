@@ -236,4 +236,74 @@ describe("ToolRegistry", () => {
       expect(request).toHaveBeenCalledTimes(1);
     });
   });
+
+  describe("lazy registration (Phase 6.6)", () => {
+    it("reports has() / isEnabled() true for a lazy-registered tool before first use", () => {
+      const registry = new ToolRegistry();
+      registry.registerLazy("run_terminal", () =>
+        makeHandler({ id: "x", success: true, output: "" }),
+      );
+      expect(registry.has("run_terminal")).toBe(true);
+      expect(registry.isEnabled("run_terminal")).toBe(true);
+      expect(registry.getEnabledNames()).toContain("run_terminal");
+    });
+
+    it("resolves the factory once and caches the handler", async () => {
+      const factory = vi.fn(() =>
+        makeHandler({ id: "x", success: true, output: "out" }),
+      );
+      const registry = new ToolRegistry();
+      registry.registerLazy("run_terminal", factory);
+
+      await registry.execute(makeCall({ tool: "run_terminal", parameters: {} }));
+      await registry.execute(makeCall({ tool: "run_terminal", parameters: {} }));
+      await registry.execute(makeCall({ tool: "run_terminal", parameters: {} }));
+
+      expect(factory).toHaveBeenCalledTimes(1);
+    });
+
+    it("resolveLazy returns the same handler on repeated calls", async () => {
+      const handler = makeHandler({ id: "x", success: true, output: "" });
+      const registry = new ToolRegistry();
+      registry.registerLazy("run_terminal", () => handler);
+
+      const a = await registry.resolveLazy("run_terminal");
+      const b = await registry.resolveLazy("run_terminal");
+      expect(a).toBe(handler);
+      expect(b).toBe(handler);
+    });
+
+    it("resolveLazy returns undefined for an unknown tool", async () => {
+      const registry = new ToolRegistry();
+      const result = await registry.resolveLazy("run_terminal");
+      expect(result).toBeUndefined();
+    });
+
+    it("supports async factories that import a module", async () => {
+      const handler = makeHandler({ id: "x", success: true, output: "imported" });
+      const registry = new ToolRegistry();
+      registry.registerLazy("run_terminal", async () => {
+        // Simulate dynamic import: await a microtask.
+        await Promise.resolve();
+        return handler;
+      });
+
+      const result = await registry.execute(makeCall({ tool: "run_terminal" }));
+      expect(result.output).toBe("imported");
+    });
+
+    it("eager register() overrides a prior lazy registration", async () => {
+      const lazyFactory = vi.fn(() =>
+        makeHandler({ id: "x", success: true, output: "lazy" }),
+      );
+      const eagerHandler = makeHandler({ id: "x", success: true, output: "eager" });
+      const registry = new ToolRegistry();
+      registry.registerLazy("run_terminal", lazyFactory);
+      registry.register("run_terminal", eagerHandler);
+
+      const result = await registry.execute(makeCall({ tool: "run_terminal" }));
+      expect(result.output).toBe("eager");
+      expect(lazyFactory).not.toHaveBeenCalled();
+    });
+  });
 });

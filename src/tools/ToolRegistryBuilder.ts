@@ -10,16 +10,19 @@ import {
 import { getLogger } from "../utils/logger.js";
 import {
   ReadFileTool,
-  WriteFileTool,
-  CreateFileTool,
-  DeleteFileTool,
-  EditFileTool,
   ListDirectoryTool,
   GrepCodebaseTool,
 } from "./handlers/filesystem.js";
-import { RunTerminalTool } from "./handlers/terminal.js";
-import { WebSearchTool, FetchPageTool } from "./handlers/webSearch.js";
-import { CompressRangeTool, CompressMessageTool, type CompressToolDeps } from "./handlers/compress.js";
+// v0.9.0 Phase 6.6 (from v0.8.0 known-gaps 10.O.Q) -- the tier `confirm` /
+// `dangerous` handler modules below are loaded lazily via `await import()`
+// inside the factories passed to `registerLazy()`. They are only resolved
+// when the tool is actually invoked. The tier `auto-approve` handlers
+// (read_file / list_directory / grep_codebase / compress_* / update_todos)
+// stay eager because the prompt builder needs their catalog entries on the
+// first turn. Reverse-engineered drift detection via `auditToolRegistryAst`
+// remains the cross-validation.
+import type { CompressToolDeps } from "./handlers/compress.js";
+import { CompressRangeTool, CompressMessageTool } from "./handlers/compress.js";
 import { UpdateTodosTool, type TodoState } from "./handlers/todos.js";
 import type { ToolOutputCache } from "../storage/ToolOutputCache.js";
 import type { WebResponseCache } from "./handlers/webCache.js";
@@ -65,19 +68,50 @@ export function buildToolRegistry(opts: ToolRegistryBuildOptions): ToolRegistry 
   const { gate, editMode, secretPathDenyExtra, permissionOverrides } = opts;
   const registry = new ToolRegistry();
 
+  // Tier `auto-approve` -- eager. The prompt builder filters the catalog
+  // against these on every turn so deferring would force a synchronous
+  // catalog wait.
   registry.register(
     "read_file",
     new ReadFileTool(gate, secretPathDenyExtra, opts.toolOutputCache),
   );
-  registry.register("write_file", new WriteFileTool(gate, editMode));
-  registry.register("create_file", new CreateFileTool(gate, editMode));
-  registry.register("delete_file", new DeleteFileTool());
-  registry.register("edit_file", new EditFileTool(gate, editMode));
   registry.register("list_directory", new ListDirectoryTool(gate, secretPathDenyExtra));
   registry.register("grep_codebase", new GrepCodebaseTool(gate, secretPathDenyExtra));
-  registry.register("run_terminal", new RunTerminalTool());
-  registry.register("web_search", new WebSearchTool(opts.webResponseCache));
-  registry.register("fetch_page", new FetchPageTool());
+
+  // Tier `confirm` -- lazy. write/edit/create/delete tools only fire on a
+  // user-confirmed edit, so importing them at boot is wasted work for the
+  // common read-only first-turn case.
+  registry.registerLazy("write_file", async () => {
+    const mod = await import("./handlers/filesystem.js");
+    return new mod.WriteFileTool(gate, editMode);
+  });
+  registry.registerLazy("create_file", async () => {
+    const mod = await import("./handlers/filesystem.js");
+    return new mod.CreateFileTool(gate, editMode);
+  });
+  registry.registerLazy("edit_file", async () => {
+    const mod = await import("./handlers/filesystem.js");
+    return new mod.EditFileTool(gate, editMode);
+  });
+  registry.registerLazy("delete_file", async () => {
+    const mod = await import("./handlers/filesystem.js");
+    return new mod.DeleteFileTool();
+  });
+
+  // Tier `dangerous` -- lazy. run_terminal pulls in child_process; web_*
+  // pull in fetch + node-fetch shim; none are needed on a read-only turn.
+  registry.registerLazy("run_terminal", async () => {
+    const mod = await import("./handlers/terminal.js");
+    return new mod.RunTerminalTool();
+  });
+  registry.registerLazy("web_search", async () => {
+    const mod = await import("./handlers/webSearch.js");
+    return new mod.WebSearchTool(opts.webResponseCache);
+  });
+  registry.registerLazy("fetch_page", async () => {
+    const mod = await import("./handlers/webSearch.js");
+    return new mod.FetchPageTool();
+  });
 
   if (opts.compress) {
     registry.register("compress_range", new CompressRangeTool(opts.compress.deps));
@@ -96,6 +130,39 @@ export function buildToolRegistry(opts: ToolRegistryBuildOptions): ToolRegistry 
   registry.setConfirmationGate(gate, permissionOverrides, editMode);
 
   return registry;
+}
+
+/**
+ * v0.9.0 Phase 6.6 (from v0.8.0 known-gaps 10.O.Q) -- list the tool names
+ * that {@link buildToolRegistry} attaches via `registerLazy`. Tests
+ * verifying boot-time import counts consult this list so the assertion is
+ * decoupled from the wiring details.
+ */
+export function listLazyToolNames(): readonly string[] {
+  return [
+    "write_file",
+    "create_file",
+    "edit_file",
+    "delete_file",
+    "run_terminal",
+    "web_search",
+    "fetch_page",
+  ];
+}
+
+/**
+ * v0.9.0 Phase 6.6 -- the list of tool names that stay eager. Together with
+ * {@link listLazyToolNames} this exposes the wiring decision for tests.
+ */
+export function listEagerToolNames(): readonly string[] {
+  return [
+    "read_file",
+    "list_directory",
+    "grep_codebase",
+    // compress_range / compress_message / update_todos are wired only when
+    // the optional `compress` / `todos` options are passed; they are still
+    // imported eagerly when present because the prompt builder needs them.
+  ];
 }
 
 /**

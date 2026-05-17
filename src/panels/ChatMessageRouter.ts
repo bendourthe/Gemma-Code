@@ -232,7 +232,9 @@ export class ChatMessageRouter {
       // additive; the built-in addendum and PFM reminder (already in the
       // rebuilt prompt above) stay authoritative.
       if (shouldPlan) {
-        const hookBody = renderHookAsSystemMessage("enterplanmode-improve");
+        const hookBody = renderHookAsSystemMessage("enterplanmode-improve", undefined, {
+          scanInjection: deps.getSettings().hooksScanInjection,
+        });
         if (hookBody !== null) {
           deps.manager.addSystemMessage(hookBody);
           deps.status.postHistory();

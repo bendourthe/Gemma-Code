@@ -8,44 +8,33 @@ metadata.tags: [robustness, error-handling, security]
 metadata.related_skills: [distill, critique]
 ---
 
-You are hardening code against realistic failure modes. The goal is robustness, NOT defensive paranoia. Every line you add must trace to a specific, identifiable risk.
+Harden code against real failure modes. Every line you add must trace to a specific risk -- this is robustness, not defensive paranoia.
 
 Scope:
-- If `$ARGUMENTS` names a file, function, or directory, restrict hardening to that target.
-- Otherwise, focus on the most-recently-modified files and the system boundaries (HTTP handlers, CLI entry points, file I/O, deserialisation).
+- If `$ARGUMENTS` names a file or directory, restrict hardening to that target.
+- Otherwise, focus on recently-modified files and system boundaries (HTTP handlers, CLI entry, file I/O, deserialisation).
 
-Hardening checklist (apply each only when the risk is real):
-1. **Input validation at boundaries** -- HTTP requests, CLI args, file contents, environment variables, IPC payloads. Validate types, ranges, lengths, encodings. Use schema libraries (Zod, Pydantic, validator.v10) over hand-rolled checks where the project already depends on them.
-2. **Error handling** -- catch errors only where you can do something meaningful. Either: (a) recover and continue, (b) wrap with context and rethrow, (c) translate to a user-facing message at the boundary. Never swallow.
-3. **Resource cleanup** -- file handles, network sockets, DB connections, child processes, timers. Use language-native idioms (try/finally, defer, with-statement, RAII).
-4. **Edge cases** -- empty inputs, max-size inputs, Unicode, leading/trailing whitespace, null bytes, off-by-one at array boundaries, integer overflow, time-zone edge cases, concurrent modification.
-5. **Retry / timeout** -- ONLY for I/O calls to external systems. Use exponential backoff with a cap and a circuit breaker. Never retry CPU-bound work or in-process calls.
-6. **Concurrency** -- shared state without synchronisation, missing context cancellation, goroutines/promises that can outlive their parent.
+Hardening checklist (apply only when the risk is real):
+1. **Input validation at boundaries** -- HTTP, CLI, file contents, env vars, IPC. Validate types, ranges, lengths, encodings. Prefer schema libraries the project already uses (Zod, Pydantic, validator.v10).
+2. **Error handling** -- catch only where you can recover, wrap with context and rethrow, or translate to user-facing at the boundary. Never swallow.
+3. **Resource cleanup** -- file handles, sockets, DB connections, child processes, timers. Use language idioms (try/finally, defer, with, RAII).
+4. **Edge cases** -- empty + max-size inputs, Unicode, whitespace, null bytes, off-by-one, integer overflow, timezones, concurrent modification.
+5. **Retry / timeout** -- ONLY for external I/O. Exponential backoff + cap + circuit breaker. Never retry CPU work or in-process calls.
+6. **Concurrency** -- shared state without sync, missing cancellation, tasks outliving their parent.
 
 Process:
-1. Read the target end-to-end. Identify the trust boundaries (user input arrives where? external calls leave where?).
-2. Build a list of identified risks. For each, write down:
-   - The specific failure mode.
-   - The blast radius if it occurs.
-   - The proposed mitigation.
-3. Implement the mitigations one at a time. After each:
-   - Add a regression test that exercises the failure mode.
-   - Run the test suite.
-4. Report:
-   - Risks identified.
-   - Mitigations applied (with file:line).
-   - Tests added.
-   - Risks identified but NOT mitigated, with rationale (cost > benefit, blocked on broader work, etc.).
+1. Read the target end-to-end. Identify trust boundaries (where does user input arrive? where do external calls leave?).
+2. List identified risks. For each: failure mode, blast radius, proposed mitigation.
+3. Implement mitigations one at a time. After each: add a regression test for the failure mode, run the suite.
+4. Report: risks identified, mitigations applied (file:line), tests added, risks NOT mitigated with rationale.
 
 Hard rules:
-- No defensive checks against scenarios that cannot occur given the type system or framework guarantees.
-- No retry on internal calls; retry is a network-boundary tool.
-- Every new error message must be unique enough to grep for in logs.
+- No defensive checks against impossible scenarios (type system / framework guarantees).
+- No retry on internal calls -- retry is a network-boundary tool.
+- Every new error message must be unique enough to grep.
 - Validate at the boundary, not in every internal function.
-- If you cannot articulate the failure mode in one sentence, the check is not justified.
+- If you cannot state the failure mode in one sentence, the check is not justified.
 
-Usage example:
-- `/harden src/api/handlers/upload.ts` -- harden the upload handler.
-- `/harden src/storage/MemoryFiles.ts` -- harden the memory file I/O paths.
+Usage: `/harden <file>` -- e.g. `/harden src/api/handlers/upload.ts`.
 
 $ARGUMENTS

@@ -261,6 +261,16 @@
           "default": true,
           "description": "v0.8.0 Phase 2 -- refuse to terminate a turn via a no-tool-call 'done' response unless at least one verification-class tool call (run_terminal returning exit 0, lint, build, test, golden task) has succeeded since the last user message. When the gate trips, the agent gets one system nudge and one more iteration to run the missing check before the loop terminates. Disable for non-coding workflows or tests that cannot run real commands."
         },
+        "gemma-code.passStateGating.subAgentCredit": {
+          "type": "boolean",
+          "default": true,
+          "description": "v0.9.0 Phase 6.2 -- when a verification / audit / testgaps / curator sub-agent returns success, credit the parent loop's pass-state gate so the parent does not also need to run a verification tool before terminating. Disable to require parent-level verification regardless of sub-agent outcomes (legacy v0.8.0 behaviour)."
+        },
+        "gemma-code.hooks.scanInjection": {
+          "type": "boolean",
+          "default": true,
+          "description": "v0.9.0 Phase 6.5 -- scan ~/.gemma-code/hooks/*.md for prompt-injection patterns before folding the hook body into a system message. Hooks that trip the scanner are dropped with a logged warning. Disable if the hook intentionally contains text that overlaps with the heuristic (e.g. a security-research hook containing 'ignore previous instructions')."
+        },
         "gemma-code.memorySnapshotMode": {
           "type": "string",
           "enum": [

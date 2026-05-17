@@ -240,6 +240,7 @@ export class ChatController {
         tracer: deps.tracer,
         operationLog: deps.operationLog ?? undefined,
         passStateGating: deps.settings.passStateGating,
+        subAgentVerificationCredit: deps.settings.passStateSubAgentCredit,
       },
     );
   }

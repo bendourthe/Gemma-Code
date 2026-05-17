@@ -8,21 +8,21 @@ For the ADR-level architecture see [../ARCHITECTURE.md](../ARCHITECTURE.md) and 
 
 | Module | Files | LOC | Entry point | Top exports |
 |--------|------:|----:|-------------|-------------|
-| `agents` | 6 | 1344 | [src/agents/BackgroundWorkers.ts](../src/agents/BackgroundWorkers.ts) | `__testing`, `buildSubAgentContextMessage`, `formatAuditFindings` |
-| `chat` | 16 | 3722 | [src/chat/PromptBuilder.ts](../src/chat/PromptBuilder.ts) | `BlockRef`, `BlockSummary`, `buildApprovedWithNotesMessage` |
+| `agents` | 7 | 1529 | [src/agents/BackgroundWorkers.ts](../src/agents/BackgroundWorkers.ts) | `__testing`, `buildSubAgentContextMessage`, `formatAuditFindings` |
+| `chat` | 16 | 3756 | [src/chat/PromptBuilder.ts](../src/chat/PromptBuilder.ts) | `BlockRef`, `BlockSummary`, `buildApprovedWithNotesMessage` |
 | `commands` | 3 | 500 | [src/commands/compactCommand.ts](../src/commands/compactCommand.ts) | `BuiltinCommand`, `BuiltinCommandName`, `Command` |
-| `config` | 7 | 1174 | [src/config/GpuDetector.ts](../src/config/GpuDetector.ts) | `BudgetAllocation`, `BudgetOverrides`, `calculateBudget` |
+| `config` | 7 | 1193 | [src/config/GpuDetector.ts](../src/config/GpuDetector.ts) | `BudgetAllocation`, `BudgetOverrides`, `calculateBudget` |
 | `evaluation` | 3 | 438 | [src/evaluation/FeatureList.ts](../src/evaluation/FeatureList.ts) | `defaultFeatureListPath`, `FeatureList`, `FeatureRow` |
 | `guardrails` | 7 | 717 | [src/guardrails/index.ts](../src/guardrails/index.ts) | `_resetPermissionOverrideWarnings`, `ActionClassification`, `ActionRisk` |
 | `llm` | 5 | 1050 | [src/llm/LmStudioClient.ts](../src/llm/LmStudioClient.ts) | `OllamaError`, `createLmStudioClient`, `CreateLmStudioClientOptions` |
 | `mcp` | 5 | 649 | [src/mcp/McpManager.ts](../src/mcp/McpManager.ts) | `DEFAULT_MCP_EXPOSED_TOOLS`, `McpClient`, `McpConfigFile` |
 | `observability` | 6 | 1636 | [src/observability/TraceStore.ts](../src/observability/TraceStore.ts) | `AggregateMetrics`, `defaultTracePath`, `MetricsCollector` |
 | `orchestration` | 8 | 1572 | [src/orchestration/TaskDAG.ts](../src/orchestration/TaskDAG.ts) | `PostMessageFn`, `buildSubAgentRequest`, `CodeTaskInput` |
-| `panels` | 31 | 9484 | [src/panels/webview/index.ts](../src/panels/webview/index.ts) | `ACTION_TAG_FN_SOURCE`, `ActionClassificationMessage`, `actionLabelFor` |
+| `panels` | 31 | 9492 | [src/panels/webview/index.ts](../src/panels/webview/index.ts) | `ACTION_TAG_FN_SOURCE`, `ActionClassificationMessage`, `actionLabelFor` |
 | `runtime` | 1 | 127 | [src/runtime/GemmaRuntime.ts](../src/runtime/GemmaRuntime.ts) | `GemmaRuntime` |
 | `skills` | 4 | 942 | [src/skills/CurationLoop.ts](../src/skills/CurationLoop.ts) | `CurationInputs`, `CurationLoop`, `CuratorAction` |
-| `storage` | 37 | 8835 | [src/storage/eviction/index.ts](../src/storage/eviction/index.ts) | `ARCEvictor`, `ArchiveResult`, `BrokenPathIssue` |
-| `tools` | 21 | 5774 | [src/tools/handlers/filesystem.ts](../src/tools/handlers/filesystem.ts) | `_checkCacheSizeForTests`, `_internal`, `AgentLoop` |
+| `storage` | 37 | 8863 | [src/storage/eviction/index.ts](../src/storage/eviction/index.ts) | `ARCEvictor`, `ArchiveResult`, `BrokenPathIssue` |
+| `tools` | 21 | 5936 | [src/tools/handlers/filesystem.ts](../src/tools/handlers/filesystem.ts) | `_checkCacheSizeForTests`, `_internal`, `AgentLoop` |
 | `utils` | 6 | 987 | [src/utils/Compressor.ts](../src/utils/Compressor.ts) | `BROTLI_QUALITY`, `CompressedToolOutput`, `CompressionResult` |
 
 ## Module purposes

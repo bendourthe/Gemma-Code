@@ -101,6 +101,21 @@ export interface GemmaCodeSettings {
    */
   passStateGating: boolean;
   /**
+   * v0.9.0 Phase 6.2 (from v0.8.0 known-gaps 10.O.F): when true (default),
+   * a successful verification / audit / testgaps / curator sub-agent return
+   * credits the parent loop's pass-state gate so the parent does not need
+   * to also run a verification tool. Disable to restore v0.8.0 behaviour
+   * (parent must run its own verification tool regardless).
+   */
+  passStateSubAgentCredit: boolean;
+  /**
+   * v0.9.0 Phase 6.5 (from v0.8.0 known-gaps 10.O.H): scan
+   * `~/.gemma-code/hooks/*.md` for prompt-injection patterns before folding
+   * the hook body into a system message. Default `true`. Disable if the
+   * hook intentionally contains text overlapping with the heuristic.
+   */
+  hooksScanInjection: boolean;
+  /**
    * v0.8.0 Phase 2 (item A1): memory snapshot semantics. `frozen` (default)
    * captures Instructions.md / Memory.md / Context.md once at session start
    * so the rendered prompt stays byte-stable for prefix-cache stability.
@@ -233,6 +248,10 @@ export function getSettings(): GemmaCodeSettings {
     curatorWorkerEnabled: config.get<boolean>("workers.curator.enabled") ?? false,
     preToolCompression: config.get<boolean>("preToolCompression") ?? true,
     passStateGating: config.get<boolean>("passStateGating") ?? true,
+    passStateSubAgentCredit:
+      config.get<boolean>("passStateGating.subAgentCredit") ?? true,
+    hooksScanInjection:
+      config.get<boolean>("hooks.scanInjection") ?? true,
     memorySnapshotMode: ((): "frozen" | "live" => {
       const raw = config.get<string>("memorySnapshotMode") ?? "frozen";
       return raw === "live" ? "live" : "frozen";

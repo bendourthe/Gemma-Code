@@ -32,6 +32,20 @@ const EPISODIC_TOOLS = new Set(["write_file", "edit_file", "create_file", "run_t
  */
 const VERIFICATION_TOOLS = new Set(["run_terminal"]);
 
+/**
+ * v0.9.0 Phase 6.2 -- sub-agent kinds whose successful return credits the
+ * pass-state gate. A verification, audit-worker, testgaps-worker, or
+ * curator-worker that returns `{success: true}` substitutes for a direct
+ * `run_terminal` invocation by the parent loop. Reflect-worker is excluded
+ * because its dry-run does not assert correctness of recent edits.
+ */
+const SUB_AGENT_VERIFICATION_TYPES = new Set<import("../agents/types.js").SubAgentType>([
+  "verification",
+  "audit-worker",
+  "testgaps-worker",
+  "curator-worker",
+]);
+
 const MAX_RECENT_TOOL_RESULTS = 5;
 
 /**
@@ -115,6 +129,14 @@ export interface AgentLoopOptions {
    * Disable for non-coding workflows or tests that cannot run real commands.
    */
   readonly passStateGating?: boolean;
+  /**
+   * v0.9.0 Phase 6.2 -- when true (default), a successful verification /
+   * audit / testgaps / curator sub-agent dispatch credits the pass-state
+   * gate so the parent loop does not need to also run a verification tool
+   * call before terminating. Disable to require parent-level verification
+   * regardless of sub-agent outcomes (legacy v0.8.0 behaviour).
+   */
+  readonly subAgentVerificationCredit?: boolean;
 }
 
 export class AgentLoop {
@@ -143,6 +165,7 @@ export class AgentLoop {
   private readonly _operationLog?: OperationLog;
   private readonly _toolCallSource?: import("./types.js").ToolCallSource;
   private readonly _passStateGating: boolean;
+  private readonly _subAgentVerificationCredit: boolean;
   /**
    * Resets at the start of `run()` and flips to true when a
    * verification-class tool call succeeds. Used by the pass-state gate to
@@ -190,6 +213,21 @@ export class AgentLoop {
     this._operationLog = options?.operationLog;
     this._toolCallSource = options?.toolCallSource;
     this._passStateGating = options?.passStateGating ?? true;
+    this._subAgentVerificationCredit = options?.subAgentVerificationCredit ?? true;
+  }
+
+  /**
+   * v0.9.0 Phase 6.2 -- credit a successful verification-class sub-agent
+   * run toward the parent loop's pass-state gate. No-op when the credit
+   * option is disabled or the sub-agent type is not in the verification
+   * set. Test surface: exposed for direct invocation when callers wire
+   * dispatch outside `_runOneIteration`.
+   */
+  creditSubAgentVerification(result: SubAgentResult): void {
+    if (!this._subAgentVerificationCredit) return;
+    if (!result.success) return;
+    if (!SUB_AGENT_VERIFICATION_TYPES.has(result.type)) return;
+    this._verifiedSinceUserMessage = true;
   }
 
   /** Set or replace the budget middleware (used for async tier config updates). */
@@ -456,6 +494,7 @@ export class AgentLoop {
         if (verifyResult.output) {
           this._manager.addUserMessage(`[Verification Report]\n\n${verifyResult.output}`);
         }
+        this.creditSubAgentVerification(verifyResult);
       }
 
       if (this._auditWorkerEnabled) {
@@ -470,6 +509,7 @@ export class AgentLoop {
         if (auditResult.output) {
           this._manager.addUserMessage(`[Audit Report]\n\n${auditResult.output}`);
         }
+        this.creditSubAgentVerification(auditResult);
       }
 
       if (this._testgapsWorkerEnabled) {
@@ -484,6 +524,7 @@ export class AgentLoop {
         if (testgapsResult.output) {
           this._manager.addUserMessage(`[Test Gaps Report]\n\n${testgapsResult.output}`);
         }
+        this.creditSubAgentVerification(testgapsResult);
       }
 
       if (this._curatorWorkerEnabled) {
@@ -501,6 +542,7 @@ export class AgentLoop {
           if (curatorResult.output) {
             this._manager.addUserMessage(`[Curator Report]\n\n${curatorResult.output}`);
           }
+          this.creditSubAgentVerification(curatorResult);
         }
       }
     }

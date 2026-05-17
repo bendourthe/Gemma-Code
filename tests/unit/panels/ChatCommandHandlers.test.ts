@@ -165,6 +165,16 @@ describe("ChatCommandHandlers", () => {
     vi.clearAllMocks();
   });
 
+  it("/thinking-mode think-max emits a `[Thinking mode: think-max]` chat affordance", async () => {
+    const { ctx, added, postHistory } = makeFakeCtx();
+    const h = new ChatCommandHandlers(ctx);
+    await h.dispatch("thinking-mode", "think-max");
+
+    expect(added[0]).toContain("[Thinking mode: `think-max`]");
+    expect(added[0]).toContain("next streaming request");
+    expect(postHistory).toHaveBeenCalled();
+  });
+
   it("/help posts a markdown message listing commands", async () => {
     const { ctx, posted, added, postHistory } = makeFakeCtx();
     const h = new ChatCommandHandlers(ctx);

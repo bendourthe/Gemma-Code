@@ -15,8 +15,21 @@ const TOOLS_WITH_PER_TOOL_DIFF_CONFIRMATION: ReadonlySet<ToolName> = new Set([
   "create_file",
 ]);
 
+/**
+ * v0.9.0 Phase 6.6 (from v0.8.0 known-gaps 10.O.Q) -- lazy handler factory.
+ *
+ * Returns a fully-constructed `ToolHandler`. The factory is invoked once on
+ * first use; the resolved handler is cached for subsequent calls. The
+ * factory's body is where the heavy `import()` lives, so a handler whose
+ * module would otherwise be imported eagerly at boot is only loaded when
+ * the tool is actually invoked. Use {@link ToolRegistry.registerLazy} to
+ * wire one in.
+ */
+export type LazyToolFactory = () => Promise<ToolHandler> | ToolHandler;
+
 export class ToolRegistry {
   private readonly _handlers = new Map<ToolName, ToolHandler>();
+  private readonly _lazyFactories = new Map<ToolName, LazyToolFactory>();
   private readonly _enabled = new Map<ToolName, boolean>();
   private _redirector?: OutputRedirector;
   private _confirmationGate?: ConfirmationGate;
@@ -25,18 +38,52 @@ export class ToolRegistry {
 
   register(name: ToolName, handler: ToolHandler): void {
     this._handlers.set(name, handler);
+    this._lazyFactories.delete(name);
+    if (!this._enabled.has(name)) {
+      this._enabled.set(name, true);
+    }
+  }
+
+  /**
+   * v0.9.0 Phase 6.6 -- register a tool whose handler module should not be
+   * imported until the tool is first invoked. The factory is awaited on
+   * the first {@link execute} or {@link resolveLazy} call and the result
+   * is cached. Marks the tool as registered + enabled for `has` /
+   * `isEnabled` queries before the factory has resolved.
+   */
+  registerLazy(name: ToolName, factory: LazyToolFactory): void {
+    this._lazyFactories.set(name, factory);
+    // Do NOT seed `_handlers` -- the factory has not run yet, but `has`
+    // must still report `true` so the AgentLoop's activation rules and
+    // catalog filters see the tool as registered.
     if (!this._enabled.has(name)) {
       this._enabled.set(name, true);
     }
   }
 
   has(name: ToolName): boolean {
-    return this._handlers.has(name);
+    return this._handlers.has(name) || this._lazyFactories.has(name);
   }
 
   /** Return the registered handler for a tool, or undefined if none. */
   get(name: ToolName): ToolHandler | undefined {
     return this._handlers.get(name);
+  }
+
+  /**
+   * v0.9.0 Phase 6.6 -- resolve a lazy handler, importing its module if
+   * needed. Returns undefined when neither an eager nor lazy registration
+   * exists. Resolved handlers are cached so subsequent calls do not
+   * re-run the factory.
+   */
+  async resolveLazy(name: ToolName): Promise<ToolHandler | undefined> {
+    const eager = this._handlers.get(name);
+    if (eager) return eager;
+    const factory = this._lazyFactories.get(name);
+    if (!factory) return undefined;
+    const handler = await factory();
+    this._handlers.set(name, handler);
+    return handler;
   }
 
   /** Set the enabled state for a tool. No-op if the tool is not registered. */
@@ -46,14 +93,18 @@ export class ToolRegistry {
     }
   }
 
-  /** Returns true only if the tool is registered AND enabled. */
+  /** Returns true only if the tool is registered (eager or lazy) AND enabled. */
   isEnabled(name: ToolName): boolean {
-    return this._handlers.has(name) && (this._enabled.get(name) ?? false);
+    return this.has(name) && (this._enabled.get(name) ?? false);
   }
 
-  /** Returns names of all registered and enabled tools. */
+  /** Returns names of all registered (eager or lazy) and enabled tools. */
   getEnabledNames(): ToolName[] {
-    return [...this._handlers.keys()].filter((n) => this._enabled.get(n) === true);
+    const names = new Set<ToolName>([
+      ...this._handlers.keys(),
+      ...this._lazyFactories.keys(),
+    ]);
+    return [...names].filter((n) => this._enabled.get(n) === true);
   }
 
   /** Filter a tool metadata catalog to only the tools that are registered and enabled. */
@@ -97,7 +148,9 @@ export class ToolRegistry {
    * the agent loop can continue rather than crash.
    */
   async execute(call: ToolCall): Promise<ToolResult> {
-    const handler = this._handlers.get(call.tool);
+    // v0.9.0 Phase 6.6 -- resolve lazy handlers on first invocation so the
+    // handler module is only loaded when the tool is actually used.
+    const handler = await this.resolveLazy(call.tool);
 
     if (handler === undefined) {
       return {

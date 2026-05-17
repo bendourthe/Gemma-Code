@@ -106,15 +106,42 @@ describe("PlanArchive", () => {
       1,
       2,
     );
-    // Clean: addition is wrapped in `**`. The `diff` library treats the
-    // whitespace-separated trailing newline as part of the additive run, so
-    // the closing `**` may sit on the next line.
+    // Clean: addition is wrapped in `**`. Phase 6.4 -- closing `**` must
+    // not orphan onto the next line; trailing newlines now appear AFTER
+    // the closing marker.
     expect(out.clean).toContain("**3. Verify");
     expect(out.clean).toMatch(/\*\*[^*]*\*\*/);
     // Classic: added lines start with `+`, context with ` `.
     const lines = out.classic.split("\n");
     expect(lines.some((l) => l.startsWith("+3. Verify"))).toBe(true);
     expect(lines.some((l) => l.startsWith(" 1. Read"))).toBe(true);
+  });
+
+  it("clean diff strips trailing newlines from add/del runs (Phase 6.4)", () => {
+    const out = PlanArchive.computeDiff(
+      "1. Read\n2. Apply\n",
+      "1. Read\n2. Apply\n3. Verify\n",
+      "auth",
+      1,
+      2,
+    );
+    // Negative assertion: the closing `**` must NOT sit on a line that
+    // begins with a newline. Match any `**...\n**` segment -- previous
+    // behaviour produced `**3. Verify\n**` which orphans the closing
+    // marker; fixed behaviour produces `**3. Verify**\n`.
+    expect(out.clean).not.toMatch(/\*\*[^*]*?\n\*\*/);
+  });
+
+  it("wrapDiffRun preserves trailing newlines outside the markers", async () => {
+    const { wrapDiffRun } = await import("../../../src/storage/PlanArchive.js");
+    expect(wrapDiffRun("hello\n", "**")).toBe("**hello**\n");
+    expect(wrapDiffRun("hello\n\n", "**")).toBe("**hello**\n\n");
+    expect(wrapDiffRun("hello", "**")).toBe("**hello**");
+    expect(wrapDiffRun("", "**")).toBe("");
+    // Pure-newline run is left alone -- no inner content to wrap.
+    expect(wrapDiffRun("\n", "**")).toBe("\n");
+    // Strikethrough marker wraps cleanly too.
+    expect(wrapDiffRun("removed line\n", "~~")).toBe("~~removed line~~\n");
   });
 
   it("normalizes workspace ids derived from filesystem paths into a single segment", () => {

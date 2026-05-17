@@ -94,6 +94,7 @@ Aim to remove suppressions once the upstream issue is resolved. The 20-char mini
 - Add tests next to the unit you change. Mirror source paths under `tests/unit/`.
 - New tracing/runtime work must use a per-test `new Tracer()` instance -- the singleton was retired in v0.4.0.
 - Tests that depend on environment variables or upstream services must follow the Smoke-Test Classification Rubric in [docs/v0.5.0/test-pyramid.md](./docs/v0.5.0/test-pyramid.md). Use `skipIfNoOllama()` / `skipIfMissingEnv()` from [tests/helpers/factories.ts](./tests/helpers/factories.ts); do not write bare `if (!process.env.X) return;` early returns.
+- Set `LMSTUDIO_LIVE=1` to run the env-gated LM Studio live test at [tests/integration/llm/LmStudioClient.live.test.ts](./tests/integration/llm/LmStudioClient.live.test.ts) (requires a running local LM Studio server on `127.0.0.1:1234` with at least one model loaded; override the URL with `LMSTUDIO_BASE_URL`). Without the env var the test is skipped silently.
 - For non-trivial refactors and any externalization of compiled state to runtime data, follow the [refactor playbook](./docs/refactor-playbook.md) — write characterization tests *before* touching the module so behavior preservation is provable.
 
 ## Branch hygiene

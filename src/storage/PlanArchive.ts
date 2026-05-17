@@ -173,13 +173,18 @@ export class PlanArchive {
     fromVersion: number = 0,
     toVersion: number = 1,
   ): PlanDiffResult {
+    // v0.9.0 Phase 6.4 (from v0.8.0 known-gaps 10.O.I) -- strip trailing
+    // newlines from add/del runs before wrapping with `**` / `~~`, then
+    // re-emit the newline AFTER the closing marker so the rendered
+    // markdown still has the line break but the closing token does not
+    // orphan onto the next line.
     const wordDiff = diffWordsWithSpace(fromContent, toContent);
     const cleanParts: string[] = [];
     for (const part of wordDiff) {
       if (part.added) {
-        cleanParts.push(`**${part.value}**`);
+        cleanParts.push(wrapDiffRun(part.value, "**"));
       } else if (part.removed) {
-        cleanParts.push(`~~${part.value}~~`);
+        cleanParts.push(wrapDiffRun(part.value, "~~"));
       } else {
         cleanParts.push(part.value);
       }
@@ -212,4 +217,27 @@ export class PlanArchive {
   private _versionFileName(version: number): string {
     return `${String(version).padStart(4, "0")}.md`;
   }
+}
+
+/**
+ * v0.9.0 Phase 6.4 -- clean diff trailing-newline helper.
+ *
+ * Strips trailing `\n` characters from the inner payload before wrapping
+ * with `marker` (`**` or `~~`), then re-appends the trailing newlines after
+ * the closing marker. The result keeps the markdown emphasis/strikethrough
+ * scoped to the visible text on a single line while preserving the line
+ * breaks the original diff carried. Exposed so the unit test can target
+ * the helper directly without rebuilding a full diff fixture.
+ */
+export function wrapDiffRun(value: string, marker: string): string {
+  if (value.length === 0) return value;
+  let trailing = 0;
+  while (trailing < value.length && value[value.length - 1 - trailing] === "\n") {
+    trailing += 1;
+  }
+  if (trailing === 0) return `${marker}${value}${marker}`;
+  const inner = value.slice(0, value.length - trailing);
+  const newlines = value.slice(value.length - trailing);
+  if (inner.length === 0) return value; // run is pure newlines; leave as-is
+  return `${marker}${inner}${marker}${newlines}`;
 }
