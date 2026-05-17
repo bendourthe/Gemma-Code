@@ -11,7 +11,7 @@ except ImportError as exc:  # pragma: no cover - hard dependency
         "PyYAML is required: pip install pyyaml"
     ) from exc
 
-from .types import GoldenTask, SuccessCriteria
+from .models import GoldenTask, SuccessCriteria
 
 
 def _parse_criteria(raw: list[dict]) -> list[SuccessCriteria]:

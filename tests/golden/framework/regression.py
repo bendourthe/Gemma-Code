@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .types import TaskResult
+from .models import TaskResult
 
 
 @dataclass

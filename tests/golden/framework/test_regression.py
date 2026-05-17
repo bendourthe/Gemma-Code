@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from .regression import detect_regressions, generate_regression_report
-from .types import TaskResult
+from .models import TaskResult
 
 
 def _baseline(tasks: dict[str, dict], pass_rate: float) -> dict:

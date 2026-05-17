@@ -8,7 +8,7 @@ from collections import defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
 
-from .types import TaskResult
+from .models import TaskResult
 
 
 def _detect_gpu() -> dict[str, object]:

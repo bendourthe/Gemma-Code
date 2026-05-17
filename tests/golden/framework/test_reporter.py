@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 from .reporter import to_json, to_markdown, write_reports
-from .types import SuccessCriteria, TaskResult
+from .models import SuccessCriteria, TaskResult
 
 
 def _sample_results() -> list[TaskResult]:

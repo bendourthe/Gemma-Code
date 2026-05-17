@@ -6,7 +6,7 @@ import re
 import subprocess
 from pathlib import Path
 
-from .types import SuccessCriteria, TaskResult
+from .models import SuccessCriteria, TaskResult
 
 
 def _eval_file_exists(workdir: Path, criteria: SuccessCriteria) -> tuple[bool, str]:

@@ -7,7 +7,7 @@ from collections import Counter
 from dataclasses import asdict
 from pathlib import Path
 
-from .types import TaskResult
+from .models import TaskResult
 
 
 def to_json(results: list[TaskResult], indent: int = 2) -> str:
@@ -102,3 +102,19 @@ def write_reports(
     json_path.write_text(to_json(results), encoding="utf-8")
     md_path.write_text(to_markdown(results), encoding="utf-8")
     return json_path, md_path
+
+
+def render_markdown_report(
+    results: list[TaskResult],
+    baseline: dict,
+    regressions: list,
+) -> str:
+    """Combine task results and regression findings into a single Markdown report."""
+    from .regression import generate_regression_report
+
+    baseline_tier = baseline.get("tier") or baseline.get("model") or "unknown"
+    header = (
+        f"_Baseline: **{baseline_tier}** "
+        f"({len(baseline.get('tasks', {}) or {})} tasks)._\n\n"
+    )
+    return header + generate_regression_report(regressions) + "\n" + to_markdown(results)

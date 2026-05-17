@@ -20,7 +20,7 @@ from pathlib import Path
 
 from .evaluator import all_passed, evaluate
 from .snapshot import cleanup_worktree, prepare_worktree
-from .types import GoldenTask, TaskResult
+from .models import GoldenTask, TaskResult
 
 
 def run_task(

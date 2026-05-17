@@ -7,4 +7,4 @@ Intended to be run from tests/golden/ as working directory, so imports
 are relative to that package root (framework.*).
 """
 
-from .types import GoldenTask, SuccessCriteria, TaskResult  # noqa: F401
+from .models import GoldenTask, SuccessCriteria, TaskResult  # noqa: F401

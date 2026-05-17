@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 from .baseline import load_baseline, save_baseline
-from .types import TaskResult
+from .models import TaskResult
 
 
 def _mk_result(task_id: str, success: bool = True) -> TaskResult:

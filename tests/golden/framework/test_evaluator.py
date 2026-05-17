@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from .evaluator import all_passed, evaluate, result_from
-from .types import SuccessCriteria
+from .models import SuccessCriteria
 
 
 def test_file_exists_pass(tmp_path: Path) -> None:

@@ -13,7 +13,7 @@ from .task_loader import (
     load_all_tasks,
     load_task,
 )
-from .types import GoldenTask
+from .models import GoldenTask
 
 
 def _write_yaml(tmp_path: Path, name: str, body: str) -> Path:

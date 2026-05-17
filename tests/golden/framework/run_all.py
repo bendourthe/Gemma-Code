@@ -36,7 +36,7 @@ from tests.golden.framework.regression import detect_regressions  # noqa: E402
 from tests.golden.framework.reporter import render_markdown_report  # noqa: E402
 from tests.golden.framework.task_loader import load_all_tasks  # noqa: E402
 from tests.golden.framework.task_runner import run_task  # noqa: E402
-from tests.golden.framework.types import TaskResult  # noqa: E402
+from tests.golden.framework.models import TaskResult  # noqa: E402
 
 
 def main() -> int:

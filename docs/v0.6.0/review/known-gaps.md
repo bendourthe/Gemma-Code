@@ -179,7 +179,7 @@ The three Phase 12.1 truncation-recovery golden tasks verify the **end state** (
 
 This is by design for a black-box golden eval (we test outcomes, not paths), but a reviewer should know that "passes the truncation-recovery eval" is a weaker guarantee than the plan implied.
 
-**Action**: Optional. If you want stricter behavioral assertions, extend the success-criteria schema in [tests/golden/framework/types.py](../../../tests/golden/framework/types.py) to support a `trace_contains` criterion that scans the captured trace for tool-call patterns. Then add criteria like `trace_contains: 'delete_file' and 'dry_run=true'` to the dry-run task.
+**Action**: Optional. If you want stricter behavioral assertions, extend the success-criteria schema in [tests/golden/framework/models.py](../../../tests/golden/framework/models.py) to support a `trace_contains` criterion that scans the captured trace for tool-call patterns. Then add criteria like `trace_contains: 'delete_file' and 'dry_run=true'` to the dry-run task.
 
 ---
 

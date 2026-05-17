@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from .task_runner import run_task
-from .types import GoldenTask, SuccessCriteria
+from .models import GoldenTask, SuccessCriteria
 
 
 def _snapshot(root: Path, task_id: str, files: dict[str, str]) -> None:
