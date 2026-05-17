@@ -1,3 +1,10 @@
+# [0.19.0](https://github.com/bendourthe/Gemma-Code/compare/v0.18.0...v0.19.0) (2026-05-17)
+
+
+### Features
+
+* **v0.9.0:** Phase 5 internal RE builds -- issue orchestration + PR ops ([31a726f](https://github.com/bendourthe/Gemma-Code/commit/31a726fb4416aae8ab645cb293e5a4c73bbd8777))
+
 # [0.18.0](https://github.com/bendourthe/Gemma-Code/compare/v0.17.0...v0.18.0) (2026-05-17)
 
 
