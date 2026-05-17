@@ -32,7 +32,7 @@ import { ChatCommandHandlers, type ChatCommandContext } from "./ChatCommandHandl
 /**
  * Common Ollama tunables passed into every subsystem that calls the LLM.
  * Sourced from {@link GemmaCodeSettings}; identical to what
- * `GemmaCodePanel` previously assembled inline.
+ * `NexusCodingPanel` previously assembled inline.
  */
 export interface OllamaTuning {
   readonly num_ctx: number;

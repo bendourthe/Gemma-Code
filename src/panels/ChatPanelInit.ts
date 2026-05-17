@@ -11,7 +11,7 @@ import type { LLMClient } from "../llm/types.js";
 import { getLogger } from "../utils/logger.js";
 import { formatForUser } from "../utils/errors.js";
 
-// Composition helpers extracted from GemmaCodePanel as part of v0.7.0 Phase 0
+// Composition helpers extracted from NexusCodingPanel as part of v0.7.0 Phase 0
 // sub-task 0.4 (panel decomposition + ChatController construction-graph
 // hoist). Each helper builds a single subsystem from the runtime/workspace
 // inputs the panel already owns; failures fall back to a null result so the

@@ -14,25 +14,41 @@ Both target the same audience: developers, creators, and data scientists who wan
 
 ## Tech Stack
 
-- **Language**: TypeScript (VS Code extension), Python (inference backend), Rust (performance components), Go (CLI/tooling)
-- **Inference**: Ollama (local Gemma 4 server via `ollama pull gemma4`)
-- **Package Managers**: npm/pnpm (TypeScript), uv/pip (Python), cargo (Rust), go modules (Go)
-- **Build**: tbd per component
-- **Test**: Vitest (TypeScript), pytest (Python), cargo test (Rust), go test (Go)
-- **Lint/Format**: ESLint + Prettier (TypeScript), ruff (Python), clippy (Rust), golangci-lint (Go)
+- **Language**: TypeScript (VS Code extension + desktop shell), Python (PyQt5 installer), Rust (Tauri shell), Node 20+
+- **Desktop shell**: Tauri 2.x + React 19 + Vite + Tailwind v4 (in `desktop/`)
+- **Inference**: Ollama (local Gemma 4 server via `ollama pull gemma4`), LM Studio (alt backend)
+- **Package Managers**: npm (TypeScript), uv/pip (Python installer), cargo (Rust)
+- **Build**: tsc (extension), `tauri build` (shell), PyInstaller (installer)
+- **Test**: Vitest (TypeScript), pytest (Python installer)
+- **Lint/Format**: ESLint + Prettier (TypeScript), ruff (Python), clippy (Rust)
 
 ## Project Layout
 
 ```
-src/        VS Code extension TypeScript source
-tests/      Unit, integration, and e2e test suites
-docs/       Architecture docs, guides, API references
-configs/    Linter configs, VS Code launch configs, environment templates
-scripts/    Build, package, and utility scripts
-assets/     Extension icons, images, fonts
-examples/   Sample usage and demo workflows
-lib/        Shared utilities across components
+core/                       v1.0.0 shared-core surfaces (Phase 2.3 + 2.6)
+  registry/ModelRegistry.ts  models: list / install / remove / inspect
+  memory/MemoryHub.ts        4-layer memory facade
+  telemetry/TelemetryBus.ts  in-process pub/sub (GPU + module events)
+  skills/SkillCatalog.ts     skills: list / load / hot-reload
+  storage/                   ~/.nexus/ paths + StorageMigration (Phase 2.2)
+
+modules/                    per-pillar code (one folder per pillar)
+  coding/                    Agentic AI Coding (engine still in src/ during the
+                              one-cycle compat window)
+
+src/                        VS Code extension TypeScript source (Coding engine
+                              host during v1.0.0 compat window)
+desktop/                    Tauri shell + Node sidecar (Phase 1)
+scripts/installer/pyqt/     Nexus installer (Python, renamed from gemma_installer)
+bin/nexus-check.mjs         deterministic-checks CLI (renamed from gemma-check)
+tests/                      Unit / integration / e2e test suites
+docs/                       Architecture docs, plans, history, known gaps
+configs/                    Linter configs, dep-cruiser, vitest config
+lib/                        Shared utilities (nexus-check rule helpers)
 ```
+
+Boundary rule (enforced by [`configs/dependency-cruiser.cjs`](configs/dependency-cruiser.cjs)):
+`core/**` MUST NOT import from `modules/**`; modules MUST NOT import from each other.
 
 ## Key Commands
 

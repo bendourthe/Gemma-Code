@@ -20,7 +20,7 @@ export interface ChatStatusReporterContext {
 
 /**
  * Owns the post* status helpers and the per-assistant Markdown render cache
- * extracted from {@link GemmaCodePanel} as part of v0.7.0 Phase 0 sub-task
+ * extracted from {@link NexusCodingPanel} as part of v0.7.0 Phase 0 sub-task
  * 0.4. The owning panel forwards `requestX` events into the matching
  * `postX()` method on this reporter; the reporter reads from injected
  * context, never from the panel's private fields.

@@ -1,22 +1,22 @@
-"""Tests for ModelPuller progress parsing."""
+﻿"""Tests for ModelPuller progress parsing."""
 
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from gemma_installer.engine.model_puller import _PROGRESS_RE, ModelPuller
-from gemma_installer.installer_state import InstallerState
+from nexus_installer.engine.model_puller import _PROGRESS_RE, ModelPuller
+from nexus_installer.installer_state import InstallerState
 
 
 class TestProgressRegex:
     def test_matches_percentage(self) -> None:
-        line = "pulling abc123... 45% |████      |  2.3 GB/5.1 GB"
+        line = "pulling abc123... 45% |â–ˆâ–ˆâ–ˆâ–ˆ      |  2.3 GB/5.1 GB"
         match = _PROGRESS_RE.search(line)
         assert match is not None
         assert match.group(1) == "45"
 
     def test_matches_100_percent(self) -> None:
-        line = "pulling abc123... 100% |██████████|  5.1 GB/5.1 GB"
+        line = "pulling abc123... 100% |â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ|  5.1 GB/5.1 GB"
         match = _PROGRESS_RE.search(line)
         assert match is not None
         assert match.group(1) == "100"
@@ -62,15 +62,15 @@ class TestModelPullerExecution:
         mock_proc.stdout = iter(
             [
                 "pulling manifest...\n",
-                "pulling abc123... 50% |█████     | 2.5 GB/5.1 GB\n",
-                "pulling abc123... 100% |██████████| 5.1 GB/5.1 GB\n",
+                "pulling abc123... 50% |â–ˆâ–ˆâ–ˆâ–ˆâ–ˆ     | 2.5 GB/5.1 GB\n",
+                "pulling abc123... 100% |â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ| 5.1 GB/5.1 GB\n",
             ]
         )
         mock_proc.wait.return_value = None
         mock_proc.returncode = 0
 
         with patch(
-            "gemma_installer.engine.model_puller.subprocess.Popen",
+            "nexus_installer.engine.model_puller.subprocess.Popen",
             return_value=mock_proc,
         ):
             result = ModelPuller().pull(state, log, progress)
@@ -89,7 +89,7 @@ class TestModelPullerExecution:
         mock_proc.returncode = 1
 
         with patch(
-            "gemma_installer.engine.model_puller.subprocess.Popen",
+            "nexus_installer.engine.model_puller.subprocess.Popen",
             return_value=mock_proc,
         ):
             result = ModelPuller().pull(state, log, progress)
@@ -102,7 +102,7 @@ class TestModelPullerExecution:
         progress = MagicMock()
 
         with patch(
-            "gemma_installer.engine.model_puller.subprocess.Popen",
+            "nexus_installer.engine.model_puller.subprocess.Popen",
             side_effect=FileNotFoundError,
         ):
             result = ModelPuller().pull(state, log, progress)
@@ -124,7 +124,7 @@ class TestModelPullerExecution:
         puller._cancelled = True
 
         with patch(
-            "gemma_installer.engine.model_puller.subprocess.Popen",
+            "nexus_installer.engine.model_puller.subprocess.Popen",
             return_value=mock_proc,
         ):
             result = puller.pull(state, log, progress)

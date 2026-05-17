@@ -39,9 +39,15 @@ export default defineConfig({
     },
     coverage: {
       provider: "v8",
-      include: ["src/**/*.ts"],
+      // v1.0.0 Phase 2.3: extended to include the new `core/` (shared-core
+      // surfaces) and `modules/` (per-pillar code) trees alongside the
+      // pre-existing `src/` tree, which still hosts the Coding module during
+      // the one-cycle compat window.
+      include: ["src/**/*.ts", "core/**/*.ts", "modules/**/*.ts"],
       exclude: [
         "src/**/*.d.ts",
+        "core/**/*.d.ts",
+        "modules/**/*.d.ts",
         "**/extension.ts",
         "src/utils/**",
       ],

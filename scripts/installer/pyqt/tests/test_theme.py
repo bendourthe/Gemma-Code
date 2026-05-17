@@ -1,9 +1,9 @@
-"""Tests for theme generation and constants completeness."""
+﻿"""Tests for theme generation and constants completeness."""
 
 from __future__ import annotations
 
-from gemma_installer import constants
-from gemma_installer.theme import generate_stylesheet
+from nexus_installer import constants
+from nexus_installer.theme import generate_stylesheet
 
 
 class TestGenerateStylesheet:

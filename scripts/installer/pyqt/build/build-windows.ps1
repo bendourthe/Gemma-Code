@@ -1,10 +1,10 @@
 <#
 .SYNOPSIS
-    Build the Gemma Code installer as a single Windows .exe via PyInstaller.
+    Build the Nexus Installer as a single Windows .exe via PyInstaller.
 
 .DESCRIPTION
     Installs build dependencies, copies required artifacts, runs PyInstaller,
-    and optionally signs the output. Produces dist/GemmaCodeSetup.exe.
+    and optionally signs the output. Produces dist/NexusSetup.exe.
 #>
 [CmdletBinding()]
 param(
@@ -37,11 +37,11 @@ if ($Vsix) {
 
 Write-Host "[3/5] Running PyInstaller..." -ForegroundColor Cyan
 Push-Location $PyqtRoot
-uv run pyinstaller build/gemma-installer.spec --distpath dist --workpath build/work --clean --noconfirm 2>&1 |
+uv run pyinstaller build/nexus-installer.spec --distpath dist --workpath build/work --clean --noconfirm 2>&1 |
     Select-String -NotMatch "^(INFO|DEBUG)" | ForEach-Object { $_.Line }
 Pop-Location
 
-$ExePath = "$PyqtRoot\dist\GemmaCodeSetup.exe"
+$ExePath = "$PyqtRoot\dist\NexusSetup.exe"
 if (-not (Test-Path $ExePath)) {
     Write-Host "ERROR: Build failed. $ExePath not found." -ForegroundColor Red
     exit 1

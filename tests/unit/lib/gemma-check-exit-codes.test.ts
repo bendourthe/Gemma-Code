@@ -20,7 +20,8 @@ import * as os from "node:os";
 import * as path from "node:path";
 
 let tmpRoot: string;
-const CLI = path.resolve(__dirname, "..", "..", "..", "bin", "gemma-check.mjs");
+// v1.0.0 Phase 2.4: the canonical script is nexus-check.mjs.
+const CLI = path.resolve(__dirname, "..", "..", "..", "bin", "nexus-check.mjs");
 
 beforeEach(() => {
   tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "gemma-check-exit-"));
@@ -48,12 +49,12 @@ function run(args: string[]): { code: number; stdout: string; stderr: string } {
   };
 }
 
-describe("gemma-check exit codes", () => {
+describe("nexus-check exit codes", () => {
   it("returns 0 when there are no findings", () => {
     writeFile("clean.ts", "export const x = 1;\n");
     const r = run([tmpRoot]);
     expect(r.code).toBe(0);
-    expect(r.stdout).toContain("gemma-check: 0 findings");
+    expect(r.stdout).toContain("nexus-check: 0 findings");
   });
 
   it("returns 0 when only warnings fire (default)", () => {

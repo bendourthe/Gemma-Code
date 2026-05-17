@@ -46,7 +46,7 @@ vi.mock("../../../src/config/settings.js", () => ({
 // ---------------------------------------------------------------------------
 
 const { bootstrapChatPanel } = await import("../../../src/panels/ChatPanelBootstrap.js");
-const { GemmaRuntime } = await import("../../../src/runtime/GemmaRuntime.js");
+const { NexusCodingRuntime } = await import("../../../src/runtime/NexusCodingRuntime.js");
 
 function makeHooks(overrides: Partial<Parameters<typeof bootstrapChatPanel>[0]["hooks"]> = {}) {
   return {
@@ -99,7 +99,7 @@ describe("ChatPanelBootstrap todos wiring (v0.8.0 Phase 0.5 / closes v0.7.0 10.O
   });
 
   it("registers update_todos in the tool registry after bootstrap", () => {
-    const runtime = new GemmaRuntime();
+    const runtime = new NexusCodingRuntime();
     const extensionUri = mockOf<vscode.Uri>({ fsPath: "/ext", toString: () => "/ext" });
     const hostPostMessage = vi.fn();
 
@@ -115,7 +115,7 @@ describe("ChatPanelBootstrap todos wiring (v0.8.0 Phase 0.5 / closes v0.7.0 10.O
   });
 
   it("update_todos handler posts renderTodoUpdate to hostPostMessage when invoked", async () => {
-    const runtime = new GemmaRuntime();
+    const runtime = new NexusCodingRuntime();
     const extensionUri = mockOf<vscode.Uri>({ fsPath: "/ext", toString: () => "/ext" });
     const hostPostMessage = vi.fn();
 

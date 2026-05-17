@@ -1,8 +1,32 @@
 # Architecture
 
-> **Scope of this document.** This file documents the architecture of the **current** code in `src/` — the agentic-coding engine that shipped as Gemma Code v0.1.0 - v0.22.x. The repository is now pivoting to **Nexus**, a four-module local AI desktop application. The v1.0.0 desktop-shell architecture, module decomposition, and IPC surface are designed under [docs/v1.0.0/architecture.md](docs/v1.0.0/architecture.md) (once the v1.0.0 plan lands). Until that ships, the structures below describe the engine that will become the **Agentic AI Coding** module of Nexus.
+> **Scope of this document.** This file documents the architecture of the **current** code in `src/` — the agentic-coding engine that shipped as Gemma Code v0.1.0 - v0.22.x. The repository is now pivoting to **Nexus**, a four-module local AI desktop application. The v1.0.0 desktop-shell architecture, the `core/` + `modules/coding/` decomposition, the shared-core surfaces (ModelRegistry / MemoryHub / TelemetryBus / SkillCatalog), and the IPC surface are documented under [docs/v1.0.0/architecture.md](docs/v1.0.0/architecture.md). Until the Phase 2.3 wholesale move lands (tracked in [docs/v1.0.0/known-gaps.md](docs/v1.0.0/known-gaps.md) under code `MV`), the structures below describe the engine that will become the **Agentic AI Coding** module of Nexus.
 >
 > For the per-version architecture history, see [docs/v0.2.0/architecture.md](docs/v0.2.0/architecture.md) through [docs/v0.9.0/](docs/v0.9.0/).
+
+## Layout (v1.0.0)
+
+The v1.0.0 cycle established the canonical top-level layout below. Boundary rules are enforced by [`configs/dependency-cruiser.cjs`](configs/dependency-cruiser.cjs).
+
+```
+core/                        shared-core surfaces consumed by every pillar
+  registry/ModelRegistry.ts  list / install / remove / inspect models
+  memory/MemoryHub.ts        4-layer memory facade
+  telemetry/TelemetryBus.ts  in-process pub/sub for GPU + module events
+  skills/SkillCatalog.ts     list / load / hot-reload skills
+  storage/                   StorageMigration + canonical ~/.nexus/ paths
+
+modules/                     per-pillar code (one folder per generative pillar)
+  coding/                    Agentic AI Coding (Phase 2.3 wholesale move pending)
+  (chat/ added in Phase 4; image/ in Phase 6; video/ in Phase 7)
+
+src/                         pre-v1.0.0 Coding engine (compat host for one cycle)
+desktop/                     Tauri shell + Node sidecar (Phase 1)
+scripts/installer/pyqt/      Nexus installer (PyQt5 wizard, renamed from gemma_installer)
+bin/nexus-check.mjs          deterministic-checks CLI (renamed from gemma-check)
+```
+
+Boundary rule: `core/**` MUST NOT import from `modules/**`; modules MUST NOT import from each other.
 
 ## Nexus v1.0.0 (target architecture, in planning)
 

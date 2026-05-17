@@ -1,30 +1,30 @@
-"""Additional tests to push coverage above 80%."""
+﻿"""Additional tests to push coverage above 80%."""
 
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from gemma_installer.installer_state import InstallerState
+from nexus_installer.installer_state import InstallerState
 
 
 class TestOllamaInstallerMacos:
     def test_macos_brew_success(self) -> None:
-        from gemma_installer.engine.ollama_installer import OllamaInstaller
+        from nexus_installer.engine.ollama_installer import OllamaInstaller
 
         state = InstallerState(ollama_installed=False)
         log = MagicMock()
         with (
             patch(
-                "gemma_installer.engine.ollama_installer.is_windows", return_value=False
+                "nexus_installer.engine.ollama_installer.is_windows", return_value=False
             ),
             patch(
-                "gemma_installer.engine.ollama_installer.is_macos", return_value=True
+                "nexus_installer.engine.ollama_installer.is_macos", return_value=True
             ),
             patch(
-                "gemma_installer.engine.ollama_installer.is_linux", return_value=False
+                "nexus_installer.engine.ollama_installer.is_linux", return_value=False
             ),
             patch(
-                "gemma_installer.engine.ollama_installer.run_command",
+                "nexus_installer.engine.ollama_installer.run_command",
                 return_value=(0, "", ""),
             ),
             patch.object(OllamaInstaller, "_verify_ollama", return_value=True),
@@ -33,22 +33,22 @@ class TestOllamaInstallerMacos:
             assert result is True
 
     def test_macos_brew_failure(self) -> None:
-        from gemma_installer.engine.ollama_installer import OllamaInstaller
+        from nexus_installer.engine.ollama_installer import OllamaInstaller
 
         state = InstallerState(ollama_installed=False)
         log = MagicMock()
         with (
             patch(
-                "gemma_installer.engine.ollama_installer.is_windows", return_value=False
+                "nexus_installer.engine.ollama_installer.is_windows", return_value=False
             ),
             patch(
-                "gemma_installer.engine.ollama_installer.is_macos", return_value=True
+                "nexus_installer.engine.ollama_installer.is_macos", return_value=True
             ),
             patch(
-                "gemma_installer.engine.ollama_installer.is_linux", return_value=False
+                "nexus_installer.engine.ollama_installer.is_linux", return_value=False
             ),
             patch(
-                "gemma_installer.engine.ollama_installer.run_command",
+                "nexus_installer.engine.ollama_installer.run_command",
                 return_value=(1, "", "error"),
             ),
         ):
@@ -58,16 +58,16 @@ class TestOllamaInstallerMacos:
 
 class TestOllamaVerify:
     def test_verify_success(self) -> None:
-        from gemma_installer.engine.ollama_installer import OllamaInstaller
+        from nexus_installer.engine.ollama_installer import OllamaInstaller
 
         state = InstallerState()
         log = MagicMock()
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         with (
-            patch("gemma_installer.engine.ollama_installer.run_command"),
+            patch("nexus_installer.engine.ollama_installer.run_command"),
             patch(
-                "gemma_installer.engine.ollama_installer.httpx.get",
+                "nexus_installer.engine.ollama_installer.httpx.get",
                 return_value=mock_resp,
             ),
         ):
@@ -78,19 +78,19 @@ class TestOllamaVerify:
 
 class TestOllamaUnsupportedPlatform:
     def test_unsupported(self) -> None:
-        from gemma_installer.engine.ollama_installer import OllamaInstaller
+        from nexus_installer.engine.ollama_installer import OllamaInstaller
 
         state = InstallerState(ollama_installed=False)
         log = MagicMock()
         with (
             patch(
-                "gemma_installer.engine.ollama_installer.is_windows", return_value=False
+                "nexus_installer.engine.ollama_installer.is_windows", return_value=False
             ),
             patch(
-                "gemma_installer.engine.ollama_installer.is_macos", return_value=False
+                "nexus_installer.engine.ollama_installer.is_macos", return_value=False
             ),
             patch(
-                "gemma_installer.engine.ollama_installer.is_linux", return_value=False
+                "nexus_installer.engine.ollama_installer.is_linux", return_value=False
             ),
         ):
             result = OllamaInstaller().install(state, log)
@@ -99,7 +99,7 @@ class TestOllamaUnsupportedPlatform:
 
 class TestCompletePageRefresh:
     def test_refresh_with_failures(self, qt_app: object) -> None:
-        from gemma_installer.pages.complete import CompletePage
+        from nexus_installer.pages.complete import CompletePage
 
         state = InstallerState()
         state.failed_steps = ["ollama", "venv"]
@@ -108,7 +108,7 @@ class TestCompletePageRefresh:
         assert "Warnings" in page._title.text()
 
     def test_refresh_without_failures(self, qt_app: object) -> None:
-        from gemma_installer.pages.complete import CompletePage
+        from nexus_installer.pages.complete import CompletePage
 
         state = InstallerState()
         state.failed_steps = []
@@ -121,7 +121,7 @@ class TestCompletePageRefresh:
 
 class TestReviewPageRebuild:
     def test_rebuild_summary(self, qt_app: object) -> None:
-        from gemma_installer.pages.review import ReviewPage
+        from nexus_installer.pages.review import ReviewPage
 
         state = InstallerState(
             install_path="/opt/gemma",
@@ -139,8 +139,8 @@ class TestReviewPageRebuild:
 
 class TestGpuDetectionPageCallback:
     def test_detection_complete_with_gpu(self, qt_app: object) -> None:
-        with patch("gemma_installer.pages.gpu_detection._GpuDetectionWorker.start"):
-            from gemma_installer.pages.gpu_detection import GpuDetectionPage
+        with patch("nexus_installer.pages.gpu_detection._GpuDetectionWorker.start"):
+            from nexus_installer.pages.gpu_detection import GpuDetectionPage
 
             state = InstallerState()
             page = GpuDetectionPage(state)
@@ -150,8 +150,8 @@ class TestGpuDetectionPageCallback:
             assert state.recommended_model != ""
 
     def test_detection_complete_no_gpu(self, qt_app: object) -> None:
-        with patch("gemma_installer.pages.gpu_detection._GpuDetectionWorker.start"):
-            from gemma_installer.pages.gpu_detection import GpuDetectionPage
+        with patch("nexus_installer.pages.gpu_detection._GpuDetectionWorker.start"):
+            from nexus_installer.pages.gpu_detection import GpuDetectionPage
 
             state = InstallerState()
             page = GpuDetectionPage(state)
@@ -162,14 +162,14 @@ class TestGpuDetectionPageCallback:
 
 class TestInstallingPageCallbacks:
     def test_on_log(self, qt_app: object) -> None:
-        from gemma_installer.pages.installing import InstallingPage
+        from nexus_installer.pages.installing import InstallingPage
 
         state = InstallerState()
         page = InstallingPage(state)
         page._on_log("test message", "info")
 
     def test_on_progress(self, qt_app: object) -> None:
-        from gemma_installer.pages.installing import InstallingPage
+        from nexus_installer.pages.installing import InstallingPage
 
         state = InstallerState()
         page = InstallingPage(state)
@@ -177,7 +177,7 @@ class TestInstallingPageCallbacks:
         assert page._progress.value() == 500
 
     def test_on_finished_success(self, qt_app: object) -> None:
-        from gemma_installer.pages.installing import InstallingPage
+        from nexus_installer.pages.installing import InstallingPage
 
         state = InstallerState()
         page = InstallingPage(state)
@@ -187,7 +187,7 @@ class TestInstallingPageCallbacks:
         assert "Complete" in page._title.text()
 
     def test_on_finished_failure(self, qt_app: object) -> None:
-        from gemma_installer.pages.installing import InstallingPage
+        from nexus_installer.pages.installing import InstallingPage
 
         state = InstallerState()
         page = InstallingPage(state)
@@ -196,7 +196,7 @@ class TestInstallingPageCallbacks:
         assert "Warnings" in page._title.text()
 
     def test_get_log_text(self, qt_app: object) -> None:
-        from gemma_installer.pages.installing import InstallingPage
+        from nexus_installer.pages.installing import InstallingPage
 
         state = InstallerState()
         page = InstallingPage(state)

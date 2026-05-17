@@ -27,7 +27,7 @@ export interface ToolActivationContextDeps {
 
 /**
  * Owns the prompt-context assembly and tool-activation computation extracted
- * from {@link GemmaCodePanel} as part of v0.7.0 Phase 0 sub-task 0.4. The
+ * from {@link NexusCodingPanel} as part of v0.7.0 Phase 0 sub-task 0.4. The
  * panel and the controller share this helper so prompt rebuilds, tool
  * filtering, and OllamaToolDefinition packaging stay consistent.
  */

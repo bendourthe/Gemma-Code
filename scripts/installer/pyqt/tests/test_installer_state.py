@@ -1,10 +1,10 @@
-"""Tests for InstallerState dataclass."""
+﻿"""Tests for InstallerState dataclass."""
 
 from __future__ import annotations
 
 import sys
 
-from gemma_installer.installer_state import InstallerState
+from nexus_installer.installer_state import InstallerState
 
 
 class TestInstallerStateDefaults:
@@ -13,7 +13,7 @@ class TestInstallerStateDefaults:
         assert state.platform == sys.platform
 
     def test_default_install_path_windows(self, monkeypatch: object) -> None:
-        import gemma_installer.installer_state as mod
+        import nexus_installer.installer_state as mod
 
         monkeypatch.setattr(sys, "platform", "win32")  # type: ignore[attr-defined]
         # Re-invoke default factory
@@ -21,14 +21,14 @@ class TestInstallerStateDefaults:
         assert "GemmaCode" in path
 
     def test_default_install_path_darwin(self, monkeypatch: object) -> None:
-        import gemma_installer.installer_state as mod
+        import nexus_installer.installer_state as mod
 
         monkeypatch.setattr(sys, "platform", "darwin")  # type: ignore[attr-defined]
         path = mod._default_install_path()
         assert "/Applications" in path
 
     def test_default_install_path_linux(self, monkeypatch: object) -> None:
-        import gemma_installer.installer_state as mod
+        import nexus_installer.installer_state as mod
 
         monkeypatch.setattr(sys, "platform", "linux")  # type: ignore[attr-defined]
         path = mod._default_install_path()

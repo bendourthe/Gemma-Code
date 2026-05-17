@@ -31,8 +31,19 @@ let _onDidChangeConfigurationListener:
   | ((e: typeof mockConfigurationChangeEvent) => void)
   | null = null;
 
+// v1.0.0 Phase 2.1: SettingsCompat reads via `inspect()` so tests get a
+// realistic default that reports "no explicit value set". The legacy `get()`
+// path is kept for code paths that still bypass the shim (tests can override
+// it via `mockGetConfiguration.mockReturnValue(...)`).
 export const mockGetConfiguration = vi.fn(() => ({
   get: vi.fn(<T>(key: string, defaultValue?: T): T | undefined => defaultValue),
+  inspect: vi.fn(<T>(_key: string): {
+    defaultValue?: T;
+    globalValue?: T;
+    workspaceValue?: T;
+    workspaceFolderValue?: T;
+  } => ({})),
+  update: vi.fn(() => Promise.resolve()),
 }));
 
 export const mockOnDidChangeConfiguration = vi.fn(

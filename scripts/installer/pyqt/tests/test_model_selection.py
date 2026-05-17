@@ -1,9 +1,9 @@
-"""Tests for model selection logic."""
+﻿"""Tests for model selection logic."""
 
 from __future__ import annotations
 
-from gemma_installer.installer_state import InstallerState
-from gemma_installer.pages.model_selection import MODEL_OPTIONS
+from nexus_installer.installer_state import InstallerState
+from nexus_installer.pages.model_selection import MODEL_OPTIONS
 
 
 class TestModelOptions:

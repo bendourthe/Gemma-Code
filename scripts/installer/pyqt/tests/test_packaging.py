@@ -10,10 +10,10 @@ BUILD_DIR = PYQT_ROOT / "build"
 
 class TestSpecFile:
     def test_spec_file_exists(self) -> None:
-        assert (BUILD_DIR / "gemma-installer.spec").is_file()
+        assert (BUILD_DIR / "nexus-installer.spec").is_file()
 
     def test_spec_contains_required_entries(self) -> None:
-        content = (BUILD_DIR / "gemma-installer.spec").read_text()
+        content = (BUILD_DIR / "nexus-installer.spec").read_text()
         assert "PyQt5.QtWidgets" in content
         assert "PyQt5.QtCore" in content
         assert "PyQt5.QtGui" in content

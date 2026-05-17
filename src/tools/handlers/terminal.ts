@@ -95,9 +95,26 @@ export function isAllowlisted(command: string): boolean {
 
 function readCompressionSetting(): boolean {
   try {
-    const config = vscode.workspace.getConfiguration("gemma-code");
-    const value = config.get<boolean>("preToolCompression");
-    return value !== false;
+    // v1.0.0 Phase 2.1: prefer the canonical `nexus.coding.preToolCompression`
+    // key. Fall back to the legacy `gemma-code.preToolCompression` for users
+    // mid-migration. Default true.
+    const nexusCfg = vscode.workspace.getConfiguration("nexus.coding");
+    const nexusValue = nexusCfg.inspect<boolean>("preToolCompression");
+    if (
+      nexusValue &&
+      (nexusValue.workspaceFolderValue !== undefined ||
+        nexusValue.workspaceValue !== undefined ||
+        nexusValue.globalValue !== undefined)
+    ) {
+      const explicit =
+        nexusValue.workspaceFolderValue ??
+        nexusValue.workspaceValue ??
+        nexusValue.globalValue;
+      return explicit !== false;
+    }
+    const legacyCfg = vscode.workspace.getConfiguration("gemma-code");
+    const legacy = legacyCfg.get<boolean>("preToolCompression");
+    return legacy !== false;
   } catch {
     return true;
   }

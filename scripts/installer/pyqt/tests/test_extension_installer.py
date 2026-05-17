@@ -1,11 +1,11 @@
-"""Tests for ExtensionInstaller."""
+﻿"""Tests for ExtensionInstaller."""
 
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from gemma_installer.engine.extension_installer import EXTENSION_ID, ExtensionInstaller
-from gemma_installer.installer_state import InstallerState
+from nexus_installer.engine.extension_installer import EXTENSION_ID, ExtensionInstaller
+from nexus_installer.installer_state import InstallerState
 
 
 class TestExtensionInstaller:
@@ -32,7 +32,7 @@ class TestExtensionInstaller:
                 return_value="/path/to/gemma-code-0.3.0.vsix",
             ),
             patch(
-                "gemma_installer.engine.extension_installer.run_command",
+                "nexus_installer.engine.extension_installer.run_command",
                 side_effect=[
                     (0, "Extension installed", ""),  # install
                     (0, f"some-ext\n{EXTENSION_ID}\n", ""),  # list
@@ -52,7 +52,7 @@ class TestExtensionInstaller:
                 return_value="/path/to/gemma-code-0.3.0.vsix",
             ),
             patch(
-                "gemma_installer.engine.extension_installer.run_command",
+                "nexus_installer.engine.extension_installer.run_command",
                 return_value=(1, "", "error"),
             ),
         ):

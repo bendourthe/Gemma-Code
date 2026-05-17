@@ -212,7 +212,7 @@ export function createOllamaClient(
   const opts: CreateOllamaClientOptions =
     typeof options === "string" ? { baseUrl: options } : options ?? {};
 
-  // The composition root (`extension.ts` / `GemmaCodePanel`) supplies values
+  // The composition root (`extension.ts` / `NexusCodingPanel`) supplies values
   // explicitly. The dev `gemma-code.ping` command and several tests use the
   // legacy zero-arg form, which is allowed to read `getSettings()` here as a
   // backstop. Per Phase 6 sub-task 6.9, this is the only `getSettings()` call

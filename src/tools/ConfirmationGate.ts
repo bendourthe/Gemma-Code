@@ -77,7 +77,7 @@ function attributeDescription(
  *      approves or rejects (or times out). When `source` is provided, the
  *      description is prefixed with peer attribution so the user can tell a
  *      local-agent request from an MCP-driven request.
- *   2. `gate.resolve(id, approved)` -- called by GemmaCodePanel when it
+ *   2. `gate.resolve(id, approved)` -- called by NexusCodingPanel when it
  *      receives a confirmationResponse message from the webview.
  */
 export class ConfirmationGate {
@@ -186,7 +186,7 @@ export class ConfirmationGate {
   }
 
   /**
-   * Called by GemmaCodePanel when a `confirmationResponse` webview message arrives.
+   * Called by NexusCodingPanel when a `confirmationResponse` webview message arrives.
    * Silently ignores unknown ids (e.g., after a timeout already resolved the promise).
    */
   resolve(id: string, approved: boolean): void {

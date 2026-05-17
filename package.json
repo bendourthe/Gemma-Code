@@ -93,14 +93,159 @@
     "configuration": {
       "title": "Nexus Coding (Gemma Code engine)",
       "properties": {
+        "nexus.llm.ollamaUrl": {
+          "type": "string",
+          "default": "http://localhost:11434",
+          "description": "Ollama server URL (v1.0.0 canonical key; legacy `gemma-code.ollamaUrl` is resolved by the compat shim until v1.1.0)."
+        },
+        "nexus.llm.modelName": {
+          "type": "string",
+          "default": "gemma4:e4b",
+          "description": "Model to use for inference (v1.0.0; legacy `gemma-code.modelName`)."
+        },
+        "nexus.llm.maxTokens": {
+          "type": "number",
+          "default": 131072,
+          "description": "Maximum context tokens (Gemma 4 supports 128K for E2B/E4B, 256K for 26B/31B). v1.0.0; legacy `gemma-code.maxTokens`."
+        },
+        "nexus.llm.temperature": {
+          "type": "number",
+          "default": 1,
+          "description": "Sampling temperature (Gemma 4 recommended: 1.0). v1.0.0; legacy `gemma-code.temperature`."
+        },
+        "nexus.llm.topP": {
+          "type": "number",
+          "default": 0.95,
+          "description": "Top-p (nucleus) sampling threshold (Gemma 4 recommended: 0.95). v1.0.0; legacy `gemma-code.topP`."
+        },
+        "nexus.llm.topK": {
+          "type": "number",
+          "default": 64,
+          "description": "Top-k sampling threshold (Gemma 4 recommended: 64). v1.0.0; legacy `gemma-code.topK`."
+        },
+        "nexus.llm.requestTimeout": {
+          "type": "number",
+          "default": 60000,
+          "description": "HTTP timeout in milliseconds (v1.0.0; legacy `gemma-code.requestTimeout`)."
+        },
+        "nexus.llm.backend": {
+          "type": "string",
+          "enum": [
+            "ollama",
+            "lmstudio",
+            "auto"
+          ],
+          "default": "ollama",
+          "description": "LLM backend selector (v1.0.0; legacy `gemma-code.llm.backend`)."
+        },
+        "nexus.llm.lmstudio.baseUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:1234",
+          "description": "LM Studio base URL (v1.0.0; legacy `gemma-code.lmstudio.baseUrl`)."
+        },
+        "nexus.coding.editMode": {
+          "type": "string",
+          "enum": [
+            "ask",
+            "auto",
+            "plan"
+          ],
+          "default": "ask",
+          "description": "How Nexus Coding applies changes. 'ask': show diff and confirm. 'auto': apply immediately. 'plan': produce a plan first. v1.0.0; legacy `gemma-code.editMode`."
+        },
+        "nexus.coding.toolConfirmationMode": {
+          "type": "string",
+          "enum": [
+            "always",
+            "ask",
+            "never"
+          ],
+          "default": "ask",
+          "description": "When to prompt for confirmation before running terminal commands or editing files (v1.0.0; legacy `gemma-code.toolConfirmationMode`)."
+        },
+        "nexus.coding.maxAgentIterations": {
+          "type": "number",
+          "default": 20,
+          "description": "Maximum agentic tool-use iterations per user message (v1.0.0; legacy `gemma-code.maxAgentIterations`)."
+        },
+        "nexus.coding.thinkingMode": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Gemma 4 thinking mode for chain-of-thought reasoning (v1.0.0; legacy `gemma-code.thinkingMode`)."
+        },
+        "nexus.coding.promptStyle": {
+          "type": "string",
+          "enum": [
+            "concise",
+            "detailed",
+            "beginner"
+          ],
+          "default": "concise",
+          "description": "Verbosity and style of the system prompt (v1.0.0; legacy `gemma-code.promptStyle`)."
+        },
+        "nexus.coding.thinkingModePreset": {
+          "type": "string",
+          "enum": [
+            "nothink",
+            "think",
+            "think-max"
+          ],
+          "default": "nothink",
+          "description": "Sampler/thinking-mode preset (v1.0.0; legacy `gemma-code.thinkingModePreset`)."
+        },
+        "nexus.memory.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable persistent memory system for cross-session context recall (v1.0.0; legacy `gemma-code.memoryEnabled`)."
+        },
+        "nexus.memory.embeddingModel": {
+          "type": "string",
+          "default": "nomic-embed-text",
+          "description": "Ollama embedding model for semantic memory search (v1.0.0; legacy `gemma-code.embeddingModel`)."
+        },
+        "nexus.memory.snapshotMode": {
+          "type": "string",
+          "enum": [
+            "frozen",
+            "live"
+          ],
+          "default": "frozen",
+          "description": "Memory snapshot semantics for prefix-cache preservation (v1.0.0; legacy `gemma-code.memorySnapshotMode`)."
+        },
+        "nexus.mcp.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable Model Context Protocol (MCP) support (v1.0.0; legacy `gemma-code.mcpEnabled`)."
+        },
+        "nexus.mcp.serverMode": {
+          "type": "string",
+          "enum": [
+            "stdio",
+            "off"
+          ],
+          "default": "off",
+          "description": "MCP server mode (v1.0.0; legacy `gemma-code.mcpServerMode`)."
+        },
+        "nexus.autoDetectGpu": {
+          "type": "boolean",
+          "default": true,
+          "description": "Auto-detect GPU and VRAM at startup (v1.0.0; legacy `gemma-code.autoDetectGpu`)."
+        },
+        "nexus.operationLog.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Append one Markdown-friendly line per tool call to <workspace>/.nexus/operation-log.md (v1.0.0; legacy `gemma-code.operationLog.enabled`, which still wrote to .gemma-code/)."
+        },
         "gemma-code.ollamaUrl": {
           "type": "string",
           "default": "http://localhost:11434",
+          "deprecationMessage": "Use `nexus.llm.ollamaUrl` instead. Removed in v1.1.0.",
           "description": "Ollama server URL"
         },
         "gemma-code.modelName": {
           "type": "string",
           "default": "gemma4:e4b",
+          "deprecationMessage": "Use `nexus.llm.modelName` instead. Removed in v1.1.0.",
           "description": "Model to use for inference"
         },
         "gemma-code.maxTokens": {
@@ -529,7 +674,8 @@
     }
   },
   "bin": {
-    "gemma-check": "./bin/gemma-check.mjs"
+    "nexus-check": "./bin/nexus-check.mjs",
+    "gemma-check": "./bin/gemma-check-compat.mjs"
   },
   "workspaces": [
     "desktop"
@@ -554,12 +700,13 @@
     "package": "powershell -NonInteractive -ExecutionPolicy Bypass -File scripts/build-vsix.ps1",
     "package:quick": "vsce package",
     "package:skills": "node scripts/package-skills.mjs",
-    "check": "node bin/gemma-check.mjs",
-    "check:prompts": "node bin/gemma-check.mjs --rule prompt-no-ascii-violation --rule prompt-oversized --rule prompt-trailing-whitespace --rule prompt-bom --rule skill-duplicate-name src/chat/prompts src/skills/catalog",
+    "check": "node bin/nexus-check.mjs",
+    "check:prompts": "node bin/nexus-check.mjs --rule prompt-no-ascii-violation --rule prompt-oversized --rule prompt-trailing-whitespace --rule prompt-bom --rule skill-duplicate-name src/chat/prompts src/skills/catalog",
     "cleanup:scan": "node scripts/cleanup-scanner.mjs",
     "cleanup:scan:json": "node scripts/cleanup-scanner.mjs --format=json",
     "bench": "vitest bench --run --config configs/vitest.config.ts",
-    "deps:check": "depcruise --config configs/dependency-cruiser.cjs src tests",
+    "deps:check": "depcruise --config configs/dependency-cruiser.cjs src core modules tests",
+    "check-architecture": "depcruise --config configs/dependency-cruiser.cjs src core modules",
     "deps:graph": "depcruise --config configs/dependency-cruiser.cjs --output-type dot src | dot -Tsvg > docs/v0.5.0/dep-graph.svg",
     "catalog": "node scripts/generate-catalog.mjs",
     "catalog:check": "node scripts/generate-catalog.mjs && git diff --exit-code docs/index.md",

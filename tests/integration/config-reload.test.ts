@@ -64,21 +64,35 @@ describe("onSettingsChange", () => {
     const callback = vi.fn();
     onSettingsChange(callback);
 
-    // First change: configuration returns modelName "gemma4:e4b".
-    mockGetConfiguration.mockImplementationOnce(() => ({
+    // v1.0.0 Phase 2.1: SettingsCompat queries multiple `nexus.<group>`
+    // sections plus legacy `gemma-code` per getSettings() call. Use a
+    // section-aware mock so the value is reported regardless of which
+    // section the shim probes. `inspect` returns `{ globalValue: ... }`
+    // when the key matches.
+    mockGetConfiguration.mockImplementation((_section?: string) => ({
       get: vi.fn(<T>(key: string, defaultValue?: T): T | undefined => {
         if (key === "modelName") return "gemma4:e4b" as T;
         return defaultValue;
       }),
+      inspect: vi.fn(<T>(leaf: string) => {
+        if (leaf === "modelName") return { globalValue: "gemma4:e4b" as T };
+        return {};
+      }),
+      update: vi.fn(() => Promise.resolve()),
     }));
     triggerConfigurationChange(() => true);
 
-    // Second change: configuration now returns a different modelName.
-    mockGetConfiguration.mockImplementationOnce(() => ({
+    // Swap to the new value before the second change.
+    mockGetConfiguration.mockImplementation((_section?: string) => ({
       get: vi.fn(<T>(key: string, defaultValue?: T): T | undefined => {
         if (key === "modelName") return "gemma4:e4b-instruct" as T;
         return defaultValue;
       }),
+      inspect: vi.fn(<T>(leaf: string) => {
+        if (leaf === "modelName") return { globalValue: "gemma4:e4b-instruct" as T };
+        return {};
+      }),
+      update: vi.fn(() => Promise.resolve()),
     }));
     triggerConfigurationChange(() => true);
 

@@ -1,16 +1,16 @@
-"""Tests for wizard pages requiring QApplication."""
+﻿"""Tests for wizard pages requiring QApplication."""
 
 from __future__ import annotations
 
 from unittest.mock import patch
 
-from gemma_installer.installer_state import InstallerState
+from nexus_installer.installer_state import InstallerState
 
 
 class TestWelcomePage:
     def test_creates_without_crash(self, qt_app: object) -> None:
-        with patch("gemma_installer.pages.welcome._QuickCheckWorker.start"):
-            from gemma_installer.pages.welcome import WelcomePage
+        with patch("nexus_installer.pages.welcome._QuickCheckWorker.start"):
+            from nexus_installer.pages.welcome import WelcomePage
 
             state = InstallerState()
             page = WelcomePage(state)
@@ -19,16 +19,16 @@ class TestWelcomePage:
 
 class TestPrerequisitesPage:
     def test_creates_and_has_validate(self, qt_app: object) -> None:
-        with patch("gemma_installer.pages.prerequisites._DetectionWorker.start"):
-            from gemma_installer.pages.prerequisites import PrerequisitesPage
+        with patch("nexus_installer.pages.prerequisites._DetectionWorker.start"):
+            from nexus_installer.pages.prerequisites import PrerequisitesPage
 
             state = InstallerState()
             page = PrerequisitesPage(state)
             assert hasattr(page, "validate")
 
     def test_validate_fails_without_vscode(self, qt_app: object) -> None:
-        with patch("gemma_installer.pages.prerequisites._DetectionWorker.start"):
-            from gemma_installer.pages.prerequisites import PrerequisitesPage
+        with patch("nexus_installer.pages.prerequisites._DetectionWorker.start"):
+            from nexus_installer.pages.prerequisites import PrerequisitesPage
 
             state = InstallerState()
             page = PrerequisitesPage(state)
@@ -39,8 +39,8 @@ class TestPrerequisitesPage:
             assert "VS Code" in msg or "Visual Studio Code" in msg
 
     def test_validate_fails_without_disk(self, qt_app: object) -> None:
-        with patch("gemma_installer.pages.prerequisites._DetectionWorker.start"):
-            from gemma_installer.pages.prerequisites import PrerequisitesPage
+        with patch("nexus_installer.pages.prerequisites._DetectionWorker.start"):
+            from nexus_installer.pages.prerequisites import PrerequisitesPage
 
             state = InstallerState()
             page = PrerequisitesPage(state)
@@ -50,8 +50,8 @@ class TestPrerequisitesPage:
             assert ok is False
 
     def test_validate_passes_when_both_ok(self, qt_app: object) -> None:
-        with patch("gemma_installer.pages.prerequisites._DetectionWorker.start"):
-            from gemma_installer.pages.prerequisites import PrerequisitesPage
+        with patch("nexus_installer.pages.prerequisites._DetectionWorker.start"):
+            from nexus_installer.pages.prerequisites import PrerequisitesPage
 
             state = InstallerState()
             page = PrerequisitesPage(state)
@@ -63,8 +63,8 @@ class TestPrerequisitesPage:
 
 class TestGpuDetectionPage:
     def test_creates_without_crash(self, qt_app: object) -> None:
-        with patch("gemma_installer.pages.gpu_detection._GpuDetectionWorker.start"):
-            from gemma_installer.pages.gpu_detection import GpuDetectionPage
+        with patch("nexus_installer.pages.gpu_detection._GpuDetectionWorker.start"):
+            from nexus_installer.pages.gpu_detection import GpuDetectionPage
 
             state = InstallerState()
             page = GpuDetectionPage(state)
@@ -73,14 +73,14 @@ class TestGpuDetectionPage:
 
 class TestInstallPathPage:
     def test_creates_with_default_path(self, qt_app: object) -> None:
-        from gemma_installer.pages.install_path import InstallPathPage
+        from nexus_installer.pages.install_path import InstallPathPage
 
         state = InstallerState()
         page = InstallPathPage(state)
         assert page is not None
 
     def test_validate_empty_path_fails(self, qt_app: object) -> None:
-        from gemma_installer.pages.install_path import InstallPathPage
+        from nexus_installer.pages.install_path import InstallPathPage
 
         state = InstallerState(install_path="")
         page = InstallPathPage(state)
@@ -90,7 +90,7 @@ class TestInstallPathPage:
 
 class TestModelSelectionPage:
     def test_creates_with_models(self, qt_app: object) -> None:
-        from gemma_installer.pages.model_selection import ModelSelectionPage
+        from nexus_installer.pages.model_selection import ModelSelectionPage
 
         state = InstallerState(recommended_model="gemma4:e4b", vram_mb=8192)
         page = ModelSelectionPage(state)
@@ -99,7 +99,7 @@ class TestModelSelectionPage:
 
 class TestConfigurationPage:
     def test_creates_with_toggles(self, qt_app: object) -> None:
-        from gemma_installer.pages.configuration import ConfigurationPage
+        from nexus_installer.pages.configuration import ConfigurationPage
 
         state = InstallerState()
         page = ConfigurationPage(state)
@@ -108,7 +108,7 @@ class TestConfigurationPage:
 
 class TestReviewPage:
     def test_creates_with_summary(self, qt_app: object) -> None:
-        from gemma_installer.pages.review import ReviewPage
+        from nexus_installer.pages.review import ReviewPage
 
         state = InstallerState(
             selected_model="gemma4:e4b",
@@ -121,7 +121,7 @@ class TestReviewPage:
 
 class TestInstallingPage:
     def test_creates_and_has_validate(self, qt_app: object) -> None:
-        from gemma_installer.pages.installing import InstallingPage
+        from nexus_installer.pages.installing import InstallingPage
 
         state = InstallerState()
         page = InstallingPage(state)
@@ -129,7 +129,7 @@ class TestInstallingPage:
         assert hasattr(page, "start_installation")
 
     def test_validate_blocks_while_running(self, qt_app: object) -> None:
-        from gemma_installer.pages.installing import InstallingPage
+        from nexus_installer.pages.installing import InstallingPage
 
         state = InstallerState()
         page = InstallingPage(state)
@@ -138,7 +138,7 @@ class TestInstallingPage:
         assert ok is False
 
     def test_validate_passes_when_done(self, qt_app: object) -> None:
-        from gemma_installer.pages.installing import InstallingPage
+        from nexus_installer.pages.installing import InstallingPage
 
         state = InstallerState()
         page = InstallingPage(state)
@@ -149,7 +149,7 @@ class TestInstallingPage:
 
 class TestCompletePage:
     def test_creates_with_state(self, qt_app: object) -> None:
-        from gemma_installer.pages.complete import CompletePage
+        from nexus_installer.pages.complete import CompletePage
 
         state = InstallerState()
         page = CompletePage(state)

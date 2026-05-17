@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build the Gemma Code installer for Linux via PyInstaller.
-# Produces dist/gemma-code-setup and optionally an AppImage.
+# Build the Nexus Installer for Linux via PyInstaller.
+# Produces dist/nexus-setup and optionally an AppImage.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PYQT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -17,9 +17,9 @@ pip install pyinstaller pyqt5 httpx --quiet 2>/dev/null || true
 
 log_info "[2/4] Running PyInstaller..."
 cd "$PYQT_ROOT"
-pyinstaller build/gemma-installer.spec --distpath dist --workpath build/work --clean --noconfirm 2>&1 | grep -v "^INFO\|^DEBUG" || true
+pyinstaller build/nexus-installer.spec --distpath dist --workpath build/work --clean --noconfirm 2>&1 | grep -v "^INFO\|^DEBUG" || true
 
-BINARY_PATH="$PYQT_ROOT/dist/gemma-code-setup"
+BINARY_PATH="$PYQT_ROOT/dist/nexus-setup"
 if [ ! -f "$BINARY_PATH" ]; then
     log_error "Build failed. $BINARY_PATH not found."
     exit 1
@@ -45,20 +45,20 @@ if [ -z "$APPIMAGE_TOOL" ]; then
     fi
 fi
 
-APPDIR=$(mktemp -d)/GemmaCodeSetup.AppDir
+APPDIR=$(mktemp -d)/NexusSetup.AppDir
 mkdir -p "$APPDIR/usr/bin" "$APPDIR/usr/share/icons"
-cp "$BINARY_PATH" "$APPDIR/usr/bin/gemma-code-setup"
+cp "$BINARY_PATH" "$APPDIR/usr/bin/nexus-setup"
 
 if [ -f "$REPO_ROOT/assets/icon.png" ]; then
     cp "$REPO_ROOT/assets/icon.png" "$APPDIR/usr/share/icons/gemma-code.png"
     cp "$REPO_ROOT/assets/icon.png" "$APPDIR/gemma-code.png"
 fi
 
-cat > "$APPDIR/gemma-code-setup.desktop" <<'DESKTOP'
+cat > "$APPDIR/nexus-setup.desktop" <<'DESKTOP'
 [Desktop Entry]
 Type=Application
-Name=Gemma Code Installer
-Exec=gemma-code-setup
+Name=Nexus Installer
+Exec=nexus-setup
 Icon=gemma-code
 Categories=Development;
 DESKTOP
@@ -67,11 +67,11 @@ cat > "$APPDIR/AppRun" <<'APPRUN'
 #!/bin/bash
 SELF=$(readlink -f "$0")
 HERE=${SELF%/*}
-exec "${HERE}/usr/bin/gemma-code-setup" "$@"
+exec "${HERE}/usr/bin/nexus-setup" "$@"
 APPRUN
 chmod +x "$APPDIR/AppRun"
 
-APPIMAGE_OUT="$PYQT_ROOT/dist/GemmaCodeSetup-x86_64.AppImage"
+APPIMAGE_OUT="$PYQT_ROOT/dist/NexusSetup-x86_64.AppImage"
 "$APPIMAGE_TOOL" "$APPDIR" "$APPIMAGE_OUT" 2>/dev/null || log_info "AppImage creation failed; binary is still available"
 
 if [ -f "$APPIMAGE_OUT" ]; then

@@ -16,7 +16,7 @@ printf "==================================================\n"
 
 # Test 1: Installer package imports
 cd "$INSTALLER_DIR"
-if python -c "from gemma_installer import __version__; print(__version__)" 2>/dev/null | grep -q "0\."; then
+if python -c "from nexus_installer import __version__; print(__version__)" 2>/dev/null | grep -q "0\."; then
     log_pass "Installer package imports"
 else
     log_fail "Installer package imports" "Import failed"
@@ -24,7 +24,7 @@ fi
 
 # Test 2: GPU detection
 cd "$INSTALLER_DIR"
-if python -c "from gemma_installer.pages.gpu_detection import detect_gpu; name, vendor, vram = detect_gpu(); print(f'{vendor}:{vram}')" 2>/dev/null | grep -q ":"; then
+if python -c "from nexus_installer.pages.gpu_detection import detect_gpu; name, vendor, vram = detect_gpu(); print(f'{vendor}:{vram}')" 2>/dev/null | grep -q ":"; then
     log_pass "GPU detection completes"
 else
     log_fail "GPU detection completes" "Detection failed"
@@ -32,7 +32,7 @@ fi
 
 # Test 3: Theme generation
 cd "$INSTALLER_DIR"
-if python -c "from gemma_installer.theme import generate_stylesheet; s = generate_stylesheet(); assert len(s) > 500; print('OK')" 2>/dev/null | grep -q "OK"; then
+if python -c "from nexus_installer.theme import generate_stylesheet; s = generate_stylesheet(); assert len(s) > 500; print('OK')" 2>/dev/null | grep -q "OK"; then
     log_pass "Theme generates valid QSS"
 else
     log_fail "Theme generates valid QSS" "Theme generation failed"

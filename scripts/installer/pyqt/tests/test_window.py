@@ -1,4 +1,4 @@
-"""Tests for the InstallerWindow."""
+﻿"""Tests for the InstallerWindow."""
 
 from __future__ import annotations
 
@@ -7,13 +7,13 @@ from PyQt5.QtWidgets import QWidget
 
 class TestInstallerWindow:
     def test_creates_with_correct_title(self, qt_app: object) -> None:
-        from gemma_installer.window import InstallerWindow
+        from nexus_installer.window import InstallerWindow
 
         window = InstallerWindow()
         assert "Gemma Code" in window.windowTitle()
 
     def test_has_header_and_footer(self, qt_app: object) -> None:
-        from gemma_installer.window import InstallerWindow
+        from nexus_installer.window import InstallerWindow
 
         window = InstallerWindow()
         assert window.header is not None
@@ -21,7 +21,7 @@ class TestInstallerWindow:
         assert window.step_indicator is not None
 
     def test_add_and_switch_page(self, qt_app: object) -> None:
-        from gemma_installer.window import InstallerWindow
+        from nexus_installer.window import InstallerWindow
 
         window = InstallerWindow()
         page1 = QWidget()
@@ -34,7 +34,7 @@ class TestInstallerWindow:
         assert window.current_index == 1
 
     def test_show_first_page(self, qt_app: object) -> None:
-        from gemma_installer.window import InstallerWindow
+        from nexus_installer.window import InstallerWindow
 
         window = InstallerWindow()
         page = QWidget()
@@ -43,7 +43,7 @@ class TestInstallerWindow:
         assert window.current_index == 0
 
     def test_switch_page_out_of_bounds_ignored(self, qt_app: object) -> None:
-        from gemma_installer.window import InstallerWindow
+        from nexus_installer.window import InstallerWindow
 
         window = InstallerWindow()
         page = QWidget()
@@ -53,7 +53,7 @@ class TestInstallerWindow:
         assert window.current_index == 0
 
     def test_footer_text_changes_on_last_page(self, qt_app: object) -> None:
-        from gemma_installer.window import InstallerWindow
+        from nexus_installer.window import InstallerWindow
 
         window = InstallerWindow()
         window.add_page(QWidget())
@@ -62,7 +62,7 @@ class TestInstallerWindow:
         assert window.footer.next_button.text() == "Finish"
 
     def test_back_disabled_on_first_page(self, qt_app: object) -> None:
-        from gemma_installer.window import InstallerWindow
+        from nexus_installer.window import InstallerWindow
 
         window = InstallerWindow()
         window.add_page(QWidget())
@@ -71,7 +71,7 @@ class TestInstallerWindow:
         assert not window.footer.back_button.isVisible()
 
     def test_validation_blocks_navigation(self, qt_app: object) -> None:
-        from gemma_installer.window import InstallerWindow
+        from nexus_installer.window import InstallerWindow
 
         class FailingPage(QWidget):
             def validate(self) -> tuple[bool, str]:

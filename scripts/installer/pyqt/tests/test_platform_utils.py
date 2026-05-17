@@ -1,10 +1,10 @@
-"""Tests for platform_utils module."""
+﻿"""Tests for platform_utils module."""
 
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from gemma_installer.engine.platform_utils import (
+from nexus_installer.engine.platform_utils import (
     find_executable,
     run_command,
     run_command_streaming,
@@ -18,7 +18,7 @@ class TestRunCommand:
         mock_result.stdout = "hello"
         mock_result.stderr = ""
         with patch(
-            "gemma_installer.engine.platform_utils.subprocess.run",
+            "nexus_installer.engine.platform_utils.subprocess.run",
             return_value=mock_result,
         ):
             code, stdout, stderr = run_command(["echo", "hello"])
@@ -27,7 +27,7 @@ class TestRunCommand:
 
     def test_command_not_found(self) -> None:
         with patch(
-            "gemma_installer.engine.platform_utils.subprocess.run",
+            "nexus_installer.engine.platform_utils.subprocess.run",
             side_effect=FileNotFoundError,
         ):
             code, stdout, stderr = run_command(["nonexistent"])
@@ -38,7 +38,7 @@ class TestRunCommand:
         import subprocess
 
         with patch(
-            "gemma_installer.engine.platform_utils.subprocess.run",
+            "nexus_installer.engine.platform_utils.subprocess.run",
             side_effect=subprocess.TimeoutExpired("cmd", 5),
         ):
             code, stdout, stderr = run_command(["slow"], timeout=5)
@@ -47,7 +47,7 @@ class TestRunCommand:
 
     def test_os_error(self) -> None:
         with patch(
-            "gemma_installer.engine.platform_utils.subprocess.run",
+            "nexus_installer.engine.platform_utils.subprocess.run",
             side_effect=OSError("fail"),
         ):
             code, stdout, stderr = run_command(["broken"])
@@ -62,7 +62,7 @@ class TestRunCommandStreaming:
         mock_proc.wait.return_value = None
         mock_proc.returncode = 0
         with patch(
-            "gemma_installer.engine.platform_utils.subprocess.Popen",
+            "nexus_installer.engine.platform_utils.subprocess.Popen",
             return_value=mock_proc,
         ):
             code = run_command_streaming(
@@ -74,7 +74,7 @@ class TestRunCommandStreaming:
     def test_returns_negative_on_not_found(self) -> None:
         lines: list[str] = []
         with patch(
-            "gemma_installer.engine.platform_utils.subprocess.Popen",
+            "nexus_installer.engine.platform_utils.subprocess.Popen",
             side_effect=FileNotFoundError,
         ):
             code = run_command_streaming(["missing"], lambda line: lines.append(line))
@@ -84,7 +84,7 @@ class TestRunCommandStreaming:
 class TestFindExecutable:
     def test_found_on_path(self) -> None:
         with patch(
-            "gemma_installer.engine.platform_utils.shutil.which",
+            "nexus_installer.engine.platform_utils.shutil.which",
             return_value="/usr/bin/python3",
         ):
             result = find_executable("python3")
@@ -92,10 +92,10 @@ class TestFindExecutable:
 
     def test_not_found(self) -> None:
         with patch(
-            "gemma_installer.engine.platform_utils.shutil.which", return_value=None
+            "nexus_installer.engine.platform_utils.shutil.which", return_value=None
         ):
             with patch(
-                "gemma_installer.engine.platform_utils.os.path.isfile",
+                "nexus_installer.engine.platform_utils.os.path.isfile",
                 return_value=False,
             ):
                 result = find_executable("nonexistent", ["/tmp"])
@@ -103,15 +103,15 @@ class TestFindExecutable:
 
     def test_found_in_extra_paths(self) -> None:
         with patch(
-            "gemma_installer.engine.platform_utils.shutil.which", return_value=None
+            "nexus_installer.engine.platform_utils.shutil.which", return_value=None
         ):
             with (
                 patch(
-                    "gemma_installer.engine.platform_utils.os.path.isfile",
+                    "nexus_installer.engine.platform_utils.os.path.isfile",
                     return_value=True,
                 ),
                 patch(
-                    "gemma_installer.engine.platform_utils.os.access", return_value=True
+                    "nexus_installer.engine.platform_utils.os.access", return_value=True
                 ),
             ):
                 result = find_executable("tool", ["/opt/bin"])

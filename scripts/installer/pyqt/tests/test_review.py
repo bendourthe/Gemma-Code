@@ -1,9 +1,9 @@
-"""Tests for the review page summary logic."""
+﻿"""Tests for the review page summary logic."""
 
 from __future__ import annotations
 
-from gemma_installer.installer_state import InstallerState
-from gemma_installer.pages.review import _MODEL_SIZES
+from nexus_installer.installer_state import InstallerState
+from nexus_installer.pages.review import _MODEL_SIZES
 
 
 class TestModelSizes:

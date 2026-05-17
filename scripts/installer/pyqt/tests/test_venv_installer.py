@@ -1,4 +1,4 @@
-"""Tests for VenvInstaller.
+﻿"""Tests for VenvInstaller.
 
 The venv step was reduced to a no-op stub in v0.4.0 (ADR-0001) because the
 Python backend was removed. These tests lock in the stub's contract: it
@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from gemma_installer.engine.venv_installer import VenvInstaller
-from gemma_installer.installer_state import InstallerState
+from nexus_installer.engine.venv_installer import VenvInstaller
+from nexus_installer.installer_state import InstallerState
 
 
 class TestVenvInstaller:

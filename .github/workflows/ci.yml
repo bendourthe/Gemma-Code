@@ -191,7 +191,7 @@ jobs:
           path: dist/gemini-cli/
           retention-days: 30
 
-  # -- gemma-check self-scan ------------------------------------------------
+  # -- nexus-check self-scan (v1.0.0; renamed from gemma-check in Phase 2.4) -
   #
   # Runs the standalone deterministic-checks CLI against `src/`. The CLI is
   # LLM-free and the gate is "no error-severity findings" -- it serves both
@@ -204,15 +204,15 @@ jobs:
   # restore the legacy "any finding fails" behaviour (use only in
   # zero-tolerance gates -- not the default for this surface).
 
-  gemma-check:
-    name: gemma-check (src/)
+  nexus-check:
+    name: nexus-check (src/)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: "22"
-      - run: node bin/gemma-check.mjs src/
+      - run: node bin/nexus-check.mjs src/
 
   # -- v0.9.0 Phase 7 (sub-task 7.5) -- PR-time fast-bench gate --------------
   #

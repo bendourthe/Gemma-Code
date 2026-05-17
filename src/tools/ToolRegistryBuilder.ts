@@ -59,7 +59,7 @@ export interface ToolRegistryBuildOptions {
 
 /**
  * Build the panel's primary {@link ToolRegistry}. Extracted from
- * GemmaCodePanel as part of v0.7.0 Phase 0 sub-task 0.4 so the panel no
+ * NexusCodingPanel as part of v0.7.0 Phase 0 sub-task 0.4 so the panel no
  * longer hosts the per-tool registration list. Tool authorship continues to
  * follow the AGENTS.md Module Authorship Contract; this helper only
  * centralises the wiring.

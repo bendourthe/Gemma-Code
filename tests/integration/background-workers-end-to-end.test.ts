@@ -28,7 +28,13 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..", "..");
-const gemmaCheckScript = path.join(repoRoot, "bin", "gemma-check.mjs");
+// v1.0.0 Phase 2.4: the canonical script is nexus-check.mjs; fall back to
+// the legacy name so a partial repo state still exercises the integration.
+const nexusCheckPath = path.join(repoRoot, "bin", "nexus-check.mjs");
+const legacyCheckPath = path.join(repoRoot, "bin", "gemma-check.mjs");
+const gemmaCheckScript = fs.existsSync(nexusCheckPath)
+  ? nexusCheckPath
+  : legacyCheckPath;
 const fixtureWithFinding = path.join(
   repoRoot,
   "tests",

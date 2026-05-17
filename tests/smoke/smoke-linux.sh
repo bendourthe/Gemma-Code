@@ -38,7 +38,7 @@ run_installer() {
     local extra_args=()
     [[ "$WITH_MODEL" == "1" ]] || extra_args+=(--skip-model)
     pushd "$REPO_ROOT/scripts/installer/pyqt" >/dev/null
-    QT_QPA_PLATFORM=offscreen PYTHONPATH=src python3 -m gemma_installer.main \
+    QT_QPA_PLATFORM=offscreen PYTHONPATH=src python3 -m nexus_installer.main \
         --headless \
         --install-path "$INSTALL_PATH" \
         --model "$MODEL" \
@@ -70,7 +70,7 @@ cleanup() {
     popd >/dev/null
     pkill -f "ollama serve" 2>/dev/null || true
     # Extra Linux check: no leftover processes
-    pgrep -f "gemma_installer.main" >/dev/null 2>&1 && pkill -f "gemma_installer.main" || true
+    pgrep -f "nexus_installer.main" >/dev/null 2>&1 && pkill -f "nexus_installer.main" || true
     pgrep -f "backend.main" >/dev/null 2>&1 && pkill -f "backend.main" || true
 }
 

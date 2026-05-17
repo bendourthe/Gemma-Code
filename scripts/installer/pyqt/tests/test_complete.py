@@ -1,11 +1,11 @@
-"""Tests for the completion page logic."""
+﻿"""Tests for the completion page logic."""
 
 from __future__ import annotations
 
 import sys
 from unittest.mock import patch
 
-from gemma_installer.installer_state import InstallerState
+from nexus_installer.installer_state import InstallerState
 
 
 class TestOpenVscodeCommand:

@@ -1,12 +1,12 @@
 # Pinned Installer Dependency Versions
 
-The Gemma Code cross-platform installer downloads and verifies third-party binaries against pinned checksums to prevent supply-chain compromise. When upstream releases a new version and you want to adopt it, you must bump **both** the version tag **and** the checksum in lockstep.
+The Nexus cross-platform installer (v1.0.0; renamed from Gemma Code in Phase 2.5) downloads and verifies third-party binaries against pinned checksums to prevent supply-chain compromise. When upstream releases a new version and you want to adopt it, you must bump **both** the version tag **and** the checksum in lockstep.
 
 ## Ollama
 
 | Field | Value | Notes |
 | --- | --- | --- |
-| Pinned tag | `v0.3.6` | Bump by editing `OLLAMA_PINNED_TAG` in `src/gemma_installer/engine/ollama_installer.py`. |
+| Pinned tag | `v0.3.6` | Bump by editing `OLLAMA_PINNED_TAG` in `src/nexus_installer/engine/ollama_installer.py`. |
 | Windows binary | `OllamaSetup.exe` | Downloaded from `https://github.com/ollama/ollama/releases/download/<tag>/OllamaSetup.exe`. |
 | Windows SHA-256 | `0000...` (placeholder) | Update `OLLAMA_WINDOWS_SHA256`. Pull the hash from the upstream release page. |
 | Linux install script | `install.sh` | Downloaded from `https://ollama.com/install.sh`. |

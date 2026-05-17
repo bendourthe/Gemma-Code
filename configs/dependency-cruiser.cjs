@@ -22,13 +22,13 @@ module.exports = {
       comment:
         'Only files under src/llm/ may import the concrete Ollama clients. ' +
         'Other modules must consume the port in src/llm/types.ts. The ' +
-        'composition root (`src/runtime/GemmaRuntime.ts`) constructs the ' +
+        'composition root (`src/runtime/NexusCodingRuntime.ts`) constructs the ' +
         'concrete client via `createOllamaClient` and threads the port to ' +
         'every consumer.',
       from: {
         pathNot: [
           '^src/llm/',
-          '^src/runtime/GemmaRuntime\\.ts$',
+          '^src/runtime/NexusCodingRuntime\\.ts$',
         ],
       },
       to: { path: '^src/llm/(?:OllamaClient|OllamaHttp)\\.ts$' },
@@ -59,7 +59,7 @@ module.exports = {
         'src/panels/messages.ts so the webview sandbox cannot bypass guardrails. ' +
         'After Phase 6 of the v0.6.0 cycle (panel decomposition) and Phase 0 ' +
         'sub-task 0.4 of the v0.7.0 cycle (ChatController construction-graph ' +
-        'hoist), the chat panel is split into GemmaCodePanel (lifecycle), ' +
+        'hoist), the chat panel is split into NexusCodingPanel (lifecycle), ' +
         'ChatPanelBootstrap (construction graph), ChatController (chat flow + ' +
         'memory injection), ChatCommandHandlers (slash dispatch), ' +
         'ChatStatusReporter (status pushes + render cache), ChatMessageRouter ' +
@@ -78,7 +78,7 @@ module.exports = {
         path: '^src/panels/',
         pathNot: [
           '^src/panels/messages\\.ts$',
-          '^src/panels/GemmaCodePanel\\.ts$',
+          '^src/panels/NexusCodingPanel\\.ts$',
           '^src/panels/ChatPanelBootstrap\\.ts$',
           '^src/panels/ChatPanelInit\\.ts$',
           '^src/panels/ChatController\\.ts$',
@@ -146,6 +146,29 @@ module.exports = {
       to: { dependencyTypes: ['deprecated'] },
     },
     {
+      name: 'no-core-from-modules',
+      severity: 'error',
+      comment:
+        'v1.0.0 Phase 2.3 boundary rule -- `core/**` provides shared-core ' +
+        'infrastructure (ModelRegistry, MemoryHub, TelemetryBus, ' +
+        'SkillCatalog, StorageMigration). It MUST NOT depend on any pillar ' +
+        'module under `modules/<pillar>/**`. Modules may depend on `core/**` ' +
+        'but not vice-versa.',
+      from: { path: '^core/' },
+      to: { path: '^modules/' },
+    },
+    {
+      name: 'no-cross-module-deps',
+      severity: 'error',
+      comment:
+        'v1.0.0 Phase 2.3 boundary rule -- pillar modules (`modules/coding`, ' +
+        '`modules/chat`, `modules/image`, `modules/video`) must communicate ' +
+        'through `core/**` surfaces, never directly. This keeps any one ' +
+        'pillar replaceable without touching the others.',
+      from: { path: '^modules/([^/]+)/' },
+      to: { path: '^modules/(?!\\1/)([^/]+)/' },
+    },
+    {
       name: 'no-non-package-json',
       severity: 'error',
       comment:
@@ -175,6 +198,7 @@ module.exports = {
         '^scripts/hooks/',
         '^configs/',
         '^docs/',
+        '^desktop/',
       ],
     },
     tsPreCompilationDeps: true,

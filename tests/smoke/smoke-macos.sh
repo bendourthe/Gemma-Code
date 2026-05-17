@@ -38,7 +38,7 @@ run_installer() {
     local extra_args=()
     [[ "$WITH_MODEL" == "1" ]] || extra_args+=(--skip-model)
     pushd "$REPO_ROOT/scripts/installer/pyqt" >/dev/null
-    PYTHONPATH=src python3 -m gemma_installer.main \
+    PYTHONPATH=src python3 -m nexus_installer.main \
         --headless \
         --install-path "$INSTALL_PATH" \
         --model "$MODEL" \

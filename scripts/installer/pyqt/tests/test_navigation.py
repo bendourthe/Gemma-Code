@@ -1,4 +1,4 @@
-"""Tests for window navigation logic."""
+﻿"""Tests for window navigation logic."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ class TestValidationProtocol:
 
 class TestPageSequence:
     def test_nine_step_names(self) -> None:
-        from gemma_installer.constants import STEP_NAMES
+        from nexus_installer.constants import STEP_NAMES
 
         assert len(STEP_NAMES) == 9
         assert STEP_NAMES[0] == "Welcome"
@@ -36,7 +36,7 @@ class TestPageSequence:
         assert STEP_NAMES[8] == "Complete"
 
     def test_review_is_before_installing(self) -> None:
-        from gemma_installer.constants import STEP_NAMES
+        from nexus_installer.constants import STEP_NAMES
 
         review_idx = STEP_NAMES.index("Review")
         install_idx = STEP_NAMES.index("Installing")

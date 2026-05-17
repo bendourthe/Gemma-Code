@@ -2,17 +2,22 @@
 
 Thanks for your interest in improving Nexus. This document covers the minimum you need to know to land a change. If you are new to open source or do not yet have Node.js installed, start with [CONTRIBUTING-BEGINNERS.md](CONTRIBUTING-BEGINNERS.md) -- the step-by-step variant of this same workflow.
 
-> **Heads-up: project in pivot.** Nexus is the successor product to **Gemma Code** (v0.1.0 - v0.22.x). The repository name, branding, and target shape are mid-transition from a single VS Code extension to a four-module native desktop app. While the v1.0.0 plan in [docs/v1.0.0/](./docs/v1.0.0/) is landing, the `src/` tree, `package.json`, settings keys (`gemma-code.*`), installer namespace (`gemma_installer`), and many docs still use the legacy Gemma-Code naming. Treat code identifiers as the source of truth, and update them in lockstep with the rename phases of the v1.0.0 plan rather than ad-hoc.
+> **Heads-up: project in pivot.** Nexus is the successor product to **Gemma Code** (v0.1.0 - v0.22.x). The repository name, branding, and target shape are mid-transition from a single VS Code extension to a four-module native desktop app. The v1.0.0 Phase 2 rebrand sweep is in flight: settings keys, storage paths, the deterministic-checks CLI, the Python installer package, and the load-bearing code identifiers (`GemmaCodePanel`, `GemmaRuntime`) have been renamed to the `nexus.*` namespace with a one-cycle compat shim. The Gemma 4 *model* (`gemma4`, `Gemma 4`, `Gemma4ToolFormat`) is intentionally NOT renamed.
 
 ## Project tour
 
-- TypeScript VS Code extension under [src/](./src). Composition root is [src/extension.ts](./src/extension.ts) -> [src/runtime/GemmaRuntime.ts](./src/runtime/GemmaRuntime.ts) -> [src/panels/GemmaCodePanel.ts](./src/panels/GemmaCodePanel.ts).
+- v1.0.0 shared core under [core/](./core) (`ModelRegistry`, `MemoryHub`, `TelemetryBus`, `SkillCatalog`, `StorageMigration`).
+- Per-pillar modules under [modules/](./modules). The Coding pillar currently lives under [src/](./src) during the one-cycle compat window; wholesale move to [modules/coding/](./modules/coding/) is tracked in [docs/v1.0.0/known-gaps.md](./docs/v1.0.0/known-gaps.md) under code `MV`.
+- Composition root: [src/extension.ts](./src/extension.ts) -> [src/runtime/NexusCodingRuntime.ts](./src/runtime/NexusCodingRuntime.ts) -> [src/panels/NexusCodingPanel.ts](./src/panels/NexusCodingPanel.ts).
 - Vendor-neutral LLM port at [src/llm/types.ts](./src/llm/types.ts); the Ollama adapter at [src/llm/OllamaClient.ts](./src/llm/OllamaClient.ts).
 - Pre-execution safety layer at [src/guardrails/](./src/guardrails) (action classification, loop detection, git checkpoints, permission tiers).
 - Local trace store + dashboard at [src/observability/](./src/observability).
+- Tauri desktop shell under [desktop/](./desktop) (Phase 1).
+- PyQt5 installer under [scripts/installer/pyqt/](./scripts/installer/pyqt/) (`nexus_installer` Python package, renamed from `gemma_installer` in Phase 2.5).
+- Deterministic-checks CLI at [bin/nexus-check.mjs](./bin/nexus-check.mjs) (renamed from `gemma-check` in Phase 2.4; legacy alias kept for one cycle).
 - Tests mirror source layout under [tests/unit/](./tests/unit), [tests/integration/](./tests/integration), and [tests/golden/](./tests/golden).
 
-For deeper architecture see [ARCHITECTURE.md](./ARCHITECTURE.md) and [docs/v0.4.0/](./docs/v0.4.0/). The canonical agent directive is [AGENTS.md](./AGENTS.md).
+For deeper architecture see [ARCHITECTURE.md](./ARCHITECTURE.md) and [docs/v1.0.0/architecture.md](./docs/v1.0.0/architecture.md). The canonical agent directive is [AGENTS.md](./AGENTS.md).
 
 ## One-command setup
 

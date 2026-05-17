@@ -73,7 +73,7 @@ Write-Header "Running installer in headless mode"
 Push-Location (Join-Path $repoRoot "scripts\installer\pyqt")
 $env:PYTHONPATH = "src"
 $installerArgs = @(
-    "-m", "gemma_installer.main",
+    "-m", "nexus_installer.main",
     "--headless",
     "--install-path", $InstallPath,
     "--model", $Model,

@@ -1,11 +1,11 @@
-"""Tests for install path page logic."""
+﻿"""Tests for install path page logic."""
 
 from __future__ import annotations
 
 import os
 from unittest.mock import MagicMock, patch
 
-from gemma_installer.installer_state import InstallerState
+from nexus_installer.installer_state import InstallerState
 
 
 class TestInstallPathValidation:

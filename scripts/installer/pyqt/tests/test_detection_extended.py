@@ -1,4 +1,4 @@
-"""Extended detection tests for GPU and prerequisite functions to boost coverage."""
+﻿"""Extended detection tests for GPU and prerequisite functions to boost coverage."""
 
 from __future__ import annotations
 
@@ -6,13 +6,13 @@ import os
 import sys
 from unittest.mock import MagicMock, patch
 
-from gemma_installer.pages.gpu_detection import (
+from nexus_installer.pages.gpu_detection import (
     _run_cmd,
     detect_amd_windows,
     detect_fallback_windows,
     recommend_model,
 )
-from gemma_installer.pages.prerequisites import (
+from nexus_installer.pages.prerequisites import (
     _find_vscode_windows,
     find_ollama,
 )
@@ -24,7 +24,7 @@ class TestRunCmd:
         mock_result.returncode = 0
         mock_result.stdout = "output"
         with patch(
-            "gemma_installer.pages.gpu_detection.subprocess.run",
+            "nexus_installer.pages.gpu_detection.subprocess.run",
             return_value=mock_result,
         ):
             result = _run_cmd(["echo", "hi"])
@@ -34,7 +34,7 @@ class TestRunCmd:
         import subprocess
 
         with patch(
-            "gemma_installer.pages.gpu_detection.subprocess.run",
+            "nexus_installer.pages.gpu_detection.subprocess.run",
             side_effect=subprocess.TimeoutExpired("cmd", 5),
         ):
             result = _run_cmd(["slow"])
@@ -42,7 +42,7 @@ class TestRunCmd:
 
     def test_file_not_found(self) -> None:
         with patch(
-            "gemma_installer.pages.gpu_detection.subprocess.run",
+            "nexus_installer.pages.gpu_detection.subprocess.run",
             side_effect=FileNotFoundError,
         ):
             result = _run_cmd(["nonexistent"])
@@ -53,7 +53,7 @@ class TestRunCmd:
         mock_result.returncode = 1
         mock_result.stdout = ""
         with patch(
-            "gemma_installer.pages.gpu_detection.subprocess.run",
+            "nexus_installer.pages.gpu_detection.subprocess.run",
             return_value=mock_result,
         ):
             result = _run_cmd(["failing"])
@@ -64,7 +64,7 @@ class TestDetectAmdWindows:
     def test_parses_amd_gpu(self) -> None:
         csv_output = '"Name","AdapterRAM"\n"AMD Radeon RX 7900 XTX","25769803776"'
         with patch(
-            "gemma_installer.pages.gpu_detection._run_cmd", return_value=csv_output
+            "nexus_installer.pages.gpu_detection._run_cmd", return_value=csv_output
         ):
             name, vram = detect_amd_windows()
             assert "Radeon" in name
@@ -73,13 +73,13 @@ class TestDetectAmdWindows:
     def test_ignores_non_amd(self) -> None:
         csv_output = '"Name","AdapterRAM"\n"NVIDIA GeForce","8589934592"'
         with patch(
-            "gemma_installer.pages.gpu_detection._run_cmd", return_value=csv_output
+            "nexus_installer.pages.gpu_detection._run_cmd", return_value=csv_output
         ):
             name, vram = detect_amd_windows()
             assert name == ""
 
     def test_returns_empty_on_failure(self) -> None:
-        with patch("gemma_installer.pages.gpu_detection._run_cmd", return_value=None):
+        with patch("nexus_installer.pages.gpu_detection._run_cmd", return_value=None):
             name, vram = detect_amd_windows()
             assert name == ""
 
@@ -88,7 +88,7 @@ class TestDetectFallbackWindows:
     def test_parses_wmi_output(self) -> None:
         csv_output = "Node,AdapterRAM,Name\nPC,8589934592,NVIDIA GeForce RTX 3070"
         with patch(
-            "gemma_installer.pages.gpu_detection._run_cmd", return_value=csv_output
+            "nexus_installer.pages.gpu_detection._run_cmd", return_value=csv_output
         ):
             name, vendor, vram = detect_fallback_windows()
             assert "NVIDIA" in name
@@ -98,13 +98,13 @@ class TestDetectFallbackWindows:
     def test_intel_gpu(self) -> None:
         csv_output = "Node,AdapterRAM,Name\nPC,2147483648,Intel UHD Graphics 770"
         with patch(
-            "gemma_installer.pages.gpu_detection._run_cmd", return_value=csv_output
+            "nexus_installer.pages.gpu_detection._run_cmd", return_value=csv_output
         ):
             name, vendor, vram = detect_fallback_windows()
             assert vendor == "intel"
 
     def test_returns_empty_on_failure(self) -> None:
-        with patch("gemma_installer.pages.gpu_detection._run_cmd", return_value=None):
+        with patch("nexus_installer.pages.gpu_detection._run_cmd", return_value=None):
             name, vendor, vram = detect_fallback_windows()
             assert name == ""
 
@@ -113,7 +113,7 @@ class TestFindVscodeWindows:
     def test_well_known_path_found(self) -> None:
         with (
             patch(
-                "gemma_installer.pages.prerequisites.os.path.isfile",
+                "nexus_installer.pages.prerequisites.os.path.isfile",
                 side_effect=lambda p: "Microsoft VS Code" in p,
             ),
             patch.dict(
@@ -132,10 +132,10 @@ class TestFindVscodeWindows:
     def test_path_fallback(self) -> None:
         with (
             patch(
-                "gemma_installer.pages.prerequisites.os.path.isfile", return_value=False
+                "nexus_installer.pages.prerequisites.os.path.isfile", return_value=False
             ),
             patch(
-                "gemma_installer.pages.prerequisites.shutil.which",
+                "nexus_installer.pages.prerequisites.shutil.which",
                 return_value=r"C:\path\code.cmd",
             ),
         ):
@@ -148,17 +148,17 @@ class TestFindOllamaWindows:
     def test_found_in_localappdata(self) -> None:
         with (
             patch(
-                "gemma_installer.pages.prerequisites.shutil.which", return_value=None
+                "nexus_installer.pages.prerequisites.shutil.which", return_value=None
             ),
-            patch("gemma_installer.pages.prerequisites.sys") as mock_sys,
+            patch("nexus_installer.pages.prerequisites.sys") as mock_sys,
             patch(
-                "gemma_installer.pages.prerequisites.os.path.isfile", return_value=True
+                "nexus_installer.pages.prerequisites.os.path.isfile", return_value=True
             ),
             patch(
-                "gemma_installer.pages.prerequisites.os.environ",
+                "nexus_installer.pages.prerequisites.os.environ",
                 {"LOCALAPPDATA": r"C:\Users\test\AppData\Local"},
             ),
-            patch("gemma_installer.pages.prerequisites.subprocess.run") as mock_run,
+            patch("nexus_installer.pages.prerequisites.subprocess.run") as mock_run,
         ):
             mock_sys.platform = "win32"
             mock_run.return_value.stdout = "ollama version 0.1.44"

@@ -1,10 +1,10 @@
-"""Tests for prerequisite detection functions."""
+﻿"""Tests for prerequisite detection functions."""
 
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from gemma_installer.pages.prerequisites import (
+from nexus_installer.pages.prerequisites import (
     check_disk_space,
     find_ollama,
     find_python,
@@ -15,22 +15,22 @@ from gemma_installer.pages.prerequisites import (
 class TestFindVscode:
     def test_found_via_which(self) -> None:
         with patch(
-            "gemma_installer.pages.prerequisites.shutil.which",
+            "nexus_installer.pages.prerequisites.shutil.which",
             return_value="/usr/bin/code",
         ):
-            with patch("gemma_installer.pages.prerequisites.sys") as mock_sys:
+            with patch("nexus_installer.pages.prerequisites.sys") as mock_sys:
                 mock_sys.platform = "linux"
                 path = find_vscode()
                 assert path == "/usr/bin/code"
 
     def test_not_found_returns_empty(self) -> None:
         with patch(
-            "gemma_installer.pages.prerequisites.shutil.which", return_value=None
+            "nexus_installer.pages.prerequisites.shutil.which", return_value=None
         ):
-            with patch("gemma_installer.pages.prerequisites.sys") as mock_sys:
+            with patch("nexus_installer.pages.prerequisites.sys") as mock_sys:
                 mock_sys.platform = "linux"
                 with patch(
-                    "gemma_installer.pages.prerequisites.os.path.isfile",
+                    "nexus_installer.pages.prerequisites.os.path.isfile",
                     return_value=False,
                 ):
                     path = find_vscode()
@@ -44,11 +44,11 @@ class TestFindPython:
         mock_result.returncode = 0
         with (
             patch(
-                "gemma_installer.pages.prerequisites.shutil.which",
+                "nexus_installer.pages.prerequisites.shutil.which",
                 return_value="/usr/bin/python3",
             ),
             patch(
-                "gemma_installer.pages.prerequisites.subprocess.run",
+                "nexus_installer.pages.prerequisites.subprocess.run",
                 return_value=mock_result,
             ),
         ):
@@ -62,13 +62,13 @@ class TestFindPython:
         mock_result.returncode = 0
         with (
             patch(
-                "gemma_installer.pages.prerequisites.shutil.which",
+                "nexus_installer.pages.prerequisites.shutil.which",
                 side_effect=lambda cmd: (
                     "/usr/bin/python3" if cmd == "python3" else None
                 ),
             ),
             patch(
-                "gemma_installer.pages.prerequisites.subprocess.run",
+                "nexus_installer.pages.prerequisites.subprocess.run",
                 return_value=mock_result,
             ),
         ):
@@ -77,7 +77,7 @@ class TestFindPython:
 
     def test_not_found(self) -> None:
         with patch(
-            "gemma_installer.pages.prerequisites.shutil.which", return_value=None
+            "nexus_installer.pages.prerequisites.shutil.which", return_value=None
         ):
             path, version = find_python()
             assert path == ""
@@ -85,7 +85,7 @@ class TestFindPython:
 
     def test_windows_apps_excluded(self) -> None:
         with patch(
-            "gemma_installer.pages.prerequisites.shutil.which",
+            "nexus_installer.pages.prerequisites.shutil.which",
             side_effect=lambda cmd: (
                 r"C:\Users\test\AppData\Local\Microsoft\WindowsApps\python.exe"
                 if cmd == "python"
@@ -102,11 +102,11 @@ class TestFindOllama:
         mock_result.stdout = "ollama version is 0.1.44"
         with (
             patch(
-                "gemma_installer.pages.prerequisites.shutil.which",
+                "nexus_installer.pages.prerequisites.shutil.which",
                 return_value="/usr/bin/ollama",
             ),
             patch(
-                "gemma_installer.pages.prerequisites.subprocess.run",
+                "nexus_installer.pages.prerequisites.subprocess.run",
                 return_value=mock_result,
             ),
         ):
@@ -117,12 +117,12 @@ class TestFindOllama:
     def test_not_found(self) -> None:
         with (
             patch(
-                "gemma_installer.pages.prerequisites.shutil.which", return_value=None
+                "nexus_installer.pages.prerequisites.shutil.which", return_value=None
             ),
             patch(
-                "gemma_installer.pages.prerequisites.os.path.isfile", return_value=False
+                "nexus_installer.pages.prerequisites.os.path.isfile", return_value=False
             ),
-            patch("gemma_installer.pages.prerequisites.sys") as mock_sys,
+            patch("nexus_installer.pages.prerequisites.sys") as mock_sys,
         ):
             mock_sys.platform = "linux"
             installed, _ = find_ollama()
@@ -134,7 +134,7 @@ class TestCheckDiskSpace:
         mock_usage = MagicMock()
         mock_usage.free = 50 * 1024**3  # 50 GB
         with patch(
-            "gemma_installer.pages.prerequisites.shutil.disk_usage",
+            "nexus_installer.pages.prerequisites.shutil.disk_usage",
             return_value=mock_usage,
         ):
             gb = check_disk_space("/")
@@ -142,7 +142,7 @@ class TestCheckDiskSpace:
 
     def test_handles_os_error(self) -> None:
         with patch(
-            "gemma_installer.pages.prerequisites.shutil.disk_usage", side_effect=OSError
+            "nexus_installer.pages.prerequisites.shutil.disk_usage", side_effect=OSError
         ):
             gb = check_disk_space("/nonexistent")
             assert gb == 0.0

@@ -56,7 +56,7 @@ const MODULE_DESCRIPTIONS = {
   panels:
     "VS Code webview panels and message protocol. Communication with the runtime goes through panels/messages.ts; direct storage imports are forbidden.",
   runtime:
-    "GemmaRuntime composition root. Wires Tracer, settings, and the dependency graph that the panel and command layers consume.",
+    "NexusCodingRuntime composition root. Wires Tracer, settings, and the dependency graph that the panel and command layers consume.",
   skills:
     "User-defined skill loader. Reads SKILL.md files from ~/.gemma-code/skills/ and contributes them as system-prompt augmentations.",
   storage:

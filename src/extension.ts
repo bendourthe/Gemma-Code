@@ -1,7 +1,7 @@
 import * as path from "path";
 import * as vscode from "vscode";
 import { formatForUser } from "./utils/errors.js";
-import { GemmaCodePanel } from "./panels/GemmaCodePanel.js";
+import { NexusCodingPanel } from "./panels/NexusCodingPanel.js";
 import { SessionListPanel, SESSION_VIEW_ID } from "./panels/SessionListPanel.js";
 import { getGpuDetector } from "./config/GpuDetector.js";
 import { classifyTier, getTierConfig } from "./config/HardwareTier.js";
@@ -11,7 +11,7 @@ import { MetricsCollector } from "./observability/MetricsCollector.js";
 import { TraceDashboardPanel, TRACE_DASHBOARD_VIEW_ID } from "./panels/TraceDashboardPanel.js";
 import { MemoryPanel, MEMORY_PANEL_VIEW_ID } from "./panels/MemoryPanel.js";
 import { OtlpExporter, parseOtlpHeaders } from "./observability/OtlpExporter.js";
-import { GemmaRuntime } from "./runtime/GemmaRuntime.js";
+import { NexusCodingRuntime } from "./runtime/NexusCodingRuntime.js";
 import { disposeEncoder as disposeTokenEncoder } from "./config/PromptBudget.js";
 import * as fs from "fs";
 import { hookFilePath } from "./chat/ImprovementHook.js";
@@ -39,9 +39,9 @@ const OLLAMA_POLL_FAST_MS = 5_000;
 const OLLAMA_POLL_SLOW_MS = 30_000;
 
 function startOllamaPoller(
-  panel: GemmaCodePanel,
+  panel: NexusCodingPanel,
   channel: vscode.OutputChannel,
-  runtime: GemmaRuntime,
+  runtime: NexusCodingRuntime,
 ): void {
   let ollamaWasReachable = false;
   // Client is created once and reused across every tick. Previously a fresh
@@ -81,7 +81,7 @@ export function activate(context: vscode.ExtensionContext): void {
   outputChannel = vscode.window.createOutputChannel("Gemma Code");
   context.subscriptions.push(outputChannel);
 
-  const runtime = new GemmaRuntime();
+  const runtime = new NexusCodingRuntime();
   context.subscriptions.push({ dispose: () => runtime.dispose() });
   const settings = runtime.settings;
 
@@ -152,7 +152,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(pingCommand);
 
   // ── Chat panel (used by both sidebar fallback and editor panel) ──────────
-  const chatPanel = new GemmaCodePanel(
+  const chatPanel = new NexusCodingPanel(
     context.extensionUri,
     runtime,
     context.globalStorageUri,
@@ -233,7 +233,7 @@ export function activate(context: vscode.ExtensionContext): void {
       {
         enableScripts: true,
         // Discard webview JS state while hidden to free memory; the panel
-        // rehydrates via GemmaCodePanel.onDidChangeViewState + _postHistory.
+        // rehydrates via NexusCodingPanel.onDidChangeViewState + _postHistory.
         retainContextWhenHidden: false,
         localResourceRoots: [context.extensionUri],
       }

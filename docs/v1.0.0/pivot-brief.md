@@ -92,14 +92,18 @@ These will be surfaced as interview prompts in `/generate-plan`:
 A grep on 2026-05-16 found **1,932 mentions of "Gemma-Code" / "Gemma Code" / "gemma-code" / "GemmaCode" / "gemmaCode" across 250 files**. Rebrand is staged:
 
 - **Done in this pivot brief commit:** `README.md`, `ARCHITECTURE.md`, `AGENTS.md`, `CONTRIBUTING.md`, `CONTRIBUTING-BEGINNERS.md`, `package.json` (`displayName`, `description`, sidebar `title`, `configuration.title`).
-- **Deferred to a dedicated rename phase in the v1.0.0 plan:**
-  - Code identifiers: `GemmaCodePanel` -> `NexusCodingPanel`, `GemmaRuntime` -> `NexusRuntime`, `gemma_installer` Python package -> `nexus_installer`, etc.
-  - Settings keys: `gemma-code.*` -> `nexus.*` / `nexus.coding.*` with one-cycle compat shim.
-  - VS Code command IDs: `gemma-code.*` -> `nexus.*` (breaking change for the extension; ride a major version bump).
-  - npm package `"name"` and `"publisher"`: `gemma-code` -> `nexus-coding` (re-publish the extension under the new identifier in the same phase).
-  - Storage paths: `~/.gemma-code/` -> `~/.nexus/` with a one-time migration on first launch.
-  - `gemma-check` CLI -> `nexus-check`.
-  - Installer paths (`scripts/installer/pyqt/src/gemma_installer/`) and produced binaries.
+- **Completed in v1.0.0 Phase 2 (Rebrand sweep + shared-core extraction):**
+  - **Code identifiers** (Phase 2.7): `GemmaCodePanel` -> `NexusCodingPanel`, `GemmaRuntime` -> `NexusCodingRuntime`. The Gemma 4 *model* (`Gemma4ToolFormat`, `gemma4:e4b`, `Gemma 4`) is intentionally preserved.
+  - **Settings keys** (Phase 2.1): `gemma-code.*` -> `nexus.*` / `nexus.coding.*` / `nexus.llm.*` / `nexus.memory.*` with one-cycle compat shim at [`src/config/SettingsCompat.ts`](../../src/config/SettingsCompat.ts). Legacy keys emit a one-line deprecation log; removed in v1.1.0.
+  - **Storage paths** (Phase 2.2): `~/.gemma-code/` -> `~/.nexus/` via idempotent first-launch migration at [`core/storage/StorageMigration.ts`](../../core/storage/StorageMigration.ts). POSIX symlinks the legacy directory; Windows leaves a README. Wholesale rename of every `.gemma-code/` literal across `src/` is tracked in [known-gaps.md](known-gaps.md) under code `DF` for v1.0.0 cleanup.
+  - **`gemma-check` CLI -> `nexus-check`** (Phase 2.4): renamed [`bin/nexus-check.mjs`](../../bin/nexus-check.mjs); legacy `gemma-check` exposed via [`bin/gemma-check-compat.mjs`](../../bin/gemma-check-compat.mjs) shim with a one-line deprecation. `GEMMA_CHECK_PROMPT_TOKEN_BUDGET` env var becomes `NEXUS_CHECK_PROMPT_TOKEN_BUDGET` (legacy honored).
+  - **Python installer package** (Phase 2.5): `scripts/installer/pyqt/src/gemma_installer/` -> `scripts/installer/pyqt/src/nexus_installer/`. `pyproject.toml` `[project.scripts]` entry-point and PyInstaller spec updated. Installer binaries: `NexusSetup.exe`, `Nexus Installer.app`, `nexus-setup` (Linux).
+  - **Shared core surfaces** (Phase 2.6): `core/registry/ModelRegistry`, `core/memory/MemoryHub`, `core/telemetry/TelemetryBus`, `core/skills/SkillCatalog` stubs landed with full unit-test coverage.
+  - **`core/` + `modules/coding/` layout** (Phase 2.3): top-level directories created; dependency-cruiser boundary rules `no-core-from-modules` and `no-cross-module-deps` enforced via `npm run check-architecture`.
+- **Deferred to a follow-up cycle (tracked in [known-gaps.md](known-gaps.md)):**
+  - VS Code command IDs and view container IDs: `gemma-code.*` -> `nexus.*` (breaking change for user keybindings; rides v1.1.0).
+  - npm package `"name"` and `"publisher"`: `gemma-code` -> `nexus-coding` (re-publish under the new identifier).
+  - Wholesale physical move of `src/` files into `modules/coding/<sub-tree>/` (the boundary is enforced for new code; the move is mechanical and high-cascade).
   - 200+ docs under `docs/v0.X.0/development/history/` are **explicitly preserved as-is** - they describe past state and rewriting them would corrupt history.
   - `docs/v0.X.0/architecture.md`, `docs/v0.X.0/known-gaps.md`, `docs/v0.X.0/plans/*` are also preserved as-is per the same rule.
   - `CHANGELOG.md` entries up to v0.22.2 stay as written; v0.23.0+ entries adopt the Nexus naming.

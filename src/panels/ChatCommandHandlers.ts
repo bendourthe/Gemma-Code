@@ -21,7 +21,7 @@ import type { DynamicToolMetadata } from "../tools/ToolCatalog.js";
 import type { SubAgentManager } from "../agents/SubAgentManager.js";
 import type { SubAgentConfig } from "../agents/types.js";
 import type { AgentLoop } from "../tools/AgentLoop.js";
-import type { GemmaRuntime } from "../runtime/GemmaRuntime.js";
+import type { NexusCodingRuntime } from "../runtime/NexusCodingRuntime.js";
 import type { GemmaCodeSettings } from "../config/settings.js";
 import type { CompressionState } from "../chat/state/CompressionState.js";
 import type { SkillMetrics } from "../skills/SkillMetrics.js";
@@ -52,7 +52,7 @@ export interface ChatCommandContext {
   readonly promptBuilder: PromptBuilder;
   readonly compactor: ContextCompactor;
   readonly commandRouter: CommandRouter;
-  readonly runtime: GemmaRuntime;
+  readonly runtime: NexusCodingRuntime;
   readonly subAgentManager: SubAgentManager;
   readonly agentLoop: AgentLoop;
   getStore(): ChatHistoryStore | null;
@@ -76,7 +76,7 @@ export interface ChatCommandContext {
 }
 
 /**
- * Slash-command dispatch extracted from GemmaCodePanel. Each command method
+ * Slash-command dispatch extracted from NexusCodingPanel. Each command method
  * is self-contained: it reads from the context, mutates conversation state,
  * and posts results back via the supplied callbacks. New commands plug in by
  * adding a case to {@link dispatch}; the {@link CommandRouter} already gates
@@ -326,7 +326,7 @@ export class ChatCommandHandlers {
 
     if (selected) {
       await vscode.workspace
-        .getConfiguration("gemma-code")
+        .getConfiguration("nexus.llm")
         .update("modelName", selected, vscode.ConfigurationTarget.Global);
       this._emitMarkdown(`_Switched to model: **${selected}**_`);
     }
@@ -840,7 +840,7 @@ export class ChatCommandHandlers {
 
   /**
    * v0.8.0 Phase 4 sub-task 4.1 -- `/trace <enable|dump|clear|status> [path]`.
-   * Manages the single bug-report JSONL primitive owned by `GemmaRuntime`.
+   * Manages the single bug-report JSONL primitive owned by `NexusCodingRuntime`.
    */
   private _handleTrace(args: string): void {
     const ctx = this._ctx;
@@ -934,7 +934,7 @@ export class ChatCommandHandlers {
     }
     try {
       await vscode.workspace
-        .getConfiguration("gemma-code")
+        .getConfiguration("nexus.coding")
         .update("thinkingModePreset", mode, vscode.ConfigurationTarget.Global);
       // v0.9.0 Phase 6.3 (from v0.8.0 known-gaps 10.O.L) -- one-line chat
       // affordance so the user sees the change immediately. An already-in-

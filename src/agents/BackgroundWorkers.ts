@@ -64,28 +64,33 @@ function resolveCwd(): string {
 declare const __dirname: string;
 
 /**
- * Locate the bundled `bin/gemma-check.mjs` script. Resolved relative to the
- * compiled extension layout (`out/agents/BackgroundWorkers.js` -> repo root
- * -> bin). Returns null when the file does not exist (e.g., a malformed
- * install).
+ * Locate the bundled `bin/nexus-check.mjs` script (renamed from
+ * `gemma-check.mjs` in v1.0.0 Phase 2.4). Falls back to the legacy filename
+ * for older installs that have not been re-packaged yet. Resolved relative
+ * to the compiled extension layout (`out/agents/BackgroundWorkers.js` ->
+ * repo root -> bin). Returns null when neither file is found.
  */
-function findGemmaCheckScript(): string | null {
+function findCheckScript(): string | null {
   // The compiled file lives at <ext>/out/agents/BackgroundWorkers.js, so the
   // repo / extension root is two levels up.
   const here = typeof __dirname === "string" ? __dirname : process.cwd();
-  const candidates = [
-    path.resolve(here, "..", "..", "bin", "gemma-check.mjs"),
-    path.resolve(here, "..", "..", "..", "bin", "gemma-check.mjs"),
-    path.resolve(process.cwd(), "bin", "gemma-check.mjs"),
+  const filenames = ["nexus-check.mjs", "gemma-check.mjs"];
+  const roots = [
+    path.resolve(here, "..", ".."),
+    path.resolve(here, "..", "..", ".."),
+    process.cwd(),
   ];
-  for (const candidate of candidates) {
-    if (existsSync(candidate)) return candidate;
+  for (const root of roots) {
+    for (const filename of filenames) {
+      const candidate = path.resolve(root, "bin", filename);
+      if (existsSync(candidate)) return candidate;
+    }
   }
   return null;
 }
 
 /**
- * Run `gemma-check --json` on the changed files and summarize findings for a
+ * Run `nexus-check --json` on the changed files and summarize findings for a
  * chat message. The runner is injectable for tests. Returns an empty-output
  * success when no findings are emitted (so callers can suppress the chat
  * surface).
@@ -103,13 +108,14 @@ export async function runAuditWorker(
   }
 
   const runner = options.runner ?? defaultRunner;
-  const script = options.scriptPath !== undefined ? options.scriptPath : findGemmaCheckScript();
+  const script = options.scriptPath !== undefined ? options.scriptPath : findCheckScript();
   if (!script) {
     return {
       success: false,
       output: "",
       toolCallCount: 0,
-      error: "gemma-check script not found; install gemma-code with bin/gemma-check.mjs available.",
+      error:
+        "nexus-check script not found; install Nexus with bin/nexus-check.mjs available.",
     };
   }
 

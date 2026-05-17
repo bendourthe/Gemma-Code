@@ -149,7 +149,7 @@ export class StreamingPipeline {
         // compaction does not re-feed hidden reasoning into the next prompt.
         const visible = parseChannel(accumulated).visible || accumulated;
         const msg = this._manager.addAssistantMessage(visible);
-        // renderedHtml is populated by GemmaCodePanel's postMessage interceptor.
+        // renderedHtml is populated by NexusCodingPanel's postMessage interceptor.
         postMessage({ type: "messageComplete", messageId: msg.id, renderedHtml: "" });
         return;
       } catch (err) {

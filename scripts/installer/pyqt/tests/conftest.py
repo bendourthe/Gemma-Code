@@ -1,4 +1,4 @@
-"""Shared fixtures for the installer test suite."""
+﻿"""Shared fixtures for the installer test suite."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from gemma_installer.installer_state import InstallerState
+from nexus_installer.installer_state import InstallerState
 
 
 @pytest.fixture

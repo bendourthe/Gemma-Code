@@ -21,7 +21,7 @@ import { LLMError } from "./types.js";
  * (`choices[0].delta.content`) and Gemma-Code's `LLMStreamChunk`
  * (`message.content`).
  *
- * Auto-detection lives in `GemmaRuntime.getOllamaClient()`: on macOS we
+ * Auto-detection lives in `NexusCodingRuntime.getOllamaClient()`: on macOS we
  * probe `:1234/v1/models` first and fall back to Ollama at `:11434`. On
  * Windows / Linux the default is Ollama unless the user explicitly opts in.
  *
@@ -279,7 +279,7 @@ export function createLmStudioClient(
 
 /**
  * Probe the LM Studio `/v1/models` endpoint. Returns `true` only when the
- * endpoint responds OK within `timeoutMs`. Used by `GemmaRuntime` auto-detect.
+ * endpoint responds OK within `timeoutMs`. Used by `NexusCodingRuntime` auto-detect.
  */
 export async function probeLmStudio(
   baseUrl = DEFAULT_BASE_URL,

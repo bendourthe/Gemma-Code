@@ -166,10 +166,15 @@ Cargo.lock
 *.sqlite3
 
 # ==============================================================================
-# Gemma Code agent output and session sync
+# Nexus / Gemma Code agent output and session sync
 # ==============================================================================
+# v1.0.0 Phase 2.2: storage root moved from .gemma-code/ -> .nexus/. The legacy
+# .gemma-code/ pattern stays for one cycle so projects mid-migration do not
+# accidentally commit the old workspace-local cache.
 .gemma-code-output/
+.nexus-output/
 .gemma-code/
+.nexus/
 
 # ==============================================================================
 # Go (CLI / Tooling)
@@ -248,8 +253,9 @@ worktrees/
 # ==============================================================================
 # HNSW vector index artifacts (v0.7.0 Phase 7)
 # ==============================================================================
-# Persisted under ~/.gemma-code/<workspace-id>/memory.hnsw at runtime; never
-# committed. The pattern below catches any stray local copies.
+# Persisted under ~/.nexus/<workspace-id>/memory.hnsw (or the legacy
+# ~/.gemma-code/<workspace-id>/memory.hnsw during the v1.0.0 compat window)
+# at runtime; never committed. The pattern below catches any stray copies.
 *.hnsw
 memory.hnsw
 

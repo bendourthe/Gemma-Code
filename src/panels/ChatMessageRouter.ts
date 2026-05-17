@@ -38,7 +38,7 @@ export interface ChatMessageRouterDeps {
 
 /**
  * Webview-to-extension message dispatch extracted from
- * {@link GemmaCodePanel} as part of v0.7.0 Phase 0 sub-task 0.4. The router
+ * {@link NexusCodingPanel} as part of v0.7.0 Phase 0 sub-task 0.4. The router
  * holds no panel-private state; it delegates to {@link ChatController} for
  * flow, to {@link ChatStatusReporter} for status pushes, and to small
  * handlers for the load-session / set-edit-mode / rollback paths that
@@ -205,7 +205,7 @@ export class ChatMessageRouter {
     const deps = this._deps;
     deps.setCurrentEditMode(mode);
     vscode.workspace
-      .getConfiguration("gemma-code")
+      .getConfiguration("nexus.coding")
       .update("editMode", mode, vscode.ConfigurationTarget.Global)
       .then(undefined, (err: unknown) => {
         const message = formatForUser(err);

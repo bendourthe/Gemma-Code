@@ -117,14 +117,14 @@ describe("BackgroundWorkers.runAuditWorker", () => {
     expect(runner).not.toHaveBeenCalled();
   });
 
-  it("returns an error when the gemma-check script is missing", async () => {
+  it("returns an error when the nexus-check script is missing", async () => {
     const runner = vi.fn();
     const result = await runAuditWorker(["src/foo.ts"], {
       runner,
       scriptPath: null,
     });
     expect(result.success).toBe(false);
-    expect(result.error).toContain("gemma-check");
+    expect(result.error).toContain("nexus-check");
     expect(runner).not.toHaveBeenCalled();
   });
 

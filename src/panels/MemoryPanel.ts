@@ -308,8 +308,16 @@ function isValidSection(value: string): value is MemorySectionHeading {
  */
 function readPromotionMappingOverride(): Readonly<Record<string, MemorySectionHeading>> | null {
   try {
-    const config = vscode.workspace.getConfiguration("gemma-code");
-    const raw = config.get<Record<string, string>>("memory.promotionMapping");
+    // v1.0.0 Phase 2.1: prefer `nexus.memory.promotionMapping`; fall back to
+    // legacy `gemma-code.memory.promotionMapping`.
+    const nexusCfg = vscode.workspace.getConfiguration("nexus.memory");
+    const nexusRaw = nexusCfg.get<Record<string, string>>("promotionMapping");
+    const raw =
+      nexusRaw && Object.keys(nexusRaw).length > 0
+        ? nexusRaw
+        : vscode.workspace
+            .getConfiguration("gemma-code")
+            .get<Record<string, string>>("memory.promotionMapping");
     if (!raw || typeof raw !== "object") return null;
     const out: Record<string, MemorySectionHeading> = {};
     for (const [key, value] of Object.entries(raw)) {

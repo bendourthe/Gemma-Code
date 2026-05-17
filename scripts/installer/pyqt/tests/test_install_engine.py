@@ -1,11 +1,11 @@
-"""Tests for InstallEngine orchestration."""
+﻿"""Tests for InstallEngine orchestration."""
 
 from __future__ import annotations
 
 from unittest.mock import patch
 
-from gemma_installer.engine.installer import InstallEngine
-from gemma_installer.installer_state import InstallerState
+from nexus_installer.engine.installer import InstallEngine
+from nexus_installer.installer_state import InstallerState
 
 
 class TestInstallEngineOrder:
@@ -18,10 +18,10 @@ class TestInstallEngineOrder:
         call_order: list[str] = []
 
         with (
-            patch("gemma_installer.engine.installer.OllamaInstaller") as MockOllama,
-            patch("gemma_installer.engine.installer.ExtensionInstaller") as MockExt,
-            patch("gemma_installer.engine.installer.VenvInstaller") as MockVenv,
-            patch("gemma_installer.engine.installer.ModelPuller") as MockPuller,
+            patch("nexus_installer.engine.installer.OllamaInstaller") as MockOllama,
+            patch("nexus_installer.engine.installer.ExtensionInstaller") as MockExt,
+            patch("nexus_installer.engine.installer.VenvInstaller") as MockVenv,
+            patch("nexus_installer.engine.installer.ModelPuller") as MockPuller,
         ):
             MockOllama.return_value.install.side_effect = lambda s, l: (
                 call_order.append("ollama"),
@@ -60,8 +60,8 @@ class TestInstallEngineSkips:
         )
 
         with (
-            patch("gemma_installer.engine.installer.OllamaInstaller") as MockOllama,
-            patch("gemma_installer.engine.installer.ExtensionInstaller") as MockExt,
+            patch("nexus_installer.engine.installer.OllamaInstaller") as MockOllama,
+            patch("nexus_installer.engine.installer.ExtensionInstaller") as MockExt,
         ):
             MockExt.return_value.install.return_value = True
 
@@ -83,8 +83,8 @@ class TestInstallEngineSkips:
         )
 
         with (
-            patch("gemma_installer.engine.installer.ExtensionInstaller") as MockExt,
-            patch("gemma_installer.engine.installer.ModelPuller") as MockPuller,
+            patch("nexus_installer.engine.installer.ExtensionInstaller") as MockExt,
+            patch("nexus_installer.engine.installer.ModelPuller") as MockPuller,
         ):
             MockExt.return_value.install.return_value = True
 
@@ -108,8 +108,8 @@ class TestInstallEnginePartialFailure:
         finished_args: list[tuple[bool, str]] = []
 
         with (
-            patch("gemma_installer.engine.installer.OllamaInstaller") as MockOllama,
-            patch("gemma_installer.engine.installer.ExtensionInstaller") as MockExt,
+            patch("nexus_installer.engine.installer.OllamaInstaller") as MockOllama,
+            patch("nexus_installer.engine.installer.ExtensionInstaller") as MockExt,
         ):
             MockOllama.return_value.install.return_value = False  # Fails
             MockExt.return_value.install.return_value = True  # Succeeds

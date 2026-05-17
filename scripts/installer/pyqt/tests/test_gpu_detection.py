@@ -1,10 +1,10 @@
-"""Tests for GPU detection logic with mocked subprocess calls."""
+﻿"""Tests for GPU detection logic with mocked subprocess calls."""
 
 from __future__ import annotations
 
 from unittest.mock import patch
 
-from gemma_installer.pages.gpu_detection import (
+from nexus_installer.pages.gpu_detection import (
     detect_amd_linux,
     detect_apple,
     detect_fallback_linux,
@@ -50,7 +50,7 @@ class TestDetectNvidia:
     def test_parses_csv_output(self) -> None:
         mock_output = "NVIDIA GeForce RTX 4090, 24576, 20000, 550.54.14"
         with patch(
-            "gemma_installer.pages.gpu_detection._run_cmd", return_value=mock_output
+            "nexus_installer.pages.gpu_detection._run_cmd", return_value=mock_output
         ):
             name, vram, driver = detect_nvidia()
             assert name == "NVIDIA GeForce RTX 4090"
@@ -58,7 +58,7 @@ class TestDetectNvidia:
             assert driver == "550.54.14"
 
     def test_returns_empty_on_failure(self) -> None:
-        with patch("gemma_installer.pages.gpu_detection._run_cmd", return_value=None):
+        with patch("nexus_installer.pages.gpu_detection._run_cmd", return_value=None):
             name, vram, driver = detect_nvidia()
             assert name == ""
             assert vram == 0
@@ -66,7 +66,7 @@ class TestDetectNvidia:
     def test_8gb_gpu(self) -> None:
         mock_output = "NVIDIA GeForce RTX 3060, 8192, 6000, 545.29"
         with patch(
-            "gemma_installer.pages.gpu_detection._run_cmd", return_value=mock_output
+            "nexus_installer.pages.gpu_detection._run_cmd", return_value=mock_output
         ):
             name, vram, _ = detect_nvidia()
             assert vram == 8192
@@ -76,23 +76,23 @@ class TestDetectAmdLinux:
     def test_parses_rocm_smi_csv(self) -> None:
         mock_output = "GPU,VRAM Total,VRAM Used\n0,8589934592,1073741824"
         with patch(
-            "gemma_installer.pages.gpu_detection._run_cmd", return_value=mock_output
+            "nexus_installer.pages.gpu_detection._run_cmd", return_value=mock_output
         ):
             name, vram = detect_amd_linux()
             assert "AMD" in name
             assert vram == 8192  # 8589934592 / (1024*1024)
 
     def test_returns_empty_on_failure(self) -> None:
-        with patch("gemma_installer.pages.gpu_detection._run_cmd", return_value=None):
+        with patch("nexus_installer.pages.gpu_detection._run_cmd", return_value=None):
             name, vram = detect_amd_linux()
             assert name == ""
             assert vram == 0
 
 
 class TestDetectApple:
-    @patch("gemma_installer.pages.gpu_detection.sys")
+    @patch("nexus_installer.pages.gpu_detection.sys")
     def test_non_darwin_returns_empty(self, mock_sys: object) -> None:
-        import gemma_installer.pages.gpu_detection as mod
+        import nexus_installer.pages.gpu_detection as mod
 
         original = mod.sys.platform
         mod.sys.platform = "win32"  # type: ignore[attr-defined]
@@ -108,7 +108,7 @@ class TestDetectFallbackLinux:
     def test_parses_lspci_nvidia(self) -> None:
         mock_output = "01:00.0 VGA compatible controller: NVIDIA Corporation GA102 [GeForce RTX 3090]"
         with patch(
-            "gemma_installer.pages.gpu_detection._run_cmd", return_value=mock_output
+            "nexus_installer.pages.gpu_detection._run_cmd", return_value=mock_output
         ):
             name, vendor = detect_fallback_linux()
             assert "NVIDIA" in name
@@ -117,13 +117,13 @@ class TestDetectFallbackLinux:
     def test_parses_lspci_amd(self) -> None:
         mock_output = "06:00.0 VGA compatible controller: Advanced Micro Devices [AMD/ATI] Navi 21 [Radeon RX 6800]"
         with patch(
-            "gemma_installer.pages.gpu_detection._run_cmd", return_value=mock_output
+            "nexus_installer.pages.gpu_detection._run_cmd", return_value=mock_output
         ):
             name, vendor = detect_fallback_linux()
             assert vendor == "amd"
 
     def test_returns_empty_on_failure(self) -> None:
-        with patch("gemma_installer.pages.gpu_detection._run_cmd", return_value=None):
+        with patch("nexus_installer.pages.gpu_detection._run_cmd", return_value=None):
             name, vendor = detect_fallback_linux()
             assert name == ""
 
@@ -131,7 +131,7 @@ class TestDetectFallbackLinux:
 class TestDetectGpuPipeline:
     def test_nvidia_found_first(self) -> None:
         with patch(
-            "gemma_installer.pages.gpu_detection.detect_nvidia",
+            "nexus_installer.pages.gpu_detection.detect_nvidia",
             return_value=("RTX 4090", 24576, "550"),
         ):
             name, vendor, vram = detect_gpu()
@@ -141,26 +141,26 @@ class TestDetectGpuPipeline:
     def test_falls_through_to_none(self) -> None:
         with (
             patch(
-                "gemma_installer.pages.gpu_detection.detect_nvidia",
+                "nexus_installer.pages.gpu_detection.detect_nvidia",
                 return_value=("", 0, ""),
             ),
             patch(
-                "gemma_installer.pages.gpu_detection.detect_amd_linux",
+                "nexus_installer.pages.gpu_detection.detect_amd_linux",
                 return_value=("", 0),
             ),
             patch(
-                "gemma_installer.pages.gpu_detection.detect_amd_windows",
+                "nexus_installer.pages.gpu_detection.detect_amd_windows",
                 return_value=("", 0),
             ),
             patch(
-                "gemma_installer.pages.gpu_detection.detect_apple", return_value=("", 0)
+                "nexus_installer.pages.gpu_detection.detect_apple", return_value=("", 0)
             ),
             patch(
-                "gemma_installer.pages.gpu_detection.detect_fallback_windows",
+                "nexus_installer.pages.gpu_detection.detect_fallback_windows",
                 return_value=("", "", 0),
             ),
             patch(
-                "gemma_installer.pages.gpu_detection.detect_fallback_linux",
+                "nexus_installer.pages.gpu_detection.detect_fallback_linux",
                 return_value=("", ""),
             ),
         ):

@@ -9,7 +9,7 @@ import type {
  * Tracer that instruments Gemma-Code components with trace spans.
  * When no TraceStore is configured, all methods are zero-cost no-ops.
  *
- * Constructed once at the composition root (`GemmaRuntime`) and passed by
+ * Constructed once at the composition root (`NexusCodingRuntime`) and passed by
  * reference to consumers. Tests construct fresh per-test instances rather
  * than relying on shared static state.
  */

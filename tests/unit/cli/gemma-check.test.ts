@@ -1,12 +1,13 @@
 /**
- * Unit tests for the gemma-check CLI and its rule set.
+ * Unit tests for the nexus-check CLI (renamed from gemma-check in v1.0.0
+ * Phase 2.4) and its rule set.
  *
  * Three layers:
  *   1. Pure rule tests: each rule's `scan(file, contents)` is exercised in
  *      isolation for positive cases, allowlist suppression, and comment
  *      / test-file skipping.
  *   2. Helper tests: parseArgs / walk / selectRules.
- *   3. End-to-end spawn tests: drive `node bin/gemma-check.mjs` against a
+ *   3. End-to-end spawn tests: drive `node bin/nexus-check.mjs` against a
  *      temp tree and assert exit codes and report shape.
  */
 
@@ -32,9 +33,9 @@ import * as noSecretPatterns from "../../../lib/checks/no-secret-patterns.mjs";
 // @ts-expect-error -- script export, see above.
 import { RULES, RULE_BY_ID } from "../../../lib/checks/index.mjs";
 // @ts-expect-error -- script export, see above.
-import { parseArgs, walk, selectRules, scanPath, SCANNED_EXTENSIONS } from "../../../bin/gemma-check.mjs";
+import { parseArgs, walk, selectRules, scanPath, SCANNED_EXTENSIONS } from "../../../bin/nexus-check.mjs";
 
-const BIN_PATH = path.resolve(__dirname, "../../../bin/gemma-check.mjs");
+const BIN_PATH = path.resolve(__dirname, "../../../bin/nexus-check.mjs");
 
 let tmpRoot: string;
 
@@ -415,11 +416,11 @@ function runCli(args: string[]): Promise<RunResult> {
   });
 }
 
-describe("gemma-check CLI (spawn)", () => {
+describe("nexus-check CLI (spawn)", () => {
   it("exits 0 and prints help with --help", async () => {
     const r = await runCli(["--help"]);
     expect(r.exitCode).toBe(0);
-    expect(r.stdout).toContain("gemma-check");
+    expect(r.stdout).toContain("nexus-check");
   });
 
   it("exits 0 and prints rule ids with --list-rules", async () => {

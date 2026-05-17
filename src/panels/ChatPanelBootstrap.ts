@@ -57,7 +57,7 @@ import { buildToolRegistry } from "../tools/ToolRegistryBuilder.js";
 import { TodoState } from "../tools/handlers/todos.js";
 import { renderMarkdown } from "../utils/MarkdownRenderer.js";
 import { getLogger } from "../utils/logger.js";
-import type { GemmaRuntime } from "../runtime/GemmaRuntime.js";
+import type { NexusCodingRuntime } from "../runtime/NexusCodingRuntime.js";
 import type { EditMode } from "../tools/types.js";
 import type {
   WebviewToExtensionMessage,
@@ -68,7 +68,7 @@ import type {
  * Late-binding hooks the panel exposes to the bootstrap so the helper graphs
  * see live mutable state (settings cache, mcp tools, edit mode, ollama
  * reachability, hardware tier). Extracted as part of v0.7.0 Phase 0
- * sub-task 0.4 so {@link GemmaCodePanel} no longer carries the wiring
+ * sub-task 0.4 so {@link NexusCodingPanel} no longer carries the wiring
  * graph as constructor body.
  */
 export interface ChatPanelHooks {
@@ -87,7 +87,7 @@ export interface ChatPanelHooks {
 
 export interface ChatPanelBootstrapInput {
   readonly extensionUri: vscode.Uri;
-  readonly runtime: GemmaRuntime;
+  readonly runtime: NexusCodingRuntime;
   readonly globalStorageUri?: vscode.Uri;
   readonly workspaceState?: vscode.Memento;
   readonly hooks: ChatPanelHooks;

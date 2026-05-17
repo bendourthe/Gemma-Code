@@ -1,0 +1,236 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import type * as vscode from "vscode";
+import { mockOf } from "../../helpers/factories.js";
+
+// ---------------------------------------------------------------------------
+// Module mocks (must be defined before dynamic imports)
+// ---------------------------------------------------------------------------
+
+vi.mock("../../../src/llm/OllamaClient.js", () => ({
+  createOllamaClient: vi.fn(() => ({
+    checkHealth: vi.fn().mockResolvedValue(true),
+    listModels: vi.fn().mockResolvedValue([]),
+    streamChat: vi.fn(async function* () {
+      yield { message: { role: "assistant", content: "hi" }, done: true };
+    }),
+  })),
+}));
+
+vi.mock("../../../src/config/settings.js", () => ({
+  getSettings: vi.fn(() => ({
+    ollamaUrl: "http://localhost:11434",
+    modelName: "gemma4:e4b",
+    maxTokens: 131072,
+    temperature: 1.0,
+    topP: 0.95,
+    topK: 64,
+    requestTimeout: 60000,
+    toolConfirmationMode: "ask",
+    maxAgentIterations: 20,
+    editMode: "auto",
+    thinkingMode: true,
+    promptStyle: "concise",
+    systemPromptBudgetPercent: 10,
+  })),
+  onSettingsChange: vi.fn(() => ({ dispose: vi.fn() })),
+}));
+
+// ---------------------------------------------------------------------------
+
+const { NexusCodingPanel, VIEW_ID } = await import("../../../src/panels/NexusCodingPanel.js");
+
+// ---------------------------------------------------------------------------
+// Mock webview helpers
+// ---------------------------------------------------------------------------
+
+function makeMockWebview() {
+  const postMessage = vi.fn();
+  let messageListener: ((msg: unknown) => void) | null = null;
+
+  const webview = {
+    options: {} as vscode.WebviewOptions,
+    html: "",
+    cspSource: "vscode-resource:",
+    postMessage,
+    onDidReceiveMessage: vi.fn((handler: (msg: unknown) => void) => {
+      messageListener = handler;
+      return { dispose: vi.fn() };
+    }),
+    asWebviewUri: vi.fn((uri: vscode.Uri) => uri),
+  };
+
+  function triggerMessage(msg: unknown) {
+    messageListener?.(msg);
+  }
+
+  return { webview, postMessage, triggerMessage };
+}
+
+function makeMockWebviewView() {
+  const { webview, postMessage, triggerMessage } = makeMockWebview();
+  const view: Partial<vscode.WebviewView> = {
+    webview: mockOf<vscode.Webview>(webview),
+    onDidChangeVisibility: vi.fn(() => ({ dispose: vi.fn() })),
+    onDidDispose: vi.fn(() => ({ dispose: vi.fn() })),
+    show: vi.fn(),
+    visible: true,
+    viewType: VIEW_ID,
+    title: "Chat",
+    description: undefined,
+    badge: undefined,
+  };
+  return { view, postMessage, triggerMessage };
+}
+
+function makeExtensionUri() {
+  return mockOf<vscode.Uri>({ fsPath: "/ext", toString: () => "/ext" });
+}
+
+async function makeRuntime() {
+  const { NexusCodingRuntime } = await import("../../../src/runtime/NexusCodingRuntime.js");
+  return new NexusCodingRuntime();
+}
+
+// ---------------------------------------------------------------------------
+
+describe("NexusCodingPanel", () => {
+  let panel: InstanceType<typeof NexusCodingPanel>;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    const runtime = await makeRuntime();
+    panel = new NexusCodingPanel(makeExtensionUri(), runtime);
+  });
+
+  // ---- VIEW_ID constant ----------------------------------------------------
+
+  it("exports the correct VIEW_ID", () => {
+    expect(VIEW_ID).toBe("gemma-code.chatView");
+  });
+
+  // ---- resolveWebviewView --------------------------------------------------
+
+  it("resolveWebviewView sets webview.html to a non-empty string", () => {
+    const { view } = makeMockWebviewView();
+    panel.resolveWebviewView(
+      view as vscode.WebviewView,
+      {} as vscode.WebviewViewResolveContext,
+      {} as vscode.CancellationToken
+    );
+    expect(view.webview!.html.length).toBeGreaterThan(0);
+    expect(view.webview!.html).toContain("<!DOCTYPE html>");
+  });
+
+  it("resolveWebviewView enables scripts on the webview", () => {
+    const { view } = makeMockWebviewView();
+    panel.resolveWebviewView(
+      view as vscode.WebviewView,
+      {} as vscode.WebviewViewResolveContext,
+      {} as vscode.CancellationToken
+    );
+    expect((view.webview!.options as vscode.WebviewOptions).enableScripts).toBe(true);
+  });
+
+  it("resolveWebviewView registers an onDidReceiveMessage listener", () => {
+    const { view } = makeMockWebviewView();
+    panel.resolveWebviewView(
+      view as vscode.WebviewView,
+      {} as vscode.WebviewViewResolveContext,
+      {} as vscode.CancellationToken
+    );
+    expect(view.webview!.onDidReceiveMessage).toHaveBeenCalledOnce();
+  });
+
+  // ---- ready message -------------------------------------------------------
+
+  it("posts history to the webview when it sends a 'ready' message", async () => {
+    const { view, postMessage, triggerMessage } = makeMockWebviewView();
+    panel.resolveWebviewView(
+      view as vscode.WebviewView,
+      {} as vscode.WebviewViewResolveContext,
+      {} as vscode.CancellationToken
+    );
+
+    triggerMessage({ type: "ready" });
+    // Deterministically wait for the history message rather than racing a timer.
+    await vi.waitFor(() =>
+      expect(
+        postMessage.mock.calls.some((c) => c[0]?.type === "history"),
+      ).toBe(true),
+    );
+
+    const historyCall = postMessage.mock.calls.find(
+      (c) => c[0]?.type === "history"
+    );
+    expect(historyCall).toBeTruthy();
+    // System messages are filtered out before posting history
+    const messages = (historyCall?.[0] as { messages: unknown[] })?.messages ?? [];
+    expect(messages.every((m: unknown) => (m as { role: string }).role !== "system")).toBe(true);
+  });
+
+  // ---- sendMessage ---------------------------------------------------------
+
+  it("posts messageComplete after processing a sendMessage request", async () => {
+    const { view, postMessage, triggerMessage } = makeMockWebviewView();
+    panel.resolveWebviewView(
+      view as vscode.WebviewView,
+      {} as vscode.WebviewViewResolveContext,
+      {} as vscode.CancellationToken
+    );
+
+    triggerMessage({ type: "sendMessage", text: "hello" });
+    // Wait deterministically for the pipeline to emit messageComplete.
+    await vi.waitFor(() =>
+      expect(
+        postMessage.mock.calls.some((c) => c[0]?.type === "messageComplete"),
+      ).toBe(true),
+    );
+
+    const completeCall = postMessage.mock.calls.find(
+      (c) => c[0]?.type === "messageComplete"
+    );
+    expect(completeCall).toBeTruthy();
+  });
+
+  // ---- clearChat -----------------------------------------------------------
+
+  it("posts history after clearChat", async () => {
+    const { view, postMessage, triggerMessage } = makeMockWebviewView();
+    panel.resolveWebviewView(
+      view as vscode.WebviewView,
+      {} as vscode.WebviewViewResolveContext,
+      {} as vscode.CancellationToken
+    );
+
+    triggerMessage({ type: "clearChat" });
+    await vi.waitFor(() =>
+      expect(
+        postMessage.mock.calls.some((c) => c[0]?.type === "history"),
+      ).toBe(true),
+    );
+
+    const historyCalls = postMessage.mock.calls.filter(
+      (c) => c[0]?.type === "history"
+    );
+    expect(historyCalls.length).toBeGreaterThan(0);
+  });
+
+  // ---- cancelStream --------------------------------------------------------
+
+  it("does not throw when cancelStream is received", () => {
+    const { view, triggerMessage } = makeMockWebviewView();
+    panel.resolveWebviewView(
+      view as vscode.WebviewView,
+      {} as vscode.WebviewViewResolveContext,
+      {} as vscode.CancellationToken
+    );
+
+    expect(() => triggerMessage({ type: "cancelStream" })).not.toThrow();
+  });
+
+  // ---- dispose -------------------------------------------------------------
+
+  it("dispose does not throw", () => {
+    expect(() => panel.dispose()).not.toThrow();
+  });
+});
