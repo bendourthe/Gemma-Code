@@ -674,6 +674,7 @@
     }
   },
   "bin": {
+    "nexus": "./bin/nexus.mjs",
     "nexus-check": "./bin/nexus-check.mjs",
     "gemma-check": "./bin/gemma-check-compat.mjs",
     "nexus-image": "./bin/nexus-image.mjs",

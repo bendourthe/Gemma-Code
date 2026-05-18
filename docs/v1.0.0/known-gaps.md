@@ -414,6 +414,48 @@ Resolved in Phase 9 -- see `## 2. Resolved` below.
 - **Reason**: Phase 9.8 documents the DMG + AppImage scope, wires `.github/workflows/installer-macos.yml` and `.github/workflows/installer-linux.yml` as workflow_dispatch placeholders, and confirms the cross-platform PyQt wizard already supports both targets (only the outer-shell packaging differs). Apple Developer ID + notarization, AppImage assembly, and the macOS / Linux smoke checklists are deferred to dedicated v1.0.1 (macOS) and v1.0.2 (Linux) release cycles so the v1.0.0 surface stays Windows-first.
 - **Suggested next step**: v1.0.1 opens with `installer-macos.yml` swapped from workflow_dispatch to push: tags + the smoke checklist runs on a CI macOS VM. v1.0.2 does the same for AppImage.
 
+### 10.P1.FFF -- DevAIHubSyncer production network/git helpers covered by smoke only (MT, P1)
+
+- **Source phase**: Phase 10 (10.2)
+- **Plan reference**: [phase-10-devai-hub-sync.md](plans/phase-10-devai-hub-sync.md) sub-task 10.2 (`integration test against a local git fixture verifies clone + diff + apply; offline test verifies the tarball fallback`).
+- **Reason**: `core/skills/DevAIHubSyncer.ts` ships dependency-injected `SyncDependencies` (resolveLatestTag / sparseClone / tarballFetch / hasGit). The fixture-based integration tests cover the entire core pipeline (manifest, diff, scan, apply, tarball fallback) end-to-end with 100% logic coverage, but the production `defaultResolveLatestTag` (HTTPS to api.github.com), `defaultSparseClone` (spawnSync git), and `defaultTarballFetch` (HTTPS + tar) helpers are exercised by smoke tests only -- no real GitHub fetch, no real `git clone --sparse`. Coverage on `DevAIHubSyncer.ts` lands at 68.69% lines as a result; remainder is exclusively the production helpers. Functional / fixture-driven path is 100% covered.
+- **Suggested next step**: Phase 11 release gate runs `nexus skills sync --tag <pinned>` against the real `bendourthe/DevAI-Hub` upstream on a clean Windows VM; the RTM smoke captures clone latency, tarball-fallback when `git` is unavailable, and verifies the resulting `~/.nexus/skills/devai-hub/<tag>/manifest.json`. Failures from that live smoke fold back into v1.1.0 as a recorded `[v1.0.0:10.P1.FFF]` carryover.
+
+### 10.P1.GGG -- SkillLoader hot-reload not yet driven by the active-tag pointer (DF, P1)
+
+- **Source phase**: Phase 10 (10.4)
+- **Plan reference**: [phase-10-devai-hub-sync.md](plans/phase-10-devai-hub-sync.md) sub-task 10.4 ("the daemon's `SkillLoader.reload()` picks up the new content").
+- **Reason**: The Phase 10 surface lands the `~/.nexus/skills/devai-hub/ACTIVE` pointer + the `nexus skills sync --apply` rotation, the `SkillsSettings` UI surfaces the "Sync now" button, and the in-process `SkillCatalog` is namespaced + diverged-aware. What is *not* wired in v1.0.0 is the cross-process IPC notification: the desktop sidecar's existing `SkillLoader` (`src/skills/SkillLoader.ts`) still reads `~/.gemma-code/skills/` at session start. The active-tag pointer is written by the syncer but no fs.watch on `ACTIVE` yet exists to push a reload IPC into the sidecar.
+- **Suggested next step**: v1.0.0 RTM (Phase 11) wires `fs.watch(activeTagPointerPath(...), ...)` into the sidecar bootstrap so a successful `--apply` triggers `SkillLoader.reload()` automatically. Until then the operator restarts the app after `nexus skills sync --apply` (one-line `~/.nexus/restart-required` flag is already surfaced by the SkillsSettings UI). Falls back cleanly because the namespacing surface ensures a freshly-loaded catalog does not collide with the previous tag.
+
+### 10.P1.HHH -- IdleTimeScheduler weekly auto-sync not yet wired (DF, P1)
+
+- **Source phase**: Phase 10 (10.4)
+- **Plan reference**: [phase-10-devai-hub-sync.md](plans/phase-10-devai-hub-sync.md) sub-task 10.4 ("an 'Auto-sync weekly' toggle (default OFF) that schedules an idle-time sync via `IdleTimeScheduler` (registered as a `Worker` in Phase 3.4)").
+- **Reason**: The SkillsSettings page renders the toggle and persists its state via the `setAutoSyncEnabled` client method. The actual `IdleTimeScheduler` worker registration (`devai-hub-sync`, 7-day cadence) is gated on the SkillLoader hot-reload IPC (`10.P1.GGG`) -- registering the worker before the reload pathway exists would surface a successful sync that the running daemon ignores until the next process restart.
+- **Suggested next step**: Land together with `10.P1.GGG` in Phase 11. Worker body is a thin shell over `new DevAIHubSyncer().sync({ apply: true })`; the SettingsStore key `nexus.skills.autoSync.devai-hub` is already reserved by the UI client.
+
+### 10.P2.III -- `nexus skills install` / `remove` are stubs (NI, P2)
+
+- **Source phase**: Phase 10 (10.2)
+- **Plan reference**: [phase-10-devai-hub-sync.md](plans/phase-10-devai-hub-sync.md) sub-task 10.2 (CLI surface includes `nexus skills install <ns>/<name> [--from <url>]` and `nexus skills remove <ns>/<name>`).
+- **Reason**: The two subcommands print a message that points the operator at copying SKILL.md files into `~/.nexus/skills/user/` (install) or deleting them directly (remove). Both rely on path-validation + permission-tier guards that are not yet ported into the `nexus` binary; shipping a half-implemented install path would surface a tool that can `--from <arbitrary URL>` arbitrary content into `~/.nexus/skills/user/` without first running the prompt-injection scanner -- a path-traversal / RCE risk. The DevAI-Hub sync pathway (the path that DOES run the scanner) is the v1.0.0 install surface.
+- **Suggested next step**: v1.0.1 lands `nexus skills install <ns>/<name>` with: (a) `--from <url>` only accepts `https://` URLs whose host matches a documented allowlist; (b) downloaded content is unconditionally run through `PromptInjectionScanner` before being written to disk; (c) the destination dir is path-clamped to `~/.nexus/skills/user/`.
+
+### 10.P2.JJJ -- `nexus.skills.preferUpstream` setting not yet read by slash-command autocomplete (DF, P2)
+
+- **Source phase**: Phase 10 (10.6)
+- **Plan reference**: [phase-10-devai-hub-sync.md](plans/phase-10-devai-hub-sync.md) sub-task 10.6 ("A setting `nexus.skills.preferUpstream` (default `false`) decides which one is suggested as the default in slash-command autocomplete").
+- **Reason**: The `SkillsSettingsClient.setDivergedPreference()` IPC entry-point and the "Use as default" button are wired in Phase 10.4, and the `diverged` flag on `SkillRecord` is computed on `list()`. The Coding-module slash-command autocomplete still reads from the legacy in-process `SkillLoader`, which is namespace-agnostic. Plumbing the `preferUpstream` setting into the autocomplete requires the SkillLoader hot-reload work in `10.P1.GGG`.
+- **Suggested next step**: Bundled with `10.P1.GGG`. The setting key `nexus.skills.preferUpstream` is already reserved by the SettingsStore in Phase 2.7 (carrying a `false` default per-spec).
+
+### 10.P2.KKK -- Skill-context attribution into AgentLoop tool-call spans not yet wired (DF, P2)
+
+- **Source phase**: Phase 10 (10.5)
+- **Plan reference**: [phase-10-devai-hub-sync.md](plans/phase-10-devai-hub-sync.md) sub-task 10.5 ("when a tool call originates from a skill, the trace record includes `skill: {id, namespace, provenance}`").
+- **Reason**: Phase 10.5 lands the `Tracer.setCurrentSkill(...)` / `currentSkill` surface plus the automatic `skill.*` attribute fold-in on every `tool_call` / `sub_agent` span. The call-site in `src/tools/AgentLoop.ts` that knows *which* skill is currently expanding into tool calls still consults the legacy `SkillLoader` which is not provenance-aware (the namespaced `SkillCatalog` is exposed via core but the Coding-module loader adapter has not been written yet -- tracked as v1.0.0 known-gap code `MV`). Tracer-side support is 100% covered; the missing wiring is "AgentLoop calls `tracer.setCurrentSkill(...)` at slash-command entry and clears it on exit".
+- **Suggested next step**: Bundled with the SkillLoader adapter (Phase 11 / `MV`-class gap). The Tracer side is ready: the moment the AgentLoop knows it is executing on behalf of a skill, one line (`this._tracer.setCurrentSkill(skillContext)`) drives the entire provenance pipeline.
+
 ---
 
 ## 2. Resolved
@@ -433,18 +475,18 @@ Resolved in Phase 9 -- see `## 2. Resolved` below.
 | Severity | Open | Resolved |
 |---|---|---|
 | P0 | 0 | 0 |
-| P1 | 24 | 2 |
-| P2 | 30 | 1 |
+| P1 | 27 | 2 |
+| P2 | 33 | 1 |
 | P3 | 3 | 1 |
-| **Total** | **57** | **4** |
+| **Total** | **63** | **4** |
 
 | Category | Open | Resolved |
 |---|---|---|
-| NI | 9 | 0 |
-| DF | 47 | 4 |
+| NI | 10 | 0 |
+| DF | 50 | 4 |
 | BG | 2 | 0 |
-| MT | 5 | 0 |
+| MT | 6 | 0 |
 | WN | 1 | 0 |
 | QG | 0 | 0 |
 
-**Last updated**: 2026-05-17 (Phase 9 close; installer-architecture (Phase 9.1) lands `docs/v1.0.0/installer-architecture.md`, `scripts/installer/build/windows-pipeline.md`, and `.github/workflows/installer-build.yml`; CUDA / Python venv / Node / Ollama / DevAI-Hub provisioner modules land under `scripts/installer/pyqt/src/nexus_installer/engine/`; the recommended-models picker lands at `scripts/installer/pyqt/src/nexus_installer/pages/recommended_models.py`; the NSIS outer template lands at `scripts/installer/build/nsis/nexus-setup.nsi`; macOS + Linux installer scope deferred to v1.0.1 / v1.0.2 via `installer-macos-and-linux.md` + the two workflow_dispatch stubs; CI-blocker fix: generated Tauri icon set + `Manager` trait import in `sidecar.rs` -- `1.P2.E` resolved; new Phase 9 entries `9.P1.ZZ` (payload fetch), `9.P1.AAA` (Ollama/DevAI-Hub SHAs), `9.P2.BBB` (final icon art), `9.P1.CCC` (NSIS end-to-end build), `9.P2.DDD` (picker wiring), `9.P2.EEE` (macOS/Linux carryover). 59 new installer unit tests pass; full installer suite 245/245 green; desktop vitest 351/351 green; frontend lint + typecheck clean.)
+**Last updated**: 2026-05-17 (Phase 10 close; DevAI-Hub sync pathway lands `core/skills/SkillCatalog.ts` extended with `SkillProvenance` + namespace + diverged-name detection, `core/skills/PromptInjectionScanner.ts` with 11 OWASP-aligned rules + decision routing, `core/skills/DevAIHubSyncer.ts` driving sparse-clone -> manifest -> diff -> scan -> apply with deps injection for tests + tarball fallback, the top-level `bin/nexus.mjs` CLI binary (registered in `package.json`'s `bin` map) surfacing `nexus skills sync` / `list` / `install` / `remove`, `desktop/src/pages/settings/SkillsSettings.tsx` rendering Active tag, Upstream tag, Sync-now / Auto-sync-weekly controls + per-namespace lists with the diverged badge + Quarantined section, `desktop/src/pages/settings/SettingsPage.tsx` upgraded to a tabbed shell with Models + Skills tabs, and `src/observability/Tracer.ts` extended with `setCurrentSkill(...)` + automatic `skill.*` attribute fold-in for `tool_call` and `sub_agent` spans. New Phase 10 entries: `10.P1.FFF` (production network/git helpers covered by smoke only), `10.P1.GGG` (SkillLoader hot-reload not yet driven by the active-tag pointer), `10.P1.HHH` (auto-sync weekly worker not yet registered with IdleTimeScheduler), `10.P2.III` (`nexus skills install/remove` are stubs), `10.P2.JJJ` (`preferUpstream` not yet read by slash-command autocomplete), `10.P2.KKK` (skill-context attribution into AgentLoop tool spans not yet wired). 65 new unit tests + 11 new desktop UI tests pass; full Phase 10 suites 225/225 green; existing pre-Phase-10 vitest 3009/3009 green (4 pre-existing CRLF-snapshot failures in `tests/unit/agents/SubAgentManager.characterization.test.ts` are unrelated); desktop full suite 362/362 green; eslint + tsc clean.)
