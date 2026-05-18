@@ -1,3 +1,10 @@
+# [0.29.0](https://github.com/bendourthe/Nexus-AI/compare/v0.28.1...v0.29.0) (2026-05-18)
+
+
+### Features
+
+* **v1.0.0:** phase 8 GpuScheduler and Local Model Status ([3aa4231](https://github.com/bendourthe/Nexus-AI/commit/3aa4231f118b961506e3008a14344ba87cd8ad30))
+
 ## [0.28.1](https://github.com/bendourthe/Nexus-AI/compare/v0.28.0...v0.28.1) (2026-05-18)
 
 
