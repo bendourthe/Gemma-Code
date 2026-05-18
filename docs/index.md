@@ -17,7 +17,7 @@ For the ADR-level architecture see [../ARCHITECTURE.md](../ARCHITECTURE.md) and 
 | `guardrails` | 7 | 717 | [src/guardrails/index.ts](../src/guardrails/index.ts) | `_resetPermissionOverrideWarnings`, `ActionClassification`, `ActionRisk` |
 | `llm` | 5 | 1050 | [src/llm/LmStudioClient.ts](../src/llm/LmStudioClient.ts) | `OllamaError`, `createLmStudioClient`, `CreateLmStudioClientOptions` |
 | `mcp` | 5 | 649 | [src/mcp/McpManager.ts](../src/mcp/McpManager.ts) | `DEFAULT_MCP_EXPOSED_TOOLS`, `McpClient`, `McpConfigFile` |
-| `observability` | 6 | 1636 | [src/observability/TraceStore.ts](../src/observability/TraceStore.ts) | `AggregateMetrics`, `defaultTracePath`, `MetricsCollector` |
+| `observability` | 6 | 1726 | [src/observability/TraceStore.ts](../src/observability/TraceStore.ts) | `AggregateMetrics`, `defaultTracePath`, `MetricsCollector` |
 | `orchestration` | 8 | 1572 | [src/orchestration/TaskDAG.ts](../src/orchestration/TaskDAG.ts) | `PostMessageFn`, `buildSubAgentRequest`, `CodeTaskInput` |
 | `panels` | 31 | 9515 | [src/panels/webview/index.ts](../src/panels/webview/index.ts) | `ACTION_TAG_FN_SOURCE`, `ActionClassificationMessage`, `actionLabelFor` |
 | `runtime` | 1 | 127 | [src/runtime/NexusCodingRuntime.ts](../src/runtime/NexusCodingRuntime.ts) | `NexusCodingRuntime` |
