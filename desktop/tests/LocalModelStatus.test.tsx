@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { LocalModelStatus } from "../src/components/LocalModelStatus";
 import { createMockTelemetryStream } from "../src/lib/telemetryMock";
@@ -123,4 +123,116 @@ describe("LocalModelStatus", () => {
     vi.advanceTimersByTime(120);
     expect(samples.length).toBe(before);
   });
+
+  it("renders 'Idle' when sample.idle is true", () => {
+    const stream = manualStream();
+    render(<LocalModelStatus stream={stream} />);
+    act(() => {
+      stream.push({
+        modelName: "irrelevant",
+        paramSize: "",
+        gpuPct: 0,
+        vramFreeGB: 12,
+        deviceName: "RTX 4070",
+        lastUpdated: 1,
+        idle: true,
+      });
+    });
+    expect(screen.getByTestId("local-model-status").dataset["idle"]).toBe("true");
+    expect(screen.getAllByText(/Idle/i).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("includes a tooltip with full breakdown when extended fields are present", () => {
+    const stream = manualStream();
+    render(<LocalModelStatus stream={stream} />);
+    act(() => {
+      stream.push({
+        modelName: "Gemma 4",
+        paramSize: "7B",
+        gpuPct: 42,
+        vramFreeGB: 5,
+        deviceName: "RTX 4070",
+        lastUpdated: 1,
+        vramTotalGB: 12,
+        vramAllocatedGB: 7,
+        queuedJobs: [
+          { id: "q1", moduleId: "image", jobType: "txt2img" },
+          { id: "q2", moduleId: "video", jobType: "text2video" },
+        ],
+      });
+    });
+    const node = screen.getByTestId("local-model-status");
+    expect(node.getAttribute("title")).toContain("Total VRAM: 12.0 GB");
+    expect(node.getAttribute("title")).toContain("Allocated VRAM: 7.0 GB");
+    expect(node.getAttribute("title")).toContain("Queued jobs: 2");
+    expect(node.dataset["queueDepth"]).toBe("2");
+  });
+
+  it("clicking the widget opens a queue modal listing each queued job", () => {
+    const stream = manualStream();
+    render(<LocalModelStatus stream={stream} />);
+    act(() => {
+      stream.push({
+        modelName: "Gemma 4",
+        paramSize: "7B",
+        gpuPct: 42,
+        vramFreeGB: 5,
+        deviceName: "RTX 4070",
+        lastUpdated: 1,
+        queuedJobs: [
+          { id: "q1", moduleId: "image", jobType: "txt2img", estimatedVramGB: 6 },
+          { id: "q2", moduleId: "video", jobType: "text2video", estimatedVramGB: 10 },
+          { id: "q3", moduleId: "coding", jobType: "tokens", estimatedVramGB: 4 },
+        ],
+      });
+    });
+    fireEventClick(screen.getByTestId("local-model-status"));
+    expect(screen.getByTestId("local-model-queue-modal")).toBeInTheDocument();
+    expect(screen.getByTestId("queue-entry-q1")).toHaveTextContent("txt2img");
+    expect(screen.getByTestId("queue-entry-q2")).toHaveTextContent("text2video");
+    expect(screen.getByTestId("queue-entry-q3")).toHaveTextContent("tokens");
+    fireEventClick(screen.getByTestId("local-model-queue-close"));
+    expect(screen.queryByTestId("local-model-queue-modal")).toBeNull();
+  });
+
+  it("queue modal shows an empty-state when there are no queued jobs", () => {
+    const stream = manualStream();
+    render(<LocalModelStatus stream={stream} />);
+    act(() => {
+      stream.push({
+        modelName: "X",
+        paramSize: "1B",
+        gpuPct: 0,
+        vramFreeGB: 12,
+        deviceName: "GPU",
+        lastUpdated: 1,
+        queuedJobs: [],
+      });
+    });
+    fireEventClick(screen.getByTestId("local-model-status"));
+    expect(screen.getByTestId("local-model-queue-empty")).toBeInTheDocument();
+  });
+
+  it("widget sweep: drives gpuPct 0 -> 80 across samples", () => {
+    const stream = manualStream();
+    render(<LocalModelStatus stream={stream} />);
+    for (let p = 0; p <= 80; p += 20) {
+      act(() => {
+        stream.push({
+          modelName: "M",
+          paramSize: "7B",
+          gpuPct: p,
+          vramFreeGB: 6,
+          deviceName: "RTX 4070",
+          lastUpdated: p,
+        });
+      });
+      const bar = screen.getByTestId("gpu-bar");
+      expect(bar.style.width).toBe(`${p}%`);
+    }
+  });
 });
+
+function fireEventClick(el: Element): void {
+  fireEvent.click(el);
+}

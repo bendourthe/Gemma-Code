@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes, useLocation } from "react-router-dom";
 import { Sidebar } from "./components/Sidebar";
 import { Dashboard } from "./pages/Dashboard";
 import { ModulePlaceholder } from "./pages/ModulePlaceholder";
@@ -9,6 +9,7 @@ import { ChatPage } from "./modules/chat/ChatPage";
 import { ImageStudioPage } from "./modules/image/ImageStudioPage";
 import { VideoLabPage } from "./modules/video/VideoLabPage";
 import { SettingsPage } from "./pages/settings/SettingsPage";
+import { LocalModelStatusDock } from "./components/LocalModelStatusDock";
 import { createMockTelemetryStream } from "./lib/telemetryMock";
 import type { TelemetryStream } from "./components/LocalModelStatus.types";
 
@@ -62,7 +63,16 @@ export function App({ telemetryStream }: AppProps = {}): JSX.Element {
           />
           <Route path="/_styleguide" element={<StyleguidePage />} />
         </Routes>
+        <DockMount stream={stream} />
       </main>
     </div>
   );
+}
+
+function DockMount({ stream }: { stream: TelemetryStream | null }): JSX.Element | null {
+  const location = useLocation();
+  // The Dashboard hosts the widget inline; every other module page gets
+  // the floating dock so telemetry is always visible.
+  if (location.pathname === "/" || location.pathname === "/_styleguide") return null;
+  return <LocalModelStatusDock stream={stream} />;
 }

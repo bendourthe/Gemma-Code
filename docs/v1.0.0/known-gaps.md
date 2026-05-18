@@ -60,13 +60,6 @@ Each entry has a category tag:
 - **Reason**: `desktop/src-tauri/tauri.conf.json` references icons under `icons/` (`32x32.png`, `128x128.png`, `icon.icns`, `icon.ico`). The asset files are not committed in Phase 1 because the brand identity (logo, color palette finalization) is part of Phase 2's rebrand sweep. `tauri build` will fail until icons land; `tauri dev` works against the bundled default.
 - **Suggested next step**: Phase 2 rebrand sweep generates the icon set (typically via `cargo tauri icon path/to/source.png`).
 
-### 1.P3.F -- Real telemetry source wired in Phase 8 (DF, P3)
-
-- **Source phase**: Phase 1 (1.6)
-- **Plan reference**: [phase-01-shell-foundation.md](plans/phase-01-shell-foundation.md) sub-task 1.6 ("The widget subscribes to a `telemetry.subscribe` IPC stream (still placeholder in this phase)").
-- **Reason**: The `LocalModelStatus` widget consumes a `TelemetryStream` and renders muted / loading / active states. The current source is a deterministic mock in `desktop/src/lib/telemetryMock.ts`; the real GPU/VRAM probe lands in Phase 8 ("GpuScheduler + Local Model Status dashboard widget"). This is by design per the phase plan, not a regression.
-- **Suggested next step**: Phase 8 implements `telemetry.subscribe` in the sidecar over `nvidia-smi` / `nvml` and swaps the mock at the App level.
-
 ### 2.P1.G -- Storage-path call-site rename deferred (DF, P1)
 
 - **Source phase**: Phase 2 (2.2)
@@ -347,6 +340,41 @@ Each entry has a category tag:
 - **Reason**: The Phase 7 stability gate (<= 5 minutes for a 4-second LTX-Video clip on a 12 GB RTX 4070) requires three resident video models on the host (~31 GB total: LTX-Video 12 GB + SVD 9 GB + CogVideoX 5B 10 GB) and is therefore operator-driven, in line with the v0.9.0 P3 pattern that rolled forward into v1.0.0 as item set `10.N.live-bench`. The Python orchestration is fully unit-tested with stubs.
 - **Suggested next step**: Operator captures the timings in `docs/v1.0.0/operator-actions.md` once the live-PyTorch wiring lands (item `7.P1.MM`). Fixture clips committed back under `tests/golden/v1.0.0/video/` for regression checks.
 
+### 8.P1.UU -- Sidecar-side `nvidia-smi` long-lived stream not yet spawned (DF, P1)
+
+- **Source phase**: Phase 8 (8.2)
+- **Plan reference**: [phase-08-gpu-scheduler-and-telemetry.md](plans/phase-08-gpu-scheduler-and-telemetry.md) sub-task 8.2 ("On Windows + Linux, shell out to `nvidia-smi --query-gpu=... --format=csv,noheader,nounits` (cached child process re-used via long-lived `nvidia-smi -lms 500` stream)").
+- **Reason**: `core/telemetry/GpuTelemetrySource.ts` exposes a pluggable `GpuQueryFn`; the implementation uses CPU fallback by default when no host-platform query is wired. The actual `nvidia-smi -lms 500` long-lived child-process driver (Windows / Linux) and the `system_profiler` one-shot + Metal Performance Shaders fallback (macOS) parse-existing fixtures via `parseNvidiaSmiCsv` / `parseAppleSystemProfiler` in unit tests, but the platform spawning glue that drives those fixtures from the real `nvidia-smi` binary on the host sidecar process is deferred. The widget therefore still renders the deterministic mock stream from `desktop/src/lib/telemetryMock.ts` on developer machines.
+- **Suggested next step**: Phase 9 installer ships an installer-bundled `nvidia-smi` invocation; Node sidecar at the same time gets a `telemetry.subscribe` IPC that wraps `core/telemetry/GpuTelemetrySource.ts` with a `ChildProcessGpuQuery` (long-lived stream on Win / Linux, polling on macOS). The desktop `App.tsx` swaps the mock for the real Tauri-channel-backed stream.
+
+### 8.P1.VV -- GpuScheduler not yet integrated with the four pillar runtimes (DF, P1)
+
+- **Source phase**: Phase 8 (8.1)
+- **Plan reference**: [phase-08-gpu-scheduler-and-telemetry.md](plans/phase-08-gpu-scheduler-and-telemetry.md) sub-task 8.1 ("Module integration: Coding's `AgentLoop` does NOT go through the scheduler for tool calls (those are CPU); only the streaming-LLM-token-generation call enqueues a job. Image / Video pipelines route every generation through the scheduler.").
+- **Reason**: `GpuScheduler` ships as a shared-core service with full unit + integration coverage (FIFO, foreground bump, VRAM gating, cancel, telemetry envelopes -- 16 unit + 3 integration tests; 99% lines / 100% functions). The wiring at the call sites is deferred: `StreamingPipeline` (Coding token generation), `runtimes/diffusion/pipelines/base.py` (Image), and `runtimes/diffusion/pipelines/video_base.py` (Video) still serialize jobs through the sidecar request loop. The Phase 7 known-gap `7.P1.OO` (Tauri Rust core does not yet spawn the Python sidecar) is the upstream blocker for the diffusion-side wiring.
+- **Suggested next step**: Phase 9 installer follow-on adds a `nexus.gpu.scheduler` IPC surface that the Node sidecar instantiates once per process; the Coding `StreamingPipeline` enqueues its single token-generation call, and the Python sidecar exposes a `scheduler.enqueue` JSON-RPC that the Rust core forwards into the same TS-side `GpuScheduler` instance via a thin proxy. Acceptance: the multi-module integration test in `tests/integration/gpu-scheduler-multi-module.test.ts` is replayed end-to-end against the live processes.
+
+### 8.P2.WW -- Settings UI "Hardware" page does not yet surface DiffusionTier override (NI, P2)
+
+- **Source phase**: Phase 8 (8.4)
+- **Plan reference**: [phase-08-gpu-scheduler-and-telemetry.md](plans/phase-08-gpu-scheduler-and-telemetry.md) sub-task 8.4 ("The tier display surfaces in Settings -> Hardware with a 'your GPU classifies as ...' readout and an 'override to ...' dropdown").
+- **Reason**: `core/config/DiffusionTier.ts` ships the four-tier classification, the per-tier image + video defaults, and `resolveDiffusionTier(vramGB, override)` that fuses an auto-detected tier with an optional user override. The Settings UI surface (a "Hardware" page in `desktop/src/pages/settings/`) is not yet built; Settings currently exposes only the Models sub-page (Phase 5). Auto-detection from `GpuTelemetrySource` is also pending the live telemetry wiring (`8.P1.UU`).
+- **Suggested next step**: Phase 9 polish pass adds `desktop/src/pages/settings/HardwareSettings.tsx` with a tier readout (driven by `classifyDiffusionTier(lastSample.totalVramGB)`) and an "override to" dropdown that writes `nexus.diffusion.tierOverride` via `SettingsStore`. The Image Studio and Video Lab forms read the resolved tier for default form values.
+
+### 8.P2.XX -- DiffusionTier defaults not yet read by Image Studio / Video Lab forms (DF, P2)
+
+- **Source phase**: Phase 8 (8.4)
+- **Plan reference**: [phase-08-gpu-scheduler-and-telemetry.md](plans/phase-08-gpu-scheduler-and-telemetry.md) sub-task 8.4 ("Default form values in Image Studio + Video Lab are derived from the tier").
+- **Reason**: The `DIFFUSION_TIER_CONFIGS` table ships with per-tier `image` (width / height / steps / sampler / model / allowControlNet / allowControlNetStacking / allowLoRA) and `video` (model / clipSeconds / fps / dimensions / enabled) defaults, plus a `parallelJobs` flag for the pro tier. The Image Studio (`desktop/src/modules/image/ImagePromptForm.tsx`) and Video Lab (`desktop/src/modules/video/VideoPromptForm.tsx`) forms still use the Phase 6 / 7 hard-coded initial values. Tying them together depends on the Settings Hardware page (`8.P2.WW`) and the live telemetry wiring (`8.P1.UU`) so the tier resolution does not change under the user's feet.
+- **Suggested next step**: Phase 9 polish pass: once `8.P2.WW` lands, both forms accept a `defaultsFor: DiffusionTierConfig` prop with the resolved tier as the initial state. Acceptance: a `diffusion-mid` host opens Image Studio to 1024x1024 SDXL Turbo defaults; a `diffusion-low` host opens to 512x512 SD 1.5 with video disabled.
+
+### 8.P2.YY -- TelemetryBus event union does not yet model `job.cancelled` (WN, P2)
+
+- **Source phase**: Phase 8 (8.1)
+- **Plan reference**: [phase-08-gpu-scheduler-and-telemetry.md](plans/phase-08-gpu-scheduler-and-telemetry.md) sub-task 8.1 ("The scheduler publishes `scheduler.job.queued`, `scheduler.job.started`, `scheduler.job.completed`, `scheduler.job.cancelled` events on the `TelemetryBus`.").
+- **Reason**: `core/telemetry/TelemetryBus.ts` declares a closed `TelemetryEventKind` union (`job.queued | job.started | job.completed | job.failed | ...`) without an explicit `job.cancelled` kind. `GpuScheduler` publishes cancellation events using the `job.failed` kind with a `schedulerEvent: "job.cancelled"` payload discriminator -- subscribers that filter by payload-side discriminator see the right thing, but kind-filtered subscribers lump cancelled with failed. The union is shared across pillars, so widening it warrants its own coordinated commit.
+- **Suggested next step**: Phase 9 polish pass: widen `TelemetryEventKind` with `job.cancelled` and update `GpuScheduler._publish` to use the dedicated kind instead of the `job.failed` overload. Subscribers that already inspect `payload.schedulerEvent` stay correct.
+
 ---
 
 ## 2. Resolved
@@ -355,6 +383,7 @@ Each entry has a category tag:
 |---|---|---|
 | [v0.9.0:10.N.Q] IdleTimeScheduler wiring | Sidecar bootstrap registers curator (5 min idle / 12 h cadence) + reflect (10 min idle / 24 h cadence) workers; 30-minute synthetic-idle integration test passes. Legacy `AgentLoop` curator-cadence fallback removal tracked as 3.P1.P. | Phase 3.4 (desktop/sidecar/src/runtime/idleScheduler.ts) |
 | [v0.9.0:10.N.A] ModelPinRegistry wiring | Ported `src/storage/ModelPinRegistry.ts` to `core/registry/ModelPinRegistry.ts`, persisted pin set through new `SettingsStore` (`nexus.llm.modelPins`), exposed `resolver()` for `StreamingPipeline`'s existing `KeepAliveResolver` callback. Sidecar bootstrap (`desktop/sidecar/src/runtime/codingBootstrap.ts`) hydrates the registry on startup. Legacy module is a compat re-export. | Phase 5.6 (core/registry/ModelPinRegistry.ts, core/storage/SettingsStore.ts, desktop/sidecar/src/runtime/codingBootstrap.ts) |
+| 1.P3.F Real telemetry source wired in Phase 8 | Shipped `core/telemetry/GpuTelemetrySource.ts` (2 Hz poller with platform-agnostic `GpuQueryFn`, `parseNvidiaSmiCsv` / `parseAppleSystemProfiler` / `buildCpuFallbackSample` and CPU-only graceful degrade) and `desktop/src/lib/telemetryStream.ts` (renders raw GPU samples + scheduler snapshot into the `LocalModelTelemetry` shape consumed by `<LocalModelStatus>`). The widget gained hover tooltip, click-to-open queue modal, idle state, and a floating `<LocalModelStatusDock>` placement on every non-dashboard page. Sidecar-side `nvidia-smi -lms 500` spawn deferred to `8.P1.UU`. | Phase 8.2 / 8.3 (core/telemetry/GpuTelemetrySource.ts, desktop/src/lib/telemetryStream.ts, desktop/src/components/LocalModelStatus.tsx, desktop/src/components/LocalModelStatusDock.tsx) |
 
 ---
 
@@ -363,18 +392,18 @@ Each entry has a category tag:
 | Severity | Open | Resolved |
 |---|---|---|
 | P0 | 0 | 0 |
-| P1 | 19 | 2 |
-| P2 | 24 | 0 |
-| P3 | 4 | 0 |
-| **Total** | **47** | **2** |
+| P1 | 21 | 2 |
+| P2 | 27 | 0 |
+| P3 | 3 | 1 |
+| **Total** | **51** | **3** |
 
 | Category | Open | Resolved |
 |---|---|---|
-| NI | 7 | 0 |
-| DF | 40 | 2 |
+| NI | 8 | 0 |
+| DF | 42 | 3 |
 | BG | 2 | 0 |
 | MT | 5 | 0 |
-| WN | 0 | 0 |
+| WN | 1 | 0 |
 | QG | 0 | 0 |
 
-**Last updated**: 2026-05-17 (Phase 7 close; VideoRuntime sidecar extension + LTX-Video / SVD / CogVideoX text2video + image2video pipelines with video-upgraded smart-offload + VRAM lifecycle scope + telemetry envelope; `core/video/WorkflowMetadata.ts` ffmpeg / ffprobe MP4 comment embed/extract + `nexus-video extract-workflow` CLI; `VideoLabPage` with form, live thumbnail strip, HTML5 timeline previewer with frame-stepping, and Outputs gallery shipped; live PyTorch / diffusers execution, installer-bundled ffmpeg, Tauri-side Python spawn, and Channel-based progress streaming deferred to operator action + Phase 8/9 follow-ons)
+**Last updated**: 2026-05-17 (Phase 8 close; `core/scheduler/GpuScheduler.ts` cross-module FIFO queue with foreground-bump + VRAM gating + cancel + telemetry envelopes; `core/telemetry/GpuTelemetrySource.ts` 2 Hz poller with `parseNvidiaSmiCsv` / `parseAppleSystemProfiler` / CPU fallback; `core/config/DiffusionTier.ts` four-tier diffusion classification with per-tier image + video defaults; `<LocalModelStatus>` lit up with hover tooltip, click-to-open queue modal, idle state + `<LocalModelStatusDock>` floating placement on every module page; 1.P3.F resolved; sidecar-side `nvidia-smi -lms 500` spawn, Settings -> Hardware page, Image / Video form default-wiring, and `job.cancelled` TelemetryEventKind widening rolled forward to Phase 9 follow-ons)
