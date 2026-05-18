@@ -56,7 +56,7 @@ jobs:
       - run: npm run test -- --reporter=verbose --coverage
         env:
           CI: "true"
-      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always() && matrix.node == '22.x'
         with:
           name: ts-coverage
@@ -78,7 +78,7 @@ jobs:
           cache: "npm"
       - run: npm ci --prefer-offline --no-audit
       - run: npm run build
-      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: matrix.node == '22.x'
         with:
           name: ts-build
@@ -167,25 +167,25 @@ jobs:
       - name: Package skills (claude-code, cursor, opencode, gemini-cli)
         run: npm run package:skills -- --quiet
       - name: Upload Claude Code bundle
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: skills-claude-code
           path: dist/claude-code/
           retention-days: 30
       - name: Upload Cursor bundle
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: skills-cursor
           path: dist/cursor/
           retention-days: 30
       - name: Upload OpenCode bundle
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: skills-opencode
           path: dist/opencode/
           retention-days: 30
       - name: Upload Gemini CLI bundle
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: skills-gemini-cli
           path: dist/gemini-cli/
@@ -245,7 +245,7 @@ jobs:
             --current bench-results.json \
             --regression-pct 20 \
             --fail-on-regression
-      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: fast-bench-results
@@ -299,7 +299,7 @@ jobs:
       - run: npm run build
       - name: vsce package --no-dependencies
         run: npx --yes @vscode/vsce package --no-dependencies --out gemma-code-ci.vsix
-      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: vsix-smoke
           path: gemma-code-ci.vsix
@@ -329,7 +329,7 @@ jobs:
       # without re-running depcruise locally.
       - name: Regenerate dependency graph SVG
         run: npm run deps:graph
-      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: dep-graph-svg
           path: docs/v0.5.0/dep-graph.svg
@@ -427,7 +427,7 @@ jobs:
       - name: npm audit --audit-level=high (json)
         continue-on-error: true
         run: npm audit --audit-level=high --json > audit-dev.json || true
-      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: audit-dev

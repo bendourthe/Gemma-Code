@@ -29,7 +29,7 @@ jobs:
         run: choco install vscode --no-progress -y
       - name: Run smoke test
         run: pwsh -File tests/smoke/smoke-windows.ps1
-      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: smoke-windows-results
@@ -51,7 +51,7 @@ jobs:
         run: pip install PyQt5 httpx
       - name: Run smoke test
         run: bash tests/smoke/smoke-macos.sh
-      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: smoke-macos-results
@@ -80,7 +80,7 @@ jobs:
         run: pip install PyQt5 httpx
       - name: Run smoke test
         run: bash tests/smoke/smoke-linux.sh
-      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: smoke-linux-results

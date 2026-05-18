@@ -45,7 +45,7 @@ jobs:
           VSIX="gemma-code-${{ steps.version.outputs.version }}.vsix"
           echo "vsix_name=$VSIX" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: vsix
           path: "*.vsix"
@@ -77,7 +77,7 @@ jobs:
       - name: Build installer
         run: pwsh -NonInteractive -File scripts/installer/pyqt/build/build-windows.ps1 -SkipSign
 
-      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: installer-windows
           path: scripts/installer/pyqt/dist/GemmaCodeSetup.exe
@@ -105,7 +105,7 @@ jobs:
       - name: Build installer
         run: bash scripts/installer/pyqt/build/build-macos.sh
 
-      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: installer-macos
           path: |
@@ -138,7 +138,7 @@ jobs:
       - name: Build installer
         run: bash scripts/installer/pyqt/build/build-linux.sh
 
-      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: installer-linux
           path: |
