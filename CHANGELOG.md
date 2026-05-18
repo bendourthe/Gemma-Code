@@ -1,3 +1,10 @@
+# [0.31.0](https://github.com/bendourthe/Nexus-AI/compare/v0.30.1...v0.31.0) (2026-05-18)
+
+
+### Features
+
+* **v1.0.0:** phase 10 DevAI-Hub sync pathway + namespaced skill catalog ([398e41f](https://github.com/bendourthe/Nexus-AI/commit/398e41fca7714b52841ec176cf7c8923953a640c))
+
 ## [0.30.1](https://github.com/bendourthe/Nexus-AI/compare/v0.30.0...v0.30.1) (2026-05-18)
 
 
