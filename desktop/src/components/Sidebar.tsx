@@ -7,7 +7,6 @@ import {
   Film,
   Settings as SettingsIcon,
   UserCircle2,
-  Sparkles,
 } from "lucide-react";
 import { moduleList, MODULES, type ModuleId } from "../types/modules";
 import { writeActiveRoute } from "../lib/persistence";
@@ -121,10 +120,16 @@ export function Sidebar(): JSX.Element {
           padding: "var(--space-2) var(--space-1)",
         }}
       >
-        <Sparkles
+        <img
+          src="/nexus-mark.png"
+          alt=""
           aria-hidden
-          size={22}
-          color={activeBorder ? `var(${activeBorder})` : "var(--fg-0)"}
+          width={28}
+          height={28}
+          style={{
+            borderRadius: 6,
+            outline: activeBorder ? `1px solid var(${activeBorder})` : "none",
+          }}
         />
         <span
           style={{

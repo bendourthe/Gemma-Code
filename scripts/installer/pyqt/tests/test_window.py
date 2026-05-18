@@ -10,7 +10,7 @@ class TestInstallerWindow:
         from nexus_installer.window import InstallerWindow
 
         window = InstallerWindow()
-        assert "Gemma Code" in window.windowTitle()
+        assert "Nexus" in window.windowTitle()
 
     def test_has_header_and_footer(self, qt_app: object) -> None:
         from nexus_installer.window import InstallerWindow

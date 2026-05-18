@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/nexus_primary.png" alt="Nexus" width="160" />
+</p>
+
 # Nexus — Local AI Studio
 
 > A local-first, native desktop application for developers, creators, and data scientists who want a private, high-performance workspace for generative AI workloads. No API keys, no data leaving your machine, no per-token billing.

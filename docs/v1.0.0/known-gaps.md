@@ -53,12 +53,9 @@ Each entry has a category tag:
 - **Reason**: Phase 1 ships unit tests at 99.11% lines / 100% functions / 87.21% branches across `desktop/src/` and the Node sidecar (well above the 80% gate). An end-to-end Tauri-driver test that actually spawns the native window + sidecar requires `tauri-driver` and a display server (`xvfb`/`Xvnc` on Linux, headed runs on macOS / Windows). That harness has its own setup cost; we ship the unit + sidecar coverage now and add the Tauri-driver smoke in a follow-on without delaying Phase 2.
 - **Suggested next step**: Land `tauri-driver` + a single "open window + ping IPC + close" Playwright/WebDriver smoke in the `shell-build.yml` CI job, scheduled as the first task of Phase 2 testing-and-stabilization.
 
-### 1.P2.E -- Tauri icons placeholder (NI, P2)
+### 1.P2.E -- Tauri icons placeholder
 
-- **Source phase**: Phase 1 (1.1)
-- **Plan reference**: [phase-01-shell-foundation.md](plans/phase-01-shell-foundation.md) sub-task 1.1 ("placeholder window opens").
-- **Reason**: `desktop/src-tauri/tauri.conf.json` references icons under `icons/` (`32x32.png`, `128x128.png`, `icon.icns`, `icon.ico`). The asset files are not committed in Phase 1 because the brand identity (logo, color palette finalization) is part of Phase 2's rebrand sweep. `tauri build` will fail until icons land; `tauri dev` works against the bundled default.
-- **Suggested next step**: Phase 2 rebrand sweep generates the icon set (typically via `cargo tauri icon path/to/source.png`).
+Resolved in Phase 9 -- see `## 2. Resolved` below.
 
 ### 2.P1.G -- Storage-path call-site rename deferred (DF, P1)
 
@@ -375,6 +372,48 @@ Each entry has a category tag:
 - **Reason**: `core/telemetry/TelemetryBus.ts` declares a closed `TelemetryEventKind` union (`job.queued | job.started | job.completed | job.failed | ...`) without an explicit `job.cancelled` kind. `GpuScheduler` publishes cancellation events using the `job.failed` kind with a `schedulerEvent: "job.cancelled"` payload discriminator -- subscribers that filter by payload-side discriminator see the right thing, but kind-filtered subscribers lump cancelled with failed. The union is shared across pillars, so widening it warrants its own coordinated commit.
 - **Suggested next step**: Phase 9 polish pass: widen `TelemetryEventKind` with `job.cancelled` and update `GpuScheduler._publish` to use the dedicated kind instead of the `job.failed` overload. Subscribers that already inspect `payload.schedulerEvent` stay correct.
 
+### 9.P1.ZZ -- Installer payload-fetch script not yet implemented (DF, P1)
+
+- **Source phase**: Phase 9 (9.1-9.6)
+- **Plan reference**: [phase-09-installer.md](plans/phase-09-installer.md) sub-tasks 9.2-9.6 (CUDA, Python wheels, Node, Ollama, ffmpeg, DevAI-Hub baseline payload hydration).
+- **Reason**: Phase 9 lands the wizard-side provisioners (`cuda_provisioner.py`, `diffusion_venv_provisioner.py`, `node_provisioner.py`, `devai_hub_provisioner.py`) plus the architecture doc, the NSIS template, and the CI workflow stubs. The build-time payload-fetch script (`scripts/installer/build/fetch-payload.py`) that downloads the CUDA runtime, Python embeddable, wheels, Node 22 portable, Ollama setup, ffmpeg, and the DevAI-Hub tarball into `build/payload/` is not yet written; the CI workflow placeholder calls into it as a `Write-Host TODO` step. Without this script, `installer-build.yml` cannot produce a real `Nexus-1.0.0-Setup.exe` -- only the NSIS skeleton + wizard exe.
+- **Suggested next step**: A Phase 9 follow-on commit lands `scripts/installer/build/fetch-payload.py` (parameterized by `versions.lock.json`), wires it into `installer-build.yml`, and produces a first artifact build under workflow_dispatch.
+
+### 9.P1.AAA -- Ollama / DevAI-Hub baseline pinned SHAs are placeholder zeros (DF, P1)
+
+- **Source phase**: Phase 9 (9.6)
+- **Plan reference**: [phase-09-installer.md](plans/phase-09-installer.md) sub-task 9.6 ("the pinned tag is recorded in `scripts/installer/devai-hub-baseline.json` as `{tag, sha, contentHash}`").
+- **Reason**: `scripts/installer/devai-hub-baseline.json` (Phase 9.6) lands the manifest skeleton with placeholder `0...` SHA-256 + commit SHA values, because pinning a real DevAI-Hub tag requires choosing the canonical v1.0.0-baseline tag in the upstream repo first. The provisioner's hash guard accepts a fully-zeroed `contentHash` as "skip verification" so dev builds still extract. Until the real tag is cut, the bundled tarball cannot be verified end-to-end. Likewise `OLLAMA_WINDOWS_SHA256` / `OLLAMA_LINUX_SCRIPT_SHA256` in `engine/ollama_installer.py` remain at the v0.x placeholder and need rotation to the v1.0.0 release.
+- **Suggested next step**: Phase 11 release hardening: cut `DevAI-Hub@v1.0.0-baseline`, fill the SHA-256 + commit SHA in `scripts/installer/devai-hub-baseline.json`, rotate the two Ollama SHAs from the pinned upstream release, and add a CI assertion that the manifest content_hash matches `sha256sum payload/devai-hub-baseline.tar.gz`.
+
+### 9.P2.BBB -- Tauri icon assets are functional placeholders (DF, P2)
+
+- **Source phase**: Phase 9 (CI-blocker fix)
+- **Plan reference**: [phase-09-installer.md](plans/phase-09-installer.md) Phase 9 (collateral CI fix; the missing icons were blocking `shell-build.yml`).
+- **Reason**: Phase 9 unblocks the `shell-build.yml` cargo-check leg by generating a procedurally-rendered icon set under `desktop/src-tauri/icons/` (`32x32.png`, `128x128.png`, `128x128@2x.png`, `icon.icns`, `icon.ico`, plus the Square*Logo.png Windows Store tile set). The icons are a teal-on-charcoal rounded square with the letter "N" -- placeholder branding sufficient for dev / CI builds but not the final v1.0.0 art. `scripts/desktop/generate-icons.py` is the reproducible source.
+- **Suggested next step**: Phase 11 release hardening: replace the procedurally-rendered icons with the final designer-authored source asset. Re-run `scripts/desktop/generate-icons.py` or export from the design tool to the same filenames.
+
+### 9.P1.CCC -- NSIS outer installer not yet built end-to-end (DF, P1)
+
+- **Source phase**: Phase 9 (9.7)
+- **Plan reference**: [phase-09-installer.md](plans/phase-09-installer.md) sub-task 9.7 ("the NSIS outer installer writes the standard Windows registry entries...").
+- **Reason**: `scripts/installer/build/nsis/nexus-setup.nsi` lands as the canonical NSIS template covering registry entries, Start Menu / Desktop shortcuts, `.nexus-workflow.json` association, `nexus://` URL handler, and the data-preservation uninstaller. The template is not yet compiled into a real `Nexus-1.0.0-Setup.exe` because the upstream payload fetch (`9.P1.ZZ`) is not wired and PyInstaller-freezing the wizard requires a Windows runner with the full payload. The template is reviewed but not exercised by CI yet.
+- **Suggested next step**: Phase 9 follow-on: once `9.P1.ZZ` lands, run `installer-build.yml` (workflow_dispatch) and confirm `makensis` produces a binary, the binary installs silently on a Windows 11 VM, and the data-preservation prompt fires on uninstall.
+
+### 9.P2.DDD -- Recommended-models picker not yet wired into the wizard step flow (NI, P2)
+
+- **Source phase**: Phase 9 (9.5)
+- **Plan reference**: [phase-09-installer.md](plans/phase-09-installer.md) sub-task 9.5 ("Implement the model picker page in the wizard at `scripts/installer/pyqt/src/nexus_installer/pages/models.py`").
+- **Reason**: Phase 9.5 lands the new `pages/recommended_models.py` page with the Light / Recommended / Full preset bundles, per-model checkboxes, the advanced catalog tab, the total + estimated-time footer, and the "Skip download" affordance. The wizard's central step controller (`window.py`) still maps the "Model Selection" step to the older `pages/model_selection.py` (Gemma 4 variant picker). The new page is not yet inserted into the step list because the `InstallerState` needs a small schema extension to carry the multi-model selection (it currently has a single `selected_model: str`), and the installing-step engine needs to iterate the new list of models. The new page is exercised in isolation by `tests/test_recommended_models.py`.
+- **Suggested next step**: Phase 9 follow-on commit extends `InstallerState` with `selected_models: list[str]` + `skip_models: bool`, rewires `window.py` to use `RecommendedModelsPage` at the existing "Model Selection" step, and updates the installing-step engine to iterate the list. Existing `pages/model_selection.py` can stay as a fallback for the legacy single-model VS-Code-extension flow until the Phase 10 sync removes it.
+
+### 9.P2.EEE -- macOS + Linux installer outer shells deferred to v1.0.1 / v1.0.2 (DF, P2)
+
+- **Source phase**: Phase 9 (9.8)
+- **Plan reference**: [phase-09-installer.md](plans/phase-09-installer.md) sub-task 9.8 ("macOS + Linux installers (one phase behind, scoped to v1.0.1+)").
+- **Reason**: Phase 9.8 documents the DMG + AppImage scope, wires `.github/workflows/installer-macos.yml` and `.github/workflows/installer-linux.yml` as workflow_dispatch placeholders, and confirms the cross-platform PyQt wizard already supports both targets (only the outer-shell packaging differs). Apple Developer ID + notarization, AppImage assembly, and the macOS / Linux smoke checklists are deferred to dedicated v1.0.1 (macOS) and v1.0.2 (Linux) release cycles so the v1.0.0 surface stays Windows-first.
+- **Suggested next step**: v1.0.1 opens with `installer-macos.yml` swapped from workflow_dispatch to push: tags + the smoke checklist runs on a CI macOS VM. v1.0.2 does the same for AppImage.
+
 ---
 
 ## 2. Resolved
@@ -384,6 +423,8 @@ Each entry has a category tag:
 | [v0.9.0:10.N.Q] IdleTimeScheduler wiring | Sidecar bootstrap registers curator (5 min idle / 12 h cadence) + reflect (10 min idle / 24 h cadence) workers; 30-minute synthetic-idle integration test passes. Legacy `AgentLoop` curator-cadence fallback removal tracked as 3.P1.P. | Phase 3.4 (desktop/sidecar/src/runtime/idleScheduler.ts) |
 | [v0.9.0:10.N.A] ModelPinRegistry wiring | Ported `src/storage/ModelPinRegistry.ts` to `core/registry/ModelPinRegistry.ts`, persisted pin set through new `SettingsStore` (`nexus.llm.modelPins`), exposed `resolver()` for `StreamingPipeline`'s existing `KeepAliveResolver` callback. Sidecar bootstrap (`desktop/sidecar/src/runtime/codingBootstrap.ts`) hydrates the registry on startup. Legacy module is a compat re-export. | Phase 5.6 (core/registry/ModelPinRegistry.ts, core/storage/SettingsStore.ts, desktop/sidecar/src/runtime/codingBootstrap.ts) |
 | 1.P3.F Real telemetry source wired in Phase 8 | Shipped `core/telemetry/GpuTelemetrySource.ts` (2 Hz poller with platform-agnostic `GpuQueryFn`, `parseNvidiaSmiCsv` / `parseAppleSystemProfiler` / `buildCpuFallbackSample` and CPU-only graceful degrade) and `desktop/src/lib/telemetryStream.ts` (renders raw GPU samples + scheduler snapshot into the `LocalModelTelemetry` shape consumed by `<LocalModelStatus>`). The widget gained hover tooltip, click-to-open queue modal, idle state, and a floating `<LocalModelStatusDock>` placement on every non-dashboard page. Sidecar-side `nvidia-smi -lms 500` spawn deferred to `8.P1.UU`. | Phase 8.2 / 8.3 (core/telemetry/GpuTelemetrySource.ts, desktop/src/lib/telemetryStream.ts, desktop/src/components/LocalModelStatus.tsx, desktop/src/components/LocalModelStatusDock.tsx) |
+| 1.P2.E Tauri icons placeholder | Phase 9 lands a reproducible icon generator (`scripts/desktop/generate-icons.py`) and commits the rendered set (32x32, 128x128, 128x128@2x, icon.icns, icon.ico, plus the Square*Logo.png Windows Store tiles) under `desktop/src-tauri/icons/`. Unblocks `cargo check` in the `shell-build.yml` matrix (Windows + Linux + macOS) which was failing with `icons/icon.ico not found` (Win) and `failed to open icon icons/32x32.png` (Linux). Final art is now tracked as `9.P2.BBB`. | Phase 9 (scripts/desktop/generate-icons.py, desktop/src-tauri/icons/) |
+| Phase 9 CI block on missing `tauri::Manager` import | `desktop/src-tauri/src/sidecar.rs` called `app.path().resolve(...)` without importing the `tauri::Manager` trait, which compiled silently against an older Tauri API but errored on the v2.11 toolchain shipped by `dtolnay/rust-toolchain@stable` (`error[E0599]: no method named path found for reference &AppHandle`). Phase 9 fixes the import in lockstep with the icons. | Phase 9 (desktop/src-tauri/src/sidecar.rs) |
 
 ---
 
@@ -392,18 +433,18 @@ Each entry has a category tag:
 | Severity | Open | Resolved |
 |---|---|---|
 | P0 | 0 | 0 |
-| P1 | 21 | 2 |
-| P2 | 27 | 0 |
+| P1 | 24 | 2 |
+| P2 | 30 | 1 |
 | P3 | 3 | 1 |
-| **Total** | **51** | **3** |
+| **Total** | **57** | **4** |
 
 | Category | Open | Resolved |
 |---|---|---|
-| NI | 8 | 0 |
-| DF | 42 | 3 |
+| NI | 9 | 0 |
+| DF | 47 | 4 |
 | BG | 2 | 0 |
 | MT | 5 | 0 |
 | WN | 1 | 0 |
 | QG | 0 | 0 |
 
-**Last updated**: 2026-05-17 (Phase 8 close; `core/scheduler/GpuScheduler.ts` cross-module FIFO queue with foreground-bump + VRAM gating + cancel + telemetry envelopes; `core/telemetry/GpuTelemetrySource.ts` 2 Hz poller with `parseNvidiaSmiCsv` / `parseAppleSystemProfiler` / CPU fallback; `core/config/DiffusionTier.ts` four-tier diffusion classification with per-tier image + video defaults; `<LocalModelStatus>` lit up with hover tooltip, click-to-open queue modal, idle state + `<LocalModelStatusDock>` floating placement on every module page; 1.P3.F resolved; sidecar-side `nvidia-smi -lms 500` spawn, Settings -> Hardware page, Image / Video form default-wiring, and `job.cancelled` TelemetryEventKind widening rolled forward to Phase 9 follow-ons)
+**Last updated**: 2026-05-17 (Phase 9 close; installer-architecture (Phase 9.1) lands `docs/v1.0.0/installer-architecture.md`, `scripts/installer/build/windows-pipeline.md`, and `.github/workflows/installer-build.yml`; CUDA / Python venv / Node / Ollama / DevAI-Hub provisioner modules land under `scripts/installer/pyqt/src/nexus_installer/engine/`; the recommended-models picker lands at `scripts/installer/pyqt/src/nexus_installer/pages/recommended_models.py`; the NSIS outer template lands at `scripts/installer/build/nsis/nexus-setup.nsi`; macOS + Linux installer scope deferred to v1.0.1 / v1.0.2 via `installer-macos-and-linux.md` + the two workflow_dispatch stubs; CI-blocker fix: generated Tauri icon set + `Manager` trait import in `sidecar.rs` -- `1.P2.E` resolved; new Phase 9 entries `9.P1.ZZ` (payload fetch), `9.P1.AAA` (Ollama/DevAI-Hub SHAs), `9.P2.BBB` (final icon art), `9.P1.CCC` (NSIS end-to-end build), `9.P2.DDD` (picker wiring), `9.P2.EEE` (macOS/Linux carryover). 59 new installer unit tests pass; full installer suite 245/245 green; desktop vitest 351/351 green; frontend lint + typecheck clean.)

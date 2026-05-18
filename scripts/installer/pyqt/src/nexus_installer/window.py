@@ -33,7 +33,7 @@ class InstallerWindow(QMainWindow):
 
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("Gemma Code -- Setup")
+        self.setWindowTitle("Nexus -- Setup")
         self.setMinimumSize(WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT)
         self.resize(WINDOW_DEFAULT_WIDTH, WINDOW_DEFAULT_HEIGHT)
         self.setStyleSheet(generate_stylesheet())

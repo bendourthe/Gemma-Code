@@ -1,0 +1,66 @@
+name: Installer build (Linux)
+
+# Builds Nexus-1.0.0.AppImage -- the Linux AppImage outer shell that wraps
+# the same PyQt5 wizard the Windows installer ships. Scoped for v1.0.2
+# release; v1.0.0 only requires this workflow file to exist (gated behind
+# workflow_dispatch) so the cross-platform CI stubs are in place. See
+# docs/v1.0.0/installer-macos-and-linux.md.
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Reason for the manual run"
+        required: false
+        default: "manual rehearsal"
+
+concurrency:
+  group: installer-build-linux-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-linux-installer:
+    name: Build Nexus-1.0.0.AppImage
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.11"
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: "22.x"
+
+      - name: Install AppImage tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends fuse libfuse2 libxcb-xinerama0 libxkbcommon-x11-0
+          wget -O /tmp/appimagetool https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x /tmp/appimagetool
+
+      - name: Resolve pinned versions
+        run: echo "TODO v1.0.2: read scripts/installer/devai-hub-baseline.json + pyproject.toml + .nvmrc"
+
+      - name: Fetch payload (CUDA, Python, wheels, Node, Ollama, ffmpeg, DevAI-Hub)
+        run: echo "TODO v1.0.2: run scripts/installer/build/fetch-payload.py --out build/payload/ --platform linux-x86_64"
+
+      - name: Freeze the wizard with PyInstaller
+        run: echo "TODO v1.0.2: uv run pyinstaller --onefile --windowed --name nexus-installer src/nexus_installer/main.py"
+
+      - name: Assemble AppDir
+        run: echo "TODO v1.0.2: mkdir -p build/AppDir/usr/bin; cp wizard + payload tree; write .desktop file"
+
+      - name: Compile AppImage
+        run: echo "TODO v1.0.2: /tmp/appimagetool build/AppDir build/Nexus-1.0.0.AppImage"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        if: always()
+        with:
+          name: Nexus-1.0.0-AppImage
+          path: build/Nexus-1.0.0.AppImage
+          if-no-files-found: warn
+          retention-days: 14

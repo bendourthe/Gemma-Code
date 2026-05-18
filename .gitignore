@@ -85,6 +85,10 @@ out/
 # PyInstaller (scripts + .spec + hooks), not build outputs, so allow them.
 !scripts/installer/pyqt/build/
 !scripts/installer/pyqt/build/**
+# Phase 9 v1.0.0 NSIS outer + Windows build pipeline sketch likewise live
+# under scripts/installer/build/ and are inputs, not build outputs.
+!scripts/installer/build/
+!scripts/installer/build/**
 
 # ==============================================================================
 # Archives
