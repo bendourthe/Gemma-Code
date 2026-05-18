@@ -1,3 +1,130 @@
+# [1.0.0](https://github.com/bendourthe/Nexus-AI/compare/v0.31.0...v1.0.0) (2026-05-18)
+
+The first production release of Nexus -- a local-first agentic AI workstation that hosts four pillars (Agentic AI Coding, Local Chatbot Explorer, Image Studio, Video Lab) inside a single Tauri 2.x desktop shell, backed by a Node sidecar (LLM + chat orchestration) and a Python sidecar (Stable Diffusion / video pipelines). The cycle pivots the project from the v0.x "Gemma Code" VS Code extension into a four-pillar desktop product, completes the rebrand sweep, and lands a Windows-first single-binary installer with a DevAI-Hub skill-sync pathway.
+
+This is a SemVer major-version bump from v0.30.1. Identifier, settings, storage path, and CLI surface migrations preserve backwards compatibility through a one-cycle compat window (legacy `gemma-code.*` keys, `~/.gemma-code/` storage, and the `gemma-check` CLI alias are all still honoured with deprecation logs; they are scheduled for removal in v1.1.0).
+
+### Added
+
+Tauri desktop shell (Phase 1):
+- Tauri 2.x Rust core (`desktop/src-tauri/`) that hosts a React 19 + Vite 5 web frontend and spawns a Node 22 sidecar process over JSON-RPC.
+- IPC primitives: request/response `ipc_call` Tauri command, typed `protocol.ts` envelope with Zod schemas, error envelope with structured `code` + `details`.
+- Dashboard with four module cards (Coding / Chat / Image / Video), TopBar with search + notifications + extra-buttons slot, Sidebar with module navigation + design-token styleguide route.
+- Design tokens (`desktop/src/styles/tokens.css`) consumed via CSS variables; styleguide page renders every token visually for regression checks.
+
+Rebrand + core extraction (Phase 2):
+- `core/` shared-core surface (storage, settings, telemetry, registry, video utilities) with TypeScript project-references build.
+- `core/storage/StorageMigration.ts` migrates `~/.gemma-code/` -> `~/.nexus/` on first launch; POSIX symlink retains backwards compatibility on macOS / Linux, side-by-side dirs on Windows.
+- `SettingsCompat` shim resolves every legacy `gemma-code.*` settings key to its canonical `nexus.*` counterpart with a runtime deprecation log.
+- Dependency-cruiser boundary rules enforce `core/` -> `modules/coding/` (and `modules/chat/`, etc.) is one-way; reverse imports are CI-blocked.
+- VS Code extension code identifiers renamed (`GemmaCodePanel` -> `NexusCodingPanel`, `GemmaRuntime` -> `NexusCodingRuntime`).
+- `nexus` CLI binary (still ships `gemma-check` as a compat alias) covering `nexus skills sync`, `nexus skills list`, and the existing check / golden / curate subcommands.
+
+Coding module (Phase 3):
+- `desktop/sidecar/` Node sidecar workspace hosting the new `CodingSessionManager` (placeholder responder during the compat window; Phase 5 follow-on swaps in the real `NexusCodingRuntime`).
+- Coding-module IPC surface: `coding.session.create`, `coding.session.sendMessage`, `coding.session.event`, `coding.memory.snapshot`, `coding.trace.subscribe`, `coding.sessions.list`.
+- Desktop Coding panel (`desktop/src/modules/coding/`) with chat input, message list, slash-command autocomplete (12 canonical commands), `<MemoryPanel>` / `<TraceDashboardPanel>` / `<SessionListPanel>` siblings.
+- IdleTimeScheduler (`desktop/sidecar/src/runtime/idleScheduler.ts`) -- registers curator (5 min idle / 12 h cadence) and reflect (10 min idle / 24 h cadence) workers; closes v0.9.0 known-gap 10.N.Q.
+- `desktop/src/desktop/daemonDiscovery.ts` and the VS Code adapter detection branch -- groundwork for the thin-adapter flip in v1.1.0.
+
+Chat module (Phase 4):
+- `modules/chat/` SQLite-backed `ChatExplorerStore` (folder tree with drag/drop, chat CRUD, search, breadcrumbs, ancestor traversal).
+- Desktop Chat panel (`desktop/src/modules/chat/ChatPage.tsx`) with `<FolderTree>`, `<ChatHeader>`, `<MessageList>`, model selector, tools toggle.
+- `MemoryHub` scope filter -- in-memory `scopeId` propagation across working / episodic / semantic / graph layers; `ChatScopedMemory` bridge translates folder ancestry into a scope chain. SQLite column migration deferred to v1.1.0.
+- TopBar search adapter signature for folder / chat / memory results; default Dashboard wires folder + chat sources.
+
+Model Registry (Phase 5):
+- `core/registry/ModelCatalog.ts` + `core/registry/models.json` -- single canonical model catalog (LLM, image, video, LoRA, ControlNet) with provenance, license, source protocol, recommended VRAM tier, SHA-256 digest.
+- `core/registry/NexusModelRegistry` -- per-host installed-model index at `~/.nexus/registry/models.json`, atomic write, version-aware, recoverable.
+- `core/registry/Downloader` -- HTTP/HTTPS + HuggingFace + Ollama-protocol downloader with resumable transfer, SHA-256 verification, progress events, cancel.
+- `core/registry/ModelPinRegistry` (ported from `src/storage/`) -- per-model "keep loaded in VRAM" pinning; sidecar bootstrap rehydrates pin set from `SettingsStore`'s `nexus.llm.modelPins`; resolver() callback drives `StreamingPipeline`'s existing `KeepAliveResolver` seam.
+- Settings -> Models UI (`desktop/src/pages/settings/ModelsSettings.tsx`) with Installed / Available / External sections, type filters, search, disk-usage summary, install progress + cancel, remove, reveal.
+
+Image Studio (Phase 6):
+- `runtimes/diffusion/` Python sidecar (JSON-RPC over stdio) -- pluggable pipeline registry, smart-offload decision via `device.choose_offload`, deterministic stub executors for CI, real PyTorch executor seams.
+- SDXL Turbo, SDXL 1.0, FLUX Schnell, SD 1.5 pipelines (text2img, img2img, inpaint, outpaint) + LoRA + ControlNet preprocessor stubs (pose / depth / canny).
+- Workflow-metadata embedding -- every output PNG carries the prompt, sampler, steps, CFG, seed, model id, LoRA stack, ControlNet stack as PNG `tEXt` chunks for round-trip reproducibility.
+- Desktop Image Studio panel (`desktop/src/modules/image/ImageStudioPage.tsx`) with prompt form, model dropdown, advanced LoRA / ControlNet, output gallery, live latent preview poll, drag-into-prompt.
+
+Video Lab (Phase 7):
+- Python sidecar video pipelines: LTX-Video, Stable Video Diffusion (SVD), CogVideoX 5B / 2B (text2video + image2video).
+- Video-aware offload decision (`_upgrade_for_video`), `vram_scope` context manager, thumbnail-strip during generation, MP4 output with embedded workflow JSON via ffmpeg metadata.
+- Desktop Video Lab panel (`desktop/src/modules/video/VideoLabPage.tsx`) with prompt form, mode toggle (text2video / image2video), model dropdown, timeline preview scrubber, thumbnail strip, output gallery, drag-into-image-source.
+- ffmpeg / ffprobe injection seam (`FfmpegContext`) -- defaults to `NEXUS_FFMPEG_PATH` / `NEXUS_FFPROBE_PATH` env vars; installer sets these in Phase 9.
+
+GpuScheduler + telemetry (Phase 8):
+- `core/scheduler/GpuScheduler.ts` -- single-GPU job queue with FIFO scheduling, foreground bump (Coding token-gen pre-empts a queued image job), VRAM gating (rejects jobs that would exceed `availableVramGB`), cancel, scheduler telemetry envelope.
+- `core/telemetry/GpuTelemetrySource.ts` -- 2 Hz pluggable poller with `parseNvidiaSmiCsv` (Win + Linux), `parseAppleSystemProfiler` (macOS), `buildCpuFallbackSample` (no-GPU graceful-degrade).
+- `core/config/DiffusionTier.ts` -- four-tier hardware classification (`diffusion-none`, `-low`, `-mid`, `-pro`) with per-tier image + video defaults (resolution, sampler, steps, model, allowControlNet, parallelJobs, video.enabled).
+- `<LocalModelStatus>` widget -- GPU usage gauge, queue summary, hover tooltip, click-to-open queue modal; `<LocalModelStatusDock>` floats it on every non-dashboard route.
+- Closes v0.9.0 known-gap 10.N.A (ModelPinRegistry wiring) and 10.N.R (real telemetry source).
+
+Single-binary installer (Phase 9):
+- PyQt5 cross-platform wizard (`scripts/installer/pyqt/`) with Welcome -> EULA -> Components -> CUDA -> Python venv -> Node -> Models -> Install -> Done page flow.
+- Per-provisioner modules: `cuda_provisioner.py`, `diffusion_venv_provisioner.py`, `node_provisioner.py`, `ollama_provisioner.py`, `devai_hub_provisioner.py`, `recommended_models.py`.
+- NSIS outer installer template (`scripts/installer/build/nsis/nexus-setup.nsi`) covering registry entries, Start Menu / Desktop shortcuts, `.nexus-workflow.json` file association, `nexus://` URL handler, data-preservation uninstaller.
+- Tauri icons under `desktop/src-tauri/icons/` (procedurally rendered teal-on-charcoal "N" via `scripts/desktop/generate-icons.py`; final designer art tracked as a v1.0.1 polish item).
+- Brand assets: `assets/branding/` logo set, design-token alignment with `desktop/src/styles/tokens.css`.
+- CI workflows: `installer-build.yml` (Windows), workflow_dispatch placeholders for `installer-macos.yml` + `installer-linux.yml` (deferred to v1.0.1 / v1.0.2).
+
+DevAI-Hub skill sync (Phase 10):
+- `core/skills/DevAIHubSyncer.ts` -- dependency-injected syncer (resolveLatestTag / sparseClone / tarballFetch / hasGit) with full diff + scan + apply pipeline.
+- `nexus skills sync` CLI subcommand (`--tag`, `--apply`, `--dry-run`).
+- Namespaced `SkillCatalog` (`devai-hub/<name>` vs `user/<name>`) with diverged-flag detection.
+- `~/.nexus/skills/devai-hub/<tag>/` content-addressed tag dirs + `ACTIVE` pointer for tag rotation.
+- Prompt-injection scanner (`core/skills/PromptInjectionScanner.ts`) blocks suspicious skill content before it reaches `~/.nexus/skills/`.
+- Settings -> Skills UI (`desktop/src/pages/settings/SkillsSettings.tsx`) with "Sync now", tag picker, install/divergence indicators, "Use as default" for diverged skills, "Auto-sync weekly" toggle (default OFF).
+- Skill provenance attribution (`Tracer.setCurrentSkill(...)`) folds `skill.{id, namespace, provenance}` into every `tool_call` / `sub_agent` span.
+
+Release hardening (Phase 11):
+- `docs/v1.0.0/release-signing.md` -- Authenticode (Windows) workflow + macOS notarization workflow placeholder.
+- `docs/v1.0.0/release-notes.md` -- user-facing release announcement with module screenshots and v1.1.0 teaser.
+- `docs/v1.0.0/rtm-smoke.md` -- operator-driven RTM smoke checklist (fresh Win 11 VM, 4 modules end-to-end, target <= 90 min total).
+- `docs/v1.0.0/distribution.md` -- distribution-channel runbook (GitHub Releases, VS Code Marketplace re-publish, optional direct-download site).
+- `docs/v1.0.0/operator-actions.md` -- consolidated operator checklist covering live-GPU benches, code-signing cert procurement, SHA-256 rotation, RTM execution.
+- `docs/v1.0.0/review/synthesis.md`, `security-audit.md`, `penetration-test.md` -- consolidated Phase 11 review artifacts.
+
+### Changed
+
+- Project identity, repository remote, npm/Cargo package names: `gemma-code` -> `nexus` (with VS Code extension manifest IDs and Marketplace listing rename deferred to v1.1.0 per known-gap 2.P1.J / 2.P2.K).
+- Settings key namespace: `gemma-code.*` -> `nexus.*`. Legacy keys still honoured via `SettingsCompat`; runtime deprecation log surfaces every legacy read.
+- Storage path: `~/.gemma-code/` -> `~/.nexus/`. Migration on first launch; legacy dir preserved (POSIX symlink on macOS / Linux, side-by-side on Windows). 9 homedir-based call sites in `src/` and 4 workspace-local sites still read the legacy path -- mechanical rename deferred to v1.1.0 per known-gap 2.P1.G.
+- VS Code extension scope: thin-adapter target. The full in-process engine is still hosted by the extension during the compat window; the daemon-discovery + activation-branch hooks ship in v1.0.0, the rewrite to a true thin adapter is staged for v1.1.0 per 3.P1.O.
+- Coding panel: now hosted by the Tauri desktop process (`desktop/src/modules/coding/`). The VS Code extension panel remains until v1.1.0.
+- CLI rename: primary binary is `nexus`. `gemma-check` is retained as a compat alias (logs a deprecation warning); removed in v1.1.0.
+
+### Deprecated
+
+- `gemma-code.*` settings keys (removed in v1.1.0).
+- `~/.gemma-code/` storage path (removed in v1.1.0; data migrated by `StorageMigration` on first v1.0.0 launch).
+- `gemma-check` CLI alias (removed in v1.1.0; use `nexus check`).
+- VS Code extension manifest IDs `gemma-code-sidebar`, `gemma-code.<command>`, `gemma-code.chatView`, `.memoryPanel`, `.traceDashboard` (renamed to `nexus.coding.*` in v1.1.0 per known-gap 2.P1.J).
+- VS Code extension npm package name `gemma-code` (renamed to `nexus-coding` in v1.1.0 per known-gap 2.P2.K).
+
+### Removed
+
+- Pre-rebrand identifiers `GemmaCodePanel`, `GemmaRuntime`, and their import paths under `src/llm/` / `src/storage/` (replaced by `NexusCodingPanel`, `NexusCodingRuntime`, and `core/llm/`, `core/storage/` import paths; legacy modules are compat re-exports).
+
+### Fixed
+
+- v0.9.0 known-gap 10.N.A (ModelPinRegistry wiring): Phase 5 ports the registry to `core/registry/ModelPinRegistry.ts`, persists pin set through `SettingsStore` (`nexus.llm.modelPins`), and threads `resolver()` into `StreamingPipeline`'s existing `KeepAliveResolver` seam.
+- v0.9.0 known-gap 10.N.Q (IdleTimeScheduler wiring): Phase 3 sidecar bootstrap registers curator + reflect workers via the new `desktop/sidecar/src/runtime/idleScheduler.ts`; verified by a 30-minute synthetic-idle integration test.
+- v0.9.0 known-gap 10.N.R (real telemetry source): Phase 8 ships `core/telemetry/GpuTelemetrySource.ts` with platform parsers and the CPU fallback; `<LocalModelStatus>` widget consumes the real stream when the sidecar nvidia-smi spawn lands (operator-driven, tracked as v1.0.0 8.P1.UU).
+- v0.9.0 known-gap 10.N.T (operator-action consolidation): Phase 11 ships `docs/v1.0.0/operator-actions.md` as the consolidated operator checklist for v1.0.0; future cycles inherit the same file layout.
+- Pre-existing Phase 2 test failures (`SubAgentManager.characterization.test.ts` CRLF/LF snapshot mismatches; `workflow-discipline.test.ts` SHA-pin enforcement) recorded under v1.0.0 known-gap 2.P3.L and tracked as a Phase 11 / v1.0.1 fix.
+- Phase 9 CI block on missing `tauri::Manager` import (`desktop/src-tauri/src/sidecar.rs::app.path().resolve()` against Tauri 2.11) -- import added in lockstep with the icons.
+
+### Security
+
+- Windows installer Authenticode signing workflow documented at `docs/v1.0.0/release-signing.md`. Actual signing requires the operator-procured EV Code Signing certificate (tracked as v1.0.0 operator action OA-01).
+- macOS notarization workflow documented (deferred to v1.0.1 per Phase 9.8 + known-gap 9.P2.EEE).
+- Prompt-injection scanner (`core/skills/PromptInjectionScanner.ts`) screens every skill body before it lands in `~/.nexus/skills/`; the DevAI-Hub sync pathway routes every fetched skill through the scanner; the un-namespaced `nexus skills install` CLI path is stubbed (P2 known-gap 10.P2.III) so no scanner-bypassing install surface ships in v1.0.0.
+- Path-clamping on `~/.nexus/skills/user/` writes (resolved + parent-dir check before write).
+- HTTPS-only model downloader; rejects `file://`, `localhost`, internal IP ranges; SHA-256 digest verification gates every non-Ollama install (catalog digests for HTTP-sourced models are placeholders pending v1.0.0 release-gate rotation per known-gap 5.P2.CC).
+- Sidecar process runs as user (not admin); `~/.nexus/` permissions are user-only (verified in `docs/v1.0.0/review/security-audit.md`).
+- Settings UI does not echo secrets; `SECRET_PATHS` redaction in `Tracer` covers `apiKey`, `password`, `token`, `secret`, `Bearer ` headers.
+- ffmpeg shell-out (`core/video/WorkflowMetadata.ts`) builds argv arrays (no shell interpolation); injected `spawnFn` accepts argv-only.
+
 # [0.31.0](https://github.com/bendourthe/Nexus-AI/compare/v0.30.1...v0.31.0) (2026-05-18)
 
 

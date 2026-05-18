@@ -1,9 +1,12 @@
 # v1.0.0 -- Known Gaps, Deferrals, and Carryovers
 
-**Status**: in-progress (the v1.0.0 cycle opened with Phase 1 on 2026-05-17; this file is finalized at v1.0.0 release in Phase 11)
-**Audience**: v1.0.0 phase authors, code reviewer, security reviewer, ops engineer
-**Sibling reviews**: [docs/v0.9.0/known-gaps.md](../v0.9.0/known-gaps.md) (the upstream cycle gap log this file inherits from); [docs/v1.0.0/plans/v1.0.0-cycle.md](plans/v1.0.0-cycle.md) (the active plan).
-**Context**: This file mirrors `docs/v0.9.0/known-gaps.md`'s structure. It is appended phase-by-phase as v1.0.0 lands. Each entry records the source phase, plan reference, category, severity, reason, and suggested next step. Items move to `## Resolved` when closed in a later phase, and the `## Summary` at the bottom is recomputed each pass.
+**Status**: finalized at v1.0.0 release (Phase 11.8, 2026-05-18)
+**Audience**: v1.0.0 phase authors, code reviewer, security reviewer, ops engineer, future-cycle planners
+**Last updated**: 2026-05-18
+**Sibling reviews**: [docs/v0.9.0/known-gaps.md](../v0.9.0/known-gaps.md) (the upstream cycle gap log this file inherits from); [docs/v1.0.0/plans/v1.0.0-cycle.md](plans/v1.0.0-cycle.md) (the active plan); [docs/v1.0.0/operator-actions.md](operator-actions.md) (operator-driven follow-ups OA-01 through OA-12); [docs/v1.0.0/review/synthesis.md](review/synthesis.md) (Phase 11 deep-review synthesis).
+**Context**: This file mirrors `docs/v0.9.0/known-gaps.md`'s structure. It was appended phase-by-phase as v1.0.0 landed. Each entry records the source phase, plan reference, category, severity, reason, and suggested next step. Items move to `## 2. Resolved` when closed in a later phase, and the `## 3. Summary` at the bottom is recomputed each pass.
+
+**Phase 11.8 closure note**: at the close of the v1.0.0 cycle, every open item below was triaged. Items requiring operator action moved to [operator-actions.md](operator-actions.md) under stable IDs (OA-01 through OA-12) and remain "Open" here as carryforward; architectural items rolling into the v1.1.0 shared-core build remain "Open" here and will be re-listed under `docs/v1.1.0/known-gaps.md` (with cross-references back to the v1.0.0 entry codes) when that cycle opens. No P0 / P1 release blockers remain. See `## 4. Phase 11 carryforward map` for the full triage.
 
 Each entry has a severity tag:
 
@@ -456,6 +459,48 @@ Resolved in Phase 9 -- see `## 2. Resolved` below.
 - **Reason**: Phase 10.5 lands the `Tracer.setCurrentSkill(...)` / `currentSkill` surface plus the automatic `skill.*` attribute fold-in on every `tool_call` / `sub_agent` span. The call-site in `src/tools/AgentLoop.ts` that knows *which* skill is currently expanding into tool calls still consults the legacy `SkillLoader` which is not provenance-aware (the namespaced `SkillCatalog` is exposed via core but the Coding-module loader adapter has not been written yet -- tracked as v1.0.0 known-gap code `MV`). Tracer-side support is 100% covered; the missing wiring is "AgentLoop calls `tracer.setCurrentSkill(...)` at slash-command entry and clears it on exit".
 - **Suggested next step**: Bundled with the SkillLoader adapter (Phase 11 / `MV`-class gap). The Tracer side is ready: the moment the AgentLoop knows it is executing on behalf of a skill, one line (`this._tracer.setCurrentSkill(skillContext)`) drives the entire provenance pipeline.
 
+### 11.P1.LLL -- VS Code extension thin-adapter rewrite deferred to v1.1.0 (DF, P1)
+
+- **Source phase**: Phase 11 (11.4 CHANGELOG, 11.7 distribution)
+- **Plan reference**: [phase-11-hardening-and-release.md](plans/phase-11-hardening-and-release.md) sub-task 11.7; [distribution.md](distribution.md) Section 2; pivot-brief Section 7.
+- **Reason**: The Marketplace listing under `gemma-code` publisher remains the v1.0.0 distribution surface; the listing description gets a v1.0.0 update so users know about the desktop product, but the breaking-change rewrite to `nexus-coding` (publisher + manifest IDs + thin-adapter delegate-to-daemon) is bundled into a single v1.1.0 Marketplace re-publish. v1.0.0 ships the daemon-discovery hook (`desktop/src/desktop/daemonDiscovery.ts`) so the activation branch is in place; the actual `extension.ts` rewrite waits on the shared-core build.
+- **Suggested next step**: v1.1.0 cycle: bundle the rewrite of `src/extension.ts` (currently 445 lines, target ~200) with the `package.json` rename to `nexus-coding` and the manifest-ID rewrite (`gemma-code-sidebar` -> `nexus-coding-sidebar`, `gemma-code.<cmd>` -> `nexus.coding.<cmd>`). Re-publish under the new Marketplace listing with a transition note in the old listing's description.
+
+### 11.P1.MMM -- Authenticode signing pending operator-procured EV certificate (DF, P1)
+
+- **Source phase**: Phase 11 (11.3)
+- **Plan reference**: [phase-11-hardening-and-release.md](plans/phase-11-hardening-and-release.md) sub-task 11.3; [release-signing.md](release-signing.md) Section 1; [operator-actions.md](operator-actions.md) OA-01.
+- **Reason**: The signing workflow is documented end-to-end. Procuring the EV Code Signing certificate + HSM is operator-driven (5-10 business day lead time at most CAs; FIPS 140-2 Level 2 HSM device required). The CI workflow (`installer-build.yml`) is wired to run `signtool sign /tr /td sha256 /fd sha256 /sha1 $env:WINDOWS_SIGNING_THUMBPRINT /a` on the tag-push path; the secrets `WINDOWS_SIGNING_THUMBPRINT` + `WINDOWS_SIGNING_PIN` are not yet populated.
+- **Suggested next step**: Operator action OA-01 procures the certificate, populates the secrets, and runs the workflow against the `v1.0.0` tag. Until OA-01 lands, the v1.0.0 installer ships unsigned and SmartScreen warns "Unknown publisher" on first install.
+
+### 11.P2.NNN -- macOS notarization workflow not yet exercised (DF, P2)
+
+- **Source phase**: Phase 11 (11.3)
+- **Plan reference**: [release-signing.md](release-signing.md) Section 2; [operator-actions.md](operator-actions.md) OA-11.
+- **Reason**: The notarization runbook is committed at `release-signing.md` Section 2 with the full `codesign --options runtime --timestamp` + `xcrun notarytool submit --wait` + `xcrun stapler staple` workflow + the required entitlements (`allow-jit`, `allow-unsigned-executable-memory`, `disable-library-validation`) for the PyTorch / Node sidecars. macOS DMG packaging itself is out of scope for v1.0.0 per Phase 9.8 + known-gap 9.P2.EEE.
+- **Suggested next step**: v1.0.1 opens with Apple Developer Program enrollment + Developer ID Application/Installer cert procurement + `installer-macos.yml` swap from workflow_dispatch to push:tags + first DMG build through the documented workflow. Operator action OA-11.
+
+### 11.P2.OOO -- Direct-download landing page deferred to v1.0.1 (DF, P2)
+
+- **Source phase**: Phase 11 (11.7)
+- **Plan reference**: [distribution.md](distribution.md) Section 3; [operator-actions.md](operator-actions.md) OA-05.
+- **Reason**: The GitHub Release URL (`https://github.com/bendourthe/Nexus-AI/releases/tag/v1.0.0`) is the canonical v1.0.0 distribution surface. A dedicated landing site (`nexus.bendourthe.com/download` or equivalent) with platform-aware CTAs is logged explicitly so the work is not lost; out of scope for v1.0.0.
+- **Suggested next step**: v1.0.1 cycle: stand up the landing page (DNS, static site host, copy from `release-notes.md`). Operator action OA-05.
+
+### 11.P2.PPP -- semantic-release configuration not yet driven by the v1.0.0 tag (DF, P2)
+
+- **Source phase**: Phase 11 (11.5)
+- **Plan reference**: [phase-11-hardening-and-release.md](plans/phase-11-hardening-and-release.md) sub-task 11.5 ("semantic-release dry-run produces the expected artifacts").
+- **Reason**: `.releaserc.json` is configured for the existing `0.X.Y` cadence that produced `0.30.0` and `0.30.1`. The v1.0.0 manual annotated tag bypasses semantic-release; future post-v1.0.0 commits will resume the semantic-release cadence at `1.0.1`, `1.1.0`, etc. The first-tag-after-v1.0.0 push has not been exercised; the v1.0.0 CHANGELOG entry written by Phase 11.4 will need to coexist with semantic-release's generated entries on subsequent releases.
+- **Suggested next step**: v1.0.1 cycle (or the first feature PR after v1.0.0): verify semantic-release dry-run against `1.0.0` -> `1.0.1` correctly appends a new entry above the v1.0.0 block in CHANGELOG.md without overwriting it. If not, add a `@semantic-release/changelog` `changelogTitle` override.
+
+### 11.P1.QQQ -- v0.9.0 known-gaps file flipped to finalized (DF, P1)
+
+- **Source phase**: Phase 11 (11.8)
+- **Plan reference**: [phase-11-hardening-and-release.md](plans/phase-11-hardening-and-release.md) sub-task 11.8 ("flip the v0.9.0 file to `finalized`").
+- **Reason**: The v0.9.0 known-gaps file (`docs/v0.9.0/known-gaps.md`) was marked `in-progress` with a note that it would flip to `finalized` at v1.0.0 cycle close. Phase 11.8 executes the flip mirroring the v0.8.0 -> v0.9.0 transition pattern.
+- **Suggested next step**: Resolved in Phase 11.8 -- see `## 2. Resolved` below for the entry recording the flip.
+
 ---
 
 ## 2. Resolved
@@ -464,29 +509,130 @@ Resolved in Phase 9 -- see `## 2. Resolved` below.
 |---|---|---|
 | [v0.9.0:10.N.Q] IdleTimeScheduler wiring | Sidecar bootstrap registers curator (5 min idle / 12 h cadence) + reflect (10 min idle / 24 h cadence) workers; 30-minute synthetic-idle integration test passes. Legacy `AgentLoop` curator-cadence fallback removal tracked as 3.P1.P. | Phase 3.4 (desktop/sidecar/src/runtime/idleScheduler.ts) |
 | [v0.9.0:10.N.A] ModelPinRegistry wiring | Ported `src/storage/ModelPinRegistry.ts` to `core/registry/ModelPinRegistry.ts`, persisted pin set through new `SettingsStore` (`nexus.llm.modelPins`), exposed `resolver()` for `StreamingPipeline`'s existing `KeepAliveResolver` callback. Sidecar bootstrap (`desktop/sidecar/src/runtime/codingBootstrap.ts`) hydrates the registry on startup. Legacy module is a compat re-export. | Phase 5.6 (core/registry/ModelPinRegistry.ts, core/storage/SettingsStore.ts, desktop/sidecar/src/runtime/codingBootstrap.ts) |
-| 1.P3.F Real telemetry source wired in Phase 8 | Shipped `core/telemetry/GpuTelemetrySource.ts` (2 Hz poller with platform-agnostic `GpuQueryFn`, `parseNvidiaSmiCsv` / `parseAppleSystemProfiler` / `buildCpuFallbackSample` and CPU-only graceful degrade) and `desktop/src/lib/telemetryStream.ts` (renders raw GPU samples + scheduler snapshot into the `LocalModelTelemetry` shape consumed by `<LocalModelStatus>`). The widget gained hover tooltip, click-to-open queue modal, idle state, and a floating `<LocalModelStatusDock>` placement on every non-dashboard page. Sidecar-side `nvidia-smi -lms 500` spawn deferred to `8.P1.UU`. | Phase 8.2 / 8.3 (core/telemetry/GpuTelemetrySource.ts, desktop/src/lib/telemetryStream.ts, desktop/src/components/LocalModelStatus.tsx, desktop/src/components/LocalModelStatusDock.tsx) |
+| [v0.9.0:10.N.R] Real telemetry source wired in Phase 8 | Shipped `core/telemetry/GpuTelemetrySource.ts` (2 Hz poller with platform-agnostic `GpuQueryFn`, `parseNvidiaSmiCsv` / `parseAppleSystemProfiler` / `buildCpuFallbackSample` and CPU-only graceful degrade) and `desktop/src/lib/telemetryStream.ts` (renders raw GPU samples + scheduler snapshot into the `LocalModelTelemetry` shape consumed by `<LocalModelStatus>`). The widget gained hover tooltip, click-to-open queue modal, idle state, and a floating `<LocalModelStatusDock>` placement on every non-dashboard page. Sidecar-side `nvidia-smi -lms 500` spawn deferred to `8.P1.UU`. | Phase 8.2 / 8.3 (core/telemetry/GpuTelemetrySource.ts, desktop/src/lib/telemetryStream.ts, desktop/src/components/LocalModelStatus.tsx, desktop/src/components/LocalModelStatusDock.tsx) |
+| [v0.9.0:10.N.T] Operator-action consolidation file | Phase 11 ships `docs/v1.0.0/operator-actions.md` as the consolidated operator checklist (OA-01 through OA-12). Future cycles inherit the same file layout. | Phase 11.4 / 11.8 (docs/v1.0.0/operator-actions.md) |
 | 1.P2.E Tauri icons placeholder | Phase 9 lands a reproducible icon generator (`scripts/desktop/generate-icons.py`) and commits the rendered set (32x32, 128x128, 128x128@2x, icon.icns, icon.ico, plus the Square*Logo.png Windows Store tiles) under `desktop/src-tauri/icons/`. Unblocks `cargo check` in the `shell-build.yml` matrix (Windows + Linux + macOS) which was failing with `icons/icon.ico not found` (Win) and `failed to open icon icons/32x32.png` (Linux). Final art is now tracked as `9.P2.BBB`. | Phase 9 (scripts/desktop/generate-icons.py, desktop/src-tauri/icons/) |
 | Phase 9 CI block on missing `tauri::Manager` import | `desktop/src-tauri/src/sidecar.rs` called `app.path().resolve(...)` without importing the `tauri::Manager` trait, which compiled silently against an older Tauri API but errored on the v2.11 toolchain shipped by `dtolnay/rust-toolchain@stable` (`error[E0599]: no method named path found for reference &AppHandle`). Phase 9 fixes the import in lockstep with the icons. | Phase 9 (desktop/src-tauri/src/sidecar.rs) |
+| 11.P1.QQQ v0.9.0 known-gaps flip | `docs/v0.9.0/known-gaps.md` Status line flipped from `in-progress` to `finalized at v1.0.0 release (Phase 11.8, 2026-05-18)`. Closure mirrors the v0.8.0 -> v0.9.0 transition pattern. | Phase 11.8 (docs/v0.9.0/known-gaps.md) |
+| 11.P0.RRR Release artifact bumps | Bumped version across all 6 version-carrying files (`package.json`, `desktop/package.json`, `desktop/src-tauri/Cargo.toml`, `desktop/src-tauri/tauri.conf.json`, `scripts/installer/pyqt/pyproject.toml`, `scripts/installer/pyqt/src/nexus_installer/__init__.py`). NSIS already at `1.0.0`. CHANGELOG.md v1.0.0 entry written covering every Phase 1-10 deliverable. Release notes drafted at `docs/v1.0.0/release-notes.md`. | Phase 11.4 + 11.5 |
+| 11.P0.SSS Phase 11 review artifacts | Synthesis, security audit, and pen-test reports committed under `docs/v1.0.0/review/`. All three show zero P0 / P1 findings. Deep-review skill output triaged into the carryforward map below. | Phase 11.1 + 11.2 |
 
 ---
 
 ## 3. Summary
 
-| Severity | Open | Resolved |
+Recomputed at Phase 11.8 close. Open items below remain open for the v1.1.0 / v1.0.1 cycles per the carryforward map in Section 4; none are v1.0.0 release blockers.
+
+| Severity | Open (carryforward) | Resolved |
 |---|---|---|
-| P0 | 0 | 0 |
-| P1 | 27 | 2 |
-| P2 | 33 | 1 |
+| P0 | 0 | 2 |
+| P1 | 30 | 6 |
+| P2 | 36 | 1 |
 | P3 | 3 | 1 |
-| **Total** | **63** | **4** |
+| **Total** | **69** | **10** |
 
 | Category | Open | Resolved |
 |---|---|---|
 | NI | 10 | 0 |
-| DF | 50 | 4 |
+| DF | 56 | 10 |
 | BG | 2 | 0 |
 | MT | 6 | 0 |
 | WN | 1 | 0 |
 | QG | 0 | 0 |
+
+---
+
+## 4. Phase 11 carryforward map
+
+Every open item above is mapped to one of three destinations:
+
+### 4.1 -- Operator actions (carry forward to operator-actions.md)
+
+These items require human action outside the codebase. They remain "Open" here as carryforward references and are tracked under stable IDs in `docs/v1.0.0/operator-actions.md`.
+
+| v1.0.0 item | Operator action | Status |
+|---|---|---|
+| 11.P1.MMM (EV signing) | OA-01 | pending |
+| 11.P2.OOO (landing page) | OA-05 | deferred to v1.0.1 |
+| 11.P2.NNN (macOS notarization) | OA-11 | deferred to v1.0.1 |
+| 5.P2.CC (catalog SHA-256 placeholders) | OA-03 | pending |
+| 9.P1.AAA (DevAI-Hub baseline + Ollama SHAs) | OA-06 | pending |
+| 9.P2.BBB (final brand icons) | OA-07 | deferred to v1.0.1 |
+| 3.P2.T (live golden-task capture) | OA-08 | pending |
+| 6.P1.GG, 6.P1.HH, 6.P1.II (image runtime + PyTorch wiring) | OA-09 | pending |
+| 7.P1.MM, 7.P1.NN, 7.P1.OO (video runtime + ffmpeg + PyTorch wiring) | OA-09 | pending |
+| 7.P3.TT (operator GPU bench) | OA-09 | pending |
+| 8.P1.UU (real nvidia-smi spawn) | OA-09 | pending |
+| 10.P1.FFF (live DevAI-Hub sync smoke) | OA-10 | pending |
+| 9.P2.EEE (macOS + Linux installer outer shells) | OA-11 / OA-12 | deferred to v1.0.1 / v1.0.2 |
+| RTM smoke (every cycle) | OA-04 | pending |
+| SmartScreen reputation monitoring | OA-02 | pending |
+
+### 4.2 -- Architectural carryforward (v1.1.0 shared-core build)
+
+These items roll forward to the v1.1.0 cycle and will be re-listed under `docs/v1.1.0/known-gaps.md` with cross-references back to the v1.0.0 entry codes. They share a common architectural blocker -- the shared-core TypeScript project-references build (or equivalent `@nexus/core` workspace package) that unblocks sidecar-side imports of the canonical `core/` surfaces. A single v1.1.0 phase closes the cluster.
+
+| v1.0.0 item | Subsystem | One-line summary |
+|---|---|---|
+| 2.P1.G | Storage paths | Mechanical rename of 13 call sites from `~/.gemma-code/` to `nexusHome()` |
+| 2.P1.H | Settings | `deprecationMessage` injection into legacy `gemma-code.*` package.json schema entries |
+| 2.P2.I | Layout | Wholesale physical move of `src/` -> `modules/coding/` |
+| 2.P1.J | VS Code IDs | `gemma-code-sidebar` / `gemma-code.<cmd>` -> `nexus.coding.*` manifest-ID rewrite |
+| 2.P2.K | VS Code pkg | `gemma-code` -> `nexus-coding` npm name rename + Marketplace re-publish |
+| 2.P3.L | CI tests | CRLF/LF snapshot fix + SHA-pin enforcement for `shell-build.yml` |
+| 3.P1.M | Coding | Swap placeholder responder for live `NexusCodingRuntime` in `sessionManager.ts` |
+| 3.P1.N | Coding | Server-initiated streaming events via `tauri::Channel` |
+| 3.P1.O | VS Code | Thin-adapter rewrite of `src/extension.ts` (bundled with 11.P1.LLL) |
+| 3.P1.P | Coding | Delete legacy curator-cadence fallback in `AgentLoop._runOneIteration` |
+| 3.P1.Q | Coding panels | Replace placeholder Memory / Trace / Sessions data with live `MemoryHub` / `TelemetryBus` |
+| 3.P2.R | Coding | Slash-command parity integration test |
+| 3.P2.S | Coding | Delete duplicated frontend/sidecar model catalog mirrors |
+| 3.P2.U | Tauri | `tauri::Channel<CodingSessionEventT>` Rust-side wiring |
+| 4.P1.V | Chat | Swap HTML5 dnd for `@dnd-kit/core` (bundled with first new dnd surface) |
+| 4.P1.W | Chat | Sidecar-backed `ChatExplorerStore` IPC adapter |
+| 4.P1.X | Memory | Add `scope_id` columns to memory SQLite tables |
+| 4.P2.Y | Chat search | Wire `memorySearch` adapter into Dashboard TopBar |
+| 4.P2.Z | Chat | Replace ChatPage echo with `coding.session.sendMessage` IPC |
+| 4.P2.AA | TopBar | Drive Dashboard notification-bell badge from a real notification stream |
+| 5.P1.BB | Models | Wire sidecar `models.list` / `models.install` / `models.remove` / `models.diskUsage` IPC |
+| 5.P2.DD | Streaming | Bundle keep-alive resolver into the sidecar's StreamingPipeline construction |
+| 5.P2.EE | Models | Settings UI per-model "Keep loaded in VRAM" checkbox |
+| 5.P3.FF | CI | Inherits 2.P3.L baseline (same root cause) |
+| 6.P2.JJ | Image | Drive Image Studio model / LoRA / ControlNet dropdowns from `ModelRegistry` |
+| 6.P2.KK | Image | `tauri::Channel` for diffusion progress events |
+| 6.P2.LL | Image coverage | Optional InMemoryDiffusionClient direct-call test |
+| 7.P2.PP | Video | Drive Video Lab model dropdown from `ModelRegistry` |
+| 7.P2.QQ | Video | Add `~/.nexus/outputs/videos/` to Tauri allow-list + `convertFileSrc` mapper |
+| 7.P2.RR | Video | Wire "Save As..." dialog and "Use Last Frame as Image" via ffmpeg |
+| 7.P2.SS | Video | `tauri::Channel` for video progress events |
+| 8.P1.VV | GPU scheduler | Wire `nexus.gpu.scheduler` IPC into StreamingPipeline + diffusion pipelines |
+| 8.P2.WW | Hardware UI | Build Settings -> Hardware page with DiffusionTier readout + override |
+| 8.P2.XX | Image / Video | Read DiffusionTier defaults in form initial state |
+| 8.P2.YY | Telemetry | Widen `TelemetryEventKind` with `job.cancelled` |
+| 9.P1.ZZ | Installer | `scripts/installer/build/fetch-payload.py` build-time script |
+| 9.P1.CCC | Installer | First end-to-end NSIS build under `installer-build.yml` |
+| 9.P2.DDD | Installer | Recommended-models wizard step controller wiring |
+| 10.P1.GGG | Skills | `SkillLoader` hot-reload driven by `ACTIVE` pointer `fs.watch` |
+| 10.P1.HHH | Skills | `IdleTimeScheduler` weekly auto-sync registration |
+| 10.P2.III | Skills CLI | `nexus skills install` / `remove` with allowlist + scanner |
+| 10.P2.JJJ | Skills | `nexus.skills.preferUpstream` -> slash-command autocomplete |
+| 10.P2.KKK | Tracer | AgentLoop `setCurrentSkill(...)` call at slash-command entry |
+| 11.P1.LLL | VS Code | Thin-adapter + Marketplace re-publish (bundled with 3.P1.O) |
+| 11.P2.PPP | CI / release | semantic-release dry-run verification post-v1.0.0 |
+
+### 4.3 -- Deferred to specific future cycles
+
+| v1.0.0 item | Destination | Reason |
+|---|---|---|
+| 1.P1.A (Tauri runtime smoke) | RTM smoke OA-04 | Operator-driven |
+| 1.P2.B (Tailwind v4 wiring) | v1.1.0 | Bundled with build-pipeline rebrand |
+| 1.P2.C (custom Lucide icons) | v1.1.0 | Bundled with brand polish OA-07 |
+| 1.P2.D (Tauri-driver E2E smoke) | v1.1.0 | Bundled with shared-core build CI |
+
+---
+
+## 5. Cycle close
+
+All carryforward items have been triaged. The v1.0.0 cycle is closed; new entries land under `docs/v1.0.1/known-gaps.md` once that cycle opens.
 
 **Last updated**: 2026-05-17 (Phase 10 close; DevAI-Hub sync pathway lands `core/skills/SkillCatalog.ts` extended with `SkillProvenance` + namespace + diverged-name detection, `core/skills/PromptInjectionScanner.ts` with 11 OWASP-aligned rules + decision routing, `core/skills/DevAIHubSyncer.ts` driving sparse-clone -> manifest -> diff -> scan -> apply with deps injection for tests + tarball fallback, the top-level `bin/nexus.mjs` CLI binary (registered in `package.json`'s `bin` map) surfacing `nexus skills sync` / `list` / `install` / `remove`, `desktop/src/pages/settings/SkillsSettings.tsx` rendering Active tag, Upstream tag, Sync-now / Auto-sync-weekly controls + per-namespace lists with the diverged badge + Quarantined section, `desktop/src/pages/settings/SettingsPage.tsx` upgraded to a tabbed shell with Models + Skills tabs, and `src/observability/Tracer.ts` extended with `setCurrentSkill(...)` + automatic `skill.*` attribute fold-in for `tool_call` and `sub_agent` spans. New Phase 10 entries: `10.P1.FFF` (production network/git helpers covered by smoke only), `10.P1.GGG` (SkillLoader hot-reload not yet driven by the active-tag pointer), `10.P1.HHH` (auto-sync weekly worker not yet registered with IdleTimeScheduler), `10.P2.III` (`nexus skills install/remove` are stubs), `10.P2.JJJ` (`preferUpstream` not yet read by slash-command autocomplete), `10.P2.KKK` (skill-context attribution into AgentLoop tool spans not yet wired). 65 new unit tests + 11 new desktop UI tests pass; full Phase 10 suites 225/225 green; existing pre-Phase-10 vitest 3009/3009 green (4 pre-existing CRLF-snapshot failures in `tests/unit/agents/SubAgentManager.characterization.test.ts` are unrelated); desktop full suite 362/362 green; eslint + tsc clean.)

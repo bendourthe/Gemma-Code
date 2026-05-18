@@ -4,6 +4,50 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-18] v1.0.0 Phase 11 -- Hardening + security audit + release gate (CYCLE CLOSE)
+
+### Goal
+
+Close the v1.0.0 cycle: deep review of every prior phase, security audit + pen-test, Authenticode signing workflow, CHANGELOG + release notes covering every Phase 1-10 deliverable, version bump across all version-carrying files, RTM smoke checklist, distribution channels, finalize the v1.0.0 known-gaps file, flip the v0.9.0 known-gaps file to `finalized`. Plan reference: [docs/v1.0.0/plans/phase-11-hardening-and-release.md](v1.0.0/plans/phase-11-hardening-and-release.md).
+
+### What changed
+
+**11.1 Deep review synthesis.** [docs/v1.0.0/review/synthesis.md](v1.0.0/review/synthesis.md) consolidates every Phase 1-10 review artifact into a single sign-off document. The synthesis identifies three architectural choke points behind the 47-item carryforward to v1.1.0: (a) the shared-core build (Node16 module resolution cannot cross the workspace boundary into `core/` without TypeScript project references), (b) the real-GPU + real-PyTorch wiring (the Python sidecar's `_execute(ctx)` defaults to stubs without a CUDA host), and (c) the VS Code thin-adapter rewrite (gated on the shared-core build + the Marketplace re-publish under `nexus-coding`). All three are scheduled for v1.1.0; the v1.0.0 surface works end-to-end via placeholder paths in every affected module.
+
+**11.2 Security audit + pen-test.** [docs/v1.0.0/review/security-audit.md](v1.0.0/review/security-audit.md) runs the OWASP ASVS L1 + SECURITY.md threat-model sweep: exposed-secrets grep clean; IPC payloads Zod-validated end-to-end; installer privilege boundary at install-time only (sidecars run as user); model downloader rejects `file://`, `localhost`, RFC1918 ranges; ffmpeg shell-out is argv-only (no shell interpolation); `~/.nexus/` permissions OS-defaulted (P2 hardening for v1.0.1: explicit `chmod 700` on POSIX). [docs/v1.0.0/review/penetration-test.md](v1.0.0/review/penetration-test.md) runs the depth=deep six-specialist OWASP WSTG pass: prompt-injection corpus blocked by `PromptInjectionScanner`, no subprocess-spawn surface reachable from renderer-controlled payloads, `tauri.conf.json` CSP restricted (script-src no inline; img-src data + blob for diffusion previews), `GpuScheduler` queue-cap defends against job-flood DoS, race-free skill rotation via atomic `ACTIVE`-pointer write-then-rename. Zero P0 / P1 findings across both reports.
+
+**11.3 Authenticode signing + macOS notarization.** [docs/v1.0.0/release-signing.md](v1.0.0/release-signing.md) Section 1 captures the Windows EV-cert + HSM + `signtool sign /tr http://timestamp.digicert.com /td sha256 /fd sha256 /sha1 $THUMBPRINT /a` workflow with sign-order (inner binaries first, NSIS outer last), CI integration gated on tag-push, and verification via `signtool verify /pa /v`. Section 2 captures the macOS Developer ID Application + Installer cert workflow, hardened-runtime + JIT entitlements, `xcrun notarytool submit --wait`, `xcrun stapler staple`, `spctl --assess --type install` verification. EV cert procurement is operator-driven (5-10 business day lead time at typical CAs) and tracked as OA-01; macOS notarization is deferred to v1.0.1 per Phase 9.8 and tracked as OA-11.
+
+**11.4 CHANGELOG + release notes.** [CHANGELOG.md](../CHANGELOG.md) gains a v1.0.0 entry above the existing 0.30.1 entry. Sections: Added (every greenfield Phase 1-10 feature -- Tauri shell, four modules, ModelRegistry, DiffusionRuntime, GpuScheduler, nexus skills sync, single-binary installer, DiffusionTier, multi-LLM Coding); Changed (rebrand summary, settings-key migration, storage-path migration with one-cycle compat window, VS Code adapter scoping, CLI rename); Deprecated (legacy `gemma-code.*` settings keys, `gemma-check` CLI alias, `~/.gemma-code/` storage path, VS Code extension manifest IDs + npm package name -- all removed in v1.1.0); Removed (pre-rebrand identifier set); Fixed (v0.9.0 known-gaps 10.N.A / 10.N.Q / 10.N.R / 10.N.T closed in v1.0.0); Security (Authenticode signing, prompt-injection scanner, URL validation, ffmpeg argv-only shell-out, Tracer redaction). [docs/v1.0.0/release-notes.md](v1.0.0/release-notes.md) is the user-facing release announcement with module screenshots, upgrade-from-Gemma-Code compat notes, an explicit known-limitations section, and a v1.1.0 teaser (audio pillar, macOS DMG, Linux AppImage, node-graph advanced tab, thin-adapter VS Code extension).
+
+**11.5 Version bump across all version-carrying files.** [package.json](../package.json) 0.30.1 -> 1.0.0. [desktop/package.json](../desktop/package.json), [desktop/src-tauri/Cargo.toml](../desktop/src-tauri/Cargo.toml), [desktop/src-tauri/tauri.conf.json](../desktop/src-tauri/tauri.conf.json) all 1.0.0-alpha.0 -> 1.0.0. [scripts/installer/pyqt/pyproject.toml](../scripts/installer/pyqt/pyproject.toml) 1.0.0a0 -> 1.0.0. [scripts/installer/pyqt/src/nexus_installer/__init__.py](../scripts/installer/pyqt/src/nexus_installer/__init__.py) 0.3.0 -> 1.0.0 (docstring also renamed from "Gemma Code cross-platform installer" to "Nexus cross-platform installer (PyQt5 wizard, formerly Gemma Code)"). [scripts/installer/build/nsis/nexus-setup.nsi](../scripts/installer/build/nsis/nexus-setup.nsi) already at 1.0.0 per Phase 9.
+
+**11.6 RTM smoke checklist.** [docs/v1.0.0/rtm-smoke.md](v1.0.0/rtm-smoke.md) is the 12-step operator procedure: provision a clean Win 11 VM with a 12 GB+ NVIDIA GPU; run the signed `Nexus-1.0.0-Setup.exe`; verify the four-module dashboard; exercise Coding (`/create hello.py`), Chat (folder + 2+2 round-trip), Image Studio (SDXL Turbo 1024x1024 in <= 30s), Video Lab (LTX 4s @ 24fps @ 480p in <= 5 min), Settings -> Skills sync; restart + persistence; uninstall with data-preservation prompt (both YES and NO paths). Target: <= 90 min full / <= 20 min if recommended models pre-cached. Recording template appended for [docs/v1.0.0/operator-actions.md](v1.0.0/operator-actions.md) OA-04.
+
+**11.7 Distribution channels.** [docs/v1.0.0/distribution.md](v1.0.0/distribution.md) covers GitHub Releases (primary surface; tag push `v1.0.0` triggers `installer-build.yml`; artifact `Nexus-1.0.0-Setup.exe` + companion `.sha256`), VS Code Marketplace (v1.0.0 update keeps the existing `gemma-code` publisher; listing description updated to mention the desktop product + graceful fallback; full Marketplace re-publish under `nexus-coding` deferred to v1.1.0 per known-gap 2.P1.J / 2.P2.K), and a direct-download landing page (deferred to v1.0.1 / OA-05). Ollama-style direct binary explicitly out of scope.
+
+**11.8 Finalize known-gaps.** [docs/v1.0.0/known-gaps.md](v1.0.0/known-gaps.md) flipped to `finalized at v1.0.0 release (Phase 11.8, 2026-05-18)`. Added 6 new Phase 11 entries (11.P1.LLL VS Code thin-adapter deferral, 11.P1.MMM EV-cert pending, 11.P2.NNN macOS notarization deferred, 11.P2.OOO landing page deferred, 11.P2.PPP semantic-release dry-run verification, 11.P1.QQQ v0.9.0 flip). Resolved table extended with 4 Phase 11 closures (11.P1.QQQ, 11.P0.RRR version bumps + CHANGELOG, 11.P0.SSS review artifacts, and an explicit 10.N.T row). Summary table recomputed (0 P0 open, 30 P1 open carryforward, 36 P2 open, 3 P3 open; resolved: 2 P0, 6 P1, 1 P2, 1 P3). New `## 4. Phase 11 carryforward map` triages every open item into three buckets: operator-actions (15 items mapped to OA-01 through OA-12 in [operator-actions.md](v1.0.0/operator-actions.md)), v1.1.0 shared-core build (47 items behind a single architectural unlock), specific future cycles (4 items). [docs/v0.9.0/known-gaps.md](v0.9.0/known-gaps.md) flipped to `finalized at v1.0.0 release (Phase 11.8, 2026-05-18)`; closure note cross-references the four v0.9.0 items closed in the v1.0.0 cycle.
+
+**11.9 Final stabilization pass.** Root vitest: 3014 / 4 fail / 5 skip -- the 4 failures are the pre-existing 2.P3.L CRLF/LF snapshot baseline (better than the documented 5; one workflow-discipline failure resolved in an earlier phase). Desktop vitest: 362 / 362 green. Python diffusion pytest: 100 / 100 green. TypeScript root build clean. ESLint clean. `npm audit` clean. Cargo validated via `shell-build.yml` CI matrix (Win + Linux + macOS) per known-gap 1.P1.A. v1.0.0 health gate: green light to release subject to OA-01 + OA-04.
+
+### Outcome
+
+- New documents: 9 files under `docs/v1.0.0/` (release-notes, release-signing, rtm-smoke, distribution, operator-actions, review/{synthesis,security-audit,penetration-test}, plus this phase's history file).
+- Updated documents: CHANGELOG.md (v1.0.0 entry), docs/v1.0.0/known-gaps.md (finalized + carryforward map), docs/v0.9.0/known-gaps.md (finalized).
+- Version-carrying files bumped: 6.
+- Test status at cycle close: root 4 failures (documented baseline), desktop 362 / 362 green, Python 100 / 100 green. No regressions introduced by Phase 11.
+- v1.0.0 cycle status: CLOSED. Operator-action items remain pending for release execution (OA-01 EV signing, OA-04 RTM smoke); architectural carryforward is consolidated and ready for the v1.1.0 cycle plan.
+
+### Known gaps added
+
+See [docs/v1.0.0/known-gaps.md](v1.0.0/known-gaps.md) section 1: `11.P1.LLL` (VS Code thin-adapter rewrite, bundled with v1.1.0 shared-core unlock), `11.P1.MMM` (Authenticode signing pending OA-01), `11.P2.NNN` (macOS notarization deferred to v1.0.1 / OA-11), `11.P2.OOO` (direct-download landing page deferred to v1.0.1 / OA-05), `11.P2.PPP` (semantic-release dry-run verification post-v1.0.0), `11.P1.QQQ` (v0.9.0 known-gaps flip -- resolved same-phase).
+
+### Plan reference + history
+
+[docs/v1.0.0/plans/phase-11-hardening-and-release.md](v1.0.0/plans/phase-11-hardening-and-release.md), [docs/v1.0.0/development/history/2026-05-18_phase-11-hardening-and-release.md](v1.0.0/development/history/2026-05-18_phase-11-hardening-and-release.md).
+
+---
+
 ## [2026-05-17] v1.0.0 Phase 10 -- DevAI-Hub sync pathway
 
 ### Goal

@@ -1,6 +1,6 @@
 [project]
 name = "nexus-installer"
-version = "1.0.0a0"
+version = "1.0.0"
 description = "Cross-platform PyQt5 wizard installer for Nexus (formerly Gemma Code)"
 requires-python = ">=3.11"
 dependencies = [
