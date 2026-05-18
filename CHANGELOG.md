@@ -1,3 +1,10 @@
+## [0.28.1](https://github.com/bendourthe/Nexus-AI/compare/v0.28.0...v0.28.1) (2026-05-18)
+
+
+### Bug Fixes
+
+* **ci:** green up CI by fixing five pre-existing failures ([80a470e](https://github.com/bendourthe/Nexus-AI/commit/80a470e33d61e246771c742721d805294a35a78c))
+
 # [0.28.0](https://github.com/bendourthe/Nexus-AI/compare/v0.27.0...v0.28.0) (2026-05-17)
 
 
