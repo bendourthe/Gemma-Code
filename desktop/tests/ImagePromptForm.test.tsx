@@ -83,7 +83,7 @@ describe("ImagePromptForm", () => {
     const out = valuesToBaseRequest(values);
     expect(out.prompt).toBe("p");
     expect(out.cfgScale).toBe(7);
-    expect((out.loras as Array<{ id: string }>)[0].id).toBe("lora:a");
+    expect((out.loras as Array<{ id: string }>)[0]?.id).toBe("lora:a");
     expect((out.controlNet as { preprocessor: string }).preprocessor).toBe("canny");
   });
 });

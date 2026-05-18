@@ -158,15 +158,44 @@ module.exports = {
       to: { path: '^modules/' },
     },
     {
-      name: 'no-cross-module-deps',
+      name: 'no-cross-module-deps-coding',
       severity: 'error',
       comment:
-        'v1.0.0 Phase 2.3 boundary rule -- pillar modules (`modules/coding`, ' +
-        '`modules/chat`, `modules/image`, `modules/video`) must communicate ' +
-        'through `core/**` surfaces, never directly. This keeps any one ' +
-        'pillar replaceable without touching the others.',
-      from: { path: '^modules/([^/]+)/' },
-      to: { path: '^modules/(?!\\1/)([^/]+)/' },
+        'v1.0.0 Phase 2.3 boundary rule -- the Coding pillar must not reach ' +
+        'directly into Chat / Image / Video modules. Communicate through ' +
+        '`core/**` surfaces only.',
+      from: { path: '^modules/coding/' },
+      to: { path: '^modules/(chat|image|video)/' },
+    },
+    {
+      name: 'no-cross-module-deps-chat',
+      severity: 'error',
+      comment:
+        'v1.0.0 Phase 2.3 boundary rule -- the Chat pillar must not reach ' +
+        'directly into Coding / Image / Video modules. Communicate through ' +
+        '`core/**` surfaces only.',
+      from: { path: '^modules/chat/' },
+      to: { path: '^modules/(coding|image|video)/' },
+    },
+    {
+      name: 'no-cross-module-deps-image',
+      severity: 'error',
+      comment:
+        'v1.0.0 Phase 2.3 boundary rule -- the Image pillar must not reach ' +
+        'directly into Coding / Chat / Video modules. Communicate through ' +
+        '`core/**` surfaces only.',
+      from: { path: '^modules/image/' },
+      to: { path: '^modules/(coding|chat|video)/' },
+    },
+    {
+      name: 'no-cross-module-deps-video',
+      severity: 'error',
+      comment:
+        'v1.0.0 Phase 2.3 boundary rule -- the Video pillar must not reach ' +
+        'directly into Coding / Chat / Image modules. Communicate through ' +
+        '`core/**` surfaces only.',
+      from: { path: '^modules/video/' },
+      to: { path: '^modules/(coding|chat|image)/' },
     },
     {
       name: 'no-non-package-json',

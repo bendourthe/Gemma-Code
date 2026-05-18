@@ -22,7 +22,7 @@ import { createInterface, type Interface } from "node:readline";
 
 export interface DiffusionProgressEvent {
   readonly jobId: string;
-  readonly stage: string;
+  readonly stage?: string;
   readonly step?: number;
   readonly totalSteps?: number;
   readonly preview?: string;

@@ -8,21 +8,22 @@ For the ADR-level architecture see [../ARCHITECTURE.md](../ARCHITECTURE.md) and 
 
 | Module | Files | LOC | Entry point | Top exports |
 |--------|------:|----:|-------------|-------------|
-| `agents` | 7 | 1529 | [src/agents/BackgroundWorkers.ts](../src/agents/BackgroundWorkers.ts) | `__testing`, `buildSubAgentContextMessage`, `formatAuditFindings` |
+| `agents` | 7 | 1535 | [src/agents/BackgroundWorkers.ts](../src/agents/BackgroundWorkers.ts) | `__testing`, `buildSubAgentContextMessage`, `formatAuditFindings` |
 | `chat` | 16 | 3756 | [src/chat/PromptBuilder.ts](../src/chat/PromptBuilder.ts) | `BlockRef`, `BlockSummary`, `buildApprovedWithNotesMessage` |
 | `commands` | 3 | 500 | [src/commands/compactCommand.ts](../src/commands/compactCommand.ts) | `BuiltinCommand`, `BuiltinCommandName`, `Command` |
-| `config` | 7 | 1193 | [src/config/GpuDetector.ts](../src/config/GpuDetector.ts) | `BudgetAllocation`, `BudgetOverrides`, `calculateBudget` |
+| `config` | 9 | 1449 | [src/config/GpuDetector.ts](../src/config/GpuDetector.ts) | `_setSettingsCompatForTesting`, `BudgetAllocation`, `BudgetOverrides` |
+| `desktop` | 1 | 123 | [src/desktop/daemonDiscovery.ts](../src/desktop/daemonDiscovery.ts) | `DaemonDiscoveryOptions`, `DaemonDiscoveryResult`, `DaemonMode` |
 | `evaluation` | 3 | 438 | [src/evaluation/FeatureList.ts](../src/evaluation/FeatureList.ts) | `defaultFeatureListPath`, `FeatureList`, `FeatureRow` |
 | `guardrails` | 7 | 717 | [src/guardrails/index.ts](../src/guardrails/index.ts) | `_resetPermissionOverrideWarnings`, `ActionClassification`, `ActionRisk` |
 | `llm` | 5 | 1050 | [src/llm/LmStudioClient.ts](../src/llm/LmStudioClient.ts) | `OllamaError`, `createLmStudioClient`, `CreateLmStudioClientOptions` |
 | `mcp` | 5 | 649 | [src/mcp/McpManager.ts](../src/mcp/McpManager.ts) | `DEFAULT_MCP_EXPOSED_TOOLS`, `McpClient`, `McpConfigFile` |
 | `observability` | 6 | 1636 | [src/observability/TraceStore.ts](../src/observability/TraceStore.ts) | `AggregateMetrics`, `defaultTracePath`, `MetricsCollector` |
 | `orchestration` | 8 | 1572 | [src/orchestration/TaskDAG.ts](../src/orchestration/TaskDAG.ts) | `PostMessageFn`, `buildSubAgentRequest`, `CodeTaskInput` |
-| `panels` | 31 | 9492 | [src/panels/webview/index.ts](../src/panels/webview/index.ts) | `ACTION_TAG_FN_SOURCE`, `ActionClassificationMessage`, `actionLabelFor` |
-| `runtime` | 1 | 127 | [src/runtime/GemmaRuntime.ts](../src/runtime/GemmaRuntime.ts) | `GemmaRuntime` |
+| `panels` | 31 | 9515 | [src/panels/webview/index.ts](../src/panels/webview/index.ts) | `ACTION_TAG_FN_SOURCE`, `ActionClassificationMessage`, `actionLabelFor` |
+| `runtime` | 1 | 127 | [src/runtime/NexusCodingRuntime.ts](../src/runtime/NexusCodingRuntime.ts) | `NexusCodingRuntime` |
 | `skills` | 4 | 942 | [src/skills/CurationLoop.ts](../src/skills/CurationLoop.ts) | `CurationInputs`, `CurationLoop`, `CuratorAction` |
-| `storage` | 37 | 8863 | [src/storage/eviction/index.ts](../src/storage/eviction/index.ts) | `ARCEvictor`, `ArchiveResult`, `BrokenPathIssue` |
-| `tools` | 21 | 5936 | [src/tools/handlers/filesystem.ts](../src/tools/handlers/filesystem.ts) | `_checkCacheSizeForTests`, `_internal`, `AgentLoop` |
+| `storage` | 37 | 8771 | [src/storage/eviction/index.ts](../src/storage/eviction/index.ts) | `ARCEvictor`, `ArchiveResult`, `BrokenPathIssue` |
+| `tools` | 21 | 5953 | [src/tools/handlers/filesystem.ts](../src/tools/handlers/filesystem.ts) | `_checkCacheSizeForTests`, `_internal`, `AgentLoop` |
 | `utils` | 6 | 987 | [src/utils/Compressor.ts](../src/utils/Compressor.ts) | `BROTLI_QUALITY`, `CompressedToolOutput`, `CompressionResult` |
 
 ## Module purposes
@@ -42,6 +43,10 @@ Slash command router for in-extension commands like /memory, /verify, /research,
 ### `config`
 
 Settings reader (vscode.workspace.getConfiguration) and prompt-budget allocator. Single source of truth for percentage-based budget splits across system prompt, memory, skills, conversation, and reserve.
+
+### `desktop`
+
+Desktop-shell discovery and proxy bridge: daemonDiscovery decides between proxy / extension-only / opt-in modes when the VS Code extension boots. Wires the legacy extension surface to the v1.0.0 Tauri shell + Node sidecar over JSON-RPC.
 
 ### `evaluation`
 
@@ -73,7 +78,7 @@ VS Code webview panels and message protocol. Communication with the runtime goes
 
 ### `runtime`
 
-GemmaRuntime composition root. Wires Tracer, settings, and the dependency graph that the panel and command layers consume.
+NexusCodingRuntime composition root. Wires Tracer, settings, and the dependency graph that the panel and command layers consume.
 
 ### `skills`
 
