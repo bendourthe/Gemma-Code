@@ -34,20 +34,29 @@ jobs:
         with:
           node-version: "22.x"
 
+      # YAML note: a bare `run: echo "X: Y"` (unquoted scalar containing a
+      # colon-space) is parsed as a nested mapping. We use the block scalar
+      # `run: |` so the inner colons are safe.
+
       - name: Resolve pinned versions
-        run: echo "TODO v1.0.1: read scripts/installer/devai-hub-baseline.json + pyproject.toml + .nvmrc"
+        run: |
+          echo "TODO v1.0.1: read scripts/installer/devai-hub-baseline.json + pyproject.toml + .nvmrc"
 
       - name: Fetch payload (Python, wheels, Node, Ollama, ffmpeg, DevAI-Hub)
-        run: echo "TODO v1.0.1: run scripts/installer/build/fetch-payload.py --out build/payload/ --platform macos-arm64"
+        run: |
+          echo "TODO v1.0.1: run scripts/installer/build/fetch-payload.py --out build/payload/ --platform macos-arm64"
 
       - name: Freeze the wizard with PyInstaller
-        run: echo "TODO v1.0.1: uv run pyinstaller --onefile --windowed --name nexus-installer src/nexus_installer/main.py"
+        run: |
+          echo "TODO v1.0.1: uv run pyinstaller --onefile --windowed --name nexus-installer src/nexus_installer/main.py"
 
       - name: Create the DMG (drag-to-Applications)
-        run: echo "TODO v1.0.1: hdiutil create -fs HFS+ -srcfolder build/macos-app/ -volname Nexus build/Nexus-1.0.0.dmg"
+        run: |
+          echo "TODO v1.0.1: hdiutil create -fs HFS+ -srcfolder build/macos-app/ -volname Nexus build/Nexus-1.0.0.dmg"
 
       - name: Sign + notarize
-        run: echo "TODO v1.0.1: codesign + xcrun notarytool submit (needs Developer ID cert)"
+        run: |
+          echo "TODO v1.0.1: codesign + xcrun notarytool submit (needs Developer ID cert)"
 
       - name: Upload artifact
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0

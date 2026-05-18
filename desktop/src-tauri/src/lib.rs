@@ -43,7 +43,7 @@ pub fn run() {
                 let _ = window.set_theme(Some(tauri::Theme::Dark));
             }
             // Spawn the Node sidecar; failure is non-fatal in dev (logged).
-            match Sidecar::spawn(&app.handle()) {
+            match Sidecar::spawn(app.handle()) {
                 Ok(handle) => {
                     if let Some(state) = app.try_state::<AppState>() {
                         if let Ok(mut guard) = state.sidecar.lock() {

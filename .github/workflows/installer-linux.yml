@@ -41,20 +41,29 @@ jobs:
           wget -O /tmp/appimagetool https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
           chmod +x /tmp/appimagetool
 
+      # YAML note: a bare `run: echo "X: Y"` (unquoted scalar containing a
+      # colon-space) is parsed as a nested mapping. We use the block scalar
+      # `run: |` so the inner colons are safe.
+
       - name: Resolve pinned versions
-        run: echo "TODO v1.0.2: read scripts/installer/devai-hub-baseline.json + pyproject.toml + .nvmrc"
+        run: |
+          echo "TODO v1.0.2: read scripts/installer/devai-hub-baseline.json + pyproject.toml + .nvmrc"
 
       - name: Fetch payload (CUDA, Python, wheels, Node, Ollama, ffmpeg, DevAI-Hub)
-        run: echo "TODO v1.0.2: run scripts/installer/build/fetch-payload.py --out build/payload/ --platform linux-x86_64"
+        run: |
+          echo "TODO v1.0.2: run scripts/installer/build/fetch-payload.py --out build/payload/ --platform linux-x86_64"
 
       - name: Freeze the wizard with PyInstaller
-        run: echo "TODO v1.0.2: uv run pyinstaller --onefile --windowed --name nexus-installer src/nexus_installer/main.py"
+        run: |
+          echo "TODO v1.0.2: uv run pyinstaller --onefile --windowed --name nexus-installer src/nexus_installer/main.py"
 
       - name: Assemble AppDir
-        run: echo "TODO v1.0.2: mkdir -p build/AppDir/usr/bin; cp wizard + payload tree; write .desktop file"
+        run: |
+          echo "TODO v1.0.2: mkdir -p build/AppDir/usr/bin; cp wizard + payload tree; write .desktop file"
 
       - name: Compile AppImage
-        run: echo "TODO v1.0.2: /tmp/appimagetool build/AppDir build/Nexus-1.0.0.AppImage"
+        run: |
+          echo "TODO v1.0.2: /tmp/appimagetool build/AppDir build/Nexus-1.0.0.AppImage"
 
       - name: Upload artifact
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
