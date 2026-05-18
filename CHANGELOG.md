@@ -1,3 +1,10 @@
+## [0.30.1](https://github.com/bendourthe/Nexus-AI/compare/v0.30.0...v0.30.1) (2026-05-18)
+
+
+### Bug Fixes
+
+* **ci:** green up Phase 9 CI (YAML colon-in-value + clippy needless-borrow) ([3ce3137](https://github.com/bendourthe/Nexus-AI/commit/3ce313718530abb26579ae9e1087126c749c255a))
+
 # [0.30.0](https://github.com/bendourthe/Nexus-AI/compare/v0.29.0...v0.30.0) (2026-05-18)
 
 
