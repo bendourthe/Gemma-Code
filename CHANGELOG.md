@@ -1,3 +1,10 @@
+# [0.30.0](https://github.com/bendourthe/Nexus-AI/compare/v0.29.0...v0.30.0) (2026-05-18)
+
+
+### Features
+
+* **v1.0.0:** phase 9 single-binary installer overhaul (Windows-first) + brand assets ([ec081ee](https://github.com/bendourthe/Nexus-AI/commit/ec081ee87d6977b4cdeb288ada9031e6fa49420a))
+
 # [0.29.0](https://github.com/bendourthe/Nexus-AI/compare/v0.28.1...v0.29.0) (2026-05-18)
 
 
