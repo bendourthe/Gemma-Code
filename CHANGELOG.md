@@ -1,3 +1,10 @@
+# [0.32.0](https://github.com/bendourthe/Nexus-AI/compare/v0.31.0...v0.32.0) (2026-05-18)
+
+
+### Features
+
+* **v1.0.0:** phase 11 hardening + release gate + cycle close ([3af4fde](https://github.com/bendourthe/Nexus-AI/commit/3af4fde9484aed06c9dd143dbf6d07cbc3054f71))
+
 # [1.0.0](https://github.com/bendourthe/Nexus-AI/compare/v0.31.0...v1.0.0) (2026-05-18)
 
 The first production release of Nexus -- a local-first agentic AI workstation that hosts four pillars (Agentic AI Coding, Local Chatbot Explorer, Image Studio, Video Lab) inside a single Tauri 2.x desktop shell, backed by a Node sidecar (LLM + chat orchestration) and a Python sidecar (Stable Diffusion / video pipelines). The cycle pivots the project from the v0.x "Gemma Code" VS Code extension into a four-pillar desktop product, completes the rebrand sweep, and lands a Windows-first single-binary installer with a DevAI-Hub skill-sync pathway.
