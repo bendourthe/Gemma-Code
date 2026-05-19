@@ -49,7 +49,7 @@ export default defineConfig({
         "core/**/*.d.ts",
         "modules/**/*.d.ts",
         "**/extension.ts",
-        "src/utils/**",
+        "modules/coding/utils/**",
       ],
       thresholds: {
         lines: 80,

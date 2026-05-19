@@ -1,6 +1,6 @@
 import type { BuiltinToolName, ToolName } from "../tools/types.js";
 import { isAllowlisted } from "../tools/handlers/terminal.js";
-import { getLogger } from "../utils/logger.js";
+import { getLogger } from "../../modules/coding/utils/logger.js";
 
 export enum PermissionTier {
   AUTO_APPROVE = 0,

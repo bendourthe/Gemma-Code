@@ -1,13 +1,13 @@
 import * as fs from "fs";
 import * as path from "path";
-import { formatForUser } from "../utils/errors.js";
+import { formatForUser } from "../../modules/coding/utils/errors.js";
 import {
   shouldCompress,
   compressSync,
   compressSyncLarge,
   decompressSync,
   SYNC_COMPRESS_CEILING,
-} from "../utils/Compressor.js";
+} from "../../modules/coding/utils/Compressor.js";
 import type {
   ToolHandler,
   ToolResult,

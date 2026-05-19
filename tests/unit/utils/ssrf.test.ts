@@ -4,7 +4,7 @@ import {
   isSsrfBlockedSync,
   isSsrfBlocked,
   fetchWithSsrfGuard,
-} from "../../../src/utils/ssrf.js";
+} from "../../../modules/coding/utils/ssrf.js";
 
 describe("isBlockedIp", () => {
   it.each([

@@ -1,4 +1,4 @@
-import { getLogger } from "../utils/logger.js";
+import { getLogger } from "../../modules/coding/utils/logger.js";
 import type {
   LLMClient,
   LLMChatRequest,

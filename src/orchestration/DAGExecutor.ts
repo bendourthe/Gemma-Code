@@ -11,7 +11,7 @@ import type { HardwareTierConfig } from "../config/HardwareTier.types.js";
 import type { ExtensionToWebviewMessage } from "../panels/messages.js";
 import type { TaskDAG, TaskNode, TaskNodeType } from "./TaskDAG.js";
 import type { Reflection } from "./ReflexionEngine.js";
-import { formatForUser } from "../utils/errors.js";
+import { formatForUser } from "../../modules/coding/utils/errors.js";
 
 // ---------------------------------------------------------------------------
 // Types

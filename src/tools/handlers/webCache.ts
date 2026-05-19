@@ -2,9 +2,9 @@ import * as fs from "fs";
 import * as path from "path";
 import Database from "better-sqlite3";
 import { secureDbPermissions } from "../../storage/dbPermissions.js";
-import { isSsrfBlocked } from "../../utils/ssrf.js";
-import { getLogger } from "../../utils/logger.js";
-import { formatForLog } from "../../utils/errors.js";
+import { isSsrfBlocked } from "../../../modules/coding/utils/ssrf.js";
+import { getLogger } from "../../../modules/coding/utils/logger.js";
+import { formatForLog } from "../../../modules/coding/utils/errors.js";
 
 /**
  * Phase 9 (v0.5.0) -- API-response cache for `web_search` (and the future

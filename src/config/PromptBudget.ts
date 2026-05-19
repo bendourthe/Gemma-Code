@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
 import type { HardwareTierConfig } from "./HardwareTier.types.js";
-import { getLogger } from "../utils/logger.js";
+import { getLogger } from "../../modules/coding/utils/logger.js";
 
 // ---------------------------------------------------------------------------
 // Phase 5 (v0.5.0): tiktoken-backed token counter with heuristic fallback.

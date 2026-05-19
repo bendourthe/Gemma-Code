@@ -8,7 +8,7 @@
 
 import { describe, it, expect } from "vitest";
 import * as path from "node:path";
-import { SECRET_PATH_PATTERNS as TS_PATTERNS } from "../../../src/utils/secretPaths.js";
+import { SECRET_PATH_PATTERNS as TS_PATTERNS } from "../../../modules/coding/utils/secretPaths.js";
 
 const MJS_PATH = path.resolve(__dirname, "../../../scripts/hooks/lib/secret-paths.mjs");
 

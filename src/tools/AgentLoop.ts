@@ -16,7 +16,7 @@ import type { GitSafetyNet, GitCheckpoint } from "../guardrails/GitSafetyNet.js"
 import { classifyAction, ActionRisk } from "../guardrails/ActionClassifier.js";
 import { Tracer } from "../observability/Tracer.js";
 import type { OperationLog } from "../observability/OperationLog.js";
-import { formatForUser } from "../utils/errors.js";
+import { formatForUser } from "../../modules/coding/utils/errors.js";
 import { countTokens } from "../config/PromptBudget.js";
 
 const DEFAULT_MAX_ITERATIONS = 20;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { renderMarkdown } from "../../../src/utils/MarkdownRenderer.js";
+import { renderMarkdown } from "../../../modules/coding/utils/MarkdownRenderer.js";
 
 describe("renderMarkdown XSS sanitization", () => {
   it("strips <script> tags", () => {

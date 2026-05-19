@@ -6,8 +6,8 @@ import type {
   McpToolInfo,
 } from "./McpTypes.js";
 import { stripHtmlTags } from "../tools/handlers/webSearch.js";
-import { getLogger } from "../utils/logger.js";
-import { formatForUser } from "../utils/errors.js";
+import { getLogger } from "../../modules/coding/utils/logger.js";
+import { formatForUser } from "../../modules/coding/utils/errors.js";
 
 /**
  * Environment variables that are safely propagated to spawned MCP subprocesses.

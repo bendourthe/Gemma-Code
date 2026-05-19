@@ -24,7 +24,7 @@ import {
 import {
   resetCompressionStats,
   getCompressionStats,
-} from "../../src/utils/Compressor.js";
+} from "../../modules/coding/utils/Compressor.js";
 
 function buildGrepResult(byteTarget: number): string {
   // Realistic-shaped grep output: src-relative paths and a code excerpt per

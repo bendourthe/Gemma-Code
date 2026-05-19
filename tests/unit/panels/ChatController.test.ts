@@ -13,7 +13,7 @@ vi.mock("vscode", () => ({
   ConfigurationTarget: { Global: 1 },
 }));
 
-vi.mock("../../../src/utils/MarkdownRenderer.js", () => ({
+vi.mock("../../../modules/coding/utils/MarkdownRenderer.js", () => ({
   renderMarkdown: (s: string) => `<r>${s}</r>`,
 }));
 

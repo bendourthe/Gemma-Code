@@ -15,8 +15,8 @@ import type { MemoryEntry } from "../storage/MemoryShared.types.js";
 // dependency-cruiser-disable-next-line no-storage-from-panels
 import type { IntuitionCache } from "../storage/IntuitionCache.js";
 import { getMemoryViewHtml } from "./webview/memoryView.js";
-import { getLogger } from "../utils/logger.js";
-import { formatForUser } from "../utils/errors.js";
+import { getLogger } from "../../modules/coding/utils/logger.js";
+import { formatForUser } from "../../modules/coding/utils/errors.js";
 
 export const MEMORY_PANEL_VIEW_ID = "nexus.coding.memoryPanel";
 

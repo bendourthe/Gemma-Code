@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as ts from "typescript";
-import { getLogger } from "../utils/logger.js";
+import { getLogger } from "../../modules/coding/utils/logger.js";
 
 /**
  * v0.8.0 Phase 5 sub-task 5.3 (item D2) -- AST-scanned tool registry.

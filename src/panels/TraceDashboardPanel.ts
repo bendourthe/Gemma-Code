@@ -4,7 +4,7 @@ import type { TraceStore } from "../observability/TraceStore.js";
 import type { MetricsCollector } from "../observability/MetricsCollector.js";
 import type { ToolOutputCache } from "../storage/ToolOutputCache.js";
 import type { WebResponseCache } from "../tools/handlers/webCache.js";
-import { getCompressionStats } from "../utils/Compressor.js";
+import { getCompressionStats } from "../../modules/coding/utils/Compressor.js";
 import { getTraceDashboardHtml } from "./webview/traceDashboard.js";
 
 export const TRACE_DASHBOARD_VIEW_ID = "nexus.coding.traceDashboard";

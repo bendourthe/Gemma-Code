@@ -2,14 +2,14 @@
 // privacy-first goal. No API key is required for the HTML endpoint.
 
 import { parse as parseHtml } from "node-html-parser";
-import { formatForUser } from "../../utils/errors.js";
+import { formatForUser } from "../../../modules/coding/utils/errors.js";
 import type {
   ToolHandler,
   ToolResult,
   WebSearchParams,
   FetchPageParams,
 } from "../types.js";
-import { fetchWithSsrfGuard } from "../../utils/ssrf.js";
+import { fetchWithSsrfGuard } from "../../../modules/coding/utils/ssrf.js";
 import type { WebResponseCache } from "./webCache.js";
 
 const DUCKDUCKGO_HTML_URL = "https://html.duckduckgo.com/html/";

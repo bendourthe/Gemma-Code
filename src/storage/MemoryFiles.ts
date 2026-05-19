@@ -2,8 +2,8 @@ import * as crypto from "crypto";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import { matchesSecretPath } from "../utils/secretPaths.js";
-import { getLogger } from "../utils/logger.js";
+import { matchesSecretPath } from "../../modules/coding/utils/secretPaths.js";
+import { getLogger } from "../../modules/coding/utils/logger.js";
 import {
   redactInvisibleUnicode,
   scan as scanForInjection,

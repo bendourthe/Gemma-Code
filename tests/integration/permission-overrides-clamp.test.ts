@@ -14,7 +14,7 @@ import {
   shouldRequireConfirmation,
   _resetPermissionOverrideWarnings,
 } from "../../src/guardrails/PermissionTiers.js";
-import { setLogger } from "../../src/utils/logger.js";
+import { setLogger } from "../../modules/coding/utils/logger.js";
 import { mockGetConfiguration } from "../setup.js";
 import { getSettings } from "../../src/config/settings.js";
 

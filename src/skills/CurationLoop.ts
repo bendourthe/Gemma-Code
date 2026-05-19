@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import { getLogger } from "../utils/logger.js";
+import { getLogger } from "../../modules/coding/utils/logger.js";
 import type { SkillMetrics } from "./SkillMetrics.js";
 
 /**

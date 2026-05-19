@@ -37,8 +37,8 @@ import {
   decompressBlockInConversation,
   recompressBlockInConversation,
 } from "../commands/compactCommand.js";
-import { renderMarkdown } from "../utils/MarkdownRenderer.js";
-import { formatForUser } from "../utils/errors.js";
+import { renderMarkdown } from "../../modules/coding/utils/MarkdownRenderer.js";
+import { formatForUser } from "../../modules/coding/utils/errors.js";
 import type { ExtensionToWebviewMessage } from "./messages.js";
 
 /**

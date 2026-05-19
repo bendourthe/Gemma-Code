@@ -21,7 +21,7 @@ vi.mock("node:dns/promises", () => ({
 import {
   fetchWithSsrfGuard,
   DEFAULT_MAX_BODY_BYTES,
-} from "../../src/utils/ssrf.js";
+} from "../../modules/coding/utils/ssrf.js";
 
 const TEST_URL = "https://example.com/payload";
 const ONE_MB = 1024 * 1024;

@@ -6,7 +6,7 @@
  * It contains both bench() declarations and assertion-based latency gates.
  */
 import { bench, describe, it, expect } from "vitest";
-import { renderMarkdown } from "../../src/utils/MarkdownRenderer.js";
+import { renderMarkdown } from "../../modules/coding/utils/MarkdownRenderer.js";
 
 // ---------------------------------------------------------------------------
 // Input fixtures

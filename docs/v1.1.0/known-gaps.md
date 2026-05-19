@@ -1,11 +1,11 @@
 # v1.1.0 -- Known Gaps, Deferrals, and Carryovers
 
-**Status**: live (cycle opened at Phase 1, 2026-05-18; Phase 2 rebrand + core extraction landed 2026-05-19)
+**Status**: live (cycle opened at Phase 1, 2026-05-18; Phase 2 rebrand + core extraction landed 2026-05-19; Phase 3 coding-module codemod + first sub-tree migration landed 2026-05-19)
 **Audience**: v1.1.0 phase authors, code reviewer, security reviewer, ops engineer, future-cycle planners
 **Last updated**: 2026-05-19
-**Sibling reviews**: [docs/v1.0.0/known-gaps.md](../v1.0.0/known-gaps.md) (the upstream cycle gap log this file inherits from); [docs/v1.1.0/plans/v1.1.0-cycle.md](plans/v1.1.0-cycle.md) (the active plan); [docs/v1.1.0/plans/phase-01-shared-core-and-carryforward-closure.md](plans/phase-01-shared-core-and-carryforward-closure.md) (Phase 1 detail); [docs/v1.1.0/plans/phase-02-rebrand-and-core-extraction.md](plans/phase-02-rebrand-and-core-extraction.md) (Phase 2 detail).
+**Sibling reviews**: [docs/v1.0.0/known-gaps.md](../v1.0.0/known-gaps.md) (the upstream cycle gap log this file inherits from); [docs/v1.1.0/plans/v1.1.0-cycle.md](plans/v1.1.0-cycle.md) (the active plan); [docs/v1.1.0/plans/phase-01-shared-core-and-carryforward-closure.md](plans/phase-01-shared-core-and-carryforward-closure.md) (Phase 1 detail); [docs/v1.1.0/plans/phase-02-rebrand-and-core-extraction.md](plans/phase-02-rebrand-and-core-extraction.md) (Phase 2 detail); [docs/v1.1.0/plans/phase-03-coding-module.md](plans/phase-03-coding-module.md) (Phase 3 detail).
 
-**Cycle context**: v1.1.0 is the stabilization-plus-expansion cycle. Phase 1 (commit `ec3ff0e`) opened the carryforward closure sweep with bounded items (storage-path rename, deprecationMessage injection, curator-cadence delete, CRLF/LF snapshot normalization, shared-core decision document). Phase 2 (this commit) closes the rebrand + sidecar core-extraction half of the deferred Phase 1 work (manifest IDs, npm package rename, sidecar duplicate model catalogs). The heavier deferred items (TypeScript project-references wiring, wholesale `src/` -> `modules/coding/` move, `NexusCodingRuntime` wiring, Tailwind v4) stay open as a future Phase 1c follow-up cluster. The remaining cycle phases (3-15) then layer agentmemory + SANA adoptions plus the cross-OS installer and Nexus VS Code extension on top of the v1.0.0 four-pillar app. The known-gaps file is appended phase-by-phase; items move to `## 2. Resolved` when closed in a later phase, and the `## 3. Summary` at the bottom is recomputed each pass. The file is finalized at v1.1.0 release (Phase 15 RTM).
+**Cycle context**: v1.1.0 is the stabilization-plus-expansion cycle. Phase 1 (commit `ec3ff0e`) opened the carryforward closure sweep with bounded items (storage-path rename, deprecationMessage injection, curator-cadence delete, CRLF/LF snapshot normalization, shared-core decision document). Phase 2 (commit `de219a5`) closed the rebrand + sidecar core-extraction half of the deferred Phase 1 work (manifest IDs, npm package rename, sidecar duplicate model catalogs). Phase 3 (this commit) lands the `src/` -> `modules/coding/` import-rewriting codemod and the first sub-tree migration (`src/utils/` -> `modules/coding/utils/`), partially closing 1.4.P1.B; the remaining 12 sub-tree moves stay deferred but the rest of the cycle now has the mechanical pipeline ready to consume. The heavier deferred items (TypeScript project-references wiring, the rest of the wholesale `src/` -> `modules/coding/` move, `NexusCodingRuntime` wiring, Tailwind v4) stay open. The remaining cycle phases (4-15) then layer agentmemory + SANA adoptions plus the cross-OS installer and Nexus VS Code extension on top of the v1.0.0 four-pillar app. The known-gaps file is appended phase-by-phase; items move to `## 2. Resolved` when closed in a later phase, and the `## 3. Summary` at the bottom is recomputed each pass. The file is finalized at v1.1.0 release (Phase 15 RTM).
 
 Each entry has a severity tag:
 
@@ -34,12 +34,32 @@ Each entry has a category tag:
 - **Reason**: The decision document at [docs/v1.1.0/development/decisions/shared-core-build.md](development/decisions/shared-core-build.md) records option (a) -- project references with `composite: true` on `core/` -- as the chosen strategy. The actual wiring (new `core/tsconfig.json`, `references` arrays in the root and `desktop/tsconfig.json`, switching `npm run build` to `tsc -b`) was not landed in the Phase 1 commit because it interacts with the sub-task 1.4 wholesale `src/` -> `modules/coding/` move: the root tsconfig's `include` set currently emits `core/` into `out/core` AND `core/tsconfig.json` with `composite: true, outDir: "../out/core"` would emit to the same location, producing a double-emit conflict until either the root tsconfig is narrowed to `src/` only (which requires 1.4 to land first so the `modules/coding/` reference is the canonical entry point) or the build script is split into `build:core` + `build:src` chains. Doing it in the wrong order would either break `npm run build` on day one or leave a broken intermediate state that other phases would have to step around.
 - **Suggested next step**: Land 1.1's wiring as the first commit cluster of the 1.4 follow-up (the wholesale `src/` move). The pre-req sequence is: (a) narrow root `tsconfig.json` `include` to only the moved `modules/coding/**/*` and `src/extension.ts` (if it still exists post-move), (b) add `core/tsconfig.json` with `composite: true`, (c) add `references: [{ "path": "./core" }]` to the root and to `desktop/tsconfig.json`, (d) rename `npm run build` to invoke `tsc -b`, (e) verify `npm run check-architecture` still passes against the new reference graph.
 
-### 1.4.P1.B -- src/ -> modules/coding/ wholesale move deferred (DF, P1)
+### 1.4.P1.B -- src/ -> modules/coding/ wholesale move partially closed; 12 sub-trees remain deferred (DF, P1)
 
 - **Source phase**: Phase 1 (1.4)
 - **Plan reference**: [phase-01-shared-core-and-carryforward-closure.md](plans/phase-01-shared-core-and-carryforward-closure.md) sub-task 1.4 ("Perform the wholesale move with `git mv`: `src/llm/` -> `core/llm/` (already exists -- merge) ... [13 source sub-tree moves listed]"); closes v1.0.0 carryforward 2.P2.I.
-- **Reason**: The wholesale move is a 192-source-file + 537-test-import operation that cannot be validated in a single session without per-step CI runs. Each `git mv` cluster (a single sub-tree, e.g. `src/agents/` -> `modules/coding/agents/`) needs its own `npm test` + `npm run check-architecture` pass before the next sub-tree moves, otherwise compounding import-rewrite errors are hard to bisect. Landing all 13 moves plus the `scripts/dev/rewrite-imports.mjs` codemod plus the 537 test-file rewrites in one diff would produce a single commit that is essentially unreviewable. The Phase 1 commit therefore lands the bounded carryforward closures (1.1 decision doc, 1.2 storage-path renames, 1.3 deprecationMessage injection, 1.7 curator fallback delete, 1.8 CRLF + SHA-pin) and defers the move to a dedicated follow-up commit cluster ("Phase 1b") that lands it sub-tree by sub-tree.
-- **Suggested next step**: Open a follow-up branch `phase-1b-modules-coding-move` and land each `git mv <sub-tree>` as its own commit + CI run, in this order (lowest-dependency first): (1) `src/llm/` -> merge into `core/llm/`, (2) `src/storage/` -> merge into `core/storage/`, (3) `src/utils/` -> `modules/coding/utils/`, (4) the rest of the leaf sub-trees, (5) `src/extension.ts` -> `modules/coding/extension.ts` last (this triggers the manifest path rewrite for sub-task 1.5). The codemod `scripts/dev/rewrite-imports.mjs` lands as its own commit before the first move, so each subsequent `git mv` is a near-pure rename.
+- **Reason**: The wholesale move is a ~190-source-file + 500+ test-import operation that cannot be validated in a single session without per-step CI runs. Each `git mv` cluster (a single sub-tree, e.g. `src/agents/` -> `modules/coding/agents/`) needs its own `npm test` + `npm run check-architecture` pass before the next sub-tree moves, otherwise compounding import-rewrite errors are hard to bisect. Phase 3 (this commit) lands the codemod infrastructure ([scripts/dev/rewrite-imports.mjs](../../scripts/dev/rewrite-imports.mjs), see 3.P1.A) plus the first leaf-tree migration -- `src/utils/` -> `modules/coding/utils/` -- so the remaining sub-tree moves now become near-pure renames driven by the same script. The 12 remaining sub-trees stay open because each subsequent move benefits from its own commit + CI run, both for review readability and to keep the import-rewrite blast radius bounded per phase.
+- **Status table (per sub-tree)**:
+  | Sub-tree | Status | Closed in | Notes |
+  |---|---|---|---|
+  | `src/utils/` -> `modules/coding/utils/` | Closed | Phase 3 (this commit) | 6 files moved; 65 importers rewritten by codemod. |
+  | `src/config/` -> `modules/coding/config/` | Open | -- | 9 files; candidate for Phase 4 (low coupling). |
+  | `src/llm/` -> merge into `core/llm/` | Open | -- | 5 files; coordinate with `core/llm/{PromptFormat,ToolCallFormat}.ts` already in place. |
+  | `src/observability/` -> `modules/coding/observability/` | Open | -- | 3 files; candidate for Phase 4. |
+  | `src/orchestration/` -> `modules/coding/orchestration/` | Open | -- | 2 files; candidate for Phase 4. |
+  | `src/guardrails/` -> `modules/coding/guardrails/` | Open | -- | 2 files. |
+  | `src/mcp/` -> `modules/coding/mcp/` | Open | -- | small. |
+  | `src/commands/` -> `modules/coding/commands/` | Open | -- | small. |
+  | `src/agents/` -> `modules/coding/agents/` | Open | -- | medium. |
+  | `src/chat/` -> `modules/coding/chat/` | Open | -- | medium; depends on `src/storage/`. |
+  | `src/evaluation/` -> `modules/coding/evaluation/` | Open | -- | medium; check `generate-golden-tasks.mjs` output path. |
+  | `src/skills/` -> `modules/coding/skills/` | Open | -- | medium; keep coding-side loader adapter under `modules/coding/skills/`. |
+  | `src/runtime/` -> `modules/coding/runtime/` | Open | -- | unlocks 1.10.P1.F (NexusCodingRuntime sidecar wiring). |
+  | `src/storage/` -> merge into `core/storage/` | Open | -- | heaviest; many consumers. |
+  | `src/tools/` -> `modules/coding/tools/` | Open | -- | heaviest leaf; many consumers. |
+  | `src/panels/` -> `modules/coding/panels/` | Open | -- | webview side; touches manifest paths. |
+  | `src/extension.ts` -> `modules/coding/extension.ts` | Open | -- | Last move; flips `main` in package.json. |
+- **Suggested next step**: Pick a Phase 4 candidate from the table above (suggest `src/config/` next: 9 files, leaf-shaped). Drive the next move with `node scripts/dev/rewrite-imports.mjs --moves <phase-4-manifest.json>` after `git mv`-ing the sub-tree. Land each move as its own commit + CI run. `src/extension.ts` is last; it triggers the manifest `main` field flip and unlocks the Phase 10 thin-adapter rewrite.
 
 ### 1.10.P1.F -- NexusCodingRuntime wiring into sidecar sessionManager deferred (DF, P1)
 
@@ -84,13 +104,20 @@ Each entry has a category tag:
 | 3.P1.P | 1 (1.7) | Legacy curator-cadence fallback deleted from `AgentLoop._runOneIteration`; `nexus.curator.enabled` setting declared | Phase 1 commit `ec3ff0e` |
 | -- | 1 (1.1, decision-only) | Shared-core build decision document landed at `docs/v1.1.0/development/decisions/shared-core-build.md` (actual project-references wiring tracked at 1.1.P1.A) | Phase 1 commit `ec3ff0e` |
 
-### Phase 2 closures (this commit)
+### Phase 2 closures (commit `de219a5`)
 
 | v1.0.0 source | v1.1.0 phase | Item | Resolved in |
 |---|---|---|---|
-| 2.P1.J (manifest portion) | 2 (2.1) | VS Code extension manifest IDs renamed: `gemma-code-sidebar` -> `nexus-coding-sidebar`, every `gemma-code.<cmd>` / `gemma-code.<viewId>` -> `nexus.coding.<...>`; `COMPAT_COMMAND_MAP` programmatic shim translates legacy keybindings to the new IDs with a single deprecation log per invocation | This commit |
-| 2.P2.K (npm portion) | 2 (2.2) | npm `name` + `publisher` renamed `gemma-code` -> `nexus-coding`; `package-lock.json` synced; `.npmignore` created to exclude tests / docs / desktop / runtimes / coverage / .github / scripts/installer / AI-assistant configs; installer-side `EXTENSION_ID` / `_find_vsix` glob / `setup.nsi` PRODUCT_* / Complete-page strings flipped to the new ID in lock-step | This commit |
-| 3.P2.S | 2 (2.3) | Sidecar + frontend model catalogs (`desktop/sidecar/src/coding/models.ts`, `desktop/src/modules/coding/models.ts`) now derive from `core/registry/ModelCatalog` via the desktop tsconfig's `include` array; the parity test (`desktop/tests/coding-models.test.ts`) asserts positional equality against the canonical catalog | This commit |
+| 2.P1.J (manifest portion) | 2 (2.1) | VS Code extension manifest IDs renamed: `gemma-code-sidebar` -> `nexus-coding-sidebar`, every `gemma-code.<cmd>` / `gemma-code.<viewId>` -> `nexus.coding.<...>`; `COMPAT_COMMAND_MAP` programmatic shim translates legacy keybindings to the new IDs with a single deprecation log per invocation | Phase 2 commit `de219a5` |
+| 2.P2.K (npm portion) | 2 (2.2) | npm `name` + `publisher` renamed `gemma-code` -> `nexus-coding`; `package-lock.json` synced; `.npmignore` created to exclude tests / docs / desktop / runtimes / coverage / .github / scripts/installer / AI-assistant configs; installer-side `EXTENSION_ID` / `_find_vsix` glob / `setup.nsi` PRODUCT_* / Complete-page strings flipped to the new ID in lock-step | Phase 2 commit `de219a5` |
+| 3.P2.S | 2 (2.3) | Sidecar + frontend model catalogs (`desktop/sidecar/src/coding/models.ts`, `desktop/src/modules/coding/models.ts`) now derive from `core/registry/ModelCatalog` via the desktop tsconfig's `include` array; the parity test (`desktop/tests/coding-models.test.ts`) asserts positional equality against the canonical catalog | Phase 2 commit `de219a5` |
+
+### Phase 3 closures (this commit)
+
+| v1.0.0 / v1.1.0 source | v1.1.0 phase | Item | Resolved in |
+|---|---|---|---|
+| 3.P1.A (new this phase) | 3 (3.1) | Generic `src/` -> `modules/coding/` import-rewriting codemod landed at [scripts/dev/rewrite-imports.mjs](../../scripts/dev/rewrite-imports.mjs); accepts a `--moves` JSON manifest, walks `src/`, `core/`, `modules/`, `tests/`, and rewrites every static `import`/`export` specifier, dynamic `import(...)`, and `vi.mock(...)`/`vi.doMock(...)` mock path whose resolved location lands inside a moved sub-tree. Idempotent; supports `--dry-run`; default manifest is the Phase 3 utils move. Unblocks every subsequent `src/` -> `modules/coding/` sub-tree move | This commit |
+| 1.4.P1.B (partial: `src/utils/`) | 3 (3.2) | First leaf sub-tree migration: `src/utils/` -> `modules/coding/utils/` (6 files: `Compressor.ts`, `errors.ts`, `logger.ts`, `MarkdownRenderer.ts`, `secretPaths.ts`, `ssrf.ts`). `git mv` preserved rename history; 65 importing files were rewritten by the codemod (`src/extension.ts`, every `src/<subtree>/*` file that imported from utils, every `tests/{unit,integration,benchmarks}/...` file that imported or `vi.mock`-ed a utils path). [configs/vitest.config.ts](../../configs/vitest.config.ts) coverage `exclude` flipped from `src/utils/**` to `modules/coding/utils/**`. The remaining 12 sub-trees stay open under 1.4.P1.B's status table | This commit |
 
 ---
 
@@ -99,10 +126,12 @@ Each entry has a category tag:
 | Severity | Open | Resolved | Total |
 |---|---|---|---|
 | P0 | 0 | 0 | 0 |
-| P1 | 3 | 3 | 6 |
+| P1 | 3 | 4 | 7 |
 | P2 | 3 | 0 | 3 |
 | P3 | 0 | 0 | 0 |
-| **Total** | **6** | **9** | **15** |
+| **Total** | **6** | **10** | **16** |
+
+The Phase 3 closures count as one new resolved P1 (3.P1.A -- codemod infrastructure) plus a partial closure of 1.4.P1.B (1 of 13 sub-trees moved). The 1.4.P1.B row stays under `## 1. Open Items` until every sub-tree has migrated; the per-sub-tree progress is tracked in the status table inside that entry.
 
 By category (open items only):
 - **DF** (deferred): 5
@@ -110,7 +139,7 @@ By category (open items only):
 - **NI / BG / WN / QG**: 0
 
 By phase (open items only):
-- Phase 1: 6 (deferred sub-tasks 1.1 wiring + 1.4 wholesale move + 1.10 NexusCodingRuntime + 1.11 Tailwind v4 + 1.12.P2.H + 1.12.P2.I) -- all queued for the future Phase 1c follow-up
+- Phase 1: 6 (deferred sub-tasks 1.1 wiring + 1.4 wholesale move (12/13 sub-trees still open) + 1.10 NexusCodingRuntime + 1.11 Tailwind v4 + 1.12.P2.H + 1.12.P2.I) -- the codemod from Phase 3 (3.P1.A) is now available to consume them.
 
 ---
 
@@ -122,13 +151,13 @@ This table mirrors the cycle plan's [Carryforward Map](plans/v1.1.0-cycle.md#car
 |---|---|---|
 | 2.P1.G | 1 | Closed (Phase 1 commit `ec3ff0e`, sub-task 1.2) |
 | 2.P1.H | 1 | Closed (Phase 1 commit `ec3ff0e`, sub-task 1.3) |
-| 2.P2.I | 1 | Deferred to Phase 1c (open item 1.4.P1.B) -- wholesale `src/` move |
-| 2.P1.J | 1 (manifest) + 10 | Closed-manifest-portion (Phase 2 commit, sub-task 2.1); Marketplace re-publish targets cycle Phase 10 |
-| 2.P2.K | 1 (npm) + 10 | Closed-npm-portion (Phase 2 commit, sub-task 2.2); Marketplace re-publish targets cycle Phase 10 |
+| 2.P2.I | 1 / 3 / future | Partially closed -- Phase 3 (this commit, sub-tasks 3.1 + 3.2) lands the codemod and migrates `src/utils/`; open item 1.4.P1.B holds the per-sub-tree status table for the remaining 12 sub-trees |
+| 2.P1.J | 1 (manifest) + 10 | Closed-manifest-portion (Phase 2 commit `de219a5`, sub-task 2.1); Marketplace re-publish targets cycle Phase 10 |
+| 2.P2.K | 1 (npm) + 10 | Closed-npm-portion (Phase 2 commit `de219a5`, sub-task 2.2); Marketplace re-publish targets cycle Phase 10 |
 | 2.P3.L | 1 | Closed (Phase 1 commit `ec3ff0e`, sub-task 1.8) |
-| 3.P1.M | 1 | Deferred to Phase 1c (open item 1.10.P1.F) -- waits for the 1.4 wholesale move |
+| 3.P1.M | 1 | Deferred (open item 1.10.P1.F) -- waits for `src/runtime/` to migrate under 1.4.P1.B |
 | 3.P1.P | 1 | Closed (Phase 1 commit `ec3ff0e`, sub-task 1.7) |
-| 3.P2.S | 1 | Closed (Phase 2 commit, sub-task 2.3) |
+| 3.P2.S | 1 | Closed (Phase 2 commit `de219a5`, sub-task 2.3) |
 | 5.P3.FF | 1 (subsumed by 2.P3.L) | Closed (Phase 1 commit `ec3ff0e`) |
 | 1.P2.B | 1 | Deferred (open item 1.11.P1.G) -- folds into cycle Phase 11 webview-build pipeline change |
 | 1.P2.C | 15 (OA-07) | Open (operator action, target Phase 15) |
@@ -144,4 +173,6 @@ This table mirrors the cycle plan's [Carryforward Map](plans/v1.1.0-cycle.md#car
 - [docs/v1.1.0/plans/v1.1.0-cycle.md](plans/v1.1.0-cycle.md) -- active plan
 - [docs/v1.1.0/plans/phase-01-shared-core-and-carryforward-closure.md](plans/phase-01-shared-core-and-carryforward-closure.md) -- Phase 1 detail
 - [docs/v1.1.0/plans/phase-02-rebrand-and-core-extraction.md](plans/phase-02-rebrand-and-core-extraction.md) -- Phase 2 detail (rebrand + sidecar core extraction)
+- [docs/v1.1.0/plans/phase-03-coding-module.md](plans/phase-03-coding-module.md) -- Phase 3 detail (codemod + first `src/` -> `modules/coding/` sub-tree migration)
 - [docs/v1.1.0/development/decisions/shared-core-build.md](development/decisions/shared-core-build.md) -- ADR for sub-task 1.1
+- [scripts/dev/rewrite-imports.mjs](../../scripts/dev/rewrite-imports.mjs) -- generic import-rewriting codemod consumed by Phase 3 + future sub-tree migrations

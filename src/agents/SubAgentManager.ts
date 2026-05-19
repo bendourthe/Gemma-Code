@@ -9,7 +9,7 @@ import { ConversationManager } from "../chat/ConversationManager.js";
 import { AgentLoop } from "../tools/AgentLoop.js";
 import { ToolRegistry } from "../tools/ToolRegistry.js";
 import { computeToolActivation } from "../tools/ToolActivationRules.js";
-import { formatForUser } from "../utils/errors.js";
+import { formatForUser } from "../../modules/coding/utils/errors.js";
 import { TOOL_CATALOG, toDynamicMetadata } from "../tools/ToolCatalog.js";
 import type { DynamicToolMetadata } from "../tools/ToolCatalog.js";
 import { Tracer } from "../observability/Tracer.js";

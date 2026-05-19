@@ -8,8 +8,8 @@ import type { ToolRegistry } from "../tools/ToolRegistry.js";
 import type { McpToolName } from "../tools/types.js";
 import { McpClient } from "./McpClient.js";
 import { McpToolHandler } from "./McpToolHandler.js";
-import { getLogger } from "../utils/logger.js";
-import { formatForLog } from "../utils/errors.js";
+import { getLogger } from "../../modules/coding/utils/logger.js";
+import { formatForLog } from "../../modules/coding/utils/errors.js";
 import type {
   McpServerConfig,
   McpServerState,

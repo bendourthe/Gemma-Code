@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { Tracer } from "../observability/Tracer.js";
-import { getLogger } from "../utils/logger.js";
+import { getLogger } from "../../modules/coding/utils/logger.js";
 
 /**
  * v0.8.0 Phase 5 sub-task 5.1 (item D5) -- per-skill success metrics.

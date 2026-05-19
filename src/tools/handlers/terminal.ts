@@ -7,7 +7,7 @@ import type {
 } from "../types.js";
 import { resolveInsideWorkspace } from "./pathGuard.js";
 import { BLOCKED_PATTERNS } from "../../guardrails/policy.js";
-import { formatForUser } from "../../utils/errors.js";
+import { formatForUser } from "../../../modules/coding/utils/errors.js";
 import { compressToolOutput } from "./preToolHook.js";
 
 const DEFAULT_TIMEOUT_MS = 30_000;

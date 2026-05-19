@@ -1,6 +1,6 @@
 import * as fs from "fs";
-import { getLogger } from "../utils/logger.js";
-import { formatForLog } from "../utils/errors.js";
+import { getLogger } from "../../modules/coding/utils/logger.js";
+import { formatForLog } from "../../modules/coding/utils/errors.js";
 
 /**
  * Set POSIX mode 0600 on the SQLite database file so other users on the same

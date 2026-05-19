@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
-import { getLogger } from "../utils/logger.js";
-import { formatForLog } from "../utils/errors.js";
+import { getLogger } from "../../modules/coding/utils/logger.js";
+import { formatForLog } from "../../modules/coding/utils/errors.js";
 
 // The TypeScript module setting is `Node16`, but the package.json has no
 // `"type": "module"`, so the compiled output is CommonJS. `require` is

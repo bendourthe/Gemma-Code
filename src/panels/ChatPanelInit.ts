@@ -8,8 +8,8 @@ import { WebResponseCache } from "../tools/handlers/webCache.js";
 import { OperationLog } from "../observability/OperationLog.js";
 import type { GemmaCodeSettings } from "../config/settings.js";
 import type { LLMClient } from "../llm/types.js";
-import { getLogger } from "../utils/logger.js";
-import { formatForUser } from "../utils/errors.js";
+import { getLogger } from "../../modules/coding/utils/logger.js";
+import { formatForUser } from "../../modules/coding/utils/errors.js";
 
 // Composition helpers extracted from NexusCodingPanel as part of v0.7.0 Phase 0
 // sub-task 0.4 (panel decomposition + ChatController construction-graph

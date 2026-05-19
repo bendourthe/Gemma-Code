@@ -15,7 +15,7 @@ import {
   MIN_COMPRESS_BYTES,
   SYNC_COMPRESS_CEILING,
   type CompressedToolOutput,
-} from "../../../src/utils/Compressor.js";
+} from "../../../modules/coding/utils/Compressor.js";
 
 const LOREM_PARAGRAPH =
   "Lorem ipsum dolor sit amet, consectetur adipiscing elit. " +

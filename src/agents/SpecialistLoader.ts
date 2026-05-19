@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { z } from "zod";
-import { getLogger } from "../utils/logger.js";
+import { getLogger } from "../../modules/coding/utils/logger.js";
 import { getSubAgentInstructions } from "./SubAgentPrompts.js";
 import type { SubAgentType } from "./types.js";
 

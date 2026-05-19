@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { calculateBudget, calculateTierBudget } from "../../../src/config/PromptBudget.js";
 import type { HardwareTierConfig } from "../../../src/config/HardwareTier.types.js";
-import { setLogger } from "../../../src/utils/logger.js";
+import { setLogger } from "../../../modules/coding/utils/logger.js";
 
 describe("calculateBudget", () => {
   it("returns correct allocations for 128K context (131072 tokens)", () => {

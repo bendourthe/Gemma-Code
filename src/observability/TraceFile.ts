@@ -1,9 +1,9 @@
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import { matchesSecretPath } from "../utils/secretPaths.js";
-import { getLogger } from "../utils/logger.js";
-import { formatForLog } from "../utils/errors.js";
+import { matchesSecretPath } from "../../modules/coding/utils/secretPaths.js";
+import { getLogger } from "../../modules/coding/utils/logger.js";
+import { formatForLog } from "../../modules/coding/utils/errors.js";
 
 /**
  * v0.8.0 Phase 4 sub-task 4.1 (item G3) -- single bug-report file primitive.

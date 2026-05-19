@@ -16,7 +16,7 @@ import type {
 } from "../types.js";
 import type { ConfirmationGate } from "../ConfirmationGate.js";
 import type { ToolOutputCache } from "../../storage/ToolOutputCache.js";
-import { matchesSecretPath } from "../../utils/secretPaths.js";
+import { matchesSecretPath } from "../../../modules/coding/utils/secretPaths.js";
 import { resolveInsideWorkspace, workspaceRoot as guardedWorkspaceRoot } from "./pathGuard.js";
 
 const MAX_READ_LINES = 500;

@@ -1,8 +1,8 @@
 import * as fs from "fs";
 import * as path from "path";
-import { matchesSecretPath } from "../utils/secretPaths.js";
-import { getLogger } from "../utils/logger.js";
-import { formatForLog } from "../utils/errors.js";
+import { matchesSecretPath } from "../../modules/coding/utils/secretPaths.js";
+import { getLogger } from "../../modules/coding/utils/logger.js";
+import { formatForLog } from "../../modules/coding/utils/errors.js";
 
 /**
  * Phase 9 (v0.5.0) -- Opt-in append-only operation log.

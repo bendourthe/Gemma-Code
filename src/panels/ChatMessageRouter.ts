@@ -10,7 +10,7 @@ import type { ConfirmationGate } from "../tools/ConfirmationGate.js";
 import type { AgentLoop } from "../tools/AgentLoop.js";
 import type { EditMode } from "../tools/types.js";
 import { renderHookAsSystemMessage } from "../chat/ImprovementHook.js";
-import { formatForUser } from "../utils/errors.js";
+import { formatForUser } from "../../modules/coding/utils/errors.js";
 import type { ChatController } from "./ChatController.js";
 import type { ChatStatusReporter } from "./ChatStatusReporter.js";
 import type {

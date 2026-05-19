@@ -1,8 +1,8 @@
 import type { Span } from "./TraceStore.js";
 import type { TracerExporter } from "./Tracer.js";
-import { isSsrfBlockedSync } from "../utils/ssrf.js";
-import { getLogger } from "../utils/logger.js";
-import { formatForLog } from "../utils/errors.js";
+import { isSsrfBlockedSync } from "../../modules/coding/utils/ssrf.js";
+import { getLogger } from "../../modules/coding/utils/logger.js";
+import { formatForLog } from "../../modules/coding/utils/errors.js";
 
 // ---------------------------------------------------------------------------
 // OTLP JSON schema types (minimal subset)

@@ -6,8 +6,8 @@ import type { CurationLoop, CuratorManifest } from "../skills/CurationLoop.js";
 import { describeManifest } from "../skills/CurationLoop.js";
 import type { ReflectJob, ReflectManifest, HardwareTier } from "../storage/ReflectJob.js";
 import { shouldRunReflectJob } from "../storage/ReflectJob.js";
-import { formatForLog } from "../utils/errors.js";
-import { getLogger } from "../utils/logger.js";
+import { formatForLog } from "../../modules/coding/utils/errors.js";
+import { getLogger } from "../../modules/coding/utils/logger.js";
 
 /**
  * v0.7.0 Phase 7 (C34) -- deterministic background workers.

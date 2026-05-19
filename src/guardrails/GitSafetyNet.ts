@@ -1,5 +1,5 @@
 import { execFile } from "child_process";
-import { getLogger } from "../utils/logger.js";
+import { getLogger } from "../../modules/coding/utils/logger.js";
 
 export interface GitCheckpoint {
   readonly headSha: string;

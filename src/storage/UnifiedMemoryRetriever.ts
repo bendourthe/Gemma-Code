@@ -12,8 +12,8 @@ import type {
   ToolOutputSearchResult,
 } from "./ToolOutputCache.js";
 import { DEFAULT_SEMANTIC_THRESHOLD } from "./ToolOutputCache.js";
-import { getLogger } from "../utils/logger.js";
-import { formatForLog } from "../utils/errors.js";
+import { getLogger } from "../../modules/coding/utils/logger.js";
+import { formatForLog } from "../../modules/coding/utils/errors.js";
 
 const CHARS_PER_TOKEN = 4;
 

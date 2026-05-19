@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { CommandRouter } from "../../../src/commands/CommandRouter.js";
 import type { CommandDescriptor } from "../../../src/commands/CommandRouter.js";
-import { setLogger } from "../../../src/utils/logger.js";
+import { setLogger } from "../../../modules/coding/utils/logger.js";
 
 function makeRouter(skills: CommandDescriptor[] = []): CommandRouter {
   return new CommandRouter(() => skills);

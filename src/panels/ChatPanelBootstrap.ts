@@ -55,8 +55,8 @@ import { defaultPermissionOptions } from "./webview/render/permissionPrompt.js";
 import type { ToolRegistry } from "../tools/ToolRegistry.js";
 import { buildToolRegistry } from "../tools/ToolRegistryBuilder.js";
 import { TodoState } from "../tools/handlers/todos.js";
-import { renderMarkdown } from "../utils/MarkdownRenderer.js";
-import { getLogger } from "../utils/logger.js";
+import { renderMarkdown } from "../../modules/coding/utils/MarkdownRenderer.js";
+import { getLogger } from "../../modules/coding/utils/logger.js";
 import type { NexusCodingRuntime } from "../runtime/NexusCodingRuntime.js";
 import type { EditMode } from "../tools/types.js";
 import type {

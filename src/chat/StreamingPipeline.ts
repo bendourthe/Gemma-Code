@@ -2,7 +2,7 @@ import type { OllamaClient, OllamaMessage, OllamaOptions, OllamaToolDefinition }
 import { OllamaError } from "../llm/types.js";
 import type { ConversationManager } from "./ConversationManager.js";
 import type { ExtensionToWebviewMessage } from "../panels/messages.js";
-import { formatForUser } from "../utils/errors.js";
+import { formatForUser } from "../../modules/coding/utils/errors.js";
 import { MemoryContextScrubber } from "./MemoryContextScrubber.js";
 import { Gemma4StreamScrubber, parseChannel } from "../llm/Gemma4Parser.js";
 import { ToolCallStreamParser } from "./ToolCallStreamParser.js";

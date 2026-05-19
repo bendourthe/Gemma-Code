@@ -24,8 +24,8 @@ import type { Tracer } from "../observability/Tracer.js";
 import type { HardwareTierConfig } from "../config/HardwareTier.types.js";
 import type { GemmaCodeSettings } from "../config/settings.js";
 import { calculateBudget, resolveModelContextLimit } from "../config/PromptBudget.js";
-import { renderMarkdown } from "../utils/MarkdownRenderer.js";
-import { getLogger } from "../utils/logger.js";
+import { renderMarkdown } from "../../modules/coding/utils/MarkdownRenderer.js";
+import { getLogger } from "../../modules/coding/utils/logger.js";
 import type { ExtensionToWebviewMessage } from "./messages.js";
 import { ChatCommandHandlers, type ChatCommandContext } from "./ChatCommandHandlers.js";
 

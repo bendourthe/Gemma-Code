@@ -1,5 +1,5 @@
 import type { OllamaClient, OllamaOptions } from "../llm/types.js";
-import { getLogger } from "../utils/logger.js";
+import { getLogger } from "../../modules/coding/utils/logger.js";
 import type { ConversationManager } from "./ConversationManager.js";
 import type { PostMessageFn } from "./StreamingPipeline.js";
 import type { Message } from "./types.js";

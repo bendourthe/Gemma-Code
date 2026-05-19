@@ -5,7 +5,7 @@ import type { McpManager } from "../mcp/McpManager.js";
 import type { GemmaCodeSettings } from "../config/settings.js";
 import type { MemoryStore } from "../storage/MemoryStore.js";
 import type { DynamicToolMetadata } from "../tools/ToolCatalog.js";
-import { renderMarkdown } from "../utils/MarkdownRenderer.js";
+import { renderMarkdown } from "../../modules/coding/utils/MarkdownRenderer.js";
 import type { ExtensionToWebviewMessage } from "./messages.js";
 
 export interface ChatStatusReporterContext {

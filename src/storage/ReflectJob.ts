@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { randomUUID } from "crypto";
 import type { EpisodicEntry } from "./MemoryLayers.types.js";
-import { getLogger } from "../utils/logger.js";
+import { getLogger } from "../../modules/coding/utils/logger.js";
 
 /**
  * v0.8.0 Phase 6.3 (item A9) -- Reflect job.

@@ -23,8 +23,8 @@
  * drive timers + activity events without a real VSCode runtime.
  */
 
-import { getLogger } from "../utils/logger.js";
-import { formatForLog } from "../utils/errors.js";
+import { getLogger } from "../../modules/coding/utils/logger.js";
+import { formatForLog } from "../../modules/coding/utils/errors.js";
 
 export interface IdleScheduledTask {
   /** Unique key used for registration replacement + debug logging. */

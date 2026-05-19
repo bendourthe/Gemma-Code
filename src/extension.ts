@@ -1,6 +1,6 @@
 import * as path from "path";
 import * as vscode from "vscode";
-import { formatForUser } from "./utils/errors.js";
+import { formatForUser } from "../modules/coding/utils/errors.js";
 import { NexusCodingPanel } from "./panels/NexusCodingPanel.js";
 import { SessionListPanel, SESSION_VIEW_ID } from "./panels/SessionListPanel.js";
 import { getGpuDetector } from "./config/GpuDetector.js";

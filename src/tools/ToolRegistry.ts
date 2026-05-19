@@ -4,7 +4,7 @@ import type { OutputRedirector } from "./OutputRedirector.js";
 import { applyByteCap, resolveMaxBytes } from "./OutputRedirector.js";
 import type { ConfirmationGate } from "./ConfirmationGate.js";
 import { getPermissionTier, shouldRequireConfirmation, getDangerousWarning, PermissionTier } from "../guardrails/PermissionTiers.js";
-import { formatForUser } from "../utils/errors.js";
+import { formatForUser } from "../../modules/coding/utils/errors.js";
 
 // Tools that fire their own diff-bearing confirmation in `ask` mode and a
 // diff-preview in `plan` mode. The centralized gate is skipped for these

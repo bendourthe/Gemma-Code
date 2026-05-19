@@ -4,6 +4,45 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-19] v1.1.0 Phase 3 -- Coding module move: codemod infrastructure + first `src/utils/` -> `modules/coding/utils/` leaf migration
+
+### Goal
+
+Land the cycle's `src/` -> `modules/coding/` migration pipeline by (a) shipping the generic import-rewriting codemod that v1.1.0 Phase 1 sub-task 1.4 specified, and (b) executing the first end-to-end sub-tree migration as a forcing function on the codemod's correctness across every relative-path depth a future sub-tree move will encounter. The pick is `src/utils/` because it is the smallest true leaf in `src/` (6 files, zero intra-`src/` imports -- it only consumes node builtins + external npm packages), and it has ~63 importers spanning `src/` itself plus `tests/{unit,integration,benchmarks}/...`. After Phase 3, the remaining 12 sub-tree moves under 1.4.P1.B are mechanical: each future phase that touches the rename consumes `node scripts/dev/rewrite-imports.mjs --moves <manifest.json>`. Plan reference: [docs/v1.1.0/plans/phase-03-coding-module.md](v1.1.0/plans/phase-03-coding-module.md).
+
+### What changed
+
+**3.1 Import-rewriting codemod (closes 3.P1.A, new this phase).** New script [scripts/dev/rewrite-imports.mjs](../scripts/dev/rewrite-imports.mjs) walks `src/`, `core/`, `modules/`, and `tests/` and rewrites every static `import ... from "X"` / `import "X"` / `export ... from "X"`, dynamic `import("X")`, and `vi.mock("X", ...)` / `vi.doMock("X", ...)` / `vi.hoisted(...)` specifier whose resolved absolute path lands inside a moved sub-tree. The script is zero-dependency (pure Node), idempotent (a re-run after a successful pass writes zero files), and accepts a `--moves` JSON manifest (defaults to the Phase 3 utils move when omitted) plus a `--dry-run` flag. Path comparisons normalize to POSIX-style forward slashes so the diff is identical on Windows / macOS / Linux. The regex set handles all five specifier kinds, preserves the `module: "Node16"` `.js` extension on output, and emits `./relative/...` paths with a leading dot when the target is a sibling.
+
+**3.2 `src/utils/` -> `modules/coding/utils/` migration (closes the first row of the 1.4.P1.B status table; partial closure of v1.0.0 carryforward 2.P2.I).** `git mv src/utils modules/coding/utils` moved the six leaf files (`Compressor.ts`, `errors.ts`, `logger.ts`, `MarkdownRenderer.ts`, `secretPaths.ts`, `ssrf.ts`) with rename history preserved. The codemod then rewrote 65 importing files in a single pass: 48 sources under `src/` (every `src/<subtree>/*` file that consumed a utils helper plus the top-level `src/extension.ts`), 16 tests under `tests/{unit,integration,benchmarks}/...` (including the two `vi.mock(...)` mock paths in `tests/unit/panels/ChatCommandHandlers.test.ts` and `tests/unit/panels/ChatController.test.ts`), and a single `vi.mock` in the panels tests for `MarkdownRenderer`. [configs/vitest.config.ts](../configs/vitest.config.ts) coverage `exclude` array was flipped from `"src/utils/**"` to `"modules/coding/utils/**"` so the coverage gate continues to treat the leaf as a coverage-excluded module (its members are exercised end-to-end through their consumers, not directly). The realistic-shaped grep-output fixture strings in [tests/integration/tool-output-compression.test.ts](../tests/integration/tool-output-compression.test.ts) `buildGrepResult(...)` (lines 33-39) were intentionally NOT rewritten -- they are test data simulating a realistic codebase, not live import specifiers.
+
+**3.3 Lint / build / typecheck / test / depcruise gate.** Root: `npm run build` (tsc) clean; `npm run lint` (eslint src) clean; `npm run check-architecture` (depcruise on `src core modules`) -- 0 errors, 5 pre-existing orphan warnings unchanged from the Phase 2 baseline; `npm test` -- 3019 passed / 0 failed / 5 skipped (identical to the Phase 2 baseline; the 65-file rewrite produced zero new test failures). Desktop: `npm run typecheck` (tsc --noEmit) clean; `npm test` -- 364 passed / 0 failed. The desktop tree did not consume `src/utils/` directly so its result is structural, but it confirms there is no transitive regression.
+
+### Outcome
+
+- Files moved: 6 (`src/utils/Compressor.ts` -> `modules/coding/utils/Compressor.ts`, `errors.ts`, `logger.ts`, `MarkdownRenderer.ts`, `secretPaths.ts`, `ssrf.ts`); rename history preserved via `git mv`.
+- Files rewritten by codemod: 65 (48 sources in `src/<subtree>/` + 1 in `src/extension.ts` + 12 unit tests + 3 integration tests + 1 benchmark).
+- Manual edit: [configs/vitest.config.ts](../configs/vitest.config.ts) coverage `exclude` flipped to the new path.
+- New scripts: [scripts/dev/rewrite-imports.mjs](../scripts/dev/rewrite-imports.mjs).
+- New documents: [docs/v1.1.0/plans/phase-03-coding-module.md](v1.1.0/plans/phase-03-coding-module.md).
+- Updated documents: [docs/v1.1.0/known-gaps.md](v1.1.0/known-gaps.md) -- new entry `Phase 3 closures (this commit)` recording 3.P1.A (codemod, new) + the first row of 1.4.P1.B's per-sub-tree status table (`src/utils/` closed); the 1.4.P1.B body was rewritten as a status table tracking all 13 sub-trees; the `## 3. Summary` totals shifted to 6 open / 10 resolved (one new resolved P1 from 3.P1.A) and 16 total. This DEVLOG.
+- Test status: 3019 root tests passed / 0 failed / 5 skipped; 364 desktop tests passed / 0 failed. Coverage gate unchanged.
+- Build / typecheck: root `tsc` clean, desktop `tsc --noEmit` clean, root `eslint src` clean, root `depcruise` 0 errors / 5 orphan warnings (pre-existing baseline).
+
+### Known gaps recap
+
+After Phase 3 the v1.1.0 known-gaps file has 6 open items + 10 resolved (was 6 open + 9 resolved after Phase 2). The newly resolved row is 3.P1.A (codemod infrastructure). 1.4.P1.B stays under `## 1. Open Items` because 12 of the 13 sub-tree moves are still pending; its body now carries a status table so each future phase that ships a `git mv <subtree>` ticks one row off in lock-step. Suggested next sub-tree for Phase 4: `src/config/` (9 files, leaf-shaped, low coupling).
+
+### Why this scope
+
+The original Phase 1 sub-task 1.4 enumerated all 13 sub-tree moves in a single bullet, but the Phase 2 plan explicitly recorded the "must land sub-tree by sub-tree on a dedicated branch with per-step CI runs" constraint as the reason the move was deferred. Phase 3 honours that constraint by landing the codemod (the shared infrastructure every future move consumes) plus one demonstrative leaf migration whose ~63 importers exercise every relative-path depth a subsequent migration will encounter. The leaf choice (`src/utils/`) is deliberate: it has zero intra-`src/` dependencies, so its move cannot accidentally drag along a sibling sub-tree's import graph. The result is a reviewable commit where every diff is either (a) the codemod itself, (b) a `git mv` rename, (c) a mechanical relative-path rewrite, or (d) the documentation that records (a)-(c).
+
+### Plan reference + history
+
+[docs/v1.1.0/plans/phase-03-coding-module.md](v1.1.0/plans/phase-03-coding-module.md), [docs/v1.1.0/known-gaps.md](v1.1.0/known-gaps.md), [scripts/dev/rewrite-imports.mjs](../scripts/dev/rewrite-imports.mjs).
+
+---
+
 ## [2026-05-19] v1.1.0 Phase 2 -- Rebrand and core extraction (manifest IDs, npm package, sidecar duplicate catalogs)
 
 ### Goal

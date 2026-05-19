@@ -7,7 +7,7 @@ import { calculateBudget, countTokens } from "../config/PromptBudget.js";
 import type { MemoryFiles, MemoryFilesContents } from "../storage/MemoryFiles.js";
 import { readGemmaContextFiles } from "../storage/MemoryFiles.js";
 import { readWithSnapshot, type MemorySnapshot } from "../storage/MemorySnapshot.js";
-import { getLogger } from "../utils/logger.js";
+import { getLogger } from "../../modules/coding/utils/logger.js";
 import { PLAN_MODE_SYSTEM_ADDENDUM, PLAN_MODE_CAPABILITIES_REMINDER } from "./PlanMode.js";
 
 /**

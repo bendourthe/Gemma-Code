@@ -1,7 +1,7 @@
 import { execFile, exec } from "child_process";
 import { totalmem } from "os";
 import type { GpuInfo, GpuVendor, DetectionResult } from "./GpuDetector.types.js";
-import { getLogger } from "../utils/logger.js";
+import { getLogger } from "../../modules/coding/utils/logger.js";
 
 const DETECTION_TIMEOUT_MS = 5000;
 
