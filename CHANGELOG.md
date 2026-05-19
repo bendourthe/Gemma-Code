@@ -1,3 +1,10 @@
+# [0.33.0](https://github.com/bendourthe/Nexus-AI/compare/v0.32.1...v0.33.0) (2026-05-19)
+
+
+### Features
+
+* **v1.1.0:** phase 1 (partial) shared-core decision + carryforward closure ([ec3ff0e](https://github.com/bendourthe/Nexus-AI/commit/ec3ff0ee44397bdcccdb3cdf54a7da27a9238257))
+
 ## [0.32.1](https://github.com/bendourthe/Nexus-AI/compare/v0.32.0...v0.32.1) (2026-05-18)
 
 
