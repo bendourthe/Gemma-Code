@@ -134,7 +134,7 @@ class CompletePage(QWidget):
         manage_layout.addWidget(
             _CommandRow(
                 "Uninstall extension",
-                "code --uninstall-extension gemma-code.gemma-code",
+                "code --uninstall-extension nexus-coding.nexus-coding",
             )
         )
         layout.addWidget(manage_card)
@@ -190,7 +190,7 @@ class CompletePage(QWidget):
         ext_installed = "extension" not in state.failed_steps
         self._add_service(
             "VS Code extension",
-            "gemma-code.gemma-code (installed)" if ext_installed else "Not installed",
+            "nexus-coding.nexus-coding (installed)" if ext_installed else "Not installed",
             ext_installed,
         )
 

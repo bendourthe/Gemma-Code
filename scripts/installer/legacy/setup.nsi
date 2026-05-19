@@ -10,9 +10,9 @@ SetCompressor /SOLID lzma
 !ifndef PRODUCT_VERSION
   !define PRODUCT_VERSION   "0.1.0"
 !endif
-!define PRODUCT_PUBLISHER   "Gemma Code"
-!define PRODUCT_EXT_ID      "gemma-code.gemma-code"
-!define PRODUCT_VSIX        "gemma-code-${PRODUCT_VERSION}.vsix"
+!define PRODUCT_PUBLISHER   "Nexus Coding"
+!define PRODUCT_EXT_ID      "nexus-coding.nexus-coding"
+!define PRODUCT_VSIX        "nexus-coding-${PRODUCT_VERSION}.vsix"
 !define VENV_SUBDIR         "GemmaCode\venv"
 !define REG_UNINSTALL       "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}"
 !define REG_OLLAMA_PATH     "Software\Ollama"

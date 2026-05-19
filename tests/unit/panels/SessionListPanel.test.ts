@@ -35,7 +35,7 @@ function makeMockWebviewView() {
     onDidDispose: vi.fn(() => ({ dispose: vi.fn() })),
     show: vi.fn(),
     visible: true,
-    viewType: "gemma-code.chatView",
+    viewType: "nexus.coding.chatView",
     title: "Sessions",
   };
   return { view: view as vscode.WebviewView, postMessage, triggerMessage };

@@ -105,7 +105,7 @@ describe("NexusCodingPanel", () => {
   // ---- VIEW_ID constant ----------------------------------------------------
 
   it("exports the correct VIEW_ID", () => {
-    expect(VIEW_ID).toBe("gemma-code.chatView");
+    expect(VIEW_ID).toBe("nexus.coding.chatView");
   });
 
   // ---- resolveWebviewView --------------------------------------------------

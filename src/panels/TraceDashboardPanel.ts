@@ -7,7 +7,7 @@ import type { WebResponseCache } from "../tools/handlers/webCache.js";
 import { getCompressionStats } from "../utils/Compressor.js";
 import { getTraceDashboardHtml } from "./webview/traceDashboard.js";
 
-export const TRACE_DASHBOARD_VIEW_ID = "gemma-code.traceDashboard";
+export const TRACE_DASHBOARD_VIEW_ID = "nexus.coding.traceDashboard";
 
 interface TraceDashboardMessage {
   type:

@@ -1,0 +1,77 @@
+# v1.1.0 Phase 2 (rebrand) -- exclude paths from the published `nexus-coding`
+# npm tarball. The VS Code extension only needs the compiled JS under `out/`,
+# the manifest, the `assets/` directory referenced by package.json `icon` /
+# view containers, and the README + LICENSE.
+
+# Source TypeScript (only the compiled JS under out/ ships)
+src/
+core/
+modules/
+configs/
+
+# Tests + fixtures + snapshots
+tests/
+**/*.test.ts
+**/*.test.js
+**/*.spec.ts
+**/*.spec.js
+
+# Desktop workspace (separate Tauri app, not part of the VS Code extension)
+desktop/
+runtimes/
+
+# Documentation + planning artifacts
+docs/
+DEVLOG.md
+*.md.bak
+
+# Installer artifacts
+scripts/installer/
+installer/
+
+# Coverage + build outputs (other than the canonical out/)
+coverage/
+out/desktop/
+out/tests/
+out/coverage/
+.nyc_output/
+
+# Project tooling that does not need to be in the published package
+.github/
+.vscode/
+.husky/
+.gitattributes
+.gitignore
+.gitleaks.toml
+.editorconfig
+.eslintrc*
+.eslintignore
+.prettierrc*
+.prettierignore
+
+# Dev configs
+vitest.config.ts
+vitest.config.js
+playwright.config.ts
+tsconfig.test.json
+jest.config.js
+babel.config.js
+postcss.config.cjs
+tailwind.config.js
+tailwind.config.cjs
+
+# Lockfile (consumers do not need the dev lockfile)
+package-lock.json
+
+# AI assistant project configs (not runtime artifacts)
+.claude/
+dist/claude-code/
+dist/cursor/
+dist/gemini-cli/
+dist/opencode/
+
+# Local-only / editor metadata
+.idea/
+.DS_Store
+Thumbs.db
+*.log

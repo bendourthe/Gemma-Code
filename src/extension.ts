@@ -19,6 +19,23 @@ import { hookFilePath } from "./chat/ImprovementHook.js";
 let outputChannel: vscode.OutputChannel | undefined;
 let ollamaPoller: NodeJS.Timeout | undefined;
 
+// v1.1.0 Phase 2 (rebrand) -- legacy `gemma-code.<cmd>` command IDs that the
+// runtime compat shim translates to the new `nexus.coding.<cmd>` IDs. The
+// legacy IDs are registered programmatically (not in the manifest's
+// contributes.commands) so they do not appear in the Command Palette; they
+// exist purely so previously-bound user keybindings continue to fire the
+// correct handler. Each invocation writes a single deprecation line to the
+// output channel. Remove the shim in v1.2.0 once user keybindings have had a
+// release cycle to migrate.
+const COMPAT_COMMAND_MAP: ReadonlyArray<readonly [string, string]> = Object.freeze([
+  ["gemma-code.ping", "nexus.coding.ping"],
+  ["gemma-code.newChat", "nexus.coding.newChat"],
+  ["gemma-code.focusSidebar", "nexus.coding.focusSidebar"],
+  ["gemma-code.openSession", "nexus.coding.openSession"],
+  ["gemma-code.detectGpu", "nexus.coding.detectGpu"],
+  ["gemma-code.hooks.editPlanModeHook", "nexus.coding.hooks.editPlanModeHook"],
+] as const);
+
 // ---------------------------------------------------------------------------
 // Global unhandled rejection handler
 // ---------------------------------------------------------------------------
@@ -87,7 +104,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // ── Ping command ─────────────────────────────────────────────────────────
   const pingCommand = vscode.commands.registerCommand(
-    "gemma-code.ping",
+    "nexus.coding.ping",
     async () => {
       const channel = outputChannel!;
       channel.show(true);
@@ -162,7 +179,7 @@ export function activate(context: vscode.ExtensionContext): void {
   // ── GPU detection and tier classification ──────────────────────────────
   const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
   statusBarItem.text = "$(circuit-board) Detecting GPU...";
-  statusBarItem.command = "gemma-code.detectGpu";
+  statusBarItem.command = "nexus.coding.detectGpu";
   statusBarItem.show();
   context.subscriptions.push(statusBarItem);
 
@@ -199,7 +216,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // ── Detect GPU command ──────────────────────────────────────────────────
   const detectGpuCommand = vscode.commands.registerCommand(
-    "gemma-code.detectGpu",
+    "nexus.coding.detectGpu",
     async () => {
       const detector = getGpuDetector();
       detector.refresh();
@@ -227,8 +244,8 @@ export function activate(context: vscode.ExtensionContext): void {
     const targetColumn = chatColumn ?? vscode.ViewColumn.Beside;
 
     const panel = vscode.window.createWebviewPanel(
-      "gemma-code.chatEditor",
-      "Gemma Code",
+      "nexus.coding.chatEditor",
+      "Nexus Coding",
       targetColumn,
       {
         enableScripts: true,
@@ -337,7 +354,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // ── New Chat command (editor title bar icon) ─────────────────────────────
   const newChatCommand = vscode.commands.registerCommand(
-    "gemma-code.newChat",
+    "nexus.coding.newChat",
     () => {
       chatPanel.clearChat();
       openChatEditorPanel();
@@ -347,7 +364,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // ── Focus sidebar command ────────────────────────────────────────────────
   const focusCommand = vscode.commands.registerCommand(
-    "gemma-code.focusSidebar",
+    "nexus.coding.focusSidebar",
     () => {
       void vscode.commands.executeCommand(`${SESSION_VIEW_ID}.focus`);
     }
@@ -356,7 +373,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // ── Open session command ─────────────────────────────────────────────────
   const openSessionCommand = vscode.commands.registerCommand(
-    "gemma-code.openSession",
+    "nexus.coding.openSession",
     (sessionId?: string) => {
       if (sessionId) {
         chatPanel.loadSession(sessionId);
@@ -368,7 +385,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // ── v0.8.0 Phase 3.4: open the plan-mode improvement-hook file ───────────
   const editPlanModeHookCommand = vscode.commands.registerCommand(
-    "gemma-code.hooks.editPlanModeHook",
+    "nexus.coding.hooks.editPlanModeHook",
     async () => {
       const filePath = hookFilePath("enterplanmode-improve");
       try {
@@ -398,6 +415,22 @@ export function activate(context: vscode.ExtensionContext): void {
     },
   );
   context.subscriptions.push(editPlanModeHookCommand);
+
+  // ── Legacy command-ID compat shim (v1.1.0 Phase 2 rebrand) ───────────────
+  // Each legacy `gemma-code.<cmd>` keybinding is forwarded to its
+  // `nexus.coding.<cmd>` replacement with a single deprecation line logged to
+  // the output channel. Not declared in package.json so the legacy IDs do not
+  // surface in the Command Palette.
+  for (const [legacyId, newId] of COMPAT_COMMAND_MAP) {
+    const disposable = vscode.commands.registerCommand(legacyId, (...args: unknown[]) => {
+      outputChannel?.appendLine(
+        `[Nexus Coding] DEPRECATED: command \`${legacyId}\` was renamed to \`${newId}\` in v1.1.0. ` +
+        `The legacy ID will be removed in v1.2.0; update your keybindings.`,
+      );
+      return vscode.commands.executeCommand(newId, ...args);
+    });
+    context.subscriptions.push(disposable);
+  }
 
   // ── Ollama availability poller ────────────────────────────────────────────
   startOllamaPoller(chatPanel, outputChannel, runtime);

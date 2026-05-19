@@ -29,7 +29,7 @@ class TestExtensionInstaller:
             patch.object(
                 ExtensionInstaller,
                 "_find_vsix",
-                return_value="/path/to/gemma-code-0.3.0.vsix",
+                return_value="/path/to/nexus-coding-0.3.0.vsix",
             ),
             patch(
                 "nexus_installer.engine.extension_installer.run_command",
@@ -49,7 +49,7 @@ class TestExtensionInstaller:
             patch.object(
                 ExtensionInstaller,
                 "_find_vsix",
-                return_value="/path/to/gemma-code-0.3.0.vsix",
+                return_value="/path/to/nexus-coding-0.3.0.vsix",
             ),
             patch(
                 "nexus_installer.engine.extension_installer.run_command",

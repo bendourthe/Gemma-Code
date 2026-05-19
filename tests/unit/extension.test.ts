@@ -60,14 +60,14 @@ describe("activate()", () => {
     };
   });
 
-  it("registers the gemma-code.ping command in context.subscriptions", () => {
+  it("registers the nexus.coding.ping command in context.subscriptions", () => {
     activate(context);
 
     const registeredIds = (vscode.commands.registerCommand as ReturnType<typeof vi.fn>).mock.calls.map(
       (call: unknown[]) => call[0]
     );
 
-    expect(registeredIds).toContain("gemma-code.ping");
+    expect(registeredIds).toContain("nexus.coding.ping");
   });
 
   it("registers every public command advertised in package.json", () => {
@@ -80,12 +80,33 @@ describe("activate()", () => {
     // These command ids are listed under contributes.commands in package.json
     // and must be registered during activate() or the palette entries break.
     for (const id of [
+      "nexus.coding.ping",
+      "nexus.coding.newChat",
+      "nexus.coding.focusSidebar",
+      "nexus.coding.openSession",
+    ]) {
+      expect(registeredIds).toContain(id);
+    }
+  });
+
+  it("registers the legacy gemma-code.* command shims programmatically", () => {
+    activate(context);
+
+    const registeredIds = (vscode.commands.registerCommand as ReturnType<typeof vi.fn>).mock.calls.map(
+      (call: unknown[]) => call[0] as string,
+    );
+
+    // v1.1.0 Phase 2 rebrand: legacy IDs stay registered (not in the manifest)
+    // so previously-bound user keybindings continue to fire the new handler.
+    for (const legacyId of [
       "gemma-code.ping",
       "gemma-code.newChat",
       "gemma-code.focusSidebar",
       "gemma-code.openSession",
+      "gemma-code.detectGpu",
+      "gemma-code.hooks.editPlanModeHook",
     ]) {
-      expect(registeredIds).toContain(id);
+      expect(registeredIds).toContain(legacyId);
     }
   });
 
@@ -96,8 +117,8 @@ describe("activate()", () => {
       (call: unknown[]) => call[0] as string,
     );
 
-    expect(providerIds).toContain("gemma-code.chatView");
-    expect(providerIds).toContain("gemma-code.traceDashboard");
+    expect(providerIds).toContain("nexus.coding.chatView");
+    expect(providerIds).toContain("nexus.coding.traceDashboard");
   });
 
   it("stores multiple disposables in context.subscriptions", () => {

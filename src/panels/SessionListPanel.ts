@@ -8,7 +8,7 @@ import { randomUUID } from "node:crypto";
 import type { ChatHistoryStore } from "../storage/ChatHistoryStore.js";
 import { getWebviewHelpersScript } from "./webview/util.js";
 
-export const SESSION_VIEW_ID = "gemma-code.chatView";
+export const SESSION_VIEW_ID = "nexus.coding.chatView";
 
 interface SessionListMessage {
   type: "newChat" | "openSession" | "ready";

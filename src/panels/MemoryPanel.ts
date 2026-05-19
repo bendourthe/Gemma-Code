@@ -18,7 +18,7 @@ import { getMemoryViewHtml } from "./webview/memoryView.js";
 import { getLogger } from "../utils/logger.js";
 import { formatForUser } from "../utils/errors.js";
 
-export const MEMORY_PANEL_VIEW_ID = "gemma-code.memoryPanel";
+export const MEMORY_PANEL_VIEW_ID = "nexus.coding.memoryPanel";
 
 /**
  * v0.7.0 Phase 5 -- inbound message types for the memory webview. Each message

@@ -61,11 +61,11 @@ export async function run(): Promise<void> {
     const title = await page.title();
     assert.ok(title.length > 0, 'VS Code window title should be non-empty after load');
 
-    // ── Test 2: Gemma Code activity bar icon is visible ──────────────────────
-    // The activity bar contributes a viewsContainer with id "gemma-code-sidebar"
-    const activityBarItem = page.locator('[aria-label*="Gemma Code"]').first();
-    await waitForSelector(page, '[aria-label*="Gemma Code"]');
-    assert.ok(await activityBarItem.isVisible(), 'Gemma Code activity bar icon should be visible');
+    // ── Test 2: Nexus Coding activity bar icon is visible ────────────────────
+    // The activity bar contributes a viewsContainer with id "nexus-coding-sidebar"
+    const activityBarItem = page.locator('[aria-label*="Nexus Coding"]').first();
+    await waitForSelector(page, '[aria-label*="Nexus Coding"]');
+    assert.ok(await activityBarItem.isVisible(), 'Nexus Coding activity bar icon should be visible');
 
     // ── Test 3: Clicking the icon opens the chat panel ───────────────────────
     await activityBarItem.click();

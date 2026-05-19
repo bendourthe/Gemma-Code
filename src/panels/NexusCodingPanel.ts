@@ -30,7 +30,7 @@ import type {
   ExtensionToWebviewMessage,
 } from "./messages.js";
 
-export const VIEW_ID = "gemma-code.chatView";
+export const VIEW_ID = "nexus.coding.chatView";
 
 /**
  * Composition root for the chat panel. After v0.7.0 Phase 0 sub-task 0.4 the

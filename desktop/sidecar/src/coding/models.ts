@@ -1,40 +1,53 @@
-// v1.0.0 Phase 3.2 -- sidecar-local copy of the LLM catalog.
+// v1.1.0 Phase 2 (sub-task 2.3 / closes 1.9.P1.E) -- derived view over
+// `core/registry/ModelCatalog`.
 //
-// The desktop sidecar runs as its own npm workspace and cannot reach across
-// to `core/registry/ModelCatalog.ts` without a build step that resolves
-// `../../../core/` to a published package. Phase 5 introduces that step
-// (the shared-core build); Phase 3 inlines the catalog here and relies on a
-// unit test (`sidecar-models.test.ts`) to assert the two copies stay in sync
-// against the canonical `core/registry/models.json`.
+// The earlier v1.0.0 Phase 3.2 implementation inlined the catalog here as a
+// sidecar-local copy and relied on a parity test to keep it in sync with
+// `core/registry/models.json`. With the desktop tsconfig now including
+// `../core/registry` directly (and esbuild resolving the relative path at
+// bundle time), the sidecar imports the canonical catalog and projects it
+// down to the public sidecar-facing shape. Removing the duplication closes
+// v1.0.0 carryforward 3.P2.S without waiting for the broader project-
+// references graph (deferred to a future Phase 1c follow-up).
+//
+// The public export surface (`SidecarModelEntry`, `SIDECAR_MODELS`,
+// `lookupModel`, `requireModel`, the four named type aliases) is preserved
+// verbatim so existing consumers compile unchanged.
 
-export type ModelFamily = "gemma" | "llama" | "qwen" | "deepseek";
-export type PromptFormatName = "gemma4" | "llama3" | "qwen" | "deepseek";
-export type ToolFormatName =
-  | "gemma4-xml"
-  | "llama3-json"
-  | "qwen-json"
-  | "deepseek-json";
+import {
+  ModelCatalog,
+  type LlmCatalogEntry,
+  type ModelFamily as CoreModelFamily,
+  type PromptFormatName as CorePromptFormatName,
+  type ToolFormatName as CoreToolFormatName,
+} from "../../../../core/registry/ModelCatalog";
 
-export interface SidecarModelEntry {
-  readonly id: string;
-  readonly displayName: string;
-  readonly family: ModelFamily;
-  readonly promptFormat: PromptFormatName;
-  readonly toolFormat: ToolFormatName;
+export type ModelFamily = CoreModelFamily;
+export type PromptFormatName = CorePromptFormatName;
+export type ToolFormatName = CoreToolFormatName;
+
+export type SidecarModelEntry = Pick<
+  LlmCatalogEntry,
+  "id" | "displayName" | "family" | "promptFormat" | "toolFormat"
+>;
+
+function project(entry: LlmCatalogEntry): SidecarModelEntry {
+  return Object.freeze({
+    id: entry.id,
+    displayName: entry.displayName,
+    family: entry.family,
+    promptFormat: entry.promptFormat,
+    toolFormat: entry.toolFormat,
+  });
 }
 
-export const SIDECAR_MODELS: readonly SidecarModelEntry[] = Object.freeze([
-  { id: "gemma4:e4b", displayName: "Gemma 4 E4B", family: "gemma", promptFormat: "gemma4", toolFormat: "gemma4-xml" },
-  { id: "llama3.1:8b", displayName: "Llama 3.1 8B Instruct", family: "llama", promptFormat: "llama3", toolFormat: "llama3-json" },
-  { id: "llama3.2:3b", displayName: "Llama 3.2 3B Instruct", family: "llama", promptFormat: "llama3", toolFormat: "llama3-json" },
-  { id: "llama3.3:70b", displayName: "Llama 3.3 70B Instruct", family: "llama", promptFormat: "llama3", toolFormat: "llama3-json" },
-  { id: "qwen2.5:7b", displayName: "Qwen 2.5 7B Instruct", family: "qwen", promptFormat: "qwen", toolFormat: "qwen-json" },
-  { id: "qwen2.5-coder:7b", displayName: "Qwen 2.5 Coder 7B", family: "qwen", promptFormat: "qwen", toolFormat: "qwen-json" },
-  { id: "deepseek-coder:6.7b", displayName: "DeepSeek Coder 6.7B", family: "deepseek", promptFormat: "deepseek", toolFormat: "deepseek-json" },
-]);
+export const SIDECAR_MODELS: readonly SidecarModelEntry[] = Object.freeze(
+  ModelCatalog.listLlm().map(project),
+);
 
 export function lookupModel(id: string): SidecarModelEntry | undefined {
-  return SIDECAR_MODELS.find((m) => m.id === id);
+  const entry = ModelCatalog.byId(id);
+  return entry ? project(entry) : undefined;
 }
 
 export function requireModel(id: string): SidecarModelEntry {

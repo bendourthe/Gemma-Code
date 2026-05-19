@@ -9,11 +9,12 @@ from collections.abc import Callable
 from nexus_installer.engine.platform_utils import run_command
 from nexus_installer.installer_state import InstallerState
 
-EXTENSION_ID = "gemma-code.gemma-code"
+EXTENSION_ID = "nexus-coding.nexus-coding"
+LEGACY_EXTENSION_ID = "gemma-code.gemma-code"
 
 
 class ExtensionInstaller:
-    """Installs the Gemma Code VS Code extension from a VSIX file."""
+    """Installs the Nexus Coding VS Code extension from a VSIX file."""
 
     def install(
         self,
@@ -70,7 +71,12 @@ class ExtensionInstaller:
         ]
         for d in search_dirs:
             d = os.path.normpath(d)
-            matches = glob.glob(os.path.join(d, "gemma-code-*.vsix"))
+            # v1.1.0 rename: prefer the new `nexus-coding-*.vsix` name; fall
+            # back to the legacy `gemma-code-*.vsix` until the build pipeline
+            # produces the renamed artifact in all paths.
+            matches = glob.glob(os.path.join(d, "nexus-coding-*.vsix"))
+            if not matches:
+                matches = glob.glob(os.path.join(d, "gemma-code-*.vsix"))
             if matches:
                 return matches[0]
         return None

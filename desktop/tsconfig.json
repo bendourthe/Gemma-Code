@@ -29,7 +29,8 @@
     "tests",
     "vite.config.ts",
     "vitest.config.ts",
-    "../core/image"
+    "../core/image",
+    "../core/registry"
   ],
   "exclude": ["node_modules", "src-tauri/target", "sidecar/dist"]
 }
