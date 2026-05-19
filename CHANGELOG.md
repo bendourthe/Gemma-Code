@@ -1,3 +1,10 @@
+# [0.34.0](https://github.com/bendourthe/Nexus-AI/compare/v0.33.0...v0.34.0) (2026-05-19)
+
+
+### Features
+
+* **v1.1.0:** phase 2 rebrand + core extraction ([de219a5](https://github.com/bendourthe/Nexus-AI/commit/de219a584557052e2b9728ac5e2bef92b736e518))
+
 # [0.33.0](https://github.com/bendourthe/Nexus-AI/compare/v0.32.1...v0.33.0) (2026-05-19)
 
 
