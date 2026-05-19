@@ -200,15 +200,15 @@ export class McpManager {
   private async _loadConfigs(): Promise<McpServerConfig[]> {
     const byName = new Map<string, McpServerConfig>();
 
-    // Global config: ~/.gemma-code/mcp.json (explicitly placed by user).
-    const globalPath = path.join(os.homedir(), ".gemma-code", "mcp.json");
+    // Global config: ~/.nexus/mcp.json (explicitly placed by user).
+    const globalPath = path.join(os.homedir(), ".nexus", "mcp.json");
     for (const config of this._readConfigFile(globalPath)) {
       byName.set(config.name, this._sanitizeEnv(config));
     }
 
     // Workspace config: requires user approval keyed by workspace path.
     if (this._workspacePath) {
-      const localPath = path.join(this._workspacePath, ".gemma-code", "mcp.json");
+      const localPath = path.join(this._workspacePath, ".nexus", "mcp.json");
       const localConfigs = this._readConfigFile(localPath);
       if (localConfigs.length > 0) {
         const approved = await this._ensureWorkspaceApproval(localPath, localConfigs);

@@ -178,7 +178,7 @@ function specialistFromMarkdown(
  * Priority-chain loader for sub-agent specialist definitions.
  *
  * Resolution order:
- *   1. Workspace override at `<workspaceRoot>/.gemma-code/specialists/<role>.md`
+ *   1. Workspace override at `<workspaceRoot>/.nexus/specialists/<role>.md`
  *   2. Bundled file at `<bundledDir>/<role>.md` (typically extension-install/assets/specialists)
  *   3. Hardcoded fallback derived from `SubAgentPrompts.ts`
  *
@@ -213,7 +213,7 @@ export class SpecialistLoader {
 
   private _tryWorkspaceOverride(role: SubAgentType): Specialist | null {
     if (this._workspaceRoot === null) return null;
-    const overridePath = path.join(this._workspaceRoot, ".gemma-code", "specialists", `${role}.md`);
+    const overridePath = path.join(this._workspaceRoot, ".nexus", "specialists", `${role}.md`);
     if (!fs.existsSync(overridePath)) return null;
     let content: string;
     try {

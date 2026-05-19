@@ -28,7 +28,7 @@ export interface MemoryLintResult {
 
 const APPLY_NOT_SUPPORTED =
   "/memory lint --apply is not yet supported in v0.5.0.\n" +
-  "Use the report at .gemma-code/memory-health.md to identify entries to clean up,\n" +
+  "Use the report at .nexus/memory-health.md to identify entries to clean up,\n" +
   "then use a future /memory prune command (planned for v0.5.0) or manually\n" +
   "manipulate the memory store via /memory <subcommand>.";
 

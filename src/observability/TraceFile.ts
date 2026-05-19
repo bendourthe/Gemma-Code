@@ -61,7 +61,7 @@ const ENV_SECRET_VALUE_PATTERN =
  */
 export function defaultTracePath(sessionId?: string): string {
   const sid = sessionId && sessionId.length > 0 ? sessionId : "default";
-  return path.join(os.homedir(), ".gemma-code", "trace", `${sid}.jsonl`);
+  return path.join(os.homedir(), ".nexus", "trace", `${sid}.jsonl`);
 }
 
 export class TraceFile {

@@ -83,7 +83,7 @@ export interface MemorySnapshotMessage {
   /**
    * v0.9.0 Phase 2.6 (from v0.8.0 known-gaps 10.O.V) -- proposed skill
    * drafts written by `WorkflowDetector` to
-   * `~/.gemma-code/skills/proposed/<slug>/SKILL.md`. The webview renders an
+   * `~/.nexus/skills/proposed/<slug>/SKILL.md`. The webview renders an
    * Inspect / Accept / Dismiss action row per entry.
    */
   readonly proposedSkills: readonly {

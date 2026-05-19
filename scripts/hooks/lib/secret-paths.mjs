@@ -23,7 +23,7 @@ export const SECRET_PATH_PATTERNS = Object.freeze([
   "**/.aws/**",
   "**/.ssh/**",
   "**/secrets/**",
-  "**/.gemma-code/mcp.json",
+  "**/.nexus/mcp.json",
 ]);
 
 function globToRegex(glob) {

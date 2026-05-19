@@ -65,7 +65,7 @@ export interface CurationInputs {
   duplicateMemoryPairs(): ReadonlyArray<{ keep: string; remove: string; similarity: number }>;
 }
 
-const DEFAULT_DIR = (): string => path.join(os.homedir(), ".gemma-code", "curator");
+const DEFAULT_DIR = (): string => path.join(os.homedir(), ".nexus", "curator");
 const STALE_THRESHOLD_MS = 30 * 24 * 60 * 60 * 1000;
 
 export class CurationLoop {

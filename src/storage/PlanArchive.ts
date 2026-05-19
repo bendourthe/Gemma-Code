@@ -2,7 +2,7 @@
  * v0.8.0 Phase 3.2 -- Persistent plan-version archive (item A8).
  *
  * Every revision of a plan recorded by `PlanMode.setPlan(steps)` is appended
- * under `~/.gemma-code/plans/<workspace>/<slug>/<N>.md`, where `N` is a
+ * under `~/.nexus/plans/<workspace>/<slug>/<N>.md`, where `N` is a
  * monotonically increasing 4-digit zero-padded index starting at `0001`.
  *
  * The archive is local-only: no remote sync, no network egress, no
@@ -65,7 +65,7 @@ function ensureSafeSlug(slug: string): string {
 }
 
 export interface PlanArchiveOptions {
-  /** Override the archive root; defaults to `~/.gemma-code/plans/`. */
+  /** Override the archive root; defaults to `~/.nexus/plans/`. */
   rootDir?: string;
   /** Workspace identifier (folder name component). Defaults to `default`. */
   workspaceId?: string;
@@ -77,7 +77,7 @@ export class PlanArchive {
 
   constructor(options: PlanArchiveOptions = {}) {
     this._root =
-      options.rootDir ?? path.join(os.homedir(), ".gemma-code", "plans");
+      options.rootDir ?? path.join(os.homedir(), ".nexus", "plans");
     this._workspace = normalizeWorkspace(options.workspaceId ?? "default");
   }
 

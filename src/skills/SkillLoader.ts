@@ -152,11 +152,11 @@ export class SkillLoader {
   /**
    * @param catalogDir   Absolute path to the bundled built-in skill catalog.
    * @param userSkillsDir Absolute path to the user's custom skill directory.
-   *                      Defaults to ~/.gemma-code/skills/
+   *                      Defaults to ~/.nexus/skills/
    */
   constructor(
     private readonly _catalogDir: string,
-    private readonly _userSkillsDir: string = path.join(os.homedir(), ".gemma-code", "skills")
+    private readonly _userSkillsDir: string = path.join(os.homedir(), ".nexus", "skills")
   ) {}
 
   /**

@@ -236,42 +236,52 @@
           "default": false,
           "description": "Append one Markdown-friendly line per tool call to <workspace>/.nexus/operation-log.md (v1.0.0; legacy `gemma-code.operationLog.enabled`, which still wrote to .gemma-code/)."
         },
+        "nexus.curator.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "v1.1.0 Phase 1.7 -- when true, the curator background task runs on the IdleTimeScheduler's idle cadence (archive stale skills, dedup memory, patch frontmatter). When false, the curator is disabled entirely. The legacy edit-threshold curator-cadence fallback has been removed; the IdleTimeScheduler is now the sole entry point."
+        },
         "gemma-code.ollamaUrl": {
           "type": "string",
           "default": "http://localhost:11434",
-          "deprecationMessage": "Use `nexus.llm.ollamaUrl` instead. Removed in v1.1.0.",
+          "deprecationMessage": "Use `nexus.llm.ollamaUrl` instead. Will be removed in v1.2.0.",
           "description": "Ollama server URL"
         },
         "gemma-code.modelName": {
           "type": "string",
           "default": "gemma4:e4b",
-          "deprecationMessage": "Use `nexus.llm.modelName` instead. Removed in v1.1.0.",
+          "deprecationMessage": "Use `nexus.llm.modelName` instead. Will be removed in v1.2.0.",
           "description": "Model to use for inference"
         },
         "gemma-code.maxTokens": {
           "type": "number",
           "default": 131072,
-          "description": "Maximum context tokens (Gemma 4 supports 128K for E2B/E4B, 256K for 26B/31B)"
+          "description": "Maximum context tokens (Gemma 4 supports 128K for E2B/E4B, 256K for 26B/31B)",
+          "deprecationMessage": "Use `nexus.llm.maxTokens` instead. Will be removed in v1.2.0."
         },
         "gemma-code.temperature": {
           "type": "number",
           "default": 1,
-          "description": "Sampling temperature (Gemma 4 recommended: 1.0)"
+          "description": "Sampling temperature (Gemma 4 recommended: 1.0)",
+          "deprecationMessage": "Use `nexus.llm.temperature` instead. Will be removed in v1.2.0."
         },
         "gemma-code.topP": {
           "type": "number",
           "default": 0.95,
-          "description": "Top-p (nucleus) sampling threshold (Gemma 4 recommended: 0.95)"
+          "description": "Top-p (nucleus) sampling threshold (Gemma 4 recommended: 0.95)",
+          "deprecationMessage": "Use `nexus.llm.topP` instead. Will be removed in v1.2.0."
         },
         "gemma-code.topK": {
           "type": "number",
           "default": 64,
-          "description": "Top-k sampling threshold (Gemma 4 recommended: 64)"
+          "description": "Top-k sampling threshold (Gemma 4 recommended: 64)",
+          "deprecationMessage": "Use `nexus.llm.topK` instead. Will be removed in v1.2.0."
         },
         "gemma-code.requestTimeout": {
           "type": "number",
           "default": 60000,
-          "description": "HTTP timeout in milliseconds"
+          "description": "HTTP timeout in milliseconds",
+          "deprecationMessage": "Use `nexus.llm.requestTimeout` instead. Will be removed in v1.2.0."
         },
         "gemma-code.toolConfirmationMode": {
           "type": "string",
@@ -281,12 +291,14 @@
             "never"
           ],
           "default": "ask",
-          "description": "When to prompt for confirmation before running terminal commands or editing files. 'always': always ask. 'ask': ask for destructive operations only. 'never': run without confirmation (use with caution)."
+          "description": "When to prompt for confirmation before running terminal commands or editing files. 'always': always ask. 'ask': ask for destructive operations only. 'never': run without confirmation (use with caution).",
+          "deprecationMessage": "Use `nexus.coding.toolConfirmationMode` instead. Will be removed in v1.2.0."
         },
         "gemma-code.maxAgentIterations": {
           "type": "number",
           "default": 20,
-          "description": "Maximum number of agentic tool-use iterations per user message before the loop terminates."
+          "description": "Maximum number of agentic tool-use iterations per user message before the loop terminates.",
+          "deprecationMessage": "Use `nexus.coding.maxAgentIterations` instead. Will be removed in v1.2.0."
         },
         "gemma-code.editMode": {
           "type": "string",
@@ -301,12 +313,14 @@
             "Produce a plan before taking action and show diffs for review."
           ],
           "default": "ask",
-          "description": "Controls how Gemma Code applies changes. 'ask': show diff and confirm. 'auto' (Accept): apply immediately. 'plan': produce a plan first."
+          "description": "Controls how Gemma Code applies changes. 'ask': show diff and confirm. 'auto' (Accept): apply immediately. 'plan': produce a plan first.",
+          "deprecationMessage": "Use `nexus.coding.editMode` instead. Will be removed in v1.2.0."
         },
         "gemma-code.thinkingMode": {
           "type": "boolean",
           "default": true,
-          "description": "Enable Gemma 4 thinking mode (<|think|>) for chain-of-thought reasoning before tool use and complex responses."
+          "description": "Enable Gemma 4 thinking mode (<|think|>) for chain-of-thought reasoning before tool use and complex responses.",
+          "deprecationMessage": "Use `nexus.coding.thinkingMode` instead. Will be removed in v1.2.0."
         },
         "gemma-code.promptStyle": {
           "type": "string",
@@ -321,71 +335,82 @@
             "Step-by-step instructions with technical term definitions for new developers."
           ],
           "default": "concise",
-          "description": "Controls the verbosity and style of the system prompt sent to the model."
+          "description": "Controls the verbosity and style of the system prompt sent to the model.",
+          "deprecationMessage": "Use `nexus.coding.promptStyle` instead. Will be removed in v1.2.0."
         },
         "gemma-code.systemPromptBudgetPercent": {
           "type": "number",
           "default": 10,
           "minimum": 5,
           "maximum": 30,
-          "description": "Percentage of the context window reserved for the system prompt (base instructions + tool declarations). Range: 5-30%."
+          "description": "Percentage of the context window reserved for the system prompt (base instructions + tool declarations). Range: 5-30%.",
+          "deprecationMessage": "Use `nexus.coding.systemPromptBudgetPercent` instead. Will be removed in v1.2.0."
         },
         "gemma-code.compactionKeepRecent": {
           "type": "number",
           "default": 10,
           "minimum": 2,
           "maximum": 50,
-          "description": "Number of most-recent messages preserved during sliding-window context compaction."
+          "description": "Number of most-recent messages preserved during sliding-window context compaction.",
+          "deprecationMessage": "Use `nexus.coding.compactionKeepRecent` instead. Will be removed in v1.2.0."
         },
         "gemma-code.compactionToolResultsKeep": {
           "type": "number",
           "default": 8,
           "minimum": 0,
           "maximum": 50,
-          "description": "Number of most-recent tool results to preserve during compaction (older results are replaced with one-line summaries)."
+          "description": "Number of most-recent tool results to preserve during compaction (older results are replaced with one-line summaries).",
+          "deprecationMessage": "Use `nexus.coding.compactionToolResultsKeep` instead. Will be removed in v1.2.0."
         },
         "gemma-code.memoryEnabled": {
           "type": "boolean",
           "default": true,
-          "description": "Enable persistent memory system for cross-session context recall."
+          "description": "Enable persistent memory system for cross-session context recall.",
+          "deprecationMessage": "Use `nexus.memory.enabled` instead. Will be removed in v1.2.0."
         },
         "gemma-code.embeddingModel": {
           "type": "string",
           "default": "nomic-embed-text",
-          "description": "Ollama embedding model for semantic memory search. Set to empty string to disable semantic search."
+          "description": "Ollama embedding model for semantic memory search. Set to empty string to disable semantic search.",
+          "deprecationMessage": "Use `nexus.memory.embeddingModel` instead. Will be removed in v1.2.0."
         },
         "gemma-code.memoryMaxEntries": {
           "type": "number",
           "default": 10000,
           "minimum": 100,
           "maximum": 100000,
-          "description": "Maximum number of memory entries before automatic pruning."
+          "description": "Maximum number of memory entries before automatic pruning.",
+          "deprecationMessage": "Use `nexus.memory.maxEntries` instead. Will be removed in v1.2.0."
         },
         "gemma-code.memoryCorroborationThreshold": {
           "type": "number",
           "default": 2,
           "minimum": 1,
           "maximum": 5,
-          "description": "Number of independent observations required before a semantic memory is treated as a fact. Single-source observations are kept as candidates and only retrieved when no fact-tier match is available. Set to 1 to disable (legacy behavior: every observation is a fact)."
+          "description": "Number of independent observations required before a semantic memory is treated as a fact. Single-source observations are kept as candidates and only retrieved when no fact-tier match is available. Set to 1 to disable (legacy behavior: every observation is a fact).",
+          "deprecationMessage": "Use `nexus.memory.corroborationThreshold` instead. Will be removed in v1.2.0."
         },
         "gemma-code.ollamaEmbeddingThreshold": {
           "type": "number",
           "default": 0.85,
           "minimum": 0,
           "maximum": 1,
-          "description": "Minimum cosine similarity for tool-output rows whose embedding came from Ollama (high-quality nomic-embed-text vectors)."
+          "description": "Minimum cosine similarity for tool-output rows whose embedding came from Ollama (high-quality nomic-embed-text vectors).",
+          "deprecationMessage": "Use `nexus.memory.ollamaEmbeddingThreshold` instead. Will be removed in v1.2.0."
         },
         "gemma-code.heuristicEmbeddingThreshold": {
           "type": "number",
           "default": 0.95,
           "minimum": 0,
           "maximum": 1,
-          "description": "Minimum cosine similarity for tool-output rows whose embedding came from the deterministic heuristic fallback. Higher than the Ollama-tier threshold because the 128-D heuristic embedder is noisier."
+          "description": "Minimum cosine similarity for tool-output rows whose embedding came from the deterministic heuristic fallback. Higher than the Ollama-tier threshold because the 128-D heuristic embedder is noisier.",
+          "deprecationMessage": "Use `nexus.memory.heuristicEmbeddingThreshold` instead. Will be removed in v1.2.0."
         },
         "gemma-code.mcpEnabled": {
           "type": "boolean",
           "default": false,
-          "description": "Enable Model Context Protocol (MCP) support for interoperability with external tools."
+          "description": "Enable Model Context Protocol (MCP) support for interoperability with external tools.",
+          "deprecationMessage": "Use `nexus.mcp.enabled` instead. Will be removed in v1.2.0."
         },
         "gemma-code.mcpServerMode": {
           "type": "string",
@@ -394,27 +419,32 @@
             "off"
           ],
           "default": "off",
-          "description": "MCP server mode. 'stdio' exposes Gemma Code tools via MCP stdio protocol. 'off' disables."
+          "description": "MCP server mode. 'stdio' exposes Gemma Code tools via MCP stdio protocol. 'off' disables.",
+          "deprecationMessage": "Use `nexus.mcp.serverMode` instead. Will be removed in v1.2.0."
         },
         "gemma-code.verificationEnabled": {
           "type": "boolean",
           "default": true,
-          "description": "Automatically run a verification sub-agent after multiple file edits to check for bugs and test failures."
+          "description": "Automatically run a verification sub-agent after multiple file edits to check for bugs and test failures.",
+          "deprecationMessage": "Use `nexus.coding.verificationEnabled` instead. Will be removed in v1.2.0."
         },
         "gemma-code.passStateGating": {
           "type": "boolean",
           "default": true,
-          "description": "v0.8.0 Phase 2 -- refuse to terminate a turn via a no-tool-call 'done' response unless at least one verification-class tool call (run_terminal returning exit 0, lint, build, test, golden task) has succeeded since the last user message. When the gate trips, the agent gets one system nudge and one more iteration to run the missing check before the loop terminates. Disable for non-coding workflows or tests that cannot run real commands."
+          "description": "v0.8.0 Phase 2 -- refuse to terminate a turn via a no-tool-call 'done' response unless at least one verification-class tool call (run_terminal returning exit 0, lint, build, test, golden task) has succeeded since the last user message. When the gate trips, the agent gets one system nudge and one more iteration to run the missing check before the loop terminates. Disable for non-coding workflows or tests that cannot run real commands.",
+          "deprecationMessage": "Use `nexus.coding.passStateGating` instead. Will be removed in v1.2.0."
         },
         "gemma-code.passStateGating.subAgentCredit": {
           "type": "boolean",
           "default": true,
-          "description": "v0.9.0 Phase 6.2 -- when a verification / audit / testgaps / curator sub-agent returns success, credit the parent loop's pass-state gate so the parent does not also need to run a verification tool before terminating. Disable to require parent-level verification regardless of sub-agent outcomes (legacy v0.8.0 behaviour)."
+          "description": "v0.9.0 Phase 6.2 -- when a verification / audit / testgaps / curator sub-agent returns success, credit the parent loop's pass-state gate so the parent does not also need to run a verification tool before terminating. Disable to require parent-level verification regardless of sub-agent outcomes (legacy v0.8.0 behaviour).",
+          "deprecationMessage": "Use `nexus.coding.passStateGating.subAgentCredit` instead. Will be removed in v1.2.0."
         },
         "gemma-code.hooks.scanInjection": {
           "type": "boolean",
           "default": true,
-          "description": "v0.9.0 Phase 6.5 -- scan ~/.gemma-code/hooks/*.md for prompt-injection patterns before folding the hook body into a system message. Hooks that trip the scanner are dropped with a logged warning. Disable if the hook intentionally contains text that overlaps with the heuristic (e.g. a security-research hook containing 'ignore previous instructions')."
+          "description": "v0.9.0 Phase 6.5 -- scan ~/.gemma-code/hooks/*.md for prompt-injection patterns before folding the hook body into a system message. Hooks that trip the scanner are dropped with a logged warning. Disable if the hook intentionally contains text that overlaps with the heuristic (e.g. a security-research hook containing 'ignore previous instructions').",
+          "deprecationMessage": "Use `nexus.hooks.scanInjection` instead. Will be removed in v1.2.0."
         },
         "gemma-code.memorySnapshotMode": {
           "type": "string",
@@ -427,7 +457,8 @@
             "Read the three memory files fresh on every prompt build (v0.7.0 behaviour). Mid-session edits show up in the next turn at the cost of busting the prefix cache."
           ],
           "default": "frozen",
-          "description": "v0.8.0 Phase 2 -- memory snapshot semantics for prefix-cache preservation. See ADR-0014 and src/storage/MemorySnapshot.ts."
+          "description": "v0.8.0 Phase 2 -- memory snapshot semantics for prefix-cache preservation. See ADR-0014 and src/storage/MemorySnapshot.ts.",
+          "deprecationMessage": "Use `nexus.memory.snapshotMode` instead. Will be removed in v1.2.0."
         },
         "gemma-code.llm.backend": {
           "type": "string",
@@ -437,12 +468,14 @@
             "auto"
           ],
           "default": "ollama",
-          "description": "v0.8.0 Phase 4 -- LLM backend selector. `auto` probes LM Studio at :1234 on macOS first and falls back to Ollama at :11434. See ADR-0016."
+          "description": "v0.8.0 Phase 4 -- LLM backend selector. `auto` probes LM Studio at :1234 on macOS first and falls back to Ollama at :11434. See ADR-0016.",
+          "deprecationMessage": "Use `nexus.llm.backend` instead. Will be removed in v1.2.0."
         },
         "gemma-code.lmstudio.baseUrl": {
           "type": "string",
           "default": "http://127.0.0.1:1234",
-          "description": "v0.8.0 Phase 4 -- LM Studio base URL. Defaults to the loopback address LM Studio exposes by default."
+          "description": "v0.8.0 Phase 4 -- LM Studio base URL. Defaults to the loopback address LM Studio exposes by default.",
+          "deprecationMessage": "Use `nexus.llm.lmstudio.baseUrl` instead. Will be removed in v1.2.0."
         },
         "gemma-code.thinkingModePreset": {
           "type": "string",
@@ -452,7 +485,8 @@
             "think-max"
           ],
           "default": "nothink",
-          "description": "v0.8.0 Phase 4 -- Sampler/thinking-mode preset. `think` uses the Qwen/jola-tuned values (temp 0.6, top_p 0.95, top_k 20); `think-max` extends the output budget to 32K (auto-downgrades to `think` when context < 64K)."
+          "description": "v0.8.0 Phase 4 -- Sampler/thinking-mode preset. `think` uses the Qwen/jola-tuned values (temp 0.6, top_p 0.95, top_k 20); `think-max` extends the output budget to 32K (auto-downgrades to `think` when context < 64K).",
+          "deprecationMessage": "Use `nexus.coding.thinkingModePreset` instead. Will be removed in v1.2.0."
         },
         "gemma-code.memory.scoringMethod": {
           "type": "string",
@@ -461,55 +495,64 @@
             "weighted"
           ],
           "default": "rrf",
-          "description": "v0.8.0 Phase 4 -- Hybrid memory scoring method. `rrf` fuses vector + lexical + recency via reciprocal-rank fusion (k=60). `weighted` blends 50/30/20."
+          "description": "v0.8.0 Phase 4 -- Hybrid memory scoring method. `rrf` fuses vector + lexical + recency via reciprocal-rank fusion (k=60). `weighted` blends 50/30/20.",
+          "deprecationMessage": "Use `nexus.memory.scoringMethod` instead. Will be removed in v1.2.0."
         },
         "gemma-code.trace.autoEnable": {
           "type": "boolean",
           "default": false,
-          "description": "v0.8.0 Phase 4 -- Pre-enable the `/trace` JSONL bug-report file at session start. Default off so disk cost is opt-in."
+          "description": "v0.8.0 Phase 4 -- Pre-enable the `/trace` JSONL bug-report file at session start. Default off so disk cost is opt-in.",
+          "deprecationMessage": "Use `nexus.trace.autoEnable` instead. Will be removed in v1.2.0."
         },
         "gemma-code.memory.anticipatoryCache": {
           "type": "boolean",
           "default": false,
-          "description": "v0.8.0 Phase 6 -- Opt-in anticipatory context cache. When enabled, prefetches likely-relevant memory entries on editor change and tool completion (30s warmth window). Surfaces in the Memory panel under \"anticipated context\"."
+          "description": "v0.8.0 Phase 6 -- Opt-in anticipatory context cache. When enabled, prefetches likely-relevant memory entries on editor change and tool completion (30s warmth window). Surfaces in the Memory panel under \"anticipated context\".",
+          "deprecationMessage": "Use `nexus.memory.anticipatoryCache` instead. Will be removed in v1.2.0."
         },
         "gemma-code.skills.harvest": {
           "type": "boolean",
           "default": true,
-          "description": "v0.8.0 Phase 6 -- Detect repeated tool-call sequences in episodic memory and surface a SKILL.md draft proposal on the third recurrence."
+          "description": "v0.8.0 Phase 6 -- Detect repeated tool-call sequences in episodic memory and surface a SKILL.md draft proposal on the third recurrence.",
+          "deprecationMessage": "Use `nexus.skills.harvest` instead. Will be removed in v1.2.0."
         },
         "gemma-code.skills.harvestMinRecurrence": {
           "type": "number",
           "default": 3,
           "minimum": 2,
           "maximum": 10,
-          "description": "v0.8.0 Phase 6 -- Minimum recurrence count before a workflow becomes a skill proposal."
+          "description": "v0.8.0 Phase 6 -- Minimum recurrence count before a workflow becomes a skill proposal.",
+          "deprecationMessage": "Use `nexus.skills.harvestMinRecurrence` instead. Will be removed in v1.2.0."
         },
         "gemma-code.skills.harvestWindowDays": {
           "type": "number",
           "default": 7,
           "minimum": 1,
           "maximum": 90,
-          "description": "v0.8.0 Phase 6 -- Lookback window (in days) for the workflow detector."
+          "description": "v0.8.0 Phase 6 -- Lookback window (in days) for the workflow detector.",
+          "deprecationMessage": "Use `nexus.skills.harvestWindowDays` instead. Will be removed in v1.2.0."
         },
         "gemma-code.verificationThreshold": {
           "type": "number",
           "default": 3,
           "minimum": 1,
           "maximum": 20,
-          "description": "Number of file edits in a session before automatic verification triggers."
+          "description": "Number of file edits in a session before automatic verification triggers.",
+          "deprecationMessage": "Use `nexus.coding.verificationThreshold` instead. Will be removed in v1.2.0."
         },
         "gemma-code.subAgentMaxIterations": {
           "type": "number",
           "default": 10,
           "minimum": 1,
           "maximum": 30,
-          "description": "Maximum tool-use iterations for sub-agents (verification, research, planning)."
+          "description": "Maximum tool-use iterations for sub-agents (verification, research, planning).",
+          "deprecationMessage": "Use `nexus.coding.subAgentMaxIterations` instead. Will be removed in v1.2.0."
         },
         "gemma-code.autoDetectGpu": {
           "type": "boolean",
           "default": true,
-          "description": "Auto-detect GPU and VRAM at startup to select optimal model configuration."
+          "description": "Auto-detect GPU and VRAM at startup to select optimal model configuration.",
+          "deprecationMessage": "Use `nexus.autoDetectGpu` instead. Will be removed in v1.2.0."
         },
         "gemma-code.gpuTierOverride": {
           "type": [
@@ -529,12 +572,14 @@
             "Tier 3: Full (24+ GB VRAM)"
           ],
           "default": null,
-          "description": "Override auto-detected GPU tier. Set to null for auto-detection."
+          "description": "Override auto-detected GPU tier. Set to null for auto-detection.",
+          "deprecationMessage": "Use `nexus.gpuTierOverride` instead. Will be removed in v1.2.0."
         },
         "gemma-code.permissionOverrides": {
           "type": "object",
           "default": {},
-          "description": "Override default permission tiers for individual tools. Values: 0 = auto-approve, 1 = confirm, 2 = dangerous. Floor: tools whose baseline tier requires confirmation (delete_file, run_terminal, fetch_page, web_search, write_file, edit_file, create_file, MCP tools) cannot be dropped to 0; the override is silently clamped to 1 with a logger warning."
+          "description": "Override default permission tiers for individual tools. Values: 0 = auto-approve, 1 = confirm, 2 = dangerous. Floor: tools whose baseline tier requires confirmation (delete_file, run_terminal, fetch_page, web_search, write_file, edit_file, create_file, MCP tools) cannot be dropped to 0; the override is silently clamped to 1 with a logger warning.",
+          "deprecationMessage": "Use `nexus.coding.permissionOverrides` instead. Will be removed in v1.2.0."
         },
         "gemma-code.mcpExposedTools": {
           "type": "array",
@@ -546,22 +591,26 @@
             "list_directory",
             "grep_codebase"
           ],
-          "description": "Built-in tools exposed to external MCP clients when the Gemma Code MCP server is enabled. Defaults to the read-only subset; broaden cautiously. Confirmation-tier tools still require user approval per call."
+          "description": "Built-in tools exposed to external MCP clients when the Gemma Code MCP server is enabled. Defaults to the read-only subset; broaden cautiously. Confirmation-tier tools still require user approval per call.",
+          "deprecationMessage": "Use `nexus.mcp.exposedTools` instead. Will be removed in v1.2.0."
         },
         "gemma-code.otlpEnabled": {
           "type": "boolean",
           "default": false,
-          "description": "Enable optional OTLP trace export to an external collector (Jaeger, Grafana Tempo). Off by default for offline-first usage."
+          "description": "Enable optional OTLP trace export to an external collector (Jaeger, Grafana Tempo). Off by default for offline-first usage.",
+          "deprecationMessage": "Use `nexus.otlp.enabled` instead. Will be removed in v1.2.0."
         },
         "gemma-code.otlpEndpoint": {
           "type": "string",
           "default": "http://localhost:4318/v1/traces",
-          "description": "OTLP HTTP endpoint for trace export."
+          "description": "OTLP HTTP endpoint for trace export.",
+          "deprecationMessage": "Use `nexus.otlp.endpoint` instead. Will be removed in v1.2.0."
         },
         "gemma-code.otlpHeaders": {
           "type": "string",
           "default": "",
-          "description": "Comma-separated key=value headers for OTLP export requests (e.g. 'Authorization=Bearer token,X-Custom=value')."
+          "description": "Comma-separated key=value headers for OTLP export requests (e.g. 'Authorization=Bearer token,X-Custom=value').",
+          "deprecationMessage": "Use `nexus.otlp.headers` instead. Will be removed in v1.2.0."
         },
         "gemma-code.secretPathDenyExtra": {
           "type": "array",
@@ -569,12 +618,14 @@
             "type": "string"
           },
           "default": [],
-          "description": "Extra glob-style patterns (relative to workspace root) that should be treated as secret paths and blocked from file/list/grep tools unless `allow_secrets: true` is passed with per-call confirmation."
+          "description": "Extra glob-style patterns (relative to workspace root) that should be treated as secret paths and blocked from file/list/grep tools unless `allow_secrets: true` is passed with per-call confirmation.",
+          "deprecationMessage": "Use `nexus.secretPathDenyExtra` instead. Will be removed in v1.2.0."
         },
         "gemma-code.operationLog.enabled": {
           "type": "boolean",
           "default": false,
-          "description": "Append one Markdown-friendly line per tool call to <workspace>/.gemma-code/operation-log.md (default off). Records only metadata: tool name, outcome, optional path, session id; never tool inputs. Trade-off: small disk-cost and visibility into past actions vs. privacy of having a persistent audit trail."
+          "description": "Append one Markdown-friendly line per tool call to <workspace>/.gemma-code/operation-log.md (default off). Records only metadata: tool name, outcome, optional path, session id; never tool inputs. Trade-off: small disk-cost and visibility into past actions vs. privacy of having a persistent audit trail.",
+          "deprecationMessage": "Use `nexus.operationLog.enabled` instead. Will be removed in v1.2.0."
         },
         "gemma-code.memoryAutoArchive": {
           "type": "string",
@@ -589,12 +640,14 @@
             "Take a snapshot when the latest archive is older than 30 days."
           ],
           "default": "off",
-          "description": "v0.7.0 Phase 2 -- schedule for automatic memory file snapshots into ~/.gemma-code/memory/<workspace-id>/Archive/<YYYY-MM-DD>/. Auto-archive runs silently on session start when due."
+          "description": "v0.7.0 Phase 2 -- schedule for automatic memory file snapshots into ~/.gemma-code/memory/<workspace-id>/Archive/<YYYY-MM-DD>/. Auto-archive runs silently on session start when due.",
+          "deprecationMessage": "Use `nexus.memory.autoArchive` instead. Will be removed in v1.2.0."
         },
         "gemma-code.contextLimitsPerModel": {
           "type": "object",
           "default": {},
-          "description": "v0.7.0 Phase 3 -- per-model overrides for max context tokens. Keys are model names (e.g. 'gemma4:e4b'), values are objects with optional 'maxTokens' (number) and 'minContextLimit' (number). Falls back to gemma-code.maxTokens when no override applies."
+          "description": "v0.7.0 Phase 3 -- per-model overrides for max context tokens. Keys are model names (e.g. 'gemma4:e4b'), values are objects with optional 'maxTokens' (number) and 'minContextLimit' (number). Falls back to gemma-code.maxTokens when no override applies.",
+          "deprecationMessage": "Use `nexus.coding.contextLimitsPerModel` instead. Will be removed in v1.2.0."
         },
         "gemma-code.compactionProtectedTools": {
           "type": "array",
@@ -612,14 +665,16 @@
           "items": {
             "type": "string"
           },
-          "description": "v0.7.0 Phase 3 -- tool names that every compaction strategy (deduplication, purge-errors, compress) must skip. Protects causally-load-bearing or destructive tool calls."
+          "description": "v0.7.0 Phase 3 -- tool names that every compaction strategy (deduplication, purge-errors, compress) must skip. Protects causally-load-bearing or destructive tool calls.",
+          "deprecationMessage": "Use `nexus.coding.compactionProtectedTools` instead. Will be removed in v1.2.0."
         },
         "gemma-code.compactionErrorPurgeTurns": {
           "type": "number",
           "default": 4,
           "minimum": 1,
           "maximum": 50,
-          "description": "v0.7.0 Phase 3 -- after this many user-message turns elapse since an errored tool call, its args are purged (the error result message itself is preserved verbatim)."
+          "description": "v0.7.0 Phase 3 -- after this many user-message turns elapse since an errored tool call, its args are purged (the error result message itself is preserved verbatim).",
+          "deprecationMessage": "Use `nexus.coding.compactionErrorPurgeTurns` instead. Will be removed in v1.2.0."
         },
         "gemma-code.compactionProtectedFilePatterns": {
           "type": "array",
@@ -627,29 +682,34 @@
           "items": {
             "type": "string"
           },
-          "description": "v0.7.0 Phase 3 -- substring patterns; tool calls whose args contain a matching path are exempt from deduplication."
+          "description": "v0.7.0 Phase 3 -- substring patterns; tool calls whose args contain a matching path are exempt from deduplication.",
+          "deprecationMessage": "Use `nexus.coding.compactionProtectedFilePatterns` instead. Will be removed in v1.2.0."
         },
         "gemma-code.compactExperimentalMessageMode": {
           "type": "boolean",
           "default": false,
-          "description": "v0.7.0 Phase 3 -- when true, registers the experimental compress_message tool. Less surgical than compress_range and may fragment causally-linked tool sequences."
+          "description": "v0.7.0 Phase 3 -- when true, registers the experimental compress_message tool. Less surgical than compress_range and may fragment causally-linked tool sequences.",
+          "deprecationMessage": "Use `nexus.coding.compactExperimentalMessageMode` instead. Will be removed in v1.2.0."
         },
         "gemma-code.memoryHnswThreshold": {
           "type": "number",
           "default": 1000,
           "minimum": 0,
           "maximum": 1000000,
-          "description": "v0.7.0 Phase 7 (C32) -- row-count threshold for activating the optional HNSW vector index over memory embeddings. When the entry count exceeds this value AND `hnswlib-node` is loadable, MemoryStore switches from the FTS5-pre-filtered linear scan to the persistent ANN index. Set to 0 to disable HNSW (linear-scan fallback only)."
+          "description": "v0.7.0 Phase 7 (C32) -- row-count threshold for activating the optional HNSW vector index over memory embeddings. When the entry count exceeds this value AND `hnswlib-node` is loadable, MemoryStore switches from the FTS5-pre-filtered linear scan to the persistent ANN index. Set to 0 to disable HNSW (linear-scan fallback only).",
+          "deprecationMessage": "Use `nexus.memory.hnswThreshold` instead. Will be removed in v1.2.0."
         },
         "gemma-code.workers.audit.enabled": {
           "type": "boolean",
           "default": false,
-          "description": "v0.7.0 Phase 7 (C34) -- when true, every time the file-edit threshold trips the audit background worker invokes `gemma-check --json` on the changed files and posts findings as a chat message. Off by default."
+          "description": "v0.7.0 Phase 7 (C34) -- when true, every time the file-edit threshold trips the audit background worker invokes `gemma-check --json` on the changed files and posts findings as a chat message. Off by default.",
+          "deprecationMessage": "Use `nexus.workers.audit.enabled` instead. Will be removed in v1.2.0."
         },
         "gemma-code.workers.testgaps.enabled": {
           "type": "boolean",
           "default": false,
-          "description": "v0.7.0 Phase 7 (C34) -- when true, every time the file-edit threshold trips the testgaps background worker runs `vitest --coverage --json` on the test files matching the changed source and posts uncovered branches as a chat message. Off by default."
+          "description": "v0.7.0 Phase 7 (C34) -- when true, every time the file-edit threshold trips the testgaps background worker runs `vitest --coverage --json` on the test files matching the changed source and posts uncovered branches as a chat message. Off by default.",
+          "deprecationMessage": "Use `nexus.workers.testgaps.enabled` instead. Will be removed in v1.2.0."
         },
         "gemma-code.cacheEvictionStrategy": {
           "type": "string",
@@ -668,7 +728,8 @@
             "Clock (Second-Chance): approximates LRU at lower bookkeeping cost."
           ],
           "default": "lru",
-          "description": "Eviction policy for the in-process tool-output cache. All strategies are pure JS (no native modules)."
+          "description": "Eviction policy for the in-process tool-output cache. All strategies are pure JS (no native modules).",
+          "deprecationMessage": "Use `nexus.coding.cacheEvictionStrategy` instead. Will be removed in v1.2.0."
         }
       }
     }

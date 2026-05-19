@@ -1,7 +1,7 @@
 /**
  * v0.8.0 Phase 3.4 -- User-editable improvement-hook files (item B7).
  *
- * The user can plant a markdown file under `~/.gemma-code/hooks/<name>.md`
+ * The user can plant a markdown file under `~/.nexus/hooks/<name>.md`
  * to inject ambient rules into the prompt at specific lifecycle moments.
  * Phase 3.4 ships the first hook: `enterplanmode-improve.md`, read on every
  * plan-mode activation and injected as a system message after the standard
@@ -40,7 +40,7 @@ export type HookName = "enterplanmode-improve";
 
 /** Default directory for the user-editable hook files. */
 export function defaultHooksDir(): string {
-  return path.join(os.homedir(), ".gemma-code", "hooks");
+  return path.join(os.homedir(), ".nexus", "hooks");
 }
 
 /**

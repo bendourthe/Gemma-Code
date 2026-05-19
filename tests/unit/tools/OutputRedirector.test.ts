@@ -147,7 +147,7 @@ describe("OutputRedirector", () => {
       redirector.redirect("run_terminal", "c1", "x".repeat(200));
       redirector.redirect("run_terminal", "c2", "y".repeat(200));
 
-      const outDir = path.join(tmpDir, ".gemma-code-output");
+      const outDir = path.join(tmpDir, ".nexus-output");
       expect(fs.readdirSync(outDir).length).toBe(2);
 
       redirector.cleanup();

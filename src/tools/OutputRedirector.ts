@@ -26,7 +26,7 @@ export interface RedirectedResult {
 }
 
 const PREVIEW_CHARS = 500;
-const OUTPUT_SUBDIR = ".gemma-code-output";
+const OUTPUT_SUBDIR = ".nexus-output";
 
 /** Marker suffix appended to redirected output files when their bytes are Brotli-compressed. */
 export const COMPRESSED_FILE_SUFFIX = ".br";

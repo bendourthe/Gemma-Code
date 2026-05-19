@@ -14,7 +14,7 @@ import { formatForLog } from "../../utils/errors.js";
  * leak.
  *
  * Invariants:
- *   - SQLite file lives at `<workspace>/.gemma-code/web-response-cache.sqlite`
+ *   - SQLite file lives at `<workspace>/.nexus/web-response-cache.sqlite`
  *     and is chmod 0o600 on POSIX via `secureDbPermissions`.
  *   - Lookup callers MUST also pass the SSRF DNS lookup hook the request path
  *     uses, so cached entries cannot bypass DNS-based blocking.
@@ -46,7 +46,7 @@ export interface WebResponseCacheStats {
 // ---------------------------------------------------------------------------
 
 /** Subdirectory under the workspace root that hosts the cache. */
-export const WEB_CACHE_DIRNAME = ".gemma-code";
+export const WEB_CACHE_DIRNAME = ".nexus";
 
 /** SQLite file name for the cache. */
 export const WEB_CACHE_FILENAME = "web-response-cache.sqlite";
@@ -68,7 +68,7 @@ export class WebResponseCache {
   /**
    * Open the SQLite cache. `dbPathOrWorkspaceRoot` may be either an explicit
    * `.sqlite` file path (used by tests via `:memory:`) or a workspace root
-   * under which `.gemma-code/web-response-cache.sqlite` is created.
+   * under which `.nexus/web-response-cache.sqlite` is created.
    */
   open(dbPathOrWorkspaceRoot: string): void {
     if (this._db) return;

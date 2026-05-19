@@ -8,7 +8,7 @@ metadata.tags: [memory, onboarding, documentation]
 metadata.related_skills: []
 ---
 
-Bootstrap a personal "second brain" in the gemma-code memory file architecture under `~/.gemma-code/memory/<workspace-id>/`. Schema in [docs/v0.7.0/architecture.md](../../../docs/v0.7.0/architecture.md) "Memory file architecture". See [build-second-brain/examples.md](./examples.md) for question scripts and extraction examples.
+Bootstrap a personal "second brain" in the Nexus memory file architecture under `~/.nexus/memory/<workspace-id>/`. Schema in [docs/v0.7.0/architecture.md](../../../docs/v0.7.0/architecture.md) "Memory file architecture". See [build-second-brain/examples.md](./examples.md) for question scripts and extraction examples.
 
 Files:
 - `Instructions.md` -- who you are, rules, what good output looks like.

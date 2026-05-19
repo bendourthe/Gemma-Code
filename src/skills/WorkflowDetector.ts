@@ -11,7 +11,7 @@ import type { EpisodicEntry } from "../storage/MemoryLayers.types.js";
  * in the MemoryPanel.
  *
  * On user accept, `writeProposedSkill()` lands a SKILL.md draft into
- * `~/.gemma-code/skills/proposed/<slug>/SKILL.md`. The operator must
+ * `~/.nexus/skills/proposed/<slug>/SKILL.md`. The operator must
  * explicitly move it to the active skills directory to activate -- the
  * detector never installs skills directly.
  */
@@ -161,7 +161,7 @@ export function renderProposedSkill(proposal: WorkflowProposal): string {
     "",
     "## How to activate",
     "",
-    "Move this file to `~/.gemma-code/skills/<slug>/SKILL.md` (without the `proposed/` segment) to activate it.",
+    "Move this file to `~/.nexus/skills/<slug>/SKILL.md` (without the `proposed/` segment) to activate it.",
     "",
     "## What to write here",
     "",

@@ -88,7 +88,7 @@ describe("runMemoryLint", () => {
     expect(result.report).toBeUndefined();
   });
 
-  it("default mode writes .gemma-code/memory-health.md", async () => {
+  it("default mode writes .nexus/memory-health.md", async () => {
     await store.save("a fact", "fact");
     const result = await runMemoryLint(parseMemoryLintArgs(""), {
       memoryStore: store,

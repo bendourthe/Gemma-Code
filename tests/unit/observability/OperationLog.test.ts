@@ -116,7 +116,7 @@ describe("OperationLog", () => {
     }
     log.close();
 
-    const file = path.join(tmpdir, ".gemma-code", "operation-log.md");
+    const file = path.join(tmpdir, ".nexus", "operation-log.md");
     const content = fs.readFileSync(file, "utf8");
     const lines = content.split("\n").filter((l) => l.startsWith("## ["));
     expect(lines).toHaveLength(5);

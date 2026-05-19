@@ -151,9 +151,11 @@ export class AgentLoop {
   private readonly _verificationEnabled: boolean;
   private readonly _auditWorkerEnabled: boolean;
   private readonly _testgapsWorkerEnabled: boolean;
-  private readonly _curatorWorkerEnabled: boolean;
-  private readonly _curatorWorkerMinIntervalMs: number;
-  private _curatorLastRunAt = 0;
+  // v1.1.0 Phase 1.7: the legacy `curatorWorkerEnabled` /
+  // `curatorWorkerMinIntervalMs` / `_curatorLastRunAt` triple was removed
+  // when the edit-threshold curator fallback was deleted. The options remain
+  // accepted by the constructor for back-compat with existing callers but
+  // are intentionally not stored.
   private _budgetMiddleware?: BudgetMiddleware;
   private readonly _workingMemory?: WorkingMemory;
   private readonly _episodicMemory?: EpisodicMemory;
@@ -199,9 +201,11 @@ export class AgentLoop {
     this._verificationEnabled = options?.verificationEnabled ?? true;
     this._auditWorkerEnabled = options?.auditWorkerEnabled ?? false;
     this._testgapsWorkerEnabled = options?.testgapsWorkerEnabled ?? false;
-    this._curatorWorkerEnabled = options?.curatorWorkerEnabled ?? false;
-    this._curatorWorkerMinIntervalMs =
-      options?.curatorWorkerMinIntervalMs ?? 12 * 60 * 60 * 1000;
+    // v1.1.0 Phase 1.7: curator options accepted for compat, intentionally
+    // unused. The curator now runs exclusively via the IdleTimeScheduler
+    // task registered in the composition root.
+    void options?.curatorWorkerEnabled;
+    void options?.curatorWorkerMinIntervalMs;
     this._budgetMiddleware = options?.budgetMiddleware;
     this._workingMemory = options?.workingMemory;
     this._episodicMemory = options?.episodicMemory;
@@ -476,7 +480,7 @@ export class AgentLoop {
     if (
       this._subAgentManager &&
       this._fileEditCount >= this._verificationThreshold &&
-      (this._verificationEnabled || this._auditWorkerEnabled || this._testgapsWorkerEnabled || this._curatorWorkerEnabled)
+      (this._verificationEnabled || this._auditWorkerEnabled || this._testgapsWorkerEnabled)
     ) {
       const modifiedFiles = [...this._modifiedFiles];
       const recentToolResults = [...this._recentToolResults];
@@ -527,24 +531,10 @@ export class AgentLoop {
         this.creditSubAgentVerification(testgapsResult);
       }
 
-      if (this._curatorWorkerEnabled) {
-        const now = Date.now();
-        if (now - this._curatorLastRunAt >= this._curatorWorkerMinIntervalMs) {
-          this._curatorLastRunAt = now;
-          const curatorConfig: SubAgentConfig = {
-            type: "curator-worker",
-            maxIterations: 1,
-            userRequest: "Propose curator actions (archive stale skills, dedup memory, patch frontmatter).",
-            modifiedFiles,
-            recentToolResults,
-          };
-          const curatorResult = await this._subAgentManager.run(curatorConfig, postMessage);
-          if (curatorResult.output) {
-            this._manager.addUserMessage(`[Curator Report]\n\n${curatorResult.output}`);
-          }
-          this.creditSubAgentVerification(curatorResult);
-        }
-      }
+      // v1.1.0 Phase 1.7: the legacy edit-threshold curator-cadence fallback
+      // has been removed. The curator now runs exclusively from the
+      // `IdleTimeScheduler` (registered in the composition root) and is
+      // gated by `nexus.curator.enabled` (default true).
     }
 
     return "continue";

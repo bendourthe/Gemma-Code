@@ -32,7 +32,7 @@ describe("/memory lint integration", () => {
     fs.rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
-  it("writes a Markdown report to .gemma-code/memory-health.md", async () => {
+  it("writes a Markdown report to .nexus/memory-health.md", async () => {
     fs.writeFileSync(path.join(workspaceRoot, "real.ts"), "// real");
     await store.save("Touched real.ts during refactor", "fact");
     await store.save("Renamed src/missing/module.ts during cleanup", "fact");
@@ -43,7 +43,7 @@ describe("/memory lint integration", () => {
     });
 
     expect(result.reportPath).toBeDefined();
-    const target = path.join(workspaceRoot, ".gemma-code", "memory-health.md");
+    const target = path.join(workspaceRoot, ".nexus", "memory-health.md");
     expect(fs.existsSync(target)).toBe(true);
 
     const md = fs.readFileSync(target, "utf8");
@@ -60,7 +60,7 @@ describe("/memory lint integration", () => {
     });
 
     expect(result.mode).toBe("apply");
-    const target = path.join(workspaceRoot, ".gemma-code", "memory-health.md");
+    const target = path.join(workspaceRoot, ".nexus", "memory-health.md");
     expect(fs.existsSync(target)).toBe(false);
   });
 

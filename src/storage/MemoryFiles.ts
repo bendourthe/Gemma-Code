@@ -84,7 +84,7 @@ export interface MemoryImportInput {
  * freeze the value before tests get a chance to redirect.
  */
 function defaultBaseDir(): string {
-  return path.join(os.homedir(), ".gemma-code", "memory");
+  return path.join(os.homedir(), ".nexus", "memory");
 }
 
 const INSTRUCTIONS_SCAFFOLD =

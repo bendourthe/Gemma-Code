@@ -4,6 +4,48 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-18] v1.1.0 Phase 1 (partial) -- Shared-core decision + carryforward closure (bounded sub-tasks)
+
+### Goal
+
+Open the v1.1.0 cycle by closing the bounded carryforward items from v1.0.0's Section 4.2 cluster -- storage-path rename, settings deprecation injection, curator-cadence fallback delete, CRLF snapshot normalization -- and land the shared-core build decision document. The heavier sub-tasks (1.4 wholesale `src/` -> `modules/coding/` move, 1.5/1.6 manifest + npm rename, 1.9 sidecar import unification, 1.10 NexusCodingRuntime wiring, 1.11 Tailwind v4) are split off into a follow-up commit cluster ("Phase 1b") so each `git mv` + import rewrite can land with its own CI cycle. Plan reference: [docs/v1.1.0/plans/phase-01-shared-core-and-carryforward-closure.md](v1.1.0/plans/phase-01-shared-core-and-carryforward-closure.md).
+
+### What changed
+
+**1.1 Shared-core build decision document.** [docs/v1.1.0/development/decisions/shared-core-build.md](v1.1.0/development/decisions/shared-core-build.md) records the strategy: TypeScript project references with `composite: true` on `core/` (option (a) over the `@nexus/core` workspace-package alternative), chosen because it preserves the existing import paths, is reversible, and only requires wiring `tsc -b` into the build / typecheck scripts. The actual `core/tsconfig.json` + root `references` array does not land in this commit because it interacts with the sub-task 1.4 wholesale `src/` move -- both want to control the `out/core` emit path, and landing the project-references graph before 1.4 would force `tsc` to double-emit. The wiring is queued for "Phase 1b" as open item 1.1.P1.A in [docs/v1.1.0/known-gaps.md](v1.1.0/known-gaps.md).
+
+**1.2 Storage-path call-site rename.** Every literal `~/.gemma-code/` and `.gemma-code/` in `src/`, `scripts/`, and the affected test fixtures was replaced with the canonical `~/.nexus/` / `.nexus/`. 23 source files in `src/` touched: `storage/MemoryFiles.ts` (memory base dir), `storage/PlanArchive.ts` (plan archive root), `storage/MemoryHealthCheck.ts` (workspace report dir), `storage/dbPermissions.ts` (comment), `storage/ToolOutputCache.ts` (`CACHE_DIRNAME` constant + comments), `skills/SkillLoader.ts` (user skills dir), `skills/SkillMetrics.ts` (metrics path), `skills/CurationLoop.ts` (curator dir), `skills/WorkflowDetector.ts` (comments), `skills/catalog/build-second-brain/SKILL.md` (user-facing description), `mcp/McpManager.ts` (global + workspace mcp.json), `mcp/McpTypes.ts` (comment), `chat/ImprovementHook.ts` (hooks dir), `observability/TraceFile.ts` (trace path), `observability/OperationLog.ts` (`OPERATION_LOG_DIRNAME` + comments), `agents/SpecialistLoader.ts` (workspace override), `tools/OutputRedirector.ts` (`OUTPUT_SUBDIR = ".nexus-output"`), `tools/handlers/webCache.ts` (`WEB_CACHE_DIRNAME`), `utils/secretPaths.ts` (denylist pattern), `panels/webview/render/quickLabels.ts` (custom labels path), `panels/ChatPanelInit.ts` / `ChatMessageRouter.ts` / `ChatPanelBootstrap.ts` / `MemoryPanel.ts` (comments), `commands/memoryLintCommand.ts` (user-facing advice). 5 script files updated: `scripts/cleanup-scanner.mjs`, `scripts/generate-catalog.mjs`, `scripts/hooks/check-prompt-policy.mjs`, `scripts/hooks/check-tool-permission.mjs`, `scripts/hooks/lib/secret-paths.mjs`. The `core/storage/StorageMigration.ts` migration is unchanged -- it already runs idempotently at app launch and copies `~/.gemma-code/` -> `~/.nexus/` on existing installs. The installer scripts (`scripts/installer/pyqt/...`, `scripts/installer/legacy/setup.nsi`) still reference the legacy extension ID `gemma-code.gemma-code`; those flip when sub-task 1.6 lands.
+
+**1.3 deprecationMessage injection.** [scripts/dev/inject-deprecation-messages.mjs](../scripts/dev/inject-deprecation-messages.mjs) walks `SETTINGS_KEY_MAP` in `src/config/settingsKeyMap.ts`, opens `package.json`, and for every legacy `gemma-code.*` entry in `contributes.configuration.properties` writes `"deprecationMessage": "Use ` + "`${newKey}`" + ` instead. Will be removed in v1.2.0."`. Catch-all branch handles 5 legacy keys with no canonical replacement (renamed message asks the user to file an issue referencing the conjectured `nexus.*` counterpart). Run once: 58 messages injected; idempotent on re-runs. The VS Code Settings UI will now render every legacy `gemma-code.*` entry with a strikethrough + deprecation hint pointing at its `nexus.*` replacement.
+
+**1.7 Curator-cadence fallback deleted.** [src/tools/AgentLoop.ts](../src/tools/AgentLoop.ts) `_runOneIteration` no longer fires the `curator-worker` sub-agent on the post-N-edits trigger. The `curatorWorkerEnabled` / `curatorWorkerMinIntervalMs` options remain accepted on `AgentLoopOptions` for back-compat with `ChatController` / `ChatPanelBootstrap` call-sites that wire `settings.curatorWorkerEnabled` through, but the field declarations and 12-hour cadence state were removed; the options are `void`-discarded in the constructor with a clarifying comment. The OR-gate in the verification dispatch block was narrowed to `verification || audit || testgaps`. The `IdleTimeScheduler` is now the sole curator entry point. A new `nexus.curator.enabled` boolean (default `true`) was added to `package.json` `contributes.configuration.properties` so the future IdleTimeScheduler curator task has a Settings UI toggle. The actual wiring of the IdleTimeScheduler curator task to consult `nexus.curator.enabled` is queued for "Phase 1b" -- the legacy gate (`nexus.workers.curator.enabled`, default false) is no longer consulted in production code paths.
+
+**1.8 CRLF/LF snapshot normalization + SHA-pin (verified).** New [.gitattributes](../.gitattributes) declares `tests/snapshots/specialists/*.txt text eol=lf` + same for the one `.json` snapshot file so the byte-exact characterization tests in `tests/unit/agents/SubAgentManager.characterization.test.ts` pass on Windows checkouts. Existing snapshot files were converted in-place from CRLF to LF via a one-shot PowerShell pass. The shell-build.yml SHA-pins were already in place from v1.0.0 (every action -- `actions/checkout`, `actions/setup-node`, `dtolnay/rust-toolchain`, `actions/cache`, `actions/upload-artifact` -- is pinned to a 40-char SHA with a trailing `# version-tag` comment for readability), so sub-task 1.8 was satisfied by the CRLF half alone.
+
+**Test fixtures updated.** 8 test files updated to reflect the new path: `tests/unit/agents/SpecialistLoader.test.ts`, `tests/unit/commands/memoryLintCommand.test.ts`, `tests/unit/hooks/check-prompt-policy.test.ts`, `tests/unit/utils/secretPaths.test.ts`, `tests/unit/observability/OperationLog.test.ts`, `tests/unit/observability/TraceFile.test.ts` (now asserts `.nexus` substring in the path), `tests/unit/tools/OutputRedirector.test.ts`, `tests/unit/storage/ToolOutputCache.test.ts`, `tests/unit/panels/ChatCommandHandlers.test.ts`, `tests/integration/storage/cleanupScanner.test.ts`, `tests/integration/memory-lint-end-to-end.test.ts`. `tests/unit/core/storage/StorageMigration.test.ts` is unchanged -- it deliberately tests the legacy `~/.gemma-code/` -> `~/.nexus/` migration path and must keep both string references.
+
+### Outcome
+
+- Source files renamed: 23 in `src/` + 5 in `scripts/` (28 total).
+- Test files updated: 11 (10 unit + 1 integration).
+- New scripts: `scripts/dev/inject-deprecation-messages.mjs`.
+- New documents: `docs/v1.1.0/development/decisions/shared-core-build.md`, `docs/v1.1.0/known-gaps.md`.
+- Updated documents: `package.json` (+58 deprecationMessage entries + 1 new `nexus.curator.enabled` setting), `.gitattributes` (new file), this DEVLOG.
+- Test status: 3018 passed / 0 failed / 5 skipped (root vitest). All 6 failures from the first pass (4 CRLF snapshots + TraceFile substring + ToolOutputCache constant) closed by the normalization + the missed `src/storage/ToolOutputCache.ts` constant rename.
+- Build: `npm run build` clean.
+- Lint: `npm run lint` clean.
+- Architecture: `npm run check-architecture` -- 0 errors, 5 pre-existing orphan warnings unchanged.
+
+### Known gaps added
+
+See [docs/v1.1.0/known-gaps.md](v1.1.0/known-gaps.md): the document opens with 9 open items + 6 resolved closures. Open items (all DF / MT, P1 / P2): `1.1.P1.A` (TypeScript project-references wiring deferred to "Phase 1b"), `1.4.P1.B` (`src/` -> `modules/coding/` wholesale move deferred), `1.5.P1.C` (VS Code manifest IDs rename deferred), `1.6.P1.D` (npm package + publisher rename deferred), `1.9.P1.E` (sidecar duplicate model catalog mirrors deferred), `1.10.P1.F` (NexusCodingRuntime wiring deferred), `1.11.P1.G` (Tailwind v4 wiring deferred), `1.12.P2.H` (regression test for curator IdleTimeScheduler-exclusivity deferred), `1.12.P2.I` (12 v1.0.0 operator-action items inherited). All 7 P1 deferrals are queued for "Phase 1b" -- a follow-up commit cluster that lands each `git mv` sub-tree with its own CI run, then wires the project-references graph, then re-runs the rename + sidecar import unification + NexusCodingRuntime wiring + manifest/npm renames. The 6 closures: `2.P1.G` storage paths, `2.P1.H` deprecationMessage, `2.P3.L` + `5.P3.FF` CRLF/SHA-pin, `3.P1.P` curator fallback, plus the 1.1 decision document.
+
+### Plan reference + history
+
+[docs/v1.1.0/plans/phase-01-shared-core-and-carryforward-closure.md](v1.1.0/plans/phase-01-shared-core-and-carryforward-closure.md), [docs/v1.1.0/known-gaps.md](v1.1.0/known-gaps.md), [docs/v1.1.0/development/decisions/shared-core-build.md](v1.1.0/development/decisions/shared-core-build.md).
+
+---
+
 ## [2026-05-18] v1.0.0 Phase 11 -- Hardening + security audit + release gate (CYCLE CLOSE)
 
 ### Goal

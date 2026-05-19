@@ -84,9 +84,9 @@ describe("check-prompt-policy hook", () => {
     it("supports additive extra patterns", async () => {
       const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "gemma-prompt-policy-"));
       try {
-        fs.mkdirSync(path.join(tmp, ".gemma-code"), { recursive: true });
+        fs.mkdirSync(path.join(tmp, ".nexus"), { recursive: true });
         fs.writeFileSync(
-          path.join(tmp, ".gemma-code", "prompt-policy.json"),
+          path.join(tmp, ".nexus", "prompt-policy.json"),
           JSON.stringify({
             extraPatterns: [{ name: "internal-token", regex: "INT-[A-Z0-9]{12}" }],
           }),
@@ -105,9 +105,9 @@ describe("check-prompt-policy hook", () => {
     it("rejects override patterns with nested quantifiers", async () => {
       const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "gemma-prompt-policy-"));
       try {
-        fs.mkdirSync(path.join(tmp, ".gemma-code"), { recursive: true });
+        fs.mkdirSync(path.join(tmp, ".nexus"), { recursive: true });
         fs.writeFileSync(
-          path.join(tmp, ".gemma-code", "prompt-policy.json"),
+          path.join(tmp, ".nexus", "prompt-policy.json"),
           JSON.stringify({
             extraPatterns: [{ name: "evil", regex: "(a+)+" }],
           }),
@@ -127,9 +127,9 @@ describe("check-prompt-policy hook", () => {
     it("respects the allowlist for known false positives", async () => {
       const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "gemma-prompt-policy-"));
       try {
-        fs.mkdirSync(path.join(tmp, ".gemma-code"), { recursive: true });
+        fs.mkdirSync(path.join(tmp, ".nexus"), { recursive: true });
         fs.writeFileSync(
-          path.join(tmp, ".gemma-code", "prompt-policy.json"),
+          path.join(tmp, ".nexus", "prompt-policy.json"),
           JSON.stringify({ allowlist: ["AKIAIOSFODNN7EXAMPLE"] }),
           "utf-8",
         );

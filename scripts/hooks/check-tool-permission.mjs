@@ -36,7 +36,7 @@ import { matchesSecretPath } from "./lib/secret-paths.mjs";
 
 const CONSENT_FILE =
   process.env["GEMMA_HOOK_CONSENT_FILE"] ??
-  join(homedir(), ".gemma-code", "hooks-consent.json");
+  join(homedir(), ".nexus", "hooks-consent.json");
 
 function recordConsentIfNeeded(sessionId) {
   if (!sessionId) return;

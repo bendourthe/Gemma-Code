@@ -5,7 +5,7 @@
  * canonical `quickLabelTip` text. The default chip set is fixed; custom
  * chips can be layered on at runtime by passing a merged array into the
  * compiled render function. The webview is expected to load custom chips
- * from `~/.gemma-code/plans/quick-labels.json` via {@link loadCustomQuickLabels}.
+ * from `~/.nexus/plans/quick-labels.json` via {@link loadCustomQuickLabels}.
  *
  * Safety: every dynamic string flows through `textContent`; no innerHTML.
  */
@@ -62,11 +62,11 @@ export const DEFAULT_QUICK_LABELS: readonly QuickLabel[] = [
 
 /**
  * Default location of the user-editable custom-chip overlay.
- * `~/.gemma-code/plans/quick-labels.json` contains a JSON array of
+ * `~/.nexus/plans/quick-labels.json` contains a JSON array of
  * {@link QuickLabel} rows that are appended to the built-in chip set.
  */
 export function defaultCustomQuickLabelsPath(): string {
-  return path.join(os.homedir(), ".gemma-code", "plans", "quick-labels.json");
+  return path.join(os.homedir(), ".nexus", "plans", "quick-labels.json");
 }
 
 /**

@@ -8,8 +8,8 @@ import { formatForLog } from "../utils/errors.js";
  * Phase 9 (v0.5.0) -- Opt-in append-only operation log.
  *
  * Writes one Markdown-friendly line per tool call to
- * `<workspace>/.gemma-code/operation-log.md` when
- * `gemma-code.operationLog.enabled` is true. Default off so the privacy and
+ * `<workspace>/.nexus/operation-log.md` when
+ * `nexus.operationLog.enabled` is true. Default off so the privacy and
  * disk-cost trade-off is opt-in.
  *
  * The log records ONLY tool metadata: tool name, outcome, optional path (or
@@ -49,7 +49,7 @@ export interface OperationLogStats {
 // Constants
 // ---------------------------------------------------------------------------
 
-export const OPERATION_LOG_DIRNAME = ".gemma-code";
+export const OPERATION_LOG_DIRNAME = ".nexus";
 export const OPERATION_LOG_FILENAME = "operation-log.md";
 
 const FLUSH_INTERVAL_MS = 1_000;

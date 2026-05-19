@@ -587,7 +587,7 @@ describe("ChatCommandHandlers", () => {
         memoryPath: "/ws/Memory.md",
         contextPath: "/ws/Context.md",
       })),
-      workspaceDir: "/home/u/.gemma-code/memory/ws",
+      workspaceDir: "/home/u/.nexus/memory/ws",
     };
     const { ctx, added } = makeFakeCtx({ memoryFiles });
     const h = new ChatCommandHandlers(ctx);
@@ -608,7 +608,7 @@ describe("ChatCommandHandlers", () => {
         memoryPath: "/ws/Memory.md",
         contextPath: "/ws/Context.md",
       })),
-      workspaceDir: "/home/u/.gemma-code/memory/ws",
+      workspaceDir: "/home/u/.nexus/memory/ws",
     };
     const { ctx } = makeFakeCtx({ memoryFiles });
     const h = new ChatCommandHandlers(ctx);
@@ -627,7 +627,7 @@ describe("ChatCommandHandlers", () => {
   it("/memory archive snapshots the three files", async () => {
     const memoryFiles = {
       archive: vi.fn(() => ({
-        archivedPath: "/home/u/.gemma-code/memory/ws/Archive/2026-05-05",
+        archivedPath: "/home/u/.nexus/memory/ws/Archive/2026-05-05",
         archivedAt: new Date("2026-05-05T12:00:00Z"),
       })),
     };

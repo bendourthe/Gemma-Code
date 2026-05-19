@@ -213,11 +213,11 @@ describe("ToolOutputCache", () => {
     c2.close();
   });
 
-  it("creates the .gemma-code subdir when given a workspace root", () => {
+  it("creates the .nexus subdir when given a workspace root", () => {
     const wsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "ws-cache-"));
     const c = new ToolOutputCache();
     c.open(wsRoot);
-    const expected = path.join(wsRoot, ".gemma-code", "tool-output-cache.sqlite");
+    const expected = path.join(wsRoot, ".nexus", "tool-output-cache.sqlite");
     expect(c.dbPath()).toBe(expected);
     expect(fs.existsSync(expected)).toBe(true);
     c.close();

@@ -227,7 +227,7 @@ export class ChatMessageRouter {
         active: shouldPlan,
       });
       // v0.8.0 Phase 3.4: when activating plan mode, fold any user-supplied
-      // overlay from `~/.gemma-code/hooks/enterplanmode-improve.md` into the
+      // overlay from `~/.nexus/hooks/enterplanmode-improve.md` into the
       // conversation as an additional system message. The hook is purely
       // additive; the built-in addendum and PFM reminder (already in the
       // rebuilt prompt above) stay authoritative.

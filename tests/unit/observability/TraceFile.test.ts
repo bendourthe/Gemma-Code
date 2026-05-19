@@ -125,7 +125,7 @@ describe("TraceFile", () => {
 
   it("defaultTracePath places the file under the user's home directory", () => {
     const p = defaultTracePath("abc123");
-    expect(p).toContain("gemma-code");
+    expect(p).toContain(".nexus");
     expect(p).toContain("abc123");
   });
 });

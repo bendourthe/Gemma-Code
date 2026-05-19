@@ -27,7 +27,7 @@ export const SECRET_PATH_PATTERNS: readonly string[] = [
   "**/.aws/**",
   "**/.ssh/**",
   "**/secrets/**",
-  "**/.gemma-code/mcp.json",
+  "**/.nexus/mcp.json",
 ];
 
 const MINIMATCH_OPTIONS = {

@@ -124,7 +124,7 @@ export function buildMemorySubsystem(
  * The optional `baseDir` override exists primarily for integration tests --
  * Windows `os.homedir()` ignores `USERPROFILE` env overrides, so the test
  * harness needs an explicit injection point. Production callers should leave
- * it undefined so the canonical `~/.gemma-code/memory/` path is used.
+ * it undefined so the canonical `~/.nexus/memory/` path is used.
  */
 export function buildMemoryFiles(
   settings: GemmaCodeSettings,

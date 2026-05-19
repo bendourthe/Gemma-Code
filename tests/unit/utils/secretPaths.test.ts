@@ -17,7 +17,7 @@ describe("matchesSecretPath", () => {
     [".aws/nested/credentials"],
     [".ssh/known_hosts"],
     ["secrets/token"],
-    [".gemma-code/mcp.json"],
+    [".nexus/mcp.json"],
   ])("matches known secret pattern: %s", (path) => {
     expect(matchesSecretPath(path)).toBe(true);
   });

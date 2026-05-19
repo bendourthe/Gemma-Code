@@ -83,7 +83,7 @@ export interface MemoryHealthCheckDeps {
 
 /**
  * Health-check pass over the semantic memory layer. Report-only -- never
- * mutates the store. Emits a Markdown report under `.gemma-code/memory-health.md`
+ * mutates the store. Emits a Markdown report under `.nexus/memory-health.md`
  * via `writeReportToDisk`.
  */
 export class MemoryHealthCheck {
@@ -128,11 +128,11 @@ export class MemoryHealthCheck {
 
   /**
    * Render the report as Markdown and write it to
-   * `<workspace>/.gemma-code/memory-health.md`. Overwrites any prior report.
+   * `<workspace>/.nexus/memory-health.md`. Overwrites any prior report.
    * Returns the absolute path of the written file.
    */
   writeReportToDisk(report: MemoryHealthReport): string {
-    const dir = path.join(this._deps.workspaceRoot, ".gemma-code");
+    const dir = path.join(this._deps.workspaceRoot, ".nexus");
     fs.mkdirSync(dir, { recursive: true });
     const target = path.join(dir, "memory-health.md");
     fs.writeFileSync(target, this.renderMarkdown(report), { encoding: "utf8" });

@@ -8,7 +8,7 @@ import { getLogger } from "../utils/logger.js";
  * v0.8.0 Phase 5 sub-task 5.1 (item D5) -- per-skill success metrics.
  *
  * Records every skill invocation as a discrete event and projects a rolling
- * 30-day window per skill. Events are persisted to `~/.gemma-code/metrics.json`
+ * 30-day window per skill. Events are persisted to `~/.nexus/metrics.json`
  * as a flat JSON document; the file is tiny (one record per invocation, the
  * window prunes anything older than 30 days on every write).
  *
@@ -57,7 +57,7 @@ interface MetricsFileV1 {
 }
 
 function defaultMetricsPath(): string {
-  return path.join(os.homedir(), ".gemma-code", "metrics.json");
+  return path.join(os.homedir(), ".nexus", "metrics.json");
 }
 
 export class SkillMetrics {

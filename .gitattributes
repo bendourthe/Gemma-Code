@@ -1,0 +1,12 @@
+# v1.1.0 Phase 1.8 -- normalize snapshot test fixtures to LF so the
+# characterization tests in tests/unit/agents/SubAgentManager.characterization.test.ts
+# pass on Windows checkouts (the default core.autocrlf=true would otherwise
+# rewrite the *.txt snapshots to CRLF and break the byte-exact comparison).
+#
+# Scope this attribute as narrowly as possible: only the snapshot fixtures
+# under tests/snapshots/specialists/ are byte-exact and must stay LF.
+# Everything else is left to the user's default eol behaviour so editor /
+# native-tooling expectations on each OS are preserved.
+
+tests/snapshots/specialists/*.txt text eol=lf
+tests/snapshots/specialists/*.json text eol=lf

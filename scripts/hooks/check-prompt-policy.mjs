@@ -5,7 +5,7 @@
  * the gitleaks public ruleset (~10 patterns) against the prompt body. All
  * patterns use bounded quantifiers to avoid catastrophic backtracking.
  *
- * Workspace-local override at `.gemma-code/prompt-policy.json` is additive
+ * Workspace-local override at `.nexus/prompt-policy.json` is additive
  * only: built-in patterns cannot be disabled. The override schema is:
  *
  *   {
@@ -26,7 +26,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
 const WORKSPACE_ROOT = process.env["GEMMA_HOOK_WORKSPACE_ROOT"] ?? process.cwd();
-const OVERRIDE_PATH = join(WORKSPACE_ROOT, ".gemma-code", "prompt-policy.json");
+const OVERRIDE_PATH = join(WORKSPACE_ROOT, ".nexus", "prompt-policy.json");
 
 // ---------------------------------------------------------------------------
 // Built-in pattern library

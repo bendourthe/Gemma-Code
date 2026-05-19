@@ -159,7 +159,7 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
   );
 
   // v0.7.0 Phase 2: file-backed memory (Instructions/Memory/Context) lives
-  // under ~/.gemma-code/memory/<workspace-id>/. Constructed before
+  // under ~/.nexus/memory/<workspace-id>/. Constructed before
   // PromptBuilder so the read result is wired into every prompt build.
   const memoryFiles = buildMemoryFiles(settings);
 
@@ -181,7 +181,7 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
 
   // v0.8.0 Phase 3.2 (item A8): persistent plan-version archive. Reuses the
   // memory-file workspace id so the archive sits under
-  // `~/.gemma-code/plans/<workspace>/` next to the memory files. Falling back
+  // `~/.nexus/plans/<workspace>/` next to the memory files. Falling back
   // to `default` when no workspace is loaded preserves the local-only path.
   const planArchive = new PlanArchive({
     workspaceId: memoryFiles?.workspaceId,

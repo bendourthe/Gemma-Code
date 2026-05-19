@@ -60,7 +60,7 @@ const MODULE_DESCRIPTIONS = {
   runtime:
     "NexusCodingRuntime composition root. Wires Tracer, settings, and the dependency graph that the panel and command layers consume.",
   skills:
-    "User-defined skill loader. Reads SKILL.md files from ~/.gemma-code/skills/ and contributes them as system-prompt augmentations.",
+    "User-defined skill loader. Reads SKILL.md files from ~/.nexus/skills/ and contributes them as system-prompt augmentations.",
   storage:
     "Four-layer memory (Working, Episodic, Semantic, Graph) plus ChatHistoryStore, ToolOutputCache, and the consolidator. UnifiedMemoryRetriever is the public retrieval API (ADR-0002).",
   tools:

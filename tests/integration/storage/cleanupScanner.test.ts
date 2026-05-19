@@ -53,7 +53,7 @@ describe("scripts/cleanup-scanner.mjs", () => {
   });
 
   it("reports a stale cache file older than 30 days", () => {
-    const cacheDir = path.join(workspace, ".gemma-code", "cache");
+    const cacheDir = path.join(workspace, ".nexus", "cache");
     fs.mkdirSync(cacheDir, { recursive: true });
     const stalePath = path.join(cacheDir, "old-token-output.json");
     fs.writeFileSync(stalePath, '{"hint":"old"}');

@@ -55,7 +55,7 @@ Body text.`;
     });
 
     it("loads from workspace override when present", async () => {
-      const overrideDir = path.join(workspace, ".gemma-code", "specialists");
+      const overrideDir = path.join(workspace, ".nexus", "specialists");
       fs.mkdirSync(overrideDir, { recursive: true });
       const customBody = "You are a custom override research agent.";
       fs.writeFileSync(
@@ -99,7 +99,7 @@ ${customBody}
     });
 
     it("falls through to bundled when workspace override is malformed", async () => {
-      const overrideDir = path.join(workspace, ".gemma-code", "specialists");
+      const overrideDir = path.join(workspace, ".nexus", "specialists");
       fs.mkdirSync(overrideDir, { recursive: true });
       fs.writeFileSync(
         path.join(overrideDir, "research.md"),
@@ -112,7 +112,7 @@ ${customBody}
     });
 
     it("rejects unknown modelTier values via Zod", async () => {
-      const overrideDir = path.join(workspace, ".gemma-code", "specialists");
+      const overrideDir = path.join(workspace, ".nexus", "specialists");
       fs.mkdirSync(overrideDir, { recursive: true });
       fs.writeFileSync(
         path.join(overrideDir, "research.md"),

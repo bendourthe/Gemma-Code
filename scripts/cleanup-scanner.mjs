@@ -8,7 +8,7 @@
 //   * Orphan FTS5 rows pointing at deleted memories.
 //   * Dangling embeddings (zero-vector or non-finite values).
 //   * Memory.md / Context.md references to deleted file paths.
-//   * Stale `.gemma-code/cache/*` files older than 30 days.
+//   * Stale `.nexus/cache/*` files older than 30 days.
 //
 // Node-only, zero dependencies. The scanner is best-effort and read-only
 // -- it never mutates the database or files on disk.
@@ -65,7 +65,7 @@ function printUsage() {
       "Options:",
       "  --format <text|json>   Output format (default: text).",
       "  --workspace <path>     Workspace root to scan (default: cwd).",
-      "  --memory-dir <path>    Memory base dir (default: ~/.gemma-code/memory).",
+      "  --memory-dir <path>    Memory base dir (default: ~/.nexus/memory).",
       "  -h, --help             Show this help.",
       "",
     ].join("\n"),
@@ -78,7 +78,7 @@ function printUsage() {
 
 function scanStaleCacheFiles(workspace) {
   const findings = [];
-  const cacheDir = path.join(workspace, ".gemma-code", "cache");
+  const cacheDir = path.join(workspace, ".nexus", "cache");
   if (!fs.existsSync(cacheDir)) return findings;
 
   const cutoff = Date.now() - STALE_CACHE_MS;
@@ -163,16 +163,16 @@ function scanDeletedPathReferences(workspace, memoryDir) {
 
 function scanDatabaseOrphans(workspace) {
   // The MemoryStore / ChatHistoryStore SQLite databases live in the
-  // workspace-local `.gemma-code/` cache when present. We use better-sqlite3
+  // workspace-local `.nexus/` cache when present. We use better-sqlite3
   // from the project's own node_modules so the scanner stays zero-dependency
   // outside of the repo's existing tree.
   const dbCandidates = [
-    path.join(workspace, ".gemma-code", "memory.db"),
-    path.join(workspace, ".gemma-code", "memories.db"),
+    path.join(workspace, ".nexus", "memory.db"),
+    path.join(workspace, ".nexus", "memories.db"),
   ];
   const dbPath = dbCandidates.find((p) => fs.existsSync(p));
   if (!dbPath) {
-    return { findings: [], note: "no MemoryStore database found at .gemma-code/memory.db; skipping DB checks" };
+    return { findings: [], note: "no MemoryStore database found at .nexus/memory.db; skipping DB checks" };
   }
 
   let Database;
@@ -272,7 +272,7 @@ function scanDatabaseOrphans(workspace) {
 
 function main() {
   const args = parseArgs(process.argv);
-  const memoryDir = args.memoryDir ?? path.join(os.homedir(), ".gemma-code", "memory");
+  const memoryDir = args.memoryDir ?? path.join(os.homedir(), ".nexus", "memory");
 
   const report = {
     scannedAt: new Date().toISOString(),

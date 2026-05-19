@@ -9,7 +9,7 @@ export interface McpServerConfig {
   readonly env?: Record<string, string>;
 }
 
-/** Top-level structure of ~/.gemma-code/mcp.json or .gemma-code/mcp.json. */
+/** Top-level structure of ~/.nexus/mcp.json or .nexus/mcp.json. */
 export interface McpConfigFile {
   readonly servers: readonly McpServerConfig[];
 }

@@ -12,7 +12,7 @@ import { formatForLog } from "../utils/errors.js";
  *   - memory.db              (MemoryStore, global storage)
  *   - traces.sqlite          (TraceStore, global storage)
  *   - graph.sqlite           (GraphMemory, global storage)
- *   - tool-output-cache.sqlite (ToolOutputCache, workspace .gemma-code/)
+ *   - tool-output-cache.sqlite (ToolOutputCache, workspace .nexus/)
  */
 export function secureDbPermissions(dbPath: string): void {
   if (process.platform === "win32") return;
