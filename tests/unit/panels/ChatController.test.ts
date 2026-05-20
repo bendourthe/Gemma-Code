@@ -106,6 +106,7 @@ function makeCtx(opts: CtxOptions = {}): {
     cancel: vi.fn(),
     getModifiedFiles: vi.fn(() => []),
     getRecentToolResults: vi.fn(() => []),
+    setCurrentSkill: vi.fn(),
   });
 
   const pipelineSend = vi.fn().mockResolvedValue(undefined);

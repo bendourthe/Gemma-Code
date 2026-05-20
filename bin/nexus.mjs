@@ -153,18 +153,96 @@ export async function runSkillsList(_flags, stdout = process.stdout) {
   return 0;
 }
 
-export function runSkillsInstallStub(stdout = process.stdout) {
-  stdout.write(
-    "nexus skills install: ad-hoc install from a URL is not implemented in v1.0.0 (use `nexus skills sync` against DevAI-Hub or copy SKILL.md into ~/.nexus/skills/user/<name>/).\n",
-  );
-  return 0;
+// v1.1.0 Phase 8.3 -- real install/remove implementations replace the
+// v1.0.0 stubs. Heavy logic lives in `core/skills/SkillInstaller.ts` and
+// `core/skills/installAllowlist.ts`; the CLI just parses argv and
+// renders results.
+
+async function loadSkillInstaller() {
+  const compiled = resolvePath(__dirname, "..", "out", "core", "skills", "SkillInstaller.js");
+  if (!existsSync(compiled)) {
+    throw new Error(
+      "SkillInstaller build artifact missing. Run `npm run build` before invoking `nexus skills install/remove` from source.",
+    );
+  }
+  return import(pathToFileURL(compiled).href);
 }
 
-export function runSkillsRemoveStub(stdout = process.stdout) {
-  stdout.write(
-    "nexus skills remove: not implemented in v1.0.0. Delete the SKILL.md from ~/.nexus/skills/user/ (or run `nexus skills sync --apply` to refresh devai-hub/).\n",
-  );
-  return 0;
+export async function runSkillsInstall(args, stdout = process.stdout, stderr = process.stderr) {
+  const positional = args.positional ?? [];
+  // `nexus skills install <ns>/<name> ...` -- first positional after the
+  // "install" subcommand is the spec.
+  const specRaw = positional[0];
+  if (!specRaw) {
+    stderr.write("nexus skills install: missing <namespace>/<name> argument.\n");
+    return 2;
+  }
+  const fromUrl = typeof args.flags.from === "string" ? args.flags.from : "";
+  if (!fromUrl) {
+    stderr.write("nexus skills install: --from <url> is required.\n");
+    return 2;
+  }
+  const overwrite = args.flags.overwrite === true || args.flags.overwrite === "true";
+
+  const mod = await loadSkillInstaller();
+  const spec = mod.parseSkillSpec(specRaw);
+  if (!spec) {
+    stderr.write(
+      `nexus skills install: invalid spec '${specRaw}'. Expected '<namespace>/<name>'.\n`,
+    );
+    return 2;
+  }
+  const result = await mod.installSkill(spec, {
+    url: fromUrl,
+    overwrite,
+  });
+  if (result.ok) {
+    stdout.write(`nexus skills install: wrote ${result.writtenTo}\n`);
+    if (result.scan && result.scan.decision === "warn") {
+      stderr.write(
+        `nexus skills install: ${result.scan.findings.length} scanner warning(s) recorded (install allowed).\n`,
+      );
+      for (const f of result.scan.findings) {
+        stderr.write(`  [${f.severity}] ${f.source}:${f.line} ${f.ruleId}: ${f.message}\n`);
+      }
+    }
+    return 0;
+  }
+  stderr.write(`nexus skills install: ${result.reason ?? "failed"}: ${result.message ?? ""}\n`);
+  if (result.scan && result.scan.findings.length > 0) {
+    for (const f of result.scan.findings) {
+      stderr.write(`  [${f.severity}] ${f.source}:${f.line} ${f.ruleId}: ${f.message}\n`);
+    }
+  }
+  // Use exit code 1 for validation / scanner / fetch failures (semantically
+  // "blocked"), 2 only for clearly malformed invocations.
+  return result.reason === "invalid-spec" || result.reason === "wrong-namespace" ? 2 : 1;
+}
+
+export async function runSkillsRemove(args, stdout = process.stdout, stderr = process.stderr) {
+  const positional = args.positional ?? [];
+  const specRaw = positional[0];
+  if (!specRaw) {
+    stderr.write("nexus skills remove: missing <namespace>/<name> argument.\n");
+    return 2;
+  }
+  const mod = await loadSkillInstaller();
+  const spec = mod.parseSkillSpec(specRaw);
+  if (!spec) {
+    stderr.write(
+      `nexus skills remove: invalid spec '${specRaw}'. Expected '<namespace>/<name>'.\n`,
+    );
+    return 2;
+  }
+  const result = mod.removeSkill(spec);
+  if (result.ok) {
+    stdout.write(`nexus skills remove: deleted ${result.removed}\n`);
+    return 0;
+  }
+  stderr.write(`nexus skills remove: ${result.reason ?? "failed"}: ${result.message ?? ""}\n`);
+  return result.reason === "invalid-spec" || result.reason === "wrong-namespace"
+    ? 2
+    : 1;
 }
 
 // ---------------------------------------------------------------------------
@@ -464,9 +542,9 @@ export async function main(argv) {
       case "list":
         return runSkillsList(args.flags);
       case "install":
-        return runSkillsInstallStub();
+        return runSkillsInstall(args);
       case "remove":
-        return runSkillsRemoveStub();
+        return runSkillsRemove(args);
       default:
         process.stderr.write(`nexus skills: unknown subcommand "${args.subcommand}"\n${HELP}`);
         return 2;

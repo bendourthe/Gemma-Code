@@ -10,6 +10,13 @@
  *   - KeepAliveResolver (the bridge into `src/chat/StreamingPipeline.ts`'s
  *     existing optional callback)
  *
+ * v1.1.0 Phase 8 adds two opt-in surfaces:
+ *   - SkillsReloader -- fs.watch the DevAI-Hub ACTIVE pointer so a
+ *     successful `nexus skills sync --apply` hot-reloads the catalog
+ *     (closes 10.P1.GGG).
+ *   - DevAI-Hub auto-sync worker -- registered with the IdleScheduler
+ *     under `nexus.skills.autoSync.devai-hub` (closes 10.P1.HHH).
+ *
  * Closes [v0.9.0:10.N.A] ModelPinRegistry wiring.
  */
 
@@ -20,6 +27,16 @@ import {
   JsonFileSettingsStore,
   type SettingsStore,
 } from "../../../../core/storage/SettingsStore.js";
+import {
+  SkillsReloader,
+  type ReloadableCatalog,
+} from "../../../../core/skills/SkillsReloader.js";
+import {
+  createDevAIHubSyncTask,
+  DEVAI_HUB_SYNC_TASK_ID,
+  type SyncWorkerRunner,
+} from "../../../../core/skills/DevAIHubAutoSync.js";
+import type { IdleScheduler } from "./idleScheduler.js";
 
 export interface CodingBootstrapOptions {
   /** Absolute path to the Nexus home directory (`~/.nexus`). */
@@ -28,6 +45,26 @@ export interface CodingBootstrapOptions {
   readonly settingsPath?: string;
   /** Pre-built settings store (tests). */
   readonly settings?: SettingsStore;
+  /**
+   * Optional skill catalog to hot-reload when the DevAI-Hub ACTIVE pointer
+   * rotates. Omit to skip the file-watcher attachment (tests + headless
+   * sidecars that have no catalog yet).
+   */
+  readonly skillCatalog?: ReloadableCatalog;
+  /**
+   * Idle scheduler used to register the weekly DevAI-Hub auto-sync worker.
+   * Omit to skip the registration.
+   */
+  readonly idleScheduler?: IdleScheduler;
+  /**
+   * Inject a sync runner for tests. Defaults to a closure that lazy-loads
+   * `DevAIHubSyncer` and runs `sync({apply: true})`.
+   */
+  readonly syncRunner?: SyncWorkerRunner;
+  /** Override the cadence for the auto-sync worker (tests). Defaults to 7 days. */
+  readonly autoSyncCadenceMs?: number;
+  /** Override the idle threshold for the auto-sync worker (tests). Defaults to 5 minutes. */
+  readonly autoSyncIdleMs?: number;
 }
 
 export interface CodingBootstrap {
@@ -39,7 +76,13 @@ export interface CodingBootstrap {
    * to "no override"; this resolver always returns a value once hydrated.
    */
   readonly keepAliveResolver: (model: string) => number | string | null;
+  /** Active SkillsReloader when a catalog was supplied; null otherwise. */
+  readonly skillsReloader: SkillsReloader | null;
+  /** True when the DevAI-Hub auto-sync worker was registered with the IdleScheduler. */
+  readonly autoSyncRegistered: boolean;
 }
+
+const AUTO_SYNC_SETTING_KEY = "nexus.skills.autoSync.devai-hub";
 
 export async function bootstrapCoding(opts: CodingBootstrapOptions): Promise<CodingBootstrap> {
   const settings =
@@ -49,9 +92,43 @@ export async function bootstrapCoding(opts: CodingBootstrapOptions): Promise<Cod
     });
   const modelPins = new ModelPinRegistry({ settings });
   await modelPins.hydrate();
+
+  const skillsRoot = path.join(opts.nexusHome, "skills");
+
+  let skillsReloader: SkillsReloader | null = null;
+  if (opts.skillCatalog) {
+    skillsReloader = new SkillsReloader({
+      skillsRoot,
+      catalog: opts.skillCatalog,
+    });
+    skillsReloader.start();
+  }
+
+  let autoSyncRegistered = false;
+  if (opts.idleScheduler) {
+    const enabled = await settings.get<boolean>(AUTO_SYNC_SETTING_KEY);
+    if (enabled === true) {
+      opts.idleScheduler.register(
+        createDevAIHubSyncTask({
+          runner: opts.syncRunner,
+          cadenceMs: opts.autoSyncCadenceMs,
+          idleThresholdMs: opts.autoSyncIdleMs,
+        }),
+      );
+      autoSyncRegistered = true;
+    } else {
+      // Make sure a stale registration is cleared when the setting flips off.
+      opts.idleScheduler.unregister(DEVAI_HUB_SYNC_TASK_ID);
+    }
+  }
+
   return {
     settings,
     modelPins,
     keepAliveResolver: (model) => modelPins.keepAliveFor(model),
+    skillsReloader,
+    autoSyncRegistered,
   };
 }
+
+export { AUTO_SYNC_SETTING_KEY };

@@ -50,4 +50,38 @@ describe("nexus CLI parseArgs", () => {
     expect(a.subcommand).toBe("decay");
     expect(a.flags.now).toBe(true);
   });
+
+  // v1.1.0 Phase 8.3 -- install/remove parsing.
+  it("captures skills install <spec> --from <url>", () => {
+    const a = parseArgs([
+      "skills",
+      "install",
+      "user/code-quality",
+      "--from",
+      "https://github.com/owner/repo/SKILL.md",
+    ]);
+    expect(a.command).toBe("skills");
+    expect(a.subcommand).toBe("install");
+    expect(a.positional).toEqual(["user/code-quality"]);
+    expect(a.flags.from).toBe("https://github.com/owner/repo/SKILL.md");
+  });
+
+  it("captures skills remove <spec>", () => {
+    const a = parseArgs(["skills", "remove", "user/code-quality"]);
+    expect(a.command).toBe("skills");
+    expect(a.subcommand).toBe("remove");
+    expect(a.positional).toEqual(["user/code-quality"]);
+  });
+
+  it("captures skills install with --overwrite flag", () => {
+    const a = parseArgs([
+      "skills",
+      "install",
+      "user/foo",
+      "--from",
+      "https://github.com/owner/repo",
+      "--overwrite",
+    ]);
+    expect(a.flags.overwrite).toBe(true);
+  });
 });

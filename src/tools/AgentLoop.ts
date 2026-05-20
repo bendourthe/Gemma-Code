@@ -14,7 +14,7 @@ import { recordToolEvent } from "../storage/EpisodicMemory.js";
 import type { LoopDetector } from "../guardrails/LoopDetector.js";
 import type { GitSafetyNet, GitCheckpoint } from "../guardrails/GitSafetyNet.js";
 import { classifyAction, ActionRisk } from "../guardrails/ActionClassifier.js";
-import { Tracer } from "../observability/Tracer.js";
+import { Tracer, type SkillSpanContext } from "../observability/Tracer.js";
 import type { OperationLog } from "../observability/OperationLog.js";
 import { formatForUser } from "../../modules/coding/utils/errors.js";
 import { countTokens } from "../config/PromptBudget.js";
@@ -274,6 +274,29 @@ export class AgentLoop {
   /** Recent tool result summaries (last 5). */
   getRecentToolResults(): readonly string[] {
     return [...this._recentToolResults];
+  }
+
+  /**
+   * v1.1.0 Phase 8.5 -- set or clear the active skill context. While set,
+   * the underlying tracer folds `skill.{id,namespace,...}` attributes
+   * into every `tool_call` / `sub_agent` span (see `Tracer.startSpan`).
+   * When a non-null skill is supplied AND the HookBus is wired, a
+   * `lifecycle.skill.entry` event is emitted on the bus so consumers
+   * (Memory panel provenance chips, audit CLI, trace replay) see the
+   * dispatch. Clearing (`null`) does not emit; the entry-only signal
+   * is sufficient for the audit trail.
+   */
+  setCurrentSkill(skill: SkillSpanContext | null): void {
+    this._tracer.setCurrentSkill(skill);
+    if (skill && this._hookBus && this._sessionId) {
+      this._hookBus.emit({
+        kind: "lifecycle.skill.entry",
+        sessionId: this._sessionId,
+        skillId: skill.id,
+        namespace: skill.namespace,
+        parentSpanId: this._rootSpanId || undefined,
+      });
+    }
   }
 
   /** Manually spawn a sub-agent. Returns the sub-agent's result. */

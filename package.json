@@ -269,6 +269,35 @@
           "default": true,
           "description": "v1.1.0 Phase 1.7 -- when true, the curator background task runs on the IdleTimeScheduler's idle cadence (archive stale skills, dedup memory, patch frontmatter). When false, the curator is disabled entirely. The legacy edit-threshold curator-cadence fallback has been removed; the IdleTimeScheduler is now the sole entry point."
         },
+        "nexus.skills.autoSync.devai-hub": {
+          "type": "boolean",
+          "default": false,
+          "description": "v1.1.0 Phase 8.2 -- when true, the sidecar registers a weekly `IdleTimeScheduler` worker that runs `nexus skills sync --apply` against the upstream DevAI-Hub baseline. Cadence: 7 days. Idle threshold: 5 minutes. Off by default; the user opts in from Settings -> Skills."
+        },
+        "nexus.skills.preferUpstream": {
+          "type": "boolean",
+          "default": false,
+          "description": "v1.1.0 Phase 8.4 -- when two skills share a display name (one under `user/` and one under `devai-hub/`), surface the DevAI-Hub variant first in slash-command autocomplete. Off by default so local edits take precedence."
+        },
+        "nexus.skills.harvest": {
+          "type": "boolean",
+          "default": true,
+          "description": "v0.8.0 Phase 6 / v1.1.0 -- Detect repeated tool-call sequences in episodic memory and surface a SKILL.md draft proposal on the third recurrence."
+        },
+        "nexus.skills.harvestMinRecurrence": {
+          "type": "number",
+          "default": 3,
+          "minimum": 2,
+          "maximum": 10,
+          "description": "v0.8.0 Phase 6 / v1.1.0 -- Minimum recurrence count before a workflow becomes a skill proposal."
+        },
+        "nexus.skills.harvestWindowDays": {
+          "type": "number",
+          "default": 7,
+          "minimum": 1,
+          "maximum": 90,
+          "description": "v0.8.0 Phase 6 / v1.1.0 -- Lookback window (in days) for the workflow detector."
+        },
         "gemma-code.ollamaUrl": {
           "type": "string",
           "default": "http://localhost:11434",

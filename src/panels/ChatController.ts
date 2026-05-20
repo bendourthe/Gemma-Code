@@ -321,12 +321,24 @@ export class ChatController {
       // guard before reading so older tests stay green.
       const metrics = ctx.getSkillMetrics?.() ?? null;
       const startedAt = Date.now();
+      // v1.1.0 Phase 8.5 -- attach skill provenance so every tool_call span
+      // inside the skill's body carries `skill.{id, namespace, ...}`. We
+      // address the user-loaded SkillLoader entry as `user/<name>` so the
+      // span's namespace matches the namespace surfaced in the autocomplete
+      // (the agentic-side built-in catalog already runs without setCurrentSkill).
+      const skillSpan = {
+        id: `user/${skill.name}`,
+        namespace: "user" as const,
+      };
+      ctx.agentLoop.setCurrentSkill(skillSpan);
       try {
         await ctx.pipeline.send(combinedText, postWithRender);
         metrics?.recordInvocation(command.name, "success", Date.now() - startedAt);
       } catch (err) {
         metrics?.recordInvocation(command.name, "failure", Date.now() - startedAt);
         throw err;
+      } finally {
+        ctx.agentLoop.setCurrentSkill(null);
       }
       this._checkForPlan();
       return;
