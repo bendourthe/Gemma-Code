@@ -4,6 +4,39 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-20] v1.1.0 Phase 7 -- Session replay timeline (`<TimelineScrubber>` + side-list + compare mode)
+
+### Goal
+
+Surface a scrubbable replay of any recorded coding session inside the TraceDashboard, plus a side-by-side "compare two sessions" mode that diffs event streams at the linked playhead. Adopts agentmemory A6 ([docs/v1.1.0/comparison-agentmemory.md](v1.1.0/comparison-agentmemory.md) Section 11.2). Plan reference: [docs/v1.1.0/plans/phase-07-session-replay-timeline.md](v1.1.0/plans/phase-07-session-replay-timeline.md).
+
+### What changed
+
+**7.1 Session list side-panel in the TraceDashboard.** [desktop/src/modules/coding/panels/TraceDashboardPanel.tsx](../desktop/src/modules/coding/panels/TraceDashboardPanel.tsx) gained four optional props (`sessions`, `activeSessionId`, `onSelectSession`, plus the compare-mode trio) so the dashboard remains backward-compatible -- when no `sessions` prop is supplied, the panel renders the legacy hookKind-filtered event list unchanged. When `sessions` is provided, a left-rail list renders one row per session showing `sessionId.slice(0,8)`, `title`, `modelId`, `messageCount`, and `createdAt`. Clicking a row calls `onSelectSession(id)`; the parent (`CodingPage`) then fetches that session's events via `coding.trace.subscribe({sessionId: id})` and re-hydrates the right pane with a fresh `<TimelineScrubber>`. The active row is visually highlighted via `--bg-1`.
+
+**7.2 `<TimelineScrubber>` component.** New [desktop/src/modules/coding/panels/TimelineScrubber.tsx](../desktop/src/modules/coding/panels/TimelineScrubber.tsx) wraps a horizontal `<input type="range">` slider whose `min/max` track the session's wall-clock duration (computed from each event's `Date.parse(timestamp)` relative to the first event). Tick marks for every event sit on a thin overlay below the slider. Controls: Play/Pause toggle, "Go to start" / "Go to end" buttons, and a speed dropdown wired to the literal-union `PLAYBACK_SPEEDS = [0.5, 1, 2, 4]`. Playback uses `requestAnimationFrame`: on each frame the playhead advances by `(performance.now() - lastFrame) * speed`; any event whose `offsetMs` is now `<=` playhead is emitted to the optional `onPlayheadCross([events])` callback exactly once. Resuming from end auto-rewinds to 0 (so re-pressing Play after completion replays the whole session). Three test seams (`now`, `raf`, `caf`) inject a deterministic clock so the rAF loop is unit-testable without `jsdom` polyfills -- the 10-event 2x test runs to completion in ~450 ms of simulated wall-clock against a 900 ms session. The component also supports controlled-mode `playing` / `speed` props, which is how Phase 7.3's compare view shares a single play state across two scrubbers.
+
+**7.3 "Compare two sessions" mode.** New [desktop/src/modules/coding/panels/SessionCompareView.tsx](../desktop/src/modules/coding/panels/SessionCompareView.tsx) renders the two `<TimelineScrubber>` instances in a CSS grid, both wired to a shared `playing` / `speed` state (i.e. one Play button toggles both, one speed dropdown sets both). Below the timelines, a Diff pane builds a row-per-index table from the events crossed so far in each session, marking each row `data-differs="true"` when `kind` or `summary` differ. The dashboard exposes this mode via a "Compare to..." button that opens a session-picker dialog ([trace-compare-picker] role=dialog) listing every session except the active one; picking a target calls `onPickCompareSession(id)`, which the parent uses to fetch the target's events and pass them back as `compareEvents`. A "Close compare" button on the compare view bubbles `onCloseCompare()` so the dashboard flips back to single-session replay.
+
+**7.4 CodingPage wiring + lint/build/test gate.** [desktop/src/modules/coding/CodingPage.tsx](../desktop/src/modules/coding/CodingPage.tsx) added three pieces of session-replay state (`replaySessionId`, `compareSessionId`, `compareEvents`) plus `handleReplaySelect` / `handleCompareSelect` / `handleCloseCompare` callbacks that fan out to `coding.trace.subscribe({sessionId})` and `coding.sessions.list` IPC. The Trace tab now also reloads the session list on activation so the side-rail is fresh. Root: `npm run lint` clean; `npm run build` clean; `npm run test:shell` 384/384 passing; coverage on the three new + modified files: `TimelineScrubber.tsx` 97.79% lines / 100% functions, `SessionCompareView.tsx` 100% lines / 100% functions, `TraceDashboardPanel.tsx` 99.59% lines / 88.88% functions -- the >= 80% gate is met with room to spare. The catalog file ([docs/index.md](index.md)) was regenerated to drop the stale `src/utils/` section that lingered from the Phase 3 codemod move.
+
+### CI carryover fix
+
+The Phase 6 push left `package-lock.json` out of sync with `package.json` after the Phase 5 `@xenova/transformers ^2.17.2` (now declared under `optionalDependencies`) was added without a matching `npm install` -- `npm ci` errored out on 44 missing entries (`@xenova/transformers`, `onnxruntime-{node,web,common}`, `sharp`, `protobufjs`, `tar-fs`, `bare-*`, etc.) and cascaded that exit-1 into every TypeScript / lint / test / installer step of the previous CI run. This commit ships the regenerated lockfile so `npm ci --prefer-offline --no-audit` resolves cleanly on Node 22.x and 24.x.
+
+### Outcome
+
+- New files: [desktop/src/modules/coding/panels/TimelineScrubber.tsx](../desktop/src/modules/coding/panels/TimelineScrubber.tsx), [desktop/src/modules/coding/panels/SessionCompareView.tsx](../desktop/src/modules/coding/panels/SessionCompareView.tsx), [desktop/tests/TimelineScrubber.test.tsx](../desktop/tests/TimelineScrubber.test.tsx), [desktop/tests/SessionCompareView.test.tsx](../desktop/tests/SessionCompareView.test.tsx), [docs/v1.1.0/development/history/2026-05_phase-07-session-replay-timeline.md](v1.1.0/development/history/2026-05_phase-07-session-replay-timeline.md).
+- Updated source files: [desktop/src/modules/coding/panels/TraceDashboardPanel.tsx](../desktop/src/modules/coding/panels/TraceDashboardPanel.tsx) (left-rail session list, compare picker, compare-mode switch), [desktop/src/modules/coding/CodingPage.tsx](../desktop/src/modules/coding/CodingPage.tsx) (session-replay + compare state and IPC fan-out), [desktop/tests/panels.test.tsx](../desktop/tests/panels.test.tsx) (3 new TraceDashboard cases), [package-lock.json](../package-lock.json) (lockfile sync for `@xenova/transformers` and its 43 transitive deps), [docs/index.md](index.md) (catalog regen).
+- Updated documents: [docs/v1.1.0/known-gaps.md](v1.1.0/known-gaps.md) (Phase 7 closure recorded; `## 3. Summary` recomputed), this DEVLOG.
+- Test status: 13 new tests (9 `TimelineScrubber` + 4 `SessionCompareView`) plus 3 new `TraceDashboardPanel` cases; full desktop suite 384/384 green. Build clean; lint clean.
+
+### Known gaps recap
+
+After Phase 7 the v1.1.0 known-gaps file has 16 open items + 29 resolved (was 16 + 28 after Phase 6). Phase 7 closes agentmemory A6 (session replay timeline) and introduces no new deferred items -- the IPC trace-by-session contract was already in place from Phase 2 (`coding.trace.subscribe({sessionId?})`).
+
+---
+
 ## [2026-05-19] v1.1.0 Phase 6 -- Memory lifecycle CLI + Ebbinghaus decay + `/recall` `/remember` `/forget` slash commands
 
 ### Goal

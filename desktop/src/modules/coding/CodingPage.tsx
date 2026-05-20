@@ -63,6 +63,12 @@ export function CodingPage({
   const [memorySnapshot, setMemorySnapshot] = useState<MemorySnapshotT | null>(null);
   const [traceEvents, setTraceEvents] = useState<readonly TraceEventT[]>([]);
   const [sessions, setSessions] = useState<readonly CodingSessionSummaryT[]>([]);
+  // v1.1.0 Phase 7 -- session-replay state: the active session selected from
+  // the trace dashboard's left rail, and the optional second session being
+  // compared against it (with its own pre-fetched event list).
+  const [replaySessionId, setReplaySessionId] = useState<string | null>(null);
+  const [compareSessionId, setCompareSessionId] = useState<string | null>(null);
+  const [compareEvents, setCompareEvents] = useState<readonly TraceEventT[]>([]);
 
   const ensureSession = useCallback(async (): Promise<string | null> => {
     if (sessionId) return sessionId;
@@ -136,6 +142,52 @@ export function CodingPage({
       });
   }, [tab]);
 
+  // v1.1.0 Phase 7.1 -- the Trace tab also needs the session list so the
+  // user can pick a session to replay or compare. Reload it whenever the
+  // Trace tab becomes active.
+  useEffect(() => {
+    if (tab !== "trace") return;
+    void ipc
+      .call<CodingSessionListResponseT>("coding.sessions.list", {})
+      .then((r) => {
+        if (r.ok) setSessions(r.value.sessions);
+      });
+  }, [tab]);
+
+  // v1.1.0 Phase 7.1 -- selecting a session in the trace dashboard loads
+  // that session's events into the scrubber.
+  const handleReplaySelect = useCallback(async (id: string): Promise<void> => {
+    setReplaySessionId(id);
+    setCompareSessionId(null);
+    setCompareEvents([]);
+    const reply = await ipc.call<CodingTraceSubscribeResponseT>(
+      "coding.trace.subscribe",
+      { sessionId: id },
+    );
+    if (reply.ok) setTraceEvents(reply.value.events);
+  }, []);
+
+  // v1.1.0 Phase 7.3 -- picking the second session pulls its events in
+  // parallel and flips the dashboard to compare mode.
+  const handleCompareSelect = useCallback(async (id: string): Promise<void> => {
+    setCompareSessionId(id);
+    const reply = await ipc.call<CodingTraceSubscribeResponseT>(
+      "coding.trace.subscribe",
+      { sessionId: id },
+    );
+    if (reply.ok) setCompareEvents(reply.value.events);
+  }, []);
+
+  const handleCloseCompare = useCallback((): void => {
+    setCompareSessionId(null);
+    setCompareEvents([]);
+  }, []);
+
+  const compareSummary = useMemo<CodingSessionSummaryT | null>(() => {
+    if (!compareSessionId) return null;
+    return sessions.find((s) => s.sessionId === compareSessionId) ?? null;
+  }, [sessions, compareSessionId]);
+
   const tabButtonStyle = useMemo(
     () => (active: boolean): React.CSSProperties => ({
       padding: "var(--space-2) var(--space-3)",
@@ -206,7 +258,18 @@ export function CodingPage({
           </div>
         )}
         {tab === "memory" && <MemoryPanel snapshot={memorySnapshot} />}
-        {tab === "trace" && <TraceDashboardPanel events={traceEvents} />}
+        {tab === "trace" && (
+          <TraceDashboardPanel
+            events={traceEvents}
+            sessions={sessions}
+            activeSessionId={replaySessionId}
+            onSelectSession={(id) => void handleReplaySelect(id)}
+            compareSession={compareSummary}
+            compareEvents={compareEvents}
+            onPickCompareSession={(id) => void handleCompareSelect(id)}
+            onCloseCompare={handleCloseCompare}
+          />
+        )}
         {tab === "sessions" && (
           <SessionListPanel
             sessions={sessions}

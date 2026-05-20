@@ -22,9 +22,8 @@ For the ADR-level architecture see [../ARCHITECTURE.md](../ARCHITECTURE.md) and 
 | `panels` | 31 | 9515 | [src/panels/webview/index.ts](../src/panels/webview/index.ts) | `ACTION_TAG_FN_SOURCE`, `ActionClassificationMessage`, `actionLabelFor` |
 | `runtime` | 1 | 127 | [src/runtime/NexusCodingRuntime.ts](../src/runtime/NexusCodingRuntime.ts) | `NexusCodingRuntime` |
 | `skills` | 4 | 942 | [src/skills/CurationLoop.ts](../src/skills/CurationLoop.ts) | `CurationInputs`, `CurationLoop`, `CuratorAction` |
-| `storage` | 37 | 8771 | [src/storage/eviction/index.ts](../src/storage/eviction/index.ts) | `ARCEvictor`, `ArchiveResult`, `BrokenPathIssue` |
-| `tools` | 21 | 5953 | [src/tools/handlers/filesystem.ts](../src/tools/handlers/filesystem.ts) | `_checkCacheSizeForTests`, `_internal`, `AgentLoop` |
-| `utils` | 6 | 987 | [src/utils/Compressor.ts](../src/utils/Compressor.ts) | `BROTLI_QUALITY`, `CompressedToolOutput`, `CompressionResult` |
+| `storage` | 37 | 8901 | [src/storage/eviction/index.ts](../src/storage/eviction/index.ts) | `ARCEvictor`, `ArchiveResult`, `BrokenPathIssue` |
+| `tools` | 21 | 6053 | [src/tools/handlers/filesystem.ts](../src/tools/handlers/filesystem.ts) | `_checkCacheSizeForTests`, `_internal`, `AgentLoop` |
 
 ## Module purposes
 
@@ -82,7 +81,7 @@ NexusCodingRuntime composition root. Wires Tracer, settings, and the dependency 
 
 ### `skills`
 
-User-defined skill loader. Reads SKILL.md files from ~/.gemma-code/skills/ and contributes them as system-prompt augmentations.
+User-defined skill loader. Reads SKILL.md files from ~/.nexus/skills/ and contributes them as system-prompt augmentations.
 
 ### `storage`
 
@@ -91,10 +90,6 @@ Four-layer memory (Working, Episodic, Semantic, Graph) plus ChatHistoryStore, To
 ### `tools`
 
 Tool registry, agent loop, output redirector, and the handlers under tools/handlers/. Routes every call through ConfirmationGate and PermissionTiers.
-
-### `utils`
-
-Logger, error formatting (formatForUser/formatForLog), Markdown renderer (DOMPurify-sanitized), and small shared helpers.
 
 ---
 

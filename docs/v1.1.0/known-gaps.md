@@ -1,8 +1,8 @@
 # v1.1.0 -- Known Gaps, Deferrals, and Carryovers
 
-**Status**: live (cycle opened at Phase 1, 2026-05-18; Phase 2 rebrand + core extraction landed 2026-05-19; Phase 3 coding-module codemod + first sub-tree migration landed 2026-05-19; Phase 4 memory provenance + HookBus + secret pre-index filter landed 2026-05-19; Phase 5 hybrid retrieval + local embedder + warm-build worker landed 2026-05-19; Phase 6 memory CLI + Ebbinghaus decay + slash commands landed 2026-05-19)
+**Status**: live (cycle opened at Phase 1, 2026-05-18; Phase 2 rebrand + core extraction landed 2026-05-19; Phase 3 coding-module codemod + first sub-tree migration landed 2026-05-19; Phase 4 memory provenance + HookBus + secret pre-index filter landed 2026-05-19; Phase 5 hybrid retrieval + local embedder + warm-build worker landed 2026-05-19; Phase 6 memory CLI + Ebbinghaus decay + slash commands landed 2026-05-19; Phase 7 session replay timeline + compare mode landed 2026-05-20)
 **Audience**: v1.1.0 phase authors, code reviewer, security reviewer, ops engineer, future-cycle planners
-**Last updated**: 2026-05-19
+**Last updated**: 2026-05-20
 **Sibling reviews**: [docs/v1.0.0/known-gaps.md](../v1.0.0/known-gaps.md) (the upstream cycle gap log this file inherits from); [docs/v1.1.0/plans/v1.1.0-cycle.md](plans/v1.1.0-cycle.md) (the active plan); [docs/v1.1.0/plans/phase-01-shared-core-and-carryforward-closure.md](plans/phase-01-shared-core-and-carryforward-closure.md) (Phase 1 detail); [docs/v1.1.0/plans/phase-02-rebrand-and-core-extraction.md](plans/phase-02-rebrand-and-core-extraction.md) (Phase 2 detail); [docs/v1.1.0/plans/phase-03-coding-module.md](plans/phase-03-coding-module.md) (Phase 3 detail); [docs/v1.1.0/plans/phase-05-hybrid-retrieval-and-local-embedder.md](plans/phase-05-hybrid-retrieval-and-local-embedder.md) (Phase 5 detail).
 
 **Cycle context**: v1.1.0 is the stabilization-plus-expansion cycle. Phase 1 (commit `ec3ff0e`) opened the carryforward closure sweep with bounded items (storage-path rename, deprecationMessage injection, curator-cadence delete, CRLF/LF snapshot normalization, shared-core decision document). Phase 2 (commit `de219a5`) closed the rebrand + sidecar core-extraction half of the deferred Phase 1 work (manifest IDs, npm package rename, sidecar duplicate model catalogs). Phase 3 (this commit) lands the `src/` -> `modules/coding/` import-rewriting codemod and the first sub-tree migration (`src/utils/` -> `modules/coding/utils/`), partially closing 1.4.P1.B; the remaining 12 sub-tree moves stay deferred but the rest of the cycle now has the mechanical pipeline ready to consume. The heavier deferred items (TypeScript project-references wiring, the rest of the wholesale `src/` -> `modules/coding/` move, `NexusCodingRuntime` wiring, Tailwind v4) stay open. The remaining cycle phases (4-15) then layer agentmemory + SANA adoptions plus the cross-OS installer and Nexus VS Code extension on top of the v1.0.0 four-pillar app. The known-gaps file is appended phase-by-phase; items move to `## 2. Resolved` when closed in a later phase, and the `## 3. Summary` at the bottom is recomputed each pass. The file is finalized at v1.1.0 release (Phase 15 RTM).
@@ -201,7 +201,13 @@ Each entry has a category tag:
 | agentmemory A1 + A2 (warm-build) | 5 (5.6) | `warmRebuild(source, embedder, bm25, dense, opts)` (in [core/memory/WarmRebuildWorker.ts](../../core/memory/WarmRebuildWorker.ts)) reads every memory row, embeds in batches of 32 (configurable), repopulates `Bm25Index` + `DenseIndex`, and reports progress via the Phase 4 `HookBus` as `lifecycle.notification` events (`notificationKind: "memory.warm-rebuild"`). Fingerprint-based short-circuit skips when the source returns the same identifier as the previous run. `createWarmRebuildTask({...})` returns an `IdleTimeScheduler.register`-compatible shape (default 5 s idle threshold, 24 h cadence) so the sidecar wiring -- tracked under 5.6.P2.O -- is a one-liner once the `MemoryStore` adapter lands. Embedder failures degrade to BM25-only with a warning notification rather than crashing. 10,000-row rebuild completes well under the 60 s acceptance ceiling. 11 unit tests in [tests/unit/core/memory/WarmRebuildWorker.test.ts](../../tests/unit/core/memory/WarmRebuildWorker.test.ts) | This commit |
 | -- (benchmark + settings) | 5 (5.7) | [tests/benchmarks/hybrid-retrieval.bench.ts](../../tests/benchmarks/hybrid-retrieval.bench.ts) declares the Phase 5 latency benchmark (top-10 retrieve on 1,000 entries + BM25 add median ceiling). Settings schema additions in [package.json](../../package.json): `nexus.memory.bm25.k1` (default 1.5), `nexus.memory.bm25.b` (default 0.75), `nexus.memory.rrf.k` (default 60), `nexus.memory.hybridMinCorpus` (default 100), each with min/max bounds and a description that points to the consuming module | This commit |
 
-### Phase 6 closures (this commit)
+### Phase 7 closures (this commit)
+
+| Source | v1.1.0 phase | Item | Resolved in |
+|---|---|---|---|
+| agentmemory A6 (session replay) | 7 (7.1 + 7.2 + 7.3) | The TraceDashboard ([desktop/src/modules/coding/panels/TraceDashboardPanel.tsx](../../desktop/src/modules/coding/panels/TraceDashboardPanel.tsx)) gained an optional left-rail session list (driven by the existing `coding.sessions.list` IPC), a `<TimelineScrubber>` ([desktop/src/modules/coding/panels/TimelineScrubber.tsx](../../desktop/src/modules/coding/panels/TimelineScrubber.tsx)) with play/pause + variable speed (0.5x / 1x / 2x / 4x) + Go-to-start/end + per-event tick marks + `requestAnimationFrame`-driven playhead, and a "Compare to..." picker that flips the dashboard to a side-by-side `<SessionCompareView>` ([desktop/src/modules/coding/panels/SessionCompareView.tsx](../../desktop/src/modules/coding/panels/SessionCompareView.tsx)) with a linked play state, a shared speed dropdown, and a row-per-index Diff pane that highlights `kind`/`summary` deltas. 13 new component tests (9 `TimelineScrubber` including the deterministic 2x-speed wall-clock assertion + 4 `SessionCompareView`) + 3 new `TraceDashboardPanel` cases. Coverage on the three new/modified files: `TimelineScrubber.tsx` 97.79%, `SessionCompareView.tsx` 100%, `TraceDashboardPanel.tsx` 99.59% -- comfortably above the 80% gate. The CodingPage ([desktop/src/modules/coding/CodingPage.tsx](../../desktop/src/modules/coding/CodingPage.tsx)) wires replay/compare state to `coding.trace.subscribe({sessionId})` + `coding.sessions.list` IPC | This commit |
+
+### Phase 6 closures (commit `c8d9e0b`)
 
 | Source | v1.1.0 phase | Item | Resolved in |
 |---|---|---|---|
@@ -231,11 +237,11 @@ Each entry has a category tag:
 |---|---|---|---|
 | P0 | 0 | 0 | 0 |
 | P1 | 6 | 14 | 20 |
-| P2 | 10 | 7 | 17 |
+| P2 | 10 | 8 | 18 |
 | P3 | 0 | 0 | 0 |
-| **Total** | **16** | **28** | **44** |
+| **Total** | **16** | **29** | **45** |
 
-Phase 6 contributes seven closures (agentmemory A11 `nexus memory audit`, A10 `nexus memory export` + `import`, `/recall`, `/remember`, A12 `/forget`, A3 Ebbinghaus `DecaySweep`, plus the CLI parsing surface) and four new open items, all P2: 6.1.P2.P (SQLite `memory_audit_log` table deferred -- the in-memory log is the production path for now), 6.2.P2.Q (CLI surface consumes injected JSONL pending the live `MemoryStore` adapters), 6.5.P2.R (Memory panel "Forget" button signals via callback; the IPC delete pipeline awaits a `MemoryHub.delete(id)` extension), and 6.6.P2.S (the `IdleTimeScheduler.register(decaySweep)` call site in the sidecar awaits the same `MemoryStore` adapter cluster as 6.1/6.2). The Phase 4 + Phase 5 closures stay on the books from prior passes.
+Phase 7 contributes one closure (agentmemory A6 session replay timeline) and introduces no new open items -- the IPC `coding.trace.subscribe({sessionId?})` contract was already in place from Phase 2 and the new `<TimelineScrubber>`, session-list side-rail, and `<SessionCompareView>` are pure consumers of that surface. Phase 6 contributed seven closures (A11 audit, A10 export+import, `/recall`, `/remember`, A12 `/forget`, A3 Ebbinghaus decay, plus the CLI parsing surface) and four P2 deferrals (6.1.P2.P, 6.2.P2.Q, 6.5.P2.R, 6.6.P2.S) -- all still open and clustered around the same live `MemoryStore` adapter cluster.
 
 By category (open items only):
 - **DF** (deferred): 14
@@ -248,6 +254,7 @@ By phase (open items only):
 - Phase 4: 3 (4.3.P1.J emit sites + 4.1.P2.K fixture-in-test + 4.5.P2.L sidecar producer)
 - Phase 5: 3 (5.1.P1.M hash-fallback in CI + 5.5.P1.N UnifiedMemoryRetriever migration deferred to Phase 6/9 + 5.6.P2.O IdleTimeScheduler binding deferred to Phase 6)
 - Phase 6: 4 (6.1.P2.P SQLite audit log table deferred + 6.2.P2.Q export/import CLI consumes injected JSONL + 6.5.P2.R Memory panel "Forget" IPC pipeline deferred + 6.6.P2.S DecaySweep IdleTimeScheduler binding deferred)
+- Phase 7: 0 new open items.
 
 ---
 

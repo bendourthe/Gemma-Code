@@ -159,6 +159,117 @@ describe("TraceDashboardPanel", () => {
     // Events without a hookKind are always visible.
     expect(screen.getByTestId("trace-event-c")).toBeInTheDocument();
   });
+
+  it("renders a left-side session list when sessions are supplied (v1.1.0 Phase 7.1)", async () => {
+    const sessions: CodingSessionSummaryT[] = [
+      {
+        sessionId: "abcdef1234",
+        modelId: "gemma4:e4b",
+        family: "gemma",
+        title: "Run alpha",
+        createdAt: "2026-05-20T11:00:00.000Z",
+        messageCount: 3,
+      },
+      {
+        sessionId: "deadbeef99",
+        modelId: "qwen2.5-coder:7b",
+        family: "qwen",
+        title: "Run beta",
+        createdAt: "2026-05-20T12:00:00.000Z",
+        messageCount: 7,
+      },
+    ];
+    const onSelect = vi.fn();
+    render(
+      <TraceDashboardPanel
+        events={[]}
+        sessions={sessions}
+        activeSessionId="abcdef1234"
+        onSelectSession={onSelect}
+      />,
+    );
+    expect(screen.getByTestId("trace-session-list")).toBeInTheDocument();
+    expect(screen.getByTestId("trace-session-abcdef1234")).toBeInTheDocument();
+    expect(screen.getByTestId("trace-session-deadbeef99")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("trace-active-session-title"),
+    ).toHaveTextContent("Run alpha");
+    await userEvent.click(screen.getByTestId("trace-session-deadbeef99"));
+    expect(onSelect).toHaveBeenCalledWith("deadbeef99");
+  });
+
+  it("opens compare picker and forwards pick to onPickCompareSession (Phase 7.3)", async () => {
+    const sessions: CodingSessionSummaryT[] = [
+      {
+        sessionId: "s1",
+        modelId: "m",
+        family: "gemma",
+        title: "A",
+        createdAt: "2026-05-20T11:00:00.000Z",
+        messageCount: 2,
+      },
+      {
+        sessionId: "s2",
+        modelId: "m",
+        family: "gemma",
+        title: "B",
+        createdAt: "2026-05-20T12:00:00.000Z",
+        messageCount: 2,
+      },
+    ];
+    const onPick = vi.fn();
+    render(
+      <TraceDashboardPanel
+        events={[]}
+        sessions={sessions}
+        activeSessionId="s1"
+        onPickCompareSession={onPick}
+      />,
+    );
+    await userEvent.click(screen.getByTestId("trace-compare-open"));
+    expect(screen.getByTestId("trace-compare-picker")).toBeInTheDocument();
+    // s1 is excluded from the picker (it's the active session).
+    expect(screen.queryByTestId("trace-compare-pick-s1")).toBeNull();
+    await userEvent.click(screen.getByTestId("trace-compare-pick-s2"));
+    expect(onPick).toHaveBeenCalledWith("s2");
+  });
+
+  it("renders the SessionCompareView when compareSession + compareEvents are supplied", () => {
+    const sessions: CodingSessionSummaryT[] = [
+      {
+        sessionId: "s1",
+        modelId: "m",
+        family: "gemma",
+        title: "A",
+        createdAt: "2026-05-20T11:00:00.000Z",
+        messageCount: 2,
+      },
+      {
+        sessionId: "s2",
+        modelId: "m",
+        family: "gemma",
+        title: "B",
+        createdAt: "2026-05-20T12:00:00.000Z",
+        messageCount: 2,
+      },
+    ];
+    const events: TraceEventT[] = [
+      { id: "a1", timestamp: "2026-05-20T11:00:00.000Z", kind: "tool", summary: "x" },
+    ];
+    const compareEvents: TraceEventT[] = [
+      { id: "b1", timestamp: "2026-05-20T12:00:00.000Z", kind: "tool", summary: "y" },
+    ];
+    render(
+      <TraceDashboardPanel
+        events={events}
+        sessions={sessions}
+        activeSessionId="s1"
+        compareSession={sessions[1]!}
+        compareEvents={compareEvents}
+      />,
+    );
+    expect(screen.getByTestId("session-compare")).toBeInTheDocument();
+  });
 });
 
 describe("SessionListPanel", () => {
