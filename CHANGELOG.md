@@ -1,3 +1,10 @@
+# [0.37.0](https://github.com/bendourthe/Nexus-AI/compare/v0.36.0...v0.37.0) (2026-05-20)
+
+
+### Features
+
+* **v1.1.0:** phase 8 devai-hub closures + skill hot-reload + agentloop provenance ([fffee43](https://github.com/bendourthe/Nexus-AI/commit/fffee43cfd6f0d980049992ae296acd963d25f48))
+
 # [0.36.0](https://github.com/bendourthe/Nexus-AI/compare/v0.35.0...v0.36.0) (2026-05-20)
 
 
