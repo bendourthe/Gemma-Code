@@ -14,6 +14,13 @@ import type { GraphQueryEngine } from "./GraphQueryEngine.js";
 import { secureDbPermissions } from "./dbPermissions.js";
 import { getLogger } from "../../modules/coding/utils/logger.js";
 import { formatForLog } from "../../modules/coding/utils/errors.js";
+import type { LifecycleProvenance } from "../../core/memory/types.js";
+import {
+  parseProvenance,
+  serializeProvenance,
+} from "../../core/memory/types.js";
+import type { ScopeId } from "../../core/memory/MemoryHub.js";
+import { redactSecrets } from "../../core/observability/redactSecrets.js";
 import {
   cosineSimilarity,
   deserializeEmbedding,
@@ -47,8 +54,11 @@ const CHARS_PER_TOKEN = 4;
  * Schema version persisted via PRAGMA user_version. Bump when the memories
  * table layout changes; the constructor runs the migration block to bring
  * an older DB up to the current version. Idempotent.
+ *
+ * Version 3 (v1.1.0 Phase 4.1): adds `provenance TEXT NULL` (lifecycle
+ * write context JSON) and `scope_id TEXT NULL` (folder-scope tag).
  */
-const MEMORY_SCHEMA_VERSION = 2;
+const MEMORY_SCHEMA_VERSION = 3;
 
 /** All valid memory type values, used for stats initialization. */
 const MEMORY_TYPES: readonly MemoryType[] = [
@@ -124,11 +134,18 @@ export class MemoryStore {
         accessed_at INTEGER NOT NULL,
         access_count INTEGER DEFAULT 0,
         relevance_decay REAL DEFAULT 1.0,
-        corroboration_count INTEGER NOT NULL DEFAULT 1
+        corroboration_count INTEGER NOT NULL DEFAULT 1,
+        provenance TEXT NULL,
+        scope_id TEXT NULL
       );
     `);
 
     this._runMigrations();
+
+    // v1.1.0 Phase 4.1: scope_id helper index for the folder-aware filter.
+    this._db.exec(
+      `CREATE INDEX IF NOT EXISTS idx_memories_scope ON memories(scope_id);`,
+    );
 
     createFtsTableAndTriggers(this._db, {
       ftsTable: "memories_fts",
@@ -166,6 +183,21 @@ export class MemoryStore {
       );
     }
 
+    // v1.1.0 Phase 4.1: add provenance + scope_id columns (NULL backfill).
+    if (currentVersion < 3) {
+      const cols = this._db
+        .prepare(`PRAGMA table_info(memories)`)
+        .all() as Array<{ name: string }>;
+      const hasProvenance = cols.some((c) => c.name === "provenance");
+      const hasScopeId = cols.some((c) => c.name === "scope_id");
+      if (!hasProvenance) {
+        this._db.exec(`ALTER TABLE memories ADD COLUMN provenance TEXT NULL`);
+      }
+      if (!hasScopeId) {
+        this._db.exec(`ALTER TABLE memories ADD COLUMN scope_id TEXT NULL`);
+      }
+    }
+
     this._db.pragma(`user_version = ${MEMORY_SCHEMA_VERSION}`);
   }
 
@@ -191,6 +223,10 @@ export class MemoryStore {
     content: string,
     type: MemoryType,
     sessionId?: string,
+    options?: {
+      readonly provenance?: LifecycleProvenance | null;
+      readonly scopeId?: ScopeId;
+    },
   ): Promise<MemoryEntry> {
     const scanResult = scanForInjection(content);
     if (!scanResult.ok) {
@@ -198,23 +234,39 @@ export class MemoryStore {
         `MemoryStore.save rejected: prompt-injection patterns detected (${summarizeFindings(scanResult.findings)})`,
       );
     }
+    // v1.1.0 Phase 4.4 -- pre-index secret redaction. Every free-text
+    // memory write is scrubbed for AWS keys, GitHub PATs, JWTs, SSH/PEM
+    // headers, and Slack tokens BEFORE the row hits SQLite.
+    const safeContent = redactSecrets(content);
     const id = randomUUID();
     const now = Date.now();
 
     let embeddingBuf: Buffer | null = null;
     if (this._embedder) {
-      const vec = await this._embedder.embed(content);
+      const vec = await this._embedder.embed(safeContent);
       if (vec) {
         embeddingBuf = serializeEmbedding(vec);
       }
     }
 
+    const provenanceJson = serializeProvenance(options?.provenance);
+    const scopeId = options?.scopeId === undefined ? null : options.scopeId;
     const insertResult = this._db
       .prepare(
-        `INSERT INTO memories (id, session_id, content, type, embedding, created_at, accessed_at, corroboration_count)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
+        `INSERT INTO memories (id, session_id, content, type, embedding, created_at, accessed_at, corroboration_count, provenance, scope_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
       )
-      .run(id, sessionId ?? null, content, type, embeddingBuf, now, now);
+      .run(
+        id,
+        sessionId ?? null,
+        safeContent,
+        type,
+        embeddingBuf,
+        now,
+        now,
+        provenanceJson,
+        scopeId,
+      );
     this._invalidateEmbeddingCache(id);
     this._cachedCount = null;
 
@@ -226,7 +278,7 @@ export class MemoryStore {
     return {
       id,
       sessionId: sessionId ?? null,
-      content,
+      content: safeContent,
       type,
       embedding: embeddingBuf ? deserializeEmbedding(embeddingBuf) : null,
       createdAt: now,
@@ -234,6 +286,8 @@ export class MemoryStore {
       accessCount: 0,
       relevanceDecay: 1.0,
       corroborationCount: 1,
+      lifecycleProvenance: parseProvenance(provenanceJson),
+      scopeId,
     };
   }
 
@@ -936,6 +990,8 @@ export class MemoryStore {
       accessCount: row.access_count,
       relevanceDecay: row.relevance_decay,
       corroborationCount: row.corroboration_count ?? 1,
+      lifecycleProvenance: parseProvenance(row.provenance ?? null),
+      scopeId: row.scope_id ?? null,
     };
   }
 
@@ -1183,4 +1239,7 @@ interface MemoryRow {
   relevance_decay: number;
   corroboration_count: number;
   rank: number;
+  // v1.1.0 Phase 4.1 -- lifecycle provenance + folder-scope columns.
+  provenance: string | null;
+  scope_id: string | null;
 }

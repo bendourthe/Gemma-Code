@@ -48,6 +48,8 @@ export class GraphMemory {
         confidence REAL DEFAULT 0.5,
         first_seen_at INTEGER NOT NULL,
         last_seen_at INTEGER NOT NULL,
+        provenance TEXT NULL,
+        scope_id TEXT NULL,
         UNIQUE(source_id, target_id, type)
       );
 
@@ -55,6 +57,33 @@ export class GraphMemory {
       CREATE INDEX IF NOT EXISTS idx_relations_target ON graph_relations(target_id);
       CREATE INDEX IF NOT EXISTS idx_entities_type ON graph_entities(type);
     `);
+
+    // v1.1.0 Phase 4.1 -- backfill `provenance` / `scope_id` on a
+    // pre-existing v1.0.0-shaped graph_relations table. Idempotent.
+    this._addGraphProvenanceColumns();
+
+    this._db.exec(
+      `CREATE INDEX IF NOT EXISTS idx_relations_scope ON graph_relations(scope_id);`,
+    );
+  }
+
+  /**
+   * v1.1.0 Phase 4.1 -- ensure `provenance` / `scope_id` columns exist on
+   * `graph_relations`. Skips ALTERs when both columns are already
+   * present so re-running on a fresh DB is a no-op.
+   */
+  private _addGraphProvenanceColumns(): void {
+    const cols = this._db
+      .prepare(`PRAGMA table_info(graph_relations)`)
+      .all() as Array<{ name: string }>;
+    const hasProvenance = cols.some((c) => c.name === "provenance");
+    const hasScopeId = cols.some((c) => c.name === "scope_id");
+    if (!hasProvenance) {
+      this._db.exec(`ALTER TABLE graph_relations ADD COLUMN provenance TEXT NULL`);
+    }
+    if (!hasScopeId) {
+      this._db.exec(`ALTER TABLE graph_relations ADD COLUMN scope_id TEXT NULL`);
+    }
   }
 
   /**

@@ -60,15 +60,44 @@ export class EpisodicMemory {
         source_message_id TEXT,
         confidence REAL DEFAULT 1.0,
         tags TEXT,
-        embedding BLOB
+        embedding BLOB,
+        provenance TEXT NULL,
+        scope_id TEXT NULL
       );
     `);
+
+    // v1.1.0 Phase 4.1 migration: add the two new columns when migrating
+    // a v1.0.0-shaped table in place. Idempotent (column-presence guard).
+    this._addEpisodicProvenanceColumns();
+
+    this._db.exec(
+      `CREATE INDEX IF NOT EXISTS idx_episodic_scope ON episodic_events(scope_id);`,
+    );
 
     createFtsTableAndTriggers(this._db, {
       ftsTable: "episodic_fts",
       contentTable: "episodic_events",
       columns: ["action", "context", "outcome"],
     });
+  }
+
+  /**
+   * v1.1.0 Phase 4.1 -- add `provenance` / `scope_id` columns to
+   * `episodic_events` when they are missing. Runs once per database open;
+   * a no-op when both columns already exist.
+   */
+  private _addEpisodicProvenanceColumns(): void {
+    const cols = this._db
+      .prepare(`PRAGMA table_info(episodic_events)`)
+      .all() as Array<{ name: string }>;
+    const hasProvenance = cols.some((c) => c.name === "provenance");
+    const hasScopeId = cols.some((c) => c.name === "scope_id");
+    if (!hasProvenance) {
+      this._db.exec(`ALTER TABLE episodic_events ADD COLUMN provenance TEXT NULL`);
+    }
+    if (!hasScopeId) {
+      this._db.exec(`ALTER TABLE episodic_events ADD COLUMN scope_id TEXT NULL`);
+    }
   }
 
   /** Record a new episodic event. Computes embedding if embedder is available. */

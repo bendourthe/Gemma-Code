@@ -21,6 +21,8 @@
 
 export type ScopeId = string | null;
 
+import type { LifecycleProvenance } from "./types.js";
+
 export interface MemoryHit {
   id: string;
   layer: "working" | "episodic" | "semantic" | "graph";
@@ -32,6 +34,12 @@ export interface MemoryHit {
   capturedAt?: string;
   /** Phase 4.2: the scope this entry was written under. `null` = root. */
   scopeId?: ScopeId;
+  /**
+   * v1.1.0 Phase 4.1 -- lifecycle write context. Populated when the entry
+   * was written through a `HookBus`-aware code path; `null` for legacy
+   * rows that pre-date the migration.
+   */
+  provenance?: LifecycleProvenance | null;
 }
 
 export interface RetrieveOpts {
@@ -62,6 +70,7 @@ export interface WorkingMemoryEntryInput {
   content: string;
   source?: string;
   scopeId?: ScopeId;
+  provenance?: LifecycleProvenance | null;
 }
 
 export interface EpisodicEventInput {
@@ -69,12 +78,14 @@ export interface EpisodicEventInput {
   content: string;
   source?: string;
   scopeId?: ScopeId;
+  provenance?: LifecycleProvenance | null;
 }
 
 export interface SemanticFactInput {
   id: string;
   content: string;
   scopeId?: ScopeId;
+  provenance?: LifecycleProvenance | null;
 }
 
 export interface WorkingMemory {
@@ -203,6 +214,7 @@ class InMemoryWorkingMemory implements WorkingMemory {
       content: entry.content,
       source: entry.source,
       scopeId: entry.scopeId,
+      provenance: entry.provenance ?? null,
       score: 1,
       capturedAt: new Date().toISOString(),
     });
@@ -234,6 +246,7 @@ class InMemoryEpisodicMemory implements EpisodicMemory {
       content: event.content,
       source: event.source,
       scopeId: event.scopeId,
+      provenance: event.provenance ?? null,
       score: 1,
       capturedAt: new Date().toISOString(),
     });
@@ -254,9 +267,16 @@ class InMemoryEpisodicMemory implements EpisodicMemory {
 }
 
 class InMemorySemanticMemory implements SemanticMemory {
-  private readonly _facts = new Map<string, { content: string; scopeId?: ScopeId }>();
+  private readonly _facts = new Map<
+    string,
+    { content: string; scopeId?: ScopeId; provenance?: LifecycleProvenance | null }
+  >();
   async upsert(fact: SemanticFactInput): Promise<void> {
-    this._facts.set(fact.id, { content: fact.content, scopeId: fact.scopeId });
+    this._facts.set(fact.id, {
+      content: fact.content,
+      scopeId: fact.scopeId,
+      provenance: fact.provenance ?? null,
+    });
   }
   async search(query: string, limit = 10): Promise<readonly MemoryHit[]> {
     const lower = query.toLowerCase();
@@ -268,6 +288,7 @@ class InMemorySemanticMemory implements SemanticMemory {
           layer: "semantic",
           content: fact.content,
           scopeId: fact.scopeId,
+          provenance: fact.provenance ?? null,
           score: 1,
           capturedAt: new Date().toISOString(),
         });
@@ -280,7 +301,11 @@ class InMemorySemanticMemory implements SemanticMemory {
     let touched = 0;
     for (const [id, fact] of this._facts) {
       if (fact.scopeId === fromScope) {
-        this._facts.set(id, { content: fact.content, scopeId: toScope });
+        this._facts.set(id, {
+          content: fact.content,
+          scopeId: toScope,
+          provenance: fact.provenance,
+        });
         touched += 1;
       }
     }

@@ -1,6 +1,6 @@
 # v1.1.0 -- Known Gaps, Deferrals, and Carryovers
 
-**Status**: live (cycle opened at Phase 1, 2026-05-18; Phase 2 rebrand + core extraction landed 2026-05-19; Phase 3 coding-module codemod + first sub-tree migration landed 2026-05-19)
+**Status**: live (cycle opened at Phase 1, 2026-05-18; Phase 2 rebrand + core extraction landed 2026-05-19; Phase 3 coding-module codemod + first sub-tree migration landed 2026-05-19; Phase 4 memory provenance + HookBus + secret pre-index filter landed 2026-05-19)
 **Audience**: v1.1.0 phase authors, code reviewer, security reviewer, ops engineer, future-cycle planners
 **Last updated**: 2026-05-19
 **Sibling reviews**: [docs/v1.0.0/known-gaps.md](../v1.0.0/known-gaps.md) (the upstream cycle gap log this file inherits from); [docs/v1.1.0/plans/v1.1.0-cycle.md](plans/v1.1.0-cycle.md) (the active plan); [docs/v1.1.0/plans/phase-01-shared-core-and-carryforward-closure.md](plans/phase-01-shared-core-and-carryforward-closure.md) (Phase 1 detail); [docs/v1.1.0/plans/phase-02-rebrand-and-core-extraction.md](plans/phase-02-rebrand-and-core-extraction.md) (Phase 2 detail); [docs/v1.1.0/plans/phase-03-coding-module.md](plans/phase-03-coding-module.md) (Phase 3 detail).
@@ -89,6 +89,27 @@ Each entry has a category tag:
 - **Reason**: 12 operator-driven items (Authenticode signing, macOS notarization, AppImage assembly, DevAI-Hub baseline SHA rotation, final brand icons, live golden-task replay, GPU bench, live DevAI-Hub sync smoke, RTM smoke checklists, plus four others) require external infrastructure that is operator-procured (EV certs) or hardware-bound (RTX 4070 rig). Phase 1 inherits them as carryforward.
 - **Suggested next step**: They surface in Phase 15's stability gate. No code change required in Phase 1.
 
+### 4.3.P1.J -- HookBus emit sites partially wired (DF, P1)
+
+- **Source phase**: Phase 4 (4.3)
+- **Plan reference**: [phase-04-memory-provenance-and-hooks.md](plans/phase-04-memory-provenance-and-hooks.md) sub-task 4.3 ("Find the equivalents in [modules/coding/](../../../src/) (post-Phase-1.4 layout): ... emit `lifecycle.session.start` ... `lifecycle.session.stop` ... `lifecycle.user.prompt` ... `lifecycle.tool.pre` + `.post` (or `.failed`) ... `lifecycle.subagent.start` / `.stop` ... `lifecycle.context.preCompact` ... `SessionStore.close(...)` -> emit `lifecycle.session.end`").
+- **Reason**: Phase 4 wired the five highest-blast-radius emit sites end-to-end (`AgentLoop.run` -> `lifecycle.session.start`/`.stop`; `_runToolCall` -> `lifecycle.tool.pre`/`.post`/`.failed`; `AgentLoop.spawnSubAgent` -> `lifecycle.subagent.start`/`.stop`). Four sites stay deferred because each touches a surface that has not been centralized in `core/` yet and would force a Phase 1.4 sub-tree move as a pre-req: (1) `lifecycle.user.prompt` lives in `ChatController.handleUserMessage` whose move into `modules/coding/` is still tracked under 1.4.P1.B; (2) `lifecycle.context.preCompact` ties into `Tracer.snapshot()` / `ContextCompactor.compact()` which spans two modules; (3) `lifecycle.session.end` requires a `SessionStore.close()` hook the sidecar's session manager does not yet expose (a Phase 1.10 dependency, see 1.10.P1.F); (4) `lifecycle.skill.entry` is intentionally deferred to Phase 8 per the plan's own note ("The `lifecycle.skill.entry` event is fired from Phase 8's `AgentLoop.setCurrentSkill(...)`").
+- **Suggested next step**: Cluster the four remaining emit sites into a Phase 1b follow-up commit alongside the `src/runtime/` -> `modules/coding/runtime/` move (which unblocks (3)). For (2), thread the HookBus into `Tracer.snapshot()` via a constructor injection; the existing `_compactor.setTraceContext` call site is the natural anchor. For (4), wait for Phase 8.
+
+### 4.1.P2.K -- v1.0.0 fixture SQLite database generated in-test rather than checked in (NI, P2)
+
+- **Source phase**: Phase 4 (4.1)
+- **Plan reference**: [phase-04-memory-provenance-and-hooks.md](plans/phase-04-memory-provenance-and-hooks.md) sub-task 4.1 prompt ("Write a fixture test that loads a v1.0.0 snapshot DB (commit a small one under `tests/fixtures/v1.0.0/memory.sqlite`) ...").
+- **Reason**: The fixture is generated programmatically inside [tests/unit/storage/MemoryStore.provenance.test.ts](../../tests/unit/storage/MemoryStore.provenance.test.ts) via `seedV1Db()` rather than checked in as a binary. The acceptance criterion ("migration runs idempotently and a fixture-based test loads a v1.0.0 database and verifies the new column is NULL-backfilled") is satisfied; the deviation is to avoid binary churn in git (the same approach the existing `MemoryStore.migration.test.ts` already uses for the v0.4.0 -> v0.5.0 migration).
+- **Suggested next step**: Keep the in-test generator unless a multi-version fixture matrix becomes valuable; at that point, codify the schemas under `tests/fixtures/<version>/seed.ts` and have each test import the appropriate seeder.
+
+### 4.5.P2.L -- Sidecar producer for `MemorySnapshot.provenance` / `TraceEvent.hookKind` not yet wired (DF, P2)
+
+- **Source phase**: Phase 4 (4.5)
+- **Plan reference**: [phase-04-memory-provenance-and-hooks.md](plans/phase-04-memory-provenance-and-hooks.md) sub-task 4.5 acceptance ("provenance chips render correctly on a fresh session's memory entries; trace filter narrows correctly").
+- **Reason**: Phase 4 added the consumer-side surface (Memory panel "Show provenance" toggle + chips; TraceDashboard `hookKind` filter dropdown) plus the protocol schema fields (`MemorySnapshot.provenance` optional map; `TraceEvent.hookKind` optional string). The sidecar producer at [desktop/sidecar/src/coding/panelData.ts](../../desktop/sidecar/src/coding/panelData.ts) still ships placeholder snapshots and a placeholder trace stream; both omit the new fields, so against a fresh-from-defaults sidecar the chips do not appear and the dropdown is empty. The UI degrades gracefully (toggle still toggles; dropdown shows `(all)`), so the acceptance is met for the synthetic test fixtures the panels are exercised against.
+- **Suggested next step**: Wire the `MemoryHub` -> `panelData.memorySnapshot()` pipeline to read `LifecycleProvenance` off each layer entry, and have the `TelemetryBus` -> `traceSubscribe()` pipeline copy `event.payload.kind` (when it starts with `lifecycle.`) onto `TraceEventT.hookKind`. Cluster with Phase 5's hybrid retrieval since `HybridRetriever` will be the natural producer of layer entries with full provenance.
+
 ---
 
 ## 2. Resolved
@@ -112,12 +133,22 @@ Each entry has a category tag:
 | 2.P2.K (npm portion) | 2 (2.2) | npm `name` + `publisher` renamed `gemma-code` -> `nexus-coding`; `package-lock.json` synced; `.npmignore` created to exclude tests / docs / desktop / runtimes / coverage / .github / scripts/installer / AI-assistant configs; installer-side `EXTENSION_ID` / `_find_vsix` glob / `setup.nsi` PRODUCT_* / Complete-page strings flipped to the new ID in lock-step | Phase 2 commit `de219a5` |
 | 3.P2.S | 2 (2.3) | Sidecar + frontend model catalogs (`desktop/sidecar/src/coding/models.ts`, `desktop/src/modules/coding/models.ts`) now derive from `core/registry/ModelCatalog` via the desktop tsconfig's `include` array; the parity test (`desktop/tests/coding-models.test.ts`) asserts positional equality against the canonical catalog | Phase 2 commit `de219a5` |
 
-### Phase 3 closures (this commit)
+### Phase 3 closures (commit `fcbaedb`)
 
 | v1.0.0 / v1.1.0 source | v1.1.0 phase | Item | Resolved in |
 |---|---|---|---|
-| 3.P1.A (new this phase) | 3 (3.1) | Generic `src/` -> `modules/coding/` import-rewriting codemod landed at [scripts/dev/rewrite-imports.mjs](../../scripts/dev/rewrite-imports.mjs); accepts a `--moves` JSON manifest, walks `src/`, `core/`, `modules/`, `tests/`, and rewrites every static `import`/`export` specifier, dynamic `import(...)`, and `vi.mock(...)`/`vi.doMock(...)` mock path whose resolved location lands inside a moved sub-tree. Idempotent; supports `--dry-run`; default manifest is the Phase 3 utils move. Unblocks every subsequent `src/` -> `modules/coding/` sub-tree move | This commit |
-| 1.4.P1.B (partial: `src/utils/`) | 3 (3.2) | First leaf sub-tree migration: `src/utils/` -> `modules/coding/utils/` (6 files: `Compressor.ts`, `errors.ts`, `logger.ts`, `MarkdownRenderer.ts`, `secretPaths.ts`, `ssrf.ts`). `git mv` preserved rename history; 65 importing files were rewritten by the codemod (`src/extension.ts`, every `src/<subtree>/*` file that imported from utils, every `tests/{unit,integration,benchmarks}/...` file that imported or `vi.mock`-ed a utils path). [configs/vitest.config.ts](../../configs/vitest.config.ts) coverage `exclude` flipped from `src/utils/**` to `modules/coding/utils/**`. The remaining 12 sub-trees stay open under 1.4.P1.B's status table | This commit |
+| 3.P1.A (new this phase) | 3 (3.1) | Generic `src/` -> `modules/coding/` import-rewriting codemod landed at [scripts/dev/rewrite-imports.mjs](../../scripts/dev/rewrite-imports.mjs); accepts a `--moves` JSON manifest, walks `src/`, `core/`, `modules/`, `tests/`, and rewrites every static `import`/`export` specifier, dynamic `import(...)`, and `vi.mock(...)`/`vi.doMock(...)` mock path whose resolved location lands inside a moved sub-tree. Idempotent; supports `--dry-run`; default manifest is the Phase 3 utils move. Unblocks every subsequent `src/` -> `modules/coding/` sub-tree move | Phase 3 commit `fcbaedb` |
+| 1.4.P1.B (partial: `src/utils/`) | 3 (3.2) | First leaf sub-tree migration: `src/utils/` -> `modules/coding/utils/` (6 files: `Compressor.ts`, `errors.ts`, `logger.ts`, `MarkdownRenderer.ts`, `secretPaths.ts`, `ssrf.ts`). `git mv` preserved rename history; 65 importing files were rewritten by the codemod (`src/extension.ts`, every `src/<subtree>/*` file that imported from utils, every `tests/{unit,integration,benchmarks}/...` file that imported or `vi.mock`-ed a utils path). [configs/vitest.config.ts](../../configs/vitest.config.ts) coverage `exclude` flipped from `src/utils/**` to `modules/coding/utils/**`. The remaining 12 sub-trees stay open under 1.4.P1.B's status table | Phase 3 commit `fcbaedb` |
+
+### Phase 4 closures (this commit)
+
+| Source | v1.1.0 phase | Item | Resolved in |
+|---|---|---|---|
+| agentmemory A8 | 4 (4.1) | `MemoryEntry` carries `lifecycleProvenance: {sessionId, hookKind, toolName?, parentSpanId?} \| null`; new `core/memory/types.ts` defines the shape with safe JSON parse/serialize; SQLite migration adds `provenance TEXT NULL` + `scope_id TEXT NULL` to `memories`, `episodic_events`, and `graph_relations`; runtime migration is performed in TypeScript with column-presence guards so re-running on a fresh DB is a no-op. Schema version bumped to 3. New `tests/unit/storage/MemoryStore.provenance.test.ts` exercises: (a) a v1.0.0-shaped DB migrates to v3 with `lifecycleProvenance: null` / `scopeId: null` on every row; (b) new writes round-trip the structured object; (c) idempotent re-open. Canonical migration SQL also checked in at [core/storage/migrations/v1.1.0_provenance.sql](../../core/storage/migrations/v1.1.0_provenance.sql) for reference | This commit |
+| v1.0.0 4.P1.X (scope_id on persistent memory tables) | 4 (4.1) | Same migration adds `scope_id TEXT NULL` to all three memory tables plus a helper index on each (`idx_memories_scope`, `idx_episodic_scope`, `idx_relations_scope`); mirrors the existing in-memory `MemoryHub` scope filter | This commit |
+| agentmemory A5 | 4 (4.2 + 4.3) | New `core/lifecycle/HookBus.ts` defines a closed 12-variant `LifecycleEvent` discriminated union and an `InProcessHookBus` that wraps `TelemetryBus`. Every emit republishes onto the underlying telemetry bus so existing trace consumers see the events. `AgentLoop.run`, `_runToolCall`, and `spawnSubAgent` emit five of the twelve hooks today (`session.start`/`.stop`, `tool.pre`/`.post`/`.failed`, `subagent.start`/`.stop`). The remaining four (`user.prompt`, `context.preCompact`, `session.end`, `skill.entry`) are deferred under 4.3.P1.J. New `tests/unit/core/lifecycle/HookBus.test.ts` covers every event kind + Disposable + republish; `tests/unit/tools/AgentLoop.hookBus.test.ts` asserts the run boundaries + tool brackets in an integration scenario | This commit |
+| agentmemory A7 | 4 (4.4) | New `core/observability/redactSecrets.ts` consolidates the existing trace-side patterns into a string-in / string-out scrubber covering AWS access keys, classic + fine-grained GitHub PATs, Slack tokens, JWTs, PEM private-key blocks (multi-line), and env-style assignments. Wired into `MemoryStore.save(...)` so every memory write is scrubbed before SQLite insert. Same scrubber redacts `lifecycle.tool.failed.redactedError` so leaked secrets in tool errors never reach the bus. New `tests/unit/core/observability/redactSecrets.test.ts` exercises every pattern + benign-content round-trip + `detectSecretCategories` helper. The `MemoryStore.provenance.test.ts` redaction case asserts the end-to-end gate against an `AKIA...` AWS key | This commit |
+| -- (UI surface) | 4 (4.5) | `MemoryPanel` gains a "Show provenance" toggle; when on, each entry renders `hookKind` + `toolName` chips. `TraceDashboardPanel` gains a `hookKind` dropdown filter populated from the distinct hookKinds present on the event stream. Protocol schemas extended with optional `MemorySnapshot.provenance` map and `TraceEvent.hookKind` string. Sidecar producer wiring is tracked at 4.5.P2.L | This commit |
 
 ---
 
@@ -126,20 +157,22 @@ Each entry has a category tag:
 | Severity | Open | Resolved | Total |
 |---|---|---|---|
 | P0 | 0 | 0 | 0 |
-| P1 | 3 | 4 | 7 |
-| P2 | 3 | 0 | 3 |
+| P1 | 4 | 7 | 11 |
+| P2 | 5 | 0 | 5 |
 | P3 | 0 | 0 | 0 |
-| **Total** | **6** | **10** | **16** |
+| **Total** | **9** | **15** | **24** |
 
-The Phase 3 closures count as one new resolved P1 (3.P1.A -- codemod infrastructure) plus a partial closure of 1.4.P1.B (1 of 13 sub-trees moved). The 1.4.P1.B row stays under `## 1. Open Items` until every sub-tree has migrated; the per-sub-tree progress is tracked in the status table inside that entry.
+Phase 4 contributes five closures (agentmemory A8 schema, v1.0.0 4.P1.X scope_id, agentmemory A5 HookBus + emit sites, agentmemory A7 secret pre-index filter, the UI surfaces for 4.5) and three new open items (4.3.P1.J HookBus emit sites partially wired; 4.1.P2.K fixture generated in-test rather than checked in; 4.5.P2.L sidecar producer for provenance / hookKind not yet wired). The Phase 3 closures (3.P1.A codemod + partial 1.4.P1.B) stay on the books from the prior pass.
 
 By category (open items only):
-- **DF** (deferred): 5
+- **DF** (deferred): 7
 - **MT** (missing tests): 1
-- **NI / BG / WN / QG**: 0
+- **NI** (not implemented as planned): 1
+- **BG / WN / QG**: 0
 
 By phase (open items only):
 - Phase 1: 6 (deferred sub-tasks 1.1 wiring + 1.4 wholesale move (12/13 sub-trees still open) + 1.10 NexusCodingRuntime + 1.11 Tailwind v4 + 1.12.P2.H + 1.12.P2.I) -- the codemod from Phase 3 (3.P1.A) is now available to consume them.
+- Phase 4: 3 (4.3.P1.J emit sites + 4.1.P2.K fixture-in-test + 4.5.P2.L sidecar producer)
 
 ---
 

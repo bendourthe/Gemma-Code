@@ -46,6 +46,41 @@ describe("MemoryPanel", () => {
     const emptyLabels = screen.getAllByText("(empty)");
     expect(emptyLabels.length).toBeGreaterThanOrEqual(4);
   });
+
+  it("shows provenance chips when toggle is on (v1.1.0 Phase 4.5)", async () => {
+    const snapshot: MemorySnapshotT = {
+      layers: {
+        core: ["c1"],
+        recent: ["r1"],
+        working: [],
+        project: [],
+      },
+      anticipated: [],
+      proposedSkills: [],
+      provenance: {
+        core: [
+          {
+            hookKind: "lifecycle.tool.post",
+            toolName: "write_file",
+            sessionId: "sess-1",
+          },
+        ],
+        recent: [null],
+      },
+    };
+    render(<MemoryPanel snapshot={snapshot} />);
+
+    // Chips are hidden by default.
+    expect(screen.queryByTestId("memory-provenance-hookKind")).toBeNull();
+
+    await userEvent.click(screen.getByLabelText("Show provenance"));
+    expect(screen.getByTestId("memory-provenance-hookKind")).toHaveTextContent(
+      "lifecycle.tool.post",
+    );
+    expect(screen.getByTestId("memory-provenance-toolName")).toHaveTextContent(
+      "write_file",
+    );
+  });
 });
 
 describe("TraceDashboardPanel", () => {
@@ -62,6 +97,43 @@ describe("TraceDashboardPanel", () => {
     render(<TraceDashboardPanel events={events} />);
     expect(screen.getByTestId("trace-event-a")).toHaveTextContent("read_file");
     expect(screen.getByTestId("trace-event-b")).toHaveTextContent("load skill");
+  });
+
+  it("filters events by hookKind via the dropdown (v1.1.0 Phase 4.5)", async () => {
+    const events: TraceEventT[] = [
+      {
+        id: "a",
+        timestamp: "2026-05-17T11:00:00Z",
+        kind: "tool",
+        summary: "pre",
+        hookKind: "lifecycle.tool.pre",
+      },
+      {
+        id: "b",
+        timestamp: "2026-05-17T11:00:01Z",
+        kind: "tool",
+        summary: "post",
+        hookKind: "lifecycle.tool.post",
+      },
+      {
+        id: "c",
+        timestamp: "2026-05-17T11:00:02Z",
+        kind: "skill",
+        summary: "no-hookkind event",
+      },
+    ];
+    render(<TraceDashboardPanel events={events} />);
+
+    expect(screen.getByTestId("trace-event-a")).toBeInTheDocument();
+    expect(screen.getByTestId("trace-event-b")).toBeInTheDocument();
+
+    const select = screen.getByLabelText("Filter by hookKind");
+    await userEvent.selectOptions(select, "lifecycle.tool.pre");
+
+    expect(screen.getByTestId("trace-event-a")).toBeInTheDocument();
+    expect(screen.queryByTestId("trace-event-b")).not.toBeInTheDocument();
+    // Events without a hookKind are always visible.
+    expect(screen.getByTestId("trace-event-c")).toBeInTheDocument();
   });
 });
 

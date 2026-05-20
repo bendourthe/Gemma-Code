@@ -156,6 +156,29 @@ export type CodingSessionResumeResponseT = z.infer<typeof CodingSessionResumeRes
 
 // ---- Panel data (Memory / Trace / Sessions) ---------------------------------
 
+/**
+ * v1.1.0 Phase 4.5 -- optional per-entry lifecycle provenance.
+ *
+ * The Memory panel renders chips for `hookKind` + `toolName` when the
+ * "Show provenance" toggle is on. Keyed by layer + entry index so the
+ * existing `layers.<layer>: string[]` shape can remain backward
+ * compatible (older sidecars omit the field entirely).
+ */
+export const MemoryEntryProvenance = z
+  .object({
+    hookKind: z.string(),
+    toolName: z.string().optional(),
+    sessionId: z.string().optional(),
+  })
+  .strict();
+export type MemoryEntryProvenanceT = z.infer<typeof MemoryEntryProvenance>;
+
+export const LayerProvenanceMap = z.record(
+  z.string(),
+  z.array(MemoryEntryProvenance.nullable()),
+);
+export type LayerProvenanceMapT = z.infer<typeof LayerProvenanceMap>;
+
 export const MemorySnapshot = z
   .object({
     layers: z.object({
@@ -166,6 +189,13 @@ export const MemorySnapshot = z
     }),
     anticipated: z.array(z.string()),
     proposedSkills: z.array(z.string()),
+    /**
+     * v1.1.0 Phase 4.5 -- optional provenance map. Each layer key maps
+     * to a `LifecycleProvenance | null` array aligned by index with the
+     * corresponding `layers.<layer>` string array. Omit the field to
+     * keep legacy clients working unchanged.
+     */
+    provenance: LayerProvenanceMap.optional(),
   })
   .strict();
 export type MemorySnapshotT = z.infer<typeof MemorySnapshot>;
@@ -187,6 +217,14 @@ export const TraceEvent = z
     kind: z.enum(["tool", "model", "scheduler", "skill"]),
     summary: z.string(),
     payload: z.record(z.string(), z.unknown()).optional(),
+    /**
+     * v1.1.0 Phase 4.5 -- optional `HookBus` lifecycle hookKind
+     * attribution. Populated by the sidecar when the event was sourced
+     * from a `lifecycle.*` event. The TraceDashboard's hookKind filter
+     * dropdown narrows visible events by this field; events without a
+     * hookKind are always visible.
+     */
+    hookKind: z.string().optional(),
   })
   .strict();
 export type TraceEventT = z.infer<typeof TraceEvent>;

@@ -18,6 +18,8 @@ import { Tracer } from "../observability/Tracer.js";
 import type { OperationLog } from "../observability/OperationLog.js";
 import { formatForUser } from "../../modules/coding/utils/errors.js";
 import { countTokens } from "../config/PromptBudget.js";
+import type { HookBus } from "../../core/lifecycle/HookBus.js";
+import { redactSecrets } from "../../core/observability/redactSecrets.js";
 
 const DEFAULT_MAX_ITERATIONS = 20;
 
@@ -137,6 +139,14 @@ export interface AgentLoopOptions {
    * regardless of sub-agent outcomes (legacy v0.8.0 behaviour).
    */
   readonly subAgentVerificationCredit?: boolean;
+  /**
+   * v1.1.0 Phase 4.3 -- typed lifecycle event surface. When provided the
+   * loop emits `lifecycle.session.start` / `lifecycle.session.stop` at
+   * the run boundaries and `lifecycle.tool.pre` / `lifecycle.tool.post`
+   * / `lifecycle.tool.failed` around each `_registry.execute` call.
+   * When omitted the emits are no-ops (legacy behavior).
+   */
+  readonly hookBus?: HookBus;
 }
 
 export class AgentLoop {
@@ -168,6 +178,7 @@ export class AgentLoop {
   private readonly _toolCallSource?: import("./types.js").ToolCallSource;
   private readonly _passStateGating: boolean;
   private readonly _subAgentVerificationCredit: boolean;
+  private readonly _hookBus?: HookBus;
   /**
    * Resets at the start of `run()` and flips to true when a
    * verification-class tool call succeeds. Used by the pass-state gate to
@@ -218,6 +229,7 @@ export class AgentLoop {
     this._toolCallSource = options?.toolCallSource;
     this._passStateGating = options?.passStateGating ?? true;
     this._subAgentVerificationCredit = options?.subAgentVerificationCredit ?? true;
+    this._hookBus = options?.hookBus;
   }
 
   /**
@@ -267,7 +279,31 @@ export class AgentLoop {
   /** Manually spawn a sub-agent. Returns the sub-agent's result. */
   async spawnSubAgent(config: SubAgentConfig, postMessage: PostMessageFn): Promise<SubAgentResult | null> {
     if (!this._subAgentManager) return null;
-    return this._subAgentManager.run(config, postMessage);
+
+    // v1.1.0 Phase 4.3 -- emit lifecycle.subagent.start before the
+    // dispatch and lifecycle.subagent.stop after the dispatch returns.
+    if (this._hookBus && this._sessionId) {
+      this._hookBus.emit({
+        kind: "lifecycle.subagent.start",
+        sessionId: this._sessionId,
+        role: config.type,
+        parentSpanId: this._rootSpanId || undefined,
+      });
+    }
+
+    const result = await this._subAgentManager.run(config, postMessage);
+
+    if (this._hookBus && this._sessionId) {
+      this._hookBus.emit({
+        kind: "lifecycle.subagent.stop",
+        sessionId: this._sessionId,
+        role: config.type,
+        ok: result?.success ?? false,
+        parentSpanId: this._rootSpanId || undefined,
+      });
+    }
+
+    return result;
   }
 
   /**
@@ -299,6 +335,20 @@ export class AgentLoop {
     this._traceId = tracer.startTrace(this._sessionId);
     this._rootSpanId = tracer.getRootSpanId(this._traceId);
 
+    // v1.1.0 Phase 4.3 -- emit lifecycle.session.start. The HookBus
+    // subscribers (Memory panel provenance chips, audit CLI, trace
+    // replay) get a typed payload; the underlying TelemetryBus
+    // re-publishes for trace-side consumers.
+    const sessionStartMs = Date.now();
+    if (this._hookBus && this._sessionId) {
+      this._hookBus.emit({
+        kind: "lifecycle.session.start",
+        sessionId: this._sessionId,
+        modelId: this._modelName,
+        isoTime: new Date(sessionStartMs).toISOString(),
+      });
+    }
+
     // Pass trace context to compactor so compaction spans are linked.
     if (this._compactor) {
       this._compactor.setTraceContext(this._traceId, this._rootSpanId);
@@ -313,9 +363,15 @@ export class AgentLoop {
     }
 
     for (let iteration = 0; iteration < this._maxIterations; iteration++) {
-      if (this._cancelled) return;
+      if (this._cancelled) {
+        this._emitSessionStop(sessionStartMs);
+        return;
+      }
       const verdict = await this._runOneIteration(iteration, tracer, postMessage);
-      if (verdict === "done" || verdict === "abort") return;
+      if (verdict === "done" || verdict === "abort") {
+        this._emitSessionStop(sessionStartMs);
+        return;
+      }
     }
 
     // Git safety: commit agent-modified files after the loop finishes.
@@ -330,6 +386,23 @@ export class AgentLoop {
     postMessage({
       type: "error",
       text: `Agent loop reached the maximum of ${this._maxIterations} iterations and stopped.`,
+    });
+    this._emitSessionStop(sessionStartMs);
+  }
+
+  /**
+   * v1.1.0 Phase 4.3 -- emit `lifecycle.session.stop`. Centralized in a
+   * helper so every return path in `run()` posts the same payload shape
+   * (sessionId, isoTime, durationMs).
+   */
+  private _emitSessionStop(startedAtMs: number): void {
+    if (!this._hookBus || !this._sessionId) return;
+    const stopMs = Date.now();
+    this._hookBus.emit({
+      kind: "lifecycle.session.stop",
+      sessionId: this._sessionId,
+      isoTime: new Date(stopMs).toISOString(),
+      durationMs: stopMs - startedAtMs,
     });
   }
 
@@ -588,6 +661,18 @@ export class AgentLoop {
       { toolName: call.tool, callId: call.id },
     );
 
+    // v1.1.0 Phase 4.3 -- emit lifecycle.tool.pre.
+    if (this._hookBus && this._sessionId) {
+      this._hookBus.emit({
+        kind: "lifecycle.tool.pre",
+        sessionId: this._sessionId,
+        toolName: call.tool,
+        args: { ...call.parameters },
+        parentSpanId: toolSpanId,
+      });
+    }
+    const toolStartMs = Date.now();
+
     // Pass the call id to the handler via a special _callId parameter.
     const result = await this._registry.execute({
       ...call,
@@ -598,6 +683,31 @@ export class AgentLoop {
     tracer.endSpan(toolSpanId, result.success ? "ok" : "error", {
       success: result.success,
     });
+
+    // v1.1.0 Phase 4.3 -- emit lifecycle.tool.post (always) and
+    // lifecycle.tool.failed (additionally on failure). The error text is
+    // redacted before it hits the bus so a payload containing a leaked
+    // API key, JWT, or PEM block is scrubbed at the boundary.
+    if (this._hookBus && this._sessionId) {
+      const toolDurationMs = Date.now() - toolStartMs;
+      this._hookBus.emit({
+        kind: "lifecycle.tool.post",
+        sessionId: this._sessionId,
+        toolName: call.tool,
+        ok: result.success,
+        durationMs: toolDurationMs,
+        parentSpanId: toolSpanId,
+      });
+      if (!result.success) {
+        this._hookBus.emit({
+          kind: "lifecycle.tool.failed",
+          sessionId: this._sessionId,
+          toolName: call.tool,
+          redactedError: redactSecrets(result.error ?? ""),
+          parentSpanId: toolSpanId,
+        });
+      }
+    }
 
     // Phase 9: append a metadata-only line to the opt-in operation log.
     // Records only tool name, outcome, optional path, and session id; tool

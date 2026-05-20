@@ -79,6 +79,19 @@ export interface MemoryEntry {
   readonly provenance?: MemoryProvenance;
   readonly ttl?: MemoryTTL;
   readonly scope?: "global" | "project" | "session";
+  /**
+   * v1.1.0 Phase 4.1 -- lifecycle write context. The structured hook +
+   * tool + span identifier that originated the row. Distinct from
+   * `provenance` above (which is the consolidation-pipeline's source /
+   * confidence record). `null` for legacy rows that pre-date the
+   * Phase-4 migration.
+   */
+  readonly lifecycleProvenance?: import("../../core/memory/types.js").LifecycleProvenance | null;
+  /**
+   * v1.1.0 Phase 4.1 -- folder-scope tag that mirrors the in-memory
+   * `MemoryHub` scope filter. `null` for unscoped (root) rows.
+   */
+  readonly scopeId?: string | null;
 }
 
 /** Retrieval tier for a memory entry. */
