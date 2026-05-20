@@ -19,8 +19,9 @@
  */
 
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { dirname, resolve as resolvePath } from "node:path";
-import { existsSync } from "node:fs";
+import { dirname, resolve as resolvePath, join as joinPath, isAbsolute } from "node:path";
+import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -32,6 +33,10 @@ Usage:
   nexus skills list [--namespace <ns>]
   nexus skills install <namespace>/<name> [--from <url>]
   nexus skills remove <namespace>/<name>
+  nexus memory audit [--since <ISO>] [--tier <t>] [--scope <id>] [--session <id>] [--op <op>] [--format table|json]
+  nexus memory export --out <file> [--scope <id>] [--tier <list>] [--since <ISO>]
+  nexus memory import --in <file>
+  nexus memory decay --now
   nexus check [...]                     deterministic source-code checks
   nexus image [...]                     image-pipeline helpers
   nexus video [...]                     video-pipeline helpers
@@ -162,6 +167,285 @@ export function runSkillsRemoveStub(stdout = process.stdout) {
   return 0;
 }
 
+// ---------------------------------------------------------------------------
+// v1.1.0 Phase 6 -- `nexus memory` subcommand surface.
+//
+// The CLI keeps the heavy lifting in `core/memory/MemoryAudit.ts`,
+// `core/memory/MemoryExport.ts`, and `core/memory/DecaySweep.ts` so the
+// formatters / parsers can be unit-tested without spawning a process.
+//
+// The `--source` flag injects a JSONL file as the audit log / export
+// source / decay corpus. Production wiring (sidecar + SQLite-backed
+// implementations) connects the modules directly and never spawns the
+// CLI; the `--source` flag exists so operators can run audits against a
+// captured snapshot without touching the live database.
+// ---------------------------------------------------------------------------
+
+const EXPORTS_DIRNAME = "exports";
+
+function nexusHomeDir() {
+  const override = process.env["NEXUS_HOME"];
+  if (override && override.length > 0) return override;
+  return joinPath(homedir(), ".nexus");
+}
+
+function exportsRoot() {
+  return joinPath(nexusHomeDir(), EXPORTS_DIRNAME);
+}
+
+async function loadMemoryAudit() {
+  const compiled = resolvePath(__dirname, "..", "out", "core", "memory", "MemoryAudit.js");
+  if (!existsSync(compiled)) {
+    throw new Error(
+      "MemoryAudit build artifact missing. Run `npm run build` before invoking `nexus memory audit` from source.",
+    );
+  }
+  return import(pathToFileURL(compiled).href);
+}
+
+async function loadMemoryAuditLog() {
+  const compiled = resolvePath(__dirname, "..", "out", "core", "memory", "MemoryAuditLog.js");
+  if (!existsSync(compiled)) {
+    throw new Error(
+      "MemoryAuditLog build artifact missing. Run `npm run build` before invoking the memory CLI from source.",
+    );
+  }
+  return import(pathToFileURL(compiled).href);
+}
+
+async function loadMemoryExport() {
+  const compiled = resolvePath(__dirname, "..", "out", "core", "memory", "MemoryExport.js");
+  if (!existsSync(compiled)) {
+    throw new Error(
+      "MemoryExport build artifact missing. Run `npm run build` before invoking `nexus memory export` from source.",
+    );
+  }
+  return import(pathToFileURL(compiled).href);
+}
+
+async function loadDecaySweep() {
+  const compiled = resolvePath(__dirname, "..", "out", "core", "memory", "DecaySweep.js");
+  if (!existsSync(compiled)) {
+    throw new Error(
+      "DecaySweep build artifact missing. Run `npm run build` before invoking `nexus memory decay` from source.",
+    );
+  }
+  return import(pathToFileURL(compiled).href);
+}
+
+/**
+ * Read a JSONL file and return the rows as a plain array. Lines that fail
+ * to parse are reported on stderr but do not abort the read (matches the
+ * tolerance the import sink applies in MemoryExport.importFromJsonl).
+ */
+function readJsonl(path, stderr = process.stderr) {
+  const raw = readFileSync(path, "utf8");
+  const out = [];
+  const lines = raw.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line || line.trim().length === 0) continue;
+    try {
+      out.push(JSON.parse(line));
+    } catch (err) {
+      stderr.write(
+        `nexus memory: malformed JSONL on line ${i + 1} of ${path}: ${err instanceof Error ? err.message : String(err)}\n`,
+      );
+    }
+  }
+  return out;
+}
+
+export async function runMemoryAudit(flags, stdout = process.stdout, stderr = process.stderr) {
+  const sourcePath = typeof flags.source === "string" ? flags.source : null;
+  if (!sourcePath) {
+    stderr.write(
+      "nexus memory audit: --source <jsonl> is required. The sidecar-direct path is wired in the desktop daemon; the CLI requires a captured log.\n",
+    );
+    return 2;
+  }
+  if (!existsSync(sourcePath)) {
+    stderr.write(`nexus memory audit: source not found: ${sourcePath}\n`);
+    return 2;
+  }
+  const [{ formatAuditTable, formatAuditJsonl, parseSinceFlag }, { InMemoryAuditLog }] =
+    await Promise.all([loadMemoryAudit(), loadMemoryAuditLog()]);
+  const rows = readJsonl(sourcePath, stderr);
+  const log = new InMemoryAuditLog(Math.max(rows.length, 1));
+  for (const row of rows) log.append(row);
+
+  const filter = {};
+  if (typeof flags.since === "string") {
+    const sinceMs = parseSinceFlag(flags.since);
+    if (sinceMs === null) {
+      stderr.write(`nexus memory audit: unparseable --since value "${flags.since}"\n`);
+      return 2;
+    }
+    filter.sinceMs = sinceMs;
+  }
+  if (typeof flags.tier === "string") filter.tier = flags.tier;
+  if (typeof flags.session === "string") filter.sessionId = flags.session;
+  if (typeof flags.op === "string") filter.op = flags.op;
+  if (typeof flags.limit === "string") {
+    const n = Number.parseInt(flags.limit, 10);
+    if (Number.isFinite(n) && n > 0) filter.limit = n;
+  }
+
+  const filtered = log.query(filter);
+  const format = typeof flags.format === "string" ? flags.format : "table";
+  if (format === "json" || format === "jsonl") {
+    stdout.write(formatAuditJsonl(filtered));
+  } else {
+    stdout.write(formatAuditTable(filtered) + (filtered.length > 0 ? "\n" : ""));
+  }
+  return 0;
+}
+
+export async function runMemoryExport(flags, stdout = process.stdout, stderr = process.stderr) {
+  const out = typeof flags.out === "string" ? flags.out : null;
+  if (!out) {
+    stderr.write("nexus memory export: --out <file> is required.\n");
+    return 2;
+  }
+  const source = typeof flags.source === "string" ? flags.source : null;
+  if (!source) {
+    stderr.write(
+      "nexus memory export: --source <jsonl> is required when invoking from the CLI (the sidecar wires the source directly).\n",
+    );
+    return 2;
+  }
+
+  const [{ exportToJsonl, isPathInside }] = await Promise.all([loadMemoryExport()]);
+  const root = exportsRoot();
+  const absolute = isAbsolute(out) ? out : resolvePath(process.cwd(), out);
+  if (!isPathInside(absolute, root)) {
+    stderr.write(
+      `nexus memory export: --out must resolve inside ${root}. Refusing to write to ${absolute} (path traversal guard).\n`,
+    );
+    return 2;
+  }
+
+  const rows = readJsonl(source, stderr);
+  const filter = {};
+  if (typeof flags.tier === "string") {
+    filter.tiers = flags.tier.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+  }
+  if (typeof flags.scope === "string") filter.scopeId = flags.scope;
+  if (typeof flags.since === "string") {
+    const ms = Date.parse(flags.since);
+    if (Number.isFinite(ms)) filter.sinceMs = ms;
+  }
+
+  const inMemorySource = {
+    list(f) {
+      const tiers = f.tiers ? new Set(f.tiers) : null;
+      const out = [];
+      for (const row of rows) {
+        if (tiers && !tiers.has(row.tier)) continue;
+        if (f.scopeId !== undefined && row.scopeId !== f.scopeId) continue;
+        if (f.sinceMs !== undefined && (row.createdAt ?? 0) < f.sinceMs) continue;
+        out.push(row);
+      }
+      return out;
+    },
+  };
+
+  const result = exportToJsonl(inMemorySource, filter);
+  mkdirSync(dirname(absolute), { recursive: true });
+  writeFileSync(absolute, result.text, "utf8");
+  stdout.write(`nexus memory export: wrote ${result.rowCount} row(s) to ${absolute}\n`);
+  return 0;
+}
+
+export async function runMemoryImport(flags, stdout = process.stdout, stderr = process.stderr) {
+  const inPath = typeof flags.in === "string" ? flags.in : null;
+  if (!inPath) {
+    stderr.write("nexus memory import: --in <file> is required.\n");
+    return 2;
+  }
+  if (!existsSync(inPath)) {
+    stderr.write(`nexus memory import: file not found: ${inPath}\n`);
+    return 2;
+  }
+  const [{ importFromJsonl }] = await Promise.all([loadMemoryExport()]);
+  const text = readFileSync(inPath, "utf8");
+  const imported = [];
+  const sink = {
+    upsert(row) {
+      imported.push(row);
+    },
+  };
+  const result = importFromJsonl(text, sink);
+  stdout.write(
+    `nexus memory import: imported ${result.imported} row(s), skipped ${result.skipped}, errors ${result.errors.length}\n`,
+  );
+  for (const err of result.errors) {
+    stderr.write(`  line ${err.line}: ${err.reason}\n`);
+  }
+  if (typeof flags.out === "string" && imported.length > 0) {
+    const absolute = isAbsolute(flags.out) ? flags.out : resolvePath(process.cwd(), flags.out);
+    mkdirSync(dirname(absolute), { recursive: true });
+    writeFileSync(absolute, JSON.stringify(imported, null, 2), "utf8");
+    stdout.write(`nexus memory import: imported rows written to ${absolute}\n`);
+  }
+  return result.errors.length > 0 ? 1 : 0;
+}
+
+export async function runMemoryDecay(flags, stdout = process.stdout, stderr = process.stderr) {
+  if (flags.now !== true && flags.now !== "true") {
+    stderr.write("nexus memory decay: --now is required (CLI only supports manual sweeps).\n");
+    return 2;
+  }
+  const source = typeof flags.source === "string" ? flags.source : null;
+  if (!source) {
+    stderr.write(
+      "nexus memory decay: --source <jsonl> with DecayableEntry rows is required from the CLI; the sidecar wires the live provider directly.\n",
+    );
+    return 2;
+  }
+  if (!existsSync(source)) {
+    stderr.write(`nexus memory decay: source not found: ${source}\n`);
+    return 2;
+  }
+  const [{ DecaySweep }] = await Promise.all([loadDecaySweep()]);
+  const rows = readJsonl(source, stderr);
+  const provider = {
+    list() {
+      return rows;
+    },
+    evict(_id) {
+      return true;
+    },
+  };
+  const sweep = new DecaySweep(provider);
+  const result = sweep.sweep();
+  stdout.write(
+    `nexus memory decay: scanned=${result.scanned} kept=${result.kept} evicted=${result.evicted.length}\n`,
+  );
+  for (const e of result.evicted) {
+    stdout.write(`  evicted ${e.tier}/${e.id} (retention=${e.retention.toExponential(2)})\n`);
+  }
+  return 0;
+}
+
+export async function runMemoryCommand(args, stdout = process.stdout, stderr = process.stderr) {
+  switch (args.subcommand) {
+    case "audit":
+      return runMemoryAudit(args.flags, stdout, stderr);
+    case "export":
+      return runMemoryExport(args.flags, stdout, stderr);
+    case "import":
+      return runMemoryImport(args.flags, stdout, stderr);
+    case "decay":
+      return runMemoryDecay(args.flags, stdout, stderr);
+    default:
+      stderr.write(
+        `nexus memory: unknown subcommand "${args.subcommand ?? ""}". Expected one of audit, export, import, decay.\n`,
+      );
+      return 2;
+  }
+}
+
 export async function main(argv) {
   const args = parseArgs(argv);
   if (args.help && args.command === null) {
@@ -187,6 +471,14 @@ export async function main(argv) {
         process.stderr.write(`nexus skills: unknown subcommand "${args.subcommand}"\n${HELP}`);
         return 2;
     }
+  }
+
+  if (args.command === "memory") {
+    if (args.help) {
+      process.stdout.write(HELP);
+      return 0;
+    }
+    return runMemoryCommand(args);
   }
 
   // Pass-through: re-exec the existing sibling CLIs without an extra

@@ -28,4 +28,26 @@ describe("nexus CLI parseArgs", () => {
     expect(a.help).toBe(true);
     expect(a.command).toBe(null);
   });
+
+  // v1.1.0 Phase 6 -- memory subcommand parsing.
+  it("captures memory audit + --since flag", () => {
+    const a = parseArgs(["memory", "audit", "--since", "2026-05-01"]);
+    expect(a.command).toBe("memory");
+    expect(a.subcommand).toBe("audit");
+    expect(a.flags.since).toBe("2026-05-01");
+  });
+
+  it("captures memory export + --out path", () => {
+    const a = parseArgs(["memory", "export", "--out", "/tmp/dump.jsonl"]);
+    expect(a.command).toBe("memory");
+    expect(a.subcommand).toBe("export");
+    expect(a.flags.out).toBe("/tmp/dump.jsonl");
+  });
+
+  it("captures memory decay --now as boolean", () => {
+    const a = parseArgs(["memory", "decay", "--now"]);
+    expect(a.command).toBe("memory");
+    expect(a.subcommand).toBe("decay");
+    expect(a.flags.now).toBe(true);
+  });
 });

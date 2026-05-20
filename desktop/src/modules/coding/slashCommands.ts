@@ -28,6 +28,10 @@ export const SLASH_COMMANDS: readonly SlashCommand[] = Object.freeze([
   { name: "thinking-mode", description: "Toggle thinking mode (off / think / think hard / ultrathink).", template: "/thinking-mode think" },
   { name: "skill-metrics", description: "Print skill activation metrics.", template: "/skill-metrics" },
   { name: "memory", description: "Inspect or mutate the four-layer memory.", template: "/memory status" },
+  // v1.1.0 Phase 6.3 - 6.5 -- hybrid retrieval + write + delete surfaces.
+  { name: "recall", description: "Hybrid-search memory for a query and render the top-10 hits.", template: "/recall " },
+  { name: "remember", description: "Write a working-tier observation tagged with the current session.", template: "/remember " },
+  { name: "forget", description: "Delete memories by id or pattern (prompts for confirmation).", template: "/forget --id " },
   { name: "verify", description: "Verify the most recent agent claim against the workspace.", template: "/verify" },
   { name: "research", description: "Run a research sub-agent on the current question.", template: "/research " },
   { name: "help", description: "List available slash commands.", template: "/help" },

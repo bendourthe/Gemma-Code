@@ -6,7 +6,7 @@ import {
 } from "../src/modules/coding/slashCommands";
 
 describe("slash command catalog", () => {
-  it("includes the twelve documented commands", () => {
+  it("includes the documented commands (v1.1.0 Phase 6 adds /recall, /remember, /forget)", () => {
     const names = SLASH_COMMANDS.map((c) => c.name);
     expect(names).toEqual(
       expect.arrayContaining([
@@ -19,6 +19,9 @@ describe("slash command catalog", () => {
         "thinking-mode",
         "skill-metrics",
         "memory",
+        "recall",
+        "remember",
+        "forget",
         "verify",
         "research",
         "help",

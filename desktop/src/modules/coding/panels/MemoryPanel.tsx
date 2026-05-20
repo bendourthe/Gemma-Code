@@ -6,6 +6,13 @@ import type {
 
 export interface MemoryPanelProps {
   snapshot: MemorySnapshotT | null;
+  /**
+   * v1.1.0 Phase 6.5 -- invoked when the user clicks "Forget" on a row.
+   * The handler is responsible for confirmation + IPC dispatch; the panel
+   * only signals intent. When omitted the Forget button is not rendered
+   * (legacy mode -- prevents an inert button in pre-Phase-6 sidecars).
+   */
+  onForget?: (layerKey: string, index: number, entry: string) => void;
 }
 
 /**
@@ -15,7 +22,7 @@ export interface MemoryPanelProps {
  * (added in Phase 4.1 / 4.5); when omitted (older sidecars) the toggle
  * is still rendered but the chips simply do not appear.
  */
-export function MemoryPanel({ snapshot }: MemoryPanelProps): JSX.Element {
+export function MemoryPanel({ snapshot, onForget }: MemoryPanelProps): JSX.Element {
   const [showProvenance, setShowProvenance] = useState(false);
 
   if (!snapshot) {
@@ -58,24 +65,28 @@ export function MemoryPanel({ snapshot }: MemoryPanelProps): JSX.Element {
         layerKey="core"
         entries={layers.core}
         provenance={showProvenance ? provFor("core") : undefined}
+        onForget={onForget}
       />
       <MemoryLayer
         name="Recent"
         layerKey="recent"
         entries={layers.recent}
         provenance={showProvenance ? provFor("recent") : undefined}
+        onForget={onForget}
       />
       <MemoryLayer
         name="Working"
         layerKey="working"
         entries={layers.working}
         provenance={showProvenance ? provFor("working") : undefined}
+        onForget={onForget}
       />
       <MemoryLayer
         name="Project"
         layerKey="project"
         entries={layers.project}
         provenance={showProvenance ? provFor("project") : undefined}
+        onForget={onForget}
       />
       <MemoryLayer
         name="Anticipated"
@@ -83,6 +94,7 @@ export function MemoryPanel({ snapshot }: MemoryPanelProps): JSX.Element {
         entries={anticipated}
         provenance={showProvenance ? provFor("anticipated") : undefined}
         dataTestId="memory-anticipated"
+        onForget={onForget}
       />
       <MemoryLayer
         name="Proposed skills"
@@ -90,6 +102,7 @@ export function MemoryPanel({ snapshot }: MemoryPanelProps): JSX.Element {
         entries={proposedSkills}
         provenance={showProvenance ? provFor("proposedSkills") : undefined}
         dataTestId="memory-proposed-skills"
+        onForget={onForget}
       />
     </section>
   );
@@ -101,6 +114,7 @@ interface MemoryLayerProps {
   entries: readonly string[];
   provenance?: ReadonlyArray<MemoryEntryProvenanceT | null>;
   dataTestId?: string;
+  onForget?: (layerKey: string, index: number, entry: string) => void;
 }
 
 function MemoryLayer({
@@ -109,6 +123,7 @@ function MemoryLayer({
   entries,
   provenance,
   dataTestId,
+  onForget,
 }: MemoryLayerProps): JSX.Element {
   return (
     <div data-testid={dataTestId} style={{ marginBottom: "var(--space-3)" }}>
@@ -121,8 +136,28 @@ function MemoryLayer({
             const prov = provenance?.[i] ?? null;
             return (
               <li key={`${layerKey}-${i}`}>
-                {entry}
+                <span>{entry}</span>
                 {prov ? <ProvenanceChips provenance={prov} /> : null}
+                {onForget ? (
+                  <button
+                    type="button"
+                    data-testid={`memory-forget-${layerKey}-${i}`}
+                    onClick={() => onForget(layerKey, i, entry)}
+                    style={{
+                      marginLeft: "var(--space-2)",
+                      padding: "0 var(--space-1)",
+                      border: "1px solid var(--border-1)",
+                      borderRadius: "4px",
+                      background: "transparent",
+                      color: "var(--fg-muted)",
+                      cursor: "pointer",
+                      fontSize: "0.7rem",
+                    }}
+                    aria-label={`Forget ${name} entry ${i + 1}`}
+                  >
+                    Forget
+                  </button>
+                ) : null}
               </li>
             );
           })}

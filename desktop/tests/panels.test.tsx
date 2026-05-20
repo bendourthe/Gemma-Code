@@ -47,6 +47,30 @@ describe("MemoryPanel", () => {
     expect(emptyLabels.length).toBeGreaterThanOrEqual(4);
   });
 
+  it("renders a Forget button per row when onForget is supplied (v1.1.0 Phase 6.5)", async () => {
+    const snapshot: MemorySnapshotT = {
+      layers: { core: ["c1", "c2"], recent: [], working: [], project: [] },
+      anticipated: [],
+      proposedSkills: [],
+    };
+    const onForget = vi.fn();
+    render(<MemoryPanel snapshot={snapshot} onForget={onForget} />);
+    const buttons = screen.getAllByText("Forget");
+    expect(buttons.length).toBeGreaterThanOrEqual(2);
+    await userEvent.click(buttons[0]!);
+    expect(onForget).toHaveBeenCalledWith("core", 0, "c1");
+  });
+
+  it("does not render Forget buttons when onForget is omitted", () => {
+    const snapshot: MemorySnapshotT = {
+      layers: { core: ["c1"], recent: [], working: [], project: [] },
+      anticipated: [],
+      proposedSkills: [],
+    };
+    render(<MemoryPanel snapshot={snapshot} />);
+    expect(screen.queryByText("Forget")).toBeNull();
+  });
+
   it("shows provenance chips when toggle is on (v1.1.0 Phase 4.5)", async () => {
     const snapshot: MemorySnapshotT = {
       layers: {
