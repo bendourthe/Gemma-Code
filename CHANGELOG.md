@@ -1,3 +1,11 @@
+# [0.35.0](https://github.com/bendourthe/Nexus-AI/compare/v0.34.0...v0.35.0) (2026-05-20)
+
+
+### Features
+
+* **v1.1.0:** phase 3 codemod + src/utils move ([f3429c4](https://github.com/bendourthe/Nexus-AI/commit/f3429c415a4606a1a681560091afd923aba6a311))
+* **v1.1.0:** phase 4 memory provenance + HookBus + secret pre-index filter ([9323352](https://github.com/bendourthe/Nexus-AI/commit/9323352646191843a709240fb660e52431fddd52))
+
 # [0.34.0](https://github.com/bendourthe/Nexus-AI/compare/v0.33.0...v0.34.0) (2026-05-19)
 
 
