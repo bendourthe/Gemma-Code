@@ -1,3 +1,12 @@
+# [0.36.0](https://github.com/bendourthe/Nexus-AI/compare/v0.35.0...v0.36.0) (2026-05-20)
+
+
+### Features
+
+* **v1.1.0:** phase 5 hybrid retrieval + local embedder + warm-build worker ([afac447](https://github.com/bendourthe/Nexus-AI/commit/afac447aba6c13e967227acd74df945f644dc679)), closes [hi#frequency](https://github.com/hi/issues/frequency)
+* **v1.1.0:** phase 6 memory CLI + Ebbinghaus decay + /recall /remember /forget ([c8d9e0b](https://github.com/bendourthe/Nexus-AI/commit/c8d9e0b858d79698ba62b2a9fef0d0ac0cf5c8fe))
+* **v1.1.0:** phase 7 session replay timeline + lockfile sync ([2864f68](https://github.com/bendourthe/Nexus-AI/commit/2864f68e810bb5d2560b78408221971c99350138))
+
 # [0.35.0](https://github.com/bendourthe/Nexus-AI/compare/v0.34.0...v0.35.0) (2026-05-20)
 
 
