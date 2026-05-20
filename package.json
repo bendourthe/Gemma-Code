@@ -203,6 +203,34 @@
           "default": "nomic-embed-text",
           "description": "Ollama embedding model for semantic memory search (v1.0.0; legacy `gemma-code.embeddingModel`)."
         },
+        "nexus.memory.bm25.k1": {
+          "type": "number",
+          "default": 1.5,
+          "minimum": 0.1,
+          "maximum": 5,
+          "description": "v1.1.0 Phase 5.2 -- BM25 term-frequency saturation. Textbook default 1.5; raise for short documents, lower for long-form notes."
+        },
+        "nexus.memory.bm25.b": {
+          "type": "number",
+          "default": 0.75,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "v1.1.0 Phase 5.2 -- BM25 length-normalization slope. 0 disables; 1 fully normalizes. Default 0.75."
+        },
+        "nexus.memory.rrf.k": {
+          "type": "number",
+          "default": 60,
+          "minimum": 1,
+          "maximum": 1000,
+          "description": "v1.1.0 Phase 5.4 -- Reciprocal Rank Fusion constant. Default 60 (Cormack et al., SIGIR 2009). Lower boosts top-of-list confidence; higher smooths between rankings."
+        },
+        "nexus.memory.hybridMinCorpus": {
+          "type": "number",
+          "default": 100,
+          "minimum": 0,
+          "maximum": 100000,
+          "description": "v1.1.0 Phase 5.5 -- minimum entry count before `MemoryHub.retrieve` switches from substring scan to the hybrid BM25 + dense + graph + RRF path. Smaller corpora stay on substring because hybrid overhead is wasteful."
+        },
         "nexus.memory.snapshotMode": {
           "type": "string",
           "enum": [
@@ -828,6 +856,7 @@
     "zod": "^3.23.8"
   },
   "optionalDependencies": {
-    "hnswlib-node": "^3.0.0"
+    "hnswlib-node": "^3.0.0",
+    "@xenova/transformers": "^2.17.2"
   }
 }

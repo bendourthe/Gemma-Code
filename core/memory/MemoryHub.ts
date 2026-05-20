@@ -23,6 +23,25 @@ export type ScopeId = string | null;
 
 import type { LifecycleProvenance } from "./types.js";
 
+/**
+ * Structural interface for the optional hybrid retriever wired into
+ * `InMemoryMemoryHub`. The concrete class lives in
+ * `core/memory/HybridRetriever.ts`; defining the contract here (rather
+ * than importing the class) keeps `MemoryHub` -> `HybridRetriever` a one-
+ * way dependency.
+ */
+export interface HybridRetrieverLike {
+  readonly isReady: boolean;
+  retrieve(
+    query: string,
+    opts?: {
+      limit?: number;
+      scopeId?: ScopeId;
+      visibleScopes?: ReadonlyArray<ScopeId>;
+    },
+  ): Promise<MemoryHit[]>;
+}
+
 export interface MemoryHit {
   id: string;
   layer: "working" | "episodic" | "semantic" | "graph";
@@ -154,8 +173,33 @@ export function isVisibleFromScope(
 }
 
 /**
- * In-memory MemoryHub used as the default during Phase 2-4. Phase 5/6 will
- * wire the four-layer SQLite stack from `src/storage/` into this facade.
+ * v1.1.0 Phase 5.5 -- corpus-size threshold below which `InMemoryMemoryHub`
+ * keeps using the legacy substring scan even when a `HybridRetrieverLike` is
+ * wired. BM25 + dense + RRF carry fixed overhead that is wasteful below
+ * ~100 entries; substring matches are still correct, just less ranked.
+ * The threshold is exposed as a constructor option so the sidecar can
+ * raise / lower it via `nexus.memory.hybridMinCorpus`.
+ */
+export const DEFAULT_HYBRID_MIN_CORPUS = 100;
+
+export interface InMemoryMemoryHubOptions {
+  /**
+   * Optional hybrid retriever (BM25 + dense + graph fused via RRF). When
+   * present and the in-memory corpus has grown past `hybridMinCorpus`,
+   * `retrieve()` delegates to the hybrid path; for small corpora it stays
+   * on the substring scan because the hybrid overhead is wasteful.
+   */
+  readonly hybridRetriever?: HybridRetrieverLike | null;
+  /** Override the substring -> hybrid corpus-size cutover (default 100). */
+  readonly hybridMinCorpus?: number;
+}
+
+/**
+ * In-memory MemoryHub used as the default during Phase 2-4. Phase 5 wires
+ * an optional `HybridRetrieverLike` (BM25 + dense + graph via RRF) for corpora
+ * above `hybridMinCorpus`; smaller corpora keep the substring scan since
+ * the hybrid overhead is not justified. Phase 6 will wire the four-layer
+ * SQLite stack from `src/storage/` into this facade.
  */
 export class InMemoryMemoryHub implements MemoryHub {
   readonly workingMemory: WorkingMemory;
@@ -163,14 +207,57 @@ export class InMemoryMemoryHub implements MemoryHub {
   readonly semantic: SemanticMemory;
   readonly graph: GraphMemory;
 
-  constructor() {
+  private _hybrid: HybridRetrieverLike | null;
+  private readonly _hybridMinCorpus: number;
+
+  constructor(opts: InMemoryMemoryHubOptions = {}) {
     this.workingMemory = new InMemoryWorkingMemory();
     this.episodic = new InMemoryEpisodicMemory();
     this.semantic = new InMemorySemanticMemory();
     this.graph = new InMemoryGraphMemory();
+    this._hybrid = opts.hybridRetriever ?? null;
+    this._hybridMinCorpus = opts.hybridMinCorpus ?? DEFAULT_HYBRID_MIN_CORPUS;
+  }
+
+  /** Wire / unwire the hybrid retriever at runtime (warm-build worker uses this). */
+  setHybridRetriever(retriever: HybridRetrieverLike | null): void {
+    this._hybrid = retriever;
   }
 
   async retrieve(query: string, opts: RetrieveOpts = {}): Promise<readonly MemoryHit[]> {
+    const limit = opts.limit ?? 10;
+    if (this._shouldUseHybrid()) {
+      const hybridOpts: {
+        limit: number;
+        scopeId?: ScopeId;
+        visibleScopes?: ReadonlyArray<ScopeId>;
+      } = { limit };
+      if (opts.scopeId !== undefined) hybridOpts.scopeId = opts.scopeId;
+      if (opts.visibleScopes !== undefined) hybridOpts.visibleScopes = opts.visibleScopes;
+      const hits = await this._hybrid!.retrieve(query, hybridOpts);
+      return hits.slice(0, limit);
+    }
+    return this._substringRetrieve(query, opts);
+  }
+
+  private _shouldUseHybrid(): boolean {
+    if (!this._hybrid) return false;
+    if (!this._hybrid.isReady) return false;
+    const corpusSize =
+      this.workingMemory.list().length +
+      (this.semantic instanceof InMemorySemanticMemory
+        ? this.semantic.size
+        : 0) +
+      (this.episodic instanceof InMemoryEpisodicMemory
+        ? this.episodic.size
+        : 0);
+    return corpusSize >= this._hybridMinCorpus;
+  }
+
+  private async _substringRetrieve(
+    query: string,
+    opts: RetrieveOpts,
+  ): Promise<readonly MemoryHit[]> {
     const limit = opts.limit ?? 10;
     const layers = new Set<MemoryHit["layer"]>(
       opts.layers ?? ["working", "episodic", "semantic", "graph"],
@@ -239,6 +326,9 @@ class InMemoryWorkingMemory implements WorkingMemory {
 
 class InMemoryEpisodicMemory implements EpisodicMemory {
   private readonly _events: MemoryHit[] = [];
+  get size(): number {
+    return this._events.length;
+  }
   async record(event: EpisodicEventInput): Promise<void> {
     this._events.push({
       id: event.id,
@@ -271,6 +361,9 @@ class InMemorySemanticMemory implements SemanticMemory {
     string,
     { content: string; scopeId?: ScopeId; provenance?: LifecycleProvenance | null }
   >();
+  get size(): number {
+    return this._facts.size;
+  }
   async upsert(fact: SemanticFactInput): Promise<void> {
     this._facts.set(fact.id, {
       content: fact.content,
