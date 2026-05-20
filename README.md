@@ -34,7 +34,7 @@ A persistent `Local Model Status` panel reports the active model architecture, p
 ## Design Principles
 
 1. **Local-first.** Inference, embeddings, image and video synthesis, and memory storage all live on the host machine. No outbound calls without explicit user opt-in.
-2. **Originality over wrappers.** When an external service or heavy framework can be reverse-engineered into a lean local module, we do that. The codebase already follows this rule (see `AGENTS.md` MCP Registry Policy and the `docs/v0.7.0/comparison-multi-source.md` adoption matrix). The only external project we deliberately link to is [bendourthe/DevAI-Hub](https://github.com/bendourthe/DevAI-Hub), which is the author's own skill/hook/command catalog and is intended as an upstream feed for Nexus's skill harness.
+2. **Originality over wrappers.** When an external service or heavy framework can be reverse-engineered into a lean local module, we do that. The codebase already follows this rule (see `AGENTS.md` MCP Registry Policy and the `docs/v0.7.0/comparison-multi-source.md` adoption matrix). The only external project we deliberately link to is [bendourthe/Nexus-Hub](https://github.com/bendourthe/Nexus-Hub), which is the author's own skill/hook/command catalog and is intended as an upstream feed for Nexus's skill harness.
 3. **Single-GPU ceiling.** Every module must run on a laptop with a single consumer GPU (e.g. RTX 3070 - 4090 class). Hardware tiers are auto-detected and context budgets, batch sizes, and pipeline depths adapt accordingly.
 4. **Installer carries the burden.** The Windows installer (and later macOS / Linux packages) provisions CUDA, Python, Node, model runtimes, virtual environments, and the top recommended models so that when the installer finishes, every module works on first launch. No post-install scavenger hunt.
 5. **Privacy by construction.** Memory, telemetry, traces, and logs are local-only by default and redact secret patterns before any opt-in export.
@@ -47,7 +47,7 @@ The repository currently contains the Gemma Code engine at version 0.22.x. The v
 
 For the existing extension's features, configuration keys, slash commands, installer, and architecture, see the legacy quick-start in [docs/v0.9.0/](docs/v0.9.0/) and the historical README content preserved at [docs/v0.9.0/legacy-readme.md](docs/v0.9.0/legacy-readme.md).
 
-For the Nexus pivot — the v1.0.0 desktop-app plan, module decomposition, comparisons against ComfyUI and DevAI-Hub, installer scope, and phased delivery — see [docs/v1.0.0/](docs/v1.0.0/). Phase 1 outcome lives at [docs/v1.0.0/development/history/2026-05-17_phase-01-shell-foundation.md](docs/v1.0.0/development/history/2026-05-17_phase-01-shell-foundation.md); design tokens are documented at [docs/v1.0.0/design-tokens.md](docs/v1.0.0/design-tokens.md); known gaps at [docs/v1.0.0/known-gaps.md](docs/v1.0.0/known-gaps.md).
+For the Nexus pivot — the v1.0.0 desktop-app plan, module decomposition, comparisons against ComfyUI and Nexus-Hub, installer scope, and phased delivery — see [docs/v1.0.0/](docs/v1.0.0/). Phase 1 outcome lives at [docs/v1.0.0/development/history/2026-05-17_phase-01-shell-foundation.md](docs/v1.0.0/development/history/2026-05-17_phase-01-shell-foundation.md); design tokens are documented at [docs/v1.0.0/design-tokens.md](docs/v1.0.0/design-tokens.md); known gaps at [docs/v1.0.0/known-gaps.md](docs/v1.0.0/known-gaps.md).
 
 ### Working on the desktop shell
 
