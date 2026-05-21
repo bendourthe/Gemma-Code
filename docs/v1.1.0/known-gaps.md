@@ -1,6 +1,6 @@
 # v1.1.0 -- Known Gaps, Deferrals, and Carryovers
 
-**Status**: live (cycle opened at Phase 1, 2026-05-18; Phase 2 rebrand + core extraction landed 2026-05-19; Phase 3 coding-module codemod + first sub-tree migration landed 2026-05-19; Phase 4 memory provenance + HookBus + secret pre-index filter landed 2026-05-19; Phase 5 hybrid retrieval + local embedder + warm-build worker landed 2026-05-19; Phase 6 memory CLI + Ebbinghaus decay + slash commands landed 2026-05-19; Phase 7 session replay timeline + compare mode landed 2026-05-20; Phase 8 DevAI-Hub closures + skill hot-reload + AgentLoop skill provenance landed 2026-05-20; Phase 9 opt-in contradiction resolver + file compressor landed 2026-05-20)
+**Status**: live (cycle opened at Phase 1, 2026-05-18; Phase 2 rebrand + core extraction landed 2026-05-19; Phase 3 coding-module codemod + first sub-tree migration landed 2026-05-19; Phase 4 memory provenance + HookBus + secret pre-index filter landed 2026-05-19; Phase 5 hybrid retrieval + local embedder + warm-build worker landed 2026-05-19; Phase 6 memory CLI + Ebbinghaus decay + slash commands landed 2026-05-19; Phase 7 session replay timeline + compare mode landed 2026-05-20; Phase 8 DevAI-Hub closures + skill hot-reload + AgentLoop skill provenance landed 2026-05-20; Phase 9 opt-in contradiction resolver + file compressor landed 2026-05-20; Phase 10 VS Code extension thin-adapter rewrite landed 2026-05-20)
 **Audience**: v1.1.0 phase authors, code reviewer, security reviewer, ops engineer, future-cycle planners
 **Last updated**: 2026-05-20
 **Sibling reviews**: [docs/v1.0.0/known-gaps.md](../v1.0.0/known-gaps.md) (the upstream cycle gap log this file inherits from); [docs/v1.1.0/plans/v1.1.0-cycle.md](plans/v1.1.0-cycle.md) (the active plan); [docs/v1.1.0/plans/phase-01-shared-core-and-carryforward-closure.md](plans/phase-01-shared-core-and-carryforward-closure.md) (Phase 1 detail); [docs/v1.1.0/plans/phase-02-rebrand-and-core-extraction.md](plans/phase-02-rebrand-and-core-extraction.md) (Phase 2 detail); [docs/v1.1.0/plans/phase-03-coding-module.md](plans/phase-03-coding-module.md) (Phase 3 detail); [docs/v1.1.0/plans/phase-05-hybrid-retrieval-and-local-embedder.md](plans/phase-05-hybrid-retrieval-and-local-embedder.md) (Phase 5 detail).
@@ -194,6 +194,27 @@ Each entry has a category tag:
 - **Reason**: Phase 9 ships `handleMemoryCompress(input, ctx)` ([core/memory/MemorySlashCommands.ts](../../core/memory/MemorySlashCommands.ts)) and the `memory-compress` autocomplete catalog entry ([desktop/src/modules/coding/slashCommands.ts](../../desktop/src/modules/coding/slashCommands.ts)). Direct unit coverage exercises the contract (missing path, missing compressor, gate-off, happy-path). The daemon-side slash dispatcher path that resolves a chosen `/memory-compress` to the `handleMemoryCompress` body uses the same `ChatCommandContext` plumbing that 8.4.P2.V references; the legacy `src/chat/SlashCommandRouter.ts` only knows about the v1.0.0 catalog, so wiring the new handler at the daemon clusters with the `src/chat/` -> `modules/coding/chat/` sub-tree migration tracked under 1.4.P1.B.
 - **Suggested next step**: After `src/chat/` migrates (under 1.4.P1.B), have the dispatcher import `handleMemoryCompress` from `core/memory/MemorySlashCommands.ts` and add a `compressor: FileCompressor | null` field to the chat context built at sidecar boot. The compressor is constructed once per sidecar with the live `LocalEmbedder` + `SemanticWriter` + `OllamaClient`; the toggle reads from `SettingsStore` on every command invocation so the user can flip it without restarting.
 
+### 10.1.P1.Z -- Proxy-branch daemon IPC client deferred (DF, P1)
+
+- **Source phase**: Phase 10 (10.1)
+- **Plan reference**: [phase-10-vscode-thin-adapter-and-republish.md](plans/phase-10-vscode-thin-adapter-and-republish.md) sub-task 10.1 prompt ("every command handler, every panel (`NexusCodingPanel`, `MemoryPanel`, `TraceDashboardPanel`) is a thin webview shell that forwards `postMessage` calls into the IPC client").
+- **Reason**: Phase 10 lands the activation-shape rewrite: `extension.ts` shrinks from 478 lines to 64; `activateProxy` and `activateExtensionOnly` are separated; `discoverDesktopDaemon()` drives the dispatch. The proxy branch today registers all six `nexus.coding.<cmd>` IDs and surfaces an "open the desktop app" hint per invocation. The actual sidecar IPC client (named pipe on Windows, Unix domain socket on macOS / Linux, `tauri::Channel` bridge for streaming) is the upstream Phase 2 deliverable; per the v1.1.0 cycle plan the IPC widening is tracked separately (see Phase 2 known-gap cluster 3.P1.N / 3.P1.Q / 3.P2.U / 4.P1.W / etc. carried forward from v1.0.0). When that client lands, the proxy branch's six handlers swap their information-message body for an IPC `client.send(commandId, ...args)` call; the activation surface (status bar item, command IDs, compat shim, output channel) is already correct.
+- **Suggested next step**: Cluster with the Phase 2 IPC widening commit; ship a `src/desktop/ipcClient.ts` (named pipe / domain socket round-trip), wire it into the six proxy handlers, replace the desktop-app hint surface with daemon-streamed responses, and add an integration test that round-trips `nexus.coding.ping` through a stub daemon.
+
+### 10.1.P2.AA -- Thin-adapter webview shells for `NexusCodingPanel` / `MemoryPanel` / `TraceDashboardPanel` deferred (DF, P2)
+
+- **Source phase**: Phase 10 (10.1)
+- **Plan reference**: [phase-10-vscode-thin-adapter-and-republish.md](plans/phase-10-vscode-thin-adapter-and-republish.md) sub-task 10.1 ("every panel ... is a thin webview shell that forwards `postMessage` calls into the IPC client").
+- **Reason**: The three panels currently live under `src/panels/` and own their own composition graph (memory hub, tracer, conversation manager); turning them into thin webview shells requires the daemon IPC client (10.1.P1.Z) to be present so the shells have something to forward to. Today the proxy branch registers no webview view providers at all (verified by the proxy unit test); the extension-only branch keeps the full panels intact. The activation surface is correct; only the daemon-backed panel rewrites remain.
+- **Suggested next step**: After 10.1.P1.Z lands, extract three thin `src/panels/proxy/<PanelName>Proxy.ts` shells that host the same HTML / CSS payloads as today but route every `postMessage` through the IPC client. Wire them into `activateProxy(...)` behind the same view IDs (`nexus.coding.chatView`, `nexus.coding.memoryPanel`, `nexus.coding.traceDashboard`).
+
+### 10.3.P2.BB -- Marketplace publish + legacy listing transition note are operator actions (DF, P2)
+
+- **Source phase**: Phase 10 (10.3)
+- **Plan reference**: [phase-10-vscode-thin-adapter-and-republish.md](plans/phase-10-vscode-thin-adapter-and-republish.md) sub-task 10.3 acceptance ("both listings are visible; clicking through 'Get' on the new listing installs the rebranded extension; existing `gemma-code` users see the transition note").
+- **Reason**: Publishing a VSIX to the Marketplace requires the publisher PAT, which is operator-procured and must not be committed. The code-level rename (manifest IDs, npm package name, publisher, command IDs, view-container ID, settings keys) landed in Phase 1.6 (commit `de219a5`); the build artefact is reproducible via `npm run package`; the operator-action steps are documented at [docs/v1.1.0/marketplace-transition.md](marketplace-transition.md). The legacy `gemma-code` listing's transition note edit also requires the legacy publisher's PAT.
+- **Suggested next step**: Operator runs the OA-V1.1.0-10A + OA-V1.1.0-10B checklist from [marketplace-transition.md](marketplace-transition.md) prior to Phase 15 RTM. Surfaces in Phase 15's operator-actions consolidation.
+
 ### 9.2.P2.Y -- File compressor embeds the aggregated observation, not each chunk (NI, P2)
 
 - **Source phase**: Phase 9 (9.2)
@@ -262,7 +283,16 @@ Each entry has a category tag:
 | agentmemory A9 (opt-in file compressor + CLI + slash command) | 9 (9.2) | [core/memory/FileCompressor.ts](../../core/memory/FileCompressor.ts) ships `FileCompressor` (with `compressFile(path, provenance)` + `enabled` getter), the `SemanticWriter` / `GraphLinker` ports, the `chunkText` + `buildCompressionPrompt` + `parseShardExtraction` + `renderObservationContent` helpers, and `compressionEntryId(sourcePath)` for stable per-path ids. Each chunk receives a single-line JSON `{"summary":"...","key_facts":[...],"code_patterns":[...]}` reply from the injected `OllamaChatLike`; shards are aggregated into a single semantic-tier observation with `provenance.toolName = "memory.compress"`, `metadata.sourcePath = <path>`, `metadata.chunkCount`, `metadata.model`, plus a `memory.compress.source` graph back-reference to `file://<path>`. The aggregated content (summary + key facts + code patterns) is embedded once via the injected `Embedder`. The `enabled` gate (`nexus.memory.compression.enabled`) short-circuits before any LLM call. The `nexus memory compress --file <path> [--dry-run] [--model <name>] [--session <id>]` CLI subcommand routes through `runMemoryCompress` in [bin/nexus.mjs](../../bin/nexus.mjs); a recording stub Ollama client lets operators audit prompts without spinning up the daemon. The `/memory-compress <path>` slash command ships in [desktop/src/modules/coding/slashCommands.ts](../../desktop/src/modules/coding/slashCommands.ts) (autocomplete catalog entry) + `handleMemoryCompress` in [core/memory/MemorySlashCommands.ts](../../core/memory/MemorySlashCommands.ts) (with audit-log write). 16 unit tests in [tests/unit/core/memory/FileCompressor.test.ts](../../tests/unit/core/memory/FileCompressor.test.ts) + 4 tests in [tests/unit/core/memory/MemorySlashCommands.test.ts](../../tests/unit/core/memory/MemorySlashCommands.test.ts) covering the slash handler + 2 integration scenarios in [tests/integration/memory-consolidation-optin.test.ts](../../tests/integration/memory-consolidation-optin.test.ts) covering the 1,000-line fixture compression + the toggle-off short-circuit. Sidecar dispatcher wiring + per-shard embedding deferred under 9.2.P2.X / 9.2.P2.Y | This commit |
 | -- (settings schema) | 9 (9.3) | New VS Code settings entries declared in [package.json](../../package.json): `nexus.memory.consolidation.enabled` (default `false`) and `nexus.memory.compression.enabled` (default `false`). Both descriptions reference the consuming module + the "off by default; no LLM call made when off" invariant | This commit |
 
-### Phase 7 closures (this commit)
+### Phase 10 closures (this commit)
+
+| Source | v1.1.0 phase | Item | Resolved in |
+|---|---|---|---|
+| v1.0.0 3.P1.O | 10 (10.1) | [src/extension.ts](../../src/extension.ts) reduced from 478 lines to 64; activation dispatches on `discoverDesktopDaemon()` between [src/activation/proxy.ts](../../src/activation/proxy.ts) (76 lines, daemon detected) and [src/activation/extensionOnly.ts](../../src/activation/extensionOnly.ts) (403 lines, legacy in-process engine kept for compatibility through v1.2.0). The proxy branch registers all six `nexus.coding.<cmd>` IDs + a status bar item and surfaces an "open the desktop app" hint per invocation; the extension-only branch preserves the v0.X.0 / v1.0.0 surface unchanged (panels, GPU detector, Ollama poller, OTLP exporter, plan-mode hook editor). 5 new unit tests in [tests/unit/activation/proxy.test.ts](../../tests/unit/activation/proxy.test.ts) | This commit |
+| v1.0.0 11.P1.LLL | 10 (10.1, bundled) | The thin-adapter rewrite is the closing surface for v1.0.0's 3.P1.O / 11.P1.LLL pair, which the v1.0.0 known-gaps log clustered as "extension rewrite + Marketplace re-publish". The rewrite is captured in this commit; the re-publish surface is documented under 10.3.P2.BB | This commit |
+| v1.0.0 2.P1.J / 2.P2.K (Marketplace re-publish portion) | 10 (10.3) | The code-level rename portion landed in Phase 1.6 (commit `de219a5`); the operator-action steps to publish the renamed VSIX + update the legacy listing description live at [docs/v1.1.0/marketplace-transition.md](marketplace-transition.md) (OA-V1.1.0-10A + OA-V1.1.0-10B). Surfaces in Phase 15 RTM | This commit |
+| Phase 10 (10.2) compat shim tightening | 10 (10.2) | [src/activation/compatShim.ts](../../src/activation/compatShim.ts) hosts the once-per-session legacy-keybinding shim. All six `gemma-code.<cmd>` IDs register programmatically (not in the manifest) so they do not surface in the Command Palette; the first invocation of each legacy ID emits `[deprecation] <legacy-id> -> <new-id>` to the "Nexus Coding" output channel; subsequent invocations forward silently. Previously the per-invocation log line shipped under Phase 2's rebrand commit; Phase 10 narrows it to once-per-session per the plan acceptance criterion. 6 new unit tests in [tests/unit/activation/compatShim.test.ts](../../tests/unit/activation/compatShim.test.ts) covering registration, per-id once-semantics, args forwarding, and disposable accounting | This commit |
+
+### Phase 7 closures (commit `2864f68`)
 
 | Source | v1.1.0 phase | Item | Resolved in |
 |---|---|---|---|
@@ -297,15 +327,15 @@ Each entry has a category tag:
 | Severity | Open | Resolved | Total |
 |---|---|---|---|
 | P0 | 0 | 0 | 0 |
-| P1 | 6 | 14 | 20 |
-| P2 | 16 | 17 | 33 |
+| P1 | 7 | 16 | 23 |
+| P2 | 18 | 17 | 35 |
 | P3 | 0 | 0 | 0 |
-| **Total** | **22** | **37** | **59** |
+| **Total** | **25** | **39** | **64** |
 
-Phase 9 contributes three closures (agentmemory A4 opt-in contradiction resolver, A9 opt-in file compressor + `nexus memory compress` CLI + `/memory-compress` slash command, plus the two new settings schema entries) and three P2 deferrals (9.1.P2.W IdleTimeScheduler binding deferred to the same `MemoryStore` adapter cluster that holds 5.6.P2.O / 6.6.P2.S, 9.2.P2.X sidecar slash dispatcher wiring deferred to the 1.4.P1.B `src/chat/` migration, 9.2.P2.Y per-shard embedding deviation tracked as an NI). Phase 8 contributes six closures (10.P1.GGG SkillsReloader, 10.P1.HHH weekly auto-sync worker, 10.P2.III install/remove + allowlist + scanner, 10.P2.JJJ preferUpstream in autocomplete, 10.P2.KKK AgentLoop.setCurrentSkill + lifecycle.skill.entry, plus the settings schema entries) and three P2 deferrals (8.1.P2.T sidecar daemon-entry-point wiring, 8.3.P2.U live HTTPS install smoke deferred to Phase 15, 8.4.P2.V preferUpstream daemon-side dispatcher deferred to the 1.4.P1.B `src/chat/` migration). Phase 7 contributed one closure (agentmemory A6 session replay timeline) with no new open items. Phase 6 contributed seven closures (A11 audit, A10 export+import, `/recall`, `/remember`, A12 `/forget`, A3 Ebbinghaus decay, plus the CLI parsing surface) and four P2 deferrals (6.1.P2.P, 6.2.P2.Q, 6.5.P2.R, 6.6.P2.S) -- all still open and clustered around the same live `MemoryStore` adapter cluster.
+Phase 10 contributes three closures (v1.0.0 3.P1.O thin-adapter rewrite, v1.0.0 11.P1.LLL bundled as part of the same rewrite, plus the 10.2 compat-shim tightening to once-per-session deprecation logs) plus the Marketplace re-publish operator-action documentation (closes the publish-surface portion of 2.P1.J / 2.P2.K). Three new P-level deferrals open: 10.1.P1.Z (proxy-branch daemon IPC client awaits the upstream Phase 2 widening), 10.1.P2.AA (thin-webview-shell rewrites of the three panels follow once 10.1.P1.Z lands), 10.3.P2.BB (Marketplace publish + legacy listing transition note are operator actions documented in [marketplace-transition.md](marketplace-transition.md)). Phase 9 contributed three closures (agentmemory A4 opt-in contradiction resolver, A9 opt-in file compressor + `nexus memory compress` CLI + `/memory-compress` slash command, plus the two new settings schema entries) and three P2 deferrals (9.1.P2.W IdleTimeScheduler binding deferred to the same `MemoryStore` adapter cluster that holds 5.6.P2.O / 6.6.P2.S, 9.2.P2.X sidecar slash dispatcher wiring deferred to the 1.4.P1.B `src/chat/` migration, 9.2.P2.Y per-shard embedding deviation tracked as an NI). Phase 8 contributed six closures (10.P1.GGG SkillsReloader, 10.P1.HHH weekly auto-sync worker, 10.P2.III install/remove + allowlist + scanner, 10.P2.JJJ preferUpstream in autocomplete, 10.P2.KKK AgentLoop.setCurrentSkill + lifecycle.skill.entry, plus the settings schema entries) and three P2 deferrals (8.1.P2.T sidecar daemon-entry-point wiring, 8.3.P2.U live HTTPS install smoke deferred to Phase 15, 8.4.P2.V preferUpstream daemon-side dispatcher deferred to the 1.4.P1.B `src/chat/` migration). Phase 7 contributed one closure (agentmemory A6 session replay timeline) with no new open items. Phase 6 contributed seven closures (A11 audit, A10 export+import, `/recall`, `/remember`, A12 `/forget`, A3 Ebbinghaus decay, plus the CLI parsing surface) and four P2 deferrals (6.1.P2.P, 6.2.P2.Q, 6.5.P2.R, 6.6.P2.S) -- all still open and clustered around the same live `MemoryStore` adapter cluster.
 
 By category (open items only):
-- **DF** (deferred): 19
+- **DF** (deferred): 22
 - **MT** (missing tests): 1
 - **NI** (not implemented as planned): 2
 - **BG / WN / QG**: 0
@@ -318,6 +348,7 @@ By phase (open items only):
 - Phase 7: 0 new open items.
 - Phase 8: 3 (8.1.P2.T sidecar entry-point wiring + 8.3.P2.U live HTTPS install smoke + 8.4.P2.V daemon-side dispatcher consults `preferUpstream`)
 - Phase 9: 3 (9.1.P2.W ContradictionResolver IdleTimeScheduler binding + 9.2.P2.X `/memory-compress` daemon-side dispatch + 9.2.P2.Y per-shard embedding deviation)
+- Phase 10: 3 (10.1.P1.Z daemon IPC client deferred to Phase 2 widening + 10.1.P2.AA thin-webview shells deferred to once IPC client lands + 10.3.P2.BB Marketplace publish + legacy listing transition note are operator actions)
 
 ---
 
@@ -325,13 +356,13 @@ By phase (open items only):
 
 This table mirrors the cycle plan's [Carryforward Map](plans/v1.1.0-cycle.md#carryforward-map-v100---v110). Items in **Phase 1** are closed here (see `## 2. Resolved` above) or recorded as open items in `## 1` when deferred to "Phase 1b". Items in later phases are open and tracked against their target phase.
 
-| v1.0.0 code | v1.1.0 phase | Status (as of 2026-05-19) |
+| v1.0.0 code | v1.1.0 phase | Status (as of 2026-05-20) |
 |---|---|---|
 | 2.P1.G | 1 | Closed (Phase 1 commit `ec3ff0e`, sub-task 1.2) |
 | 2.P1.H | 1 | Closed (Phase 1 commit `ec3ff0e`, sub-task 1.3) |
 | 2.P2.I | 1 / 3 / future | Partially closed -- Phase 3 (this commit, sub-tasks 3.1 + 3.2) lands the codemod and migrates `src/utils/`; open item 1.4.P1.B holds the per-sub-tree status table for the remaining 12 sub-trees |
-| 2.P1.J | 1 (manifest) + 10 | Closed-manifest-portion (Phase 2 commit `de219a5`, sub-task 2.1); Marketplace re-publish targets cycle Phase 10 |
-| 2.P2.K | 1 (npm) + 10 | Closed-npm-portion (Phase 2 commit `de219a5`, sub-task 2.2); Marketplace re-publish targets cycle Phase 10 |
+| 2.P1.J | 1 (manifest) + 10 | Closed-manifest-portion (Phase 2 commit `de219a5`, sub-task 2.1); Marketplace re-publish operator action documented in [marketplace-transition.md](marketplace-transition.md) (10.3.P2.BB, target Phase 15 RTM) |
+| 2.P2.K | 1 (npm) + 10 | Closed-npm-portion (Phase 2 commit `de219a5`, sub-task 2.2); Marketplace re-publish operator action documented in [marketplace-transition.md](marketplace-transition.md) (10.3.P2.BB, target Phase 15 RTM) |
 | 2.P3.L | 1 | Closed (Phase 1 commit `ec3ff0e`, sub-task 1.8) |
 | 3.P1.M | 1 | Deferred (open item 1.10.P1.F) -- waits for `src/runtime/` to migrate under 1.4.P1.B |
 | 3.P1.P | 1 | Closed (Phase 1 commit `ec3ff0e`, sub-task 1.7) |
@@ -342,6 +373,8 @@ This table mirrors the cycle plan's [Carryforward Map](plans/v1.1.0-cycle.md#car
 | 10.P2.III | 8 | Closed (Phase 8 this commit, sub-task 8.3) -- install/remove CLI with allowlist + scanner; live HTTPS smoke deferred under 8.3.P2.U |
 | 10.P2.JJJ | 8 | Closed (Phase 8 this commit, sub-task 8.4) -- `filterSlashCommandsWithSkills` orders by `preferUpstream`; daemon dispatcher deferred under 8.4.P2.V |
 | 10.P2.KKK | 8 | Closed (Phase 8 this commit, sub-task 8.5) -- `AgentLoop.setCurrentSkill` + `lifecycle.skill.entry` |
+| 3.P1.O | 10 | Closed (Phase 10 this commit, sub-task 10.1) -- `src/extension.ts` 478 -> 64 lines; activation dispatches between [activation/proxy.ts](../../src/activation/proxy.ts) and [activation/extensionOnly.ts](../../src/activation/extensionOnly.ts) via `discoverDesktopDaemon()`; proxy-branch IPC client deferred under 10.1.P1.Z |
+| 11.P1.LLL | 10 | Closed (Phase 10 this commit, sub-task 10.1, bundled with 3.P1.O) -- thin-adapter rewrite is the spiritual successor to "extension rewrite + Marketplace re-publish" pairing; re-publish operator action documented under 10.3.P2.BB |
 | 1.P2.B | 1 | Deferred (open item 1.11.P1.G) -- folds into cycle Phase 11 webview-build pipeline change |
 | 1.P2.C | 15 (OA-07) | Open (operator action, target Phase 15) |
 | 1.P2.D | 1 / 15 | Open (target Phase 15 RTM) |
@@ -360,3 +393,5 @@ This table mirrors the cycle plan's [Carryforward Map](plans/v1.1.0-cycle.md#car
 - [docs/v1.1.0/plans/phase-05-hybrid-retrieval-and-local-embedder.md](plans/phase-05-hybrid-retrieval-and-local-embedder.md) -- Phase 5 detail (hybrid retrieval + local embedder + warm-build worker)
 - [docs/v1.1.0/development/decisions/shared-core-build.md](development/decisions/shared-core-build.md) -- ADR for sub-task 1.1
 - [scripts/dev/rewrite-imports.mjs](../../scripts/dev/rewrite-imports.mjs) -- generic import-rewriting codemod consumed by Phase 3 + future sub-tree migrations
+- [docs/v1.1.0/plans/phase-10-vscode-thin-adapter-and-republish.md](plans/phase-10-vscode-thin-adapter-and-republish.md) -- Phase 10 detail (VS Code extension thin-adapter rewrite + Marketplace re-publish)
+- [docs/v1.1.0/marketplace-transition.md](marketplace-transition.md) -- Phase 10 operator-action checklist (OA-V1.1.0-10A + OA-V1.1.0-10B)
