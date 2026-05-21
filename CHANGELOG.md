@@ -1,3 +1,11 @@
+# [0.42.0](https://github.com/bendourthe/Nexus-AI/compare/v0.41.0...v0.42.0) (2026-05-21)
+
+
+### Features
+
+* **v1.1.0:** phase 13 video lab sana-video fast 720p tier ([1dabb27](https://github.com/bendourthe/Nexus-AI/commit/1dabb27b1d65720644e30d2702be3307ee69654b))
+* **v1.1.0:** phase 14 cross-os installer with hardware + disk-aware model picker ([0ead8f3](https://github.com/bendourthe/Nexus-AI/commit/0ead8f31df0c432938f03e7a95721fb7fbd3cdb6))
+
 # [0.41.0](https://github.com/bendourthe/Nexus-AI/compare/v0.40.0...v0.41.0) (2026-05-21)
 
 
