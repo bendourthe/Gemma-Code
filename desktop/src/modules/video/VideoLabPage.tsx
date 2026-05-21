@@ -34,6 +34,12 @@ import {
 
 const DEFAULT_VIDEO_MODELS = [
   { id: "ltx-video", displayName: "LTX-Video (default)", mode: "text2video" as VideoMode },
+  // v1.1.0 Phase 13.1 -- SANA-Video 2B "Fast 720p" tier between LTX-Video and CogVideoX.
+  {
+    id: "sana-video-2b-720p",
+    displayName: "SANA-Video 2B 720p (Fast)",
+    mode: "text2video" as VideoMode,
+  },
   { id: "cogvideox-5b", displayName: "CogVideoX 5B (opt-in)", mode: "text2video" as VideoMode },
   { id: "cogvideox-2b", displayName: "CogVideoX 2B (opt-in)", mode: "text2video" as VideoMode },
   { id: "svd", displayName: "Stable Video Diffusion (default)", mode: "image2video" as VideoMode },

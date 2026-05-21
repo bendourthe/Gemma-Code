@@ -99,6 +99,36 @@ class TestModelSelection:
         assert "sdxl-turbo" not in light_ids
         assert "sdxl-turbo" not in recommended_ids
 
+    def test_phase_13_sana_video_visible_in_every_preset(self) -> None:
+        # v1.1.0 Phase 13.3 acceptance: SANA-Video appears in every
+        # preset so users can opt in without leaving the preset view.
+        for preset in (LIGHT_PRESET, RECOMMENDED_PRESET, FULL_PRESET):
+            ids = {m.model_id for m in preset.models}
+            assert "sana-video-2b-720p" in ids, preset.name
+
+    def test_phase_13_sana_video_opt_in_on_light_and_recommended(self) -> None:
+        # v1.1.0 Phase 13.3 acceptance: unticked-by-default in Light +
+        # Recommended; ticked-by-default in Full.
+        def _entry(preset: PresetBundle, model_id: str) -> ModelEntry:
+            for m in preset.models:
+                if m.model_id == model_id:
+                    return m
+            raise AssertionError(
+                f"sana-video-2b-720p missing from {preset.name}",
+            )
+
+        assert _entry(LIGHT_PRESET, "sana-video-2b-720p").default_checked is False
+        assert (
+            _entry(RECOMMENDED_PRESET, "sana-video-2b-720p").default_checked is False
+        )
+        assert _entry(FULL_PRESET, "sana-video-2b-720p").default_checked is True
+
+    def test_model_entry_default_checked_defaults_to_true(self) -> None:
+        # Backwards compatibility: existing entries that do not specify
+        # `default_checked` continue to seed the selection.
+        entry = ModelEntry("foo", "Foo", 1.0, "desc")
+        assert entry.default_checked is True
+
 
 class TestRecommendedModelsPageRender:
     def test_renders_with_default_state(self, qt_app) -> None:  # noqa: ANN001
@@ -110,10 +140,49 @@ class TestRecommendedModelsPageRender:
         selection = page.selection()
         # 24 GB VRAM -> Full preset by default.
         assert selection.preset.name == "Full"
-        # The full preset selects every model in the catalog by default.
-        assert selection.selected_models == {m.model_id for m in FULL_PRESET.models}
+        # The Full preset seeds the selection with every ticked-by-default
+        # model (Phase 13.3 opt-in rows are still default_checked=True
+        # within Full).
+        assert selection.selected_models == {
+            m.model_id for m in FULL_PRESET.models if m.default_checked
+        }
 
     def test_renders_for_low_vram_default_to_light(self, qt_app) -> None:  # noqa: ANN001
         state = InstallerState(gpu_name="cpu-only", vram_mb=2 * 1024)
         page = RecommendedModelsPage(state)
         assert page.selection().preset.name == "Light"
+
+    def test_light_preset_skips_opt_in_rows_in_initial_selection(
+        self, qt_app  # noqa: ANN001
+    ) -> None:
+        # v1.1.0 Phase 13.3 acceptance: SANA-Video appears in the Light
+        # preset but is NOT seeded into the initial selection because it
+        # is opt-in (default_checked=False).
+        state = InstallerState(gpu_name="cpu-only", vram_mb=4 * 1024)
+        page = RecommendedModelsPage(state)
+        selection = page.selection()
+        assert selection.preset.name == "Light"
+        assert "sana-video-2b-720p" not in selection.selected_models
+        assert "sana-1.6b-1024" in selection.selected_models
+
+    def test_recommended_preset_skips_opt_in_rows_in_initial_selection(
+        self, qt_app  # noqa: ANN001
+    ) -> None:
+        # v1.1.0 Phase 13.3 acceptance: SANA-Video stays opt-in on
+        # Recommended too.
+        state = InstallerState(gpu_name="NVIDIA GeForce RTX 4070", vram_mb=12 * 1024)
+        page = RecommendedModelsPage(state)
+        selection = page.selection()
+        assert selection.preset.name == "Recommended"
+        assert "sana-video-2b-720p" not in selection.selected_models
+
+    def test_full_preset_seeds_sana_video_in_initial_selection(
+        self, qt_app  # noqa: ANN001
+    ) -> None:
+        # v1.1.0 Phase 13.3 acceptance: Full ticks SANA-Video by default
+        # (creator-tier user opted into the heaviest payload).
+        state = InstallerState(gpu_name="NVIDIA GeForce RTX 4090", vram_mb=24 * 1024)
+        page = RecommendedModelsPage(state)
+        selection = page.selection()
+        assert selection.preset.name == "Full"
+        assert "sana-video-2b-720p" in selection.selected_models

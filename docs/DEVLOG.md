@@ -4,6 +4,41 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-21] v1.1.0 Phase 13 -- Video Lab fast tier (SANA-Video 2B)
+
+### Goal
+
+Surface SANA-Video 2B as the "Fast 720p" tier in the Video Lab, sitting between LTX-Video (default) and CogVideoX (longer clips). Plan reference: [docs/v1.1.0/plans/phase-13-video-lab-sana-video.md](v1.1.0/plans/phase-13-video-lab-sana-video.md). The Phase 12 catalog already registers `sana-video-2b-720p` and [runtimes/diffusion/pipelines/sana_video.py](../runtimes/diffusion/pipelines/sana_video.py) already provides the stub-mode executor; Phase 13 makes the tier user-visible in the Video Lab UI, dedicates an integration test that drives the IPC round-trip, and reshapes the installer recommended-models picker so SANA-Video appears as an opt-in checkbox in Light + Recommended (unchecked by default) and ticks by default only in Full.
+
+### What changed
+
+**13.1 Video Lab Fast 720p preset.** [desktop/src/modules/video/VideoPromptForm.tsx](../desktop/src/modules/video/VideoPromptForm.tsx) gains a Preset selector with two entries: `Custom` (no patch) and `Fast 720p (SANA-Video 2B)` (binds `modelId: "sana-video-2b-720p"`, `mode: "text2video"`, `width: 1280`, `height: 720`, `durationSeconds: 4`, `fps: 24`, `sampler: "flow-dpm-solver"`). The new exported `VIDEO_PRESETS` catalog drives both the rendered dropdown and the unit tests. The sampler dropdown widens to include `flow-dpm-solver`. [desktop/src/modules/video/VideoLabPage.tsx](../desktop/src/modules/video/VideoLabPage.tsx)'s `DEFAULT_VIDEO_MODELS` array now lists `sana-video-2b-720p` as a text2video option so the preset's chosen modelId resolves under the existing `modelsForMode` filter and the Generate button dispatches to `diffusion.video.sana.text2video`. [runtimes/diffusion/pipelines/video_params.py](../runtimes/diffusion/pipelines/video_params.py) widens `_VALID_SAMPLERS` to accept `flow-dpm-solver` so the request round-trips through the dispatcher.
+
+**13.2 Dedicated SANA-Video pipeline test.** [tests/python/diffusion/test_sana_video.py](../tests/python/diffusion/test_sana_video.py) lands with 18 cases mirroring the shape of [tests/python/diffusion/test_video_base.py](../tests/python/diffusion/test_video_base.py): registration shape (both `diffusion.video.sana.text2video` and `.image2video` install and are callable; `_MODEL_SIZE_GB == 8.0`), IPC round-trip with the stub executor (text2video + image2video; workflow JSON carries `prompt` / `sampler` / `modelId`; frame previews are one-per-second), envelope validation (missing jobId / missing mode / invalid params / missing sourceImage / `None` params), insufficient-VRAM path on a 2 GB host (8 GB planning size produces `insufficient-vram` when free < model/2), outputs-dir env override, the 12 GB RTX-4070 offload tier reports an upgraded strategy, and the module-level surface (callable `register`; `video_base` reference identity). Coverage on `sana_video.py` is **100%** (9/9 statements), well above the 80% Phase 13.2 acceptance.
+
+**13.3 SANA-Video installer opt-in.** [scripts/installer/pyqt/src/nexus_installer/pages/recommended_models.py](../scripts/installer/pyqt/src/nexus_installer/pages/recommended_models.py) `ModelEntry` gains a `default_checked: bool = True` field (backwards-compatible default). SANA-Video appears in every preset (Light / Recommended / Full); Light + Recommended ship it with `default_checked=False` (visible-but-unchecked opt-in for the extra 4 GB), Full ticks it by default (creator tier). `_PresetCard` honours the new field; `RecommendedModelsPage.__init__` seeds the initial `selected_models` from `{m.model_id for m in default.models if m.default_checked}` so unchecked rows render but are not pre-selected. 8 new tests in [scripts/installer/pyqt/tests/test_recommended_models.py](../scripts/installer/pyqt/tests/test_recommended_models.py) cover every-preset visibility, per-preset default_checked, the ModelEntry default, and per-VRAM render assertions.
+
+**13.4 Four-step gate.** ESLint clean (`npm run lint:shell` exits 0); 7 new VideoPromptForm tests pass; 11 existing VideoLabPage tests stay green; the full Python diffusion suite (135 cases across 13 files) passes; the installer-pyqt page suite (23 cases) passes. The two pre-existing `tests/sidecar-handlers.test.ts` failures reproduce against `main` without the Phase 13 patch applied (confirmed via `git stash`) and trace to a Phase 11 IPC-protocol widening unrelated to Phase 13. Operator-action OA-09 already carries the SANA-Video 4 s 720p <= 60 s timing target (added in Phase 12); no new operator-action row opens.
+
+### Test signals
+
+- npm desktop suite: 7 new (VideoPromptForm) + 11 existing (VideoLabPage) = 18 video-related cases green; ESLint exits 0 against `desktop/src`, `desktop/sidecar/src`, `desktop/tests`.
+- Python diffusion pytest: 135 / 135 passing across the 13 test files under [tests/python/diffusion/](../tests/python/diffusion/), with 100% line coverage on [runtimes/diffusion/pipelines/sana_video.py](../runtimes/diffusion/pipelines/sana_video.py).
+- Installer pyqt pytest: 23 / 23 passing in [scripts/installer/pyqt/tests/test_recommended_models.py](../scripts/installer/pyqt/tests/test_recommended_models.py); the new opt-in semantics + the per-VRAM render asserts both light up.
+
+### Known gaps + deferrals
+
+See [docs/v1.1.0/known-gaps.md](v1.1.0/known-gaps.md) Phase 13 closures + Section 1 (open items). Two new open items:
+
+- **13.2.P3.II** -- the dedicated `test_sana_video.py` lives under [tests/python/diffusion/](../tests/python/diffusion/) instead of the plan's literal `runtimes/diffusion/tests/` path because every other Python diffusion test lives under `tests/python/diffusion/`. The acceptance ("mirror the structure of `test_video_base.py`") is met at the test-shape level rather than the directory level; the deviation is recorded for future-cycle planning.
+- **13.1.P2.JJ** -- [desktop/src/modules/video/VideoLabPage.tsx](../desktop/src/modules/video/VideoLabPage.tsx)'s `DEFAULT_VIDEO_MODELS` is still a static array; the live `videoClient.listModels()` wiring clusters with the Phase 2 IPC widening (10.1.P1.Z) and the Image Studio model dropdown (11.1.P2.CC).
+
+### Operator-action handoff
+
+OA-09 already carries the SANA-Video 4 s 720p <= 60 s timing target on the RTX 4070 baseline rig (added in Phase 12). Phase 13 adds no new operator-action row.
+
+---
+
 ## [2026-05-20] v1.1.0 Phase 12 -- Image Studio upgrade (NVIDIA SANA family)
 
 ### Goal

@@ -33,7 +33,7 @@ export interface VideoPromptFormProps {
   readonly onChange?: (values: VideoFormValues) => void;
 }
 
-const SAMPLERS = ["euler", "euler_a", "dpmpp_2m", "dpmpp_sde", "ddim", "lms"];
+const SAMPLERS = ["euler", "euler_a", "dpmpp_2m", "dpmpp_sde", "ddim", "lms", "flow-dpm-solver"];
 const FPS_VALUES: Array<12 | 16 | 24> = [12, 16, 24];
 const RESOLUTIONS: Array<{
   label: string;
@@ -59,6 +59,44 @@ export const DEFAULT_VIDEO_FORM_VALUES: VideoFormValues = {
   seed: 0,
 };
 
+/**
+ * v1.1.0 Phase 13.1 -- Video Lab preset bundles. Each preset binds a
+ * named tier (e.g. "Fast 720p") to a partial `VideoFormValues` patch the
+ * preset selector applies to the form on selection. The Fast 720p preset
+ * targets SANA-Video 2B (catalog entry from Phase 12.1) at 1280x720,
+ * 24 fps, 4 s, flow-dpm-solver.
+ */
+export interface VideoPreset {
+  readonly id: string;
+  readonly label: string;
+  readonly description: string;
+  readonly values: Partial<VideoFormValues>;
+}
+
+export const VIDEO_PRESETS: readonly VideoPreset[] = [
+  {
+    id: "custom",
+    label: "Custom",
+    description: "Hand-tuned values; the preset selector stays out of the way.",
+    values: {},
+  },
+  {
+    id: "fast-720p",
+    label: "Fast 720p (SANA-Video 2B)",
+    description:
+      "SANA-Video 2B at 720p, 4 s, 24 fps, flow-dpm-solver. Target <=60 s on RTX 4070 with offload.",
+    values: {
+      modelId: "sana-video-2b-720p",
+      mode: "text2video",
+      width: 1280,
+      height: 720,
+      durationSeconds: 4,
+      fps: 24,
+      sampler: "flow-dpm-solver",
+    },
+  },
+];
+
 export function VideoPromptForm({
   initial,
   availableModels,
@@ -78,11 +116,20 @@ export function VideoPromptForm({
     onChange?.(values);
   }, [values, onChange]);
 
+  const [presetId, setPresetId] = useState<string>("custom");
+
   function update<K extends keyof VideoFormValues>(
     key: K,
     value: VideoFormValues[K],
   ): void {
     setValues((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function applyPreset(id: string): void {
+    setPresetId(id);
+    const preset = VIDEO_PRESETS.find((p) => p.id === id);
+    if (!preset || Object.keys(preset.values).length === 0) return;
+    setValues((prev) => ({ ...prev, ...preset.values }));
   }
 
   function updateMode(mode: VideoMode): void {
@@ -105,6 +152,22 @@ export function VideoPromptForm({
       data-testid="video-prompt-form"
       style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}
     >
+      <label>
+        Preset
+        <select
+          data-testid="video-preset"
+          value={presetId}
+          disabled={disabled}
+          onChange={(e) => applyPreset(e.target.value)}
+        >
+          {VIDEO_PRESETS.map((p) => (
+            <option key={p.id} value={p.id} title={p.description}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+      </label>
+
       <label>
         Mode
         <select

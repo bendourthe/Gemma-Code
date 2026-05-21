@@ -24,7 +24,18 @@ from typing import Any, Mapping, Optional
 
 _VALID_VIDEO_MODES = {"text2video", "image2video"}
 _VALID_FPS = {12, 16, 24}
-_VALID_SAMPLERS = {"euler", "euler_a", "dpmpp_2m", "dpmpp_sde", "ddim", "lms"}
+# v1.1.0 Phase 13.1 -- `flow-dpm-solver` joins the allowed video samplers
+# so the SANA-Video 2B "Fast 720p" preset round-trips through the same
+# validator as LTX-Video / SVD / CogVideoX.
+_VALID_SAMPLERS = {
+    "euler",
+    "euler_a",
+    "dpmpp_2m",
+    "dpmpp_sde",
+    "ddim",
+    "lms",
+    "flow-dpm-solver",
+}
 _VALID_RESOLUTIONS = {(854, 480), (1280, 720)}
 
 

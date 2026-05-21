@@ -41,12 +41,20 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class ModelEntry:
-    """A model row in a preset bundle or in the advanced catalog."""
+    """A model row in a preset bundle or in the advanced catalog.
+
+    `default_checked` lets a preset surface a model row that is visible
+    but unticked by default -- the v1.1.0 Phase 13.3 opt-in pattern for
+    SANA-Video 2B in the Light + Recommended presets (the row appears so
+    the user can opt in for the extra 4 GB without having to swap presets
+    or hunt through the Advanced tab).
+    """
 
     model_id: str
     label: str
     size_gb: float
     description: str
+    default_checked: bool = True
 
 
 @dataclass(frozen=True)
@@ -84,6 +92,17 @@ LIGHT_PRESET = PresetBundle(
             "1-step Fast Preview tier",
         ),
         ModelEntry("ltx-video", "LTX-Video", 3.5, "short video clips"),
+        # v1.1.0 Phase 13.3 -- SANA-Video appears as an opt-in row so the
+        # user can add the Fast 720p tier without leaving the preset; the
+        # row stays unchecked by default in Light + Recommended so the
+        # extra 4 GB is explicit.
+        ModelEntry(
+            "sana-video-2b-720p",
+            "SANA-Video 2B 720p",
+            4.0,
+            "Fast 720p video tier (opt-in)",
+            default_checked=False,
+        ),
     ),
 )
 
@@ -109,6 +128,15 @@ RECOMMENDED_PRESET = PresetBundle(
         ),
         ModelEntry("ltx-video", "LTX-Video", 3.5, "short video clips"),
         ModelEntry("svd", "Stable Video Diffusion", 5.5, "image-to-video"),
+        # v1.1.0 Phase 13.3 -- SANA-Video as opt-in (unchecked) in
+        # Recommended too; ticked by default in Full only.
+        ModelEntry(
+            "sana-video-2b-720p",
+            "SANA-Video 2B 720p",
+            4.0,
+            "Fast 720p video tier (opt-in)",
+            default_checked=False,
+        ),
     ),
 )
 
@@ -144,11 +172,13 @@ FULL_PRESET = PresetBundle(
         ModelEntry("flux-schnell", "Flux Schnell", 11.0, "premium text-to-image"),
         ModelEntry("ltx-video", "LTX-Video", 3.5, "short video clips"),
         ModelEntry("svd", "Stable Video Diffusion", 5.5, "image-to-video"),
+        # v1.1.0 Phase 13.3 -- Full preset ticks SANA-Video by default
+        # since the creator-tier user opted into the heaviest payload.
         ModelEntry(
             "sana-video-2b-720p",
             "SANA-Video 2B 720p",
             4.0,
-            "fast 720p video tier",
+            "Fast 720p video tier",
         ),
         ModelEntry("cogvideox-2b", "CogVideoX 2B", 14.0, "longer video generation"),
     ),
@@ -230,7 +260,7 @@ class _PresetCard(QWidget):
             box = QCheckBox(
                 f"{model.label}  --  {model.size_gb:.1f} GB  --  {model.description}"
             )
-            box.setChecked(True)
+            box.setChecked(model.default_checked)
             box.setStyleSheet(
                 f"color: {TEXT_PRIMARY}; background: transparent;"
             )
@@ -270,7 +300,13 @@ class RecommendedModelsPage(QWidget):
         vram_gb = max(0, int(state.vram_mb / 1024))
         default = pick_default_preset(vram_gb)
         self._selection.preset = default
-        self._selection.selected_models = {m.model_id for m in default.models}
+        # v1.1.0 Phase 13.3 -- only ticked-by-default rows seed the
+        # initial selection. Opt-in rows (SANA-Video on Light /
+        # Recommended) appear visible-but-unchecked until the user
+        # explicitly opts in.
+        self._selection.selected_models = {
+            m.model_id for m in default.models if m.default_checked
+        }
 
         subtitle = QLabel(
             f"Detected: {state.gpu_name or 'no GPU'} ({vram_gb} GB VRAM). "
