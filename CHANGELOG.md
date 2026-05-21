@@ -1,3 +1,10 @@
+# [0.39.0](https://github.com/bendourthe/Nexus-AI/compare/v0.38.0...v0.39.0) (2026-05-21)
+
+
+### Features
+
+* **v1.1.0:** phase 10 vscode thin-adapter rewrite ([08e14dd](https://github.com/bendourthe/Nexus-AI/commit/08e14dd073828a9fd2fe2f7b0c19d6e0eddc8491))
+
 # [0.38.0](https://github.com/bendourthe/Nexus-AI/compare/v0.37.0...v0.38.0) (2026-05-21)
 
 
