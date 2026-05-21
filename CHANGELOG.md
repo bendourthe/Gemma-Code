@@ -1,3 +1,10 @@
+# [0.40.0](https://github.com/bendourthe/Nexus-AI/compare/v0.39.0...v0.40.0) (2026-05-21)
+
+
+### Features
+
+* **v1.1.0:** phase 11 nexus vscode extension multi-surface scaffolding ([093be67](https://github.com/bendourthe/Nexus-AI/commit/093be671f537cce43bf97dc41a6ff688899fb72a))
+
 # [0.39.0](https://github.com/bendourthe/Nexus-AI/compare/v0.38.0...v0.39.0) (2026-05-21)
 
 
