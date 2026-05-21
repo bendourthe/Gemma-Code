@@ -22,6 +22,8 @@ from nexus_installer.constants import (
     WINDOW_MIN_HEIGHT,
     WINDOW_MIN_WIDTH,
 )
+from nexus_installer.engine.install_guard import evaluate_install_guard
+from nexus_installer.installer_state import InstallerState
 from nexus_installer.theme import generate_stylesheet
 from nexus_installer.widgets.footer import Footer
 from nexus_installer.widgets.header import Header
@@ -31,8 +33,14 @@ from nexus_installer.widgets.step_indicator import StepIndicator
 class InstallerWindow(QMainWindow):
     """Resizable main window with header, step indicator, scroll content, and footer."""
 
-    def __init__(self) -> None:
+    # v1.1.0 Phase 14.8 -- index of the Review page in the wizard chain. The
+    # final disk + hardware guard fires when the user clicks "Install" on
+    # this page. Kept as a class attribute so test code can override it.
+    review_page_index: int = 6
+
+    def __init__(self, state: InstallerState | None = None) -> None:
         super().__init__()
+        self._state = state
         self.setWindowTitle("Nexus -- Setup")
         self.setMinimumSize(WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT)
         self.resize(WINDOW_DEFAULT_WIDTH, WINDOW_DEFAULT_HEIGHT)
@@ -137,7 +145,7 @@ class InstallerWindow(QMainWindow):
 
         # Update footer buttons
         self._footer.set_back_enabled(index > 0)
-        is_review = index == 6  # Review page
+        is_review = index == self.review_page_index
         is_last = index == total - 1
 
         if is_last:
@@ -174,11 +182,51 @@ class InstallerWindow(QMainWindow):
                     self._error_label.setText(msg)
                     self._error_label.setVisible(True)
                     return
+            # v1.1.0 Phase 14.8 -- final disk + hardware guard at the
+            # Review -> Installing transition. Re-detect free disk so the
+            # user freeing space in another app counts; bounce back to the
+            # picker with an error dialog if the selection no longer fits.
+            if self._is_install_step() and not self._run_install_guard():
+                return
             self._error_label.setVisible(False)
             self.switch_page(self._current_index + 1)
         elif self._current_index == len(self._pages) - 1:
             # Last page: "Finish" closes the app
             self.close()
+
+    def _is_install_step(self) -> bool:
+        return self._current_index == self.review_page_index
+
+    def _run_install_guard(self) -> bool:
+        """Re-evaluate the disk + hardware guard. Returns True when safe."""
+        if self._state is None:
+            return True
+        free_disk_gb = self._state.free_disk_gb
+        # Best-effort fresh probe: prefer host_detect when available.
+        try:
+            from nexus_installer.engine.host_detect import detect_host
+
+            profile = detect_host(
+                install_path_override=self._state.install_path or None
+            )
+            free_disk_gb = profile.free_disk_gb or free_disk_gb
+            self._state.free_disk_gb = free_disk_gb
+        except Exception:  # noqa: BLE001 -- probe is best-effort
+            pass
+        result = evaluate_install_guard(
+            free_disk_gb=free_disk_gb,
+            selection_gb=self._state.selected_models_gb,
+            reserve_gb=self._state.disk_reserve_gb,
+        )
+        if result.ok:
+            return True
+        QMessageBox.critical(self, "Insufficient disk space", result.message)
+        # Bounce the user back to the model picker page (one step before
+        # configuration / review). The page index for the v1.1.0 wizard
+        # chain is Model Selection = 4 in `STEP_NAMES`.
+        target = max(0, self.review_page_index - 2)
+        self.switch_page(target)
+        return False
 
     def closeEvent(self, event: QEvent) -> None:  # noqa: N802
         """Confirm close if installation is in progress."""

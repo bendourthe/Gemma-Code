@@ -1,10 +1,10 @@
 name: Installer build (Linux)
 
-# Builds Nexus-1.0.0.AppImage -- the Linux AppImage outer shell that wraps
-# the same PyQt5 wizard the Windows installer ships. Scoped for v1.0.2
-# release; v1.0.0 only requires this workflow file to exist (gated behind
-# workflow_dispatch) so the cross-platform CI stubs are in place. See
-# docs/v1.0.0/installer-macos-and-linux.md.
+# Builds Nexus-<version>.AppImage -- the Linux AppImage outer shell that
+# wraps the cross-platform PyQt5 wizard from v1.1.0 Phase 14. Statically
+# links against glibc 2.31+; the .desktop file documents that minimum so
+# older distros (Ubuntu 18.04, Debian 10) get a clear "unsupported" message
+# rather than a silent crash.
 
 on:
   workflow_dispatch:
@@ -13,6 +13,9 @@ on:
         description: "Reason for the manual run"
         required: false
         default: "manual rehearsal"
+  push:
+    tags:
+      - "v*"
 
 concurrency:
   group: installer-build-linux-${{ github.workflow }}-${{ github.ref }}
@@ -20,9 +23,11 @@ concurrency:
 
 jobs:
   build-linux-installer:
-    name: Build Nexus-1.0.0.AppImage
+    name: Build Nexus AppImage
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    env:
+      NEXUS_PLATFORM: linux-x86_64
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
 
@@ -47,29 +52,75 @@ jobs:
 
       - name: Resolve pinned versions
         run: |
-          echo "TODO v1.0.2: read scripts/installer/devai-hub-baseline.json + pyproject.toml + .nvmrc"
+          python -c "import json,sys; data=json.load(open('scripts/installer/devai-hub-baseline.json')); print('devai-hub baseline tag:', data['source']['tag'])"
 
-      - name: Fetch payload (CUDA, Python, wheels, Node, Ollama, ffmpeg, DevAI-Hub)
+      - name: Fetch payload (CUDA, ROCm, Python, wheels, Node, Ollama, ffmpeg, DevAI-Hub)
         run: |
-          echo "TODO v1.0.2: run scripts/installer/build/fetch-payload.py --out build/payload/ --platform linux-x86_64"
+          python scripts/installer/build/fetch-payload.py \
+            --os linux --arch x64 \
+            --out build/payload/
+
+      - name: Build VSIX (Nexus Coding extension)
+        run: |
+          npm install -g @vscode/vsce
+          (cd extensions/nexus-coding && vsce package --out ../../build/payload/extensions/nexus-coding-${GITHUB_REF_NAME:-dev}.vsix)
+
+      - name: Install Python deps + PyInstaller
+        run: |
+          cd scripts/installer/pyqt
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+          python -m pip install pyinstaller
 
       - name: Freeze the wizard with PyInstaller
         run: |
-          echo "TODO v1.0.2: uv run pyinstaller --onefile --windowed --name nexus-installer src/nexus_installer/main.py"
+          cd scripts/installer/pyqt
+          pyinstaller --noconfirm --onefile --windowed --name nexus-installer \
+            --add-data "../../../build/payload:payload" \
+            src/nexus_installer/main.py
 
       - name: Assemble AppDir
         run: |
-          echo "TODO v1.0.2: mkdir -p build/AppDir/usr/bin; cp wizard + payload tree; write .desktop file"
+          set -e
+          VERSION="${GITHUB_REF_NAME:-1.1.0-dev}"
+          APPDIR=build/AppDir
+          mkdir -p "$APPDIR/usr/bin" "$APPDIR/usr/share/applications" "$APPDIR/usr/share/icons/hicolor/256x256/apps"
+          cp scripts/installer/pyqt/dist/nexus-installer "$APPDIR/usr/bin/nexus-installer"
+          cp -R build/payload "$APPDIR/usr/share/nexus-payload"
+          if [ -f assets/icon.png ]; then
+            cp assets/icon.png "$APPDIR/usr/share/icons/hicolor/256x256/apps/nexus.png"
+            cp assets/icon.png "$APPDIR/nexus.png"
+          fi
+          cat > "$APPDIR/nexus.desktop" <<EOF
+          [Desktop Entry]
+          Type=Application
+          Name=Nexus
+          Comment=Local-first AI Studio (requires glibc 2.31+)
+          Exec=nexus-installer
+          Icon=nexus
+          Categories=Development;
+          EOF
+          cp "$APPDIR/nexus.desktop" "$APPDIR/usr/share/applications/nexus.desktop"
+          cat > "$APPDIR/AppRun" <<'EOF'
+          #!/usr/bin/env bash
+          HERE="$(dirname "$(readlink -f "$0")")"
+          export PATH="$HERE/usr/bin:$PATH"
+          export NEXUS_PAYLOAD_DIR="$HERE/usr/share/nexus-payload"
+          exec "$HERE/usr/bin/nexus-installer" "$@"
+          EOF
+          chmod +x "$APPDIR/AppRun"
 
       - name: Compile AppImage
         run: |
-          echo "TODO v1.0.2: /tmp/appimagetool build/AppDir build/Nexus-1.0.0.AppImage"
+          set -e
+          VERSION="${GITHUB_REF_NAME:-1.1.0-dev}"
+          ARCH=x86_64 /tmp/appimagetool build/AppDir "build/Nexus-${VERSION}.AppImage"
 
       - name: Upload artifact
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         if: always()
         with:
-          name: Nexus-1.0.0-AppImage
-          path: build/Nexus-1.0.0.AppImage
+          name: Nexus-Linux-AppImage
+          path: build/Nexus*.AppImage
           if-no-files-found: warn
           retention-days: 14

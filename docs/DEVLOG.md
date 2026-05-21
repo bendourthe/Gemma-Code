@@ -4,6 +4,58 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-21] v1.1.0 Phase 14 -- Cross-OS installer (Windows + macOS + Linux) with hardware + disk-aware model picker
+
+### Goal
+
+Turn the v1.0.0 Windows-only installer into the canonical cross-platform installer. Auto-detect host OS at first launch, provision platform-correct tooling (CUDA on Windows + Linux-NVIDIA, Metal Performance Shaders on Apple Silicon, ROCm-aware fallback on Linux-AMD, CPU-only fallback elsewhere), offer the Nexus VS Code extension as an opt-in add-on, and deliver the hardware-aware multi-model picker with free-disk-space awareness. Plan reference: [docs/v1.1.0/plans/phase-14-cross-os-installer.md](v1.1.0/plans/phase-14-cross-os-installer.md). Closes v1.0.0 carryforwards 9.P1.ZZ, 9.P1.AAA, 9.P2.BBB, 9.P1.CCC, 9.P2.DDD, 9.P2.EEE, 6.P1.HH, 7.P1.NN, 7.P1.OO.
+
+### What changed
+
+**14.1 Cross-platform host detection module.** New [scripts/installer/pyqt/src/nexus_installer/engine/host_detect.py](../scripts/installer/pyqt/src/nexus_installer/engine/host_detect.py) returns a `HostProfile` dataclass with 14 fields covering OS family / version, arch, CPU model, total RAM, GPU vendor + model, total VRAM, driver version, the three capability gates (`cuda_compatible`, `metal_compatible`, `rocm_compatible`), free disk on the install volume, and the canonical install path per OS. Detection commands per OS: `wmic` / `nvidia-smi` / PowerShell on Windows, `system_profiler` / `sysctl` / `sw_vers` on macOS, `lspci` / `nvidia-smi` / `rocm-smi` / `/proc/cpuinfo` / `/proc/meminfo` / `df` on Linux. Every probe is fault-tolerant: missing tools collapse to `null` / `0` / `"unknown"`.
+
+**14.2 OS-aware provisioner dispatch.** New [scripts/installer/pyqt/src/nexus_installer/engine/provisioner_dispatch.py](../scripts/installer/pyqt/src/nexus_installer/engine/provisioner_dispatch.py) reads `HostProfile.os_family` + the capability gates and returns the ordered provisioner-name chain: Windows ships `cuda` (or `cpu-only`) -> `windows-python` -> `node` -> `ollama-windows` -> `ffmpeg` -> `devai-hub`; macOS ships `metal` (or `cpu-only`) -> `macos-python` -> `node` -> `ollama-macos` -> `ffmpeg` -> `devai-hub`; Linux ships `cuda-linux` / `rocm` / `cpu-only` depending on GPU then `linux-python` -> `node` -> `ollama-linux` -> `ffmpeg` -> `devai-hub`. `run_chain(chain, provisioners, log)` drives the chain and returns `(done, failed)`; missing provisioners and crashing `install(...)` calls are recorded rather than aborting.
+
+**14.3 macOS provisioners.** Three new files. [metal_provisioner.py](../scripts/installer/pyqt/src/nexus_installer/engine/metal_provisioner.py) installs `torch-mps` from `payload/python/wheels-mac/` on Apple Silicon (Intel Macs fall back to the CPU-only wheel set). [ollama_macos_provisioner.py](../scripts/installer/pyqt/src/nexus_installer/engine/ollama_macos_provisioner.py) copies the bundled `Ollama.app` into `/Applications/` and `open`s it once so the launchd agent registers. [ffmpeg_provisioner.py](../scripts/installer/pyqt/src/nexus_installer/engine/ffmpeg_provisioner.py) is cross-OS: it copies `ffmpeg` + `ffprobe` from `payload/ffmpeg-<os>/` into the per-user runtime tree and surfaces `NEXUS_FFMPEG_PATH` via `runtime_ffmpeg_root()`.
+
+**14.4 Linux provisioners.** Four new files. [cuda_linux_provisioner.py](../scripts/installer/pyqt/src/nexus_installer/engine/cuda_linux_provisioner.py) mirrors the Windows `CudaProvisioner` but writes to `~/.local/share/nexus/runtime/cuda/` and emits an `LD_LIBRARY_PATH` hint. [rocm_provisioner.py](../scripts/installer/pyqt/src/nexus_installer/engine/rocm_provisioner.py) installs `torch-rocm` wheels from `payload/python/wheels-rocm/` after detecting `rocm-smi`. [cpu_only_provisioner.py](../scripts/installer/pyqt/src/nexus_installer/engine/cpu_only_provisioner.py) installs CPU-only PyTorch and surfaces `cpu_fallback_message()` for the "Heavy GPU workloads disabled" dialog. [ollama_linux_provisioner.py](../scripts/installer/pyqt/src/nexus_installer/engine/ollama_linux_provisioner.py) prefers the bundled tarball, falling back to a SHA-pinned `install.sh` download.
+
+**14.5 Disk-aware footer + 10 GB OS reserve.** New [scripts/installer/pyqt/src/nexus_installer/widgets/disk_aware_footer.py](../scripts/installer/pyqt/src/nexus_installer/widgets/disk_aware_footer.py) renders a live footer band; recolors the remaining value (red below the reserve, yellow below 2x reserve, green otherwise). `InstallerState` gains `free_disk_gb`, `selected_models_gb`, `disk_reserve_gb` (default 10), plus `can_select_model(model_gb)`.
+
+**14.6 Typed catalog UI: Text / Image / Video / Audio tabs.** New [scripts/installer/pyqt/src/nexus_installer/pages/typed_catalog.py](../scripts/installer/pyqt/src/nexus_installer/pages/typed_catalog.py) renders a `QTabWidget` of four tabs fed by [core/registry/catalog.json](../core/registry/catalog.json) + new [core/registry/recommended.json](../core/registry/recommended.json). Text: `gemma4:e4b` + `llama3.1:8b` + `qwen2.5-coder:7b`. Image: `sana-1.6b-1024` + `sana-sprint-1024`. Video: `ltx-video`. Audio: empty -> "No audio models recommended yet". Each card surfaces size, compatibility badge (green / yellow / red against `HostProfile`), release date, context window (text only), multimodality, censored, license. Disk-overflow checkboxes disable with a tooltip.
+
+**14.7 Nexus VS Code extension add-on step.** New [scripts/installer/pyqt/src/nexus_installer/pages/vscode_extension.py](../scripts/installer/pyqt/src/nexus_installer/pages/vscode_extension.py) auto-detects `code` / `code-insiders` / `cursor` / `windsurf` on PATH and renders a single-question page. The wizard runs `<cli> --install-extension nexus-coding-<version>.vsix` only when ticked.
+
+**14.8 Hardware-compat + 10 GB reserve at Install click.** New [scripts/installer/pyqt/src/nexus_installer/engine/install_guard.py](../scripts/installer/pyqt/src/nexus_installer/engine/install_guard.py) ships `evaluate_install_guard(free_disk_gb, selection_gb, reserve_gb)`. [scripts/installer/pyqt/src/nexus_installer/window.py](../scripts/installer/pyqt/src/nexus_installer/window.py) re-runs host detection at the Review -> Installing transition and bounces back to the picker with a `QMessageBox.critical(...)` on failure.
+
+**14.9 macOS DMG + Linux AppImage outer shells.** [.github/workflows/installer-macos.yml](../.github/workflows/installer-macos.yml) and [.github/workflows/installer-linux.yml](../.github/workflows/installer-linux.yml) promote from `workflow_dispatch`-only to `push: tags`. Both run the new payload fetcher, freeze the wizard with PyInstaller, build the VSIX, and assemble the outer shell (`create-dmg` with `hdiutil` fallback on macOS; `appimagetool` with a hand-written `.desktop` + `AppRun` on Linux). The macOS workflow attempts codesign + `notarytool` when `APPLE_DEVELOPER_ID` / `APPLE_NOTARY_*` are wired; OA-11 closes the operator side.
+
+**14.10 Cross-OS payload fetcher.** New [scripts/installer/build/fetch-payload.py](../scripts/installer/build/fetch-payload.py) parameterized by `--os` + `--arch`. New [scripts/installer/build/versions.lock.json](../scripts/installer/build/versions.lock.json) pins URL + SHA-256 for every payload asset (Python, Node, CUDA, Ollama, ffmpeg, DevAI-Hub baseline, SANA + DC-AE weights, the embedder ONNX, the VSIX, plus five wheel sets). Placeholder hashes warn-and-continue so v1.1.0 ships; real mismatches abort.
+
+**14.11 Storage review page.** New [scripts/installer/pyqt/src/nexus_installer/pages/storage.py](../scripts/installer/pyqt/src/nexus_installer/pages/storage.py) renders a read-only review band before "Begin Installation". Rows: Free disk, Runtime, Selected models, DevAI-Hub baseline, 10 GB OS reserve, Net after install (color-graded).
+
+**14.12 First-launch storage migration.** New [scripts/installer/pyqt/src/nexus_installer/engine/storage_migration.py](../scripts/installer/pyqt/src/nexus_installer/engine/storage_migration.py) re-implements the v1.0.0 TS `StorageMigration` shape in Python so the launch shim can run idempotently (POSIX -> symlink the legacy directory; Windows -> write `MOVED-TO-NEXUS.txt`).
+
+**14.13 RTM smoke checklists.** Three new ~30-step checklists at [docs/v1.1.0/installer-smoke-windows.md](v1.1.0/installer-smoke-windows.md), [docs/v1.1.0/installer-smoke-macos.md](v1.1.0/installer-smoke-macos.md), [docs/v1.1.0/installer-smoke-linux.md](v1.1.0/installer-smoke-linux.md). Phase 15 sign-off.
+
+**14.14 Lint, build, test gate.** Ruff clean across every Phase 14 file; the full installer pytest suite passes (374 / 374 cases).
+
+### Test signals
+
+- Phase 14 unit tests: 122 new cases across 10 test files (33 host_detect + 12 provisioner_dispatch + 13 Phase 14 provisioners + 10 disk_aware_footer + 19 typed_catalog + 7 vscode_extension_page + 8 install_guard + 8 storage_page + 5 storage_migration + 5 fetch_payload_script + 2 cross-cutting). All green.
+- Full installer suite: 252 -> 374 cases, all green; ruff clean on every Phase 14 file.
+- Pre-existing lint warnings in other installer test files (SIM117 / E501) are unrelated to Phase 14 and stay open.
+
+### Known gaps + deferrals
+
+See [docs/v1.1.0/known-gaps.md](v1.1.0/known-gaps.md) Phase 14 closures (10 rows). No new open items: every Phase 14 sub-task landed in scope. Signing + notarization remain the existing OA-11 operator action; the macOS / Linux workflows degrade gracefully around it.
+
+### Operator-action handoff
+
+OA-11 (Authenticode + Apple Developer ID + notarization) remains the Phase 15 closure for the outer-shell artifacts. OA-03 rotates the placeholder SHA-256 hashes in `versions.lock.json` before the v1.1.0 ship.
+
+---
+
 ## [2026-05-21] v1.1.0 Phase 13 -- Video Lab fast tier (SANA-Video 2B)
 
 ### Goal

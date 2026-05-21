@@ -1,0 +1,123 @@
+{
+  "_meta": {
+    "version": 1,
+    "phase": "v1.1.0 Phase 14.10",
+    "comment": "Per-OS / per-arch payload pin file used by fetch-payload.py. Each entry pins URL + SHA-256 for every asset (CUDA runtime, Python embeddable, wheels, Node, Ollama, ffmpeg, DevAI-Hub, model weights, embedder, VSIX). Placeholders (all-zero sha256) are intentional in the v1.1.0 ship and will be rotated by Phase 15 / OA-03."
+  },
+  "common": {
+    "devai_hub": {
+      "tag": "REPLACE_ME",
+      "url": "https://example.invalid/devai-hub-baseline.tar.gz",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "models": {
+      "sana_1_6b_1024": {
+        "url": "https://huggingface.co/Efficient-Large-Model/SANA1.5_1.6B_1024px_diffusers/resolve/main/transformer/diffusion_pytorch_model.safetensors",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "sana_sprint_1024": {
+        "url": "https://huggingface.co/Efficient-Large-Model/sana-sprint/resolve/main/transformer/diffusion_pytorch_model.safetensors",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "dc_ae_vae": {
+        "url": "https://huggingface.co/mit-han-lab/dc-ae-f32c32-sana-1.1/resolve/main/diffusion_pytorch_model.safetensors",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "embedder_minilm_l6_v2": {
+        "url": "https://huggingface.co/Xenova/all-MiniLM-L6-v2/resolve/main/onnx/model_quantized.onnx",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      }
+    }
+  },
+  "platforms": {
+    "win-x64": {
+      "python": {
+        "url": "https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "node": {
+        "url": "https://nodejs.org/dist/v22.11.0/node-v22.11.0-win-x64.zip",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "cuda_runtime": {
+        "url": "https://developer.download.nvidia.com/compute/cuda/12.1.0/local_installers/cuda_12.1.0_531.14_windows.exe",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "ollama": {
+        "url": "https://github.com/ollama/ollama/releases/download/v0.3.6/OllamaSetup.exe",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "ffmpeg": {
+        "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "wheels_index": "win-cu121"
+    },
+    "mac-arm64": {
+      "python": {
+        "url": "https://www.python.org/ftp/python/3.11.9/python-3.11.9-macos11.pkg",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "node": {
+        "url": "https://nodejs.org/dist/v22.11.0/node-v22.11.0-darwin-arm64.tar.gz",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "ollama": {
+        "url": "https://github.com/ollama/ollama/releases/download/v0.3.6/Ollama-darwin.zip",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "ffmpeg": {
+        "url": "https://evermeet.cx/ffmpeg/ffmpeg-7.1.zip",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "wheels_index": "mac-mps"
+    },
+    "linux-x64": {
+      "python": {
+        "url": "https://www.python.org/ftp/python/3.11.9/Python-3.11.9.tgz",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "node": {
+        "url": "https://nodejs.org/dist/v22.11.0/node-v22.11.0-linux-x64.tar.xz",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "cuda_runtime": {
+        "url": "https://developer.download.nvidia.com/compute/cuda/12.1.0/local_installers/cuda_12.1.0_530.30.02_linux.run",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "ollama": {
+        "url": "https://github.com/ollama/ollama/releases/download/v0.3.6/ollama-linux-amd64.tgz",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "ffmpeg": {
+        "url": "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "wheels_index": "linux-cu121"
+    }
+  },
+  "wheel_sets": {
+    "win-cu121": {
+      "torch": "https://download.pytorch.org/whl/cu121/torch-2.3.0%2Bcu121-cp311-cp311-win_amd64.whl",
+      "torchvision": "https://download.pytorch.org/whl/cu121/torchvision-0.18.0%2Bcu121-cp311-cp311-win_amd64.whl",
+      "xformers": "https://download.pytorch.org/whl/cu121/xformers-0.0.26.post1-cp311-cp311-win_amd64.whl"
+    },
+    "mac-mps": {
+      "torch": "https://download.pytorch.org/whl/torch-2.3.0-cp311-none-macosx_11_0_arm64.whl",
+      "torchvision": "https://download.pytorch.org/whl/torchvision-0.18.0-cp311-cp311-macosx_11_0_arm64.whl"
+    },
+    "linux-cu121": {
+      "torch": "https://download.pytorch.org/whl/cu121/torch-2.3.0%2Bcu121-cp311-cp311-linux_x86_64.whl",
+      "torchvision": "https://download.pytorch.org/whl/cu121/torchvision-0.18.0%2Bcu121-cp311-cp311-linux_x86_64.whl",
+      "xformers": "https://download.pytorch.org/whl/cu121/xformers-0.0.26.post1-cp311-cp311-linux_x86_64.whl"
+    },
+    "linux-rocm": {
+      "torch": "https://download.pytorch.org/whl/rocm6.0/torch-2.3.0%2Brocm6.0-cp311-cp311-linux_x86_64.whl",
+      "torchvision": "https://download.pytorch.org/whl/rocm6.0/torchvision-0.18.0%2Brocm6.0-cp311-cp311-linux_x86_64.whl"
+    },
+    "cpu": {
+      "torch": "https://download.pytorch.org/whl/cpu/torch-2.3.0%2Bcpu-cp311-cp311-linux_x86_64.whl",
+      "torchvision": "https://download.pytorch.org/whl/cpu/torchvision-0.18.0%2Bcpu-cp311-cp311-linux_x86_64.whl"
+    }
+  }
+}

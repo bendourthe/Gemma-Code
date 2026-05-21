@@ -5,6 +5,10 @@ from __future__ import annotations
 import sys
 from dataclasses import dataclass, field
 
+# v1.1.0 Phase 14.5 -- the 10 GB OS reserve floor used by the disk-aware
+# selection guard. Configurable via the `--disk-reserve-gb` CLI flag.
+DEFAULT_DISK_RESERVE_GB = 10
+
 
 def _default_install_path() -> str:
     if sys.platform == "win32":
@@ -37,3 +41,19 @@ class InstallerState:
     enable_memory: bool = True
     install_log: list[str] = field(default_factory=list)
     failed_steps: list[str] = field(default_factory=list)
+
+    # v1.1.0 Phase 14 -- cross-OS additions.
+    free_disk_gb: int = 0
+    selected_models_gb: float = 0.0
+    disk_reserve_gb: int = DEFAULT_DISK_RESERVE_GB
+    install_vscode_extension: bool = True
+
+    def can_select_model(self, model_gb: float) -> bool:
+        """Return True when adding `model_gb` keeps the OS reserve intact."""
+        if self.free_disk_gb <= 0:
+            # Disk size unknown (probe failed) -- allow selection so the
+            # wizard does not lock the user out; the final Install-click
+            # guard will re-check.
+            return True
+        remaining = self.free_disk_gb - self.selected_models_gb - model_gb
+        return remaining >= self.disk_reserve_gb

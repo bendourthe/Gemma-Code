@@ -226,7 +226,7 @@ def main() -> None:
     if args.model:
         state.selected_model = args.model
 
-    window = InstallerWindow()
+    window = InstallerWindow(state=state)
 
     window.add_page(WelcomePage(state))
     window.add_page(PrerequisitesPage(state))

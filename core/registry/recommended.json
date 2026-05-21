@@ -1,0 +1,20 @@
+{
+  "_meta": {
+    "version": 1,
+    "phase": "v1.1.0 Phase 14.6",
+    "comment": "Per-type recommended model bundles for the installer's typed catalog UI. Each entry is the id of an entry in catalog.json. The wizard pre-ticks every id listed here on the matching tab; everything else in the catalog appears un-ticked for opt-in selection. Audio is empty in v1.1.0 -- the tab shows the empty-state copy."
+  },
+  "text": [
+    "gemma4:e4b",
+    "llama3.1:8b",
+    "qwen2.5-coder:7b"
+  ],
+  "image": [
+    "sana-1.6b-1024",
+    "sana-sprint-1024"
+  ],
+  "video": [
+    "ltx-video"
+  ],
+  "audio": []
+}
