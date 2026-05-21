@@ -46,6 +46,8 @@ export const SLASH_COMMANDS: readonly SlashCommand[] = Object.freeze([
   { name: "recall", description: "Hybrid-search memory for a query and render the top-10 hits.", template: "/recall " },
   { name: "remember", description: "Write a working-tier observation tagged with the current session.", template: "/remember " },
   { name: "forget", description: "Delete memories by id or pattern (prompts for confirmation).", template: "/forget --id " },
+  // v1.1.0 Phase 9.2 -- opt-in file compressor (gated by nexus.memory.compression.enabled).
+  { name: "memory-compress", description: "Compress a file into a semantic-tier observation via the local Ollama model (opt-in).", template: "/memory-compress " },
   { name: "verify", description: "Verify the most recent agent claim against the workspace.", template: "/verify" },
   { name: "research", description: "Run a research sub-agent on the current question.", template: "/research " },
   { name: "help", description: "List available slash commands.", template: "/help" },

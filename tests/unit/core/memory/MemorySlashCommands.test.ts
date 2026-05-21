@@ -3,11 +3,19 @@ import {
   handleRecall,
   handleRemember,
   handleForget,
+  handleMemoryCompress,
   parseForgetArgs,
   type SlashCommandContext,
+  type MemoryCompressContext,
   type MemoryWritePort,
   type ForgetEntry,
 } from "../../../../core/memory/MemorySlashCommands.js";
+import {
+  FileCompressor,
+  type SemanticWriter,
+} from "../../../../core/memory/FileCompressor.js";
+import type { OllamaChatLike } from "../../../../core/memory/ContradictionResolver.js";
+import type { Embedder } from "../../../../core/memory/LocalEmbedder.js";
 import {
   InMemoryAuditLog,
   type MemoryAuditLog,
@@ -208,5 +216,117 @@ describe("handleForget", () => {
     const result = await handleForget("/forget --id missing", ctx);
     expect(result.ok).toBe(false);
     expect(result.status).toContain("no matching");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// v1.1.0 Phase 9.2 -- /memory-compress handler
+// ---------------------------------------------------------------------------
+
+class FakeEmbedder implements Embedder {
+  readonly dim = 8;
+  readonly backend = "hash-fallback" as const;
+  async embed(_text: string): Promise<Float32Array> {
+    return new Float32Array(this.dim);
+  }
+  async embedBatch(texts: string[]): Promise<Float32Array[]> {
+    return texts.map(() => new Float32Array(this.dim));
+  }
+}
+
+class FakeOllama implements OllamaChatLike {
+  readonly model = "gemma4:e4b";
+  prompts: string[] = [];
+  async chat(prompt: string): Promise<string> {
+    this.prompts.push(prompt);
+    return '{"summary":"ok","key_facts":["f"],"code_patterns":["p"]}';
+  }
+  get invocationCount(): number {
+    return this.prompts.length;
+  }
+}
+
+class RecordingWriter implements SemanticWriter {
+  rows: Array<Parameters<SemanticWriter["upsert"]>[0]> = [];
+  async upsert(args: Parameters<SemanticWriter["upsert"]>[0]): Promise<void> {
+    this.rows.push(args);
+  }
+}
+
+function makeCompressorContext(
+  overrides: Partial<MemoryCompressContext> = {},
+): MemoryCompressContext {
+  return {
+    sessionId: "session-test",
+    compressor: null,
+    auditLog: new InMemoryAuditLog(),
+    ...overrides,
+  };
+}
+
+describe("handleMemoryCompress", () => {
+  it("rejects when no path is supplied", async () => {
+    const result = await handleMemoryCompress(
+      "/memory-compress",
+      makeCompressorContext(),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.status).toContain("missing path");
+  });
+
+  it("rejects when no compressor is wired", async () => {
+    const result = await handleMemoryCompress(
+      "/memory-compress /some/file.txt",
+      makeCompressorContext(),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.status).toContain("not wired");
+  });
+
+  it("rejects when compression toggle is off", async () => {
+    const compressor = new FileCompressor({
+      embedder: new FakeEmbedder(),
+      writer: new RecordingWriter(),
+      ollama: new FakeOllama(),
+      options: {
+        enabled: false,
+        readFile: async () => "x",
+      },
+    });
+    const result = await handleMemoryCompress(
+      "/memory-compress /some/file.txt",
+      makeCompressorContext({ compressor }),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.status).toContain("compression is off");
+  });
+
+  it("delegates to the compressor and writes an audit row on success", async () => {
+    const writer = new RecordingWriter();
+    const ollama = new FakeOllama();
+    const compressor = new FileCompressor({
+      embedder: new FakeEmbedder(),
+      writer,
+      ollama,
+      options: {
+        enabled: true,
+        readFile: async () => "content of the file under test",
+      },
+    });
+    const auditLog = new InMemoryAuditLog();
+    const ctx = makeCompressorContext({ compressor, auditLog });
+    const result = await handleMemoryCompress(
+      "/memory-compress /foo/bar.txt",
+      ctx,
+    );
+    expect(result.ok).toBe(true);
+    expect(result.status).toContain("/foo/bar.txt");
+    expect(writer.rows).toHaveLength(1);
+    expect(writer.rows[0]!.provenance.toolName).toBe("memory.compress");
+    expect(auditLog.size()).toBe(1);
+    const auditRow = auditLog.query()[0]!;
+    expect(auditRow.op).toBe("write");
+    expect(auditRow.tier).toBe("semantic");
+    expect(auditRow.hookKind).toBe("slash.memory.compress");
   });
 });

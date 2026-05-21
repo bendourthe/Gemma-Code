@@ -231,6 +231,16 @@
           "maximum": 100000,
           "description": "v1.1.0 Phase 5.5 -- minimum entry count before `MemoryHub.retrieve` switches from substring scan to the hybrid BM25 + dense + graph + RRF path. Smaller corpora stay on substring because hybrid overhead is wasteful."
         },
+        "nexus.memory.consolidation.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "v1.1.0 Phase 9.1 -- when true, the `memory.contradiction-sweep` IdleTimeScheduler worker fires on a 1-hour cadence: it scans semantic-tier rows for high-dense-similarity / low-BM25-overlap pairs and adjudicates each via a local Ollama model, marking the loser as `superseded_by` the winner. Off by default; no LLM call is ever made when the toggle is false."
+        },
+        "nexus.memory.compression.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "v1.1.0 Phase 9.2 -- when true, `nexus memory compress --file <path>` and the `/memory-compress <path>` slash command are allowed to call the local Ollama model and write a semantic-tier observation. Off by default; with the toggle off, both surfaces short-circuit before any LLM call."
+        },
         "nexus.memory.snapshotMode": {
           "type": "string",
           "enum": [

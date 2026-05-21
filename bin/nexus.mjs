@@ -37,6 +37,7 @@ Usage:
   nexus memory export --out <file> [--scope <id>] [--tier <list>] [--since <ISO>]
   nexus memory import --in <file>
   nexus memory decay --now
+  nexus memory compress --file <path> [--session <id>] [--model <name>] [--dry-run]
   nexus check [...]                     deterministic source-code checks
   nexus image [...]                     image-pipeline helpers
   nexus video [...]                     video-pipeline helpers
@@ -311,6 +312,26 @@ async function loadDecaySweep() {
   return import(pathToFileURL(compiled).href);
 }
 
+async function loadFileCompressor() {
+  const compiled = resolvePath(__dirname, "..", "out", "core", "memory", "FileCompressor.js");
+  if (!existsSync(compiled)) {
+    throw new Error(
+      "FileCompressor build artifact missing. Run `npm run build` before invoking `nexus memory compress` from source.",
+    );
+  }
+  return import(pathToFileURL(compiled).href);
+}
+
+async function loadLocalEmbedder() {
+  const compiled = resolvePath(__dirname, "..", "out", "core", "memory", "LocalEmbedder.js");
+  if (!existsSync(compiled)) {
+    throw new Error(
+      "LocalEmbedder build artifact missing. Run `npm run build` before invoking `nexus memory compress` from source.",
+    );
+  }
+  return import(pathToFileURL(compiled).href);
+}
+
 /**
  * Read a JSONL file and return the rows as a plain array. Lines that fail
  * to parse are reported on stderr but do not abort the read (matches the
@@ -506,6 +527,95 @@ export async function runMemoryDecay(flags, stdout = process.stdout, stderr = pr
   return 0;
 }
 
+export async function runMemoryCompress(flags, stdout = process.stdout, stderr = process.stderr) {
+  const filePath = typeof flags.file === "string" ? flags.file : null;
+  if (!filePath) {
+    stderr.write("nexus memory compress: --file <path> is required.\n");
+    return 2;
+  }
+  if (!existsSync(filePath)) {
+    stderr.write(`nexus memory compress: file not found: ${filePath}\n`);
+    return 2;
+  }
+  const enabled =
+    flags["dry-run"] === true || flags["dry-run"] === "true"
+      ? false
+      : flags.enabled === false || flags.enabled === "false"
+        ? false
+        : true;
+  if (!enabled) {
+    stdout.write(
+      `nexus memory compress: dry-run mode -- no LLM call will be made.\n`,
+    );
+  }
+  const model = typeof flags.model === "string" ? flags.model : "gemma4:e4b";
+  const sessionId = typeof flags.session === "string" ? flags.session : "cli";
+
+  const [{ FileCompressor }, { LocalEmbedder }] = await Promise.all([
+    loadFileCompressor(),
+    loadLocalEmbedder(),
+  ]);
+
+  const writes = [];
+  const writer = {
+    async upsert(row) {
+      writes.push(row);
+    },
+  };
+  const links = [];
+  const graph = {
+    async link(args) {
+      links.push(args);
+    },
+  };
+
+  // The CLI surface does not call a real Ollama process: it records the
+  // intended call so an operator can inspect what the production sidecar
+  // would have sent without spinning up the daemon. The desktop sidecar
+  // wires the real client directly into the compressor.
+  const calls = [];
+  const ollama = {
+    model,
+    chat: async (prompt) => {
+      calls.push(prompt);
+      return '{"summary":"(cli dry-run)","key_facts":[],"code_patterns":[]}';
+    },
+  };
+  Object.defineProperty(ollama, "invocationCount", {
+    get: () => calls.length,
+  });
+
+  const embedder = new LocalEmbedder({ forceFallback: true });
+  const compressor = new FileCompressor({
+    embedder,
+    writer,
+    ollama,
+    graph,
+    options: { enabled },
+  });
+  const result = await compressor.compressFile(filePath, {
+    sessionId,
+    hookKind: "cli.memory.compress",
+    toolName: "memory.compress",
+  });
+  if (result.kind !== "compressed") {
+    stderr.write(`nexus memory compress: ${result.kind}: ${result.message ?? ""}\n`);
+    return result.kind === "disabled" ? 0 : 1;
+  }
+  stdout.write(
+    `nexus memory compress: wrote semantic-tier id=${result.entryId} chunks=${result.observation?.chunkCount ?? 0} model=${model} llmCalls=${calls.length}\n`,
+  );
+  if (links.length > 0) {
+    stdout.write(`  graph link: ${links[0].kind} -> ${links[0].to}\n`);
+  }
+  // Surface the first write as a sanity check.
+  if (writes[0]) {
+    const preview = writes[0].content.split("\n").slice(0, 4).join(" | ");
+    stdout.write(`  preview: ${preview}\n`);
+  }
+  return 0;
+}
+
 export async function runMemoryCommand(args, stdout = process.stdout, stderr = process.stderr) {
   switch (args.subcommand) {
     case "audit":
@@ -516,9 +626,11 @@ export async function runMemoryCommand(args, stdout = process.stdout, stderr = p
       return runMemoryImport(args.flags, stdout, stderr);
     case "decay":
       return runMemoryDecay(args.flags, stdout, stderr);
+    case "compress":
+      return runMemoryCompress(args.flags, stdout, stderr);
     default:
       stderr.write(
-        `nexus memory: unknown subcommand "${args.subcommand ?? ""}". Expected one of audit, export, import, decay.\n`,
+        `nexus memory: unknown subcommand "${args.subcommand ?? ""}". Expected one of audit, export, import, decay, compress.\n`,
       );
       return 2;
   }

@@ -24,6 +24,7 @@ import type { HybridRetrieverLike } from "./MemoryHub.js";
 import type { LifecycleProvenance } from "./types.js";
 import type { MemoryAuditLog } from "./MemoryAuditLog.js";
 import { rowFromProvenance } from "./MemoryAuditLog.js";
+import type { FileCompressor, CompressResult } from "./FileCompressor.js";
 
 export interface ForgetEntry {
   readonly id: string;
@@ -193,6 +194,92 @@ export async function handleRemember(
     ok: true,
     status: `Remembered (working-tier id=${result.id}).`,
     payload: { id: result.id, tier: "working", text },
+  };
+}
+
+export interface MemoryCompressContext {
+  readonly sessionId: string;
+  readonly compressor: FileCompressor | null;
+  readonly auditLog: MemoryAuditLog;
+  readonly parentSpanId?: string;
+}
+
+/**
+ * `/memory-compress <path>` -- delegate to the injected `FileCompressor`.
+ * Returns a graceful `ok: false` render when the compressor is missing or
+ * disabled rather than throwing, so the chat UI can surface a clean message.
+ */
+export async function handleMemoryCompress(
+  input: string,
+  ctx: MemoryCompressContext,
+): Promise<SlashCommandRender> {
+  const path = stripCommand(input, "memory-compress");
+  if (path.length === 0) {
+    return {
+      ok: false,
+      status: "/memory-compress: missing path. Usage: /memory-compress <path>",
+    };
+  }
+  if (!ctx.compressor) {
+    return {
+      ok: false,
+      status:
+        "/memory-compress: file compressor is not wired in this session. Enable `nexus.memory.compression.enabled` and restart.",
+    };
+  }
+  if (!ctx.compressor.enabled) {
+    return {
+      ok: false,
+      status:
+        "/memory-compress: compression is off. Set `nexus.memory.compression.enabled = true` to enable.",
+    };
+  }
+  let result: CompressResult;
+  try {
+    result = await ctx.compressor.compressFile(path, {
+      sessionId: ctx.sessionId,
+      hookKind: "slash.memory.compress",
+      toolName: "memory.compress",
+      ...(ctx.parentSpanId !== undefined ? { parentSpanId: ctx.parentSpanId } : {}),
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, status: `/memory-compress: failed: ${message}` };
+  }
+  if (result.kind !== "compressed") {
+    return {
+      ok: false,
+      status: `/memory-compress: ${result.kind}: ${result.message ?? ""}`,
+    };
+  }
+  const observation = result.observation!;
+  ctx.auditLog.append(
+    rowFromProvenance({
+      op: "write",
+      tier: "semantic",
+      entryId: result.entryId!,
+      text: observation.summary,
+      provenance: {
+        sessionId: ctx.sessionId,
+        hookKind: "slash.memory.compress",
+        toolName: "memory.compress",
+        ...(ctx.parentSpanId !== undefined ? { parentSpanId: ctx.parentSpanId } : {}),
+      },
+    }),
+  );
+  const payload = {
+    entryId: result.entryId,
+    sourcePath: observation.sourcePath,
+    chunkCount: observation.chunkCount,
+    model: observation.model,
+    keyFactCount: observation.keyFacts.length,
+    codePatternCount: observation.codePatterns.length,
+  };
+  return {
+    ok: true,
+    status: `Compressed ${observation.sourcePath} into semantic-tier entry ${result.entryId} (${observation.chunkCount} chunk${observation.chunkCount === 1 ? "" : "s"}).`,
+    body: "```json\n" + JSON.stringify(payload, null, 2) + "\n```",
+    payload,
   };
 }
 
