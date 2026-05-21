@@ -1,5 +1,5 @@
 /**
- * v1.1.0 Phase 10 -- proxy activation branch.
+ * v1.1.0 Phase 10 + Phase 11 -- proxy activation branch.
  *
  * When `discoverDesktopDaemon()` reports a live Nexus daemon, every command
  * handler and every panel is a thin webview shell that forwards
@@ -8,22 +8,30 @@
  * tracer, the model registry, the skill catalog, the MCP harness; the
  * extension owns nothing but the webview chrome.
  *
- * The actual sidecar IPC client (named pipe on Windows, Unix domain socket
- * on macOS / Linux, `tauri::Channel` bridge for streaming events) is the
- * upstream Phase 2 deliverable; this branch wires the activation shape so
- * the user gets the proxy mode the moment that client lands. Today every
- * proxied command surfaces an "open desktop app" hint via VS Code's status
- * bar / notification surface; the legacy in-process engine never spins up
- * in this branch, so the extension's footprint is a handful of webviews
- * and a status bar item.
+ * v1.1.0 Phase 11 wires the seven Nexus-VS-Code-extension surfaces (multi-
+ * model picker, plan mode, auto mode, memory panel, slash autocomplete,
+ * sub-agent + sessions, MCP, settings sync) on top of this branch:
  *
- * The extension-only fallback is at {@link ./extensionOnly.ts} and is kept
- * for compatibility through v1.2.0. The two branches share the keybinding
- * compat shim at {@link ./compatShim.ts}.
+ *   - `installNexusIpcClient` builds the structural `IpcClient` placeholder.
+ *     The cross-process transport (named pipe / UNIX socket) is the upstream
+ *     Phase 2 deliverable tracked under known-gap 10.1.P1.Z; the proxy
+ *     installs a `NoopIpcClient` today so every Phase 11 panel boots
+ *     cleanly and degrades to an "open the desktop app" hint when called.
+ *   - `registerPhase11Panels` registers the three Phase 11 webview view
+ *     providers (`nexus.coding.chatView`, `nexus.coding.memoryPanel`,
+ *     `nexus.coding.traceDashboard`) with proxy shells whose HTML payload
+ *     points the user at the desktop app until the IPC client lands.
+ *
+ * The extension-only fallback is at {@link ./extensionOnly.ts}. The two
+ * branches share the keybinding compat shim at {@link ./compatShim.ts}.
  */
 
 import * as vscode from "vscode";
 import type { DaemonDiscoveryResult } from "../desktop/daemonDiscovery.js";
+import {
+  NoopIpcClient,
+  type IpcClient,
+} from "../desktop/ipcClient.js";
 
 const PROXIED_COMMAND_IDS: ReadonlyArray<string> = Object.freeze([
   "nexus.coding.ping",
@@ -33,6 +41,68 @@ const PROXIED_COMMAND_IDS: ReadonlyArray<string> = Object.freeze([
   "nexus.coding.detectGpu",
   "nexus.coding.hooks.editPlanModeHook",
 ]);
+
+/**
+ * v1.1.0 Phase 11 -- panel view IDs the proxy branch registers as
+ * thin shells. The view container IDs are declared in `package.json`
+ * (`contributes.views.nexus-coding-sidebar`); the proxy registers a
+ * `WebviewViewProvider` for each so VS Code's sidebar renders the
+ * Nexus icons without an empty-pane gap.
+ */
+export const PHASE_11_VIEW_IDS: ReadonlyArray<string> = Object.freeze([
+  "nexus.coding.chatView",
+  "nexus.coding.memoryPanel",
+  "nexus.coding.traceDashboard",
+]);
+
+const PROXY_PLACEHOLDER_HTML =
+  "<!doctype html><html><body style=\"font-family:sans-serif;padding:12px;color:var(--vscode-foreground)\">" +
+  "<h3>Nexus Coding</h3>" +
+  "<p>Connected to the Nexus desktop daemon. Open the Nexus desktop window for the full agentic surface.</p>" +
+  "<p style=\"font-size:0.85em;opacity:0.75\">The daemon IPC client is wired by the upstream Phase 2 sidecar widening (v1.1.0 known-gap 10.1.P1.Z); this panel will switch to the live Phase 11 surfaces once that client lands.</p>" +
+  "</body></html>";
+
+class ProxyPlaceholderViewProvider implements vscode.WebviewViewProvider {
+  resolveWebviewView(webviewView: vscode.WebviewView): void {
+    webviewView.webview.options = { enableScripts: false };
+    webviewView.webview.html = PROXY_PLACEHOLDER_HTML;
+  }
+}
+
+/**
+ * Install the Phase 11 IPC client. Today this returns a `NoopIpcClient`
+ * because the cross-process transport (10.1.P1.Z) is deferred to the
+ * Phase 2 sidecar widening. The function shape is kept stable so the
+ * single switch from `new NoopIpcClient()` -> `new SocketIpcClient(...)`
+ * lands cleanly when the transport ships.
+ */
+export function installNexusIpcClient(): IpcClient {
+  return new NoopIpcClient();
+}
+
+/**
+ * Register the Phase 11 view providers. Each view is currently a thin
+ * placeholder; once the IPC client lands, the placeholders swap to live
+ * webview bundles that forward through the daemon. The structural
+ * surface (view IDs, sidebar layout, output-channel announcements) is
+ * already correct, which is what the parity tests assert.
+ */
+export function registerPhase11Panels(
+  context: vscode.ExtensionContext,
+  channel: vscode.OutputChannel,
+): void {
+  const provider = new ProxyPlaceholderViewProvider();
+  for (const viewId of PHASE_11_VIEW_IDS) {
+    const disposable = vscode.window.registerWebviewViewProvider(
+      viewId,
+      provider,
+    );
+    context.subscriptions.push(disposable);
+  }
+  channel.appendLine(
+    `[Nexus Coding] Phase 11 proxy panels registered: ${PHASE_11_VIEW_IDS.length} views.`,
+  );
+}
 
 /**
  * Activate the extension in proxy mode. Every command registered here
@@ -46,6 +116,13 @@ export function activateProxy(
   channel.appendLine(
     `[Nexus Coding] Proxy mode: forwarding to daemon at ${discovery.probedPath}.`,
   );
+
+  const ipcClient = installNexusIpcClient();
+  // Tear the client down on extension deactivation so any future
+  // socket-backed implementation closes its handle cleanly.
+  context.subscriptions.push({
+    dispose: () => ipcClient.close(),
+  });
 
   const statusBarItem = vscode.window.createStatusBarItem(
     vscode.StatusBarAlignment.Right,
@@ -70,7 +147,9 @@ export function activateProxy(
     context.subscriptions.push(disposable);
   }
 
+  registerPhase11Panels(context, channel);
+
   channel.appendLine(
-    `[Nexus Coding] Proxy mode ready. ${PROXIED_COMMAND_IDS.length} commands forwarded.`,
+    `[Nexus Coding] Proxy mode ready. ${PROXIED_COMMAND_IDS.length} commands forwarded; ${PHASE_11_VIEW_IDS.length} Phase 11 panels registered.`,
   );
 }

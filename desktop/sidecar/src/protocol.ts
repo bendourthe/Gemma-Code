@@ -22,6 +22,12 @@ export const IPC_METHODS = [
   "coding.memory.snapshot",
   "coding.trace.subscribe",
   "coding.sessions.list",
+  // v1.1.0 Phase 11 -- nexus VS Code extension surface.
+  "coding.chat.autocomplete",
+  "mcp.list",
+  "mcp.invoke",
+  "settings.get",
+  "settings.set",
   "image.generate",
   "video.generate",
   "skills.sync",
@@ -495,6 +501,117 @@ export type DiffusionVideoWorkflowExtractResponseT = z.infer<
   typeof DiffusionVideoWorkflowExtractResponse
 >;
 
+// ---- v1.1.0 Phase 11 -- VS Code extension surface ---------------------------
+
+export const ModelCapability = z.enum(["chat", "tool-use", "coding"]);
+export type ModelCapabilityT = z.infer<typeof ModelCapability>;
+
+export const ModelsListRequest = z
+  .object({
+    type: z.literal("text").optional(),
+    capability: ModelCapability.optional(),
+  })
+  .strict();
+export type ModelsListRequestT = z.infer<typeof ModelsListRequest>;
+
+export const ModelDropdownEntry = z
+  .object({
+    id: z.string().min(1),
+    displayName: z.string().min(1),
+    family: ModelFamily,
+    capabilities: z.array(ModelCapability),
+    recommended: z.boolean(),
+  })
+  .strict();
+export type ModelDropdownEntryT = z.infer<typeof ModelDropdownEntry>;
+
+export const ModelsListResponse = z
+  .object({ models: z.array(ModelDropdownEntry) })
+  .strict();
+export type ModelsListResponseT = z.infer<typeof ModelsListResponse>;
+
+export const SlashSuggestion = z
+  .object({
+    name: z.string().min(1),
+    description: z.string(),
+    template: z.string(),
+    namespace: z.enum(["builtin", "user", "devai-hub"]).optional(),
+    skillId: z.string().optional(),
+  })
+  .strict();
+export type SlashSuggestionT = z.infer<typeof SlashSuggestion>;
+
+export const CodingChatAutocompleteRequest = z
+  .object({
+    input: z.string(),
+    preferUpstream: z.boolean().optional(),
+  })
+  .strict();
+export type CodingChatAutocompleteRequestT = z.infer<
+  typeof CodingChatAutocompleteRequest
+>;
+
+export const CodingChatAutocompleteResponse = z
+  .object({ suggestions: z.array(SlashSuggestion) })
+  .strict();
+export type CodingChatAutocompleteResponseT = z.infer<
+  typeof CodingChatAutocompleteResponse
+>;
+
+export const McpToolDescriptor = z
+  .object({
+    name: z.string().min(1),
+    description: z.string(),
+    inputSchema: z.string(),
+    serverId: z.string(),
+  })
+  .strict();
+export type McpToolDescriptorT = z.infer<typeof McpToolDescriptor>;
+
+export const McpListRequest = z.object({}).strict();
+export const McpListResponse = z
+  .object({ tools: z.array(McpToolDescriptor) })
+  .strict();
+export type McpListResponseT = z.infer<typeof McpListResponse>;
+
+export const McpInvokeRequest = z
+  .object({
+    name: z.string().min(1),
+    args: z.record(z.string(), z.unknown()).default({}),
+  })
+  .strict();
+export type McpInvokeRequestT = z.infer<typeof McpInvokeRequest>;
+
+export const McpInvokeResponse = z
+  .object({
+    ok: z.boolean(),
+    toolName: z.string(),
+    result: z.string().nullable(),
+    error: z.string().nullable(),
+  })
+  .strict();
+export type McpInvokeResponseT = z.infer<typeof McpInvokeResponse>;
+
+export const SettingsGetRequest = z
+  .object({ key: z.string().min(1) })
+  .strict();
+export type SettingsGetRequestT = z.infer<typeof SettingsGetRequest>;
+
+export const SettingsGetResponse = z
+  .object({ key: z.string().min(1), value: z.unknown() })
+  .strict();
+export type SettingsGetResponseT = z.infer<typeof SettingsGetResponse>;
+
+export const SettingsSetRequest = z
+  .object({ key: z.string().min(1), value: z.unknown() })
+  .strict();
+export type SettingsSetRequestT = z.infer<typeof SettingsSetRequest>;
+
+export const SettingsSetResponse = z
+  .object({ key: z.string().min(1), value: z.unknown() })
+  .strict();
+export type SettingsSetResponseT = z.infer<typeof SettingsSetResponse>;
+
 const NotImplementedAny = z.unknown();
 
 interface MethodSchema {
@@ -505,7 +622,11 @@ interface MethodSchema {
 
 export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
   ping: { request: PingRequest, response: PingResponse, implemented: true },
-  "models.list": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
+  "models.list": {
+    request: ModelsListRequest,
+    response: ModelsListResponse,
+    implemented: true,
+  },
   "models.install": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
   "coding.startTask": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
   "coding.session.start": {
@@ -546,6 +667,31 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
   "coding.sessions.list": {
     request: CodingSessionListRequest,
     response: CodingSessionListResponse,
+    implemented: true,
+  },
+  "coding.chat.autocomplete": {
+    request: CodingChatAutocompleteRequest,
+    response: CodingChatAutocompleteResponse,
+    implemented: true,
+  },
+  "mcp.list": {
+    request: McpListRequest,
+    response: McpListResponse,
+    implemented: true,
+  },
+  "mcp.invoke": {
+    request: McpInvokeRequest,
+    response: McpInvokeResponse,
+    implemented: true,
+  },
+  "settings.get": {
+    request: SettingsGetRequest,
+    response: SettingsGetResponse,
+    implemented: true,
+  },
+  "settings.set": {
+    request: SettingsSetRequest,
+    response: SettingsSetResponse,
     implemented: true,
   },
   "image.generate": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },

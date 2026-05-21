@@ -80,11 +80,11 @@ describe("activateProxy", () => {
       discovery,
     );
 
-    // 1 status bar item + 6 command disposables = 7 total.
-    expect(context.subscriptions.length).toBeGreaterThanOrEqual(7);
+    // 1 IPC client + 1 status bar item + 6 commands + 3 Phase 11 panels.
+    expect(context.subscriptions.length).toBeGreaterThanOrEqual(11);
   });
 
-  it("does not construct the in-process engine: no webview view providers are registered", () => {
+  it("registers the three Phase 11 webview view providers (chat, memory, trace)", () => {
     activateProxy(
       context as unknown as vscode.ExtensionContext,
       channel as unknown as vscode.OutputChannel,
@@ -94,6 +94,20 @@ describe("activateProxy", () => {
     const providerCalls = (
       vscode.window.registerWebviewViewProvider as ReturnType<typeof vi.fn>
     ).mock.calls;
-    expect(providerCalls.length).toBe(0);
+    const ids = providerCalls.map((c) => c[0] as string);
+    expect(ids).toContain("nexus.coding.chatView");
+    expect(ids).toContain("nexus.coding.memoryPanel");
+    expect(ids).toContain("nexus.coding.traceDashboard");
+  });
+
+  it("logs the Phase 11 panel registration count", () => {
+    activateProxy(
+      context as unknown as vscode.ExtensionContext,
+      channel as unknown as vscode.OutputChannel,
+      discovery,
+    );
+
+    const lines = channel.appendLine.mock.calls.map((c) => c[0] as string);
+    expect(lines.some((l) => l.includes("Phase 11 proxy panels registered"))).toBe(true);
   });
 });
