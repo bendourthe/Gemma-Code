@@ -7,7 +7,13 @@
  * over IPC into the structure declared here.
  */
 
-export type ModelType = "llm" | "embed" | "image" | "video";
+export type ModelType =
+  | "llm"
+  | "embed"
+  | "image"
+  | "video"
+  | "controlnet"
+  | "vae";
 
 export interface ListedModelDto {
   id: string;

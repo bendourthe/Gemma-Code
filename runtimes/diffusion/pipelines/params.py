@@ -17,7 +17,16 @@ from dataclasses import dataclass, field
 from typing import Any, List, Mapping, Optional
 
 
-_VALID_SAMPLERS = {"euler", "euler_a", "dpmpp_2m", "dpmpp_sde", "ddim", "lms"}
+_VALID_SAMPLERS = {
+    "euler",
+    "euler_a",
+    "dpmpp_2m",
+    "dpmpp_sde",
+    "ddim",
+    "lms",
+    # v1.1.0 Phase 12.7 -- SANA family's Flow-DPM-Solver scheduler.
+    "flow-dpm-solver",
+}
 _VALID_PREPROCESSORS = {"pose", "depth", "canny", "none"}
 _VALID_DIRECTIONS = {"left", "right", "top", "bottom"}
 _VALID_MODES = {"txt2img", "img2img", "inpaint", "outpaint"}

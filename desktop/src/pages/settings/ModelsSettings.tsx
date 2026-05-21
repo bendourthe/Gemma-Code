@@ -392,7 +392,18 @@ function RowActions({
 }
 
 function ModelIcon({ type }: { type?: ModelType }): JSX.Element {
-  const label = type === "image" ? "I" : type === "video" ? "V" : type === "embed" ? "E" : "L";
+  const label =
+    type === "image"
+      ? "I"
+      : type === "video"
+        ? "V"
+        : type === "embed"
+          ? "E"
+          : type === "controlnet"
+            ? "C"
+            : type === "vae"
+              ? "A"
+              : "L";
   const color =
     type === "image"
       ? "var(--accent-image, #ec4899)"
@@ -400,7 +411,11 @@ function ModelIcon({ type }: { type?: ModelType }): JSX.Element {
         ? "var(--accent-video, #6366f1)"
         : type === "embed"
           ? "var(--accent-embed, #14b8a6)"
-          : "var(--accent-llm, #10b981)";
+          : type === "controlnet"
+            ? "var(--accent-controlnet, #f59e0b)"
+            : type === "vae"
+              ? "var(--accent-vae, #8b5cf6)"
+              : "var(--accent-llm, #10b981)";
   return (
     <span
       aria-hidden

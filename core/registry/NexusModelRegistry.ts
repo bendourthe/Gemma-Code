@@ -352,7 +352,18 @@ function makeHttpManifest(spec: ModelSpec, result: DownloadResult, now: Date): M
     name: spec.name,
     tag: spec.tag,
     type: spec.type,
-    runtime: spec.type === "llm" ? "lmstudio" : spec.type === "embed" ? "embed" : spec.type === "image" ? "diffusion" : "video",
+    runtime:
+      spec.type === "llm"
+        ? "lmstudio"
+        : spec.type === "embed"
+          ? "embed"
+          : spec.type === "image"
+            ? "diffusion"
+            : spec.type === "controlnet"
+              ? "controlnet"
+              : spec.type === "vae"
+                ? "vae"
+                : "video",
     displayName: spec.displayName,
     license: spec.license,
     vramGb: spec.vramGB,

@@ -109,4 +109,65 @@ describe("catalog", () => {
     expect(findSpec(file, "nope:1")).toBeUndefined();
     expect(() => getSpec(file, "nope:1")).toThrow();
   });
+
+  it("validateSpec accepts the controlnet + vae types introduced in v1.1.0 Phase 12", () => {
+    const cn: ModelSpec = {
+      id: "cn:x",
+      family: "sana",
+      name: "sana-controlnet",
+      tag: "pose",
+      type: "controlnet",
+      displayName: "SANA-ControlNet Pose",
+      source: {
+        protocol: "huggingface",
+        url: "https://huggingface.co/x/resolve/main/y.safetensors",
+      },
+    };
+    expect(() => validateSpec(cn)).not.toThrow();
+    const vae: ModelSpec = {
+      id: "vae:x",
+      family: "sana",
+      name: "dc-ae",
+      tag: "f32c32",
+      type: "vae",
+      displayName: "DC-AE",
+      source: {
+        protocol: "huggingface",
+        url: "https://huggingface.co/x/resolve/main/y.safetensors",
+      },
+    };
+    expect(() => validateSpec(vae)).not.toThrow();
+  });
+
+  it("bundled catalog carries the full SANA family from Phase 12", async () => {
+    const file = await loadCatalog();
+    const ids = new Set(file.models.map((m) => m.id));
+    expect(ids).toEqual(
+      expect.objectContaining({}),
+    );
+    // sub-task 12.1 acceptance: every SANA entry registered
+    for (const id of [
+      "sana-1.6b-1024",
+      "sana-sprint-1024",
+      "sana-1.6b-2k",
+      "sana-1.6b-4k",
+      "sana-1.6b-int4",
+      "dc-ae-f32c32-sana-1.1",
+      "sana-controlnet-pose",
+      "sana-controlnet-depth",
+      "sana-controlnet-canny",
+      "sana-video-2b-720p",
+    ]) {
+      expect(ids.has(id)).toBe(true);
+    }
+    const dcae = file.models.find((m) => m.id === "dc-ae-f32c32-sana-1.1");
+    expect(dcae?.type).toBe("vae");
+    const cnPose = file.models.find((m) => m.id === "sana-controlnet-pose");
+    expect(cnPose?.type).toBe("controlnet");
+    const sana = file.models.find((m) => m.id === "sana-1.6b-1024");
+    expect(sana?.type).toBe("image");
+    expect(sana?.license).toBe("Apache-2.0");
+    const sanaInt4 = file.models.find((m) => m.id === "sana-1.6b-int4");
+    expect(sanaInt4?.runtimeDeps).toEqual(["nunchaku"]);
+  });
 });

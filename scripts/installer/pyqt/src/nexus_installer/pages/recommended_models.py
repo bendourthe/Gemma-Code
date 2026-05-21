@@ -65,11 +65,24 @@ class PresetBundle:
 
 LIGHT_PRESET = PresetBundle(
     name="Light",
-    summary="8 GB VRAM, ~12 GB on disk -- fits most laptops with a discrete GPU.",
+    summary="8 GB VRAM, ~10 GB on disk -- fits most laptops with a discrete GPU.",
     min_vram_gb=8,
     models=(
         ModelEntry("gemma4:e2b", "Gemma 4 E2B", 2.3, "fast chat + tool use"),
-        ModelEntry("sdxl-turbo", "SDXL Turbo", 6.5, "fast text-to-image"),
+        # v1.1.0 Phase 12.8 -- SANA-1.6B replaces SDXL Turbo as the default
+        # image model. Sana-Sprint provides the Fast Preview tier.
+        ModelEntry(
+            "sana-1.6b-1024",
+            "SANA 1.5 1.6B 1024px",
+            3.2,
+            "default text-to-image (Apache-2.0)",
+        ),
+        ModelEntry(
+            "sana-sprint-1024",
+            "SANA Sprint 1024px",
+            3.5,
+            "1-step Fast Preview tier",
+        ),
         ModelEntry("ltx-video", "LTX-Video", 3.5, "short video clips"),
     ),
 )
@@ -81,7 +94,19 @@ RECOMMENDED_PRESET = PresetBundle(
     models=(
         ModelEntry("gemma4:e4b", "Gemma 4 E4B", 4.5, "balanced chat + coding"),
         ModelEntry("llama3.1:8b", "Llama 3.1 8B", 5.0, "general-purpose assistant"),
-        ModelEntry("sdxl-turbo", "SDXL Turbo", 6.5, "fast text-to-image"),
+        # v1.1.0 Phase 12.8 -- SANA family replaces SDXL Turbo as the default.
+        ModelEntry(
+            "sana-1.6b-1024",
+            "SANA 1.5 1.6B 1024px",
+            3.2,
+            "default text-to-image (Apache-2.0)",
+        ),
+        ModelEntry(
+            "sana-sprint-1024",
+            "SANA Sprint 1024px",
+            3.5,
+            "1-step Fast Preview tier",
+        ),
         ModelEntry("ltx-video", "LTX-Video", 3.5, "short video clips"),
         ModelEntry("svd", "Stable Video Diffusion", 5.5, "image-to-video"),
     ),
@@ -89,7 +114,7 @@ RECOMMENDED_PRESET = PresetBundle(
 
 FULL_PRESET = PresetBundle(
     name="Full",
-    summary="24 GB+ VRAM, ~70 GB on disk -- the high-end creator preset.",
+    summary="24 GB+ VRAM, ~75 GB on disk -- the high-end creator preset.",
     min_vram_gb=24,
     models=(
         ModelEntry("gemma4:26b", "Gemma 4 26B MoE", 18.0, "long-context reasoning"),
@@ -100,10 +125,31 @@ FULL_PRESET = PresetBundle(
             4.5,
             "coding-focused assistant",
         ),
-        ModelEntry("sdxl-1.0", "SDXL 1.0", 7.0, "high-quality text-to-image"),
+        # v1.1.0 Phase 12.8 -- SANA-1.6B + Sana-Sprint + SANA 2K / 4K.
+        ModelEntry(
+            "sana-1.6b-1024",
+            "SANA 1.5 1.6B 1024px",
+            3.2,
+            "default text-to-image (Apache-2.0)",
+        ),
+        ModelEntry(
+            "sana-sprint-1024",
+            "SANA Sprint 1024px",
+            3.5,
+            "1-step Fast Preview tier",
+        ),
+        ModelEntry("sana-1.6b-2k", "SANA 1.6B 2K", 3.2, "2K text-to-image"),
+        ModelEntry("sana-1.6b-4k", "SANA 1.6B 4K", 3.2, "4K text-to-image"),
+        ModelEntry("sdxl-1.0", "SDXL 1.0", 7.0, "alternate text-to-image"),
         ModelEntry("flux-schnell", "Flux Schnell", 11.0, "premium text-to-image"),
         ModelEntry("ltx-video", "LTX-Video", 3.5, "short video clips"),
         ModelEntry("svd", "Stable Video Diffusion", 5.5, "image-to-video"),
+        ModelEntry(
+            "sana-video-2b-720p",
+            "SANA-Video 2B 720p",
+            4.0,
+            "fast 720p video tier",
+        ),
         ModelEntry("cogvideox-2b", "CogVideoX 2B", 14.0, "longer video generation"),
     ),
 )

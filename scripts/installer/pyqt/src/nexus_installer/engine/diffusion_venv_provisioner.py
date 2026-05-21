@@ -40,6 +40,8 @@ REQUIRED_WHEEL_PREFIXES: tuple[str, ...] = (
     "imageio",
     "controlnet_aux",
     "opencv_python_headless",
+    # v1.1.0 Phase 12.4 -- SVDQuant INT4 runtime (Apache-2.0).
+    "nunchaku",
 )
 
 

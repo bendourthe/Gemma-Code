@@ -70,7 +70,7 @@ The v1.1.0 cycle (currently in flight) is the **stabilization-plus-expansion** w
 | 9 | Opt-in memory consolidation (contradiction resolver + file compressor) | Planned |
 | 10 | VS Code extension thin-adapter rewrite + Marketplace re-publish | Planned |
 | 11 | Nexus VS Code extension (multi-model agentic add-on) | Planned |
-| 12 | Image Studio upgrade (NVIDIA SANA family) | Planned |
+| 12 | Image Studio upgrade (NVIDIA SANA family) | Landed (2026-05-20) |
 | 13 | Video Lab fast tier (SANA-Video 2B) | Planned |
 | 14 | Cross-OS installer (Windows + macOS + Linux) with hardware + disk-aware model picker | Planned |
 | 15 | Hardening + release gate | Planned |
@@ -202,7 +202,7 @@ Nexus evolves in versioned slices. Each upcoming line item below traces to a con
 | Opt-in memory consolidation (contradiction resolver + `nexus memory compress --file`) via local Ollama | v1.1.0 | Planned | [docs/v1.1.0/plans/phase-09-memory-consolidation-optin.md](docs/v1.1.0/plans/phase-09-memory-consolidation-optin.md) |
 | VS Code extension thin-adapter rewrite + Marketplace re-publish as `nexus-coding` | v1.1.0 | Planned | [docs/v1.1.0/plans/phase-10-vscode-thin-adapter-and-republish.md](docs/v1.1.0/plans/phase-10-vscode-thin-adapter-and-republish.md) |
 | Nexus VS Code extension as a full agentic surface inside VS Code, model-selectable across all local LLMs | v1.1.0 | Planned | [docs/v1.1.0/plans/phase-11-nexus-vscode-extension.md](docs/v1.1.0/plans/phase-11-nexus-vscode-extension.md) |
-| Image Studio: SANA-1.6B default + Sana-Sprint speed tier + SANA 2K / 4K + ControlNet + Flow-DPM-Solver | v1.1.0 | Planned | [docs/v1.1.0/plans/phase-12-image-studio-sana.md](docs/v1.1.0/plans/phase-12-image-studio-sana.md) |
+| Image Studio: SANA-1.6B default + Sana-Sprint speed tier + SANA 2K / 4K + ControlNet + Flow-DPM-Solver | v1.1.0 | Landed (2026-05-20) | [docs/v1.1.0/plans/phase-12-image-studio-sana.md](docs/v1.1.0/plans/phase-12-image-studio-sana.md) |
 | Video Lab: SANA-Video 2B "Fast 720p" tier | v1.1.0 | Planned | [docs/v1.1.0/plans/phase-13-video-lab-sana-video.md](docs/v1.1.0/plans/phase-13-video-lab-sana-video.md) |
 | Cross-OS installer (Windows + macOS + Linux) with hardware-aware typed catalog UI + 10 GB OS reserve | v1.1.0 | Planned | [docs/v1.1.0/plans/phase-14-cross-os-installer.md](docs/v1.1.0/plans/phase-14-cross-os-installer.md) |
 | Hardening + release gate (deep review, security audit, pen-test, signing, notarization, AppImage) | v1.1.0 | Planned | [docs/v1.1.0/plans/phase-15-hardening-and-release.md](docs/v1.1.0/plans/phase-15-hardening-and-release.md) |

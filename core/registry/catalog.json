@@ -1,8 +1,8 @@
 {
   "_meta": {
     "version": 1,
-    "phase": "v1.0.0 Phase 5.3",
-    "comment": "Curated installable model catalog used by Settings UI. LLMs ship in Phase 5; image models are flagged for Phase 6 (Image Studio); video models for Phase 7 (Video Lab). Each entry's source.sha256 is the verifier digest for the primary weights blob; Ollama-sourced entries delegate digest verification to `ollama pull` and carry no sha256."
+    "phase": "v1.1.0 Phase 12",
+    "comment": "Curated installable model catalog used by Settings UI. LLMs ship in Phase 5; image models are flagged for Phase 6 (Image Studio); video models for Phase 7 (Video Lab); NVIDIA SANA family (image + video + ControlNet + VAE) landed in v1.1.0 Phase 12. Each entry's source.sha256 is the verifier digest for the primary weights blob; Ollama-sourced entries delegate digest verification to `ollama pull` and carry no sha256. The SANA family placeholders (`sha256: 0...`) are rotated by Phase 15 operator action OA-03."
   },
   "models": [
     {
@@ -277,6 +277,255 @@
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
       "tags": ["phase-7", "video"]
+    },
+    {
+      "id": "sana-1.6b-1024",
+      "family": "sana",
+      "name": "sana",
+      "tag": "1.6b-1024",
+      "type": "image",
+      "displayName": "SANA 1.5 1.6B 1024px",
+      "description": "NVIDIA SANA 1.5 1.6B at 1024px. New default 1024px image model (v1.1.0). Apache-2.0 weights; ~2x faster than SDXL Turbo.",
+      "sizeGB": 3.2,
+      "vramGB": 6,
+      "requiredVramGB": 6,
+      "releaseDate": "2025-08-01",
+      "uncensored": false,
+      "multimodal": false,
+      "contextWindow": null,
+      "linkedVAE": "dc-ae-f32c32-sana-1.1",
+      "license": "Apache-2.0",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "Efficient-Large-Model/SANA1.5_1.6B_1024px_diffusers",
+        "url": "https://huggingface.co/Efficient-Large-Model/SANA1.5_1.6B_1024px_diffusers/resolve/main/transformer/diffusion_pytorch_model.safetensors",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "tags": ["recommended", "image", "phase-12", "sana"]
+    },
+    {
+      "id": "sana-sprint-1024",
+      "family": "sana",
+      "name": "sana-sprint",
+      "tag": "1024",
+      "type": "image",
+      "displayName": "SANA Sprint 1024px",
+      "description": "NVIDIA Sana-Sprint 1-step distilled SANA. Speed tier; powers the Fast Preview toggle in Image Studio.",
+      "sizeGB": 3.5,
+      "vramGB": 6,
+      "requiredVramGB": 6,
+      "releaseDate": "2025-09-01",
+      "uncensored": false,
+      "multimodal": false,
+      "contextWindow": null,
+      "linkedVAE": "dc-ae-f32c32-sana-1.1",
+      "license": "Apache-2.0",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "Efficient-Large-Model/sana-sprint",
+        "url": "https://huggingface.co/Efficient-Large-Model/sana-sprint/resolve/main/transformer/diffusion_pytorch_model.safetensors",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "tags": ["recommended", "image", "phase-12", "sana", "sprint"]
+    },
+    {
+      "id": "sana-1.6b-2k",
+      "family": "sana",
+      "name": "sana",
+      "tag": "1.6b-2k",
+      "type": "image",
+      "displayName": "SANA 1.6B 2K",
+      "description": "NVIDIA SANA 1.6B at 2048px (BF16). Gated to diffusion-mid+ hosts.",
+      "sizeGB": 3.2,
+      "vramGB": 12,
+      "requiredVramGB": 12,
+      "releaseDate": "2025-08-15",
+      "uncensored": false,
+      "multimodal": false,
+      "contextWindow": null,
+      "linkedVAE": "dc-ae-f32c32-sana-1.1",
+      "license": "Apache-2.0",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "Efficient-Large-Model/Sana_1600M_2Kpx_BF16",
+        "url": "https://huggingface.co/Efficient-Large-Model/Sana_1600M_2Kpx_BF16/resolve/main/transformer/diffusion_pytorch_model.safetensors",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "tags": ["image", "phase-12", "sana", "2k"]
+    },
+    {
+      "id": "sana-1.6b-4k",
+      "family": "sana",
+      "name": "sana",
+      "tag": "1.6b-4k",
+      "type": "image",
+      "displayName": "SANA 1.6B 4K",
+      "description": "NVIDIA SANA 1.6B at 4096px (BF16). Gated to diffusion-high+ hosts.",
+      "sizeGB": 3.2,
+      "vramGB": 20,
+      "requiredVramGB": 20,
+      "releaseDate": "2025-09-10",
+      "uncensored": false,
+      "multimodal": false,
+      "contextWindow": null,
+      "linkedVAE": "dc-ae-f32c32-sana-1.1",
+      "license": "Apache-2.0",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "Efficient-Large-Model/Sana_1600M_4Kpx_BF16",
+        "url": "https://huggingface.co/Efficient-Large-Model/Sana_1600M_4Kpx_BF16/resolve/main/transformer/diffusion_pytorch_model.safetensors",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "tags": ["image", "phase-12", "sana", "4k"]
+    },
+    {
+      "id": "sana-1.6b-int4",
+      "family": "sana",
+      "name": "sana",
+      "tag": "1.6b-int4",
+      "type": "image",
+      "displayName": "SANA 1.5 1.6B INT4 (SVDQuant)",
+      "description": "NVIDIA SANA 1.5 1.6B INT4 quantized via SVDQuant (nunchaku). Fits diffusion-low (8 GB VRAM) hosts. Requires the nunchaku runtime dep.",
+      "sizeGB": 1.4,
+      "vramGB": 5,
+      "requiredVramGB": 5,
+      "releaseDate": "2025-10-01",
+      "uncensored": false,
+      "multimodal": false,
+      "contextWindow": null,
+      "linkedVAE": "dc-ae-f32c32-sana-1.1",
+      "license": "Apache-2.0",
+      "runtimeDeps": ["nunchaku"],
+      "source": {
+        "protocol": "huggingface",
+        "repo": "Efficient-Large-Model/SANA1.5_1.6B_1024px_int4",
+        "url": "https://huggingface.co/Efficient-Large-Model/SANA1.5_1.6B_1024px_int4/resolve/main/transformer/diffusion_pytorch_model.safetensors",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "tags": ["image", "phase-12", "sana", "int4"]
+    },
+    {
+      "id": "dc-ae-f32c32-sana-1.1",
+      "family": "sana",
+      "name": "dc-ae",
+      "tag": "f32c32-sana-1.1",
+      "type": "vae",
+      "displayName": "DC-AE f32c32 (SANA 1.1)",
+      "description": "MIT HAN Lab Deep Compression AutoEncoder (32x compression, 32 channels). Auto-loaded by every SANA pipeline.",
+      "sizeGB": 0.32,
+      "vramGB": 1,
+      "requiredVramGB": 1,
+      "releaseDate": "2025-07-01",
+      "uncensored": false,
+      "multimodal": false,
+      "contextWindow": null,
+      "license": "Apache-2.0",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "mit-han-lab/dc-ae-f32c32-sana-1.1",
+        "url": "https://huggingface.co/mit-han-lab/dc-ae-f32c32-sana-1.1/resolve/main/diffusion_pytorch_model.safetensors",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "tags": ["vae", "phase-12", "sana", "auto-loaded"]
+    },
+    {
+      "id": "sana-controlnet-pose",
+      "family": "sana",
+      "name": "sana-controlnet",
+      "tag": "pose",
+      "type": "controlnet",
+      "displayName": "SANA-ControlNet Pose",
+      "description": "Pose-conditioning ControlNet for SANA. Pairs with the OpenPose preprocessor (controlnet_aux).",
+      "sizeGB": 0.7,
+      "vramGB": 2,
+      "requiredVramGB": 2,
+      "releaseDate": "2025-09-20",
+      "uncensored": false,
+      "multimodal": false,
+      "contextWindow": null,
+      "linkedFamily": "sana",
+      "license": "Apache-2.0",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "Efficient-Large-Model/SANA-ControlNet-Pose",
+        "url": "https://huggingface.co/Efficient-Large-Model/SANA-ControlNet-Pose/resolve/main/diffusion_pytorch_model.safetensors",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "tags": ["controlnet", "phase-12", "sana", "pose"]
+    },
+    {
+      "id": "sana-controlnet-depth",
+      "family": "sana",
+      "name": "sana-controlnet",
+      "tag": "depth",
+      "type": "controlnet",
+      "displayName": "SANA-ControlNet Depth",
+      "description": "Depth-conditioning ControlNet for SANA. Pairs with the MiDaS preprocessor (controlnet_aux).",
+      "sizeGB": 0.7,
+      "vramGB": 2,
+      "requiredVramGB": 2,
+      "releaseDate": "2025-09-20",
+      "uncensored": false,
+      "multimodal": false,
+      "contextWindow": null,
+      "linkedFamily": "sana",
+      "license": "Apache-2.0",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "Efficient-Large-Model/SANA-ControlNet-Depth",
+        "url": "https://huggingface.co/Efficient-Large-Model/SANA-ControlNet-Depth/resolve/main/diffusion_pytorch_model.safetensors",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "tags": ["controlnet", "phase-12", "sana", "depth"]
+    },
+    {
+      "id": "sana-controlnet-canny",
+      "family": "sana",
+      "name": "sana-controlnet",
+      "tag": "canny",
+      "type": "controlnet",
+      "displayName": "SANA-ControlNet Canny",
+      "description": "Canny-edge-conditioning ControlNet for SANA. Pairs with the OpenCV Canny preprocessor.",
+      "sizeGB": 0.7,
+      "vramGB": 2,
+      "requiredVramGB": 2,
+      "releaseDate": "2025-09-20",
+      "uncensored": false,
+      "multimodal": false,
+      "contextWindow": null,
+      "linkedFamily": "sana",
+      "license": "Apache-2.0",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "Efficient-Large-Model/SANA-ControlNet-Canny",
+        "url": "https://huggingface.co/Efficient-Large-Model/SANA-ControlNet-Canny/resolve/main/diffusion_pytorch_model.safetensors",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "tags": ["controlnet", "phase-12", "sana", "canny"]
+    },
+    {
+      "id": "sana-video-2b-720p",
+      "family": "sana",
+      "name": "sana-video",
+      "tag": "2b-720p",
+      "type": "video",
+      "displayName": "SANA-Video 2B 720p",
+      "description": "NVIDIA SANA-Video 2B at 720p. Fast 720p tier in Video Lab (between LTX-Video and CogVideoX).",
+      "sizeGB": 4.0,
+      "vramGB": 12,
+      "requiredVramGB": 12,
+      "releaseDate": "2025-10-15",
+      "uncensored": false,
+      "multimodal": false,
+      "contextWindow": null,
+      "license": "Apache-2.0",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "Efficient-Large-Model/SANA-Video-2B",
+        "url": "https://huggingface.co/Efficient-Large-Model/SANA-Video-2B/resolve/main/transformer/diffusion_pytorch_model.safetensors",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "tags": ["video", "phase-12", "sana"]
     }
   ]
 }

@@ -1,0 +1,30 @@
+# Diffusion runtime dependency manifest (v1.1.0 Phase 12.4).
+#
+# This list pairs with the wheel-prefix manifest at
+# `scripts/installer/pyqt/src/nexus_installer/engine/diffusion_venv_provisioner.py`
+# (`REQUIRED_WHEEL_PREFIXES`). The installer fetches the matching wheels
+# into `payload/python/wheels/` during the installer-build CI job and
+# the diffusion venv provisioner runs `pip install --no-index` against
+# them at install time -- so this file is the source-of-truth for what
+# the runtime needs at import time.
+#
+# Version pins are intentionally loose here so the CI build resolves
+# the latest compatible versions; the wheel cache pins exact versions
+# at build time. Hosts without CUDA install only the CPU subset.
+
+torch
+torchvision
+torchaudio
+diffusers
+transformers
+accelerate
+safetensors
+Pillow
+imageio[ffmpeg]
+controlnet_aux
+opencv-python-headless
+
+# v1.1.0 Phase 12.4 -- SVDQuant INT4 runtime for `sana-1.6b-int4`.
+# License: Apache-2.0 (MIT HAN Lab; verified per Phase 12.4 prompt).
+# Upstream: https://github.com/mit-han-lab/nunchaku
+nunchaku

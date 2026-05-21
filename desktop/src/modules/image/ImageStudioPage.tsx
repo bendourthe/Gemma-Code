@@ -30,6 +30,12 @@ import {
 } from "./diffusionClient";
 
 const DEFAULT_MODELS = [
+  // v1.1.0 Phase 12 -- SANA family is the new default.
+  { id: "sana-1.6b-1024", displayName: "SANA 1.5 1.6B 1024px" },
+  { id: "sana-sprint-1024", displayName: "SANA Sprint 1024px (Fast)" },
+  { id: "sana-1.6b-2k", displayName: "SANA 1.6B 2K" },
+  { id: "sana-1.6b-4k", displayName: "SANA 1.6B 4K" },
+  { id: "sana-1.6b-int4", displayName: "SANA INT4 (low-VRAM)" },
   { id: "sdxl-turbo", displayName: "SDXL Turbo" },
   { id: "sdxl-base-1.0", displayName: "SDXL 1.0 Base" },
   { id: "sd1.5", displayName: "SD 1.5" },
@@ -45,6 +51,10 @@ const DEFAULT_CONTROLNETS = [
   { id: "controlnet:sdxl-canny", displayName: "SDXL Canny" },
   { id: "controlnet:sdxl-pose", displayName: "SDXL OpenPose" },
   { id: "controlnet:sdxl-depth", displayName: "SDXL MiDaS Depth" },
+  // v1.1.0 Phase 12 -- SANA-ControlNet weights surface here for the form's dropdown.
+  { id: "sana-controlnet-pose", displayName: "SANA-ControlNet Pose" },
+  { id: "sana-controlnet-depth", displayName: "SANA-ControlNet Depth" },
+  { id: "sana-controlnet-canny", displayName: "SANA-ControlNet Canny" },
 ];
 
 const MODE_LABELS: Record<ImageMode, string> = {
@@ -76,6 +86,8 @@ export interface ImageStudioPageProps {
   /** Test seam: clipboard adapter. Defaults to navigator.clipboard. */
   readonly clipboard?: { writeText: (value: string) => Promise<void> };
   readonly initialMode?: ImageMode;
+  /** v1.1.0 Phase 12 -- resolved DiffusionTier so the prompt form can gate 2K/4K. */
+  readonly diffusionTier?: import("../../../../core/config/DiffusionTier").DiffusionTierId;
 }
 
 export function ImageStudioPage({
@@ -83,6 +95,7 @@ export function ImageStudioPage({
   drainIntervalMs = 100,
   clipboard,
   initialMode = "txt2img",
+  diffusionTier = "diffusion-low",
 }: ImageStudioPageProps = {}): JSX.Element {
   const [client] = useState<DiffusionClient>(() => clientOverride ?? createIpcDiffusionClient());
   const [mode, setMode] = useState<ImageMode>(initialMode);
@@ -278,6 +291,7 @@ export function ImageStudioPage({
             availableControlNets={advancedControlNets}
             onChange={setValues}
             disabled={isGenerating}
+            diffusionTier={diffusionTier}
           />
           <div style={{ marginTop: "var(--space-3)", display: "flex", gap: "var(--space-2)" }}>
             <button

@@ -71,11 +71,13 @@ class TestEstimateDownloadMinutes:
 
 class TestModelSelection:
     def test_total_gb_sums_across_presets(self) -> None:
+        # v1.1.0 Phase 12.8 -- SANA-1.6B replaced SDXL Turbo as the default
+        # image entry in Light / Recommended; sum across both presets.
         sel = ModelSelection(
             preset=RECOMMENDED_PRESET,
-            selected_models={"gemma4:e4b", "sdxl-turbo"},
+            selected_models={"gemma4:e4b", "sana-1.6b-1024"},
         )
-        assert sel.total_gb() == pytest.approx(4.5 + 6.5)
+        assert sel.total_gb() == pytest.approx(4.5 + 3.2)
 
     def test_total_ignores_unknown_ids(self) -> None:
         sel = ModelSelection(
@@ -83,6 +85,19 @@ class TestModelSelection:
             selected_models={"unknown-id"},
         )
         assert sel.total_gb() == 0.0
+
+    def test_phase_12_defaults_auto_tick_sana(self) -> None:
+        # v1.1.0 Phase 12.8 acceptance: every preset auto-includes both
+        # `sana-1.6b-1024` and `sana-sprint-1024`. SDXL Turbo no longer
+        # appears in Light / Recommended (opt-in via Advanced).
+        for preset in (LIGHT_PRESET, RECOMMENDED_PRESET, FULL_PRESET):
+            ids = {m.model_id for m in preset.models}
+            assert "sana-1.6b-1024" in ids, preset.name
+            assert "sana-sprint-1024" in ids, preset.name
+        light_ids = {m.model_id for m in LIGHT_PRESET.models}
+        recommended_ids = {m.model_id for m in RECOMMENDED_PRESET.models}
+        assert "sdxl-turbo" not in light_ids
+        assert "sdxl-turbo" not in recommended_ids
 
 
 class TestRecommendedModelsPageRender:

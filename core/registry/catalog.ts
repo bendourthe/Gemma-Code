@@ -12,7 +12,13 @@
 import { promises as fs } from "node:fs";
 import * as path from "node:path";
 
-export type ModelType = "llm" | "embed" | "image" | "video";
+export type ModelType =
+  | "llm"
+  | "embed"
+  | "image"
+  | "video"
+  | "controlnet"
+  | "vae";
 
 export interface ModelSpecSource {
   readonly protocol: "ollama" | "huggingface" | "url";
@@ -31,9 +37,17 @@ export interface ModelSpec {
   readonly description?: string;
   readonly sizeGB?: number;
   readonly vramGB?: number;
+  readonly requiredVramGB?: number;
   readonly license?: string;
   readonly source: ModelSpecSource;
   readonly tags?: readonly string[];
+  readonly releaseDate?: string;
+  readonly uncensored?: boolean;
+  readonly multimodal?: boolean;
+  readonly contextWindow?: number | null;
+  readonly linkedVAE?: string;
+  readonly linkedFamily?: string;
+  readonly runtimeDeps?: readonly string[];
 }
 
 export interface CatalogFile {
@@ -45,7 +59,7 @@ export function validateSpec(spec: ModelSpec): void {
   if (!spec.id || !spec.family || !spec.name || !spec.tag) {
     throw new Error(`ModelCatalog: entry missing id/family/name/tag: ${JSON.stringify(spec)}`);
   }
-  if (!spec.type || !["llm", "embed", "image", "video"].includes(spec.type)) {
+  if (!spec.type || !["llm", "embed", "image", "video", "controlnet", "vae"].includes(spec.type)) {
     throw new Error(`ModelCatalog: invalid type for ${spec.id}: ${spec.type}`);
   }
   if (!spec.source || !spec.source.protocol) {

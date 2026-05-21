@@ -1,5 +1,7 @@
 /**
  * v1.0.0 Phase 6.5 -- forms-driven prompt sidebar.
+ * v1.1.0 Phase 12.7 -- Fast Preview toggle, multi-lang prompt hint,
+ * Flow-DPM-Solver sampler, and 2K/4K resolutions gated by DiffusionTier.
  *
  * Houses every parameter the user can tune: prompt + negative, model,
  * width / height, steps, CFG, sampler, seed, plus the collapsible
@@ -8,8 +10,9 @@
  * when the user clicks Generate.
  */
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { ControlNetRef, LoraRef } from "./diffusionClient";
+import type { DiffusionTierId } from "../../../../core/config/DiffusionTier";
 
 export interface PromptFormValues {
   readonly prompt: string;
@@ -21,6 +24,7 @@ export interface PromptFormValues {
   readonly cfgScale: number;
   readonly sampler: string;
   readonly seed: number;
+  readonly fastPreview: boolean;
   readonly loras: readonly LoraRef[];
   readonly controlNet?: ControlNetRef;
 }
@@ -32,20 +36,89 @@ export interface ImagePromptFormProps {
   readonly availableControlNets: readonly { id: string; displayName: string }[];
   readonly disabled?: boolean;
   readonly onChange?: (values: PromptFormValues) => void;
+  /**
+   * Diffusion tier resolved at the page level (Phase 3). Controls which
+   * resolutions appear in the dropdown: 2K is gated to `diffusion-mid+`,
+   * 4K to `diffusion-high+`. Default `diffusion-low` so callers in tests
+   * that omit the prop still get the conservative tier.
+   */
+  readonly diffusionTier?: DiffusionTierId;
+  /**
+   * Model id used when "Fast Preview" is toggled on. Phase 12.7 maps
+   * this to `sana-sprint-1024` by default; the page-level orchestrator
+   * forwards the form's `fastPreview` flag plus this id into the
+   * dispatch request when Generate fires.
+   */
+  readonly fastPreviewModelId?: string;
 }
 
-const SAMPLERS = ["euler", "euler_a", "dpmpp_2m", "dpmpp_sde", "ddim", "lms"];
+const SAMPLERS = [
+  "euler",
+  "euler_a",
+  "dpmpp_2m",
+  "dpmpp_sde",
+  "ddim",
+  "lms",
+  // v1.1.0 Phase 12.7 -- SANA family's Flow-DPM-Solver scheduler.
+  "flow-dpm-solver",
+];
+
+export const FAST_PREVIEW_MODEL_ID = "sana-sprint-1024";
+
+interface ResolutionOption {
+  readonly value: string;
+  readonly label: string;
+  readonly width: number;
+  readonly height: number;
+  readonly requires?: DiffusionTierId;
+}
+
+const RESOLUTION_OPTIONS: readonly ResolutionOption[] = [
+  { value: "512x512", label: "512 x 512", width: 512, height: 512 },
+  { value: "768x768", label: "768 x 768", width: 768, height: 768 },
+  { value: "1024x1024", label: "1024 x 1024", width: 1024, height: 1024 },
+  {
+    value: "2048x2048",
+    label: "2048 x 2048 (2K)",
+    width: 2048,
+    height: 2048,
+    requires: "diffusion-mid",
+  },
+  {
+    value: "4096x4096",
+    label: "4096 x 4096 (4K)",
+    width: 4096,
+    height: 4096,
+    requires: "diffusion-high",
+  },
+];
+
+const TIER_RANK: Record<DiffusionTierId, number> = {
+  "diffusion-low": 0,
+  "diffusion-mid": 1,
+  "diffusion-high": 2,
+  "diffusion-pro": 3,
+};
+
+export function tierMeets(actual: DiffusionTierId, required: DiffusionTierId): boolean {
+  return TIER_RANK[actual] >= TIER_RANK[required];
+}
+
+export function visibleResolutions(tier: DiffusionTierId): readonly ResolutionOption[] {
+  return RESOLUTION_OPTIONS.filter((opt) => !opt.requires || tierMeets(tier, opt.requires));
+}
 
 export const DEFAULT_FORM_VALUES: PromptFormValues = {
   prompt: "",
   negativePrompt: "",
-  modelId: "sdxl-turbo",
+  modelId: "sana-1.6b-1024",
   width: 1024,
   height: 1024,
-  steps: 4,
-  cfgScale: 1.5,
-  sampler: "euler_a",
+  steps: 14,
+  cfgScale: 4.5,
+  sampler: "flow-dpm-solver",
   seed: 0,
+  fastPreview: false,
   loras: [],
 };
 
@@ -56,12 +129,19 @@ export function ImagePromptForm({
   availableControlNets,
   disabled,
   onChange,
+  diffusionTier = "diffusion-low",
+  fastPreviewModelId = FAST_PREVIEW_MODEL_ID,
 }: ImagePromptFormProps): JSX.Element {
   const [values, setValues] = useState<PromptFormValues>({
     ...DEFAULT_FORM_VALUES,
     ...initial,
   });
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const allowedResolutions = useMemo(() => visibleResolutions(diffusionTier), [diffusionTier]);
+  const selectedResolutionValue = `${values.width}x${values.height}`;
+  const selectedResolutionTooHigh = !allowedResolutions.some(
+    (r) => r.value === selectedResolutionValue,
+  );
 
   function update<K extends keyof PromptFormValues>(key: K, value: PromptFormValues[K]): void {
     setValues((prev) => {
@@ -105,7 +185,35 @@ export function ImagePromptForm({
       style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}
     >
       <label>
-        <span style={{ display: "block", fontSize: "var(--text-xs)", color: "var(--fg-muted)" }}>Prompt</span>
+        <span
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--space-1)",
+            fontSize: "var(--text-xs)",
+            color: "var(--fg-muted)",
+          }}
+        >
+          Prompt
+          <span
+            data-testid="image-prompt-multilang-hint"
+            title="Supports English, Chinese, and Emoji (multilingual model)."
+            aria-label="Supports English, Chinese, and Emoji (multilingual model)."
+            style={{
+              display: "inline-flex",
+              width: "1em",
+              height: "1em",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: "50%",
+              border: "1px solid var(--fg-muted)",
+              fontSize: "0.7em",
+              cursor: "help",
+            }}
+          >
+            i
+          </span>
+        </span>
         <textarea
           data-testid="image-prompt"
           rows={4}
@@ -141,6 +249,42 @@ export function ImagePromptForm({
           ))}
         </select>
       </label>
+      <label>
+        Resolution
+        <select
+          data-testid="image-resolution"
+          value={selectedResolutionValue}
+          disabled={disabled}
+          onChange={(e) => {
+            const opt = RESOLUTION_OPTIONS.find((r) => r.value === e.target.value);
+            if (!opt) return;
+            setValues((prev) => {
+              const next = { ...prev, width: opt.width, height: opt.height };
+              onChange?.(next);
+              return next;
+            });
+          }}
+        >
+          {allowedResolutions.map((r) => (
+            <option key={r.value} value={r.value}>
+              {r.label}
+            </option>
+          ))}
+        </select>
+        {selectedResolutionTooHigh && (
+          <span
+            data-testid="image-resolution-tier-hint"
+            style={{
+              display: "block",
+              marginTop: "var(--space-1)",
+              fontSize: "var(--text-xs)",
+              color: "var(--accent-warning, #f59e0b)",
+            }}
+          >
+            Requires diffusion-high tier
+          </span>
+        )}
+      </label>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-2)" }}>
         <label>
           Width
@@ -148,7 +292,7 @@ export function ImagePromptForm({
             data-testid="image-width"
             type="number"
             min={64}
-            max={2048}
+            max={4096}
             step={8}
             value={values.width}
             disabled={disabled}
@@ -161,7 +305,7 @@ export function ImagePromptForm({
             data-testid="image-height"
             type="number"
             min={64}
-            max={2048}
+            max={4096}
             step={8}
             value={values.height}
             disabled={disabled}
@@ -220,6 +364,34 @@ export function ImagePromptForm({
           />
         </label>
       </div>
+      <label
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "var(--space-2)",
+          fontSize: "var(--text-xs)",
+          color: "var(--fg-muted)",
+        }}
+      >
+        <input
+          data-testid="image-fast-preview-toggle"
+          type="checkbox"
+          checked={values.fastPreview}
+          disabled={disabled}
+          onChange={(e) => update("fastPreview", e.target.checked)}
+        />
+        <span>
+          Fast Preview <em>(1-step Sana-Sprint, ~0.5 s)</em>
+        </span>
+        {values.fastPreview && (
+          <span
+            data-testid="image-fast-preview-model"
+            style={{ marginLeft: "auto", color: "var(--accent, #10b981)" }}
+          >
+            using {fastPreviewModelId}
+          </span>
+        )}
+      </label>
       <details
         data-testid="image-advanced"
         open={advancedOpen}
@@ -313,17 +485,22 @@ export function ImagePromptForm({
 export function valuesToBaseRequest(
   values: PromptFormValues,
   overrides: Partial<PromptFormValues> = {},
+  options: { readonly fastPreviewModelId?: string } = {},
 ): Record<string, unknown> {
   const merged = { ...values, ...overrides };
+  const fastPreviewModelId = options.fastPreviewModelId ?? FAST_PREVIEW_MODEL_ID;
+  const effectiveModelId = merged.fastPreview ? fastPreviewModelId : merged.modelId;
+  const effectiveSteps = merged.fastPreview ? 1 : merged.steps;
+  const effectiveSampler = merged.fastPreview ? "flow-dpm-solver" : merged.sampler;
   const out: Record<string, unknown> = {
-    modelId: merged.modelId,
+    modelId: effectiveModelId,
     prompt: merged.prompt,
     negativePrompt: merged.negativePrompt || undefined,
     width: merged.width,
     height: merged.height,
-    steps: merged.steps,
+    steps: effectiveSteps,
     cfgScale: merged.cfgScale,
-    sampler: merged.sampler,
+    sampler: effectiveSampler,
     seed: merged.seed,
     batchSize: 1,
     latentPreview: true,
