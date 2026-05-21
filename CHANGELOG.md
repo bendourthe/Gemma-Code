@@ -1,3 +1,10 @@
+# [0.41.0](https://github.com/bendourthe/Nexus-AI/compare/v0.40.0...v0.41.0) (2026-05-21)
+
+
+### Features
+
+* **v1.1.0:** phase 12 image studio sana family adoption ([563c817](https://github.com/bendourthe/Nexus-AI/commit/563c817299f6946d4c294ce96117ab792745e330)), closes [tier-hint-on-too-hi#resolution](https://github.com/tier-hint-on-too-hi/issues/resolution)
+
 # [0.40.0](https://github.com/bendourthe/Nexus-AI/compare/v0.39.0...v0.40.0) (2026-05-21)
 
 
