@@ -1,3 +1,10 @@
+# [0.38.0](https://github.com/bendourthe/Nexus-AI/compare/v0.37.0...v0.38.0) (2026-05-21)
+
+
+### Features
+
+* **v1.1.0:** phase 9 opt-in memory consolidation (contradiction resolver + file compressor) ([1307ff2](https://github.com/bendourthe/Nexus-AI/commit/1307ff26de1fd2894093b64443e21d76f021a5ac))
+
 # [0.37.0](https://github.com/bendourthe/Nexus-AI/compare/v0.36.0...v0.37.0) (2026-05-20)
 
 
