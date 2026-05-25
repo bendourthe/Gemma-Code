@@ -32,11 +32,11 @@
     "@testing-library/react": "^16.1.0",
     "@testing-library/user-event": "^14.5.2",
     "@types/node": "^20.0.0",
-    "@types/react": "^19.0.0",
+    "@types/react": "^19.2.15",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",
     "@vitest/coverage-v8": "^2.1.9",
-    "esbuild": "^0.24.2",
+    "esbuild": "^0.28.0",
     "jsdom": "^25.0.1",
     "vite": "^5.4.21",
     "vitest": "^2.1.9"

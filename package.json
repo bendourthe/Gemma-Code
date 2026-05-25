@@ -859,7 +859,7 @@
   "devDependencies": {
     "@commitlint/cli": "^19.5.0",
     "@commitlint/config-conventional": "^19.5.0",
-    "@electron/rebuild": "^4.0.3",
+    "@electron/rebuild": "^4.0.4",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/git": "^10.0.1",
     "@semantic-release/github": "^11.0.1",
@@ -868,7 +868,7 @@
     "@types/better-sqlite3": "^7.6.13",
     "@types/diff": "^5.2.3",
     "@types/node": "^20.0.0",
-    "@types/vscode": "^1.90.0",
+    "@types/vscode": "^1.120.0",
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
     "@vitest/coverage-v8": "^2.1.9",
@@ -877,7 +877,7 @@
     "eslint": "^8.57.0",
     "husky": "^9.1.7",
     "lint-staged": "^15.5.2",
-    "msw": "^2.13.4",
+    "msw": "^2.14.6",
     "semantic-release": "^25.0.0",
     "typescript": "^5.4.0",
     "vitest": "^2.1.9"
