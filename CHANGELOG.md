@@ -1,3 +1,141 @@
+# [1.1.0](https://github.com/bendourthe/Nexus-AI/compare/v1.0.0...v1.1.0) (2026-05-26)
+
+The stabilization-plus-expansion release that follows v1.0.0. Closes the v1.0.0 shared-core build carryforward cluster (storage-path rename, manifest IDs, npm package + publisher rename, duplicate-catalog removal, curator-cadence fallback delete, CRLF/LF snapshot normalization, SHA-pinned actions), turns the Windows-only PyQt installer into a canonical cross-platform installer (Windows + macOS + Linux), ships the renamed `nexus-coding` VS Code extension as a multi-model agentic add-on, adopts the NVIDIA SANA family as the default Image Studio + Video Lab pipeline, and upgrades the memory subsystem end-to-end (hybrid retrieval, local embedder, provenance, 12-hook lifecycle bus, Ebbinghaus decay, session replay timeline, `/recall` / `/remember` / `/forget` slash commands, opt-in contradiction resolver, file compressor).
+
+The cycle ingests 65 carryforward items from `docs/v1.0.0/known-gaps.md` plus 22 new items across the agentmemory and SANA comparisons. 66 close in cycle (Phases 1-14); 33 carry forward to v1.2.0 (8 P1 + 24 P2 + 1 P3 -- all documented deferrals with placeholders, none release-blocking).
+
+### Added
+
+Phase 1 -- Shared-core decision + carryforward closure (commit `ec3ff0e`):
+- Shared-core ADR at `docs/v1.1.0/development/decisions/shared-core-build.md` records option (a) -- project references with `composite: true` -- as the chosen strategy.
+- Storage-path rename: `~/.gemma-code/` -> `~/.nexus/` cascaded across `src/`, `tests/`, `scripts/`. The `nexusHome()` helper is the single source of truth.
+- Settings `package.json` `deprecationMessage` injection for every legacy `gemma-code.*` schema entry.
+- Curator-cadence fallback deleted from `AgentLoop`; `IdleTimeScheduler` is the sole curator entry point.
+- CRLF/LF snapshot normalization across `SubAgentManager.characterization.test.ts` (Windows / Linux parity).
+- SHA-pin enforcement against the `shell-build.yml` workflow actions.
+
+Phase 2 -- Rebrand + sidecar core extraction (commit `de219a5`):
+- VS Code manifest IDs flip from `gemma-code.*` to `nexus.coding.*`; npm package + publisher rename to `nexus-coding`.
+- Sidecar duplicate model catalogs deleted in favour of the canonical `core/registry/` source.
+
+Phase 3 -- Coding-module codemod + first sub-tree migration (commit `f3429c4`):
+- `scripts/dev/rewrite-imports.mjs` -- generic import-rewriting codemod consumed by Phase 3 + future sub-tree migrations.
+- `src/utils/` -> `modules/coding/utils/` migration (6 files moved, 65 importers rewritten).
+
+Phase 4 -- Memory provenance + HookBus + secret pre-index filter (commit `9323352`):
+- `MemoryEntry.lifecycleProvenance: {sessionId, hookKind, toolName?, parentSpanId?}` field on every memory write.
+- SQLite migration adds `provenance TEXT NULL` + `scope_id TEXT NULL` to `memories`, `episodic_events`, `graph_relations` with helper indexes. Schema version bumped to 3.
+- `core/lifecycle/HookBus.ts` defines a 12-variant `LifecycleEvent` discriminated union; `InProcessHookBus` wraps `TelemetryBus` so existing trace consumers see the events. `AgentLoop.run` / `_runToolCall` / `spawnSubAgent` emit five of the twelve hooks today; four remain deferred to Phase 1b alongside the `src/runtime/` migration.
+- `core/observability/redactSecrets.ts` consolidates the trace-side patterns into a single string-in / string-out scrubber (AWS keys, GitHub PATs classic + fine-grained, Slack tokens, JWTs, PEM private-key blocks, env-style assignments). Wired into `MemoryStore.save(...)` so every memory write is scrubbed before SQLite insert. Adopts agentmemory A8 + A5 + A7.
+
+Phase 5 -- Hybrid retrieval + local embedder + warm-rebuild worker (commit `afac447`):
+- `core/memory/LocalEmbedder.ts` wraps `@xenova/transformers` + the `all-MiniLM-L6-v2` ONNX weights (~80 MB; production hosts source from `~/.nexus/runtimes/embedder/`). Falls back to a deterministic 384-dim hash sketch when the optional dependency is absent (CI-friendly).
+- `core/memory/Bm25Index.ts` builds an inverted index over `memory_entries` with 5 ms median rebuild on memory write.
+- `core/memory/HybridRetriever.ts` fuses BM25 + dense + graph traversal via Reciprocal Rank Fusion (k=60 default; exposed via `nexus.memory.rrf.k`).
+- `core/memory/WarmRebuildWorker.ts` reads all `memory_entries` rows and embeds them in batches of 32 on first launch or when the indexes are detected stale via a hash-of-row-count fingerprint. Adopts agentmemory A1 + A2.
+
+Phase 6 -- Memory CLI + Ebbinghaus decay + slash commands (commit `c8d9e0b`):
+- `nexus memory audit --since <date>` prints a tabular log of memory writes with provenance.
+- `nexus memory export --out <path.jsonl>` and `nexus memory import` (round-trip integrity asserted at the unit level).
+- `nexus memory decay --now` fires the sweep manually for debugging.
+- `/recall <query>` (hybrid top-K), `/remember <text>` (working-tier observation), `/forget --id <uuid>` or `/forget --pattern <regex>`.
+- `core/memory/DecaySweep.ts` implements the closed-form Ebbinghaus retention curve `R(t) = exp(-t/halfLife * ln(2))` with per-tier half-lives (working = 24 h, episodic = 7 d, semantic = 30 d, graph = 365 d). Eviction rule: `retention < 0.05 AND accessCount < 3`. Adopts agentmemory A3 + A10 + A11 + A12.
+- Memory panel "Forget" button per row (signals via `onForget` callback; IPC delete pipeline clusters with the v1.2.0 `MemoryStore` adapter sweep).
+
+Phase 7 -- Session replay timeline (commit `2864f68`):
+- TraceDashboard `<TimelineScrubber>` with play / pause / speed (0.5x / 1x / 2x / 4x).
+- "Compare two sessions" view diffs trace deltas side-by-side. Adopts agentmemory A6.
+
+Phase 8 -- DevAI-Hub closures + skill hot-reload + AgentLoop skill provenance (commit `fffee43`):
+- `core/skills/SkillsReloader.ts` with 200 ms debounce, `onReload`/`onError` callbacks, graceful behaviour when the `ACTIVE` pointer does not yet exist.
+- Weekly auto-sync worker factory + bootstrap registration on `IdleTimeScheduler`.
+- `nexus skills install user/<name> --from <url>` + `nexus skills remove user/<name>` with documented allowlist + `PromptInjectionScanner` + path-clamped writes under `~/.nexus/skills/user/`.
+- `filterSlashCommandsWithSkills(input, skills, {preferUpstream})` orders devai-hub variants first when `nexus.skills.preferUpstream=true`.
+- `AgentLoop.setCurrentSkill(...)` + `lifecycle.skill.entry` fires at slash-command entry; trace spans for tool calls inside a skill body carry `skill.{id, namespace, provenance}` attributes.
+
+Phase 9 -- Opt-in memory consolidation (commit `1307ff2`):
+- `core/memory/ContradictionResolver.ts` adjudicates conflicting semantic-tier entries via a local Ollama prompt; default off, gated by `nexus.memory.consolidation.enabled`.
+- `nexus memory compress --file <path>` summarizes long files into structured facts via the same local Ollama; `/memory-compress <path>` slash command wired to the same code path. Adopts agentmemory A4 + A9 (gated, opt-in).
+
+Phase 10 -- VS Code extension thin-adapter rewrite (commit `08e14dd`):
+- `src/extension.ts` drops from 478 to 64 lines; activation dispatches between `src/activation/proxy.ts` and `src/activation/extensionOnly.ts` via `discoverDesktopDaemon()`.
+- Compat shim tightened to once-per-session deprecation logs for legacy `gemma-code.<cmd>` keybindings.
+
+Phase 11 -- Nexus VS Code extension (multi-model agentic surface, commit `093be67`):
+- `ModelDropdown`, `PlanArtifact`, `AutoModeStream`, `MemorySnapshotView`, `SlashAutocomplete`, `SessionList`, `McpBridge`, `SettingsBridge` -- the seven new `core/coding/*` modules form the agentic surface.
+- Parity test suite + proxy / IPC-client wiring (100 new test cases).
+- Five new IPC method schemas wired into `desktop/sidecar/src/protocol.ts` with `implemented: true`: `models.list`, `coding.chat.autocomplete`, `mcp.list`, `mcp.invoke`, `settings.get`, `settings.set`.
+- Model dropdown is **selectable across all installed local models** (not just Gemma 4); the daemon's `models.list` enumerates Ollama-resident models for the picker.
+
+Phase 12 -- Image Studio upgrade (NVIDIA SANA family, commit `563c817`):
+- SANA-1.6B replaces SDXL Turbo as the default 1024px image model (Apache-2.0 weights).
+- Sana-Sprint speed tier ("Fast Preview", 1-step Flow-DPM-Solver).
+- SANA 2K + 4K behind `DiffusionTier` gating.
+- SANA 4-bit (SVDQuant variant via `nunchaku`) on the `diffusion-low` 8 GB tier (operator-pending license verification under 12.4.P2.GG).
+- SANA-ControlNet integrates with the existing pose / depth / canny preprocessors.
+- Flow-DPM-Solver appears as a sampler option.
+- DC-AE-f32c32 VAE registration.
+- Adopts SANA S1, S2, S3, S4, S7, S8, S9, S10.
+
+Phase 13 -- Video Lab Fast 720p tier (SANA-Video 2B, commit `1dabb27`):
+- SANA-Video 2B joins the catalog as the "Fast 720p" tier between LTX-Video and CogVideoX.
+- Video Lab "Fast 720p" preset is visible and selectable; sampler dropdown widens with `flow-dpm-solver`.
+- Adopts SANA S5.
+
+Phase 14 -- Cross-OS installer with hardware + disk-aware model picker (commit `0ead8f3`):
+- `HostProfile` detection auto-identifies host OS + arch + GPU vendor.
+- OS-aware provisioner dispatch: CUDA on Windows + Linux NVIDIA, Metal Performance Shaders on Apple Silicon, ROCm-aware fallback on Linux AMD, CPU-only fallback elsewhere.
+- macOS provisioners: Metal + Ollama for macOS + Homebrew-style ffmpeg.
+- Linux provisioners: CUDA + ROCm + CPU fallback + Ollama via the official Linux script.
+- Live disk-aware footer + 10 GB OS reserve (configurable via `nexus.installer.diskReserveGB`).
+- Text / Image / Video / Audio tabbed model picker fed by `core/registry/catalog.json` + `recommended.json` with hardware compatibility badges and disk-aware checkbox greying.
+- Nexus VS Code extension add-on page with `code` / `code-insiders` / `cursor` auto-detection.
+- Final disk + hardware guard at "Begin Installation" with re-detection and a bounce-back to the picker on failure.
+- macOS DMG and Linux AppImage outer-shell workflows promoted to `push: tags` with payload-fetch + PyInstaller freeze + create-dmg / appimagetool assembly.
+- Cross-OS payload fetcher at `scripts/installer/build/fetch-payload.py` parameterized by `--os` + `--arch` with SHA-256 pinning via `versions.lock.json`.
+- Storage Review page with runtime / models / DevAI-Hub / reserve / net coloring.
+- Cross-OS first-launch migration shim (Python-side).
+- Three RTM smoke checklists at `docs/v1.1.0/installer-smoke-{windows,macos,linux}.md`.
+
+Phase 15 -- Hardening + release gate (this commit):
+- Version bump across `package.json`, `package-lock.json`, `desktop/package.json`, `desktop/src-tauri/Cargo.toml`, `desktop/src-tauri/tauri.conf.json`, `scripts/installer/pyqt/pyproject.toml`, `scripts/installer/pyqt/src/nexus_installer/__init__.py`, and `scripts/installer/build/nsis/nexus-setup.nsi`.
+- `docs/v1.1.0/distribution.md` -- distribution channels mirroring the v1.0.0 structure across three OS surfaces + the renamed Marketplace listing.
+- `docs/v1.1.0/release-notes.md` -- user-facing release content.
+- `docs/v1.1.0/review/synthesis.md` -- static deep-review synthesis (live `/run-deep-review` chain operator-gated and tracked as OA-V1.1.0-15-DR-A through DR-D).
+- `docs/v1.1.0/known-gaps.md` finalized: Phase 15 closures appended, Section 3 summary recomputed, Section 4 carryforward map populated, status flipped from `in-progress` to `finalized at v1.1.0 release`.
+
+### Changed
+
+- Default 1024px image model: SDXL Turbo -> SANA-1.6B (reversible via the model dropdown).
+- VS Code Marketplace listing: `gemma-code` -> `nexus-coding` (legacy listing carries a transition note pointing at the renamed listing through the v1.2.0 compat window).
+- Curator entry point: `IdleTimeScheduler` is the sole curator dispatcher; the legacy `AgentLoop._runOneIteration` curator block is removed.
+- Storage paths: `~/.gemma-code/` -> `~/.nexus/` (POSIX symlink + Windows side-by-side dir for one-cycle compat).
+- Memory retrieval: substring search -> hybrid (BM25 + dense + graph via RRF, k=60). Substring fast-path retained for corpora <100 entries via `nexus.memory.hybridMinCorpus`.
+
+### Deferred to v1.2.0
+
+- 12 of 13 `src/` -> `modules/coding/` sub-trees remain open under 1.4.P1.B (per-sub-tree status table maintained in `docs/v1.1.0/known-gaps.md`).
+- `MemoryStore` adapter cluster: `MemoryStoreWarmRebuildSource`, `MemoryStoreDecayProvider`, `MemoryStoreAuditLog`, `MemoryStoreExportSource`, `MemoryStoreSettingsStore` -- all clustered with the v1.2.0 first commit.
+- Audio module pillar.
+- Direct-download landing page (`https://nexus.bendourthe.com/download`) -- deferred to v1.1.1 per OA-05.
+- Legacy `gemma-code.<cmd>` keybindings + `gemma-check` CLI alias removal (compat window closes in v1.2.0).
+- Node-graph advanced tab.
+
+### Operator-action carryforwards
+
+Live operator-driven items required to close v1.1.0 (tracked in `docs/v1.0.0/operator-actions.md` plus `docs/v1.1.0/operator-actions.md`):
+
+- OA-01 -- EV Code Signing certificate procurement + Windows Authenticode signing (carried forward from v1.0.0).
+- OA-08 -- Live golden-task replay against `gemma4:e4b` / `llama3.1:8b` / `qwen2.5-coder:7b`.
+- OA-09 -- Real-GPU bench (extended in v1.1.0 for SANA-1.6B / Sana-Sprint / SANA 2K / SANA 4K / SANA INT4 / SANA-ControlNet / SANA-Video 2B).
+- OA-10 -- Live `nexus skills sync` against `bendourthe/DevAI-Hub`.
+- OA-11 -- macOS Developer ID + notarization.
+- OA-12 -- Linux AppImage RTM smoke on Ubuntu 22.04 / 24.04 / Fedora 40.
+- OA-V1.1.0-10A -- Publish the renamed `nexus-coding` Marketplace listing.
+- OA-V1.1.0-10B -- Update the legacy `gemma-code` listing with the transition note.
+- OA-V1.1.0-12A -- Rotate SANA placeholder SHA-256 digests in `core/registry/catalog.json`.
+- OA-V1.1.0-15-DR-A/B/C/D -- Live `/run-deep-review` + `/run-security-audit` + `/run-penetration-test --depth=deep` + `semantic-release --dry-run` capture.
+
 # [0.42.0](https://github.com/bendourthe/Nexus-AI/compare/v0.41.0...v0.42.0) (2026-05-21)
 
 

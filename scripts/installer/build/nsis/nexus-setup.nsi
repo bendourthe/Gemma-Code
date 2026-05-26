@@ -1,8 +1,8 @@
 ; ============================================================================
-; Nexus 1.0.0 -- NSIS outer installer (Phase 9.7)
+; Nexus 1.1.0 -- NSIS outer installer (Phase 9.7 / v1.1.0 Phase 15.6 version bump)
 ; ============================================================================
 ;
-; Builds Nexus-1.0.0-Setup.exe -- the Windows-shell layer around the PyQt5
+; Builds Nexus-1.1.0-Setup.exe -- the Windows-shell layer around the PyQt5
 ; wizard. Responsibilities:
 ;
 ;   - UAC elevation
@@ -26,11 +26,11 @@
 ;   ..\..\..\build\wizard\nexus-installer.exe
 ;   ..\..\..\build\payload\
 ; Output:
-;   ..\..\..\build\Nexus-1.0.0-Setup.exe
+;   ..\..\..\build\Nexus-1.1.0-Setup.exe
 ; ============================================================================
 
 !define APP_NAME       "Nexus"
-!define APP_VERSION    "1.0.0"
+!define APP_VERSION    "1.1.0"
 !define APP_PUBLISHER  "Nexus"
 !define APP_HOMEPAGE   "https://github.com/bendourthe/Nexus-AI"
 !define APP_EXE        "nexus.exe"
@@ -41,7 +41,7 @@
 !define APP_DOC_PROGID  "Nexus.Workflow"
 
 Name              "${APP_NAME} ${APP_VERSION}"
-OutFile           "..\..\..\..\build\Nexus-1.0.0-Setup.exe"
+OutFile           "..\..\..\..\build\Nexus-1.1.0-Setup.exe"
 InstallDir        "${APP_INSTALL_DIR}"
 RequestExecutionLevel admin
 SetCompressor /SOLID lzma

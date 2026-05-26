@@ -4,6 +4,51 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-26] v1.1.0 Phase 15 -- Hardening + release gate (static-portion landing)
+
+### Goal
+
+Run the full deep-review chain across the v1.1.0 deltas, exercise live operator actions (signing, notarization, AppImage, golden tasks, GPU bench, DevAI-Hub baseline rotation), finalize the v1.1.0 known-gaps file. Plan reference: [docs/v1.1.0/plans/phase-15-hardening-and-release.md](v1.1.0/plans/phase-15-hardening-and-release.md). The static-portion landing of Phase 15 ships in this commit (the parts the static-review host can complete on its own); the live operator-action chain (signing key material, real-GPU bench, three fresh-VM RTMs, live `/run-deep-review` chain) carries forward as a consolidated operator-action ledger in [docs/v1.1.0/operator-actions.md](v1.1.0/operator-actions.md).
+
+### What changed
+
+**15.1 Deep review synthesis (static portion).** New [docs/v1.1.0/review/synthesis.md](v1.1.0/review/synthesis.md) -- the v1.1.0 release-gate synthesis mirroring the v1.0.0 structure across 10 sections (executive summary, health gates, dependency scan, docs/git/CI hygiene, cross-cutting findings, P0/P1/P2 status, inputs and artifacts, static-only review findings, live-review carryforwards, sign-off). Section 8 documents the four static-only findings derivable from the running known-gaps + history files; Section 9 records the four live carryforward IDs (OA-V1.1.0-15-DR-A through DR-D) that overlay this synthesis once the operator host runs `/run-deep-review` + `/run-security-audit` + `/run-penetration-test --depth=deep` + `npx semantic-release --dry-run`.
+
+**15.6 Version bump across all version-carrying files.** Bumped from `1.0.0` to `1.1.0` across [package.json](../package.json) (and `package-lock.json` top + the `desktop/` workspace entry), [desktop/package.json](../desktop/package.json), [desktop/src-tauri/Cargo.toml](../desktop/src-tauri/Cargo.toml), [desktop/src-tauri/tauri.conf.json](../desktop/src-tauri/tauri.conf.json), [scripts/installer/pyqt/pyproject.toml](../scripts/installer/pyqt/pyproject.toml), [scripts/installer/pyqt/src/nexus_installer/__init__.py](../scripts/installer/pyqt/src/nexus_installer/__init__.py), and [scripts/installer/build/nsis/nexus-setup.nsi](../scripts/installer/build/nsis/nexus-setup.nsi) (header banner + APP_VERSION literal + `Nexus-1.1.0-Setup.exe` OutFile path). The root `package.json` flipped from the semantic-release-managed `0.41.0` to the product-aligned `1.1.0` per Phase 15.6's explicit instruction; the dry-run verification under Phase 15.8 confirms semantic-release's behaviour against the new baseline.
+
+**15.7 CHANGELOG.md + release-notes.md.** Hand-authored the v1.1.0 entry in [CHANGELOG.md](../CHANGELOG.md), prepended above the `v0.41.0` semantic-release block per the plan's "append above v1.0.0 block without overwriting" requirement. Sectioned-bullet structure: one section per Phase 1-15 plus `### Changed`, `### Deferred to v1.2.0`, `### Operator-action carryforwards`. New [docs/v1.1.0/release-notes.md](v1.1.0/release-notes.md) ships as the user-facing release content: six highlight sections (Cross-OS installer; Hardware-aware multi-model picker; Nexus VS Code extension multi-model agentic add-on; SANA family image upgrade; SANA-Video Fast 720p tier; Hybrid memory + session replay + slash commands), Compatibility notes (upgrade from v1.0.0, legacy `gemma-code` rename, default image model swap, settings keys compat, macOS Gatekeeper + Linux AppImage trust), Known limitations, What is next (v1.2.0 teaser), Acknowledgements, and the Get Nexus link block (the three OS installers + the renamed Marketplace listing).
+
+**15.9 Known-gaps finalization.** Updated [docs/v1.1.0/known-gaps.md](v1.1.0/known-gaps.md): status header flipped from `live` to `finalized at v1.1.0 release (Phase 15.9, 2026-05-26)`; four new Phase 15 open items appended to `## 1. Open Items` (15.1.P1.KK live deep-review chain, 15.8.P1.LL semantic-release dry-run, 15.11.P2.MM final gate, 15.2-5.P1.NN consolidated live operator-action set); six Phase 15 closures appended to `## 2. Resolved`; Section 3 summary table recomputed (now 37 open / 72 resolved / 109 total: 0 P0 + 11 P1 + 25 P2 + 1 P3 open); by-category + by-phase rollups updated; new Section 4b populated with the v1.1.0 -> v1.2.0 architectural + operator-driven carryforward maps; references section extended with the Phase 15 artifacts.
+
+**15.10 Distribution channels.** New [docs/v1.1.0/distribution.md](v1.1.0/distribution.md) mirroring the v1.0.0 structure across three OS surfaces: Section 1 (GitHub Releases as the primary surface with the three installers + the SHA manifest + the consolidated checksums file; tag-push triggers `release.yml` -> `installer-build.yml` + `installer-macos.yml` + `installer-linux.yml`), Section 2 (VS Code Marketplace with the renamed `nexus-coding` listing + the legacy `gemma-code` transition note), Section 3 (direct-download landing page deferred to v1.1.1 per OA-05), Section 4 (Ollama-style direct-download deferred to v1.2.0+), Section 5 (the seven-item validation checklist).
+
+**15.2 / 15.3 / 15.4 / 15.5 / 15.8 Operator-action carryforward ledger.** Extended [docs/v1.1.0/operator-actions.md](v1.1.0/operator-actions.md) with six new Phase 15 OA-V1.1.0-15* entries: OA-V1.1.0-15A (live `/run-deep-review` chain), OA-V1.1.0-15B (signing + notarization + AppImage smoke -- rolls up OA-01 + OA-11 + OA-12), OA-V1.1.0-15C (SHA rotations + final brand icons -- rolls up OA-06 + OA-07), OA-V1.1.0-15D (golden task + GPU bench + live DevAI-Hub sync -- rolls up OA-08 + OA-09 + OA-10), OA-V1.1.0-15E (RTM smoke per OS), OA-V1.1.0-15F (semantic-release dry-run verification). Each entry carries acceptance criteria + blocked-by + status.
+
+**15.11 Final gate (static-portion).** Best-effort static-review gate on this host: every Phase 15 doc artifact lands; every modified JSON file (`package.json`, `package-lock.json`, `desktop/package.json`, `desktop/src-tauri/tauri.conf.json`) parses cleanly via `python -m json.tool`; every version literal across the 7 product-version files plus the NSIS literal verifies at `1.1.0`. The full lint / build / test gate on each OS leg carries forward to OA-V1.1.0-15E (RTM smoke per OS); the Phase 1-14 implementation sessions each shipped a green CI run at their landing commit.
+
+### Test signals
+
+- 0 new code-side test cases (Phase 15 is documentation + version bumps + release-gate artifacts).
+- All Phase 1-14 cycle tests stay green at their cycle-landing commits (CI history).
+- JSON validation: `package.json` + `package-lock.json` + `desktop/package.json` + `desktop/src-tauri/tauri.conf.json` all parse cleanly post-bump.
+- Version literal audit: 7 product-version files + 5 NSIS literal occurrences all read `1.1.0`.
+- Cross-doc reference audit: every internal link from `synthesis.md` + `distribution.md` + `release-notes.md` + the new `operator-actions.md` entries + the new `known-gaps.md` entries resolves against the existing v1.1.0 + v1.0.0 docs trees.
+
+### Known gaps + deferrals
+
+Four new entries opened in [docs/v1.1.0/known-gaps.md](v1.1.0/known-gaps.md): 15.1.P1.KK (live deep-review chain -> OA-V1.1.0-15A), 15.8.P1.LL (semantic-release dry-run -> OA-V1.1.0-15F), 15.11.P2.MM (final lint/build/test gate end-to-end -> OA-V1.1.0-15E), 15.2-5.P1.NN (consolidated live operator-action set -> OA-V1.1.0-15B + 15C + 15D + 15E). The remaining v1.1.0 open items are unchanged; the cycle-close carryforward to v1.2.0 is captured in `## 4b. Carryforward map (v1.1.0 -> v1.2.0)`.
+
+### Release gate status
+
+- **P0 release blockers**: 0.
+- **P1 open items**: 11 (8 pre-Phase-15 + 3 Phase 15 operator-driven).
+- **P2 open items**: 25 (24 pre-Phase-15 + 1 Phase 15).
+- **P3 open items**: 1.
+
+The v1.1.0 tag stays unpushed until the OA-V1.1.0-15A through 15F operator-action ledger closes (live deep-review chain returning zero new P0/P1; signing + notarization + AppImage; SHA rotations + final brand icons; golden-task replay + GPU bench + live DevAI-Hub sync; RTM smoke per OS; semantic-release dry-run). The static-portion artifacts shipped in this commit are the canonical reference for the operator to overlay against.
+
+---
+
 ## [2026-05-21] v1.1.0 Phase 14 -- Cross-OS installer (Windows + macOS + Linux) with hardware + disk-aware model picker
 
 ### Goal
