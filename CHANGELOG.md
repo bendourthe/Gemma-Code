@@ -1,3 +1,10 @@
+# [0.43.0](https://github.com/bendourthe/Nexus-AI/compare/v0.42.0...v0.43.0) (2026-05-26)
+
+
+### Features
+
+* **v1.1.0:** phase 15 hardening and release gate static portion ([de150d7](https://github.com/bendourthe/Nexus-AI/commit/de150d71ff762872e7f9d0dc6b3ecb93cccfb9e7))
+
 # [1.1.0](https://github.com/bendourthe/Nexus-AI/compare/v1.0.0...v1.1.0) (2026-05-26)
 
 The stabilization-plus-expansion release that follows v1.0.0. Closes the v1.0.0 shared-core build carryforward cluster (storage-path rename, manifest IDs, npm package + publisher rename, duplicate-catalog removal, curator-cadence fallback delete, CRLF/LF snapshot normalization, SHA-pinned actions), turns the Windows-only PyQt installer into a canonical cross-platform installer (Windows + macOS + Linux), ships the renamed `nexus-coding` VS Code extension as a multi-model agentic add-on, adopts the NVIDIA SANA family as the default Image Studio + Video Lab pipeline, and upgrades the memory subsystem end-to-end (hybrid retrieval, local embedder, provenance, 12-hook lifecycle bus, Ebbinghaus decay, session replay timeline, `/recall` / `/remember` / `/forget` slash commands, opt-in contradiction resolver, file compressor).
