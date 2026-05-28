@@ -8,7 +8,10 @@ import type {
 import { resolveInsideWorkspace } from "./pathGuard.js";
 import { BLOCKED_PATTERNS } from "../../guardrails/policy.js";
 import { formatForUser } from "../../../modules/coding/utils/errors.js";
-import { compressToolOutput } from "./preToolHook.js";
+import {
+  CommandCompressor,
+  type CompressedOutput,
+} from "../../../core/observability/CommandCompressor.js";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
@@ -140,8 +143,18 @@ export class RunTerminalTool implements ToolHandler {
      * command compressor to long stdout produced by `npm test` / `git diff` /
      * `cargo test` / `npm install`. Set false to bypass the compressor (e.g.
      * for byte-identical replays in golden tests).
+     *
+     * v1.2.0 Phase 2: compression is now performed by
+     * `core/observability/CommandCompressor`; the legacy `preToolHook` is
+     * retained as a standalone module but no longer gates this handler.
      */
     private readonly _compressOutput: boolean = readCompressionSetting(),
+    /**
+     * v1.2.0 Phase 2: dependency-inject a `CommandCompressor` instance to
+     * allow tests to redirect the tee path to a temp dir. Left undefined in
+     * production; a default instance is constructed on first call.
+     */
+    private readonly _compressor: CommandCompressor | undefined = undefined,
   ) {}
 
   private _maybeCompress(input: {
@@ -149,15 +162,39 @@ export class RunTerminalTool implements ToolHandler {
     stdout: string;
     stderr: string;
     exitCode: number;
-  }): { stdout: string; stderr: string; compressionRatio: number } {
+  }): {
+    stdout: string;
+    stderr: string;
+    compressionRatio: number;
+    teePath: string | null;
+    strategyApplied: CompressedOutput["strategyApplied"];
+  } {
     if (!this._compressOutput) {
-      return { stdout: input.stdout, stderr: input.stderr, compressionRatio: 0 };
+      return {
+        stdout: input.stdout,
+        stderr: input.stderr,
+        compressionRatio: 0,
+        teePath: null,
+        strategyApplied: "passthrough",
+      };
     }
-    const compressed = compressToolOutput(input);
+    const compressor = this._compressor ?? new CommandCompressor();
+    const compressed = compressor.compress(
+      input.command,
+      input.stdout,
+      input.exitCode,
+    );
+    const compressionRatio =
+      compressed.originalBytes > 0
+        ? Math.max(0, compressed.originalBytes - compressed.compressedBytes) /
+          compressed.originalBytes
+        : 0;
     return {
-      stdout: compressed.stdout,
-      stderr: compressed.stderr,
-      compressionRatio: compressed.compressionRatio,
+      stdout: compressed.rendered,
+      stderr: input.stderr,
+      compressionRatio,
+      teePath: compressed.teePath,
+      strategyApplied: compressed.strategyApplied,
     };
   }
 
@@ -272,6 +309,15 @@ export class RunTerminalTool implements ToolHandler {
             exitCode,
             ...(compressed.compressionRatio > 0
               ? { compressionRatio: compressed.compressionRatio }
+              : {}),
+            ...(compressed.strategyApplied !== "passthrough"
+              ? { strategyApplied: compressed.strategyApplied }
+              : {}),
+            ...(compressed.teePath
+              ? {
+                  teePath: compressed.teePath,
+                  footer: `[Last command compressed; raw output available at ${compressed.teePath} if needed.]`,
+                }
               : {}),
           }),
           error:

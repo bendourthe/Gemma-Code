@@ -1,0 +1,49 @@
+{
+  "generated": "vitest fixed-seed transcript",
+  "rawTotal": 76538,
+  "compressedTotal": 21121,
+  "steps": [
+    {
+      "command": "git status",
+      "exitCode": 0,
+      "originalBytes": 2576,
+      "compressedBytes": 2367,
+      "strategyApplied": "filter"
+    },
+    {
+      "command": "pytest -q",
+      "exitCode": 0,
+      "originalBytes": 31420,
+      "compressedBytes": 138,
+      "strategyApplied": "dedupe"
+    },
+    {
+      "command": "grep -r needle .",
+      "exitCode": 0,
+      "originalBytes": 30835,
+      "compressedBytes": 9639,
+      "strategyApplied": "truncate"
+    },
+    {
+      "command": "cat tests/unit/test_beta.py",
+      "exitCode": 0,
+      "originalBytes": 8029,
+      "compressedBytes": 8029,
+      "strategyApplied": "passthrough"
+    },
+    {
+      "command": "cargo build",
+      "exitCode": 0,
+      "originalBytes": 3512,
+      "compressedBytes": 782,
+      "strategyApplied": "group"
+    },
+    {
+      "command": "pytest -q tests/unit/test_beta.py",
+      "exitCode": 1,
+      "originalBytes": 166,
+      "compressedBytes": 166,
+      "strategyApplied": "dedupe"
+    }
+  ]
+}

@@ -1,9 +1,9 @@
 # v1.2.0 -- Known Gaps, Deferrals, and Carryovers
 
-**Status**: live. v1.2.0 opens with the 2026-05 ecosystem-adoption track (Phase 1, 2026-05-27). The cycle's first phase ships the skill-native foundation: two new Nexus-Hub skills (Hallmark anti-slop + HTML-output conventions), the hooks-over-prompts Critical Rule + inventory in [AGENTS.md](../../AGENTS.md), and the AGENTS.md review cadence in [docs/todos.md](../todos.md). The known-gaps file is appended phase-by-phase; items move to `## 2. Resolved` when closed in a later phase; the `## 3. Summary` at the bottom is recomputed each pass.
+**Status**: live. v1.2.0 opens with the 2026-05 ecosystem-adoption track. Phase 1 (2026-05-27) shipped the skill-native foundation; Phase 2 (2026-05-28) shipped the Coding-pillar command-output compressor (`core/observability/CommandCompressor.ts`) with filter / group / truncate / dedupe strategies, tee-on-failure, and a benchmark stability gate. The known-gaps file is appended phase-by-phase; items move to `## 2. Resolved` when closed in a later phase; the `## 3. Summary` at the bottom is recomputed each pass.
 
 **Audience**: v1.2.0 phase authors, code reviewer, future-cycle planners
-**Last updated**: 2026-05-27
+**Last updated**: 2026-05-28
 **Sibling reviews**: [docs/v1.1.0/known-gaps.md](../v1.1.0/known-gaps.md) (the upstream cycle gap log; carryforward open items remain in force during v1.2.0); [docs/v1.2.0/plans/adoption-ecosystem-2026-05.md](plans/adoption-ecosystem-2026-05.md) (the active adoption plan); [docs/v1.2.0/comparison-ecosystem-2026-05.md](comparison-ecosystem-2026-05.md) (the seven-source comparison this cycle's first track adopts).
 
 **Cycle context**: v1.2.0 opens the post-v1.1.0 cycle with the 2026-05 ecosystem-adoption track. Phase 1 (this commit) is skill-native + policy only: two new Nexus-Hub skills (hallmark-design, html-output-conventions, with 4 self-contained HTML reference templates), a new "hooks-over-prompts" Critical Rule and inventory in AGENTS.md, and a 6-month AGENTS.md review cadence. No code surface in `core/` or `modules/` is touched in Phase 1 itself; the two scope expansions this run (sidecar IPC stubs and a desktop strict-null test guard) are recorded under `## 2. Resolved` below. Phases 2-7 of the adoption plan land the code-shaped items (command compression, code-graph MCP, memory enhancements, agent-loop policy, re-partials, stabilization).
@@ -56,6 +56,20 @@ Each entry has a category tag:
 - **Reason**: The plan's Phase 7.4 explicitly lands the per-item adoption ledger here (every one of the 18 adoption items recorded as Resolved or Open with the four standard fields). Phase 1 of this file establishes the structure; later phases (2-6) append their own items, and Phase 7.4 consolidates into the final adoption ledger.
 - **Suggested next step**: No action in Phase 1. The adoption ledger lands in Phase 7.
 
+### 2.4.P2.E -- Legacy `preToolHook` compressor is dead code in production (DF, P2)
+
+- **Source phase**: Phase 2 (sub-task 2.4)
+- **Plan reference**: [adoption-ecosystem-2026-05.md](plans/adoption-ecosystem-2026-05.md) sub-task 2.4 ("Modify the Coding-pillar Bash-tool handler ... to invoke `CommandCompressor.compress` ... between the subprocess return and the tool-call response").
+- **Reason**: `src/tools/handlers/terminal.ts` no longer imports `compressToolOutput` from `src/tools/handlers/preToolHook.ts`; the new `core/observability/CommandCompressor` is the only production compression path. `preToolHook.ts` plus its 6-test unit suite (`tests/unit/tools/handlers/preToolHook.test.ts`) remain in the tree but are not exercised by any non-test caller. Per AGENTS.md "no adjacent-scope cleanup", the module was not removed in this phase to keep the diff traced to the user's request.
+- **Suggested next step**: In a follow-up hygiene commit (or as part of the v1.2.0 Phase 7 stabilization sweep), delete `src/tools/handlers/preToolHook.ts` and its unit test, then re-run `npm run test`, `npm run lint`, and `npm run check-architecture`.
+
+### 2.4.P3.F -- Tee footer is embedded in the tool-result JSON instead of the next-turn system prompt (DF, P3)
+
+- **Source phase**: Phase 2 (sub-task 2.4)
+- **Plan reference**: [adoption-ecosystem-2026-05.md](plans/adoption-ecosystem-2026-05.md) sub-task 2.4 ("the system prompt for the next agent turn includes a one-line footer: `[Last command compressed; raw output available at <teePath> if needed.]` when `teePath` is set").
+- **Reason**: The plan asks for the footer to be injected into the next-turn system prompt via `PromptBuilder`. The shipped wiring embeds the footer as a `footer` field inside the `run_terminal` tool-result JSON payload alongside `teePath` and `strategyApplied`. Functionally the model sees the path on the very next reasoning step (the JSON is part of the conversation history that feeds the next system prompt), so the tee path is reachable without an additional PromptBuilder edit. A literal PromptBuilder hook would have crossed the Coding-pillar agent-loop boundary, which is closer to Phase 5's "agent loop policy" surface.
+- **Suggested next step**: When Phase 5 lands the read-only-exploration sub-agent enforcement and the 13th `session-reflection` hook position, also add a PromptBuilder section that surfaces the most recent tee footer in the next-turn system prompt header, and switch the tool-result JSON to omit `footer` once the PromptBuilder section is wired.
+
 ### Carryforward map (v1.1.0 -> v1.2.0)
 
 Per the v1.1.0 closure note in [docs/v1.1.0/known-gaps.md](../v1.1.0/known-gaps.md) section header, every "Open" item in that file carries forward into the v1.2.0 cycle by code reference. Architectural items rolling into v1.2.0 are re-listed below by their original v1.1.0 code, with cross-references back; the per-item triage in v1.1.0 stands. No re-ingestion of the entries' bodies is required here -- consult [docs/v1.1.0/known-gaps.md](../v1.1.0/known-gaps.md) for the full text.
@@ -92,8 +106,9 @@ These do not block Phase 1 of the v1.2.0 adoption track but remain visible to ph
 
 | Section | Count |
 |---|---|
-| Open items (Phase 1 entries) | 4 |
+| Open items (Phase 1 + Phase 2 entries) | 6 |
 | Carryforward from v1.1.0 | 2 (re-listed by code; full text in v1.1.0 file) |
 | Resolved in Phase 1 | 2 |
+| Resolved in Phase 2 | 0 |
 | Release blockers (P0) | 0 |
-| Severity breakdown (Open, Phase 1) | P1: 0  P2: 2  P3: 2 |
+| Severity breakdown (Open, Phases 1-2) | P1: 0  P2: 3  P3: 3 |

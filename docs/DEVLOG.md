@@ -4,6 +4,50 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-28] v1.2.0 Phase 2 -- Command-Output Compression
+
+### Goal
+
+Wrap every Coding-pillar Bash tool call through a per-command compression layer so the local model sees a filtered / grouped / truncated / deduped view of stdout while raw output is preserved on disk for retry inspection. Plan reference: [docs/v1.2.0/plans/adoption-ecosystem-2026-05.md](v1.2.0/plans/adoption-ecosystem-2026-05.md) Phase 2. Stability gate: a fixed-seed Coding-pillar transcript consumes at most 50% of the bytes it would consume without the compressor.
+
+### What changed
+
+**2.1 + 2.2 + 2.3 `core/observability/CommandCompressor.ts`.** New module alongside [core/observability/redactSecrets.ts](../core/observability/redactSecrets.ts). Public surface: `class CommandCompressor` with `compress(command, rawOutput, exitCode): CompressedOutput`, `tee(command, rawOutput): string`, `pruneOldTees(): number`, `commandsLogsDir(): string`. The four strategies (filter / group / truncate / dedupe) are exported as pure functions (`filterStrategy`, `groupStrategy`, `truncateStrategy`, `dedupeStrategy`) so they can be unit-tested standalone and composed. `DEFAULT_REGISTRY` keys the eight commands the plan calls out (`git`, `npm`, `cargo`, `pytest`, `eslint`, `grep`, `ls`, `cat`) plus `pnpm`, `yarn`, `vitest`, `jest`; sub-command refinements route `npm test` / `pnpm run test` / `cargo test` / `npx vitest` to dedupe even though their first token routes to group. Truncate is applied as a fallback whenever post-primary output still exceeds 10 KB, with the elision marker `[... N lines elided; see tee at <pending> ...]` patched after the tee path is computed.
+
+**2.3 Tee-on-failure to disk.** `tee(command, rawOutput)` writes raw output to `<nexus-home>/logs/commands/<ISO>-<slug>-<8-char-hash>.log`. ISO stamps use `-` instead of `:` so the filename is Windows-safe. `compress()` always tees on `exitCode !== 0`; on successful exits, tees only when the truncate fallback elided more than `successTeeLineDelta` (default 100) lines. The tee path is filled into the elision marker so the model sees the absolute path inline. `pruneOldTees()` removes files whose mtime is older than 14 days; safe to call at sidecar startup (missing directory returns 0). The tee write is best-effort: a failed `mkdirSync`/`writeFileSync` is swallowed and `teePath = null` returned, so a transient filesystem error never crashes the agent loop.
+
+**2.4 Coding-pillar Bash-tool wiring.** [src/tools/handlers/terminal.ts](../src/tools/handlers/terminal.ts) `RunTerminalTool._maybeCompress` now routes through `CommandCompressor.compress` instead of the v0.8.0 `compressToolOutput` from `preToolHook.ts`. The legacy `preToolHook` module is left in place per the AGENTS.md adjacent-scope rule but has no production callers (see known-gaps 2.4.P2.E for the follow-up cleanup). The terminal handler's tool-result JSON gains three new fields: `strategyApplied` (omitted on passthrough), `teePath` (set when a tee fired), and `footer` (the human-readable hint `[Last command compressed; raw output available at <teePath> if needed.]`). The legacy `compressionRatio` field is recomputed from `originalBytes` / `compressedBytes` so any downstream consumer that already reads it continues to work. The compressor instance is dependency-injectable on the constructor so the new integration tests can redirect the tee path to a temp dir.
+
+**2.4 (cont.) Integration test.** New `tests/integration/coding-pillar/command-compressor-wiring.test.ts` drives `RunTerminalTool` through a synthetic `git status` -> `pytest -q` -> `grep -r foo .` sequence with `child_process.spawn` mocked. Asserts: (a) compressed total stays at most 60% of raw total across the sequence; (b) failure-path commands emit `teePath` + footer and persist the raw output on disk; (c) short successful commands omit both fields; (d) disabling the compression flag returns raw output unchanged.
+
+**2.5 Benchmark + stability gate.** New `tests/integration/coding-pillar/command-compressor-benchmark.test.ts` runs a fixed-seed synthetic Coding-pillar transcript (`git status` with 80 modified files, `pytest -q` with 600 PASSED + 1 FAILED, `grep -r needle .` with 800 hits, `cat tests/.../test.py`, `cargo build` with 120 Compiling lines, `pytest -q tests/.../test.py` failure-path). Persists both transcripts under [tests/fixtures/coding-pillar-benchmark-results/2026-05-26/](../tests/fixtures/coding-pillar-benchmark-results/2026-05-26/) as `with-compressor.json` (rawTotal 76538 -> compressedTotal 21121) and `without-compressor.json` (rawTotal 76538). The compressed total is **27.6% of the raw total**, well below the plan's 50% stability gate.
+
+### Test signals
+
+- `npx vitest run --config configs/vitest.config.ts` -- 3424 passed, 5 skipped, 0 failed (297 files), 40.70s
+- 27 new unit tests in `tests/unit/core/observability/CommandCompressor.test.ts` (classify, four strategies, compress, tee, pruneOldTees, default-registry sanity)
+- 4 new integration tests in `tests/integration/coding-pillar/command-compressor-wiring.test.ts`
+- 1 new benchmark regression test in `tests/integration/coding-pillar/command-compressor-benchmark.test.ts`
+- Coverage on `core/observability/CommandCompressor.ts`: 92.22% lines, 82.67% branches, 100% functions
+- Coverage on `src/tools/handlers/terminal.ts`: 88.31% lines (up from 57.57% with new wiring exercised)
+- `npx tsc -p tsconfig.json --noEmit` exits 0
+- `npx eslint src/tools/handlers/terminal.ts --max-warnings=0` exits 0
+
+### Deviations
+
+- **Tee footer location.** The plan describes injecting the footer into the next-turn *system prompt* via `PromptBuilder`. The shipped wiring embeds the footer in the `run_terminal` tool-result JSON instead; the model still sees the tee path on the next reasoning step because the tool result is part of the next-turn conversation context. The PromptBuilder hook is a larger surface that belongs alongside Phase 5's agent-loop policy work. Recorded as `2.4.P3.F` in [docs/v1.2.0/known-gaps.md](v1.2.0/known-gaps.md).
+- **Legacy `preToolHook.ts`.** Per the scope rule, the now-dead v0.8.0 compressor module and its unit tests were left in place rather than deleted alongside the wiring switch. Recorded as `2.4.P2.E` for a follow-up cleanup commit.
+
+### Why this matters
+
+The Coding-pillar Bash tool produces the loudest output of any Nexus surface: `pytest` runs that emit thousands of `PASSED` lines, `cargo build` runs with 100+ `Compiling` lines, `git diff` of touched files, `grep -r` across the repo. Sending that raw to a local Gemma 4 model wastes the context window on noise that has no diagnostic value, especially since the model's job in a tool-call retry is to read the *summary*, not re-derive it. The four strategies extract the diagnostic signal (failed-test names, modified-file lines, error / hint lines) while the tee-on-failure path keeps the raw output one read away when the model needs it. The 50% stability gate is conservative -- the actual benchmark hits 27.6% -- so the production-side context win on a real Coding session should be larger, since real `pytest` and `cargo build` outputs repeat more aggressively than the synthetic fixture.
+
+### Up next
+
+Phase 3 of the adoption track: `core/codegraph/` -- SQLite-backed symbol-and-call-edge graph plus 8-tool internal MCP server. Phase 2 leaves the compressor noise-reduction in place so the code-graph scanner's own Tree-sitter / FTS index step produces less chatter when the agent watches it run.
+
+---
+
 ## [2026-05-27] v1.2.0 Phase 1 -- Skill-Native Foundation (ecosystem-adoption track)
 
 ### Goal
