@@ -128,6 +128,25 @@ export const handlers: Record<Method, HandlerFn> = {
     CodingSessionListRequest.parse(params ?? {});
     return ctx.sessions.list();
   },
+  // v1.1.0 Phase 11 (nexus VS Code extension surface) -- declared in the IPC
+  // contract so the shell can compile against it, but not yet wired. These
+  // throw NotImplementedError until Phase 11 lands the autocomplete / MCP /
+  // settings backends; see METHOD_SCHEMAS (implemented: false) in protocol.ts.
+  "coding.chat.autocomplete": async () => {
+    throw new NotImplementedError("coding.chat.autocomplete");
+  },
+  "mcp.list": async () => {
+    throw new NotImplementedError("mcp.list");
+  },
+  "mcp.invoke": async () => {
+    throw new NotImplementedError("mcp.invoke");
+  },
+  "settings.get": async () => {
+    throw new NotImplementedError("settings.get");
+  },
+  "settings.set": async () => {
+    throw new NotImplementedError("settings.set");
+  },
   "image.generate": async () => {
     throw new NotImplementedError("image.generate");
   },

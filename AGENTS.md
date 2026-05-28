@@ -96,6 +96,7 @@ Boundary rule (enforced by [`configs/dependency-cruiser.cjs`](configs/dependency
 - **MANDATORY**: Every file-read, file-glob, and content-search tool call must be preceded by a one-sentence plain-language explanation of what file or path is being accessed and why. No exceptions.
 - Ask clarifying questions before coding if requirements are ambiguous. Batch all clarifying questions into the first turn rather than asking one at a time; surface multiple interpretations and acceptance criteria together so the user can answer them in a single round-trip. State any assumptions explicitly before acting.
 - Every changed line must trace directly to the user's request; do not clean up adjacent code, pre-existing dead code, or style issues outside the stated scope.
+- Use hooks for deterministic automation (lint, format, pre-commit, file-write guards). Use prompts only for non-deterministic guidance (cognitive workflow, code style, communication tone). If a rule can be enforced by a script that runs without the model in the loop, ship it as a hook, not as a prompt. See [`.claude/agents/hooks-over-prompts-inventory.md`](.claude/agents/hooks-over-prompts-inventory.md) for the inventory of current prompt-based rules ranked by the enforcement-determinism gain of moving them to hooks; the actual migrations land in the v1.2.0 Phase 5 agent-loop policy work.
 
 ## Cognitive Workflow
 
@@ -108,6 +109,10 @@ Every non-trivial task should follow this rhythm. The agent does not need to rec
 5. **PROPAGATE** — Update related documentation (README, ARCHITECTURE.md, CHANGELOG.md, relevant `docs/v0.X.0/` files) so the change is discoverable by the next contributor.
 
 The workflow is iterative — looping back to ANALYZE when EXECUTE reveals an unmodelled constraint is normal and expected.
+
+## AGENTS.md review cadence
+
+AGENTS.md is reviewed every 6 months against current model behavior; the next scheduled review is 2026-11-26. See [docs/todos.md](docs/todos.md) for the canonical date.
 
 ## Output Minimization
 
@@ -176,6 +181,7 @@ The "no `CLAUDE.md`" tool-agnostic invariant is preserved: this file (AGENTS.md)
 | `.claude/agents/pr-manager.md` | Subagent | Iteratively addresses existing reviewer comments on an open PR -- fetches `gh pr view` comments + `gh api pulls/<n>/comments`, applies in-scope fixes, replies to / dismisses out-of-scope ones, resolves threads via the GraphQL `resolveReviewThread` mutation, commits, pushes. Read-write, plain `gh` only; never calls a third-party review-as-service. |
 | `.claude/agents/pr-manager-lite.md` | Subagent | Trimmed variant of `pr-manager` for fast iterations. Same comment-fetch + comment-reply flow, but skips the thread-resolution mutations to cut round-trips. Use when speed matters and resolution can be done by hand at the end. |
 | `.claude/agents/taskmaster.md` | Subagent | Read-only over the repo except for `docs/todos.md`. Refreshes the progress tracker by ingesting recent commits, open issues, merged PRs, and known-gaps files; ticks completed items, adds newly identified work, never deletes a row, always cites the source SHA / issue number / known-gaps ID. |
+| `.claude/agents/hooks-over-prompts-inventory.md` | Reference doc | Not a subagent. Inventory of the current AGENTS.md prompt-based rules ranked by the enforcement-determinism gain of converting each to a hook. Authored in v1.2.0 Phase 1.3; consumed by the Phase 5 agent-loop policy work that performs the migrations. Plain Markdown with no subagent frontmatter, so no harness loads it as a runnable agent. |
 | `.claude/commands/ship-and-babysit.md` | Slash command | Autonomous PR loop: commits, pushes to origin, opens a PR against `bendourthe/Gemma-Code:main`, then polls Gemma-Code's own CI every ~270 s up to a hard cap of 12 ticks, resolves failures, and exits when checks are green. Explicit exclusion of CodeRabbit / OpenHuman / any third-party review-as-service polling. Complements `npm run review` (the imperative cousin); see [README.md](README.md) PR lifecycle section. |
 
 When the cycle author adds a new file under `.claude/agents/` or `.claude/commands/`, add it to the table above in the same commit and confirm the `prompt-*` rule globs in `lib/checks/prompt-oversized.mjs` cover the new path (currently scoped to `src/chat/prompts` and `src/skills/catalog`; extension to `.claude/` is tracked under [docs/v0.9.0/known-gaps.md](docs/v0.9.0/known-gaps.md) 10.N.H).

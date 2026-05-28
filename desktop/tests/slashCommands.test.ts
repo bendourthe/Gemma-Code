@@ -101,8 +101,8 @@ describe("filterSlashCommandsWithSkills (Phase 8.4 preferUpstream)", () => {
     });
     const codeQualityEntries = out.filter((c) => c.name === "code-quality");
     expect(codeQualityEntries).toHaveLength(2);
-    expect(codeQualityEntries[0].namespace).toBe("user");
-    expect(codeQualityEntries[1].namespace).toBe("devai-hub");
+    expect(codeQualityEntries[0]?.namespace).toBe("user");
+    expect(codeQualityEntries[1]?.namespace).toBe("devai-hub");
   });
 
   it("when preferUpstream is true, the devai-hub variant comes first", () => {
@@ -110,8 +110,8 @@ describe("filterSlashCommandsWithSkills (Phase 8.4 preferUpstream)", () => {
       preferUpstream: true,
     });
     const codeQualityEntries = out.filter((c) => c.name === "code-quality");
-    expect(codeQualityEntries[0].namespace).toBe("devai-hub");
-    expect(codeQualityEntries[1].namespace).toBe("user");
+    expect(codeQualityEntries[0]?.namespace).toBe("devai-hub");
+    expect(codeQualityEntries[1]?.namespace).toBe("user");
   });
 
   it("skills with unique names appear regardless of the preferUpstream flag", () => {

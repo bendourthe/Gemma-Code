@@ -669,31 +669,17 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
     response: CodingSessionListResponse,
     implemented: true,
   },
-  "coding.chat.autocomplete": {
-    request: CodingChatAutocompleteRequest,
-    response: CodingChatAutocompleteResponse,
-    implemented: true,
-  },
-  "mcp.list": {
-    request: McpListRequest,
-    response: McpListResponse,
-    implemented: true,
-  },
-  "mcp.invoke": {
-    request: McpInvokeRequest,
-    response: McpInvokeResponse,
-    implemented: true,
-  },
-  "settings.get": {
-    request: SettingsGetRequest,
-    response: SettingsGetResponse,
-    implemented: true,
-  },
-  "settings.set": {
-    request: SettingsSetRequest,
-    response: SettingsSetResponse,
-    implemented: true,
-  },
+  // v1.1.0 Phase 11 (nexus VS Code extension surface) -- declared but not yet
+  // wired. The request/response schemas above (CodingChatAutocompleteRequest,
+  // McpListRequest, McpInvokeRequest, SettingsGet/SetRequest, and their
+  // responses) remain exported for Phase 11 to adopt; until then these are
+  // marked unimplemented so `dispatch` reaches the NotImplementedError stub in
+  // handlers.ts instead of failing the strict request schema on empty params.
+  "coding.chat.autocomplete": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
+  "mcp.list": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
+  "mcp.invoke": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
+  "settings.get": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
+  "settings.set": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
   "image.generate": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
   "video.generate": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
   "skills.sync": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },

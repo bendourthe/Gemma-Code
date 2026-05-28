@@ -401,3 +401,9 @@ Polish the memory experience: complete `/memory` slash-command surface, ship a s
 ### Phase 6 — Multi-harness skill packaging [PENDING]
 ### Phase 7 — HNSW vector index (optional) [PENDING]
 ### Phase 8 — Release gate + ADRs + CHANGELOG [PENDING]
+
+---
+
+## Recurring Obligations
+
+- [ ] Review AGENTS.md against current model behavior every 6 months -- next review due 2026-11-26. (Older prompt workarounds may now block beneficial new model behaviors; see the `## AGENTS.md review cadence` section in [AGENTS.md](../AGENTS.md). This date is the canonical source referenced by AGENTS.md. Added in v1.2.0 Phase 1.4.)

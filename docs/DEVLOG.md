@@ -4,6 +4,51 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-27] v1.2.0 Phase 1 -- Skill-Native Foundation (ecosystem-adoption track)
+
+### Goal
+
+Open the v1.2.0 cycle's first adoption track from [docs/v1.2.0/comparison-ecosystem-2026-05.md](v1.2.0/comparison-ecosystem-2026-05.md) (Sources S5 Hallmark + S7 HTML article + S3 best-practices item 21 + S3 item 20). Phase 1 is skill-native + policy only -- ship the four zero-code skill / policy items first to frame the conventions that the subsequent code-shaped phases (2-7) will follow. Plan reference: [docs/v1.2.0/plans/adoption-ecosystem-2026-05.md](v1.2.0/plans/adoption-ecosystem-2026-05.md) Phase 1.
+
+### What changed
+
+**1.1 Hallmark skill imported into Nexus-Hub.** New skill in the sibling [Nexus-Hub](https://github.com/bendourthe/Nexus-Hub) repo at `catalog/skills/developer-experience/hallmark-design/SKILL.md`. Preserves Hallmark's anti-slop gate catalog (organized by layout / color / typography / spacing / components / motion / content) and the four verbs (default `build` / `audit` / `redesign` / `study`). Attribution to Hallmark + Together AI is recorded in the skill front matter. The upstream 22-theme catalog is explicitly excluded (Scope Excluded section); Nexus is a single product with one shell theme per [comparison Section 9.4 N6](v1.2.0/comparison-ecosystem-2026-05.md#94-items-explicitly-not-recommended-for-adoption-security--policy-reasons). Skill cross-references the new `html-output-conventions` skill so the two compose.
+
+**1.2 HTML-output convention skill in Nexus-Hub.** New skill at `catalog/skills/developer-experience/html-output-conventions/SKILL.md` codifying the actionable S7 conventions. Ships a HTML-vs-Markdown decision table (HTML for N-way comparisons, code-review diffs, design prototypes, incident reports, artifacts over ~100 lines; Markdown for short notes, README front matter, commit messages), four anti-patterns (no ASCII diagrams -- use SVG; no defaulting to Markdown when an HTML artifact would be read; no color-only meaning; no external dependencies in shared artifacts), and a privacy note citing [README.md Design Principle 5 "Privacy by construction"](../README.md). The skill cross-references `hallmark-design` so the chosen HTML is also well-designed.
+
+**1.2 (cont.) Four self-contained reference templates.** Ships under `catalog/skills/developer-experience/html-output-conventions/references/`: `grid-comparison.html` (responsive N-way comparison grid with shared attribute set), `annotated-diff.html` (code diff with color-coded severity margins; severity also carries a text label so it is not color-only), `interactive-tuning.html` (sliders + checkboxes inside `<form data-nexus-artifact="true">` with a "Copy as JSON" button -- pre-stages the Phase 6.3 Tauri-shell `InteractiveArtifact` wrapper), and `tabbed-document.html` (accessible tabs with ARIA roles + roving tabindex + arrow-key navigation for long documents). All four are self-contained: no external CSS/JS, no CDN, no outbound network calls. Both skills pass Nexus-Hub's `scripts/validate_skills.py` cleanly (0 errors, 0 warnings) and appear in the sync manifest walk (`buildManifest` over the local catalog enumerates 213 skills including both new entries).
+
+**1.3 Hooks-over-prompts Critical Rule in AGENTS.md + inventory.** New bullet in [AGENTS.md](../AGENTS.md) "Critical Rules": **"Use hooks for deterministic automation (lint, format, pre-commit, file-write guards). Use prompts only for non-deterministic guidance (cognitive workflow, code style, communication tone). If a rule can be enforced by a script that runs without the model in the loop, ship it as a hook, not as a prompt."** Companion inventory at [.claude/agents/hooks-over-prompts-inventory.md](../.claude/agents/hooks-over-prompts-inventory.md) ranks every current prompt-based AGENTS.md rule by enforcement-determinism gain: HIGH-gain rows (commit-msg ASCII-only, no AI-attribution footer, destructive-git guard, shell-description presence, dep-cruiser pre-commit, secret-prompt-policy) for Phase 5 migration; MEDIUM-gain rows (no-em-dash + hard-wrap heuristics with file allowlist) marked for reassessment; non-deterministic cognitive rules (verify-before-complete, root-cause, batch-clarifications, scope discipline, ANALYZE/PLAN/EXECUTE rhythm) explicitly retained as prompts. New AGENTS.md "Claude Code addenda" table row registers the inventory as a reference doc (plain Markdown, no subagent frontmatter, so no harness loads it as a runnable agent). No code touched in Phase 1; actual hook migrations land in Phase 5.
+
+**1.4 AGENTS.md review cadence.** New `## AGENTS.md review cadence` section under AGENTS.md "Cognitive Workflow": "AGENTS.md is reviewed every 6 months against current model behavior; the next scheduled review is 2026-11-26. See [docs/todos.md](docs/todos.md) for the canonical date." New "Recurring Obligations" section appended to [docs/todos.md](todos.md) carrying the matching 2026-11-26 review reminder with a reverse cross-reference back to AGENTS.md. Both files now cross-reference and the date is consistent in both per the plan's acceptance criterion.
+
+**1.5 Scope expansion: sidecar IPC stubs for v1.1.0 Phase 11 surface.** Authorized at the 1.5 quality gate after the desktop test suite surfaced two pre-existing failures in [desktop/tests/sidecar-handlers.test.ts](../desktop/tests/sidecar-handlers.test.ts). Root cause: [desktop/sidecar/src/protocol.ts](../desktop/sidecar/src/protocol.ts) `IPC_METHODS` declared five v1.1.0 Phase 11 methods (`coding.chat.autocomplete`, `mcp.list`, `mcp.invoke`, `settings.get`, `settings.set`) with `implemented: true` schemas, but [desktop/sidecar/src/handlers.ts](../desktop/sidecar/src/handlers.ts) never wired them; vitest transpiles without typechecking so the missing `Record<Method, HandlerFn>` keys surfaced at runtime. Added `NotImplementedError` stub handlers for the five methods matching the existing convention (`models.install`, `image.generate`, etc.), and downgraded the five `METHOD_SCHEMAS` entries to `{ request: NotImplementedAny, response: NotImplementedAny, implemented: false }` so `dispatch({})` reaches the stub instead of failing the strict request schema on empty params. The real `CodingChatAutocompleteRequest` / `McpListRequest` / `McpInvokeRequest` / `SettingsGet/SetRequest` (plus response) schemas remain exported for Phase 11 to adopt when it wires the autocomplete / MCP / settings backends.
+
+**1.5 Scope expansion: desktop tsc --noEmit strict-null fix.** Authorized after the typecheck script surfaced four pre-existing `TS2532: Object is possibly 'undefined'` errors in [desktop/tests/slashCommands.test.ts](../desktop/tests/slashCommands.test.ts) (lines 104, 105, 113, 114) under `noUncheckedIndexedAccess`. Replaced `codeQualityEntries[0].namespace` / `codeQualityEntries[1].namespace` with optional-chained access (`codeQualityEntries[0]?.namespace` etc.), matching the repo's "prefer optional chaining over manual null checks" TypeScript convention. The prior `expect(codeQualityEntries).toHaveLength(2)` precondition keeps each assertion meaningful.
+
+### Test signals
+
+- **Nexus-AI core suite**: 3392 / 3397 tests pass (5 skipped, 0 failed), 294 / 296 test files pass. Lint clean (`npm run lint`, exit 0). Build clean (`npm run build` / tsc, exit 0).
+- **Nexus-AI desktop workspace**: 411 / 411 tests pass (was 409 + 2 failed before the sidecar IPC fix). Typecheck clean (`tsc --noEmit`, exit 0; was 4 errors before the strict-null fix). Lint clean (`npm run lint:shell`, exit 0). Sidecar bundle builds clean (`build:sidecar`, esbuild exit 0).
+- **Nexus-Hub validation**: `python scripts/validate_skills.py --path catalog/skills/developer-experience/hallmark-design` PASS (0 errors / 0 warnings); same for `html-output-conventions` PASS (0 / 0). The bundled-resources orphan audit confirms all four template basenames are referenced from `html-output-conventions/SKILL.md`.
+- **Sync manifest proof**: `buildManifest` (the exact function `nexus skills list` renders from) over `../Nexus-Hub/catalog/skills` enumerates 213 skills with both `hallmark-design` and `html-output-conventions` present.
+- **Live `nexus skills sync`**: blocked in this environment because the upstream `bendourthe/DevAI-Hub` API call returns no `tag_name` (no resolvable latest release). Recorded as 1.1.P3.B in [docs/v1.2.0/known-gaps.md](v1.2.0/known-gaps.md); the new skills will flow through sync once a Nexus-Hub release containing them is cut.
+
+### Known gaps + deferrals
+
+Four open entries in the new [docs/v1.2.0/known-gaps.md](v1.2.0/known-gaps.md):
+
+- **1.1.P2.A** (WN, P2) -- Nexus-Hub `data/skills.json` + `data/SKILL_INDEX.md` rebuild deferred; a full rebuild produced a 2528-line diff because the committed catalog index carried pre-existing drift (5 prior skills + many description edits never rebuilt). Reverted the regenerated catalog so the Phase 1 commit stays scoped to the two new skills. A Nexus-Hub maintainer should land `make build-catalog` as a standalone hygiene commit there.
+- **1.1.P3.B** (DF, P3) -- The new Nexus-Hub skills require an upstream release tag before `nexus skills sync` / `list` can surface them; the local `buildManifest` proof stands.
+- **1.3.P2.C** (DF, P2) -- Hooks-over-prompts migrations deferred to Phase 5 (the inventory authored in 1.3 ranks migration order).
+- **1.x.P3.D** (DF, P3) -- The per-item adoption ledger lands in Phase 7.4 of the adoption plan.
+
+Two closures recorded under `## 2. Resolved`: 1.5.R1 (sidecar IPC handlers wired for the v1.1.0 Phase 11 surface) and 1.5.R2 (desktop tsc strict-null errors in slashCommands.test.ts).
+
+The v1.1.0 -> v1.2.0 carryforward map is brief-listed by code reference (full text remains in [docs/v1.1.0/known-gaps.md](v1.1.0/known-gaps.md)).
+
+---
+
 ## [2026-05-26] v1.1.0 Phase 15 -- Hardening + release gate (static-portion landing)
 
 ### Goal
