@@ -1,8 +1,8 @@
 # Architecture
 
-> **Scope of this document.** This file documents the architecture of the **current** code in `src/` — the agentic-coding engine that shipped as Gemma Code v0.1.0 - v0.22.x. The repository is now pivoting to **Nexus**, a four-module local AI desktop application. The v1.0.0 desktop-shell architecture, the `core/` + `modules/coding/` decomposition, the shared-core surfaces (ModelRegistry / MemoryHub / TelemetryBus / SkillCatalog), and the IPC surface are documented under [docs/v1.0.0/architecture.md](docs/v1.0.0/architecture.md). Until the Phase 2.3 wholesale move lands (tracked in [docs/v1.0.0/known-gaps.md](docs/v1.0.0/known-gaps.md) under code `MV`), the structures below describe the engine that will become the **Agentic AI Coding** module of Nexus.
+> **Scope of this document.** This file documents the architecture of the **current** code in `src/` — the agentic-coding engine that shipped as Gemma Code v0.1.0 - v0.22.x. The repository is now pivoting to **Nexus**, a four-module local AI desktop application. The v1.0.0 desktop-shell architecture, the `core/` + `modules/coding/` decomposition, the shared-core surfaces (ModelRegistry / MemoryHub / TelemetryBus / SkillCatalog), and the IPC surface are documented under [docs/versions/v1/v1.0.0/architecture.md](docs/versions/v1/v1.0.0/architecture.md). Until the Phase 2.3 wholesale move lands (tracked in [docs/versions/v1/v1.0.0/known-gaps.md](docs/versions/v1/v1.0.0/known-gaps.md) under code `MV`), the structures below describe the engine that will become the **Agentic AI Coding** module of Nexus.
 >
-> For the per-version architecture history, see [docs/v0.2.0/architecture.md](docs/v0.2.0/architecture.md) through [docs/v0.9.0/](docs/v0.9.0/).
+> For the per-version architecture history, see [docs/archive/versions/v0/v0.2.0/architecture.md](docs/archive/versions/v0/v0.2.0/architecture.md) through [docs/archive/versions/v0/v0.9.0/](docs/archive/versions/v0/v0.9.0/).
 
 ## Layout (v1.0.0)
 
@@ -50,7 +50,7 @@ flowchart LR
     coding -->|prefers codegraph over grep<br/>per tool-selection prompt| server
 ```
 
-The store runs in WAL mode so the MCP tools' reads never block the scanner's writes. The scanner is regex-based (Tree-sitter upgrade tracked in [docs/v1.2.0/known-gaps.md](docs/v1.2.0/known-gaps.md) `3.3.P2.G`); two-pass extraction (symbols first, edges second) guarantees cross-file call edges land regardless of directory walk order. The server never binds a socket or spawns a child -- it lives entirely inside the Node sidecar process and is reachable only through the in-process adapter contract.
+The store runs in WAL mode so the MCP tools' reads never block the scanner's writes. The scanner is regex-based (Tree-sitter upgrade tracked in [docs/versions/v1/v1.2.0/known-gaps.md](docs/versions/v1/v1.2.0/known-gaps.md) `3.3.P2.G`); two-pass extraction (symbols first, edges second) guarantees cross-file call edges land regardless of directory walk order. The server never binds a socket or spawns a child -- it lives entirely inside the Node sidecar process and is reachable only through the in-process adapter contract.
 
 ### Memory storage tiers (v1.2.0 Phase 4)
 
@@ -89,8 +89,8 @@ Boundary rule: `core/**` MUST NOT import from `modules/**`; modules MUST NOT imp
 
 Phase 7 closes the v1.2.0 adoption track with two end-to-end benchmarks plus the documentation refresh that surfaced the new subsystems above.
 
-* **Token-usage benchmark** at [tests/integration/coding-pillar/phase-7-token-usage.test.ts](tests/integration/coding-pillar/phase-7-token-usage.test.ts) drives a 5-step Coding-pillar workload ("Find callers of `redactSecrets`; run the test suite; inspect one failure; propose a fix; re-run the suite") through both the post-adoption arm (codegraph MCP tools + `CommandCompressor`) and a simulated pre-Phase-1 arm. The CI gate is <=70% on tokens and <=70% on tool calls; the published numbers ([docs/v1.2.0/benchmarks/coding-pillar-token-usage-2026-05-26.md](docs/v1.2.0/benchmarks/coding-pillar-token-usage-2026-05-26.md)) are 6.24% / 54.55% (delta -93.76% / -45.45%).
-* **Storage-size benchmark** at [tests/integration/memory-tier/phase-7-storage-size-extended.test.ts](tests/integration/memory-tier/phase-7-storage-size-extended.test.ts) aggregates the on-disk footprint of the dense index (Standard vs Pruned), the BM25 serialized footprint, and the codegraph SQLite DB. The dense-only gate (Pruned <=20% of Standard) carries over from Phase 4.4; the combined Pruned-vs-Standard ratio is 20.58% at the 2k-chunk CI scale ([docs/v1.2.0/benchmarks/memory-storage-size-2026-05-26.md](docs/v1.2.0/benchmarks/memory-storage-size-2026-05-26.md)). The canonical 100k sweep is gated behind `NEXUS_PHASE7_BENCH_SIZE=100000` and is documented as a manual replay artifact.
+* **Token-usage benchmark** at [tests/integration/coding-pillar/phase-7-token-usage.test.ts](tests/integration/coding-pillar/phase-7-token-usage.test.ts) drives a 5-step Coding-pillar workload ("Find callers of `redactSecrets`; run the test suite; inspect one failure; propose a fix; re-run the suite") through both the post-adoption arm (codegraph MCP tools + `CommandCompressor`) and a simulated pre-Phase-1 arm. The CI gate is <=70% on tokens and <=70% on tool calls; the published numbers ([docs/versions/v1/v1.2.0/benchmarks/coding-pillar-token-usage-2026-05-26.md](docs/versions/v1/v1.2.0/benchmarks/coding-pillar-token-usage-2026-05-26.md)) are 6.24% / 54.55% (delta -93.76% / -45.45%).
+* **Storage-size benchmark** at [tests/integration/memory-tier/phase-7-storage-size-extended.test.ts](tests/integration/memory-tier/phase-7-storage-size-extended.test.ts) aggregates the on-disk footprint of the dense index (Standard vs Pruned), the BM25 serialized footprint, and the codegraph SQLite DB. The dense-only gate (Pruned <=20% of Standard) carries over from Phase 4.4; the combined Pruned-vs-Standard ratio is 20.58% at the 2k-chunk CI scale ([docs/versions/v1/v1.2.0/benchmarks/memory-storage-size-2026-05-26.md](docs/versions/v1/v1.2.0/benchmarks/memory-storage-size-2026-05-26.md)). The canonical 100k sweep is gated behind `NEXUS_PHASE7_BENCH_SIZE=100000` and is documented as a manual replay artifact.
 
 Both benchmarks reuse the same fixture infrastructure as the earlier per-phase stability gates (Phase 2.5, Phase 3.6, Phase 4.4) so the cycle-end numbers compose with the per-phase ones without re-running the full suite.
 
@@ -130,7 +130,7 @@ Nexus is a single native desktop application with a permanent left-hand sidebar 
 
 The four modules consume the same `ModelRegistry`, `MemoryHub`, `TelemetryBus`, and `SkillCatalog` so that, for example, a skill installed for the coding module can also be referenced from chat, and the GPU telemetry shown in the dashboard reflects whichever module currently holds the GPU.
 
-The detailed module-by-module architecture (process model, IPC, GPU scheduling, model-download manager, installer carriage of CUDA / Python / Node / models) is the subject of the v1.0.0 plan in [docs/v1.0.0/](docs/v1.0.0/).
+The detailed module-by-module architecture (process model, IPC, GPU scheduling, model-download manager, installer carriage of CUDA / Python / Node / models) is the subject of the v1.0.0 plan in [docs/versions/v1/v1.0.0/](docs/versions/v1/v1.0.0/).
 
 ---
 
@@ -220,7 +220,7 @@ v0.2.0 uses Gemma 4 native tokens for tool interaction:
 - Tool calls: `<|tool_call>...<tool_call|>`
 - Tool results: `<|tool_result>...<tool_result|>`
 
-This replaces the v0.1.0 custom XML protocol. See [docs/v0.1.0/tool-protocol.md](docs/v0.1.0/tool-protocol.md) for legacy reference.
+This replaces the v0.1.0 custom XML protocol. See [docs/archive/versions/v0/v0.1.0/tool-protocol.md](docs/archive/versions/v0/v0.1.0/tool-protocol.md) for legacy reference.
 
 ### v0.3.0 Additions (Phases 1-3)
 
@@ -262,7 +262,7 @@ Gemma 4 discovers the available tools through the static tool catalogue in [src/
 
 [src/chat/PromptBuilder.ts](src/chat/PromptBuilder.ts) projects the catalogue (filtered through [src/tools/ToolActivationRules.ts](src/tools/ToolActivationRules.ts) for the current session context) into the system prompt on every turn. The agent therefore sees an up-to-date schema without having to ask. When a model picks a name not in the catalogue, [src/tools/ToolRegistry.ts](src/tools/ToolRegistry.ts) returns a structured error pointing the agent at `get_tool_schema` — the in-extension equivalent of `--help`. The discovery surface is the catalogue metadata itself; `get_tool_schema` is the named recovery handle for the model when it has drifted off the registered names.
 
-When you add a new tool, update [src/tools/ToolCatalog.ts](src/tools/ToolCatalog.ts), document it in [docs/v0.5.0/tool-audit.md](docs/v0.5.0/tool-audit.md), and ensure every error path in the handler carries the parameter name and a `Usage:` hint per the actionability convention from v0.5.0 Phase 2.
+When you add a new tool, update [src/tools/ToolCatalog.ts](src/tools/ToolCatalog.ts), document it in [docs/archive/versions/v0/v0.5.0/tool-audit.md](docs/archive/versions/v0/v0.5.0/tool-audit.md), and ensure every error path in the handler carries the parameter name and a `Usage:` hint per the actionability convention from v0.5.0 Phase 2.
 
 ## Module Dependency Graph
 
@@ -409,17 +409,17 @@ In v0.6.0 every `BASELINE-2026-04-25; ratchet by v0.6.0` exception was removed f
 
 ## Further Reading
 
-- [Architecture (v0.6.0)](docs/v0.6.0/architecture.md) -- post-cycle shape: zero baseline exceptions, decomposed panels, unified path-guard, ten ADRs
-- [Codebase Analysis (v0.6.0)](docs/v0.6.0/analysis.md) -- 12-section analysis with import-graph hot spots and reading order
-- [Architecture (v0.5.0)](docs/v0.5.0/architecture.md) -- v0.5.0 deep technical reference (memory hygiene, MCP, sub-agents, Brotli cache stack)
+- [Architecture (v0.6.0)](docs/archive/versions/v0/v0.6.0/architecture.md) -- post-cycle shape: zero baseline exceptions, decomposed panels, unified path-guard, ten ADRs
+- [Codebase Analysis (v0.6.0)](docs/archive/versions/v0/v0.6.0/analysis.md) -- 12-section analysis with import-graph hot spots and reading order
+- [Architecture (v0.5.0)](docs/archive/versions/v0/v0.5.0/architecture.md) -- v0.5.0 deep technical reference (memory hygiene, MCP, sub-agents, Brotli cache stack)
 - [Architecture Decision Records](docs/adr/) -- ADR-0001 .. ADR-0010, immutable design history
-- [Full Architecture (v0.3.0)](docs/v0.3.0/architecture.md) -- v0.3.0 design including installer + evaluation framework
-- [Full Architecture (v0.2.0)](docs/v0.2.0/architecture.md) -- comprehensive component descriptions and data flow diagrams
-- [Architecture (v0.1.0)](docs/v0.1.0/architecture.md) -- original architecture document
-- [Tool Protocol (v0.1.0)](docs/v0.1.0/tool-protocol.md) -- legacy XML tool protocol specification
-- [Security Audit](docs/v0.1.0/security-audit.md) -- security findings and remediations
-- [Implementation Plan (v0.6.0)](docs/v0.6.0/plans/v0.6.0-cycle.md) -- v0.6.0 cycle plan
-- [Implementation Plan (v0.2.0)](docs/v0.2.0/development/implementation-plan.md) -- v0.2.0 phase breakdown
-- [Implementation Plan (v0.3.0)](docs/v0.3.0/implementation-plan.md) -- v0.3.0 harness engineering plan
-- [Performance Benchmarks (v0.3.0)](docs/v0.3.0/performance-benchmarks.md) -- targets, regression detection, runner commands
-- [Performance Comparison (v0.2.0 vs v0.3.0)](docs/v0.3.0/performance-comparison.md) -- comparison methodology and template
+- [Full Architecture (v0.3.0)](docs/archive/versions/v0/v0.3.0/architecture.md) -- v0.3.0 design including installer + evaluation framework
+- [Full Architecture (v0.2.0)](docs/archive/versions/v0/v0.2.0/architecture.md) -- comprehensive component descriptions and data flow diagrams
+- [Architecture (v0.1.0)](docs/archive/versions/v0/v0.1.0/architecture.md) -- original architecture document
+- [Tool Protocol (v0.1.0)](docs/archive/versions/v0/v0.1.0/tool-protocol.md) -- legacy XML tool protocol specification
+- [Security Audit](docs/archive/versions/v0/v0.1.0/security-audit.md) -- security findings and remediations
+- [Implementation Plan (v0.6.0)](docs/archive/versions/v0/v0.6.0/plans/v0.6.0-cycle.md) -- v0.6.0 cycle plan
+- [Implementation Plan (v0.2.0)](docs/archive/versions/v0/v0.2.0/development/implementation-plan.md) -- v0.2.0 phase breakdown
+- [Implementation Plan (v0.3.0)](docs/archive/versions/v0/v0.3.0/implementation-plan.md) -- v0.3.0 harness engineering plan
+- [Performance Benchmarks (v0.3.0)](docs/archive/versions/v0/v0.3.0/performance-benchmarks.md) -- targets, regression detection, runner commands
+- [Performance Comparison (v0.2.0 vs v0.3.0)](docs/archive/versions/v0/v0.3.0/performance-comparison.md) -- comparison methodology and template

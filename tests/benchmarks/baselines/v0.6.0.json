@@ -1,5 +1,5 @@
 {
-  "note": "Captured on the v0.6.0 main branch post-Phase-1 (security chain closure) per docs/v0.6.0/plans/v0.6.0-cycle.md sub-task 2.4. Live-Ollama benches (model-tier-matrix, time-to-first-token) auto-skip when OLLAMA_URL is unset; the captured set is the deterministic in-process subset.",
+  "note": "Captured on the v0.6.0 main branch post-Phase-1 (security chain closure) per docs/archive/versions/v0/v0.6.0/plans/v0.6.0-cycle.md sub-task 2.4. Live-Ollama benches (model-tier-matrix, time-to-first-token) auto-skip when OLLAMA_URL is unset; the captured set is the deterministic in-process subset.",
   "version": "0.6.0",
   "thresholds": {
     "regressionPct": 20

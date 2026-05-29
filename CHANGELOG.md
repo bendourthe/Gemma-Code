@@ -9,12 +9,12 @@
 
 The stabilization-plus-expansion release that follows v1.0.0. Closes the v1.0.0 shared-core build carryforward cluster (storage-path rename, manifest IDs, npm package + publisher rename, duplicate-catalog removal, curator-cadence fallback delete, CRLF/LF snapshot normalization, SHA-pinned actions), turns the Windows-only PyQt installer into a canonical cross-platform installer (Windows + macOS + Linux), ships the renamed `nexus-coding` VS Code extension as a multi-model agentic add-on, adopts the NVIDIA SANA family as the default Image Studio + Video Lab pipeline, and upgrades the memory subsystem end-to-end (hybrid retrieval, local embedder, provenance, 12-hook lifecycle bus, Ebbinghaus decay, session replay timeline, `/recall` / `/remember` / `/forget` slash commands, opt-in contradiction resolver, file compressor).
 
-The cycle ingests 65 carryforward items from `docs/v1.0.0/known-gaps.md` plus 22 new items across the agentmemory and SANA comparisons. 66 close in cycle (Phases 1-14); 33 carry forward to v1.2.0 (8 P1 + 24 P2 + 1 P3 -- all documented deferrals with placeholders, none release-blocking).
+The cycle ingests 65 carryforward items from `docs/versions/v1/v1.0.0/known-gaps.md` plus 22 new items across the agentmemory and SANA comparisons. 66 close in cycle (Phases 1-14); 33 carry forward to v1.2.0 (8 P1 + 24 P2 + 1 P3 -- all documented deferrals with placeholders, none release-blocking).
 
 ### Added
 
 Phase 1 -- Shared-core decision + carryforward closure (commit `ec3ff0e`):
-- Shared-core ADR at `docs/v1.1.0/development/decisions/shared-core-build.md` records option (a) -- project references with `composite: true` -- as the chosen strategy.
+- Shared-core ADR at `docs/versions/v1/v1.1.0/development/decisions/shared-core-build.md` records option (a) -- project references with `composite: true` -- as the chosen strategy.
 - Storage-path rename: `~/.gemma-code/` -> `~/.nexus/` cascaded across `src/`, `tests/`, `scripts/`. The `nexusHome()` helper is the single source of truth.
 - Settings `package.json` `deprecationMessage` injection for every legacy `gemma-code.*` schema entry.
 - Curator-cadence fallback deleted from `AgentLoop`; `IdleTimeScheduler` is the sole curator entry point.
@@ -102,14 +102,14 @@ Phase 14 -- Cross-OS installer with hardware + disk-aware model picker (commit `
 - Cross-OS payload fetcher at `scripts/installer/build/fetch-payload.py` parameterized by `--os` + `--arch` with SHA-256 pinning via `versions.lock.json`.
 - Storage Review page with runtime / models / DevAI-Hub / reserve / net coloring.
 - Cross-OS first-launch migration shim (Python-side).
-- Three RTM smoke checklists at `docs/v1.1.0/installer-smoke-{windows,macos,linux}.md`.
+- Three RTM smoke checklists at `docs/versions/v1/v1.1.0/installer-smoke-{windows,macos,linux}.md`.
 
 Phase 15 -- Hardening + release gate (this commit):
 - Version bump across `package.json`, `package-lock.json`, `desktop/package.json`, `desktop/src-tauri/Cargo.toml`, `desktop/src-tauri/tauri.conf.json`, `scripts/installer/pyqt/pyproject.toml`, `scripts/installer/pyqt/src/nexus_installer/__init__.py`, and `scripts/installer/build/nsis/nexus-setup.nsi`.
-- `docs/v1.1.0/distribution.md` -- distribution channels mirroring the v1.0.0 structure across three OS surfaces + the renamed Marketplace listing.
-- `docs/v1.1.0/release-notes.md` -- user-facing release content.
-- `docs/v1.1.0/review/synthesis.md` -- static deep-review synthesis (live `/run-deep-review` chain operator-gated and tracked as OA-V1.1.0-15-DR-A through DR-D).
-- `docs/v1.1.0/known-gaps.md` finalized: Phase 15 closures appended, Section 3 summary recomputed, Section 4 carryforward map populated, status flipped from `in-progress` to `finalized at v1.1.0 release`.
+- `docs/versions/v1/v1.1.0/distribution.md` -- distribution channels mirroring the v1.0.0 structure across three OS surfaces + the renamed Marketplace listing.
+- `docs/versions/v1/v1.1.0/release-notes.md` -- user-facing release content.
+- `docs/versions/v1/v1.1.0/review/synthesis.md` -- static deep-review synthesis (live `/run-deep-review` chain operator-gated and tracked as OA-V1.1.0-15-DR-A through DR-D).
+- `docs/versions/v1/v1.1.0/known-gaps.md` finalized: Phase 15 closures appended, Section 3 summary recomputed, Section 4 carryforward map populated, status flipped from `in-progress` to `finalized at v1.1.0 release`.
 
 ### Changed
 
@@ -121,7 +121,7 @@ Phase 15 -- Hardening + release gate (this commit):
 
 ### Deferred to v1.2.0
 
-- 12 of 13 `src/` -> `modules/coding/` sub-trees remain open under 1.4.P1.B (per-sub-tree status table maintained in `docs/v1.1.0/known-gaps.md`).
+- 12 of 13 `src/` -> `modules/coding/` sub-trees remain open under 1.4.P1.B (per-sub-tree status table maintained in `docs/versions/v1/v1.1.0/known-gaps.md`).
 - `MemoryStore` adapter cluster: `MemoryStoreWarmRebuildSource`, `MemoryStoreDecayProvider`, `MemoryStoreAuditLog`, `MemoryStoreExportSource`, `MemoryStoreSettingsStore` -- all clustered with the v1.2.0 first commit.
 - Audio module pillar.
 - Direct-download landing page (`https://nexus.bendourthe.com/download`) -- deferred to v1.1.1 per OA-05.
@@ -130,7 +130,7 @@ Phase 15 -- Hardening + release gate (this commit):
 
 ### Operator-action carryforwards
 
-Live operator-driven items required to close v1.1.0 (tracked in `docs/v1.0.0/operator-actions.md` plus `docs/v1.1.0/operator-actions.md`):
+Live operator-driven items required to close v1.1.0 (tracked in `docs/versions/v1/v1.0.0/operator-actions.md` plus `docs/versions/v1/v1.1.0/operator-actions.md`):
 
 - OA-01 -- EV Code Signing certificate procurement + Windows Authenticode signing (carried forward from v1.0.0).
 - OA-08 -- Live golden-task replay against `gemma4:e4b` / `llama3.1:8b` / `qwen2.5-coder:7b`.
@@ -303,12 +303,12 @@ DevAI-Hub skill sync (Phase 10):
 - Skill provenance attribution (`Tracer.setCurrentSkill(...)`) folds `skill.{id, namespace, provenance}` into every `tool_call` / `sub_agent` span.
 
 Release hardening (Phase 11):
-- `docs/v1.0.0/release-signing.md` -- Authenticode (Windows) workflow + macOS notarization workflow placeholder.
-- `docs/v1.0.0/release-notes.md` -- user-facing release announcement with module screenshots and v1.1.0 teaser.
-- `docs/v1.0.0/rtm-smoke.md` -- operator-driven RTM smoke checklist (fresh Win 11 VM, 4 modules end-to-end, target <= 90 min total).
-- `docs/v1.0.0/distribution.md` -- distribution-channel runbook (GitHub Releases, VS Code Marketplace re-publish, optional direct-download site).
-- `docs/v1.0.0/operator-actions.md` -- consolidated operator checklist covering live-GPU benches, code-signing cert procurement, SHA-256 rotation, RTM execution.
-- `docs/v1.0.0/review/synthesis.md`, `security-audit.md`, `penetration-test.md` -- consolidated Phase 11 review artifacts.
+- `docs/versions/v1/v1.0.0/release-signing.md` -- Authenticode (Windows) workflow + macOS notarization workflow placeholder.
+- `docs/versions/v1/v1.0.0/release-notes.md` -- user-facing release announcement with module screenshots and v1.1.0 teaser.
+- `docs/versions/v1/v1.0.0/rtm-smoke.md` -- operator-driven RTM smoke checklist (fresh Win 11 VM, 4 modules end-to-end, target <= 90 min total).
+- `docs/versions/v1/v1.0.0/distribution.md` -- distribution-channel runbook (GitHub Releases, VS Code Marketplace re-publish, optional direct-download site).
+- `docs/versions/v1/v1.0.0/operator-actions.md` -- consolidated operator checklist covering live-GPU benches, code-signing cert procurement, SHA-256 rotation, RTM execution.
+- `docs/versions/v1/v1.0.0/review/synthesis.md`, `security-audit.md`, `penetration-test.md` -- consolidated Phase 11 review artifacts.
 
 ### Changed
 
@@ -336,18 +336,18 @@ Release hardening (Phase 11):
 - v0.9.0 known-gap 10.N.A (ModelPinRegistry wiring): Phase 5 ports the registry to `core/registry/ModelPinRegistry.ts`, persists pin set through `SettingsStore` (`nexus.llm.modelPins`), and threads `resolver()` into `StreamingPipeline`'s existing `KeepAliveResolver` seam.
 - v0.9.0 known-gap 10.N.Q (IdleTimeScheduler wiring): Phase 3 sidecar bootstrap registers curator + reflect workers via the new `desktop/sidecar/src/runtime/idleScheduler.ts`; verified by a 30-minute synthetic-idle integration test.
 - v0.9.0 known-gap 10.N.R (real telemetry source): Phase 8 ships `core/telemetry/GpuTelemetrySource.ts` with platform parsers and the CPU fallback; `<LocalModelStatus>` widget consumes the real stream when the sidecar nvidia-smi spawn lands (operator-driven, tracked as v1.0.0 8.P1.UU).
-- v0.9.0 known-gap 10.N.T (operator-action consolidation): Phase 11 ships `docs/v1.0.0/operator-actions.md` as the consolidated operator checklist for v1.0.0; future cycles inherit the same file layout.
+- v0.9.0 known-gap 10.N.T (operator-action consolidation): Phase 11 ships `docs/versions/v1/v1.0.0/operator-actions.md` as the consolidated operator checklist for v1.0.0; future cycles inherit the same file layout.
 - Pre-existing Phase 2 test failures (`SubAgentManager.characterization.test.ts` CRLF/LF snapshot mismatches; `workflow-discipline.test.ts` SHA-pin enforcement) recorded under v1.0.0 known-gap 2.P3.L and tracked as a Phase 11 / v1.0.1 fix.
 - Phase 9 CI block on missing `tauri::Manager` import (`desktop/src-tauri/src/sidecar.rs::app.path().resolve()` against Tauri 2.11) -- import added in lockstep with the icons.
 
 ### Security
 
-- Windows installer Authenticode signing workflow documented at `docs/v1.0.0/release-signing.md`. Actual signing requires the operator-procured EV Code Signing certificate (tracked as v1.0.0 operator action OA-01).
+- Windows installer Authenticode signing workflow documented at `docs/versions/v1/v1.0.0/release-signing.md`. Actual signing requires the operator-procured EV Code Signing certificate (tracked as v1.0.0 operator action OA-01).
 - macOS notarization workflow documented (deferred to v1.0.1 per Phase 9.8 + known-gap 9.P2.EEE).
 - Prompt-injection scanner (`core/skills/PromptInjectionScanner.ts`) screens every skill body before it lands in `~/.nexus/skills/`; the DevAI-Hub sync pathway routes every fetched skill through the scanner; the un-namespaced `nexus skills install` CLI path is stubbed (P2 known-gap 10.P2.III) so no scanner-bypassing install surface ships in v1.0.0.
 - Path-clamping on `~/.nexus/skills/user/` writes (resolved + parent-dir check before write).
 - HTTPS-only model downloader; rejects `file://`, `localhost`, internal IP ranges; SHA-256 digest verification gates every non-Ollama install (catalog digests for HTTP-sourced models are placeholders pending v1.0.0 release-gate rotation per known-gap 5.P2.CC).
-- Sidecar process runs as user (not admin); `~/.nexus/` permissions are user-only (verified in `docs/v1.0.0/review/security-audit.md`).
+- Sidecar process runs as user (not admin); `~/.nexus/` permissions are user-only (verified in `docs/versions/v1/v1.0.0/review/security-audit.md`).
 - Settings UI does not echo secrets; `SECRET_PATHS` redaction in `Tracer` covers `apiKey`, `password`, `token`, `secret`, `Bearer ` headers.
 - ffmpeg shell-out (`core/video/WorkflowMetadata.ts`) builds argv arrays (no shell interpolation); injected `spawnFn` accepts argv-only.
 
@@ -678,7 +678,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [0.7.0] -- 2026-05-14
 
-Adoption cycle driven by `docs/v0.7.0/comparison-multi-source.md` (S1-S7 multi-source competitive review). Closes every P1 carryover from the v0.6.0 known-gaps catalog in Phase 0 (panel hoist down to 305 lines via ADR-0011; `marked` v4 -> v12 migration; mutation-testing gap fixes across `policy.ts` / `ActionClassifier.ts` / `terminal.ts` / `filesystem.ts`; `Orchestrator.test.ts` re-included in Stryker). Then adopts the C-items from buckets 1-3 of the comparison report: a deterministic compaction stack expansion plus a model-callable compress tool (ADR-0012), an Instructions / Memory / Context / Archive memory file architecture (ADR-0014), a webview render protocol with seven new chat primitives (ADR-0013), per-model context-limit overrides, six new skills, multi-harness skill packaging plus a standalone `gemma-check` CLI, an optional HNSW vector index with linear-scan fallback, and post-N-edits audit / testgaps background workers. Three new ADRs (0012-0014) capture the material decisions. The v0.5.0 retrospective `>= 40%` token-savings claim is now measured against the live-Ollama v0.4.0 + v0.6.0 baselines (operator-action; see Fixed below).
+Adoption cycle driven by `docs/archive/versions/v0/v0.7.0/comparison-multi-source.md` (S1-S7 multi-source competitive review). Closes every P1 carryover from the v0.6.0 known-gaps catalog in Phase 0 (panel hoist down to 305 lines via ADR-0011; `marked` v4 -> v12 migration; mutation-testing gap fixes across `policy.ts` / `ActionClassifier.ts` / `terminal.ts` / `filesystem.ts`; `Orchestrator.test.ts` re-included in Stryker). Then adopts the C-items from buckets 1-3 of the comparison report: a deterministic compaction stack expansion plus a model-callable compress tool (ADR-0012), an Instructions / Memory / Context / Archive memory file architecture (ADR-0014), a webview render protocol with seven new chat primitives (ADR-0013), per-model context-limit overrides, six new skills, multi-harness skill packaging plus a standalone `gemma-check` CLI, an optional HNSW vector index with linear-scan fallback, and post-N-edits audit / testgaps background workers. Three new ADRs (0012-0014) capture the material decisions. The v0.5.0 retrospective `>= 40%` token-savings claim is now measured against the live-Ollama v0.4.0 + v0.6.0 baselines (operator-action; see Fixed below).
 
 ### Added
 
@@ -692,7 +692,7 @@ Adoption cycle driven by `docs/v0.7.0/comparison-multi-source.md` (S1-S7 multi-s
 - Webview render protocol (ADR-0013) emits seven new chat primitives from `src/panels/webview/render/`: completion report block, todo block, inline diff cards, action-type tags, numbered permission prompts (with Yes/No alias preserved), "Thought for Ns" meta-rows, and queued-message field shape. See [ADR-0013](./docs/adr/0013-webview-render-protocol.md).
 - Six new skills under `.claude/skills/`: `polish`, `critique`, `distill`, `harden`, `animate`, `build-second-brain` (the last requires the v0.7.0 memory file architecture to be useful).
 - Multi-harness skill packaging via `npm run package:skills`; emits adapter ZIPs for Claude Code, Cursor (best-effort `.cursor/rules/<slug>.md` transform), and OpenCode under `dist/skills-<harness>/`.
-- Standalone `gemma-check` CLI under `bin/gemma-check.mjs` (`npm run check`); ships the four deterministic-check rules used by the audit background worker. See `docs/v0.7.0/development/cli-gemma-check.md`.
+- Standalone `gemma-check` CLI under `bin/gemma-check.mjs` (`npm run check`); ships the four deterministic-check rules used by the audit background worker. See `docs/archive/versions/v0/v0.7.0/development/cli-gemma-check.md`.
 - Optional HNSW vector index for `MemoryStore.searchByEmbedding` backed by `hnswlib-node` as an `optionalDependency`. Linear-scan fallback path is preserved unconditionally so environments where the native binary fails to load still work.
 - Background workers (audit, testgaps) triggered post-N-edits. Workers are explicitly NOT timer-driven; only post-edit cadence per the cross-cutting risk note in comparison Section 13.
 - 21 deterministic in-process benchmarks captured at `tests/benchmarks/baselines/v0.7.0.json` (live-Ollama benches auto-skip when `OLLAMA_URL` is unset).
@@ -715,11 +715,11 @@ Adoption cycle driven by `docs/v0.7.0/comparison-multi-source.md` (S1-S7 multi-s
 
 ### Fixed
 
-- v0.6.0 Phase 0 close-out (all items in `docs/v0.7.0/known-gaps.md` Section 2-4):
+- v0.6.0 Phase 0 close-out (all items in `docs/archive/versions/v0/v0.7.0/known-gaps.md` Section 2-4):
   - `GemmaCodePanel.ts` 305 lines (was 935; v0.6.0 target was < 400). Construction graph extracted to `ChatPanelBootstrap.ts` and static factories on `ChatController` (`buildContextCompactor`, `buildSubAgentManager`, `buildOrchestrator`, `buildAgentLoop`, `buildStreamingPipeline`). Helpers: `ChatPanelInit.ts`, `ChatStatusReporter.ts`, `ChatMessageRouter.ts`, `ToolActivationContext.ts`, `ToolRegistryBuilder.ts`. New ADR-0011 documents the OllamaClient injection pattern. Closes v0.7.0 known-gaps 2.3 + 2.4.
   - `marked` bumped to `^12.0.0` (resolved at 12.0.2) via `marked.parse(text, { async: false })`; the v12 Renderer API turned out to retain the v4 positional signature so the three custom renderers are unchanged-by-need. All 8 renderer tests green; sanitisation chain (CSP + DOMPurify) intact. Closes v0.7.0 known-gaps 2.1.
   - Mutation-testing gap fixes: new `tests/unit/guardrails/policy.test.ts` (18 assertions), `tests/unit/guardrails/ActionClassifier.coverage.test.ts` (113 parametric assertions), `tests/unit/tools/handlers/terminal.coverage.test.ts` (58 parametric assertions), `tests/unit/tools/handlers/filesystem.coverage.test.ts` (13 error-path assertions). `Orchestrator.test.ts` timing assertion rewritten `> 0` -> `>= 0` and re-included in `configs/stryker.config.json`. Closes v0.7.0 known-gaps 4.1-4.5.
-- Live-Ollama baseline capture for the v0.5.0 retrospective `>= 40%` token-savings claim: in-process v0.7.0 baseline captured (see Added); the corresponding v0.4.0 + v0.6.0 live-Ollama captures remain operator-action, tracked in `docs/v0.7.0/known-gaps.md`.
+- Live-Ollama baseline capture for the v0.5.0 retrospective `>= 40%` token-savings claim: in-process v0.7.0 baseline captured (see Added); the corresponding v0.4.0 + v0.6.0 live-Ollama captures remain operator-action, tracked in `docs/archive/versions/v0/v0.7.0/known-gaps.md`.
 - Filesystem tool handler split (v0.6.0 plan sub-task 6.5) formally deferred to v0.8.0 with a documented cost/benefit decision (~25 import sites; file is functioning correctly today). See v0.7.0 known-gaps 2.2.
 
 ### Security
@@ -730,7 +730,7 @@ Adoption cycle driven by `docs/v0.7.0/comparison-multi-source.md` (S1-S7 multi-s
 
 ### Explicitly NOT in v0.7.0
 
-Policy-grounded drops from `docs/v0.7.0/comparison-multi-source.md` Section 13:
+Policy-grounded drops from `docs/archive/versions/v0/v0.7.0/comparison-multi-source.md` Section 13:
 
 - N1. Federation / cross-machine agent collaboration (S6 ruflo) -- violates offline-first thesis.
 - N2. Multi-provider LLM routing (Claude / GPT / Gemini / Cohere) (S6 ruflo) -- local-only thesis.
@@ -775,7 +775,7 @@ Hygiene and ratchet release. Closes the only chained P0 security finding from th
 - `tests/integration/memory-consolidator-large.test.ts` -- 10K-event stress test for the `db.transaction`-wrapped consolidation pass; asserts wall-time below 5 s.
 - `tests/unit/tools/handlers/pathGuard.test.ts` -- four mutation-survivor regression tests added during the Stryker pass (workspaceRoot null/empty, lexical fallback, absolute-out-of-root rejection).
 - `tests/unit/storage/eviction/` -- per-strategy unit tests across the five `Evictor` implementations.
-- `tests/golden/baselines/v0.6.0.json` (post-Phase-1 measurement; final regeneration scheduled against the post-Phase-7 build with live Ollama -- see [docs/v0.6.0/development/history/2026-05_phase-8-release-gate.md](./docs/v0.6.0/development/history/2026-05_phase-8-release-gate.md)).
+- `tests/golden/baselines/v0.6.0.json` (post-Phase-1 measurement; final regeneration scheduled against the post-Phase-7 build with live Ollama -- see [docs/archive/versions/v0/v0.6.0/development/history/2026-05_phase-8-release-gate.md](./docs/archive/versions/v0/v0.6.0/development/history/2026-05_phase-8-release-gate.md)).
 - `tests/benchmarks/baselines/v0.6.0.json` (regeneration vs. v0.5.0 baseline scheduled per the same release-gate procedure).
 
 ### Changed
@@ -796,7 +796,7 @@ Hygiene and ratchet release. Closes the only chained P0 security finding from th
 - New ESLint rule blocks `innerHTML` string concatenation in `src/panels/webview/runtime.ts`. Approved sinks use the existing DOMPurify-sanitised path. Closes pen-test F-006.
 - Coverage CI gate now reads `coverage/coverage-summary.json` (`.total.lines.pct >= 80`, `.total.branches.pct >= 75`) instead of regex-scraping the lcov HTML report.
 - `secretPaths` matcher swapped from a hand-rolled `globToRegex` compiler to `minimatch` with a per-glob cache. Five new edge-case tests (empty globs, brace expansion, backslash escape, exact-match, Windows separators) lock the behaviour parity.
-- Documentation example webhook URLs in `docs/v0.5.0/comparison/comparison-token-optimizer-mcp.md` obfuscated to `https://example.invalid/<redacted>` placeholders (closes pen-test F-011).
+- Documentation example webhook URLs in `docs/archive/versions/v0/v0.5.0/comparison/comparison-token-optimizer-mcp.md` obfuscated to `https://example.invalid/<redacted>` placeholders (closes pen-test F-011).
 - `CompactionStrategy` interface is now `agents/-> chat/` rather than `chat/ -> agents/`, eliminating the directional baseline exception.
 
 ### Fixed
@@ -829,7 +829,7 @@ Hygiene and ratchet release. Closes the only chained P0 security finding from th
 
 ### v0.5.0 retrospective note
 
-The v0.5.0 plan stated a target of `>=40% average tool-output token reduction vs. v0.4.0`. This claim never appeared in the v0.5.0 CHANGELOG entry below; it lived in `docs/v0.5.0/plans/implementation-plan.md` and the Phase 12 history. The measured number was deferred at v0.5.0 ship time (`tests/golden/baselines/v0.4.0.json` was not captured). v0.6.0 captures `v0.6.0.json` against live Ollama as part of the release-gate procedure documented in `docs/v0.6.0/development/history/2026-05_phase-8-release-gate.md`; the long-arc compare against `v0.4.0.json` is logged as the first action of the post-cycle measurement window. The `>=40%` figure remains a *target*, not a verified shipping claim, until the comparison run lands.
+The v0.5.0 plan stated a target of `>=40% average tool-output token reduction vs. v0.4.0`. This claim never appeared in the v0.5.0 CHANGELOG entry below; it lived in `docs/archive/versions/v0/v0.5.0/plans/implementation-plan.md` and the Phase 12 history. The measured number was deferred at v0.5.0 ship time (`tests/golden/baselines/v0.4.0.json` was not captured). v0.6.0 captures `v0.6.0.json` against live Ollama as part of the release-gate procedure documented in `docs/archive/versions/v0/v0.6.0/development/history/2026-05_phase-8-release-gate.md`; the long-arc compare against `v0.4.0.json` is logged as the first action of the post-cycle measurement window. The `>=40%` figure remains a *target*, not a verified shipping claim, until the comparison run lands.
 
 ---
 
@@ -840,7 +840,7 @@ Unified adoption release. Combines five comparison-driven adoption plans (token-
 ### Phase 1 -- Identity and Naming
 
 - AGENTS.md adopted as the sole canonical directive; no CLAUDE.md anywhere in the repo
-- Test-pyramid taxonomy split into "smoke" / "regression" / "scenario" with the rubric in [docs/v0.5.0/test-pyramid.md](./docs/v0.5.0/test-pyramid.md)
+- Test-pyramid taxonomy split into "smoke" / "regression" / "scenario" with the rubric in [docs/archive/versions/v0/v0.5.0/test-pyramid.md](./docs/archive/versions/v0/v0.5.0/test-pyramid.md)
 - Generic naming convention applied across product files (no provider branding)
 
 ### Phase 2 -- Tool Surface Hardening
@@ -954,12 +954,12 @@ Unified adoption release. Combines five comparison-driven adoption plans (token-
 **Release artifacts**
 - `package.json` version bumped to 0.5.0
 - This CHANGELOG entry
-- [docs/v0.5.0/architecture.md](./docs/v0.5.0/architecture.md) describing the v0.5.0 architecture
+- [docs/archive/versions/v0/v0.5.0/architecture.md](./docs/archive/versions/v0/v0.5.0/architecture.md) describing the v0.5.0 architecture
 - v0.5.0 git tag prepared (push deferred to explicit user confirmation)
 
 ### Deferred / Out of Scope
 
-The following are recorded for v0.6.0+: LSTM predictive caching (hard constraint), multi-provider LLM proxy, voice transcription, distributed cache, `/memory prune` and `/memory lint --apply`, auto-merge for Dependabot, `format=json` on `read_file` and `run_terminal`. See [docs/v0.5.0/plans/implementation-plan.md](./docs/v0.5.0/plans/implementation-plan.md) "Out of Scope" section for the full table.
+The following are recorded for v0.6.0+: LSTM predictive caching (hard constraint), multi-provider LLM proxy, voice transcription, distributed cache, `/memory prune` and `/memory lint --apply`, auto-merge for Dependabot, `format=json` on `read_file` and `run_terminal`. See [docs/archive/versions/v0/v0.5.0/plans/implementation-plan.md](./docs/archive/versions/v0/v0.5.0/plans/implementation-plan.md) "Out of Scope" section for the full table.
 
 ---
 
@@ -1135,7 +1135,7 @@ Major architectural evolution: Gemma 4 native protocol, dynamic prompt engineeri
 - Webview UI indicators for memory status, MCP connection, sub-agent progress, and thinking mode
 - `SECURITY.md` with vulnerability disclosure policy (48h ack, 7-day critical fix)
 - `ARCHITECTURE.md` root-level architecture overview
-- Full architecture documentation at `docs/v0.2.0/architecture.md`
+- Full architecture documentation at `docs/archive/versions/v0/v0.2.0/architecture.md`
 
 ### Changed
 
@@ -1224,7 +1224,7 @@ First stable release of Gemma Code — a fully offline, agentic coding assistant
   - Adds Start Menu shortcut and Add/Remove Programs entry
   - Uninstaller removes the venv and VS Code extension
 - GitHub Actions workflows: `ci.yml` (lint + test + coverage gate), `release.yml` (VSIX + installer + GitHub Release), `nightly.yml` (integration tests + benchmarks)
-- CI documentation in `docs/v0.1.0/ci-setup.md`
+- CI documentation in `docs/archive/versions/v0/v0.1.0/ci-setup.md`
 - E2E smoke test verifying the extension loads in VS Code without a running Ollama instance
 
 **Phase 8 — Hardening, CI/CD & Release**
@@ -1236,9 +1236,9 @@ First stable release of Gemma Code — a fully offline, agentic coding assistant
 - `GemmaCodePanel.postStatus()` and `postError()` public methods for external error signalling
 - Python backend crash detection with VS Code notification and graceful fallback to direct Ollama
 - Performance benchmark suite: `time-to-first-token`, `context-compaction`, `tool-execution`, `skill-loading`, `markdown-rendering` — all integrated into nightly CI
-- Security audit documentation (`docs/v0.1.0/security-audit.md`) with findings and remediations
-- Performance benchmark documentation (`docs/v0.1.0/performance-benchmarks.md`)
-- Architecture documentation (`docs/v0.1.0/architecture.md`) with component descriptions and data-flow diagrams
+- Security audit documentation (`docs/archive/versions/v0/v0.1.0/security-audit.md`) with findings and remediations
+- Performance benchmark documentation (`docs/archive/versions/v0/v0.1.0/performance-benchmarks.md`)
+- Architecture documentation (`docs/archive/versions/v0/v0.1.0/architecture.md`) with component descriptions and data-flow diagrams
 - Comprehensive README with installation guide, quick start, configuration reference, and troubleshooting section
 - Error regression tests in `tests/unit/errors/`
 

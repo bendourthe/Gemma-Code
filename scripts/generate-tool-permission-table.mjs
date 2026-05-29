@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Regenerate the tool-permission-tier table in docs/v0.5.0/architecture.md
+ * Regenerate the tool-permission-tier table in docs/archive/versions/v0/v0.5.0/architecture.md
  * directly from src/guardrails/PermissionTiers.ts so the doc cannot drift
  * out of sync. Replaces the block delimited by the markers
  *   <!-- BEGIN:TOOL-PERMISSION-TABLE -->
@@ -18,7 +18,7 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
 const sourcePath = path.join(repoRoot, "src/guardrails/PermissionTiers.ts");
-const docPath = path.join(repoRoot, "docs/v0.5.0/architecture.md");
+const docPath = path.join(repoRoot, "docs/archive/versions/v0/v0.5.0/architecture.md");
 const beginMarker = "<!-- BEGIN:TOOL-PERMISSION-TABLE -->";
 const endMarker = "<!-- END:TOOL-PERMISSION-TABLE -->";
 

@@ -10,7 +10,7 @@
  *
  * The branch is kept for compatibility through v1.2.0; the proxy branch
  * (./proxy.ts) is the canonical path once every user host runs the
- * desktop daemon. See [docs/v1.1.0/plans/phase-10-vscode-thin-adapter-and-republish.md]
+ * desktop daemon. See [docs/versions/v1/v1.1.0/plans/phase-10-vscode-thin-adapter-and-republish.md]
  * for the migration plan.
  */
 

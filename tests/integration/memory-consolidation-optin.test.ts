@@ -20,7 +20,7 @@ import type { Embedder } from "../../core/memory/LocalEmbedder.js";
 /**
  * v1.1.0 Phase 9 -- opt-in memory consolidation integration tests.
  *
- * Verifies the stability gate from `docs/v1.1.0/plans/phase-09-memory-consolidation-optin.md`:
+ * Verifies the stability gate from `docs/versions/v1/v1.1.0/plans/phase-09-memory-consolidation-optin.md`:
  *
  *   * With `nexus.memory.consolidation.enabled = true`, writing two contradicting
  *     semantic-tier rows ("Python uses tabs", "Python uses 4 spaces") and running

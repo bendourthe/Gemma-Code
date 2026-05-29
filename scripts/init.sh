@@ -28,8 +28,8 @@ REQUIRED_FILES=(
   "ARCHITECTURE.md"
   "feature_list.json"
   "clean-state-checklist.md"
-  "docs/v0.8.0/plans/v0.8.0-cycle.md"
-  "docs/v0.8.0/known-gaps.md"
+  "docs/archive/versions/v0/v0.8.0/plans/v0.8.0-cycle.md"
+  "docs/archive/versions/v0/v0.8.0/known-gaps.md"
 )
 
 REQUIRED_SPECIALISTS=(

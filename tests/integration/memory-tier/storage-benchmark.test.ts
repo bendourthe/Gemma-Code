@@ -13,7 +13,7 @@
  * runs in seconds, and writes its results to the canonical results path so
  * the per-cycle docs entry can cite a real artifact. A separate manual
  * sweep at 100k for cycle-end documentation is recorded as an MT entry in
- * `docs/v1.2.0/known-gaps.md` and runnable via
+ * `docs/versions/v1/v1.2.0/known-gaps.md` and runnable via
  * `NEXUS_PHASE4_BENCH_SIZE=100000 npm run test`.
  *
  * Results are written to:

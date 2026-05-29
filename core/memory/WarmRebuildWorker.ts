@@ -23,7 +23,7 @@
  * rebuild; once the worker finishes, retrieval automatically switches
  * over without consumer-visible churn.
  *
- * Adopts agentmemory A1 + A2 (see docs/v1.1.0/comparison-agentmemory.md
+ * Adopts agentmemory A1 + A2 (see docs/versions/v1/v1.1.0/comparison-agentmemory.md
  * Section 11.2 P1).
  */
 

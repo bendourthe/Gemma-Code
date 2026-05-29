@@ -6,11 +6,11 @@
 
 ## Note on numbering
 
-The v0.7.0 cycle plan ([docs/v0.7.0/plans/v0.7.0-cycle.md](../v0.7.0/plans/v0.7.0-cycle.md)) referred to this decision as "ADR-0008", written before ADRs 0006-0012 were assigned during v0.6.0 Phases 5-8 and v0.7.0 Phase 0/3. ADR-0008 (panel decomposition) and ADR-0012 (model-callable compress tool) had already shipped, so this ADR is recorded as 0013. Same deviation pattern as ADR-0011 (OllamaClient injection).
+The v0.7.0 cycle plan ([docs/archive/versions/v0/v0.7.0/plans/v0.7.0-cycle.md](../v0.7.0/plans/v0.7.0-cycle.md)) referred to this decision as "ADR-0008", written before ADRs 0006-0012 were assigned during v0.6.0 Phases 5-8 and v0.7.0 Phase 0/3. ADR-0008 (panel decomposition) and ADR-0012 (model-callable compress tool) had already shipped, so this ADR is recorded as 0013. Same deviation pattern as ADR-0011 (OllamaClient injection).
 
 ## Context
 
-Phase 4 of the v0.7.0 cycle adopts the Claude-Code-style chat UI primitives observed in S7 of [docs/v0.7.0/comparison-multi-source.md](../v0.7.0/comparison-multi-source.md): inline diff cards, action-type tags, numbered permission prompts, structured todo blocks, "Thought for Ns" meta-rows, queued-message fields during streaming, and end-of-task completion reports.
+Phase 4 of the v0.7.0 cycle adopts the Claude-Code-style chat UI primitives observed in S7 of [docs/archive/versions/v0/v0.7.0/comparison-multi-source.md](../v0.7.0/comparison-multi-source.md): inline diff cards, action-type tags, numbered permission prompts, structured todo blocks, "Thought for Ns" meta-rows, queued-message fields during streaming, and end-of-task completion reports.
 
 Before Phase 4, the webview rendered tool calls as ad-hoc DOM in [src/panels/webview/runtime.ts](../../src/panels/webview/runtime.ts) (one branch per message type, all written inline as a single ~700-line IIFE string). Adding seven new primitives on the same pattern would push the file past 1500 lines, mix presentational and protocol concerns, and make it impossible to unit-test individual cards without spinning up the whole panel host.
 
@@ -63,7 +63,7 @@ Inbound: `permissionPromptResponse` carries `{ id, value, freeformText? }` so [s
 
 ## Links
 
-- Cycle plan: [docs/v0.7.0/plans/v0.7.0-cycle.md](../v0.7.0/plans/v0.7.0-cycle.md) (Phase 4)
-- Multi-source comparison report: [docs/v0.7.0/comparison-multi-source.md](../v0.7.0/comparison-multi-source.md) (S7, C21-C27)
+- Cycle plan: [docs/archive/versions/v0/v0.7.0/plans/v0.7.0-cycle.md](../v0.7.0/plans/v0.7.0-cycle.md) (Phase 4)
+- Multi-source comparison report: [docs/archive/versions/v0/v0.7.0/comparison-multi-source.md](../v0.7.0/comparison-multi-source.md) (S7, C21-C27)
 - Related ADR: [ADR-0008 -- Panel decomposition](./0008-panel-decomposition.md)
 - Implementation: render helpers under [src/panels/webview/render/](../../src/panels/webview/render/), unit tests under [tests/unit/panels/webview/render/](../../tests/unit/panels/webview/render/)

@@ -72,7 +72,7 @@ The cross-platform PyQt5 installer pulls third-party binaries (currently Ollama)
 
 ## Past Security Findings
 
-The v0.1.0 security audit (`docs/v0.1.0/security-audit.md`) identified and resolved three findings:
+The v0.1.0 security audit (`docs/archive/versions/v0/v0.1.0/security-audit.md`) identified and resolved three findings:
 
 | ID | Severity | Description | Status |
 |----|----------|-------------|--------|

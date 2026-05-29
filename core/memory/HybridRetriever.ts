@@ -18,7 +18,7 @@
  * desktop-side equivalent). The retriever itself does not do fallback
  * because corpus-size policy belongs to the consumer.
  *
- * Adopts agentmemory A1 (see docs/v1.1.0/comparison-agentmemory.md
+ * Adopts agentmemory A1 (see docs/versions/v1/v1.1.0/comparison-agentmemory.md
  * Section 11.2 P1).
  */
 

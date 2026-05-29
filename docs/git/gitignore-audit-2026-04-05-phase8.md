@@ -48,9 +48,9 @@ The `.gitignore` is comprehensive and well-structured across all detected stacks
 
 The following Phase 8 files were untracked at the time of this audit (created during the current session). These are intentional new source files and should be staged and committed — they are correctly not covered by any ignore pattern:
 
-- `docs/v0.1.0/architecture.md`
-- `docs/v0.1.0/performance-benchmarks.md`
-- `docs/v0.1.0/security-audit.md`
+- `docs/archive/versions/v0/v0.1.0/architecture.md`
+- `docs/archive/versions/v0/v0.1.0/performance-benchmarks.md`
+- `docs/archive/versions/v0/v0.1.0/security-audit.md`
 - `tests/benchmarks/context-compaction.bench.ts`
 - `tests/benchmarks/skill-loading.bench.ts`
 - `tests/benchmarks/time-to-first-token.bench.ts`

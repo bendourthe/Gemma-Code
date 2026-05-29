@@ -53,9 +53,9 @@ Implement Option A — per-provenance threshold elevation.
 - Implementation: [src/storage/ToolOutputCache.ts](../../src/storage/ToolOutputCache.ts) (`DEFAULT_HEURISTIC_SEMANTIC_THRESHOLD`, `searchByEmbedding`), [src/storage/UnifiedMemoryRetriever.ts](../../src/storage/UnifiedMemoryRetriever.ts) (`ToolOutputSearchOptions`, `searchToolOutputs`)
 - Settings: [src/config/settings.ts](../../src/config/settings.ts), [package.json](../../package.json) (`gemma-code.ollamaEmbeddingThreshold`, `gemma-code.heuristicEmbeddingThreshold`)
 - Tests: [tests/integration/heuristic-fallback.test.ts](../../tests/integration/heuristic-fallback.test.ts)
-- v0.6.0 Phase 5 plan entry: [docs/v0.6.0/plans/v0.6.0-cycle.md](../v0.6.0/plans/v0.6.0-cycle.md) sub-task 5.2
-- Phase 5 history: [docs/v0.6.0/development/history/2026-05_phase-5-doc-code-drift.md](../v0.6.0/development/history/2026-05_phase-5-doc-code-drift.md) Section 2.6
-- Pen-test finding: [docs/v0.6.0/review/penetration-test.md](../v0.6.0/review/penetration-test.md) F-007
-- Known-gaps entry: [docs/v0.6.0/review/known-gaps.md](../v0.6.0/review/known-gaps.md) Section 4.2
+- v0.6.0 Phase 5 plan entry: [docs/archive/versions/v0/v0.6.0/plans/v0.6.0-cycle.md](../v0.6.0/plans/v0.6.0-cycle.md) sub-task 5.2
+- Phase 5 history: [docs/archive/versions/v0/v0.6.0/development/history/2026-05_phase-5-doc-code-drift.md](../v0.6.0/development/history/2026-05_phase-5-doc-code-drift.md) Section 2.6
+- Pen-test finding: [docs/archive/versions/v0/v0.6.0/review/penetration-test.md](../v0.6.0/review/penetration-test.md) F-007
+- Known-gaps entry: [docs/archive/versions/v0/v0.6.0/review/known-gaps.md](../v0.6.0/review/known-gaps.md) Section 4.2
 - Heuristic embedder origin: [src/storage/HeuristicEmbedder.ts](../../src/storage/HeuristicEmbedder.ts), v0.5.0 Phase 12
 - Companion ADR (predictive-cache decision): [ADR-0009](./0009-predictive-cache-decision.md)

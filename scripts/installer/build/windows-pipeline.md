@@ -3,7 +3,7 @@
 **Owner**: Phase 9.1
 **Status**: design + CI placeholder (live job lands in Phase 9.2-9.6)
 
-Produces `Nexus-1.0.0-Setup.exe` -- the NSIS-wrapped single-binary Windows installer described in [docs/v1.0.0/installer-architecture.md](../../../docs/v1.0.0/installer-architecture.md).
+Produces `Nexus-1.0.0-Setup.exe` -- the NSIS-wrapped single-binary Windows installer described in [docs/versions/v1/v1.0.0/installer-architecture.md](../../../docs/versions/v1/v1.0.0/installer-architecture.md).
 
 ## High-level steps
 

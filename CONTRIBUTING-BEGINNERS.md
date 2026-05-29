@@ -2,7 +2,7 @@
 
 Welcome. If you have never contributed to an open-source project before, or you do not yet have Node.js installed, you are in the right place. This guide takes you end-to-end on a fresh machine: install the tools, fork the repo, build the engine, find an issue, ship a pull request. Tone is procedural; every command is something you can copy verbatim.
 
-> **Note on naming.** Nexus is the successor to Gemma Code, mid-pivot to a four-module desktop app (see [README.md](README.md) and [docs/v1.0.0/](docs/v1.0.0/)). Many code identifiers, settings keys, and scripts in this repository still use the legacy `gemma-code` naming and will be renamed in lockstep with the v1.0.0 plan. Commands you copy below match the current state of the repo.
+> **Note on naming.** Nexus is the successor to Gemma Code, mid-pivot to a four-module desktop app (see [README.md](README.md) and [docs/versions/v1/v1.0.0/](docs/versions/v1/v1.0.0/)). Many code identifiers, settings keys, and scripts in this repository still use the legacy `gemma-code` naming and will be renamed in lockstep with the v1.0.0 plan. Commands you copy below match the current state of the repo.
 
 The shorter, no-handholding version of this same workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md). Once the first PR ships, that is the file to keep open.
 

@@ -66,6 +66,6 @@ The discipline is the *order*: capture, refactor, re-verify, *then* extend.
 
 ## See also
 
-- [docs/v0.5.0/test-pyramid.md](v0.5.0/test-pyramid.md) — overall testing philosophy and the smoke-test classification rubric.
+- [docs/archive/versions/v0/v0.5.0/test-pyramid.md](v0.5.0/test-pyramid.md) — overall testing philosophy and the smoke-test classification rubric.
 - [CONTRIBUTING.md](../CONTRIBUTING.md) — daily-loop commands and lint/test gates.
 - ADR-0004 sub-agent isolation contract: [docs/adr/0004-sub-agent-isolation-contract.md](adr/0004-sub-agent-isolation-contract.md) — captures *what* the Phase 8 refactor preserved and *why*.

@@ -1,5 +1,5 @@
 {
-  "note": "Captured on the v0.7.0 main branch post-Phase-7 per docs/v0.7.0/plans/v0.7.0-cycle.md sub-task 8.1. Live-Ollama benches (model-tier-matrix, time-to-first-token, compress-tool latency) auto-skip when OLLAMA_URL is unset; the captured set is the deterministic in-process subset. The capture host was NOT quiescent: every retained benchmark shows a uniform 30-80% hz drop versus v0.6.0 which is inconsistent with any single v0.7.0 code change and is most consistent with CPU pressure / thermal throttling / background-process noise. A quiescent re-capture is tracked in docs/v0.7.0/known-gaps.md.",
+  "note": "Captured on the v0.7.0 main branch post-Phase-7 per docs/archive/versions/v0/v0.7.0/plans/v0.7.0-cycle.md sub-task 8.1. Live-Ollama benches (model-tier-matrix, time-to-first-token, compress-tool latency) auto-skip when OLLAMA_URL is unset; the captured set is the deterministic in-process subset. The capture host was NOT quiescent: every retained benchmark shows a uniform 30-80% hz drop versus v0.6.0 which is inconsistent with any single v0.7.0 code change and is most consistent with CPU pressure / thermal throttling / background-process noise. A quiescent re-capture is tracked in docs/archive/versions/v0/v0.7.0/known-gaps.md.",
   "version": "0.7.0",
   "thresholds": {
     "regressionPct": 20

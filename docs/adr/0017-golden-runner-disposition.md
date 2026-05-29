@@ -2,11 +2,11 @@
 
 - **Status**: Accepted
 - **Date**: 2026-05-15
-- **Deciders**: v0.8.0 Phase 0 implementer (per `docs/v0.8.0/plans/v0.8.0-cycle.md` sub-task 0.13)
+- **Deciders**: v0.8.0 Phase 0 implementer (per `docs/archive/versions/v0/v0.8.0/plans/v0.8.0-cycle.md` sub-task 0.13)
 
 ## Context
 
-The v0.7.0 cycle plan referenced a "TS-native golden runner" as a deliverable ("if not yet built, this is the cycle to build it" -- `docs/v0.7.0/plans/v0.7.0-cycle.md` sub-task 8.1). It was never built; the existing Python framework in [tests/golden/framework/](../../tests/golden/framework/) (`run_all.py`, `taxonomy.py`, `assertions.py`, the suites under `tests/golden/suites/`) is the only runner. The plan's reference was an aspiration carried forward from earlier cycles, not an executed work item. The mismatch was logged as `10.O.17` in `docs/v0.7.0/known-gaps.md` Section 10.
+The v0.7.0 cycle plan referenced a "TS-native golden runner" as a deliverable ("if not yet built, this is the cycle to build it" -- `docs/archive/versions/v0/v0.7.0/plans/v0.7.0-cycle.md` sub-task 8.1). It was never built; the existing Python framework in [tests/golden/framework/](../../tests/golden/framework/) (`run_all.py`, `taxonomy.py`, `assertions.py`, the suites under `tests/golden/suites/`) is the only runner. The plan's reference was an aspiration carried forward from earlier cycles, not an executed work item. The mismatch was logged as `10.O.17` in `docs/archive/versions/v0/v0.7.0/known-gaps.md` Section 10.
 
 The runner sits outside CI by design: it executes against a live Ollama backend (`gemma4:e4b` pulled, `ollama serve` running on a quiescent workstation) and produces baseline JSON artifacts that are committed under `tests/golden/baselines/`. The CI suites (`npm run test`, `npm run test:integration`, `npm run bench`) do not consume the runner; they consume the committed baselines.
 
@@ -18,9 +18,9 @@ Canonise the Python runner. Reject the TS-native rewrite for v0.8.0+.
 
 Concrete changes the decision requires:
 
-1. `docs/v0.7.0/plans/v0.7.0-cycle.md` sub-task 8.1 narrative is updated retroactively to describe the Python runner as canonical (no rewrite in scope).
+1. `docs/archive/versions/v0/v0.7.0/plans/v0.7.0-cycle.md` sub-task 8.1 narrative is updated retroactively to describe the Python runner as canonical (no rewrite in scope).
 2. `README.md` and `CONTRIBUTING.md` golden-suite sections explicitly point at `python tests/golden/framework/run_all.py --model gemma4:e4b --output tests/golden/baselines/<version>.json` as the run-baseline command.
-3. The v0.7.0 known-gap `10.O.17` moves to Resolved in `docs/v0.7.0/known-gaps.md` Section 10.2, with this ADR as the resolution reference.
+3. The v0.7.0 known-gap `10.O.17` moves to Resolved in `docs/archive/versions/v0/v0.7.0/known-gaps.md` Section 10.2, with this ADR as the resolution reference.
 
 ## Consequences
 
@@ -41,6 +41,6 @@ Concrete changes the decision requires:
 
 ## Links
 
-- Related known-gap: [docs/v0.7.0/known-gaps.md](../v0.7.0/known-gaps.md) Section 10.2 row `10.O.17`.
-- Related plan: [docs/v0.8.0/plans/v0.8.0-cycle.md](../v0.8.0/plans/v0.8.0-cycle.md) sub-task 0.13.
+- Related known-gap: [docs/archive/versions/v0/v0.7.0/known-gaps.md](../v0.7.0/known-gaps.md) Section 10.2 row `10.O.17`.
+- Related plan: [docs/archive/versions/v0/v0.8.0/plans/v0.8.0-cycle.md](../v0.8.0/plans/v0.8.0-cycle.md) sub-task 0.13.
 - Implementation: this ADR + README / CONTRIBUTING golden-suite section update.

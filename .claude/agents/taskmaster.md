@@ -14,7 +14,7 @@ Reference [AGENTS.md](../../AGENTS.md) for repository conventions (ASCII-only, n
 - `git log --oneline -50` -- last 50 commits.
 - `gh issue list --limit 50 --json number,title,labels,state,url` -- open + recent issues.
 - `gh pr list --state merged --limit 30 --json number,title,mergedAt,url` -- recent merges.
-- `docs/v0.9.0/known-gaps.md` (and v0.8.0 transferred entries) -- in-cycle gap log.
+- `docs/archive/versions/v0/v0.9.0/known-gaps.md` (and v0.8.0 transferred entries) -- in-cycle gap log.
 - Existing `docs/todos.md` -- the file you maintain.
 
 ## Workflow

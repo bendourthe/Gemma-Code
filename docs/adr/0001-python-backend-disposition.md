@@ -1,7 +1,7 @@
 # ADR-0001: Dispose of the Python FastAPI backend
 
 - **Status**: Accepted (2026-04-18)
-- **Deciders**: Benjamin Dourthe (project owner) + v0.3.0 code review (docs/v0.3.0/review.md, finding #13)
+- **Deciders**: Benjamin Dourthe (project owner) + v0.3.0 code review (docs/archive/versions/v0/v0.3.0/review.md, finding #13)
 
 ## Context
 
@@ -57,5 +57,5 @@ No TypeScript consumer changes are required beyond the `extension.ts` activate/d
 ## Compliance / Follow-up
 
 - `git grep -l "BackendManager"` under `src/` must return no results after this change.
-- Phase 1 sub-task 1.13 in `docs/v0.4.0/implementation-plan.md` is closed by this ADR.
+- Phase 1 sub-task 1.13 in `docs/archive/versions/v0/v0.4.0/implementation-plan.md` is closed by this ADR.
 - Phase 2 sub-tasks 2.2, 2.11, 2.13 (P1/P2 backend-specific security items) are marked **N/A** in the Phase 2 Exit Checklist with this ADR as the reason.

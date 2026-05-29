@@ -49,7 +49,7 @@ A regression test at [tests/integration/permission-overrides-clamp.test.ts](../.
 
 - Implementation: [src/guardrails/PermissionTiers.ts:49-75](../../src/guardrails/PermissionTiers.ts#L49-L75) (`getPermissionTier`)
 - Regression test: [tests/integration/permission-overrides-clamp.test.ts](../../tests/integration/permission-overrides-clamp.test.ts)
-- Pen-test finding: [docs/v0.6.0/review/penetration-test.md](../v0.6.0/review/penetration-test.md) F-003
+- Pen-test finding: [docs/archive/versions/v0/v0.6.0/review/penetration-test.md](../v0.6.0/review/penetration-test.md) F-003
 - Companion ADR (symlink leg of Attack Path A): [ADR-0006](./0006-unified-path-guard.md)
 - Tier model: [ADR-0005](./0005-tool-permission-tiers.md)
-- v0.6.0 Phase 1 plan entry: [docs/v0.6.0/plans/v0.6.0-cycle.md](../v0.6.0/plans/v0.6.0-cycle.md) sub-task 1.2
+- v0.6.0 Phase 1 plan entry: [docs/archive/versions/v0/v0.6.0/plans/v0.6.0-cycle.md](../v0.6.0/plans/v0.6.0-cycle.md) sub-task 1.2

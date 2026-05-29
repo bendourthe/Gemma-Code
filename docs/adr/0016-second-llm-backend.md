@@ -36,5 +36,5 @@ Concrete changes:
 ## Links
 
 - Source article: jola.dev "Running Gemma 4 on Apple Silicon" (referenced in the comparison report).
-- Comparison report: `docs/v0.7.0/comparison-multi-source-v2.md` Section 5a item F1.
-- Plan reference: `docs/v0.8.0/plans/v0.8.0-cycle.md` sub-task 4.2.
+- Comparison report: `docs/archive/versions/v0/v0.7.0/comparison-multi-source-v2.md` Section 5a item F1.
+- Plan reference: `docs/archive/versions/v0/v0.8.0/plans/v0.8.0-cycle.md` sub-task 4.2.

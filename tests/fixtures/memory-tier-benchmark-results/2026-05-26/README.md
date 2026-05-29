@@ -13,7 +13,7 @@ the integration test suite (`tests/integration/memory-tier/storage-benchmark.tes
 on a 2,000-chunk fixture using the deterministic `hash-fallback` embedder so
 it completes in under 2 seconds. The full 100k-chunk run with the real
 transformer embedder is documented as a manual sweep and tracked in
-`docs/v1.2.0/known-gaps.md` (MT entry).
+`docs/versions/v1/v1.2.0/known-gaps.md` (MT entry).
 
 ## Results
 

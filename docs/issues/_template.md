@@ -45,7 +45,7 @@ Filename convention: <id>-<short-slug>.md
     docs/issues/0001-ollama-warm-up-latency.md
     docs/issues/0007-memory-corroboration-backfill.md
 
-Severity rubric (mirrored from docs/v0.5.0/tool-audit.md):
+Severity rubric (mirrored from docs/archive/versions/v0/v0.5.0/tool-audit.md):
   blocker      — prevents reliable use; needs immediate fix
   friction     — works but inefficiently (more retries, brittle parsing)
   optimization — functions well but could be faster / cheaper / clearer

@@ -43,7 +43,7 @@ After applying a Tier 3 fix, re-run the original failing command. Quote the new 
 
 ## Step 6: Write the playbook entry
 
-When the incident is resolved, append a Markdown entry to `docs/v0.8.0/development/incidents/<YYYY-MM-DD>-<slug>.md` with:
+When the incident is resolved, append a Markdown entry to `docs/archive/versions/v0/v0.8.0/development/incidents/<YYYY-MM-DD>-<slug>.md` with:
 
 - **Symptom:** what was failing
 - **Classification:** from Step 2

@@ -1,5 +1,5 @@
 /* Nexus design tokens - dark-theme base + four module accent colors.
- * Source: docs/v1.0.0/design-tokens.md, docs/v1.0.0/pivot-brief.md S3.
+ * Source: docs/versions/v1/v1.0.0/design-tokens.md, docs/versions/v1/v1.0.0/pivot-brief.md S3.
  * Consumed via Tailwind v4 `@theme inline` in tailwind.css. */
 
 :root {

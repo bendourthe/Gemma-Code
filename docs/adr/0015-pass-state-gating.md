@@ -54,4 +54,4 @@ The plannotator / hermes-agent comparison surfaced "pass-state gating" as a one-
 ## See also
 
 - [src/tools/AgentLoop.ts](../../src/tools/AgentLoop.ts) -- `VERIFICATION_TOOLS`, `PASS_STATE_GATING_NUDGE`, `_verifiedSinceUserMessage`, `_gateNudgeIssued`.
-- [docs/v0.8.0/plans/v0.8.0-cycle.md](../v0.8.0/plans/v0.8.0-cycle.md) Phase 2 sub-task 2.4.
+- [docs/archive/versions/v0/v0.8.0/plans/v0.8.0-cycle.md](../v0.8.0/plans/v0.8.0-cycle.md) Phase 2 sub-task 2.4.

@@ -57,6 +57,6 @@ The chat-controller takes a *flow-only* split, not a *full ownership* split. The
 - Implementation: [src/panels/GemmaCodePanel.ts](../../src/panels/GemmaCodePanel.ts), [src/panels/ChatController.ts](../../src/panels/ChatController.ts), [src/panels/ChatCommandHandlers.ts](../../src/panels/ChatCommandHandlers.ts), [src/panels/ChatWebviewHost.ts](../../src/panels/ChatWebviewHost.ts)
 - Webview split: [src/panels/webview/scaffold.ts](../../src/panels/webview/scaffold.ts), [src/panels/webview/styles.ts](../../src/panels/webview/styles.ts), [src/panels/webview/bodyMarkup.ts](../../src/panels/webview/bodyMarkup.ts), [src/panels/webview/runtime.ts](../../src/panels/webview/runtime.ts), [src/panels/webview/index.ts](../../src/panels/webview/index.ts)
 - Tests: [tests/unit/panels/ChatController.test.ts](../../tests/unit/panels/ChatController.test.ts), [tests/unit/panels/ChatCommandHandlers.test.ts](../../tests/unit/panels/ChatCommandHandlers.test.ts), [tests/unit/panels/ChatWebviewHost.test.ts](../../tests/unit/panels/ChatWebviewHost.test.ts)
-- Phase 6 history: [docs/v0.6.0/development/history/2026-05_phase-6-panel-decomposition.md](../v0.6.0/development/history/2026-05_phase-6-panel-decomposition.md)
-- v0.6.0 Phase 6 plan: [docs/v0.6.0/plans/v0.6.0-cycle.md](../v0.6.0/plans/v0.6.0-cycle.md) sub-tasks 6.1-6.6
+- Phase 6 history: [docs/archive/versions/v0/v0.6.0/development/history/2026-05_phase-6-panel-decomposition.md](../v0.6.0/development/history/2026-05_phase-6-panel-decomposition.md)
+- v0.6.0 Phase 6 plan: [docs/archive/versions/v0/v0.6.0/plans/v0.6.0-cycle.md](../v0.6.0/plans/v0.6.0-cycle.md) sub-tasks 6.1-6.6
 - Codebase-review findings closed: #2, #3, #16, #23

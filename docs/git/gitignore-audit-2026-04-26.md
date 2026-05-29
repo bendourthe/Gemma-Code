@@ -93,7 +93,7 @@ The 5 hits under `scripts/installer/pyqt/build/` (`build-linux.sh`, `build-macos
 
 | Path | Class | Action |
 |---|---|---|
-| `docs/v0.6.0/development/history/2026-04_phase-1-security-chain-closure.md` | Phase 1 session-history doc | Stage in the next commit |
+| `docs/archive/versions/v0/v0.6.0/development/history/2026-04_phase-1-security-chain-closure.md` | Phase 1 session-history doc | Stage in the next commit |
 | `tests/integration/permission-overrides-clamp.test.ts` | Phase 1.2 regression test | Stage in the next commit |
 | `tests/unit/tools/handlers/filesystem-symlink.test.ts` | Phase 1.1 regression test | Stage in the next commit |
 

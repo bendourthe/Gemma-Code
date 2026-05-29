@@ -1,5 +1,5 @@
 {
-  "note": "Captured retroactively from a v0.4.0 git worktree (tag v0.4.0) per docs/v0.6.0/plans/v0.6.0-cycle.md sub-task 2.4. Replaces the seed-time empty placeholder. Live-Ollama benches (model-tier-matrix, time-to-first-token) auto-skip when OLLAMA_URL is unset; the captured set is the deterministic in-process subset that existed in v0.4.0 (8 bench files; cache-hit and hooks were added in v0.5.0 and are absent here).",
+  "note": "Captured retroactively from a v0.4.0 git worktree (tag v0.4.0) per docs/archive/versions/v0/v0.6.0/plans/v0.6.0-cycle.md sub-task 2.4. Replaces the seed-time empty placeholder. Live-Ollama benches (model-tier-matrix, time-to-first-token) auto-skip when OLLAMA_URL is unset; the captured set is the deterministic in-process subset that existed in v0.4.0 (8 bench files; cache-hit and hooks were added in v0.5.0 and are absent here).",
   "version": "0.4.0",
   "createdAt": "2026-04-28T02:38:53.707Z",
   "thresholds": {

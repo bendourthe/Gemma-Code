@@ -46,6 +46,6 @@ A regression test at [tests/unit/tools/handlers/filesystem-symlink.test.ts](../.
 
 - Implementation: [src/tools/handlers/pathGuard.ts](../../src/tools/handlers/pathGuard.ts), [src/tools/handlers/filesystem.ts](../../src/tools/handlers/filesystem.ts)
 - Regression test: [tests/unit/tools/handlers/filesystem-symlink.test.ts](../../tests/unit/tools/handlers/filesystem-symlink.test.ts)
-- Pen-test finding: [docs/v0.6.0/review/penetration-test.md](../v0.6.0/review/penetration-test.md) F-001
+- Pen-test finding: [docs/archive/versions/v0/v0.6.0/review/penetration-test.md](../v0.6.0/review/penetration-test.md) F-001
 - Companion ADR (clamp leg of Attack Path A): [ADR-0007](./0007-permission-tier-floor.md)
-- v0.6.0 Phase 1 plan entry: [docs/v0.6.0/plans/v0.6.0-cycle.md](../v0.6.0/plans/v0.6.0-cycle.md) sub-task 1.1
+- v0.6.0 Phase 1 plan entry: [docs/archive/versions/v0/v0.6.0/plans/v0.6.0-cycle.md](../v0.6.0/plans/v0.6.0-cycle.md) sub-task 1.1

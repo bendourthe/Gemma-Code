@@ -67,8 +67,8 @@ Tests: `tests/unit/storage/MemorySnapshot.test.ts` (snapshot capture immutabilit
 
 - Related: [comparison-multi-source.md Section 9.3 entry C17](../v0.7.0/comparison-multi-source.md)
 - Implementation: Phase 2 commit `1cd5afc` (file architecture, PromptBuilder wiring, init / archive / edit verbs); Phase 5 commit (forget / export / import verbs + MemoryPanel)
-- Architecture sync: [docs/v0.7.0/architecture.md](../v0.7.0/architecture.md) Section 2 ("Memory file architecture")
+- Architecture sync: [docs/archive/versions/v0/v0.7.0/architecture.md](../v0.7.0/architecture.md) Section 2 ("Memory file architecture")
 
 ## Numbering note
 
-The v0.7.0 plan referred to this ADR as "ADR-0007"; the slot was already taken by [ADR-0007: Permission-tier floor](./0007-permission-tier-floor.md). This is the same numbering deviation pattern as Phase 4 ([ADR-0013: Webview render protocol](./0013-webview-render-protocol.md)), where "ADR-0008" had also been previously claimed. The lesson logged in [docs/v0.7.0/known-gaps.md](../v0.7.0/known-gaps.md) is to allocate ADR numbers at plan-time, not at write-time.
+The v0.7.0 plan referred to this ADR as "ADR-0007"; the slot was already taken by [ADR-0007: Permission-tier floor](./0007-permission-tier-floor.md). This is the same numbering deviation pattern as Phase 4 ([ADR-0013: Webview render protocol](./0013-webview-render-protocol.md)), where "ADR-0008" had also been previously claimed. The lesson logged in [docs/archive/versions/v0/v0.7.0/known-gaps.md](../v0.7.0/known-gaps.md) is to allocate ADR numbers at plan-time, not at write-time.

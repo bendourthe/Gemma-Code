@@ -32,7 +32,7 @@
  * siblings (Phase 2.5 `command-compressor-benchmark.test.ts`, Phase 3.6
  * `tests/integration/codegraph/benchmark.test.ts`).
  *
- * Plan reference: docs/v1.2.0/plans/adoption-ecosystem-2026-05.md sub-task 7.1
+ * Plan reference: docs/versions/v1/v1.2.0/plans/adoption-ecosystem-2026-05.md sub-task 7.1
  */
 
 import * as fs from "node:fs";

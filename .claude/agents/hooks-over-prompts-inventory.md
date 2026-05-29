@@ -4,7 +4,7 @@ This is a reference document, not a subagent definition. It has no YAML frontmat
 
 It inventories the current prompt-based rules in [AGENTS.md](../../AGENTS.md) and ranks them by the enforcement-determinism gain of converting each to a hook (a script that runs without the model in the loop). It supports the "hooks for deterministic automation" Critical Rule added in v1.2.0 Phase 1.3. The actual migrations land in v1.2.0 Phase 5 (agent-loop policy enforcement); nothing here is implemented yet.
 
-Source: the "best practices in large codebases" article (S3), item 21, via [docs/v1.2.0/comparison-ecosystem-2026-05.md Section 5](../../docs/v1.2.0/comparison-ecosystem-2026-05.md).
+Source: the "best practices in large codebases" article (S3), item 21, via [docs/versions/v1/v1.2.0/comparison-ecosystem-2026-05.md Section 5](../../docs/versions/v1/v1.2.0/comparison-ecosystem-2026-05.md).
 
 ## Ranking criteria
 

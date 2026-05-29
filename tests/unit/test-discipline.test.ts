@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync, statSync } from "fs";
 import { resolve, join } from "path";
 
-// See docs/v0.5.0/test-pyramid.md (Smoke-Test Classification Rubric).
+// See docs/archive/versions/v0/v0.5.0/test-pyramid.md (Smoke-Test Classification Rubric).
 // This meta-test enforces:
 //   1. No `it.skip(` or `describe.skip(` without an adjacent comment containing
 //      `TODO(harness-bug)` or `TODO(missing_env)`.

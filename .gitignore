@@ -234,7 +234,7 @@ golden-task-report.md
 # ==============================================================================
 # Dependency-cruiser local graph output (v0.5.0 Phase 10)
 # ==============================================================================
-docs/v0.5.0/dep-graph.svg
+docs/archive/versions/v0/v0.5.0/dep-graph.svg
 
 # ==============================================================================
 # Stryker mutation testing artifacts (v0.6.0 Phase 7.6)

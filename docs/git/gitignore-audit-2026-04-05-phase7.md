@@ -88,8 +88,8 @@ be added to the next commit:
 - `.github/workflows/ci.yml`
 - `.github/workflows/nightly.yml`
 - `.github/workflows/release.yml`
-- `docs/v0.1.0/ci-setup.md`
-- `docs/v0.1.0/testing.md`
+- `docs/archive/versions/v0/v0.1.0/ci-setup.md`
+- `docs/archive/versions/v0/v0.1.0/testing.md`
 - `scripts/build-vsix.ps1`
 - `scripts/installer/build-installer.ps1`
 - `scripts/installer/setup.nsi`

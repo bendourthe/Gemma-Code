@@ -3,7 +3,7 @@
  *
  * Re-exports the store, scanner, MCP server, and manifest so consumers
  * (notably the Coding-pillar engine in `src/`) can import the whole
- * subsystem from one path. See `docs/v1.2.0/plans/adoption-ecosystem-2026-05.md`
+ * subsystem from one path. See `docs/versions/v1/v1.2.0/plans/adoption-ecosystem-2026-05.md`
  * Phase 3 for the design context.
  */
 

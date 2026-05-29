@@ -21,7 +21,7 @@ Delete `PredictiveCache` and the `gemma-code.predictiveCacheEnabled` setting (Op
 
 - Remove [src/storage/PredictiveCache.ts](../../src/storage/PredictiveCache.ts), `tests/unit/storage/PredictiveCache.test.ts`, `tests/unit/storage/PredictiveCache.budget.test.ts`, and `tests/benchmarks/predictive-cache.bench.ts`.
 - Remove the `gemma-code.predictiveCacheEnabled` block from [package.json](../../package.json) `contributes.configuration.properties`.
-- Remove the `+--- Predictive layer ---+` ASCII block from [docs/v0.5.0/architecture.md](../v0.5.0/architecture.md) Section 4 ("Cache stack"). The diagram now ends at `WebResponseCache`.
+- Remove the `+--- Predictive layer ---+` ASCII block from [docs/archive/versions/v0/v0.5.0/architecture.md](../v0.5.0/architecture.md) Section 4 ("Cache stack"). The diagram now ends at `WebResponseCache`.
 - Remove the four PredictiveCache benchmark entries plus the `"PredictiveCache throughput"` group header from [tests/benchmarks/baselines/v0.6.0.json](../../tests/benchmarks/baselines/v0.6.0.json) so `scripts/check-bench-regressions.mjs` no longer expects benches that do not exist.
 - Record the removal in [CHANGELOG.md](../../CHANGELOG.md) `## [Unreleased]` `### Removed`.
 
@@ -54,10 +54,10 @@ If a future cycle decides predictive pre-warming is the right design, it starts 
 
 ## Links
 
-- v0.5.0 Phase 12 introduction: [docs/v0.5.0/plans/implementation-plan.md](../v0.5.0/plans/implementation-plan.md) Phase 12, "Advanced Fallbacks"
-- v0.6.0 Phase 5 plan entry: [docs/v0.6.0/plans/v0.6.0-cycle.md](../v0.6.0/plans/v0.6.0-cycle.md) sub-task 5.1
-- Phase 5 history: [docs/v0.6.0/development/history/2026-05_phase-5-doc-code-drift.md](../v0.6.0/development/history/2026-05_phase-5-doc-code-drift.md) Section 2.1
-- Pen-test finding: [docs/v0.6.0/review/penetration-test.md](../v0.6.0/review/penetration-test.md) F-008
-- Codebase-review finding: [docs/v0.6.0/review/codebase-review.md](../v0.6.0/review/codebase-review.md) #7
-- Known-gaps entry: [docs/v0.6.0/review/known-gaps.md](../v0.6.0/review/known-gaps.md) Section 4
+- v0.5.0 Phase 12 introduction: [docs/archive/versions/v0/v0.5.0/plans/implementation-plan.md](../v0.5.0/plans/implementation-plan.md) Phase 12, "Advanced Fallbacks"
+- v0.6.0 Phase 5 plan entry: [docs/archive/versions/v0/v0.6.0/plans/v0.6.0-cycle.md](../v0.6.0/plans/v0.6.0-cycle.md) sub-task 5.1
+- Phase 5 history: [docs/archive/versions/v0/v0.6.0/development/history/2026-05_phase-5-doc-code-drift.md](../v0.6.0/development/history/2026-05_phase-5-doc-code-drift.md) Section 2.1
+- Pen-test finding: [docs/archive/versions/v0/v0.6.0/review/penetration-test.md](../v0.6.0/review/penetration-test.md) F-008
+- Codebase-review finding: [docs/archive/versions/v0/v0.6.0/review/codebase-review.md](../v0.6.0/review/codebase-review.md) #7
+- Known-gaps entry: [docs/archive/versions/v0/v0.6.0/review/known-gaps.md](../v0.6.0/review/known-gaps.md) Section 4
 - Companion threshold-elevation decision: [ADR-0010](./0010-threshold-elevation-decision.md)

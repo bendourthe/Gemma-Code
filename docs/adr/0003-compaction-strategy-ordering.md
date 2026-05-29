@@ -50,7 +50,7 @@ The pipeline is invoked when `estimateTokens() >= maxTokens * compactionThreshol
 
 ## Links
 
-- v0.3.0 implementation plan (RegenerateFromSource): [docs/v0.3.0/implementation-plan.md](../v0.3.0/implementation-plan.md)
-- v0.5.0 Phase 3 (compression foundation, settings reactivity): [docs/v0.5.0/plans/implementation-plan.md](../v0.5.0/plans/implementation-plan.md)
+- v0.3.0 implementation plan (RegenerateFromSource): [docs/archive/versions/v0/v0.3.0/implementation-plan.md](../v0.3.0/implementation-plan.md)
+- v0.5.0 Phase 3 (compression foundation, settings reactivity): [docs/archive/versions/v0/v0.5.0/plans/implementation-plan.md](../v0.5.0/plans/implementation-plan.md)
 - Strategy implementations: [src/chat/CompactionStrategy.ts](../../src/chat/CompactionStrategy.ts), [src/chat/RegenerateFromSource.ts](../../src/chat/RegenerateFromSource.ts)
 - Pipeline composition: [src/chat/ContextCompactor.ts](../../src/chat/ContextCompactor.ts)

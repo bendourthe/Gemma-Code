@@ -62,8 +62,8 @@ Provenance is recorded in `MetricsCollector` events (`specialist.loaded` with `p
 
 ## Links
 
-- v0.2.0 sub-agent introduction: [docs/v0.2.0/architecture.md](../v0.2.0/architecture.md)
-- v0.5.0 Phase 8 (specialist externalization): [docs/v0.5.0/plans/implementation-plan.md](../v0.5.0/plans/implementation-plan.md), routa adoption sub-tasks 2.1-2.3: [docs/v0.5.0/plans/routa-harness-adoption.md](../v0.5.0/plans/routa-harness-adoption.md)
+- v0.2.0 sub-agent introduction: [docs/archive/versions/v0/v0.2.0/architecture.md](../v0.2.0/architecture.md)
+- v0.5.0 Phase 8 (specialist externalization): [docs/archive/versions/v0/v0.5.0/plans/implementation-plan.md](../v0.5.0/plans/implementation-plan.md), routa adoption sub-tasks 2.1-2.3: [docs/archive/versions/v0/v0.5.0/plans/routa-harness-adoption.md](../v0.5.0/plans/routa-harness-adoption.md)
 - Specialist files: [assets/specialists/](../../assets/specialists/) (`research.md`, `verification.md`, `planning.md`, `orchestration.md`)
 - Manager implementation: [src/agents/SubAgentManager.ts](../../src/agents/SubAgentManager.ts)
 - Loader implementation: [src/agents/SpecialistLoader.ts](../../src/agents/SpecialistLoader.ts)

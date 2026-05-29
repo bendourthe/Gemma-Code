@@ -18,7 +18,7 @@
  * `HybridRetriever` can be exercised end-to-end in CI without the runtime
  * payload.
  *
- * Adopts agentmemory A2 (see docs/v1.1.0/comparison-agentmemory.md
+ * Adopts agentmemory A2 (see docs/versions/v1/v1.1.0/comparison-agentmemory.md
  * Section 11.2 P1).
  */
 

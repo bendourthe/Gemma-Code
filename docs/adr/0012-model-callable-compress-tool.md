@@ -23,7 +23,7 @@ involvement, no extra inference cost, every step is reproducible. Weaknesses:
   the *next* step actually depends on. Pure deterministic strategies cannot
   inject that knowledge.
 - Comparison-multi-source S5 (S5 = Section 9.3, entry C12 in
-  [docs/v0.7.0/comparison-multi-source.md](../v0.7.0/comparison-multi-source.md))
+  [docs/archive/versions/v0/v0.7.0/comparison-multi-source.md](../v0.7.0/comparison-multi-source.md))
   documents that other agents bridge this gap with a model-callable
   `compress` tool: when the model finishes a sub-task, it issues a
   `compress_range` call covering the messages it knows are no longer needed,
@@ -105,7 +105,7 @@ Concrete changes:
 
 ## Links
 
-- v0.7.0 cycle plan: [docs/v0.7.0/plans/v0.7.0-cycle.md](../v0.7.0/plans/v0.7.0-cycle.md) Phase 3
-- Comparison source: [docs/v0.7.0/comparison-multi-source.md](../v0.7.0/comparison-multi-source.md) Section 9.3 entries C12 / C13 / C14 / C15 / C16
+- v0.7.0 cycle plan: [docs/archive/versions/v0/v0.7.0/plans/v0.7.0-cycle.md](../v0.7.0/plans/v0.7.0-cycle.md) Phase 3
+- Comparison source: [docs/archive/versions/v0/v0.7.0/comparison-multi-source.md](../v0.7.0/comparison-multi-source.md) Section 9.3 entries C12 / C13 / C14 / C15 / C16
 - Prior compaction ADR: [docs/adr/0003-compaction-strategy-ordering.md](0003-compaction-strategy-ordering.md)
 - Tool permission tiers: [docs/adr/0005-tool-permission-tiers.md](0005-tool-permission-tiers.md)

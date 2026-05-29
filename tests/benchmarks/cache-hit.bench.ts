@@ -3,7 +3,7 @@
  *
  * Phase 4 (v0.5.0) -- ToolOutputCache lookup latency.
  *
- * Targets (from docs/v0.5.0/plans/implementation-plan.md):
+ * Targets (from docs/archive/versions/v0/v0.5.0/plans/implementation-plan.md):
  *   - p99 < 1 ms for a hit on a populated cache
  *   - p99 < 0.5 ms for a miss on a populated cache
  *

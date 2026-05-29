@@ -9,7 +9,7 @@ end-to-end in CI without a CUDA host.
 The plan locates this file at `runtimes/diffusion/tests/test_sana_video.py`,
 but the project's Python tests live under `tests/python/diffusion/`
 (matches [test_video_base.py]). The deviation is documented in
-docs/v1.1.0/known-gaps.md under the Phase 13 closures.
+docs/versions/v1/v1.1.0/known-gaps.md under the Phase 13 closures.
 """
 
 from __future__ import annotations

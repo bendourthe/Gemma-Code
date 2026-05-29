@@ -48,7 +48,7 @@ Adopt four memory layers, each backed by its own SQLite database file under `<wo
 
 ## Links
 
-- v0.3.0 implementation plan (memory layers): [docs/v0.3.0/implementation-plan.md](../v0.3.0/implementation-plan.md)
-- v0.5.0 Phase 7 (memory hygiene + corroboration): [docs/v0.5.0/plans/memory-hygiene.md](../v0.5.0/plans/memory-hygiene.md)
-- v0.5.0 architecture overview: [docs/v0.5.0/architecture.md](../v0.5.0/architecture.md) (if present)
-- Comparison source for the consolidation rule: [docs/v0.5.0/comparison/comparison-foundry-vault.md](../v0.5.0/comparison/comparison-foundry-vault.md)
+- v0.3.0 implementation plan (memory layers): [docs/archive/versions/v0/v0.3.0/implementation-plan.md](../v0.3.0/implementation-plan.md)
+- v0.5.0 Phase 7 (memory hygiene + corroboration): [docs/archive/versions/v0/v0.5.0/plans/memory-hygiene.md](../v0.5.0/plans/memory-hygiene.md)
+- v0.5.0 architecture overview: [docs/archive/versions/v0/v0.5.0/architecture.md](../v0.5.0/architecture.md) (if present)
+- Comparison source for the consolidation rule: [docs/archive/versions/v0/v0.5.0/comparison/comparison-foundry-vault.md](../v0.5.0/comparison/comparison-foundry-vault.md)

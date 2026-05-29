@@ -41,7 +41,7 @@
 
 ## v0.2.0 — Planned (local Claude Code equivalent)
 
-Full plan: `docs/v0.2.0/development/implementation-plan.md`
+Full plan: `docs/archive/versions/v0/v0.2.0/development/implementation-plan.md`
 
 ### Phase 0 — Gemma 4 Native Protocol Migration
 - [x] Create `src/tools/Gemma4ToolFormat.ts` (tool declaration serializer, tool call parser, result formatter)
@@ -103,7 +103,7 @@ Full plan: `docs/v0.2.0/development/implementation-plan.md`
 
 ## v0.3.0 — Harness Engineering Infrastructure
 
-Full plan: `docs/v0.3.0/implementation-plan.md`
+Full plan: `docs/archive/versions/v0/v0.3.0/implementation-plan.md`
 
 ### Phase 1 — GPU Detection & Hardware-Aware Foundation [COMPLETED]
 - [x] GPU/VRAM detection service (nvidia-smi, rocm-smi, system_profiler, WMI fallbacks)
@@ -218,7 +218,7 @@ Full plan: `docs/v0.3.0/implementation-plan.md`
 
 ## v0.4.0 — Code Review Remediation
 
-Driven by [docs/v0.3.0/review.md](v0.3.0/review.md) (129 findings: 14 P0, 46 P1, 42 P2, 27 P3). Plan: [docs/v0.4.0/implementation-plan.md](v0.4.0/implementation-plan.md).
+Driven by [docs/archive/versions/v0/v0.3.0/review.md](archive/versions/v0/v0.3.0/review.md) (129 findings: 14 P0, 46 P1, 42 P2, 27 P3). Plan: [docs/archive/versions/v0/v0.4.0/implementation-plan.md](archive/versions/v0/v0.4.0/implementation-plan.md).
 
 ### Phase 1 — Critical Hotfix (P0 Unblock) [COMPLETED 2026-04-18]
 
@@ -243,19 +243,19 @@ All 14 P0 findings closed plus version bump. See [docs/DEVLOG.md](DEVLOG.md) and
 
 ### Phase 2 — Security Hardening [COMPLETED 2026-04-19]
 
-20 non-P0 security findings closed (6 P1 + 9 P2 + 5 P3). 2.2 and 2.13 closed N/A per ADR-0001. See [docs/v0.4.0/development/history/2026-04_phase-2-security-hardening.md](v0.4.0/development/history/2026-04_phase-2-security-hardening.md).
+20 non-P0 security findings closed (6 P1 + 9 P2 + 5 P3). 2.2 and 2.13 closed N/A per ADR-0001. See [docs/archive/versions/v0/v0.4.0/development/history/2026-04_phase-2-security-hardening.md](archive/versions/v0/v0.4.0/development/history/2026-04_phase-2-security-hardening.md).
 
 ### Phase 3 — Correctness & Code Quality [COMPLETED 2026-04-19]
 
-24 findings closed (8 P1 + 10 P2 + 6 P3). See [docs/v0.4.0/development/history/2026-04_phase-3-correctness.md](v0.4.0/development/history/2026-04_phase-3-correctness.md).
+24 findings closed (8 P1 + 10 P2 + 6 P3). See [docs/archive/versions/v0/v0.4.0/development/history/2026-04_phase-3-correctness.md](archive/versions/v0/v0.4.0/development/history/2026-04_phase-3-correctness.md).
 
 ### Phase 4 — Performance Optimization [COMPLETED 2026-04-19]
 
-20 findings closed across seven waves; 5 closed N/A. See [docs/v0.4.0/development/history/2026-04_phase-4-performance.md](v0.4.0/development/history/2026-04_phase-4-performance.md).
+20 findings closed across seven waves; 5 closed N/A. See [docs/archive/versions/v0/v0.4.0/development/history/2026-04_phase-4-performance.md](archive/versions/v0/v0.4.0/development/history/2026-04_phase-4-performance.md).
 
 ### Phase 5 — Testing Pipeline Completeness [COMPLETED 2026-04-19]
 
-22 findings closed; 2 closed N/A. 1166 Vitest cases at 89.07% line / 82.78% branch coverage. See [docs/v0.4.0/development/history/2026-04_phase-5-testing-pipeline.md](v0.4.0/development/history/2026-04_phase-5-testing-pipeline.md).
+22 findings closed; 2 closed N/A. 1166 Vitest cases at 89.07% line / 82.78% branch coverage. See [docs/archive/versions/v0/v0.4.0/development/history/2026-04_phase-5-testing-pipeline.md](archive/versions/v0/v0.4.0/development/history/2026-04_phase-5-testing-pipeline.md).
 
 ### Phase 6 — Restructuring (Architecture) [COMPLETED 2026-04-24]
 
@@ -287,7 +287,7 @@ All 14 P0 findings closed plus version bump. See [docs/DEVLOG.md](DEVLOG.md) and
 
 ## v0.5.0 — Unified Adoption Release [SHIPPED 2026-04-26]
 
-12-phase consolidation cycle adopting five external comparisons (Claude Code, Routa, Foundry Vault, Token Optimizer MCP, agent-friendly CLI rubric). All phases landed; tag `v0.5.4` cut. Plan: [docs/v0.5.0/plans/implementation-plan.md](v0.5.0/plans/implementation-plan.md). Architecture: [docs/v0.5.0/architecture.md](v0.5.0/architecture.md).
+12-phase consolidation cycle adopting five external comparisons (Claude Code, Routa, Foundry Vault, Token Optimizer MCP, agent-friendly CLI rubric). All phases landed; tag `v0.5.4` cut. Plan: [docs/archive/versions/v0/v0.5.0/plans/implementation-plan.md](archive/versions/v0/v0.5.0/plans/implementation-plan.md). Architecture: [docs/archive/versions/v0/v0.5.0/architecture.md](archive/versions/v0/v0.5.0/architecture.md).
 
 - [x] Phase 1 — Identity & Naming (AGENTS.md canonical; CLAUDE.md removed)
 - [x] Phase 2 — Tool Surface Hardening (max_bytes, range_start/end, next_offset)
@@ -306,11 +306,11 @@ All 14 P0 findings closed plus version bump. See [docs/DEVLOG.md](DEVLOG.md) and
 
 ## v0.6.0 — Review-Driven Cycle [IN PROGRESS]
 
-Hygiene/ratchet cycle closing the v0.6.0 review pass (1 P0, 6 P1, 9 P2, 11 P3). No new product surface; pays down v0.5.0 technical debt. Plan: [docs/v0.6.0/plans/v0.6.0-cycle.md](v0.6.0/plans/v0.6.0-cycle.md).
+Hygiene/ratchet cycle closing the v0.6.0 review pass (1 P0, 6 P1, 9 P2, 11 P3). No new product surface; pays down v0.5.0 technical debt. Plan: [docs/archive/versions/v0/v0.6.0/plans/v0.6.0-cycle.md](archive/versions/v0/v0.6.0/plans/v0.6.0-cycle.md).
 
 ### Phase 1 — Security chain closure [COMPLETED 2026-04-26]
 
-Closes pen-test F-001, F-003, F-004; both legs of Attack Path A refuse the operation. See [docs/v0.6.0/development/history/2026-04_phase-1-security-chain-closure.md](v0.6.0/development/history/2026-04_phase-1-security-chain-closure.md).
+Closes pen-test F-001, F-003, F-004; both legs of Attack Path A refuse the operation. See [docs/archive/versions/v0/v0.6.0/development/history/2026-04_phase-1-security-chain-closure.md](archive/versions/v0/v0.6.0/development/history/2026-04_phase-1-security-chain-closure.md).
 
 - [x] 1.1 Unify path resolution behind realpath-aware `pathGuard.resolveInsideWorkspace` (with ancestor walk for non-existent leaves) + 7-tool symlink regression test
 - [x] 1.2 Clamp `permissionOverrides` so confirmation-tier tools cannot drop to AUTO_APPROVE (with logger warning + dedupe)
@@ -323,7 +323,7 @@ Closes pen-test F-001, F-003, F-004; both legs of Attack Path A refuse the opera
 
 ### Phase 5 — Doc/code drift + dead-code cleanup [COMPLETED 2026-05-03]
 
-Closes pen-test F-007, F-008, F-014; known-gaps 4.2, 4.3, 5.1, 5.3, 5.4, sections 8 + 9.7; codebase-review #4, #7, #13, #20. See [docs/v0.6.0/development/history/2026-05_phase-5-doc-code-drift.md](v0.6.0/development/history/2026-05_phase-5-doc-code-drift.md).
+Closes pen-test F-007, F-008, F-014; known-gaps 4.2, 4.3, 5.1, 5.3, 5.4, sections 8 + 9.7; codebase-review #4, #7, #13, #20. See [docs/archive/versions/v0/v0.6.0/development/history/2026-05_phase-5-doc-code-drift.md](archive/versions/v0/v0.6.0/development/history/2026-05_phase-5-doc-code-drift.md).
 
 - [x] 5.1 Decide PredictiveCache: deleted (Option B). Hard constraint #1 forbids new product surface; setting was unwired; bench measured latency, not hit-rate.
 - [x] 5.2 Decide threshold elevation: implemented (Option A). Per-row provenance threshold in `searchByEmbedding`; `gemma-code.ollamaEmbeddingThreshold` (0.85) + `gemma-code.heuristicEmbeddingThreshold` (0.95) settings; 3 real heuristic-fallback tests replace the `it.todo`.
@@ -335,7 +335,7 @@ Closes pen-test F-007, F-008, F-014; known-gaps 4.2, 4.3, 5.1, 5.3, 5.4, section
 
 ### Phase 6 — Panel decomposition [COMPLETED 2026-05-03]
 
-Closes codebase-review #2, #3, #16 (deferred), #23. See [docs/v0.6.0/development/history/2026-05_phase-6-panel-decomposition.md](v0.6.0/development/history/2026-05_phase-6-panel-decomposition.md).
+Closes codebase-review #2, #3, #16 (deferred), #23. See [docs/archive/versions/v0/v0.6.0/development/history/2026-05_phase-6-panel-decomposition.md](archive/versions/v0/v0.6.0/development/history/2026-05_phase-6-panel-decomposition.md).
 
 - [x] 6.1 Extract `ChatController.ts` (agent-loop wiring + slash-command dispatch composition). Routes `submitUserMessage`, `cancelInFlight`, `approveStep`, plan detection, and pre-prompt memory injection. Tests: 12 cases, 90% coverage.
 - [x] 6.2 Extract `ChatWebviewHost.ts` (sidebar view + editor panel + postMessage routing + focus tracking). Tests: 7 cases, 99% coverage.
@@ -353,7 +353,7 @@ Closes codebase-review #2, #3, #16 (deferred), #23. See [docs/v0.6.0/development
 
 ## v0.7.0 — Multi-Source Adoption Cycle [IN PROGRESS]
 
-Phased adoption of comparison-multi-source findings across skills, memory architecture, compaction, render protocol, and per-model context overrides. Plan: [docs/v0.7.0/plans/v0.7.0-cycle.md](v0.7.0/plans/v0.7.0-cycle.md).
+Phased adoption of comparison-multi-source findings across skills, memory architecture, compaction, render protocol, and per-model context overrides. Plan: [docs/archive/versions/v0/v0.7.0/plans/v0.7.0-cycle.md](archive/versions/v0/v0.7.0/plans/v0.7.0-cycle.md).
 
 ### Phase 0 — Close-out + carryovers [COMPLETED 2026-05-05]
 ### Phase 1 — Skill expansion (zero-code first) [COMPLETED 2026-05-05]
@@ -374,7 +374,7 @@ Adopts C12 / C13 / C14 / C15 / C16. Adds two deterministic strategies (deduplica
 
 ### Phase 4 — Webview render protocol expansion [COMPLETED 2026-05-06]
 
-Adopt the seven Claude-Code-style chat-UI primitives (S7 / C21-C27): inline diff cards, action-type tags, numbered permission prompts, structured todo blocks, "Thought for Ns" meta-rows, queued-message fields, and end-of-task completion reports. History: [docs/v0.7.0/development/history/2026-05_phase-4-webview-render-protocol.md](v0.7.0/development/history/2026-05_phase-4-webview-render-protocol.md).
+Adopt the seven Claude-Code-style chat-UI primitives (S7 / C21-C27): inline diff cards, action-type tags, numbered permission prompts, structured todo blocks, "Thought for Ns" meta-rows, queued-message fields, and end-of-task completion reports. History: [docs/archive/versions/v0/v0.7.0/development/history/2026-05_phase-4-webview-render-protocol.md](archive/versions/v0/v0.7.0/development/history/2026-05_phase-4-webview-render-protocol.md).
 
 - [x] 4.1 Inline diff card (`src/panels/webview/render/diffCard.ts` + 6 tests)
 - [x] 4.2 Action-type tag (`src/panels/webview/render/actionTag.ts` + 10 tests)
@@ -389,7 +389,7 @@ Adopt the seven Claude-Code-style chat-UI primitives (S7 / C21-C27): inline diff
 
 ### Phase 5 — Memory commands + manual memory page UI + per-model context limits [COMPLETED 2026-05-07]
 
-Polish the memory experience: complete `/memory` slash-command surface, ship a sidebar `MemoryPanel` webview, and confirm the per-model context-limit override is wired. Plan: [docs/v0.7.0/plans/v0.7.0-cycle.md](v0.7.0/plans/v0.7.0-cycle.md) Phase 5.
+Polish the memory experience: complete `/memory` slash-command surface, ship a sidebar `MemoryPanel` webview, and confirm the per-model context-limit override is wired. Plan: [docs/archive/versions/v0/v0.7.0/plans/v0.7.0-cycle.md](archive/versions/v0/v0.7.0/plans/v0.7.0-cycle.md) Phase 5.
 
 - [x] 5.1 `/memory forget`, `/memory export`, `/memory import` slash commands (extends `ChatCommandHandlers.dispatch("memory", ...)`; new helpers `parseForgetArgs`, `parseImportArgs`, `forgetMatchingSqlRows`; new `MemoryStore.deleteById`; 13 cases + 4 parser cases in `tests/unit/panels/ChatCommandHandlers.test.ts`)
 - [x] 5.2 MemoryPanel webview tab (`src/panels/MemoryPanel.ts`, `src/panels/webview/memoryView.ts`, view registered in `package.json`, wired in `src/extension.ts` via `chatPanel.getMemoryFiles()` / `chatPanel.getMemoryStore()`; 13 cases in `tests/unit/panels/MemoryPanel.test.ts`)

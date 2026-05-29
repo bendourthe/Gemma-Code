@@ -39,7 +39,7 @@ The MemoryPanel webview message shape (`MemorySnapshotMessage.sqlMemories`) gain
 
 ## Links
 
-- Comparison report: `docs/v0.7.0/comparison-multi-source-v2.md` Section 5a items A5 + A6.
+- Comparison report: `docs/archive/versions/v0/v0.7.0/comparison-multi-source-v2.md` Section 5a items A5 + A6.
 - Predecessor: `docs/adr/0002-memory-subsystem-layering.md` (the layered memory architecture HNSW fits into).
-- Plan reference: `docs/v0.8.0/plans/v0.8.0-cycle.md` sub-task 4.6.
+- Plan reference: `docs/archive/versions/v0/v0.8.0/plans/v0.8.0-cycle.md` sub-task 4.6.
 - Reciprocal Rank Fusion paper: Cormack, Clarke, Buettcher (2009).

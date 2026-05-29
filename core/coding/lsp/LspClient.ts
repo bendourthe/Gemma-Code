@@ -25,7 +25,7 @@
  *     and the two MCP tools degrade to a structured "lsp server missing"
  *     error rather than silently falling back to grep.
  *
- * DEVIATION (logged in `docs/v1.2.0/known-gaps.md`): the plan prompt
+ * DEVIATION (logged in `docs/versions/v1/v1.2.0/known-gaps.md`): the plan prompt
  * lists `typescript-language-server`, `pylsp`, and `rust-analyzer`. The
  * runtime resolution uses `which`-style PATH lookup; we never bundle an
  * LSP server binary because the installer policy is no-network at

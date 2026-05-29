@@ -58,6 +58,6 @@ Classify every tool into one of three permission tiers. The tier determines whet
 - Confirmation gate: [src/tools/ConfirmationGate.ts](../../src/tools/ConfirmationGate.ts)
 - Action classifier: [src/guardrails/ActionClassifier.ts](../../src/guardrails/ActionClassifier.ts)
 - Terminal allowlist: [src/tools/handlers/terminal.ts](../../src/tools/handlers/terminal.ts) (`isAllowlisted`)
-- v0.5.0 Phase 1 hook: routa adoption sub-task 1.1 in [docs/v0.5.0/plans/routa-harness-adoption.md](../v0.5.0/plans/routa-harness-adoption.md)
+- v0.5.0 Phase 1 hook: routa adoption sub-task 1.1 in [docs/archive/versions/v0/v0.5.0/plans/routa-harness-adoption.md](../v0.5.0/plans/routa-harness-adoption.md)
 - Hook benchmark: [tests/benchmarks/hooks.bench.ts](../../tests/benchmarks/hooks.bench.ts)
 - Sub-agent interaction: [ADR-0004](./0004-sub-agent-isolation-contract.md)
