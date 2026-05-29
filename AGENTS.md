@@ -31,6 +31,11 @@ core/                       v1.0.0 shared-core surfaces (Phase 2.3 + 2.6)
   telemetry/TelemetryBus.ts  in-process pub/sub (GPU + module events)
   skills/SkillCatalog.ts     skills: list / load / hot-reload
   storage/                   ~/.nexus/ paths + StorageMigration (Phase 2.2)
+  observability/             CommandCompressor (v1.2.0 Phase 2) + redactSecrets
+  codegraph/                 SQLite + FTS5 symbol/call-edge graph plus 8-tool
+                              in-process MCP server (v1.2.0 Phase 3); Coding
+                              pillar prefers `codegraph_*` over grep for
+                              symbol queries
 
 modules/                    per-pillar code (one folder per pillar)
   coding/                    Agentic AI Coding (engine still in src/ during the

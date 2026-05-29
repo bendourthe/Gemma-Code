@@ -28,6 +28,7 @@ import type { ToolOutputCache } from "../storage/ToolOutputCache.js";
 import type { WebResponseCache } from "./handlers/webCache.js";
 import type { EditMode } from "./types.js";
 import type { PostMessageFn } from "../chat/StreamingPipeline.js";
+import type { CodeGraphHandlerDeps } from "./handlers/codegraph.js";
 
 export interface ToolRegistryBuildOptions {
   readonly gate: ConfirmationGate;
@@ -55,6 +56,13 @@ export interface ToolRegistryBuildOptions {
     readonly state: TodoState;
     readonly post: PostMessageFn;
   };
+  /**
+   * v1.2.0 Phase 3.5: optional wiring for the 8 `codegraph_*` tools. When
+   * supplied, the tools are registered lazily so the SQLite store + scanner
+   * are only constructed on first invocation. Omit to keep the codegraph
+   * surface disabled (e.g. on a fresh checkout that has not yet indexed).
+   */
+  readonly codegraph?: CodeGraphHandlerDeps;
 }
 
 /**
@@ -125,6 +133,48 @@ export function buildToolRegistry(opts: ToolRegistryBuildOptions): ToolRegistry 
       "update_todos",
       new UpdateTodosTool(opts.todos.state, opts.todos.post),
     );
+  }
+
+  if (opts.codegraph) {
+    const deps = opts.codegraph;
+    // Tier `auto-approve`: codegraph tools are read-only over a local SQLite
+    // file and never touch the network or the working tree.
+    registry.registerLazy("codegraph_search", async () => {
+      const mod = await import("./handlers/codegraph.js");
+      return new mod.CodeGraphSearchTool(deps);
+    });
+    registry.registerLazy("codegraph_context", async () => {
+      const mod = await import("./handlers/codegraph.js");
+      return new mod.CodeGraphContextTool(deps);
+    });
+    registry.registerLazy("codegraph_trace", async () => {
+      const mod = await import("./handlers/codegraph.js");
+      return new mod.CodeGraphTraceTool(deps);
+    });
+    registry.registerLazy("codegraph_callers", async () => {
+      const mod = await import("./handlers/codegraph.js");
+      return new mod.CodeGraphCallersTool(deps);
+    });
+    registry.registerLazy("codegraph_callees", async () => {
+      const mod = await import("./handlers/codegraph.js");
+      return new mod.CodeGraphCalleesTool(deps);
+    });
+    registry.registerLazy("codegraph_impact", async () => {
+      const mod = await import("./handlers/codegraph.js");
+      return new mod.CodeGraphImpactTool(deps);
+    });
+    registry.registerLazy("codegraph_node", async () => {
+      const mod = await import("./handlers/codegraph.js");
+      return new mod.CodeGraphNodeTool(deps);
+    });
+    registry.registerLazy("codegraph_explore", async () => {
+      const mod = await import("./handlers/codegraph.js");
+      return new mod.CodeGraphExploreTool(deps);
+    });
+    registry.registerLazy("codegraph_files", async () => {
+      const mod = await import("./handlers/codegraph.js");
+      return new mod.CodeGraphFilesTool(deps);
+    });
   }
 
   registry.setConfirmationGate(gate, permissionOverrides, editMode);

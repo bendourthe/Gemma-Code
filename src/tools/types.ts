@@ -13,7 +13,16 @@ export type BuiltinToolName =
   | "grep_output"
   | "compress_range"
   | "compress_message"
-  | "update_todos";
+  | "update_todos"
+  | "codegraph_search"
+  | "codegraph_context"
+  | "codegraph_trace"
+  | "codegraph_callers"
+  | "codegraph_callees"
+  | "codegraph_impact"
+  | "codegraph_node"
+  | "codegraph_explore"
+  | "codegraph_files";
 
 /** Namespaced MCP tool name: `mcp:serverName/toolName`. */
 export type McpToolName = `mcp:${string}`;
@@ -37,6 +46,15 @@ export const BUILTIN_TOOL_NAMES: readonly BuiltinToolName[] = [
   "compress_range",
   "compress_message",
   "update_todos",
+  "codegraph_search",
+  "codegraph_context",
+  "codegraph_trace",
+  "codegraph_callers",
+  "codegraph_callees",
+  "codegraph_impact",
+  "codegraph_node",
+  "codegraph_explore",
+  "codegraph_files",
 ];
 
 /** @deprecated Use BUILTIN_TOOL_NAMES instead. */

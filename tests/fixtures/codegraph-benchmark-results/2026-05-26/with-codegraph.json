@@ -1,0 +1,22 @@
+{
+  "mode": "with-codegraph",
+  "toolCalls": 2,
+  "transcript": [
+    {
+      "step": 1,
+      "tool": "codegraph_callers",
+      "args": {
+        "symbolName": "redactSecrets"
+      },
+      "resultBytes": 662
+    },
+    {
+      "step": 2,
+      "tool": "codegraph_context",
+      "args": {
+        "symbolName": "redactSecrets"
+      },
+      "resultBytes": 858
+    }
+  ]
+}

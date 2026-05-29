@@ -225,4 +225,89 @@ export const TOOL_CATALOG: readonly ToolMetadata[] = [
       },
     },
   },
+  {
+    name: "codegraph_search",
+    description:
+      "Full-text search across indexed code symbols (functions, classes, methods) and their signatures. " +
+      "Prefer this over `grep_codebase` when the question is about a symbol -- it returns precise matches with file paths and line ranges in one call.",
+    parameters: {
+      query: { type: "string", description: "FTS query; bareword tokens get prefix matching.", required: true },
+      limit: { type: "number", description: "Max hits (default 50, ceiling 500)." },
+    },
+  },
+  {
+    name: "codegraph_context",
+    description:
+      "Resolve a symbol by name and return its location plus its direct callers and callees. One call replaces 3-5 grep invocations.",
+    parameters: {
+      symbolName: { type: "string", description: "Symbol name to resolve.", required: true },
+    },
+  },
+  {
+    name: "codegraph_trace",
+    description:
+      "Find a call-path from one symbol to another (bounded by maxDepth). Returns the chain of intermediate symbols.",
+    parameters: {
+      fromSymbol: { type: "string", description: "Starting symbol name.", required: true },
+      toSymbol: { type: "string", description: "Target symbol name.", required: true },
+      maxDepth: { type: "number", description: "Search depth cap (default 5)." },
+    },
+  },
+  {
+    name: "codegraph_callers",
+    description:
+      "List every symbol that calls the named target. Prefer over `grep` for caller-of queries.",
+    parameters: {
+      symbolName: { type: "string", description: "Target symbol name.", required: true },
+    },
+  },
+  {
+    name: "codegraph_callees",
+    description: "List every symbol called from the named source.",
+    parameters: {
+      symbolName: { type: "string", description: "Source symbol name.", required: true },
+    },
+  },
+  {
+    name: "codegraph_impact",
+    description:
+      "Compute the transitive caller closure for a symbol. Use before changing a signature to see the impact radius in one call.",
+    parameters: {
+      symbolName: { type: "string", description: "Target symbol name.", required: true },
+      maxDepth: { type: "number", description: "Transitive closure depth (default 3)." },
+    },
+  },
+  {
+    name: "codegraph_node",
+    description: "Return raw metadata for a named symbol (file path, line range, signature).",
+    parameters: {
+      symbolName: { type: "string", description: "Symbol name to resolve.", required: true },
+    },
+  },
+  {
+    name: "codegraph_explore",
+    description:
+      "Bulk-resolve context bundles for an array of symbol names. Use when you need callers + callees for multiple symbols at once.",
+    parameters: {
+      symbolNames: {
+        type: "array",
+        description: "Array of symbol-name strings.",
+        required: true,
+      },
+    },
+  },
+  {
+    name: "codegraph_files",
+    description:
+      "List every file currently in the code graph (path + language + last-indexed timestamp).",
+    parameters: {
+      // codegraph_files takes no arguments; the placeholder keeps the
+      // catalog invariant ("every entry has at least one parameter")
+      // intact and signals via its description that no input is expected.
+      _noop: {
+        type: "boolean",
+        description: "Unused. Pass nothing; this tool ignores all arguments.",
+      },
+    },
+  },
 ];

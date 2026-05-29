@@ -176,15 +176,23 @@ export function computeToolActivation(
     disable(VERIFICATION_DISABLED, "Verification sub-agent cannot create or delete files");
   }
 
-  // Rule 6: Tool count cap — trim lowest-priority MCP tools when exceeding MAX_TOOL_COUNT.
+  // Rule 6: Tool count cap — trim lowest-priority MCP tools, then trim the
+  // specialized `codegraph_*` built-ins (v1.2.0 Phase 3.5) so the prompt
+  // stays around the 15-tool budget. Core built-ins (read_file, write_file,
+  // grep_codebase, etc.) are never trimmed because the agent depends on
+  // them for the default path.
   const enabledTools = allTools.filter((t) => !disabled.has(t.name));
   if (enabledTools.length > MAX_TOOL_COUNT) {
     const mcpTools = enabledTools
       .filter((t) => t.source === "mcp")
       .sort((a, b) => b.priority - a.priority); // highest priority number = lowest importance
+    const codegraphTools = enabledTools.filter(
+      (t) => t.source !== "mcp" && String(t.name).startsWith("codegraph_"),
+    );
+    const trimCandidates = [...mcpTools, ...codegraphTools];
 
     let toDisable = enabledTools.length - MAX_TOOL_COUNT;
-    for (const tool of mcpTools) {
+    for (const tool of trimCandidates) {
       if (toDisable <= 0) break;
       disable([tool.name], `Exceeds ${MAX_TOOL_COUNT}-tool limit (priority: ${tool.priority})`);
       toDisable--;

@@ -15,6 +15,9 @@ core/                        shared-core surfaces consumed by every pillar
   telemetry/TelemetryBus.ts  in-process pub/sub for GPU + module events
   skills/SkillCatalog.ts     list / load / hot-reload skills
   storage/                   StorageMigration + canonical ~/.nexus/ paths
+  observability/             CommandCompressor (v1.2.0 Phase 2) + redactSecrets
+  codegraph/                 SQLite + FTS5 symbol/call-edge graph and 8-tool
+                              in-process MCP server (v1.2.0 Phase 3)
 
 modules/                     per-pillar code (one folder per generative pillar)
   coding/                    Agentic AI Coding (Phase 2.3 wholesale move pending)
@@ -25,6 +28,25 @@ desktop/                     Tauri shell + Node sidecar (Phase 1)
 scripts/installer/pyqt/      Nexus installer (PyQt5 wizard, renamed from gemma_installer)
 bin/nexus-check.mjs          deterministic-checks CLI (renamed from gemma-check)
 ```
+
+### Code-graph subsystem (v1.2.0 Phase 3)
+
+`core/codegraph/` indexes the working tree into a SQLite + FTS5 graph so the Coding pillar can answer "callers of X", "callees of Y", and "impact radius of Z" via 8 internal MCP tools (`codegraph_search`, `codegraph_context`, `codegraph_trace`, `codegraph_callers`, `codegraph_callees`, `codegraph_impact`, `codegraph_node`, `codegraph_explore`, `codegraph_files`) registered through the in-process `McpHarnessAdapter` defined in [core/coding/McpBridge.ts](core/coding/McpBridge.ts). The data flow is:
+
+```
+RepoScanner ──> SqliteGraphStore (~/.nexus/codegraph/<fp>.db)
+   │             │
+   │             └── FTS5 virtual table over symbol names + signatures
+   │
+   └── Tree walker (.gitignore + .nexusignore + size cap + content hash)
+
+ToolRegistryBuilder ──> CodeGraphToolHandler ──> CodeGraphMcpServer
+                                                    │
+                                                    └── 8 tools, all read-only
+                                                        against SqliteGraphStore
+```
+
+The store runs in WAL mode so the MCP tools' reads never block the scanner's writes. The scanner is regex-based (Tree-sitter upgrade tracked in [docs/v1.2.0/known-gaps.md](docs/v1.2.0/known-gaps.md) `3.3.P2.G`); two-pass extraction (symbols first, edges second) guarantees cross-file call edges land regardless of directory walk order. The server never binds a socket or spawns a child -- it lives entirely inside the Node sidecar process and is reachable only through the in-process adapter contract.
 
 Boundary rule: `core/**` MUST NOT import from `modules/**`; modules MUST NOT import from each other.
 

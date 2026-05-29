@@ -1,0 +1,14 @@
+{
+  "capturedAt": "2026-05-28",
+  "referenceTask": "Find all callers of redactSecrets and assess whether changing its signature would break call sites.",
+  "fixtureRepo": "tests/fixtures/codegraph-benchmark-repo/",
+  "stabilityGate": {
+    "thresholdPercent": 30,
+    "achievedRatioPercent": 28.57,
+    "passed": true
+  },
+  "counts": {
+    "withoutCodegraph": 7,
+    "withCodegraph": 2
+  }
+}

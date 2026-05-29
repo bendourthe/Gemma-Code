@@ -199,6 +199,9 @@ export class PromptBuilder {
     const tools = this._buildToolDeclarations(context);
     if (tools) sections.push(tools);
 
+    const codegraphHint = this._buildCodeGraphPreferenceHint(context);
+    if (codegraphHint) sections.push(codegraphHint);
+
     if (context.isSubAgent) {
       // Sub-agents get only: base + tools + sub-agent directive + thinking (if enabled)
       const thinking = this._buildThinkingModeSection(context);
@@ -333,6 +336,37 @@ export class PromptBuilder {
     };
     this._toolSectionCache.set(cacheKey, section);
     return section;
+  }
+
+  /**
+   * v1.2.0 Phase 3.5 -- nudge the agent toward the `codegraph_*` tools when
+   * they are available so symbol-level questions go through the SQLite-backed
+   * graph instead of spawning a discovery sub-agent that runs grep repeatedly.
+   * Only emitted when at least one codegraph tool is in the enabled set.
+   */
+  private _buildCodeGraphPreferenceHint(
+    context: PromptContext,
+  ): PromptSection | null {
+    const hasCodeGraph = context.enabledTools.some((t) =>
+      String(t.name).startsWith("codegraph_"),
+    );
+    if (!hasCodeGraph) return null;
+    const content =
+      "## Code-graph preference\n" +
+      "Prefer the `codegraph_*` tools over `grep_codebase` / `run_terminal` when the question is about " +
+      "symbol definitions, callers, callees, or impact radius. One `codegraph_callers` call typically replaces " +
+      "3-5 grep invocations and returns precise file paths and line ranges. Fall back to `grep_codebase` only when " +
+      "the codegraph returns no hits (e.g. for free-text within comments or strings, or for files in languages " +
+      "the graph does not index).";
+    return {
+      id: "codegraph-hint",
+      content,
+      priority: 2,
+      // ~50 tokens; emitted only when at least one codegraph tool is in the
+      // enabled set, so it is safe to always include without budget gating.
+      alwaysInclude: true,
+      estimatedTokens: estimateTokens(content),
+    };
   }
 
   /**

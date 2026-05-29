@@ -24,6 +24,18 @@ const TOOL_PERMISSION_MAP: Record<BuiltinToolName, PermissionTier> = {
   compress_range: PermissionTier.AUTO_APPROVE,
   compress_message: PermissionTier.AUTO_APPROVE,
   update_todos: PermissionTier.AUTO_APPROVE,
+  // v1.2.0 Phase 3.5: codegraph_* tools are read-only over a local SQLite
+  // file (no network, no working-tree mutation), so they sit at the
+  // AUTO_APPROVE tier alongside read_file and grep_codebase.
+  codegraph_search: PermissionTier.AUTO_APPROVE,
+  codegraph_context: PermissionTier.AUTO_APPROVE,
+  codegraph_trace: PermissionTier.AUTO_APPROVE,
+  codegraph_callers: PermissionTier.AUTO_APPROVE,
+  codegraph_callees: PermissionTier.AUTO_APPROVE,
+  codegraph_impact: PermissionTier.AUTO_APPROVE,
+  codegraph_node: PermissionTier.AUTO_APPROVE,
+  codegraph_explore: PermissionTier.AUTO_APPROVE,
+  codegraph_files: PermissionTier.AUTO_APPROVE,
 };
 
 /** Baseline tier for any tool, including unknown/MCP tools. */

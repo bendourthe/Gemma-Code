@@ -4,6 +4,45 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-28] v1.2.0 Phase 3 -- Code-Graph MCP Module
+
+### Goal
+
+Ship `core/codegraph/`, a SQLite-backed symbol + call-edge graph plus internal MCP server exposing 8 tools so the Coding pillar can answer "callers of X", "callees of Y", "impact radius of Z" in one tool call instead of spawning discovery sub-agents that scan files repeatedly. Plan reference: [docs/v1.2.0/plans/adoption-ecosystem-2026-05.md](v1.2.0/plans/adoption-ecosystem-2026-05.md) Phase 3. Stability gate: on the reference task "Find all callers of `redactSecrets` and assess whether changing its signature would break call sites", total tool calls with codegraph available must be at most 30% of the grep-shaped baseline.
+
+### What changed
+
+**3.1 Module scaffold.** New tree at [core/codegraph/](../core/codegraph/) with `types.ts` (FileNode, Symbol, CallEdge, SymbolSearchHit, SymbolReference, TracePath, SymbolContext, ImpactReport, ExploreReport, FilesListing), `manifest.ts` (schema version 1.0.0, supported-language list, the authoritative 8 MCP tool names), and three subpackage barrels (`store/index.ts`, `scanner/index.ts`, `mcp/index.ts`) plus a top-level `index.ts` that re-exports the whole public surface. A 4-test scaffold suite at [tests/unit/core/codegraph/scaffold.test.ts](../tests/unit/core/codegraph/scaffold.test.ts) asserts the manifest invariants and that every subpackage class is constructable from the barrel.
+
+**3.2 `core/codegraph/store/SqliteGraphStore.ts`.** Persistence layer on `better-sqlite3` (already a Nexus dep, no new package added). Schema: `files(id, path UNIQUE, language, last_indexed_at, content_hash)` + `symbols(id, file_id, name, kind, line_start, line_end, signature_text)` + `call_edges(caller_symbol_id, callee_symbol_id, line, kind, PK on all four)` + an FTS5 virtual table `symbols_fts(name, signature_text)` with `rowid = symbols.id`. WAL mode + `synchronous = NORMAL` so concurrent reads from the MCP tools never block the scanner's writes. Prepared statements cached on first use to keep the hot path allocation-free. FTS5 insertion indexes both the original name AND a tokenized form (camelCase / snake_case split into lowercased sub-tokens) so a query like `token` matches `validateToken`. A 12-test suite covers all CRUD paths, FTS sub-50ms latency on a 10k-symbol fixture, and cross-process persistence by re-opening the DB after close.
+
+**3.3 `core/codegraph/scanner/RepoScanner.ts`.** Per-language regex matchers for TypeScript / Python / Rust / Go extract symbol declarations (functions, classes, methods, structs, traits, enums, interfaces, type aliases) plus best-effort call-edge extraction (filtered against per-language keyword sets so `if(...)`, `for(...)`, `return(...)` etc. do not become false-positive edges). Two-pass scan: pass 1 upserts symbols across every reindexed file, pass 2 resolves call edges so cross-file edges land regardless of directory walk order. Innermost-symbol selection for the caller resolves "class body contains method body contains call" by choosing the tightest enclosing range. SHA-256 content hash per file short-circuits unchanged-file re-parses. `.gitignore` AND `.nexusignore` honored at scan-entry; default exclusion list (`node_modules`, `.git`, `out`, `dist`, `build`, `target`, `coverage`, `.nyc_output`, `__pycache__`, `.venv`, `venv`). Per-file size cap (default 1 MB) skips outliers. **DEVIATION from plan**: the plan called for Tree-sitter; Nexus does not bundle the four per-language tree-sitter native packages, so a regex-based extractor ships instead. The deviation is documented in [docs/v1.2.0/known-gaps.md](v1.2.0/known-gaps.md) `3.3.P2.G` with the upgrade path. The 8-test suite covers each of the four languages, content-hash short-circuit, `.nexusignore`, size-cap, and file-pruning.
+
+**3.4 `core/codegraph/mcp/CodeGraphMcpServer.ts`.** In-process MCP server implementing `McpHarnessAdapter` from [core/coding/McpBridge.ts](../core/coding/McpBridge.ts) -- never spawns a child, never opens a socket, never binds a port. Exposes the 8 tools the plan enumerates: `codegraph_search` (FTS), `codegraph_context` (definition + callers + callees), `codegraph_trace` (BFS path between two symbols), `codegraph_callers` / `codegraph_callees`, `codegraph_impact` (transitive caller closure), `codegraph_node` (raw metadata), `codegraph_explore` (bulk context), `codegraph_files` (graph contents). Bareword search queries get auto-prefix-matching (`token` -> `token*`) so the agent's natural queries surface symbols with longer names. The 12-test suite drives every tool end-to-end against a seeded graph and asserts the JSON-Schema payload shape, the unknown-tool error path, and missing-required-arg rejections.
+
+**3.5 Coding-pillar agent-loop wiring.** Extended [src/tools/types.ts](../src/tools/types.ts) `BuiltinToolName` with the 9 codegraph tool names. Added 9 catalog entries in [src/tools/ToolCatalog.ts](../src/tools/ToolCatalog.ts). New handler module [src/tools/handlers/codegraph.ts](../src/tools/handlers/codegraph.ts) -- 9 thin per-tool classes that delegate to a shared `CodeGraphMcpServer` via a lazily-resolved `McpHarnessAdapter`. Wired into [src/tools/ToolRegistryBuilder.ts](../src/tools/ToolRegistryBuilder.ts) via `registerLazy` so the SQLite store is only constructed on first invocation. Permission tier `AUTO_APPROVE` for all 9 (read-only against a local DB file; no network, no working-tree mutation). New PromptBuilder section "Code-graph preference" in [src/chat/PromptBuilder.ts](../src/chat/PromptBuilder.ts) emits a one-paragraph hint (`Prefer the codegraph_* tools over grep_codebase / run_terminal when the question is about symbol definitions, callers, callees, or impact radius`) -- only when at least one `codegraph_*` tool is in the enabled set. The 6-test wiring suite in [tests/integration/coding-pillar/codegraph-wiring.test.ts](../tests/integration/coding-pillar/codegraph-wiring.test.ts) proves the registry registration, the catalog entries, end-to-end invocation through the registered handlers, and the system-prompt hint's presence (when codegraph tools are enabled) and absence (when they are not).
+
+**3.5 (cont.) Tool-count cap behavior.** [src/tools/ToolActivationRules.ts](../src/tools/ToolActivationRules.ts) `Rule 6` (15-tool cap) now treats codegraph tools as trimmable after MCP tools but before core built-ins, so an agent loop with a busy external MCP server cannot overflow the 15-tool budget. The trim order is `MCP -> codegraph_* -> (stop)`. Documented as a `DF` entry in known-gaps (`3.5.P3.I`).
+
+**3.6 Stability-gate benchmark.** New fixture repo at [tests/fixtures/codegraph-benchmark-repo/](../tests/fixtures/codegraph-benchmark-repo/) with 5 caller files (`logger.ts`, `audit.ts`, `errorReporter.ts`, `session.ts`, `masker.ts`) plus the definition file `redact.ts`. The benchmark at [tests/integration/codegraph/benchmark.test.ts](../tests/integration/codegraph/benchmark.test.ts) runs the reference task on both paths and persists the transcripts at [tests/fixtures/codegraph-benchmark-results/2026-05-26/](../tests/fixtures/codegraph-benchmark-results/2026-05-26/). Result: with codegraph, 2 tool calls; without, 7 tool calls; ratio ~28.6% -- under the 30% gate.
+
+### Test signals
+
+- `npx vitest run --config configs/vitest.config.ts` -- 3468 passed, 5 skipped, 0 failed (303 files), ~43s
+- `npm run lint` -- clean
+- `npx tsc --noEmit` -- clean
+- 44 new tests across 6 new test files: 4 scaffold + 12 SqliteGraphStore + 8 RepoScanner + 12 CodeGraphMcpServer + 6 coding-pillar wiring + 2 benchmark stability-gate
+
+### Decisions worth keeping
+
+- **Regex over Tree-sitter** -- The plan asked for Tree-sitter but the cost (4 native binding packages, node-gyp toolchain on every dev box) outweighed the precision benefit for Phase 3's stability gate, which is about tool-call count, not symbol-extraction recall. A clean abstraction boundary at `extractSymbols(source, language)` lets a future Tree-sitter pass slot in without consumer changes.
+- **Two-pass scan** -- Pass 1 = symbols across all reindexed files; pass 2 = call edges. The first single-pass implementation missed cross-file edges whose callee was in a not-yet-scanned file; the failing benchmark surfaced it. Documented inline so future maintainers do not regress to single-pass.
+- **AUTO_APPROVE for codegraph tools** -- Reads from a local SQLite file, never mutates the working tree, never opens a socket. Same risk profile as `read_file` / `grep_codebase`.
+- **In-process MCP only** -- The codegraph server intentionally does not expose a stdio or socket transport. This matches the privacy-by-construction stance; an external MCP client cannot reach it. Documented as a `DF` in known-gaps.
+- **Codegraph tools trim before core built-ins** -- When the 15-tool cap fires, the agent's default workflow (read / grep / write / edit) keeps working; only the specialized codegraph surface degrades.
+
+---
+
 ## [2026-05-28] v1.2.0 Phase 2 -- Command-Output Compression
 
 ### Goal

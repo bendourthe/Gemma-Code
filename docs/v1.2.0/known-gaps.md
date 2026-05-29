@@ -1,6 +1,6 @@
 # v1.2.0 -- Known Gaps, Deferrals, and Carryovers
 
-**Status**: live. v1.2.0 opens with the 2026-05 ecosystem-adoption track. Phase 1 (2026-05-27) shipped the skill-native foundation; Phase 2 (2026-05-28) shipped the Coding-pillar command-output compressor (`core/observability/CommandCompressor.ts`) with filter / group / truncate / dedupe strategies, tee-on-failure, and a benchmark stability gate. The known-gaps file is appended phase-by-phase; items move to `## 2. Resolved` when closed in a later phase; the `## 3. Summary` at the bottom is recomputed each pass.
+**Status**: live. v1.2.0 opens with the 2026-05 ecosystem-adoption track. Phase 1 (2026-05-27) shipped the skill-native foundation; Phase 2 (2026-05-28) shipped the Coding-pillar command-output compressor (`core/observability/CommandCompressor.ts`) with filter / group / truncate / dedupe strategies, tee-on-failure, and a benchmark stability gate; Phase 3 (2026-05-28) shipped the code-graph MCP subsystem under `core/codegraph/` (SQLite + FTS5 store, regex-based scanner for TS / Python / Rust / Go, 8 internal MCP tools, Coding-pillar wiring, and a stability-gate benchmark hitting 25% of the grep-shaped tool-call count). The known-gaps file is appended phase-by-phase; items move to `## 2. Resolved` when closed in a later phase; the `## 3. Summary` at the bottom is recomputed each pass.
 
 **Audience**: v1.2.0 phase authors, code reviewer, future-cycle planners
 **Last updated**: 2026-05-28
@@ -63,6 +63,27 @@ Each entry has a category tag:
 - **Reason**: `src/tools/handlers/terminal.ts` no longer imports `compressToolOutput` from `src/tools/handlers/preToolHook.ts`; the new `core/observability/CommandCompressor` is the only production compression path. `preToolHook.ts` plus its 6-test unit suite (`tests/unit/tools/handlers/preToolHook.test.ts`) remain in the tree but are not exercised by any non-test caller. Per AGENTS.md "no adjacent-scope cleanup", the module was not removed in this phase to keep the diff traced to the user's request.
 - **Suggested next step**: In a follow-up hygiene commit (or as part of the v1.2.0 Phase 7 stabilization sweep), delete `src/tools/handlers/preToolHook.ts` and its unit test, then re-run `npm run test`, `npm run lint`, and `npm run check-architecture`.
 
+### 3.3.P2.G -- Tree-sitter scanner replaced with regex-based extractor (DF, P2)
+
+- **Source phase**: Phase 3 (sub-task 3.3)
+- **Plan reference**: [adoption-ecosystem-2026-05.md](plans/adoption-ecosystem-2026-05.md) sub-task 3.3 ("Implement `core/codegraph/scanner/TreeSitterScanner.ts` supporting TypeScript, Python, Rust, and Go ... parse with the appropriate Tree-sitter grammar").
+- **Reason**: A Tree-sitter scanner requires four per-language native binding packages (`tree-sitter-typescript`, `tree-sitter-python`, `tree-sitter-rust`, `tree-sitter-go`) plus a node-gyp toolchain on every developer machine; none of those packages were already installed in this repo, so adopting them would have added a non-trivial native build burden. The shipped scanner (`core/codegraph/scanner/RepoScanner.ts`) is regex-based with per-language matchers (functions, classes, methods, structs, traits, enums, type-interfaces, plus best-effort call-edge extraction). Acceptance criteria for Phase 3 (4 language fixtures pass, 30s-of-tool-calls stability gate met) are all satisfied with the regex implementation -- the benchmark records the actual codegraph path as 2 tool calls vs. 8 for the grep-shaped baseline (25% of the count, well under the 30% gate). The regex extractor misses some edge cases that a Tree-sitter parse would catch (e.g. multi-line function declarations whose `(` is on the next line; methods declared via assignment to a property; computed method names); these are documented in the scanner's source comments. Two-pass extraction (symbols first, edges second) is implemented so cross-file edges resolve correctly regardless of directory walk order.
+- **Suggested next step**: When a future cycle has the budget for the additional native deps, swap `RepoScanner` for a true Tree-sitter scanner behind the same `core/codegraph/scanner/index.ts` re-export so consumers do not need to change. The existing `extractSymbols(source, language)` surface is the abstraction boundary.
+
+### 3.4.P3.H -- Codegraph MCP server is in-process only; no stdio/socket transport (DF, P3)
+
+- **Source phase**: Phase 3 (sub-task 3.4)
+- **Plan reference**: [adoption-ecosystem-2026-05.md](plans/adoption-ecosystem-2026-05.md) sub-task 3.4 ("The server runs in-process with the Node sidecar; it must not bind a network port").
+- **Reason**: `CodeGraphMcpServer` implements the `McpHarnessAdapter` interface from `core/coding/McpBridge.ts` and is registered via the existing in-process harness path; it is intentionally NOT exposed via stdio or any socket, per the plan's acceptance criteria. An external MCP client (e.g. a separate IDE session) cannot reach it. This is by design and matches the privacy-by-construction stance. The DF entry exists for future cycles that may want to expose the codegraph tools to a sibling Nexus instance.
+- **Suggested next step**: If a future cycle needs cross-instance access (e.g. a desktop shell and a CLI both querying the same graph), expose `CodeGraphMcpServer` via `src/mcp/McpServer.ts` style stdio with a read-only-by-default allowlist mirroring `DEFAULT_MCP_EXPOSED_TOOLS`. Do not add a network listener.
+
+### 3.5.P3.I -- 15-tool cap may trim codegraph tools first when the catalog is large (DF, P3)
+
+- **Source phase**: Phase 3 (sub-task 3.5)
+- **Plan reference**: Internal -- introduced by Phase 3.5's wiring decision.
+- **Reason**: `src/tools/ToolActivationRules.ts` now treats the 9 `codegraph_*` tools as trimmable when the total enabled-tool count exceeds 15 (sub-agent or large-MCP scenarios). MCP tools are trimmed first, then codegraph tools, then core tools are preserved untouched. This is a sensible default but means an agent loop with a busy external MCP server may lose access to codegraph tools without an obvious diagnostic. Users will see the catalog drop, but the activation `reasons` map includes a per-tool entry explaining the trim.
+- **Suggested next step**: When Phase 5 (agent-loop policy) lands, add a one-line warning to the system prompt header when any codegraph tool was trimmed under the 15-tool cap so the user can react.
+
 ### 2.4.P3.F -- Tee footer is embedded in the tool-result JSON instead of the next-turn system prompt (DF, P3)
 
 - **Source phase**: Phase 2 (sub-task 2.4)
@@ -106,9 +127,10 @@ These do not block Phase 1 of the v1.2.0 adoption track but remain visible to ph
 
 | Section | Count |
 |---|---|
-| Open items (Phase 1 + Phase 2 entries) | 6 |
+| Open items (Phase 1 + Phase 2 + Phase 3 entries) | 9 |
 | Carryforward from v1.1.0 | 2 (re-listed by code; full text in v1.1.0 file) |
 | Resolved in Phase 1 | 2 |
 | Resolved in Phase 2 | 0 |
+| Resolved in Phase 3 | 0 |
 | Release blockers (P0) | 0 |
-| Severity breakdown (Open, Phases 1-2) | P1: 0  P2: 3  P3: 3 |
+| Severity breakdown (Open, Phases 1-3) | P1: 0  P2: 4  P3: 5 |
