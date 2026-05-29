@@ -22,7 +22,9 @@ export type BuiltinToolName =
   | "codegraph_impact"
   | "codegraph_node"
   | "codegraph_explore"
-  | "codegraph_files";
+  | "codegraph_files"
+  | "lsp_definition"
+  | "lsp_references";
 
 /** Namespaced MCP tool name: `mcp:serverName/toolName`. */
 export type McpToolName = `mcp:${string}`;
@@ -55,6 +57,8 @@ export const BUILTIN_TOOL_NAMES: readonly BuiltinToolName[] = [
   "codegraph_node",
   "codegraph_explore",
   "codegraph_files",
+  "lsp_definition",
+  "lsp_references",
 ];
 
 /** @deprecated Use BUILTIN_TOOL_NAMES instead. */

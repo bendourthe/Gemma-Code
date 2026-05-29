@@ -275,6 +275,21 @@ export class SqliteGraphStore {
     return Object.freeze(rows.map((r) => this._rowToSymbol(r)));
   }
 
+  /**
+   * Delete a single file row by id. Symbols + edges + FTS rows must be
+   * removed first via `deleteCallerEdgesForFile` and
+   * `deleteSymbolsForFile`; this helper does not cascade so the call
+   * sequence remains explicit at every call site (and matches the
+   * transaction-grouping pattern used by `pruneRemovedFiles`).
+   *
+   * Returns the number of rows removed (1 if the id existed, 0 otherwise).
+   */
+  deleteFile(fileId: number): number {
+    this._stmts.deleteFile ??= this._db.prepare(`DELETE FROM files WHERE id = ?`);
+    const info = this._stmts.deleteFile.run(fileId);
+    return Number(info.changes);
+  }
+
   /** Delete every symbol (and its edges / FTS row) for a given file. */
   deleteSymbolsForFile(fileId: number): number {
     this._stmts.deleteSymbolsForFile ??= this._db.prepare(

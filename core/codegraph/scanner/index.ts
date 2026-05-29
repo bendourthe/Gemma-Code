@@ -15,3 +15,10 @@ export {
   type RepoScannerOptions,
   type ScannerSourceProvider,
 } from "./RepoScanner.js";
+
+// v1.2.0 Phase 6.1 -- watcher-driven incremental re-scan adapter.
+export {
+  WatchedRepoScanner,
+  type WatchedRepoScannerOptions,
+  type WatchedReindexSummary,
+} from "./WatchedRepoScanner.js";

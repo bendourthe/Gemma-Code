@@ -29,6 +29,7 @@ import type { WebResponseCache } from "./handlers/webCache.js";
 import type { EditMode } from "./types.js";
 import type { PostMessageFn } from "../chat/StreamingPipeline.js";
 import type { CodeGraphHandlerDeps } from "./handlers/codegraph.js";
+import type { LspHandlerDeps } from "./handlers/lsp.js";
 
 export interface ToolRegistryBuildOptions {
   readonly gate: ConfirmationGate;
@@ -63,6 +64,14 @@ export interface ToolRegistryBuildOptions {
    * surface disabled (e.g. on a fresh checkout that has not yet indexed).
    */
   readonly codegraph?: CodeGraphHandlerDeps;
+  /**
+   * v1.2.0 Phase 6.2: optional wiring for the 2 `lsp_*` tools. When
+   * supplied, the tools are registered lazily so the per-language LSP
+   * child process only spawns on first invocation. Omit to keep LSP
+   * tooling disabled (e.g. when running in a sandbox without the
+   * language servers installed).
+   */
+  readonly lsp?: LspHandlerDeps;
 }
 
 /**
@@ -174,6 +183,23 @@ export function buildToolRegistry(opts: ToolRegistryBuildOptions): ToolRegistry 
     registry.registerLazy("codegraph_files", async () => {
       const mod = await import("./handlers/codegraph.js");
       return new mod.CodeGraphFilesTool(deps);
+    });
+  }
+
+  if (opts.lsp) {
+    const lspDeps = opts.lsp;
+    // Tier `auto-approve`: LSP tools are read-only (definition / references
+    // queries); they never touch the working tree or the network beyond
+    // the localhost stdio channel to the language server. Lazy import so
+    // the JSON-RPC framing layer + child-process wiring stay out of the
+    // boot path for sessions that never invoke an LSP tool.
+    registry.registerLazy("lsp_definition", async () => {
+      const mod = await import("./handlers/lsp.js");
+      return new mod.LspDefinitionTool(lspDeps);
+    });
+    registry.registerLazy("lsp_references", async () => {
+      const mod = await import("./handlers/lsp.js");
+      return new mod.LspReferencesTool(lspDeps);
     });
   }
 

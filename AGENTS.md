@@ -48,6 +48,17 @@ core/                       v1.0.0 shared-core surfaces (Phase 2.3 + 2.6)
   storage/NexusIgnore.ts      shared `.nexusignore` parser (v1.2.0 Phase 5)
   storage/PermissionsDeny.ts  per-tool `.nexus/permissions.deny` parser
                               (v1.2.0 Phase 5)
+  storage/FileWatcher.ts      OS-native file-watcher abstraction with 2s
+                              debounce + `.nexusignore` honoring
+                              (v1.2.0 Phase 6)
+  codegraph/scanner/WatchedRepoScanner.ts
+                              incremental codegraph re-scan driven by
+                              `FileWatcher` (v1.2.0 Phase 6)
+  coding/lsp/LspClient.ts     minimal LSP client (initialize / didOpen /
+                              definition / references) for TS / Python /
+                              Rust over JSON-RPC stdio (v1.2.0 Phase 6)
+  coding/lsp/LspMcpServer.ts  MCP adapter exposing `lsp_definition` and
+                              `lsp_references` tools (v1.2.0 Phase 6)
 
 modules/                    per-pillar code (one folder per pillar)
   coding/                    Agentic AI Coding (engine still in src/ during the

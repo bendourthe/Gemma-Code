@@ -4,6 +4,56 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-28] v1.2.0 Phase 6 -- Re-Partial Integrations
+
+### Goal
+
+Ship the three bounded-scope re-partial items from the [2026-05 ecosystem-adoption plan](v1.2.0/plans/adoption-ecosystem-2026-05.md) Phase 6: lift the file-watching responsibility out of the Phase 3 code-graph scanner into a reusable abstraction; wire a Language Server Protocol client for TS / Python / Rust so the Coding pillar can ask for symbol-precise definitions and references instead of falling back to grep text matches; and ship the desktop-side interactive HTML artifact host with a "Copy as JSON" round-trip that lets users tune values in the rendered output and feed the JSON back into the agent. Stability gate: (a) code-graph re-uses the watcher without behavior change; (b) the LSP-backed references tool returns symbol-precise hits, not text matches; (c) the Tauri shell renders an interactive HTML artifact whose "Copy as JSON" button serialises form state and copies it to the clipboard.
+
+### What changed
+
+**6.1 `core/storage/FileWatcher.ts` + `core/codegraph/scanner/WatchedRepoScanner.ts`.** New shared OS-native file-watcher wrapping Node's built-in `fs.watch` (deviation logged: the plan named `chokidar` but adding it would be a new third-party dep for a re-partial phase -- the public surface picks the chokidar shape so a swap is mechanical later; tracked as known-gaps `6.1.P3.U`). The wrapper exposes `watch(callback)`, `stop()`, `pendingChanges()`, plus a `flushForTest()` test helper. Behavior: 2-second debounce by default; dedup-by-path with delete-supersedes-modify semantics; `.gitignore` + `.nexusignore` honored via the Phase 5.3 shared parser; ignore patterns refreshed before every debounce fire so mid-session `.nexusignore` edits take effect without restarting; Windows backslash paths normalised to forward slashes. The watcher's underlying subscribe impl is dependency-injected so unit tests script native events without touching the real filesystem. The companion `WatchedRepoScanner` at [core/codegraph/scanner/WatchedRepoScanner.ts](../core/codegraph/scanner/WatchedRepoScanner.ts) drives incremental codegraph re-scans: `reindex(changes)` re-extracts symbols for the supplied delta only, uses SHA-256 content-hash skip detection (no-op on same-hash modifies), removes per-file rows on delete, treats missing-file modifies as deletions, and skips files whose extension is not in the codegraph's language map. `SqliteGraphStore` gains a public `deleteFile(fileId)` helper (formerly only reachable via the bulk `pruneRemovedFiles` path) so the watcher can purge a single file row without iterating the whole `files` table. Tests: 9-test FileWatcher unit suite at [tests/unit/storage/FileWatcher.test.ts](../tests/unit/storage/FileWatcher.test.ts); 5-test WatchedRepoScanner integration suite at [tests/integration/codegraph/watched-rescan.test.ts](../tests/integration/codegraph/watched-rescan.test.ts).
+
+**6.2 `core/coding/lsp/LspClient.ts` + `LspMcpServer.ts`.** New JSON-RPC-over-stdio LSP client. The client speaks the minimum LSP subset (initialize -> initialized notification -> didOpen -> definition / references -> shutdown / exit) -- it is not a full LSP client (see known-gaps `6.2.P3.Y`). Per-language servers (`typescript-language-server`, `pylsp`, `rust-analyzer`) launch lazily on first request and are cached for the session; missing binaries surface a structured `ok: false, error: "LSP server for <lang> is not installed ..."` plus a one-shot `onServerMissing` callback (the plan's "installer warns when an LSP binary is missing" requirement). Framing layer: Content-Length-prefixed JSON-RPC with a streaming buffer that drains complete messages; per-request 10s timeout (configurable); stderr capture bounded to 16 KB tail so long sessions do not accumulate unbounded memory. The MCP adapter at [core/coding/lsp/LspMcpServer.ts](../core/coding/lsp/LspMcpServer.ts) exposes exactly two tools (`lsp_definition`, `lsp_references`) under the harness adapter contract from [core/coding/McpBridge.ts](../core/coding/McpBridge.ts); empty `fileContents` is a valid arg (an empty new file still needs `didOpen`). The Coding-pillar tool registry gains lazy wiring at [src/tools/ToolRegistryBuilder.ts](../src/tools/ToolRegistryBuilder.ts) so the JSON-RPC framing + child-process plumbing stay out of the boot path until the first `lsp_*` invocation. New per-tool entries in [src/tools/ToolCatalog.ts](../src/tools/ToolCatalog.ts), `BuiltinToolName` extended in [src/tools/types.ts](../src/tools/types.ts), and tier `AUTO_APPROVE` in [src/guardrails/PermissionTiers.ts](../src/guardrails/PermissionTiers.ts) (LSP queries are read-only stdio to a local server -- never network, never working-tree mutation). Tests: 5-test LspClient unit suite at [tests/unit/coding/lsp/LspClient.test.ts](../tests/unit/coding/lsp/LspClient.test.ts) (fake child-process stdin/stdout with scripted JSON-RPC frames; covers framing, lazy init, single + array result normalisation, missing-binary path, request timeout); 7-test LspMcpServer suite at [tests/unit/coding/lsp/LspMcpServer.test.ts](../tests/unit/coding/lsp/LspMcpServer.test.ts) (dispatch + arg validation in isolation from stdio).
+
+**6.3 `desktop/src/components/InteractiveArtifact.tsx`.** New React component for the Tauri shell that renders any HTML payload containing a `<form data-nexus-artifact="true">`, automatically attaches a "Copy as JSON" button, collects form-state on click (numbers via `valueAsNumber`, checkboxes via `checked`, selects honoring `multiple`, radios via the checked option, defaults via `value`), serialises to JSON, copies to the system clipboard, and renders an `aria-live="polite"` confirmation toast that auto-clears after 3s. An optional `transformPayload` prop lets consumers shape the payload before JSON encoding. A `fallbackCopy` path uses the textarea-selection trick when `navigator.clipboard.writeText` is unavailable (sandboxed test runs, restricted webview contexts). Sanitisation: an inline `sanitiseArtifactHtml` (deviation logged: the desktop workspace does not currently include `isomorphic-dompurify`; adding it for one component was deferred -- tracked as known-gaps `6.3.P2.Z`) walks the parsed tree, drops `script` / `iframe` / `object` / `embed` / `link` / `meta` / `base` tags wholesale, removes every `on*` event-handler attribute, and strips `javascript:` URLs from `href` / `src` / `action`. The component carries a scope-creep guard comment: no arbitrary in-app HTML editing, no script execution beyond the wrapper's click handler, no postMessage/iframe interaction with the parent shell. The matching Hub reference template (`interactive-tuning.html`) was already shipped by Phase 1.2 in the sibling Nexus-Hub repository (recorded as known-gaps `6.3.NI.Hub`). Test: 7-test suite at [desktop/tests/InteractiveArtifact.test.tsx](../desktop/tests/InteractiveArtifact.test.tsx) covers render, sanitisation (script/event/javascript: URLs), form-state -> JSON, copy confirmation, missing-form warning, and `transformPayload`.
+
+### Files
+
+- `core/storage/FileWatcher.ts` (NEW)
+- `core/codegraph/scanner/WatchedRepoScanner.ts` (NEW)
+- `core/codegraph/scanner/index.ts` (extended -- re-exports `WatchedRepoScanner`)
+- `core/codegraph/store/SqliteGraphStore.ts` (extended -- public `deleteFile(id)` helper)
+- `core/coding/lsp/LspClient.ts` (NEW)
+- `core/coding/lsp/LspMcpServer.ts` (NEW)
+- `core/coding/lsp/index.ts` (NEW -- barrel)
+- `src/tools/handlers/lsp.ts` (NEW -- Coding-pillar adapters)
+- `src/tools/types.ts` (extended -- `lsp_definition` / `lsp_references` added to the `BuiltinToolName` union + `BUILTIN_TOOL_NAMES` array)
+- `src/tools/ToolCatalog.ts` (extended -- 2 new catalog entries)
+- `src/tools/ToolRegistryBuilder.ts` (extended -- optional `lsp` deps, lazy registration of `lsp_definition` / `lsp_references`)
+- `src/guardrails/PermissionTiers.ts` (extended -- `lsp_definition` / `lsp_references` at `AUTO_APPROVE`)
+- `desktop/src/components/InteractiveArtifact.tsx` (NEW)
+- `tests/unit/storage/FileWatcher.test.ts` (NEW, 9 tests)
+- `tests/integration/codegraph/watched-rescan.test.ts` (NEW, 5 tests)
+- `tests/unit/coding/lsp/LspClient.test.ts` (NEW, 5 tests)
+- `tests/unit/coding/lsp/LspMcpServer.test.ts` (NEW, 7 tests)
+- `tests/unit/tools/ToolCatalog.test.ts` (length assertion bumped 22 -> 24)
+- `desktop/tests/InteractiveArtifact.test.tsx` (NEW, 7 tests)
+
+### Tests
+
+Local suite (main workspace + desktop): main 3631 passed + 1 confirmed flake (`memory-consolidator-large.test.ts` timing; runs green in isolation in 3.1s under no load); desktop 418/418 passed; lint clean; `tsc --noEmit` exits 0; `dep-cruiser` 0 errors (13 pre-existing orphan warnings, none from Phase 6). Coverage: full 80%/75%/80% thresholds hold (Phase 6 unit + integration suites land 33 new tests across the four new source files).
+
+### CI/CD
+
+No CI workflow edits required. The active CI (GitHub Actions, `.github/workflows/ci.yml`) already runs `npm run lint`, `npm run test`, and `npm run build` -- the same commands that pass locally. No new top-level scripts, no new env vars, no new package deps in the main workspace.
+
+### Known gaps
+
+See [docs/v1.2.0/known-gaps.md](v1.2.0/known-gaps.md) Phase 6 entries (`6.1.P3.U` / `6.1.P3.V` / `6.1.P3.W` / `6.2.P2.X` / `6.2.P3.Y` / `6.3.P2.Z` / `6.3.NI.Hub`). The Phase 1 / 2 / 3 / 4 / 5 carryforward items and the v1.1.0 architectural carryforward map remain as recorded -- Phase 6 closes the `6.3.NI.Hub` entry (Hub reference template was already shipped in Phase 1.2).
+
+---
+
 ## [2026-05-28] v1.2.0 Phase 5 -- Agent Loop Policy Enforcement
 
 ### Goal

@@ -36,6 +36,11 @@ const TOOL_PERMISSION_MAP: Record<BuiltinToolName, PermissionTier> = {
   codegraph_node: PermissionTier.AUTO_APPROVE,
   codegraph_explore: PermissionTier.AUTO_APPROVE,
   codegraph_files: PermissionTier.AUTO_APPROVE,
+  // v1.2.0 Phase 6.2: LSP tools are read-only -- they query the local LSP
+  // child process over stdio for definition / references and never mutate
+  // the working tree. AUTO_APPROVE alongside the codegraph surface.
+  lsp_definition: PermissionTier.AUTO_APPROVE,
+  lsp_references: PermissionTier.AUTO_APPROVE,
 };
 
 /** Baseline tier for any tool, including unknown/MCP tools. */

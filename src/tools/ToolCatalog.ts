@@ -310,4 +310,77 @@ export const TOOL_CATALOG: readonly ToolMetadata[] = [
       },
     },
   },
+  // v1.2.0 Phase 6.2 -- LSP-backed symbol queries. Prefer these over
+  // `grep_codebase` (text matches) for TS / Python / Rust when symbol-precise
+  // results matter; the LSP server understands renames, imports, and scopes.
+  // The two tools degrade to a structured "lsp server missing" error when
+  // the language server is not installed (installer-smoke logs the warning).
+  {
+    name: "lsp_definition",
+    description:
+      "Resolve the definition of the symbol at (line, column) in the given file via a Language Server Protocol query. Returns symbol-precise location(s), not text matches. Use when grep would return false positives across overloaded names.",
+    parameters: {
+      language: {
+        type: "string",
+        description: "One of 'typescript', 'python', 'rust'.",
+        required: true,
+      },
+      filePath: {
+        type: "string",
+        description: "Absolute path to the source file on disk.",
+        required: true,
+      },
+      line: {
+        type: "number",
+        description: "Zero-based line index of the symbol use.",
+        required: true,
+      },
+      column: {
+        type: "number",
+        description: "Zero-based column index of the symbol use.",
+        required: true,
+      },
+      fileContents: {
+        type: "string",
+        description: "Current contents of the file (used for LSP didOpen).",
+        required: true,
+      },
+    },
+  },
+  {
+    name: "lsp_references",
+    description:
+      "List references to the symbol at (line, column). Symbol-precise -- excludes text matches that share a name but resolve to a different declaration.",
+    parameters: {
+      language: {
+        type: "string",
+        description: "One of 'typescript', 'python', 'rust'.",
+        required: true,
+      },
+      filePath: {
+        type: "string",
+        description: "Absolute path to the source file on disk.",
+        required: true,
+      },
+      line: {
+        type: "number",
+        description: "Zero-based line index of the symbol use.",
+        required: true,
+      },
+      column: {
+        type: "number",
+        description: "Zero-based column index of the symbol use.",
+        required: true,
+      },
+      fileContents: {
+        type: "string",
+        description: "Current contents of the file (used for LSP didOpen).",
+        required: true,
+      },
+      includeDeclaration: {
+        type: "boolean",
+        description: "If true, include the declaration site in the result list.",
+      },
+    },
+  },
 ];

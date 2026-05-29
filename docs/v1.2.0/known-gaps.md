@@ -1,9 +1,9 @@
 # v1.2.0 -- Known Gaps, Deferrals, and Carryovers
 
-**Status**: live. v1.2.0 opens with the 2026-05 ecosystem-adoption track. Phase 1 (2026-05-27) shipped the skill-native foundation; Phase 2 (2026-05-28) shipped the Coding-pillar command-output compressor (`core/observability/CommandCompressor.ts`) with filter / group / truncate / dedupe strategies, tee-on-failure, and a benchmark stability gate; Phase 3 (2026-05-28) shipped the code-graph MCP subsystem under `core/codegraph/` (SQLite + FTS5 store, regex-based scanner for TS / Python / Rust / Go, 8 internal MCP tools, Coding-pillar wiring, and a stability-gate benchmark hitting 25% of the grep-shaped tool-call count); Phase 4 (2026-05-28) shipped the memory enhancements (AST-aware chunker, LEANN-derived `PrunedDenseIndex`, `MemoryStorageTier` policy gating, and a storage-size benchmark hitting 18.7% of Standard with 100% recall on the 2k-chunk CI fixture); Phase 5 (2026-05-28) shipped the agent-loop policy items (read-only explore sub-agent enforcement at `core/coding/SubAgentPolicy.ts` and wired into `src/agents/SubAgentManager`; path-scoped skills via the new `SkillRecord.pathScope` field plus `matchPathScope` in `core/skills/SkillCatalog.ts`; shared `.nexusignore` parser at `core/storage/NexusIgnore.ts` plus a per-tool `.nexus/permissions.deny` parser at `core/storage/PermissionsDeny.ts`; and the 13th lifecycle hook position `lifecycle.session.reflection` with reference implementation at `core/lifecycle/SessionReflectionHook.ts`). The known-gaps file is appended phase-by-phase; items move to `## 2. Resolved` when closed in a later phase; the `## 3. Summary` at the bottom is recomputed each pass.
+**Status**: live. v1.2.0 opens with the 2026-05 ecosystem-adoption track. Phase 1 (2026-05-27) shipped the skill-native foundation; Phase 2 (2026-05-28) shipped the Coding-pillar command-output compressor (`core/observability/CommandCompressor.ts`) with filter / group / truncate / dedupe strategies, tee-on-failure, and a benchmark stability gate; Phase 3 (2026-05-28) shipped the code-graph MCP subsystem under `core/codegraph/` (SQLite + FTS5 store, regex-based scanner for TS / Python / Rust / Go, 8 internal MCP tools, Coding-pillar wiring, and a stability-gate benchmark hitting 25% of the grep-shaped tool-call count); Phase 4 (2026-05-28) shipped the memory enhancements (AST-aware chunker, LEANN-derived `PrunedDenseIndex`, `MemoryStorageTier` policy gating, and a storage-size benchmark hitting 18.7% of Standard with 100% recall on the 2k-chunk CI fixture); Phase 5 (2026-05-28) shipped the agent-loop policy items (read-only explore sub-agent enforcement at `core/coding/SubAgentPolicy.ts` and wired into `src/agents/SubAgentManager`; path-scoped skills via the new `SkillRecord.pathScope` field plus `matchPathScope` in `core/skills/SkillCatalog.ts`; shared `.nexusignore` parser at `core/storage/NexusIgnore.ts` plus a per-tool `.nexus/permissions.deny` parser at `core/storage/PermissionsDeny.ts`; and the 13th lifecycle hook position `lifecycle.session.reflection` with reference implementation at `core/lifecycle/SessionReflectionHook.ts`); Phase 6 (2026-05-28) shipped the re-partial integrations (OS-native file-watcher abstraction at `core/storage/FileWatcher.ts` plus a `WatchedRepoScanner` adapter that drives incremental codegraph re-scans; LSP client at `core/coding/lsp/LspClient.ts` with `lsp_definition` and `lsp_references` MCP tools wired into the Coding pillar; interactive HTML scaffolding at `desktop/src/components/InteractiveArtifact.tsx` with form-state -> "Copy as JSON" round-trip). The known-gaps file is appended phase-by-phase; items move to `## 2. Resolved` when closed in a later phase; the `## 3. Summary` at the bottom is recomputed each pass.
 
 **Audience**: v1.2.0 phase authors, code reviewer, future-cycle planners
-**Last updated**: 2026-05-28 (Phase 5)
+**Last updated**: 2026-05-28 (Phase 6)
 **Sibling reviews**: [docs/v1.1.0/known-gaps.md](../v1.1.0/known-gaps.md) (the upstream cycle gap log; carryforward open items remain in force during v1.2.0); [docs/v1.2.0/plans/adoption-ecosystem-2026-05.md](plans/adoption-ecosystem-2026-05.md) (the active adoption plan); [docs/v1.2.0/comparison-ecosystem-2026-05.md](comparison-ecosystem-2026-05.md) (the seven-source comparison this cycle's first track adopts).
 
 **Cycle context**: v1.2.0 opens the post-v1.1.0 cycle with the 2026-05 ecosystem-adoption track. Phase 1 (this commit) is skill-native + policy only: two new Nexus-Hub skills (hallmark-design, html-output-conventions, with 4 self-contained HTML reference templates), a new "hooks-over-prompts" Critical Rule and inventory in AGENTS.md, and a 6-month AGENTS.md review cadence. No code surface in `core/` or `modules/` is touched in Phase 1 itself; the two scope expansions this run (sidecar IPC stubs and a desktop strict-null test guard) are recorded under `## 2. Resolved` below. Phases 2-7 of the adoption plan land the code-shaped items (command compression, code-graph MCP, memory enhancements, agent-loop policy, re-partials, stabilization).
@@ -168,6 +168,55 @@ Each entry has a category tag:
 - **Reason**: The 13th lifecycle event `lifecycle.session.reflection` is added to the `HookBus` union; the reference implementation at [core/lifecycle/SessionReflectionHook.ts](../../core/lifecycle/SessionReflectionHook.ts) exports `attachSessionReflectionHook(bus, opts)` and is fully unit-tested. The daemon-side automatic wiring (have the chat session emit the event when the user closes the session, then have the bootstrap call `attachSessionReflectionHook` once at daemon startup) is NOT included in Phase 5: the chat session's `end()` path lives in `src/chat/` and crosses into the v1.1.0 Phase 11 surface that the v1.2.0 cycle's compat window has not yet stabilized. The hook composes cleanly when a caller wires it; the integration test exercises that contract.
 - **Suggested next step**: When the daemon bootstrap path is consolidated (likely during Phase 7 stabilization or in the v1.1.0 carryforward 1.4.P1.B src -> modules/coding move), call `attachSessionReflectionHook(hookBus)` once at session-construction time and emit `lifecycle.session.reflection` from the session-end handler in `core/coding/` (or wherever the session-end lifecycle is consolidated). Until then, the hook only fires when a test or operator wires it explicitly.
 
+### 6.1.P3.U -- FileWatcher wraps `fs.watch` instead of `chokidar` (DF, P3)
+
+- **Source phase**: Phase 6 (sub-task 6.1)
+- **Plan reference**: [adoption-ecosystem-2026-05.md](plans/adoption-ecosystem-2026-05.md) sub-task 6.1 ("Implement `core/storage/FileWatcher.ts` wrapping `chokidar` with a 2-second debounce and `.nexusignore` honoring").
+- **Reason**: The plan prompt names `chokidar` explicitly, but it is not currently a Nexus dependency. The re-partial bucket scope ("extract the watcher abstraction without adding new third-party deps") favored Node's built-in `fs.watch` (with `recursive: true`, available on macOS/Windows since Node 10 and Linux since Node 20). The shipped wrapper at [core/storage/FileWatcher.ts](../../core/storage/FileWatcher.ts) provides the exact public surface the plan requested (`watch`, `stop`, `pendingChanges`); the underlying subscribe impl is the single seam where `chokidar` could swap in later without changing call sites. The 2-second debounce, `.nexusignore` honoring (via the Phase 5.3 shared parser), and last-write-wins dedup are all implemented and unit-tested.
+- **Suggested next step**: If a future cycle finds Node's `fs.watch` insufficient (the documented gap is recursive watching on older Linux kernels without inotify v5.13+), introduce `chokidar` as an opt-in dependency behind a feature flag and point `defaultSubscribe` at it. Tests inject a `subscribe` impl already, so behavior tests stay green.
+
+### 6.1.P3.V -- WatchedRepoScanner reuses `RepoScanner.extractSymbols` (regex extractor) (DF, P3)
+
+- **Source phase**: Phase 6 (sub-task 6.1)
+- **Plan reference**: [adoption-ecosystem-2026-05.md](plans/adoption-ecosystem-2026-05.md) sub-task 6.1 ("Refactor `core/codegraph/scanner/TreeSitterScanner.ts` (Phase 3.3) to use this abstraction").
+- **Reason**: Phase 3.3 deferred the Tree-sitter scanner to a regex-based `RepoScanner` (`core/codegraph/scanner/RepoScanner.ts`), tracked as open item 3.3.P2.G. The Phase 6.1 plan prompt referenced the deferred name; the actual refactor surfaces as the new `WatchedRepoScanner` adapter at [core/codegraph/scanner/WatchedRepoScanner.ts](../../core/codegraph/scanner/WatchedRepoScanner.ts), which consumes `FileWatcher` events and reuses `extractSymbols(source, language)` from `RepoScanner`. The full-scan path at sidecar startup still runs through `RepoScanner.scan`; the watcher only handles the delta after that. Both paths share the same symbol extractor so behavior parity is automatic.
+- **Suggested next step**: When 3.3.P2.G lands, `WatchedRepoScanner` automatically inherits the Tree-sitter upgrade because the `extractSymbols` import is the single abstraction boundary. No code change at this level.
+
+### 6.1.P3.W -- RepoScanner still uses its inline ignore parser; WatchedRepoScanner shares the FileWatcher filter (DF, P3)
+
+- **Source phase**: Phase 6 (sub-task 6.1)
+- **Plan reference**: Implicit -- continuation of 5.3.P3.S.
+- **Reason**: `WatchedRepoScanner` does not parse ignore files itself -- it inherits the `FileWatcher`'s filter, which uses the Phase 5.3 shared `NexusIgnore.ts` module. The legacy `RepoScanner.loadIgnorePatterns` still ships an inline parser; both produce equivalent behavior on the same `.nexusignore` content. Sharing the parser across the full-scan and watcher paths is the closure for 5.3.P3.S.
+- **Suggested next step**: Same as 5.3.P3.S -- in a follow-up hygiene commit, replace `RepoScanner`'s inline ignore parsing with the shared module. Re-run the codegraph + watcher integration tests to confirm parity.
+
+### 6.2.P2.X -- LSP servers require manual installation; no installer bundling (DF, P2)
+
+- **Source phase**: Phase 6 (sub-task 6.2)
+- **Plan reference**: [adoption-ecosystem-2026-05.md](plans/adoption-ecosystem-2026-05.md) sub-task 6.2 ("The installer warns when an LSP binary is missing rather than silently falling back to grep").
+- **Reason**: `LspClient` resolves `typescript-language-server`, `pylsp`, and `rust-analyzer` via the system PATH. None of these binaries are bundled by the Nexus installer (each is its own multi-MB native asset with platform-specific build steps). When a binary is missing, `LspClient.definition` / `references` returns `{ ok: false, error: "LSP server for <lang> is not installed ..." }` and the wrapper invokes the `onServerMissing` callback once per language (the installer-smoke logs surface the warning). The two MCP tools degrade to a structured error, not a silent grep fallback -- the user sees a clear "install the language server" message.
+- **Suggested next step**: When the installer policy is ready to expand the asset list, add per-platform install scripts for each LSP server (e.g. `npm i -g typescript-language-server`, `pipx install python-lsp-server`, `rustup component add rust-analyzer`) and gate them behind opt-in installer prompts. Document the user-side install path in `docs/v1.2.0/development/` until then.
+
+### 6.2.P3.Y -- LSP client implements a minimal subset of LSP, not full protocol (DF, P3)
+
+- **Source phase**: Phase 6 (sub-task 6.2)
+- **Plan reference**: Internal -- introduced by the Phase 6.2 narrow-scope decision.
+- **Reason**: `LspClient` issues `initialize` -> `initialized` (notification) -> `textDocument/didOpen` -> `textDocument/definition` or `textDocument/references` -> `shutdown` / `exit` at teardown. It does NOT support: text-document version sync, code completion, diagnostics subscription, workspace symbols, semantic tokens, or any LSP server-to-client request. The two MCP tools listed in the plan are the only public surface. If a downstream feature needs broader LSP coverage (e.g. "show diagnostics inline"), the client will need substantial expansion (request routing, server-initiated `window/showMessage` handling, document version tracking).
+- **Suggested next step**: Stage broader LSP coverage as a separate phase when the requirement materializes. The JSON-RPC framing + child-process management at the heart of `LspClient` is already factored; new request types are additive.
+
+### 6.3.P2.Z -- Interactive HTML artifact uses a minimal inline sanitiser, not DOMPurify (DF, P2)
+
+- **Source phase**: Phase 6 (sub-task 6.3)
+- **Plan reference**: Implicit -- continuation of the desktop workspace's "no new deps for a re-partial phase" stance.
+- **Reason**: The Coding-pillar markdown renderer in the main workspace uses `isomorphic-dompurify`; the desktop workspace does not currently include that dep. Adding it would expand the desktop bundle for one component. The shipped `InteractiveArtifact` at [desktop/src/components/InteractiveArtifact.tsx](../../desktop/src/components/InteractiveArtifact.tsx) ships an inline `sanitiseArtifactHtml` that strips `<script>`, `<iframe>`, `<object>`, `<embed>`, `<link>`, `<meta>`, `<base>` tags wholesale; removes every attribute starting with `on`; and strips `javascript:` URLs from `href` / `src` / `action`. This is the minimum-surface defence appropriate for content the local agent itself emitted; it is not a full XSS sanitiser for network-sourced HTML.
+- **Suggested next step**: If/when the artifact host needs to render network-sourced HTML (currently out of scope), add `isomorphic-dompurify` to the desktop workspace and switch the sanitiser to delegate. Until then, the inline sanitiser is intentional.
+
+### 6.3.NI.Hub -- Hub reference template `interactive-tuning.html` was shipped in Phase 1.2 (NI -- already resolved)
+
+- **Source phase**: Phase 6 (sub-task 6.3)
+- **Plan reference**: [adoption-ecosystem-2026-05.md](plans/adoption-ecosystem-2026-05.md) sub-task 6.3 ("Add a reference template at `catalog/skills/developer-experience/html-output-conventions/references/interactive-tuning.html` (in Nexus-Hub) demonstrating sliders + checkboxes + a 'copy as JSON' button").
+- **Reason**: Phase 1.2's session history records that the html-output-conventions skill in Nexus-Hub already shipped four reference templates, including `interactive-tuning.html`, when that skill was first imported. The Phase 6.3 prompt repeats the request because it pre-dated the Phase 1.2 implementation. The desktop component shipped in this phase (`InteractiveArtifact.tsx`) is the *consumer* of that template; the template itself already exists in the sibling Nexus-Hub repository.
+- **Suggested next step**: No action required. When [Nexus-Hub](https://github.com/bendourthe/Nexus-Hub) cuts a release tag (see 1.1.P2.A / 1.1.P3.B), `nexus skills sync` will surface the template and the desktop `InteractiveArtifact` will consume it directly.
+
 ### Carryforward map (v1.1.0 -> v1.2.0)
 
 Per the v1.1.0 closure note in [docs/v1.1.0/known-gaps.md](../v1.1.0/known-gaps.md) section header, every "Open" item in that file carries forward into the v1.2.0 cycle by code reference. Architectural items rolling into v1.2.0 are re-listed below by their original v1.1.0 code, with cross-references back; the per-item triage in v1.1.0 stands. No re-ingestion of the entries' bodies is required here -- consult [docs/v1.1.0/known-gaps.md](../v1.1.0/known-gaps.md) for the full text.
@@ -204,12 +253,13 @@ These do not block Phase 1 of the v1.2.0 adoption track but remain visible to ph
 
 | Section | Count |
 |---|---|
-| Open items (Phases 1-5 entries) | 19 |
+| Open items (Phases 1-6 entries) | 26 |
 | Carryforward from v1.1.0 | 2 (re-listed by code; full text in v1.1.0 file) |
 | Resolved in Phase 1 | 2 |
 | Resolved in Phase 2 | 0 |
 | Resolved in Phase 3 | 0 |
 | Resolved in Phase 4 | 0 |
 | Resolved in Phase 5 | 0 |
+| Resolved in Phase 6 | 1 (Hub `interactive-tuning.html` already shipped in Phase 1.2; tagged NI) |
 | Release blockers (P0) | 0 |
-| Severity breakdown (Open, Phases 1-5) | P1: 0  P2: 9  P3: 10 |
+| Severity breakdown (Open, Phases 1-6) | P1: 0  P2: 11  P3: 15 |

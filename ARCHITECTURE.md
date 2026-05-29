@@ -72,6 +72,16 @@ The AST chunker reuses the Phase 3 `extractSymbols()` primitive so a future Tree
 
 The one-way migration script ships as a thin CLI wrapper at [scripts/migrate-dense-index-to-pruned.mjs](scripts/migrate-dense-index-to-pruned.mjs); the testable function lives at [core/memory/migrateDenseToPruned.ts](core/memory/migrateDenseToPruned.ts). Idempotent + backs up the original `DenseIndex` file so rollback is one move.
 
+### Re-partial integrations (v1.2.0 Phase 6)
+
+Three bounded-scope additions from the 2026-05 ecosystem-adoption plan:
+
+1. **File-watcher abstraction at [core/storage/FileWatcher.ts](core/storage/FileWatcher.ts)** wraps Node's built-in `fs.watch` with a 2-second debounce, dedup-by-path (delete-supersedes-modify), and `.nexusignore` / `.gitignore` honoring via the Phase 5.3 shared parser. Patterns refresh before every debounce fire so a mid-session ignore-file edit takes effect without restarting the watcher. The underlying `subscribe` impl is dependency-injected so tests script native events without touching the filesystem. The companion [core/codegraph/scanner/WatchedRepoScanner.ts](core/codegraph/scanner/WatchedRepoScanner.ts) consumes the watcher and re-extracts symbols for the changed delta only, reusing `extractSymbols()` from `RepoScanner.ts`. Full-scan startup remains in `RepoScanner.scan()`; the watcher only handles the delta after that.
+
+2. **LSP client at [core/coding/lsp/LspClient.ts](core/coding/lsp/LspClient.ts)** speaks JSON-RPC over stdio to one of `typescript-language-server`, `pylsp`, or `rust-analyzer`. The minimum LSP subset (initialize -> initialized notification -> didOpen -> definition / references -> shutdown / exit) is intentional -- broader LSP coverage is deferred until a downstream feature needs it (known-gaps `6.2.P3.Y`). Per-language child processes launch lazily on first request and are cached for the session. Missing-binary detection surfaces a structured `ok: false, error: "LSP server for <lang> is not installed ..."` result plus a one-shot `onServerMissing` callback the installer-smoke logs consume. Two MCP tools, `lsp_definition` and `lsp_references`, are wired into the Coding-pillar tool registry via [src/tools/handlers/lsp.ts](src/tools/handlers/lsp.ts) at tier `AUTO_APPROVE` (read-only, never network beyond the localhost stdio channel).
+
+3. **Interactive HTML artifact at [desktop/src/components/InteractiveArtifact.tsx](desktop/src/components/InteractiveArtifact.tsx)** renders any HTML payload containing a `<form data-nexus-artifact="true">`, automatically attaches a "Copy as JSON" button, collects form-state on click (numbers via `valueAsNumber`, checkboxes via `checked`, etc.), serialises to JSON, and copies to the clipboard. Sanitisation is inline (a minimal DOMParser walker that strips `<script>` / `<iframe>` / `<object>` / `<embed>` / `<link>` / `<meta>` / `<base>` tags wholesale, every `on*` attribute, and `javascript:` URLs from `href` / `src` / `action`) rather than importing DOMPurify into the desktop workspace (known-gaps `6.3.P2.Z`). The component is scope-bound to "copy as JSON" round-trips -- no arbitrary in-app HTML editing, no script execution beyond the wrapper's click handler.
+
 Boundary rule: `core/**` MUST NOT import from `modules/**`; modules MUST NOT import from each other.
 
 ## Nexus v1.0.0 (target architecture, in planning)
