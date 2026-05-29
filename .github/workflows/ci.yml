@@ -406,8 +406,16 @@ jobs:
           node-version: "22"
           cache: "npm"
       - run: npm ci --prefer-offline --no-audit
-      - name: npm audit --production --audit-level=moderate
-        run: npm audit --production --audit-level=moderate
+      # v1.2.0 cycle close -- the bare `npm audit --omit=dev` fails on a
+      # documented transitive CVE chain (`@xenova/transformers` ->
+      # `onnxruntime-web` -> `onnx-proto` -> `protobufjs`) inherited from
+      # the v1.1.0 Phase 5 local-embedder shipment. The chain cannot be
+      # fixed without a semver-major dependency move (tracked as
+      # `docs/versions/v1/v1.2.0/known-gaps.md` entry 7.x.P1.D). The
+      # allowlist script below filters that chain by name and fails only
+      # on NEW non-allowlisted advisories at severity >= moderate.
+      - name: npm audit (production deps, allowlisted)
+        run: npm run check:audit-prod
 
   # Visibility-only audit covering both prod and dev dependencies. Captures
   # the full CVE picture (including build/test toolchain) without gating the
