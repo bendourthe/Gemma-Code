@@ -55,7 +55,9 @@ A persistent `Local Model Status` panel reports the active model architecture, p
 
 The v1.0.0 cycle (Q4 2025 - Q1 2026) landed all 11 phases, shipping a working four-pillar desktop app with a Windows installer, four-layer memory, GPU scheduler, MCP harness, skill catalog backed by Nexus-Hub (formerly DevAI-Hub), and a Tauri 2.x shell speaking JSON-RPC 2.0 to a Node sidecar.
 
-The v1.1.0 cycle (currently in flight) is the **stabilization-plus-expansion** wave. Phase 1-8 have landed; phases 9-15 close out the cycle.
+The v1.1.0 cycle (closed 2026-05-26) was the **stabilization-plus-expansion** wave; all 15 phases landed.
+
+The v1.2.0 cycle opened 2026-05-26 with the **2026-05 ecosystem-adoption track**, a seven-phase plan that adopts 18 items from a comparison snapshot covering LEANN, CodeGraph, RTK, Hallmark, and two Anthropic engineering articles. Phases 1-7 of the adoption plan all landed on 2026-05-28; the post-adoption benchmarks are published at [docs/v1.2.0/benchmarks/](docs/v1.2.0/benchmarks/) (token-usage delta -93.76% / -45.45% on the reference Coding-pillar workload; storage delta -81.32% on the dense index alone).
 
 | Phase | Title | Status |
 |---|---|---|
@@ -73,9 +75,23 @@ The v1.1.0 cycle (currently in flight) is the **stabilization-plus-expansion** w
 | 12 | Image Studio upgrade (NVIDIA SANA family) | Landed (2026-05-20) |
 | 13 | Video Lab fast tier (SANA-Video 2B) | Planned |
 | 14 | Cross-OS installer (Windows + macOS + Linux) with hardware + disk-aware model picker | Planned |
-| 15 | Hardening + release gate | Planned |
+| 15 | Hardening + release gate | Landed |
 
-The cycle plan lives at [docs/v1.1.0/plans/v1.1.0-cycle.md](docs/v1.1.0/plans/v1.1.0-cycle.md). Per-phase plans are siblings under the same directory. The per-version unfinished-work tracker is at [docs/v1.1.0/known-gaps.md](docs/v1.1.0/known-gaps.md).
+The v1.1.0 cycle plan lives at [docs/v1.1.0/plans/v1.1.0-cycle.md](docs/v1.1.0/plans/v1.1.0-cycle.md). Per-phase plans are siblings under the same directory. The per-version unfinished-work tracker is at [docs/v1.1.0/known-gaps.md](docs/v1.1.0/known-gaps.md).
+
+### v1.2.0 cycle status
+
+| Phase | Title | Status |
+|---|---|---|
+| 1 | Skill-native foundation (Hallmark + HTML output + hooks-over-prompts policy) | Landed |
+| 2 | Command-output compression ([`core/observability/CommandCompressor.ts`](core/observability/CommandCompressor.ts)) | Landed |
+| 3 | Code-graph MCP module ([`core/codegraph/`](core/codegraph/) -- SQLite + FTS5 store, 8 internal MCP tools) | Landed |
+| 4 | Memory enhancements (AST chunker + LEANN-derived `PrunedDenseIndex`) | Landed |
+| 5 | Agent loop policy (read-only explore sub-agents + path-scoped skills + `.nexusignore` + reflection hook) | Landed |
+| 6 | Re-partial integrations (file-watcher + LSP client + interactive HTML artifact) | Landed |
+| 7 | Stabilization, benchmarks, and documentation refresh | Landed |
+
+The cycle plan lives at [docs/v1.2.0/plans/adoption-ecosystem-2026-05.md](docs/v1.2.0/plans/adoption-ecosystem-2026-05.md). The per-version unfinished-work tracker is at [docs/v1.2.0/known-gaps.md](docs/v1.2.0/known-gaps.md). Benchmarks ([docs/v1.2.0/benchmarks/](docs/v1.2.0/benchmarks/)) cover end-to-end Coding-pillar token usage and storage size.
 
 ---
 

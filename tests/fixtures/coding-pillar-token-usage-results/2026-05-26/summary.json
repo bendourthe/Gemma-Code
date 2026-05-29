@@ -1,0 +1,30 @@
+{
+  "capturedAt": "2026-05-28",
+  "workload": [
+    "Find all callers of redactSecrets",
+    "Run the test suite",
+    "Inspect one failing test",
+    "Propose a fix and edit the file",
+    "Re-run the test suite"
+  ],
+  "fixtureRepo": "tests/fixtures/codegraph-benchmark-repo/",
+  "withoutAdoption": {
+    "tokenBytes": 34430,
+    "toolCalls": 11
+  },
+  "withAdoption": {
+    "tokenBytes": 2147,
+    "toolCalls": 6
+  },
+  "tokenRatio": 0.0624,
+  "tokenRatioPercent": "6.24%",
+  "tokenDeltaPercent": "93.76%",
+  "toolCallRatio": 0.5455,
+  "toolCallRatioPercent": "54.55%",
+  "toolCallDeltaPercent": "45.45%",
+  "stabilityGates": {
+    "tokenRatioMax": 0.7,
+    "toolCallRatioMax": 0.7,
+    "passed": true
+  }
+}

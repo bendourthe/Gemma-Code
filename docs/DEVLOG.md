@@ -4,6 +4,36 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-28] v1.2.0 Phase 7 -- Stabilization, Benchmarks, and Documentation Refresh
+
+### Goal
+
+Close the 2026-05 ecosystem-adoption track by publishing end-to-end benchmarks that quantify the post-adoption impact, refreshing top-level documentation to reflect Phases 2-6's new code, consolidating the per-item adoption ledger in known-gaps, and confirming no regressions. Stability gate: token-usage and storage-size benchmarks published with the >=30% improvement deltas surfaced; README / AGENTS.md / ARCHITECTURE.md aligned with the new subsystems; the adoption ledger covers every plan sub-task; no P0 / P1 regressions outstanding.
+
+### What changed
+
+**7.1 End-to-end token-usage benchmark.** New integration test at [tests/integration/coding-pillar/phase-7-token-usage.test.ts](../tests/integration/coding-pillar/phase-7-token-usage.test.ts) drives a deterministic 5-step Coding-pillar workload ("Find all callers of `redactSecrets` -> run the test suite -> inspect one failing test -> propose a fix and edit the file -> re-run the test suite"). The post-adoption arm runs through the production `CodeGraphMcpServer + SqliteGraphStore + RepoScanner + CommandCompressor` wiring with no mocks; the pre-adoption arm simulates the grep-shaped path the agent would take against a pre-Phase-1 checkout using the same fixture bytes. The plan asked for a literal `git worktree` replay against a tagged pre-Phase-1 checkout, which would require a stable local-model fixture not available in CI -- the deterministic synthesis exercises the same byte-shaping code paths (tracked as known-gaps `7.1.P2.A`). The plan's file-path `tests/benchmarks/coding-pillar-token-usage.ts` was forward-looking; `.bench.ts` files only run under `vitest bench`, so the CI-enforceable integration-test convention from Phases 2.5 + 3.6 + 4.4 was preserved (tracked as `7.x.P3.C`). Published report: [docs/v1.2.0/benchmarks/coding-pillar-token-usage-2026-05-26.md](v1.2.0/benchmarks/coding-pillar-token-usage-2026-05-26.md). Headline numbers: tokens -93.76% (34,430 -> 2,147 bytes), tool calls -45.45% (11 -> 6). The token-side win is dominated by `CommandCompressor.dedupe` collapsing 599 repeated pytest `PASSED` lines into one with an `(xN)` suffix; the tool-call-side win comes from `codegraph_callers + codegraph_context` replacing the grep + per-caller-read sequence on step 1.
+
+**7.2 End-to-end storage-size benchmark (extended scope).** New integration test at [tests/integration/memory-tier/phase-7-storage-size-extended.test.ts](../tests/integration/memory-tier/phase-7-storage-size-extended.test.ts) extends Phase 4.4's dense-only benchmark to the cycle-end aggregate: `DenseIndex` vs `PrunedDenseIndex` on the same 2k-chunk corpus + `Bm25Index` serialized footprint + `SqliteGraphStore` codegraph DB built from the Phase 3 fixture. Both arms see the same BM25 + codegraph bytes; only the dense tier differs. Published report: [docs/v1.2.0/benchmarks/memory-storage-size-2026-05-26.md](v1.2.0/benchmarks/memory-storage-size-2026-05-26.md). Headline numbers: dense-only Pruned/Standard 18.68% (matches Phase 4.4 byte-for-byte), combined 20.58%. The plan's literal path `docs/v1.1.0/benchmarks/...` was a typo from the plan-authoring cycle; published under the active `docs/v1.2.0/benchmarks/` (tracked as `7.x.P3.B`). The CI gate (Pruned dense-only ratio <=20%) carries over from Phase 4.4 and passes at 18.68%.
+
+**7.3 Documentation refresh.** [README.md](../README.md) Project Status section now distinguishes v1.0.0 / v1.1.0 / v1.2.0 cycles and adds a v1.2.0 cycle status table listing all seven phases as Landed. [AGENTS.md](../AGENTS.md) Non-Obvious Tooling gained three new subsections -- "Code-graph MCP (v1.2.0 Phase 3)", "MemoryStorageTier policy (v1.2.0 Phase 4)", "Sub-agent intent restrictions (v1.2.0 Phase 5)" -- each citing the implementing module path so future readers land on the right file. [ARCHITECTURE.md](../ARCHITECTURE.md) replaced the ASCII data-flow diagram for the code-graph subsystem with a Mermaid flowchart showing the full path (repo -> walker -> RepoScanner / WatchedRepoScanner -> SqliteGraphStore -> CodeGraphMcpServer -> CodeGraphToolHandler -> Coding pillar agent loop) and added a new "Stabilization and benchmarks (v1.2.0 Phase 7)" subsection summarising both benchmarks.
+
+**7.4 Adoption ledger.** New `## 0. Adoption Ledger (Phase 7.4)` section at the top of [docs/v1.2.0/known-gaps.md](v1.2.0/known-gaps.md) maps every plan sub-task (1.1 -> 7.5) to its implementing phase, sub-task ID, and current Resolved / Open status. The forward-reference placeholder `1.x.P3.D` (reserved in Phase 1 for this ledger) is moved to `## 2. Resolved` and three new Phase 7 entries are added to `## 1. Open Items`: `7.1.P2.A` (deterministic-synthesis methodology), `7.x.P3.B` (benchmark publish-path deviation), `7.x.P3.C` (benchmark file-path deviation). All P2 / P3; no release blockers. The status header flipped from `live` to `closed`. The Summary table now reads `Open items (Phase 7 entries) | 3`, `Resolved in Phase 7 | 1`, `Severity breakdown (Open, all phases) | P1: 0  P2: 12  P3: 17`.
+
+**7.5 Phase 7 testing and stabilization.** `npm run lint` clean. `npm run test`: 3,629 passed + 5 skipped (320 files). `npm --workspace=@nexus/desktop run test`: 418 / 418 pass. `npm --workspace=@nexus/desktop run typecheck`: 0 errors. One pre-existing Phase 6 lint break surfaced in [desktop/src/components/InteractiveArtifact.tsx](../desktop/src/components/InteractiveArtifact.tsx) -- the `eslint-disable-next-line react/no-danger` directive referenced an unconfigured rule, causing eslint's parity check to fail. The `react/no-danger` rule was never loaded in the desktop config; removed the dead suppression directive (kept the explanatory comment documenting the sanitiser as the trust boundary). Phase 7 final session history at [docs/v1.2.0/development/history/2026-05_phase-7-stabilization-benchmarks.md](v1.2.0/development/history/2026-05_phase-7-stabilization-benchmarks.md) covers Phase 7 specifically; Phases 1-6 each have their own under the same directory.
+
+### Cycle exit signals
+
+* **18 adoption items** from the comparison fully mapped in the ledger.
+* **Tokens**: -93.76% on the reference workload; **tool calls**: -45.45%.
+* **Storage**: -81.32% on the dense index alone (Pruned vs Standard) at 2k chunks.
+* **No P0 / P1 open items** carry forward; 29 open items total (26 from Phases 1-6 + 3 from Phase 7), all P2 (12) or P3 (17).
+* **All gates green**: 3,629 + 418 tests; lint + typecheck + dep-cruiser clean.
+
+The v1.2.0 cycle's first adoption track is complete.
+
+---
+
 ## [2026-05-28] v1.2.0 Phase 6 -- Re-Partial Integrations
 
 ### Goal

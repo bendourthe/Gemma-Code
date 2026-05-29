@@ -106,6 +106,18 @@ Boundary rule (enforced by [`configs/dependency-cruiser.cjs`](configs/dependency
 - The Gemma 4 model must be pulled before first use: `ollama pull gemma4`
 - The VS Code extension communicates with Ollama's local REST API (default: `http://localhost:11434`)
 
+### Code-graph MCP (v1.2.0 Phase 3)
+
+The `core/codegraph/` module ships a SQLite + FTS5 symbol-and-call-edge graph plus an in-process MCP server exposing eight tools (`codegraph_search`, `codegraph_context`, `codegraph_trace`, `codegraph_callers`, `codegraph_callees`, `codegraph_impact`, `codegraph_node`, `codegraph_explore`, plus the file enumerator `codegraph_files`). The Coding pillar's tool-selection prompt is instructed to prefer `codegraph_*` over `grep` / `Bash` for symbol-level questions (callers, callees, impact radius, signature lookup). The server is in-process only and never binds a network port. The graph DB lives at `~/.nexus/codegraph/<repo-fingerprint>.db`; the scanner respects `.gitignore` AND `.nexusignore` (see Phase 5.3 below).
+
+### MemoryStorageTier policy (v1.2.0 Phase 4)
+
+`core/config/MemoryStorageTier.ts` declares two tiers: `Standard` (the existing `DenseIndex`, full float32 embeddings on disk) and `Pruned` (`PrunedDenseIndex`, HNSW-shaped graph + chunk text only, embeddings recomputed on the search path with an in-memory LRU cache). The tier defaults to `Standard` until per-host benchmarks justify the switch; a one-way migration script lives at `scripts/migrate-dense-index-to-pruned.mjs` and is idempotent. The Phase 7.2 cycle-end benchmark shows -81.32% on-disk size for the dense index alone at the 2k-chunk CI scale ([docs/v1.2.0/benchmarks/memory-storage-size-2026-05-26.md](docs/v1.2.0/benchmarks/memory-storage-size-2026-05-26.md)). The tier sits alongside the existing `DiffusionTier` from v1.1.0 Phase 3.
+
+### Sub-agent intent restrictions (v1.2.0 Phase 5)
+
+Sub-agents dispatched with `intent: 'explore'` are restricted to a read-only tool allowlist (Read, Glob, Grep, `codegraph_*`, plus a configurable Bash allowlist of read-only commands). Edit / Write / side-effecting Bash calls from an `explore` sub-agent are rejected at the dispatch layer (`core/coding/SubAgentPolicy.ts`); a linter rule fires when a sub-agent definition declares `intent: 'explore'` while requesting a write tool. The 13th lifecycle hook position `lifecycle.session.reflection` fires once at session end and is wired through `core/lifecycle/SessionReflectionHook.ts`.
+
 ## Communication Style
 
 - Place punctuation outside quotation marks (logical punctuation)

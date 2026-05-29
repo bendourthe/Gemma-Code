@@ -140,10 +140,8 @@ export function InteractiveArtifact({
       <div
         ref={containerRef}
         data-testid="interactive-artifact-body"
-        // Sanitised by DOMPurify above; React's `dangerouslySetInnerHTML`
-        // is the only path for embedding user-authored HTML, and the
-        // sanitiser is the trust boundary.
-        // eslint-disable-next-line react/no-danger
+        // Sanitised by sanitiseArtifactHtml above; the sanitiser is the
+        // trust boundary for embedding agent-authored HTML.
         dangerouslySetInnerHTML={{ __html: sanitisedHtml }}
       />
       <div

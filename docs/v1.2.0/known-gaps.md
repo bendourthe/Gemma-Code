@@ -1,9 +1,9 @@
 # v1.2.0 -- Known Gaps, Deferrals, and Carryovers
 
-**Status**: live. v1.2.0 opens with the 2026-05 ecosystem-adoption track. Phase 1 (2026-05-27) shipped the skill-native foundation; Phase 2 (2026-05-28) shipped the Coding-pillar command-output compressor (`core/observability/CommandCompressor.ts`) with filter / group / truncate / dedupe strategies, tee-on-failure, and a benchmark stability gate; Phase 3 (2026-05-28) shipped the code-graph MCP subsystem under `core/codegraph/` (SQLite + FTS5 store, regex-based scanner for TS / Python / Rust / Go, 8 internal MCP tools, Coding-pillar wiring, and a stability-gate benchmark hitting 25% of the grep-shaped tool-call count); Phase 4 (2026-05-28) shipped the memory enhancements (AST-aware chunker, LEANN-derived `PrunedDenseIndex`, `MemoryStorageTier` policy gating, and a storage-size benchmark hitting 18.7% of Standard with 100% recall on the 2k-chunk CI fixture); Phase 5 (2026-05-28) shipped the agent-loop policy items (read-only explore sub-agent enforcement at `core/coding/SubAgentPolicy.ts` and wired into `src/agents/SubAgentManager`; path-scoped skills via the new `SkillRecord.pathScope` field plus `matchPathScope` in `core/skills/SkillCatalog.ts`; shared `.nexusignore` parser at `core/storage/NexusIgnore.ts` plus a per-tool `.nexus/permissions.deny` parser at `core/storage/PermissionsDeny.ts`; and the 13th lifecycle hook position `lifecycle.session.reflection` with reference implementation at `core/lifecycle/SessionReflectionHook.ts`); Phase 6 (2026-05-28) shipped the re-partial integrations (OS-native file-watcher abstraction at `core/storage/FileWatcher.ts` plus a `WatchedRepoScanner` adapter that drives incremental codegraph re-scans; LSP client at `core/coding/lsp/LspClient.ts` with `lsp_definition` and `lsp_references` MCP tools wired into the Coding pillar; interactive HTML scaffolding at `desktop/src/components/InteractiveArtifact.tsx` with form-state -> "Copy as JSON" round-trip). The known-gaps file is appended phase-by-phase; items move to `## 2. Resolved` when closed in a later phase; the `## 3. Summary` at the bottom is recomputed each pass.
+**Status**: closed. v1.2.0 opens with the 2026-05 ecosystem-adoption track. Phase 1 (2026-05-27) shipped the skill-native foundation; Phase 2 (2026-05-28) shipped the Coding-pillar command-output compressor (`core/observability/CommandCompressor.ts`) with filter / group / truncate / dedupe strategies, tee-on-failure, and a benchmark stability gate; Phase 3 (2026-05-28) shipped the code-graph MCP subsystem under `core/codegraph/` (SQLite + FTS5 store, regex-based scanner for TS / Python / Rust / Go, 8 internal MCP tools, Coding-pillar wiring, and a stability-gate benchmark hitting 25% of the grep-shaped tool-call count); Phase 4 (2026-05-28) shipped the memory enhancements (AST-aware chunker, LEANN-derived `PrunedDenseIndex`, `MemoryStorageTier` policy gating, and a storage-size benchmark hitting 18.7% of Standard with 100% recall on the 2k-chunk CI fixture); Phase 5 (2026-05-28) shipped the agent-loop policy items (read-only explore sub-agent enforcement at `core/coding/SubAgentPolicy.ts` and wired into `src/agents/SubAgentManager`; path-scoped skills via the new `SkillRecord.pathScope` field plus `matchPathScope` in `core/skills/SkillCatalog.ts`; shared `.nexusignore` parser at `core/storage/NexusIgnore.ts` plus a per-tool `.nexus/permissions.deny` parser at `core/storage/PermissionsDeny.ts`; and the 13th lifecycle hook position `lifecycle.session.reflection` with reference implementation at `core/lifecycle/SessionReflectionHook.ts`); Phase 6 (2026-05-28) shipped the re-partial integrations (OS-native file-watcher abstraction at `core/storage/FileWatcher.ts` plus a `WatchedRepoScanner` adapter that drives incremental codegraph re-scans; LSP client at `core/coding/lsp/LspClient.ts` with `lsp_definition` and `lsp_references` MCP tools wired into the Coding pillar; interactive HTML scaffolding at `desktop/src/components/InteractiveArtifact.tsx` with form-state -> "Copy as JSON" round-trip); Phase 7 (2026-05-28) closes the cycle by publishing the end-to-end token-usage benchmark ([docs/v1.2.0/benchmarks/coding-pillar-token-usage-2026-05-26.md](benchmarks/coding-pillar-token-usage-2026-05-26.md), -93.76% tokens / -45.45% tool calls on the reference 5-step Coding-pillar workload), the extended-scope storage benchmark ([docs/v1.2.0/benchmarks/memory-storage-size-2026-05-26.md](benchmarks/memory-storage-size-2026-05-26.md), dense-only -81.32%, combined -79.42%), the documentation refresh in README / AGENTS.md / ARCHITECTURE.md, and this adoption ledger. The known-gaps file is appended phase-by-phase; items move to `## 2. Resolved` when closed in a later phase; the `## 3. Summary` at the bottom is recomputed each pass.
 
 **Audience**: v1.2.0 phase authors, code reviewer, future-cycle planners
-**Last updated**: 2026-05-28 (Phase 6)
+**Last updated**: 2026-05-28 (Phase 7)
 **Sibling reviews**: [docs/v1.1.0/known-gaps.md](../v1.1.0/known-gaps.md) (the upstream cycle gap log; carryforward open items remain in force during v1.2.0); [docs/v1.2.0/plans/adoption-ecosystem-2026-05.md](plans/adoption-ecosystem-2026-05.md) (the active adoption plan); [docs/v1.2.0/comparison-ecosystem-2026-05.md](comparison-ecosystem-2026-05.md) (the seven-source comparison this cycle's first track adopts).
 
 **Cycle context**: v1.2.0 opens the post-v1.1.0 cycle with the 2026-05 ecosystem-adoption track. Phase 1 (this commit) is skill-native + policy only: two new Nexus-Hub skills (hallmark-design, html-output-conventions, with 4 self-contained HTML reference templates), a new "hooks-over-prompts" Critical Rule and inventory in AGENTS.md, and a 6-month AGENTS.md review cadence. No code surface in `core/` or `modules/` is touched in Phase 1 itself; the two scope expansions this run (sidecar IPC stubs and a desktop strict-null test guard) are recorded under `## 2. Resolved` below. Phases 2-7 of the adoption plan land the code-shaped items (command compression, code-graph MCP, memory enhancements, agent-loop policy, re-partials, stabilization).
@@ -23,6 +23,78 @@ Each entry has a category tag:
 - **MT** (missing tests) -- a coverage shortfall
 - **WN** (warning) -- a suppressed lint or runtime warning
 - **QG** (quality gate) -- a Phase 7 gate the cycle author bypassed with "Proceed anyway"
+
+---
+
+## 0. Adoption Ledger (Phase 7.4)
+
+This is the per-item closure ledger for the 2026-05 ecosystem-adoption plan. Each of the plan's sub-tasks (the unit of execution; the comparison's 18 "adoption items" map onto these 19 sub-tasks plus 4 stabilization tasks) is listed below with its implementing phase, sub-task ID, and current status. Open items keep their full body in `## 1. Open Items`; resolved items reference the closing phase but do not duplicate the per-task summary.
+
+### Skill-native (Phase 1)
+
+| Plan sub-task | Item | Status | Closing reference |
+|---|---|---|---|
+| 1.1 | Import Hallmark as a Nexus-Hub skill (comparison item 38, P0) | Resolved | Phase 1 (2026-05-27); Hub catalog index rebuild deferred per `1.1.P2.A` |
+| 1.2 | HTML-output convention skill (comparison item 39, P0) | Resolved | Phase 1 (2026-05-27); upstream release pending per `1.1.P3.B` |
+| 1.3 | Hooks-over-prompts policy + inventory (comparison item 21, P1) | Resolved | Phase 1 (2026-05-27); migrations deferred to Phase 5 per `1.3.P2.C` |
+| 1.4 | AGENTS.md 6-month review cadence (comparison item 20, P2) | Resolved | Phase 1 (2026-05-27) |
+
+### Command-output compression (Phase 2)
+
+| Plan sub-task | Item | Status | Closing reference |
+|---|---|---|---|
+| 2.1 | `CommandCompressor` scaffold (comparison item 25, P0) | Resolved | Phase 2 (2026-05-28) |
+| 2.2 | Four compression strategies: filter / group / truncate / dedupe (comparison item 26, P0) | Resolved | Phase 2 (2026-05-28) |
+| 2.3 | Tee-on-failure with 14-day retention (comparison item 27, P0) | Resolved | Phase 2 (2026-05-28) |
+| 2.4 | Coding-pillar Bash wiring (comparison item 28, P0) | Resolved | Phase 2 (2026-05-28); dead-code cleanup pending per `2.4.P2.E`; tee footer routed through tool-result JSON per `2.4.P3.F` |
+
+### Code-graph MCP (Phase 3)
+
+| Plan sub-task | Item | Status | Closing reference |
+|---|---|---|---|
+| 3.1 | Module scaffolding under `core/codegraph/` (comparison item 6, P0) | Resolved | Phase 3 (2026-05-28) |
+| 3.2 | SQLite + FTS5 store (comparison items 7, 10, P0) | Resolved | Phase 3 (2026-05-28) |
+| 3.3 | Scanner for TS / Python / Rust / Go (comparison item 6, P0) | Resolved | Phase 3 (2026-05-28); regex extractor in place of Tree-sitter per `3.3.P2.G` |
+| 3.4 | Eight-tool MCP surface (comparison item 7, P0) | Resolved | Phase 3 (2026-05-28); in-process only per `3.4.P3.H` |
+| 3.5 | Coding-pillar agent-loop wiring (comparison item 7, P0) | Resolved | Phase 3 (2026-05-28); 15-tool cap interaction per `3.5.P3.I` |
+
+### Memory enhancements (Phase 4)
+
+| Plan sub-task | Item | Status | Closing reference |
+|---|---|---|---|
+| 4.1 | AST chunker (comparison item 2, P1) | Resolved | Phase 4 (2026-05-28); reuses Phase 3 regex extractor per `4.1.P2.J`; new ingest call sites pending per `4.x.P3.N` |
+| 4.2 | `PrunedDenseIndex` (comparison item 1, P1) | Resolved | Phase 4 (2026-05-28); single-layer kNN graph + O(N^2) build per `4.2.P3.K` |
+| 4.3 | `MemoryStorageTier` policy + migration script (comparison item 1, P1) | Resolved | Phase 4 (2026-05-28); script ships as `.mjs` per `4.3.P3.M` |
+
+### Agent-loop policy (Phase 5)
+
+| Plan sub-task | Item | Status | Closing reference |
+|---|---|---|---|
+| 5.1 | Read-only explore sub-agent enforcement (comparison item 16, P1) | Resolved | Phase 5 (2026-05-28); wired at `src/agents/SubAgentManager` per `5.1.P2.O`; MCP tools blocked under explore per `5.1.P2.P` |
+| 5.2 | Path-scoped skills (comparison item 13, P1) | Resolved | Phase 5 (2026-05-28); live mid-session wiring deferred per `5.2.P3.Q` |
+| 5.3 | `.nexusignore` + `.nexus/permissions.deny` (comparison item 18, P1) | Resolved | Phase 5 (2026-05-28); `permissions.deny` parser not yet wired per `5.3.P2.R`; codegraph scanner still uses inline ignore parser per `5.3.P3.S` |
+| 5.4 | 13th lifecycle hook position `lifecycle.session.reflection` (comparison item 12, P2) | Resolved | Phase 5 (2026-05-28); auto-wiring in daemon deferred per `5.4.P3.T` |
+
+### Re-partial integrations (Phase 6)
+
+| Plan sub-task | Item | Status | Closing reference |
+|---|---|---|---|
+| 6.1 | File-watcher abstraction (comparison item 8, P1) | Resolved | Phase 6 (2026-05-28); wraps `fs.watch` per `6.1.P3.U`; consumes regex extractor per `6.1.P3.V`; FileWatcher ignore parsing closes `5.3.P3.S` for the watcher path per `6.1.P3.W` |
+| 6.2 | LSP client for TS / Python / Rust (comparison item 17, P1) | Resolved | Phase 6 (2026-05-28); installer bundling deferred per `6.2.P2.X`; minimal LSP subset per `6.2.P3.Y` |
+| 6.3 | Interactive HTML artifact (comparison item 40, P2) | Resolved | Phase 6 (2026-05-28); inline sanitiser instead of DOMPurify per `6.3.P2.Z`; Hub `interactive-tuning.html` already shipped in Phase 1.2 per `6.3.NI.Hub` |
+
+### Stabilization (Phase 7)
+
+| Plan sub-task | Item | Status | Closing reference |
+|---|---|---|---|
+| 7.1 | Token-usage benchmark | Resolved | Phase 7 (2026-05-28); published at [benchmarks/coding-pillar-token-usage-2026-05-26.md](benchmarks/coding-pillar-token-usage-2026-05-26.md); deterministic-synthesis methodology per `7.1.P2.A` below |
+| 7.2 | Storage-size benchmark | Resolved | Phase 7 (2026-05-28); published at [benchmarks/memory-storage-size-2026-05-26.md](benchmarks/memory-storage-size-2026-05-26.md); 100k canonical sweep remains manual per `4.4.P2.L` (carries forward to v1.3.0) |
+| 7.3 | README / AGENTS.md / ARCHITECTURE.md refresh | Resolved | Phase 7 (2026-05-28); see `feat(v1.2.0): phase 7 stabilization` commit |
+| 7.4 | This adoption ledger | Resolved | Phase 7 (2026-05-28); closes the forward reference `1.x.P3.D` (resolved below) |
+
+### Items recorded in Appendix A (NOT adopted)
+
+The seven N-items from comparison Section 9.4 (Multica, LEANN multimodal, LEANN cloud-LLM options, RTK telemetry, CodeGraph auto-config writes, Hallmark theme catalog, Multica pgvector) are by-design out of scope and never appear in this ledger. See [adoption-ecosystem-2026-05.md Appendix A](plans/adoption-ecosystem-2026-05.md) for the full text.
 
 ---
 
@@ -48,13 +120,6 @@ Each entry has a category tag:
 - **Plan reference**: [adoption-ecosystem-2026-05.md](plans/adoption-ecosystem-2026-05.md) sub-task 1.3 ("Do not modify any code yet -- the actual hook migrations happen during Phase 5").
 - **Reason**: Phase 1.3 added the "hooks for deterministic automation" Critical Rule to AGENTS.md and authored an inventory at [.claude/agents/hooks-over-prompts-inventory.md](../../.claude/agents/hooks-over-prompts-inventory.md) ranking current prompt-based rules by enforcement-determinism gain. The inventory deliberately stops at "rank + recommend"; the actual hook implementations (commit-msg ASCII / no-attribution guards, per-invocation destructive-git guard, shell-description presence guard, pre-commit `deps:check` wiring) are explicitly deferred to Phase 5 of the adoption plan to keep Phase 1 scope to skill-native + policy items only.
 - **Suggested next step**: Land the prioritized migrations in Phase 5 sub-tasks (5.1-5.5 of the adoption plan), starting with the HIGH-gain commit-msg hooks. The inventory file itself is the authoritative source for migration order.
-
-### 1.x.P3.D -- Phase 7.4 (adoption ledger) populates the rest of this file (DF, P3)
-
-- **Source phase**: meta (Phase 7 forward reference)
-- **Plan reference**: [adoption-ecosystem-2026-05.md](plans/adoption-ecosystem-2026-05.md) sub-task 7.4 ("known-gaps closure for the adoption set ... For each of the 18 adoption items ... if completed, list it under Resolved").
-- **Reason**: The plan's Phase 7.4 explicitly lands the per-item adoption ledger here (every one of the 18 adoption items recorded as Resolved or Open with the four standard fields). Phase 1 of this file establishes the structure; later phases (2-6) append their own items, and Phase 7.4 consolidates into the final adoption ledger.
-- **Suggested next step**: No action in Phase 1. The adoption ledger lands in Phase 7.
 
 ### 2.4.P2.E -- Legacy `preToolHook` compressor is dead code in production (DF, P2)
 
@@ -217,6 +282,27 @@ Each entry has a category tag:
 - **Reason**: Phase 1.2's session history records that the html-output-conventions skill in Nexus-Hub already shipped four reference templates, including `interactive-tuning.html`, when that skill was first imported. The Phase 6.3 prompt repeats the request because it pre-dated the Phase 1.2 implementation. The desktop component shipped in this phase (`InteractiveArtifact.tsx`) is the *consumer* of that template; the template itself already exists in the sibling Nexus-Hub repository.
 - **Suggested next step**: No action required. When [Nexus-Hub](https://github.com/bendourthe/Nexus-Hub) cuts a release tag (see 1.1.P2.A / 1.1.P3.B), `nexus skills sync` will surface the template and the desktop `InteractiveArtifact` will consume it directly.
 
+### 7.1.P2.A -- Token-usage benchmark uses deterministic synthesis, not a live worktree replay (DF, P2)
+
+- **Source phase**: Phase 7 (sub-task 7.1)
+- **Plan reference**: [adoption-ecosystem-2026-05.md](plans/adoption-ecosystem-2026-05.md) sub-task 7.1 ("Run this workload (a) against a checkout of `main` *before* this adoption plan landed (use `git worktree` from the most recent tag prior to Phase 1), and (b) against the current HEAD with all Phases 1-6 active. Record total tokens consumed and total tool calls for both runs.").
+- **Reason**: A literal worktree-vs-HEAD replay requires a real local-model run inside both arms -- multi-minute, GPU-bound, and non-deterministic across machines. The Phase 7.1 benchmark at [tests/integration/coding-pillar/phase-7-token-usage.test.ts](../../tests/integration/coding-pillar/phase-7-token-usage.test.ts) instead executes a deterministic synthesis: the "without adoption" arm simulates the grep-shaped path the agent would take against a pre-Phase-1 checkout (using the real fixture bytes for the result), and the "with adoption" arm runs through the production `CommandCompressor + CodeGraphMcpServer + SqliteGraphStore + RepoScanner` wiring with no mocks. Tokens are approximated by UTF-8 byte length; both arms pay the same proxy so the delta is fair. The published report ([benchmarks/coding-pillar-token-usage-2026-05-26.md](benchmarks/coding-pillar-token-usage-2026-05-26.md)) hits the >=30% gates with -93.76% tokens / -45.45% tool calls. A live worktree-vs-HEAD replay would refine the numbers but is unlikely to change the verdict because the byte-count proxy is independent of the model tokenizer.
+- **Suggested next step**: If a future cycle invests in a stable local-model fixture (e.g. a checked-in tiny instruct model that returns identical completions across machines), upgrade the Phase 7.1 benchmark to a live agent-loop replay against a tagged worktree; until then, the deterministic synthesis is the canonical artifact.
+
+### 7.x.P3.B -- Plan-prescribed benchmark publish path was `docs/v1.1.0/benchmarks/`; landed under `docs/v1.2.0/benchmarks/` (DF, P3)
+
+- **Source phase**: Phase 7 (sub-tasks 7.1, 7.2)
+- **Plan reference**: [adoption-ecosystem-2026-05.md](plans/adoption-ecosystem-2026-05.md) sub-tasks 7.1 and 7.2 (the prompt strings literally say "Publish results under `docs/v1.1.0/benchmarks/coding-pillar-token-usage-2026-05-26.md`" and "Publish results at `docs/v1.1.0/benchmarks/memory-storage-size-2026-05-26.md`").
+- **Reason**: The plan was written against the v1.1.0 cycle's directory convention before the v1.2.0 cycle directory existed. Both benchmarks belong to the v1.2.0 cycle (v1.1.0 closed 2026-05-26; this adoption track opened the v1.2.0 cycle). The two reports ship under [docs/v1.2.0/benchmarks/](benchmarks/) so the cycle-end documentation refresh has one home; the original `docs/v1.1.0/benchmarks/` directory was never created. No reader is misled because the README + ARCHITECTURE.md updates from sub-task 7.3 link to the actual `docs/v1.2.0/benchmarks/` location.
+- **Suggested next step**: None. The plan path is a documentation typo; the lived convention is correct.
+
+### 7.x.P3.C -- Token-usage benchmark script ships as `tests/integration/coding-pillar/phase-7-token-usage.test.ts`, not `tests/benchmarks/coding-pillar-token-usage.ts` (DF, P3)
+
+- **Source phase**: Phase 7 (sub-task 7.1)
+- **Plan reference**: [adoption-ecosystem-2026-05.md](plans/adoption-ecosystem-2026-05.md) sub-task 7.1 ("Define a Coding-pillar workload script at `tests/benchmarks/coding-pillar-token-usage.ts`").
+- **Reason**: `tests/benchmarks/*.bench.ts` files are picked up by `vitest bench` only, not by `vitest run`; the Phase 7.1 stability gate has to fire on every CI run (matching the per-phase Phase 2.5 + Phase 3.6 + Phase 4.4 convention, which all ship as `tests/integration/.../*.test.ts`). The file therefore lives at the existing integration-test path. The script body itself matches the plan's 5-step workload (Find callers / run tests / inspect failure / propose fix / re-run tests) verbatim.
+- **Suggested next step**: None. The integration-test path is the right convention; the plan path was forward-looking.
+
 ### Carryforward map (v1.1.0 -> v1.2.0)
 
 Per the v1.1.0 closure note in [docs/v1.1.0/known-gaps.md](../v1.1.0/known-gaps.md) section header, every "Open" item in that file carries forward into the v1.2.0 cycle by code reference. Architectural items rolling into v1.2.0 are re-listed below by their original v1.1.0 code, with cross-references back; the per-item triage in v1.1.0 stands. No re-ingestion of the entries' bodies is required here -- consult [docs/v1.1.0/known-gaps.md](../v1.1.0/known-gaps.md) for the full text.
@@ -247,6 +333,12 @@ These do not block Phase 1 of the v1.2.0 adoption track but remain visible to ph
 - **Resolution**: Replaced `codeQualityEntries[0].namespace` / `codeQualityEntries[1].namespace` with optional-chained access (`codeQualityEntries[0]?.namespace` etc.), matching the repo's "prefer optional chaining over manual null checks" TypeScript convention. The prior `expect(codeQualityEntries).toHaveLength(2)` precondition keeps the assertion meaningful.
 - **Closed in**: Phase 1 (v1.2.0); desktop typecheck exits 0.
 
+### 1.x.P3.D -- Phase 7.4 adoption ledger populated (resolved in Phase 7)
+
+- **Source phase**: Phase 1 (meta forward reference)
+- **Reason**: Phase 1 reserved this code as a placeholder for the per-item adoption ledger the plan's Phase 7.4 would land. The ledger is now present at `## 0. Adoption Ledger (Phase 7.4)` above; every plan sub-task across Phases 1-7 maps to either a Resolved tag or to an Open-Items entry whose code is referenced from the ledger table.
+- **Closed in**: Phase 7 (sub-task 7.4); see [adoption-ecosystem-2026-05.md](plans/adoption-ecosystem-2026-05.md).
+
 ---
 
 ## 3. Summary
@@ -254,6 +346,7 @@ These do not block Phase 1 of the v1.2.0 adoption track but remain visible to ph
 | Section | Count |
 |---|---|
 | Open items (Phases 1-6 entries) | 26 |
+| Open items (Phase 7 entries) | 3 |
 | Carryforward from v1.1.0 | 2 (re-listed by code; full text in v1.1.0 file) |
 | Resolved in Phase 1 | 2 |
 | Resolved in Phase 2 | 0 |
@@ -261,5 +354,6 @@ These do not block Phase 1 of the v1.2.0 adoption track but remain visible to ph
 | Resolved in Phase 4 | 0 |
 | Resolved in Phase 5 | 0 |
 | Resolved in Phase 6 | 1 (Hub `interactive-tuning.html` already shipped in Phase 1.2; tagged NI) |
+| Resolved in Phase 7 | 1 (1.x.P3.D adoption-ledger placeholder closed by sub-task 7.4) |
 | Release blockers (P0) | 0 |
-| Severity breakdown (Open, Phases 1-6) | P1: 0  P2: 11  P3: 15 |
+| Severity breakdown (Open, all phases) | P1: 0  P2: 12  P3: 17 |

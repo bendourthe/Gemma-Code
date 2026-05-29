@@ -36,17 +36,18 @@ bin/nexus-check.mjs          deterministic-checks CLI (renamed from gemma-check)
 
 `core/codegraph/` indexes the working tree into a SQLite + FTS5 graph so the Coding pillar can answer "callers of X", "callees of Y", and "impact radius of Z" via 8 internal MCP tools (`codegraph_search`, `codegraph_context`, `codegraph_trace`, `codegraph_callers`, `codegraph_callees`, `codegraph_impact`, `codegraph_node`, `codegraph_explore`, `codegraph_files`) registered through the in-process `McpHarnessAdapter` defined in [core/coding/McpBridge.ts](core/coding/McpBridge.ts). The data flow is:
 
-```
-RepoScanner ──> SqliteGraphStore (~/.nexus/codegraph/<fp>.db)
-   │             │
-   │             └── FTS5 virtual table over symbol names + signatures
-   │
-   └── Tree walker (.gitignore + .nexusignore + size cap + content hash)
-
-ToolRegistryBuilder ──> CodeGraphToolHandler ──> CodeGraphMcpServer
-                                                    │
-                                                    └── 8 tools, all read-only
-                                                        against SqliteGraphStore
+```mermaid
+flowchart LR
+    repo[Working tree] --> walker[Tree walker<br/>.gitignore + .nexusignore<br/>size cap + content hash]
+    walker --> scanner[RepoScanner<br/>regex extractor<br/>two-pass extraction]
+    scanner -->|symbols + edges| store[(SqliteGraphStore<br/>~/.nexus/codegraph/&lt;fp&gt;.db<br/>WAL mode + FTS5 index)]
+    watcher[FileWatcher<br/>2s debounce] -->|delta| watched[WatchedRepoScanner]
+    watched -->|incremental upserts| store
+    store -.read-only.-> server[CodeGraphMcpServer<br/>8 tools, in-process]
+    server --> handler[CodeGraphToolHandler]
+    handler --> builder[ToolRegistryBuilder]
+    builder --> coding[Coding pillar<br/>agent loop]
+    coding -->|prefers codegraph over grep<br/>per tool-selection prompt| server
 ```
 
 The store runs in WAL mode so the MCP tools' reads never block the scanner's writes. The scanner is regex-based (Tree-sitter upgrade tracked in [docs/v1.2.0/known-gaps.md](docs/v1.2.0/known-gaps.md) `3.3.P2.G`); two-pass extraction (symbols first, edges second) guarantees cross-file call edges land regardless of directory walk order. The server never binds a socket or spawns a child -- it lives entirely inside the Node sidecar process and is reachable only through the in-process adapter contract.
@@ -83,6 +84,15 @@ Three bounded-scope additions from the 2026-05 ecosystem-adoption plan:
 3. **Interactive HTML artifact at [desktop/src/components/InteractiveArtifact.tsx](desktop/src/components/InteractiveArtifact.tsx)** renders any HTML payload containing a `<form data-nexus-artifact="true">`, automatically attaches a "Copy as JSON" button, collects form-state on click (numbers via `valueAsNumber`, checkboxes via `checked`, etc.), serialises to JSON, and copies to the clipboard. Sanitisation is inline (a minimal DOMParser walker that strips `<script>` / `<iframe>` / `<object>` / `<embed>` / `<link>` / `<meta>` / `<base>` tags wholesale, every `on*` attribute, and `javascript:` URLs from `href` / `src` / `action`) rather than importing DOMPurify into the desktop workspace (known-gaps `6.3.P2.Z`). The component is scope-bound to "copy as JSON" round-trips -- no arbitrary in-app HTML editing, no script execution beyond the wrapper's click handler.
 
 Boundary rule: `core/**` MUST NOT import from `modules/**`; modules MUST NOT import from each other.
+
+### Stabilization and benchmarks (v1.2.0 Phase 7)
+
+Phase 7 closes the v1.2.0 adoption track with two end-to-end benchmarks plus the documentation refresh that surfaced the new subsystems above.
+
+* **Token-usage benchmark** at [tests/integration/coding-pillar/phase-7-token-usage.test.ts](tests/integration/coding-pillar/phase-7-token-usage.test.ts) drives a 5-step Coding-pillar workload ("Find callers of `redactSecrets`; run the test suite; inspect one failure; propose a fix; re-run the suite") through both the post-adoption arm (codegraph MCP tools + `CommandCompressor`) and a simulated pre-Phase-1 arm. The CI gate is <=70% on tokens and <=70% on tool calls; the published numbers ([docs/v1.2.0/benchmarks/coding-pillar-token-usage-2026-05-26.md](docs/v1.2.0/benchmarks/coding-pillar-token-usage-2026-05-26.md)) are 6.24% / 54.55% (delta -93.76% / -45.45%).
+* **Storage-size benchmark** at [tests/integration/memory-tier/phase-7-storage-size-extended.test.ts](tests/integration/memory-tier/phase-7-storage-size-extended.test.ts) aggregates the on-disk footprint of the dense index (Standard vs Pruned), the BM25 serialized footprint, and the codegraph SQLite DB. The dense-only gate (Pruned <=20% of Standard) carries over from Phase 4.4; the combined Pruned-vs-Standard ratio is 20.58% at the 2k-chunk CI scale ([docs/v1.2.0/benchmarks/memory-storage-size-2026-05-26.md](docs/v1.2.0/benchmarks/memory-storage-size-2026-05-26.md)). The canonical 100k sweep is gated behind `NEXUS_PHASE7_BENCH_SIZE=100000` and is documented as a manual replay artifact.
+
+Both benchmarks reuse the same fixture infrastructure as the earlier per-phase stability gates (Phase 2.5, Phase 3.6, Phase 4.4) so the cycle-end numbers compose with the per-phase ones without re-running the full suite.
 
 ## Nexus v1.0.0 (target architecture, in planning)
 
