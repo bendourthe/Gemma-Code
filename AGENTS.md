@@ -28,6 +28,8 @@ Both target the same audience: developers, creators, and data scientists who wan
 core/                       v1.0.0 shared-core surfaces (Phase 2.3 + 2.6)
   registry/ModelRegistry.ts  models: list / install / remove / inspect
   memory/MemoryHub.ts        4-layer memory facade
+  memory/chunkers/           AST-aware chunker for memory ingest (v1.2.0 Phase 4)
+  memory/PrunedDenseIndex.ts LEANN-derived graph-pruned index (v1.2.0 Phase 4)
   telemetry/TelemetryBus.ts  in-process pub/sub (GPU + module events)
   skills/SkillCatalog.ts     skills: list / load / hot-reload
   storage/                   ~/.nexus/ paths + StorageMigration (Phase 2.2)
@@ -36,6 +38,7 @@ core/                       v1.0.0 shared-core surfaces (Phase 2.3 + 2.6)
                               in-process MCP server (v1.2.0 Phase 3); Coding
                               pillar prefers `codegraph_*` over grep for
                               symbol queries
+  config/MemoryStorageTier.ts Standard / Pruned memory tier policy (v1.2.0 Phase 4)
 
 modules/                    per-pillar code (one folder per pillar)
   coding/                    Agentic AI Coding (engine still in src/ during the

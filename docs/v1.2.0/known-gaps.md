@@ -1,9 +1,9 @@
 # v1.2.0 -- Known Gaps, Deferrals, and Carryovers
 
-**Status**: live. v1.2.0 opens with the 2026-05 ecosystem-adoption track. Phase 1 (2026-05-27) shipped the skill-native foundation; Phase 2 (2026-05-28) shipped the Coding-pillar command-output compressor (`core/observability/CommandCompressor.ts`) with filter / group / truncate / dedupe strategies, tee-on-failure, and a benchmark stability gate; Phase 3 (2026-05-28) shipped the code-graph MCP subsystem under `core/codegraph/` (SQLite + FTS5 store, regex-based scanner for TS / Python / Rust / Go, 8 internal MCP tools, Coding-pillar wiring, and a stability-gate benchmark hitting 25% of the grep-shaped tool-call count). The known-gaps file is appended phase-by-phase; items move to `## 2. Resolved` when closed in a later phase; the `## 3. Summary` at the bottom is recomputed each pass.
+**Status**: live. v1.2.0 opens with the 2026-05 ecosystem-adoption track. Phase 1 (2026-05-27) shipped the skill-native foundation; Phase 2 (2026-05-28) shipped the Coding-pillar command-output compressor (`core/observability/CommandCompressor.ts`) with filter / group / truncate / dedupe strategies, tee-on-failure, and a benchmark stability gate; Phase 3 (2026-05-28) shipped the code-graph MCP subsystem under `core/codegraph/` (SQLite + FTS5 store, regex-based scanner for TS / Python / Rust / Go, 8 internal MCP tools, Coding-pillar wiring, and a stability-gate benchmark hitting 25% of the grep-shaped tool-call count); Phase 4 (2026-05-28) shipped the memory enhancements (AST-aware chunker, LEANN-derived `PrunedDenseIndex`, `MemoryStorageTier` policy gating, and a storage-size benchmark hitting 18.7% of Standard with 100% recall on the 2k-chunk CI fixture). The known-gaps file is appended phase-by-phase; items move to `## 2. Resolved` when closed in a later phase; the `## 3. Summary` at the bottom is recomputed each pass.
 
 **Audience**: v1.2.0 phase authors, code reviewer, future-cycle planners
-**Last updated**: 2026-05-28
+**Last updated**: 2026-05-28 (Phase 4)
 **Sibling reviews**: [docs/v1.1.0/known-gaps.md](../v1.1.0/known-gaps.md) (the upstream cycle gap log; carryforward open items remain in force during v1.2.0); [docs/v1.2.0/plans/adoption-ecosystem-2026-05.md](plans/adoption-ecosystem-2026-05.md) (the active adoption plan); [docs/v1.2.0/comparison-ecosystem-2026-05.md](comparison-ecosystem-2026-05.md) (the seven-source comparison this cycle's first track adopts).
 
 **Cycle context**: v1.2.0 opens the post-v1.1.0 cycle with the 2026-05 ecosystem-adoption track. Phase 1 (this commit) is skill-native + policy only: two new Nexus-Hub skills (hallmark-design, html-output-conventions, with 4 self-contained HTML reference templates), a new "hooks-over-prompts" Critical Rule and inventory in AGENTS.md, and a 6-month AGENTS.md review cadence. No code surface in `core/` or `modules/` is touched in Phase 1 itself; the two scope expansions this run (sidecar IPC stubs and a desktop strict-null test guard) are recorded under `## 2. Resolved` below. Phases 2-7 of the adoption plan land the code-shaped items (command compression, code-graph MCP, memory enhancements, agent-loop policy, re-partials, stabilization).
@@ -84,6 +84,41 @@ Each entry has a category tag:
 - **Reason**: `src/tools/ToolActivationRules.ts` now treats the 9 `codegraph_*` tools as trimmable when the total enabled-tool count exceeds 15 (sub-agent or large-MCP scenarios). MCP tools are trimmed first, then codegraph tools, then core tools are preserved untouched. This is a sensible default but means an agent loop with a busy external MCP server may lose access to codegraph tools without an obvious diagnostic. Users will see the catalog drop, but the activation `reasons` map includes a per-tool entry explaining the trim.
 - **Suggested next step**: When Phase 5 (agent-loop policy) lands, add a one-line warning to the system prompt header when any codegraph tool was trimmed under the 15-tool cap so the user can react.
 
+### 4.1.P2.J -- AST chunker reuses Phase 3's regex extractor (DF, P2)
+
+- **Source phase**: Phase 4 (sub-task 4.1)
+- **Plan reference**: [adoption-ecosystem-2026-05.md](plans/adoption-ecosystem-2026-05.md) sub-task 4.1 ("Implement `core/memory/chunkers/AstChunker.ts` that takes a file path + content and returns an array of `Chunk` records, each aligned to a Tree-sitter top-level node").
+- **Reason**: Phase 4.1 ships `core/memory/chunkers/AstChunker.ts` per the plan's surface (one chunk per top-level symbol for TS / Python / Rust / Go; size-based fallback for other languages). The "AST-awareness" reuses `extractSymbols()` from `core/codegraph/scanner/RepoScanner.ts` -- the Phase 3 regex-based extractor -- rather than Tree-sitter, because no Tree-sitter native bindings are available in this repo. This inherits Phase 3.3's exact tradeoff: symbol boundaries are correct in the common cases the regex extractor handles, and the same edge cases (multi-line declarations, property-method assignments, computed names) cause occasional under-chunking. Class chunks envelop their methods (instead of producing per-method nested chunks) to avoid line-range duplication.
+- **Suggested next step**: When 3.3.P2.G (the Tree-sitter scanner swap) lands in a future cycle, `AstChunker` automatically inherits the upgrade because it consumes `extractSymbols` -- no change required at the chunker layer.
+
+### 4.2.P3.K -- PrunedDenseIndex graph build is O(N^2); ~50k node practical ceiling (DF, P3)
+
+- **Source phase**: Phase 4 (sub-task 4.2)
+- **Plan reference**: [adoption-ecosystem-2026-05.md](plans/adoption-ecosystem-2026-05.md) sub-task 4.2 ("API: same as `DenseIndex` ... storage representation is HNSW graph in CSR format with high-degree-preserving pruning ... on `search(query, k)`, embed the query, then traverse the HNSW graph, computing embeddings on-demand for visited nodes").
+- **Reason**: `core/memory/PrunedDenseIndex.ts` ships a single-layer kNN graph (with reverse-edge symmetrization for connectivity), not multi-layer HNSW. The graph build at `compact()` is an all-pairs `O(N^2)` scan; on the 100k-chunk benchmark this would take minutes. The Phase 4.4 stability gate uses a 2k-chunk CI fixture (1/50th scale) so the integration test completes in ~2s; the 100k sweep is documented as a manual run (see MT entry 4.4.P2.L below). Search is best-first graph traversal with seed-sampling, frontier-by-score, and an LRU embedding cache (default 512 entries) -- close to HNSW's query routine but without the hierarchical fanout. Storage savings hit the headline gate (18.68% of `DenseIndex` on the 2k benchmark).
+- **Suggested next step**: When a future cycle has the budget, port the graph build to a true multi-layer HNSW (e.g. via `hnswlib-node` already mentioned in the v1.1.0 DenseIndex header) so the index scales past ~50k nodes without quadratic compact time. The save/load file format already includes a `version` field for forward-compat.
+
+### 4.3.P3.M -- Migration script ships as `.mjs` instead of `.ts` (DF, P3)
+
+- **Source phase**: Phase 4 (sub-task 4.3)
+- **Plan reference**: [adoption-ecosystem-2026-05.md](plans/adoption-ecosystem-2026-05.md) sub-task 4.3 ("Write a one-way migration script at `scripts/migrate-dense-index-to-pruned.ts`").
+- **Reason**: The Nexus repo's `scripts/` convention is `.mjs` files that import from compiled `out/` -- `tsconfig.json` explicitly excludes `scripts/` from the `tsc` include set. A `.ts` script under `scripts/` would not be runnable without a separate compilation step. To keep the migration logic unit-testable while honoring the script convention, the migration function lives at `core/memory/migrateDenseToPruned.ts` (where the unit tests can import it) and `scripts/migrate-dense-index-to-pruned.mjs` is a thin CLI wrapper that imports the compiled JS.
+- **Suggested next step**: If a future cycle migrates `scripts/` to TypeScript (e.g. via a dedicated `tsconfig.scripts.json`), rename the wrapper to `.ts` to match the plan's literal filename. The underlying function module stays unchanged.
+
+### 4.4.P2.L -- 100k-chunk memory-tier benchmark is manual, not CI (MT, P2)
+
+- **Source phase**: Phase 4 (sub-task 4.4)
+- **Plan reference**: [adoption-ecosystem-2026-05.md](plans/adoption-ecosystem-2026-05.md) sub-task 4.4 ("Generate a 100k-chunk benchmark fixture by indexing a large public repo ... record on-disk bytes and recall@10 on a 100-query test set").
+- **Reason**: The 100k-chunk fixture takes minutes to build and consumes hundreds of MB of tmpdir disk. Running it on every CI invocation would balloon the integration suite well past its current budget. The Phase 4 stability gate ships as a CI-friendly 2k-chunk smoke (`tests/integration/memory-tier/storage-benchmark.test.ts`) that exercises the same code paths and asserts the documented gate (storage <=20% of Standard, recall >=80%). The 100k variant is gated behind the `NEXUS_PHASE4_BENCH_SIZE=100000` environment variable and is documented in `tests/fixtures/memory-tier-benchmark-results/2026-05-26/README.md`. The Phase 7.2 storage-size benchmark sub-task is responsible for the canonical 100k run.
+- **Suggested next step**: Phase 7.2 runs the full 100k sweep with the real transformer embedder and publishes the resulting recall + ratio numbers under `docs/v1.2.0/benchmarks/memory-storage-size-2026-05-26.md`.
+
+### 4.x.P3.N -- HybridRetriever owns ingest only via the new `ingestFile()` helper (DF, P3)
+
+- **Source phase**: Phase 4 (sub-task 4.1 wiring decision)
+- **Plan reference**: [adoption-ecosystem-2026-05.md](plans/adoption-ecosystem-2026-05.md) sub-task 4.1 ("Wire `AstChunker` into `core/memory/HybridRetriever.ts` ingest path -- the hybrid retriever should call the AST chunker first, with the size chunker as fallback").
+- **Reason**: The HybridRetriever existed pre-Phase-4 as a query-only façade; the actual memory ingest happened upstream in `MemoryHub.write()` (which calls `bm25.add(id, text)` + `dense.add(id, vec)` directly). Phase 4.1 adds a new `HybridRetriever.ingestFile(input)` helper that chunks via `AstChunker`, embeds (Standard tier) or stores text (Pruned tier), and adds chunks to both indexes. Existing pre-Phase-4 ingest call sites in `MemoryHub` and `WarmRebuildWorker` were NOT migrated to use the helper; migration would expand Phase 4's scope into the memory-hub call graph. The new helper is the seam Phase 5+ ingest call sites should pick up.
+- **Suggested next step**: When the memory hub gains a code-aware ingest pathway (e.g. a "ingest workspace" command or a code-graph-driven background indexer), route through `HybridRetriever.ingestFile()` instead of calling `bm25.add` / `dense.add` directly. The helper handles both tiers cleanly.
+
 ### 2.4.P3.F -- Tee footer is embedded in the tool-result JSON instead of the next-turn system prompt (DF, P3)
 
 - **Source phase**: Phase 2 (sub-task 2.4)
@@ -127,10 +162,11 @@ These do not block Phase 1 of the v1.2.0 adoption track but remain visible to ph
 
 | Section | Count |
 |---|---|
-| Open items (Phase 1 + Phase 2 + Phase 3 entries) | 9 |
+| Open items (Phase 1 + Phase 2 + Phase 3 + Phase 4 entries) | 14 |
 | Carryforward from v1.1.0 | 2 (re-listed by code; full text in v1.1.0 file) |
 | Resolved in Phase 1 | 2 |
 | Resolved in Phase 2 | 0 |
 | Resolved in Phase 3 | 0 |
+| Resolved in Phase 4 | 0 |
 | Release blockers (P0) | 0 |
-| Severity breakdown (Open, Phases 1-3) | P1: 0  P2: 4  P3: 5 |
+| Severity breakdown (Open, Phases 1-4) | P1: 0  P2: 6  P3: 8 |

@@ -26,8 +26,21 @@ import type { MemoryHit, ScopeId } from "./MemoryHub.js";
 import { isVisibleFromScope } from "./MemoryHub.js";
 import type { Embedder } from "./LocalEmbedder.js";
 import { Bm25Index } from "./Bm25Index.js";
-import { DenseIndex } from "./DenseIndex.js";
+import { DenseIndex, type DenseHit } from "./DenseIndex.js";
+import { PrunedDenseIndex } from "./PrunedDenseIndex.js";
 import { RrfFuser, DEFAULT_RRF_K } from "./RrfFuser.js";
+import { AstChunker, type Chunk, type ChunkFileInput } from "./chunkers/index.js";
+import type { MemoryStorageTierId } from "../config/MemoryStorageTier.js";
+
+/**
+ * Phase 4.3 -- common query surface that both `DenseIndex` and
+ * `PrunedDenseIndex` implement. The retriever consumes this rather than the
+ * concrete class so the tier policy can swap implementations.
+ */
+export interface DenseIndexQuery {
+  readonly size: number;
+  search(query: Float32Array, limit?: number): DenseHit[] | Promise<DenseHit[]>;
+}
 
 /** Per-stage cap before fusion. */
 export const DEFAULT_STAGE_LIMIT = 50;
@@ -56,7 +69,12 @@ export interface HybridRetrieveOpts {
 export interface HybridRetrieverDeps {
   readonly embedder: Embedder;
   readonly bm25: Bm25Index;
-  readonly dense: DenseIndex;
+  /**
+   * Concrete dense index. Either `DenseIndex` (Standard tier) or
+   * `PrunedDenseIndex` (Pruned tier). The retriever only queries the
+   * surface declared by `DenseIndexQuery`.
+   */
+  readonly dense: DenseIndex | PrunedDenseIndex;
   readonly graph?: GraphRanker | null;
   /**
    * Map a resolved entryId to its `MemoryHit` shape. Returning `undefined`
@@ -66,6 +84,18 @@ export interface HybridRetrieverDeps {
   readonly entryProvider: (entryId: string) => MemoryHit | undefined;
   /** RRF fusion constant. Defaults to 60; updates flow through setRrfK(). */
   readonly rrfK?: number;
+  /**
+   * Phase 4.1 -- AST chunker used by `ingestFile()`. When omitted, the
+   * retriever constructs a default `AstChunker` on first ingest.
+   */
+  readonly chunker?: AstChunker;
+}
+
+export interface IngestFileResult {
+  /** Chunks emitted by the chunker and added to the indexes. */
+  readonly chunks: ReadonlyArray<Chunk>;
+  /** Origin tag aggregated for caller observability. */
+  readonly usedAstPath: boolean;
 }
 
 /**
@@ -77,10 +107,11 @@ export interface HybridRetrieverDeps {
 export class HybridRetriever {
   private readonly _embedder: Embedder;
   private readonly _bm25: Bm25Index;
-  private readonly _dense: DenseIndex;
+  private readonly _dense: DenseIndex | PrunedDenseIndex;
   private readonly _graph: GraphRanker | null;
   private readonly _entryProvider: (entryId: string) => MemoryHit | undefined;
   private readonly _fuser: RrfFuser;
+  private _chunker: AstChunker | null;
 
   constructor(deps: HybridRetrieverDeps) {
     this._embedder = deps.embedder;
@@ -89,6 +120,47 @@ export class HybridRetriever {
     this._graph = deps.graph ?? null;
     this._entryProvider = deps.entryProvider;
     this._fuser = new RrfFuser(deps.rrfK ?? DEFAULT_RRF_K);
+    this._chunker = deps.chunker ?? null;
+  }
+
+  /**
+   * Phase 4.1 -- ingest a file into the BM25 + Dense indexes using the
+   * AST chunker (with size-based fallback for unsupported languages).
+   * Each emitted `Chunk` is added under its `id`. Returns the chunks and
+   * an `usedAstPath` flag so callers (e.g. the warm-rebuild worker) can
+   * record provenance.
+   *
+   * The retriever owns no persistence -- the caller is responsible for
+   * mapping chunk ids back to `MemoryHit` rows via `entryProvider` and
+   * for invoking `dense.save()` / `bm25.save()` at the cadence it picks.
+   */
+  async ingestFile(input: ChunkFileInput): Promise<IngestFileResult> {
+    if (!this._chunker) this._chunker = new AstChunker();
+    const chunks = this._chunker.chunk(input);
+    if (chunks.length === 0) {
+      return { chunks: [], usedAstPath: false };
+    }
+    let usedAst = false;
+    for (const c of chunks) if (c.origin === "ast") usedAst = true;
+
+    // Tier-aware ingest: PrunedDenseIndex stores text and recomputes
+    // embeddings on the search path, so we skip the embedBatch entirely
+    // for that path. Standard DenseIndex still embeds at ingest time.
+    if (this._dense instanceof PrunedDenseIndex) {
+      for (const chunk of chunks) {
+        this._bm25.add(chunk.id, chunk.content);
+        this._dense.add(chunk.id, chunk.content);
+      }
+    } else {
+      const vecs = await this._embedder.embedBatch(chunks.map((c) => c.content));
+      for (let i = 0; i < chunks.length; i += 1) {
+        const chunk = chunks[i]!;
+        const vec = vecs[i];
+        this._bm25.add(chunk.id, chunk.content);
+        if (vec) this._dense.add(chunk.id, vec);
+      }
+    }
+    return { chunks, usedAstPath: usedAst };
   }
 
   /** Update RRF `k` at runtime (called by SettingsStore listeners). */
@@ -154,7 +226,7 @@ export class HybridRetriever {
     } catch {
       return new Map();
     }
-    const hits = this._dense.search(vec, stageLimit);
+    const hits = await this._dense.search(vec, stageLimit);
     const out = new Map<string, number>();
     for (const hit of hits) out.set(hit.entryId, hit.score);
     return out;

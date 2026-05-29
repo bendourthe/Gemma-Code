@@ -12,12 +12,15 @@ The v1.0.0 cycle established the canonical top-level layout below. Boundary rule
 core/                        shared-core surfaces consumed by every pillar
   registry/ModelRegistry.ts  list / install / remove / inspect models
   memory/MemoryHub.ts        4-layer memory facade
+  memory/chunkers/           AST-aware chunker (v1.2.0 Phase 4)
+  memory/PrunedDenseIndex.ts LEANN-derived pruned dense index (v1.2.0 Phase 4)
   telemetry/TelemetryBus.ts  in-process pub/sub for GPU + module events
   skills/SkillCatalog.ts     list / load / hot-reload skills
   storage/                   StorageMigration + canonical ~/.nexus/ paths
   observability/             CommandCompressor (v1.2.0 Phase 2) + redactSecrets
   codegraph/                 SQLite + FTS5 symbol/call-edge graph and 8-tool
                               in-process MCP server (v1.2.0 Phase 3)
+  config/MemoryStorageTier.ts  Standard / Pruned tier policy (v1.2.0 Phase 4)
 
 modules/                     per-pillar code (one folder per generative pillar)
   coding/                    Agentic AI Coding (Phase 2.3 wholesale move pending)
@@ -47,6 +50,27 @@ ToolRegistryBuilder ──> CodeGraphToolHandler ──> CodeGraphMcpServer
 ```
 
 The store runs in WAL mode so the MCP tools' reads never block the scanner's writes. The scanner is regex-based (Tree-sitter upgrade tracked in [docs/v1.2.0/known-gaps.md](docs/v1.2.0/known-gaps.md) `3.3.P2.G`); two-pass extraction (symbols first, edges second) guarantees cross-file call edges land regardless of directory walk order. The server never binds a socket or spawns a child -- it lives entirely inside the Node sidecar process and is reachable only through the in-process adapter contract.
+
+### Memory storage tiers (v1.2.0 Phase 4)
+
+`core/config/MemoryStorageTier.ts` adds a tier policy on top of the existing memory subsystem: `Standard` keeps the full-vector path (`core/memory/DenseIndex.ts`, embedding bytes persisted to disk), and `Pruned` opts into the LEANN-derived `core/memory/PrunedDenseIndex.ts` (kNN graph + chunk text only; embeddings recomputed on the query path with a 512-entry LRU cache). The data flow:
+
+```
+HybridRetriever.ingestFile() ──> AstChunker.chunk()  (symbol-aligned chunks)
+                                   │
+                                   ├── Standard tier ──> embed ──> DenseIndex.add(id, vec)
+                                   └── Pruned tier   ──> PrunedDenseIndex.add(id, text)
+
+HybridRetriever._runDense(query) ──> embed(query) ──> dense.search(vec, k)
+                                                       │
+                                                       ├── DenseIndex: linear-scan cosine
+                                                       └── PrunedDenseIndex: best-first
+                                                              graph traversal w/ LRU cache
+```
+
+The AST chunker reuses the Phase 3 `extractSymbols()` primitive so a future Tree-sitter swap upgrades both subsystems at once. `PrunedDenseIndex` builds an undirected kNN graph (default out-degree 32) at `compact()` time; the all-pairs build is `O(N^2)` and intended for corpora up to ~50k chunks (documented as 4.2.P3.K). The shipped Phase 4 benchmark hits 18.68% of `Standard`'s on-disk bytes with 100% recall on a 2,000-chunk CI fixture; the 100k-chunk canonical sweep is the Phase 7.2 artifact.
+
+The one-way migration script ships as a thin CLI wrapper at [scripts/migrate-dense-index-to-pruned.mjs](scripts/migrate-dense-index-to-pruned.mjs); the testable function lives at [core/memory/migrateDenseToPruned.ts](core/memory/migrateDenseToPruned.ts). Idempotent + backs up the original `DenseIndex` file so rollback is one move.
 
 Boundary rule: `core/**` MUST NOT import from `modules/**`; modules MUST NOT import from each other.
 

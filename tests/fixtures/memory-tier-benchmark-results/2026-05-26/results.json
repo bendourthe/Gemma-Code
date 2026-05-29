@@ -1,0 +1,23 @@
+{
+  "runAt": "2026-05-26",
+  "corpusSize": 2000,
+  "embedder": "hash-fallback",
+  "embeddingDim": 384,
+  "standard": {
+    "onDiskBytes": 3088902,
+    "ingestMs": 24
+  },
+  "pruned": {
+    "onDiskBytes": 576954,
+    "ingestMs": 1,
+    "compactMs": 1586
+  },
+  "storageRatio": 0.1868,
+  "storageRatioPercent": "18.68%",
+  "recallVsStandard": 1,
+  "recallVsStandardPercent": "100.00%",
+  "stabilityGate": {
+    "storageRatioMax": 0.2,
+    "recallMin": 0.8
+  }
+}
