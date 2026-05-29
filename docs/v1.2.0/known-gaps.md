@@ -91,6 +91,7 @@ This is the per-item closure ledger for the 2026-05 ecosystem-adoption plan. Eac
 | 7.2 | Storage-size benchmark | Resolved | Phase 7 (2026-05-28); published at [benchmarks/memory-storage-size-2026-05-26.md](benchmarks/memory-storage-size-2026-05-26.md); 100k canonical sweep remains manual per `4.4.P2.L` (carries forward to v1.3.0) |
 | 7.3 | README / AGENTS.md / ARCHITECTURE.md refresh | Resolved | Phase 7 (2026-05-28); see `feat(v1.2.0): phase 7 stabilization` commit |
 | 7.4 | This adoption ledger | Resolved | Phase 7 (2026-05-28); closes the forward reference `1.x.P3.D` (resolved below) |
+| 7.x (CI) | npm-audit production gate | Open | Pre-existing protobufjs transitive CVE via `@xenova/transformers`; tracked as `7.x.P1.D` (the cycle's only P1 carryforward) |
 
 ### Items recorded in Appendix A (NOT adopted)
 
@@ -303,6 +304,13 @@ The seven N-items from comparison Section 9.4 (Multica, LEANN multimodal, LEANN 
 - **Reason**: `tests/benchmarks/*.bench.ts` files are picked up by `vitest bench` only, not by `vitest run`; the Phase 7.1 stability gate has to fire on every CI run (matching the per-phase Phase 2.5 + Phase 3.6 + Phase 4.4 convention, which all ship as `tests/integration/.../*.test.ts`). The file therefore lives at the existing integration-test path. The script body itself matches the plan's 5-step workload (Find callers / run tests / inspect failure / propose fix / re-run tests) verbatim.
 - **Suggested next step**: None. The integration-test path is the right convention; the plan path was forward-looking.
 
+### 7.x.P1.D -- protobufjs CVEs reach production via `@xenova/transformers` -> `onnxruntime-web` -> `onnx-proto` -> `protobufjs <=7.5.7` (BG, P1)
+
+- **Source phase**: Phase 7 (CI npm-audit gate; pre-existing transitive vulnerability surfaced during the Phase 7 release-readiness sweep)
+- **Plan reference**: implicit -- not a Phase 7.x sub-task; surfaced by the `.github/workflows/ci.yml` `npm audit --omit=dev --audit-level=high` step on the post-Phase-7 push.
+- **Reason**: GitHub Advisory Database recently published 5 CVEs against `protobufjs <=7.5.7` (GHSA-xq3m-2v4x-88gg arbitrary code execution -- critical; GHSA-66ff-xgx4-vchm + GHSA-2pr8-phx7-x9h3 + GHSA-fx83-v9x8-x52w + GHSA-75px-5xx7-5xc7 -- high). The vulnerable copy reaches the production tree through `@xenova/transformers@2.17.2` -> `onnxruntime-web@1.14.0` -> `onnx-proto@4.0.4` -> `protobufjs@6.11.6`. `@xenova/transformers` is the local-embedder backbone shipped in v1.1.0 Phase 5 (and used by every memory-ingest call site); `onnx-proto` is its hard transitive dep, last published 2020 with no maintenance, and pins `protobufjs@^6.8.8` -- so an `overrides` bump to `protobufjs@^7.5.8` would be a major version jump across onnx-proto's API surface and would almost certainly break `onnxruntime-web`'s ONNX model loading. The pre-Phase-7 commits failed the same gate (the advisory is newer than the most recent successful CI run on `main`); Phase 7 inherits the failure rather than introducing it. Combined with brace-expansion GHSA-jxxr-4gwj-5jf2 (moderate, fixable via dedupe), CI reports 6 vulnerabilities (2 moderate, 3 high, 1 critical) and fails the production audit step.
+- **Suggested next step**: Wait for `@xenova/transformers` upstream to release a version that pulls in a newer `onnxruntime-web` (which would update `onnx-proto` -> `protobufjs >=7.5.8`); track upstream at https://github.com/xenova/transformers.js. Until then, either (a) accept the gate failure on the feature branch and merge the cycle-close commits to main via override review, (b) temporarily relax the production-audit `--audit-level` to `critical` and document the carryover, or (c) prototype swapping `@xenova/transformers` for the @huggingface/transformers v3.x line (a separate plan; out of scope for this cycle close). The Phase 7.4 audit ledger keeps this as the cycle's only **P1 carryforward** so future-cycle planners pick it up.
+
 ### Carryforward map (v1.1.0 -> v1.2.0)
 
 Per the v1.1.0 closure note in [docs/v1.1.0/known-gaps.md](../v1.1.0/known-gaps.md) section header, every "Open" item in that file carries forward into the v1.2.0 cycle by code reference. Architectural items rolling into v1.2.0 are re-listed below by their original v1.1.0 code, with cross-references back; the per-item triage in v1.1.0 stands. No re-ingestion of the entries' bodies is required here -- consult [docs/v1.1.0/known-gaps.md](../v1.1.0/known-gaps.md) for the full text.
@@ -346,7 +354,7 @@ These do not block Phase 1 of the v1.2.0 adoption track but remain visible to ph
 | Section | Count |
 |---|---|
 | Open items (Phases 1-6 entries) | 26 |
-| Open items (Phase 7 entries) | 3 |
+| Open items (Phase 7 entries) | 4 |
 | Carryforward from v1.1.0 | 2 (re-listed by code; full text in v1.1.0 file) |
 | Resolved in Phase 1 | 2 |
 | Resolved in Phase 2 | 0 |
@@ -356,4 +364,4 @@ These do not block Phase 1 of the v1.2.0 adoption track but remain visible to ph
 | Resolved in Phase 6 | 1 (Hub `interactive-tuning.html` already shipped in Phase 1.2; tagged NI) |
 | Resolved in Phase 7 | 1 (1.x.P3.D adoption-ledger placeholder closed by sub-task 7.4) |
 | Release blockers (P0) | 0 |
-| Severity breakdown (Open, all phases) | P1: 0  P2: 12  P3: 17 |
+| Severity breakdown (Open, all phases) | P1: 1 (`7.x.P1.D` protobufjs CVE via @xenova/transformers)  P2: 12  P3: 17 |
