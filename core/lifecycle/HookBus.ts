@@ -112,6 +112,28 @@ export interface LifecycleSkillEntryEvent {
   readonly parentSpanId?: string;
 }
 
+/**
+ * v1.2.0 Phase 5.4 -- 13th lifecycle event, fired exactly once at
+ * session end after the session.end + session.stop pair, carrying the
+ * full transcript plus the list of files written during the session so
+ * a reflection hook can propose AGENTS.md / skill updates while the
+ * context is fresh. The payload is intentionally append-only -- new
+ * fields go at the bottom so existing subscribers do not break.
+ */
+export interface LifecycleSessionReflectionEvent {
+  readonly kind: "lifecycle.session.reflection";
+  readonly sessionId: string;
+  readonly isoTime: string;
+  /** Full session transcript joined as a single newline-delimited string. */
+  readonly transcript: string;
+  /** Repo-root-relative paths the agent wrote to during the session. */
+  readonly filesWritten: readonly string[];
+  /** Optional model id for the reflecting agent. */
+  readonly modelId?: string;
+  /** Approximate token count of the transcript (for size budgeting). */
+  readonly transcriptTokens?: number;
+}
+
 export type LifecycleEvent =
   | LifecycleSessionStartEvent
   | LifecycleSessionStopEvent
@@ -124,7 +146,8 @@ export type LifecycleEvent =
   | LifecycleSubagentStopEvent
   | LifecycleContextPreCompactEvent
   | LifecycleNotificationEvent
-  | LifecycleSkillEntryEvent;
+  | LifecycleSkillEntryEvent
+  | LifecycleSessionReflectionEvent;
 
 export type LifecycleEventKind = LifecycleEvent["kind"];
 
@@ -142,6 +165,7 @@ export type LifecycleEventByKind = {
   "lifecycle.context.preCompact": LifecycleContextPreCompactEvent;
   "lifecycle.notification": LifecycleNotificationEvent;
   "lifecycle.skill.entry": LifecycleSkillEntryEvent;
+  "lifecycle.session.reflection": LifecycleSessionReflectionEvent;
 };
 
 // ---------------------------------------------------------------------------

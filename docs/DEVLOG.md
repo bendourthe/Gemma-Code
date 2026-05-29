@@ -4,6 +4,69 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-28] v1.2.0 Phase 5 -- Agent Loop Policy Enforcement
+
+### Goal
+
+Codify and enforce four agent-loop policies derived from the Anthropic "best practices in large codebases" article (S3): a read-only intent that locks exploration sub-agents out of write tools, an optional path predicate on skill manifests so skills auto-load only inside their relevant subtree, a shared `.nexusignore` parser (plus a sibling per-tool `permissions.deny` parser) consumed by memory ingest and the code-graph scanner, and a 13th lifecycle hook position fired at session end so a stop-hook can mine the transcript for AGENTS.md / skill update candidates while context is fresh. Plan reference: [docs/v1.2.0/plans/adoption-ecosystem-2026-05.md](v1.2.0/plans/adoption-ecosystem-2026-05.md) Phase 5. Stability gate: (a) explore sub-agent cannot edit; (b) path-scoped skills load only when CWD matches; (c) `.nexusignore` exclusion at memory ingest; (d) `session-reflection` hook fires at session end with the transcript + files-written payload.
+
+### What changed
+
+**5.1 `core/coding/SubAgentPolicy.ts`.** New pure module that encodes the read-only `intent: 'explore'` policy. Exports `evaluateExploreToolCall(ctx)` (returns a `PolicyDecision`), `lintExploreSpecialist(input)` (returns lint findings for specialist definitions that combine `intent: 'explore'` with write tools), `tokenizeCommandLine(line)` (POSIX-ish argv tokenizer that stops at the first pipe / redirect / semicolon), plus the constants `EXPLORE_READONLY_TOOLS` (read_file / list_directory / grep_codebase / 8 codegraph_* tools / web_search / fetch_page), `EXPLORE_READONLY_BASH_COMMANDS` (ls / cat / head / tail / wc / find / tree / grep / rg / file / stat / pwd / echo / git), and `EXPLORE_READONLY_GIT_SUBCOMMANDS` (status / log / diff / show / rev-parse / ls-files / ls-tree / blame / config / remote / branch / describe / name-rev / for-each-ref). Wired into the v1.0.0 sub-agent dispatch path at [src/agents/SubAgentManager.ts](../src/agents/SubAgentManager.ts): `SubAgentConfig` gains an optional `intent` field; when `intent === 'explore'`, `_buildScopedRegistry` intersects the resolved tool scope with the explore allowlist (plus `run_terminal`) and wraps the `RunTerminalTool` with a policy-gated decorator that calls `evaluateExploreToolCall` on every invocation. A new `SubAgentManager.lintSpecialistForExplore(input)` surface exposes the lint hook so callers can flag bad specialist definitions at load time. 23-test unit suite at [tests/unit/core/coding/SubAgentPolicy.test.ts](../tests/unit/core/coding/SubAgentPolicy.test.ts); 7-test integration suite at [tests/integration/sub-agent-enforcement/explore-policy.test.ts](../tests/integration/sub-agent-enforcement/explore-policy.test.ts) covers the regression check from the plan ("explore sub-agent cannot Edit"). MCP tools loaded at runtime are intentionally NOT auto-allowlisted (safer-by-default; tracked as known-gaps `5.1.P2.P`); the modules/coding/ dispatch path wiring waits for the v1.1.0 carryforward `1.4.P1.B` move (known-gaps `5.1.P2.O`).
+
+**5.2 `core/skills/SkillCatalog.ts` -- pathScope.** `SkillRecord` and `Skill` gain an optional `pathScope: { include?: string[]; exclude?: string[] }` field (globs relative to the repo root). `SkillCatalog` interface adds `listForPath(currentPath)` and `reevaluatePathScope(currentPath)`; `InMemorySkillCatalog` implements both. Glob matcher `matchPathScope(scope, candidate)` is exported alongside the catalog so the same predicate is reusable from tests and from any future loader. The matcher handles `**` (spans separators), `*` (single-segment), trailing-slash directory shortcuts (auto-rewritten to `**`), backslash normalisation (Windows paths), and an exclude-takes-precedence rule. Skills without a `pathScope` continue to load globally -- no behavior change for existing skills. The live-daemon auto-reload-on-CWD-change behavior is NOT wired yet (the agent loop does not currently surface a "current edit path" hook to call `reevaluatePathScope` from); this is tracked as known-gaps `5.2.P3.Q`. 14-test unit suite at [tests/unit/core/skills/PathScope.test.ts](../tests/unit/core/skills/PathScope.test.ts) covers the matcher + the catalog `listForPath`.
+
+**5.3 `core/storage/NexusIgnore.ts` + `core/storage/PermissionsDeny.ts`.** Two new pure parser modules. `NexusIgnore.ts` exports `parseIgnoreFile(content)`, `mergeIgnorePatterns(...sets)`, `defaultIgnorePatterns()` (parses `NEXUS_IGNORE_DEFAULTS`), and `matchesIgnore(path, patterns)`. Syntax matches `.gitignore` (the subset the codegraph scanner already supports: directory-name, literal-path, suffix-pattern; negation is intentionally skipped and tracked as a future enhancement). The default set includes node_modules / .git / dist / out / coverage / .nyc_output / *.tsbuildinfo / *.coverage / .nexus / .gemma-code plus framework caches (.next, .turbo, .vite, etc.). A canonical `.nexusignore` lands at the repo root with the documented defaults plus a project-specific extension stub. `PermissionsDeny.ts` ships `parsePermissionsDeny(content)` and `evaluateDeny(toolName, subject, list)`. Format is `<ToolName>: <pattern>` (or `*: pattern` for any tool); pattern matcher is path-aware when the pattern contains `/` (segment-aware `**` / `*`) and command-greedy otherwise (`*` matches any chars including spaces). [core/memory/HybridRetriever.ts](../core/memory/HybridRetriever.ts) gains an `ignorePatterns` constructor option, a `setIgnorePatterns(patterns)` runtime swap, and a pre-chunk filter inside `ingestFile(input)` so any path matching the ignore patterns short-circuits with an empty result. The codegraph scanner's inline ignore parser is NOT refactored to use the shared module in this phase (known-gaps `5.3.P3.S`); the `PermissionsDeny` parser ships unwired (known-gaps `5.3.P2.R`) so its first caller can land cleanly when the unified pre-tool guard is built. 14-test unit suite at [tests/unit/core/storage/NexusIgnore.test.ts](../tests/unit/core/storage/NexusIgnore.test.ts), 10-test suite at [tests/unit/core/storage/PermissionsDeny.test.ts](../tests/unit/core/storage/PermissionsDeny.test.ts).
+
+**5.4 `core/lifecycle/HookBus.ts` -- 13th event + reference hook.** The `LifecycleEvent` discriminated union and `LifecycleEventByKind` mapping both gain `lifecycle.session.reflection` with payload `{sessionId, isoTime, transcript, filesWritten, modelId?, transcriptTokens?}`. The reference implementation at [core/lifecycle/SessionReflectionHook.ts](../core/lifecycle/SessionReflectionHook.ts) exports `attachSessionReflectionHook(bus, opts)` (subscribes + returns a `Disposable`), `buildReflectionArtifact(event, patterns)` (pure transcript miner that pattern-matches paragraphs and produces a structured `ReflectionArtifact`), `renderReflectionMarkdown(artifact)` (turns the artifact into the documented `<nexusHome>/reflections/<sessionId>.md` body), and the `DEFAULT_REFLECTION_PATTERNS` set covering "user explicitly corrected the agent" / "user confirmed a non-obvious approach worked" / "user said X, I did Y wrong" regex spans. Failures in the writer are swallowed (the hook MUST NOT take down the daemon's session-end path). Test injection points cover home-dir override, custom pattern sets, and a writer that throws. The daemon-side auto-wire (have the chat session emit the event when the user closes the session, plus a bootstrap call to `attachSessionReflectionHook` at startup) is NOT included in Phase 5 -- tracked as known-gaps `5.4.P3.T`. 9-test suite at [tests/unit/core/lifecycle/SessionReflectionHook.test.ts](../tests/unit/core/lifecycle/SessionReflectionHook.test.ts).
+
+### Files
+
+- `core/coding/SubAgentPolicy.ts` (NEW)
+- `core/skills/SkillCatalog.ts` (extended -- `SkillPathScope` interface, `listForPath` + `reevaluatePathScope` methods, `matchPathScope` exported function)
+- `core/storage/NexusIgnore.ts` (NEW)
+- `core/storage/PermissionsDeny.ts` (NEW)
+- `core/lifecycle/HookBus.ts` (extended -- `LifecycleSessionReflectionEvent` added to the union + by-kind mapping)
+- `core/lifecycle/SessionReflectionHook.ts` (NEW)
+- `core/memory/HybridRetriever.ts` (extended -- `ignorePatterns` constructor option, `setIgnorePatterns(p)` runtime swap, pre-chunk filter in `ingestFile`)
+- `src/agents/types.ts` (extended -- `SubAgentConfig.intent` optional field)
+- `src/agents/SubAgentManager.ts` (extended -- explore intent narrowing in `_buildScopedRegistry`, `run_terminal` policy-gated wrap, `lintSpecialistForExplore` surface, `wrapWithExplorePolicy` helper)
+- `.nexusignore` (NEW, canonical project default ignore set)
+- `tests/unit/core/coding/SubAgentPolicy.test.ts` (NEW, 23 tests)
+- `tests/unit/core/skills/PathScope.test.ts` (NEW, 14 tests)
+- `tests/unit/core/storage/NexusIgnore.test.ts` (NEW, 14 tests)
+- `tests/unit/core/storage/PermissionsDeny.test.ts` (NEW, 10 tests)
+- `tests/unit/core/lifecycle/SessionReflectionHook.test.ts` (NEW, 9 tests)
+- `tests/integration/sub-agent-enforcement/explore-policy.test.ts` (NEW, 7 tests)
+- `docs/v1.2.0/known-gaps.md` (updated -- six new Phase 5 entries 5.1.P2.O, 5.1.P2.P, 5.2.P3.Q, 5.3.P2.R, 5.3.P3.S, 5.4.P3.T; summary table recomputed)
+
+### Test signals
+
+- `npm run test` -- 3601 passed, 5 skipped, 0 failed (314 files), 42s
+- `npm run test:shell` -- 411 passed (46 files), 34s
+- `npm run lint` -- clean (eslint src)
+- `npm run lint:shell` -- clean (eslint src sidecar/src tests --max-warnings=0)
+- `npx tsc --noEmit` -- 0 errors
+- `npm run deps:check` -- 0 errors, 13 warnings (12 pre-existing + 1 new orphan warning on `core/storage/PermissionsDeny.ts`, intentional per known-gaps 5.3.P2.R)
+- Phase 5 new suites in isolation: 77 / 77 (23 SubAgentPolicy + 14 PathScope + 14 NexusIgnore + 10 PermissionsDeny + 9 SessionReflectionHook + 7 integration)
+
+### Known issues / deferrals
+
+Six new known-gaps entries (no P0 / P1 release-blockers); full text in [docs/v1.2.0/known-gaps.md](v1.2.0/known-gaps.md):
+
+- `5.1.P2.O` (DF/P2) -- explore-intent wiring is at `src/agents/SubAgentManager.ts` only; future `modules/coding/` dispatcher must pick up the same policy module.
+- `5.1.P2.P` (DF/P2) -- MCP tools are not auto-classified for the explore allowlist (safer default; addressed in a future cycle by an "is-read-only" annotation on the tool descriptor).
+- `5.2.P3.Q` (DF/P3) -- the live daemon does not auto-call `reevaluatePathScope` on edit-path changes yet; static-load path-scoped skills work.
+- `5.3.P2.R` (WN/P2) -- `PermissionsDeny` parser ships unwired pending the unified pre-tool guard.
+- `5.3.P3.S` (DF/P3) -- codegraph scanner retains its own inline `.nexusignore` parser; share-it refactor deferred to keep the diff scoped.
+- `5.4.P3.T` (DF/P3) -- session-reflection hook is callable but the daemon does not auto-attach it on session bootstrap yet.
+
+### Next phase
+
+Phase 6 -- Re-Partial Integrations (file-watcher abstraction, LSP client for TS/Python/Rust, interactive HTML scaffolding for "copy as JSON" round-trip artifacts).
+
+---
+
 ## [2026-05-28] v1.2.0 Phase 4 -- Memory Enhancements (LEANN-derived)
 
 ### Goal

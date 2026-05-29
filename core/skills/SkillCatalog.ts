@@ -26,6 +26,23 @@ export interface SkillProvenance {
   readonly contentHash: string;
 }
 
+/**
+ * v1.2.0 Phase 5.2 -- optional path scoping for skills.
+ *
+ * When present, a skill only auto-loads when the current working
+ * directory (or the file the agent is editing) matches at least one
+ * `include` glob and none of the `exclude` globs. Skills with no
+ * `pathScope` continue to load globally as before.
+ *
+ * Globs are matched relative to the repo root. Patterns follow the
+ * minimatch / .gitignore style supported by `matchPathScope` in
+ * `core/skills/PathScope.ts`.
+ */
+export interface SkillPathScope {
+  readonly include?: readonly string[];
+  readonly exclude?: readonly string[];
+}
+
 export interface SkillRecord {
   /** Skill id. For non-builtin sources this is `<namespace>/<name>` (e.g. `devai-hub/code-quality`). */
   id: string;
@@ -45,6 +62,12 @@ export interface SkillRecord {
    * (Phase 10.6).
    */
   diverged?: boolean;
+  /**
+   * v1.2.0 Phase 5.2 -- optional path predicate. When omitted, the skill
+   * is globally available. When present, the catalog filters via
+   * `matchPathScope` against the active path.
+   */
+  pathScope?: SkillPathScope;
 }
 
 export interface Skill extends SkillRecord {
@@ -52,6 +75,7 @@ export interface Skill extends SkillRecord {
   frontmatter: Readonly<Record<string, unknown>>;
   /** Markdown body of the SKILL.md. */
   body: string;
+  /** v1.2.0 Phase 5.2 -- inherits the optional `pathScope` from `SkillRecord`. */
 }
 
 /**
@@ -81,6 +105,23 @@ export interface SkillCatalog {
   listByNamespace(ns: SkillNamespace): readonly SkillRecord[];
   load(id: string): Promise<Skill>;
   reload(): Promise<void>;
+  /**
+   * v1.2.0 Phase 5.2 -- list only the skills whose `pathScope` matches the
+   * supplied path (or whose `pathScope` is absent). Implementations
+   * return the same shape as `list()` so callers can drop-in switch.
+   *
+   * `currentPath` is repo-root-relative (forward slashes); the catalog
+   * normalises it internally. When `currentPath` is `null` or empty, the
+   * filter degenerates to "skills with no pathScope".
+   */
+  listForPath(currentPath: string | null): readonly SkillRecord[];
+  /**
+   * v1.2.0 Phase 5.2 -- recompute the active set as the agent's editing
+   * focus changes. Callers invoke this when the CWD or editing target
+   * changes; the catalog returns the new visible set so the loader can
+   * activate / deactivate skills mid-session.
+   */
+  reevaluatePathScope(currentPath: string | null): readonly SkillRecord[];
 }
 
 export class InMemorySkillCatalog implements SkillCatalog {
@@ -120,6 +161,14 @@ export class InMemorySkillCatalog implements SkillCatalog {
     this._divergedNames = computeDivergedNames(skills);
   }
 
+  listForPath(currentPath: string | null): readonly SkillRecord[] {
+    return this.list().filter((r) => matchPathScope(r.pathScope, currentPath));
+  }
+
+  reevaluatePathScope(currentPath: string | null): readonly SkillRecord[] {
+    return this.listForPath(currentPath);
+  }
+
   private _toRecord(skill: Skill): SkillRecord {
     const baseName = displayKey(skill);
     const diverged = this._divergedNames.has(baseName);
@@ -133,8 +182,101 @@ export class InMemorySkillCatalog implements SkillCatalog {
       provenance: skill.provenance,
     };
     if (diverged) record.diverged = true;
+    if (skill.pathScope) record.pathScope = skill.pathScope;
     return record;
   }
+}
+
+/**
+ * v1.2.0 Phase 5.2 -- match a path-scope predicate against a candidate path.
+ *
+ * Rules:
+ *   - When `scope` is undefined: any path (including null) matches.
+ *   - When `scope.exclude` is set and the path matches any pattern: no match.
+ *   - When `scope.include` is set and the path matches NO pattern: no match.
+ *   - Otherwise: match.
+ *
+ * Globs use the minimatch-ish syntax actually shipped in this repo:
+ *   - `**` matches any sequence including path separators.
+ *   - `*` matches any character except path separators.
+ *   - Patterns without `**` are anchored at the repo root unless they
+ *     start with `**`.
+ *   - A trailing `/` is treated as "this directory and everything below".
+ *
+ * The matcher is pure -- no filesystem access -- so a single shared
+ * implementation is reused by tests, the catalog filter, and any future
+ * loader that needs the same predicate.
+ */
+export function matchPathScope(
+  scope: SkillPathScope | undefined,
+  candidate: string | null,
+): boolean {
+  if (!scope) return true;
+  const normalized = candidate ? candidate.replace(/\\/g, "/").replace(/^\/+/, "") : "";
+
+  const matchAny = (patterns: readonly string[] | undefined): boolean => {
+    if (!patterns || patterns.length === 0) return false;
+    return patterns.some((p) => matchGlob(p, normalized));
+  };
+
+  if (matchAny(scope.exclude)) return false;
+  if (scope.include && scope.include.length > 0) {
+    return matchAny(scope.include);
+  }
+  return true;
+}
+
+/**
+ * Compile a glob pattern into a single regex and test the candidate
+ * against it. Compact implementation that covers the cases the skill
+ * catalog actually needs (no character classes, no `?` wildcard).
+ *
+ * Pattern normalization:
+ *   - Trailing `/` is rewritten to `/**` so `modules/coding/` matches
+ *     `modules/coding/foo.ts`.
+ *   - `**` matches `.*` (greedy across separators); `*` matches `[^/]*`.
+ *   - Everything else is regex-escaped.
+ */
+function matchGlob(pattern: string, candidate: string): boolean {
+  if (pattern.length === 0) return false;
+  let pat = pattern.replace(/\\/g, "/").replace(/^\/+/, "");
+  if (pat.endsWith("/")) pat = pat + "**";
+
+  let regex = "^";
+  let i = 0;
+  while (i < pat.length) {
+    const ch = pat[i]!;
+    if (ch === "*") {
+      if (pat[i + 1] === "*") {
+        // Consume any number of `*` then optionally a `/` so that
+        // `**/foo` matches `foo` AND `a/foo` AND `a/b/foo`.
+        let j = i + 2;
+        while (pat[j] === "*") j += 1;
+        if (pat[j] === "/") {
+          regex += "(?:.*/)?";
+          i = j + 1;
+          continue;
+        }
+        regex += ".*";
+        i = j;
+        continue;
+      }
+      regex += "[^/]*";
+      i += 1;
+      continue;
+    }
+    if (ch === "/" || /[A-Za-z0-9_-]/.test(ch)) {
+      regex += ch;
+      i += 1;
+      continue;
+    }
+    // Escape any other regex metacharacter.
+    regex += "\\" + ch;
+    i += 1;
+  }
+  regex += "$";
+
+  return new RegExp(regex).test(candidate);
 }
 
 /**

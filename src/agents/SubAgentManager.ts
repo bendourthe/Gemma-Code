@@ -28,6 +28,46 @@ import {
   runCuratorWorker,
   runReflectWorker,
 } from "./BackgroundWorkers.js";
+import {
+  EXPLORE_READONLY_TOOLS,
+  evaluateExploreToolCall,
+  lintExploreSpecialist as lintExploreSpecialistImpl,
+} from "../../core/coding/SubAgentPolicy.js";
+import type { ToolHandler, ToolResult } from "../tools/types.js";
+
+/**
+ * v1.2.0 Phase 5.1 -- wrap a tool handler with the explore read-only
+ * policy. The wrapper intercepts every `execute` call and rejects when
+ * the policy says no; otherwise it delegates straight through.
+ *
+ * Currently this is only used for `run_terminal` because non-bash tools
+ * are filtered out via the registry-level allowlist before construction.
+ * Keeping the wrapper generic lets future read-only-ish tools (e.g. a
+ * future `git_status` tool) be policy-gated by the same mechanism.
+ */
+function wrapWithExplorePolicy(inner: ToolHandler): ToolHandler {
+  return {
+    async execute(params: Record<string, unknown>): Promise<ToolResult> {
+      const command = typeof params["command"] === "string" ? (params["command"] as string) : "";
+      const decision = evaluateExploreToolCall({
+        intent: "explore",
+        toolName: "run_terminal",
+        command,
+      });
+      if (!decision.allow) {
+        return {
+          id: typeof params["id"] === "string" ? (params["id"] as string) : "",
+          success: false,
+          output: "",
+          error:
+            decision.message ??
+            `Rejected by Phase 5.1 explore policy (${decision.reason ?? "unknown"}).`,
+        };
+      }
+      return inner.execute(params);
+    },
+  };
+}
 import type {
   WorkerCommandRunner,
   RunReflectWorkerOptions,
@@ -173,13 +213,37 @@ export class SubAgentManager implements SubAgentSpawner {
         ? await this._specialistLoader.load(config.type)
         : null;
 
+      // v1.2.0 Phase 5.1 -- when intent='explore', intersect the resolved
+      // tool scope with the read-only explore allowlist. The intersection
+      // narrows further from the specialist's already-restricted scope so
+      // an explore sub-agent never sees a write tool, regardless of how
+      // permissive the specialist definition is.
+      const baseToolScope: readonly string[] = specialist
+        ? specialist.toolScope
+        : TOOLS_BY_TYPE[config.type];
+      const exploreAllowlist = new Set<string>([
+        ...EXPLORE_READONLY_TOOLS,
+        // run_terminal stays available under explore intent because the
+        // per-command policy gate enforces a separate read-only command
+        // allowlist; non-explore sub-agents see the full tool scope as
+        // before.
+        "run_terminal",
+      ]);
+      const effectiveToolScope =
+        config.intent === "explore"
+          ? baseToolScope.filter((t) => exploreAllowlist.has(t))
+          : baseToolScope;
+
       // Build a scoped tool registry with only the allowed tools.
-      const registry = this._buildScopedRegistry(config.type, specialist);
+      const registry = this._buildScopedRegistry(
+        config.type,
+        specialist,
+        effectiveToolScope,
+        config.intent ?? null,
+      );
 
       // Get enabled tool metadata for prompt building.
-      const allowedNames = new Set(
-        specialist ? specialist.toolScope : TOOLS_BY_TYPE[config.type],
-      );
+      const allowedNames = new Set(effectiveToolScope);
       const allToolMeta = TOOL_CATALOG.map(toDynamicMetadata);
       const scopedToolMeta = allToolMeta.filter((t) => allowedNames.has(t.name));
 
@@ -323,9 +387,15 @@ export class SubAgentManager implements SubAgentSpawner {
    * When a Specialist is provided, its toolScope drives allowed tools;
    * otherwise the legacy hardcoded TOOLS_BY_TYPE map is used.
    */
-  private _buildScopedRegistry(type: SubAgentType, specialist: Specialist | null = null): ToolRegistry {
+  private _buildScopedRegistry(
+    type: SubAgentType,
+    specialist: Specialist | null = null,
+    overrideScope: readonly string[] | null = null,
+    intent: "explore" | "implement" | "verify" | "research" | null = null,
+  ): ToolRegistry {
     const registry = new ToolRegistry();
-    const allowed = new Set<string>(specialist ? specialist.toolScope : TOOLS_BY_TYPE[type]);
+    const baseScope = overrideScope ?? (specialist ? specialist.toolScope : TOOLS_BY_TYPE[type]);
+    const allowed = new Set<string>(baseScope);
 
     if (allowed.has("read_file")) {
       registry.register("read_file", new ReadFileTool());
@@ -337,7 +407,11 @@ export class SubAgentManager implements SubAgentSpawner {
       registry.register("grep_codebase", new GrepCodebaseTool());
     }
     if (allowed.has("run_terminal")) {
-      registry.register("run_terminal", new RunTerminalTool());
+      const terminal = new RunTerminalTool();
+      registry.register(
+        "run_terminal",
+        intent === "explore" ? wrapWithExplorePolicy(terminal) : terminal,
+      );
     }
     if (allowed.has("web_search")) {
       registry.register("web_search", new WebSearchTool());
@@ -421,6 +495,20 @@ export class SubAgentManager implements SubAgentSpawner {
         error: errorMessage,
       };
     }
+  }
+
+  /**
+   * v1.2.0 Phase 5.1 lint hook -- inspect a specialist definition for the
+   * explore + write-tool combination. Returns the array of findings (empty
+   * when clean). Wired by callers that want to surface specialist-file
+   * problems at load time without aborting dispatch.
+   */
+  lintSpecialistForExplore(input: {
+    intent: "explore" | "implement" | "verify" | "research";
+    toolScope: readonly string[];
+    sourcePath?: string;
+  }): readonly string[] {
+    return lintExploreSpecialistImpl(input);
   }
 
   private _buildOllamaTools(tools: readonly DynamicToolMetadata[]): OllamaToolDefinition[] {

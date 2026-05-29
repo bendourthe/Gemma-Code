@@ -31,6 +31,11 @@ import { PrunedDenseIndex } from "./PrunedDenseIndex.js";
 import { RrfFuser, DEFAULT_RRF_K } from "./RrfFuser.js";
 import { AstChunker, type Chunk, type ChunkFileInput } from "./chunkers/index.js";
 import type { MemoryStorageTierId } from "../config/MemoryStorageTier.js";
+import {
+  defaultIgnorePatterns,
+  matchesIgnore,
+  type IgnorePatterns,
+} from "../storage/NexusIgnore.js";
 
 /**
  * Phase 4.3 -- common query surface that both `DenseIndex` and
@@ -89,6 +94,15 @@ export interface HybridRetrieverDeps {
    * retriever constructs a default `AstChunker` on first ingest.
    */
   readonly chunker?: AstChunker;
+  /**
+   * Phase 5.3 -- optional `.nexusignore` pattern set. When provided,
+   * `ingestFile()` short-circuits with an empty result for paths whose
+   * `pathRelativeToRoot` matches the patterns. When omitted, ingest
+   * does not filter; callers (e.g. the warm rebuild worker) should
+   * still pass `defaultIgnorePatterns()` when they have no explicit
+   * file content to parse.
+   */
+  readonly ignorePatterns?: IgnorePatterns;
 }
 
 export interface IngestFileResult {
@@ -112,6 +126,7 @@ export class HybridRetriever {
   private readonly _entryProvider: (entryId: string) => MemoryHit | undefined;
   private readonly _fuser: RrfFuser;
   private _chunker: AstChunker | null;
+  private _ignorePatterns: IgnorePatterns;
 
   constructor(deps: HybridRetrieverDeps) {
     this._embedder = deps.embedder;
@@ -121,6 +136,17 @@ export class HybridRetriever {
     this._entryProvider = deps.entryProvider;
     this._fuser = new RrfFuser(deps.rrfK ?? DEFAULT_RRF_K);
     this._chunker = deps.chunker ?? null;
+    this._ignorePatterns = deps.ignorePatterns ?? defaultIgnorePatterns();
+  }
+
+  /**
+   * Phase 5.3 -- swap the ignore pattern set at runtime. Used by the
+   * warm rebuild worker when the repo's `.nexusignore` changes mid-
+   * session. Callers pass the merged result of the defaults plus the
+   * file content (see `defaultIgnorePatterns` and `parseIgnoreFile`).
+   */
+  setIgnorePatterns(patterns: IgnorePatterns): void {
+    this._ignorePatterns = patterns;
   }
 
   /**
@@ -135,6 +161,13 @@ export class HybridRetriever {
    * for invoking `dense.save()` / `bm25.save()` at the cadence it picks.
    */
   async ingestFile(input: ChunkFileInput): Promise<IngestFileResult> {
+    // Phase 5.3 -- honor .nexusignore by short-circuiting before the
+    // chunker runs. The caller passes a repo-root-relative `filePath`;
+    // absolute paths are normalised by the matcher but ideally the
+    // caller relativises first.
+    if (matchesIgnore(input.filePath, this._ignorePatterns)) {
+      return { chunks: [], usedAstPath: false };
+    }
     if (!this._chunker) this._chunker = new AstChunker();
     const chunks = this._chunker.chunk(input);
     if (chunks.length === 0) {

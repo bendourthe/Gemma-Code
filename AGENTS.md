@@ -39,6 +39,15 @@ core/                       v1.0.0 shared-core surfaces (Phase 2.3 + 2.6)
                               pillar prefers `codegraph_*` over grep for
                               symbol queries
   config/MemoryStorageTier.ts Standard / Pruned memory tier policy (v1.2.0 Phase 4)
+  coding/SubAgentPolicy.ts   read-only `intent: 'explore'` policy +
+                              specialist linter (v1.2.0 Phase 5)
+  lifecycle/HookBus.ts        13-event lifecycle bus (Phase 4 + Phase 5 adds
+                              `lifecycle.session.reflection`)
+  lifecycle/SessionReflectionHook.ts reference reflection hook implementation
+                              (v1.2.0 Phase 5)
+  storage/NexusIgnore.ts      shared `.nexusignore` parser (v1.2.0 Phase 5)
+  storage/PermissionsDeny.ts  per-tool `.nexus/permissions.deny` parser
+                              (v1.2.0 Phase 5)
 
 modules/                    per-pillar code (one folder per pillar)
   coding/                    Agentic AI Coding (engine still in src/ during the

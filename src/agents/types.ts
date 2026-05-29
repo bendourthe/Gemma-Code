@@ -20,6 +20,15 @@ export interface SubAgentConfig {
   readonly modifiedFiles: readonly string[];
   readonly recentToolResults: readonly string[];
   readonly memoryContext?: string;
+  /**
+   * v1.2.0 Phase 5.1 -- optional read-only intent flag. When set to
+   * `'explore'`, the sub-agent is restricted to the read-only tool
+   * allowlist in `core/coding/SubAgentPolicy.ts` (Read, Glob, Grep,
+   * codegraph_*, plus a configurable run_terminal command allowlist).
+   * Tool calls outside the allowlist are rejected by `SubAgentManager`
+   * before they reach the AgentLoop.
+   */
+  readonly intent?: "explore" | "implement" | "verify" | "research";
 }
 
 export interface SubAgentResult {

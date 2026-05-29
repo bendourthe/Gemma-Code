@@ -1,9 +1,9 @@
 # v1.2.0 -- Known Gaps, Deferrals, and Carryovers
 
-**Status**: live. v1.2.0 opens with the 2026-05 ecosystem-adoption track. Phase 1 (2026-05-27) shipped the skill-native foundation; Phase 2 (2026-05-28) shipped the Coding-pillar command-output compressor (`core/observability/CommandCompressor.ts`) with filter / group / truncate / dedupe strategies, tee-on-failure, and a benchmark stability gate; Phase 3 (2026-05-28) shipped the code-graph MCP subsystem under `core/codegraph/` (SQLite + FTS5 store, regex-based scanner for TS / Python / Rust / Go, 8 internal MCP tools, Coding-pillar wiring, and a stability-gate benchmark hitting 25% of the grep-shaped tool-call count); Phase 4 (2026-05-28) shipped the memory enhancements (AST-aware chunker, LEANN-derived `PrunedDenseIndex`, `MemoryStorageTier` policy gating, and a storage-size benchmark hitting 18.7% of Standard with 100% recall on the 2k-chunk CI fixture). The known-gaps file is appended phase-by-phase; items move to `## 2. Resolved` when closed in a later phase; the `## 3. Summary` at the bottom is recomputed each pass.
+**Status**: live. v1.2.0 opens with the 2026-05 ecosystem-adoption track. Phase 1 (2026-05-27) shipped the skill-native foundation; Phase 2 (2026-05-28) shipped the Coding-pillar command-output compressor (`core/observability/CommandCompressor.ts`) with filter / group / truncate / dedupe strategies, tee-on-failure, and a benchmark stability gate; Phase 3 (2026-05-28) shipped the code-graph MCP subsystem under `core/codegraph/` (SQLite + FTS5 store, regex-based scanner for TS / Python / Rust / Go, 8 internal MCP tools, Coding-pillar wiring, and a stability-gate benchmark hitting 25% of the grep-shaped tool-call count); Phase 4 (2026-05-28) shipped the memory enhancements (AST-aware chunker, LEANN-derived `PrunedDenseIndex`, `MemoryStorageTier` policy gating, and a storage-size benchmark hitting 18.7% of Standard with 100% recall on the 2k-chunk CI fixture); Phase 5 (2026-05-28) shipped the agent-loop policy items (read-only explore sub-agent enforcement at `core/coding/SubAgentPolicy.ts` and wired into `src/agents/SubAgentManager`; path-scoped skills via the new `SkillRecord.pathScope` field plus `matchPathScope` in `core/skills/SkillCatalog.ts`; shared `.nexusignore` parser at `core/storage/NexusIgnore.ts` plus a per-tool `.nexus/permissions.deny` parser at `core/storage/PermissionsDeny.ts`; and the 13th lifecycle hook position `lifecycle.session.reflection` with reference implementation at `core/lifecycle/SessionReflectionHook.ts`). The known-gaps file is appended phase-by-phase; items move to `## 2. Resolved` when closed in a later phase; the `## 3. Summary` at the bottom is recomputed each pass.
 
 **Audience**: v1.2.0 phase authors, code reviewer, future-cycle planners
-**Last updated**: 2026-05-28 (Phase 4)
+**Last updated**: 2026-05-28 (Phase 5)
 **Sibling reviews**: [docs/v1.1.0/known-gaps.md](../v1.1.0/known-gaps.md) (the upstream cycle gap log; carryforward open items remain in force during v1.2.0); [docs/v1.2.0/plans/adoption-ecosystem-2026-05.md](plans/adoption-ecosystem-2026-05.md) (the active adoption plan); [docs/v1.2.0/comparison-ecosystem-2026-05.md](comparison-ecosystem-2026-05.md) (the seven-source comparison this cycle's first track adopts).
 
 **Cycle context**: v1.2.0 opens the post-v1.1.0 cycle with the 2026-05 ecosystem-adoption track. Phase 1 (this commit) is skill-native + policy only: two new Nexus-Hub skills (hallmark-design, html-output-conventions, with 4 self-contained HTML reference templates), a new "hooks-over-prompts" Critical Rule and inventory in AGENTS.md, and a 6-month AGENTS.md review cadence. No code surface in `core/` or `modules/` is touched in Phase 1 itself; the two scope expansions this run (sidecar IPC stubs and a desktop strict-null test guard) are recorded under `## 2. Resolved` below. Phases 2-7 of the adoption plan land the code-shaped items (command compression, code-graph MCP, memory enhancements, agent-loop policy, re-partials, stabilization).
@@ -126,6 +126,48 @@ Each entry has a category tag:
 - **Reason**: The plan asks for the footer to be injected into the next-turn system prompt via `PromptBuilder`. The shipped wiring embeds the footer as a `footer` field inside the `run_terminal` tool-result JSON payload alongside `teePath` and `strategyApplied`. Functionally the model sees the path on the very next reasoning step (the JSON is part of the conversation history that feeds the next system prompt), so the tee path is reachable without an additional PromptBuilder edit. A literal PromptBuilder hook would have crossed the Coding-pillar agent-loop boundary, which is closer to Phase 5's "agent loop policy" surface.
 - **Suggested next step**: When Phase 5 lands the read-only-exploration sub-agent enforcement and the 13th `session-reflection` hook position, also add a PromptBuilder section that surfaces the most recent tee footer in the next-turn system prompt header, and switch the tool-result JSON to omit `footer` once the PromptBuilder section is wired.
 
+### 5.1.P2.O -- Explore-intent enforcement wired only at `src/agents/SubAgentManager`, not at the (future) modules/coding dispatch path (DF, P2)
+
+- **Source phase**: Phase 5 (sub-task 5.1)
+- **Plan reference**: [adoption-ecosystem-2026-05.md](plans/adoption-ecosystem-2026-05.md) sub-task 5.1 ("Modify the sub-agent dispatch layer ... so that sub-agents invoked with `intent: 'explore'` have a tool allowlist restricted to: Read, Glob, Grep, codegraph_* tools, and Bash only for commands matching a configurable allowlist of read-only commands").
+- **Reason**: The policy module ships at `core/coding/SubAgentPolicy.ts` (pure, no I/O) and is wired through the v1.0.0 sub-agent dispatch entry point at [src/agents/SubAgentManager.ts](../../src/agents/SubAgentManager.ts) -- the only sub-agent dispatcher actually running in production today. The plan's reference to `modules/coding/` is forward-looking; the Coding-module engine still lives in `src/` during the one-cycle compat window per [AGENTS.md "Project Layout"](../../AGENTS.md). When the dispatch path moves to `modules/coding/` (tracked separately under v1.1.0 carryforward `1.4.P1.B`), the new dispatcher must call `evaluateExploreToolCall` and `lintExploreSpecialist` at the same wiring points -- those public surfaces are stable.
+- **Suggested next step**: When `1.4.P1.B` lands the src -> modules/coding move, port the explore intent + policy wiring in `SubAgentManager.run` / `SubAgentManager._buildScopedRegistry` to the new dispatcher. The policy module is the abstraction boundary.
+
+### 5.1.P2.P -- Explore policy is not yet enforced for MCP tools loaded at runtime (DF, P2)
+
+- **Source phase**: Phase 5 (sub-task 5.1)
+- **Plan reference**: [adoption-ecosystem-2026-05.md](plans/adoption-ecosystem-2026-05.md) sub-task 5.1 (tool allowlist: "Read, Glob, Grep, codegraph_* tools, and Bash only for commands matching ...").
+- **Reason**: `EXPLORE_READONLY_TOOLS` in [core/coding/SubAgentPolicy.ts](../../core/coding/SubAgentPolicy.ts) explicitly enumerates the built-in tool surface (read_file / list_directory / grep_codebase / codegraph_* / web_search / fetch_page). Dynamic MCP tools loaded at runtime via the [core/coding/McpBridge.ts](../../core/coding/McpBridge.ts) harness are NOT auto-classified -- under the current policy, every MCP tool is rejected from an explore sub-agent. This is the safer-by-default behavior, but it means a user who legitimately wants `mcp:github/search_issues` to be available during exploration must extend the allowlist manually.
+- **Suggested next step**: When Phase 6 (re-partial integrations) lands the LSP client, also extend the policy with a "read-only MCP tool" annotation derived from the MCP tool descriptor's input schema -- tools whose JSON schema has no write-capable verbs in their name (e.g. `create`, `update`, `delete`, `post`, `write`) should automatically join the explore allowlist. Until then, MCP tools are blocked under explore intent.
+
+### 5.2.P3.Q -- PathScope filtering does not auto-reload skills mid-session in the live daemon (DF, P3)
+
+- **Source phase**: Phase 5 (sub-task 5.2)
+- **Plan reference**: [adoption-ecosystem-2026-05.md](plans/adoption-ecosystem-2026-05.md) sub-task 5.2 ("Add a method `reevaluatePathScope(currentPath: string)` that the agent loop calls when the editing focus changes, so a skill can become active mid-session as the agent moves into a relevant subtree").
+- **Reason**: `InMemorySkillCatalog.reevaluatePathScope` ships and is tested -- it returns the visible set for a given path. The actual live wiring (have the Coding-pillar agent loop call `reevaluatePathScope(currentEditPath)` when the focus changes) is NOT included in Phase 5: the agent loop's "current edit path" is not currently surfaced as a hook, and exposing it would cross from `core/skills/` into the agent-loop boundary (`src/tools/AgentLoop.ts`) -- closer to a Phase 6+ concern. Skills authored with `pathScope` are still loaded correctly when the daemon starts in a CWD that matches; they just do not auto-activate mid-session yet.
+- **Suggested next step**: When the Coding-pillar agent loop gains a per-turn "active edit path" projection (likely as part of the eventual sub-agent + sessions surface from the v1.1.0 Phase 11 plan), have it call `catalog.reevaluatePathScope(activeEditPath)` and diff the result against the previously-loaded set; activate / deactivate skills accordingly. The catalog surface is already in place.
+
+### 5.3.P2.R -- `permissions.deny` parser ships but is not yet wired into any tool (WN, P2)
+
+- **Source phase**: Phase 5 (sub-task 5.3)
+- **Plan reference**: [adoption-ecosystem-2026-05.md](plans/adoption-ecosystem-2026-05.md) sub-task 5.3 ("Add `.nexus/permissions.deny` parsing for per-tool denials -- e.g. `Bash: rm -rf /*` denies Bash matching that pattern").
+- **Reason**: The parser at [core/storage/PermissionsDeny.ts](../../core/storage/PermissionsDeny.ts) is fully implemented and unit-tested (parse + evaluate with literal, wildcard, and ** path patterns; tool-name wildcards; first-match-wins). It is currently a stand-alone module with no caller -- which `dependency-cruiser` correctly flags as `no-orphans`. The next-cycle wiring point is the `run_terminal` permission-gate path (and any other write-capable tool's pre-tool hook). The plan only required the parser surface plus tests; wiring it everywhere would have crossed into a separate per-tool guard concern.
+- **Suggested next step**: When v1.2.0 Phase 7 stabilization (or a follow-up cycle) lands a unified pre-tool permission-gate hook, route every tool invocation through `evaluateDeny(toolName, subject, parsedDeny)` after the existing path-guard and ALLOWED_COMMANDS checks. The shared parser is ready.
+
+### 5.3.P3.S -- Codegraph scanner still uses its own inline ignore parser instead of the shared module (DF, P3)
+
+- **Source phase**: Phase 5 (sub-task 5.3)
+- **Plan reference**: [adoption-ecosystem-2026-05.md](plans/adoption-ecosystem-2026-05.md) sub-task 5.3 ("The parsed exclusion list is honored by: ... (b) the code-graph scanner from Phase 3").
+- **Reason**: Phase 5.3 ships the shared `.nexusignore` parser at [core/storage/NexusIgnore.ts](../../core/storage/NexusIgnore.ts) and wires it into `HybridRetriever.ingestFile` (memory ingest). The pre-existing inline ignore parser inside [core/codegraph/scanner/RepoScanner.ts](../../core/codegraph/scanner/RepoScanner.ts) (which was added during Phase 3.3) was NOT refactored to use the shared module -- both parsers produce equivalent behavior on the same `.nexusignore` content, but they live in two places. Per AGENTS.md "every changed line must trace directly to the user's request", a wholesale refactor of the codegraph scanner was deferred so the Phase 5.3 diff stayed tight to the plan's surface.
+- **Suggested next step**: In a follow-up hygiene commit, replace the inline `loadIgnorePatterns` / `isIgnored` functions in `RepoScanner.ts` with `mergeIgnorePatterns(defaultIgnorePatterns(), parseIgnoreFile(content))` and `matchesIgnore` from `core/storage/NexusIgnore.ts`. Re-run the Phase 3 codegraph integration tests to confirm parity.
+
+### 5.4.P3.T -- session-reflection hook is registered manually; no auto-wiring in the daemon yet (DF, P3)
+
+- **Source phase**: Phase 5 (sub-task 5.4)
+- **Plan reference**: [adoption-ecosystem-2026-05.md](plans/adoption-ecosystem-2026-05.md) sub-task 5.4 ("Provide one reference hook implementation under `.claude/agents/` that scans the transcript for 'user said X, I did Y wrong' patterns and emits a `proposed-agents-md-update` artifact at `<nexus-home>/reflections/<session-id>.md`").
+- **Reason**: The 13th lifecycle event `lifecycle.session.reflection` is added to the `HookBus` union; the reference implementation at [core/lifecycle/SessionReflectionHook.ts](../../core/lifecycle/SessionReflectionHook.ts) exports `attachSessionReflectionHook(bus, opts)` and is fully unit-tested. The daemon-side automatic wiring (have the chat session emit the event when the user closes the session, then have the bootstrap call `attachSessionReflectionHook` once at daemon startup) is NOT included in Phase 5: the chat session's `end()` path lives in `src/chat/` and crosses into the v1.1.0 Phase 11 surface that the v1.2.0 cycle's compat window has not yet stabilized. The hook composes cleanly when a caller wires it; the integration test exercises that contract.
+- **Suggested next step**: When the daemon bootstrap path is consolidated (likely during Phase 7 stabilization or in the v1.1.0 carryforward 1.4.P1.B src -> modules/coding move), call `attachSessionReflectionHook(hookBus)` once at session-construction time and emit `lifecycle.session.reflection` from the session-end handler in `core/coding/` (or wherever the session-end lifecycle is consolidated). Until then, the hook only fires when a test or operator wires it explicitly.
+
 ### Carryforward map (v1.1.0 -> v1.2.0)
 
 Per the v1.1.0 closure note in [docs/v1.1.0/known-gaps.md](../v1.1.0/known-gaps.md) section header, every "Open" item in that file carries forward into the v1.2.0 cycle by code reference. Architectural items rolling into v1.2.0 are re-listed below by their original v1.1.0 code, with cross-references back; the per-item triage in v1.1.0 stands. No re-ingestion of the entries' bodies is required here -- consult [docs/v1.1.0/known-gaps.md](../v1.1.0/known-gaps.md) for the full text.
@@ -162,11 +204,12 @@ These do not block Phase 1 of the v1.2.0 adoption track but remain visible to ph
 
 | Section | Count |
 |---|---|
-| Open items (Phase 1 + Phase 2 + Phase 3 + Phase 4 entries) | 14 |
+| Open items (Phases 1-5 entries) | 19 |
 | Carryforward from v1.1.0 | 2 (re-listed by code; full text in v1.1.0 file) |
 | Resolved in Phase 1 | 2 |
 | Resolved in Phase 2 | 0 |
 | Resolved in Phase 3 | 0 |
 | Resolved in Phase 4 | 0 |
+| Resolved in Phase 5 | 0 |
 | Release blockers (P0) | 0 |
-| Severity breakdown (Open, Phases 1-4) | P1: 0  P2: 6  P3: 8 |
+| Severity breakdown (Open, Phases 1-5) | P1: 0  P2: 9  P3: 10 |

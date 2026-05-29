@@ -1,0 +1,43 @@
+# Nexus ignore patterns.
+#
+# Same syntax as .gitignore. Honored by:
+#   - core/memory/HybridRetriever.ingestFile  (memory ingest)
+#   - core/codegraph/scanner/RepoScanner      (code-graph indexing)
+#   - core/storage/FileWatcher                (Phase 6 -- forward referenced)
+#   - sub-agent Read / Glob / Grep tools      (Phase 5.1 dispatch policy)
+#
+# This file is the default set; users can add project-specific lines below.
+# See core/storage/NexusIgnore.ts for the parser and the shared
+# NEXUS_IGNORE_DEFAULTS array.
+
+# Build outputs
+node_modules/
+dist/
+out/
+build/
+.turbo/
+.next/
+.nuxt/
+.svelte-kit/
+
+# Caches and incremental compile output
+.cache/
+.vite/
+.parcel-cache/
+*.tsbuildinfo
+
+# Test coverage
+coverage/
+.nyc_output/
+*.coverage
+
+# IDE / editor artifacts
+.idea/
+.vscode-test/
+
+# Generated docs / archives outside core docs/ tree
+docs/archive/**/dist/
+
+# Nexus per-user data (in case a developer accidentally drops it under the repo)
+.nexus/
+.gemma-code/
