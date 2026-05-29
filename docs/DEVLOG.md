@@ -4,6 +4,22 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-28] v1.3.0 Phase 1 -- Skill-Native Authoring Rule
+
+### Goal
+
+Open the v1.3.0 cycle's skill-cleaner adoption track ([docs/versions/v1/v1.3.0/plans/adoption-skill-cleaner.md](versions/v1/v1.3.0/plans/adoption-skill-cleaner.md), derived from [comparison-skill-cleaner.md](versions/v1/v1.3.0/comparison-skill-cleaner.md)) by shipping its one zero-code item first: a Nexus-Hub skill that codifies the description-authoring rule (insight I-15). Shipping it before any description-compaction work (Phase 3 onward) means the trigger-noun preservation rule is in force when the `nexus skills audit` command later reports on long descriptions.
+
+### What changed
+
+**T001 New Nexus-Hub skill.** `catalog/skills/developer-experience/skill-description-authoring/SKILL.md` (in the sibling Nexus-Hub repo) codifies three authoring rules: (a) descriptions are single-line and ASCII-sanitized (no newlines, no trailing whitespace, no curly quotes / em-dashes per the AGENTS.md ASCII-only convention); (b) descriptions preserve the four trigger-noun categories that drive matching -- product, tool, action, object; (c) the `name:` field defaults to the parent directory name when omitted. Three worked examples ship inline: a good description, an over-long description with a compaction diff, and a no-trigger-noun description with a rewrite. The skill cites the source comparison and names Nexus-Hub `validate_skills.py` as the Phase 6 enforcement point; the skill-cleaner analyzer script was deliberately not imported (reverse-engineer-first per the MCP Registry Policy).
+
+**T002 Validation + manifest walk.** `python scripts/validate_skills.py` PASS (0 errors); the quality heuristics pass also PASS (0 warnings, after trimming `overview_l1` from 151 to <=150 words). A direct `buildManifest` walk over the local Hub catalog reports 219 skills with `skill-description-authoring` present. The plan's `nexus skills sync --dry-run` instruction was adapted: that subcommand has no `--dry-run` flag and fetches a release tag (so an unreleased local skill cannot appear -- carryforward known-gap `1.1.P3.B`); the `buildManifest` walk is the faithful local equivalent.
+
+**Scope.** The deliverable lives entirely in Nexus-Hub (committed there on a feature branch). This Nexus repo gets only bookkeeping: the new [docs/versions/v1/v1.3.0/known-gaps.md](versions/v1/v1.3.0/known-gaps.md) (seeded for the cycle, plus one open item `T002.P2.A` routing 7 pre-existing Hub validator secret-scan false positives to Phase 6 / T017), plan checkboxes, and the per-phase session history at [docs/versions/v1/v1.3.0/development/history/2026-05_phase-1-skill-native-authoring-rule.md](versions/v1/v1.3.0/development/history/2026-05_phase-1-skill-native-authoring-rule.md). README / AGENTS.md / ARCHITECTURE.md updates are deferred to Phase 7 (T021) per the plan. Catalog size note: the plan assumed 213 skills (214 post-add); the live catalog is at 218 (219 post-add).
+
+---
+
 ## [2026-05-28] v1.2.0 Phase 7 -- Stabilization, Benchmarks, and Documentation Refresh
 
 ### Goal

@@ -50,7 +50,7 @@ No constitution file found at docs/versions/v1/v1.3.0/constitution.md - skipping
 
 #### 1.1 -- Author the `skill-description-authoring` Nexus-Hub skill
 
-- [ ] T001 Create skill at `catalog/skills/developer-experience/skill-description-authoring/SKILL.md` in the Nexus-Hub repo
+- [x] T001 Create skill at `catalog/skills/developer-experience/skill-description-authoring/SKILL.md` in the Nexus-Hub repo
 
 **Objective**: Codify the trigger-noun preservation rule (product / tool / action / object) plus the supporting authoring guidance (single-line `name`, single-line `description`, no marketing prose) as a portable Nexus-Hub skill so any skill author -- in Nexus-Hub or downstream -- can apply it consistently.
 
@@ -61,7 +61,7 @@ No constitution file found at docs/versions/v1/v1.3.0/constitution.md - skipping
 
 #### 1.2 -- Phase 1 test pass and stabilization
 
-- [ ] T002 Validate the new Hub skill against `python scripts/validate_skills.py` in the Nexus-Hub repo
+- [x] T002 Validate the new Hub skill against `python scripts/validate_skills.py` in the Nexus-Hub repo
 
 **Objective**: Confirm the new skill parses cleanly under Nexus-Hub's existing validator before downstream phases consume it.
 
@@ -72,10 +72,10 @@ No constitution file found at docs/versions/v1/v1.3.0/constitution.md - skipping
 
 ### Phase 1 Exit Checklist
 
-- [ ] T001 completed (skill committed in Nexus-Hub)
-- [ ] T002 completed (validator + manifest walk pass)
-- [ ] Session history generated
-- [ ] Ready to advance to Phase 2
+- [x] T001 completed (skill committed in Nexus-Hub)
+- [x] T002 completed (validator + manifest walk pass)
+- [x] Session history generated
+- [x] Ready to advance to Phase 2
 
 ---
 
