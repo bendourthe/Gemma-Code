@@ -19,7 +19,11 @@ export type TelemetryEventKind =
   | "gpu.sample"
   | "vram.sample"
   | "module.activated"
-  | "module.deactivated";
+  | "module.deactivated"
+  // v1.3.0 Phase 2 (adoption-skill-cleaner T006, insight I-07): emitted when
+  // two logical skill paths resolve to the same physical path and one is
+  // dropped during realpath dedup. Payload carries the kept + dropped paths.
+  | "skills.dedup";
 
 export interface TelemetryEvent<TPayload = unknown> {
   kind: TelemetryEventKind;

@@ -89,7 +89,7 @@ No constitution file found at docs/versions/v1/v1.3.0/constitution.md - skipping
 
 #### 2.1 -- Create `core/observability/TokenCost.ts`
 
-- [ ] T003 [P] Create the model-agnostic token-cost helper at core/observability/TokenCost.ts
+- [x] T003 [P] Create the model-agnostic token-cost helper at core/observability/TokenCost.ts
 
 **Objective**: Provide a single `tokenize(text: string): number` export returning `Math.ceil(utf8ByteLength(text) / 4)` that future consumers (the auditor, the existing `CommandCompressor`, future memory tiers) can reuse without each rolling its own approximation.
 
@@ -100,7 +100,7 @@ No constitution file found at docs/versions/v1/v1.3.0/constitution.md - skipping
 
 #### 2.2 -- Extend `ModelRegistry` with `contextWindow`
 
-- [ ] T004 [P] Add the contextWindow field to core/registry/ModelRegistry.ts
+- [x] T004 [P] Add the contextWindow field to core/registry/ModelRegistry.ts
 
 **Objective**: Surface the active model's context-window size so the auditor can compute a configurable budget envelope (default 2%) per insight I-05.
 
@@ -111,7 +111,7 @@ No constitution file found at docs/versions/v1/v1.3.0/constitution.md - skipping
 
 #### 2.3 -- Create `core/skills/SkillRenderLine.ts`
 
-- [ ] T005 [P] Create the single-source-of-truth render formatter at core/skills/SkillRenderLine.ts
+- [x] T005 [P] Create the single-source-of-truth render formatter at core/skills/SkillRenderLine.ts
 
 **Objective**: Produce the canonical `- name: description (file: path)` line shape (insight I-02) that both the agent loop and the future `SkillAuditor` will consume, so the auditor's token math stays faithful to what the model actually sees.
 
@@ -122,7 +122,7 @@ No constitution file found at docs/versions/v1/v1.3.0/constitution.md - skipping
 
 #### 2.4 -- Realpath dedup in `SkillCatalog.loadFromDisk`
 
-- [ ] T006 [P] Add fs.realpathSync dedup before insertion in core/skills/SkillCatalog.ts
+- [x] T006 [P] Add fs.realpathSync dedup before insertion in core/skills/SkillCatalog.ts
 
 **Objective**: Prevent symlinked skill roots (e.g. `~/.nexus/skills/devai-hub/<tag>/` pointing into a working Nexus-Hub checkout) from registering the same skill twice under different paths, per insight I-07.
 
@@ -133,7 +133,7 @@ No constitution file found at docs/versions/v1/v1.3.0/constitution.md - skipping
 
 #### 2.5 -- Phase 2 test pass and stabilization
 
-- [ ] T007 Run npm run test and npm run build to confirm all four foundational modules integrate cleanly
+- [x] T007 Run npm run test and npm run build to confirm all four foundational modules integrate cleanly
 
 **Objective**: Confirm the four new modules compile together, all unit tests pass, and no cross-module imports leak in unintended directions before Phase 3 builds on top.
 
@@ -144,13 +144,13 @@ No constitution file found at docs/versions/v1/v1.3.0/constitution.md - skipping
 
 ### Phase 2 Exit Checklist
 
-- [ ] T003 completed (TokenCost.ts + test)
-- [ ] T004 completed (ModelRegistry.contextWindow + test)
-- [ ] T005 completed (SkillRenderLine.ts + test)
-- [ ] T006 completed (realpath dedup + test)
-- [ ] T007 completed (full build + test gate)
-- [ ] Session history generated
-- [ ] Ready to advance to Phase 3
+- [x] T003 completed (TokenCost.ts + test)
+- [x] T004 completed (ModelRegistry.contextWindow + test)
+- [x] T005 completed (SkillRenderLine.ts + test)
+- [x] T006 completed (realpath dedup + test)
+- [x] T007 completed (full build + test gate)
+- [x] Session history generated
+- [x] Ready to advance to Phase 3
 
 ---
 

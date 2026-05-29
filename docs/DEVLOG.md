@@ -4,6 +4,28 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-29] v1.3.0 Phase 2 -- Foundational Local Utilities
+
+### Goal
+
+Land the four small, independent modules the Phase 3 `nexus skills audit` command will compose ([docs/versions/v1/v1.3.0/plans/adoption-skill-cleaner.md](versions/v1/v1.3.0/plans/adoption-skill-cleaner.md)). All four touch separate files with no inter-dependencies, so they were authored together behind one build + test + lint + architecture gate. Stability gate: all four ship with unit tests; `npm run build` and `npm run test` pass; no new lints.
+
+### What changed
+
+**T003 TokenCost helper.** New [core/observability/TokenCost.ts](../core/observability/TokenCost.ts) exports `tokenize(text)` returning `Math.ceil(Buffer.byteLength(text, "utf8") / 4)` (insight I-04). A single shared model-agnostic estimator so the future `SkillAuditor`, the existing `CommandCompressor`, and future memory tiers do not each roll their own approximation; the JSDoc notes it is an under-estimator for CJK / emoji text and within ~10% for the BPE tokenizers used by Gemma 4 / Llama 3 / Qwen 2.5 Coder. Four unit tests cover ASCII, multi-byte Latin accents, emoji + CJK, and the empty string. Per the plan, `CommandCompressor` is NOT wired to it here -- consumer wiring is Phase 3 (T009).
+
+**T004 ModelRegistry contextWindow.** [core/registry/ModelRegistry.ts](../core/registry/ModelRegistry.ts) gains an optional `contextWindow` field on `ModelRecord`, a `DEFAULT_CONTEXT_WINDOW = 272_000` constant (skill-cleaner's GPT-5.5 fallback, insight I-05), and `setActiveModel(id) / getActiveContextWindow()` on the `ModelRegistry` interface + `InMemoryModelRegistry`. The registry normalises an absent `contextWindow` to the default on store, so `list()` / `metadata()` always return a concrete number; the seed `gemma4:e4b` record is set to 128_000 (cited from the Gemma model card). No network fetch -- all model facts stay local per README "Privacy by construction". Nine unit tests cover the default fallback, per-model override, the getter with no/active/unknown/cleared model, and active-clear-on-remove.
+
+**T005 SkillRenderLine.** New [core/skills/SkillRenderLine.ts](../core/skills/SkillRenderLine.ts) exports `renderSkillLine(skill)` producing the canonical `- ${id}: ${description} (file: ${path})` shape (insight I-02) plus `renderSkillBlock(skills)` joining with newlines. Descriptions are pulled defensively from frontmatter (callers pass `Skill` instances that extend `SkillRecord`), newlines are flattened to a single space, and trailing whitespace is trimmed. The budget fallback ladder is explicitly deferred to Phase 5 (T015). Six unit tests cover the normal line, newline-flattening, empty-description segment, trailing-whitespace trim, the block join, and the empty list.
+
+**T006 SkillCatalog realpath dedup.** [core/skills/SkillCatalog.ts](../core/skills/SkillCatalog.ts) gains an exported `dedupeByRealpath(skills, telemetry?)` invoked at the in-memory insertion point (constructor + `resetForTesting`). When two logical skill paths resolve via `fs.realpathSync` to the same physical path, the lower-priority source is dropped using the `builtin > user > devai-hub` keep-priority (insights I-07 + I-09), and a `skills.dedup` `TelemetryBus` event (new event kind) carries the kept + dropped paths. `realpathSync` failures fall back to the literal path, so the existing fake-path in-memory fixtures are unaffected. Seven unit tests use a privilege-free junction fixture (skipped automatically where symlinks are unavailable) plus no-symlink cases proving no false dedup.
+
+**T007 Phase 2 gate.** `npm run build` (tsc) clean; `npm run test` 3,655 passed / 0 failed / 5 skipped (324 files); `npm run lint` (eslint src) 0 errors; `npm run check-architecture` 0 errors (the `core/** -> modules/**` boundary holds). One new dependency-cruiser `no-orphans` warning for `TokenCost.ts` is by design (its consumer lands in Phase 3) and is recorded as known-gap `T007.P2.B`.
+
+**Scope.** README / AGENTS.md / ARCHITECTURE.md updates remain deferred to Phase 7 (T021) per the plan; only the new modules, their tests, plan checkboxes, [known-gaps.md](versions/v1/v1.3.0/known-gaps.md) (5 new ledger rows + 1 open `WN` item), and the Phase 2 session history changed.
+
+---
+
 ## [2026-05-28] v1.3.0 Phase 1 -- Skill-Native Authoring Rule
 
 ### Goal

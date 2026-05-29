@@ -11,6 +11,9 @@
  * this interface (tracked in v1.0.0 known-gaps under code `MV`).
  */
 
+import * as fs from "node:fs";
+import type { TelemetryBus } from "../telemetry/TelemetryBus.js";
+
 /**
  * Provenance tag carried on every catalog record (Phase 10.1). Built-in
  * skills shipped with the binary report `source: "builtin"`; user-authored
@@ -124,14 +127,27 @@ export interface SkillCatalog {
   reevaluatePathScope(currentPath: string | null): readonly SkillRecord[];
 }
 
+/**
+ * v1.3.0 Phase 2 (adoption-skill-cleaner T006) -- optional catalog wiring.
+ * A `telemetry` bus, when supplied, receives one `skills.dedup` event per
+ * dropped entry during realpath dedup so the future audit's Root summary can
+ * list dedups.
+ */
+export interface SkillCatalogOptions {
+  readonly telemetry?: TelemetryBus;
+}
+
 export class InMemorySkillCatalog implements SkillCatalog {
   private _records: Map<string, Skill>;
   /** Set of display names that appear in more than one source. */
   private _divergedNames: Set<string>;
+  private readonly _telemetry: TelemetryBus | undefined;
 
-  constructor(initial: readonly Skill[] = []) {
-    this._records = new Map(initial.map((skill) => [skill.id, skill]));
-    this._divergedNames = computeDivergedNames(initial);
+  constructor(initial: readonly Skill[] = [], opts: SkillCatalogOptions = {}) {
+    this._telemetry = opts.telemetry;
+    const deduped = dedupeByRealpath(initial, this._telemetry);
+    this._records = new Map(deduped.map((skill) => [skill.id, skill]));
+    this._divergedNames = computeDivergedNames(deduped);
   }
 
   list(): readonly SkillRecord[] {
@@ -157,8 +173,9 @@ export class InMemorySkillCatalog implements SkillCatalog {
 
   /** Test-only: inject a fresh set of skills (used by Phase 2.6 + 10.1 tests). */
   resetForTesting(skills: readonly Skill[]): void {
-    this._records = new Map(skills.map((s) => [s.id, s]));
-    this._divergedNames = computeDivergedNames(skills);
+    const deduped = dedupeByRealpath(skills, this._telemetry);
+    this._records = new Map(deduped.map((s) => [s.id, s]));
+    this._divergedNames = computeDivergedNames(deduped);
   }
 
   listForPath(currentPath: string | null): readonly SkillRecord[] {
@@ -302,4 +319,81 @@ function computeDivergedNames(skills: readonly Skill[]): Set<string> {
 
 function displayKey(skill: SkillRecord): string {
   return skill.displayName.toLowerCase().trim();
+}
+
+/**
+ * v1.3.0 Phase 2 (adoption-skill-cleaner T006, insight I-07 + I-09) --
+ * keep-priority when two logical paths resolve to the same physical path.
+ * Lower number wins (`builtin` > `user` > `devai-hub`), mirroring the
+ * provenance precedence used elsewhere in the catalog.
+ */
+const SOURCE_PRIORITY: Readonly<Record<SkillProvenance["source"], number>> = {
+  builtin: 0,
+  user: 1,
+  "devai-hub": 2,
+};
+
+/**
+ * Resolve a skill's `path` through `fs.realpathSync` so symlinked roots
+ * (e.g. `~/.nexus/skills/devai-hub/<tag>/` pointing into a working Nexus-Hub
+ * checkout) collapse to one physical key. When the path does not exist on
+ * disk -- as with the in-memory fixtures used throughout the test suite --
+ * the literal path is used unchanged, so non-symlinked catalogs behave
+ * exactly as before.
+ */
+function realpathKey(p: string): string {
+  try {
+    return fs.realpathSync(p);
+  } catch {
+    return p;
+  }
+}
+
+/**
+ * v1.3.0 Phase 2 (adoption-skill-cleaner T006, insight I-07) -- drop skills
+ * whose `path` resolves (via `fs.realpathSync`) to a physical path already
+ * claimed by a higher-priority source. Order of the surviving entries follows
+ * first-seen order of the kept records. Emits one `skills.dedup` telemetry
+ * event per dropped entry (carrying the kept + dropped logical paths) when a
+ * `telemetry` bus is supplied.
+ */
+export function dedupeByRealpath(
+  skills: readonly Skill[],
+  telemetry?: TelemetryBus,
+): Skill[] {
+  // First pass: choose the winner per physical path (highest-priority source).
+  const winnerByKey = new Map<string, Skill>();
+  for (const skill of skills) {
+    const key = realpathKey(skill.path);
+    const current = winnerByKey.get(key);
+    if (
+      !current ||
+      SOURCE_PRIORITY[skill.provenance.source] <
+        SOURCE_PRIORITY[current.provenance.source]
+    ) {
+      winnerByKey.set(key, skill);
+    }
+  }
+
+  // Second pass: emit telemetry for every dropped logical path, then build the
+  // kept list in first-seen order so callers observe a stable ordering.
+  const kept: Skill[] = [];
+  const emitted = new Set<string>();
+  for (const skill of skills) {
+    const key = realpathKey(skill.path);
+    const winner = winnerByKey.get(key)!;
+    if (skill === winner) {
+      kept.push(skill);
+      continue;
+    }
+    if (telemetry && !emitted.has(skill.path)) {
+      emitted.add(skill.path);
+      telemetry.publish({
+        kind: "skills.dedup",
+        source: "skill-catalog",
+        payload: { keptPath: winner.path, droppedPath: skill.path, physicalPath: key },
+      });
+    }
+  }
+  return kept;
 }
