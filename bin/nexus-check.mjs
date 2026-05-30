@@ -127,11 +127,18 @@ export function parseArgs(argv) {
 
 /**
  * Yield every scan-eligible file under `root`. Skips directories from
- * SKIPPED_DIRECTORIES and files whose extension is not in
- * SCANNED_EXTENSIONS. Symlinks are not followed (avoids cycles and reads
- * outside the target tree).
+ * SKIPPED_DIRECTORIES and files whose extension is not eligible. Symlinks are
+ * not followed (avoids cycles and reads outside the target tree).
+ *
+ * `includeMarkdown` adds the markdown extensions (the legacy opt-in used by
+ * the prompt / skill rules). `extraExtensions` is a Set of additional
+ * lower-cased extensions a rule has declared via its `scannedExtensions`
+ * export -- e.g. the test-tampering CI rule (A2) opting in `.yml` / `.yaml`.
  */
-export function* walk(root, { includeMarkdown = false } = {}) {
+export function* walk(
+  root,
+  { includeMarkdown = false, extraExtensions = EMPTY_EXTENSIONS } = {},
+) {
   let stats;
   try {
     stats = statSync(root);
@@ -139,7 +146,7 @@ export function* walk(root, { includeMarkdown = false } = {}) {
     return;
   }
   if (stats.isFile()) {
-    if (isScannable(root, includeMarkdown)) yield root;
+    if (isScannable(root, includeMarkdown, extraExtensions)) yield root;
     return;
   }
   if (!stats.isDirectory()) return;
@@ -161,17 +168,22 @@ export function* walk(root, { includeMarkdown = false } = {}) {
         stack.push(full);
         continue;
       }
-      if (entry.isFile() && isScannable(full, includeMarkdown)) yield full;
+      if (entry.isFile() && isScannable(full, includeMarkdown, extraExtensions)) {
+        yield full;
+      }
     }
   }
 }
 
-function isScannable(filePath, includeMarkdown) {
+const EMPTY_EXTENSIONS = new Set();
+
+function isScannable(filePath, includeMarkdown, extraExtensions = EMPTY_EXTENSIONS) {
   const dot = filePath.lastIndexOf(".");
   if (dot === -1) return false;
   const ext = filePath.slice(dot).toLowerCase();
   if (CODE_EXTENSIONS.has(ext)) return true;
   if (includeMarkdown && MARKDOWN_EXTENSIONS.has(ext)) return true;
+  if (extraExtensions.has(ext)) return true;
   return false;
 }
 
@@ -193,7 +205,17 @@ export function selectRules(requestedIds) {
 export function scanPath(target, rules) {
   const findings = [];
   const includeMarkdown = rules.some((r) => typeof r.appliesTo === "function");
-  for (const filePath of walk(target, { includeMarkdown })) {
+  // Union every selected rule's declared extra extensions (e.g. the A2
+  // CI-tampering rule opts in `.yml` / `.yaml`); empty for the default set.
+  const extraExtensions = new Set();
+  for (const rule of rules) {
+    if (Array.isArray(rule.scannedExtensions)) {
+      for (const ext of rule.scannedExtensions) {
+        extraExtensions.add(ext.toLowerCase());
+      }
+    }
+  }
+  for (const filePath of walk(target, { includeMarkdown, extraExtensions })) {
     let contents;
     try {
       contents = readFileSync(filePath, "utf-8");

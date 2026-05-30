@@ -854,6 +854,7 @@
     "package:skills": "node scripts/package-skills.mjs",
     "check": "node bin/nexus-check.mjs",
     "check:prompts": "node bin/nexus-check.mjs --rule prompt-no-ascii-violation --rule prompt-oversized --rule prompt-trailing-whitespace --rule prompt-bom --rule skill-duplicate-name src/chat/prompts src/skills/catalog",
+    "check:tampering": "node bin/nexus-check.mjs --rule no-focused-tests --rule no-skipped-tests-without-reason --rule no-tautological-assertion --rule no-commented-out-assertion --rule no-disabled-ci-check tests .github/workflows",
     "cleanup:scan": "node scripts/cleanup-scanner.mjs",
     "cleanup:scan:json": "node scripts/cleanup-scanner.mjs --format=json",
     "bench": "vitest bench --run --config configs/vitest.config.ts",

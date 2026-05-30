@@ -51,7 +51,7 @@ jobs:
 
       - name: Run diff-cover on changed lines
         id: diff-cover
-        continue-on-error: true
+        continue-on-error: true # nexus-check-allow: no-disabled-ci-check -- diff-cover is advisory; the coverage comment is posted regardless and a later step gates
         run: |
           set -euo pipefail
           if [ ! -f coverage/lcov.info ]; then

@@ -181,7 +181,7 @@ No constitution file found at docs/versions/v1/v1.4.0/constitution.md - skipping
 
 #### 3.1 — A2: Test-tampering detection rules
 
-- [ ] T009 Add test-tampering detection rules to lib/checks/ consumed by bin/nexus-check.mjs
+- [x] T009 Add test-tampering detection rules to lib/checks/ consumed by bin/nexus-check.mjs
 
 **Objective**: Adopt A2 (re-full): the harness's T01-T12 anti-tampering family reimplemented as deterministic nexus-check rules.
 
@@ -192,7 +192,7 @@ No constitution file found at docs/versions/v1/v1.4.0/constitution.md - skipping
 
 #### 3.2 — A9: OpenSSF Scorecard CI workflow
 
-- [ ] T010 [P] Add the OpenSSF Scorecard workflow at .github/workflows/scorecard.yml
+- [x] T010 [P] Add the OpenSSF Scorecard workflow at .github/workflows/scorecard.yml
 
 **Objective**: Adopt A9 (re-full): supply-chain posture scoring alongside the existing CodeQL workflow.
 
@@ -203,7 +203,7 @@ No constitution file found at docs/versions/v1/v1.4.0/constitution.md - skipping
 
 #### 3.3 — Testing and Stabilization
 
-- [ ] T011 Run and stabilize Phase 3 checks in tests/unit/checks/
+- [x] T011 Run and stabilize Phase 3 checks in tests/unit/checks/
 
 **Objective**: Verify the new static rules and CI workflow.
 
@@ -214,11 +214,11 @@ No constitution file found at docs/versions/v1/v1.4.0/constitution.md - skipping
 
 ### Phase 3 Exit Checklist
 
-- [ ] All sub-tasks completed
-- [ ] All tests passing
-- [ ] No known regressions from prior phases
-- [ ] Session history generated for this phase
-- [ ] Ready to advance to Phase 4
+- [x] All sub-tasks completed
+- [x] All tests passing
+- [x] No known regressions from prior phases
+- [x] Session history generated for this phase
+- [x] Ready to advance to Phase 4
 
 ---
 

@@ -1,0 +1,67 @@
+name: Scorecard
+
+# v1.4.0 Phase 3 (sub-task 3.2, A2/A9) -- OpenSSF Scorecard supply-chain
+# posture scan, sitting alongside the CodeQL SAST workflow (codeql.yml).
+# Scorecard scores repository hygiene (branch protection, pinned actions,
+# token permissions, dangerous workflow patterns, dependency-update tooling,
+# ...) and uploads SARIF to the GitHub Security tab so findings are triaged in
+# the same place as CodeQL. Runs weekly plus on push to the default branch and
+# on branch-protection changes (which can affect the score directly).
+#
+# All actions are pinned by full commit SHA per the repo's SHA-pin policy;
+# the trailing `# vX.Y.Z` comment records the human-readable tag.
+
+on:
+  branch_protection_rule:
+  schedule:
+    # Weekly, offset from the CodeQL cron (27 4 * * 1) to avoid contending for
+    # the same runner window.
+    - cron: "41 5 * * 1"
+  push:
+    branches: ["main"]
+
+concurrency:
+  group: scorecard-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+# Top-level least privilege; the analysis job widens only what it needs.
+permissions: read-all
+
+jobs:
+  analysis:
+    name: Scorecard analysis
+    runs-on: ubuntu-latest
+    permissions:
+      # Needed to upload the SARIF results to the code-scanning dashboard.
+      security-events: write
+      # Needed by the publish_results step to attach the signed result.
+      id-token: write
+    steps:
+      - name: "Checkout code"
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          persist-credentials: false
+
+      - name: "Run analysis"
+        uses: ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a # v2.4.3
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          # publish_results sends the score to the public OpenSSF API so the
+          # repo can display a Scorecard badge; results are public for public
+          # repos regardless, and no source is uploaded.
+          publish_results: true
+
+      # Upload the raw SARIF as a build artifact for offline inspection.
+      - name: "Upload artifact"
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: scorecard-sarif
+          path: results.sarif
+          retention-days: 7
+
+      # Upload to the GitHub code-scanning dashboard (same surface as CodeQL).
+      - name: "Upload to code-scanning"
+        uses: github/codeql-action/upload-sarif@f411752efdf656cb71aa17b755b22c890960da1d # v3.35.5
+        with:
+          sarif_file: results.sarif

@@ -213,6 +213,12 @@ jobs:
         with:
           node-version: "22"
       - run: node bin/nexus-check.mjs src/
+      # v1.4.0 Phase 3 (A2) -- test-tampering rules over tests/ and the CI
+      # workflows themselves. nexus-check is dependency-free, so this needs no
+      # `npm ci`. Error-severity rules (no-focused-tests,
+      # no-tautological-assertion) gate the merge; the rest emit warnings.
+      - name: nexus-check (test-tampering rules)
+        run: npm run check:tampering
 
   # -- v0.9.0 Phase 7 (sub-task 7.5) -- PR-time fast-bench gate --------------
   #
@@ -424,7 +430,7 @@ jobs:
   audit-ts-dev:
     name: npm audit (dev + prod, non-blocking)
     runs-on: ubuntu-latest
-    continue-on-error: true
+    continue-on-error: true # nexus-check-allow: no-disabled-ci-check -- visibility-only dev+prod audit; intentionally never gates a merge (see job comment above)
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
@@ -433,7 +439,7 @@ jobs:
           cache: "npm"
       - run: npm ci --prefer-offline --no-audit
       - name: npm audit --audit-level=high (json)
-        continue-on-error: true
+        continue-on-error: true # nexus-check-allow: no-disabled-ci-check -- non-gating JSON capture for the uploaded artifact; failure is tolerated by design
         run: npm audit --audit-level=high --json > audit-dev.json || true
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         if: always()

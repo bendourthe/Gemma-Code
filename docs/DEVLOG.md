@@ -4,6 +4,30 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-30] v1.4.0 Phase 3 -- Static-Analysis & CI Gates
+
+### Goal
+
+Land the two code-shaped static-analysis / supply-chain adoptions of the v1.4.0 cycle ([docs/versions/v1/v1.4.0/plans/adoption-claude-code-harness.md](versions/v1/v1.4.0/plans/adoption-claude-code-harness.md)): A2, the harness's T01-T12 "Beagle" anti-tampering family reimplemented as deterministic, LLM-free `nexus-check` rules; and A9, an OpenSSF Scorecard CI workflow alongside the existing CodeQL scan. Both reduce trust surface with zero new outbound calls. Stability gate: `--list-rules` shows the new rules, they fire on tampered fixtures and pass on clean code, and the Scorecard workflow validates.
+
+### What changed
+
+**T009 (A2) Test-tampering detection rules.** Five new deterministic rules under [lib/checks/](../lib/checks/), registered in [index.mjs](../lib/checks/index.mjs): `no-focused-tests` (error -- `.only` / `fdescribe` / `fit` silently skip the rest of the suite), `no-tautological-assertion` (error -- always-true assertions like `expect(true).toBe(true)` and identical-literal-both-sides comparisons; fires only when both operands are literals), `no-skipped-tests-without-reason` (warning -- `.skip` / `xit` / `.todo` without an adjacent justification, generalising the repo's `TODO(harness-bug)` / `TODO(missing_env)` convention), `no-commented-out-assertion` (warning -- a disabled assertion that still shows in the diff), and `no-disabled-ci-check` (warning -- `continue-on-error: true` / `if: false` in workflow YAML without a recorded reason). Shared [helpers.mjs](../lib/checks/helpers.mjs) gained `isQuoted` (skip matches inside string literals), `hasJustification` (TODO/FIXME/reason/issue/URL within a +/-2 line window, matching the `test-discipline` meta-test), and `isAllowed` now accepts the canonical `nexus-check-allow*` marker beside the legacy `gemma-check-allow*`.
+
+**Walker extension.** [bin/nexus-check.mjs](../bin/nexus-check.mjs) gained a `scannedExtensions` opt-in: a rule may declare extra file extensions (the CI rule declares `.yml` / `.yaml`), and the walker unions them per selected rule. Backward compatible -- the markdown opt-in and all existing `walk` / `isScannable` / `scanPath` signatures still work.
+
+**Wiring.** New `check:tampering` npm script runs the five rules over `tests/` and `.github/workflows/`, wired into [.husky/pre-push](../.husky/pre-push) (new step 5/6) and the CI `nexus-check` job (a second, dependency-free step). The four pre-existing legitimate `continue-on-error: true` usages (ci.yml x2, codeql.yml, coverage-diff.yml) were annotated with explicit `nexus-check-allow` justification markers so the new rule scans clean.
+
+**T010 (A9) OpenSSF Scorecard workflow.** New [.github/workflows/scorecard.yml](../.github/workflows/scorecard.yml): SHA-pinned `ossf/scorecard-action` v2.4.3 (`4eaacf0...`), weekly cron + push-to-main + `branch_protection_rule` triggers, least-privilege `permissions: read-all` with `security-events: write` + `id-token: write` on the job, SARIF upload to the code-scanning dashboard and as a build artifact. Mirrors `codeql.yml` conventions (concurrency group, SHA-pin-with-version-comment).
+
+**T011 Tests + stabilization.** New [tests/unit/lib/checks-tampering-rules.test.ts](../tests/unit/lib/checks-tampering-rules.test.ts): 35 assertions across the five rules (positive / negative / allowlist / justification cases), the helper additions, the registry, and a CLI integration test proving the walker now reaches workflow YAML. Trigger substrings are assembled at runtime so the test file does not trip its own `check:tampering` scan. Results: `tsc` clean, `eslint src` clean, `check-architecture` 0 errors (11 pre-existing warnings), `npm run test` 332 files passed / 2 skipped / 0 failed, coverage 87.05% lines; `check:tampering` 0 findings; `--list-rules` shows all 15 rules.
+
+**Deviations.** (1) Rule tests placed under `tests/unit/lib/` (matching `checks-prompt-rules.test.ts`) rather than the plan's `tests/unit/checks/`, to use the proven-safe location for the historical cli-dir parse bug. (2) CI wiring added as a step on the existing `nexus-check` job rather than a new job (dependency-free, smaller footprint). (3) An IMPL fix during stabilization: `hasJustification` was made case-sensitive for `TODO`/`FIXME` so the lowercase vitest `.todo(` marker is not mistaken for its own justification.
+
+**Scope.** Six new files (five rules + the test) and one new workflow; five modified (helpers.mjs, index.mjs, bin/nexus-check.mjs, package.json, .husky/pre-push) plus three CI workflow annotations. No new outbound call, dependency, or runtime env var. Eight of twelve adoption items now landed (A2, A3, A4, A5, A7, A9, A11, A12); Phases 4-6 carry A1, A6, A8, A10. See [known-gaps.md](versions/v1/v1.4.0/known-gaps.md) (no new gap this phase).
+
+---
+
 ## [2026-05-30] v1.4.0 Phase 2 -- Network & Subprocess Hardening
 
 ### Goal

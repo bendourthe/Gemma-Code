@@ -11,7 +11,7 @@
 
 set -e
 
-echo "[pre-push] step 1/5: eslint --fix (best-effort auto-fix)"
+echo "[pre-push] step 1/6: eslint --fix (best-effort auto-fix)"
 npm run lint -- --fix || true
 
 if ! git diff --quiet; then
@@ -20,14 +20,21 @@ if ! git diff --quiet; then
   exit 1
 fi
 
-echo "[pre-push] step 2/5: npm run lint (--max-warnings=0 enforcement)"
+echo "[pre-push] step 2/6: npm run lint (--max-warnings=0 enforcement)"
 npm run lint
 
-echo "[pre-push] step 3/5: npm run build (tsc)"
+echo "[pre-push] step 3/6: npm run build (tsc)"
 npm run build
 
-echo "[pre-push] step 4/5: npm run check (gemma-check)"
+echo "[pre-push] step 4/6: npm run check (nexus-check src/)"
 npm run check src/
 
-echo "[pre-push] step 5/5: clean -- ok to push"
+# v1.4.0 Phase 3 (A2) -- test-tampering gate over tests/ and the CI workflows.
+# Catches focused/.only tests, unjustified .skip, tautological assertions,
+# commented-out assertions, and disabled CI checks. Error-severity rules
+# (no-focused-tests, no-tautological-assertion) fail the push; the rest warn.
+echo "[pre-push] step 5/6: npm run check:tampering (test-tampering rules)"
+npm run check:tampering
+
+echo "[pre-push] step 6/6: clean -- ok to push"
 exit 0
