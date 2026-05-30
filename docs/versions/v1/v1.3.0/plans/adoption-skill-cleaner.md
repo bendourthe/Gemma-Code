@@ -231,7 +231,7 @@ No constitution file found at docs/versions/v1/v1.3.0/constitution.md - skipping
 
 #### 4.1 -- Create `core/skills/SkillSimilarity.ts`
 
-- [ ] T011 [P] Create the Jaccard-over-shingles similarity detector at core/skills/SkillSimilarity.ts
+- [x] T011 [P] Create the Jaccard-over-shingles similarity detector at core/skills/SkillSimilarity.ts
 
 **Objective**: Detect near-duplicate skills whose names differ but whose bodies overlap above a configurable Jaccard threshold (default 0.85), per insight I-08.
 
@@ -242,7 +242,7 @@ No constitution file found at docs/versions/v1/v1.3.0/constitution.md - skipping
 
 #### 4.2 -- Create `core/skills/SkillUsageScanner.ts`
 
-- [ ] T012 [P] Create the session-log usage scanner at core/skills/SkillUsageScanner.ts
+- [x] T012 [P] Create the session-log usage scanner at core/skills/SkillUsageScanner.ts
 
 **Objective**: Determine which skills have not been invoked within a configurable window, per insight I-10, by scanning Nexus's own session-replay logs (richer than skill-cleaner's text-only `~/.codex/sessions/` because Nexus has structured `HookBus` skill-load events).
 
@@ -253,7 +253,7 @@ No constitution file found at docs/versions/v1/v1.3.0/constitution.md - skipping
 
 #### 4.3 -- Integrate similarity + usage results into `SkillAuditor`
 
-- [ ] T013 Wire SkillSimilarity and SkillUsageScanner into core/skills/SkillAuditor.ts
+- [x] T013 Wire SkillSimilarity and SkillUsageScanner into core/skills/SkillAuditor.ts
 
 **Objective**: Populate the previously-stubbed `duplicates.bySimilarity` and `unused` sections of the `SkillAuditReport` and surface the new `--months` flag end-to-end through `bin/nexus.mjs`.
 
@@ -264,7 +264,7 @@ No constitution file found at docs/versions/v1/v1.3.0/constitution.md - skipping
 
 #### 4.4 -- Phase 4 test pass and stabilization
 
-- [ ] T014 Confirm npm run build and npm run test pass; smoke-run skills audit with similarity + usage populated
+- [x] T014 Confirm npm run build and npm run test pass; smoke-run skills audit with similarity + usage populated
 
 **Objective**: Verify the full five-report layout works against the live catalog and that no part of the audit output suggests destructive action without human approval.
 
@@ -275,12 +275,12 @@ No constitution file found at docs/versions/v1/v1.3.0/constitution.md - skipping
 
 ### Phase 4 Exit Checklist
 
-- [ ] T011 completed (SkillSimilarity.ts + test)
-- [ ] T012 completed (SkillUsageScanner.ts + integration test)
-- [ ] T013 completed (auditor integration + CLI flag pass-through)
-- [ ] T014 completed (live-catalog smoke run; "suggest first" framing verified)
-- [ ] Session history generated
-- [ ] Ready to advance to Phase 5
+- [x] T011 completed (SkillSimilarity.ts + test)
+- [x] T012 completed (SkillUsageScanner.ts + integration test)
+- [x] T013 completed (auditor integration + CLI flag pass-through)
+- [x] T014 completed (live-catalog smoke run; "suggest first" framing verified)
+- [x] Session history generated
+- [x] Ready to advance to Phase 5
 
 ---
 

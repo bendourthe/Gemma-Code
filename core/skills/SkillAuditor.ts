@@ -24,6 +24,8 @@ import { tokenize } from "../observability/TokenCost.js";
 import { DEFAULT_CONTEXT_WINDOW, type ModelRegistry } from "../registry/ModelRegistry.js";
 import { renderSkillLine, renderSkillBlock, descriptionOf } from "./SkillRenderLine.js";
 import type { Skill, SkillCatalog, SkillProvenance } from "./SkillCatalog.js";
+import { findSimilarPairs, type SimilarPair } from "./SkillSimilarity.js";
+import { scanUsage, type SkillUsage } from "./SkillUsageScanner.js";
 
 export interface SkillAuditOptions {
   /**
@@ -43,8 +45,29 @@ export interface SkillAuditOptions {
   budgetPercent?: number;
   /** A skill's rendered line above this token count becomes a Descriptions candidate. Default 50. */
   maxDescriptionTokens?: number;
-  /** Window (months) for the Unused report. Accepted now; Phase 4 (T013) wires it. */
+  /** Window (months) for the Unused report. Drives both the usage scan and the confidence label. Default 3. */
   months?: number;
+  /**
+   * v1.3.0 Phase 4 (T013, insight I-08) -- Jaccard threshold for the
+   * content-similarity duplicate detector. Default 0.85.
+   */
+  similarityThreshold?: number;
+  /**
+   * v1.3.0 Phase 4 (T013, insight I-10) -- skill-universe root for the Unused
+   * report. When set (and no pre-scanned `usage` Map is injected), the auditor
+   * calls `scanUsage` over the session logs to find never-invoked skills. When
+   * omitted, the Unused report stays empty.
+   */
+  skillsRoot?: string;
+  /** Session-log root for the usage scan. Defaults to `~/.nexus/sessions/` inside `scanUsage`. */
+  sessionsRoot?: string;
+  /**
+   * v1.3.0 Phase 4 (T013) -- pre-scanned usage Map injection seam. When
+   * supplied, it is used directly and the disk scan is skipped (the CLI and
+   * unit tests use this to avoid re-walking the filesystem). Takes precedence
+   * over `skillsRoot`.
+   */
+  usage?: ReadonlyMap<string, SkillUsage>;
 }
 
 export interface SkillBudgetReport {
@@ -75,20 +98,50 @@ export interface SkillRootSummary {
   skillCount: number;
 }
 
+export type UnusedConfidence = "low" | "medium" | "high";
+
+export interface SkillUnusedCandidate {
+  id: string;
+  lastSeen: string | null;
+  confidence: UnusedConfidence;
+}
+
 export interface SkillAuditReport {
   budget: SkillBudgetReport;
   descriptions: SkillDescriptionCandidate[];
   duplicates: {
     byName: SkillNameDuplicate[];
-    bySimilarity: Array<{ a: string; b: string; score: number }>;
+    bySimilarity: SimilarPair[];
   };
-  unused: Array<{ id: string; lastSeen: string | null; confidence: "low" | "medium" | "high" }>;
+  unused: SkillUnusedCandidate[];
   roots: SkillRootSummary[];
 }
 
 const DEFAULT_BUDGET_PERCENT = 2;
 const DEFAULT_MAX_DESCRIPTION_TOKENS = 50;
 const MAX_DESCRIPTION_ROWS = 20;
+const DEFAULT_SIMILARITY_THRESHOLD = 0.85;
+const DEFAULT_MONTHS = 3;
+
+/**
+ * Mandatory "suggest first" framing (insight I-12) surfaced with the Unused
+ * report. The usage scan is heuristic -- a skill may have been invoked in a way
+ * the scanner cannot see -- so the audit presents candidates, never verdicts.
+ */
+export const UNUSED_FRAMING =
+  "Heuristic: these skills have no recent invocation evidence. " +
+  "Review before deleting -- false negatives are possible (insight I-12).";
+
+/**
+ * Confidence that a zero-evidence skill is genuinely unused. Longer look-back
+ * windows mean stronger evidence: a skill unseen across 12 months is a more
+ * confident candidate than one unseen across 3.
+ */
+function unusedConfidence(months: number): UnusedConfidence {
+  if (months >= 12) return "high";
+  if (months >= 6) return "medium";
+  return "low";
+}
 
 /** Round to two decimals without trailing float noise. */
 function round2(value: number): number {
@@ -186,16 +239,53 @@ export async function auditSkills(opts: SkillAuditOptions): Promise<SkillAuditRe
       return { root: commonDir(paths, source), source, skillCount: paths.length };
     });
 
+  // --- Content-similarity duplicates (insight I-08; T011) ---
+  const similarityThreshold = opts.similarityThreshold ?? DEFAULT_SIMILARITY_THRESHOLD;
+  const bySimilarity = findSimilarPairs(skills, similarityThreshold);
+
+  // --- Unused candidates (insight I-10 + I-12 framing; T012) ---
+  const months = opts.months ?? DEFAULT_MONTHS;
+  const usage = await resolveUsage(opts, months);
+  const confidence = unusedConfidence(months);
+  const unused: SkillUnusedCandidate[] = [];
+  for (const [id, evidence] of usage) {
+    if (evidence.matchCount === 0) {
+      unused.push({
+        id,
+        lastSeen: evidence.lastSeen ? evidence.lastSeen.toISOString() : null,
+        confidence,
+      });
+    }
+  }
+  unused.sort((a, b) => a.id.localeCompare(b.id));
+
   return {
     budget: { contextTokens, budgetTokens, usedTokens, pressurePct },
     descriptions,
-    duplicates: {
-      byName,
-      bySimilarity: [], // TODO(phase-4): populated by findSimilarPairs (T011 / T013).
-    },
-    unused: [], // TODO(phase-4): populated by scanUsage (T012 / T013).
+    duplicates: { byName, bySimilarity },
+    unused,
     roots,
   };
+}
+
+/**
+ * Resolve the usage evidence map: prefer an injected `usage` Map (the CLI and
+ * unit tests supply this); otherwise scan the session logs when a `skillsRoot`
+ * is configured; otherwise return an empty map (Unused report stays empty).
+ */
+async function resolveUsage(
+  opts: SkillAuditOptions,
+  months: number,
+): Promise<ReadonlyMap<string, SkillUsage>> {
+  if (opts.usage) return opts.usage;
+  if (opts.skillsRoot) {
+    return scanUsage({
+      skillsRoot: opts.skillsRoot,
+      sessionsRoot: opts.sessionsRoot,
+      months,
+    });
+  }
+  return new Map<string, SkillUsage>();
 }
 
 /**
@@ -233,11 +323,25 @@ export function formatAuditReport(report: SkillAuditReport): string {
     }
   }
   lines.push("### By similarity");
-  lines.push("_(populated by phase 4)_");
+  if (report.duplicates.bySimilarity.length === 0) {
+    lines.push("_no near-duplicates above threshold_");
+  } else {
+    for (const p of report.duplicates.bySimilarity) {
+      lines.push(`- ${p.a} <-> ${p.b} (Jaccard ${round2(p.score)})`);
+    }
+  }
   lines.push("");
 
   lines.push("## Unused candidates");
-  lines.push("_(populated by phase 4)_");
+  lines.push(`_${UNUSED_FRAMING}_`);
+  if (report.unused.length === 0) {
+    lines.push("_none found_");
+  } else {
+    for (const u of report.unused) {
+      const seen = u.lastSeen ?? "never";
+      lines.push(`- ${u.id} (confidence: ${u.confidence}, last seen: ${seen})`);
+    }
+  }
   lines.push("");
 
   lines.push("## Root summary");

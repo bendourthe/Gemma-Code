@@ -38,6 +38,7 @@ function writeSkill(root: string, name: string, description: string): void {
 
 describe("nexus skills audit CLI", () => {
   let fixtureRoot: string;
+  let sessionsRoot: string;
 
   beforeAll(() => {
     // The CLI imports the compiled auditor; build it once if missing so the
@@ -54,6 +55,9 @@ describe("nexus skills audit CLI", () => {
       }
     }
     fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-audit-cli-"));
+    // An empty sessions root keeps the usage scan hermetic and deterministic:
+    // both fixture skills surface as zero-evidence Unused candidates.
+    sessionsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-audit-sessions-"));
     writeSkill(fixtureRoot, "alpha", "Short alpha description.");
     writeSkill(
       fixtureRoot,
@@ -66,12 +70,17 @@ describe("nexus skills audit CLI", () => {
 
   afterAll(() => {
     if (fixtureRoot) fs.rmSync(fixtureRoot, { recursive: true, force: true });
+    if (sessionsRoot) fs.rmSync(sessionsRoot, { recursive: true, force: true });
   });
 
   it("emits the five canonical section headings against a fixture root", async () => {
     const stdout = captureStream();
     const stderr = captureStream();
-    const code = await runSkillsAudit({ "skills-root": fixtureRoot }, stdout, stderr);
+    const code = await runSkillsAudit(
+      { "skills-root": fixtureRoot, "sessions-root": sessionsRoot },
+      stdout,
+      stderr,
+    );
 
     expect(code).toBe(0);
     for (const heading of [
@@ -83,7 +92,9 @@ describe("nexus skills audit CLI", () => {
     ]) {
       expect(stdout.text, `missing heading ${heading}`).toContain(heading);
     }
-    expect(stdout.text).toContain("_(populated by phase 4)_");
+    // Phase 4 wires the similarity sub-section and the suggest-first framing.
+    expect(stdout.text).toContain("### By similarity");
+    expect(stdout.text).toContain("Review before deleting");
     // Budget reports a non-zero used-token count for a non-empty catalog.
     expect(stdout.text).toMatch(/- Used: [1-9]\d* tokens/);
   });
@@ -91,13 +102,20 @@ describe("nexus skills audit CLI", () => {
   it("emits machine-readable JSON under --json", async () => {
     const stdout = captureStream();
     const stderr = captureStream();
-    const code = await runSkillsAudit({ "skills-root": fixtureRoot, json: true }, stdout, stderr);
+    const code = await runSkillsAudit(
+      { "skills-root": fixtureRoot, "sessions-root": sessionsRoot, json: true },
+      stdout,
+      stderr,
+    );
 
     expect(code).toBe(0);
     const report = JSON.parse(stdout.text);
     expect(report.budget.usedTokens).toBeGreaterThan(0);
+    // Distinct fixture bodies -> no near-duplicates above threshold.
     expect(report.duplicates.bySimilarity).toEqual([]);
-    expect(report.unused).toEqual([]);
+    // Empty sessions root -> both fixture skills are zero-evidence candidates.
+    expect(Array.isArray(report.unused)).toBe(true);
+    expect(report.unused.map((u: { id: string }) => u.id).sort()).toEqual(["alpha", "beta"]);
     expect(Array.isArray(report.roots)).toBe(true);
   });
 

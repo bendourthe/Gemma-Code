@@ -4,6 +4,28 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-29] v1.3.0 Phase 4 -- Similarity + Usage Detection
+
+### Goal
+
+Complete the five-report shape of `nexus skills audit` by adding the two detectors Phase 3 left as labelled placeholders ([docs/versions/v1/v1.3.0/plans/adoption-skill-cleaner.md](versions/v1/v1.3.0/plans/adoption-skill-cleaner.md)): content-similarity duplicate detection (insight I-08) and heuristic usage-evidence scanning over session logs (insight I-10). Both are independent modules wired into the existing `SkillAuditor`. Stability gate: the `By similarity` and `Unused candidates` sections populate with real data, and no part of the output recommends a destructive action (audit stays "suggest first", insight I-12).
+
+### What changed
+
+**T011 SkillSimilarity.** New [core/skills/SkillSimilarity.ts](../core/skills/SkillSimilarity.ts) exports `shingles(text, k=5)` (overlapping k-character shingle set, lowercased + whitespace-collapsed), `jaccard(a, b)` (`|a∩b| / |a∪b|`, returning 0 when either set is empty), and `findSimilarPairs(skills, threshold=0.85)` returning every skill-ID pair at or above the Jaccard threshold sorted by descending score. A helper `normalizeBody` strips a leading frontmatter block, fenced/inline code, and collapses whitespace before shingling so boilerplate code samples do not inflate similarity. The comparison runs over the normalized Markdown body (not the one-line description). Cost is O(N^2) (~22.7K comparisons at a full 213-skill catalog) -- acceptable without indexing; a MinHash pre-filter is deferred (known-gap `T013.P3.D`). 14 unit tests cover shingling edge cases, Jaccard fractions, body normalization, identical/disjoint/near-duplicate pairs, and sort order.
+
+**T012 SkillUsageScanner.** New [core/skills/SkillUsageScanner.ts](../core/skills/SkillUsageScanner.ts) exports `scanUsage({ skillsRoot, sessionsRoot?, months? })` returning a `Map<skillId, { lastSeen, matchCount }>` with an entry for every skill discovered under `skillsRoot` (including never-invoked skills at `matchCount: 0`). `sessionsRoot` defaults to `~/.nexus/sessions/` (honoring the `NEXUS_HOME` installer override); only `*.jsonl` files whose mtime falls inside the months window are read. Each line is matched against three fidelity tiers: (a) a structured HookBus event (`skill.loaded` / `skill.invoked` / `skill.entry` with a `skillId`), using the event's own timestamp when present; (b) a plain-text slug mention bounded by non-slug characters (so `code-review` does not match inside `code-review-extra`); (c) a verbatim absolute SKILL.md path mention. The scanner returns counts only and never proposes deletions. 7 integration tests use a temp skills + sessions fixture exercising all three tiers, never-referenced skills, and window inclusion/exclusion.
+
+**T013 Auditor + CLI wiring.** [core/skills/SkillAuditor.ts](../core/skills/SkillAuditor.ts) now calls `findSimilarPairs` (threshold via `SkillAuditOptions.similarityThreshold`) to fill `duplicates.bySimilarity`, and resolves usage evidence to fill `unused`. Usage resolution prefers an injected `usage` Map (the CLI and unit tests use this seam), then falls back to scanning when a `skillsRoot` is configured, else stays empty. Zero-evidence skills become `unused` rows carrying a `confidence` label derived from the window age (low <6mo / medium <12mo / high >=12mo). A new exported `UNUSED_FRAMING` constant carries the mandatory suggest-first sentence and is rendered above the Unused list. [bin/nexus.mjs](../bin/nexus.mjs) threads `--months` through to the scan and adds `--sessions-root <dir>` (a test/override seam mirroring the existing `--skills-root`) so the usage scan is hermetic; the CLI scans the primary skill root read-only. `SkillAuditor.test.ts` gains similarity and unused cases (12 unit tests total); the CLI integration test points at an empty sessions root for deterministic Unused output.
+
+**T014 Phase 4 gate + smoke run.** `npm run build` (tsc) clean; `npm run test` 3,691 passed / 0 failed / 5 skipped (328 files); `eslint src` 0 errors; `npm run check-architecture` 0 errors (the `core/** -> modules/**` boundary holds; the new modules import only node built-ins + sibling `core/skills` files). Live smoke run (`node bin/nexus.mjs skills audit --months 3`) emits all five sections: the `By similarity` sub-section reports "no near-duplicates above threshold" for the 16-skill builtin catalog, and the `Unused candidates` section lists 16 zero-evidence skills under the suggest-first framing with no destructive imperatives.
+
+**Deviations.** (1) `--sessions-root` was added to the CLI (not named in the plan) so the integration test scans a controlled, empty log root rather than the host's real `~/.nexus/sessions/`, which would make the Unused output non-deterministic (common words like "beta") and potentially slow; it mirrors the existing `--skills-root` testing seam. (2) Test files follow the repo's actual `tests/unit/core/skills/` + `tests/integration/` layout rather than the plan's illustrative `tests/skills/` paths (consistent with Phases 2-3).
+
+**Scope.** README / AGENTS.md / ARCHITECTURE.md updates remain deferred to Phase 7 (T021). [known-gaps.md](versions/v1/v1.3.0/known-gaps.md) gains four T011-T014 ledger rows and two new deferred open items (`T012.P2.C` single-root usage scan; `T013.P3.D` O(N^2) similarity). Only the two new modules, their tests, `SkillAuditor.ts`, `bin/nexus.mjs`, the two modified tests, plan checkboxes, the gap ledger, and the Phase 4 session history changed.
+
+---
+
 ## [2026-05-29] v1.3.0 Phase 3 -- Skills Audit Command
 
 ### Goal

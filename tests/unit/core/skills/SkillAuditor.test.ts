@@ -1,7 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { auditSkills, formatAuditReport } from "../../../../core/skills/SkillAuditor.js";
+import {
+  auditSkills,
+  formatAuditReport,
+  UNUSED_FRAMING,
+} from "../../../../core/skills/SkillAuditor.js";
 import { InMemorySkillCatalog, type Skill } from "../../../../core/skills/SkillCatalog.js";
 import { InMemoryModelRegistry } from "../../../../core/registry/ModelRegistry.js";
+import type { SkillUsage } from "../../../../core/skills/SkillUsageScanner.js";
 
 const HASH = "0".repeat(64);
 
@@ -11,7 +16,10 @@ function skill(over: Partial<Skill> & Pick<Skill, "id" | "path">): Skill {
     category: "test",
     provenance: { source: "builtin", contentHash: HASH },
     frontmatter: {},
-    body: "# x\n",
+    // A distinct, low-overlap body per skill so the default fixture produces no
+    // spurious similarity pairs; tests that exercise the similarity detector
+    // supply their own near-duplicate bodies.
+    body: `# ${over.id}\n`,
     ...over,
   };
 }
@@ -149,11 +157,75 @@ describe("auditSkills -- root summary", () => {
   });
 });
 
-describe("auditSkills -- phase 4 placeholders", () => {
-  it("leaves similarity and unused empty until phase 4 wires them", async () => {
+describe("auditSkills -- defaults with no similarity or usage input", () => {
+  it("reports no similar pairs and no unused candidates for the distinct-body fixture", async () => {
     const report = await auditSkills({ catalog: fixtureCatalog() });
+    // Distinct per-skill bodies stay below the 0.85 Jaccard threshold; with no
+    // skillsRoot / usage Map injected, the Unused report stays empty.
     expect(report.duplicates.bySimilarity).toEqual([]);
     expect(report.unused).toEqual([]);
+  });
+});
+
+describe("auditSkills -- content-similarity duplicates (T011 / T013)", () => {
+  it("populates bySimilarity for two near-duplicate bodies above threshold", async () => {
+    const base =
+      "This skill performs a comprehensive audit of the entire skill catalog and " +
+      "produces a structured five-section report covering token budget pressure, " +
+      "over-long descriptions, name collisions, content-similarity duplicates, and " +
+      "skills with no recent usage evidence found in the session replay logs.";
+    const catalog = new InMemorySkillCatalog([
+      skill({ id: "dupe-a", path: "/skills/builtin/dupe-a/SKILL.md", body: base }),
+      skill({
+        id: "dupe-b",
+        path: "/skills/builtin/dupe-b/SKILL.md",
+        body: base + " End.",
+      }),
+      skill({
+        id: "unrelated",
+        path: "/skills/builtin/unrelated/SKILL.md",
+        body: "Zebras quietly munch jungle vines while xylophones play softly nearby.",
+      }),
+    ]);
+    const report = await auditSkills({ catalog });
+    expect(report.duplicates.bySimilarity.length).toBeGreaterThanOrEqual(1);
+    const pair = report.duplicates.bySimilarity[0]!;
+    expect(new Set([pair.a, pair.b])).toEqual(new Set(["dupe-a", "dupe-b"]));
+    expect(pair.score).toBeGreaterThanOrEqual(0.85);
+  });
+});
+
+describe("auditSkills -- unused candidates (T012 / T013)", () => {
+  it("lists zero-evidence skills from an injected usage map with a confidence label", async () => {
+    const usage = new Map<string, SkillUsage>([
+      ["seen-skill", { lastSeen: new Date("2026-05-20T00:00:00Z"), matchCount: 4 }],
+      ["unused-skill", { lastSeen: null, matchCount: 0 }],
+    ]);
+    const report = await auditSkills({ catalog: fixtureCatalog(), usage, months: 3 });
+    expect(report.unused).toHaveLength(1);
+    expect(report.unused[0]!.id).toBe("unused-skill");
+    expect(report.unused[0]!.lastSeen).toBeNull();
+    expect(report.unused[0]!.confidence).toBe("low");
+  });
+
+  it("raises confidence for longer look-back windows", async () => {
+    const usage = new Map<string, SkillUsage>([
+      ["unused-skill", { lastSeen: null, matchCount: 0 }],
+    ]);
+    const high = await auditSkills({ catalog: fixtureCatalog(), usage, months: 12 });
+    expect(high.unused[0]!.confidence).toBe("high");
+  });
+
+  it("surfaces the mandatory suggest-first framing in the rendered report", async () => {
+    const usage = new Map<string, SkillUsage>([
+      ["unused-skill", { lastSeen: null, matchCount: 0 }],
+    ]);
+    const report = await auditSkills({ catalog: fixtureCatalog(), usage });
+    const md = formatAuditReport(report);
+    expect(md).toContain(UNUSED_FRAMING);
+    expect(md).toContain("unused-skill");
+    // No imperative / destructive phrasing -- candidates only (insight I-12).
+    expect(md).not.toMatch(/\bdelete \w/i);
   });
 });
 
@@ -175,6 +247,6 @@ describe("formatAuditReport", () => {
       cursor = idx + h.length;
     }
     expect(md).toContain("### By similarity");
-    expect(md).toContain("_(populated by phase 4)_");
+    expect(md).toContain(UNUSED_FRAMING);
   });
 });

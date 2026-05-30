@@ -34,7 +34,7 @@ Usage:
   nexus skills list [--namespace <ns>]
   nexus skills install <namespace>/<name> [--from <url>]
   nexus skills remove <namespace>/<name>
-  nexus skills audit [--context-tokens <N>] [--budget-percent <N>] [--months <N>] [--skills-root <dir>] [--json]
+  nexus skills audit [--context-tokens <N>] [--budget-percent <N>] [--months <N>] [--skills-root <dir>] [--sessions-root <dir>] [--json]
   nexus memory audit [--since <ISO>] [--tier <t>] [--scope <id>] [--session <id>] [--op <op>] [--format table|json]
   nexus memory export --out <file> [--scope <id>] [--tier <list>] [--since <ISO>]
   nexus memory import --in <file>
@@ -408,8 +408,17 @@ export async function runSkillsAudit(flags, stdout = process.stdout, stderr = pr
   }
   if (typeof flags.months === "string") {
     const n = Number.parseInt(flags.months, 10);
-    if (Number.isFinite(n) && n > 0) opts.months = n; // accepted now; wired by phase 4.
+    if (Number.isFinite(n) && n > 0) opts.months = n;
   }
+
+  // v1.3.0 Phase 4 (T013) -- wire the usage scan end-to-end. The Unused report
+  // scans the session logs for the primary skill root (the `--skills-root`
+  // override when given, otherwise the bundled built-in catalog, which holds
+  // the bulk of the catalog). `--sessions-root` overrides the log root (used by
+  // tests for a hermetic scan); it otherwise defaults to `~/.nexus/sessions/`
+  // inside `scanUsage`. Audit stays read-only.
+  opts.skillsRoot = skillRootsFor(flags)[0]?.dir;
+  if (typeof flags["sessions-root"] === "string") opts.sessionsRoot = flags["sessions-root"];
 
   const report = await auditorMod.auditSkills(opts);
   if (flags.json === true || flags.json === "true") {
