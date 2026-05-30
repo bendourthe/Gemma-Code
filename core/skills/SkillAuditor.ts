@@ -22,7 +22,13 @@
 
 import { tokenize } from "../observability/TokenCost.js";
 import { DEFAULT_CONTEXT_WINDOW, type ModelRegistry } from "../registry/ModelRegistry.js";
-import { renderSkillLine, renderSkillBlock, descriptionOf } from "./SkillRenderLine.js";
+import {
+  renderSkillLine,
+  renderSkillBlock,
+  renderSkillBlockWithinBudget,
+  descriptionOf,
+  type RenderRung,
+} from "./SkillRenderLine.js";
 import type { Skill, SkillCatalog, SkillProvenance } from "./SkillCatalog.js";
 import { findSimilarPairs, type SimilarPair } from "./SkillSimilarity.js";
 import { scanUsage, type SkillUsage } from "./SkillUsageScanner.js";
@@ -79,6 +85,14 @@ export interface SkillBudgetReport {
   usedTokens: number;
   /** `(usedTokens / budgetTokens) * 100`, rounded to two decimals (0 when the budget is 0). */
   pressurePct: number;
+  /**
+   * v1.3.0 Phase 5 (T015) -- which fallback-ladder rung the full catalog would
+   * land on if rendered at the current budget (`full` / `truncated` / `omitted`).
+   * Diagnostic only: the live agent-loop render path is unchanged in v1.3.0.
+   */
+  renderRung: RenderRung;
+  /** v1.3.0 Phase 5 (T015) -- skills that would be omitted (non-zero only when `renderRung` is `omitted`). */
+  renderOmittedCount: number;
 }
 
 export interface SkillDescriptionCandidate {
@@ -198,6 +212,13 @@ export async function auditSkills(opts: SkillAuditOptions): Promise<SkillAuditRe
   const budgetTokens = Math.floor(contextTokens * (budgetPercent / 100));
   const usedTokens = tokenize(renderSkillBlock(skills));
   const pressurePct = budgetTokens > 0 ? round2((usedTokens / budgetTokens) * 100) : 0;
+  // Phase 5 (T015): report which fallback rung the catalog would land on if
+  // rendered against this budget. Diagnostic only -- the live render path is
+  // untouched in v1.3.0.
+  const { rung: renderRung, omittedCount: renderOmittedCount } = renderSkillBlockWithinBudget(
+    skills,
+    budgetTokens,
+  );
 
   // --- Description candidates (insight I-06; ranking only -- fallback ladder is T015) ---
   const maxDescriptionTokens = opts.maxDescriptionTokens ?? DEFAULT_MAX_DESCRIPTION_TOKENS;
@@ -260,7 +281,7 @@ export async function auditSkills(opts: SkillAuditOptions): Promise<SkillAuditRe
   unused.sort((a, b) => a.id.localeCompare(b.id));
 
   return {
-    budget: { contextTokens, budgetTokens, usedTokens, pressurePct },
+    budget: { contextTokens, budgetTokens, usedTokens, pressurePct, renderRung, renderOmittedCount },
     descriptions,
     duplicates: { byName, bySimilarity },
     unused,
@@ -301,6 +322,9 @@ export function formatAuditReport(report: SkillAuditReport): string {
   lines.push(`- Budget envelope: ${report.budget.budgetTokens} tokens`);
   lines.push(`- Used: ${report.budget.usedTokens} tokens`);
   lines.push(`- Pressure: ${report.budget.pressurePct}%`);
+  lines.push(
+    `- Render rung: ${report.budget.renderRung} (would drop ${report.budget.renderOmittedCount} skills if rendered now)`,
+  );
   lines.push("");
 
   lines.push("## Description candidates");

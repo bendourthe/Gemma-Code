@@ -294,7 +294,7 @@ No constitution file found at docs/versions/v1/v1.3.0/constitution.md - skipping
 
 #### 5.1 -- Add the fallback ladder to `SkillRenderLine.ts`
 
-- [ ] T015 Extend core/skills/SkillRenderLine.ts with the budget-driven fallback ladder
+- [x] T015 Extend core/skills/SkillRenderLine.ts with the budget-driven fallback ladder
 
 **Objective**: Implement the three-rung degradation from full descriptions to equal truncation to omitted-minimum-lines, mirroring `core-skills/src/render.rs`'s logic (the article references this Rust file as the canonical source).
 
@@ -305,7 +305,7 @@ No constitution file found at docs/versions/v1/v1.3.0/constitution.md - skipping
 
 #### 5.2 -- Phase 5 test pass and stabilization
 
-- [ ] T016 Confirm npm run build and npm run test pass; verify the auditor's new "Render rung" line is informative
+- [x] T016 Confirm npm run build and npm run test pass; verify the auditor's new "Render rung" line is informative
 
 **Objective**: Confirm the fallback ladder behaves correctly across all three rungs on synthetic catalogs and that the auditor surfaces the rung diagnostic without changing live agent-loop behavior.
 
@@ -316,10 +316,10 @@ No constitution file found at docs/versions/v1/v1.3.0/constitution.md - skipping
 
 ### Phase 5 Exit Checklist
 
-- [ ] T015 completed (fallback ladder + test)
-- [ ] T016 completed (live-catalog rung verification)
-- [ ] Session history generated
-- [ ] Ready to advance to Phase 6
+- [x] T015 completed (fallback ladder + test)
+- [x] T016 completed (live-catalog rung verification)
+- [x] Session history generated
+- [x] Ready to advance to Phase 6
 
 ---
 

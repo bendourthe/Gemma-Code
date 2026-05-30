@@ -4,6 +4,24 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-29] v1.3.0 Phase 5 -- Render-Budget Enforcement
+
+### Goal
+
+Add the render fallback ladder from insight I-06 (full descriptions -> equal truncation -> omitted-minimum-lines) to [core/skills/SkillRenderLine.ts](../core/skills/SkillRenderLine.ts) ([docs/versions/v1/v1.3.0/plans/adoption-skill-cleaner.md](versions/v1/v1.3.0/plans/adoption-skill-cleaner.md)), so a loaded skill set that exceeds the budget envelope degrades gracefully instead of silently overflowing. `SkillAuditor` reports which rung the catalog would land on. Stability gate: unit tests cover all three rungs; the auditor surfaces the rung diagnostic without changing live agent-loop behavior.
+
+### What changed
+
+**T015 Fallback ladder + auditor diagnostic.** [core/skills/SkillRenderLine.ts](../core/skills/SkillRenderLine.ts) gains `renderSkillBlockWithinBudget(skills, budgetTokens)` returning `{ lines, omittedCount, rung }`. Rung 1 (`full`): if the full block already fits, return it unchanged. Rung 2 (`truncated`): subtract the per-line overhead skeleton (`- id:  (file: path)` for every skill) from the budget, divide the remainder evenly across descriptions, truncate each to that character budget (preferring a clean first-sentence break at the first `. ` within budget so the opening trigger-noun cluster survives), re-render, and return if it fits. Rung 3 (`omitted`): drop the lowest keep-priority skills one at a time (devai-hub before user before builtin, per insight I-09) until the remainder fits at full description, returning the drop count. `name` and `path` are never truncated (insight I-15); the omitted rung always converges since an empty block tokenizes to 0. An internal `formatLine(id, description, path)` helper is shared by `renderSkillLine` and the ladder. [core/skills/SkillAuditor.ts](../core/skills/SkillAuditor.ts) calls the helper against the current budget and adds `renderRung` + `renderOmittedCount` to the budget report; `formatAuditReport` surfaces `- Render rung: <full|truncated|omitted> (would drop N skills if rendered now)` in the `## Skill Budget` section. 6 fallback unit tests cover all three rungs, the priority-ordered drop, the empty catalog, and first-sentence preservation; 3 new auditor tests cover the rung field and the rendered line.
+
+**T016 Phase 5 gate + rung verification.** `npm run build` (tsc) clean; `npm run test` 3,700 passed / 0 failed / 5 skipped (329 files); `npm run check-architecture` 0 errors (the one new edge, `core/skills` -> `core/observability/TokenCost`, is a permitted intra-`core` import; the `core/** -> modules/**` boundary holds). `eslint src` is unaffected (`core/**` and `tests/**` are outside its scope); prettier is not a project dependency. Live verification (`node bin/nexus.mjs skills audit`): the `## Skill Budget` section now carries the `Render rung:` line; `--budget-percent 100` -> `full`; `--budget-percent 0.1` -> `omitted` (would drop 14 of 16).
+
+**Deviations.** (1) On this host the live catalog is the 16-skill builtin-only `src/skills/catalog` (the ~213 Nexus-Hub skills await the upstream-release sync tracked by carryforward `1.1.P3.B`), so at the default 2% envelope 891 used tokens fit comfortably -> rung `full` rather than the `truncated`/`omitted` the plan anticipated for the full catalog; the transition is verified via `--budget-percent 0.1` and the synthetic mixed-source unit test instead. (2) The test follows the repo's `tests/unit/core/skills/` layout rather than the plan's illustrative `tests/skills/` path (consistent with Phases 2-4).
+
+**Scope.** Wiring the ladder into the live agent-loop render path is explicitly deferred out of v1.3.0 (avoids a behavior change); only the auditor consumes it. README / AGENTS.md / ARCHITECTURE.md updates remain deferred to Phase 7 (T021). [known-gaps.md](versions/v1/v1.3.0/known-gaps.md) gains two T015-T016 ledger rows; no new open items (Phase 5 had no deviations revealing defects, skipped sub-tasks, coverage shortfalls, suppressed lints, or bypassed gates). Only `SkillRenderLine.ts`, `SkillAuditor.ts`, the new fallback test, the modified auditor test, plan checkboxes, the gap ledger, and the Phase 5 session history changed.
+
+---
+
 ## [2026-05-29] v1.3.0 Phase 4 -- Similarity + Usage Detection
 
 ### Goal

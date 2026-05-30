@@ -229,6 +229,38 @@ describe("auditSkills -- unused candidates (T012 / T013)", () => {
   });
 });
 
+describe("auditSkills -- render rung diagnostic (T015)", () => {
+  it("reports the `full` rung and a zero omit count under a generous budget", async () => {
+    const report = await auditSkills({
+      catalog: fixtureCatalog(),
+      contextTokens: 1_000_000,
+      budgetPercent: 100,
+    });
+    expect(report.budget.renderRung).toBe("full");
+    expect(report.budget.renderOmittedCount).toBe(0);
+  });
+
+  it("falls to the `omitted` rung with a positive omit count under a tiny budget", async () => {
+    const report = await auditSkills({
+      catalog: fixtureCatalog(),
+      contextTokens: 1000,
+      budgetPercent: 0.1, // 1-token budget
+    });
+    expect(report.budget.renderRung).toBe("omitted");
+    expect(report.budget.renderOmittedCount).toBeGreaterThan(0);
+  });
+
+  it("surfaces the render rung line in the formatted Skill Budget section", async () => {
+    const report = await auditSkills({
+      catalog: fixtureCatalog(),
+      contextTokens: 1_000_000,
+      budgetPercent: 100,
+    });
+    const md = formatAuditReport(report);
+    expect(md).toContain("- Render rung: full (would drop 0 skills if rendered now)");
+  });
+});
+
 describe("formatAuditReport", () => {
   it("renders the five canonical section headings in order", async () => {
     const report = await auditSkills({ catalog: fixtureCatalog() });
