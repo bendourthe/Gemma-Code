@@ -1,0 +1,91 @@
+{
+  "capturedAt": "2026-05-28",
+  "host": {
+    "platform": "win32",
+    "arch": "x64",
+    "nodeVersion": "v24.13.0"
+  },
+  "catalog": {
+    "totalSkills": 16,
+    "byRoot": {
+      "builtin": 16,
+      "user": 0
+    },
+    "note": "Live catalog on this host is the builtin-only root; the ~213 Nexus-Hub skills await the upstream-release sync tracked by carryforward 1.1.P3.B."
+  },
+  "wallClock": {
+    "runs": 10,
+    "samplesMs": [
+      115.7,
+      112.7,
+      120,
+      122,
+      159.7,
+      119.8,
+      119.1,
+      112.6,
+      115.1,
+      118.1
+    ],
+    "medianMs": 118.6,
+    "p95Ms": 159.7,
+    "minMs": 112.6,
+    "maxMs": 159.7
+  },
+  "peakRss": {
+    "maxRssKb": 52772,
+    "peakRssMb": 51.54,
+    "note": "process.resourceUsage().maxRSS; kilobytes on win32/linux (peak working set on win32)"
+  },
+  "similarity": {
+    "threshold": 0.85,
+    "skillCount": 16,
+    "comparisons": 120,
+    "iterations": 25,
+    "medianMs": 4.393,
+    "p95Ms": 4.808,
+    "pairsFound": 0
+  },
+  "reportContents": {
+    "budget": {
+      "contextTokens": 128000,
+      "budgetTokens": 2560,
+      "usedTokens": 891,
+      "pressurePct": 34.8,
+      "renderRung": "full",
+      "renderOmittedCount": 0
+    },
+    "descriptionCandidateCount": 12,
+    "top5DescriptionCandidates": [
+      {
+        "id": "build-second-brain",
+        "lineTokens": 66,
+        "potentialSavingsTokens": 16
+      },
+      {
+        "id": "critique",
+        "lineTokens": 64,
+        "potentialSavingsTokens": 14
+      },
+      {
+        "id": "harden",
+        "lineTokens": 64,
+        "potentialSavingsTokens": 14
+      },
+      {
+        "id": "review-pr",
+        "lineTokens": 64,
+        "potentialSavingsTokens": 14
+      },
+      {
+        "id": "distill",
+        "lineTokens": 61,
+        "potentialSavingsTokens": 11
+      }
+    ],
+    "duplicatesByName": 0,
+    "duplicatesBySimilarity": 0,
+    "unusedCandidateCount": 16,
+    "rootCount": 1
+  }
+}

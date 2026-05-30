@@ -4,6 +4,28 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-29] v1.3.0 Phase 7 -- Stabilization & Benchmarks (FINAL phase)
+
+### Goal
+
+Close the skill-cleaner adoption track ([docs/versions/v1/v1.3.0/plans/adoption-skill-cleaner.md](versions/v1/v1.3.0/plans/adoption-skill-cleaner.md)): benchmark `skills audit` against the live catalog (T020), refresh the three top-level docs for the new audit surface (T021), append the full per-sub-task adoption ledger (T022), and run the final end-to-end integration gate (T023). As the plan's final phase, Phase 7 also triggers the release-readiness workflow (version bump to v1.3.0).
+
+### What changed
+
+**T020 Skills-audit runtime benchmark.** New [docs/versions/v1/v1.3.0/benchmarks/skills-audit-2026-05-28.md](versions/v1/v1.3.0/benchmarks/skills-audit-2026-05-28.md), modeled on the v1.2.0 token-usage and storage-size benchmarks. A reproducible harness ([tests/fixtures/skills-audit-benchmark-results/2026-05-28/run-benchmark.mjs](../tests/fixtures/skills-audit-benchmark-results/2026-05-28/run-benchmark.mjs)) plus an audit-only RSS probe (`rss-probe.mjs`), a `results.json` fixture, and a fixtures `README.md` capture four measurement families: (a) wall-clock of `node bin/nexus.mjs skills audit` as a child process (1 warmup + 10 timed runs -> median 118.6 ms, p95 159.7 ms); (b) peak RSS of an audit-only child via `process.resourceUsage().maxRSS` (51.5 MB); (c) the isolated O(N^2) `findSimilarPairs` pass (4.4 ms median over 120 comparisons, 0 pairs >= 0.85) recorded separately so a future cycle can decide on MinHash/LSH (`T013.P3.D`); and (d) deterministic report contents (34.8% budget pressure at the default 2% envelope, 12 of 16 description candidates, top-5 compaction candidates by potential token savings). Timing/RSS fields are informational and never gated; the report-content fields reproduce exactly.
+
+**T021 Documentation refresh.** [AGENTS.md](../AGENTS.md) gains a `### Skills audit (v1.3.0 adoption-skill-cleaner track)` subsection under Non-Obvious Tooling (the command, its five report sections, the full flag set, and the "suggest first" framing). [README.md](../README.md) gains a `### v1.3.0 cycle status` table (seven phases, all Landed) mirroring the v1.2.0 table's shape, with a one-paragraph intro and links to the plan, known-gaps, and benchmark. [ARCHITECTURE.md](../ARCHITECTURE.md) lists `SkillRenderLine.ts`, `SkillAuditor.ts`, `SkillSimilarity.ts`, and `SkillUsageScanner.ts` in the `core/skills/` tree with one-line summaries.
+
+**T022 Adoption-ledger closure.** [known-gaps.md](versions/v1/v1.3.0/known-gaps.md) gains ledger rows T020-T023 (all Resolved for Phase 7); `T013.P3.D` gains a Phase 7 update note (the similarity runtime is now captured in the benchmark, but the item stays open because the MinHash/LSH pre-filter itself is unimplemented); the summary is recomputed to 23 of 23 sub-tasks resolved. The file pre-existed (seeded Phase 1), so T022 appended rather than created.
+
+**T023 Final exit gate.** `npm run build` (tsc) clean; `npm run lint` (`eslint src`) 0 errors; `npm run check-architecture` 0 errors (11 pre-existing orphan/circular warnings, none on touched files); `npm run test` 3,704 passed / 0 failed / 5 skipped (332 files) -- including the v1.2.0 token-usage and storage-size benchmark tests, both reproducing within tolerance (storage ratio 18.68% unchanged). `node bin/nexus.mjs skills audit` renders all five sections.
+
+**Deviations.** (1) The benchmark runs against the 16-skill builtin catalog, not the plan's "213-skill" target -- the full Nexus-Hub catalog awaits the upstream-release sync (`1.1.P3.B`); the benchmark is a builtin-catalog baseline with a catalog-size-independent harness. (2) The harness runs 10 timed runs (>= the plan's 3-run floor) for a meaningful median/p95. (3) T022 appended to an existing known-gaps file rather than creating one. (4) `node bin/nexus.mjs skills sync --dry-run` returns "upstream did not return tag_name" -- the expected manifestation of `1.1.P3.B`, not a regression; the new skill's presence is confirmed via the syncer's local `buildManifest` walk test. (5) An unrelated benchmark fixture rewritten by the test run (only host-dependent timing fields) was reverted to keep the commit scoped.
+
+**Scope.** Phase 7 added no production TypeScript -- only docs and a plain-JS benchmark harness under `tests/fixtures/`. The adoption-skill-cleaner track is complete: all seven phases landed and all 23 sub-tasks (T001-T023) are resolved. The release-readiness workflow follows (v1.3.0 version bump + tag + release notes).
+
+---
+
 ## [2026-05-29] v1.3.0 Phase 6 -- Upstream Hygiene + P3 Backlog
 
 ### Goal

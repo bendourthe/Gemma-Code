@@ -384,7 +384,7 @@ No constitution file found at docs/versions/v1/v1.3.0/constitution.md - skipping
 
 #### 7.1 -- Benchmark `skills audit` against the live catalog
 
-- [ ] T020 Publish docs/versions/v1/v1.3.0/benchmarks/skills-audit-2026-05-28.md
+- [x] T020 Publish docs/versions/v1/v1.3.0/benchmarks/skills-audit-2026-05-28.md
 
 **Objective**: Measure the audit command's runtime, memory footprint, and report quality against Nexus-Hub's 213-skill catalog so future cycles can detect regressions.
 
@@ -395,7 +395,7 @@ No constitution file found at docs/versions/v1/v1.3.0/constitution.md - skipping
 
 #### 7.2 -- Documentation refresh
 
-- [ ] T021 Update AGENTS.md and README.md and ARCHITECTURE.md to reflect the new audit surface
+- [x] T021 Update AGENTS.md and README.md and ARCHITECTURE.md to reflect the new audit surface
 
 **Objective**: Surface the new `nexus skills audit` command in the project's three top-level docs so a fresh agent session discovers it through the existing AGENTS.md tooling inventory.
 
@@ -406,7 +406,7 @@ No constitution file found at docs/versions/v1/v1.3.0/constitution.md - skipping
 
 #### 7.3 -- Known-gaps closure
 
-- [ ] T022 Create (if absent) and append the adoption-skill-cleaner ledger to docs/versions/v1/v1.3.0/known-gaps.md
+- [x] T022 Create (if absent) and append the adoption-skill-cleaner ledger to docs/versions/v1/v1.3.0/known-gaps.md
 
 **Objective**: Record this plan's per-sub-task closure status in the canonical version-level known-gaps file, matching the precedent set by Phase 7.4 of [adoption-ecosystem-2026-05.md](../../v1.2.0/plans/adoption-ecosystem-2026-05.md).
 
@@ -417,7 +417,7 @@ No constitution file found at docs/versions/v1/v1.3.0/constitution.md - skipping
 
 #### 7.4 -- Final integration test and exit gate
 
-- [ ] T023 Run the full Phase 1-7 test suite once more end-to-end
+- [x] T023 Run the full Phase 1-7 test suite once more end-to-end
 
 **Objective**: Confirm the adoption-skill-cleaner track lands cleanly on top of the already-landed ecosystem-adoption track without regressing any existing functionality.
 
@@ -438,9 +438,9 @@ No constitution file found at docs/versions/v1/v1.3.0/constitution.md - skipping
 
 ### Phase 7 Exit Checklist
 
-- [ ] T020 completed (benchmark published)
-- [ ] T021 completed (AGENTS.md / README.md / ARCHITECTURE.md updated)
-- [ ] T022 completed (known-gaps ledger appended)
-- [ ] T023 completed (full test suite passes; both prior benchmarks still reproduce)
-- [ ] Session history generated
-- [ ] adoption-skill-cleaner track CLOSED
+- [x] T020 completed (benchmark published)
+- [x] T021 completed (AGENTS.md / README.md / ARCHITECTURE.md updated)
+- [x] T022 completed (known-gaps ledger appended)
+- [x] T023 completed (full test suite passes; both prior benchmarks still reproduce)
+- [x] Session history generated
+- [x] adoption-skill-cleaner track CLOSED

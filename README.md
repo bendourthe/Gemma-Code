@@ -93,6 +93,22 @@ The v1.1.0 cycle plan lives at [docs/versions/v1/v1.1.0/plans/v1.1.0-cycle.md](d
 
 The cycle plan lives at [docs/versions/v1/v1.2.0/plans/adoption-ecosystem-2026-05.md](docs/versions/v1/v1.2.0/plans/adoption-ecosystem-2026-05.md). The per-version unfinished-work tracker is at [docs/versions/v1/v1.2.0/known-gaps.md](docs/versions/v1/v1.2.0/known-gaps.md). Benchmarks ([docs/versions/v1/v1.2.0/benchmarks/](docs/versions/v1/v1.2.0/benchmarks/)) cover end-to-end Coding-pillar token usage and storage size.
 
+### v1.3.0 cycle status
+
+The v1.3.0 cycle opened 2026-05-28 with the **adoption-skill-cleaner track**, a seven-phase plan that adopts nine items from a single-source comparison of the `skill-cleaner` technique into Nexus, culminating in a `nexus skills audit` CLI command that produces a five-section token-budget report (Budget / Descriptions / Duplicates / Unused / Roots) over the skill catalog. All seven phases landed on 2026-05-29.
+
+| Phase | Title | Status |
+|---|---|---|
+| 1 | Skill-native authoring rule (`skill-description-authoring` Hub skill) | Landed |
+| 2 | Foundational local utilities ([`core/observability/TokenCost.ts`](core/observability/TokenCost.ts), `ModelRegistry.contextWindow`, [`core/skills/SkillRenderLine.ts`](core/skills/SkillRenderLine.ts), realpath dedup) | Landed |
+| 3 | Skills audit command ([`core/skills/SkillAuditor.ts`](core/skills/SkillAuditor.ts) + `bin/nexus.mjs skills audit`) | Landed |
+| 4 | Similarity + usage detection ([`core/skills/SkillSimilarity.ts`](core/skills/SkillSimilarity.ts), [`core/skills/SkillUsageScanner.ts`](core/skills/SkillUsageScanner.ts)) | Landed |
+| 5 | Render-budget enforcement (full -> truncate -> omit fallback ladder) | Landed |
+| 6 | Upstream hygiene + P3 backlog (Nexus-Hub validator rules + `--deep-logs` / `--by-root` flags) | Landed |
+| 7 | Stabilization, benchmark, and documentation refresh | Landed |
+
+The cycle plan lives at [docs/versions/v1/v1.3.0/plans/adoption-skill-cleaner.md](docs/versions/v1/v1.3.0/plans/adoption-skill-cleaner.md). The per-version unfinished-work tracker is at [docs/versions/v1/v1.3.0/known-gaps.md](docs/versions/v1/v1.3.0/known-gaps.md). The audit-runtime benchmark is at [docs/versions/v1/v1.3.0/benchmarks/skills-audit-2026-05-28.md](docs/versions/v1/v1.3.0/benchmarks/skills-audit-2026-05-28.md).
+
 ---
 
 ## Design Principles

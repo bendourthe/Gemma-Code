@@ -15,7 +15,11 @@ core/                        shared-core surfaces consumed by every pillar
   memory/chunkers/           AST-aware chunker (v1.2.0 Phase 4)
   memory/PrunedDenseIndex.ts LEANN-derived pruned dense index (v1.2.0 Phase 4)
   telemetry/TelemetryBus.ts  in-process pub/sub for GPU + module events
-  skills/SkillCatalog.ts     list / load / hot-reload skills
+  skills/SkillCatalog.ts     list / load / hot-reload skills (realpath dedup, v1.3.0 Phase 2)
+  skills/SkillRenderLine.ts  canonical `- name: desc (file: path)` formatter + budget fallback ladder (v1.3.0 Phase 2/5)
+  skills/SkillAuditor.ts     five-report token-budget audit composition (v1.3.0 Phase 3)
+  skills/SkillSimilarity.ts  Jaccard-over-shingles near-duplicate detector (v1.3.0 Phase 4)
+  skills/SkillUsageScanner.ts session-log usage scanner for the Unused report (v1.3.0 Phase 4)
   storage/                   StorageMigration + canonical ~/.nexus/ paths
   observability/             CommandCompressor (v1.2.0 Phase 2) + redactSecrets
   codegraph/                 SQLite + FTS5 symbol/call-edge graph and 8-tool
