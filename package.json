@@ -193,6 +193,27 @@
           "default": "nothink",
           "description": "Sampler/thinking-mode preset (v1.0.0; legacy `gemma-code.thinkingModePreset`)."
         },
+        "nexus.coding.egressDenyExtra": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "v1.4.0 Phase 2 (A4) -- extra outbound destinations to add to the network-egress denylist enforced by the SSRF guard (fetch_page, web_search, OTLP export). Each entry is a host (no scheme/port); a denied apex domain also covers its sub-domains. Adds to the built-in defaults (cloud-metadata endpoints 169.254.169.254 / metadata.google.internal / metadata.azure.com, and paste/file-drop hosts pastebin.com / transfer.sh / 0x0.st / paste.ee / termbin.com / ix.io); it does not replace them."
+        },
+        "nexus.coding.terminalEnvScrub": {
+          "type": "boolean",
+          "default": true,
+          "description": "v1.4.0 Phase 2 (A5) -- strip sensitive environment variables (API keys, tokens, secrets, cloud credentials) from the env handed to child processes spawned by run_terminal. On by default; set false to pass the full parent environment through (legacy behavior)."
+        },
+        "nexus.coding.terminalEnvScrubAllowlist": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "v1.4.0 Phase 2 (A5) -- exact environment-variable names that are allowed to pass through to run_terminal child processes even when they would otherwise be scrubbed by `nexus.coding.terminalEnvScrub`. Use this to opt a specific secret-bearing variable back in for a command that genuinely needs it."
+        },
         "nexus.memory.enabled": {
           "type": "boolean",
           "default": true,

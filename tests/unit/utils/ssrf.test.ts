@@ -1,9 +1,14 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   isBlockedIp,
   isSsrfBlockedSync,
   isSsrfBlocked,
   fetchWithSsrfGuard,
+  isDeniedDestination,
+  configureDeniedDestinations,
+  resetDeniedDestinations,
+  getDeniedDestinations,
+  DEFAULT_DENIED_DESTINATIONS,
 } from "../../../modules/coding/utils/ssrf.js";
 
 describe("isBlockedIp", () => {
@@ -145,5 +150,152 @@ describe("fetchWithSsrfGuard", () => {
       fetchWithSsrfGuard("https://example.com/start", { lookup: publicLookup }),
     ).rejects.toThrow(/Too many redirects/);
     vi.unstubAllGlobals();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// v1.4.0 Phase 2 (A4) -- egress denylist
+// ---------------------------------------------------------------------------
+
+describe("egress denylist (A4)", () => {
+  // Clear any runtime-configured additions so cross-test state never leaks.
+  afterEach(() => {
+    resetDeniedDestinations();
+  });
+
+  const cloudMetadata = [
+    "169.254.169.254",
+    "metadata.google.internal",
+    "metadata.azure.com",
+  ];
+  const pasteHosts = [
+    "pastebin.com",
+    "transfer.sh",
+    "0x0.st",
+    "paste.ee",
+    "termbin.com",
+    "ix.io",
+  ];
+
+  it("ships the cloud-metadata and paste-host defaults", () => {
+    for (const host of [...cloudMetadata, ...pasteHosts]) {
+      expect(DEFAULT_DENIED_DESTINATIONS).toContain(host);
+    }
+  });
+
+  describe("isDeniedDestination", () => {
+    it.each([...cloudMetadata, ...pasteHosts])("denies %s exactly", (host) => {
+      expect(isDeniedDestination(host)).toBe(true);
+    });
+
+    it("denies sub-domains of a denied apex domain", () => {
+      expect(isDeniedDestination("www.pastebin.com")).toBe(true);
+      expect(isDeniedDestination("raw.pastebin.com")).toBe(true);
+    });
+
+    it("is case- and bracket-insensitive", () => {
+      expect(isDeniedDestination("PASTEBIN.COM")).toBe(true);
+    });
+
+    it("does not deny a public host", () => {
+      expect(isDeniedDestination("example.com")).toBe(false);
+      expect(isDeniedDestination("notpastebin.com")).toBe(false);
+    });
+  });
+
+  describe("isSsrfBlockedSync blocks denied destinations (no DNS)", () => {
+    it.each([...cloudMetadata, ...pasteHosts])("blocks https://%s/", (host) => {
+      expect(isSsrfBlockedSync(`https://${host}/path`)).toBe(true);
+    });
+
+    it("blocks a denied sub-domain", () => {
+      expect(isSsrfBlockedSync("https://raw.pastebin.com/abc")).toBe(true);
+    });
+
+    it("still permits a public host", () => {
+      expect(isSsrfBlockedSync("https://example.com/")).toBe(false);
+    });
+  });
+
+  describe("isSsrfBlocked blocks denied destinations even when DNS is public", () => {
+    const publicLookup = async () => ["93.184.216.34"] as readonly string[];
+
+    it.each(pasteHosts)("blocks %s although it resolves publicly", async (host) => {
+      expect(await isSsrfBlocked(`https://${host}/`, { lookup: publicLookup })).toBe(true);
+    });
+
+    it("blocks the GCP metadata hostname by name (not just by resolved IP)", async () => {
+      expect(
+        await isSsrfBlocked("http://metadata.google.internal/computeMetadata/v1/", {
+          lookup: publicLookup,
+        }),
+      ).toBe(true);
+    });
+  });
+
+  describe("post-redirect enforcement via fetchWithSsrfGuard", () => {
+    const publicLookup = async () => ["93.184.216.34"] as readonly string[];
+
+    it("blocks a redirect that targets a denied paste host", async () => {
+      const fetchMock = vi.fn().mockResolvedValueOnce({
+        status: 302,
+        headers: new Map([["location", "https://pastebin.com/raw/abc"]]),
+      });
+      vi.stubGlobal("fetch", fetchMock);
+
+      await expect(
+        fetchWithSsrfGuard("https://example.com/redir", { lookup: publicLookup }),
+      ).rejects.toThrow(/SSRF/);
+      vi.unstubAllGlobals();
+    });
+  });
+
+  describe("extensibility", () => {
+    const publicLookup = async () => ["93.184.216.34"] as readonly string[];
+
+    it("blocks a runtime-configured extra destination", () => {
+      expect(isSsrfBlockedSync("https://evil.test/")).toBe(false);
+      configureDeniedDestinations(["evil.test"]);
+      expect(isDeniedDestination("evil.test")).toBe(true);
+      expect(isSsrfBlockedSync("https://evil.test/")).toBe(true);
+      expect(isSsrfBlockedSync("https://sub.evil.test/")).toBe(true);
+      expect(getDeniedDestinations()).toContain("evil.test");
+    });
+
+    it("resets runtime additions without disturbing the defaults", () => {
+      configureDeniedDestinations(["evil.test"]);
+      resetDeniedDestinations();
+      expect(isDeniedDestination("evil.test")).toBe(false);
+      expect(isDeniedDestination("pastebin.com")).toBe(true);
+    });
+
+    it("normalizes and drops empty configured entries", () => {
+      configureDeniedDestinations(["  EVIL.TEST  ", ""]);
+      expect(isDeniedDestination("evil.test")).toBe(true);
+    });
+
+    it("honors a per-call deniedDestinations option (sync)", () => {
+      expect(isSsrfBlockedSync("https://once.test/", { deniedDestinations: ["once.test"] })).toBe(
+        true,
+      );
+      // The per-call option does not persist.
+      expect(isSsrfBlockedSync("https://once.test/")).toBe(false);
+    });
+
+    it("honors a per-call deniedDestinations option on every redirect hop", async () => {
+      const fetchMock = vi.fn().mockResolvedValueOnce({
+        status: 302,
+        headers: new Map([["location", "https://hop.test/next"]]),
+      });
+      vi.stubGlobal("fetch", fetchMock);
+
+      await expect(
+        fetchWithSsrfGuard("https://example.com/start", {
+          lookup: publicLookup,
+          deniedDestinations: ["hop.test"],
+        }),
+      ).rejects.toThrow(/SSRF/);
+      vi.unstubAllGlobals();
+    });
   });
 });

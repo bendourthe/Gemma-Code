@@ -12,6 +12,7 @@ import {
   CommandCompressor,
   type CompressedOutput,
 } from "../../../core/observability/CommandCompressor.js";
+import { scrubEnv } from "../../../core/observability/scrubEnv.js";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
@@ -123,6 +124,34 @@ function readCompressionSetting(): boolean {
   }
 }
 
+/**
+ * v1.4.0 Phase 2 (A5): read the `nexus.coding.terminalEnvScrub` toggle. Default
+ * true (scrubbing on). Wrapped in try/catch so the handler still constructs in
+ * non-vscode contexts (e.g. unit tests) where the configuration API is absent.
+ */
+function readEnvScrubSetting(): boolean {
+  try {
+    const cfg = vscode.workspace.getConfiguration("nexus.coding");
+    return cfg.get<boolean>("terminalEnvScrub") !== false;
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * v1.4.0 Phase 2 (A5): read the `nexus.coding.terminalEnvScrubAllowlist` array
+ * of environment-variable names allowed to pass through to child processes.
+ */
+function readEnvScrubAllowlist(): readonly string[] {
+  try {
+    const cfg = vscode.workspace.getConfiguration("nexus.coding");
+    const list = cfg.get<string[]>("terminalEnvScrubAllowlist");
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
 function workspaceRoot(): string {
   const folders = vscode.workspace.workspaceFolders;
   if (!folders || folders.length === 0) {
@@ -155,7 +184,28 @@ export class RunTerminalTool implements ToolHandler {
      * production; a default instance is constructed on first call.
      */
     private readonly _compressor: CommandCompressor | undefined = undefined,
+    /**
+     * v1.4.0 Phase 2 (A5): when true (default), scrub secret-bearing
+     * environment variables from the env handed to spawned child processes.
+     * Reversible via the `nexus.coding.terminalEnvScrub` setting.
+     */
+    private readonly _envScrubEnabled: boolean = readEnvScrubSetting(),
+    /**
+     * v1.4.0 Phase 2 (A5): exact env-var names allowed through the scrub.
+     * Sourced from `nexus.coding.terminalEnvScrubAllowlist`.
+     */
+    private readonly _envScrubAllowlist: readonly string[] = readEnvScrubAllowlist(),
   ) {}
+
+  /**
+   * v1.4.0 Phase 2 (A5): compute the environment passed to child processes.
+   * When scrubbing is enabled, sensitive variables are stripped (subject to the
+   * allowlist); otherwise the full parent environment is inherited.
+   */
+  private _childEnv(): NodeJS.ProcessEnv {
+    if (!this._envScrubEnabled) return process.env;
+    return scrubEnv(process.env, { allowlist: this._envScrubAllowlist });
+  }
 
   private _maybeCompress(input: {
     command: string;
@@ -276,7 +326,7 @@ export class RunTerminalTool implements ToolHandler {
       let stderr = "";
       let timedOut = false;
 
-      const child = spawn(command, [], { shell: true, cwd });
+      const child = spawn(command, [], { shell: true, cwd, env: this._childEnv() });
 
       child.stdout.on("data", (data: Buffer) => { stdout += data.toString(); });
       child.stderr.on("data", (data: Buffer) => { stderr += data.toString(); });

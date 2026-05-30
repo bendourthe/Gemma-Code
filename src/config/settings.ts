@@ -48,6 +48,9 @@ export interface NexusSettings {
   otlpEndpoint: string;
   otlpHeaders: string;
   secretPathDenyExtra: string[];
+  egressDenyExtra: string[];
+  terminalEnvScrub: boolean;
+  terminalEnvScrubAllowlist: string[];
   operationLogEnabled: boolean;
   memoryAutoArchive: "off" | "weekly" | "monthly";
   contextLimitsPerModel: Record<string, { maxTokens?: number; minContextLimit?: number }>;
@@ -174,6 +177,12 @@ export function getSettings(): NexusSettings {
     ),
     otlpHeaders: c.get<string>("nexus.otlp.headers", ""),
     secretPathDenyExtra: c.get<string[]>("nexus.secretPathDenyExtra", []),
+    egressDenyExtra: c.get<string[]>("nexus.coding.egressDenyExtra", []),
+    terminalEnvScrub: c.get<boolean>("nexus.coding.terminalEnvScrub", true),
+    terminalEnvScrubAllowlist: c.get<string[]>(
+      "nexus.coding.terminalEnvScrubAllowlist",
+      [],
+    ),
     operationLogEnabled: c.get<boolean>("nexus.operationLog.enabled", false),
     memoryAutoArchive: (() => {
       const raw = c.get<string>("nexus.memory.autoArchive", "off");

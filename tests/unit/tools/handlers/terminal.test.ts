@@ -202,3 +202,65 @@ describe("isBlocked (defense-in-depth)", () => {
     expect(isBlocked(cmd)).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// v1.4.0 Phase 2 (A5) -- child-process env scrubbing
+// ---------------------------------------------------------------------------
+
+describe("run_terminal env scrubbing (A5)", () => {
+  function childEnvFromLastSpawn(): NodeJS.ProcessEnv {
+    const call = mockSpawn.mock.calls[0]!;
+    const opts = call[2] as { env?: NodeJS.ProcessEnv } | undefined;
+    return opts?.env ?? {};
+  }
+
+  it("strips secret-bearing variables from the child env when enabled", async () => {
+    process.env.NEXUS_TEST_SECRET_TOKEN = "shh";
+    process.env.NEXUS_TEST_KEEP = "ok";
+    try {
+      mockSpawn.mockReturnValueOnce(makeChild("done", "", 0) as ReturnType<typeof spawn>);
+      // Args: (timeout, compressOutput=false, compressor, envScrubEnabled=true, allowlist=[])
+      const tool = new RunTerminalTool(30000, false, undefined, true, []);
+      await tool.execute(params({ command: "echo hi" }));
+
+      const env = childEnvFromLastSpawn();
+      expect(env.NEXUS_TEST_SECRET_TOKEN).toBeUndefined();
+      expect(env.NEXUS_TEST_KEEP).toBe("ok");
+      // Non-sensitive inherited vars still flow through.
+      expect(env.PATH ?? env.Path).toBeDefined();
+    } finally {
+      delete process.env.NEXUS_TEST_SECRET_TOKEN;
+      delete process.env.NEXUS_TEST_KEEP;
+    }
+  });
+
+  it("lets an allowlisted variable pass through to the child env", async () => {
+    process.env.NEXUS_TEST_ALLOWED_API_KEY = "letmein";
+    try {
+      mockSpawn.mockReturnValueOnce(makeChild("done", "", 0) as ReturnType<typeof spawn>);
+      const tool = new RunTerminalTool(30000, false, undefined, true, [
+        "NEXUS_TEST_ALLOWED_API_KEY",
+      ]);
+      await tool.execute(params({ command: "echo hi" }));
+
+      const env = childEnvFromLastSpawn();
+      expect(env.NEXUS_TEST_ALLOWED_API_KEY).toBe("letmein");
+    } finally {
+      delete process.env.NEXUS_TEST_ALLOWED_API_KEY;
+    }
+  });
+
+  it("inherits the full parent env when scrubbing is disabled", async () => {
+    process.env.NEXUS_TEST_DISABLED_TOKEN = "raw";
+    try {
+      mockSpawn.mockReturnValueOnce(makeChild("done", "", 0) as ReturnType<typeof spawn>);
+      const tool = new RunTerminalTool(30000, false, undefined, false, []);
+      await tool.execute(params({ command: "echo hi" }));
+
+      const env = childEnvFromLastSpawn();
+      expect(env.NEXUS_TEST_DISABLED_TOKEN).toBe("raw");
+    } finally {
+      delete process.env.NEXUS_TEST_DISABLED_TOKEN;
+    }
+  });
+});

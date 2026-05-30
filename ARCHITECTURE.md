@@ -21,7 +21,7 @@ core/                        shared-core surfaces consumed by every pillar
   skills/SkillSimilarity.ts  Jaccard-over-shingles near-duplicate detector (v1.3.0 Phase 4)
   skills/SkillUsageScanner.ts session-log usage scanner for the Unused report (v1.3.0 Phase 4)
   storage/                   StorageMigration + canonical ~/.nexus/ paths
-  observability/             CommandCompressor (v1.2.0 Phase 2) + redactSecrets
+  observability/             CommandCompressor (v1.2.0 Phase 2) + redactSecrets + scrubEnv (v1.4.0 Phase 2)
   codegraph/                 SQLite + FTS5 symbol/call-edge graph and 8-tool
                               in-process MCP server (v1.2.0 Phase 3)
   config/MemoryStorageTier.ts  Standard / Pruned tier policy (v1.2.0 Phase 4)

@@ -8,6 +8,108 @@ const BLOCKED_HOSTNAMES = new Set([
 
 const MAX_REDIRECTS = 5;
 
+/**
+ * v1.4.0 Phase 2 (A4) -- named exfil-destination denylist layered on top of
+ * the private-range SSRF guard. The private-range checks already block raw
+ * link-local / loopback / RFC-1918 addresses; this list additionally blocks
+ * named destinations that are dangerous regardless of the IP they resolve to:
+ *
+ *   - cloud instance-metadata endpoints (credential-theft pivots), and
+ *   - public paste / file-drop hosts (the classic data-exfiltration sinks).
+ *
+ * Each entry is a lowercased host (no scheme, no port). A request host matches
+ * an entry when it is exactly equal OR is a sub-domain of it (so `pastebin.com`
+ * also denies `www.pastebin.com` and `raw.pastebin.com`). The literal IP
+ * `169.254.169.254` is already caught by `isPrivateIpv4`; it is repeated here
+ * so the sync check (which performs no DNS resolution) blocks it by name too.
+ *
+ * Adopted from claude-code-harness `harness.toml [safety.sandbox.network]
+ * deniedDomains`. The list is extensible at runtime via
+ * `configureDeniedDestinations` (wired to the `nexus.coding.egressDenyExtra`
+ * setting) and per-call via the `deniedDestinations` option.
+ */
+export const DEFAULT_DENIED_DESTINATIONS: readonly string[] = [
+  // Cloud instance-metadata endpoints.
+  "169.254.169.254",
+  "metadata.google.internal",
+  "metadata.azure.com",
+  // Paste / file-drop hosts.
+  "pastebin.com",
+  "transfer.sh",
+  "0x0.st",
+  "paste.ee",
+  "termbin.com",
+  "ix.io",
+];
+
+const DEFAULT_DENIED_SET: ReadonlySet<string> = new Set(
+  DEFAULT_DENIED_DESTINATIONS.map((d) => d.toLowerCase()),
+);
+
+/**
+ * Runtime-extensible additions to the egress denylist. Seeded empty; populated
+ * by `configureDeniedDestinations` from the `nexus.coding.egressDenyExtra`
+ * setting at the composition root. Kept separate from the immutable defaults so
+ * tests can reset it without disturbing the baseline.
+ */
+let _additionalDenied: ReadonlySet<string> = new Set();
+
+/**
+ * Replace the runtime-configured egress denylist additions. Called once at
+ * startup and again on every settings change. Entries are lowercased and
+ * trimmed; empty entries are dropped. The immutable defaults always apply and
+ * are never removed by this call.
+ */
+export function configureDeniedDestinations(domains: readonly string[]): void {
+  const normalized = domains
+    .map((d) => d.trim().toLowerCase())
+    .filter((d) => d.length > 0);
+  _additionalDenied = new Set(normalized);
+}
+
+/** Test-only: clear the runtime-configured additions back to empty. */
+export function resetDeniedDestinations(): void {
+  _additionalDenied = new Set();
+}
+
+/**
+ * Return the effective egress denylist (defaults plus runtime additions). Used
+ * by tests and diagnostics; the request path uses `isDeniedDestination`.
+ */
+export function getDeniedDestinations(): readonly string[] {
+  return [...DEFAULT_DENIED_SET, ..._additionalDenied];
+}
+
+function _hostMatchesDenied(host: string, denied: Iterable<string>): boolean {
+  for (const entry of denied) {
+    if (host === entry || host.endsWith(`.${entry}`)) return true;
+  }
+  return false;
+}
+
+/**
+ * Returns true if `host` is on the egress denylist (defaults + runtime
+ * additions + any per-call `extra` entries). `host` is normalized to lowercase
+ * with surrounding IPv6 brackets stripped, matching the callers' host parsing.
+ * Matching is exact-or-sub-domain so a denied apex domain also covers its
+ * sub-domains.
+ */
+export function isDeniedDestination(
+  host: string,
+  extra?: readonly string[],
+): boolean {
+  const normalized = host.toLowerCase().replace(/^\[|\]$/g, "");
+  if (_hostMatchesDenied(normalized, DEFAULT_DENIED_SET)) return true;
+  if (_hostMatchesDenied(normalized, _additionalDenied)) return true;
+  if (extra && extra.length > 0) {
+    const extraNormalized = extra
+      .map((d) => d.trim().toLowerCase())
+      .filter((d) => d.length > 0);
+    if (_hostMatchesDenied(normalized, extraNormalized)) return true;
+  }
+  return false;
+}
+
 export type DnsLookupFn = (hostname: string) => Promise<readonly string[]>;
 
 async function defaultDnsLookup(hostname: string): Promise<readonly string[]> {
@@ -49,7 +151,10 @@ export function isBlockedIp(host: string): boolean {
  * Use this at construction time for fail-fast validation; pair with
  * `isSsrfBlocked` in the request path to catch DNS-based bypasses.
  */
-export function isSsrfBlockedSync(rawUrl: string): boolean {
+export function isSsrfBlockedSync(
+  rawUrl: string,
+  options?: SsrfCheckOptions,
+): boolean {
   let parsed: URL;
   try {
     parsed = new URL(rawUrl);
@@ -62,6 +167,7 @@ export function isSsrfBlockedSync(rawUrl: string): boolean {
 
   const host = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, "");
   if (BLOCKED_HOSTNAMES.has(host)) return true;
+  if (isDeniedDestination(host, options?.deniedDestinations)) return true;
   if (isBlockedIp(host)) return true;
 
   return false;
@@ -69,6 +175,13 @@ export function isSsrfBlockedSync(rawUrl: string): boolean {
 
 export interface SsrfCheckOptions {
   readonly lookup?: DnsLookupFn;
+  /**
+   * v1.4.0 Phase 2 (A4) -- per-call additions to the egress denylist, on top
+   * of the module defaults and any runtime-configured additions. Useful for
+   * callers that want to deny a destination for a single request without
+   * mutating global state.
+   */
+  readonly deniedDestinations?: readonly string[];
 }
 
 /**
@@ -96,6 +209,7 @@ export async function isSsrfBlocked(
 
   const host = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, "");
   if (BLOCKED_HOSTNAMES.has(host)) return true;
+  if (isDeniedDestination(host, options?.deniedDestinations)) return true;
   if (isBlockedIp(host)) return true;
 
   const lookup = options?.lookup ?? defaultDnsLookup;
@@ -115,6 +229,11 @@ export async function isSsrfBlocked(
 export interface SsrfFetchOptions extends RequestInit {
   readonly timeoutMs?: number;
   readonly lookup?: DnsLookupFn;
+  /**
+   * v1.4.0 Phase 2 (A4) -- per-call additions to the egress denylist,
+   * re-checked on every redirect hop along with the module defaults.
+   */
+  readonly deniedDestinations?: readonly string[];
   /**
    * Maximum total response body size in bytes. When the upstream advertises a
    * larger `Content-Length` or the streaming reader exceeds this threshold,
@@ -210,13 +329,14 @@ export async function fetchWithSsrfGuard(
   const {
     timeoutMs = 10_000,
     lookup,
+    deniedDestinations,
     maxBodyBytes = DEFAULT_MAX_BODY_BYTES,
     ...fetchInit
   } = init;
 
   let url = initialUrl;
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-    if (await isSsrfBlocked(url, { lookup })) {
+    if (await isSsrfBlocked(url, { lookup, deniedDestinations })) {
       throw new Error(`URL is blocked by SSRF check: "${url}"`);
     }
 

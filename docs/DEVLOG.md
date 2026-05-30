@@ -4,6 +4,26 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-30] v1.4.0 Phase 2 -- Network & Subprocess Hardening
+
+### Goal
+
+Land the two code-shaped hardening adoptions of the v1.4.0 cycle ([docs/versions/v1/v1.4.0/plans/adoption-claude-code-harness.md](versions/v1/v1.4.0/plans/adoption-claude-code-harness.md)): A4, a named outbound-egress denylist layered onto the existing SSRF guard, and A5, secret-bearing environment-variable scrubbing for `run_terminal` child processes. Both reimplement harness behaviors in Nexus's TS/Node stack and reduce trust surface without adding any outbound call. Stability gate: `npm run test`, `npm run lint`, `npm run check-architecture` clean; new SSRF and terminal tests pass; existing terminal behavior preserved.
+
+### What changed
+
+**T006 (A4) Network-egress denylist.** [modules/coding/utils/ssrf.ts](../modules/coding/utils/ssrf.ts) gains `DEFAULT_DENIED_DESTINATIONS` (cloud instance-metadata endpoints `169.254.169.254` / `metadata.google.internal` / `metadata.azure.com`, and paste/file-drop hosts `pastebin.com` / `transfer.sh` / `0x0.st` / `paste.ee` / `termbin.com` / `ix.io`) plus `isDeniedDestination` (exact-or-sub-domain match, bracket/case-normalized). The check is wired into both `isSsrfBlockedSync` and `isSsrfBlocked`; because `fetchWithSsrfGuard` re-runs `isSsrfBlocked` on every redirect hop, the denylist is enforced pre- and post-redirect. All three guard consumers (`OtlpExporter` via the sync check, `webSearch`/fetch_page via `fetchWithSsrfGuard`, `webCache` via the async check) inherit it without per-consumer edits. The list is extensible per call (`deniedDestinations` option) and at runtime via `configureDeniedDestinations`, seeded from the new `nexus.coding.egressDenyExtra` setting at the [NexusCodingRuntime](../src/runtime/NexusCodingRuntime.ts) composition root (construction and on settings change; `?? []` tolerates partial settings snapshots).
+
+**T007 (A5) Subprocess env scrubbing.** New [core/observability/scrubEnv.ts](../core/observability/scrubEnv.ts): `scrubEnv(baseEnv, { allowlist })` returns a copy with secret-bearing variables removed, by NAME (`isSensitiveEnvName` matches SECRET / TOKEN / PASSWORD / CREDENTIAL / *_KEY / API[_]KEY / ACCESS_KEY / AUTH_TOKEN / SESSION_TOKEN, while deliberately not matching `PATH` / `HOME` / `PWD` / `SSH_AUTH_SOCK`) and by VALUE (`valueLooksLikeSecret` reuses `detectSecretCategories` from [redactSecrets.ts](../core/observability/redactSecrets.ts) so AWS keys, GitHub PATs, Slack tokens, JWTs, and PEM blocks are stripped even under an innocuous name). [src/tools/handlers/terminal.ts](../src/tools/handlers/terminal.ts) now passes `env: this._childEnv()` to `spawn`; scrubbing is on by default (`nexus.coding.terminalEnvScrub`), reversible, with an opt-in passthrough allowlist (`nexus.coding.terminalEnvScrubAllowlist`). PATH and other non-sensitive vars still flow through, so git/npm/node/test commands are unaffected.
+
+**T008 Tests + stabilization.** Added the egress-denylist suite to [tests/unit/utils/ssrf.test.ts](../tests/unit/utils/ssrf.test.ts) (defaults present, exact/sub-domain matching, sync + async blocking with a public DNS stub to prove name-based denial, post-redirect enforcement, and the per-call / runtime extensibility paths) and a new [tests/unit/core/observability/scrubEnv.test.ts](../tests/unit/core/observability/scrubEnv.test.ts) (name detection positives/negatives, value detection, allowlist case-sensitivity, undefined handling, no input mutation). Extended [tests/unit/tools/handlers/terminal.test.ts](../tests/unit/tools/handlers/terminal.test.ts) to assert the child `env` argument of the mocked `spawn` (sensitive var stripped, allowlisted var preserved, full env when disabled). Results: `tsc --noEmit` clean, `eslint src` clean, `check-architecture` 0 errors (11 pre-existing warnings), `npm run test` 3782 passed / 5 skipped / 0 failed, overall coverage 87.05% lines (`scrubEnv.ts` 100%, `terminal.ts` 87.79%).
+
+**Deviations.** (1) The plan prompts cite `src/utils/ssrf.ts`, but that sub-tree was migrated to `modules/coding/utils/ssrf.ts` in v1.1.0 Phase 3 (the partial-move state tracked by gap `1.4.P1.B`, due to close in Phase 7); implemented at the live path. (2) The A4 "apply to fetch_page / web_search / OTLP" requirement was met structurally (denylist inside the shared guard functions) rather than by editing each consumer. (3) An unrelated benchmark fixture (`tests/fixtures/memory-tier-benchmark-results/.../results.json`) rewritten with host-dependent timing values during the suite run was reverted to keep the commit scoped.
+
+**Scope.** Two new files (`scrubEnv.ts` + its test), five modified (ssrf.ts, terminal.ts, settings.ts, NexusCodingRuntime.ts, package.json) plus two test files. No new outbound call, dependency, or runtime env var. Six of twelve adoption items now landed (A3, A4, A5, A7, A11, A12); Phases 3-6 carry the remaining code-shaped items. See [known-gaps.md](versions/v1/v1.4.0/known-gaps.md) for the structured gap list (no new gap this phase).
+
+---
+
 ## [2026-05-30] v1.4.0 Phase 1 -- Skill-Native Adoptions
 
 ### Goal

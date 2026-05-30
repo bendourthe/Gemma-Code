@@ -8,6 +8,7 @@ import {
 import { createOllamaClient } from "../llm/OllamaClient.js";
 import { createLmStudioClient } from "../llm/LmStudioClient.js";
 import type { LLMClient } from "../llm/types.js";
+import { configureDeniedDestinations } from "../../modules/coding/utils/ssrf.js";
 
 /**
  * Composition root for the extension. Owns the singleton-like cross-cutting
@@ -36,9 +37,13 @@ export class NexusCodingRuntime {
         /* non-fatal */
       }
     }
+    // v1.4.0 Phase 2 (A4): seed the SSRF egress denylist with the user's extra
+    // destinations. `?? []` tolerates partial settings snapshots from tests.
+    configureDeniedDestinations(this._settings.egressDenyExtra ?? []);
     this._settingsSubscription = onSettingsChange((next) => {
       const prev = this._settings;
       this._settings = next;
+      configureDeniedDestinations(next.egressDenyExtra ?? []);
       if (
         prev.ollamaUrl !== next.ollamaUrl ||
         prev.requestTimeout !== next.requestTimeout ||
