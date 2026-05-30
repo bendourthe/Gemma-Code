@@ -232,7 +232,7 @@ No constitution file found at docs/versions/v1/v1.4.0/constitution.md - skipping
 
 #### 4.1 — A1: `nexus.security.toml` SSOT + generator
 
-- [ ] T012 Create the safety SSOT and generator extending scripts/generate-tool-permission-table.mjs
+- [x] T012 Create the safety SSOT and generator extending scripts/generate-tool-permission-table.mjs
 
 **Objective**: Adopt A1 (re-full): one config SSOT generating safety files, modeled on `harness.toml` + `harness sync`.
 
@@ -243,7 +243,7 @@ No constitution file found at docs/versions/v1/v1.4.0/constitution.md - skipping
 
 #### 4.2 — Wire generated surfaces + CI drift gate
 
-- [ ] T013 Wire generated safety surfaces into the runtime guards and add a CI drift gate in .github/workflows/
+- [x] T013 Wire generated safety surfaces into the runtime guards and add a CI drift gate in .github/workflows/
 
 **Objective**: Ensure the generated artifacts are the ones the runtime enforces and that hand-edits fail CI. Depends on T012.
 
@@ -254,7 +254,7 @@ No constitution file found at docs/versions/v1/v1.4.0/constitution.md - skipping
 
 #### 4.3 — Testing and Stabilization
 
-- [ ] T014 Run and stabilize Phase 4 tests in tests/unit/ and the drift gate
+- [x] T014 Run and stabilize Phase 4 tests in tests/unit/ and the drift gate
 
 **Objective**: Verify SSOT generation and the drift gate end-to-end.
 
@@ -265,11 +265,11 @@ No constitution file found at docs/versions/v1/v1.4.0/constitution.md - skipping
 
 ### Phase 4 Exit Checklist
 
-- [ ] All sub-tasks completed
-- [ ] All tests passing
-- [ ] No known regressions from prior phases
-- [ ] Session history generated for this phase
-- [ ] Ready to advance to Phase 5
+- [x] All sub-tasks completed
+- [x] All tests passing
+- [x] No known regressions from prior phases
+- [x] Session history generated for this phase
+- [x] Ready to advance to Phase 5
 
 ---
 

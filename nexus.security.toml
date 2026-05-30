@@ -1,0 +1,113 @@
+# ==============================================================================
+# nexus.security.toml -- Safety configuration single source of truth (SSOT)
+# ==============================================================================
+#
+# v1.4.0 Phase 4 (A1). Adopted from claude-code-harness `harness.toml` +
+# `bin/harness sync`: one config file is the source of truth for the safety
+# surfaces, and a generator regenerates the per-surface artifacts so they cannot
+# drift apart. Here the generator is `scripts/generate-tool-permission-table.mjs`
+# (run `npm run security:gen`; `npm run security:check` is the CI drift gate).
+#
+# This file captures all three safety surfaces, but the *direction of authority*
+# differs by surface (see Section 13 of
+# docs/versions/v1/v1.3.0/comparison-claude-code-harness.md, which warns:
+# "avoid two sources of truth for permissions"):
+#
+#   [network] / [secrets]  -- AUTHORED HERE. Edit these arrays, then run
+#                             `npm run security:gen`. The generator writes the
+#                             values into the committed runtime artifacts:
+#                               - modules/coding/utils/generated/safetyConfig.generated.ts
+#                                 (imported by ssrf.ts and secretPaths.ts), and
+#                               - scripts/hooks/lib/secret-paths.mjs (the
+#                                 agent-agnostic harness-hook copy).
+#
+#   [permissions]          -- GENERATED MIRROR (do NOT edit by hand). The
+#                             canonical source for tool permission tiers remains
+#                             src/guardrails/PermissionTiers.ts (it binds the
+#                             tiers to the PermissionTier enum and the runtime
+#                             clamp logic). The generator mirrors that map into
+#                             the marked block below so this file is a complete
+#                             single-page view of the safety posture, and the
+#                             drift gate fails if the mirror diverges from
+#                             PermissionTiers.ts. Tier values: 0 = auto-approve,
+#                             1 = confirm, 2 = dangerous.
+#
+# Out of scope for this SSOT (by design, kept where it is): the secret *value*
+# redaction regexes in core/observability/redactSecrets.ts (regexes do not round
+# -trip cleanly through TOML and are bound to the scrubber's own logic).
+
+# ------------------------------------------------------------------------------
+# [network] -- egress denylist (A4). AUTHORED. Named exfil destinations the SSRF
+# guard blocks regardless of the IP they resolve to, on top of the private-range
+# checks: cloud instance-metadata endpoints and public paste / file-drop hosts.
+# Each entry is a lowercased host (no scheme, no port); a request host matches an
+# entry when it is exactly equal OR is a sub-domain of it. Runtime additions
+# arrive via the `nexus.coding.egressDenyExtra` setting; this list is the
+# immutable baseline.
+# ------------------------------------------------------------------------------
+[network]
+egress_denylist = [
+  # Cloud instance-metadata endpoints.
+  "169.254.169.254",
+  "metadata.google.internal",
+  "metadata.azure.com",
+  # Paste / file-drop hosts.
+  "pastebin.com",
+  "transfer.sh",
+  "0x0.st",
+  "paste.ee",
+  "termbin.com",
+  "ix.io",
+]
+
+# ------------------------------------------------------------------------------
+# [secrets] -- secret-path denylist. AUTHORED. Glob patterns matching filesystem
+# paths that may contain secrets and therefore must not be read / listed /
+# grepped without explicit per-call confirmation. `**` matches any depth; `*`
+# matches any characters except a path separator. Matching is case-insensitive
+# on Windows. User additions arrive via the `nexus.secretPathDenyExtra` setting.
+# ------------------------------------------------------------------------------
+[secrets]
+path_denylist = [
+  "**/.env*",
+  "**/id_rsa*",
+  "**/id_ed25519*",
+  "**/id_ecdsa*",
+  "**/*.pem",
+  "**/*.key",
+  "**/credentials*",
+  "**/.aws/**",
+  "**/.ssh/**",
+  "**/secrets/**",
+  "**/.nexus/mcp.json",
+]
+
+# BEGIN:GENERATED-PERMISSIONS (mirror of src/guardrails/PermissionTiers.ts -- do not edit; run `npm run security:gen`)
+[permissions]
+read_file = 0
+list_directory = 0
+grep_codebase = 0
+tail_output = 0
+grep_output = 0
+write_file = 1
+edit_file = 1
+create_file = 1
+delete_file = 1
+run_terminal = 2
+web_search = 2
+fetch_page = 2
+compress_range = 0
+compress_message = 0
+update_todos = 0
+codegraph_search = 0
+codegraph_context = 0
+codegraph_trace = 0
+codegraph_callers = 0
+codegraph_callees = 0
+codegraph_impact = 0
+codegraph_node = 0
+codegraph_explore = 0
+codegraph_files = 0
+lsp_definition = 0
+lsp_references = 0
+# END:GENERATED-PERMISSIONS

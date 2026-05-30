@@ -865,6 +865,8 @@
     "catalog:check": "node scripts/generate-catalog.mjs && git diff --exit-code docs/index.md",
     "perm-tier": "node scripts/generate-tool-permission-table.mjs",
     "perm-tier:check": "node scripts/generate-tool-permission-table.mjs --check",
+    "security:gen": "node scripts/generate-tool-permission-table.mjs",
+    "security:check": "node scripts/generate-tool-permission-table.mjs --check",
     "check:audit-prod": "node scripts/check-prod-audit.mjs",
     "mutate": "stryker run configs/stryker.config.json",
     "debug": "node scripts/debug/cli.mjs",

@@ -1,8 +1,16 @@
 /**
- * Canonical list of glob patterns matching filesystem paths that may contain
- * secrets. Mirrored by `src/utils/secretPaths.ts` (which re-imports
- * the array). Keep this file as the single source of truth so the agent-agnostic
- * harness hooks and the in-process runtime guard cannot drift apart.
+ * Glob patterns matching filesystem paths that may contain secrets. This is the
+ * agent-agnostic, harness-facing copy used by the hook scripts (which cannot
+ * import the bundled .ts runtime, since `scripts/**` is excluded from the
+ * packaged extension).
+ *
+ * v1.4.0 Phase 4 (A1): the array below is GENERATED from the AUTHORED
+ * `[secrets]` section of `nexus.security.toml` by
+ * `scripts/generate-tool-permission-table.mjs`. Do not edit it by hand; edit the
+ * SSOT and run `npm run security:gen`. The same SSOT also drives the runtime
+ * copy at `modules/coding/utils/generated/safetyConfig.generated.ts`;
+ * `tests/unit/hooks/secret-paths-sync.test.ts` enforces equality of the two, and
+ * `npm run security:check` is the CI drift gate.
  *
  * Glob semantics:
  *   - `**` matches any characters including path separators (zero-or-more dirs).
@@ -12,8 +20,9 @@
  *
  * Matching is case-insensitive on Windows and case-sensitive elsewhere.
  */
+// BEGIN:GENERATED-SECRET-PATHS (from nexus.security.toml -- do not edit; run `npm run security:gen`)
 export const SECRET_PATH_PATTERNS = Object.freeze([
-  "**/.env*",
+  "**/.env*", // gemma-check-allow: no-env-file-leakage
   "**/id_rsa*",
   "**/id_ed25519*",
   "**/id_ecdsa*",
@@ -25,6 +34,7 @@ export const SECRET_PATH_PATTERNS = Object.freeze([
   "**/secrets/**",
   "**/.nexus/mcp.json",
 ]);
+// END:GENERATED-SECRET-PATHS
 
 function globToRegex(glob) {
   let re = "^";

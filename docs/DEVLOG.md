@@ -4,6 +4,26 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-30] v1.4.0 Phase 4 -- Safety Config SSOT
+
+### Goal
+
+Land A1 of the v1.4.0 cycle ([docs/versions/v1/v1.4.0/plans/adoption-claude-code-harness.md](versions/v1/v1.4.0/plans/adoption-claude-code-harness.md)): adopt the harness `harness.toml` + `bin/harness sync` "one config SSOT regenerates the safety files" pattern as `nexus.security.toml` + an extended generator, so the egress denylist, permission table, and secret-path denylist cannot drift apart, with a CI drift gate. Stability gate: the generator is idempotent; the drift gate fails on hand-edits; generated surfaces match the runtime guards.
+
+### What changed
+
+**T012 (A1) Safety-config SSOT + generator.** New root [nexus.security.toml](../nexus.security.toml) is the single source of truth for the three safety surfaces. Per Section 13 of the source comparison ("avoid two sources of truth for permissions"), the *direction of authority* differs by surface: `[network] egress_denylist` (A4) and `[secrets] path_denylist` are AUTHORED in the TOML, while `[permissions]` is a GENERATED, drift-gated mirror of [src/guardrails/PermissionTiers.ts](../src/guardrails/PermissionTiers.ts) (which stays canonical -- it binds tiers to the enum + clamp logic). The existing [scripts/generate-tool-permission-table.mjs](../scripts/generate-tool-permission-table.mjs) was extended (not renamed) into the safety-surface generator: it regenerates four artifacts -- the architecture-doc permission table (unchanged), the TOML perms mirror, the new runtime artifact [modules/coding/utils/generated/safetyConfig.generated.ts](../modules/coding/utils/generated/safetyConfig.generated.ts), and the `SECRET_PATH_PATTERNS` array in [scripts/hooks/lib/secret-paths.mjs](../scripts/hooks/lib/secret-paths.mjs) -- using a minimal zero-dependency TOML string-array reader. A `--check` mode reports every out-of-sync artifact, and an "invoked-directly" guard makes the module importable by tests without side effects.
+
+**T013 Wire runtime guards + CI drift gate.** [modules/coding/utils/ssrf.ts](../modules/coding/utils/ssrf.ts) now sets `DEFAULT_DENIED_DESTINATIONS = DEFAULT_EGRESS_DENYLIST` imported from the generated artifact, and [modules/coding/utils/secretPaths.ts](../modules/coding/utils/secretPaths.ts) imports + re-exports `SECRET_PATH_PATTERNS` from it; the harness-hook `secret-paths.mjs` array is now generator-owned. New `security:gen` / `security:check` npm scripts; the existing [.github/workflows/ci.yml](../.github/workflows/ci.yml) `perm-tier:check` step was relabeled to `npm run security:check` (the gate now covers all three surfaces). Every current safety value is reproduced exactly, so this is a behavior-preserving refactor -- all pre-existing `ssrf.test.ts` / `secretPaths.test.ts` / `secret-paths-sync.test.ts` assertions stay green.
+
+**T014 Tests + stabilization.** New [tests/unit/scripts/security-ssot-generator.test.ts](../tests/unit/scripts/security-ssot-generator.test.ts): 11 assertions covering the TOML reader (round-trip vs. the runtime guards, comment handling, missing-key throw), `parseToolMap` tier numbers, the perms-mirror match, byte-for-byte idempotency of the generated artifact, the env-allow-marker rendering, and an end-to-end drift gate (mutate the SSOT mirror -> `--check` exit 1 -> regenerate -> exit 0, with a `finally` restore). Results: `tsc` clean, `eslint src` clean, `check-architecture` 0 errors (11 pre-existing warnings), `check:tampering` 0 findings, `security:check` in sync, `npm run test` 333 files passed / 2 skipped / 0 failed, coverage 87.05% lines.
+
+**Deviations.** (1) The plan cites `src/utils/ssrf.ts`; implemented at the live `modules/coding/utils/ssrf.ts` (the `1.4.P1.B` partial-move state). (2) The permissions-source either/or was resolved per Section 13 -- `PermissionTiers.ts` canonical, TOML mirror generated (confirmed with the user before coding). (3) `redactSecrets.ts` secret *value* regexes are intentionally outside the SSOT (regexes do not round-trip through TOML). (4) Kept the generator filename to avoid breaking `perm-tier` / CI references; added `security:*` aliases.
+
+**Scope.** Two new files (the SSOT + the generated module) plus one new test; five modified (the generator, ssrf.ts, secretPaths.ts, secret-paths.mjs, package.json) plus the ci.yml step relabel. No new outbound call, dependency, or runtime env var. Nine of twelve adoption items now landed (A1, A2, A3, A4, A5, A7, A9, A11, A12); Phases 5-6 carry A6, A8, A10. See [known-gaps.md](versions/v1/v1.4.0/known-gaps.md) (no new gap this phase).
+
+---
+
 ## [2026-05-30] v1.4.0 Phase 3 -- Static-Analysis & CI Gates
 
 ### Goal

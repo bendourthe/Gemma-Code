@@ -1,4 +1,5 @@
 import * as dns from "node:dns/promises";
+import { DEFAULT_EGRESS_DENYLIST } from "./generated/safetyConfig.generated.js";
 
 const BLOCKED_HOSTNAMES = new Set([
   "localhost",
@@ -27,20 +28,14 @@ const MAX_REDIRECTS = 5;
  * deniedDomains`. The list is extensible at runtime via
  * `configureDeniedDestinations` (wired to the `nexus.coding.egressDenyExtra`
  * setting) and per-call via the `deniedDestinations` option.
+ *
+ * v1.4.0 Phase 4 (A1): the baseline values are no longer hand-coded here -- they
+ * are sourced from the safety-config SSOT (`nexus.security.toml [network]
+ * egress_denylist`) via the generated `safetyConfig.generated.ts` artifact, so
+ * this list and the other safety surfaces cannot drift apart. Edit the SSOT and
+ * run `npm run security:gen` to change it.
  */
-export const DEFAULT_DENIED_DESTINATIONS: readonly string[] = [
-  // Cloud instance-metadata endpoints.
-  "169.254.169.254",
-  "metadata.google.internal",
-  "metadata.azure.com",
-  // Paste / file-drop hosts.
-  "pastebin.com",
-  "transfer.sh",
-  "0x0.st",
-  "paste.ee",
-  "termbin.com",
-  "ix.io",
-];
+export const DEFAULT_DENIED_DESTINATIONS: readonly string[] = DEFAULT_EGRESS_DENYLIST;
 
 const DEFAULT_DENIED_SET: ReadonlySet<string> = new Set(
   DEFAULT_DENIED_DESTINATIONS.map((d) => d.toLowerCase()),
