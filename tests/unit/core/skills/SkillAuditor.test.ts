@@ -261,6 +261,40 @@ describe("auditSkills -- render rung diagnostic (T015)", () => {
   });
 });
 
+describe("auditSkills -- by-root filter (T018)", () => {
+  it("restricts every section to the named source and scopes the unused report", async () => {
+    // Usage map carries a user skill and a builtin skill, both zero-evidence.
+    // With `--by-root user` only the user one may surface as an Unused candidate.
+    const usage = new Map<string, SkillUsage>([
+      ["user/notes", { lastSeen: null, matchCount: 0 }],
+      ["dup-skill", { lastSeen: null, matchCount: 0 }], // builtin id -> filtered out
+    ]);
+    const report = await auditSkills({ catalog: fixtureCatalog(), byRoot: "user", usage });
+
+    // Roots restricted to the user source.
+    expect(report.roots.every((r) => r.source === "user")).toBe(true);
+    expect(report.filteredToRoot).toBe("user");
+    // Name-duplicate rows only carry the user source after scoping.
+    for (const d of report.duplicates.byName) {
+      expect(d.sources).toEqual(["user"]);
+    }
+    // Unused report scoped to user-source ids only.
+    const unusedIds = report.unused.map((u) => u.id);
+    expect(unusedIds).toContain("user/notes");
+    expect(unusedIds).not.toContain("dup-skill");
+  });
+
+  it("suppresses the Root summary and prints a scoping header in the rendered report", async () => {
+    const report = await auditSkills({ catalog: fixtureCatalog(), byRoot: "user" });
+    const md = formatAuditReport(report);
+    expect(md).toContain("Filtered to root: user");
+    expect(md).not.toContain("## Root summary");
+    // The other four sections still render.
+    expect(md).toContain("## Skill Budget");
+    expect(md).toContain("## Duplicates");
+  });
+});
+
 describe("formatAuditReport", () => {
   it("renders the five canonical section headings in order", async () => {
     const report = await auditSkills({ catalog: fixtureCatalog() });

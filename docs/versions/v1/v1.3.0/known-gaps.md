@@ -3,7 +3,7 @@
 **Status**: open. v1.3.0 opens with the skill-cleaner adoption track ([plans/adoption-skill-cleaner.md](plans/adoption-skill-cleaner.md), derived from [comparison-skill-cleaner.md](comparison-skill-cleaner.md)). Phase 1 (2026-05-28) ships the one skill-native item: the `skill-description-authoring` Nexus-Hub skill encoding the trigger-noun preservation rule (product / tool / action / object) plus single-line / ASCII-sanitized description discipline. No code surface in `core/` or `modules/` is touched in Phase 1; the deliverable lives entirely in the sibling Nexus-Hub repo. Phases 2-7 land the code-shaped items (foundational utilities, the `nexus skills audit` command, similarity + usage detection, render-budget enforcement, upstream hygiene, and stabilization). The known-gaps file is appended phase-by-phase; items move to `## 2. Resolved` when closed in a later phase; the `## 3. Summary` at the bottom is recomputed each pass.
 
 **Audience**: v1.3.0 phase authors, code reviewer, future-cycle planners
-**Last updated**: 2026-05-29 (Phase 5)
+**Last updated**: 2026-05-29 (Phase 6)
 **Sibling reviews**: [docs/versions/v1/v1.2.0/known-gaps.md](../v1.2.0/known-gaps.md) (the upstream cycle gap log; carryforward open items remain in force during v1.3.0); [docs/versions/v1/v1.3.0/plans/adoption-skill-cleaner.md](plans/adoption-skill-cleaner.md) (the active adoption plan); [docs/versions/v1/v1.3.0/comparison-skill-cleaner.md](comparison-skill-cleaner.md) (the single-source comparison this track adopts).
 
 **Cycle context**: This file is created in Phase 1 (rather than deferred to T022 / Phase 7 as the plan text anticipated) because the implement-phase post-phase sequence appends gaps every phase. T022 in Phase 7 will append the full per-sub-task adoption ledger to this same file; the seeded sections below are forward-compatible with that pass.
@@ -50,6 +50,9 @@ This is the per-sub-task closure ledger for the skill-cleaner adoption plan. T02
 | T014 | Phase 4 build + test + live-catalog smoke run | Resolved | adoption-skill-cleaner Phase 4 (2026-05-29); `npm run build` clean, 3691 tests pass (0 fail), `eslint src` 0 errors, `check-architecture` 0 errors; live smoke run populates By-similarity ("no near-duplicates above threshold") + 16 Unused candidates with the suggest-first framing and no destructive imperatives |
 | T015 | Add the budget-driven fallback ladder to `core/skills/SkillRenderLine.ts` (insight I-06, P1) | Resolved | adoption-skill-cleaner Phase 5 (2026-05-29); `renderSkillBlockWithinBudget` (full -> equal-truncate -> priority-ordered omit, devai-hub before user before builtin per I-09); `name`/`path` never truncated (I-15); auditor surfaces a `Render rung:` line in `## Skill Budget`; 6 fallback unit tests + 3 auditor rung tests; live render path intentionally untouched in v1.3.0 |
 | T016 | Phase 5 build + test + live-catalog rung verification | Resolved | adoption-skill-cleaner Phase 5 (2026-05-29); `npm run build` clean, 3700 tests pass (0 fail), `check-architecture` 0 new violations; CLI smoke run shows `Render rung` line; `--budget-percent 100` -> `full`, `--budget-percent 0.1` -> `omitted` (drops 14 of 16); default 2% is `full` on this host (16-skill builtin-only catalog) since the 213 Hub skills await the upstream-release sync tracked by carryforward `1.1.P3.B` |
+| T017 | Extend Nexus-Hub `scripts/validate_skills.py` with single-line `name` / `description` rules + `--allow-existing` (insight I-03, P2) | Resolved | adoption-skill-cleaner Phase 6 (2026-05-29); three checks (kebab-case `name`, <=250-char `description`, absent-`name` -> parent-dir default); `--allow-existing` + `scripts/validate_skills.allowlist.json` grandfathers 137 pre-existing over-long descriptions (144 errors -> 7 with the flag; the 7 remaining are the pre-existing secret-scan false positives tracked by T002.P2.A); 11 new tests in `tests/validators/test_validate_skills.py` (55 validator tests pass); allowlist drain tracked by new open item T017.P3.E |
+| T018 | Add P3 CLI flags `--deep-logs` + `--by-root` to `bin/nexus.mjs` + `core/skills/SkillAuditor.ts` (insight I-11 P3 subset) | Resolved | adoption-skill-cleaner Phase 6 (2026-05-29); `--deep-logs` extends `SkillUsageScanner` into the `archive/` subtree + gzip `*.jsonl.gz` logs (via `zlib.gunzipSync`, no new dependency); `--by-root builtin\|user\|devai-hub` scopes every report section to one source, suppresses the Root summary, and prints a `Filtered to root:` header; 2 new auditor unit tests (by-root) + a new `tests/integration/skills-audit-deep-logs.test.ts` (2 archive/gz cases) |
+| T019 | Phase 6 build + test + end-to-end flag smoke runs | Resolved | adoption-skill-cleaner Phase 6 (2026-05-29); `npm run build` clean, 3704 tests pass (0 fail), `eslint src` 0 errors, `check-architecture` 0 new violations; live `--by-root builtin` suppresses Root summary + shows header, `--deep-logs --months 12` emits all five sections and exits 0; upstream `validate_skills.py --allow-existing` absorbs the 137 format violations |
 
 ---
 
@@ -60,7 +63,8 @@ This is the per-sub-task closure ledger for the skill-cleaner adoption plan. T02
 - **Source phase**: adoption-skill-cleaner Phase 1 (T002)
 - **Plan reference**: [plans/adoption-skill-cleaner.md](plans/adoption-skill-cleaner.md) Phase 6 sub-task T017
 - **Reason**: Running the full Nexus-Hub `python scripts/validate_skills.py` (no `--path` filter) exits 1 with 7 ERROR-level "potential Generic secret assignment" findings in unrelated, pre-existing skills (`ai-development/google-antigravity-sdk`, `documentation/user-documentation` x2, `infrastructure/cd-pipeline-generator` x2, `infrastructure/rollback-strategy-advisor` x2). These are example snippets (e.g. `password = "..."` in runbook / pipeline samples), not real secrets. They predate this track and are not introduced by the new `skill-description-authoring` skill, which passes both the targeted full validator and the quality pass with 0 errors / 0 warnings. The plan's Phase 6 explicitly says not to mass-edit pre-existing violations; an `--allow-existing` allowlist (`validate_skills.allowlist.json`) is the intended remedy.
-- **Suggested next step**: When Phase 6 / T017 extends `validate_skills.py` with the single-line `name` / `description` checks, also introduce the `--allow-existing` allowlist and grandfather these 7 secret-scan false positives (or refine the `Generic secret assignment` regex to skip fenced code-block examples). Track the allowlist drain as a Nexus-Hub-side issue.
+- **Suggested next step**: Phase 6 / T017 introduced the `--allow-existing` allowlist (`scripts/validate_skills.allowlist.json`), but it is scoped to the new single-line `name` / `description` violations only -- it does not yet demote these 7 secret-scan false positives, which still surface as ERROR-level findings on an unflagged full run. Remaining work: either extend the allowlist semantics to also grandfather known secret-scan false positives, or refine the `Generic secret assignment` regex to skip fenced code-block examples. Track as a Nexus-Hub-side issue.
+- **Phase 6 update (2026-05-29)**: the `--allow-existing` mechanism now exists (format-rule-scoped); this item stays open for the secret-scan grandfathering only.
 
 ### T012.P2.C -- Usage scan covers only the primary skill root (DF, P2)
 
@@ -76,7 +80,18 @@ This is the per-sub-task closure ledger for the skill-cleaner adoption plan. T02
 - **Reason**: `findSimilarPairs` compares every skill pair (`~N^2/2`). For the current catalog (16 builtin here; ~213 on a full Nexus-Hub sync) this is well under ~22,700 comparisons and runs in milliseconds, so no indexing is warranted yet. The plan explicitly defers a MinHash / LSH pre-filter until catalog size roughly doubles.
 - **Suggested next step**: Capture the similarity-detection runtime separately in the Phase 7 benchmark (T020); if it becomes the cost driver as the catalog grows, add a MinHash band pre-filter before the exact Jaccard pass.
 
-_(T002.P2.A remains open from Phase 1; T007.P2.B was resolved in Phase 3 -- see `## 2. Resolved`.)_
+### T017.P3.E -- Nexus-Hub allowlist drain: 137 over-long descriptions grandfathered (DF, P3)
+
+- **Source phase**: adoption-skill-cleaner Phase 6 (T017)
+- **Plan reference**: [plans/adoption-skill-cleaner.md](plans/adoption-skill-cleaner.md) Phase 6 sub-task T017
+- **Reason**: Enforcing the new <=250-char single-line `description` rule against the live Nexus-Hub catalog surfaced 137 pre-existing SKILL.md files whose descriptions exceed the ceiling (lengths from 251 up to ~1276 chars; many are multi-trigger workflow descriptions). Per the plan, these were not mass-edited; instead they were grandfathered into `scripts/validate_skills.allowlist.json` so `python scripts/validate_skills.py --allow-existing` demotes them to warnings while new skills are held to the rule. The allowlist is explicitly transitional.
+- **Suggested next step**: Drain the allowlist incrementally in the Nexus-Hub repo -- shorten each over-long `description` to a single trigger-noun-preserving line per the `skill-description-authoring` skill, removing its allowlist entry as it lands. When the allowlist reaches zero entries, delete the file and drop the `--allow-existing` flag from any CI invocation. Track as a Nexus-Hub-side issue; a future Nexus cycle's `/generate-plan` Step 0.6 can ingest this item.
+
+### T012.P2.C status note (Phase 6)
+
+T018's `--by-root` flag touched the same root-resolution surface flagged by T012.P2.C but narrows (scopes to one source) rather than widens the usage scan; the CLI now points the single-root scan at the matching root when `--by-root` is set. The underlying single-`skillsRoot` limitation in `scanUsage` is unchanged, so **T012.P2.C remains open**.
+
+_(T002.P2.A and T012.P2.C remain open; T007.P2.B was resolved in Phase 3 -- see `## 2. Resolved`.)_
 
 ---
 
@@ -95,11 +110,11 @@ _(T002.P2.A remains open from Phase 1; T007.P2.B was resolved in Phase 3 -- see 
 | Category | Open | Resolved |
 |---|---|---|
 | NI (not implemented) | 0 | 0 |
-| DF (deferred) | 2 | 0 |
+| DF (deferred) | 3 | 0 |
 | BG (bug) | 0 | 0 |
 | MT (missing tests) | 0 | 0 |
 | WN (warning) | 1 | 1 |
 | QG (quality gate) | 0 | 0 |
-| **Total** | **3** | **1** |
+| **Total** | **4** | **1** |
 
-**Adoption ledger**: 16 of 23 sub-tasks resolved (T001-T016); 7 pending across Phases 6-7.
+**Adoption ledger**: 19 of 23 sub-tasks resolved (T001-T019); 4 pending in Phase 7 (T020-T023).

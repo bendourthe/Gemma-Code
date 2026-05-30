@@ -74,6 +74,19 @@ export interface SkillAuditOptions {
    * over `skillsRoot`.
    */
   usage?: ReadonlyMap<string, SkillUsage>;
+  /**
+   * v1.3.0 Phase 6 (T018, P3 `--deep-logs`) -- forwarded to `scanUsage` so the
+   * Unused report also reflects archived and gzip-compressed session logs. Only
+   * consulted when the auditor performs its own scan (no injected `usage` Map).
+   */
+  deepLogs?: boolean;
+  /**
+   * v1.3.0 Phase 6 (T018, P3 `--by-root`) -- when set, every report section is
+   * restricted to skills whose `SkillProvenance.source` equals this value, and
+   * the Root summary degenerates to (and is suppressed in favour of) a
+   * `Filtered to root: <name>` report header. When omitted, all roots audit.
+   */
+  byRoot?: SkillProvenance["source"];
 }
 
 export interface SkillBudgetReport {
@@ -129,6 +142,13 @@ export interface SkillAuditReport {
   };
   unused: SkillUnusedCandidate[];
   roots: SkillRootSummary[];
+  /**
+   * v1.3.0 Phase 6 (T018) -- set to the source name when the audit was scoped
+   * with `--by-root`; null/absent for a full-catalog audit. Drives the
+   * `Filtered to root:` header and the Root-summary suppression in
+   * `formatAuditReport`.
+   */
+  filteredToRoot?: SkillProvenance["source"];
 }
 
 const DEFAULT_BUDGET_PERCENT = 2;
@@ -199,7 +219,13 @@ export async function auditSkills(opts: SkillAuditOptions): Promise<SkillAuditRe
     throw new Error("auditSkills: a catalog is required (inject one via opts.catalog).");
   }
 
-  const records = catalog.list();
+  // v1.3.0 Phase 6 (T018): `--by-root` scopes every section to one source. The
+  // filter is applied up front so budget math, descriptions, duplicates, and
+  // the root roll-up all derive from the restricted record set.
+  const byRoot = opts.byRoot;
+  const records = byRoot
+    ? catalog.list().filter((r) => r.provenance.source === byRoot)
+    : catalog.list();
   // Load the full Skill (with frontmatter) for every record so the rendered
   // lines carry the actual descriptions the model would see.
   const skills: Skill[] = await Promise.all(records.map((r) => catalog.load(r.id)));
@@ -268,25 +294,54 @@ export async function auditSkills(opts: SkillAuditOptions): Promise<SkillAuditRe
   const months = opts.months ?? DEFAULT_MONTHS;
   const usage = await resolveUsage(opts, months);
   const confidence = unusedConfidence(months);
+  // When `--by-root` is active, the usage Map may still carry skills from other
+  // sources (the scan walks a directory, not a source); restrict the Unused
+  // report to ids that belong to the filtered record set so it stays scoped.
+  const allowedUnusedKeys = byRoot ? unusedKeysFor(records, skills) : null;
   const unused: SkillUnusedCandidate[] = [];
   for (const [id, evidence] of usage) {
-    if (evidence.matchCount === 0) {
-      unused.push({
-        id,
-        lastSeen: evidence.lastSeen ? evidence.lastSeen.toISOString() : null,
-        confidence,
-      });
-    }
+    if (evidence.matchCount !== 0) continue;
+    if (allowedUnusedKeys && !allowedUnusedKeys.has(id)) continue;
+    unused.push({
+      id,
+      lastSeen: evidence.lastSeen ? evidence.lastSeen.toISOString() : null,
+      confidence,
+    });
   }
   unused.sort((a, b) => a.id.localeCompare(b.id));
 
-  return {
+  const report: SkillAuditReport = {
     budget: { contextTokens, budgetTokens, usedTokens, pressurePct, renderRung, renderOmittedCount },
     descriptions,
     duplicates: { byName, bySimilarity },
     unused,
     roots,
   };
+  if (byRoot) report.filteredToRoot = byRoot;
+  return report;
+}
+
+/**
+ * The set of identifiers that count as "belonging" to the filtered record set
+ * for the Unused report. The usage scanner keys by a skill's frontmatter `name`
+ * (its display name), while catalog records also carry a canonical `id`; we
+ * accept either so the scope holds regardless of which id the scan recorded.
+ */
+function unusedKeysFor(
+  records: ReturnType<SkillCatalog["list"]>,
+  skills: readonly Skill[],
+): Set<string> {
+  const keys = new Set<string>();
+  for (const r of records) {
+    keys.add(r.id);
+    keys.add(r.displayName);
+  }
+  for (const s of skills) {
+    keys.add(s.id);
+    const name = s.frontmatter?.name;
+    if (typeof name === "string" && name) keys.add(name);
+  }
+  return keys;
 }
 
 /**
@@ -304,6 +359,7 @@ async function resolveUsage(
       skillsRoot: opts.skillsRoot,
       sessionsRoot: opts.sessionsRoot,
       months,
+      deepLogs: opts.deepLogs,
     });
   }
   return new Map<string, SkillUsage>();
@@ -316,6 +372,13 @@ async function resolveUsage(
  */
 export function formatAuditReport(report: SkillAuditReport): string {
   const lines: string[] = [];
+
+  // v1.3.0 Phase 6 (T018): a `--by-root` audit prints a scoping header and omits
+  // the Root summary (which would degenerate to a single row).
+  if (report.filteredToRoot) {
+    lines.push(`Filtered to root: ${report.filteredToRoot}`);
+    lines.push("");
+  }
 
   lines.push("## Skill Budget");
   lines.push(`- Context window: ${report.budget.contextTokens} tokens`);
@@ -368,12 +431,15 @@ export function formatAuditReport(report: SkillAuditReport): string {
   }
   lines.push("");
 
-  lines.push("## Root summary");
-  if (report.roots.length === 0) {
-    lines.push("_no skill roots loaded_");
-  } else {
-    for (const r of report.roots) {
-      lines.push(`- ${r.root} (${r.source}): ${r.skillCount} skills`);
+  // Root summary is suppressed under `--by-root` (the header above names the scope).
+  if (!report.filteredToRoot) {
+    lines.push("## Root summary");
+    if (report.roots.length === 0) {
+      lines.push("_no skill roots loaded_");
+    } else {
+      for (const r of report.roots) {
+        lines.push(`- ${r.root} (${r.source}): ${r.skillCount} skills`);
+      }
     }
   }
 

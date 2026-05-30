@@ -4,6 +4,26 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-29] v1.3.0 Phase 6 -- Upstream Hygiene + P3 Backlog
+
+### Goal
+
+Land the lowest-priority bucket of the skill-cleaner adoption track ([docs/versions/v1/v1.3.0/plans/adoption-skill-cleaner.md](versions/v1/v1.3.0/plans/adoption-skill-cleaner.md)): the P2 upstream Nexus-Hub validator extension (insight I-03) and the two P3 CLI backlog flags (`--deep-logs`, `--by-root`). Stability gate: the Nexus-Hub validator rejects malformed frontmatter, and both P3 flags pass through `bin/nexus.mjs` end-to-end.
+
+### What changed
+
+**T017 Nexus-Hub validator extension (upstream).** `../Nexus-Hub/scripts/validate_skills.py` gains three frontmatter-format checks in a new `validate_frontmatter_format` helper, wired into `validate_skill_dir`: (a) `name` must be single-line kebab-case (`^[a-z0-9-]+$`); (b) `description` must be single-line and at most 250 characters; (c) when `name` is absent the parent directory name is the effective name and must itself satisfy (a). Because enforcing the 250-char ceiling against the live catalog surfaced 137 pre-existing over-long descriptions, the plan's "do not mass-edit" rule is honored via a new `--allow-existing` flag plus a transitional `scripts/validate_skills.allowlist.json` (generated from the actual offenders) that demotes grandfathered violations to warnings: an unflagged run reports 144 errors, `--allow-existing` brings that to 7 (the 7 remaining are the pre-existing secret-scan false positives tracked by `T002.P2.A`, unrelated to this rule). New `tests/validators/test_validate_skills.py` adds 11 tests (the three rules in isolation, the 250-char boundary, allowlist load + grandfathering, and one end-to-end CLI failure); the full Nexus-Hub validator suite is 55 passing.
+
+**T018 P3 CLI flags (local).** [core/skills/SkillUsageScanner.ts](../core/skills/SkillUsageScanner.ts) gains a `deepLogs` option: by default the scan reads `*.jsonl` outside the `archive/` subtree, and `--deep-logs` additionally descends into `archive/` and reads gzip-compressed `*.jsonl.gz` logs (decompressed in-memory via `zlib.gunzipSync` -- no new dependency). A new `walkSessionLogs` walker and a gz-aware `readLogText` reader replace the prior `*.jsonl`-only walk. [core/skills/SkillAuditor.ts](../core/skills/SkillAuditor.ts) gains `byRoot` (scopes every report section to one `SkillProvenance.source`, scopes the Unused report to the filtered skill set, and sets `filteredToRoot`) and threads `deepLogs` into the usage scan; `formatAuditReport` prints a `Filtered to root:` header and suppresses the `## Root summary` section when scoped. [bin/nexus.mjs](../bin/nexus.mjs) parses `--by-root builtin|user|devai-hub` (validated, with the usage scan pointed at the matching root) and the boolean `--deep-logs`, and documents both in the help text. 2 new auditor unit tests cover the by-root filter + Root-summary suppression; a new [tests/integration/skills-audit-deep-logs.test.ts](../tests/integration/skills-audit-deep-logs.test.ts) builds a sessions `archive/` fixture with a `*.jsonl.gz` (alpha) and a plain archived `*.jsonl` (beta) and asserts both are invisible by default and surface under `--deep-logs`.
+
+**T019 Phase 6 gate + smoke runs.** `npm run build` (tsc) clean; `npm run test` 3,704 passed / 0 failed / 5 skipped (330 files); `eslint src` 0 errors; `npm run check-architecture` 0 new violations (11 pre-existing warnings, none on the touched files). Live `node bin/nexus.mjs skills audit --by-root builtin` prints the `Filtered to root:` header and omits the Root summary; `--deep-logs --months 12` emits all five sections and exits 0. Upstream, `python scripts/validate_skills.py --allow-existing` absorbs the 137 format violations.
+
+**Deviations.** (1) The 7 pre-existing secret-scan false positives in unrelated Nexus-Hub skills still fail the unflagged upstream validator; they are out of scope for T017 (which adds single-line rules only) and remain tracked by `T002.P2.A`. (2) The 137 grandfathered over-long descriptions are a transitional allowlist; draining them is a new Nexus-Hub-side follow-up (`T017.P3.E`). (3) Tests follow the repo's `tests/unit/core/skills/` + `tests/integration/` layout rather than the plan's illustrative `tests/skills/` path (consistent with Phases 2-5). (4) An unrelated benchmark fixture (`tests/fixtures/memory-tier-benchmark-results/.../results.json`) rewritten by the test run was reverted to keep the commit scoped.
+
+**Scope.** README / AGENTS.md / ARCHITECTURE.md doc refresh remains the plan's Phase 7 (T021) task; the new flags are already in the CLI help text. [known-gaps.md](versions/v1/v1.3.0/known-gaps.md) gains T017-T019 ledger rows and one new open item (`T017.P3.E`); `T002.P2.A` is updated (the `--allow-existing` mechanism now exists, format-scoped) and `T012.P2.C` gains a Phase 6 status note (still open). Upstream changes are committed separately in the Nexus-Hub repo.
+
+---
+
 ## [2026-05-29] v1.3.0 Phase 5 -- Render-Budget Enforcement
 
 ### Goal

@@ -333,7 +333,7 @@ No constitution file found at docs/versions/v1/v1.3.0/constitution.md - skipping
 
 #### 6.1 -- Extend Nexus-Hub `validate_skills.py`
 
-- [ ] T017 [P] Add single-line name/description rules to scripts/validate_skills.py in the Nexus-Hub repo
+- [x] T017 [P] Add single-line name/description rules to scripts/validate_skills.py in the Nexus-Hub repo
 
 **Objective**: Enforce insight I-03's frontmatter discipline at the upstream catalog level so authoring violations are caught at PR time instead of at runtime in the Nexus consumer.
 
@@ -344,7 +344,7 @@ No constitution file found at docs/versions/v1/v1.3.0/constitution.md - skipping
 
 #### 6.2 -- Add P3 CLI flags `--deep-logs` and `--by-root`
 
-- [ ] T018 Add P3 flags to bin/nexus.mjs and the auditor
+- [x] T018 Add P3 flags to bin/nexus.mjs and the auditor
 
 **Objective**: Surface the two P3 backlog items from the comparison (insight I-11 sub-set) so power-users can scan archived sessions or filter the audit by skill root.
 
@@ -355,7 +355,7 @@ No constitution file found at docs/versions/v1/v1.3.0/constitution.md - skipping
 
 #### 6.3 -- Phase 6 test pass and stabilization
 
-- [ ] T019 Confirm npm run build and npm run test pass; verify both P3 flags work end-to-end
+- [x] T019 Confirm npm run build and npm run test pass; verify both P3 flags work end-to-end
 
 **Objective**: Confirm the upstream validator extension and the local P3 flags ship without regression.
 
@@ -366,11 +366,11 @@ No constitution file found at docs/versions/v1/v1.3.0/constitution.md - skipping
 
 ### Phase 6 Exit Checklist
 
-- [ ] T017 completed (Nexus-Hub validator extension)
-- [ ] T018 completed (--deep-logs + --by-root flags)
-- [ ] T019 completed (smoke runs verified)
-- [ ] Session history generated
-- [ ] Ready to advance to Phase 7
+- [x] T017 completed (Nexus-Hub validator extension)
+- [x] T018 completed (--deep-logs + --by-root flags)
+- [x] T019 completed (smoke runs verified)
+- [x] Session history generated
+- [x] Ready to advance to Phase 7
 
 ---
 

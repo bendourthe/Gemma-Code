@@ -26,6 +26,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as zlib from "node:zlib";
 
 export interface SkillUsage {
   /** Latest timestamp at which any signal referenced this skill, or null. */
@@ -41,6 +42,16 @@ export interface ScanUsageOptions {
   sessionsRoot?: string;
   /** Look-back window in months. Defaults to 3. */
   months?: number;
+  /**
+   * v1.3.0 Phase 6 (adoption-skill-cleaner T018, P3 `--deep-logs`) -- when true,
+   * the scan additionally descends into the `archive/` subtree (skipped by
+   * default because archived sessions are old by construction) and reads
+   * gzip-compressed `*.jsonl.gz` logs anywhere under `sessionsRoot`
+   * (decompressed in-memory via `zlib.gunzipSync`, no new dependency). When
+   * false (the default), only uncompressed `*.jsonl` files outside `archive/`
+   * are scanned. The look-back window still applies to every file by mtime.
+   */
+  deepLogs?: boolean;
 }
 
 /** Default sessions root, honoring the `NEXUS_HOME` installer override. */
@@ -98,8 +109,13 @@ function walkSkillFiles(dir: string, out: string[]): void {
   }
 }
 
-/** Recursively collect every `*.jsonl` file under `dir` (symlinks skipped). */
-function walkJsonlFiles(dir: string, out: string[]): void {
+/**
+ * Recursively collect session logs under `dir` (symlinks skipped). By default
+ * only uncompressed `*.jsonl` files are collected and the `archive/` subtree is
+ * skipped. When `deepLogs` is true the walk also descends into `archive/` and
+ * collects gzip-compressed `*.jsonl.gz` logs (insight `--deep-logs`, T018).
+ */
+function walkSessionLogs(dir: string, out: string[], deepLogs: boolean): void {
   let entries: fs.Dirent[];
   try {
     entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -110,10 +126,27 @@ function walkJsonlFiles(dir: string, out: string[]): void {
     const full = path.join(dir, entry.name);
     if (entry.isSymbolicLink()) continue;
     if (entry.isDirectory()) {
-      walkJsonlFiles(full, out);
+      // The `archive/` subtree holds rolled-off sessions; only deep-logs reads it.
+      if (!deepLogs && entry.name === "archive") continue;
+      walkSessionLogs(full, out, deepLogs);
       continue;
     }
-    if (entry.isFile() && entry.name.endsWith(".jsonl")) out.push(full);
+    if (!entry.isFile()) continue;
+    if (entry.name.endsWith(".jsonl")) out.push(full);
+    else if (deepLogs && entry.name.endsWith(".jsonl.gz")) out.push(full);
+  }
+}
+
+/**
+ * Read a session log to text, transparently gunzipping `*.jsonl.gz` files.
+ * Returns null when the file cannot be read or decompressed.
+ */
+function readLogText(file: string): string | null {
+  try {
+    const buf = fs.readFileSync(file);
+    return file.endsWith(".gz") ? zlib.gunzipSync(buf).toString("utf8") : buf.toString("utf8");
+  } catch {
+    return null;
   }
 }
 
@@ -152,6 +185,7 @@ function eventTimestamp(event: Record<string, unknown>): Date | null {
 export async function scanUsage(opts: ScanUsageOptions): Promise<Map<string, SkillUsage>> {
   const sessionsRoot = opts.sessionsRoot ?? defaultSessionsRoot();
   const months = opts.months ?? 3;
+  const deepLogs = opts.deepLogs ?? false;
 
   // --- Build the skill universe (id -> absolute SKILL.md path). ---
   const skillFiles: string[] = [];
@@ -174,7 +208,7 @@ export async function scanUsage(opts: ScanUsageOptions): Promise<Map<string, Ski
 
   // --- Enumerate in-window session logs. ---
   const allLogs: string[] = [];
-  walkJsonlFiles(sessionsRoot, allLogs);
+  walkSessionLogs(sessionsRoot, allLogs, deepLogs);
   const logs = allLogs.filter((file) => {
     try {
       return fs.statSync(file).mtime >= cutoff;
@@ -192,10 +226,10 @@ export async function scanUsage(opts: ScanUsageOptions): Promise<Map<string, Ski
 
   // --- Scan each in-window log line for the three signal tiers. ---
   for (const file of logs) {
-    let content: string;
+    const content = readLogText(file);
+    if (content === null) continue;
     let fileMtime: Date;
     try {
-      content = fs.readFileSync(file, "utf8");
       fileMtime = fs.statSync(file).mtime;
     } catch {
       continue;

@@ -34,7 +34,7 @@ Usage:
   nexus skills list [--namespace <ns>]
   nexus skills install <namespace>/<name> [--from <url>]
   nexus skills remove <namespace>/<name>
-  nexus skills audit [--context-tokens <N>] [--budget-percent <N>] [--months <N>] [--skills-root <dir>] [--sessions-root <dir>] [--json]
+  nexus skills audit [--context-tokens <N>] [--budget-percent <N>] [--months <N>] [--skills-root <dir>] [--sessions-root <dir>] [--by-root builtin|user|devai-hub] [--deep-logs] [--json]
   nexus memory audit [--since <ISO>] [--tier <t>] [--scope <id>] [--session <id>] [--op <op>] [--format table|json]
   nexus memory export --out <file> [--scope <id>] [--tier <list>] [--since <ISO>]
   nexus memory import --in <file>
@@ -411,13 +411,32 @@ export async function runSkillsAudit(flags, stdout = process.stdout, stderr = pr
     if (Number.isFinite(n) && n > 0) opts.months = n;
   }
 
+  // v1.3.0 Phase 6 (T018) -- P3 backlog flags.
+  // `--by-root <name>` scopes every report section to one provenance source.
+  if (typeof flags["by-root"] === "string") {
+    const root = flags["by-root"];
+    if (root !== "builtin" && root !== "user" && root !== "devai-hub") {
+      stderr.write(
+        `nexus skills audit: --by-root must be one of builtin, user, devai-hub (got "${root}").\n`,
+      );
+      return 1;
+    }
+    opts.byRoot = root;
+  }
+  // `--deep-logs` extends the usage scan into the sessions archive + gz logs.
+  if (flags["deep-logs"] === true || flags["deep-logs"] === "true") opts.deepLogs = true;
+
   // v1.3.0 Phase 4 (T013) -- wire the usage scan end-to-end. The Unused report
   // scans the session logs for the primary skill root (the `--skills-root`
   // override when given, otherwise the bundled built-in catalog, which holds
-  // the bulk of the catalog). `--sessions-root` overrides the log root (used by
-  // tests for a hermetic scan); it otherwise defaults to `~/.nexus/sessions/`
-  // inside `scanUsage`. Audit stays read-only.
-  opts.skillsRoot = skillRootsFor(flags)[0]?.dir;
+  // the bulk of the catalog). When `--by-root` is set, scan the matching root
+  // so the Unused evidence aligns with the scoped report. `--sessions-root`
+  // overrides the log root (used by tests for a hermetic scan); it otherwise
+  // defaults to `~/.nexus/sessions/` inside `scanUsage`. Audit stays read-only.
+  const roots = skillRootsFor(flags);
+  opts.skillsRoot = opts.byRoot
+    ? (roots.find((r) => r.source === opts.byRoot)?.dir ?? roots[0]?.dir)
+    : roots[0]?.dir;
   if (typeof flags["sessions-root"] === "string") opts.sessionsRoot = flags["sessions-root"];
 
   const report = await auditorMod.auditSkills(opts);
