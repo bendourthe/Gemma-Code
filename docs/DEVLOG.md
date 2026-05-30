@@ -4,6 +4,30 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-30] v1.4.0 Phase 1 -- Skill-Native Adoptions
+
+### Goal
+
+Open the v1.4.0 claude-code-harness adoption cycle ([docs/versions/v1/v1.4.0/plans/adoption-claude-code-harness.md](versions/v1/v1.4.0/plans/adoption-claude-code-harness.md), from [comparison-claude-code-harness.md](versions/v1/v1.3.0/comparison-claude-code-harness.md)) by shipping the four skill-native adoption items (A3, A7, A12, A11) as documentation conventions with zero runtime code change. Stability gate: each convention documented and discoverable, `nexus-check --rule skill-duplicate-name` clean, no `core/` or `modules/` source touched. Per the Phase 0 decision the deliverables are docs-only (no Nexus-Hub catalog skill this phase).
+
+### What changed
+
+**T001 (A3) Self-review checklist.** New [docs/versions/v1/v1.4.0/development/self-review-checklist.md](versions/v1/v1.4.0/development/self-review-checklist.md): a pre-commit/pre-PR gate of five checks (G1-G5: dry-violation-none, all-declared-symbols-called, dod-items-verified-with-evidence, no-existing-test-regression, tdd-red-evidence-attached) re-expressed for Nexus's TS/Node stack from the harness `[worker.self_review]` rules. Referenced from the [PR template](../.github/PULL_REQUEST_TEMPLATE.md) Submission Checklist (the non-behavioral surface, so the push gate is unchanged).
+
+**T002 (A7) Evidence + support tiers.** New [docs/versions/v1/v1.4.0/development/evidence-and-support-tiers.md](versions/v1/v1.4.0/development/evidence-and-support-tiers.md): codifies "not_observed != absent" (unproven-locally is "not proven here", never "impossible" or a silent pass) and a four-tier capability vocabulary (supported / internal-compatible / candidate / future) with a per-tier evidence bar, tied into the known-gaps wording. Anchored from [AGENTS.md](../AGENTS.md) Critical Rules.
+
+**T003 (A12) Evidence-pack discipline.** New [docs/versions/v1/v1.4.0/development/evidence-pack.md](versions/v1/v1.4.0/development/evidence-pack.md): verified-only packaging for PR/release ("PR ready is not release ready"), a PR-ready vs release-ready evidence-bar table, the thread through the Phase 9 release-readiness workflow + semantic-release, and the A2 anti-tampering link. Upstream gate is the A3 checklist. Referenced from the PR template.
+
+**T004 (A11) Stakeholder HTML surfaces.** New [docs/versions/v1/v1.4.0/development/stakeholder-surfaces.md](versions/v1/v1.4.0/development/stakeholder-surfaces.md): a reporting convention with three self-contained, zero-outbound HTML templates (plan brief / progress / acceptance-handoff), inline CSS + system font stack, no external resource, plus an explicit zero-outbound contract and verification step.
+
+**T005 Stabilization.** `node bin/nexus-check.mjs --rule skill-duplicate-name src/skills/catalog` -> 0 findings (exit 0); `npm run check:prompts` -> 0 errors (1 pre-existing unrelated `review-pr/SKILL.md` oversized warning); non-ASCII scan of the four docs -> no matches; `git diff --stat` confirms only the PR template (+2) and AGENTS.md (+1) modified, no `core/` or `modules/` change. The v1.4.0 [known-gaps.md](versions/v1/v1.4.0/known-gaps.md) was created (adoption ledger + carryforward pointer to the 36 prior-cycle items + Phase 1 resolved rows).
+
+**Deviations.** (1) Docs-only scope per the Phase 0 user decision: no `catalog/skills/` entry, so `validate_skills.py` was not needed. (2) T001 wired into the PR template rather than husky pre-push to keep the push gate's behaviour unchanged. (3) A11's live per-cycle HTML instances are deferred to the Phase 9 acceptance gate; the templates themselves are complete.
+
+**Scope.** No production code. Two non-code reference edits (PR template, AGENTS.md) required by acceptance; everything else is new docs under `docs/versions/v1/v1.4.0/`. Lint/build are N/A (ESLint targets `src`; no TS/JS changed). Four of twelve adoption items (A3, A7, A11, A12) landed; Phases 2-6 carry the code-shaped items.
+
+---
+
 ## [2026-05-29] v1.3.0 Phase 7 -- Stabilization & Benchmarks (FINAL phase)
 
 ### Goal
