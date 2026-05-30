@@ -23,7 +23,7 @@ import type { Skill, SkillRecord } from "./SkillCatalog.js";
  * is trimmed, matching the single-line description rule from the
  * `skill-description-authoring` skill landed in Phase 1.
  */
-function descriptionOf(skill: SkillRecord): string {
+export function descriptionOf(skill: SkillRecord): string {
   const frontmatter = (skill as Partial<Skill>).frontmatter;
   const raw =
     frontmatter && typeof frontmatter.description === "string"

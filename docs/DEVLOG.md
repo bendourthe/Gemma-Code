@@ -4,6 +4,24 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-29] v1.3.0 Phase 3 -- Skills Audit Command
+
+### Goal
+
+Wire the four Phase-2 foundational utilities into a working `nexus skills audit` CLI command ([docs/versions/v1/v1.3.0/plans/adoption-skill-cleaner.md](versions/v1/v1.3.0/plans/adoption-skill-cleaner.md)). Phase 3 produces four of the five report sections from insight I-01 -- Budget, Description candidates, name-Duplicates, and the Root summary -- leaving content-similarity duplicates and unused-candidates as labelled Phase 4 placeholders. Stability gate: the command runs cleanly against the live catalog and emits a non-empty, well-formatted report.
+
+### What changed
+
+**T008 SkillAuditor.** New [core/skills/SkillAuditor.ts](../core/skills/SkillAuditor.ts) exports `auditSkills(opts)` (composition) and `formatAuditReport(report)` (Markdown). It loads the injected catalog's full `Skill` records, then derives: the Budget block (`contextTokens` from `ModelRegistry.getActiveContextWindow()` or an override, `budgetTokens = floor(contextTokens * budgetPercent/100)` defaulting to 2%, `usedTokens = tokenize(renderSkillBlock(...))`, two-decimal `pressurePct` guarded against a zero budget); Description candidates (per-skill `tokenize(renderSkillLine(...))` filtered above `maxDescriptionTokens` default 50, sorted descending, capped at 20); name-Duplicates (grouped from the catalog's `SkillRecord.diverged` flag plus the source enumeration); and the Root summary (grouped by `SkillProvenance.source` in `builtin > user > devai-hub` precedence, each root labelled with the longest common directory prefix). `duplicates.bySimilarity` and `unused` are returned empty with explicit `TODO(phase-4)` markers (T013 wires them). The catalog and model registry are injected so the module is pure composition: tests pass an in-memory fixture, the CLI passes the live catalog. Eight unit tests cover budget math (including the zero-budget guard and the registry default), descriptions ranking, name-duplicate detection across two sources, the roots roll-up, the empty Phase-4 placeholders, and the five-heading format. To reuse the canonical description flattener, [core/skills/SkillRenderLine.ts](../core/skills/SkillRenderLine.ts) now exports its previously-internal `descriptionOf` (additive, no behaviour change).
+
+**T009 CLI wiring.** [bin/nexus.mjs](../bin/nexus.mjs) gains a `skills audit` subcommand accepting `--context-tokens <N>`, `--budget-percent <N>`, `--months <N>` (accepted now, no-op until Phase 4), `--json`, and `--skills-root <dir>` (test/override hook for pointing at a fixture root). The CLI builds the live catalog read-only: it resolves the skill roots (the bundled `src/skills/catalog` as `builtin`, `~/.nexus/skills/user` as `user`, and the active DevAI-Hub tag as `devai-hub` when pinned), walks each for `SKILL.md`, parses name + description via a dependency-free frontmatter reader mirroring `SkillLoader`, and constructs an `InMemorySkillCatalog`. Default output is human-readable Markdown with the five section headings in canonical order; `--json` emits the raw report. Empty catalog exits non-zero with a clear message. Audit never writes to `~/.nexus/` or mutates state (insight I-12). Three integration tests exercise the headings against a fixture root, the `--json` shape, and the empty-root non-zero exit.
+
+**T010 Phase 3 gate + smoke run.** `npm run build` (tsc) clean; `npm run test` 3,666 passed / 0 failed / 5 skipped (326 files); `eslint src` 0 errors; `npm run check-architecture` 0 errors. Live smoke run (`node bin/nexus.mjs skills audit`) against this host's catalog (16 builtin skills; `~/.nexus/skills` is empty) emits all five sections: Budget 891 / 2,560 tokens (34.8% pressure on gemma4:e4b's 128K window), 12 Description candidates, name-Duplicates "none found", and the Root summary listing the builtin root. This output is the Phase 7 (T020) benchmark baseline.
+
+**Scope.** README / AGENTS.md / ARCHITECTURE.md updates remain deferred to Phase 7 (T021). Phase 3 wiring resolved the Phase-2 known-gap `T007.P2.B` (TokenCost orphan), now moved to `## 2. Resolved` in [known-gaps.md](versions/v1/v1.3.0/known-gaps.md) alongside three new T008-T010 ledger rows. Only `core/skills/SkillAuditor.ts`, the two new tests, `bin/nexus.mjs`, the `descriptionOf` export, plan checkboxes, the gap ledger, and the Phase 3 session history changed.
+
+---
+
 ## [2026-05-29] v1.3.0 Phase 2 -- Foundational Local Utilities
 
 ### Goal

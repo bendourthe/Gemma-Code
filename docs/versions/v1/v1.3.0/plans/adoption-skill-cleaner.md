@@ -164,7 +164,7 @@ No constitution file found at docs/versions/v1/v1.3.0/constitution.md - skipping
 
 #### 3.1 -- Create `core/skills/SkillAuditor.ts`
 
-- [ ] T008 Create the auditor module at core/skills/SkillAuditor.ts
+- [x] T008 Create the auditor module at core/skills/SkillAuditor.ts
 
 **Objective**: Compose `TokenCost`, `ModelRegistry`, `SkillRenderLine`, and the existing `SkillCatalog` into a `SkillAuditor` that produces the five-report shape from insight I-01 (with sections D and E placeholders pending Phase 4).
 
@@ -191,7 +191,7 @@ No constitution file found at docs/versions/v1/v1.3.0/constitution.md - skipping
 
 #### 3.2 -- Wire `bin/nexus.mjs skills audit` CLI
 
-- [ ] T009 Add the audit subcommand to bin/nexus.mjs
+- [x] T009 Add the audit subcommand to bin/nexus.mjs
 
 **Objective**: Provide the user-facing CLI entry point so `node bin/nexus.mjs skills audit` produces a human-readable report on stdout; JSON output via `--json` for tooling.
 
@@ -202,7 +202,7 @@ No constitution file found at docs/versions/v1/v1.3.0/constitution.md - skipping
 
 #### 3.3 -- Phase 3 test pass and stabilization
 
-- [ ] T010 Confirm npm run build and npm run test pass; smoke-run skills audit against the live catalog
+- [x] T010 Confirm npm run build and npm run test pass; smoke-run skills audit against the live catalog
 
 **Objective**: Verify the audit command emits a usable report against the real Nexus skill catalog (not just the in-memory test fixture) before Phase 4 layers similarity and usage detection on top.
 
@@ -213,11 +213,11 @@ No constitution file found at docs/versions/v1/v1.3.0/constitution.md - skipping
 
 ### Phase 3 Exit Checklist
 
-- [ ] T008 completed (SkillAuditor.ts + test)
-- [ ] T009 completed (CLI wiring + integration test)
-- [ ] T010 completed (live-catalog smoke run + baseline captured)
-- [ ] Session history generated
-- [ ] Ready to advance to Phase 4
+- [x] T008 completed (SkillAuditor.ts + test)
+- [x] T009 completed (CLI wiring + integration test)
+- [x] T010 completed (live-catalog smoke run + baseline captured)
+- [x] Session history generated
+- [x] Ready to advance to Phase 4
 
 ---
 

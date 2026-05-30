@@ -20,8 +20,9 @@
 
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, resolve as resolvePath, join as joinPath, isAbsolute } from "node:path";
-import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
+import { createHash } from "node:crypto";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -33,6 +34,7 @@ Usage:
   nexus skills list [--namespace <ns>]
   nexus skills install <namespace>/<name> [--from <url>]
   nexus skills remove <namespace>/<name>
+  nexus skills audit [--context-tokens <N>] [--budget-percent <N>] [--months <N>] [--skills-root <dir>] [--json]
   nexus memory audit [--since <ISO>] [--tier <t>] [--scope <id>] [--session <id>] [--op <op>] [--format table|json]
   nexus memory export --out <file> [--scope <id>] [--tier <list>] [--since <ISO>]
   nexus memory import --in <file>
@@ -244,6 +246,178 @@ export async function runSkillsRemove(args, stdout = process.stdout, stderr = pr
   return result.reason === "invalid-spec" || result.reason === "wrong-namespace"
     ? 2
     : 1;
+}
+
+// ---------------------------------------------------------------------------
+// v1.3.0 Phase 3 (adoption-skill-cleaner T009) -- `nexus skills audit`.
+//
+// The audit composition logic lives in `core/skills/SkillAuditor.ts` so it is
+// unit-testable without a CLI process. This surface only locates the live
+// skill roots on disk, builds an in-memory catalog from them, and renders the
+// report. Audit is strictly read-only (insight I-12): it never writes to
+// `~/.nexus/` or mutates any persisted state.
+// ---------------------------------------------------------------------------
+
+async function loadSkillAuditor() {
+  const compiled = resolvePath(__dirname, "..", "out", "core", "skills", "SkillAuditor.js");
+  if (!existsSync(compiled)) {
+    throw new Error(
+      "SkillAuditor build artifact missing. Run `npm run build` before invoking `nexus skills audit` from source.",
+    );
+  }
+  return import(pathToFileURL(compiled).href);
+}
+
+async function loadSkillCatalogModule() {
+  const compiled = resolvePath(__dirname, "..", "out", "core", "skills", "SkillCatalog.js");
+  if (!existsSync(compiled)) {
+    throw new Error(
+      "SkillCatalog build artifact missing. Run `npm run build` before invoking `nexus skills audit` from source.",
+    );
+  }
+  return import(pathToFileURL(compiled).href);
+}
+
+async function loadModelRegistryModule() {
+  const compiled = resolvePath(__dirname, "..", "out", "core", "registry", "ModelRegistry.js");
+  if (!existsSync(compiled)) {
+    throw new Error(
+      "ModelRegistry build artifact missing. Run `npm run build` before invoking `nexus skills audit` from source.",
+    );
+  }
+  return import(pathToFileURL(compiled).href);
+}
+
+/**
+ * Minimal SKILL.md frontmatter parser (name + description). Mirrors the
+ * single-line YAML subset that `src/skills/SkillLoader.ts` already consumes;
+ * intentionally dependency-free since this runs in the plain-JS CLI.
+ */
+function parseSkillFrontmatter(content) {
+  const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(content);
+  if (!m) return null;
+  const meta = {};
+  for (const line of (m[1] ?? "").split(/\r?\n/)) {
+    const idx = line.indexOf(":");
+    if (idx === -1) continue;
+    const key = line.slice(0, idx).trim();
+    const val = line.slice(idx + 1).trim();
+    if (key) meta[key] = val;
+  }
+  return { meta, body: (m[2] ?? "").trim() };
+}
+
+/** Recursively collect every `SKILL.md` path under `dir` (symlinks skipped). */
+function walkSkillFiles(dir, out) {
+  let entries;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    const full = joinPath(dir, entry.name);
+    if (entry.isSymbolicLink()) continue;
+    if (entry.isDirectory()) {
+      walkSkillFiles(full, out);
+      continue;
+    }
+    if (entry.isFile() && entry.name === "SKILL.md") out.push(full);
+  }
+}
+
+/**
+ * Resolve the skill roots to audit. With `--skills-root <dir>` only that
+ * directory is scanned (source `user`); otherwise the default trio is used:
+ * the bundled built-in catalog, the user skills dir, and the active DevAI-Hub
+ * tag (when one is pinned).
+ */
+function skillRootsFor(flags) {
+  const override = typeof flags["skills-root"] === "string" ? flags["skills-root"] : null;
+  if (override) return [{ dir: override, source: "user" }];
+
+  const roots = [{ dir: resolvePath(__dirname, "..", "src", "skills", "catalog"), source: "builtin" }];
+  const skillsRoot = joinPath(nexusHomeDir(), "skills");
+  roots.push({ dir: joinPath(skillsRoot, "user"), source: "user" });
+  try {
+    const tag = readFileSync(joinPath(skillsRoot, "devai-hub", "ACTIVE"), "utf8").trim();
+    if (tag) roots.push({ dir: joinPath(skillsRoot, "devai-hub", tag), source: "devai-hub" });
+  } catch {
+    // No active DevAI-Hub tag -- skip that root.
+  }
+  return roots;
+}
+
+/** Build an in-memory catalog from the live on-disk skill roots. */
+function buildLiveCatalog(flags, catalogMod) {
+  const skills = [];
+  for (const { dir, source } of skillRootsFor(flags)) {
+    const files = [];
+    walkSkillFiles(dir, files);
+    for (const file of files) {
+      let content;
+      try {
+        content = readFileSync(file, "utf8");
+      } catch {
+        continue;
+      }
+      const parsed = parseSkillFrontmatter(content);
+      if (!parsed || !parsed.meta.name) continue;
+      const name = parsed.meta.name;
+      const description = parsed.meta.description ?? "";
+      const contentHash = createHash("sha256").update(content).digest("hex");
+      skills.push({
+        id: catalogMod.canonicalSkillId(source, name),
+        displayName: name,
+        path: file,
+        provenance: { source, contentHash },
+        frontmatter: { name, description },
+        body: parsed.body,
+      });
+    }
+  }
+  return new catalogMod.InMemorySkillCatalog(skills);
+}
+
+export async function runSkillsAudit(flags, stdout = process.stdout, stderr = process.stderr) {
+  const [auditorMod, catalogMod, registryMod] = await Promise.all([
+    loadSkillAuditor(),
+    loadSkillCatalogModule(),
+    loadModelRegistryModule(),
+  ]);
+
+  const catalog = buildLiveCatalog(flags, catalogMod);
+  if (catalog.list().length === 0) {
+    stderr.write(
+      "nexus skills audit: no skills loaded. Check the catalog root or run `nexus skills sync`.\n",
+    );
+    return 1;
+  }
+
+  const registry = new registryMod.InMemoryModelRegistry();
+  registry.setActiveModel("gemma4:e4b");
+
+  const opts = { catalog, modelRegistry: registry };
+  if (typeof flags["context-tokens"] === "string") {
+    const n = Number.parseInt(flags["context-tokens"], 10);
+    if (Number.isFinite(n) && n > 0) opts.contextTokens = n;
+  }
+  if (typeof flags["budget-percent"] === "string") {
+    const n = Number.parseFloat(flags["budget-percent"]);
+    if (Number.isFinite(n) && n >= 0) opts.budgetPercent = n;
+  }
+  if (typeof flags.months === "string") {
+    const n = Number.parseInt(flags.months, 10);
+    if (Number.isFinite(n) && n > 0) opts.months = n; // accepted now; wired by phase 4.
+  }
+
+  const report = await auditorMod.auditSkills(opts);
+  if (flags.json === true || flags.json === "true") {
+    stdout.write(JSON.stringify(report, null, 2) + "\n");
+  } else {
+    stdout.write(auditorMod.formatAuditReport(report));
+  }
+  return 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -657,6 +831,8 @@ export async function main(argv) {
         return runSkillsInstall(args);
       case "remove":
         return runSkillsRemove(args);
+      case "audit":
+        return runSkillsAudit(args.flags);
       default:
         process.stderr.write(`nexus skills: unknown subcommand "${args.subcommand}"\n${HELP}`);
         return 2;
