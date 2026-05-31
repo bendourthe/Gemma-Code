@@ -38,6 +38,16 @@ import type {
   SymbolKind,
 } from "../types.js";
 import type { SqliteGraphStore } from "../store/index.js";
+import type {
+  ExtractedSymbol,
+  ExtractedSymbolRef,
+  ExtractedCall,
+  ExtractionResult,
+} from "./extractionTypes.js";
+import {
+  isLanguageReady,
+  extractSymbolsTreeSitter,
+} from "./TreeSitterScanner.js";
 
 export interface ScannerSourceProvider {
   /**
@@ -366,27 +376,34 @@ function isIgnored(relativePath: string, ignore: IgnoreState): boolean {
 // Symbol + call extraction (per-language regex matchers)
 // ---------------------------------------------------------------------------
 
-interface ExtractedSymbol {
-  readonly name: string;
-  readonly kind: SymbolKind;
-  readonly lineStart: number;
-  readonly lineEnd: number;
-  readonly signatureText: string;
-}
+// ExtractedSymbol / ExtractedSymbolRef / ExtractedCall / ExtractionResult now
+// live in ./extractionTypes.ts so the Tree-sitter extractor can share them
+// without a circular import (see the import block at the top of this file).
 
-type ExtractedSymbolRef = ExtractedSymbol;
-
-interface ExtractedCall {
-  readonly calleeName: string;
-  readonly line: number;
-}
-
-interface ExtractionResult {
-  readonly symbols: readonly ExtractedSymbol[];
-  readonly calls: readonly ExtractedCall[];
-}
-
+/**
+ * v1.4.0 Phase 7 (T022 / gap 3.3.P2.G): the stable extraction boundary. Prefer
+ * the Tree-sitter extractor when its grammar for `language` has loaded
+ * (initTreeSitter() resolved); fall back to the regex extractor otherwise (or
+ * if a Tree-sitter parse throws). The fallback keeps the scanner working in
+ * environments where the WASM runtime / grammars are unavailable -- the same
+ * graceful-degradation contract LocalEmbedder uses for its hash fallback.
+ */
 export function extractSymbols(
+  source: string,
+  language: CodeGraphLanguage,
+): ExtractionResult {
+  if (isLanguageReady(language)) {
+    try {
+      return extractSymbolsTreeSitter(source, language);
+    } catch {
+      // Fall through to the regex extractor on any parse/runtime error.
+    }
+  }
+  return extractSymbolsRegex(source, language);
+}
+
+/** Regex-based fallback extractor (the v1.2.0 Phase 3 implementation). */
+export function extractSymbolsRegex(
   source: string,
   language: CodeGraphLanguage,
 ): ExtractionResult {

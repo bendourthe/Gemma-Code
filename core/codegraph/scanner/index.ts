@@ -1,20 +1,36 @@
 /**
- * v1.2.0 Phase 3 -- scanner re-exports.
+ * v1.2.0 Phase 3 / v1.4.0 Phase 7 -- scanner re-exports.
  *
- * DEVIATION: The plan specifies a Tree-sitter-based scanner. The Nexus repo
- * does not currently ship the four per-language tree-sitter native binding
- * packages (`tree-sitter-typescript`, `tree-sitter-python`, `tree-sitter-rust`,
- * `tree-sitter-go`), each of which would add native build dependencies for
- * every developer machine. Phase 3 ships a robust regex-based scanner with
- * the same surface; an upgrade to Tree-sitter is tracked in
- * `docs/versions/v1/v1.2.0/known-gaps.md` as a `DF` (deferred) entry.
+ * v1.4.0 Phase 7 (T022 / gap 3.3.P2.G) replaced the regex extractor with a
+ * Tree-sitter parse via web-tree-sitter (the WASM build -- no native toolchain,
+ * cross-platform; grammars ship prebuilt as .wasm in `tree-sitter-wasms`). The
+ * stable `extractSymbols(source, language)` surface is unchanged, so AstChunker
+ * (4.1.P2.J) and WatchedRepoScanner (6.1.P3.V) inherit the upgrade for free.
+ * Call `initTreeSitter()` once at startup to load the runtime + grammars;
+ * `extractSymbols` falls back to the regex extractor (still exported as
+ * `extractSymbolsRegex`) when Tree-sitter is unavailable or a parse throws.
  */
 
 export {
   RepoScanner,
+  extractSymbols,
+  extractSymbolsRegex,
   type RepoScannerOptions,
   type ScannerSourceProvider,
 } from "./RepoScanner.js";
+
+export {
+  initTreeSitter,
+  isTreeSitterReady,
+  isLanguageReady,
+  extractSymbolsTreeSitter,
+} from "./TreeSitterScanner.js";
+
+export type {
+  ExtractedSymbol,
+  ExtractedCall,
+  ExtractionResult,
+} from "./extractionTypes.js";
 
 // v1.2.0 Phase 6.1 -- watcher-driven incremental re-scan adapter.
 export {

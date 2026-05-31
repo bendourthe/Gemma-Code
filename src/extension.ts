@@ -28,6 +28,7 @@ import {
 } from "./activation/extensionOnly.js";
 import { installCompatShim } from "./activation/compatShim.js";
 import { disposeEncoder as disposeTokenEncoder } from "../modules/coding/config/PromptBudget.js";
+import { initTreeSitter } from "../core/codegraph/scanner/index.js";
 
 let outputChannel: vscode.OutputChannel | undefined;
 
@@ -54,6 +55,18 @@ export function activate(context: vscode.ExtensionContext): void {
   }
 
   installCompatShim(context, outputChannel);
+
+  // v1.4.0 Phase 7 (T022 / gap 3.3.P2.G): warm up the Tree-sitter codegraph
+  // scanner so extractSymbols() uses the WASM parse path instead of the regex
+  // fallback once a scan/ingest runs. Fire-and-forget and graceful -- it never
+  // rejects (returns false when the runtime/grammars are unavailable, e.g. the
+  // grammar .wasm is not yet bundled into the packaged extension), in which
+  // case extractSymbols transparently falls back to the regex extractor.
+  void initTreeSitter().then((ready) => {
+    outputChannel?.appendLine(
+      `[Nexus Coding] Tree-sitter codegraph scanner: ${ready ? "ready" : "unavailable (regex fallback)"}.`,
+    );
+  });
 }
 
 export async function deactivate(): Promise<void> {
