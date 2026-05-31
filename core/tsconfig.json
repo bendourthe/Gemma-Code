@@ -1,0 +1,13 @@
+{
+  "//": "v1.4.0 Phase 7 (T021 / gap 1.1.P1.A) -- the shared-core composite project. core/ is a clean leaf (it imports nothing from src/ or modules/, enforced by the no-core-from-modules dependency-cruiser rule), so it composites cleanly and is built first by `tsc -b`. Emits declarations to out/core so the root project (src/ + modules/) consumes them via project references instead of re-type-checking core sources. Output layout (out/core/**) is identical to the pre-split single-project build, so runtime relative imports (../../core/...) resolve unchanged.",
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "declarationMap": false,
+    "rootDir": ".",
+    "outDir": "../out/core"
+  },
+  "include": ["**/*"],
+  "exclude": ["**/*.test.ts"]
+}

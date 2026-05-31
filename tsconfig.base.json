@@ -1,0 +1,17 @@
+{
+  "//": "v1.4.0 Phase 7 (T021 / gap 1.1.P1.A) -- shared compiler options for the TypeScript project-references build. core/tsconfig.json (composite) and the root tsconfig.json (the src/ + modules/ project that references core) both extend this base so the two stay in lock-step. Output-shaping options (outDir, rootDir, composite, declaration, include, exclude, references) live in the leaf configs, not here.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "Node16",
+    "moduleResolution": "Node16",
+    "lib": ["ES2022"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "sourceMap": true
+  }
+}

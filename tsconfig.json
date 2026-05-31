@@ -1,22 +1,13 @@
 {
+  "//": "v1.4.0 Phase 7 (T021 / gap 1.1.P1.A) -- the root project: src/ (the un-migrated coding sub-trees: activation, desktop, panels, storage, tools, extension.ts) plus modules/coding/**. It REFERENCES core (the composite shared-core project) rather than including it, so `tsc -b` builds core first and this project consumes core's emitted declarations -- no double-emit of core into out/. Shared compiler options live in tsconfig.base.json. The desktop/ workspace is intentionally outside this graph: it bundles core via esbuild (sidecar) / Vite (UI) and type-checks with its own `tsc --noEmit`, so it does not consume tsc project-reference output.",
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "Node16",
-    "moduleResolution": "Node16",
-    "lib": ["ES2022"],
     "outDir": "./out",
     "rootDirs": ["./src", "./core", "./modules"],
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
     "declaration": false,
-    "declarationMap": false,
-    "sourceMap": true
+    "declarationMap": false
   },
-  "include": ["src/**/*", "core/**/*", "modules/**/*"],
-  "exclude": ["node_modules", "out", "tests", "core/**/*.test.ts", "modules/**/*.test.ts"]
+  "references": [{ "path": "./core" }],
+  "include": ["src/**/*", "modules/**/*"],
+  "exclude": ["node_modules", "out", "tests", "modules/**/*.test.ts"]
 }
