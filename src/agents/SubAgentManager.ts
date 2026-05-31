@@ -3,6 +3,7 @@ import type { MemoryStore } from "../storage/MemoryStore.js";
 import type { PostMessageFn } from "../chat/StreamingPipeline.js";
 import type { SubAgentConfig, SubAgentResult, SubAgentType } from "./types.js";
 import type { SubAgentSpawner } from "./SubAgentSpawner.types.js";
+import type { WorktreeManager, WorktreeHandle } from "./WorktreeManager.js";
 import { buildSubAgentContextMessage } from "./SubAgentPrompts.js";
 import { PromptBuilder } from "../chat/PromptBuilder.js";
 import { ConversationManager } from "../chat/ConversationManager.js";
@@ -134,6 +135,14 @@ export class SubAgentManager implements SubAgentSpawner {
   /** v0.9.0 Phase 2.5 -- caller-supplied override for reflect-worker options. */
   private _reflectOptions: Partial<RunReflectWorkerOptions> | null = null;
 
+  /**
+   * v1.4.0 Phase 6 (A10) -- optional worktree isolation provider. Null disables
+   * isolation entirely (the legacy shared-workspace behavior); when wired, a
+   * sub-agent dispatched with `config.isolate === true` runs its `run_terminal`
+   * commands inside a dedicated git worktree. Set via `setWorktreeManager`.
+   */
+  private _worktreeManager: WorktreeManager | null = null;
+
   constructor(
     private readonly _client: OllamaClient,
     promptBuilder: PromptBuilder,
@@ -174,6 +183,15 @@ export class SubAgentManager implements SubAgentSpawner {
     this._reflectOptions = opts;
   }
 
+  /**
+   * v1.4.0 Phase 6 (A10) -- inject the WorktreeManager used for opt-in
+   * worktree isolation. Production callers wire this from the runtime
+   * bootstrap with the workspace root; null disables isolation.
+   */
+  setWorktreeManager(manager: WorktreeManager | null): void {
+    this._worktreeManager = manager;
+  }
+
   async run(config: SubAgentConfig, postMessage: PostMessageFn, parentTraceId?: string, parentSpanId?: string): Promise<SubAgentResult> {
     const tracer = this._tracer;
     const traceId = parentTraceId || tracer.startTrace();
@@ -204,7 +222,24 @@ export class SubAgentManager implements SubAgentSpawner {
       return this._runWorker(config, postMessage, subAgentSpanId);
     }
 
+    // v1.4.0 Phase 6 (A10): worktree handle for this run. Declared outside the
+    // try so the finally block can clean it up on both the success and error
+    // paths. Stays null when isolation is not requested or not available, in
+    // which case the run proceeds on the shared workspace as before.
+    let worktree: WorktreeHandle | null = null;
+
     try {
+      // v1.4.0 Phase 6 (A10): when isolation is opted in and a WorktreeManager
+      // is wired against a git repo, create a dedicated detached worktree so
+      // this sub-agent's run_terminal commands mutate that worktree instead of
+      // the shared workspace. The check short-circuits (no git call) on the
+      // common non-isolated path.
+      if (config.isolate === true && this._worktreeManager) {
+        if (await this._worktreeManager.isAvailable()) {
+          worktree = await this._worktreeManager.create(`subagent-${config.type}`);
+        }
+      }
+
       // Resolve specialist definition via the priority chain:
       // workspace override -> bundled assets -> hardcoded fallback. When no
       // SpecialistLoader is wired, fall back to the static TOOLS_BY_TYPE map
@@ -234,12 +269,14 @@ export class SubAgentManager implements SubAgentSpawner {
           ? baseToolScope.filter((t) => exploreAllowlist.has(t))
           : baseToolScope;
 
-      // Build a scoped tool registry with only the allowed tools.
+      // Build a scoped tool registry with only the allowed tools. When a
+      // worktree was created, run_terminal is rooted at it (A10).
       const registry = this._buildScopedRegistry(
         config.type,
         specialist,
         effectiveToolScope,
         config.intent ?? null,
+        worktree?.path ?? null,
       );
 
       // Get enabled tool metadata for prompt building.
@@ -377,6 +414,14 @@ export class SubAgentManager implements SubAgentSpawner {
         iterationsUsed: 0,
         error: errorMessage,
       };
+    } finally {
+      // v1.4.0 Phase 6 (A10): remove the isolation worktree when the sub-agent
+      // left it unchanged. A worktree the sub-agent modified is retained so its
+      // work survives for inspection. Cleanup is fault-tolerant (never throws)
+      // so it cannot mask the run's own result.
+      if (worktree && this._worktreeManager) {
+        await this._worktreeManager.cleanupIfUnchanged(worktree);
+      }
     }
   }
 
@@ -392,6 +437,7 @@ export class SubAgentManager implements SubAgentSpawner {
     specialist: Specialist | null = null,
     overrideScope: readonly string[] | null = null,
     intent: "explore" | "implement" | "verify" | "research" | null = null,
+    worktreeRoot: string | null = null,
   ): ToolRegistry {
     const registry = new ToolRegistry();
     const baseScope = overrideScope ?? (specialist ? specialist.toolScope : TOOLS_BY_TYPE[type]);
@@ -407,7 +453,18 @@ export class SubAgentManager implements SubAgentSpawner {
       registry.register("grep_codebase", new GrepCodebaseTool());
     }
     if (allowed.has("run_terminal")) {
-      const terminal = new RunTerminalTool();
+      // v1.4.0 Phase 6 (A10): when this run is worktree-isolated, root the
+      // terminal at the worktree so its commands (the sub-agent's only
+      // file-mutation surface) stay confined to it. The first five constructor
+      // args keep their defaults; only the root override is supplied.
+      const terminal = new RunTerminalTool(
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        worktreeRoot,
+      );
       registry.register(
         "run_terminal",
         intent === "explore" ? wrapWithExplorePolicy(terminal) : terminal,

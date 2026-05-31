@@ -4,6 +4,26 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-05-31] v1.4.0 Phase 6 -- Parallel Agent Execution
+
+### Goal
+
+Land A10, the last of the twelve v1.4.0 adoptions ([docs/versions/v1/v1.4.0/plans/adoption-claude-code-harness.md](versions/v1/v1.4.0/plans/adoption-claude-code-harness.md)): the harness `agents/worker.md` + `go/internal/breezing/` worktree-isolated parallel execution, reimplemented (re-partial) as optional git-worktree isolation for concurrently-dispatched, file-mutating sub-agents. Isolation is opt-in and default off, given the disk/orchestration cost flagged as the only Medium-risk item in the comparison; the full Breezing-style Planner/Critic/Worker team-orchestration layer is deferred. Stability gate: parallel sub-agents run in isolated worktrees without file conflicts; isolation is opt-in and defaults off; the worktree is cleaned up when unchanged.
+
+### What changed
+
+**T018 (A10) Worktree-isolated parallel sub-agent execution.** New [src/agents/WorktreeManager.ts](../src/agents/WorktreeManager.ts) owns the worktree lifecycle, mirroring [GitSafetyNet](../src/guardrails/GitSafetyNet.ts)'s fault-tolerant `execFile` git pattern (every op resolves to null/false, never throws): `isAvailable()` (`git rev-parse --is-inside-work-tree`), `create(label)` (`git worktree add --detach <dir> HEAD` into a per-process/per-instance-unique dir under `os.tmpdir()/nexus-worktrees`, so the shared workspace status stays pristine), and `cleanupIfUnchanged(handle)` (removes the worktree with `git worktree remove --force` only when `git status --porcelain` is empty; a worktree the sub-agent modified is retained for inspection). The git runner is injectable so the lifecycle logic is unit-testable without a real repo.
+
+A key scope finding drove the design: per [ADR-0004](../docs/adr/0004-sub-agent-isolation-contract.md), `run_terminal` is the sole file-mutation surface across every sub-agent tool scope (verification / research / planning all exclude write_file / edit_file / create_file / delete_file). So isolation only needs to root `run_terminal` at the worktree to make parallel write-capable sub-agents non-colliding. Implemented as: an opt-in `isolate?: boolean` on [src/agents/types.ts](../src/agents/types.ts) `SubAgentConfig` (default off); an additive optional `root` parameter on [src/tools/handlers/pathGuard.ts](../src/tools/handlers/pathGuard.ts) `resolveInsideWorkspace` (defaults to the workspace root, so the boundary guard is unchanged for every existing caller); a `_rootOverride` on [src/tools/handlers/terminal.ts](../src/tools/handlers/terminal.ts) `RunTerminalTool` (re-bases both the default cwd and an explicit workspace-relative `cwd`); and wiring through [src/agents/SubAgentManager.ts](../src/agents/SubAgentManager.ts) (`setWorktreeManager`, a worktree created/cleaned in a try/finally around the run, and `run_terminal` rooted at it in `_buildScopedRegistry`). When isolation is requested but unavailable (no manager wired, or not a git repo) the run degrades gracefully to the shared workspace.
+
+**T019 Tests + stabilization.** New [tests/unit/agents/WorktreeManager.test.ts](../tests/unit/agents/WorktreeManager.test.ts) (8 assertions over the lifecycle via an injected fake git runner: availability, `add --detach` command shape, label sanitization + unique paths, add-failure, clean-removes/dirty-retains/status-failed cleanup) and the new [tests/integration/agents/worktree-isolation.test.ts](../tests/integration/agents/worktree-isolation.test.ts) (5 tests against a throwaway real git repo: create-from-HEAD + remove-when-unchanged, retain-when-modified, the acceptance proof that two parallel write-capable `run_terminal` executions in separate worktrees do not collide, `SubAgentManager.run({isolate:true})` routing a sub-agent's `run_terminal` write into a worktree rather than the workspace, and graceful degradation when no manager is wired). Results: `tsc --noEmit` clean, `eslint src` clean, `check-architecture` 0 errors (11 pre-existing warnings, none in touched files), `npm run test --coverage` 338 files passed / 2 skipped / 0 failed (3876 tests, 5 skipped), coverage above the 80/75/80 gates.
+
+**Deviations.** (1) The plan cites `src/agents/SubAgentManager.ts`; that path is still live (the `src/`->`modules/coding/` move is Phase 7), so no path adjustment was needed. (2) Per the confirmed scope decision, isolation roots only `run_terminal` (the mutation surface); the read tools keep reading the shared workspace (a HEAD checkout, so reads of unmodified files are equivalent) -- recorded as `T018.P3.B`. (3) A10 ships attachable + opt-in but the runtime bootstrap does not yet call `setWorktreeManager` nor enable `isolate` in the DAG dispatch path -- exactly parallel to the A8-hook wiring gap `T016.P3.A`; recorded as `T018.P3.A` for Phase 8 (T027) to wire alongside it.
+
+**Scope.** One new module + two new test files; four modified (`SubAgentManager.ts`, `types.ts`, `pathGuard.ts`, `terminal.ts`). No new outbound call, dependency, runtime env var, or CI change. All twelve adoption items (A1-A12) now landed. See [known-gaps.md](versions/v1/v1.4.0/known-gaps.md) (two new P3/DF items, `T018.P3.A` and `T018.P3.B`).
+
+---
+
 ## [2026-05-30] v1.4.0 Phase 5 -- Operator Tooling & Lifecycle
 
 ### Goal

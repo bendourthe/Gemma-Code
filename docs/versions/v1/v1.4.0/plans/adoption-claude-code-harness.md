@@ -334,7 +334,7 @@ No constitution file found at docs/versions/v1/v1.4.0/constitution.md - skipping
 
 #### 6.1 — A10: Worktree-isolated parallel sub-agent execution
 
-- [ ] T018 Add optional worktree isolation to src/agents/SubAgentManager.ts
+- [x] T018 Add optional worktree isolation to src/agents/SubAgentManager.ts
 
 **Objective**: Adopt A10 (re-partial): ship worktree isolation; defer full Breezing-style orchestration.
 
@@ -345,7 +345,7 @@ No constitution file found at docs/versions/v1/v1.4.0/constitution.md - skipping
 
 #### 6.2 — Testing and Stabilization
 
-- [ ] T019 Run and stabilize Phase 6 tests in tests/integration/agents/
+- [x] T019 Run and stabilize Phase 6 tests in tests/integration/agents/
 
 **Objective**: Verify worktree isolation under parallel dispatch.
 
@@ -356,11 +356,11 @@ No constitution file found at docs/versions/v1/v1.4.0/constitution.md - skipping
 
 ### Phase 6 Exit Checklist
 
-- [ ] All sub-tasks completed
-- [ ] All tests passing
-- [ ] No known regressions from prior phases
-- [ ] Session history generated for this phase
-- [ ] Ready to advance to Phase 7
+- [x] All sub-tasks completed
+- [x] All tests passing
+- [x] No known regressions from prior phases
+- [x] Session history generated for this phase
+- [x] Ready to advance to Phase 7
 
 ---
 

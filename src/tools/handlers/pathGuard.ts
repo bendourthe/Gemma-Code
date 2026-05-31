@@ -12,14 +12,19 @@ export function workspaceRoot(): string {
 
 /**
  * Resolve a path (absolute or workspace-relative) and assert it is inside the
- * current workspace root. Symlinks are followed via realpathSync; for paths
- * that do not exist on disk yet (e.g. write_file/create_file targets), the
- * deepest existing ancestor is realpath'd and the missing tail is appended,
- * so a symlink in the parent chain still resolves through realpath. This
- * closes the symlink leg of Attack Path A.
+ * given root (default: the current workspace root). Symlinks are followed via
+ * realpathSync; for paths that do not exist on disk yet (e.g.
+ * write_file/create_file targets), the deepest existing ancestor is realpath'd
+ * and the missing tail is appended, so a symlink in the parent chain still
+ * resolves through realpath. This closes the symlink leg of Attack Path A.
+ *
+ * v1.4.0 Phase 6 (A10): the optional `root` override lets a worktree-isolated
+ * sub-agent re-base resolution onto its dedicated worktree directory instead of
+ * the shared workspace root. The boundary check is unchanged -- the resolved
+ * path must still live inside the supplied root -- so passing a worktree root
+ * confines the sub-agent to that worktree rather than weakening the guard.
  */
-export function resolveInsideWorkspace(userPath: string): string {
-  const root = workspaceRoot();
+export function resolveInsideWorkspace(userPath: string, root: string = workspaceRoot()): string {
   const rootReal = safeRealpath(root);
 
   const absolute = path.isAbsolute(userPath)

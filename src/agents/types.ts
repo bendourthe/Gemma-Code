@@ -29,6 +29,20 @@ export interface SubAgentConfig {
    * before they reach the AgentLoop.
    */
   readonly intent?: "explore" | "implement" | "verify" | "research";
+  /**
+   * v1.4.0 Phase 6 (A10, re-partial) -- opt-in git-worktree isolation. When
+   * true AND a `WorktreeManager` is wired into `SubAgentManager` AND the
+   * workspace is a git repo, the sub-agent's file-mutating tool surface
+   * (`run_terminal`) executes inside a dedicated detached worktree checked out
+   * from HEAD, so concurrently-dispatched write-capable sub-agents cannot
+   * collide on the shared working tree. Default off (undefined/false preserves
+   * the legacy shared-workspace behavior). The deterministic worker types
+   * (audit / testgaps / curator / reflect) ignore the flag -- they run external
+   * CLIs, not the AgentLoop. When isolation is requested but unavailable (no
+   * manager wired, or not a git repo), the run degrades gracefully to the
+   * shared workspace rather than failing.
+   */
+  readonly isolate?: boolean;
 }
 
 export interface SubAgentResult {

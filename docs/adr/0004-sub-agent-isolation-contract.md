@@ -53,6 +53,12 @@ Provenance is recorded in `MetricsCollector` events (`specialist.loaded` with `p
 
 - The `orchestration` role exists as a fourth specialist but is consumed by [src/orchestration/PlannerAgent.ts](../../src/orchestration/PlannerAgent.ts), not by `SubAgentManager`. Its tool scope is broader because it composes sub-agents rather than acting directly.
 
+## Update (v1.4.0, 2026-05-31): opt-in worktree isolation
+
+v1.4.0 Phase 6 (adoption item A10, re-partial) adds an *optional* second isolation layer for the case where multiple write-capable sub-agents are dispatched concurrently. Tool-scope isolation (above) already prevents a role from holding a tool it should not; it does not, however, stop two sub-agents that both legitimately hold `run_terminal` from racing on the same working tree. [src/agents/WorktreeManager.ts](../../src/agents/WorktreeManager.ts) closes that gap: when a `SubAgentConfig` opts in (`isolate: true`) and a `WorktreeManager` is wired via `SubAgentManager.setWorktreeManager`, the sub-agent's `run_terminal` runs inside a dedicated detached `git worktree` checked out from HEAD, so concurrent write-capable sub-agents mutate distinct working trees and cannot collide.
+
+The isolation deliberately targets only `run_terminal`, because it is the sole file-mutation surface in every sub-agent tool scope in the table above (none of `verification` / `research` / `planning` carry a write/edit/create/delete tool). The worktree is removed on completion only when left unchanged; a worktree the sub-agent modified is retained for inspection. Isolation is opt-in and default off (the disk/orchestration cost is the only Medium-risk item flagged in the source comparison), so the contract above is unchanged for every non-isolated run. The full Breezing-style Planner/Critic/Worker team-orchestration layer, and rooting the read tools at the worktree, are deferred (`T018.P3.A`, `T018.P3.B` in the v1.4.0 known-gaps).
+
 ## Alternatives considered
 
 - **One mega-agent with permission-tier gating.** Rejected: the per-call confirmation cost would balloon, and the system prompt would need to encode all three roles' behaviour. The gating layer can prevent damage but does not narrow the model's *intent* the way a scoped sub-agent does.

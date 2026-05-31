@@ -195,6 +195,15 @@ export class RunTerminalTool implements ToolHandler {
      * Sourced from `nexus.coding.terminalEnvScrubAllowlist`.
      */
     private readonly _envScrubAllowlist: readonly string[] = readEnvScrubAllowlist(),
+    /**
+     * v1.4.0 Phase 6 (A10): optional worktree root. When set, the command's
+     * default working directory (and the base against which an explicit
+     * workspace-relative `cwd` is resolved) is this directory instead of the
+     * VS Code workspace root. `SubAgentManager` passes the sub-agent's isolated
+     * git worktree here so its commands mutate that worktree, not the shared
+     * workspace. Null (default) preserves the legacy workspace-rooted behavior.
+     */
+    private readonly _rootOverride: string | null = null,
   ) {}
 
   /**
@@ -268,10 +277,14 @@ export class RunTerminalTool implements ToolHandler {
     // have no defensible working directory to report.
     let cwd: string;
     try {
+      // v1.4.0 Phase 6 (A10): when a worktree root override is set, both the
+      // default cwd and the base for an explicit workspace-relative `cwd`
+      // re-base onto the worktree so the command stays confined to it.
+      const baseRoot = this._rootOverride ?? workspaceRoot();
       cwd =
         typeof p.cwd === "string"
-          ? resolveInsideWorkspace(p.cwd)
-          : workspaceRoot();
+          ? resolveInsideWorkspace(p.cwd, baseRoot)
+          : baseRoot;
     } catch (err) {
       return failResult(
         id,
