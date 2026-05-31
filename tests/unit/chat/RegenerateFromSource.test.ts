@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import type { Message } from "../../../src/chat/types.js";
+import type { Message } from "../../../modules/coding/chat/types.js";
 
 // Mock child_process before importing the module under test.
 vi.mock("child_process", () => ({
@@ -10,7 +10,7 @@ vi.mock("child_process", () => ({
 }));
 
 import { execSync } from "child_process";
-import { RegenerateFromSource } from "../../../src/chat/RegenerateFromSource.js";
+import { RegenerateFromSource } from "../../../modules/coding/chat/RegenerateFromSource.js";
 
 const mockExecSync = vi.mocked(execSync);
 

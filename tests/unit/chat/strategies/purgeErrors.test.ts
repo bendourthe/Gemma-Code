@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { purgeErrors, PurgeErrorsStrategy } from "../../../../src/chat/strategies/purgeErrors.js";
-import type { Message } from "../../../../src/chat/types.js";
+import { purgeErrors, PurgeErrorsStrategy } from "../../../../modules/coding/chat/strategies/purgeErrors.js";
+import type { Message } from "../../../../modules/coding/chat/types.js";
 
 let counter = 0;
 function msg(role: Message["role"], content: string): Message {

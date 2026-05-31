@@ -3,7 +3,7 @@ import type { ToolCall, ToolHandler, ToolName, ToolResult, EditMode } from "./ty
 import type { OutputRedirector } from "./OutputRedirector.js";
 import { applyByteCap, resolveMaxBytes } from "./OutputRedirector.js";
 import type { ConfirmationGate } from "./ConfirmationGate.js";
-import { getPermissionTier, shouldRequireConfirmation, getDangerousWarning, PermissionTier } from "../guardrails/PermissionTiers.js";
+import { getPermissionTier, shouldRequireConfirmation, getDangerousWarning, PermissionTier } from "../../modules/coding/guardrails/PermissionTiers.js";
 import { formatForUser } from "../../modules/coding/utils/errors.js";
 
 // Tools that fire their own diff-bearing confirmation in `ask` mode and a

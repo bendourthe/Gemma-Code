@@ -164,7 +164,7 @@ describe("buildHarnessReadme", () => {
     const harness = HARNESSES.find((h: { id: string }) => h.id === "claude-code");
     const md = buildHarnessReadme(harness, ["alpha", "bravo", "charlie"]);
     expect(md).toContain("# Gemma Code skills exported for Claude Code");
-    expect(md).toContain("src/skills/catalog/");
+    expect(md).toContain("modules/coding/skills/catalog/");
     expect(md).toContain("- alpha");
     expect(md).toContain("- bravo");
     expect(md).toContain("Skills (3)");
@@ -248,7 +248,7 @@ function runScript(args: string[]): Promise<RunResult> {
 }
 
 describe("package-skills (spawn, real catalog)", () => {
-  it("runs against src/skills/catalog/ and writes a per-harness tree", async () => {
+  it("runs against modules/coding/skills/catalog/ and writes a per-harness tree", async () => {
     // Run with --quiet so stdout stays compact; we only need exit code and
     // file presence to confirm the end-to-end shape.
     const r = await runScript(["--quiet"]);
@@ -258,7 +258,7 @@ describe("package-skills (spawn, real catalog)", () => {
 
     // Sample one skill from the catalog to confirm the output exists for
     // every harness.
-    const catalogDir = path.join(REPO_ROOT, "src", "skills", "catalog");
+    const catalogDir = path.join(REPO_ROOT, "modules", "coding", "skills", "catalog");
     const skills = fs
       .readdirSync(catalogDir)
       .filter((n) => fs.statSync(path.join(catalogDir, n)).isDirectory());

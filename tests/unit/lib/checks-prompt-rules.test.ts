@@ -54,8 +54,8 @@ function writeMd(rel: string, body: string): string {
 
 describe("prompt-no-ascii-violation", () => {
   it("appliesTo only prompts and SKILL.md under the v0.8.0 layout", () => {
-    expect(promptNoAscii.appliesTo("src/chat/prompts/x.md")).toBe(true);
-    expect(promptNoAscii.appliesTo("src/skills/catalog/foo/SKILL.md")).toBe(true);
+    expect(promptNoAscii.appliesTo("modules/coding/chat/prompts/x.md")).toBe(true);
+    expect(promptNoAscii.appliesTo("modules/coding/skills/catalog/foo/SKILL.md")).toBe(true);
     expect(promptNoAscii.appliesTo("src/util.ts")).toBe(false);
     expect(promptNoAscii.appliesTo("docs/README.md")).toBe(false);
   });
@@ -72,14 +72,14 @@ describe("prompt-no-ascii-violation", () => {
       LEFT_SQUOTE +
       "single" +
       RIGHT_SQUOTE;
-    const filePath = writeMd("src/chat/prompts/foo.md", naughty);
+    const filePath = writeMd("modules/coding/chat/prompts/foo.md", naughty);
     const findings = promptNoAscii.scan(filePath, fs.readFileSync(filePath, "utf-8"));
     expect(findings.length).toBeGreaterThanOrEqual(3);
     expect(findings[0].rule).toBe("prompt-no-ascii-violation");
   });
 
   it("passes on pure-ASCII markdown", () => {
-    const filePath = writeMd("src/chat/prompts/good.md", "this is pure ASCII\n");
+    const filePath = writeMd("modules/coding/chat/prompts/good.md", "this is pure ASCII\n");
     expect(promptNoAscii.scan(filePath, fs.readFileSync(filePath, "utf-8"))).toEqual([]);
   });
 });
@@ -88,7 +88,7 @@ describe("prompt-oversized", () => {
   it("flags markdown over the configured budget", () => {
     process.env["GEMMA_CHECK_PROMPT_TOKEN_BUDGET"] = "10";
     try {
-      const filePath = writeMd("src/chat/prompts/big.md", "x".repeat(500));
+      const filePath = writeMd("modules/coding/chat/prompts/big.md", "x".repeat(500));
       const findings = promptOversized.scan(filePath, fs.readFileSync(filePath, "utf-8"));
       expect(findings).toHaveLength(1);
       expect(findings[0].rule).toBe("prompt-oversized");
@@ -98,7 +98,7 @@ describe("prompt-oversized", () => {
   });
 
   it("passes for tiny markdown", () => {
-    const filePath = writeMd("src/chat/prompts/small.md", "tiny");
+    const filePath = writeMd("modules/coding/chat/prompts/small.md", "tiny");
     expect(promptOversized.scan(filePath, fs.readFileSync(filePath, "utf-8"))).toEqual([]);
   });
 });
@@ -106,7 +106,7 @@ describe("prompt-oversized", () => {
 describe("prompt-trailing-whitespace", () => {
   it("flags trailing spaces and tabs", () => {
     const filePath = writeMd(
-      "src/chat/prompts/ws.md",
+      "modules/coding/chat/prompts/ws.md",
       "line one  \nline two\nline three\t\n",
     );
     const findings = promptTrailingWs.scan(filePath, fs.readFileSync(filePath, "utf-8"));
@@ -114,20 +114,20 @@ describe("prompt-trailing-whitespace", () => {
   });
 
   it("passes a clean file", () => {
-    const filePath = writeMd("src/chat/prompts/ok.md", "line one\nline two\n");
+    const filePath = writeMd("modules/coding/chat/prompts/ok.md", "line one\nline two\n");
     expect(promptTrailingWs.scan(filePath, fs.readFileSync(filePath, "utf-8"))).toEqual([]);
   });
 });
 
 describe("prompt-bom", () => {
   it("flags a BOM at file start", () => {
-    const filePath = writeMd("src/chat/prompts/bom.md", BOM + "# title");
+    const filePath = writeMd("modules/coding/chat/prompts/bom.md", BOM + "# title");
     const findings = promptBom.scan(filePath, fs.readFileSync(filePath, "utf-8"));
     expect(findings).toHaveLength(1);
   });
 
   it("passes when no BOM is present", () => {
-    const filePath = writeMd("src/chat/prompts/no-bom.md", "# title");
+    const filePath = writeMd("modules/coding/chat/prompts/no-bom.md", "# title");
     expect(promptBom.scan(filePath, fs.readFileSync(filePath, "utf-8"))).toEqual([]);
   });
 });
@@ -135,11 +135,11 @@ describe("prompt-bom", () => {
 describe("skill-duplicate-name (cross-file)", () => {
   it("reports a finding per duplicate after flush()", () => {
     const a = writeMd(
-      "src/skills/catalog/team/SKILL.md",
+      "modules/coding/skills/catalog/team/SKILL.md",
       "---\nname: deploy\ndescription: t\n---\n",
     );
     const b = writeMd(
-      "src/skills/catalog/other-team/SKILL.md",
+      "modules/coding/skills/catalog/other-team/SKILL.md",
       "---\nname: deploy\ndescription: t\n---\n",
     );
     skillDuplicateName.scan(a, fs.readFileSync(a, "utf-8"));
@@ -151,11 +151,11 @@ describe("skill-duplicate-name (cross-file)", () => {
 
   it("returns no findings when names are distinct", () => {
     const a = writeMd(
-      "src/skills/catalog/team/SKILL.md",
+      "modules/coding/skills/catalog/team/SKILL.md",
       "---\nname: deploy\ndescription: t\n---\n",
     );
     const b = writeMd(
-      "src/skills/catalog/other-team/SKILL.md",
+      "modules/coding/skills/catalog/other-team/SKILL.md",
       "---\nname: build\ndescription: t\n---\n",
     );
     skillDuplicateName.scan(a, fs.readFileSync(a, "utf-8"));

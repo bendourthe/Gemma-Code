@@ -4,7 +4,7 @@ import {
   getPermissionTier,
   shouldRequireConfirmation,
   getDangerousWarning,
-} from "../../../src/guardrails/PermissionTiers.js";
+} from "../../../modules/coding/guardrails/PermissionTiers.js";
 import type { ToolName } from "../../../src/tools/types.js";
 
 describe("PermissionTiers", () => {

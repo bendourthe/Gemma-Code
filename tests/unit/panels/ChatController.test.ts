@@ -17,7 +17,7 @@ vi.mock("../../../modules/coding/utils/MarkdownRenderer.js", () => ({
   renderMarkdown: (s: string) => `<r>${s}</r>`,
 }));
 
-vi.mock("../../../src/chat/PlanMode.js", async () => {
+vi.mock("../../../modules/coding/chat/PlanMode.js", async () => {
   return {
     detectPlan: vi.fn((text: string) =>
       text.includes("step1\nstep2") ? ["step1", "step2"] : null,
@@ -26,7 +26,7 @@ vi.mock("../../../src/chat/PlanMode.js", async () => {
   };
 });
 
-vi.mock("../../../src/config/PromptBudget.js", () => ({
+vi.mock("../../../modules/coding/config/PromptBudget.js", () => ({
   calculateBudget: vi.fn(() => ({ memoryBudget: 1024 })),
 }));
 

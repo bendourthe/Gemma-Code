@@ -60,7 +60,7 @@ describe("nexus-check exit codes", () => {
   it("returns 0 when only warnings fire (default)", () => {
     writeFile("scripts/legacy.mjs", `console.log("hello world");${"\n"}`);
     writeFile(
-      "src/skills/catalog/oversize/SKILL.md",
+      "modules/coding/skills/catalog/oversize/SKILL.md",
       "---\nname: t\ndescription: t\n---\n\n" + "word ".repeat(900),
     );
     const r = run([tmpRoot]);
@@ -72,7 +72,7 @@ describe("nexus-check exit codes", () => {
   it("returns 1 when an error-severity rule fires (no --strict needed)", () => {
     const EM_DASH = String.fromCharCode(0x2014);
     writeFile(
-      "src/skills/catalog/bad/SKILL.md",
+      "modules/coding/skills/catalog/bad/SKILL.md",
       `---\nname: t\ndescription: t\n---\n\nfoo ${EM_DASH} bar\n`,
     );
     const r = run([tmpRoot]);

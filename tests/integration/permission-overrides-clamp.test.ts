@@ -13,10 +13,10 @@ import {
   getPermissionTier,
   shouldRequireConfirmation,
   _resetPermissionOverrideWarnings,
-} from "../../src/guardrails/PermissionTiers.js";
+} from "../../modules/coding/guardrails/PermissionTiers.js";
 import { setLogger } from "../../modules/coding/utils/logger.js";
 import { mockGetConfiguration } from "../setup.js";
-import { getSettings } from "../../src/config/settings.js";
+import { getSettings } from "../../modules/coding/config/settings.js";
 
 interface CapturedLog {
   level: "debug" | "info" | "warn" | "error";

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { buildSubAgentContextMessage, getSubAgentInstructions } from "../../../src/agents/SubAgentPrompts.js";
-import type { SubAgentConfig } from "../../../src/agents/types.js";
+import { buildSubAgentContextMessage, getSubAgentInstructions } from "../../../modules/coding/agents/SubAgentPrompts.js";
+import type { SubAgentConfig } from "../../../modules/coding/agents/types.js";
 
 describe("SubAgentPrompts", () => {
   describe("getSubAgentInstructions", () => {

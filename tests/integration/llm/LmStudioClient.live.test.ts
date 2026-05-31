@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createLmStudioClient } from "../../../src/llm/LmStudioClient.js";
+import { createLmStudioClient } from "../../../modules/coding/llm/LmStudioClient.js";
 
 /**
  * v0.9.0 Phase 6.7 (from v0.8.0 known-gaps 10.O.J) -- LM Studio live

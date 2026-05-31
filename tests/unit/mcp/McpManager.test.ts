@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import * as fs from "fs";
 import * as os from "os";
 import { ToolRegistry } from "../../../src/tools/ToolRegistry.js";
-import type { McpServerConfig } from "../../../src/mcp/McpTypes.js";
+import type { McpServerConfig } from "../../../modules/coding/mcp/McpTypes.js";
 import type { McpToolName } from "../../../src/tools/types.js";
 
 // Mock McpClient before importing McpManager.
@@ -12,7 +12,7 @@ const mockClientTools = vi.fn(() => []);
 const mockClientStatus = vi.fn((): "disconnected" | "connecting" | "connected" | "error" => "connected");
 const mockClientError = vi.fn(() => undefined);
 
-vi.mock("../../../src/mcp/McpClient.js", () => ({
+vi.mock("../../../modules/coding/mcp/McpClient.js", () => ({
   McpClient: vi.fn().mockImplementation(() => ({
     connect: mockConnect,
     disconnect: mockDisconnect,
@@ -32,7 +32,7 @@ vi.mock("fs", async () => {
   };
 });
 
-const { McpManager } = await import("../../../src/mcp/McpManager.js");
+const { McpManager } = await import("../../../modules/coding/mcp/McpManager.js");
 
 const TEST_CONFIG: McpServerConfig = {
   name: "test-server",

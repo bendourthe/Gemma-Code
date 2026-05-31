@@ -11,7 +11,7 @@ import { GraphQueryEngine } from "./GraphQueryEngine.js";
 import { MemoryConsolidator } from "./MemoryConsolidator.js";
 import { UnifiedMemoryRetriever } from "./UnifiedMemoryRetriever.js";
 import type { ToolOutputCache } from "./ToolOutputCache.js";
-import type { LLMClient } from "../llm/types.js";
+import type { LLMClient } from "../../modules/coding/llm/types.js";
 
 export interface MemorySubsystemOptions {
   dbPath: string;

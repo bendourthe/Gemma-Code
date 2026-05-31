@@ -20,16 +20,16 @@ import * as vscode from "vscode";
 import { formatForUser } from "../../modules/coding/utils/errors.js";
 import { NexusCodingPanel } from "../panels/NexusCodingPanel.js";
 import { SessionListPanel, SESSION_VIEW_ID } from "../panels/SessionListPanel.js";
-import { getGpuDetector } from "../config/GpuDetector.js";
-import { classifyTier, getTierConfig } from "../config/HardwareTier.js";
-import type { HardwareTierId } from "../config/HardwareTier.types.js";
-import { TraceStore } from "../observability/TraceStore.js";
-import { MetricsCollector } from "../observability/MetricsCollector.js";
+import { getGpuDetector } from "../../modules/coding/config/GpuDetector.js";
+import { classifyTier, getTierConfig } from "../../modules/coding/config/HardwareTier.js";
+import type { HardwareTierId } from "../../modules/coding/config/HardwareTier.types.js";
+import { TraceStore } from "../../modules/coding/observability/TraceStore.js";
+import { MetricsCollector } from "../../modules/coding/observability/MetricsCollector.js";
 import { TraceDashboardPanel, TRACE_DASHBOARD_VIEW_ID } from "../panels/TraceDashboardPanel.js";
 import { MemoryPanel, MEMORY_PANEL_VIEW_ID } from "../panels/MemoryPanel.js";
-import { OtlpExporter, parseOtlpHeaders } from "../observability/OtlpExporter.js";
-import { NexusCodingRuntime } from "../runtime/NexusCodingRuntime.js";
-import { hookFilePath } from "../chat/ImprovementHook.js";
+import { OtlpExporter, parseOtlpHeaders } from "../../modules/coding/observability/OtlpExporter.js";
+import { NexusCodingRuntime } from "../../modules/coding/runtime/NexusCodingRuntime.js";
+import { hookFilePath } from "../../modules/coding/chat/ImprovementHook.js";
 
 // Fast cadence while the server is unreachable so the UI reconnects quickly.
 const OLLAMA_POLL_FAST_MS = 5_000;

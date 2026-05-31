@@ -6,7 +6,7 @@ import type {
   LLMChatRequest,
   LLMStreamChunk,
   LLMModel,
-} from "../../../src/llm/types.js";
+} from "../../../modules/coding/llm/types.js";
 
 /**
  * Phase 4 (v0.6.0): EmbeddingClient now consumes the vendor-neutral LLM port

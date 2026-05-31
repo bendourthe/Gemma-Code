@@ -21,7 +21,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ChatController } from "../../../src/panels/ChatController.js";
 import type { ChatControllerContext } from "../../../src/panels/ChatController.js";
 import { PlanArchive } from "../../../src/storage/PlanArchive.js";
-import { PlanMode } from "../../../src/chat/PlanMode.js";
+import { PlanMode } from "../../../modules/coding/chat/PlanMode.js";
 import type { ExtensionToWebviewMessage } from "../../../src/panels/messages.js";
 
 type AssistantMessage = { role: "assistant"; content: string };

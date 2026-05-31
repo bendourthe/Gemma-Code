@@ -2,13 +2,13 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { SpecialistLoader, __testing } from "../../../src/agents/SpecialistLoader.js";
+import { SpecialistLoader, __testing } from "../../../modules/coding/agents/SpecialistLoader.js";
 import type {
   Specialist,
   SpecialistLoadEventSink,
   SpecialistProvenance,
-} from "../../../src/agents/SpecialistLoader.js";
-import { getSubAgentInstructions } from "../../../src/agents/SubAgentPrompts.js";
+} from "../../../modules/coding/agents/SpecialistLoader.js";
+import { getSubAgentInstructions } from "../../../modules/coding/agents/SubAgentPrompts.js";
 
 const ASSETS_DIR = path.resolve(__dirname, "../../../assets/specialists");
 

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import { TraceFile, defaultTracePath } from "../../../src/observability/TraceFile.js";
+import { TraceFile, defaultTracePath } from "../../../modules/coding/observability/TraceFile.js";
 
 describe("TraceFile", () => {
   let tmpDir: string;

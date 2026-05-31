@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { PromptBuilder } from "../../../src/chat/PromptBuilder.js";
+import { PromptBuilder } from "../../../modules/coding/chat/PromptBuilder.js";
 import { TOOL_CATALOG } from "../../../src/tools/ToolCatalog.js";
-import type { PromptContext } from "../../../src/chat/PromptBuilder.types.js";
+import type { PromptContext } from "../../../modules/coding/chat/PromptBuilder.types.js";
 
 /**
  * v0.8.0 Phase 4 sub-task 4.5 -- the locked prefix invariant.

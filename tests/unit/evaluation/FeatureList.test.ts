@@ -9,11 +9,11 @@ import {
   validate,
   defaultFeatureListPath,
   type FeatureList,
-} from "../../../src/evaluation/FeatureList.js";
+} from "../../../modules/coding/evaluation/FeatureList.js";
 import {
   stampGoldenTaskPass,
   getGoldenTaskFeatureId,
-} from "../../../src/evaluation/GoldenTaskSuite.js";
+} from "../../../modules/coding/evaluation/GoldenTaskSuite.js";
 
 function makeList(): FeatureList {
   return {

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { TraceStore } from "../../../src/observability/TraceStore.js";
-import { MetricsCollector } from "../../../src/observability/MetricsCollector.js";
+import { TraceStore } from "../../../modules/coding/observability/TraceStore.js";
+import { MetricsCollector } from "../../../modules/coding/observability/MetricsCollector.js";
 
 /**
  * Phase 9 (v0.5.0) -- Buffered trace writes.

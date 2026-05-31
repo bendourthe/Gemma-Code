@@ -1,4 +1,4 @@
-import type { LLMClient } from "../llm/types.js";
+import type { LLMClient } from "../../modules/coding/llm/types.js";
 import {
   HeuristicEmbedder,
   HEURISTIC_DIMENSION,

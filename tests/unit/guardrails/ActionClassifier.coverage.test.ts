@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   classifyAction,
   ActionRisk,
-} from "../../../src/guardrails/ActionClassifier.js";
+} from "../../../modules/coding/guardrails/ActionClassifier.js";
 import type { ToolCall } from "../../../src/tools/types.js";
 
 // Targeted regression tests for v0.7.0 known-gaps Section 4.2 (108

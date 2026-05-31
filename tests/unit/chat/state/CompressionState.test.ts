@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { CompressionState } from "../../../../src/chat/state/CompressionState.js";
-import type { Message } from "../../../../src/chat/types.js";
+import { CompressionState } from "../../../../modules/coding/chat/state/CompressionState.js";
+import type { Message } from "../../../../modules/coding/chat/types.js";
 
 function msg(id: string, content = id): Message {
   return { id, role: "user", content, timestamp: 1 };

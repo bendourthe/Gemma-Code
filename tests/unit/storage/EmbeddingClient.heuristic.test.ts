@@ -4,7 +4,7 @@ import type {
   LLMClient,
   LLMStreamChunk,
   LLMModel,
-} from "../../../src/llm/types.js";
+} from "../../../modules/coding/llm/types.js";
 
 /**
  * Phase 4 (v0.6.0): EmbeddingClient consumes the LLM port; the fallback

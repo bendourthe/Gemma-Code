@@ -1,4 +1,4 @@
-import type { PostMessageFn } from "../chat/StreamingPipeline.js";
+import type { PostMessageFn } from "../../modules/coding/chat/StreamingPipeline.js";
 import type { ToolCallSource } from "./types.js";
 
 const TIMEOUT_MS = 60_000;

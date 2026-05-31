@@ -8,10 +8,10 @@ import {
   planSweep,
   decompressBlockInConversation,
   recompressBlockInConversation,
-} from "../../../src/commands/compactCommand.js";
-import { CompressionState } from "../../../src/chat/state/CompressionState.js";
-import type { Message } from "../../../src/chat/types.js";
-import type { ConversationManager } from "../../../src/chat/ConversationManager.js";
+} from "../../../modules/coding/commands/compactCommand.js";
+import { CompressionState } from "../../../modules/coding/chat/state/CompressionState.js";
+import type { Message } from "../../../modules/coding/chat/types.js";
+import type { ConversationManager } from "../../../modules/coding/chat/ConversationManager.js";
 
 class FakeManager {
   private _messages: Message[];

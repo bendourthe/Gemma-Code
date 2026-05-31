@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { TaskDAG } from "../../../src/orchestration/TaskDAG.js";
-import type { TaskNode } from "../../../src/orchestration/TaskDAG.js";
+import { TaskDAG } from "../../../modules/coding/orchestration/TaskDAG.js";
+import type { TaskNode } from "../../../modules/coding/orchestration/TaskDAG.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

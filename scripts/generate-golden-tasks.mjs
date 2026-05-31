@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 /**
- * Generate src/evaluation/goldenTasksYaml.generated.ts from the YAML
+ * Generate modules/coding/evaluation/goldenTasksYaml.generated.ts from the YAML
  * corpus under tests/golden/tasks/.
  *
  * Why this exists:
- * The in-process `GOLDEN_TASKS` array (src/evaluation/GoldenTaskSuite.ts)
+ * The in-process `GOLDEN_TASKS` array (modules/coding/evaluation/GoldenTaskSuite.ts)
  * is a small curated smoke set that runs inside the agent session. The
  * YAML corpus is a larger out-of-process harness with a different schema.
  * We emit a typed cross-reference module so tests can assert that the
  * two stay in sync (count, ids) without forcing schema unification.
  *
  * Inputs: tests/golden/tasks/*.yaml
- * Outputs: src/evaluation/goldenTasksYaml.generated.ts
+ * Outputs: modules/coding/evaluation/goldenTasksYaml.generated.ts
  *
  * Parsing: the YAML files follow a conservative shape; we only need the
  * top-level `id` field, which we extract with a line-oriented regex so
@@ -30,7 +30,8 @@ const REPO_ROOT = resolve(__dirname, "..");
 const TASKS_DIR = join(REPO_ROOT, "tests", "golden", "tasks");
 const OUTPUT_PATH = join(
   REPO_ROOT,
-  "src",
+  "modules",
+  "coding",
   "evaluation",
   "goldenTasksYaml.generated.ts",
 );

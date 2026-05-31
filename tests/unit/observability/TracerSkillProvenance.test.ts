@@ -3,8 +3,8 @@ import {
   Tracer,
   skillContextAttributes,
   readSkillContextFromAttributes,
-} from "../../../src/observability/Tracer.js";
-import { TraceStore } from "../../../src/observability/TraceStore.js";
+} from "../../../modules/coding/observability/Tracer.js";
+import { TraceStore } from "../../../modules/coding/observability/TraceStore.js";
 
 describe("Tracer skill provenance (Phase 10.5)", () => {
   let tracer: Tracer;

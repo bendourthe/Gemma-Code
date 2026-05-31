@@ -13,7 +13,7 @@
 
 import { describe, it, expect, vi } from "vitest";
 import { AgentLoop } from "../../../src/tools/AgentLoop.js";
-import { ConversationManager } from "../../../src/chat/ConversationManager.js";
+import { ConversationManager } from "../../../modules/coding/chat/ConversationManager.js";
 import { ToolRegistry } from "../../../src/tools/ToolRegistry.js";
 import type {
   ToolHandler,

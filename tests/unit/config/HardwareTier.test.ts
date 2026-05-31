@@ -3,8 +3,8 @@ import {
   TIER_CONFIGS,
   classifyTier,
   getTierConfig,
-} from "../../../src/config/HardwareTier.js";
-import type { HardwareTierId } from "../../../src/config/HardwareTier.types.js";
+} from "../../../modules/coding/config/HardwareTier.js";
+import type { HardwareTierId } from "../../../modules/coding/config/HardwareTier.types.js";
 
 describe("classifyTier", () => {
   it.each([

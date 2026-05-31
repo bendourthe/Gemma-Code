@@ -10,7 +10,7 @@ vi.mock("child_process", () => ({
 }));
 
 // Import after mocks are established.
-const { GpuDetector } = await import("../../../src/config/GpuDetector.js");
+const { GpuDetector } = await import("../../../modules/coding/config/GpuDetector.js");
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -1,7 +1,7 @@
 import Database from "better-sqlite3";
 import { randomUUID } from "crypto";
-import type { Message } from "../chat/types.js";
-import { scan as scanForInjection, summarize as summarizeFindings } from "../guardrails/PromptInjectionScanner.js";
+import type { Message } from "../../modules/coding/chat/types.js";
+import { scan as scanForInjection, summarize as summarizeFindings } from "../../modules/coding/guardrails/PromptInjectionScanner.js";
 import type {
   MemoryEntry,
   MemoryType,

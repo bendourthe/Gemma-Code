@@ -2,7 +2,7 @@ import type {
   GoldenTaskExpectation,
   GoldenTaskResult,
   RegressionReport,
-} from "../../src/evaluation/GoldenTaskSuite.js";
+} from "../../modules/coding/evaluation/GoldenTaskSuite.js";
 
 export function validateExpectation(
   result: GoldenTaskResult,

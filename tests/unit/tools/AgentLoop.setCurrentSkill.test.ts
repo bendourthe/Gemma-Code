@@ -4,9 +4,9 @@ import {
   InProcessHookBus,
   type LifecycleEvent,
 } from "../../../core/lifecycle/HookBus.js";
-import { Tracer } from "../../../src/observability/Tracer.js";
-import { TraceStore } from "../../../src/observability/TraceStore.js";
-import type { ConversationManager } from "../../../src/chat/ConversationManager.js";
+import { Tracer } from "../../../modules/coding/observability/Tracer.js";
+import { TraceStore } from "../../../modules/coding/observability/TraceStore.js";
+import type { ConversationManager } from "../../../modules/coding/chat/ConversationManager.js";
 import type { ToolRegistry } from "../../../src/tools/ToolRegistry.js";
 import {
   collectMessages,

@@ -48,7 +48,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, "..");
-const CATALOG_DIR = join(REPO_ROOT, "src", "skills", "catalog");
+const CATALOG_DIR = join(REPO_ROOT, "modules", "coding", "skills", "catalog");
 const DIST_DIR = join(REPO_ROOT, "dist");
 
 const ARGS = new Set(process.argv.slice(2));
@@ -251,7 +251,7 @@ function buildHarnessReadme(harness, skillSlugs) {
     "",
     "## Source",
     "",
-    "Generated from `src/skills/catalog/` in https://github.com/bendourthe/Gemma-Code",
+    "Generated from `modules/coding/skills/catalog/` in https://github.com/bendourthe/Gemma-Code",
     "by `scripts/package-skills.mjs`.",
     "",
     "## Schema",

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { Orchestrator } from "../../../src/orchestration/Orchestrator.js";
-import type { OrchestratorConfig } from "../../../src/orchestration/Orchestrator.js";
+import { Orchestrator } from "../../../modules/coding/orchestration/Orchestrator.js";
+import type { OrchestratorConfig } from "../../../modules/coding/orchestration/Orchestrator.js";
 import {
   collectMessages,
   makeMultiResponseOllamaClient as makeMultiResponseClient,

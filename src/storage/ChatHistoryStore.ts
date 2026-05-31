@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 import { randomUUID } from "crypto";
-import type { Message, ConversationSession, Role } from "../chat/types.js";
+import type { Message, ConversationSession, Role } from "../../modules/coding/chat/types.js";
 import { escapeLikePattern } from "./likeEscape.js";
 import { secureDbPermissions } from "./dbPermissions.js";
 import { sanitizeFtsQuery } from "./embeddingUtils.js";

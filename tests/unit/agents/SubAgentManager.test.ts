@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { SubAgentManager } from "../../../src/agents/SubAgentManager.js";
-import type { SubAgentConfig, SubAgentResult } from "../../../src/agents/types.js";
-import type { OllamaClient } from "../../../src/llm/types.js";
+import { SubAgentManager } from "../../../modules/coding/agents/SubAgentManager.js";
+import type { SubAgentConfig, SubAgentResult } from "../../../modules/coding/agents/types.js";
+import type { OllamaClient } from "../../../modules/coding/llm/types.js";
 import type { MemoryStore } from "../../../src/storage/MemoryStore.js";
-import { PromptBuilder } from "../../../src/chat/PromptBuilder.js";
+import { PromptBuilder } from "../../../modules/coding/chat/PromptBuilder.js";
 import {
   collectMessages,
   makeMultiResponseOllamaClient as makeMultiClient,
@@ -166,9 +166,9 @@ describe("SubAgentManager", () => {
     const { posted, postMessage } = collectMessages();
 
     const { CurationLoop, makeStaticInputs } = await import(
-      "../../../src/skills/CurationLoop.js"
+      "../../../modules/coding/skills/CurationLoop.js"
     );
-    const { SkillMetrics } = await import("../../../src/skills/SkillMetrics.js");
+    const { SkillMetrics } = await import("../../../modules/coding/skills/SkillMetrics.js");
     const fs = await import("node:fs");
     const os = await import("node:os");
     const path = await import("node:path");

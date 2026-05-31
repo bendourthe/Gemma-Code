@@ -11,10 +11,10 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { PromptBuilder } from "../../src/chat/PromptBuilder.js";
+import { PromptBuilder } from "../../modules/coding/chat/PromptBuilder.js";
 import { TOOL_CATALOG } from "../../src/tools/ToolCatalog.js";
 import { ToolRegistry } from "../../src/tools/ToolRegistry.js";
-import type { PromptContext } from "../../src/chat/PromptBuilder.types.js";
+import type { PromptContext } from "../../modules/coding/chat/PromptBuilder.types.js";
 import type { ToolHandler, ToolResult } from "../../src/tools/types.js";
 
 // Minimal VS Code stub so transitive ConversationManager imports resolve.

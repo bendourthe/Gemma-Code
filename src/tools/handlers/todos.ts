@@ -1,5 +1,5 @@
 import type { ToolHandler, ToolResult } from "../types.js";
-import type { PostMessageFn } from "../../chat/StreamingPipeline.js";
+import type { PostMessageFn } from "../../../modules/coding/chat/StreamingPipeline.js";
 
 /**
  * v0.7.0 Phase 4.4 -- The `update_todos` tool (C24).

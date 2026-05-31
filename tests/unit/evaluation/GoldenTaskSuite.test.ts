@@ -1,20 +1,20 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { GOLDEN_TASKS } from "../../../src/evaluation/GoldenTaskSuite.js";
+import { GOLDEN_TASKS } from "../../../modules/coding/evaluation/GoldenTaskSuite.js";
 import type {
   GoldenTaskResult,
   GoldenTask,
-} from "../../../src/evaluation/GoldenTaskSuite.js";
+} from "../../../modules/coding/evaluation/GoldenTaskSuite.js";
 import {
   validateExpectation,
   detectRegressions,
 } from "../../helpers/goldenTaskHelpers.js";
-import type { SessionMetrics } from "../../../src/observability/MetricsCollector.js";
+import type { SessionMetrics } from "../../../modules/coding/observability/MetricsCollector.js";
 import {
   YAML_GOLDEN_TASK_COUNT,
   YAML_GOLDEN_TASK_IDS,
-} from "../../../src/evaluation/goldenTasksYaml.generated.js";
+} from "../../../modules/coding/evaluation/goldenTasksYaml.generated.js";
 
 // -------------------------------------------------------------------------
 // Helpers

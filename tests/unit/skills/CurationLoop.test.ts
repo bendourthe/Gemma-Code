@@ -7,8 +7,8 @@ import {
   describeManifest,
   listMissingFrontmatterFields,
   makeStaticInputs,
-} from "../../../src/skills/CurationLoop.js";
-import { SkillMetrics } from "../../../src/skills/SkillMetrics.js";
+} from "../../../modules/coding/skills/CurationLoop.js";
+import { SkillMetrics } from "../../../modules/coding/skills/SkillMetrics.js";
 
 describe("CurationLoop", () => {
   let tmpDir: string;

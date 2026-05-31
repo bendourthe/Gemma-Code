@@ -8,10 +8,10 @@ import {
   LlmSummary,
   EmergencyTrim,
   COMPACTION_SUMMARY_PREFIX,
-} from "../../../src/chat/CompactionStrategy.js";
-import type { CompactionStrategy } from "../../../src/chat/CompactionStrategy.js";
-import type { Message } from "../../../src/chat/types.js";
-import type { OllamaClient, OllamaChatChunk } from "../../../src/llm/types.js";
+} from "../../../modules/coding/chat/CompactionStrategy.js";
+import type { CompactionStrategy } from "../../../modules/coding/chat/CompactionStrategy.js";
+import type { Message } from "../../../modules/coding/chat/types.js";
+import type { OllamaClient, OllamaChatChunk } from "../../../modules/coding/llm/types.js";
 import { mockOf } from "../../helpers/factories.js";
 
 // ---------------------------------------------------------------------------

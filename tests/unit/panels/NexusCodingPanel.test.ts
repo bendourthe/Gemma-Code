@@ -6,7 +6,7 @@ import { mockOf } from "../../helpers/factories.js";
 // Module mocks (must be defined before dynamic imports)
 // ---------------------------------------------------------------------------
 
-vi.mock("../../../src/llm/OllamaClient.js", () => ({
+vi.mock("../../../modules/coding/llm/OllamaClient.js", () => ({
   createOllamaClient: vi.fn(() => ({
     checkHealth: vi.fn().mockResolvedValue(true),
     listModels: vi.fn().mockResolvedValue([]),
@@ -16,7 +16,7 @@ vi.mock("../../../src/llm/OllamaClient.js", () => ({
   })),
 }));
 
-vi.mock("../../../src/config/settings.js", () => ({
+vi.mock("../../../modules/coding/config/settings.js", () => ({
   getSettings: vi.fn(() => ({
     ollamaUrl: "http://localhost:11434",
     modelName: "gemma4:e4b",
@@ -87,7 +87,7 @@ function makeExtensionUri() {
 }
 
 async function makeRuntime() {
-  const { NexusCodingRuntime } = await import("../../../src/runtime/NexusCodingRuntime.js");
+  const { NexusCodingRuntime } = await import("../../../modules/coding/runtime/NexusCodingRuntime.js");
   return new NexusCodingRuntime();
 }
 

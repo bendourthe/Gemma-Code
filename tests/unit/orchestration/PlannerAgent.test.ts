@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { PlannerAgent } from "../../../src/orchestration/PlannerAgent.js";
+import { PlannerAgent } from "../../../modules/coding/orchestration/PlannerAgent.js";
 import {
   makeMultiResponseOllamaClient as makeMultiClient,
   makeOllamaClient as makeClient,

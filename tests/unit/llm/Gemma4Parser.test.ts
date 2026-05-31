@@ -3,7 +3,7 @@ import {
   parseChannel,
   stripLeadingThinkBlocks,
   Gemma4StreamScrubber,
-} from "../../../src/llm/Gemma4Parser.js";
+} from "../../../modules/coding/llm/Gemma4Parser.js";
 
 describe("Gemma4Parser", () => {
   describe("parseChannel", () => {

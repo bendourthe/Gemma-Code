@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { MemoryContextScrubber } from "../../../src/chat/MemoryContextScrubber.js";
+import { MemoryContextScrubber } from "../../../modules/coding/chat/MemoryContextScrubber.js";
 
 function feedAll(chunks: string[]): string {
   const s = new MemoryContextScrubber();

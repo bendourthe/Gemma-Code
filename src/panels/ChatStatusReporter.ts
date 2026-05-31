@@ -1,8 +1,8 @@
-import type { ConversationManager } from "../chat/ConversationManager.js";
-import type { ContextCompactor } from "../chat/ContextCompactor.js";
-import type { Message } from "../chat/types.js";
-import type { McpManager } from "../mcp/McpManager.js";
-import type { GemmaCodeSettings } from "../config/settings.js";
+import type { ConversationManager } from "../../modules/coding/chat/ConversationManager.js";
+import type { ContextCompactor } from "../../modules/coding/chat/ContextCompactor.js";
+import type { Message } from "../../modules/coding/chat/types.js";
+import type { McpManager } from "../../modules/coding/mcp/McpManager.js";
+import type { GemmaCodeSettings } from "../../modules/coding/config/settings.js";
 import type { MemoryStore } from "../storage/MemoryStore.js";
 import type { DynamicToolMetadata } from "../tools/ToolCatalog.js";
 import { renderMarkdown } from "../../modules/coding/utils/MarkdownRenderer.js";

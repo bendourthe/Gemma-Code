@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { Orchestrator } from "../../../src/orchestration/Orchestrator.js";
-import type { SubAgentManager } from "../../../src/agents/SubAgentManager.js";
-import type { SubAgentConfig } from "../../../src/agents/types.js";
+import { Orchestrator } from "../../../modules/coding/orchestration/Orchestrator.js";
+import type { SubAgentManager } from "../../../modules/coding/agents/SubAgentManager.js";
+import type { SubAgentConfig } from "../../../modules/coding/agents/types.js";
 import {
   collectMessages,
   makeMemoryStore,

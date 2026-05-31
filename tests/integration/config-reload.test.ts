@@ -17,7 +17,7 @@ import {
   mockOnDidChangeConfiguration,
   triggerConfigurationChange,
 } from "../setup.js";
-import { getSettings, onSettingsChange } from "../../src/config/settings.js";
+import { getSettings, onSettingsChange } from "../../modules/coding/config/settings.js";
 
 beforeEach(() => {
   vi.clearAllMocks();

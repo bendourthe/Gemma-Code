@@ -5,7 +5,7 @@ import {
   disposeEncoder,
   getTokenCounterStats,
   resetTokenCounterStats,
-} from "../../../src/config/PromptBudget.js";
+} from "../../../modules/coding/config/PromptBudget.js";
 
 /**
  * Phase 5 (v0.5.0) -- tiktoken-backed token counter tests.

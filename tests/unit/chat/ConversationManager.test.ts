@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 
 // ConversationManager imports vscode; the global mock in tests/setup.ts handles it.
-const { ConversationManager } = await import("../../../src/chat/ConversationManager.js");
+const { ConversationManager } = await import("../../../modules/coding/chat/ConversationManager.js");
 
 const TEST_SYSTEM_PROMPT = "You are a test assistant.";
 

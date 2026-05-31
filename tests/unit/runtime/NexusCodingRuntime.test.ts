@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("../../../src/llm/OllamaClient.js", () => ({
+vi.mock("../../../modules/coding/llm/OllamaClient.js", () => ({
   createOllamaClient: vi.fn(() => ({
     checkHealth: vi.fn().mockResolvedValue(true),
     listModels: vi.fn().mockResolvedValue([]),
@@ -10,7 +10,7 @@ vi.mock("../../../src/llm/OllamaClient.js", () => ({
   })),
 }));
 
-vi.mock("../../../src/config/settings.js", () => ({
+vi.mock("../../../modules/coding/config/settings.js", () => ({
   getSettings: vi.fn(() => ({
     ollamaUrl: "http://localhost:11434",
     requestTimeout: 30000,
@@ -20,8 +20,8 @@ vi.mock("../../../src/config/settings.js", () => ({
   onSettingsChange: vi.fn(() => ({ dispose: vi.fn() })),
 }));
 
-const { NexusCodingRuntime } = await import("../../../src/runtime/NexusCodingRuntime.js");
-const { createOllamaClient } = await import("../../../src/llm/OllamaClient.js");
+const { NexusCodingRuntime } = await import("../../../modules/coding/runtime/NexusCodingRuntime.js");
+const { createOllamaClient } = await import("../../../modules/coding/llm/OllamaClient.js");
 
 describe("NexusCodingRuntime", () => {
   beforeEach(() => {

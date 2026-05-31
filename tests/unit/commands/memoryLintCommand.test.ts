@@ -6,7 +6,7 @@ import { MemoryStore } from "../../../src/storage/MemoryStore.js";
 import {
   parseMemoryLintArgs,
   runMemoryLint,
-} from "../../../src/commands/memoryLintCommand.js";
+} from "../../../modules/coding/commands/memoryLintCommand.js";
 
 describe("parseMemoryLintArgs", () => {
   it("defaults to mode=default with no flags", () => {

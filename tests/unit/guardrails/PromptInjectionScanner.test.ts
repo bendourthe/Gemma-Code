@@ -3,7 +3,7 @@ import {
   scan,
   redactInvisibleUnicode,
   summarize,
-} from "../../../src/guardrails/PromptInjectionScanner.js";
+} from "../../../modules/coding/guardrails/PromptInjectionScanner.js";
 
 describe("PromptInjectionScanner", () => {
   it("returns ok=true for empty text", () => {

@@ -1,32 +1,32 @@
 import * as vscode from "vscode";
-import type { ConversationManager } from "../chat/ConversationManager.js";
-import type { ContextCompactor } from "../chat/ContextCompactor.js";
-import type { PlanMode } from "../chat/PlanMode.js";
-import type { PromptBuilder } from "../chat/PromptBuilder.js";
-import type { PromptContext } from "../chat/PromptBuilder.types.js";
-import type { CommandRouter } from "../commands/CommandRouter.js";
-import type { BuiltinCommandName } from "../commands/CommandRouter.js";
+import type { ConversationManager } from "../../modules/coding/chat/ConversationManager.js";
+import type { ContextCompactor } from "../../modules/coding/chat/ContextCompactor.js";
+import type { PlanMode } from "../../modules/coding/chat/PlanMode.js";
+import type { PromptBuilder } from "../../modules/coding/chat/PromptBuilder.js";
+import type { PromptContext } from "../../modules/coding/chat/PromptBuilder.types.js";
+import type { CommandRouter } from "../../modules/coding/commands/CommandRouter.js";
+import type { BuiltinCommandName } from "../../modules/coding/commands/CommandRouter.js";
 import {
   parseMemoryLintArgs,
   runMemoryLint,
   type MemoryLintResult,
-} from "../commands/memoryLintCommand.js";
+} from "../../modules/coding/commands/memoryLintCommand.js";
 import type { ChatHistoryStore } from "../storage/ChatHistoryStore.js";
 import type { MemoryStore } from "../storage/MemoryStore.js";
 import type { MemoryFiles } from "../storage/MemoryFiles.js";
 import type { ToolOutputCache } from "../storage/ToolOutputCache.js";
-import type { OperationLog } from "../observability/OperationLog.js";
-import type { McpManager } from "../mcp/McpManager.js";
+import type { OperationLog } from "../../modules/coding/observability/OperationLog.js";
+import type { McpManager } from "../../modules/coding/mcp/McpManager.js";
 import type { DynamicToolMetadata } from "../tools/ToolCatalog.js";
-import type { SubAgentManager } from "../agents/SubAgentManager.js";
-import type { SubAgentConfig } from "../agents/types.js";
+import type { SubAgentManager } from "../../modules/coding/agents/SubAgentManager.js";
+import type { SubAgentConfig } from "../../modules/coding/agents/types.js";
 import type { AgentLoop } from "../tools/AgentLoop.js";
-import type { NexusCodingRuntime } from "../runtime/NexusCodingRuntime.js";
-import type { GemmaCodeSettings } from "../config/settings.js";
-import type { CompressionState } from "../chat/state/CompressionState.js";
-import type { SkillMetrics } from "../skills/SkillMetrics.js";
-import { formatMetricsTable } from "../skills/SkillMetrics.js";
-import type { CurationLoop } from "../skills/CurationLoop.js";
+import type { NexusCodingRuntime } from "../../modules/coding/runtime/NexusCodingRuntime.js";
+import type { GemmaCodeSettings } from "../../modules/coding/config/settings.js";
+import type { CompressionState } from "../../modules/coding/chat/state/CompressionState.js";
+import type { SkillMetrics } from "../../modules/coding/skills/SkillMetrics.js";
+import { formatMetricsTable } from "../../modules/coding/skills/SkillMetrics.js";
+import type { CurationLoop } from "../../modules/coding/skills/CurationLoop.js";
 import {
   parseCompactArgs,
   computeContextBreakdown,
@@ -36,7 +36,7 @@ import {
   planSweep,
   decompressBlockInConversation,
   recompressBlockInConversation,
-} from "../commands/compactCommand.js";
+} from "../../modules/coding/commands/compactCommand.js";
 import { renderMarkdown } from "../../modules/coding/utils/MarkdownRenderer.js";
 import { formatForUser } from "../../modules/coding/utils/errors.js";
 import type { ExtensionToWebviewMessage } from "./messages.js";
@@ -906,7 +906,7 @@ export class ChatCommandHandlers {
    */
   private async _handleThinkingMode(args: string): Promise<void> {
     const { parseThinkingMode, SAMPLER_PRESETS } = await import(
-      "../config/SamplerPresets.js"
+      "../../modules/coding/config/SamplerPresets.js"
     );
     const requested = args.trim();
     if (!requested) {

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import { OperationLog } from "../../../src/observability/OperationLog.js";
+import { OperationLog } from "../../../modules/coding/observability/OperationLog.js";
 
 /**
  * Phase 9 (v0.5.0) -- OperationLog unit tests.

@@ -3,7 +3,7 @@ import {
   IdleTimeScheduler,
   type IdleActivitySource,
   type IdleScheduledTask,
-} from "../../../src/agents/IdleTimeScheduler.js";
+} from "../../../modules/coding/agents/IdleTimeScheduler.js";
 
 /**
  * v0.9.0 Phase 6.1 -- IdleTimeScheduler unit tests.

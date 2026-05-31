@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { MemoryStore } from "../../../src/storage/MemoryStore.js";
 import type { EmbeddingClient } from "../../../src/storage/EmbeddingClient.js";
-import type { Message } from "../../../src/chat/types.js";
+import type { Message } from "../../../modules/coding/chat/types.js";
 import { mockOf } from "../../helpers/factories.js";
 
 function makeMessage(role: "user" | "assistant" | "system", content: string): Message {

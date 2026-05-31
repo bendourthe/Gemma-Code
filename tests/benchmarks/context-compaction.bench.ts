@@ -28,8 +28,8 @@ vi.mock("vscode", () => ({
   EventEmitter: StubEventEmitter,
 }));
 
-const { ContextCompactor } = await import("../../src/chat/ContextCompactor.js");
-const { ConversationManager } = await import("../../src/chat/ConversationManager.js");
+const { ContextCompactor } = await import("../../modules/coding/chat/ContextCompactor.js");
+const { ConversationManager } = await import("../../modules/coding/chat/ConversationManager.js");
 
 // ---------------------------------------------------------------------------
 // Fixtures

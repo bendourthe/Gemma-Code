@@ -41,7 +41,7 @@ const GENERATED_TS = path.join(
   REPO_ROOT,
   "modules/coding/utils/generated/safetyConfig.generated.ts",
 );
-const PERM_TIERS = path.join(REPO_ROOT, "src/guardrails/PermissionTiers.ts");
+const PERM_TIERS = path.join(REPO_ROOT, "modules/coding/guardrails/PermissionTiers.ts");
 
 function readLf(p: string): string {
   return fs.readFileSync(p, "utf8").replace(/\r\n/g, "\n");

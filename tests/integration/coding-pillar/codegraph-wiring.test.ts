@@ -22,7 +22,7 @@ import { buildToolRegistry } from "../../../src/tools/ToolRegistryBuilder.js";
 import { ConfirmationGate } from "../../../src/tools/ConfirmationGate.js";
 import { TOOL_CATALOG, toDynamicMetadata } from "../../../src/tools/ToolCatalog.js";
 import { BUILTIN_TOOL_NAMES } from "../../../src/tools/types.js";
-import { PromptBuilder } from "../../../src/chat/PromptBuilder.js";
+import { PromptBuilder } from "../../../modules/coding/chat/PromptBuilder.js";
 import { CodeGraphMcpServer } from "../../../core/codegraph/mcp/index.js";
 import { SqliteGraphStore } from "../../../core/codegraph/store/index.js";
 import { CODEGRAPH_TOOL_NAMES } from "../../../core/codegraph/manifest.js";

@@ -3,7 +3,7 @@ import {
   SAMPLER_PRESETS,
   parseThinkingMode,
   resolvePresetForBudget,
-} from "../../../src/config/SamplerPresets.js";
+} from "../../../modules/coding/config/SamplerPresets.js";
 
 describe("SamplerPresets", () => {
   it("nothink uses the concise default sampler values", () => {

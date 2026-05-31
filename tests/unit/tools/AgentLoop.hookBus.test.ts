@@ -4,7 +4,7 @@ import {
   InProcessHookBus,
   type LifecycleEvent,
 } from "../../../core/lifecycle/HookBus.js";
-import type { ConversationManager } from "../../../src/chat/ConversationManager.js";
+import type { ConversationManager } from "../../../modules/coding/chat/ConversationManager.js";
 import type { ToolRegistry } from "../../../src/tools/ToolRegistry.js";
 import {
   collectMessages,

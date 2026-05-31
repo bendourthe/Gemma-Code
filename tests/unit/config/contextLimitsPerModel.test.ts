@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveModelContextLimit } from "../../../src/config/PromptBudget.js";
+import { resolveModelContextLimit } from "../../../modules/coding/config/PromptBudget.js";
 
 describe("resolveModelContextLimit", () => {
   it("returns the global default when no override is supplied", () => {

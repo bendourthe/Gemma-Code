@@ -8,7 +8,7 @@ import {
   redactInvisibleUnicode,
   scan as scanForInjection,
   summarize as summarizeFindings,
-} from "../guardrails/PromptInjectionScanner.js";
+} from "../../modules/coding/guardrails/PromptInjectionScanner.js";
 
 /**
  * v0.7.0 Phase 2 -- file-backed memory architecture. Owns the four user-editable

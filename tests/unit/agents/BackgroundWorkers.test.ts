@@ -7,7 +7,7 @@ import {
   formatAuditFindings,
   formatReflectManifest,
   formatTestgapsOutput,
-} from "../../../src/agents/BackgroundWorkers.js";
+} from "../../../modules/coding/agents/BackgroundWorkers.js";
 import type { ReflectJob, ReflectManifest } from "../../../src/storage/ReflectJob.js";
 
 /**

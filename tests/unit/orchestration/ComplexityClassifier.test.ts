@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   HeuristicComplexityClassifier,
   defaultComplexityClassifier,
-} from "../../../src/orchestration/ComplexityClassifier.js";
+} from "../../../modules/coding/orchestration/ComplexityClassifier.js";
 
 describe("HeuristicComplexityClassifier", () => {
   const c = new HeuristicComplexityClassifier();

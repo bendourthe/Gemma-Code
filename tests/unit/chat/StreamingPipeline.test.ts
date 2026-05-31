@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { OllamaClient, OllamaChatRequest } from "../../../src/llm/types.js";
-import { OllamaError } from "../../../src/llm/types.js";
+import type { OllamaClient, OllamaChatRequest } from "../../../modules/coding/llm/types.js";
+import { OllamaError } from "../../../modules/coding/llm/types.js";
 import type { ExtensionToWebviewMessage } from "../../../src/panels/messages.js";
 
 // ConversationManager and StreamingPipeline both import vscode; the global
 // mock in tests/setup.ts handles that.
-const { ConversationManager } = await import("../../../src/chat/ConversationManager.js");
-const { StreamingPipeline } = await import("../../../src/chat/StreamingPipeline.js");
+const { ConversationManager } = await import("../../../modules/coding/chat/ConversationManager.js");
+const { StreamingPipeline } = await import("../../../modules/coding/chat/StreamingPipeline.js");
 
 // ---------------------------------------------------------------------------
 // Helpers

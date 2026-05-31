@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   OtlpExporter,
   parseOtlpHeaders,
-} from "../../../src/observability/OtlpExporter.js";
-import type { Span } from "../../../src/observability/TraceStore.js";
+} from "../../../modules/coding/observability/OtlpExporter.js";
+import type { Span } from "../../../modules/coding/observability/TraceStore.js";
 
 // -------------------------------------------------------------------------
 // Helpers

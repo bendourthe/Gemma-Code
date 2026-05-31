@@ -3,8 +3,8 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { MemoryFiles } from "../../src/storage/MemoryFiles.js";
-import { PromptBuilder } from "../../src/chat/PromptBuilder.js";
-import type { PromptContext } from "../../src/chat/PromptBuilder.types.js";
+import { PromptBuilder } from "../../modules/coding/chat/PromptBuilder.js";
+import type { PromptContext } from "../../modules/coding/chat/PromptBuilder.types.js";
 import { TOOL_CATALOG, toDynamicMetadata } from "../../src/tools/ToolCatalog.js";
 
 /**

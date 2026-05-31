@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { TraceStore } from "../../../src/observability/TraceStore.js";
-import type { SpanKind } from "../../../src/observability/TraceStore.js";
+import { TraceStore } from "../../../modules/coding/observability/TraceStore.js";
+import type { SpanKind } from "../../../modules/coding/observability/TraceStore.js";
 
 describe("TraceStore", () => {
   let store: TraceStore;

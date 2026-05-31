@@ -3,10 +3,10 @@ import * as path from "path";
 import * as os from "os";
 import * as url from "url";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { SkillLoader } from "../../../src/skills/SkillLoader.js";
+import { SkillLoader } from "../../../modules/coding/skills/SkillLoader.js";
 
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
-const REAL_CATALOG_DIR = path.resolve(__dirname, "../../../src/skills/catalog");
+const REAL_CATALOG_DIR = path.resolve(__dirname, "../../../modules/coding/skills/catalog");
 
 // ---------------------------------------------------------------------------
 // Helpers

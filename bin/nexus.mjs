@@ -291,7 +291,7 @@ async function loadModelRegistryModule() {
 
 /**
  * Minimal SKILL.md frontmatter parser (name + description). Mirrors the
- * single-line YAML subset that `src/skills/SkillLoader.ts` already consumes;
+ * single-line YAML subset that `modules/coding/skills/SkillLoader.ts` already consumes;
  * intentionally dependency-free since this runs in the plain-JS CLI.
  */
 function parseSkillFrontmatter(content) {

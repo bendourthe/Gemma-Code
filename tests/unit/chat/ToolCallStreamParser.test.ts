@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ToolCallStreamParser, type ToolCallStreamEvent } from "../../../src/chat/ToolCallStreamParser.js";
+import { ToolCallStreamParser, type ToolCallStreamEvent } from "../../../modules/coding/chat/ToolCallStreamParser.js";
 
 function collect(parser: ToolCallStreamParser, chunks: readonly string[]): ToolCallStreamEvent[] {
   const out: ToolCallStreamEvent[] = [];

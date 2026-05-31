@@ -20,18 +20,20 @@ module.exports = {
       name: 'no-llm-outside-llm-folder',
       severity: 'error',
       comment:
-        'Only files under src/llm/ may import the concrete Ollama clients. ' +
-        'Other modules must consume the port in src/llm/types.ts. The ' +
-        'composition root (`src/runtime/NexusCodingRuntime.ts`) constructs the ' +
+        'Only files under modules/coding/llm/ may import the concrete Ollama ' +
+        'clients. Other modules must consume the port in ' +
+        'modules/coding/llm/types.ts. The composition root ' +
+        '(`modules/coding/runtime/NexusCodingRuntime.ts`) constructs the ' +
         'concrete client via `createOllamaClient` and threads the port to ' +
-        'every consumer.',
+        'every consumer. (v1.4.0 Phase 7 / gap 1.4.P1.B: src/llm + src/runtime ' +
+        'moved into modules/coding/.)',
       from: {
         pathNot: [
-          '^src/llm/',
-          '^src/runtime/NexusCodingRuntime\\.ts$',
+          '^modules/coding/llm/',
+          '^modules/coding/runtime/NexusCodingRuntime\\.ts$',
         ],
       },
-      to: { path: '^src/llm/(?:OllamaClient|OllamaHttp)\\.ts$' },
+      to: { path: '^modules/coding/llm/(?:OllamaClient|OllamaHttp)\\.ts$' },
     },
     {
       name: 'no-panels-from-tools',
@@ -243,11 +245,11 @@ module.exports = {
         theme: {
           graph: { rankdir: 'TD', splines: 'ortho' },
           modules: [
-            { criteria: { source: '^src/llm/' }, attributes: { fillcolor: '#ffe4b5' } },
+            { criteria: { source: '^modules/coding/llm/' }, attributes: { fillcolor: '#ffe4b5' } },
             { criteria: { source: '^src/tools/' }, attributes: { fillcolor: '#d4f1d4' } },
             { criteria: { source: '^src/storage/' }, attributes: { fillcolor: '#d4e4f7' } },
             { criteria: { source: '^src/panels/' }, attributes: { fillcolor: '#f7d4e4' } },
-            { criteria: { source: '^src/guardrails/' }, attributes: { fillcolor: '#f7e4d4' } },
+            { criteria: { source: '^modules/coding/guardrails/' }, attributes: { fillcolor: '#f7e4d4' } },
           ],
         },
       },

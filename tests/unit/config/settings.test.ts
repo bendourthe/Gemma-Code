@@ -7,7 +7,7 @@ import {
 
 // Import after the vscode mock is established (setup.ts runs first).
 const { getSettings, onSettingsChange, _setSettingsCompatForTesting } =
-  await import("../../../src/config/settings.js");
+  await import("../../../modules/coding/config/settings.js");
 
 describe("getSettings()", () => {
   beforeEach(() => {

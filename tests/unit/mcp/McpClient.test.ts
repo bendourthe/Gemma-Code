@@ -19,7 +19,7 @@ vi.mock("@modelcontextprotocol/sdk/client/stdio.js", () => ({
   StdioClientTransport: vi.fn(),
 }));
 
-const { McpClient } = await import("../../../src/mcp/McpClient.js");
+const { McpClient } = await import("../../../modules/coding/mcp/McpClient.js");
 
 const TEST_CONFIG = {
   name: "test-server",

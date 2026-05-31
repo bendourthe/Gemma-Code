@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { createLmStudioClient, probeLmStudio } from "../../../src/llm/LmStudioClient.js";
+import { createLmStudioClient, probeLmStudio } from "../../../modules/coding/llm/LmStudioClient.js";
 
 const realFetch = globalThis.fetch;
 

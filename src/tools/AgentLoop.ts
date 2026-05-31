@@ -1,9 +1,9 @@
-import type { OllamaClient, OllamaMessage, OllamaOptions, OllamaToolDefinition } from "../llm/types.js";
-import type { ConversationManager } from "../chat/ConversationManager.js";
-import type { PostMessageFn } from "../chat/StreamingPipeline.js";
-import type { ContextCompactor } from "../chat/ContextCompactor.js";
-import type { SubAgentSpawner } from "../agents/SubAgentSpawner.types.js";
-import type { SubAgentConfig, SubAgentResult } from "../agents/types.js";
+import type { OllamaClient, OllamaMessage, OllamaOptions, OllamaToolDefinition } from "../../modules/coding/llm/types.js";
+import type { ConversationManager } from "../../modules/coding/chat/ConversationManager.js";
+import type { PostMessageFn } from "../../modules/coding/chat/StreamingPipeline.js";
+import type { ContextCompactor } from "../../modules/coding/chat/ContextCompactor.js";
+import type { SubAgentSpawner } from "../../modules/coding/agents/SubAgentSpawner.types.js";
+import type { SubAgentConfig, SubAgentResult } from "../../modules/coding/agents/types.js";
 import { parseToolCalls, stripToolCalls, formatToolResult } from "./ToolCallParser.js";
 import type { ToolRegistry } from "./ToolRegistry.js";
 import type { BudgetMiddleware } from "./BudgetMiddleware.js";
@@ -11,13 +11,13 @@ import type { ToolCall } from "./types.js";
 import type { WorkingMemory } from "../storage/WorkingMemory.js";
 import type { EpisodicMemory } from "../storage/EpisodicMemory.js";
 import { recordToolEvent } from "../storage/EpisodicMemory.js";
-import type { LoopDetector } from "../guardrails/LoopDetector.js";
-import type { GitSafetyNet, GitCheckpoint } from "../guardrails/GitSafetyNet.js";
-import { classifyAction, ActionRisk } from "../guardrails/ActionClassifier.js";
-import { Tracer, type SkillSpanContext } from "../observability/Tracer.js";
-import type { OperationLog } from "../observability/OperationLog.js";
+import type { LoopDetector } from "../../modules/coding/guardrails/LoopDetector.js";
+import type { GitSafetyNet, GitCheckpoint } from "../../modules/coding/guardrails/GitSafetyNet.js";
+import { classifyAction, ActionRisk } from "../../modules/coding/guardrails/ActionClassifier.js";
+import { Tracer, type SkillSpanContext } from "../../modules/coding/observability/Tracer.js";
+import type { OperationLog } from "../../modules/coding/observability/OperationLog.js";
 import { formatForUser } from "../../modules/coding/utils/errors.js";
-import { countTokens } from "../config/PromptBudget.js";
+import { countTokens } from "../../modules/coding/config/PromptBudget.js";
 import type { HookBus } from "../../core/lifecycle/HookBus.js";
 import { redactSecrets } from "../../core/observability/redactSecrets.js";
 
@@ -41,7 +41,7 @@ const VERIFICATION_TOOLS = new Set(["run_terminal"]);
  * `run_terminal` invocation by the parent loop. Reflect-worker is excluded
  * because its dry-run does not assert correctness of recent edits.
  */
-const SUB_AGENT_VERIFICATION_TYPES = new Set<import("../agents/types.js").SubAgentType>([
+const SUB_AGENT_VERIFICATION_TYPES = new Set<import("../../modules/coding/agents/types.js").SubAgentType>([
   "verification",
   "audit-worker",
   "testgaps-worker",

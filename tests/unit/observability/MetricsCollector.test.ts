@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { TraceStore } from "../../../src/observability/TraceStore.js";
-import { MetricsCollector } from "../../../src/observability/MetricsCollector.js";
+import { TraceStore } from "../../../modules/coding/observability/TraceStore.js";
+import { MetricsCollector } from "../../../modules/coding/observability/MetricsCollector.js";
 
 describe("MetricsCollector", () => {
   let store: TraceStore;

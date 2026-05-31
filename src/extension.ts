@@ -27,7 +27,7 @@ import {
   stopOllamaPoller,
 } from "./activation/extensionOnly.js";
 import { installCompatShim } from "./activation/compatShim.js";
-import { disposeEncoder as disposeTokenEncoder } from "./config/PromptBudget.js";
+import { disposeEncoder as disposeTokenEncoder } from "../modules/coding/config/PromptBudget.js";
 
 let outputChannel: vscode.OutputChannel | undefined;
 

@@ -13,11 +13,11 @@ import { describe, it, expect, vi } from "vitest";
 import { FetchPageTool } from "../../../src/tools/handlers/webSearch.js";
 import { RunTerminalTool } from "../../../src/tools/handlers/terminal.js";
 import { ReadFileTool } from "../../../src/tools/handlers/filesystem.js";
-import { ConversationManager } from "../../../src/chat/ConversationManager.js";
-import { ContextCompactor } from "../../../src/chat/ContextCompactor.js";
+import { ConversationManager } from "../../../modules/coding/chat/ConversationManager.js";
+import { ContextCompactor } from "../../../modules/coding/chat/ContextCompactor.js";
 
 vi.mock("node-html-parser", () => ({ parse: vi.fn(() => ({ querySelectorAll: () => [] })) }));
-vi.mock("../../../src/llm/OllamaClient.js", () => ({
+vi.mock("../../../modules/coding/llm/OllamaClient.js", () => ({
   createOllamaClient: vi.fn(),
 }));
 

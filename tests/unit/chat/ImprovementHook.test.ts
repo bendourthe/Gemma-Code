@@ -8,7 +8,7 @@ import {
   hookFilePath,
   loadHook,
   renderHookAsSystemMessage,
-} from "../../../src/chat/ImprovementHook.js";
+} from "../../../modules/coding/chat/ImprovementHook.js";
 
 describe("ImprovementHook", () => {
   let dir: string;

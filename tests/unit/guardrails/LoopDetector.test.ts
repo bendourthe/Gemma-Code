@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { LoopDetector } from "../../../src/guardrails/LoopDetector.js";
+import { LoopDetector } from "../../../modules/coding/guardrails/LoopDetector.js";
 import type { ToolCall } from "../../../src/tools/types.js";
 
 function makeCall(tool: string, params: Record<string, unknown> = {}): ToolCall {

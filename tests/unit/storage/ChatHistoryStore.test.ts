@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { ChatHistoryStore } from "../../../src/storage/ChatHistoryStore.js";
-import type { Message } from "../../../src/chat/types.js";
+import type { Message } from "../../../modules/coding/chat/types.js";
 
 function makeMessage(role: "user" | "assistant" | "system", content: string): Message {
   return {

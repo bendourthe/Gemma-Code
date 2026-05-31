@@ -3,15 +3,15 @@ import { execFileSync } from "child_process";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import { WorktreeManager } from "../../../src/agents/WorktreeManager.js";
+import { WorktreeManager } from "../../../modules/coding/agents/WorktreeManager.js";
 import { RunTerminalTool } from "../../../src/tools/handlers/terminal.js";
-import { SubAgentManager } from "../../../src/agents/SubAgentManager.js";
-import { PromptBuilder } from "../../../src/chat/PromptBuilder.js";
+import { SubAgentManager } from "../../../modules/coding/agents/SubAgentManager.js";
+import { PromptBuilder } from "../../../modules/coding/chat/PromptBuilder.js";
 import {
   makeMultiResponseOllamaClient,
   collectMessages,
 } from "../../helpers/factories.js";
-import type { SubAgentConfig } from "../../../src/agents/types.js";
+import type { SubAgentConfig } from "../../../modules/coding/agents/types.js";
 
 // Integration coverage for v1.4.0 Phase 6 (A10): worktree-isolated parallel
 // sub-agent execution. These tests exercise real `git worktree` operations and

@@ -1,17 +1,17 @@
 import * as path from "path";
 import * as vscode from "vscode";
-import { ConversationManager } from "../chat/ConversationManager.js";
-import type { ContextCompactor } from "../chat/ContextCompactor.js";
-import { CompressionState } from "../chat/state/CompressionState.js";
-import type { StreamingPipeline } from "../chat/StreamingPipeline.js";
-import { PlanMode } from "../chat/PlanMode.js";
-import { PromptBuilder } from "../chat/PromptBuilder.js";
-import { CommandRouter } from "../commands/CommandRouter.js";
-import { SkillLoader } from "../skills/SkillLoader.js";
-import { SkillMetrics } from "../skills/SkillMetrics.js";
-import { CurationLoop, makeStaticInputs } from "../skills/CurationLoop.js";
-import { McpManager } from "../mcp/McpManager.js";
-import { McpServer } from "../mcp/McpServer.js";
+import { ConversationManager } from "../../modules/coding/chat/ConversationManager.js";
+import type { ContextCompactor } from "../../modules/coding/chat/ContextCompactor.js";
+import { CompressionState } from "../../modules/coding/chat/state/CompressionState.js";
+import type { StreamingPipeline } from "../../modules/coding/chat/StreamingPipeline.js";
+import { PlanMode } from "../../modules/coding/chat/PlanMode.js";
+import { PromptBuilder } from "../../modules/coding/chat/PromptBuilder.js";
+import { CommandRouter } from "../../modules/coding/commands/CommandRouter.js";
+import { SkillLoader } from "../../modules/coding/skills/SkillLoader.js";
+import { SkillMetrics } from "../../modules/coding/skills/SkillMetrics.js";
+import { CurationLoop, makeStaticInputs } from "../../modules/coding/skills/CurationLoop.js";
+import { McpManager } from "../../modules/coding/mcp/McpManager.js";
+import { McpServer } from "../../modules/coding/mcp/McpServer.js";
 import {
   ChatController,
   buildOllamaTuning,
@@ -35,20 +35,20 @@ import { MemorySnapshot } from "../storage/MemorySnapshot.js";
 import { PlanArchive } from "../storage/PlanArchive.js";
 import type { ToolOutputCache } from "../storage/ToolOutputCache.js";
 import type { WebResponseCache } from "../tools/handlers/webCache.js";
-import type { OperationLog } from "../observability/OperationLog.js";
+import type { OperationLog } from "../../modules/coding/observability/OperationLog.js";
 import type { WorkingMemory } from "../storage/WorkingMemory.js";
 import type { EpisodicMemory } from "../storage/EpisodicMemory.js";
 import type { GraphMemory } from "../storage/GraphMemory.js";
 import type { MemoryConsolidator } from "../storage/MemoryConsolidator.js";
 import type { UnifiedMemoryRetriever } from "../storage/UnifiedMemoryRetriever.js";
-import type { GemmaCodeSettings } from "../config/settings.js";
+import type { GemmaCodeSettings } from "../../modules/coding/config/settings.js";
 import { TOOL_CATALOG } from "../tools/ToolCatalog.js";
 import type { DynamicToolMetadata } from "../tools/ToolCatalog.js";
-import type { HardwareTierConfig } from "../config/HardwareTier.types.js";
-import { getTierConfig } from "../config/HardwareTier.js";
-import { GitSafetyNet } from "../guardrails/GitSafetyNet.js";
-import type { Orchestrator } from "../orchestration/Orchestrator.js";
-import type { SubAgentManager } from "../agents/SubAgentManager.js";
+import type { HardwareTierConfig } from "../../modules/coding/config/HardwareTier.types.js";
+import { getTierConfig } from "../../modules/coding/config/HardwareTier.js";
+import { GitSafetyNet } from "../../modules/coding/guardrails/GitSafetyNet.js";
+import type { Orchestrator } from "../../modules/coding/orchestration/Orchestrator.js";
+import type { SubAgentManager } from "../../modules/coding/agents/SubAgentManager.js";
 import type { AgentLoop } from "../tools/AgentLoop.js";
 import { ConfirmationGate } from "../tools/ConfirmationGate.js";
 import { defaultPermissionOptions } from "./webview/render/permissionPrompt.js";
@@ -57,7 +57,7 @@ import { buildToolRegistry } from "../tools/ToolRegistryBuilder.js";
 import { TodoState } from "../tools/handlers/todos.js";
 import { renderMarkdown } from "../../modules/coding/utils/MarkdownRenderer.js";
 import { getLogger } from "../../modules/coding/utils/logger.js";
-import type { NexusCodingRuntime } from "../runtime/NexusCodingRuntime.js";
+import type { NexusCodingRuntime } from "../../modules/coding/runtime/NexusCodingRuntime.js";
 import type { EditMode } from "../tools/types.js";
 import type {
   WebviewToExtensionMessage,
@@ -316,7 +316,7 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
   });
 
   const extensionFsPath = extensionUri.fsPath ?? "";
-  const catalogDir = path.join(extensionFsPath, "src", "skills", "catalog");
+  const catalogDir = path.join(extensionFsPath, "modules", "coding", "skills", "catalog");
   const skillLoader = new SkillLoader(catalogDir);
   skillLoader.load();
   skillLoader.watch();

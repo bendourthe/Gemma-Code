@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classifyAction, ActionRisk } from "../../../src/guardrails/ActionClassifier.js";
+import { classifyAction, ActionRisk } from "../../../modules/coding/guardrails/ActionClassifier.js";
 import type { ToolCall } from "../../../src/tools/types.js";
 
 function makeCall(tool: string, params: Record<string, unknown> = {}): ToolCall {

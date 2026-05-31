@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { skipIfNoOllama } from "../helpers/factories.js";
 
 // Mock settings to use the OLLAMA_URL environment variable
-vi.mock("../../src/config/settings.js", () => ({
+vi.mock("../../modules/coding/config/settings.js", () => ({
   getSettings: () => ({
     ollamaUrl: process.env["OLLAMA_URL"] ?? "http://localhost:11434",
     modelName: "gemma4",
@@ -12,7 +12,7 @@ vi.mock("../../src/config/settings.js", () => ({
   }),
 }));
 
-const { createOllamaClient } = await import("../../src/llm/OllamaClient.js");
+const { createOllamaClient } = await import("../../modules/coding/llm/OllamaClient.js");
 
 // Class: missing_env (see docs/archive/versions/v0/v0.5.0/test-pyramid.md). Skip the suite when
 // OLLAMA_URL is not configured; do not silently early-return inside the test body.

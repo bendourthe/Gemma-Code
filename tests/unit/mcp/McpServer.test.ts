@@ -20,7 +20,7 @@ vi.mock("@modelcontextprotocol/sdk/server/stdio.js", () => ({
   StdioServerTransport: vi.fn(),
 }));
 
-const { McpServer } = await import("../../../src/mcp/McpServer.js");
+const { McpServer } = await import("../../../modules/coding/mcp/McpServer.js");
 
 const TEST_CATALOG: ToolMetadata[] = [
   {

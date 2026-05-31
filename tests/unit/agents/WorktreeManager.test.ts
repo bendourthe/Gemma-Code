@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import { WorktreeManager, type GitRunner } from "../../../src/agents/WorktreeManager.js";
+import { WorktreeManager, type GitRunner } from "../../../modules/coding/agents/WorktreeManager.js";
 
 // Unit tests drive the lifecycle logic through an injected fake GitRunner so
 // no real repository is required. The real-git behavior (isolation, cleanup,

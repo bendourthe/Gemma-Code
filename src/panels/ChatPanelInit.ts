@@ -5,9 +5,9 @@ import { MemorySubsystem } from "../storage/MemorySubsystem.js";
 import { MemoryFiles, deriveWorkspaceId } from "../storage/MemoryFiles.js";
 import { ToolOutputCache } from "../storage/ToolOutputCache.js";
 import { WebResponseCache } from "../tools/handlers/webCache.js";
-import { OperationLog } from "../observability/OperationLog.js";
-import type { GemmaCodeSettings } from "../config/settings.js";
-import type { LLMClient } from "../llm/types.js";
+import { OperationLog } from "../../modules/coding/observability/OperationLog.js";
+import type { GemmaCodeSettings } from "../../modules/coding/config/settings.js";
+import type { LLMClient } from "../../modules/coding/llm/types.js";
 import { getLogger } from "../../modules/coding/utils/logger.js";
 import { formatForUser } from "../../modules/coding/utils/errors.js";
 

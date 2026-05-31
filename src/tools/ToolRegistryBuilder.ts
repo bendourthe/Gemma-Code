@@ -27,7 +27,7 @@ import { UpdateTodosTool, type TodoState } from "./handlers/todos.js";
 import type { ToolOutputCache } from "../storage/ToolOutputCache.js";
 import type { WebResponseCache } from "./handlers/webCache.js";
 import type { EditMode } from "./types.js";
-import type { PostMessageFn } from "../chat/StreamingPipeline.js";
+import type { PostMessageFn } from "../../modules/coding/chat/StreamingPipeline.js";
 import type { CodeGraphHandlerDeps } from "./handlers/codegraph.js";
 import type { LspHandlerDeps } from "./handlers/lsp.js";
 

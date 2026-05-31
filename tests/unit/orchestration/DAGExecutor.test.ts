@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { DAGExecutor } from "../../../src/orchestration/DAGExecutor.js";
-import type { DAGExecutionResult, ReflexionEngineInterface } from "../../../src/orchestration/DAGExecutor.js";
-import { TaskDAG } from "../../../src/orchestration/TaskDAG.js";
-import type { TaskNode } from "../../../src/orchestration/TaskDAG.js";
-import type { SubAgentManager } from "../../../src/agents/SubAgentManager.js";
-import type { SubAgentConfig, SubAgentResult } from "../../../src/agents/types.js";
-import type { HardwareTierConfig } from "../../../src/config/HardwareTier.types.js";
-import { getTierConfig } from "../../../src/config/HardwareTier.js";
+import { DAGExecutor } from "../../../modules/coding/orchestration/DAGExecutor.js";
+import type { DAGExecutionResult, ReflexionEngineInterface } from "../../../modules/coding/orchestration/DAGExecutor.js";
+import { TaskDAG } from "../../../modules/coding/orchestration/TaskDAG.js";
+import type { TaskNode } from "../../../modules/coding/orchestration/TaskDAG.js";
+import type { SubAgentManager } from "../../../modules/coding/agents/SubAgentManager.js";
+import type { SubAgentConfig, SubAgentResult } from "../../../modules/coding/agents/types.js";
+import type { HardwareTierConfig } from "../../../modules/coding/config/HardwareTier.types.js";
+import { getTierConfig } from "../../../modules/coding/config/HardwareTier.js";
 import type { ExtensionToWebviewMessage } from "../../../src/panels/messages.js";
 import { mockOf } from "../../helpers/factories.js";
 

@@ -1,4 +1,4 @@
-import type { HardwareTierId } from "../config/HardwareTier.types.js";
+import type { HardwareTierId } from "../../modules/coding/config/HardwareTier.types.js";
 import type { SessionBudget, BudgetState, BudgetCheckResult } from "./BudgetMiddleware.types.js";
 
 export class BudgetMiddleware {

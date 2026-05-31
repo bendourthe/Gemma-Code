@@ -16,7 +16,7 @@ import { mockGetConfiguration } from "../../setup.js";
 import { mockOf } from "../../helpers/factories.js";
 
 const { NexusCodingPanel, VIEW_ID } = await import("../../../src/panels/NexusCodingPanel.js");
-const { NexusCodingRuntime } = await import("../../../src/runtime/NexusCodingRuntime.js");
+const { NexusCodingRuntime } = await import("../../../modules/coding/runtime/NexusCodingRuntime.js");
 
 function makeMockWebview() {
   const postMessage = vi.fn();

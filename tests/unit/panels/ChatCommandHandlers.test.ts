@@ -29,7 +29,7 @@ vi.mock("../../../modules/coding/utils/MarkdownRenderer.js", () => ({
   renderMarkdown: (s: string) => `<rendered>${s}</rendered>`,
 }));
 
-vi.mock("../../../src/commands/memoryLintCommand.js", () => ({
+vi.mock("../../../modules/coding/commands/memoryLintCommand.js", () => ({
   parseMemoryLintArgs: vi.fn(() => ({ apply: false, full: false, limit: 100 })),
   runMemoryLint: vi.fn().mockResolvedValue({ message: "_lint ok_", fixed: 0 }),
 }));

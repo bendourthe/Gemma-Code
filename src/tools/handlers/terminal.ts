@@ -6,7 +6,7 @@ import type {
   RunTerminalParams,
 } from "../types.js";
 import { resolveInsideWorkspace } from "./pathGuard.js";
-import { BLOCKED_PATTERNS } from "../../guardrails/policy.js";
+import { BLOCKED_PATTERNS } from "../../../modules/coding/guardrails/policy.js";
 import { formatForUser } from "../../../modules/coding/utils/errors.js";
 import {
   CommandCompressor,
@@ -44,7 +44,7 @@ export const ALLOWED_COMMANDS: Record<string, RegExp> = {
   pwd: /^[\s\S]*$/,
 };
 
-export { BLOCKED_PATTERNS } from "../../guardrails/policy.js";
+export { BLOCKED_PATTERNS } from "../../../modules/coding/guardrails/policy.js";
 
 /**
  * Split a shell command string on metacharacters that can chain sub-commands

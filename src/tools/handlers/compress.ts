@@ -1,8 +1,8 @@
 import { randomUUID } from "crypto";
 import type { ToolHandler, ToolResult } from "../types.js";
-import type { Message } from "../../chat/types.js";
-import type { ConversationManager } from "../../chat/ConversationManager.js";
-import type { CompressionState, BlockSummary } from "../../chat/state/CompressionState.js";
+import type { Message } from "../../../modules/coding/chat/types.js";
+import type { ConversationManager } from "../../../modules/coding/chat/ConversationManager.js";
+import type { CompressionState, BlockSummary } from "../../../modules/coding/chat/state/CompressionState.js";
 
 /**
  * v0.7.0 Phase 3 sub-tasks 3.4 + 3.5 -- Model-callable compress tool (C12).

@@ -3,7 +3,7 @@
  * v1.1.0 Phase 1 sub-task 1.3 -- inject `deprecationMessage` into every legacy
  * `gemma-code.*` entry in `package.json` `contributes.configuration.properties`.
  *
- * Source of truth: `SETTINGS_KEY_MAP` in `src/config/settingsKeyMap.ts` -- the
+ * Source of truth: `SETTINGS_KEY_MAP` in `modules/coding/config/settingsKeyMap.ts` -- the
  * map of `nexus.*` (new) -> `gemma-code.*` (legacy) keys. For every entry in
  * the map that has a corresponding `gemma-code.*` property defined in
  * `package.json`, set:
@@ -35,7 +35,7 @@ function loadSettingsKeyMap() {
   // simple regex-based extraction so this script stays zero-dependency and
   // does not require ts-node / tsx.
   const src = readFileSync(
-    join(REPO_ROOT, "src", "config", "settingsKeyMap.ts"),
+    join(REPO_ROOT, "modules", "coding", "config", "settingsKeyMap.ts"),
     "utf-8",
   );
   // Find each "<new>": "<legacy>" pair. Allow both quote styles and ignore
@@ -49,7 +49,7 @@ function loadSettingsKeyMap() {
   }
   if (map.size === 0) {
     throw new Error(
-      "Could not parse any entries from src/config/settingsKeyMap.ts; aborting.",
+      "Could not parse any entries from modules/coding/config/settingsKeyMap.ts; aborting.",
     );
   }
   return map;

@@ -8,7 +8,7 @@ import {
   PLAN_APPROVED_WITH_NOTES_TEMPLATE,
   buildDenialMessage,
   buildApprovedWithNotesMessage,
-} from "../../../src/chat/PlanMode.js";
+} from "../../../modules/coding/chat/PlanMode.js";
 
 describe("detectPlan()", () => {
   it("returns null when response has no numbered list", () => {

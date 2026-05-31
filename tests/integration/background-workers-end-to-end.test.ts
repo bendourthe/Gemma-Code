@@ -23,7 +23,7 @@ import {
   runAuditWorker,
   parseGemmaCheckJson,
   formatAuditFindings,
-} from "../../src/agents/BackgroundWorkers.js";
+} from "../../modules/coding/agents/BackgroundWorkers.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

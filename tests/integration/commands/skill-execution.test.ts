@@ -8,11 +8,11 @@
 import * as path from "path";
 import * as url from "url";
 import { describe, it, expect } from "vitest";
-import { SkillLoader } from "../../../src/skills/SkillLoader.js";
+import { SkillLoader } from "../../../modules/coding/skills/SkillLoader.js";
 
 // Resolve the catalog directory relative to this test file.
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
-const CATALOG_DIR = path.resolve(__dirname, "../../../src/skills/catalog");
+const CATALOG_DIR = path.resolve(__dirname, "../../../modules/coding/skills/catalog");
 
 describe("Built-in skill catalog integration", () => {
   it("loads the commit skill correctly", () => {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { BLOCKED_PATTERNS } from "../../../src/guardrails/policy.js";
-import { classifyAction, ActionRisk } from "../../../src/guardrails/ActionClassifier.js";
+import { BLOCKED_PATTERNS } from "../../../modules/coding/guardrails/policy.js";
+import { classifyAction, ActionRisk } from "../../../modules/coding/guardrails/ActionClassifier.js";
 import type { ToolCall } from "../../../src/tools/types.js";
 
 function makeCall(tool: string, parameters: Record<string, unknown>): ToolCall {

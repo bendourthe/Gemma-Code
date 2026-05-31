@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { ReflexionEngine } from "../../../src/orchestration/ReflexionEngine.js";
-import type { Reflection } from "../../../src/orchestration/ReflexionEngine.js";
+import { ReflexionEngine } from "../../../modules/coding/orchestration/ReflexionEngine.js";
+import type { Reflection } from "../../../modules/coding/orchestration/ReflexionEngine.js";
 import {
   makeFailedTaskNode as makeNode,
   makeMemoryStore,

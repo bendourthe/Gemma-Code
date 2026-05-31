@@ -6,7 +6,7 @@ import {
   renderSessionHandoff,
   renderSessionProgress,
   writeSessionDocs,
-} from "../../../src/chat/SessionDocs.js";
+} from "../../../modules/coding/chat/SessionDocs.js";
 
 describe("SessionDocs", () => {
   let tmpDir: string;

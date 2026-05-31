@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { Tracer } from "../../../src/observability/Tracer.js";
-import { TraceStore } from "../../../src/observability/TraceStore.js";
-import type { TracerExporter } from "../../../src/observability/Tracer.js";
-import type { Span } from "../../../src/observability/TraceStore.js";
+import { Tracer } from "../../../modules/coding/observability/Tracer.js";
+import { TraceStore } from "../../../modules/coding/observability/TraceStore.js";
+import type { TracerExporter } from "../../../modules/coding/observability/Tracer.js";
+import type { Span } from "../../../modules/coding/observability/TraceStore.js";
 
 describe("Tracer", () => {
   let tracer: Tracer;

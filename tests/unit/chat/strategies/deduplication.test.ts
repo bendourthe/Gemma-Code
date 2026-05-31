@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { deduplicate, DeduplicationStrategy } from "../../../../src/chat/strategies/deduplication.js";
-import type { Message } from "../../../../src/chat/types.js";
+import { deduplicate, DeduplicationStrategy } from "../../../../modules/coding/chat/strategies/deduplication.js";
+import type { Message } from "../../../../modules/coding/chat/types.js";
 
 let counter = 0;
 function msg(role: Message["role"], content: string): Message {

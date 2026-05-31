@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { randomUUID } from "crypto";
-import type { TraceStore } from "../observability/TraceStore.js";
-import type { MetricsCollector } from "../observability/MetricsCollector.js";
+import type { TraceStore } from "../../modules/coding/observability/TraceStore.js";
+import type { MetricsCollector } from "../../modules/coding/observability/MetricsCollector.js";
 import type { ToolOutputCache } from "../storage/ToolOutputCache.js";
 import type { WebResponseCache } from "../tools/handlers/webCache.js";
 import { getCompressionStats } from "../../modules/coding/utils/Compressor.js";

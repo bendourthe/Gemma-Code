@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { AgentLoop } from "../../../src/tools/AgentLoop.js";
 import { BudgetMiddleware } from "../../../src/tools/BudgetMiddleware.js";
-import type { ConversationManager } from "../../../src/chat/ConversationManager.js";
+import type { ConversationManager } from "../../../modules/coding/chat/ConversationManager.js";
 import type { ToolRegistry } from "../../../src/tools/ToolRegistry.js";
-import type { OllamaClient } from "../../../src/llm/types.js";
+import type { OllamaClient } from "../../../modules/coding/llm/types.js";
 import type { ToolCall, ToolResult } from "../../../src/tools/types.js";
 import {
   collectMessages,
@@ -511,7 +511,7 @@ describe("AgentLoop", () => {
   // -------------------------------------------------------------------------
 
   describe("GitSafetyNet integration", () => {
-    type GitSafetyNetLike = import("../../../src/guardrails/GitSafetyNet.js").GitSafetyNet;
+    type GitSafetyNetLike = import("../../../modules/coding/guardrails/GitSafetyNet.js").GitSafetyNet;
 
     function makeSafetyNet(overrides: Partial<GitSafetyNetLike> = {}): GitSafetyNetLike {
       return mockOf<GitSafetyNetLike>({

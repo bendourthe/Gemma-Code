@@ -42,7 +42,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
 
 const ssotPath = path.join(repoRoot, "nexus.security.toml");
-const permTiersPath = path.join(repoRoot, "src/guardrails/PermissionTiers.ts");
+const permTiersPath = path.join(repoRoot, "modules/coding/guardrails/PermissionTiers.ts");
 const docPath = path.join(repoRoot, "docs/archive/versions/v0/v0.5.0/architecture.md");
 const generatedTsPath = path.join(
   repoRoot,

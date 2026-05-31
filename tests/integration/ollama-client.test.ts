@@ -3,7 +3,7 @@ import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 
 // The client reads settings at construction, so stub getSettings before import.
-vi.mock("../../src/config/settings.js", () => ({
+vi.mock("../../modules/coding/config/settings.js", () => ({
   getSettings: () => ({
     ollamaUrl: "http://localhost:11434",
     requestTimeout: 5000,
@@ -11,8 +11,8 @@ vi.mock("../../src/config/settings.js", () => ({
   onSettingsChange: () => ({ dispose: () => {} }),
 }));
 
-const { createOllamaClient } = await import("../../src/llm/OllamaClient.js");
-const { OllamaError } = await import("../../src/llm/types.js");
+const { createOllamaClient } = await import("../../modules/coding/llm/OllamaClient.js");
+const { OllamaError } = await import("../../modules/coding/llm/types.js");
 
 const BASE_URL = "http://localhost:11434";
 const TAGS_URL = `${BASE_URL}/api/tags`;

@@ -7,7 +7,7 @@ import {
   slugifyTools,
   renderProposedSkill,
   type WorkflowProposal,
-} from "../../../src/skills/WorkflowDetector.js";
+} from "../../../modules/coding/skills/WorkflowDetector.js";
 import type { EpisodicEntry } from "../../../src/storage/MemoryLayers.types.js";
 
 function makeEvent(

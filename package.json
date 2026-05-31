@@ -848,12 +848,12 @@
     "test": "vitest run --config configs/vitest.config.ts",
     "t": "node scripts/test.mjs",
     "test:integration": "vitest run --config configs/vitest.config.ts --reporter=verbose tests/integration",
-    "lint": "eslint src",
+    "lint": "eslint src modules",
     "package": "powershell -NonInteractive -ExecutionPolicy Bypass -File scripts/build-vsix.ps1",
     "package:quick": "vsce package",
     "package:skills": "node scripts/package-skills.mjs",
     "check": "node bin/nexus-check.mjs",
-    "check:prompts": "node bin/nexus-check.mjs --rule prompt-no-ascii-violation --rule prompt-oversized --rule prompt-trailing-whitespace --rule prompt-bom --rule skill-duplicate-name src/chat/prompts src/skills/catalog",
+    "check:prompts": "node bin/nexus-check.mjs --rule prompt-no-ascii-violation --rule prompt-oversized --rule prompt-trailing-whitespace --rule prompt-bom --rule skill-duplicate-name modules/coding/chat/prompts modules/coding/skills/catalog",
     "check:tampering": "node bin/nexus-check.mjs --rule no-focused-tests --rule no-skipped-tests-without-reason --rule no-tautological-assertion --rule no-commented-out-assertion --rule no-disabled-ci-check tests .github/workflows",
     "cleanup:scan": "node scripts/cleanup-scanner.mjs",
     "cleanup:scan:json": "node scripts/cleanup-scanner.mjs --format=json",
@@ -878,6 +878,9 @@
   },
   "lint-staged": {
     "src/**/*.ts": [
+      "eslint --max-warnings=0"
+    ],
+    "modules/**/*.ts": [
       "eslint --max-warnings=0"
     ]
   },

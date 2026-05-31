@@ -1,9 +1,9 @@
 import * as vscode from "vscode";
-import type { PlanMode } from "../chat/PlanMode.js";
-import type { PromptContext } from "../chat/PromptBuilder.types.js";
-import type { GemmaCodeSettings } from "../config/settings.js";
-import type { HardwareTierConfig } from "../config/HardwareTier.types.js";
-import type { OllamaToolDefinition } from "../llm/types.js";
+import type { PlanMode } from "../../modules/coding/chat/PlanMode.js";
+import type { PromptContext } from "../../modules/coding/chat/PromptBuilder.types.js";
+import type { GemmaCodeSettings } from "../../modules/coding/config/settings.js";
+import type { HardwareTierConfig } from "../../modules/coding/config/HardwareTier.types.js";
+import type { OllamaToolDefinition } from "../../modules/coding/llm/types.js";
 import type { WorkingMemory } from "../storage/WorkingMemory.js";
 import type { UnifiedMemoryRetriever } from "../storage/UnifiedMemoryRetriever.js";
 import {

@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   buildSubAgentRequest,
   parseSubAgentResponse,
-} from "../../../src/orchestration/contracts.js";
+} from "../../../modules/coding/orchestration/contracts.js";
 import type {
   ResearchInput,
   CodeTaskInput,
@@ -12,8 +12,8 @@ import type {
   CodeTaskOutput,
   TestTaskOutput,
   VerifyTaskOutput,
-} from "../../../src/orchestration/contracts.js";
-import type { TaskNode } from "../../../src/orchestration/TaskDAG.js";
+} from "../../../modules/coding/orchestration/contracts.js";
+import type { TaskNode } from "../../../modules/coding/orchestration/TaskDAG.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

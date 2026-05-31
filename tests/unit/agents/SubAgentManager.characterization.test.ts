@@ -16,13 +16,13 @@
 import { describe, it, expect } from "vitest";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { PromptBuilder } from "../../../src/chat/PromptBuilder.js";
+import { PromptBuilder } from "../../../modules/coding/chat/PromptBuilder.js";
 import { TOOL_CATALOG, toDynamicMetadata } from "../../../src/tools/ToolCatalog.js";
 import {
   buildSubAgentContextMessage,
   getSubAgentInstructions,
-} from "../../../src/agents/SubAgentPrompts.js";
-import type { SubAgentConfig, SubAgentType } from "../../../src/agents/types.js";
+} from "../../../modules/coding/agents/SubAgentPrompts.js";
+import type { SubAgentConfig, SubAgentType } from "../../../modules/coding/agents/types.js";
 
 const SNAPSHOT_DIR = path.resolve(__dirname, "../../snapshots/specialists");
 

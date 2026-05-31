@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { McpToolHandler } from "../../../src/mcp/McpToolHandler.js";
-import type { McpClient } from "../../../src/mcp/McpClient.js";
+import { McpToolHandler } from "../../../modules/coding/mcp/McpToolHandler.js";
+import type { McpClient } from "../../../modules/coding/mcp/McpClient.js";
 import type { ToolResult } from "../../../src/tools/types.js";
 import { mockOf } from "../../helpers/factories.js";
 

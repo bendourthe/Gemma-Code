@@ -1,9 +1,9 @@
-import type { Message, ConversationSession } from "../chat/types.js";
-import type { CommandDescriptor } from "../commands/CommandRouter.js";
-import type { PlanStep } from "../chat/PlanMode.js";
+import type { Message, ConversationSession } from "../../modules/coding/chat/types.js";
+import type { CommandDescriptor } from "../../modules/coding/commands/CommandRouter.js";
+import type { PlanStep } from "../../modules/coding/chat/PlanMode.js";
 import type { EditMode } from "../tools/types.js";
-import type { Span } from "../observability/TraceStore.js";
-import type { SessionMetrics } from "../observability/MetricsCollector.js";
+import type { Span } from "../../modules/coding/observability/TraceStore.js";
+import type { SessionMetrics } from "../../modules/coding/observability/MetricsCollector.js";
 
 // ---------------------------------------------------------------------------
 // Extension → Webview

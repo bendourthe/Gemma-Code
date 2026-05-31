@@ -3,17 +3,17 @@ import type {
   OllamaClient,
   OllamaChatChunk,
   OllamaModel,
-} from "../../src/llm/types.js";
-import type { ConversationManager } from "../../src/chat/ConversationManager.js";
+} from "../../modules/coding/llm/types.js";
+import type { ConversationManager } from "../../modules/coding/chat/ConversationManager.js";
 import type { ToolRegistry } from "../../src/tools/ToolRegistry.js";
 import type { ToolCall, ToolResult } from "../../src/tools/types.js";
-import type { SubAgentManager } from "../../src/agents/SubAgentManager.js";
-import type { SubAgentResult } from "../../src/agents/types.js";
-import type { OrchestratorConfig } from "../../src/orchestration/Orchestrator.js";
-import type { HardwareTierConfig } from "../../src/config/HardwareTier.types.js";
-import { getTierConfig } from "../../src/config/HardwareTier.js";
+import type { SubAgentManager } from "../../modules/coding/agents/SubAgentManager.js";
+import type { SubAgentResult } from "../../modules/coding/agents/types.js";
+import type { OrchestratorConfig } from "../../modules/coding/orchestration/Orchestrator.js";
+import type { HardwareTierConfig } from "../../modules/coding/config/HardwareTier.types.js";
+import { getTierConfig } from "../../modules/coding/config/HardwareTier.js";
 import type { MemoryStore } from "../../src/storage/MemoryStore.js";
-import type { TaskNode } from "../../src/orchestration/TaskDAG.js";
+import type { TaskNode } from "../../modules/coding/orchestration/TaskDAG.js";
 import type { ExtensionToWebviewMessage } from "../../src/panels/messages.js";
 
 /**

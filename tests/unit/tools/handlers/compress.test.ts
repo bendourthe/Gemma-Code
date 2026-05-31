@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { CompressRangeTool, CompressMessageTool } from "../../../../src/tools/handlers/compress.js";
-import { CompressionState } from "../../../../src/chat/state/CompressionState.js";
-import type { Message } from "../../../../src/chat/types.js";
+import { CompressionState } from "../../../../modules/coding/chat/state/CompressionState.js";
+import type { Message } from "../../../../modules/coding/chat/types.js";
 
 class FakeManager {
   private _messages: Message[] = [];
@@ -29,7 +29,7 @@ function makeDeps(messages: Message[]) {
   const state = new CompressionState();
   return {
     deps: {
-      conversation: manager as unknown as import("../../../../src/chat/ConversationManager.js").ConversationManager,
+      conversation: manager as unknown as import("../../../../modules/coding/chat/ConversationManager.js").ConversationManager,
       state,
       protectedTools: ["write_file"],
       protectUserMessages: false,

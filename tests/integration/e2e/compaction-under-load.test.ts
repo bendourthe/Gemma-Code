@@ -15,8 +15,8 @@ import {
   CodeBlockTruncation,
   EmergencyTrim,
   estimateTokensForMessages,
-} from "../../../src/chat/CompactionStrategy.js";
-import type { Message } from "../../../src/chat/types.js";
+} from "../../../modules/coding/chat/CompactionStrategy.js";
+import type { Message } from "../../../modules/coding/chat/types.js";
 
 function makeMessage(
   role: Message["role"],

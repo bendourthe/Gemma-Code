@@ -14,7 +14,7 @@ import {
   SettingsCompat,
   type ConfigInspection,
   type WorkspaceConfigurationLike,
-} from "../../../src/config/SettingsCompat.js";
+} from "../../../modules/coding/config/SettingsCompat.js";
 
 interface ConfigStore {
   [section: string]: { [leaf: string]: unknown };

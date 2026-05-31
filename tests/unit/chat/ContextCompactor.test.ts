@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ContextCompactor } from "../../../src/chat/ContextCompactor.js";
-import type { ConversationManager } from "../../../src/chat/ConversationManager.js";
-import type { OllamaMessage } from "../../../src/llm/types.js";
-import type { PostMessageFn } from "../../../src/chat/StreamingPipeline.js";
+import { ContextCompactor } from "../../../modules/coding/chat/ContextCompactor.js";
+import type { ConversationManager } from "../../../modules/coding/chat/ConversationManager.js";
+import type { OllamaMessage } from "../../../modules/coding/llm/types.js";
+import type { PostMessageFn } from "../../../modules/coding/chat/StreamingPipeline.js";
 import {
   makeOllamaClient as makeClient,
   mockOf,

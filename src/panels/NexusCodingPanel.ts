@@ -1,9 +1,9 @@
 import * as vscode from "vscode";
-import type { ConversationManager } from "../chat/ConversationManager.js";
-import type { PlanMode } from "../chat/PlanMode.js";
-import type { PromptBuilder } from "../chat/PromptBuilder.js";
-import type { McpManager } from "../mcp/McpManager.js";
-import type { McpServer } from "../mcp/McpServer.js";
+import type { ConversationManager } from "../../modules/coding/chat/ConversationManager.js";
+import type { PlanMode } from "../../modules/coding/chat/PlanMode.js";
+import type { PromptBuilder } from "../../modules/coding/chat/PromptBuilder.js";
+import type { McpManager } from "../../modules/coding/mcp/McpManager.js";
+import type { McpServer } from "../../modules/coding/mcp/McpServer.js";
 import type { ChatController } from "./ChatController.js";
 import { ChatWebviewHost } from "./ChatWebviewHost.js";
 import type { ChatMessageRouter } from "./ChatMessageRouter.js";
@@ -16,14 +16,14 @@ import type { MemoryStore } from "../storage/MemoryStore.js";
 import type { MemoryFiles } from "../storage/MemoryFiles.js";
 import type { ToolOutputCache } from "../storage/ToolOutputCache.js";
 import type { WebResponseCache } from "../tools/handlers/webCache.js";
-import type { OperationLog } from "../observability/OperationLog.js";
-import { getSettings, type GemmaCodeSettings } from "../config/settings.js";
+import type { OperationLog } from "../../modules/coding/observability/OperationLog.js";
+import { getSettings, type GemmaCodeSettings } from "../../modules/coding/config/settings.js";
 import type { DynamicToolMetadata } from "../tools/ToolCatalog.js";
-import type { HardwareTierConfig } from "../config/HardwareTier.types.js";
+import type { HardwareTierConfig } from "../../modules/coding/config/HardwareTier.types.js";
 import { BudgetMiddleware, createSessionBudget } from "../tools/BudgetMiddleware.js";
 import type { AgentLoop } from "../tools/AgentLoop.js";
 import type { ToolRegistry } from "../tools/ToolRegistry.js";
-import type { NexusCodingRuntime } from "../runtime/NexusCodingRuntime.js";
+import type { NexusCodingRuntime } from "../../modules/coding/runtime/NexusCodingRuntime.js";
 import type { EditMode } from "../tools/types.js";
 import type {
   WebviewToExtensionMessage,
