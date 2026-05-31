@@ -162,6 +162,9 @@ nexus memory decay --now                               # manual Ebbinghaus sweep
 
 # Deterministic source-code checks (lint + hook + skill validation):
 nexus check ...
+
+# Read-only stale-state inventory (legacy state, caches, dup skills, symlinks, memory):
+nexus doctor [--migration-report] [--json]             # v1.4.0 Phase 5; never mutates disk
 ```
 
 ---

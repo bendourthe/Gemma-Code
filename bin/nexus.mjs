@@ -40,6 +40,7 @@ Usage:
   nexus memory import --in <file>
   nexus memory decay --now
   nexus memory compress --file <path> [--session <id>] [--model <name>] [--dry-run]
+  nexus doctor [--migration-report] [--json] [--home <dir>] [--legacy-home <dir>] [--skills-root <dir>] [--stale-days <N>]
   nexus check [...]                     deterministic source-code checks
   nexus image [...]                     image-pipeline helpers
   nexus video [...]                     video-pipeline helpers
@@ -445,6 +446,64 @@ export async function runSkillsAudit(flags, stdout = process.stdout, stderr = pr
   } else {
     stdout.write(auditorMod.formatAuditReport(report));
   }
+  return 0;
+}
+
+// ---------------------------------------------------------------------------
+// v1.4.0 Phase 5 (A6) -- `nexus doctor` stale-state inventory.
+//
+// The inventory logic lives in `core/diagnostics/DoctorReport.ts` so it is
+// unit-testable without a CLI process. This surface only resolves the live
+// paths (nexus home, legacy gemma home, skill roots), runs the read-only
+// inventory, and renders. Doctor is read-only by contract (it never writes,
+// moves, or deletes anything); `--migration-report` only widens how much
+// per-entry detail the renderer surfaces.
+// ---------------------------------------------------------------------------
+
+async function loadDoctorReport() {
+  const compiled = resolvePath(__dirname, "..", "out", "core", "diagnostics", "DoctorReport.js");
+  if (!existsSync(compiled)) {
+    throw new Error(
+      "DoctorReport build artifact missing. Run `npm run build` before invoking `nexus doctor` from source.",
+    );
+  }
+  return import(pathToFileURL(compiled).href);
+}
+
+/** Resolve the legacy `~/.gemma-code/` root, honoring NEXUS_HOME-style overrides. */
+function legacyGemmaHomeDir() {
+  return joinPath(homedir(), ".gemma-code");
+}
+
+export async function runDoctor(flags, stdout = process.stdout, stderr = process.stderr) {
+  const mod = await loadDoctorReport();
+
+  const home = typeof flags.home === "string" ? flags.home : nexusHomeDir();
+  const legacyHome =
+    typeof flags["legacy-home"] === "string" ? flags["legacy-home"] : legacyGemmaHomeDir();
+  // Reuse the audit's skill-root resolver so duplicate-skill detection spans
+  // the same builtin / user / devai-hub trio (or the --skills-root override).
+  const skillRoots = skillRootsFor(flags);
+
+  const inputs = {
+    nexusHome: home,
+    legacyGemmaHome: legacyHome,
+    skillRoots,
+    migrationReport: flags["migration-report"] === true || flags["migration-report"] === "true",
+  };
+  if (typeof flags["stale-days"] === "string") {
+    const n = Number.parseInt(flags["stale-days"], 10);
+    if (Number.isFinite(n) && n >= 0) inputs.staleCacheDays = n;
+  }
+
+  const report = mod.buildDoctorReport(inputs);
+  if (flags.json === true || flags.json === "true") {
+    stdout.write(JSON.stringify(report, null, 2) + "\n");
+  } else {
+    stdout.write(mod.formatDoctorReport(report));
+  }
+  // Doctor is diagnostic, not a gate: it always exits 0 (a clean report and a
+  // report full of warnings both succeed). Errors loading the artifact throw.
   return 0;
 }
 
@@ -873,6 +932,14 @@ export async function main(argv) {
       return 0;
     }
     return runMemoryCommand(args);
+  }
+
+  if (args.command === "doctor") {
+    if (args.help) {
+      process.stdout.write(HELP);
+      return 0;
+    }
+    return runDoctor(args.flags);
   }
 
   // Pass-through: re-exec the existing sibling CLIs without an extra

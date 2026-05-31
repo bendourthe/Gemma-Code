@@ -283,7 +283,7 @@ No constitution file found at docs/versions/v1/v1.4.0/constitution.md - skipping
 
 #### 5.1 — A6: `nexus doctor --migration-report`
 
-- [ ] T015 Add the doctor subcommand to bin/nexus.mjs
+- [x] T015 Add the doctor subcommand to bin/nexus.mjs
 
 **Objective**: Adopt A6 (re-full): a non-destructive inventory of stale state.
 
@@ -294,7 +294,7 @@ No constitution file found at docs/versions/v1/v1.4.0/constitution.md - skipping
 
 #### 5.2 — A8: PreCompact WIP-detection + checkpoint hook
 
-- [ ] T016 [P] Add a PreCompact WIP-detection handler on core/lifecycle/HookBus.ts
+- [x] T016 [P] Add a PreCompact WIP-detection handler on core/lifecycle/HookBus.ts
 
 **Objective**: Adopt A8 (re-full): warn on in-flight work before context compaction.
 
@@ -305,7 +305,7 @@ No constitution file found at docs/versions/v1/v1.4.0/constitution.md - skipping
 
 #### 5.3 — Testing and Stabilization
 
-- [ ] T017 Run and stabilize Phase 5 tests in tests/integration/ and tests/unit/lifecycle/
+- [x] T017 Run and stabilize Phase 5 tests in tests/integration/ and tests/unit/lifecycle/
 
 **Objective**: Verify the doctor CLI and PreCompact hook.
 
@@ -316,11 +316,11 @@ No constitution file found at docs/versions/v1/v1.4.0/constitution.md - skipping
 
 ### Phase 5 Exit Checklist
 
-- [ ] All sub-tasks completed
-- [ ] All tests passing
-- [ ] No known regressions from prior phases
-- [ ] Session history generated for this phase
-- [ ] Ready to advance to Phase 6
+- [x] All sub-tasks completed
+- [x] All tests passing
+- [x] No known regressions from prior phases
+- [x] Session history generated for this phase
+- [x] Ready to advance to Phase 6
 
 ---
 
