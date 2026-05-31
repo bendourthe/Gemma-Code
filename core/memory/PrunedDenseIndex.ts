@@ -12,10 +12,18 @@
  * `dim=384, outDegree=32` the per-node embedding contribution drops from
  * 1,536 bytes to 128 bytes (a 12x reduction) before counting the text.
  *
- * The implementation is intentionally simpler than full HNSW:
- *   * A single-layer kNN graph built from a one-shot all-pairs scan at
- *     `compact()` time. For corpora <= ~50k nodes this is the same
- *     wall-clock budget as the existing `DenseIndex` linear-scan search.
+ * Graph build (v1.4.0 Phase 7 / gap 4.2.P3.K):
+ *   * The neighbor graph is built with true multi-layer HNSW via the optional
+ *     `hnswlib-node` dependency -- O(N log N) construction that scales past
+ *     ~50k nodes without the quadratic compact time the original all-pairs
+ *     build hit. Only the resulting topology (neighbor indices) is kept; the
+ *     embeddings hnswlib needs during construction are discarded, so the
+ *     LEANN disk-savings are preserved (the file format is unchanged).
+ *   * When `hnswlib-node` is unavailable (its native module did not build) or
+ *     the corpus is tiny (<= HNSW_MIN_NODES, where the quadratic scan is
+ *     trivially cheap and deterministic), the build falls back to the original
+ *     all-pairs kNN scan -- the same graceful-degradation contract LocalEmbedder
+ *     uses for its hash fallback. `lastBuildMethod` reports which path ran.
  *   * Search walks the graph BFS-style from a small set of entry points,
  *     scoring every visited node against the query embedding.
  *   * Recomputed embeddings hit a 512-entry LRU cache (configurable).
@@ -26,10 +34,6 @@
  * the chunk text -- `add(entryId, vec)` is intentionally *not* supported.
  * The Memory-tier policy (Phase 4.3) is responsible for selecting the
  * appropriate ingest path per tier.
- *
- * NOT a substitute for HNSW at very large corpus sizes; the all-pairs scan
- * is `O(N^2)` and becomes the bottleneck past ~100k nodes. The phase
- * benchmark uses a downscaled corpus.
  */
 
 import { promises as fs } from "node:fs";
@@ -45,6 +49,33 @@ export const DEFAULT_OUT_DEGREE = 32;
 export const DEFAULT_EMBED_CACHE_SIZE = 512;
 export const DEFAULT_ENTRY_POINTS = 8;
 export const DEFAULT_BFS_EXPANSION = 4;
+
+/**
+ * Corpus size at/below which `compact()` uses the deterministic all-pairs kNN
+ * scan instead of HNSW. Below this the quadratic scan is trivially cheap and
+ * its determinism keeps the small-fixture tests stable; above it the O(N log N)
+ * HNSW build wins and is the path that scales past ~50k nodes.
+ */
+export const HNSW_MIN_NODES = 256;
+
+/** Build path taken by the most recent `compact()`. */
+export type CompactBuildMethod = "hnsw" | "allpairs" | "none";
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// hnswlib-node is an optional native dependency; loaded lazily and gated behind
+// a try/catch so an absent/unbuildable native module degrades to all-pairs.
+let _hnswModule: any | null | undefined;
+function loadHnsw(): any | null {
+  if (_hnswModule !== undefined) return _hnswModule;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    _hnswModule = require("hnswlib-node");
+  } catch {
+    _hnswModule = null;
+  }
+  return _hnswModule;
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 export interface PrunedDenseIndexOptions {
   readonly dim?: number;
@@ -90,6 +121,9 @@ export class PrunedDenseIndex {
   /** True if the graph topology is stale (adds/deletes since last compact). */
   private _dirty = false;
 
+  /** Which build path the most recent compact() ran (for tests/diagnostics). */
+  private _lastBuild: CompactBuildMethod = "none";
+
   constructor(embedder: Embedder, opts: PrunedDenseIndexOptions = {}) {
     this._embedder = embedder;
     this.dim = opts.dim ?? embedder.dim ?? EMBEDDING_DIM;
@@ -109,6 +143,11 @@ export class PrunedDenseIndex {
   /** Whether the graph topology has been built since the last add/delete. */
   get isCompact(): boolean {
     return !this._dirty;
+  }
+
+  /** Build path taken by the most recent compact(): "hnsw", "allpairs", or "none". */
+  get lastBuildMethod(): CompactBuildMethod {
+    return this._lastBuild;
   }
 
   cacheStats(): { hits: number; misses: number; size: number; capacity: number } {
@@ -172,6 +211,7 @@ export class PrunedDenseIndex {
     this._byId = map;
 
     if (live.length <= 1) {
+      this._lastBuild = "none";
       this._dirty = false;
       return;
     }
@@ -191,35 +231,19 @@ export class PrunedDenseIndex {
       }
     }
 
-    // For each node, find top-K nearest neighbors and store their indices.
+    // Build the kNN adjacency. Prefer multi-layer HNSW (O(N log N)); fall back
+    // to the all-pairs scan for tiny corpora (<= HNSW_MIN_NODES) or when the
+    // hnswlib-node native module is unavailable.
     const adj: Set<number>[] = live.map(() => new Set<number>());
-    for (let i = 0; i < live.length; i += 1) {
-      const target = vecs[i];
-      if (!target) continue;
-      const heap: Array<{ idx: number; score: number }> = [];
-      for (let j = 0; j < live.length; j += 1) {
-        if (i === j) continue;
-        const other = vecs[j];
-        if (!other) continue;
-        const score = cosineSimilarity(target, other);
-        if (heap.length < this.outDegree) {
-          heap.push({ idx: j, score });
-          heap.sort((a, b) => a.score - b.score);
-        } else if (heap[0] && score > heap[0].score) {
-          heap[0] = { idx: j, score };
-          heap.sort((a, b) => a.score - b.score);
-        }
-      }
-      for (const h of heap) {
-        // Undirected: add reverse edges so the kNN graph stays connected even
-        // when a target is far from its neighbors' top-K lists (a known
-        // single-layer kNN failure mode that the LEANN paper addresses with
-        // HNSW's hierarchical layers). Reverse edges add at most outDegree
-        // bytes per node before tombstoning.
-        adj[i]!.add(h.idx);
-        adj[h.idx]!.add(i);
-      }
+    const hnsw = live.length > HNSW_MIN_NODES ? loadHnsw() : null;
+    if (hnsw) {
+      this._buildAdjHnsw(hnsw, vecs, adj);
+      this._lastBuild = "hnsw";
+    } else {
+      this._buildAdjAllPairs(vecs, adj);
+      this._lastBuild = "allpairs";
     }
+
     for (let i = 0; i < live.length; i += 1) {
       live[i]!.edges = Array.from(adj[i]!);
     }
@@ -474,6 +498,79 @@ export class PrunedDenseIndex {
   // ---------------------------------------------------------------------
   // Internals
   // ---------------------------------------------------------------------
+
+  /**
+   * Build the kNN adjacency via multi-layer HNSW (hnswlib-node). Constructs a
+   * cosine-space index over the live embeddings, then queries each node's
+   * outDegree nearest neighbors -- O(N log N) overall vs the all-pairs O(N^2).
+   * Only the neighbor indices are kept; the index (and its vectors) is dropped
+   * when this method returns, preserving the topology-only on-disk format.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _buildAdjHnsw(
+    hnsw: any,
+    vecs: ReadonlyArray<Float32Array | undefined>,
+    adj: Set<number>[],
+  ): void {
+    const n = vecs.length;
+    const efConstruction = Math.max(this.outDegree * 2, 200);
+    const index = new hnsw.HierarchicalNSW("cosine", this.dim);
+    index.initIndex(n, this.outDegree, efConstruction, 100);
+    for (let i = 0; i < n; i += 1) {
+      const v = vecs[i];
+      if (!v || v.length !== this.dim) continue;
+      index.addPoint(Array.from(v), i);
+    }
+    index.setEf(Math.max(this.outDegree * 2, 64));
+    const k = Math.min(this.outDegree + 1, n);
+    for (let i = 0; i < n; i += 1) {
+      const v = vecs[i];
+      if (!v || v.length !== this.dim) continue;
+      let neighbors: number[];
+      try {
+        neighbors = index.searchKnn(Array.from(v), k).neighbors as number[];
+      } catch {
+        continue;
+      }
+      for (const j of neighbors) {
+        if (j === i || j < 0 || j >= n) continue;
+        // Undirected: mirror the reverse edge so the graph stays connected
+        // (same connectivity guarantee the all-pairs build provides).
+        adj[i]!.add(j);
+        adj[j]!.add(i);
+      }
+    }
+  }
+
+  /** All-pairs kNN build (the v1.2.0 fallback for tiny corpora / no hnswlib). */
+  private _buildAdjAllPairs(
+    vecs: ReadonlyArray<Float32Array | undefined>,
+    adj: Set<number>[],
+  ): void {
+    const n = vecs.length;
+    for (let i = 0; i < n; i += 1) {
+      const target = vecs[i];
+      if (!target) continue;
+      const heap: Array<{ idx: number; score: number }> = [];
+      for (let j = 0; j < n; j += 1) {
+        if (i === j) continue;
+        const other = vecs[j];
+        if (!other) continue;
+        const score = cosineSimilarity(target, other);
+        if (heap.length < this.outDegree) {
+          heap.push({ idx: j, score });
+          heap.sort((a, b) => a.score - b.score);
+        } else if (heap[0] && score > heap[0].score) {
+          heap[0] = { idx: j, score };
+          heap.sort((a, b) => a.score - b.score);
+        }
+      }
+      for (const h of heap) {
+        adj[i]!.add(h.idx);
+        adj[h.idx]!.add(i);
+      }
+    }
+  }
 
   private async _linearSearch(query: Float32Array, limit: number): Promise<DenseHit[]> {
     const hits: DenseHit[] = [];

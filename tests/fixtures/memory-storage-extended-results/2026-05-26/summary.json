@@ -7,28 +7,28 @@
   "codegraphFixture": "tests/fixtures/codegraph-benchmark-repo/",
   "bytesBySubsystem": {
     "denseStandard": 3088902,
-    "densePruned": 576954,
+    "densePruned": 574202,
     "bm25": 51,
     "codegraph": 73728
   },
   "totals": {
     "standardTotal": 3162681,
-    "prunedTotal": 650733
+    "prunedTotal": 647981
   },
   "ratios": {
     "denseOnly": {
-      "value": 0.1868,
-      "percent": "18.68%"
+      "value": 0.1859,
+      "percent": "18.59%"
     },
     "combined": {
-      "value": 0.2058,
-      "percent": "20.58%"
+      "value": 0.2049,
+      "percent": "20.49%"
     }
   },
   "stabilityGates": {
     "denseOnly": {
       "ratioMax": 0.2,
-      "achieved": 0.1868,
+      "achieved": 0.1859,
       "passed": true
     }
   }
