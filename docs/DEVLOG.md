@@ -4,6 +4,30 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-06-02] v1.4.0 Phase 8 -- Wiring, Deferrals & the P1 CVE
+
+### Goal
+
+Close every remaining open known-gap that is not blocked on Nexus-Hub ([docs/versions/v1/v1.4.0/plans/adoption-claude-code-harness.md](versions/v1/v1.4.0/plans/adoption-claude-code-harness.md), T025-T031): the lone P1 protobufjs CVE chain, the tested-but-orphaned parsers/hooks, the documented deferrals, and the benchmarks. Stability gate: `npm run check:audit-prod` clean with no remaining inherited high/critical advisory; all referenced gap IDs marked resolved; full suite green. Two decisions were confirmed with the user up front: run the full phase committing per sub-task, and attempt the `@huggingface/transformers` migration for the CVE with a re-justified-allowlist fallback if the embedder broke.
+
+### What changed
+
+**T025 (`7.x.P1.D`) embedder migration (commit `b048438`).** `@xenova/transformers@2.17.2` is its final release (abandoned), so plan option (a) was dead. Migrated [core/memory/LocalEmbedder.ts](versions/../../core/memory/LocalEmbedder.ts) to the maintained successor `@huggingface/transformers@4.x`, whose `onnxruntime-web@1.26` drops `onnx-proto` and pulls patched `protobufjs@^7.2.4`; the only call-site change is `quantized: true` -> `dtype: "q8"` (the dynamic-import + hash-fallback contract is unchanged). `check:audit-prod` went from 1 critical + 3 high + 1 moderate to 0 critical / 0 high / 1 moderate (the unrelated `brace-expansion`, still allowlisted); the allowlist in `scripts/check-prod-audit.mjs` was reduced accordingly.
+
+**T026 (`5.3.P2.R`, `5.3.P3.S`, `6.1.P3.W`) permissions.deny + ignore-parser unification (commit `a076f0d`).** Gave the orphaned `core/storage/PermissionsDeny.ts` a live caller: a central, deny-first gate in `ToolRegistry.execute` (`setPermissionsDeny` + a `DENY_SUBJECT_PARAM` map covering run_terminal + the file tools), loaded from `.nexus/permissions.deny` at panel bootstrap. Collapsed `RepoScanner`'s inline ignore parser onto the shared `core/storage/NexusIgnore` (FileWatcher already used it). The `no-orphans` warning on `PermissionsDeny.ts` cleared (11 -> 10).
+
+**T027 (`5.4.P3.T`, `5.2.P3.Q`, `5.1.P2.P`, `5.1.P2.O`) lifecycle + explore-policy wiring (commit `3a2852f`).** Created a session `HookBus` at bootstrap and attached the reflection hook; `AgentLoop` now emits `lifecycle.session.reflection` at session end. `SkillLoader` parses `pathScope` frontmatter and `AgentLoop.reevaluateSkillsForPath` recomputes the active path-scoped skill set on focus change. `SubAgentPolicy.mcpToolLooksReadOnly` admits read-only MCP tools under explore intent; `5.1.P2.O` was already satisfied because the dispatcher moved to `modules/coding/agents` in T020.
+
+**T028 (`6.2.P2.X`, `6.2.P3.Y`, `6.3.P2.Z`) LSP prompts + desktop DOMPurify (commit `fd04d4e`).** The LSP missing-server error now embeds the per-platform install command (`lspInstallInstructions`); the definition/references subset is documented closed (won't-expand); `desktop/src/components/InteractiveArtifact.tsx` switched from a hand-rolled DOMParser walk to `isomorphic-dompurify`.
+
+**T029 (`2.4.P2.E`, `2.4.P3.F`, `4.3.P3.M`, `4.x.P3.N`, `3.4.P3.H`, `3.5.P3.I`, `6.1.P3.U`) hygiene deferrals (commit `0672871`).** Deleted the dead `preToolHook` module + test; implemented the codegraph-trim system-prompt notice (`computeToolActivation` -> `trimmedCodegraph` -> `PromptContext.toolCapNotice`); closed five items with documented rationale (keep tee footer on result; keep `.mjs` migration wrapper; `ingestFile` is the canonical code-aware entry; codegraph stays in-process; keep `fs.watch`).
+
+**T030 (`4.4.P2.L`, `7.1.P2.A`, `T012.P2.C`, `T013.P3.D`) benchmarks + audit (commit `dcd843f`).** Published the 100k memory-tier sweep ([docs/versions/v1/v1.4.0/benchmarks/memory-storage-size-2026-06-02.md](versions/v1/v1.4.0/benchmarks/memory-storage-size-2026-06-02.md)) -- `lastBuildMethod: hnsw`, recall 96.5%, unblocked by the Phase 7 HNSW build (the ~61s compact is why it exceeds the 60s CI gate). Widened `scanUsage` to accept multiple skill roots. Closed the token-benchmark (deterministic-synthesis-canonical) and MinHash (not-a-cost-driver at ~230 skills) items with rationale.
+
+**Verification (T031).** Full suite 3901 passed (+13), 0 failed; desktop suite 418 passed; `check:audit-prod` 0 high/critical; `tsc -b` clean; `eslint src modules` + desktop lint clean; `check-architecture` 0 errors / 10 warnings; `check:tampering` 0 findings; `security:check` in sync. See [known-gaps.md](versions/v1/v1.4.0/known-gaps.md): 22 carryforward gaps resolved (40 total this cycle), **0 new gaps**, only the 4 Nexus-Hub-dependent items remain for Phase 9.
+
+---
+
 ## [2026-05-31] v1.4.0 Phase 7 -- Architectural Carryforward
 
 ### Goal

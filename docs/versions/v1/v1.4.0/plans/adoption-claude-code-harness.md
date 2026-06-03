@@ -447,7 +447,7 @@ No constitution file found at docs/versions/v1/v1.4.0/constitution.md - skipping
 
 #### 8.1 — Resolve the protobufjs CVE chain (P1)
 
-- [ ] T025 [from v1.2.0 known-gaps: 7.x.P1.D] Resolve the protobufjs CVE chain via @xenova/transformers in package.json
+- [x] T025 [from v1.2.0 known-gaps: 7.x.P1.D] Resolve the protobufjs CVE chain via @xenova/transformers in package.json
 
 **Objective**: Resolve `7.x.P1.D` (BG, P1): the only P1 carryforward.
 
@@ -458,7 +458,7 @@ No constitution file found at docs/versions/v1/v1.4.0/constitution.md - skipping
 
 #### 8.2 — Wire permissions.deny + unify the codegraph ignore parser
 
-- [ ] T026 [from v1.2.0 known-gaps: 5.3.P2.R, 5.3.P3.S, 6.1.P3.W] Wire PermissionsDeny into the tool gate and unify RepoScanner ignore parsing onto core/storage/NexusIgnore.ts
+- [x] T026 [from v1.2.0 known-gaps: 5.3.P2.R, 5.3.P3.S, 6.1.P3.W] Wire PermissionsDeny into the tool gate and unify RepoScanner ignore parsing onto core/storage/NexusIgnore.ts
 
 **Objective**: Resolve `5.3.P2.R` (WN, P2), `5.3.P3.S` (DF, P3), `6.1.P3.W` (DF, P3).
 
@@ -469,7 +469,7 @@ No constitution file found at docs/versions/v1/v1.4.0/constitution.md - skipping
 
 #### 8.3 — Live-wire deferred lifecycle hooks & explore policy
 
-- [ ] T027 [P] [from v1.2.0 known-gaps: 5.4.P3.T, 5.2.P3.Q, 5.1.P2.P, 5.1.P2.O] Live-wire session-reflection, path-scope reevaluation, and explore-MCP classification in core/coding/ and src/agents/
+- [x] T027 [P] [from v1.2.0 known-gaps: 5.4.P3.T, 5.2.P3.Q, 5.1.P2.P, 5.1.P2.O] Live-wire session-reflection, path-scope reevaluation, and explore-MCP classification in core/coding/ and src/agents/
 
 **Objective**: Resolve `5.4.P3.T`, `5.2.P3.Q`, `5.1.P2.P`, `5.1.P2.O`.
 
@@ -480,7 +480,7 @@ No constitution file found at docs/versions/v1/v1.4.0/constitution.md - skipping
 
 #### 8.4 — LSP installer bundling, broader LSP, desktop sanitiser
 
-- [ ] T028 [P] [from v1.2.0 known-gaps: 6.2.P2.X, 6.2.P3.Y, 6.3.P2.Z] Add LSP-server install prompts in core/coding/lsp/LspClient.ts and adopt DOMPurify in desktop/src/components/InteractiveArtifact.tsx
+- [x] T028 [P] [from v1.2.0 known-gaps: 6.2.P2.X, 6.2.P3.Y, 6.3.P2.Z] Add LSP-server install prompts in core/coding/lsp/LspClient.ts and adopt DOMPurify in desktop/src/components/InteractiveArtifact.tsx
 
 **Objective**: Resolve `6.2.P2.X` (DF, P2), `6.2.P3.Y` (DF, P3), `6.3.P2.Z` (DF, P2).
 
@@ -491,7 +491,7 @@ No constitution file found at docs/versions/v1/v1.4.0/constitution.md - skipping
 
 #### 8.5 — Remaining hygiene & low-severity deferrals
 
-- [ ] T029 [P] [from v1.2.0 known-gaps: 2.4.P2.E, 2.4.P3.F, 4.3.P3.M, 4.x.P3.N, 3.4.P3.H, 3.5.P3.I, 6.1.P3.U] Clear remaining deferrals across src/tools/handlers/, core/memory/, and core/storage/
+- [x] T029 [P] [from v1.2.0 known-gaps: 2.4.P2.E, 2.4.P3.F, 4.3.P3.M, 4.x.P3.N, 3.4.P3.H, 3.5.P3.I, 6.1.P3.U] Clear remaining deferrals across src/tools/handlers/, core/memory/, and core/storage/
 
 **Objective**: Resolve the remaining v1.2.0 P2/P3 hygiene deferrals.
 
@@ -502,7 +502,7 @@ No constitution file found at docs/versions/v1/v1.4.0/constitution.md - skipping
 
 #### 8.6 — Benchmarks + v1.3.0 audit deferrals
 
-- [ ] T030 [P] [from v1.2.0 known-gaps: 4.4.P2.L, 7.1.P2.A; from v1.3.0 known-gaps: T012.P2.C, T013.P3.D] Run the 100k benchmark + skills-audit multi-root scan in tests/ and benchmarks/
+- [x] T030 [P] [from v1.2.0 known-gaps: 4.4.P2.L, 7.1.P2.A; from v1.3.0 known-gaps: T012.P2.C, T013.P3.D] Run the 100k benchmark + skills-audit multi-root scan in tests/ and benchmarks/
 
 **Objective**: Resolve `4.4.P2.L` (MT, P2), `7.1.P2.A` (DF, P2), `T012.P2.C` (DF, P2), `T013.P3.D` (DF, P3).
 
@@ -513,7 +513,7 @@ No constitution file found at docs/versions/v1/v1.4.0/constitution.md - skipping
 
 #### 8.7 — Testing and Stabilization + known-gaps ledger update
 
-- [ ] T031 Run and stabilize Phase 8 tests and recompute docs/versions/v1/v1.4.0/known-gaps.md
+- [x] T031 Run and stabilize Phase 8 tests and recompute docs/versions/v1/v1.4.0/known-gaps.md
 
 **Objective**: Prove every wiring/deferral closed and the audit gate clean.
 
@@ -524,11 +524,11 @@ No constitution file found at docs/versions/v1/v1.4.0/constitution.md - skipping
 
 ### Phase 8 Exit Checklist
 
-- [ ] All sub-tasks completed
-- [ ] All tests passing
-- [ ] No known regressions from prior phases
-- [ ] Session history generated for this phase
-- [ ] Ready to advance to Phase 9
+- [x] All sub-tasks completed
+- [x] All tests passing
+- [x] No known regressions from prior phases
+- [x] Session history generated for this phase
+- [x] Ready to advance to Phase 9
 
 ---
 
