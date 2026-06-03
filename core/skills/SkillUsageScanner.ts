@@ -36,8 +36,15 @@ export interface SkillUsage {
 }
 
 export interface ScanUsageOptions {
-  /** Directory tree to enumerate the skill universe from (one SKILL.md per skill). */
-  skillsRoot: string;
+  /**
+   * Directory tree(s) to enumerate the skill universe from (one SKILL.md per
+   * skill). v1.4.0 Phase 8 (gap T012.P2.C): accepts an array so the Unused
+   * report can span multiple roots (e.g. the user root + the devai-hub root)
+   * in one pass. Roots are walked in order; the first root to define a given
+   * skill id wins, so list the higher-precedence root first. A single string
+   * is still accepted for back-compat.
+   */
+  skillsRoot: string | readonly string[];
   /** Session-log root to scan. Defaults to `~/.nexus/sessions/`. */
   sessionsRoot?: string;
   /** Look-back window in months. Defaults to 3. */
@@ -188,8 +195,11 @@ export async function scanUsage(opts: ScanUsageOptions): Promise<Map<string, Ski
   const deepLogs = opts.deepLogs ?? false;
 
   // --- Build the skill universe (id -> absolute SKILL.md path). ---
+  // v1.4.0 Phase 8 (gap T012.P2.C): walk every supplied root in order so a
+  // multi-root catalog (user + devai-hub) produces a single combined report.
+  const roots = typeof opts.skillsRoot === "string" ? [opts.skillsRoot] : opts.skillsRoot;
   const skillFiles: string[] = [];
-  walkSkillFiles(opts.skillsRoot, skillFiles);
+  for (const root of roots) walkSkillFiles(root, skillFiles);
   const idToPath = new Map<string, string>();
   for (const file of skillFiles) {
     const id = skillIdFor(file);

@@ -119,4 +119,34 @@ describe("scanUsage", () => {
     const usage = await scanUsage({ skillsRoot, sessionsRoot, months: 12 });
     expect(usage.get("omega")!.matchCount).toBe(1);
   });
+
+  it("spans multiple skill roots in one pass (gap T012.P2.C)", async () => {
+    // A second root (e.g. the devai-hub catalog) alongside the user root.
+    const devaiRoot = path.join(root, "devai-hub");
+    const dir = path.join(devaiRoot, "sigma");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, "SKILL.md"),
+      `---\nname: sigma\ndescription: Skill sigma.\n---\n\n# sigma\n`,
+      "utf8",
+    );
+
+    const usage = await scanUsage({
+      skillsRoot: [skillsRoot, devaiRoot],
+      sessionsRoot,
+      months: 3,
+    });
+    // The combined universe spans both roots.
+    expect(new Set(usage.keys())).toEqual(
+      new Set(["alpha", "beta", "gamma", "delta", "omega", "sigma"]),
+    );
+    // Usage signals still resolve against the user-root skills.
+    expect(usage.get("alpha")!.matchCount).toBeGreaterThanOrEqual(1);
+    expect(usage.get("sigma")).toEqual({ lastSeen: null, matchCount: 0 });
+  });
+
+  it("accepts a single string root (back-compat)", async () => {
+    const usage = await scanUsage({ skillsRoot, sessionsRoot, months: 3 });
+    expect(usage.has("alpha")).toBe(true);
+  });
 });

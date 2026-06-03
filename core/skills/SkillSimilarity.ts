@@ -12,9 +12,15 @@
  * description, so two skills with identical bodies but different descriptions
  * still register as near-duplicates.
  *
- * Cost: for a 213-skill catalog this is O(N^2) ~= 22,000 comparisons -- fine
- * without indexing. If the catalog doubles, a MinHash / LSH pre-filter is the
- * natural next step (deferred until the benchmark in Phase 7 says it is needed).
+ * Cost: for a ~230-skill catalog this is O(N^2) ~= 26,000 normalized-body
+ * comparisons -- single-digit milliseconds, no indexing needed.
+ *
+ * v1.4.0 Phase 8 (gap T013.P3.D, CLOSED not-a-cost-driver): the MinHash / LSH
+ * pre-filter was to be added "if the full-catalog benchmark shows similarity as
+ * a cost driver". At the current catalog size the exact all-pairs Jaccard pass
+ * is negligible (O(N^2) over a few hundred items), so the pre-filter is not
+ * warranted and is not added. The trigger condition is a materially larger
+ * catalog (roughly an order of magnitude); reopen with a fresh benchmark then.
  */
 
 import type { Skill } from "./SkillCatalog.js";
