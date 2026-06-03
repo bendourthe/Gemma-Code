@@ -1,14 +1,23 @@
 /**
  * v1.1.0 Phase 5.1 -- local embedder.
  *
- * Wraps `@xenova/transformers` + the `all-MiniLM-L6-v2` ONNX weights (384-dim)
- * so memory writes can be embedded entirely on-device. Production hosts get
- * the weights from the Phase 14 installer payload (unpacked at
+ * Wraps `@huggingface/transformers` + the `all-MiniLM-L6-v2` ONNX weights
+ * (384-dim) so memory writes can be embedded entirely on-device. Production
+ * hosts get the weights from the Phase 14 installer payload (unpacked at
  * `~/.nexus/runtimes/embedder/all-MiniLM-L6-v2/`). Dev hosts fall back to
  * downloading them from the Hugging Face Hub on first use.
  *
- * The class deliberately keeps `@xenova/transformers` as an optional
- * dependency (`require()` at construction time, gated behind a try/catch)
+ * v1.4.0 Phase 8 (gap 7.x.P1.D): migrated off the abandoned
+ * `@xenova/transformers@2.17.2` (its `onnxruntime-web@1.14` -> `onnx-proto`
+ * -> `protobufjs@6.x` chain carried a critical + three high advisories) to
+ * `@huggingface/transformers@4.x`, the maintained successor whose
+ * `onnxruntime-web@1.26` drops `onnx-proto` and pulls `protobufjs@^7.2.4`
+ * (patched). The pipeline API is compatible; the only call-site change is
+ * `quantized: true` -> `dtype: "q8"` (transformers.js v3 renamed the option).
+ * The `Xenova/all-MiniLM-L6-v2` model repo still loads under the new package.
+ *
+ * The class deliberately keeps the transformer package as an optional
+ * dependency (dynamic `import()` at first use, gated behind a try/catch)
  * so the rest of the codebase -- including unit tests -- still builds and
  * runs when the binary-heavy transformer package is not installed. When the
  * package is unavailable, `LocalEmbedder` falls back to a deterministic
@@ -79,15 +88,15 @@ export interface Embedder {
   readonly backend: "transformers" | "hash-fallback";
 }
 
-interface XenovaPipelineFn {
+interface TransformersPipelineFn {
   (text: string | string[], opts?: Record<string, unknown>): Promise<{
     data: Float32Array | number[];
     dims?: number[];
   }>;
 }
 
-interface XenovaPipelineFactory {
-  (task: string, model: string, opts?: Record<string, unknown>): Promise<XenovaPipelineFn>;
+interface TransformersPipelineFactory {
+  (task: string, model: string, opts?: Record<string, unknown>): Promise<TransformersPipelineFn>;
 }
 
 /**
@@ -100,7 +109,7 @@ export class LocalEmbedder implements Embedder {
   private readonly _weightsPath: string;
   private readonly _modelId: string;
   private readonly _forceFallback: boolean;
-  private _pipeline: XenovaPipelineFn | null = null;
+  private _pipeline: TransformersPipelineFn | null = null;
   private _loadAttempted = false;
   private _backend: "transformers" | "hash-fallback" = "hash-fallback";
 
@@ -158,16 +167,19 @@ export class LocalEmbedder implements Embedder {
     this._loadAttempted = true;
     if (this._forceFallback) return;
     try {
-      const mod: unknown = await dynamicImport("@xenova/transformers");
+      const mod: unknown = await dynamicImport("@huggingface/transformers");
       const env = (mod as { env?: Record<string, unknown> }).env;
       if (env) {
         env["allowLocalModels"] = true;
         env["localModelPath"] = path.dirname(this._weightsPath);
       }
-      const pipelineFactory = (mod as { pipeline?: XenovaPipelineFactory }).pipeline;
+      const pipelineFactory = (mod as { pipeline?: TransformersPipelineFactory }).pipeline;
       if (!pipelineFactory) return;
+      // transformers.js v3 renamed the `quantized: true` option to
+      // `dtype: "q8"`; the bundled installer payload is the quantized ONNX
+      // model (`model_quantized.onnx`), so request the int8 weights.
       this._pipeline = await pipelineFactory("feature-extraction", this._modelId, {
-        quantized: true,
+        dtype: "q8",
       });
       this._backend = "transformers";
     } catch {

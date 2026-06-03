@@ -3,27 +3,30 @@
  * v1.2.0 cycle close -- production-deps audit gate with an allowlist for
  * documented inherited CVE chains.
  *
- * Background: `npm audit --omit=dev --audit-level=moderate` fails the CI
- * audit-ts gate on a chain of moderate / high / critical advisories that
- * Nexus inherits transitively through `@xenova/transformers@2.17.2` (the
- * local-embedder backbone shipped in v1.1.0 Phase 5):
+ * v1.4.0 Phase 8 (gap 7.x.P1.D, RESOLVED): the protobufjs CVE chain that
+ * previously dominated this gate --
  *
- *   @xenova/transformers -> onnxruntime-web -> onnx-proto -> protobufjs
+ *   @xenova/transformers@2.17.2 -> onnxruntime-web@1.14 -> onnx-proto -> protobufjs@6.x
  *
- * The npm-suggested fix downgrades `@xenova/transformers` to 2.0.1, a
- * semver-major rollback that would break every memory-ingest call site.
- * A `npm overrides` bump of `protobufjs` to >=7.5.8 would cross a major
- * version boundary across onnx-proto's API surface and almost certainly
- * break onnxruntime-web's ONNX model loading. The proper long-term fix
- * is migrating to `@huggingface/transformers` v4.x (a separate plan),
- * tracked in `docs/versions/v1/v1.2.0/known-gaps.md` entry `7.x.P1.D`.
+ * (one critical + three high advisories) was eliminated by migrating the
+ * local embedder off the abandoned `@xenova/transformers` (2.17.2 was its
+ * final release) to its maintained successor `@huggingface/transformers@4.x`.
+ * The new package's `onnxruntime-web@1.26` drops `onnx-proto` entirely and
+ * pulls `protobufjs@^7.2.4` (patched), so `@xenova/transformers`,
+ * `onnxruntime-web`, `onnx-proto`, and `protobufjs` no longer appear in the
+ * production audit and have been removed from the allowlist below. See
+ * `core/memory/LocalEmbedder.ts` for the call-site migration.
+ *
+ * What remains allowlisted: `brace-expansion` -- a moderate-severity DoS
+ * (GHSA-jxxr-4gwj-5jf2) carried as a deep transitive in the production tree
+ * (via minimatch and friends); `npm dedupe` only fixes it locally and reverts
+ * on the next `npm ci`, and no non-major upstream bump is available.
  *
  * Behaviour:
  *   1. Run `npm audit --omit=dev --json`.
- *   2. Filter out the documented allowlisted chain by package name.
+ *   2. Filter out the documented allowlisted package(s) by name.
  *   3. If any non-allowlisted advisory has severity >= moderate -> fail.
- *   4. If only allowlisted advisories remain -> pass with a summary that
- *      references the known-gaps entry.
+ *   4. If only allowlisted advisories remain -> pass with a summary.
  *
  * Exit codes:
  *   0  pass (clean OR only allowlisted)
@@ -35,14 +38,12 @@ import { spawnSync } from "node:child_process";
 import process from "node:process";
 
 const ALLOWLIST = new Set([
-  // Tracked in known-gaps 7.x.P1.D: @xenova/transformers transitive chain.
-  "@xenova/transformers",
-  "onnxruntime-web",
-  "onnx-proto",
-  "protobufjs",
-  // Tracked alongside 7.x.P1.D: brace-expansion moderate-severity DoS
-  // (GHSA-jxxr-4gwj-5jf2) carried as a transitive in the production
-  // tree; npm dedupe would only fix it locally and revert on next `npm ci`.
+  // brace-expansion moderate-severity DoS (GHSA-jxxr-4gwj-5jf2) carried as a
+  // deep transitive in the production tree; npm dedupe would only fix it
+  // locally and revert on the next `npm ci`, and no non-major upstream bump
+  // is available. The @xenova/transformers -> onnx-proto -> protobufjs chain
+  // that used to be allowlisted here was resolved in v1.4.0 Phase 8 by the
+  // migration to @huggingface/transformers@4.x (see header).
   "brace-expansion",
 ]);
 
@@ -125,7 +126,7 @@ function main() {
 
   if (allowed.length > 0) {
     process.stdout.write(
-      "[check-prod-audit] Allowlisted (tracked in known-gaps 7.x.P1.D):\n",
+      "[check-prod-audit] Allowlisted (documented inherited transitives):\n",
     );
     for (const a of allowed) {
       process.stdout.write(`  - ${a.name} (${a.severity}) via ${formatVia(a.via)}\n`);
