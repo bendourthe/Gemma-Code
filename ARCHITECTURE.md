@@ -184,9 +184,9 @@ All inference runs locally. No data leaves the developer's machine.
 
 | Component | File | Purpose |
 |-----------|------|---------|
-| OllamaClient | `src/llm/OllamaClient.ts` | HTTP client for Ollama REST API (implements `LLMClient`) |
-| ConversationManager | `src/chat/ConversationManager.ts` | Message history and system prompt management |
-| StreamingPipeline | `src/chat/StreamingPipeline.ts` | Streaming token relay to webview |
+| OllamaClient | `modules/coding/llm/OllamaClient.ts` | HTTP client for Ollama REST API (implements `LLMClient`) |
+| ConversationManager | `modules/coding/chat/ConversationManager.ts` | Message history and system prompt management |
+| StreamingPipeline | `modules/coding/chat/StreamingPipeline.ts` | Streaming token relay to webview |
 | AgentLoop | `src/tools/AgentLoop.ts` | Multi-turn tool execution loop |
 | ToolRegistry | `src/tools/ToolRegistry.ts` | Tool name-to-handler dispatch |
 | GemmaCodePanel | `src/panels/GemmaCodePanel.ts` | Webview chat UI provider and orchestrator |
@@ -197,14 +197,14 @@ All inference runs locally. No data leaves the developer's machine.
 | Component | File | Purpose |
 |-----------|------|---------|
 | Gemma4ToolFormat | `src/tools/Gemma4ToolFormat.ts` | Native `<\|tool_call>` / `<\|tool_result>` protocol |
-| PromptBuilder | `src/chat/PromptBuilder.ts` | Dynamic system prompt assembly with token budgeting |
-| PromptBudget | `src/config/PromptBudget.ts` | Token budget allocation calculator |
-| CompactionPipeline | `src/chat/CompactionStrategy.ts` | 5-strategy context compaction (cheapest first) |
+| PromptBuilder | `modules/coding/chat/PromptBuilder.ts` | Dynamic system prompt assembly with token budgeting |
+| PromptBudget | `modules/coding/config/PromptBudget.ts` | Token budget allocation calculator |
+| CompactionPipeline | `modules/coding/chat/CompactionStrategy.ts` | 5-strategy context compaction (cheapest first) |
 | MemoryStore | `src/storage/MemoryStore.ts` | Persistent cross-session memory (SQLite FTS5 + embeddings) |
 | EmbeddingClient | `src/storage/EmbeddingClient.ts` | Ollama embedding interface for semantic search |
 | ToolActivationRules | `src/tools/ToolActivationRules.ts` | Context-dependent tool enable/disable with 15-tool cap |
-| McpManager | `src/mcp/McpManager.ts` | MCP client/server lifecycle and configuration |
-| SubAgentManager | `src/agents/SubAgentManager.ts` | Verification, research, and planning sub-agents |
+| McpManager | `modules/coding/mcp/McpManager.ts` | MCP client/server lifecycle and configuration |
+| SubAgentManager | `modules/coding/agents/SubAgentManager.ts` | Verification, research, and planning sub-agents |
 
 ## Token Budget Allocation
 
@@ -230,13 +230,13 @@ This replaces the v0.1.0 custom XML protocol. See [docs/archive/versions/v0/v0.1
 
 | Component | File | Purpose |
 |-----------|------|---------|
-| GpuDetector | `src/config/GpuDetector.ts` | Multi-platform GPU/VRAM auto-detection |
-| HardwareTier | `src/config/HardwareTier.ts` | 3-tier classification (constrained/balanced/full) |
+| GpuDetector | `modules/coding/config/GpuDetector.ts` | Multi-platform GPU/VRAM auto-detection |
+| HardwareTier | `modules/coding/config/HardwareTier.ts` | 3-tier classification (constrained/balanced/full) |
 | BudgetMiddleware | `src/tools/BudgetMiddleware.ts` | Token/iteration budget enforcement per tier |
 | LazyToolLoader | `src/tools/LazyToolLoader.ts` | On-demand tool schema loading (40%+ token savings) |
 | OutputRedirector | `src/tools/OutputRedirector.ts` | Large tool result redirection to temp files |
-| RegenerateFromSource | `src/chat/RegenerateFromSource.ts` | Compaction via source file re-reading |
-| RelevanceScorer | `src/chat/RelevanceScorer.ts` | Multi-signal prompt section ranking |
+| RegenerateFromSource | `modules/coding/chat/RegenerateFromSource.ts` | Compaction via source file re-reading |
+| RelevanceScorer | `modules/coding/chat/RelevanceScorer.ts` | Multi-signal prompt section ranking |
 | ConversationSync | `src/storage/ConversationSync.ts` | JSONL session sync for grep-based self-search |
 | WorkingMemory | `src/storage/WorkingMemory.ts` | Layer 1: ephemeral in-context task state |
 | EpisodicMemory | `src/storage/EpisodicMemory.ts` | Layer 2: structured session event logs with provenance |
@@ -264,7 +264,7 @@ This replaces the v0.1.0 custom XML protocol. See [docs/archive/versions/v0/v0.1
 
 Gemma 4 discovers the available tools through the static tool catalogue in [src/tools/ToolCatalog.ts](src/tools/ToolCatalog.ts). Each entry declares the tool's `name` (the exact string the agent emits inside `<|tool_call>`), a one-line `description` with a usage example for non-obvious calls, and a `parameters` map of `{ type, description, required }` per parameter that maps directly onto the JSON Schema the Ollama tool API expects.
 
-[src/chat/PromptBuilder.ts](src/chat/PromptBuilder.ts) projects the catalogue (filtered through [src/tools/ToolActivationRules.ts](src/tools/ToolActivationRules.ts) for the current session context) into the system prompt on every turn. The agent therefore sees an up-to-date schema without having to ask. When a model picks a name not in the catalogue, [src/tools/ToolRegistry.ts](src/tools/ToolRegistry.ts) returns a structured error pointing the agent at `get_tool_schema` — the in-extension equivalent of `--help`. The discovery surface is the catalogue metadata itself; `get_tool_schema` is the named recovery handle for the model when it has drifted off the registered names.
+[modules/coding/chat/PromptBuilder.ts](modules/coding/chat/PromptBuilder.ts) projects the catalogue (filtered through [src/tools/ToolActivationRules.ts](src/tools/ToolActivationRules.ts) for the current session context) into the system prompt on every turn. The agent therefore sees an up-to-date schema without having to ask. When a model picks a name not in the catalogue, [src/tools/ToolRegistry.ts](src/tools/ToolRegistry.ts) returns a structured error pointing the agent at `get_tool_schema` — the in-extension equivalent of `--help`. The discovery surface is the catalogue metadata itself; `get_tool_schema` is the named recovery handle for the model when it has drifted off the registered names.
 
 When you add a new tool, update [src/tools/ToolCatalog.ts](src/tools/ToolCatalog.ts), document it in [docs/archive/versions/v0/v0.5.0/tool-audit.md](docs/archive/versions/v0/v0.5.0/tool-audit.md), and ensure every error path in the handler carries the parameter name and a `Usage:` hint per the actionability convention from v0.5.0 Phase 2.
 

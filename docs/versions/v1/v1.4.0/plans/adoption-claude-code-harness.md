@@ -374,7 +374,7 @@ No constitution file found at docs/versions/v1/v1.4.0/constitution.md - skipping
 
 #### 7.1 — Complete the src/ -> modules/coding/ move
 
-- [ ] T020 [from v1.1.0 known-gaps: 1.4.P1.B] Migrate the 12 remaining src/ sub-trees into modules/coding/
+- [x] T020 [from v1.1.0 known-gaps: 1.4.P1.B] Migrate the 12 remaining src/ sub-trees into modules/coding/
 
 **Objective**: Resolve `1.4.P1.B` (DF, P1): finish the wholesale `src/` -> `modules/coding/` move.
 
@@ -385,7 +385,7 @@ No constitution file found at docs/versions/v1/v1.4.0/constitution.md - skipping
 
 #### 7.2 — TypeScript project-references wiring
 
-- [ ] T021 [from v1.1.0 known-gaps: 1.1.P1.A] Wire tsc -b project references across core/, modules/coding/, desktop/sidecar/ via core/tsconfig.json
+- [x] T021 [from v1.1.0 known-gaps: 1.1.P1.A] Wire tsc -b project references across core/, modules/coding/, desktop/sidecar/ via core/tsconfig.json
 
 **Objective**: Resolve `1.1.P1.A` (DF, P1): land the project-references build.
 
@@ -396,7 +396,7 @@ No constitution file found at docs/versions/v1/v1.4.0/constitution.md - skipping
 
 #### 7.3 — Tree-sitter scanner swap (+ dependents)
 
-- [ ] T022 [from v1.2.0 known-gaps: 3.3.P2.G] Swap the regex extractor for a Tree-sitter scanner behind core/codegraph/scanner/index.ts
+- [x] T022 [from v1.2.0 known-gaps: 3.3.P2.G] Swap the regex extractor for a Tree-sitter scanner behind core/codegraph/scanner/index.ts
 
 **Objective**: Resolve `3.3.P2.G` (DF, P2) and inherit into `4.1.P2.J` and `6.1.P3.V`.
 
@@ -407,7 +407,7 @@ No constitution file found at docs/versions/v1/v1.4.0/constitution.md - skipping
 
 #### 7.4 — Multi-layer HNSW PrunedDenseIndex
 
-- [ ] T023 [P] [from v1.2.0 known-gaps: 4.2.P3.K] Port PrunedDenseIndex to multi-layer HNSW in core/memory/PrunedDenseIndex.ts
+- [x] T023 [P] [from v1.2.0 known-gaps: 4.2.P3.K] Port PrunedDenseIndex to multi-layer HNSW in core/memory/PrunedDenseIndex.ts
 
 **Objective**: Resolve `4.2.P3.K` (DF, P3): replace the O(N^2) single-layer kNN graph build.
 
@@ -418,7 +418,7 @@ No constitution file found at docs/versions/v1/v1.4.0/constitution.md - skipping
 
 #### 7.5 — Testing and Stabilization
 
-- [ ] T024 Run and stabilize Phase 7 tests across tests/ after the architectural move
+- [x] T024 Run and stabilize Phase 7 tests across tests/ after the architectural move
 
 **Objective**: Prove the structural changes preserve behavior.
 
@@ -429,11 +429,11 @@ No constitution file found at docs/versions/v1/v1.4.0/constitution.md - skipping
 
 ### Phase 7 Exit Checklist
 
-- [ ] All sub-tasks completed
-- [ ] All tests passing
-- [ ] No known regressions from prior phases
-- [ ] Session history generated for this phase
-- [ ] Ready to advance to Phase 8
+- [x] All sub-tasks completed
+- [x] All tests passing
+- [x] No known regressions from prior phases
+- [x] Session history generated for this phase
+- [x] Ready to advance to Phase 8
 
 ---
 
