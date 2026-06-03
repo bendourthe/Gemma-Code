@@ -16,6 +16,7 @@ import { EventEmitter } from "node:events";
 import type { ChildProcess } from "node:child_process";
 import {
   LspClient,
+  lspInstallInstructions,
   type LspChildProcessLauncher,
   type LspLanguage,
 } from "../../../../core/coding/lsp/LspClient.js";
@@ -107,6 +108,8 @@ describe("LspClient", () => {
     });
     expect(res.ok).toBe(false);
     expect(res.error).toMatch(/not installed/);
+    // v1.4.0 Phase 8 (gap 6.2.P2.X): the error surfaces the install command.
+    expect(res.error).toContain("npm install -g typescript-language-server");
     expect(missingNotice).not.toBeNull();
     expect(missingNotice!.lang).toBe("typescript");
     // Subsequent calls do not re-warn.
@@ -266,6 +269,17 @@ describe("LspClient", () => {
     expect(res.ok).toBe(false);
     expect(res.error).toMatch(/timed out/);
     await client.shutdown();
+  });
+
+  it("lspInstallInstructions returns per-platform install commands (gap 6.2.P2.X)", () => {
+    expect(lspInstallInstructions("typescript")).toContain(
+      "npm install -g typescript-language-server",
+    );
+    expect(lspInstallInstructions("python")).toContain("python-lsp-server");
+    expect(lspInstallInstructions("rust", "linux")).toBe(
+      "rustup component add rust-analyzer",
+    );
+    expect(lspInstallInstructions("rust", "darwin")).toContain("brew install rust-analyzer");
   });
 
   it("isServerAvailable reflects launcher result", () => {

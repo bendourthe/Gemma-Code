@@ -20,10 +20,17 @@
  *   - No streaming workspace symbols, no completion, no diagnostics
  *     subscription. The narrow surface matches the plan's "symbol-precise
  *     references" goal without dragging the full protocol in.
+ *   - v1.4.0 Phase 8 (gap 6.2.P3.Y, CLOSED won't-expand): the definition /
+ *     references subset is intentional and stays the supported surface. No
+ *     consumer needs completion / hover / rename / diagnostics, and the
+ *     codegraph + grep tools already cover broader navigation; widening the
+ *     protocol here would add a streaming-state machine with no caller. If a
+ *     future feature needs more LSP methods, reopen as a fresh cycle item.
  *   - Server presence is detected lazily; if the binary is missing the
  *     installer warning surfaces via `LspClient.isServerAvailable(...)`
  *     and the two MCP tools degrade to a structured "lsp server missing"
- *     error rather than silently falling back to grep.
+ *     error that now carries the per-platform install command (gap 6.2.P2.X)
+ *     rather than silently falling back to grep.
  *
  * DEVIATION (logged in `docs/versions/v1/v1.2.0/known-gaps.md`): the plan prompt
  * lists `typescript-language-server`, `pylsp`, and `rust-analyzer`. The
@@ -63,6 +70,29 @@ export const DEFAULT_LSP_SERVERS: Record<LspLanguage, LspServerConfig> = Object.
     args: [],
   }),
 });
+
+/**
+ * v1.4.0 Phase 8 (gap 6.2.P2.X): opt-in installer guidance. When an LSP server
+ * binary is absent the LSP tools used to degrade with only a "see installer
+ * logs" notice; this returns the recommended per-platform install command so
+ * the operator can enable the LSP path themselves. We never auto-install -- the
+ * runtime is no-network by policy -- so this is informational prompt text only.
+ */
+export function lspInstallInstructions(
+  language: LspLanguage,
+  platform: NodeJS.Platform = process.platform,
+): string {
+  switch (language) {
+    case "typescript":
+      return "npm install -g typescript-language-server typescript";
+    case "python":
+      return 'pipx install "python-lsp-server[all]" (or: pip install python-lsp-server)';
+    case "rust":
+      return platform === "darwin"
+        ? "rustup component add rust-analyzer (or: brew install rust-analyzer)"
+        : "rustup component add rust-analyzer";
+  }
+}
 
 export interface LspPosition {
   readonly line: number;
@@ -249,10 +279,13 @@ export class LspClient {
   ): Promise<LspResult<LspLocation>> {
     const server = this._ensureServer(req.language);
     if (!server) {
+      // v1.4.0 Phase 8 (gap 6.2.P2.X): surface the per-platform install command
+      // so the LSP path is recoverable rather than silently absent.
       return Object.freeze({
         ok: false,
-        error: `LSP server for ${req.language} is not installed. ` +
-          `See installer-smoke logs for the missing-binary notice.`,
+        error: `LSP server for ${req.language} (${this._servers[req.language].displayName}) ` +
+          `is not installed. Install it with: ${lspInstallInstructions(req.language)}. ` +
+          `Then retry; see installer-smoke logs for the missing-binary notice.`,
       });
     }
     try {

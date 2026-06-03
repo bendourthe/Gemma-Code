@@ -32,6 +32,7 @@ import {
   useState,
   type CSSProperties,
 } from "react";
+import DOMPurify from "isomorphic-dompurify";
 
 export interface InteractiveArtifactProps {
   /** Raw HTML body (the wrapper sanitises before rendering). */
@@ -228,69 +229,21 @@ function collectFormState(form: HTMLFormElement): Record<string, FormValue> {
 
 /**
  * Strip the script vectors from `html` before embedding via
- * `dangerouslySetInnerHTML`. The implementation uses the browser's own
- * DOMParser to walk the tree, drops dangerous tags wholesale, and
- * removes `on*` event-handler attributes plus `javascript:` URLs from
- * `href` / `src`.
+ * `dangerouslySetInnerHTML`.
  *
- * Scope: this is the minimum-surface defence appropriate for content
- * the local agent itself emitted. Renderable network-sourced HTML
- * would warrant DOMPurify; that broader policy is deliberately out of
- * scope for this re-partial phase.
+ * v1.4.0 Phase 8 (gap 6.3.P2.Z): this now delegates to DOMPurify via
+ * `isomorphic-dompurify` (browser + jsdom/SSR), replacing the prior
+ * hand-rolled DOMParser walk. DOMPurify strips `<script>`, `on*`
+ * event-handler attributes, and `javascript:` URLs by default; we
+ * additionally forbid the structural tags the artifact host never needs so
+ * the surface matches (and hardens) the previous allowlist. Centralising on
+ * the maintained sanitiser removes the bespoke walk and covers network-sourced
+ * HTML should the host ever render it.
  */
-const FORBIDDEN_TAGS = new Set([
-  "SCRIPT",
-  "STYLE",
-  "IFRAME",
-  "OBJECT",
-  "EMBED",
-  "LINK",
-  "META",
-  "BASE",
-]);
-
-const FORBIDDEN_ATTR_PREFIX = "on";
+const FORBIDDEN_TAGS = ["style", "iframe", "object", "embed", "link", "meta", "base"];
 
 function sanitiseArtifactHtml(html: string): string {
-  if (typeof DOMParser === "undefined") {
-    // Server-side / non-DOM environment: strip nothing structural but
-    // remove the most common script vectors via regex. This branch is
-    // only reachable in non-test SSR contexts.
-    return html
-      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
-      .replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, "")
-      .replace(/\son[a-z]+\s*=\s*'[^']*'/gi, "")
-      .replace(/javascript:[^"'\s>]+/gi, "");
-  }
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(`<div>${html}</div>`, "text/html");
-  const root = doc.body.firstElementChild;
-  if (!root) return "";
-  walkAndScrub(root);
-  return root.innerHTML;
-}
-
-function walkAndScrub(node: Element): void {
-  // Snapshot children first because we may remove them as we go.
-  const children = Array.from(node.children);
-  for (const child of children) {
-    if (FORBIDDEN_TAGS.has(child.tagName)) {
-      child.remove();
-      continue;
-    }
-    for (const attr of Array.from(child.attributes)) {
-      const name = attr.name.toLowerCase();
-      if (name.startsWith(FORBIDDEN_ATTR_PREFIX)) {
-        child.removeAttribute(attr.name);
-        continue;
-      }
-      if ((name === "href" || name === "src" || name === "action") &&
-          /^\s*javascript:/i.test(attr.value)) {
-        child.removeAttribute(attr.name);
-      }
-    }
-    walkAndScrub(child);
-  }
+  return DOMPurify.sanitize(html, { FORBID_TAGS: FORBIDDEN_TAGS });
 }
 
 function fallbackCopy(text: string): boolean {
