@@ -2,6 +2,10 @@ import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
 import { parsePermissionsDeny } from "../../core/storage/PermissionsDeny.js";
+import { createHookBus } from "../../core/lifecycle/HookBus.js";
+import { attachSessionReflectionHook } from "../../core/lifecycle/SessionReflectionHook.js";
+import { matchPathScope } from "../../core/skills/SkillCatalog.js";
+import type { PathScopedSkillSource } from "../tools/AgentLoop.js";
 import { ConversationManager } from "../../modules/coding/chat/ConversationManager.js";
 import type { ContextCompactor } from "../../modules/coding/chat/ContextCompactor.js";
 import { CompressionState } from "../../modules/coding/chat/state/CompressionState.js";
@@ -306,6 +310,40 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
     postMessage: input.hostPostMessage,
   });
 
+  const extensionFsPath = extensionUri.fsPath ?? "";
+  const catalogDir = path.join(extensionFsPath, "modules", "coding", "skills", "catalog");
+  const skillLoader = new SkillLoader(catalogDir);
+  skillLoader.load();
+  skillLoader.watch();
+
+  // v1.4.0 Phase 8 (gap 5.4.P3.T): a single in-process lifecycle bus per
+  // session. The reflection hook subscribes here; AgentLoop emits
+  // `lifecycle.session.reflection` at session end (see AgentLoop._emitSessionStop),
+  // so the hook drafts <nexusHome>/reflections/<sessionId>.md for human review.
+  const hookBus = createHookBus();
+  attachSessionReflectionHook(hookBus);
+
+  // v1.4.0 Phase 8 (gap 5.2.P3.Q): a path-scoped skill source backed by the
+  // SkillLoader. AgentLoop calls reevaluatePathScope at the start of each run
+  // (via activeEditPathProvider) so path-scoped skills activate / deactivate as
+  // the editing focus changes. Skills with no `pathScope` frontmatter stay
+  // global. Provenance is reported as `user` (the loader's user/catalog dirs).
+  const skillCatalog: PathScopedSkillSource = {
+    reevaluatePathScope(currentPath) {
+      return skillLoader
+        .listSkills()
+        .filter((s) => matchPathScope(s.metadata.pathScope, currentPath))
+        .map((s) => ({ id: s.name, provenance: { source: "user" as const } }));
+    },
+  };
+  const activeEditPathProvider = (): string | null => {
+    const editorPath = vscode.window.activeTextEditor?.document.uri.fsPath;
+    if (!editorPath || !workspacePath) return null;
+    const rel = path.relative(workspacePath, editorPath);
+    if (rel.startsWith("..") || path.isAbsolute(rel)) return null;
+    return rel.replace(/\\/g, "/");
+  };
+
   const agentLoop = ChatController.buildAgentLoop({
     client,
     manager,
@@ -322,6 +360,9 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
     gitSafetyNet,
     tracer: runtime.tracer,
     operationLog,
+    hookBus,
+    skillCatalog,
+    activeEditPathProvider,
   });
 
   const pipeline = ChatController.buildStreamingPipeline({
@@ -332,12 +373,6 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
     ollamaOptions,
     ollamaTools,
   });
-
-  const extensionFsPath = extensionUri.fsPath ?? "";
-  const catalogDir = path.join(extensionFsPath, "modules", "coding", "skills", "catalog");
-  const skillLoader = new SkillLoader(catalogDir);
-  skillLoader.load();
-  skillLoader.watch();
 
   // v0.8.0 Phase 5 sub-task 5.1: per-skill rolling 30-day metrics. The recorder
   // emits Tracer events tagged `skill.<name>.<outcome>` so trace dashboards

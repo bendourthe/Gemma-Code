@@ -13,7 +13,8 @@ import type { WorkingMemory } from "../storage/WorkingMemory.js";
 import type { EpisodicMemory } from "../storage/EpisodicMemory.js";
 import type { MemoryConsolidator } from "../storage/MemoryConsolidator.js";
 import { SubAgentManager } from "../../modules/coding/agents/SubAgentManager.js";
-import { AgentLoop } from "../tools/AgentLoop.js";
+import { AgentLoop, type PathScopedSkillSource } from "../tools/AgentLoop.js";
+import type { HookBus } from "../../core/lifecycle/HookBus.js";
 import type { ToolRegistry } from "../tools/ToolRegistry.js";
 import type { OllamaToolDefinition } from "../../modules/coding/llm/types.js";
 import type { LLMClient } from "../../modules/coding/llm/types.js";
@@ -96,6 +97,12 @@ export interface AgentLoopBuildDeps {
   readonly gitSafetyNet: GitSafetyNet | null;
   readonly tracer: Tracer;
   readonly operationLog: OperationLog | null;
+  /** v1.4.0 Phase 8 (gap 5.4.P3.T): lifecycle bus for session.reflection + the A8 PreCompact hook. */
+  readonly hookBus?: HookBus;
+  /** v1.4.0 Phase 8 (gap 5.2.P3.Q): path-scoped skill source for focus-change reevaluation. */
+  readonly skillCatalog?: PathScopedSkillSource;
+  /** v1.4.0 Phase 8 (gap 5.2.P3.Q): supplies the active editing path at run start. */
+  readonly activeEditPathProvider?: () => string | null;
 }
 
 /**
@@ -241,6 +248,9 @@ export class ChatController {
         operationLog: deps.operationLog ?? undefined,
         passStateGating: deps.settings.passStateGating,
         subAgentVerificationCredit: deps.settings.passStateSubAgentCredit,
+        hookBus: deps.hookBus,
+        skillCatalog: deps.skillCatalog,
+        activeEditPathProvider: deps.activeEditPathProvider,
       },
     );
   }

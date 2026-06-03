@@ -33,6 +33,8 @@ import {
   EXPLORE_READONLY_TOOLS,
   evaluateExploreToolCall,
   lintExploreSpecialist as lintExploreSpecialistImpl,
+  isMcpToolName,
+  mcpToolLooksReadOnly,
 } from "../../../core/coding/SubAgentPolicy.js";
 import type { ToolHandler, ToolResult } from "../../../src/tools/types.js";
 
@@ -264,9 +266,18 @@ export class SubAgentManager implements SubAgentSpawner {
         // before.
         "run_terminal",
       ]);
+      // v1.4.0 Phase 8 (gap 5.1.P2.P): under explore intent a tool survives the
+      // narrowing if it is in the built-in read-only allowlist OR it is a
+      // dynamically-discovered MCP tool whose name advertises no mutation verb.
+      // MCP tools cannot be pre-listed (they arrive at runtime from arbitrary
+      // servers), so they are auto-classified by name heuristic here.
       const effectiveToolScope =
         config.intent === "explore"
-          ? baseToolScope.filter((t) => exploreAllowlist.has(t))
+          ? baseToolScope.filter(
+              (t) =>
+                exploreAllowlist.has(t) ||
+                (isMcpToolName(t) && mcpToolLooksReadOnly(t)),
+            )
           : baseToolScope;
 
       // Build a scoped tool registry with only the allowed tools. When a

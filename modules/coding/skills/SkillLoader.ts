@@ -21,6 +21,16 @@ export const DEFAULT_SKILL_VERSION = "1.0.0";
 export interface SkillMetadata {
   tags: readonly string[];
   relatedSkills: readonly string[];
+  /**
+   * v1.4.0 Phase 8 (gap 5.2.P3.Q) -- optional path scoping. When present, the
+   * skill is only active while the agent's editing focus matches at least one
+   * `include` glob and no `exclude` glob (see `core/skills/PathScope.ts`).
+   * Absent -> the skill is globally available (the pre-Phase-8 default).
+   */
+  pathScope?: {
+    readonly include?: readonly string[];
+    readonly exclude?: readonly string[];
+  };
 }
 
 export interface Skill {
@@ -136,9 +146,28 @@ function loadSkillFromDir(skillDir: string): Skill | null {
     metadata: {
       tags: parseFlowArray(meta["metadata.tags"]),
       relatedSkills: parseFlowArray(meta["metadata.related_skills"]),
+      ...parsePathScope(meta),
     },
     prompt: body,
   };
+}
+
+/**
+ * v1.4.0 Phase 8 (gap 5.2.P3.Q) -- read the optional `pathScope.include` /
+ * `pathScope.exclude` flow arrays from the flattened frontmatter. Returns
+ * `{ pathScope }` only when at least one bound is present so the metadata
+ * object stays minimal (and `pathScope` undefined means "global", the default).
+ */
+function parsePathScope(
+  meta: Record<string, string>,
+): { pathScope?: SkillMetadata["pathScope"] } {
+  const include = parseFlowArray(meta["pathScope.include"]);
+  const exclude = parseFlowArray(meta["pathScope.exclude"]);
+  if (include.length === 0 && exclude.length === 0) return {};
+  const pathScope: { include?: readonly string[]; exclude?: readonly string[] } = {};
+  if (include.length > 0) pathScope.include = include;
+  if (exclude.length > 0) pathScope.exclude = exclude;
+  return { pathScope };
 }
 
 // ---------------------------------------------------------------------------

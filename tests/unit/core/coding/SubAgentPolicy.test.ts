@@ -6,6 +6,8 @@ import {
   EXPLORE_READONLY_TOOLS,
   EXPLORE_READONLY_BASH_COMMANDS,
   EXPLORE_READONLY_GIT_SUBCOMMANDS,
+  isMcpToolName,
+  mcpToolLooksReadOnly,
 } from "../../../../core/coding/SubAgentPolicy.js";
 
 describe("SubAgentPolicy.evaluateExploreToolCall", () => {
@@ -210,5 +212,36 @@ describe("SubAgentPolicy constants", () => {
     expect(EXPLORE_READONLY_BASH_COMMANDS).toContain("git");
     expect(EXPLORE_READONLY_GIT_SUBCOMMANDS).toContain("status");
     expect(EXPLORE_READONLY_GIT_SUBCOMMANDS).not.toContain("push");
+  });
+});
+
+describe("SubAgentPolicy MCP read-only classification (gap 5.1.P2.P)", () => {
+  it("recognises MCP-qualified tool names", () => {
+    expect(isMcpToolName("mcp:github/get_issue")).toBe(true);
+    expect(isMcpToolName("mcp__slack__read_messages")).toBe(true);
+    expect(isMcpToolName("read_file")).toBe(false);
+    expect(isMcpToolName("codegraph_search")).toBe(false);
+  });
+
+  it("classifies read-verb MCP tools as read-only", () => {
+    expect(mcpToolLooksReadOnly("mcp:github/get_issue")).toBe(true);
+    expect(mcpToolLooksReadOnly("mcp:db/query_rows")).toBe(true);
+    expect(mcpToolLooksReadOnly("mcp:fs/list_directory")).toBe(true);
+    expect(mcpToolLooksReadOnly("mcp__search__find")).toBe(true);
+  });
+
+  it("rejects MCP tools whose name advertises a mutation verb", () => {
+    expect(mcpToolLooksReadOnly("mcp:github/create_issue")).toBe(false);
+    expect(mcpToolLooksReadOnly("mcp:fs/write_file")).toBe(false);
+    expect(mcpToolLooksReadOnly("mcp:db/delete_row")).toBe(false);
+    expect(mcpToolLooksReadOnly("mcp:slack/send_message")).toBe(false);
+    expect(mcpToolLooksReadOnly("mcp:deploy/run_pipeline")).toBe(false);
+  });
+
+  it("only classifies MCP-qualified names (built-ins return false)", () => {
+    // Built-in tools are gated by the explicit EXPLORE_READONLY_TOOLS list,
+    // not by the name heuristic; the heuristic must not opine on them.
+    expect(mcpToolLooksReadOnly("read_file")).toBe(false);
+    expect(mcpToolLooksReadOnly("write_file")).toBe(false);
   });
 });

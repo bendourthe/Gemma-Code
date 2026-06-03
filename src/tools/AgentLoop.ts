@@ -147,6 +147,35 @@ export interface AgentLoopOptions {
    * When omitted the emits are no-ops (legacy behavior).
    */
   readonly hookBus?: HookBus;
+  /**
+   * v1.4.0 Phase 8 (gap 5.2.P3.Q) -- optional path-scoped skill source. When
+   * provided, {@link AgentLoop.reevaluateSkillsForPath} recomputes the active
+   * skill set as the agent's editing focus changes and emits a
+   * `lifecycle.skill.entry` for each newly-active path-scoped skill. When
+   * omitted the method is a no-op (legacy behavior).
+   */
+  readonly skillCatalog?: PathScopedSkillSource;
+  /**
+   * v1.4.0 Phase 8 (gap 5.2.P3.Q) -- supplies the agent's current editing
+   * focus (workspace-relative path, or null) at the start of each run. When
+   * both this and `skillCatalog` are provided, the loop reevaluates the
+   * path-scoped skill set at run start so skills activate/deactivate as the
+   * focus changes between turns.
+   */
+  readonly activeEditPathProvider?: () => string | null;
+}
+
+/**
+ * v1.4.0 Phase 8 (gap 5.2.P3.Q) -- the minimal structural surface the loop
+ * needs from a skill catalog: recompute the visible skill set for the active
+ * editing path. Satisfied by `core/skills/SkillCatalog.InMemorySkillCatalog`
+ * (its `reevaluatePathScope` returns `SkillRecord[]`). Kept structural so
+ * `src/tools` does not take a hard dependency on the core skills module.
+ */
+export interface PathScopedSkillSource {
+  reevaluatePathScope(
+    currentPath: string | null,
+  ): readonly { readonly id: string; readonly provenance: { readonly source: "builtin" | "user" | "devai-hub" } }[];
 }
 
 export class AgentLoop {
@@ -179,6 +208,10 @@ export class AgentLoop {
   private readonly _passStateGating: boolean;
   private readonly _subAgentVerificationCredit: boolean;
   private readonly _hookBus?: HookBus;
+  private readonly _skillCatalog?: PathScopedSkillSource;
+  private readonly _activeEditPathProvider?: () => string | null;
+  /** v1.4.0 Phase 8 (gap 5.2.P3.Q): ids of the currently-active path-scoped skills. */
+  private _activePathScopedSkillIds: readonly string[] = [];
   /**
    * Resets at the start of `run()` and flips to true when a
    * verification-class tool call succeeds. Used by the pass-state gate to
@@ -230,6 +263,8 @@ export class AgentLoop {
     this._passStateGating = options?.passStateGating ?? true;
     this._subAgentVerificationCredit = options?.subAgentVerificationCredit ?? true;
     this._hookBus = options?.hookBus;
+    this._skillCatalog = options?.skillCatalog;
+    this._activeEditPathProvider = options?.activeEditPathProvider;
   }
 
   /**
@@ -297,6 +332,41 @@ export class AgentLoop {
         parentSpanId: this._rootSpanId || undefined,
       });
     }
+  }
+
+  /**
+   * v1.4.0 Phase 8 (gap 5.2.P3.Q) -- recompute the active path-scoped skill
+   * set as the agent's editing focus changes. Callers invoke this when the
+   * active editor / CWD changes (the panel wires it to
+   * `onDidChangeActiveTextEditor`). When a skill catalog is wired, it asks the
+   * catalog for the skills visible at `activeEditPath` and emits a
+   * `lifecycle.skill.entry` for each newly-active path-scoped skill (mirroring
+   * {@link setCurrentSkill}'s audit signal), then returns the active id set.
+   * A no-op returning the prior set when no catalog is wired.
+   */
+  reevaluateSkillsForPath(activeEditPath: string | null): readonly string[] {
+    if (!this._skillCatalog) return this._activePathScopedSkillIds;
+    const records = this._skillCatalog.reevaluatePathScope(activeEditPath);
+    const previous = new Set(this._activePathScopedSkillIds);
+    if (this._hookBus && this._sessionId) {
+      for (const record of records) {
+        if (previous.has(record.id)) continue;
+        this._hookBus.emit({
+          kind: "lifecycle.skill.entry",
+          sessionId: this._sessionId,
+          skillId: record.id,
+          namespace: record.provenance.source,
+          parentSpanId: this._rootSpanId || undefined,
+        });
+      }
+    }
+    this._activePathScopedSkillIds = records.map((r) => r.id);
+    return this._activePathScopedSkillIds;
+  }
+
+  /** v1.4.0 Phase 8 (gap 5.2.P3.Q): the active path-scoped skill ids (test/debug surface). */
+  getActivePathScopedSkillIds(): readonly string[] {
+    return this._activePathScopedSkillIds;
   }
 
   /** Manually spawn a sub-agent. Returns the sub-agent's result. */
@@ -372,6 +442,14 @@ export class AgentLoop {
       });
     }
 
+    // v1.4.0 Phase 8 (gap 5.2.P3.Q): reevaluate path-scoped skills against the
+    // current editing focus at the start of each run, so skills activate /
+    // deactivate as the focus changes between turns. No-op unless both a
+    // skill catalog and an active-edit-path provider are wired.
+    if (this._skillCatalog && this._activeEditPathProvider) {
+      this.reevaluateSkillsForPath(this._activeEditPathProvider());
+    }
+
     // Pass trace context to compactor so compaction spans are linked.
     if (this._compactor) {
       this._compactor.setTraceContext(this._traceId, this._rootSpanId);
@@ -421,12 +499,45 @@ export class AgentLoop {
   private _emitSessionStop(startedAtMs: number): void {
     if (!this._hookBus || !this._sessionId) return;
     const stopMs = Date.now();
+    const isoTime = new Date(stopMs).toISOString();
     this._hookBus.emit({
       kind: "lifecycle.session.stop",
       sessionId: this._sessionId,
-      isoTime: new Date(stopMs).toISOString(),
+      isoTime,
       durationMs: stopMs - startedAtMs,
     });
+    // v1.4.0 Phase 8 (gap 5.4.P3.T): fire the 13th lifecycle event once at
+    // session end, carrying the transcript + the files written this session,
+    // so an attached SessionReflectionHook can draft a reflection artifact.
+    // Guarded by the same hookBus/sessionId check; a no-op when no bus is wired.
+    this._hookBus.emit({
+      kind: "lifecycle.session.reflection",
+      sessionId: this._sessionId,
+      isoTime,
+      transcript: this._buildSessionTranscript(),
+      filesWritten: [...this._modifiedFiles],
+      modelId: this._modelName,
+    });
+  }
+
+  /**
+   * v1.4.0 Phase 8 (gap 5.4.P3.T): join the conversation history into a single
+   * newline-delimited transcript for the reflection event. Defensive against
+   * history shapes that lack a string `content`.
+   */
+  private _buildSessionTranscript(): string {
+    try {
+      return this._manager
+        .getHistory()
+        .map((m) => {
+          const role = typeof m.role === "string" ? m.role : "unknown";
+          const content = typeof m.content === "string" ? m.content : "";
+          return `${role}: ${content}`;
+        })
+        .join("\n\n");
+    } catch {
+      return "";
+    }
   }
 
   /**

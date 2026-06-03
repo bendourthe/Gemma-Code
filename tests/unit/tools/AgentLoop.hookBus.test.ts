@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { AgentLoop } from "../../../src/tools/AgentLoop.js";
+import { AgentLoop, type PathScopedSkillSource } from "../../../src/tools/AgentLoop.js";
 import {
   InProcessHookBus,
   type LifecycleEvent,
@@ -58,7 +58,11 @@ describe("AgentLoop -- HookBus integration (Phase 4.3)", () => {
 
     const kinds = events.map((e) => e.kind);
     expect(kinds[0]).toBe("lifecycle.session.start");
-    expect(kinds[kinds.length - 1]).toBe("lifecycle.session.stop");
+    // v1.4.0 Phase 8 (gap 5.4.P3.T): session.reflection now fires once at the
+    // very end, immediately after session.stop. The run is still bracketed by
+    // start ... stop; reflection is the trailing session-end signal.
+    expect(kinds).toContain("lifecycle.session.stop");
+    expect(kinds[kinds.length - 1]).toBe("lifecycle.session.reflection");
 
     const start = events[0] as Extract<
       LifecycleEvent,
@@ -66,10 +70,9 @@ describe("AgentLoop -- HookBus integration (Phase 4.3)", () => {
     >;
     expect(start.sessionId).toBe("sess-test-1");
     expect(start.modelId).toBe("gemma3:27b");
-    const stop = events[events.length - 1] as Extract<
-      LifecycleEvent,
-      { kind: "lifecycle.session.stop" }
-    >;
+    const stop = events.find(
+      (e) => e.kind === "lifecycle.session.stop",
+    ) as Extract<LifecycleEvent, { kind: "lifecycle.session.stop" }>;
     expect(stop.durationMs).toBeGreaterThanOrEqual(0);
   });
 
@@ -131,5 +134,120 @@ describe("AgentLoop -- HookBus integration (Phase 4.3)", () => {
     const { postMessage } = collectMessages();
     // Should complete without throwing -- the hookBus path is gated.
     await expect(loop.run(postMessage)).resolves.not.toThrow();
+  });
+});
+
+describe("AgentLoop -- session.reflection + path-scoped skills (Phase 8)", () => {
+  let manager: ConversationManager;
+  let registry: ToolRegistry;
+
+  beforeEach(() => {
+    manager = makeManager();
+    registry = makeRegistry();
+  });
+
+  it("emits lifecycle.session.reflection at session end with transcript + filesWritten (gap 5.4.P3.T)", async () => {
+    const client = makeClient("Here is my answer.");
+    const hookBus = new InProcessHookBus();
+    const events: LifecycleEvent[] = [];
+    hookBus.onAny((ev) => events.push(ev));
+
+    const loop = new AgentLoop(
+      client, manager, registry, "gemma3:27b",
+      undefined, undefined, undefined, undefined,
+      { sessionId: "sess-reflect", hookBus },
+    );
+    const { postMessage } = collectMessages();
+    await loop.run(postMessage);
+
+    const reflection = events.find((e) => e.kind === "lifecycle.session.reflection") as Extract<
+      LifecycleEvent,
+      { kind: "lifecycle.session.reflection" }
+    >;
+    expect(reflection).toBeDefined();
+    expect(reflection.sessionId).toBe("sess-reflect");
+    expect(typeof reflection.transcript).toBe("string");
+    expect(Array.isArray(reflection.filesWritten)).toBe(true);
+    expect(reflection.modelId).toBe("gemma3:27b");
+    // The reflection fires after the stop event (session-end handler).
+    const kinds = events.map((e) => e.kind);
+    expect(kinds.lastIndexOf("lifecycle.session.reflection")).toBeGreaterThan(
+      kinds.lastIndexOf("lifecycle.session.stop"),
+    );
+  });
+
+  it("reevaluateSkillsForPath emits skill.entry for newly-active path-scoped skills (gap 5.2.P3.Q)", async () => {
+    const client = makeClient("answer");
+    const hookBus = new InProcessHookBus();
+    const events: LifecycleEvent[] = [];
+    hookBus.onAny((ev) => events.push(ev));
+    const catalog: PathScopedSkillSource = {
+      reevaluatePathScope: (p) =>
+        p === "src/api/server.ts"
+          ? [{ id: "api-skill", provenance: { source: "user" } }]
+          : [],
+    };
+
+    const loop = new AgentLoop(
+      client, manager, registry, "gemma3:27b",
+      undefined, undefined, undefined, undefined,
+      { sessionId: "sess-scope", hookBus, skillCatalog: catalog },
+    );
+
+    const ids = loop.reevaluateSkillsForPath("src/api/server.ts");
+    expect(ids).toEqual(["api-skill"]);
+    expect(loop.getActivePathScopedSkillIds()).toEqual(["api-skill"]);
+
+    const entry = events.find((e) => e.kind === "lifecycle.skill.entry") as Extract<
+      LifecycleEvent,
+      { kind: "lifecycle.skill.entry" }
+    >;
+    expect(entry).toBeDefined();
+    expect(entry.skillId).toBe("api-skill");
+    expect(entry.namespace).toBe("user");
+
+    // Switching focus to an out-of-scope path clears the active set; the
+    // previously-active skill is not re-emitted on the next match.
+    expect(loop.reevaluateSkillsForPath("docs/readme.md")).toEqual([]);
+  });
+
+  it("reevaluates path-scoped skills at run start via activeEditPathProvider (gap 5.2.P3.Q)", async () => {
+    const client = makeClient("answer");
+    const hookBus = new InProcessHookBus();
+    const events: LifecycleEvent[] = [];
+    hookBus.onAny((ev) => events.push(ev));
+    const catalog: PathScopedSkillSource = {
+      reevaluatePathScope: () => [{ id: "focus-skill", provenance: { source: "user" } }],
+    };
+
+    const loop = new AgentLoop(
+      client, manager, registry, "gemma3:27b",
+      undefined, undefined, undefined, undefined,
+      {
+        sessionId: "sess-provider",
+        hookBus,
+        skillCatalog: catalog,
+        activeEditPathProvider: () => "src/index.ts",
+      },
+    );
+    const { postMessage } = collectMessages();
+    await loop.run(postMessage);
+
+    expect(loop.getActivePathScopedSkillIds()).toEqual(["focus-skill"]);
+    const entry = events.find(
+      (e) => e.kind === "lifecycle.skill.entry" && e.skillId === "focus-skill",
+    );
+    expect(entry).toBeDefined();
+  });
+
+  it("reevaluateSkillsForPath is a no-op without a wired catalog", () => {
+    const client = makeClient("answer");
+    const loop = new AgentLoop(
+      client, manager, registry, "gemma3:27b",
+      undefined, undefined, undefined, undefined,
+      { sessionId: "sess-nocat" },
+    );
+    expect(loop.reevaluateSkillsForPath("anything")).toEqual([]);
+    expect(loop.getActivePathScopedSkillIds()).toEqual([]);
   });
 });

@@ -292,6 +292,43 @@ describe("v0.8.0 SKILL.md schema extension", () => {
     expect(skill?.metadata.relatedSkills).toEqual([]);
   });
 
+  it("parses optional pathScope frontmatter (gap 5.2.P3.Q)", () => {
+    writeSkill(
+      catalogDir,
+      "scoped",
+      {
+        name: "scoped",
+        description: "Path-scoped skill",
+        "argument-hint": "[arg]",
+        "pathScope.include": "[src/**, lib/**]",
+        "pathScope.exclude": "[src/legacy/**]",
+      },
+      "Body",
+    );
+
+    const loader = new SkillLoader(catalogDir, userDir);
+    loader.load();
+    const skill = loader.getSkill("scoped");
+
+    expect(skill?.metadata.pathScope).toEqual({
+      include: ["src/**", "lib/**"],
+      exclude: ["src/legacy/**"],
+    });
+  });
+
+  it("leaves pathScope undefined when no bounds are declared (global default)", () => {
+    writeSkill(
+      catalogDir,
+      "global",
+      { name: "global", description: "Global skill", "argument-hint": "[arg]" },
+      "Body",
+    );
+
+    const loader = new SkillLoader(catalogDir, userDir);
+    loader.load();
+    expect(loader.getSkill("global")?.metadata.pathScope).toBeUndefined();
+  });
+
   it("accepts comma-separated platforms without brackets", () => {
     writeSkill(
       catalogDir,

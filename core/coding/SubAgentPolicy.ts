@@ -60,6 +60,40 @@ export const EXPLORE_READONLY_TOOLS: readonly ToolName[] = [
 ];
 
 /**
+ * v1.4.0 Phase 8 (gap 5.1.P2.P) -- write-verb tokens used to auto-classify
+ * dynamically-discovered MCP tools. Built-in tools are vetted by hand into
+ * `EXPLORE_READONLY_TOOLS`, but MCP tools arrive at runtime from arbitrary
+ * servers and cannot be pre-listed. A conservative name heuristic keeps an
+ * explore sub-agent away from any MCP tool whose name advertises a mutation.
+ */
+const MCP_WRITE_VERB_TOKENS: ReadonlySet<string> = new Set([
+  "write", "create", "delete", "edit", "update", "remove", "set", "put",
+  "post", "patch", "append", "insert", "drop", "truncate", "rename", "move",
+  "copy", "mkdir", "rmdir", "exec", "execute", "run", "spawn", "kill",
+  "send", "publish", "push", "commit", "merge", "apply", "save", "upload",
+  "modify", "destroy", "purge", "clear", "reset", "revoke", "grant",
+]);
+
+/**
+ * v1.4.0 Phase 8 (gap 5.1.P2.P) -- decide whether an MCP tool name looks
+ * read-only (so an explore sub-agent may call it). MCP tools are named
+ * `mcp:<server>/<tool>`; this returns true only for MCP-qualified names whose
+ * tokens contain no write verb. Non-MCP names return false (built-in tools are
+ * gated by the explicit `EXPLORE_READONLY_TOOLS` allowlist instead). The check
+ * is deliberately conservative: an unrecognised verb stays allowed, but any
+ * known mutation verb anywhere in the name disqualifies the tool.
+ */
+export function isMcpToolName(toolName: string): boolean {
+  return toolName.startsWith("mcp:") || toolName.startsWith("mcp__");
+}
+
+export function mcpToolLooksReadOnly(toolName: string): boolean {
+  if (!isMcpToolName(toolName)) return false;
+  const tokens = toolName.toLowerCase().split(/[^a-z0-9]+/u).filter(Boolean);
+  return !tokens.some((t) => MCP_WRITE_VERB_TOKENS.has(t));
+}
+
+/**
  * Read-only Bash command allowlist for `intent: 'explore'`. Sub-agents may
  * call `run_terminal` only when the command (first argv token) is one of
  * these.
