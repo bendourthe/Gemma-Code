@@ -9,6 +9,14 @@
  * The server runs **in-process** -- it never spawns a child process, never
  * opens a socket, and never binds a network port. Tests cover this by
  * asserting no listening sockets appear at instantiation.
+ *
+ * v1.4.0 Phase 8 (gap 3.4.P3.H, CLOSED won't-do): the gap asked whether to
+ * also expose this graph over a read-only stdio MCP transport for external
+ * consumers. We deliberately keep it in-process only: no current consumer is
+ * external (the daemon registers it directly via `McpHarnessAdapter`), a stdio
+ * transport would re-introduce the child-process / socket surface this design
+ * explicitly avoids, and the local-first contract favours the in-process path.
+ * Reopen as a fresh cycle item if an out-of-process consumer ever appears.
  */
 
 import type {

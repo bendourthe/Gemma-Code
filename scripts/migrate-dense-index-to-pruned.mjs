@@ -17,6 +17,13 @@
  * The migration logic itself lives in `core/memory/migrateDenseToPruned.ts`
  * so it can be unit-tested. This wrapper only parses argv and prints
  * progress.
+ *
+ * v1.4.0 Phase 8 (gap 4.3.P3.M, CLOSED keep-.mjs): the gap proposed renaming
+ * this wrapper to `.ts` once a `tsconfig.scripts.json` lands. No scripts
+ * tsconfig exists, and the only typed surface (the migration algorithm) is
+ * already the unit-tested `core/memory/migrateDenseToPruned.ts`. This file is
+ * a thin argv/print runner with no logic worth type-checking, so it stays
+ * `.mjs`. Reopen if a scripts-wide tsconfig is introduced.
  */
 
 import { promises as fs } from "node:fs";

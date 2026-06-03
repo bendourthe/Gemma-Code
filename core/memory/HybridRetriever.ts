@@ -159,6 +159,15 @@ export class HybridRetriever {
    * The retriever owns no persistence -- the caller is responsible for
    * mapping chunk ids back to `MemoryHit` rows via `entryProvider` and
    * for invoking `dense.save()` / `bm25.save()` at the cadence it picks.
+   *
+   * v1.4.0 Phase 8 (gap 4.x.P3.N, CLOSED canonical-entry): this is the single
+   * code-aware ingest API -- AST-first chunking via `AstChunker`, `.nexusignore`
+   * honoring, and tier-aware indexing. No production code-aware ingest pathway
+   * exists yet (no "ingest workspace" command / background source indexer), and
+   * the warm-rebuild worker correctly ingests memory-observation rows (not
+   * source files) via `bm25.add` / `dense.add` directly. When a workspace
+   * source-ingest pathway is added, it MUST route here rather than re-adding a
+   * second chunking path; the gap is closed on that contract.
    */
   async ingestFile(input: ChunkFileInput): Promise<IngestFileResult> {
     // Phase 5.3 -- honor .nexusignore by short-circuiting before the

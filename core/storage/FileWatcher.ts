@@ -18,6 +18,11 @@
  * without polling), the public API of `FileWatcher` was chosen to be
  * compatible -- only the internal `_subscribeNative` impl would swap.
  *
+ * v1.4.0 Phase 8 (gap 6.1.P3.U, CLOSED keep-fs.watch): re-confirmed. `fs.watch`
+ * has covered every supported platform across v1.2.0-v1.4.0 with no observed
+ * miss; adding `chokidar` (a sizeable dependency tree) is not justified on
+ * evidence. The swap-ready `_subscribeNative` seam remains if that changes.
+ *
  * Surface required by the Phase 6.1 prompt:
  *   - `watch(rootPath, callback)`: subscribe; the callback receives the
  *     debounced batch of `FileChange` records.

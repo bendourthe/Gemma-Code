@@ -376,6 +376,14 @@ export class RunTerminalTool implements ToolHandler {
             ...(compressed.strategyApplied !== "passthrough"
               ? { strategyApplied: compressed.strategyApplied }
               : {}),
+            // v1.4.0 Phase 8 (gap 2.4.P3.F, CLOSED keep-per-result): the gap
+            // proposed moving this footer into the next-turn system prompt and
+            // dropping the field. We keep it on the result: the footer is only
+            // emitted on compressed results (not every result), and co-locating
+            // the "raw output at <teePath>" hint with the result it describes is
+            // more actionable than a single cross-turn system-prompt line that
+            // can only reference the most-recent tee. Relocating it would add
+            // cross-cutting tool->session->prompt state for a P3 token saving.
             ...(compressed.teePath
               ? {
                   teePath: compressed.teePath,

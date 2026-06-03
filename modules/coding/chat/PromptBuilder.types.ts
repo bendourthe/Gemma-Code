@@ -25,6 +25,13 @@ export interface PromptContext {
   readonly tierName?: string;
   readonly tierVramMb?: number;
   readonly tierModelName?: string;
+  /**
+   * v1.4.0 Phase 8 (gap 3.5.P3.I): set when the tool-count cap trimmed the
+   * `codegraph_*` tools this turn. Rendered as a short system-prompt note so the
+   * agent knows code-graph navigation is unavailable and falls back to grep,
+   * rather than the tools silently disappearing from the catalog.
+   */
+  readonly toolCapNotice?: string;
 }
 
 /** A candidate section for inclusion in the system prompt. */

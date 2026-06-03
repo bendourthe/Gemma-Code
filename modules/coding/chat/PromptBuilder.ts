@@ -202,6 +202,9 @@ export class PromptBuilder {
     const codegraphHint = this._buildCodeGraphPreferenceHint(context);
     if (codegraphHint) sections.push(codegraphHint);
 
+    const toolCapNotice = this._buildToolCapNoticeSection(context);
+    if (toolCapNotice) sections.push(toolCapNotice);
+
     if (context.isSubAgent) {
       // Sub-agents get only: base + tools + sub-agent directive + thinking (if enabled)
       const thinking = this._buildThinkingModeSection(context);
@@ -364,6 +367,28 @@ export class PromptBuilder {
       priority: 2,
       // ~50 tokens; emitted only when at least one codegraph tool is in the
       // enabled set, so it is safe to always include without budget gating.
+      alwaysInclude: true,
+      estimatedTokens: estimateTokens(content),
+    };
+  }
+
+  /**
+   * v1.4.0 Phase 8 (gap 3.5.P3.I): a short notice emitted when the tool-count
+   * cap trimmed the `codegraph_*` tools this turn. Without it the tools simply
+   * vanish from the catalog and the agent has no signal to fall back to grep.
+   * Rendered only when the caller passes `toolCapNotice` (set by
+   * `ToolActivationContext` when `computeToolActivation` reports the trim).
+   */
+  private _buildToolCapNoticeSection(
+    context: PromptContext,
+  ): PromptSection | null {
+    const notice = context.toolCapNotice;
+    if (!notice) return null;
+    const content = `## Tool availability\n${notice}`;
+    return {
+      id: "tool-cap-notice",
+      content,
+      priority: 2,
       alwaysInclude: true,
       estimatedTokens: estimateTokens(content),
     };

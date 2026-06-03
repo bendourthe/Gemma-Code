@@ -102,6 +102,13 @@ export interface ToolActivationContext {
 export interface ToolActivationResult {
   readonly disabledTools: Set<ToolName>;
   readonly reasons: Map<ToolName, string>;
+  /**
+   * v1.4.0 Phase 8 (gap 3.5.P3.I): true when Rule 6 (the tool-count cap) trimmed
+   * at least one `codegraph_*` tool. Lets the prompt builder warn the agent that
+   * code-graph navigation is unavailable this turn (fall back to grep) instead
+   * of the tools silently vanishing from the catalog.
+   */
+  readonly trimmedCodegraph: boolean;
 }
 
 const NETWORK_TOOLS: readonly BuiltinToolName[] = ["web_search", "fetch_page"];
@@ -137,6 +144,7 @@ export function computeToolActivation(
 ): ToolActivationResult {
   const disabled = new Set<ToolName>();
   const reasons = new Map<ToolName, string>();
+  let trimmedCodegraph = false;
 
   function disable(names: readonly ToolName[], reason: string): void {
     for (const name of names) {
@@ -153,7 +161,7 @@ export function computeToolActivation(
       allTools.map((t) => t.name),
       "Ollama is not reachable",
     );
-    return { disabledTools: disabled, reasons };
+    return { disabledTools: disabled, reasons, trimmedCodegraph };
   }
 
   // Rule 2: No network — disable network-dependent tools.
@@ -195,9 +203,10 @@ export function computeToolActivation(
     for (const tool of trimCandidates) {
       if (toDisable <= 0) break;
       disable([tool.name], `Exceeds ${MAX_TOOL_COUNT}-tool limit (priority: ${tool.priority})`);
+      if (String(tool.name).startsWith("codegraph_")) trimmedCodegraph = true;
       toDisable--;
     }
   }
 
-  return { disabledTools: disabled, reasons };
+  return { disabledTools: disabled, reasons, trimmedCodegraph };
 }

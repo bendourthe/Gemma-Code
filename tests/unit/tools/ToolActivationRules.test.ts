@@ -155,6 +155,45 @@ describe("computeToolActivation", () => {
     // Only 1 MCP tool trimmed (16 - 15 = 1)
     const disabledMcp = mcpTools.filter((t) => result.disabledTools.has(t.name));
     expect(disabledMcp).toHaveLength(1);
+    // No codegraph tools present, so the trim flag is false.
+    expect(result.trimmedCodegraph).toBe(false);
+  });
+
+  // Rule 6 + gap 3.5.P3.I: codegraph_* tools are trimmed after MCP, and the
+  // result reports it so the prompt builder can warn the agent.
+  it("flags trimmedCodegraph when the cap trims codegraph_* tools", () => {
+    const codegraph: DynamicToolMetadata[] = [
+      "codegraph_search",
+      "codegraph_context",
+      "codegraph_trace",
+      "codegraph_callers",
+      "codegraph_callees",
+      "codegraph_impact",
+      "codegraph_node",
+      "codegraph_explore",
+    ].map((name) => ({
+      name: name as DynamicToolMetadata["name"],
+      description: name,
+      parameters: {},
+      source: "builtin" as const,
+      priority: 0,
+    }));
+    // 10 core builtins + 8 codegraph = 18, no MCP -> trim 3, all from codegraph.
+    const allTools = [...ALL_BUILTINS, ...codegraph];
+    const result = computeToolActivation(
+      allTools,
+      defaultContext({ totalToolCount: allTools.length }),
+    );
+    expect(result.trimmedCodegraph).toBe(true);
+    // Core builtins are never trimmed.
+    for (const tool of ALL_BUILTINS) {
+      expect(result.disabledTools.has(tool.name)).toBe(false);
+    }
+  });
+
+  it("trimmedCodegraph is false when nothing is trimmed", () => {
+    const result = computeToolActivation(ALL_BUILTINS, defaultContext());
+    expect(result.trimmedCodegraph).toBe(false);
   });
 
   // Composition: multiple rules

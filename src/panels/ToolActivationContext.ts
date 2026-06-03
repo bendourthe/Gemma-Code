@@ -38,12 +38,13 @@ export class ToolActivationContext {
     const deps = this._deps;
     const settings = deps.getSettings();
     const tier = deps.getTierConfig();
+    const activation = this._computeActivation();
     return {
       modelName: settings.modelName,
       maxTokens: tier?.contextWindow ?? settings.maxTokens,
       planModeActive: deps.planMode.active,
       thinkingMode: settings.thinkingMode,
-      enabledTools: this.getEnabledToolMetadata(),
+      enabledTools: activation.enabledMeta,
       promptStyle: settings.promptStyle,
       workspacePath: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
       systemPromptBudgetPercent: settings.systemPromptBudgetPercent,
@@ -53,18 +54,35 @@ export class ToolActivationContext {
       tierName: tier?.name,
       tierVramMb: tier?.vramRange.max,
       tierModelName: tier?.recommendedModels[0]?.modelName,
+      // v1.4.0 Phase 8 (gap 3.5.P3.I): tell the agent when codegraph navigation
+      // was trimmed by the tool-count cap so it falls back to grep.
+      toolCapNotice: activation.trimmedCodegraph
+        ? "The `codegraph_*` navigation tools were trimmed this turn to stay within the tool-count budget. Use `grep_codebase` / `read_file` for symbol lookup and navigation until they return next turn."
+        : undefined,
     };
   }
 
   getEnabledToolMetadata(): DynamicToolMetadata[] {
+    return this._computeActivation().enabledMeta;
+  }
+
+  /**
+   * v1.4.0 Phase 8 (gap 3.5.P3.I): single computeToolActivation pass that both
+   * applies the enable/disable state to the registry and reports whether the
+   * tool-count cap trimmed the codegraph tools (for the prompt notice).
+   */
+  private _computeActivation(): {
+    enabledMeta: DynamicToolMetadata[];
+    trimmedCodegraph: boolean;
+  } {
     const deps = this._deps;
     const builtinTools = TOOL_CATALOG.map(toDynamicMetadata);
     const allTools = [...builtinTools, ...deps.getMcpTools()];
 
     const registry = deps.getRegistry();
-    if (!registry) return builtinTools;
+    if (!registry) return { enabledMeta: builtinTools, trimmedCodegraph: false };
 
-    const { disabledTools } = computeToolActivation(allTools, {
+    const { disabledTools, trimmedCodegraph } = computeToolActivation(allTools, {
       ollamaReachable: deps.getOllamaReachable(),
       networkAvailable: true,
       readOnlySession: false,
@@ -75,7 +93,10 @@ export class ToolActivationContext {
       registry.setEnabled(tool.name, !disabledTools.has(tool.name));
     }
 
-    return registry.getEnabledToolMetadata(allTools);
+    return {
+      enabledMeta: registry.getEnabledToolMetadata(allTools),
+      trimmedCodegraph,
+    };
   }
 
   buildOllamaTools(): OllamaToolDefinition[] {
