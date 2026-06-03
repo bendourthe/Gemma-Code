@@ -30,6 +30,7 @@ import type { EditMode } from "./types.js";
 import type { PostMessageFn } from "../../modules/coding/chat/StreamingPipeline.js";
 import type { CodeGraphHandlerDeps } from "./handlers/codegraph.js";
 import type { LspHandlerDeps } from "./handlers/lsp.js";
+import type { DenyList } from "../../core/storage/PermissionsDeny.js";
 
 export interface ToolRegistryBuildOptions {
   readonly gate: ConfirmationGate;
@@ -72,6 +73,13 @@ export interface ToolRegistryBuildOptions {
    * language servers installed).
    */
   readonly lsp?: LspHandlerDeps;
+  /**
+   * v1.4.0 Phase 8 (gap 5.3.P2.R): the parsed `.nexus/permissions.deny`
+   * denylist. When supplied, the registry refuses write-capable tool calls
+   * whose subject matches a deny rule. Omit (or pass an empty list) to leave
+   * deny-gating off -- the default for every existing caller and test.
+   */
+  readonly permissionsDeny?: DenyList;
 }
 
 /**
@@ -204,6 +212,12 @@ export function buildToolRegistry(opts: ToolRegistryBuildOptions): ToolRegistry 
   }
 
   registry.setConfirmationGate(gate, permissionOverrides, editMode);
+
+  // v1.4.0 Phase 8 (gap 5.3.P2.R): install the operator `.nexus/permissions.deny`
+  // denylist when provided. No-op when omitted.
+  if (opts.permissionsDeny) {
+    registry.setPermissionsDeny(opts.permissionsDeny);
+  }
 
   return registry;
 }

@@ -1,5 +1,7 @@
+import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
+import { parsePermissionsDeny } from "../../core/storage/PermissionsDeny.js";
 import { ConversationManager } from "../../modules/coding/chat/ConversationManager.js";
 import type { ContextCompactor } from "../../modules/coding/chat/ContextCompactor.js";
 import { CompressionState } from "../../modules/coding/chat/state/CompressionState.js";
@@ -228,6 +230,21 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
   // the completion-report renderer (Phase 4.7) consumes the latest snapshot.
   const todoState = new TodoState();
 
+  // v1.4.0 Phase 8 (gap 5.3.P2.R): load the operator `.nexus/permissions.deny`
+  // file (if present) so the registry can refuse write-capable tool calls whose
+  // subject matches a deny rule. Missing file -> undefined -> deny-gating off.
+  const denyRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  let permissionsDeny;
+  if (denyRoot) {
+    try {
+      permissionsDeny = parsePermissionsDeny(
+        fs.readFileSync(path.join(denyRoot, ".nexus", "permissions.deny"), "utf-8"),
+      );
+    } catch {
+      // No deny file (or unreadable) -- leave deny-gating off.
+    }
+  }
+
   registry = buildToolRegistry({
     gate: confirmationGate,
     editMode: settings.editMode,
@@ -235,6 +252,7 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
     permissionOverrides: settings.permissionOverrides,
     toolOutputCache,
     webResponseCache,
+    permissionsDeny,
     compress: {
       deps: {
         conversation: manager,

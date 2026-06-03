@@ -48,6 +48,12 @@ import {
   isLanguageReady,
   extractSymbolsTreeSitter,
 } from "./TreeSitterScanner.js";
+import {
+  parseIgnoreFile,
+  mergeIgnorePatterns,
+  matchesIgnore,
+  type IgnorePatterns,
+} from "../../storage/NexusIgnore.js";
 
 export interface ScannerSourceProvider {
   /**
@@ -138,7 +144,7 @@ export class RepoScanner {
         // Untracked extension: not an error, just nothing to do.
         continue;
       }
-      if (isIgnored(rel, ignore)) {
+      if (matchesIgnore(rel, ignore)) {
         filesSkippedIgnored += 1;
         onFile?.({
           path: rel,
@@ -309,67 +315,34 @@ function languageFor(relativePath: string): CodeGraphLanguage | null {
 // Ignore-file handling
 // ---------------------------------------------------------------------------
 
-interface IgnoreState {
-  readonly directoryNames: ReadonlySet<string>;
-  readonly literalPaths: ReadonlySet<string>;
-  readonly suffixPatterns: readonly string[];
-}
-
+/**
+ * v1.4.0 Phase 8 (gap 6.1.P3.W): build the scanner's ignore set through the
+ * shared `core/storage/NexusIgnore` parser, so the full-scan path here and the
+ * watcher path (`core/storage/FileWatcher`) apply one identical parser instead
+ * of two divergent inline copies. The codegraph-specific default excludes
+ * (`CODEGRAPH_DEFAULT_EXCLUDES`) seed the merge, followed by the repo's
+ * `.gitignore`, `.nexusignore`, and the caller's `extraExcludes`. Matching is
+ * delegated to `matchesIgnore` at the call site.
+ */
 function loadIgnorePatterns(
   rootPath: string,
   extraExcludes: readonly string[],
-): IgnoreState {
-  const directoryNames = new Set<string>(CODEGRAPH_DEFAULT_EXCLUDES);
-  const literalPaths = new Set<string>();
-  const suffixPatterns: string[] = [];
-
-  const addLine = (line: string) => {
-    const trimmed = line.trim();
-    if (trimmed.length === 0 || trimmed.startsWith("#")) return;
-    if (trimmed.startsWith("!")) return; // negation is out of scope for the regex scanner
-    if (trimmed.endsWith("/")) {
-      directoryNames.add(trimmed.slice(0, -1).replace(/^\//, ""));
-      return;
-    }
-    if (trimmed.startsWith("*.")) {
-      suffixPatterns.push(trimmed.slice(1));
-      return;
-    }
-    if (trimmed.startsWith("/")) {
-      literalPaths.add(trimmed.slice(1));
-      return;
-    }
-    if (!trimmed.includes("/") && !trimmed.includes("*")) {
-      directoryNames.add(trimmed);
-      return;
-    }
-    literalPaths.add(trimmed);
-  };
-
+): IgnorePatterns {
+  const sets: IgnorePatterns[] = [
+    parseIgnoreFile(CODEGRAPH_DEFAULT_EXCLUDES.join("\n")),
+  ];
   for (const name of [".gitignore", ".nexusignore"]) {
     const p = path.join(rootPath, name);
     try {
-      const content = fs.readFileSync(p, "utf-8");
-      for (const line of content.split(/\r?\n/)) addLine(line);
+      sets.push(parseIgnoreFile(fs.readFileSync(p, "utf-8")));
     } catch {
       // file missing -- fine
     }
   }
-  for (const extra of extraExcludes) addLine(extra);
-
-  return { directoryNames, literalPaths, suffixPatterns };
-}
-
-function isIgnored(relativePath: string, ignore: IgnoreState): boolean {
-  const parts = relativePath.split(/[\\/]+/);
-  for (const part of parts) {
-    if (ignore.directoryNames.has(part)) return true;
+  if (extraExcludes.length > 0) {
+    sets.push(parseIgnoreFile(extraExcludes.join("\n")));
   }
-  if (ignore.literalPaths.has(relativePath.replace(/\\/g, "/"))) return true;
-  for (const suffix of ignore.suffixPatterns) {
-    if (relativePath.endsWith(suffix)) return true;
-  }
-  return false;
+  return mergeIgnorePatterns(...sets);
 }
 
 // ---------------------------------------------------------------------------

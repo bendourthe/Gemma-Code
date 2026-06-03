@@ -5,6 +5,7 @@ import { applyByteCap, resolveMaxBytes } from "./OutputRedirector.js";
 import type { ConfirmationGate } from "./ConfirmationGate.js";
 import { getPermissionTier, shouldRequireConfirmation, getDangerousWarning, PermissionTier } from "../../modules/coding/guardrails/PermissionTiers.js";
 import { formatForUser } from "../../modules/coding/utils/errors.js";
+import { evaluateDeny, parsePermissionsDeny, type DenyList } from "../../core/storage/PermissionsDeny.js";
 
 // Tools that fire their own diff-bearing confirmation in `ask` mode and a
 // diff-preview in `plan` mode. The centralized gate is skipped for these
@@ -14,6 +15,21 @@ const TOOLS_WITH_PER_TOOL_DIFF_CONFIRMATION: ReadonlySet<ToolName> = new Set([
   "edit_file",
   "create_file",
 ]);
+
+/**
+ * v1.4.0 Phase 8 (gap 5.3.P2.R): the call parameter that supplies the
+ * `subject` matched against a `.nexus/permissions.deny` rule, per write-capable
+ * tool. `run_terminal` matches the shell command; the file-mutating tools match
+ * the target path. Tools absent from this map are never deny-gated (read-only
+ * tools carry no destructive subject worth denying by pattern).
+ */
+const DENY_SUBJECT_PARAM: Readonly<Record<string, string>> = {
+  run_terminal: "command",
+  write_file: "path",
+  edit_file: "path",
+  create_file: "path",
+  delete_file: "path",
+};
 
 /**
  * v0.9.0 Phase 6.6 (from v0.8.0 known-gaps 10.O.Q) -- lazy handler factory.
@@ -35,6 +51,7 @@ export class ToolRegistry {
   private _confirmationGate?: ConfirmationGate;
   private _permissionOverrides?: Record<string, number>;
   private _editMode: EditMode = "auto";
+  private _denyList: DenyList = parsePermissionsDeny(null);
 
   register(name: ToolName, handler: ToolHandler): void {
     this._handlers.set(name, handler);
@@ -143,6 +160,18 @@ export class ToolRegistry {
   }
 
   /**
+   * v1.4.0 Phase 8 (gap 5.3.P2.R): install the parsed `.nexus/permissions.deny`
+   * denylist. Once set, {@link execute} refuses any write-capable tool call
+   * whose subject (command for `run_terminal`, path for the file tools) matches
+   * a deny rule -- before the confirmation gate, so a denied call never even
+   * prompts the user. The default (no rules) is a no-op, preserving behavior
+   * for every caller that does not supply a denylist.
+   */
+  setPermissionsDeny(list: DenyList): void {
+    this._denyList = list;
+  }
+
+  /**
    * Execute a tool call. Validates the tool exists and is enabled, delegates
    * to its handler, and wraps any thrown exception as a failure ToolResult so
    * the agent loop can continue rather than crash.
@@ -172,6 +201,31 @@ export class ToolRegistry {
           `Tool "${call.tool}" is currently disabled. ` +
           `Usage: pick another registered tool, or ask the user to enable "${call.tool}" in settings.`,
       };
+    }
+
+    // v1.4.0 Phase 8 (gap 5.3.P2.R): operator denylist. Refuse a write-capable
+    // tool call whose subject matches a `.nexus/permissions.deny` rule. Checked
+    // before the confirmation gate (deny-first) and before the handler's own
+    // path-guard / ALLOWED_COMMANDS checks, which still apply to anything that
+    // is not denied. A no-op when no denylist has been installed.
+    if (this._denyList.rules.length > 0) {
+      const subjectKey = DENY_SUBJECT_PARAM[call.tool];
+      const subject = subjectKey === undefined ? undefined : call.parameters[subjectKey];
+      if (typeof subject === "string") {
+        const deny = evaluateDeny(call.tool, subject, this._denyList);
+        if (deny.denied && deny.rule) {
+          return {
+            id: call.id,
+            success: false,
+            output: "",
+            error:
+              `Tool "${call.tool}" is denied by .nexus/permissions.deny ` +
+              `(line ${deny.rule.line}: "${deny.rule.toolName}: ${deny.rule.pattern}"). ` +
+              `Usage: edit or remove the matching rule in .nexus/permissions.deny, ` +
+              `or invoke ${call.tool} with a subject that does not match it.`,
+          };
+        }
+      }
     }
 
     // Centralized permission check: request user confirmation for CONFIRM/DANGEROUS tools.

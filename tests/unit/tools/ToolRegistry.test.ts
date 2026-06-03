@@ -3,6 +3,7 @@ import { ToolRegistry } from "../../../src/tools/ToolRegistry.js";
 import type { ToolCall, ToolHandler, ToolResult } from "../../../src/tools/types.js";
 import type { DynamicToolMetadata } from "../../../src/tools/ToolCatalog.js";
 import type { ConfirmationGate } from "../../../src/tools/ConfirmationGate.js";
+import { parsePermissionsDeny } from "../../../core/storage/PermissionsDeny.js";
 import { mockOf } from "../../helpers/factories.js";
 
 function makeCall(overrides: Partial<ToolCall> = {}): ToolCall {
@@ -304,6 +305,71 @@ describe("ToolRegistry", () => {
       const result = await registry.execute(makeCall({ tool: "run_terminal" }));
       expect(result.output).toBe("eager");
       expect(lazyFactory).not.toHaveBeenCalled();
+    });
+  });
+
+  // v1.4.0 Phase 8 (gap 5.3.P2.R): the operator `.nexus/permissions.deny` gate.
+  describe("permissions deny gate", () => {
+    it("refuses a run_terminal call whose command matches a deny rule", async () => {
+      const registry = new ToolRegistry();
+      const handler = makeHandler({ id: "call_001", success: true, output: "ran" });
+      registry.register("run_terminal", handler);
+      registry.setPermissionsDeny(parsePermissionsDeny("run_terminal: git push *"));
+
+      const result = await registry.execute(
+        makeCall({ tool: "run_terminal", parameters: { command: "git push origin main" } }),
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.error).toMatch(/denied by \.nexus\/permissions\.deny/);
+      expect(result.error).toMatch(/run_terminal: git push \*/);
+      expect(handler.execute).not.toHaveBeenCalled();
+    });
+
+    it("allows a run_terminal call that does not match any deny rule", async () => {
+      const registry = new ToolRegistry();
+      const handler = makeHandler({ id: "call_001", success: true, output: "ran" });
+      registry.register("run_terminal", handler);
+      registry.setPermissionsDeny(parsePermissionsDeny("run_terminal: git push *"));
+
+      const result = await registry.execute(
+        makeCall({ tool: "run_terminal", parameters: { command: "git status" } }),
+      );
+
+      expect(result.success).toBe(true);
+      expect(handler.execute).toHaveBeenCalledOnce();
+    });
+
+    it("matches the path subject for write-capable file tools", async () => {
+      const registry = new ToolRegistry();
+      const handler = makeHandler({ id: "call_001", success: true, output: "wrote" });
+      registry.register("write_file", handler);
+      registry.setPermissionsDeny(parsePermissionsDeny("write_file: docs/archive/**"));
+
+      const denied = await registry.execute(
+        makeCall({ tool: "write_file", parameters: { path: "docs/archive/old.md", content: "x" } }),
+      );
+      expect(denied.success).toBe(false);
+      expect(handler.execute).not.toHaveBeenCalled();
+
+      const allowed = await registry.execute(
+        makeCall({ tool: "write_file", parameters: { path: "src/index.ts", content: "x" } }),
+      );
+      expect(allowed.success).toBe(true);
+    });
+
+    it("never gates a read-only tool and is a no-op without a denylist", async () => {
+      const registry = new ToolRegistry();
+      const handler = makeHandler({ id: "call_001", success: true, output: "content" });
+      registry.register("read_file", handler);
+      // A blanket `*` rule still must not touch read_file (no deny subject param).
+      registry.setPermissionsDeny(parsePermissionsDeny("*: anything"));
+
+      const result = await registry.execute(
+        makeCall({ tool: "read_file", parameters: { path: "anything" } }),
+      );
+      expect(result.success).toBe(true);
+      expect(handler.execute).toHaveBeenCalledOnce();
     });
   });
 });
