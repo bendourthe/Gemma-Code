@@ -217,7 +217,15 @@ function main() {
     .map((entry) => entry.name)
     .sort((a, b) => a.localeCompare(b));
 
-  const modules = subdirs.map((name) => summarizeModule(name, join(SRC_DIR, name)));
+  // Skip subdirectories with no TypeScript files (e.g. an empty leftover dir
+  // from the v1.4.0 src/ -> modules/coding/ move, or a runtime/test-created
+  // catalog dir). A fresh CI checkout never contains untracked empty dirs, so
+  // skipping them keeps the generated catalog byte-identical across local and
+  // CI runs and avoids a crash in summarizeModule when a module has no entry
+  // point.
+  const modules = subdirs
+    .filter((name) => collectTypeScriptFiles(join(SRC_DIR, name)).length > 0)
+    .map((name) => summarizeModule(name, join(SRC_DIR, name)));
   // Deterministic output: regeneration with no src/ change produces no diff.
   const md = renderMarkdown(modules);
   writeFileSync(OUTPUT_PATH, md, "utf-8");
