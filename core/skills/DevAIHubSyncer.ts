@@ -1,7 +1,7 @@
 /**
  * v1.0.0 Phase 10.2 -- DevAI-Hub sync core.
  *
- * Pull a pinned `bendourthe/DevAI-Hub` release into
+ * Pull a pinned `bendourthe/Nexus-Hub` release into
  * `~/.nexus/skills/devai-hub/<tag>/`, scan it with the prompt-injection
  * scanner (Phase 10.3), and present a manifest diff. The CLI in
  * `bin/nexus.mjs` is a thin shell on top of this module.
@@ -56,7 +56,7 @@ export interface SyncOptions {
   /** Custom scanner (tests). */
   scanner?: PromptInjectionScanner;
   /**
-   * Override the upstream repo. Defaults to `bendourthe/DevAI-Hub`. Used by
+   * Override the upstream repo. Defaults to `bendourthe/Nexus-Hub`. Used by
    * integration tests against a local fixture.
    */
   upstream?: string;
@@ -106,7 +106,13 @@ export interface SyncResult {
 // Defaults
 // ---------------------------------------------------------------------------
 
-export const DEFAULT_UPSTREAM = "bendourthe/DevAI-Hub";
+// v1.4.0 Phase 9 (T033, gap 1.1.P3.B): the upstream skill catalog repo was
+// renamed `bendourthe/DevAI-Hub` -> `bendourthe/Nexus-Hub`. The old name was
+// the documented blocker for `nexus skills sync` (it resolved no release tag).
+// The local on-disk namespace (`~/.nexus/skills/devai-hub/`, the ACTIVE
+// pointer, and the `source: "devai-hub"` provenance label) is intentionally
+// left unchanged: it is an on-disk contract, not the GitHub coordinate.
+export const DEFAULT_UPSTREAM = "bendourthe/Nexus-Hub";
 
 export function defaultSkillsRoot(): string {
   return path.join(os.homedir(), ".nexus", "skills");

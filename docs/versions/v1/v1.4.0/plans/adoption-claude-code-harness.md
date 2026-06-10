@@ -130,7 +130,7 @@ No constitution file found at docs/versions/v1/v1.4.0/constitution.md - skipping
 
 #### 2.1 — A4: Network-egress denylist in the SSRF guard
 
-- [ ] T006 Add the cloud-metadata + paste-site egress denylist to src/utils/ssrf.ts
+- [x] T006 Add the cloud-metadata + paste-site egress denylist to src/utils/ssrf.ts
 
 **Objective**: Adopt A4 (re-full): a named exfil-destination denylist layered onto the existing SSRF guard.
 
@@ -141,7 +141,7 @@ No constitution file found at docs/versions/v1/v1.4.0/constitution.md - skipping
 
 #### 2.2 — A5: Subprocess env scrubbing for run_terminal
 
-- [ ] T007 [P] Add child-process env scrubbing to the run_terminal handler in src/tools/handlers/terminal.ts
+- [x] T007 [P] Add child-process env scrubbing to the run_terminal handler in src/tools/handlers/terminal.ts
 
 **Objective**: Adopt A5 (re-full): strip sensitive env vars from terminal subprocesses.
 
@@ -152,7 +152,7 @@ No constitution file found at docs/versions/v1/v1.4.0/constitution.md - skipping
 
 #### 2.3 — Testing and Stabilization
 
-- [ ] T008 Run and stabilize Phase 2 tests in tests/unit/utils/ and tests/unit/tools/handlers/
+- [x] T008 Run and stabilize Phase 2 tests in tests/unit/utils/ and tests/unit/tools/handlers/
 
 **Objective**: Generate and run all tests for the hardening changes; iterate until stable.
 
@@ -163,11 +163,11 @@ No constitution file found at docs/versions/v1/v1.4.0/constitution.md - skipping
 
 ### Phase 2 Exit Checklist
 
-- [ ] All sub-tasks completed
-- [ ] All tests passing
-- [ ] No known regressions from prior phases
-- [ ] Session history generated for this phase
-- [ ] Ready to advance to Phase 3
+- [x] All sub-tasks completed
+- [x] All tests passing
+- [x] No known regressions from prior phases
+- [x] Session history generated for this phase
+- [x] Ready to advance to Phase 3
 
 ---
 
@@ -542,7 +542,7 @@ No constitution file found at docs/versions/v1/v1.4.0/constitution.md - skipping
 
 #### 9.1 — Inspect Nexus-Hub latest version & features
 
-- [ ] T032 Produce a Nexus-Hub integration delta at docs/versions/v1/v1.4.0/development/nexus-hub-integration-delta.md
+- [x] T032 Produce a Nexus-Hub integration delta at docs/versions/v1/v1.4.0/development/nexus-hub-integration-delta.md
 
 **Objective**: Determine what the parallel Nexus-Hub upgrade added that Nexus-AI must integrate.
 
@@ -553,7 +553,7 @@ No constitution file found at docs/versions/v1/v1.4.0/constitution.md - skipping
 
 #### 9.2 — Integrate Nexus-Hub functionality + close Hub-dependent gaps
 
-- [ ] T033 Wire the Nexus-Hub catalog into Nexus-AI via bin/nexus.mjs skills sync and close Hub-dependent known-gaps
+- [x] T033 Wire the Nexus-Hub catalog into Nexus-AI via bin/nexus.mjs skills sync and close Hub-dependent known-gaps
 
 **Objective**: Integrate every Nexus-Hub functionality and resolve `1.1.P2.A`, `1.1.P3.B`, `T017.P3.E`, `T002.P2.A`. Depends on T032.
 
@@ -564,7 +564,7 @@ No constitution file found at docs/versions/v1/v1.4.0/constitution.md - skipping
 
 #### 9.3 — Whole-plan acceptance gate (definition of pass)
 
-- [ ] T034 Verify the definition of pass with fresh evidence across the full test matrix in tests/
+- [x] T034 Verify the definition of pass with fresh evidence across the full test matrix in tests/
 
 **Objective**: Prove all four pass criteria hold.
 
@@ -575,7 +575,7 @@ No constitution file found at docs/versions/v1/v1.4.0/constitution.md - skipping
 
 #### 9.4 — Final documentation & release readiness
 
-- [ ] T035 Finalize docs/versions/v1/v1.4.0/known-gaps.md, RELEASE_NOTES.md, and the version bump
+- [x] T035 Finalize docs/versions/v1/v1.4.0/known-gaps.md, RELEASE_NOTES.md, and the version bump
 
 **Objective**: Close the cycle: finalize known-gaps, write release notes, prepare the version bump.
 
@@ -611,11 +611,11 @@ These `drop-outright` items from Section 13 of the source comparison are out of 
 
 ### Phase 9 Exit Checklist
 
-- [ ] All sub-tasks completed
-- [ ] All tests passing (unit, static, integration, e2e, CI/CD) with strong coverage
-- [ ] All 12 adoption items (A1-A12) implemented
-- [ ] All ingested known gaps resolved or explicitly re-justified
-- [ ] Nexus-Hub latest updates integrated and accounted for
-- [ ] known-gaps.md finalized; RELEASE_NOTES.md written; version bump staged
-- [ ] Session history generated for this phase
-- [ ] Definition of pass verified with fresh evidence
+- [x] All sub-tasks completed
+- [x] All tests passing (unit, static, integration, e2e, CI/CD) with strong coverage
+- [x] All 12 adoption items (A1-A12) implemented
+- [x] All ingested known gaps resolved or explicitly re-justified
+- [x] Nexus-Hub latest updates integrated and accounted for
+- [x] known-gaps.md finalized; RELEASE_NOTES.md written; version bump staged
+- [x] Session history generated for this phase
+- [x] Definition of pass verified with fresh evidence

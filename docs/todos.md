@@ -1,6 +1,8 @@
-# Gemma Code — Progress Dashboard
+# Nexus - Progress Dashboard
 
-**Branch:** `main`
+**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `feat/v1.4.0-phase-1-skill-native-adoptions`.
+
+> **Current state (2026-06-09):** the live development line is the **v1.x cycle series** summarized in the "v1.x line" section near the end of this file. The detailed per-task boards below (v0.1.0 - v0.7.0) are retained as history and predate the rename. Latest closed work: **v1.4.0 complete (Phases 1-9)** -- Nexus-Hub sync + whole-plan acceptance gate landed 2026-06-09. New plan filed this session: **v1.5.0 "Local Agent Maturity"** ([plan](versions/v1/v1.5.0/plans/adoption-ecosystem-2026-06.md)), derived from the [2026-06 ecosystem comparison](versions/v1/v1.5.0/comparison-ecosystem-2026-06.md).
 
 ---
 
@@ -401,6 +403,42 @@ Polish the memory experience: complete `/memory` slash-command surface, ship a s
 ### Phase 6 — Multi-harness skill packaging [PENDING]
 ### Phase 7 — HNSW vector index (optional) [PENDING]
 ### Phase 8 — Release gate + ADRs + CHANGELOG [PENDING]
+
+---
+
+## v1.x line - Nexus (post-rename)
+
+The project was renamed from Gemma Code to Nexus at v1.0.0 (the four-pillar desktop AI Studio pivot). The detailed boards above (v0.1.0 - v0.7.0) are retained as history. The v1.x cycles are tracked here at cycle/phase altitude; per-task detail lives in each cycle's plan and `known-gaps.md` under `docs/versions/v1/<version>/`.
+
+| Cycle | Theme | Status | Source plan |
+|---|---|---|---|
+| v1.0.0 | Four-pillar desktop pivot (Coding/Chat/Image/Video) + cross-OS installer + MCP harness + skill catalog | Shipped | `versions/v1/v1.0.0/` |
+| v1.1.0 | Stabilization + expansion (hybrid retrieval, memory CLI, session replay, SANA image tier) | Closed 2026-05-26 | `versions/v1/v1.1.0/` |
+| v1.2.0 | 2026-05 ecosystem adoption (code-graph MCP, command compressor, AST chunker, PrunedDenseIndex, LSP) | Phases 1-7 landed | `versions/v1/v1.2.0/plans/adoption-ecosystem-2026-05.md` |
+| v1.3.0 | skill-cleaner adoption (`nexus skills audit` token-budget report) | All 7 phases landed 2026-05-29 | `versions/v1/v1.3.0/plans/adoption-skill-cleaner.md` |
+| v1.4.0 | claude-code-harness adoption + known-gaps closure + Nexus-Hub sync | **Complete (Phases 1-9)**; closed 2026-06-09 | `versions/v1/v1.4.0/plans/adoption-claude-code-harness.md` |
+| v1.5.0 | Local Agent Maturity (2026-06 scan: energy telemetry, credential vault, swarm orchestration, multimodal input) | PLANNED (not started) | `versions/v1/v1.5.0/plans/adoption-ecosystem-2026-06.md` |
+
+### v1.4.0 status (COMPLETE -- closed 2026-06-09)
+
+- Adoptions A1-A12: all 12 landed (Phases 1-6).
+- Carryforward: 34 of 36 gaps resolved (6 in Phase 7, 22 in Phase 8, 2 in Phase 9: `1.1.P2.A` + `1.1.P3.B`). Re-justified as Hub-owned (open against the Nexus-Hub repo, not closeable from Nexus-AI): `T017.P3.E`, `T002.P2.A`.
+- Phase 9 (FINAL, `T032-T035`) complete: Nexus-Hub integration delta written ([development/nexus-hub-integration-delta.md](versions/v1/v1.4.0/development/nexus-hub-integration-delta.md)); `DEFAULT_UPSTREAM` fixed `bendourthe/DevAI-Hub` -> `bendourthe/Nexus-Hub`; whole-plan acceptance gate green (build/lint/arch/check/audit-prod/test+coverage; 87.19% lines; the `hono` prod advisory fixed in-phase to 4.12.25); known-gaps finalized; [RELEASE_NOTES.md](versions/v1/v1.4.0/RELEASE_NOTES.md) written; desktop product version bumped 1.3.0 -> 1.4.0.
+- Carried to v1.5.0: P3 deferrals `T016.P3.A`, `T018.P3.A`, `T018.P3.B`, `T022.P3.A`; the `HUB.P3.*` Hub-v3.x integration items; `T034.P2.A` (dev-only npm advisories).
+
+### v1.5.0 plan (newly filed this session, 2026-06-09)
+
+Derived from the [2026-06 ecosystem comparison](versions/v1/v1.5.0/comparison-ecosystem-2026-06.md) (8 sources; the scan largely validated the existing v1.x direction). RE-first ordered; 7 phases, all PLANNED:
+
+- [ ] Phase 1 - Local-only foundations: Gemma 4 GGUF quant ladder, OS-keychain credential vault, intelligence-per-watt telemetry
+- [ ] Phase 2 - Skill-native: DCI search-discipline skill + agent presets
+- [ ] Phase 3 - Inbound security: prompt-injection classifier (warn-then-allow)
+- [ ] Phase 4 - Swarm/DAG orchestration over worktree sub-agents (closes v1.4.0 `T018.P3.A`, `T018.P3.B`, `T016.P3.A`)
+- [ ] Phase 5 - Model-layer & desktop re-partials: multimodal input, split preview pane, provider/credential UI, cross-surface session resume
+- [ ] Phase 6 - Carryforward: Tree-sitter `.wasm` packaging (closes `T022.P3.A`)
+- [ ] Phase 7 - FINAL: Nexus-Hub sync + whole-plan acceptance gate
+
+**Prerequisite**: starts only after v1.4.0 closes (its Phase 9), on its own `feat/v1.5.0-*` branch. Not yet started.
 
 ---
 

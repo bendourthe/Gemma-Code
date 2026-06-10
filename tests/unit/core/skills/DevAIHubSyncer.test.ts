@@ -14,6 +14,7 @@ import {
   activeTagPointerPath,
   defaultSkillsRoot,
   readManifestOnDisk,
+  DEFAULT_UPSTREAM,
   type SyncDependencies,
 } from "../../../../core/skills/DevAIHubSyncer.js";
 
@@ -52,6 +53,22 @@ function copyDir(src: string, dest: string): void {
     else if (entry.isFile()) fs.copyFileSync(s, d);
   }
 }
+
+describe("DEFAULT_UPSTREAM (v1.4.0 Phase 9 / gap 1.1.P3.B)", () => {
+  it("points at the renamed bendourthe/Nexus-Hub repo, not the old DevAI-Hub name", () => {
+    // The old `bendourthe/DevAI-Hub` name was the documented blocker for
+    // `nexus skills sync` (it resolved no release tag). The repo was renamed
+    // to bendourthe/Nexus-Hub; the syncer must clone the current coordinate.
+    expect(DEFAULT_UPSTREAM).toBe("bendourthe/Nexus-Hub");
+  });
+
+  it("does not rename the local devai-hub on-disk namespace", () => {
+    // The on-disk contract is intentionally preserved across the upstream
+    // rename: the active-tag pointer still lives under `devai-hub/`.
+    const ptr = activeTagPointerPath("/skills-root");
+    expect(ptr.replace(/\\/g, "/")).toBe("/skills-root/devai-hub/ACTIVE");
+  });
+});
 
 describe("buildManifest + diffManifests", () => {
   let tmp: string;

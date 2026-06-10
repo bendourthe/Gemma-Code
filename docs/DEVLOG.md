@@ -4,6 +4,28 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-06-09] v1.4.0 Phase 9 (FINAL) -- Nexus-Hub Sync + Whole-Plan Acceptance Gate
+
+### Goal
+
+Bring Nexus-AI into lock-step with the parallel Nexus-Hub upgrade, close the Nexus-Hub-dependent gaps, and verify the whole-plan definition of pass ([docs/versions/v1/v1.4.0/plans/adoption-claude-code-harness.md](versions/v1/v1.4.0/plans/adoption-claude-code-harness.md), T032-T035). The user directed a read-only posture on the Nexus-Hub repo (it is under active concurrent development -- HEAD moved from `v3.0.0 Phase 2` to a clean `v3.2.0` with v3.0.0 / v3.1.0 / v3.1.1 tags cut during this phase's inspection), an offline approach (no GitHub calls; verify against the local clone), and a prepare-only release (no git tag, no semantic-release).
+
+### What changed
+
+**T032 -- integration delta ([development/nexus-hub-integration-delta.md](versions/v1/v1.4.0/development/nexus-hub-integration-delta.md)).** Enumerated every Nexus-Hub functionality (skills, commands, agents, hooks, rules, MCP configs, 6 internal extensions, data artifacts) against what Nexus-AI consumes. Verdict: Nexus-AI integrates the **skills catalog** only (via `DevAIHubSyncer` sparse-clone + `SkillLoader`); commands/agents/rules/extensions are pulled-but-unused. Every not-integrated item carries a file-path-cited integration step; the Hub's v3.x non-skill expansion is routed to the in-flight v1.5.0 ecosystem cycle.
+
+**T033 -- consumer wiring + Hub-dependent gaps.** Fixed the documented `nexus skills sync` blocker: `DEFAULT_UPSTREAM` in [core/skills/DevAIHubSyncer.ts](core/skills/DevAIHubSyncer.ts) corrected from the renamed `bendourthe/DevAI-Hub` to `bendourthe/Nexus-Hub` (+2 regression tests). The local `devai-hub` on-disk namespace was deliberately preserved (on-disk contract; rename deferred as `HUB.P3.NS`). Offline `buildManifest` over the local Hub catalog enumerates 251 skills including the two originally-imported targets -- the gap's own accepted faithful verification. `1.1.P2.A` + `1.1.P3.B` resolved (the Hub's own v3.x cycle ran build-catalog + cut release tags containing the skills); `T017.P3.E` + `T002.P2.A` re-justified as Hub-owned (they live in the Nexus-Hub repo and cannot be closed from Nexus-AI).
+
+**T034 -- whole-plan acceptance gate.** All four pass criteria hold with fresh evidence (below). One regression surfaced and was fixed in-phase: `check:audit-prod` flagged a newly-published `hono` moderate advisory (a transitive of `@modelcontextprotocol/sdk`, lockfile untouched since Phase 8). Fixed at root cause via an `overrides` pin (`"hono": "^4.12.21"`) resolving 4.12.25 -- a non-breaking patch bump within the current major, matching the existing `qs` override pattern. The 16 dev-only advisories a blanket `npm audit fix` would touch were deliberately left out of scope (recorded as `T034.P2.A`).
+
+**T035 -- finalization.** Finalized [known-gaps.md](versions/v1/v1.4.0/known-gaps.md) (Status: finalized; recomputed summary -- 42 resolved this cycle); wrote [RELEASE_NOTES.md](versions/v1/v1.4.0/RELEASE_NOTES.md); bumped the desktop product version 1.3.0 -> 1.4.0 across `desktop/package.json`, `tauri.conf.json`, `Cargo.toml` (root `package.json` left to semantic-release). Git tag prepared, not created (prepare-only).
+
+### Verification (T034 acceptance gate)
+
+Full suite 3903 passed (+2 from the new DevAIHubSyncer tests), 5 skipped (pre-existing live-backend), 0 failed; line coverage 87.19%. `tsc -b` clean; `eslint src modules` clean; `check-architecture` 0 errors / 10 warnings; `node bin/nexus-check.mjs src/` (the CI/husky-gated scope) 0 findings; `check:tampering` 0 findings; `security:check` in sync; `check:audit-prod` 0 blocking (hono fixed; 1 allowlisted `brace-expansion`). Definition of pass: (1) 12/12 adoptions A1-A12 landed; (2) 34/36 carryforward gaps resolved + 2 Hub-owned re-justified; (3) Nexus-Hub updates accounted for in the delta; (4) full test matrix green.
+
+---
+
 ## [2026-06-02] v1.4.0 Phase 8 -- Wiring, Deferrals & the P1 CVE
 
 ### Goal
