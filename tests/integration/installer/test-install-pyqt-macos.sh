@@ -16,7 +16,7 @@ printf "==================================================\n"
 
 # Test 1: Installer package imports
 cd "$INSTALLER_DIR"
-if python -c "from nexus_installer import __version__; print(__version__)" 2>/dev/null | grep -q "0\."; then
+if python -c "from nexus_installer import __version__; print(__version__)" 2>/dev/null | grep -qE "^[0-9]+\.[0-9]+\.[0-9]+"; then
     log_pass "Installer package imports"
 else
     log_fail "Installer package imports" "Import failed"

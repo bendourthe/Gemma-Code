@@ -57,7 +57,7 @@ Test-Case "Installer package imports" {
     Push-Location $InstallerDir
     $result = (uv run python -c "from nexus_installer import __version__; print(__version__)" 2>&1) | Get-CommandOutput
     Pop-Location
-    if ($result -notmatch "0\.\d+\.\d+") { throw "Import failed: $result" }
+    if ($result -notmatch "\d+\.\d+\.\d+") { throw "Import failed: $result" }
 }
 
 # Test 2: Theme generation
