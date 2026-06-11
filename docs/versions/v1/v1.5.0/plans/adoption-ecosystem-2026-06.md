@@ -189,7 +189,7 @@ No constitution file found at docs/versions/v1/v1.5.0/constitution.md - skipping
 
 #### 3.1 -- Item 3: Inbound prompt-injection classifier
 
-- [ ] T008 Add an inbound untrusted-content classifier gate in modules/coding/security/InboundClassifier.ts
+- [x] T008 Add an inbound untrusted-content classifier gate in modules/coding/security/InboundClassifier.ts
 
 **Objective**: Adopt report item 3 (`re-full`): screen fetched web content for indirect prompt injection before the agent reasons over it (the Promptfoo-style attack Viktor, S1, cites).
 
@@ -200,7 +200,7 @@ No constitution file found at docs/versions/v1/v1.5.0/constitution.md - skipping
 
 #### 3.2 -- Testing and Stabilization
 
-- [ ] T009 Run and stabilize Phase 3 tests in tests/unit/modules/coding/security/
+- [x] T009 Run and stabilize Phase 3 tests in tests/unit/modules/coding/security/
 
 **Objective**: Verify the classifier and its fetch_page wiring; iterate until stable.
 
@@ -211,11 +211,11 @@ No constitution file found at docs/versions/v1/v1.5.0/constitution.md - skipping
 
 ### Phase 3 Exit Checklist
 
-- [ ] All sub-tasks completed
-- [ ] All tests passing
-- [ ] Warn-then-allow default verified (no silent drop)
-- [ ] Session history generated for this phase
-- [ ] Ready to advance to Phase 4
+- [x] All sub-tasks completed
+- [x] All tests passing
+- [x] Warn-then-allow default verified (no silent drop)
+- [x] Session history generated for this phase
+- [x] Ready to advance to Phase 4
 
 ---
 

@@ -14,6 +14,10 @@ import type { EpisodicMemory } from "../storage/EpisodicMemory.js";
 import type { MemoryConsolidator } from "../storage/MemoryConsolidator.js";
 import { SubAgentManager } from "../../modules/coding/agents/SubAgentManager.js";
 import { AgentLoop, type PathScopedSkillSource } from "../tools/AgentLoop.js";
+import {
+  InboundClassifier,
+  createLlmInboundScreener,
+} from "../../modules/coding/security/InboundClassifier.js";
 import type { HookBus } from "../../core/lifecycle/HookBus.js";
 import type { ToolRegistry } from "../tools/ToolRegistry.js";
 import type { OllamaToolDefinition } from "../../modules/coding/llm/types.js";
@@ -222,6 +226,16 @@ export class ChatController {
   }
 
   static buildAgentLoop(deps: AgentLoopBuildDeps): AgentLoop {
+    // v1.5.0 Phase 3 (item 3): construct the inbound prompt-injection
+    // classifier. The deterministic heuristic is always wired; the local-model
+    // second opinion is added only when the operator opts into deep-scan (off
+    // by default, so the common path makes no per-fetch model call).
+    const inboundClassifier = new InboundClassifier({
+      modelScreener: deps.settings.inboundClassifierDeepScan
+        ? createLlmInboundScreener(deps.client, deps.modelName)
+        : undefined,
+      logger: (message) => getLogger().warn(message),
+    });
     return new AgentLoop(
       deps.client,
       deps.manager,
@@ -233,6 +247,8 @@ export class ChatController {
       deps.ollamaTools,
       {
         subAgentManager: deps.subAgentManager,
+        inboundClassifier,
+        inboundClassifierEnabled: deps.settings.inboundClassifierEnabled,
         verificationThreshold: deps.settings.verificationThreshold,
         verificationEnabled: deps.settings.verificationEnabled,
         auditWorkerEnabled: deps.settings.auditWorkerEnabled,

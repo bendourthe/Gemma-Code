@@ -66,6 +66,8 @@ export interface NexusSettings {
   passStateGating: boolean;
   passStateSubAgentCredit: boolean;
   hooksScanInjection: boolean;
+  inboundClassifierEnabled: boolean;
+  inboundClassifierDeepScan: boolean;
   memorySnapshotMode: "frozen" | "live";
   llmBackend: "ollama" | "lmstudio" | "auto";
   lmStudioBaseUrl: string;
@@ -230,6 +232,14 @@ export function getSettings(): NexusSettings {
       true,
     ),
     hooksScanInjection: c.get<boolean>("nexus.hooks.scanInjection", true),
+    inboundClassifierEnabled: c.get<boolean>(
+      "nexus.coding.inboundClassifier.enabled",
+      true,
+    ),
+    inboundClassifierDeepScan: c.get<boolean>(
+      "nexus.coding.inboundClassifier.deepScan",
+      false,
+    ),
     memorySnapshotMode: (() => {
       const raw = c.get<string>("nexus.memory.snapshotMode", "frozen");
       return raw === "live" ? "live" : "frozen";

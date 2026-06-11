@@ -1,8 +1,8 @@
 # Nexus - Progress Dashboard
 
-**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `feat/v1.5.0-phase-2-skill-native`.
+**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `feat/v1.5.0-phase-3-inbound-security`.
 
-> **Current state (2026-06-10):** the live development line is the **v1.x cycle series** summarized in the "v1.x line" section near the end of this file. The detailed per-task boards below (v0.1.0 - v0.7.0) are retained as history and predate the rename. Latest work: **v1.5.0 "Local Agent Maturity" Phase 2 landed 2026-06-10** -- the two Bucket 2 `skill-native` adoptions (the `direct-corpus-interaction` DCI search-discipline skill and the `agent-presets` bundle), authored in the Nexus-Hub catalog on branch `feat/dci-discipline-and-agent-presets` with no Nexus-AI `core/`/`modules/` change. Prior: **Phase 1 landed 2026-06-10** -- the three Bucket 1 `local-only` foundations (Gemma 4 GGUF quant ladder, OS-keychain credential vault, intelligence-per-watt telemetry); see the [v1.5.0 plan](versions/v1/v1.5.0/plans/adoption-ecosystem-2026-06.md) and [known-gaps](versions/v1/v1.5.0/known-gaps.md). Prior: **v1.4.0 complete (Phases 1-9)**, closed 2026-06-09. (v1.4.0 + v1.5.0 work is not yet merged to `main`.)
+> **Current state (2026-06-10):** the live development line is the **v1.x cycle series** summarized in the "v1.x line" section near the end of this file. The detailed per-task boards below (v0.1.0 - v0.7.0) are retained as history and predate the rename. Latest work: **v1.5.0 "Local Agent Maturity" Phase 3 landed 2026-06-10** -- the Bucket 3 `re-full` inbound prompt-injection classifier (`modules/coding/security/InboundClassifier.ts`, warn-then-allow), routed over `fetch_page`/`web_search` at the agent-context boundary in `AgentLoop`, behind `nexus.coding.inboundClassifier.enabled` (default on) + `.deepScan` (default off). Prior: **Phase 2 landed 2026-06-10** -- the two Bucket 2 `skill-native` adoptions (the `direct-corpus-interaction` DCI search-discipline skill and the `agent-presets` bundle), authored in the Nexus-Hub catalog with no Nexus-AI `core/`/`modules/` change. Prior: **Phase 1 landed 2026-06-10** -- the three Bucket 1 `local-only` foundations (Gemma 4 GGUF quant ladder, OS-keychain credential vault, intelligence-per-watt telemetry); see the [v1.5.0 plan](versions/v1/v1.5.0/plans/adoption-ecosystem-2026-06.md) and [known-gaps](versions/v1/v1.5.0/known-gaps.md). Prior: **v1.4.0 complete (Phases 1-9)**, closed 2026-06-09. (v1.4.0 + v1.5.0 work is not yet merged to `main`.)
 
 ---
 
@@ -417,7 +417,7 @@ The project was renamed from Gemma Code to Nexus at v1.0.0 (the four-pillar desk
 | v1.2.0 | 2026-05 ecosystem adoption (code-graph MCP, command compressor, AST chunker, PrunedDenseIndex, LSP) | Phases 1-7 landed | `versions/v1/v1.2.0/plans/adoption-ecosystem-2026-05.md` |
 | v1.3.0 | skill-cleaner adoption (`nexus skills audit` token-budget report) | All 7 phases landed 2026-05-29 | `versions/v1/v1.3.0/plans/adoption-skill-cleaner.md` |
 | v1.4.0 | claude-code-harness adoption + known-gaps closure + Nexus-Hub sync | **Complete (Phases 1-9)**; closed 2026-06-09 | `versions/v1/v1.4.0/plans/adoption-claude-code-harness.md` |
-| v1.5.0 | Local Agent Maturity (2026-06 scan: energy telemetry, credential vault, swarm orchestration, multimodal input) | **In progress** -- Phase 1 landed 2026-06-10 (Phases 2-7 pending) | `versions/v1/v1.5.0/plans/adoption-ecosystem-2026-06.md` |
+| v1.5.0 | Local Agent Maturity (2026-06 scan: energy telemetry, credential vault, swarm orchestration, multimodal input) | **In progress** -- Phases 1-3 landed 2026-06-10 (Phases 4-7 pending) | `versions/v1/v1.5.0/plans/adoption-ecosystem-2026-06.md` |
 
 ### v1.4.0 status (COMPLETE -- closed 2026-06-09)
 
@@ -432,13 +432,13 @@ Derived from the [2026-06 ecosystem comparison](versions/v1/v1.5.0/comparison-ec
 
 - [x] Phase 1 - Local-only foundations: Gemma 4 GGUF quant ladder, OS-keychain credential vault, intelligence-per-watt telemetry (landed 2026-06-10; T001-T004; [known-gaps](versions/v1/v1.5.0/known-gaps.md), [session history](versions/v1/v1.5.0/development/history/2026-06_phase-1-local-only-foundations.md))
 - [x] Phase 2 - Skill-native: DCI search-discipline skill + agent presets (landed 2026-06-10; T005-T007; authored in Nexus-Hub on branch `feat/dci-discipline-and-agent-presets` -- `developer-experience/direct-corpus-interaction` + `workflow/agent-presets`; merge/publish/`nexus skills sync` deferred to Phase 7/T023; [session history](versions/v1/v1.5.0/development/history/2026-06_phase-2-skill-native.md))
-- [ ] Phase 3 - Inbound security: prompt-injection classifier (warn-then-allow)
+- [x] Phase 3 - Inbound security: prompt-injection classifier (warn-then-allow) (landed 2026-06-10; T008-T009; `modules/coding/security/InboundClassifier.ts` routed over `fetch_page`/`web_search` in `AgentLoop`; toggles `nexus.coding.inboundClassifier.enabled`/`.deepScan`; [session history](versions/v1/v1.5.0/development/history/2026-06_phase-3-inbound-security.md))
 - [ ] Phase 4 - Swarm/DAG orchestration over worktree sub-agents (closes v1.4.0 `T018.P3.A`, `T018.P3.B`, `T016.P3.A`)
 - [ ] Phase 5 - Model-layer & desktop re-partials: multimodal input, split preview pane, provider/credential UI, cross-surface session resume
 - [ ] Phase 6 - Carryforward: Tree-sitter `.wasm` packaging (closes `T022.P3.A`)
 - [ ] Phase 7 - FINAL: Nexus-Hub sync + whole-plan acceptance gate
 
-**Branch**: `feat/v1.5.0-phase-1-local-only-foundations` (off the v1.4.0 line; v1.4.0 not yet merged to `main`). Phase 1 complete; Phases 2-7 pending.
+**Branch**: `feat/v1.5.0-phase-3-inbound-security` (chained off the Phase 2 branch; v1.5.0 not yet merged to `main`). Phases 1-3 complete; Phases 4-7 pending.
 
 ---
 

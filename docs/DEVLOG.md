@@ -4,6 +4,26 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-06-10] v1.5.0 Phase 3 -- Inbound Security
+
+### Goal
+
+Ship the Bucket 3 `re-full` adoption ([docs/versions/v1/v1.5.0/plans/adoption-ecosystem-2026-06.md](versions/v1/v1.5.0/plans/adoption-ecosystem-2026-06.md), item 3): an inbound prompt-injection classifier that screens content returned by external-data tools before it enters the agent's reasoning context. The hard constraint from the source comparison (Viktor S1 + GrepSeek S2 "do not pre-filter what the agent sees") is warn-then-allow: flagged content is annotated and surfaced, never hard-blocked or silently dropped.
+
+### What changed
+
+**T008 -- inbound untrusted-content classifier.** New [modules/coding/security/InboundClassifier.ts](../modules/coding/security/InboundClassifier.ts). `InboundClassifier.screen(content, ctx)` runs a deterministic core that reuses the existing memory-boundary scanner (`guardrails/PromptInjectionScanner.scan`) and adds a small, conservative table of inbound-specific markers (new-instructions directives, role-spoof prefixes, imperative overrides, credential/data-exfiltration phrasing, instructions hidden in HTML comments). It optionally consults the local model for a second opinion through an injected `InboundModelScreener` seam; `createLlmInboundScreener` adapts the vendor-neutral `LLMClient` port (so the `no-llm-outside-llm-folder` boundary holds) and is fully defensive -- any transport/parse/model error resolves to "not injection" so the gate degrades to heuristic-only and never blocks a pillar. When flagged, `annotate` wraps the full original content in an untrusted-content banner that reframes it as data, not instructions; the content is never truncated or dropped.
+
+**Wiring at the agent-context boundary.** [src/tools/AgentLoop.ts](../src/tools/AgentLoop.ts) gained `_screenInboundResult`, invoked for the successful output of inbound external-data tools (`fetch_page`, `web_search`) right where the tool result is folded into the conversation. The screened (possibly annotated) output drives the injected context, the rolling recent-results window, and the webview summary; the real result still drives outcome tracking and telemetry. A classifier failure logs a warning and passes the raw output through (never blocks). The classifier + master toggle are injected via `AgentLoopOptions` and constructed in [src/panels/ChatController.ts](../src/panels/ChatController.ts) `buildAgentLoop`. Two settings were added: `nexus.coding.inboundClassifier.enabled` (default on) and `nexus.coding.inboundClassifier.deepScan` (default off -- the local-model second opinion, opt-in so the common path makes no per-fetch model call).
+
+**T009 -- tests.** 21 unit tests ([tests/unit/modules/coding/security/InboundClassifier.test.ts](../tests/unit/modules/coding/security/InboundClassifier.test.ts)) cover the heuristic flag/pass-through, each inbound marker, the model second opinion (present / safe / throwing / truncation), annotation, `parseModelVerdict`, and the `createLlmInboundScreener` adapter (INJECTION/SAFE/streamed/throwing). 5 production-path integration tests ([tests/integration/security/inbound-classifier-routing.test.ts](../tests/integration/security/inbound-classifier-routing.test.ts)) drive the real `AgentLoop`: flagged `fetch_page` output is annotated (banner present, original payload preserved, success still reported), benign output passes unchanged, the disabled toggle bypasses screening, non-inbound tools (`read_file`) are not screened, and an unwired classifier is a no-op.
+
+### Verification
+
+Full suite **3988 passed / 5 skipped / 0 failed**; `tsc -b` exit 0; `npm run lint` 0; `npm run check-architecture` 0 errors; `npm run check:prompts` exit 0 (one pre-existing unrelated `review-pr` oversize warning); `npm run security:check` in sync. No outbound call introduced -- the heuristic is pure-local and the optional deep-scan reuses the already-loaded local model. One forward-tier follow-up recorded in [the v1.5.0 known-gaps](versions/v1/v1.5.0/known-gaps.md) (`T008.P3.A` -- a live-model smoke test for the deep-scan path). Session history at [versions/v1/v1.5.0/development/history/2026-06_phase-3-inbound-security.md](versions/v1/v1.5.0/development/history/2026-06_phase-3-inbound-security.md).
+
+---
+
 ## [2026-06-10] v1.5.0 Phase 2 -- Skill-native Adoptions
 
 ### Goal

@@ -7,7 +7,9 @@ import type { SubAgentConfig, SubAgentResult } from "../../modules/coding/agents
 import { parseToolCalls, stripToolCalls, formatToolResult } from "./ToolCallParser.js";
 import type { ToolRegistry } from "./ToolRegistry.js";
 import type { BudgetMiddleware } from "./BudgetMiddleware.js";
-import type { ToolCall } from "./types.js";
+import type { ToolCall, ToolResult } from "./types.js";
+import type { InboundClassifier } from "../../modules/coding/security/InboundClassifier.js";
+import { getLogger } from "../../modules/coding/utils/logger.js";
 import type { WorkingMemory } from "../storage/WorkingMemory.js";
 import type { EpisodicMemory } from "../storage/EpisodicMemory.js";
 import { recordToolEvent } from "../storage/EpisodicMemory.js";
@@ -25,6 +27,13 @@ const DEFAULT_MAX_ITERATIONS = 20;
 
 const FILE_EDIT_TOOLS = new Set(["write_file", "edit_file", "create_file"]);
 const EPISODIC_TOOLS = new Set(["write_file", "edit_file", "create_file", "run_terminal", "grep_codebase"]);
+
+/**
+ * v1.5.0 Phase 3 (item 3) -- tools that return untrusted external content. Their
+ * successful output is routed through the inbound prompt-injection classifier
+ * before it is folded into the agent context (warn-then-allow annotation).
+ */
+const INBOUND_EXTERNAL_DATA_TOOLS = new Set(["fetch_page", "web_search"]);
 
 /**
  * v0.8.0 Phase 2 (item C8) -- tools whose successful invocation counts as
@@ -163,6 +172,22 @@ export interface AgentLoopOptions {
    * focus changes between turns.
    */
   readonly activeEditPathProvider?: () => string | null;
+  /**
+   * v1.5.0 Phase 3 (item 3) -- inbound prompt-injection classifier. When
+   * provided AND {@link inboundClassifierEnabled} is true, the successful
+   * output of inbound external-data tools (`fetch_page`, `web_search`) is
+   * screened and -- if flagged -- annotated with an untrusted-content banner
+   * before it enters the agent context. Warn-then-allow: content is never
+   * dropped. When omitted (or disabled) the screening is a no-op (legacy
+   * behavior).
+   */
+  readonly inboundClassifier?: InboundClassifier;
+  /**
+   * v1.5.0 Phase 3 (item 3) -- master toggle for the inbound classifier
+   * (mirrors `nexus.coding.inboundClassifier.enabled`, default on). When false
+   * the classifier is bypassed entirely even if one is wired.
+   */
+  readonly inboundClassifierEnabled?: boolean;
 }
 
 /**
@@ -210,6 +235,8 @@ export class AgentLoop {
   private readonly _hookBus?: HookBus;
   private readonly _skillCatalog?: PathScopedSkillSource;
   private readonly _activeEditPathProvider?: () => string | null;
+  private readonly _inboundClassifier?: InboundClassifier;
+  private readonly _inboundClassifierEnabled: boolean;
   /** v1.4.0 Phase 8 (gap 5.2.P3.Q): ids of the currently-active path-scoped skills. */
   private _activePathScopedSkillIds: readonly string[] = [];
   /**
@@ -265,6 +292,8 @@ export class AgentLoop {
     this._hookBus = options?.hookBus;
     this._skillCatalog = options?.skillCatalog;
     this._activeEditPathProvider = options?.activeEditPathProvider;
+    this._inboundClassifier = options?.inboundClassifier;
+    this._inboundClassifierEnabled = options?.inboundClassifierEnabled ?? true;
   }
 
   /**
@@ -856,11 +885,19 @@ export class AgentLoop {
       });
     }
 
+    // v1.5.0 Phase 3 (item 3): screen inbound external-data output for indirect
+    // prompt injection before it enters the agent context. Warn-then-allow --
+    // flagged content is annotated, never dropped; non-inbound tools and
+    // failures pass through untouched. `contextResult` carries the (possibly
+    // annotated) output that the agent and the rolling result window see; the
+    // real `result` still drives outcome tracking and telemetry above.
+    const contextResult = await this._screenInboundResult(call, result);
+
     postMessage({
       type: "toolResult",
       callId: call.id,
-      success: result.success,
-      summary: (result.output || result.error || "").slice(0, 200),
+      success: contextResult.success,
+      summary: (contextResult.output || contextResult.error || "").slice(0, 200),
     });
 
     // Track file edits for auto-verification.
@@ -906,14 +943,16 @@ export class AgentLoop {
     }
 
     // Track recent tool results (rolling window of 5).
-    const resultSummary = `[${call.tool}] ${(result.output || result.error || "").slice(0, 200)}`;
+    const resultSummary = `[${call.tool}] ${(contextResult.output || contextResult.error || "").slice(0, 200)}`;
     this._recentToolResults.push(resultSummary);
     if (this._recentToolResults.length > MAX_RECENT_TOOL_RESULTS) {
       this._recentToolResults.shift();
     }
 
     // Inject the tool result back into the conversation as a user message.
-    const formattedResult = formatToolResult(call.tool, result);
+    // `contextResult` is the screened/annotated form for inbound external-data
+    // tools; identical to `result` for every other tool.
+    const formattedResult = formatToolResult(call.tool, contextResult);
     this._manager.addUserMessage(formattedResult);
 
     // Loop detection: check for repetitive identical tool calls.
@@ -931,6 +970,42 @@ export class AgentLoop {
     }
 
     return "continue";
+  }
+
+  /**
+   * v1.5.0 Phase 3 (item 3): route the output of inbound external-data tools
+   * (`fetch_page`, `web_search`) through the inbound prompt-injection
+   * classifier. Returns the original result for non-inbound tools, failures,
+   * empty output, or when the classifier is disabled / unwired. When flagged,
+   * returns a copy whose `output` is the warn-then-allow annotated content
+   * (the full original content wrapped in an untrusted-content banner). A
+   * classifier error never blocks the pillar: the original result is returned.
+   */
+  private async _screenInboundResult(call: ToolCall, result: ToolResult): Promise<ToolResult> {
+    if (!this._inboundClassifierEnabled || !this._inboundClassifier) return result;
+    if (!result.success) return result;
+    if (!INBOUND_EXTERNAL_DATA_TOOLS.has(call.tool)) return result;
+    if (!result.output) return result;
+
+    try {
+      const url =
+        typeof call.parameters["url"] === "string"
+          ? (call.parameters["url"] as string)
+          : undefined;
+      const screen = await this._inboundClassifier.screen(result.output, {
+        tool: call.tool,
+        url,
+      });
+      if (!screen.flagged) return result;
+      return { ...result, output: screen.annotated };
+    } catch (err) {
+      // Never block a pillar on a classifier failure: degrade to the raw result.
+      getLogger().warn(
+        `[AgentLoop] inbound classifier failed for ${call.tool}; passing content through unannotated:`,
+        err,
+      );
+      return result;
+    }
   }
 
   private _postTokenCount(postMessage: PostMessageFn): void {

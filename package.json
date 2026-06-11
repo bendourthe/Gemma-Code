@@ -214,6 +214,16 @@
           "default": [],
           "description": "v1.4.0 Phase 2 (A5) -- exact environment-variable names that are allowed to pass through to run_terminal child processes even when they would otherwise be scrubbed by `nexus.coding.terminalEnvScrub`. Use this to opt a specific secret-bearing variable back in for a command that genuinely needs it."
         },
+        "nexus.coding.inboundClassifier.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "v1.5.0 Phase 3 (item 3) -- screen content returned by external-data tools (fetch_page, web_search) for indirect prompt-injection markers before it enters the agent's context. Warn-then-allow: flagged content is annotated with an untrusted-content banner and passed through, never hard-blocked or silently dropped. On by default; set false to disable the gate."
+        },
+        "nexus.coding.inboundClassifier.deepScan": {
+          "type": "boolean",
+          "default": false,
+          "description": "v1.5.0 Phase 3 (item 3) -- add a local-model second opinion to the inbound classifier on top of the always-on deterministic heuristic. Off by default so no per-fetch model call is made; enable to have the local model also classify fetched content (it can only add an annotation, never block). No effect when `nexus.coding.inboundClassifier.enabled` is false."
+        },
         "nexus.memory.enabled": {
           "type": "boolean",
           "default": true,
