@@ -168,6 +168,49 @@ describe("LocalModelStatus", () => {
     expect(node.dataset["queueDepth"]).toBe("2");
   });
 
+  it("surfaces intelligence-per-watt in the tooltip when present (v1.5.0 Phase 1 T003)", () => {
+    const stream = manualStream();
+    render(<LocalModelStatus stream={stream} />);
+    act(() => {
+      stream.push({
+        modelName: "Gemma 4",
+        paramSize: "12B",
+        gpuPct: 55,
+        vramFreeGB: 4,
+        deviceName: "RTX 4070",
+        lastUpdated: 1,
+        powerDrawWatts: 142.5,
+        tokensPerWatt: 12.34,
+        joulesPerRequest: 285,
+        energyStatus: "available",
+      });
+    });
+    const title = screen.getByTestId("local-model-status").getAttribute("title") ?? "";
+    expect(title).toContain("Power: 142.5 W");
+    expect(title).toContain("Tokens/W: 12.34");
+    expect(title).toContain("Energy/request: 285.0 J");
+  });
+
+  it("shows 'Energy: unavailable' when the power sensor is missing", () => {
+    const stream = manualStream();
+    render(<LocalModelStatus stream={stream} />);
+    act(() => {
+      stream.push({
+        modelName: "Gemma 4",
+        paramSize: "12B",
+        gpuPct: 10,
+        vramFreeGB: 8,
+        deviceName: "RTX 4070",
+        lastUpdated: 1,
+        powerDrawWatts: null,
+        energyStatus: "unavailable",
+      });
+    });
+    const title = screen.getByTestId("local-model-status").getAttribute("title") ?? "";
+    expect(title).toContain("Energy: unavailable");
+    expect(title).not.toContain("Power:");
+  });
+
   it("clicking the widget opens a queue modal listing each queued job", () => {
     const stream = manualStream();
     render(<LocalModelStatus stream={stream} />);

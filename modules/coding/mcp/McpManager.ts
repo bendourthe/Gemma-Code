@@ -10,6 +10,7 @@ import { McpClient } from "./McpClient.js";
 import { McpToolHandler } from "./McpToolHandler.js";
 import { getLogger } from "../utils/logger.js";
 import { formatForLog } from "../utils/errors.js";
+import type { CredentialVault } from "../../../core/security/CredentialVault.js";
 import type {
   McpServerConfig,
   McpServerState,
@@ -27,6 +28,15 @@ const ENV_WHITELIST_KEYS = new Set([
   "LC_ALL",
   "TZ",
 ]);
+
+/**
+ * v1.5.0 Phase 1 (T002) -- an env value of `${vault}` (or `${vault:NAME}`)
+ * marks a secret that the CredentialVault resolves from the OS keychain at
+ * load time, so the secret never lives in the plaintext mcp.json. `${vault}`
+ * resolves the vault key matching the env var name; `${vault:NAME}` resolves
+ * an explicitly-named vault key.
+ */
+const VAULT_REF_RE = /^\$\{vault(?::([A-Z][A-Z0-9_]*))?\}$/;
 
 /** Workspace-state key prefix for storing user approval of workspace-local mcp.json files. */
 const WORKSPACE_APPROVAL_PREFIX = "mcp.workspaceConfigApproval:";
@@ -100,6 +110,11 @@ export class McpManager {
       configPath: string,
       servers: readonly McpServerConfig[],
     ) => Promise<boolean> = defaultWorkspaceConfirmation,
+    /**
+     * v1.5.0 Phase 1 (T002) -- credential source for `${vault}` env refs. When
+     * omitted, vault references are dropped (secrets never come from plaintext).
+     */
+    private readonly _credentialVault?: CredentialVault,
   ) {}
 
   /** Load config and connect to all configured servers. */
@@ -203,7 +218,7 @@ export class McpManager {
     // Global config: ~/.nexus/mcp.json (explicitly placed by user).
     const globalPath = path.join(os.homedir(), ".nexus", "mcp.json");
     for (const config of this._readConfigFile(globalPath)) {
-      byName.set(config.name, this._sanitizeEnv(config));
+      byName.set(config.name, await this._resolveEnv(config));
     }
 
     // Workspace config: requires user approval keyed by workspace path.
@@ -214,7 +229,7 @@ export class McpManager {
         const approved = await this._ensureWorkspaceApproval(localPath, localConfigs);
         if (approved) {
           for (const config of localConfigs) {
-            byName.set(config.name, this._sanitizeEnv(config));
+            byName.set(config.name, await this._resolveEnv(config));
           }
         }
       }
@@ -247,15 +262,34 @@ export class McpManager {
   }
 
   /**
-   * Filter out any env entries whose keys are not in the whitelist.
-   * Arbitrary env keys may be granted by future changes, but the safe-default
-   * list excludes shell-override keys (LD_PRELOAD, PYTHONPATH, etc.).
+   * Resolve a server's env for spawning. Three cases per entry:
+   *   - whitelisted key (PATH, HOME, ...): passed through verbatim.
+   *   - `${vault}` / `${vault:NAME}` value: resolved from the CredentialVault
+   *     (OS keychain). Dropped with a warning when no vault is wired or the
+   *     secret is absent -- a placeholder is never forwarded.
+   *   - any other non-whitelisted key with a literal value: dropped (a
+   *     plaintext secret in mcp.json is never honored; store it in the vault).
+   *
+   * This keeps shell-override keys (LD_PRELOAD, PYTHONPATH, ...) out while
+   * letting genuine secrets flow from the keychain rather than the config file.
    */
-  private _sanitizeEnv(config: McpServerConfig): McpServerConfig {
+  private async _resolveEnv(config: McpServerConfig): Promise<McpServerConfig> {
     if (!config.env) return config;
     const filtered: Record<string, string> = {};
     for (const [k, v] of Object.entries(config.env)) {
-      if (ENV_WHITELIST_KEYS.has(k)) {
+      const vaultMatch = VAULT_REF_RE.exec(v);
+      if (vaultMatch) {
+        const vaultKey = vaultMatch[1] ?? k;
+        const resolved = await this._resolveVaultSecret(config.name, vaultKey);
+        if (resolved !== undefined) {
+          filtered[k] = resolved;
+        } else {
+          getLogger().warn(
+            `[McpManager] Dropped vault env key "${k}" for server "${config.name}": ` +
+              `no credential vault wired or no secret stored.`,
+          );
+        }
+      } else if (ENV_WHITELIST_KEYS.has(k)) {
         filtered[k] = v;
       } else {
         getLogger().warn(
@@ -264,6 +298,22 @@ export class McpManager {
       }
     }
     return { ...config, env: filtered };
+  }
+
+  /** Read a secret from the wired CredentialVault, swallowing vault errors. */
+  private async _resolveVaultSecret(
+    integration: string,
+    key: string,
+  ): Promise<string | undefined> {
+    if (!this._credentialVault) return undefined;
+    try {
+      return await this._credentialVault.get(integration, key);
+    } catch (err) {
+      getLogger().warn(
+        `[McpManager] Credential vault lookup failed for "${integration}/${key}": ${formatForLog(err)}`,
+      );
+      return undefined;
+    }
   }
 
   private async _ensureWorkspaceApproval(

@@ -134,6 +134,51 @@ describe("createTelemetryStream", () => {
     expect(upstreamUnsubCalls).toBe(1);
   });
 
+  it("forwards energy telemetry fields when present (v1.5.0 Phase 1 T003)", () => {
+    let push!: (s: RawGpuSample) => void;
+    const stream = createTelemetryStream({
+      source: (fn) => {
+        push = fn;
+        return () => undefined;
+      },
+      scheduler: () => ({
+        active: { id: "j1", moduleId: "coding", jobType: "tokens", modelId: "gemma4:e4b" },
+        queued: [],
+      }),
+    });
+    const seen: LocalModelTelemetry[] = [];
+    const unsub = stream.subscribe((s) => seen.push(s));
+    push(
+      makeRaw({
+        powerDrawWatts: 142.5,
+        tokensPerWatt: 12.3,
+        joulesPerRequest: 285,
+        energyStatus: "available",
+      }),
+    );
+    expect(seen[0]?.powerDrawWatts).toBe(142.5);
+    expect(seen[0]?.tokensPerWatt).toBe(12.3);
+    expect(seen[0]?.joulesPerRequest).toBe(285);
+    expect(seen[0]?.energyStatus).toBe("available");
+    unsub();
+  });
+
+  it("forwards energyStatus=unavailable when the sensor is missing", () => {
+    let push!: (s: RawGpuSample) => void;
+    const stream = createTelemetryStream({
+      source: (fn) => {
+        push = fn;
+        return () => undefined;
+      },
+    });
+    const seen: LocalModelTelemetry[] = [];
+    const unsub = stream.subscribe((s) => seen.push(s));
+    push(makeRaw({ powerDrawWatts: null, energyStatus: "unavailable" }));
+    expect(seen[0]?.energyStatus).toBe("unavailable");
+    expect(seen[0]?.powerDrawWatts).toBeNull();
+    unsub();
+  });
+
   it("default scheduler returns idle / empty queue", () => {
     let push!: (s: RawGpuSample) => void;
     const stream = createTelemetryStream({

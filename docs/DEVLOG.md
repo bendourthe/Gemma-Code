@@ -4,6 +4,26 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-06-10] v1.5.0 Phase 1 -- Local-only Foundations
+
+### Goal
+
+Open the v1.5.0 "Local Agent Maturity" cycle ([docs/versions/v1/v1.5.0/plans/adoption-ecosystem-2026-06.md](versions/v1/v1.5.0/plans/adoption-ecosystem-2026-06.md), derived from the [2026-06 ecosystem comparison](versions/v1/v1.5.0/comparison-ecosystem-2026-06.md)) by shipping the three Bucket 1 `local-only` adoptions with zero outbound calls and zero new heavy dependency. New branch `feat/v1.5.0-phase-1-local-only-foundations` off the v1.4.0 line (v1.4.0 not yet merged to `main`).
+
+### What changed
+
+**T001 -- Gemma 4 12B-IT Unsloth GGUF quant ladder (item 32).** Added the catalog entry `gemma-4-12b-it-gguf` to [core/registry/catalog.json](../core/registry/catalog.json) (256K context, `multimodal: true` for Phase 5 consumption, `ollama://hf.co/unsloth/gemma-4-12b-it-GGUF`). The per-quant disk/VRAM sizing + hardware-tier mapping live in new [modules/coding/config/Gemma4GgufQuants.ts](../modules/coding/config/Gemma4GgufQuants.ts) (IQ2_M/Q3_K -> Tier 1, Q4_K_XL/Q5_K/Q6_K -> Tier 2, BF16 -> Tier 3, via the shared `classifyTier`; `selectGemma4GgufQuant(vramMb)` is the VRAM-aware picker). The quant placement respects the `no-core-from-modules` boundary: model metadata in `core/registry`, tier logic in `modules/coding/config`. Installer rows + `GEMMA4_GGUF_QUANTS` added to the PyQt `recommended_models.py`.
+
+**T002 -- local OS-keychain credential vault (item 2).** New [core/security/CredentialVault.ts](../core/security/CredentialVault.ts) + [core/security/KeychainBackend.ts](../core/security/KeychainBackend.ts). Rather than add a native keychain node module (a new heavy dependency + a wrapper, both against the project ethos), each platform backend reverse-engineers keychain access through its own CLI primitive (macOS `security`, Linux `secret-tool`, Windows WinRT `PasswordVault`) behind an injected `KeychainExec` -- so command-construction and parsing are unit-testable with no real keychain, and no npm dependency is added. The vault is scoped per integration, redacts secret-shaped backend errors via `redactSecrets`, and throws `KeychainUnavailableError` instead of ever falling back to plaintext. Wired into [modules/coding/mcp/McpManager.ts](../modules/coding/mcp/McpManager.ts): an mcp.json env value of `${vault}` / `${vault:NAME}` now resolves from the keychain at load time (constructed at [src/panels/ChatPanelBootstrap.ts](../src/panels/ChatPanelBootstrap.ts)), so MCP secrets never live in the plaintext config; literal non-whitelisted env values are still dropped.
+
+**T003 -- intelligence-per-watt energy telemetry (item 18).** New [core/telemetry/EnergyEstimator.ts](../core/telemetry/EnergyEstimator.ts) derives watts / tokens-per-watt / joules-per-request, integrating `TokenCost.tokenize` for per-request token counts and reading GPU power via nvidia-smi `power.draw`; it reports `energy: unavailable` on a missing sensor and never blocks. `GpuTelemetrySource` gained an optional `powerQuery` plus `powerDrawWatts` / `energyStatus` sample fields (additive, off when unwired), and the desktop Local Model Status panel surfaces the metric in its tooltip.
+
+### Verification
+
+`tsc -b` clean (fixed 3 execFile-callback typing errors); `eslint src modules` clean; `check-architecture` 0 errors / 10 pre-existing warnings; `security:check` in sync; `npm test` 3962 passed / 5 skipped / 0 failed; desktop suite 422 passed; installer `test_recommended_models.py` 29 passed; `catalog:check` regenerated `docs/index.md`. No outbound call introduced. Two forward-tier follow-ups recorded in [the v1.5.0 known-gaps](versions/v1/v1.5.0/known-gaps.md) (`T001.P3.A`, `T003.P3.B`); session history at [versions/v1/v1.5.0/development/history/2026-06_phase-1-local-only-foundations.md](versions/v1/v1.5.0/development/history/2026-06_phase-1-local-only-foundations.md).
+
+---
+
 ## [2026-06-09] v1.4.0 Phase 9 (FINAL) -- Nexus-Hub Sync + Whole-Plan Acceptance Gate
 
 ### Goal

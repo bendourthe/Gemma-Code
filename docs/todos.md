@@ -1,8 +1,8 @@
 # Nexus - Progress Dashboard
 
-**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `feat/v1.4.0-phase-1-skill-native-adoptions`.
+**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `feat/v1.5.0-phase-1-local-only-foundations`.
 
-> **Current state (2026-06-09):** the live development line is the **v1.x cycle series** summarized in the "v1.x line" section near the end of this file. The detailed per-task boards below (v0.1.0 - v0.7.0) are retained as history and predate the rename. Latest closed work: **v1.4.0 complete (Phases 1-9)** -- Nexus-Hub sync + whole-plan acceptance gate landed 2026-06-09. New plan filed this session: **v1.5.0 "Local Agent Maturity"** ([plan](versions/v1/v1.5.0/plans/adoption-ecosystem-2026-06.md)), derived from the [2026-06 ecosystem comparison](versions/v1/v1.5.0/comparison-ecosystem-2026-06.md).
+> **Current state (2026-06-10):** the live development line is the **v1.x cycle series** summarized in the "v1.x line" section near the end of this file. The detailed per-task boards below (v0.1.0 - v0.7.0) are retained as history and predate the rename. Latest work: **v1.5.0 "Local Agent Maturity" Phase 1 landed 2026-06-10** -- the three Bucket 1 `local-only` foundations (Gemma 4 GGUF quant ladder, OS-keychain credential vault, intelligence-per-watt telemetry); see the [v1.5.0 plan](versions/v1/v1.5.0/plans/adoption-ecosystem-2026-06.md) and [known-gaps](versions/v1/v1.5.0/known-gaps.md). Prior: **v1.4.0 complete (Phases 1-9)**, closed 2026-06-09. (v1.4.0 + v1.5.0 work is not yet merged to `main`.)
 
 ---
 
@@ -417,7 +417,7 @@ The project was renamed from Gemma Code to Nexus at v1.0.0 (the four-pillar desk
 | v1.2.0 | 2026-05 ecosystem adoption (code-graph MCP, command compressor, AST chunker, PrunedDenseIndex, LSP) | Phases 1-7 landed | `versions/v1/v1.2.0/plans/adoption-ecosystem-2026-05.md` |
 | v1.3.0 | skill-cleaner adoption (`nexus skills audit` token-budget report) | All 7 phases landed 2026-05-29 | `versions/v1/v1.3.0/plans/adoption-skill-cleaner.md` |
 | v1.4.0 | claude-code-harness adoption + known-gaps closure + Nexus-Hub sync | **Complete (Phases 1-9)**; closed 2026-06-09 | `versions/v1/v1.4.0/plans/adoption-claude-code-harness.md` |
-| v1.5.0 | Local Agent Maturity (2026-06 scan: energy telemetry, credential vault, swarm orchestration, multimodal input) | PLANNED (not started) | `versions/v1/v1.5.0/plans/adoption-ecosystem-2026-06.md` |
+| v1.5.0 | Local Agent Maturity (2026-06 scan: energy telemetry, credential vault, swarm orchestration, multimodal input) | **In progress** -- Phase 1 landed 2026-06-10 (Phases 2-7 pending) | `versions/v1/v1.5.0/plans/adoption-ecosystem-2026-06.md` |
 
 ### v1.4.0 status (COMPLETE -- closed 2026-06-09)
 
@@ -428,9 +428,9 @@ The project was renamed from Gemma Code to Nexus at v1.0.0 (the four-pillar desk
 
 ### v1.5.0 plan (newly filed this session, 2026-06-09)
 
-Derived from the [2026-06 ecosystem comparison](versions/v1/v1.5.0/comparison-ecosystem-2026-06.md) (8 sources; the scan largely validated the existing v1.x direction). RE-first ordered; 7 phases, all PLANNED:
+Derived from the [2026-06 ecosystem comparison](versions/v1/v1.5.0/comparison-ecosystem-2026-06.md) (8 sources; the scan largely validated the existing v1.x direction). RE-first ordered; 7 phases:
 
-- [ ] Phase 1 - Local-only foundations: Gemma 4 GGUF quant ladder, OS-keychain credential vault, intelligence-per-watt telemetry
+- [x] Phase 1 - Local-only foundations: Gemma 4 GGUF quant ladder, OS-keychain credential vault, intelligence-per-watt telemetry (landed 2026-06-10; T001-T004; [known-gaps](versions/v1/v1.5.0/known-gaps.md), [session history](versions/v1/v1.5.0/development/history/2026-06_phase-1-local-only-foundations.md))
 - [ ] Phase 2 - Skill-native: DCI search-discipline skill + agent presets
 - [ ] Phase 3 - Inbound security: prompt-injection classifier (warn-then-allow)
 - [ ] Phase 4 - Swarm/DAG orchestration over worktree sub-agents (closes v1.4.0 `T018.P3.A`, `T018.P3.B`, `T016.P3.A`)
@@ -438,7 +438,7 @@ Derived from the [2026-06 ecosystem comparison](versions/v1/v1.5.0/comparison-ec
 - [ ] Phase 6 - Carryforward: Tree-sitter `.wasm` packaging (closes `T022.P3.A`)
 - [ ] Phase 7 - FINAL: Nexus-Hub sync + whole-plan acceptance gate
 
-**Prerequisite**: starts only after v1.4.0 closes (its Phase 9), on its own `feat/v1.5.0-*` branch. Not yet started.
+**Branch**: `feat/v1.5.0-phase-1-local-only-foundations` (off the v1.4.0 line; v1.4.0 not yet merged to `main`). Phase 1 complete; Phases 2-7 pending.
 
 ---
 

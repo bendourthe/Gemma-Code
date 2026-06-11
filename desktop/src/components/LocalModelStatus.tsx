@@ -79,6 +79,20 @@ export function LocalModelStatus({ stream }: LocalModelStatusProps): JSX.Element
   }
   tooltipLines.push(`Free VRAM: ${sample.vramFreeGB.toFixed(1)} GB`);
   tooltipLines.push(`Queued jobs: ${queue.length}`);
+  // v1.5.0 Phase 1 (T003) -- intelligence-per-watt telemetry.
+  if (sample.energyStatus === "unavailable") {
+    tooltipLines.push("Energy: unavailable");
+  } else if (sample.energyStatus === "available") {
+    if (typeof sample.powerDrawWatts === "number") {
+      tooltipLines.push(`Power: ${sample.powerDrawWatts.toFixed(1)} W`);
+    }
+    if (typeof sample.tokensPerWatt === "number") {
+      tooltipLines.push(`Tokens/W: ${sample.tokensPerWatt.toFixed(2)}`);
+    }
+    if (typeof sample.joulesPerRequest === "number") {
+      tooltipLines.push(`Energy/request: ${sample.joulesPerRequest.toFixed(1)} J`);
+    }
+  }
   const tooltip = tooltipLines.join("\n");
 
   return (

@@ -5,6 +5,7 @@ import { parsePermissionsDeny } from "../../core/storage/PermissionsDeny.js";
 import { createHookBus } from "../../core/lifecycle/HookBus.js";
 import { attachSessionReflectionHook } from "../../core/lifecycle/SessionReflectionHook.js";
 import { matchPathScope } from "../../core/skills/SkillCatalog.js";
+import { createCredentialVault } from "../../core/security/CredentialVault.js";
 import type { PathScopedSkillSource } from "../tools/AgentLoop.js";
 import { ConversationManager } from "../../modules/coding/chat/ConversationManager.js";
 import type { ContextCompactor } from "../../modules/coding/chat/ContextCompactor.js";
@@ -473,7 +474,24 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
   let mcpManager: McpManager | null = null;
   let mcpServer: McpServer | null = null;
   if (settings.mcpEnabled) {
-    mcpManager = new McpManager(registry, workspacePath, workspaceState);
+    // v1.5.0 Phase 1 (T002) -- wire the OS-keychain credential vault as the
+    // source for `${vault}` env references so MCP secrets never read from
+    // plaintext mcp.json. The vault logger only ever receives redacted text.
+    const credentialVault = createCredentialVault({
+      logger: (level, message) => {
+        const log = getLogger();
+        if (level === "error") log.error(message);
+        else if (level === "warn") log.warn(message);
+        else log.debug(message);
+      },
+    });
+    mcpManager = new McpManager(
+      registry,
+      workspacePath,
+      workspaceState,
+      undefined,
+      credentialVault,
+    );
     void mcpManager
       .initialize()
       .then(() => {

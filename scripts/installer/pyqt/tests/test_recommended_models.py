@@ -7,6 +7,8 @@ import pytest
 from nexus_installer.installer_state import InstallerState
 from nexus_installer.pages.recommended_models import (
     FULL_PRESET,
+    GEMMA4_GGUF_DEFAULT_QUANT,
+    GEMMA4_GGUF_QUANTS,
     LIGHT_PRESET,
     PRESETS,
     RECOMMENDED_PRESET,
@@ -128,6 +130,44 @@ class TestModelSelection:
         # `default_checked` continue to seed the selection.
         entry = ModelEntry("foo", "Foo", 1.0, "desc")
         assert entry.default_checked is True
+
+
+class TestGemma4GgufQuantLadder:
+    """v1.5.0 Phase 1 (T001) -- Gemma 4 12B-IT GGUF quant ladder."""
+
+    def test_full_quant_ladder_present_and_ordered(self) -> None:
+        quants = [q.quant for q in GEMMA4_GGUF_QUANTS]
+        assert quants == ["IQ2_M", "Q3_K", "Q4_K_XL", "Q5_K", "Q6_K", "BF16"]
+
+    def test_tier_mapping(self) -> None:
+        tier_of = {q.quant: q.hardware_tier for q in GEMMA4_GGUF_QUANTS}
+        assert tier_of["IQ2_M"] == 1
+        assert tier_of["Q3_K"] == 1
+        assert tier_of["Q4_K_XL"] == 2
+        assert tier_of["Q5_K"] == 2
+        assert tier_of["Q6_K"] == 2
+        assert tier_of["BF16"] == 3
+
+    def test_ollama_ref_format(self) -> None:
+        for q in GEMMA4_GGUF_QUANTS:
+            assert q.ollama_ref == f"hf.co/unsloth/gemma-4-12b-it-GGUF:{q.quant}"
+
+    def test_default_quant_exists(self) -> None:
+        assert GEMMA4_GGUF_DEFAULT_QUANT == "Q4_K_XL"
+        assert any(q.quant == GEMMA4_GGUF_DEFAULT_QUANT for q in GEMMA4_GGUF_QUANTS)
+
+    def test_published_disk_sizes(self) -> None:
+        disk = {q.quant: q.disk_gb for q in GEMMA4_GGUF_QUANTS}
+        assert disk["IQ2_M"] == pytest.approx(4.21)
+        assert disk["Q4_K_XL"] == pytest.approx(7.37)
+        assert disk["Q6_K"] == pytest.approx(10.7)
+        assert disk["BF16"] == pytest.approx(23.8)
+
+    def test_gguf_rows_appear_in_presets(self) -> None:
+        recommended_ids = {m.model_id for m in RECOMMENDED_PRESET.models}
+        full_ids = {m.model_id for m in FULL_PRESET.models}
+        assert "hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_XL" in recommended_ids
+        assert "hf.co/unsloth/gemma-4-12b-it-GGUF:Q6_K" in full_ids
 
 
 class TestRecommendedModelsPageRender:

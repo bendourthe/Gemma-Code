@@ -19,6 +19,12 @@ export interface RawGpuSample {
   activeModelId: string | null;
   queuedJobs: number;
   capturedAt: number;
+  // v1.5.0 Phase 1 (T003) -- energy telemetry, present when a power sampler is
+  // wired into the sidecar GpuTelemetrySource. Undefined otherwise.
+  powerDrawWatts?: number | null;
+  tokensPerWatt?: number | null;
+  joulesPerRequest?: number | null;
+  energyStatus?: "available" | "unavailable";
 }
 
 export interface SchedulerSnapshotForWidget {
@@ -89,6 +95,10 @@ export function createTelemetryStream(
         vramAllocatedGB: Math.max(0, raw.totalVramGB - raw.freeVramGB),
         queuedJobs: snap.queued,
         idle,
+        powerDrawWatts: raw.powerDrawWatts,
+        tokensPerWatt: raw.tokensPerWatt,
+        joulesPerRequest: raw.joulesPerRequest,
+        energyStatus: raw.energyStatus,
       };
       for (const fn of subs) fn(sample);
     });

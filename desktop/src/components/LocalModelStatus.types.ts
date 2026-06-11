@@ -22,6 +22,15 @@ export interface LocalModelTelemetry {
   queuedJobs?: ReadonlyArray<LocalModelQueuedJob>;
   /** When the active job is null the widget renders "Idle" instead of a model name. */
   idle?: boolean;
+  /**
+   * v1.5.0 Phase 1 (T003) -- intelligence-per-watt telemetry. Present only
+   * when a power sampler is wired; the widget surfaces them when available and
+   * shows "Energy: unavailable" when the sensor is missing.
+   */
+  powerDrawWatts?: number | null;
+  tokensPerWatt?: number | null;
+  joulesPerRequest?: number | null;
+  energyStatus?: "available" | "unavailable";
 }
 
 export type TelemetrySubscriber = (sample: LocalModelTelemetry) => void;

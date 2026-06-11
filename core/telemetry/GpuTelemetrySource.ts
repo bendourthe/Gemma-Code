@@ -20,6 +20,7 @@
  */
 
 import type { TelemetryBus } from "./TelemetryBus.js";
+import type { EnergyStatus, PowerSampleFn } from "./EnergyEstimator.js";
 
 export type GpuDeviceKind = "cuda" | "apple" | "cpu";
 
@@ -38,6 +39,14 @@ export interface GpuTelemetrySample {
   readonly activeModelId: string | null;
   /** Pending queue depth from the scheduler, if available. */
   readonly queuedJobs: number;
+  /**
+   * v1.5.0 Phase 1 (T003) -- instantaneous GPU power draw in watts when a
+   * power sampler is wired and a sensor is reachable; null when the sensor is
+   * unavailable; undefined when no power sampler is configured.
+   */
+  readonly powerDrawWatts?: number | null;
+  /** Energy availability when a power sampler is wired. */
+  readonly energyStatus?: EnergyStatus;
 }
 
 export interface ActiveJobInfo {
@@ -64,6 +73,12 @@ export interface GpuTelemetrySourceOptions {
   readonly intervalMs?: number;
   /** Custom GPU query implementation. Falls back to platform default. */
   readonly query?: GpuQueryFn;
+  /**
+   * v1.5.0 Phase 1 (T003) -- optional GPU power sampler (watts). When present,
+   * each sample carries `powerDrawWatts` + `energyStatus`; when absent those
+   * fields stay undefined and behavior is unchanged.
+   */
+  readonly powerQuery?: PowerSampleFn;
   /** Override the clock for tests. */
   readonly now?: () => number;
   /** Override `setInterval` / `clearInterval` for tests. */
@@ -167,6 +182,7 @@ export class GpuTelemetrySource {
   private readonly _activeJobProvider: ActiveJobProvider;
   private readonly _intervalMs: number;
   private readonly _query: GpuQueryFn;
+  private readonly _powerQuery: PowerSampleFn | null;
   private readonly _now: () => number;
   private readonly _setInterval: (handler: () => void, ms: number) => unknown;
   private readonly _clearInterval: (handle: unknown) => void;
@@ -180,6 +196,7 @@ export class GpuTelemetrySource {
       opts.activeJobProvider ?? (() => ({ modelId: null, queuedJobs: 0 }));
     this._intervalMs = opts.intervalMs ?? 500;
     this._query = opts.query ?? (() => Promise.resolve(buildCpuFallbackSample()));
+    this._powerQuery = opts.powerQuery ?? null;
     this._now = opts.now ?? (() => Date.now());
     this._setInterval =
       opts.setInterval ??
@@ -224,6 +241,7 @@ export class GpuTelemetrySource {
         result = buildCpuFallbackSample();
       }
       const activeJob = this._activeJobProvider();
+      const energy = await this._samplePower();
       const sample: GpuTelemetrySample = {
         capturedAt: this._now(),
         device: result.device,
@@ -233,6 +251,7 @@ export class GpuTelemetrySource {
         freeVramGB: result.freeVramGB,
         activeModelId: activeJob.modelId,
         queuedJobs: activeJob.queuedJobs,
+        ...energy,
       };
       this._lastSample = sample;
       this._telemetry.publish({
@@ -244,6 +263,28 @@ export class GpuTelemetrySource {
     } finally {
       this._polling = false;
     }
+  }
+
+  /**
+   * Query the optional power sampler and map it to the sample's energy fields.
+   * Returns an empty object when no sampler is configured (the fields stay
+   * undefined); reports `energyStatus: "unavailable"` when the sensor returns
+   * null or throws, so a missing power sensor never blocks a sample.
+   */
+  private async _samplePower(): Promise<
+    Pick<GpuTelemetrySample, "powerDrawWatts" | "energyStatus">
+  > {
+    if (!this._powerQuery) return {};
+    let watts: number | null;
+    try {
+      watts = await this._powerQuery();
+    } catch {
+      watts = null;
+    }
+    return {
+      powerDrawWatts: watts,
+      energyStatus: watts !== null ? "available" : "unavailable",
+    };
   }
 }
 

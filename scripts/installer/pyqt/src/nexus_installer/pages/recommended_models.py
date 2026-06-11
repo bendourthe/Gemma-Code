@@ -71,6 +71,56 @@ class PresetBundle:
         return sum(m.size_gb for m in self.models)
 
 
+# v1.5.0 Phase 1 (adoption-ecosystem-2026-06 T001) -- Gemma 4 12B-IT GGUF
+# quant ladder (Unsloth Dynamic-2.0). Mirrors
+# modules/coding/config/Gemma4GgufQuants.ts so the installer can offer a
+# quant matched to the detected VRAM. Pulled via
+# `ollama run hf.co/unsloth/gemma-4-12b-it-GGUF:<QUANT>`.
+GEMMA4_GGUF_OLLAMA_BASE = "hf.co/unsloth/gemma-4-12b-it-GGUF"
+
+
+@dataclass(frozen=True)
+class GgufQuant:
+    """One GGUF quant of Gemma 4 12B-IT with its tier mapping."""
+
+    quant: str
+    disk_gb: float
+    min_vram_gb: int
+    ollama_ref: str
+    hardware_tier: int
+
+
+def _gguf_tier(min_vram_gb: int) -> int:
+    """Classify VRAM (GB) into a Nexus hardware tier (matches classifyTier)."""
+    if min_vram_gb < 10:
+        return 1
+    if min_vram_gb < 20:
+        return 2
+    return 3
+
+
+def _gguf(quant: str, disk_gb: float, min_vram_gb: int) -> GgufQuant:
+    return GgufQuant(
+        quant=quant,
+        disk_gb=disk_gb,
+        min_vram_gb=min_vram_gb,
+        ollama_ref=f"{GEMMA4_GGUF_OLLAMA_BASE}:{quant}",
+        hardware_tier=_gguf_tier(min_vram_gb),
+    )
+
+
+GEMMA4_GGUF_QUANTS: tuple[GgufQuant, ...] = (
+    _gguf("IQ2_M", 4.21, 6),
+    _gguf("Q3_K", 6.0, 8),
+    _gguf("Q4_K_XL", 7.37, 10),
+    _gguf("Q5_K", 8.8, 12),
+    _gguf("Q6_K", 10.7, 14),
+    _gguf("BF16", 23.8, 26),
+)
+
+GEMMA4_GGUF_DEFAULT_QUANT = "Q4_K_XL"
+
+
 LIGHT_PRESET = PresetBundle(
     name="Light",
     summary="8 GB VRAM, ~10 GB on disk -- fits most laptops with a discrete GPU.",
@@ -113,6 +163,15 @@ RECOMMENDED_PRESET = PresetBundle(
     models=(
         ModelEntry("gemma4:e4b", "Gemma 4 E4B", 4.5, "balanced chat + coding"),
         ModelEntry("llama3.1:8b", "Llama 3.1 8B", 5.0, "general-purpose assistant"),
+        # v1.5.0 Phase 1 (T001) -- Gemma 4 12B-IT GGUF (Q4_K_XL): multimodal,
+        # 256K context. Opt-in so the extra ~7.4 GB is explicit.
+        ModelEntry(
+            "hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_XL",
+            "Gemma 4 12B-IT GGUF (Q4_K_XL)",
+            7.37,
+            "multimodal 12B, 256K context (opt-in)",
+            default_checked=False,
+        ),
         # v1.1.0 Phase 12.8 -- SANA family replaces SDXL Turbo as the default.
         ModelEntry(
             "sana-1.6b-1024",
@@ -147,6 +206,14 @@ FULL_PRESET = PresetBundle(
     models=(
         ModelEntry("gemma4:26b", "Gemma 4 26B MoE", 18.0, "long-context reasoning"),
         ModelEntry("llama3.1:8b", "Llama 3.1 8B", 5.0, "general-purpose assistant"),
+        # v1.5.0 Phase 1 (T001) -- Gemma 4 12B-IT GGUF (Q6_K): the high-quality
+        # quant for creator-tier hosts. Ticked by default in Full.
+        ModelEntry(
+            "hf.co/unsloth/gemma-4-12b-it-GGUF:Q6_K",
+            "Gemma 4 12B-IT GGUF (Q6_K)",
+            10.7,
+            "multimodal 12B, 256K context, high-quality quant",
+        ),
         ModelEntry(
             "qwen2.5-coder:7b",
             "Qwen 2.5 Coder 7B",

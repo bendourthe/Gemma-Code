@@ -258,4 +258,57 @@ describe("GpuTelemetrySource", () => {
     const sample = await src.sampleNow();
     expect(sample?.device).toBe("cpu");
   });
+
+  // v1.5.0 Phase 1 (T003) -- optional energy fields.
+  it("leaves energy fields undefined when no power sampler is wired", async () => {
+    const src = new GpuTelemetrySource({
+      telemetry: bus,
+      query: () => Promise.resolve<GpuQueryResult>({
+        device: "cuda",
+        deviceName: "RTX",
+        utilizationPct: 10,
+        totalVramGB: 12,
+        freeVramGB: 6,
+      }),
+    });
+    const sample = await src.sampleNow();
+    expect(sample?.powerDrawWatts).toBeUndefined();
+    expect(sample?.energyStatus).toBeUndefined();
+  });
+
+  it("attaches powerDrawWatts + energyStatus=available when the power sampler returns watts", async () => {
+    const src = new GpuTelemetrySource({
+      telemetry: bus,
+      query: () => Promise.resolve<GpuQueryResult>({
+        device: "cuda",
+        deviceName: "RTX",
+        utilizationPct: 10,
+        totalVramGB: 12,
+        freeVramGB: 6,
+      }),
+      powerQuery: () => Promise.resolve(142.5),
+    });
+    const sample = await src.sampleNow();
+    expect(sample?.powerDrawWatts).toBe(142.5);
+    expect(sample?.energyStatus).toBe("available");
+  });
+
+  it("reports energyStatus=unavailable when the power sampler returns null or throws", async () => {
+    const nullSrc = new GpuTelemetrySource({
+      telemetry: bus,
+      query: () => Promise.resolve<GpuQueryResult | null>(null),
+      powerQuery: () => Promise.resolve(null),
+    });
+    const nullSample = await nullSrc.sampleNow();
+    expect(nullSample?.powerDrawWatts).toBeNull();
+    expect(nullSample?.energyStatus).toBe("unavailable");
+
+    const throwSrc = new GpuTelemetrySource({
+      telemetry: bus,
+      query: () => Promise.resolve<GpuQueryResult | null>(null),
+      powerQuery: () => Promise.reject(new Error("nvidia-smi power.draw unsupported")),
+    });
+    const throwSample = await throwSrc.sampleNow();
+    expect(throwSample?.energyStatus).toBe("unavailable");
+  });
 });

@@ -59,6 +59,25 @@
       "source": { "protocol": "ollama", "url": "ollama://gemma4:31b" }
     },
     {
+      "id": "gemma-4-12b-it-gguf",
+      "family": "gemma4",
+      "name": "gemma-4-12b-it-GGUF",
+      "tag": "Q4_K_XL",
+      "type": "llm",
+      "displayName": "Gemma 4 12B-IT (Unsloth GGUF)",
+      "description": "Unsloth Dynamic-2.0 GGUF quant ladder of Gemma 4 12B instruction-tuned (IQ2_M / Q3_K / Q4_K_XL / Q5_K / Q6_K / BF16). Native text/image/audio multimodal input, 256K context. Run via `ollama run hf.co/unsloth/gemma-4-12b-it-GGUF:<QUANT>`. Per-quant disk/VRAM sizing and hardware-tier mapping live in modules/coding/config/Gemma4GgufQuants.ts; Q4_K_XL is the recommended default quant.",
+      "sizeGB": 7.37,
+      "vramGB": 11,
+      "requiredVramGB": 11,
+      "releaseDate": "2026-05-01",
+      "uncensored": false,
+      "multimodal": true,
+      "contextWindow": 262144,
+      "license": "Gemma Terms of Use",
+      "source": { "protocol": "ollama", "url": "ollama://hf.co/unsloth/gemma-4-12b-it-GGUF" },
+      "tags": ["recommended", "coding", "chat", "gguf", "multimodal"]
+    },
+    {
       "id": "llama3.1:8b",
       "family": "llama",
       "name": "llama3.1",

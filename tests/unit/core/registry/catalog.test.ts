@@ -110,6 +110,22 @@ describe("catalog", () => {
     expect(() => getSpec(file, "nope:1")).toThrow();
   });
 
+  it("registers the Gemma 4 12B-IT GGUF entry (v1.5.0 Phase 1 T001)", async () => {
+    const file = await loadCatalog();
+    const gguf = findSpec(file, "gemma-4-12b-it-gguf");
+    expect(gguf).toBeDefined();
+    expect(gguf?.type).toBe("llm");
+    expect(gguf?.family).toBe("gemma4");
+    // Item 32 acceptance: 256K context + native multimodal flag for Phase 5.
+    expect(gguf?.contextWindow).toBe(262_144);
+    expect(gguf?.multimodal).toBe(true);
+    // Runnable via Ollama against the Unsloth HF GGUF repo.
+    expect(gguf?.source.protocol).toBe("ollama");
+    expect(gguf?.source.url).toBe("ollama://hf.co/unsloth/gemma-4-12b-it-GGUF");
+    expect(gguf?.tags).toContain("recommended");
+    expect(gguf?.tags).toContain("multimodal");
+  });
+
   it("validateSpec accepts the controlnet + vae types introduced in v1.1.0 Phase 12", () => {
     const cn: ModelSpec = {
       id: "cn:x",
