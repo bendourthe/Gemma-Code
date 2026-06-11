@@ -4,6 +4,26 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-06-10] v1.5.0 Phase 2 -- Skill-native Adoptions
+
+### Goal
+
+Ship the two Bucket 2 `skill-native` adoptions ([docs/versions/v1/v1.5.0/plans/adoption-ecosystem-2026-06.md](versions/v1/v1.5.0/plans/adoption-ecosystem-2026-06.md), items 11 and 21) as Nexus-Hub catalog skills, with zero Nexus-AI `core/` or `modules/` source change. The deliverables live in the separate Nexus-Hub repo; the Nexus-AI side is documentation only.
+
+### What changed
+
+**T005 -- DCI / hybrid-retrieval search-discipline skill (item 11).** Authored `catalog/skills/developer-experience/direct-corpus-interaction/SKILL.md` in Nexus-Hub. It codifies the Direct Corpus Interaction discipline from the DCI / GrepSeek source (S2): anchor with semantic / hybrid retrieval, then expand laterally with grep / call-graph trace / read to verify exact strings, versions, and error codes before answering; refine on dead ends; never pre-filter evidence out of the reasoning loop. It references Nexus's `HybridRetriever` (BM25 + dense + graph via RRF `k=60`) and the code-graph MCP (`codegraph_trace` / `callers` / `callees`) as the substrate, and cross-links `code-semantic-search`, `rag-implementation`, `bug-localization`, `context-engineering`, `context-manager`.
+
+**T006 -- agent presets (item 21).** Authored `catalog/skills/workflow/agent-presets/SKILL.md` in Nexus-Hub as a single skill (per the chosen shape, mirroring `workflow/context-modes`) documenting three preset bundles -- `morning-briefing`, `research`, `coding-assistant` -- each composing existing catalog skills and slash commands into a one-invocation workflow (OpenJarvis presets, S4). Zero new tools, zero outbound surface.
+
+**Cross-repo handling.** Both skills were committed on a dedicated Nexus-Hub branch `feat/dci-discipline-and-agent-presets` (off `develop`) to avoid disturbing concurrent Nexus-Hub sessions in the shared working tree; only the two `SKILL.md` files plus the regenerated `data/skills.json` and `data/SKILL_INDEX.md` were staged (a pre-existing antigravity-template WIP and its `templates.json` rebuild side-effect were left untouched). Hub commit `786651f`; not pushed (gated). The merge / publish / `nexus skills sync` reflection is deferred to Phase 7 (T023) and tracked as `T005.P3.A`.
+
+### Verification
+
+Hub `scripts/validate_skills.py` on both skills: PASS (0 errors; 5 optional-field warnings each, matching the catalog norm); `--quality` PASS (0 warnings -- Common Rationalizations, binary Verification, Related Skills cross-links, Tier-1 word budgets all satisfied; descriptions trimmed to <=250 chars for the hard limit). Nexus-AI regression: `node bin/nexus-check.mjs --rule skill-duplicate-name` -> 0 findings; `npm run check:prompts` -> exit 0 (one pre-existing `review-pr` oversize warning, unrelated to this phase); working tree clean -- **no `core/` or `modules/` source changed**. One forward-tier follow-up recorded in [the v1.5.0 known-gaps](versions/v1/v1.5.0/known-gaps.md) (`T005.P3.A`); session history at [versions/v1/v1.5.0/development/history/2026-06_phase-2-skill-native.md](versions/v1/v1.5.0/development/history/2026-06_phase-2-skill-native.md).
+
+---
+
 ## [2026-06-10] v1.5.0 Phase 1 -- Local-only Foundations
 
 ### Goal

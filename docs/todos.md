@@ -1,8 +1,8 @@
 # Nexus - Progress Dashboard
 
-**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `feat/v1.5.0-phase-1-local-only-foundations`.
+**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `feat/v1.5.0-phase-2-skill-native`.
 
-> **Current state (2026-06-10):** the live development line is the **v1.x cycle series** summarized in the "v1.x line" section near the end of this file. The detailed per-task boards below (v0.1.0 - v0.7.0) are retained as history and predate the rename. Latest work: **v1.5.0 "Local Agent Maturity" Phase 1 landed 2026-06-10** -- the three Bucket 1 `local-only` foundations (Gemma 4 GGUF quant ladder, OS-keychain credential vault, intelligence-per-watt telemetry); see the [v1.5.0 plan](versions/v1/v1.5.0/plans/adoption-ecosystem-2026-06.md) and [known-gaps](versions/v1/v1.5.0/known-gaps.md). Prior: **v1.4.0 complete (Phases 1-9)**, closed 2026-06-09. (v1.4.0 + v1.5.0 work is not yet merged to `main`.)
+> **Current state (2026-06-10):** the live development line is the **v1.x cycle series** summarized in the "v1.x line" section near the end of this file. The detailed per-task boards below (v0.1.0 - v0.7.0) are retained as history and predate the rename. Latest work: **v1.5.0 "Local Agent Maturity" Phase 2 landed 2026-06-10** -- the two Bucket 2 `skill-native` adoptions (the `direct-corpus-interaction` DCI search-discipline skill and the `agent-presets` bundle), authored in the Nexus-Hub catalog on branch `feat/dci-discipline-and-agent-presets` with no Nexus-AI `core/`/`modules/` change. Prior: **Phase 1 landed 2026-06-10** -- the three Bucket 1 `local-only` foundations (Gemma 4 GGUF quant ladder, OS-keychain credential vault, intelligence-per-watt telemetry); see the [v1.5.0 plan](versions/v1/v1.5.0/plans/adoption-ecosystem-2026-06.md) and [known-gaps](versions/v1/v1.5.0/known-gaps.md). Prior: **v1.4.0 complete (Phases 1-9)**, closed 2026-06-09. (v1.4.0 + v1.5.0 work is not yet merged to `main`.)
 
 ---
 
@@ -431,7 +431,7 @@ The project was renamed from Gemma Code to Nexus at v1.0.0 (the four-pillar desk
 Derived from the [2026-06 ecosystem comparison](versions/v1/v1.5.0/comparison-ecosystem-2026-06.md) (8 sources; the scan largely validated the existing v1.x direction). RE-first ordered; 7 phases:
 
 - [x] Phase 1 - Local-only foundations: Gemma 4 GGUF quant ladder, OS-keychain credential vault, intelligence-per-watt telemetry (landed 2026-06-10; T001-T004; [known-gaps](versions/v1/v1.5.0/known-gaps.md), [session history](versions/v1/v1.5.0/development/history/2026-06_phase-1-local-only-foundations.md))
-- [ ] Phase 2 - Skill-native: DCI search-discipline skill + agent presets
+- [x] Phase 2 - Skill-native: DCI search-discipline skill + agent presets (landed 2026-06-10; T005-T007; authored in Nexus-Hub on branch `feat/dci-discipline-and-agent-presets` -- `developer-experience/direct-corpus-interaction` + `workflow/agent-presets`; merge/publish/`nexus skills sync` deferred to Phase 7/T023; [session history](versions/v1/v1.5.0/development/history/2026-06_phase-2-skill-native.md))
 - [ ] Phase 3 - Inbound security: prompt-injection classifier (warn-then-allow)
 - [ ] Phase 4 - Swarm/DAG orchestration over worktree sub-agents (closes v1.4.0 `T018.P3.A`, `T018.P3.B`, `T016.P3.A`)
 - [ ] Phase 5 - Model-layer & desktop re-partials: multimodal input, split preview pane, provider/credential UI, cross-surface session resume

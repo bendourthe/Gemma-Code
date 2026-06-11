@@ -138,7 +138,7 @@ No constitution file found at docs/versions/v1/v1.5.0/constitution.md - skipping
 
 #### 2.1 -- Item 11: DCI / hybrid-retrieval search-discipline skill
 
-- [ ] T005 Author a direct-corpus-interaction search-discipline skill for the Nexus-Hub catalog
+- [x] T005 Author a direct-corpus-interaction search-discipline skill for the Nexus-Hub catalog
 
 **Objective**: Adopt report item 11 (`skill-native`): codify the DCI search discipline (hypothesis -> refine -> anchor -> lateral-expand -> verify exact constraints) the GrepSeek article (S2) describes, which Nexus has primitives for but does not express as a strategy.
 
@@ -149,7 +149,7 @@ No constitution file found at docs/versions/v1/v1.5.0/constitution.md - skipping
 
 #### 2.2 -- Item 21: Agent presets
 
-- [ ] T006 [P] Author agent-preset bundles (briefing / research / coding) for the Nexus-Hub catalog
+- [x] T006 [P] Author agent-preset bundles (briefing / research / coding) for the Nexus-Hub catalog
 
 **Objective**: Adopt report item 21 (`skill-native`): ready-made preset templates over existing skills/commands (OpenJarvis presets, S4).
 
@@ -160,7 +160,7 @@ No constitution file found at docs/versions/v1/v1.5.0/constitution.md - skipping
 
 #### 2.3 -- Testing and Stabilization
 
-- [ ] T007 Run and stabilize Phase 2 skill checks
+- [x] T007 Run and stabilize Phase 2 skill checks
 
 **Objective**: Verify the skills are conformant and discoverable.
 
@@ -171,11 +171,11 @@ No constitution file found at docs/versions/v1/v1.5.0/constitution.md - skipping
 
 ### Phase 2 Exit Checklist
 
-- [ ] All sub-tasks completed
-- [ ] All checks passing
-- [ ] No `core/` or `modules/` change
-- [ ] Session history generated for this phase
-- [ ] Ready to advance to Phase 3
+- [x] All sub-tasks completed
+- [x] All checks passing
+- [x] No `core/` or `modules/` change
+- [x] Session history generated for this phase
+- [x] Ready to advance to Phase 3
 
 ---
 
