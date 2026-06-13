@@ -229,7 +229,7 @@ No constitution file found at docs/versions/v1/v1.5.0/constitution.md - skipping
 
 #### 4.1 -- Live-wire worktree isolation at bootstrap (closes T018.P3.A)
 
-- [ ] T010 Wire setWorktreeManager at session bootstrap and enable isolate for parallel write-capable DAG nodes
+- [x] T010 Wire setWorktreeManager at session bootstrap and enable isolate for parallel write-capable DAG nodes
 
 **Objective**: Close v1.4.0 `T018.P3.A` [from v1.4.0 known-gaps]: move worktree isolation from attachable-but-unwired to live in the runtime dispatch path.
 
@@ -240,7 +240,7 @@ No constitution file found at docs/versions/v1/v1.5.0/constitution.md - skipping
 
 #### 4.2 -- Planner/critic/worker orchestration layer (closes T018.P3.B)
 
-- [ ] T011 Build the bounded planner/critic/worker orchestration layer over src/agents/
+- [x] T011 Build the bounded planner/critic/worker orchestration layer over src/agents/
 
 **Objective**: Adopt report item 36 and close v1.4.0 `T018.P3.B` [from v1.4.0 known-gaps] team-orchestration half: a real multi-agent composition layer, GPU-bounded.
 
@@ -251,7 +251,7 @@ No constitution file found at docs/versions/v1/v1.5.0/constitution.md - skipping
 
 #### 4.3 -- Read-tool worktree rooting (closes T018.P3.B read-tool half)
 
-- [ ] T012 [P] Thread the pathGuard root override through the read tools for write-then-read parity in a worktree
+- [x] T012 [P] Thread the pathGuard root override through the read tools for write-then-read parity in a worktree
 
 **Objective**: Close the read-tool half of v1.4.0 `T018.P3.B` [from v1.4.0 known-gaps]: let read tools observe in-worktree writes.
 
@@ -262,7 +262,7 @@ No constitution file found at docs/versions/v1/v1.5.0/constitution.md - skipping
 
 #### 4.4 -- Live-wire the PreCompact WIP hook (closes T016.P3.A)
 
-- [ ] T013 [P] Attach attachPreCompactWipHook at session construction and emit the PreCompact event on the production path
+- [x] T013 [P] Attach attachPreCompactWipHook at session construction and emit the PreCompact event on the production path
 
 **Objective**: Close v1.4.0 `T016.P3.A` [from v1.4.0 known-gaps]: the A8 PreCompact hook ships attachable but inert because no production code emits `lifecycle.context.preCompact` on the bootstrap bus.
 
@@ -273,7 +273,7 @@ No constitution file found at docs/versions/v1/v1.5.0/constitution.md - skipping
 
 #### 4.5 -- Testing and Stabilization
 
-- [ ] T014 Run and stabilize Phase 4 tests in tests/integration/agents/
+- [x] T014 Run and stabilize Phase 4 tests in tests/integration/agents/
 
 **Objective**: Verify orchestration + the three closures; iterate until stable.
 
@@ -284,11 +284,11 @@ No constitution file found at docs/versions/v1/v1.5.0/constitution.md - skipping
 
 ### Phase 4 Exit Checklist
 
-- [ ] All sub-tasks completed
-- [ ] All tests passing (incl. production-path isolation + scheduler-bound proof)
-- [ ] `T018.P3.A`, `T018.P3.B`, `T016.P3.A` closed
-- [ ] Session history generated for this phase
-- [ ] Ready to advance to Phase 5
+- [x] All sub-tasks completed
+- [x] All tests passing (incl. production-path isolation + scheduler-bound proof)
+- [x] `T018.P3.A`, `T018.P3.B`, `T016.P3.A` closed
+- [x] Session history generated for this phase
+- [x] Ready to advance to Phase 5
 
 ---
 

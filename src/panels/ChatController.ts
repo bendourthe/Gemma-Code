@@ -83,6 +83,8 @@ export interface OrchestratorBuildDeps {
   readonly hardwareTier: HardwareTierConfig;
   readonly memoryStore: MemoryStore | null;
   readonly postMessage: (msg: ExtensionToWebviewMessage) => void;
+  /** v1.5.0 Phase 4 (item 36): opt-in swarm orchestration (worktree-isolated workers + critic gate). Default off. */
+  readonly swarmEnabled?: boolean;
 }
 
 export interface AgentLoopBuildDeps {
@@ -222,6 +224,7 @@ export class ChatController {
       hardwareTier: deps.hardwareTier,
       memoryStore: deps.memoryStore,
       postMessage: deps.postMessage,
+      swarmEnabled: deps.swarmEnabled,
     });
   }
 

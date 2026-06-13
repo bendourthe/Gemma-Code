@@ -454,14 +454,20 @@ export class SubAgentManager implements SubAgentSpawner {
     const baseScope = overrideScope ?? (specialist ? specialist.toolScope : TOOLS_BY_TYPE[type]);
     const allowed = new Set<string>(baseScope);
 
+    // v1.5.0 Phase 4 (T012, closes v1.4.0 T018.P3.B read-tool half): when this
+    // run is worktree-isolated, root the read tools at the worktree too -- not
+    // just run_terminal -- so a worker that writes a file via run_terminal then
+    // reads it back with read_file / list_directory / grep_codebase observes its
+    // own in-worktree write. Null worktreeRoot preserves the shared-workspace
+    // behavior for every non-isolated run.
     if (allowed.has("read_file")) {
-      registry.register("read_file", new ReadFileTool());
+      registry.register("read_file", new ReadFileTool(null, [], null, worktreeRoot));
     }
     if (allowed.has("list_directory")) {
-      registry.register("list_directory", new ListDirectoryTool());
+      registry.register("list_directory", new ListDirectoryTool(null, [], worktreeRoot));
     }
     if (allowed.has("grep_codebase")) {
-      registry.register("grep_codebase", new GrepCodebaseTool());
+      registry.register("grep_codebase", new GrepCodebaseTool(null, [], worktreeRoot));
     }
     if (allowed.has("run_terminal")) {
       // v1.4.0 Phase 6 (A10): when this run is worktree-isolated, root the

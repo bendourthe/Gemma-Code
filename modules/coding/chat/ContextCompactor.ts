@@ -17,6 +17,7 @@ import { PurgeErrorsStrategy } from "./strategies/purgeErrors.js";
 import { RegenerateFromSource } from "./RegenerateFromSource.js";
 import { calculateBudget } from "../config/PromptBudget.js";
 import { Tracer } from "../observability/Tracer.js";
+import type { HookBus } from "../../../core/lifecycle/HookBus.js";
 
 /**
  * The slice of `GemmaCodeSettings` the compactor reads on each invocation.
@@ -81,6 +82,12 @@ export class ContextCompactor {
   private _traceId = "";
   private _traceParentSpanId?: string;
   private _rebuildProvider: RebuildSnapshotProvider | null = null;
+  /**
+   * v1.5.0 Phase 4 (T013): optional lifecycle bus. When wired, `compact()`
+   * emits `lifecycle.context.preCompact` just before the compaction pipeline
+   * runs so the A8 PreCompact WIP hook fires (checkpoint + non-blocking warn).
+   */
+  private _hookBus: HookBus | null = null;
 
   constructor(
     private readonly _manager: ConversationManager,
@@ -116,6 +123,15 @@ export class ContextCompactor {
   /** Set a hook to run after compaction (e.g. memory consolidation). */
   setPostCompactionHook(hook: (sessionId: string) => Promise<void>): void {
     this._postCompactionHook = hook;
+  }
+
+  /**
+   * v1.5.0 Phase 4 (T013) -- wire the session lifecycle bus so a real
+   * compaction emits `lifecycle.context.preCompact` (the A8 PreCompact WIP hook
+   * subscribes to it at session bootstrap). Passing `null` removes the wiring.
+   */
+  setHookBus(bus: HookBus | null): void {
+    this._hookBus = bus;
   }
 
   /** Returns the estimated token count for the current conversation. */
@@ -170,6 +186,19 @@ export class ContextCompactor {
 
     const settings = this._settingsProvider();
     const budget = calculateBudget(this._maxTokens);
+
+    // v1.5.0 Phase 4 (T013, closes v1.4.0 T016.P3.A): emit the PreCompact event
+    // at the real compaction boundary -- before any strategy runs -- so the A8
+    // WIP hook can checkpoint and warn before in-flight detail is summarized
+    // away. `afterTokens` is the conversation budget the pipeline targets (the
+    // post-compaction count is not yet known at this point). The bus is
+    // fire-and-forget: this emit can neither block nor delay the compaction.
+    this._hookBus?.emit({
+      kind: "lifecycle.context.preCompact",
+      sessionId: this._manager.sessionId ?? "",
+      beforeTokens: tokensBefore,
+      afterTokens: budget.conversationBudget,
+    });
 
     // v0.7.0 Phase 3: deduplication + purge-errors run BEFORE the v0.6.0
     // strategies. Both are no-ops when there is nothing to compress, so the

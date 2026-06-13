@@ -224,6 +224,11 @@
           "default": false,
           "description": "v1.5.0 Phase 3 (item 3) -- add a local-model second opinion to the inbound classifier on top of the always-on deterministic heuristic. Off by default so no per-fetch model call is made; enable to have the local model also classify fetched content (it can only add an annotation, never block). No effect when `nexus.coding.inboundClassifier.enabled` is false."
         },
+        "nexus.coding.swarmOrchestration.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "v1.5.0 Phase 4 (item 36) -- enable planner/critic/worker swarm orchestration for complex plan-mode requests. When on, write-capable workers run in isolated git worktrees (so concurrent writers cannot collide) and each worker's output is reviewed by a critic before it is merged into the plan; a rejected worker is retried with the critic's feedback. Concurrency stays bounded by the GPU tier's sub-agent limit (extra workers queue, they do not oversubscribe). Off by default: the orchestrator runs the legacy single-workspace, critic-less Plan-and-Execute loop."
+        },
         "nexus.memory.enabled": {
           "type": "boolean",
           "default": true,

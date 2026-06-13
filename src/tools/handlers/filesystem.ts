@@ -40,12 +40,21 @@ function workspaceRoot(): string {
 // Realpath-aware resolution: every filesystem tool routes user-supplied paths
 // through the unified pathGuard so symlinks that point outside the workspace
 // are rejected. See docs/archive/versions/v0/v0.6.0/plans/v0.6.0-cycle.md sub-task 1.1.
-function resolveWorkspacePath(relativePath: string): string {
-  return resolveInsideWorkspace(relativePath);
+//
+// v1.5.0 Phase 4 (T012, closes v1.4.0 T018.P3.B read-tool half): an optional
+// `root` re-bases resolution onto a worktree-isolated sub-agent's dedicated
+// worktree instead of the shared workspace root, so a write-then-read of the
+// same file within one isolated run observes the in-worktree write. The
+// pathGuard boundary check is unchanged -- the resolved path must still live
+// inside the supplied root -- so a worktree root confines the read to that
+// worktree rather than weakening the guard. A null/undefined root preserves the
+// default workspace-rooted behavior for every non-isolated caller.
+function resolveWorkspacePath(relativePath: string, root?: string | null): string {
+  return resolveInsideWorkspace(relativePath, root ?? workspaceRoot());
 }
 
-function uriFromRelative(relativePath: string): vscode.Uri {
-  return vscode.Uri.file(resolveWorkspacePath(relativePath));
+function uriFromRelative(relativePath: string, root?: string | null): vscode.Uri {
+  return vscode.Uri.file(resolveWorkspacePath(relativePath, root));
 }
 
 async function readFileContent(uri: vscode.Uri): Promise<string> {
@@ -96,6 +105,13 @@ export class ReadFileTool implements ToolHandler {
     private readonly _confirmationGate: ConfirmationGate | null = null,
     private readonly _extraSecretPatterns: readonly string[] = [],
     private readonly _cache: ToolOutputCache | null = null,
+    /**
+     * v1.5.0 Phase 4 (T012): optional worktree root. When set, paths resolve
+     * against this directory instead of the shared workspace root, so a
+     * worktree-isolated sub-agent reads its own in-worktree writes. Null
+     * (default) preserves the workspace-rooted behavior.
+     */
+    private readonly _rootOverride: string | null = null,
   ) {}
 
   async execute(parameters: Record<string, unknown>): Promise<ToolResult> {
@@ -166,7 +182,7 @@ export class ReadFileTool implements ToolHandler {
 
     let uri: vscode.Uri;
     try {
-      uri = uriFromRelative(p.path);
+      uri = uriFromRelative(p.path, this._rootOverride);
     } catch (err) {
       return failResult(
         id,
@@ -722,6 +738,12 @@ export class ListDirectoryTool implements ToolHandler {
   constructor(
     private readonly _confirmationGate: ConfirmationGate | null = null,
     private readonly _extraSecretPatterns: readonly string[] = [],
+    /**
+     * v1.5.0 Phase 4 (T012): optional worktree root. When set, the listed
+     * path resolves against this directory instead of the shared workspace
+     * root. Null (default) preserves the workspace-rooted behavior.
+     */
+    private readonly _rootOverride: string | null = null,
   ) {}
 
   async execute(parameters: Record<string, unknown>): Promise<ToolResult> {
@@ -758,7 +780,7 @@ export class ListDirectoryTool implements ToolHandler {
 
     let uri: vscode.Uri;
     try {
-      const resolved = resolveWorkspacePath(relativePath);
+      const resolved = resolveWorkspacePath(relativePath, this._rootOverride);
       uri = vscode.Uri.file(resolved);
     } catch (err) {
       return failResult(
@@ -980,6 +1002,13 @@ export class GrepCodebaseTool implements ToolHandler {
   constructor(
     private readonly _confirmationGate: ConfirmationGate | null = null,
     private readonly _extraSecretPatterns: readonly string[] = [],
+    /**
+     * v1.5.0 Phase 4 (T012): optional worktree root. When set, the search is
+     * rooted at this directory instead of the shared workspace root, so a
+     * worktree-isolated sub-agent greps its own in-worktree writes. Null
+     * (default) preserves the workspace-rooted behavior.
+     */
+    private readonly _rootOverride: string | null = null,
   ) {}
 
   async execute(parameters: Record<string, unknown>): Promise<ToolResult> {
@@ -1061,7 +1090,7 @@ export class GrepCodebaseTool implements ToolHandler {
     }
 
     const caseInsensitive = p.case_insensitive === true;
-    const root = workspaceRoot();
+    const root = this._rootOverride ?? workspaceRoot();
 
     // Validate the regex eagerly so an invalid pattern fails clearly even when
     // ripgrep handles the search (which would otherwise return an empty list).

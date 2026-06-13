@@ -4,6 +4,7 @@ import * as vscode from "vscode";
 import { parsePermissionsDeny } from "../../core/storage/PermissionsDeny.js";
 import { createHookBus } from "../../core/lifecycle/HookBus.js";
 import { attachSessionReflectionHook } from "../../core/lifecycle/SessionReflectionHook.js";
+import { attachPreCompactWipHook } from "../../core/lifecycle/PreCompactHook.js";
 import { matchPathScope } from "../../core/skills/SkillCatalog.js";
 import { createCredentialVault } from "../../core/security/CredentialVault.js";
 import type { PathScopedSkillSource } from "../tools/AgentLoop.js";
@@ -56,6 +57,7 @@ import { getTierConfig } from "../../modules/coding/config/HardwareTier.js";
 import { GitSafetyNet } from "../../modules/coding/guardrails/GitSafetyNet.js";
 import type { Orchestrator } from "../../modules/coding/orchestration/Orchestrator.js";
 import type { SubAgentManager } from "../../modules/coding/agents/SubAgentManager.js";
+import { WorktreeManager } from "../../modules/coding/agents/WorktreeManager.js";
 import type { AgentLoop } from "../tools/AgentLoop.js";
 import { ConfirmationGate } from "../tools/ConfirmationGate.js";
 import { defaultPermissionOptions } from "./webview/render/permissionPrompt.js";
@@ -299,6 +301,15 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
   const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   const gitSafetyNet = workspacePath ? new GitSafetyNet(workspacePath) : null;
 
+  // v1.5.0 Phase 4 (T010, closes v1.4.0 T018.P3.A): live-wire worktree isolation
+  // into the sub-agent dispatch path. With this set, a sub-agent dispatched with
+  // `isolate: true` (the DAGExecutor sets it for write-capable swarm nodes) runs
+  // its file-mutating tool calls in a dedicated detached git worktree. Degrades
+  // gracefully to the shared workspace when the workspace is not a git repo.
+  if (workspacePath) {
+    subAgentManager.setWorktreeManager(new WorktreeManager(workspacePath));
+  }
+
   const initialTier = getTierConfig(settings.gpuTierOverride ?? 2);
 
   const orchestrator = ChatController.buildOrchestrator({
@@ -309,6 +320,8 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
     hardwareTier: initialTier,
     memoryStore: memorySubsystem.memoryStore,
     postMessage: input.hostPostMessage,
+    // v1.5.0 Phase 4 (item 36, T011): opt-in planner/critic/worker swarm.
+    swarmEnabled: settings.swarmOrchestrationEnabled,
   });
 
   const extensionFsPath = extensionUri.fsPath ?? "";
@@ -323,6 +336,16 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
   // so the hook drafts <nexusHome>/reflections/<sessionId>.md for human review.
   const hookBus = createHookBus();
   attachSessionReflectionHook(hookBus);
+
+  // v1.5.0 Phase 4 (T013, closes v1.4.0 T016.P3.A): now that a session HookBus
+  // exists, attach the A8 PreCompact WIP hook alongside the reflection hook and
+  // wire the same bus into the ContextCompactor, which emits
+  // `lifecycle.context.preCompact` at the real compaction boundary. The hook
+  // then detects uncommitted edits, persists a restorable checkpoint, and warns
+  // (non-blocking) before the compaction buries in-flight work. The git probe is
+  // rooted at the workspace so it sees the right working tree.
+  attachPreCompactWipHook(hookBus, workspacePath ? { cwd: workspacePath } : {});
+  compactor.setHookBus(hookBus);
 
   // v1.4.0 Phase 8 (gap 5.2.P3.Q): a path-scoped skill source backed by the
   // SkillLoader. AgentLoop calls reevaluatePathScope at the start of each run

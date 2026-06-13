@@ -11,6 +11,7 @@ import type { HardwareTierConfig } from "../config/HardwareTier.types.js";
 import type { ExtensionToWebviewMessage } from "../../../src/panels/messages.js";
 import type { TaskDAG, TaskNode, TaskNodeType } from "./TaskDAG.js";
 import type { Reflection } from "./ReflexionEngine.js";
+import type { CriticReviewer } from "./CriticAgent.js";
 import { formatForUser } from "../utils/errors.js";
 
 // ---------------------------------------------------------------------------
@@ -25,6 +26,27 @@ export interface DAGExecutionResult {
   readonly nodesCompleted: number;
   readonly nodesFailed: number;
   readonly nodesSkipped: number;
+}
+
+/**
+ * v1.5.0 Phase 4 -- opt-in swarm-orchestration knobs (default off so the
+ * legacy single-workspace, critic-less behavior is byte-equivalent when no
+ * options are supplied).
+ */
+export interface DAGExecutorOptions {
+  /**
+   * T010 (closes v1.4.0 `T018.P3.A`): when true, write-capable nodes are
+   * dispatched with `isolate: true` so each runs in its own git worktree and
+   * concurrently-dispatched writers cannot collide on the shared working tree.
+   * Read-only nodes are never isolated (no collision surface, no git cost).
+   */
+  readonly isolateWrites?: boolean;
+  /**
+   * T011 (closes the team-orchestration half of v1.4.0 `T018.P3.B`): when set,
+   * a critic reviews each worker's output before the node is accepted. A
+   * rejected node is routed through the existing reflexion + retry path.
+   */
+  readonly critic?: CriticReviewer;
 }
 
 // ---------------------------------------------------------------------------
@@ -68,6 +90,16 @@ const NODE_TYPE_TO_AGENT_TYPE: Record<TaskNodeType, SubAgentType> = {
   verify: "verification",
 };
 
+/**
+ * Agent types whose tool scope includes `run_terminal` -- the sole
+ * file-mutation surface across every sub-agent scope per ADR-0004 (research /
+ * planning are read-only). Only these need worktree isolation; isolating a
+ * read-only agent would add git overhead with no collision to prevent.
+ */
+const WRITE_CAPABLE_AGENT_TYPES: ReadonlySet<SubAgentType> = new Set<SubAgentType>([
+  "verification",
+]);
+
 // ---------------------------------------------------------------------------
 // ReflexionEngine interface (optional dependency)
 // ---------------------------------------------------------------------------
@@ -89,13 +121,20 @@ export interface ReflexionEngineInterface {
 export class DAGExecutor {
   private readonly _reflections = new Map<string, Reflection[]>();
 
+  private readonly _isolateWrites: boolean;
+  private readonly _critic: CriticReviewer | null;
+
   constructor(
     private readonly _subAgentManager: SubAgentManager,
     private readonly _profile: HardwareTierConfig,
     private readonly _postMessage: PostMessageFn,
     private readonly _reflexionEngine?: ReflexionEngineInterface,
     private readonly _sessionId?: string,
-  ) {}
+    options: DAGExecutorOptions = {},
+  ) {
+    this._isolateWrites = options.isolateWrites === true;
+    this._critic = options.critic ?? null;
+  }
 
   async execute(dag: TaskDAG): Promise<DAGExecutionResult> {
     const startTime = Date.now();
@@ -171,6 +210,13 @@ export class DAGExecutor {
       }
     }
 
+    // T010: write-capable nodes run in an isolated worktree when isolation is
+    // enabled, so concurrently-dispatched writers cannot collide. The flag is
+    // inert unless a WorktreeManager is wired into the SubAgentManager and the
+    // workspace is a git repo (SubAgentManager degrades gracefully otherwise).
+    const isolate =
+      this._isolateWrites && WRITE_CAPABLE_AGENT_TYPES.has(agentType);
+
     const config: SubAgentConfig = {
       type: agentType,
       maxIterations: this._profile.subAgentMaxIterations,
@@ -178,16 +224,47 @@ export class DAGExecutor {
       modifiedFiles: [],
       recentToolResults: [],
       memoryContext,
+      ...(isolate ? { isolate: true } : {}),
     };
 
     try {
       const result = await this._subAgentManager.run(config, this._postMessage);
 
-      if (result.success) {
-        dag.markCompleted(node.id, result.output);
-      } else {
+      if (!result.success) {
         await this._handleNodeFailure(node, dag, result.error ?? "Sub-agent reported failure");
+        this._postProgress(dag);
+        return;
       }
+
+      // T011: the critic gates merge. A worker that succeeded mechanically may
+      // still have produced output that does not satisfy the task; the critic
+      // reviews it before the node is accepted. A rejection is routed through
+      // the same reflexion + retry path as a failure, with the critic feedback
+      // as the context, so the worker can correct on retry. A critic that
+      // errors fails open (the worker already succeeded; the critic must not
+      // block legitimate work).
+      if (this._critic) {
+        let approved = true;
+        let feedback = "";
+        try {
+          const verdict = await this._critic.review(node, result.output);
+          approved = verdict.approved;
+          feedback = verdict.feedback;
+        } catch {
+          approved = true;
+        }
+        if (!approved) {
+          await this._handleNodeFailure(
+            node,
+            dag,
+            `Critic rejected the output: ${feedback || "no rationale provided"}`,
+          );
+          this._postProgress(dag);
+          return;
+        }
+      }
+
+      dag.markCompleted(node.id, result.output);
     } catch (err) {
       const errorMsg = formatForUser(err);
       await this._handleNodeFailure(node, dag, errorMsg);

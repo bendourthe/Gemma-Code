@@ -4,6 +4,30 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-06-12] v1.5.0 Phase 4 -- Swarm / DAG Orchestration
+
+### Goal
+
+Ship the Bucket 3 `re-full` adoption ([docs/versions/v1/v1.5.0/plans/adoption-ecosystem-2026-06.md](versions/v1/v1.5.0/plans/adoption-ecosystem-2026-06.md), item 36): a planner/critic/worker orchestration layer over the worktree-isolated sub-agents Nexus already ships, GPU-concurrency bounded and behind an opt-in flag (default off). Because this phase touches session/bootstrap construction and the DAG dispatch path, it also closes the three v1.4.0 P3 deferrals it naturally subsumes: live worktree wiring (`T018.P3.A`), the orchestration layer + read-tool worktree rooting (`T018.P3.B`), and the live PreCompact WIP hook (`T016.P3.A`).
+
+### What changed
+
+**T010 -- live-wire worktree isolation (closes `T018.P3.A`).** [src/panels/ChatPanelBootstrap.ts](../src/panels/ChatPanelBootstrap.ts) now calls `subAgentManager.setWorktreeManager(new WorktreeManager(workspacePath))` at session construction (when a workspace is open), moving the v1.4.0 A10 primitive from attachable-but-inert to live. [modules/coding/orchestration/DAGExecutor.ts](../modules/coding/orchestration/DAGExecutor.ts) gained a `DAGExecutorOptions` bag; when `isolateWrites` is on it sets `isolate: true` on the `SubAgentConfig` for write-capable nodes only -- `WRITE_CAPABLE_AGENT_TYPES` = the agent types whose tool scope includes `run_terminal` (verification per ADR-0004; research / planning are read-only and need no isolation). The flag stays inert unless the `WorktreeManager` is wired and the workspace is a git repo (graceful degradation preserved).
+
+**T011 -- planner/critic/worker layer (closes the team-orchestration half of `T018.P3.B`).** The planner (`PlannerAgent`) and worker (sub-agents via `DAGExecutor`) already existed; the missing piece was the critic. New [modules/coding/orchestration/CriticAgent.ts](../modules/coding/orchestration/CriticAgent.ts) exposes a `CriticReviewer` port and a fail-open pure parser (`parseCriticVerdict`); the `DAGExecutor` runs the critic after a worker succeeds and, on rejection, routes the node back through the existing reflexion + retry path (the critic feedback becomes the retry context), so persistent rejection fails the node rather than merging unreviewed work. The whole swarm is opt-in via the `Orchestrator` `swarmEnabled` flag (default off), wired from the new `nexus.coding.swarmOrchestration.enabled` setting through `ChatController.buildOrchestrator`. Concurrency stays bounded by the existing GPU-tier semaphore -- extra workers queue, they do not oversubscribe (comparison Section 9.1 / N4); the critic runs inside a worker's already-bounded slot, adding no concurrent model load.
+
+**T012 -- read-tool worktree rooting (closes the read-tool half of `T018.P3.B`).** [src/tools/handlers/filesystem.ts](../src/tools/handlers/filesystem.ts) `resolveWorkspacePath` / `uriFromRelative` take an optional `root`, and `ReadFileTool` / `ListDirectoryTool` / `GrepCodebaseTool` take an optional trailing `rootOverride` (null = the legacy workspace-rooted behavior). `SubAgentManager._buildScopedRegistry` now passes the worktree path to the read tools too -- not just `run_terminal` -- so a worktree-isolated worker that writes then reads the same file observes its own in-worktree write. The `pathGuard` boundary check is unchanged: a worktree root confines the read to that worktree rather than weakening the guard.
+
+**T013 -- live PreCompact WIP hook (closes `T016.P3.A`).** The bootstrap attaches `attachPreCompactWipHook(hookBus)` alongside the already-wired reflection hook (git probe rooted at the workspace), and [modules/coding/chat/ContextCompactor.ts](../modules/coding/chat/ContextCompactor.ts) gained `setHookBus` + emits `lifecycle.context.preCompact` at the real compaction boundary (before the pipeline runs, so WIP is flagged before it is buried; `afterTokens` is the conversation budget the pipeline targets). The bus is fire-and-forget -- the emit can neither block nor delay compaction. This is the production code that finally drives the v1.4.0 A8 hook, which had shipped attachable-but-inert because nothing emitted the event.
+
+**T014 -- tests.** +32 tests: `CriticAgent` (10, incl. fail-open parser), `DAGExecutor.swarm` (8, incl. write-capable isolation decision, critic gating, and a scheduler-capacity-bound proof), `Orchestrator.swarm` (3, flag gates the critic), `ContextCompactor.preCompact` (3) unit; `swarm-orchestration` (2, production-path isolated dispatch + clean-worktree cleanup), `worktree-read-rooting` (4, read rooting + end-to-end write-then-read parity), `precompact-wiring` (2, real compaction fires the hook) integration.
+
+### Verification
+
+Full suite **4020 passed / 5 skipped / 0 failed**; `tsc -b` exit 0; `npm run lint` 0; `npm run check-architecture` 0 errors (10 pre-existing warnings); `npm run security:check` in sync; `npm run check:tampering` 0 findings. No outbound call introduced; the swarm path is local-only and opt-in (default off). `T018.P3.A`, `T018.P3.B`, `T016.P3.A` raised candidate -> supported. Two forward-tier follow-ups recorded in [the v1.5.0 known-gaps](versions/v1/v1.5.0/known-gaps.md) (`T011.P3.A` -- live multi-worker smoke test; `T012.P3.A` -- grep findFiles-fallback rooting). Session history at [versions/v1/v1.5.0/development/history/2026-06_phase-4-swarm-orchestration.md](versions/v1/v1.5.0/development/history/2026-06_phase-4-swarm-orchestration.md).
+
+---
+
 ## [2026-06-10] v1.5.0 Phase 3 -- Inbound Security
 
 ### Goal

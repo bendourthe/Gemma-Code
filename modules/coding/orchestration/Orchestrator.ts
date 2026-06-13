@@ -16,6 +16,8 @@ import { DAGExecutor } from "./DAGExecutor.js";
 import type { DAGExecutionResult } from "./DAGExecutor.js";
 import { PlannerAgent } from "./PlannerAgent.js";
 import { ReflexionEngine } from "./ReflexionEngine.js";
+import { CriticAgent } from "./CriticAgent.js";
+import type { CriticReviewer } from "./CriticAgent.js";
 import type { TaskDAG } from "./TaskDAG.js";
 import {
   defaultComplexityClassifier,
@@ -38,6 +40,16 @@ export interface OrchestratorConfig {
   readonly postMessage: PostMessageFn;
   /** Optional injection point for tests / alternative classifiers. */
   readonly complexityClassifier?: ComplexityClassifier;
+  /**
+   * v1.5.0 Phase 4 (item 36) -- opt-in swarm orchestration (default off). When
+   * true, write-capable workers are dispatched in isolated git worktrees
+   * (T010) and each worker's output is gated through a critic before merge
+   * (T011). When false, the orchestrator runs the legacy single-workspace,
+   * critic-less Plan-and-Execute loop unchanged.
+   */
+  readonly swarmEnabled?: boolean;
+  /** Optional injection point for tests -- substitute a deterministic critic. */
+  readonly critic?: CriticReviewer;
 }
 
 export interface OrchestratorResult {
@@ -59,6 +71,10 @@ export class Orchestrator {
   private readonly _profile: HardwareTierConfig;
   private readonly _postMessage: PostMessageFn;
   private readonly _complexityClassifier: ComplexityClassifier;
+  /** v1.5.0 Phase 4: opt-in worktree isolation for write-capable workers. */
+  private readonly _isolateWrites: boolean;
+  /** v1.5.0 Phase 4: critic that gates worker output before merge (null = off). */
+  private readonly _critic: CriticReviewer | null;
   private _maxReplanAttempts = 2;
   private _replanThreshold = 0.3;
 
@@ -78,6 +94,15 @@ export class Orchestrator {
     this._profile = config.hardwareTier;
     this._postMessage = config.postMessage;
     this._complexityClassifier = config.complexityClassifier ?? defaultComplexityClassifier;
+    // v1.5.0 Phase 4 (item 36): when swarm orchestration is enabled, build the
+    // critic once (an injected fake takes precedence in tests) and turn on
+    // write-capable worktree isolation. Both stay off by default so the
+    // existing Plan-and-Execute behavior is unchanged.
+    this._isolateWrites = config.swarmEnabled === true;
+    this._critic = config.swarmEnabled
+      ? config.critic ??
+        new CriticAgent(config.client, config.modelName, config.ollamaOptions)
+      : null;
   }
 
   /**
@@ -111,6 +136,11 @@ export class Orchestrator {
         this._profile,
         this._postMessage,
         this._reflexionEngine,
+        undefined,
+        {
+          isolateWrites: this._isolateWrites,
+          critic: this._critic ?? undefined,
+        },
       );
 
       currentResult = await executor.execute(dag);

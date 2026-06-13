@@ -68,6 +68,7 @@ export interface NexusSettings {
   hooksScanInjection: boolean;
   inboundClassifierEnabled: boolean;
   inboundClassifierDeepScan: boolean;
+  swarmOrchestrationEnabled: boolean;
   memorySnapshotMode: "frozen" | "live";
   llmBackend: "ollama" | "lmstudio" | "auto";
   lmStudioBaseUrl: string;
@@ -238,6 +239,10 @@ export function getSettings(): NexusSettings {
     ),
     inboundClassifierDeepScan: c.get<boolean>(
       "nexus.coding.inboundClassifier.deepScan",
+      false,
+    ),
+    swarmOrchestrationEnabled: c.get<boolean>(
+      "nexus.coding.swarmOrchestration.enabled",
       false,
     ),
     memorySnapshotMode: (() => {
