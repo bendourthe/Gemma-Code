@@ -6,6 +6,12 @@ import { createHookBus } from "../../core/lifecycle/HookBus.js";
 import { attachSessionReflectionHook } from "../../core/lifecycle/SessionReflectionHook.js";
 import { attachPreCompactWipHook } from "../../core/lifecycle/PreCompactHook.js";
 import { matchPathScope } from "../../core/skills/SkillCatalog.js";
+import {
+  defaultSkillsRoot,
+  readActiveTag,
+  tagDir,
+} from "../../core/skills/DevAIHubSyncer.js";
+import { resolveLanguageRules } from "../../modules/coding/chat/LanguageRuleBuilder.js";
 import { createCredentialVault } from "../../core/security/CredentialVault.js";
 import type { PathScopedSkillSource } from "../tools/AgentLoop.js";
 import { ConversationManager } from "../../modules/coding/chat/ConversationManager.js";
@@ -200,6 +206,36 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
   // rebuilds reflect the latest mcpTools, settings, ollama reachability and
   // tier config without a full panel reconstruction.
   let registry: ToolRegistry | null = null;
+  // v1.5.0 Phase 7 (HUB.P3.RULES): resolve the workspace's Hub language rules
+  // from the active devai-hub bundle, memoized by (active tag, workspace) so the
+  // filesystem read happens once per change rather than per prompt rebuild.
+  // Inert by default: with no synced bundle, this returns undefined and no
+  // language-rules section is added.
+  let cachedLanguageRules: { key: string; value: string | undefined } | null = null;
+  const resolveHubLanguageRules = (): string | undefined => {
+    try {
+      const skillsRoot = defaultSkillsRoot();
+      const activeTag = readActiveTag(skillsRoot) ?? "";
+      const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? "";
+      const key = `${activeTag}::${workspacePath}`;
+      if (cachedLanguageRules && cachedLanguageRules.key === key) {
+        return cachedLanguageRules.value;
+      }
+      let value: string | undefined;
+      if (activeTag) {
+        const rulesRoot = path.join(tagDir(skillsRoot, activeTag), "catalog", "rules");
+        value =
+          resolveLanguageRules({
+            workspacePath: workspacePath || undefined,
+            rulesRoot,
+          }) ?? undefined;
+      }
+      cachedLanguageRules = { key, value };
+      return value;
+    } catch {
+      return undefined;
+    }
+  };
   const toolActivation = new ToolActivationContext({
     planMode,
     getSettings: () => hooks.getSettings(),
@@ -209,6 +245,7 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
     getTierConfig: () => hooks.getTierConfig(),
     getWorkingMemory: () => memorySubsystem.workingMemory,
     getUnifiedRetriever: () => memorySubsystem.unifiedRetriever,
+    getLanguageRules: resolveHubLanguageRules,
   });
 
   const initialPrompt = promptBuilder.buildSync(toolActivation.buildPromptContext());

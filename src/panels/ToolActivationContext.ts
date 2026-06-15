@@ -23,6 +23,13 @@ export interface ToolActivationContextDeps {
   getTierConfig(): HardwareTierConfig | undefined;
   getWorkingMemory(): WorkingMemory | null;
   getUnifiedRetriever(): UnifiedMemoryRetriever | null;
+  /**
+   * v1.5.0 Phase 7 (HUB.P3.RULES): optional resolver for the workspace's
+   * Nexus-Hub language rules (via LanguageRuleBuilder over the active devai-hub
+   * bundle). Returns undefined when the feature is off or no rules apply, in
+   * which case PromptBuilder injects no language-rules section.
+   */
+  getLanguageRules?(): string | undefined;
 }
 
 /**
@@ -59,6 +66,9 @@ export class ToolActivationContext {
       toolCapNotice: activation.trimmedCodegraph
         ? "The `codegraph_*` navigation tools were trimmed this turn to stay within the tool-count budget. Use `grep_codebase` / `read_file` for symbol lookup and navigation until they return next turn."
         : undefined,
+      // v1.5.0 Phase 7 (HUB.P3.RULES): inject the workspace's Hub language rules
+      // when the host wired a resolver (opt-in; undefined -> no section).
+      languageRules: deps.getLanguageRules?.(),
     };
   }
 

@@ -32,6 +32,14 @@ export interface PromptContext {
    * rather than the tools silently disappearing from the catalog.
    */
   readonly toolCapNotice?: string;
+  /**
+   * v1.5.0 Phase 7 (HUB.P3.RULES): pre-resolved, length-bounded language rules
+   * from the Nexus-Hub `catalog/rules/<lang>` set (rendered by
+   * `LanguageRuleBuilder`). When set, PromptBuilder injects them as an early,
+   * budget-gated section. Undefined -> no section (default behavior), so the
+   * host opts in by resolving and passing this through.
+   */
+  readonly languageRules?: string;
 }
 
 /** A candidate section for inclusion in the system prompt. */

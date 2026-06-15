@@ -225,6 +225,9 @@ export class PromptBuilder {
       const fileMemPre = this._buildFileMemoryPreSection(fileMem, fileMemTokens.preContent);
       if (fileMemPre) sections.push(fileMemPre);
 
+      const languageRules = this._buildLanguageRulesSection(context);
+      if (languageRules) sections.push(languageRules);
+
       const plan = this._buildPlanModeSection(context);
       if (plan) sections.push(plan);
 
@@ -248,6 +251,24 @@ export class PromptBuilder {
     }
 
     return sections;
+  }
+
+  /**
+   * v1.5.0 Phase 7 (HUB.P3.RULES): inject pre-resolved Nexus-Hub language rules
+   * as an early, budget-gated section. The content is resolved by the host
+   * (`LanguageRuleBuilder`) and passed via `context.languageRules`; when absent
+   * the section is omitted, so the default prompt is unchanged.
+   */
+  private _buildLanguageRulesSection(context: PromptContext): PromptSection | null {
+    const content = context.languageRules?.trim();
+    if (!content) return null;
+    return {
+      id: "language-rules",
+      content,
+      priority: 2,
+      alwaysInclude: false,
+      estimatedTokens: Math.ceil(content.length / 4),
+    };
   }
 
   /**

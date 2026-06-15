@@ -69,6 +69,29 @@ export interface SkillEntry {
   readonly name: string;
   /** SHA-256 over the SKILL.md body. */
   readonly contentHash: string;
+  /**
+   * Category from the Hub's `data/skills.json` index, when the index is present
+   * and lists this skill (HUB.P3.DATA). Purely additive metadata: it never
+   * affects the bundle hash (which is computed from relPath + contentHash only),
+   * so the "already up to date" short-circuit is unchanged.
+   */
+  readonly category?: string;
+}
+
+/** A single skill row read from the Hub's `data/skills.json` index. */
+export interface SkillIndexEntry {
+  /** relPath relative to `catalog/skills` (matches `SkillEntry.relPath`). */
+  readonly relPath: string;
+  readonly name: string;
+  readonly category?: string;
+}
+
+/** Divergence between the Hub's `data/skills.json` index and the on-disk tree. */
+export interface IndexConsistency {
+  /** Skills the index lists that have no SKILL.md on disk. */
+  readonly onlyInIndex: readonly string[];
+  /** SKILL.md files on disk the index does not list. */
+  readonly onlyOnDisk: readonly string[];
 }
 
 export interface DevAIHubManifest {
@@ -100,6 +123,13 @@ export interface SyncResult {
   readonly applied: boolean;
   /** When applied, the new active dir; otherwise null. */
   readonly activeDir: string | null;
+  /**
+   * Index-vs-tree divergence from the Hub's `data/skills.json` (HUB.P3.DATA).
+   * `null` when the bundle ships no index. Non-empty lists are a Hub-side
+   * integrity signal (the published index lags or leads its own skills tree);
+   * they never block the sync because the on-disk tree is authoritative.
+   */
+  readonly indexConsistency: IndexConsistency | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -234,6 +264,103 @@ export function diffManifests(
 /** Render a one-line human-friendly summary (`+12 new, ~3 modified, -1 removed`). */
 export function summarizeDiff(diff: ManifestDiff): string {
   return `+${diff.added.length} new, ~${diff.modified.length} modified, -${diff.removed.length} removed`;
+}
+
+// ---------------------------------------------------------------------------
+// Skill index (HUB.P3.DATA) -- consume the Hub's data/skills.json
+// ---------------------------------------------------------------------------
+
+/** Default path of the Hub skill index inside a synced bundle. */
+export function skillIndexPath(bundleDir: string): string {
+  return path.join(bundleDir, "data", "skills.json");
+}
+
+/**
+ * Read the Hub's `data/skills.json` from a synced bundle (HUB.P3.DATA). Returns
+ * the listed skills normalized to `relPath` (relative to `catalog/skills`, so it
+ * lines up with `SkillEntry.relPath`), or `null` when the file is absent or not
+ * the expected shape. Best-effort: a malformed index degrades to "no index", it
+ * never throws.
+ */
+export function readSkillIndex(bundleDir: string): SkillIndexEntry[] | null {
+  let raw: string;
+  try {
+    raw = fs.readFileSync(skillIndexPath(bundleDir), "utf-8");
+  } catch {
+    return null;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  const skills = (parsed as { skills?: unknown })?.skills;
+  if (!Array.isArray(skills)) return null;
+  const prefix = "catalog/skills/";
+  const out: SkillIndexEntry[] = [];
+  for (const row of skills) {
+    if (typeof row !== "object" || row === null) continue;
+    const r = row as { file?: unknown; path?: unknown; name?: unknown; category?: unknown };
+    // Prefer `file` (full SKILL.md path); fall back to `path` + /SKILL.md.
+    let file: string | null = null;
+    if (typeof r.file === "string") file = r.file;
+    else if (typeof r.path === "string") file = r.path.replace(/\/?$/, "/") + "SKILL.md";
+    if (!file) continue;
+    const norm = file.replace(/\\/g, "/");
+    if (!norm.startsWith(prefix)) continue;
+    out.push({
+      relPath: norm.slice(prefix.length),
+      name: typeof r.name === "string" ? r.name : path.basename(path.dirname(norm)),
+      category: typeof r.category === "string" ? r.category : undefined,
+    });
+  }
+  return out;
+}
+
+/** Compute index-vs-tree divergence (both lists are sorted relPaths). */
+export function computeIndexConsistency(
+  manifest: DevAIHubManifest,
+  index: readonly SkillIndexEntry[],
+): IndexConsistency {
+  const onDisk = new Set(manifest.skills.map((s) => s.relPath));
+  const inIndex = new Set(index.map((e) => e.relPath));
+  const onlyInIndex = [...inIndex].filter((r) => !onDisk.has(r)).sort();
+  const onlyOnDisk = [...onDisk].filter((r) => !inIndex.has(r)).sort();
+  return { onlyInIndex, onlyOnDisk };
+}
+
+/**
+ * Build a manifest from the on-disk `catalog/skills` tree, enriched with the
+ * `category` recorded in the Hub's `data/skills.json` index (HUB.P3.DATA). The
+ * filesystem tree stays authoritative (it is what `SkillLoader` actually loads),
+ * so a stale/leading index only affects the additive `category` field, never
+ * which skills are tracked or the bundle hash. Returns the manifest plus the
+ * index-vs-tree consistency report (`indexConsistency` is `null` when the bundle
+ * ships no index).
+ */
+export function buildManifestWithIndex(
+  bundleDir: string,
+  tag: string,
+  upstream: string,
+  now: Date = new Date(),
+): { manifest: DevAIHubManifest; indexConsistency: IndexConsistency | null } {
+  const skillsDir = path.join(bundleDir, "catalog", "skills");
+  const base = buildManifest(skillsDir, tag, upstream, now);
+  const index = readSkillIndex(bundleDir);
+  if (!index) {
+    return { manifest: base, indexConsistency: null };
+  }
+  const categoryByRel = new Map<string, string | undefined>(
+    index.map((e) => [e.relPath, e.category]),
+  );
+  const skills = base.skills.map((s) =>
+    categoryByRel.has(s.relPath) ? { ...s, category: categoryByRel.get(s.relPath) } : s,
+  );
+  return {
+    manifest: { ...base, skills },
+    indexConsistency: computeIndexConsistency(base, index),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -438,6 +565,8 @@ export class DevAIHubSyncer {
         alreadyUpToDate: true,
         applied: false,
         activeDir: candidateDir,
+        // Nothing was re-fetched, so no fresh index check is performed.
+        indexConsistency: null,
       };
     }
 
@@ -454,7 +583,10 @@ export class DevAIHubSyncer {
     }
 
     const skillsDir = path.join(tmpDir, "catalog", "skills");
-    const manifest = buildManifest(skillsDir, tag, this._upstream);
+    // HUB.P3.DATA: build from the on-disk tree (authoritative) but enrich each
+    // entry with the category recorded in the Hub's data/skills.json index, and
+    // capture any index-vs-tree divergence for the caller to surface.
+    const { manifest, indexConsistency } = buildManifestWithIndex(tmpDir, tag, this._upstream);
     fs.writeFileSync(path.join(tmpDir, "manifest.json"), JSON.stringify(manifest, null, 2));
 
     const scan = scanBundleDir(skillsDir, this._scanner);
@@ -483,6 +615,7 @@ export class DevAIHubSyncer {
       alreadyUpToDate: false,
       applied,
       activeDir: applied ? appliedActiveDir : activeDir,
+      indexConsistency,
     };
   }
 }

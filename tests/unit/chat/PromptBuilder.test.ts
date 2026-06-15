@@ -245,4 +245,23 @@ describe("PromptBuilder", () => {
     expect(result).toContain("offline via Ollama");
     expect(result).toContain("Never fabricate");
   });
+
+  // ---- language rules (HUB.P3.RULES) ---------------------------------------
+
+  it("injects the language-rules section when context.languageRules is set", () => {
+    const rules = "## python project rules (from the skill catalog)\n\nUse ruff.";
+    const result = builder.buildSync(makeContext({ languageRules: rules }));
+    expect(result).toContain("python project rules");
+    expect(result).toContain("Use ruff.");
+  });
+
+  it("omits the language-rules section by default (no languageRules)", () => {
+    const result = builder.buildSync(makeContext());
+    expect(result).not.toContain("project rules (from the skill catalog)");
+  });
+
+  it("omits the language-rules section when languageRules is blank", () => {
+    const result = builder.buildSync(makeContext({ languageRules: "   " }));
+    expect(result).not.toContain("project rules (from the skill catalog)");
+  });
 });

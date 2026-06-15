@@ -14,6 +14,8 @@ import {
   activeTagPointerPath,
   defaultSkillsRoot,
   readManifestOnDisk,
+  readSkillIndex,
+  buildManifestWithIndex,
   DEFAULT_UPSTREAM,
   type SyncDependencies,
 } from "../../../../core/skills/DevAIHubSyncer.js";
@@ -357,5 +359,84 @@ describe("DevAIHubSyncer.sync", () => {
     expect(m!.tag).toBe("v1.0.0");
     expect(m!.upstream).toBe("test/Fixture");
     expect(m!.skills.length).toBe(2);
+  });
+});
+
+describe("HUB.P3.DATA -- data/skills.json index consumption", () => {
+  let tmp: string;
+  beforeEach(() => {
+    tmp = mkTmpDir("devaihub-index-");
+  });
+  afterEach(() => {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  });
+
+  function writeIndex(bundleDir: string, rows: Array<Record<string, unknown>>): void {
+    const dir = path.join(bundleDir, "data");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, "skills.json"), JSON.stringify({ skills: rows }), "utf-8");
+  }
+
+  it("readSkillIndex normalizes file/path/name/category to catalog/skills-relative relPath", () => {
+    writeIndex(tmp, [
+      { file: "catalog/skills/developer-experience/alpha/SKILL.md", name: "alpha", category: "developer-experience" },
+      { path: "catalog/skills/workflow/beta/", name: "beta", category: "workflow" },
+      { file: "data/not-a-skill.json", name: "ignored" },
+    ]);
+    const idx = readSkillIndex(tmp);
+    expect(idx).not.toBeNull();
+    expect(idx!.map((e) => e.relPath).sort()).toEqual([
+      "developer-experience/alpha/SKILL.md",
+      "workflow/beta/SKILL.md",
+    ]);
+    expect(idx!.find((e) => e.name === "alpha")!.category).toBe("developer-experience");
+  });
+
+  it("readSkillIndex returns null when the index is absent or malformed", () => {
+    expect(readSkillIndex(tmp)).toBeNull(); // no data/skills.json
+    fs.mkdirSync(path.join(tmp, "data"), { recursive: true });
+    fs.writeFileSync(path.join(tmp, "data", "skills.json"), "{ not json", "utf-8");
+    expect(readSkillIndex(tmp)).toBeNull();
+  });
+
+  it("buildManifestWithIndex enriches on-disk skills with the index category", () => {
+    writeSkill(tmp, "alpha", "# Alpha\n");
+    writeSkill(tmp, "beta", "# Beta\n");
+    writeIndex(tmp, [
+      { file: "catalog/skills/developer-experience/alpha/SKILL.md", name: "alpha", category: "developer-experience" },
+      { file: "catalog/skills/developer-experience/beta/SKILL.md", name: "beta", category: "developer-experience" },
+    ]);
+    const { manifest, indexConsistency } = buildManifestWithIndex(tmp, "v1.0.0", "test/Fixture", new Date(0));
+    expect(manifest.skills.length).toBe(2);
+    for (const s of manifest.skills) expect(s.category).toBe("developer-experience");
+    expect(indexConsistency).toEqual({ onlyInIndex: [], onlyOnDisk: [] });
+  });
+
+  it("falls back to a plain manifest (null consistency) when the bundle has no index", () => {
+    writeSkill(tmp, "alpha", "# Alpha\n");
+    const { manifest, indexConsistency } = buildManifestWithIndex(tmp, "v1.0.0", "test/Fixture", new Date(0));
+    expect(manifest.skills.length).toBe(1);
+    expect(manifest.skills[0].category).toBeUndefined();
+    expect(indexConsistency).toBeNull();
+  });
+
+  it("keeps the on-disk tree authoritative and reports index/tree divergence", () => {
+    // On disk: alpha + gamma. Index: alpha + beta. gamma is tracked (on disk),
+    // beta is flagged only-in-index, and the bundle hash ignores category.
+    writeSkill(tmp, "alpha", "# Alpha\n");
+    writeSkill(tmp, "gamma", "# Gamma\n");
+    writeIndex(tmp, [
+      { file: "catalog/skills/developer-experience/alpha/SKILL.md", name: "alpha", category: "developer-experience" },
+      { file: "catalog/skills/developer-experience/beta/SKILL.md", name: "beta", category: "developer-experience" },
+    ]);
+    const { manifest, indexConsistency } = buildManifestWithIndex(tmp, "v1.0.0", "test/Fixture", new Date(0));
+    expect(manifest.skills.map((s) => s.name).sort()).toEqual(["alpha", "gamma"]);
+    expect(indexConsistency!.onlyInIndex).toEqual(["developer-experience/beta/SKILL.md"]);
+    expect(indexConsistency!.onlyOnDisk).toEqual(["developer-experience/gamma/SKILL.md"]);
+    // gamma (on disk, not in index) keeps an undefined category.
+    expect(manifest.skills.find((s) => s.name === "gamma")!.category).toBeUndefined();
+    // The bundle hash matches the plain FS walk -- category is not hashed.
+    const fsOnly = buildManifest(path.join(tmp, "catalog", "skills"), "v1.0.0", "test/Fixture", new Date(0));
+    expect(manifest.bundleHash).toBe(fsOnly.bundleHash);
   });
 });
