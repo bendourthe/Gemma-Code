@@ -15,6 +15,10 @@ import type {
   McpServerConfig,
   McpServerState,
 } from "./McpTypes.js";
+import {
+  filterHubRegistry,
+  type HubRegistryFilterResult,
+} from "./HubRegistryPolicyFilter.js";
 
 const DEFAULT_MCP_PRIORITY = 100;
 
@@ -125,6 +129,26 @@ export class McpManager {
         getLogger().warn(`[McpManager] Failed to connect to "${config.name}":`, err);
       });
     }
+  }
+
+  /**
+   * v1.5.0 Phase 7 (HUB.P3.MCPCFG): consume a Nexus-Hub `mcp-servers.json`
+   * through the MCP Registry Policy. Returns the policy-compliant server configs
+   * (`already-local` + audited `vendor-intrinsic`) plus the per-server decision
+   * list; everything else is dropped. This NEVER connects a server -- it is a
+   * filtering surface only, so an explicit import still flows through the normal
+   * per-server enable + workspace-approval gates. Dropped servers are logged.
+   */
+  policyFilterHubRegistry(registry: unknown): HubRegistryFilterResult {
+    const result = filterHubRegistry(registry);
+    const dropped = result.decisions.filter((d) => d.verdict === "drop");
+    if (dropped.length > 0) {
+      getLogger().info(
+        `[McpManager] Hub MCP registry: dropped ${dropped.length} server(s) per policy: ` +
+          dropped.map((d) => `${d.name} (${d.reason})`).join("; "),
+      );
+    }
+    return result;
   }
 
   /** Connect (or reconnect) a named server from the loaded configs. */

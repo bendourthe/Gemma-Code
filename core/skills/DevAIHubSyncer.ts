@@ -459,6 +459,10 @@ async function defaultSparseClone(upstream: string, tag: string, destDir: string
       "catalog/skills",
       "catalog/commands",
       "catalog/agents",
+      // v1.5.0 Phase 7 (HUB.P3.HOOK): pull the Hub hook scripts so the
+      // HubHookInstaller can install them from a synced bundle.
+      "catalog/hooks",
+      "catalog/rules",
       "rules",
       "data/skills.json",
       "extensions/",
