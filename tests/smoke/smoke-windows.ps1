@@ -62,19 +62,32 @@ if (-not (Test-Command ollama)) {
 Write-Header "Starting Ollama service (background)"
 $ollamaExe = (Get-Command ollama -ErrorAction SilentlyContinue).Source
 if (-not $ollamaExe) { throw "ollama not on PATH after install" }
-$ollamaProc = Start-Process -FilePath $ollamaExe -ArgumentList "serve" -PassThru -WindowStyle Hidden
+# Capture the serve process output so a cold-start failure is diagnosable (the
+# server runs detached, so its stdout/stderr would otherwise be lost). The two
+# redirect targets must be distinct files.
+$ollamaOut = Join-Path $resultsDir "ollama-serve.out.log"
+$ollamaErrLog = Join-Path $resultsDir "ollama-serve.err.log"
+$ollamaProc = Start-Process -FilePath $ollamaExe -ArgumentList "serve" -PassThru -NoNewWindow `
+    -RedirectStandardOutput $ollamaOut -RedirectStandardError $ollamaErrLog
 Start-Sleep -Seconds 3
 
-# Poll /api/tags for up to 60 seconds
-$deadline = (Get-Date).AddSeconds(60)
+# Poll /api/tags. Windows runners cold-start Ollama slowly (the first `serve`
+# unpacks the runtime), so allow up to 180s -- 60s was not enough on the hosted
+# windows-latest runner. Surface the serve log + process state if it never binds.
+$deadline = (Get-Date).AddSeconds(180)
 $ready = $false
 while ((Get-Date) -lt $deadline) {
     try {
         Invoke-WebRequest -Uri "http://localhost:11434/api/tags" -TimeoutSec 2 | Out-Null
         $ready = $true; break
-    } catch { Start-Sleep -Milliseconds 500 }
+    } catch { Start-Sleep -Seconds 2 }
 }
-if (-not $ready) { throw "Ollama failed to respond within 60 seconds" }
+if (-not $ready) {
+    Write-Host "Ollama did not respond within 180s (serve exited: $($ollamaProc.HasExited))"
+    if (Test-Path $ollamaErrLog) { Write-Host "--- ollama serve stderr (tail) ---"; Get-Content $ollamaErrLog -Tail 40 }
+    if (Test-Path $ollamaOut) { Write-Host "--- ollama serve stdout (tail) ---"; Get-Content $ollamaOut -Tail 40 }
+    throw "Ollama failed to respond within 180 seconds"
+}
 
 Write-Header "Running installer in headless mode"
 Push-Location (Join-Path $repoRoot "scripts\installer\pyqt")
