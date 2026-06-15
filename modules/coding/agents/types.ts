@@ -43,6 +43,14 @@ export interface SubAgentConfig {
    * shared workspace rather than failing.
    */
   readonly isolate?: boolean;
+  /**
+   * v1.5.0 Phase 7 (HUB.P3.AGENT) -- optional Nexus-Hub agent persona name. When
+   * set AND a `HubAgentPersonaLoader` is wired into `SubAgentManager` AND a Hub
+   * persona of that name resolves, the persona overrides the type-derived tool
+   * scope and its instructions are prepended to the sub-agent's task context.
+   * Unknown persona / no loader -> ignored (type-based behavior preserved).
+   */
+  readonly personaName?: string;
 }
 
 export interface SubAgentResult {

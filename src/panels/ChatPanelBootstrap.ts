@@ -64,6 +64,7 @@ import { GitSafetyNet } from "../../modules/coding/guardrails/GitSafetyNet.js";
 import type { Orchestrator } from "../../modules/coding/orchestration/Orchestrator.js";
 import type { SubAgentManager } from "../../modules/coding/agents/SubAgentManager.js";
 import { WorktreeManager } from "../../modules/coding/agents/WorktreeManager.js";
+import { HubAgentPersonaLoader } from "../../modules/coding/agents/HubAgentPersonaLoader.js";
 import type { AgentLoop } from "../tools/AgentLoop.js";
 import { ConfirmationGate } from "../tools/ConfirmationGate.js";
 import { defaultPermissionOptions } from "./webview/render/permissionPrompt.js";
@@ -345,6 +346,17 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
   // gracefully to the shared workspace when the workspace is not a git repo.
   if (workspacePath) {
     subAgentManager.setWorktreeManager(new WorktreeManager(workspacePath));
+  }
+
+  // v1.5.0 Phase 7 (HUB.P3.AGENT): expose the Nexus-Hub agent personas from the
+  // active devai-hub bundle so a sub-agent can be dispatched with a persona name.
+  // Inert when no bundle is synced (the agents dir simply does not exist).
+  {
+    const activeTag = readActiveTag(defaultSkillsRoot());
+    const agentsDir = activeTag
+      ? path.join(tagDir(defaultSkillsRoot(), activeTag), "catalog", "agents")
+      : null;
+    subAgentManager.setPersonaLoader(new HubAgentPersonaLoader(agentsDir));
   }
 
   const initialTier = getTierConfig(settings.gpuTierOverride ?? 2);

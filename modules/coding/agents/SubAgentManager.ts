@@ -23,6 +23,7 @@ import { RunTerminalTool } from "../../../src/tools/handlers/terminal.js";
 import { WebSearchTool, FetchPageTool } from "../../../src/tools/handlers/webSearch.js";
 import { SpecialistLoader } from "./SpecialistLoader.js";
 import type { Specialist } from "./SpecialistLoader.js";
+import type { HubAgentPersonaLoader } from "./HubAgentPersonaLoader.js";
 import {
   runAuditWorker,
   runTestgapsWorker,
@@ -145,6 +146,13 @@ export class SubAgentManager implements SubAgentSpawner {
    */
   private _worktreeManager: WorktreeManager | null = null;
 
+  /**
+   * v1.5.0 Phase 7 (HUB.P3.AGENT) -- optional Nexus-Hub persona registry. When
+   * wired, a sub-agent dispatched with `config.personaName` adopts that Hub
+   * persona's translated tool scope + instructions. Null = no persona support.
+   */
+  private _personaLoader: HubAgentPersonaLoader | null = null;
+
   constructor(
     private readonly _client: OllamaClient,
     promptBuilder: PromptBuilder,
@@ -192,6 +200,14 @@ export class SubAgentManager implements SubAgentSpawner {
    */
   setWorktreeManager(manager: WorktreeManager | null): void {
     this._worktreeManager = manager;
+  }
+
+  /**
+   * v1.5.0 Phase 7 (HUB.P3.AGENT) -- wire the Nexus-Hub persona registry so a
+   * sub-agent dispatched with `config.personaName` can adopt that persona.
+   */
+  setPersonaLoader(loader: HubAgentPersonaLoader | null): void {
+    this._personaLoader = loader;
   }
 
   async run(config: SubAgentConfig, postMessage: PostMessageFn, parentTraceId?: string, parentSpanId?: string): Promise<SubAgentResult> {
@@ -246,9 +262,21 @@ export class SubAgentManager implements SubAgentSpawner {
       // workspace override -> bundled assets -> hardcoded fallback. When no
       // SpecialistLoader is wired, fall back to the static TOOLS_BY_TYPE map
       // to preserve byte-equivalent behavior with pre-Phase-8 callers.
-      const specialist: Specialist | null = this._specialistLoader
+      let specialist: Specialist | null = this._specialistLoader
         ? await this._specialistLoader.load(config.type)
         : null;
+
+      // v1.5.0 Phase 7 (HUB.P3.AGENT): a named Hub persona overrides the
+      // type-derived specialist (its translated tool scope + instructions).
+      // Unknown persona / no loader leaves the type-based behavior intact.
+      let personaPrompt: string | null = null;
+      if (config.personaName && this._personaLoader) {
+        const persona = this._personaLoader.toSpecialist(config.personaName);
+        if (persona) {
+          specialist = persona;
+          personaPrompt = persona.systemPrompt;
+        }
+      }
 
       // v1.2.0 Phase 5.1 -- when intent='explore', intersect the resolved
       // tool scope with the read-only explore allowlist. The intersection
@@ -321,9 +349,13 @@ export class SubAgentManager implements SubAgentSpawner {
       // Create an isolated ConversationManager (no persistence store).
       const manager = new ConversationManager(systemPrompt);
 
-      // Inject the context as the first user message.
+      // Inject the context as the first user message. When a Hub persona is
+      // active, prepend its instructions so the persona's role guidance reaches
+      // the sub-agent (additive: the system prompt is unchanged).
       const contextMessage = buildSubAgentContextMessage(config);
-      manager.addUserMessage(contextMessage);
+      manager.addUserMessage(
+        personaPrompt ? `${personaPrompt}\n\n---\n\n${contextMessage}` : contextMessage,
+      );
 
       // Build Ollama tool definitions from enabled tools.
       const ollamaTools = this._buildOllamaTools(enabledToolMeta);

@@ -5,7 +5,7 @@ import { getLogger } from "../utils/logger.js";
 import { getSubAgentInstructions } from "./SubAgentPrompts.js";
 import type { SubAgentType } from "./types.js";
 
-export type SpecialistProvenance = "workspace" | "bundled" | "hardcoded";
+export type SpecialistProvenance = "workspace" | "bundled" | "hardcoded" | "hub";
 export type SpecialistTier = "constrained" | "balanced" | "full";
 
 /**
