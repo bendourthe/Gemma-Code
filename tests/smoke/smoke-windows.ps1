@@ -60,30 +60,35 @@ if (-not (Test-Command ollama)) {
 }
 
 Write-Header "Starting Ollama service (background)"
-$ollamaExe = (Get-Command ollama -ErrorAction SilentlyContinue).Source
-if (-not $ollamaExe) { throw "ollama not on PATH after install" }
-# Capture the serve process output so a cold-start failure is diagnosable (the
-# server runs detached, so its stdout/stderr would otherwise be lost). The two
-# redirect targets must be distinct files.
+# Use 127.0.0.1, not localhost: on Windows localhost resolves to IPv6 ::1 first
+# while Ollama binds IPv4 127.0.0.1, so a localhost probe never connects.
+$ollamaUrl = "http://127.0.0.1:11434"
+function Test-OllamaUp {
+    try { Invoke-WebRequest -Uri "$ollamaUrl/api/tags" -TimeoutSec 2 -UseBasicParsing | Out-Null; return $true }
+    catch { return $false }
+}
+# winget's Ollama install auto-starts the server (it binds 127.0.0.1:11434), so
+# a second `ollama serve` would die with "address already in use". Only start
+# one if nothing is already listening.
+$ollamaProc = $null
 $ollamaOut = Join-Path $resultsDir "ollama-serve.out.log"
 $ollamaErrLog = Join-Path $resultsDir "ollama-serve.err.log"
-$ollamaProc = Start-Process -FilePath $ollamaExe -ArgumentList "serve" -PassThru -NoNewWindow `
-    -RedirectStandardOutput $ollamaOut -RedirectStandardError $ollamaErrLog
-Start-Sleep -Seconds 3
+if (-not (Test-OllamaUp)) {
+    $ollamaExe = (Get-Command ollama -ErrorAction SilentlyContinue).Source
+    if (-not $ollamaExe) { throw "ollama not on PATH after install" }
+    $ollamaProc = Start-Process -FilePath $ollamaExe -ArgumentList "serve" -PassThru -NoNewWindow `
+        -RedirectStandardOutput $ollamaOut -RedirectStandardError $ollamaErrLog
+}
 
-# Poll /api/tags. Windows runners cold-start Ollama slowly (the first `serve`
-# unpacks the runtime), so allow up to 180s -- 60s was not enough on the hosted
-# windows-latest runner. Surface the serve log + process state if it never binds.
+# Poll up to 180s (a freshly installed Ollama unpacks its runtime on first run).
 $deadline = (Get-Date).AddSeconds(180)
-$ready = $false
-while ((Get-Date) -lt $deadline) {
-    try {
-        Invoke-WebRequest -Uri "http://localhost:11434/api/tags" -TimeoutSec 2 | Out-Null
-        $ready = $true; break
-    } catch { Start-Sleep -Seconds 2 }
+$ready = Test-OllamaUp
+while (-not $ready -and (Get-Date) -lt $deadline) {
+    Start-Sleep -Seconds 2
+    $ready = Test-OllamaUp
 }
 if (-not $ready) {
-    Write-Host "Ollama did not respond within 180s (serve exited: $($ollamaProc.HasExited))"
+    Write-Host "Ollama did not respond at $ollamaUrl within 180s (started a serve: $($null -ne $ollamaProc))"
     if (Test-Path $ollamaErrLog) { Write-Host "--- ollama serve stderr (tail) ---"; Get-Content $ollamaErrLog -Tail 40 }
     if (Test-Path $ollamaOut) { Write-Host "--- ollama serve stdout (tail) ---"; Get-Content $ollamaOut -Tail 40 }
     throw "Ollama failed to respond within 180 seconds"
@@ -99,7 +104,10 @@ $installerArgs = @(
     "--model", $Model,
     "--json-output",
     # The smoke checkout has no built VSIX to install.
-    "--skip-extension"
+    "--skip-extension",
+    # Detect the already-running Ollama on IPv4 (see localhost/::1 note above)
+    # so the installer skips its own Ollama install step.
+    "--ollama-url", $ollamaUrl
 )
 if (-not $WithModel) { $installerArgs += "--skip-model" }
 
@@ -112,7 +120,7 @@ Write-Header "Running component verification"
 $verifyArgs = @(
     "tests\smoke\verify-components.py",
     "--install-path", $InstallPath,
-    "--ollama-url", "http://localhost:11434"
+    "--ollama-url", $ollamaUrl
 )
 if (-not $WithModel) { $verifyArgs += "--skip-model" }
 $verifyArgs += "--skip-backend"

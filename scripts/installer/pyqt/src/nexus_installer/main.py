@@ -52,6 +52,16 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         help="Override the install path",
     )
     parser.add_argument(
+        "--ollama-url",
+        default=None,
+        help=(
+            "Override the Ollama base URL used for the running-server probe "
+            "(e.g. http://127.0.0.1:11434). Use 127.0.0.1 rather than localhost "
+            "on Windows, where localhost resolves to IPv6 ::1 first while Ollama "
+            "binds IPv4."
+        ),
+    )
+    parser.add_argument(
         "--skip-model",
         action="store_true",
         help="Skip model download (fast smoke test)",
@@ -89,6 +99,8 @@ def _run_headless(args: argparse.Namespace) -> int:
     state = InstallerState()
     if args.install_path:
         state.install_path = args.install_path
+    if args.ollama_url:
+        state.ollama_url = args.ollama_url
     if args.model:
         state.selected_model = args.model
     else:
