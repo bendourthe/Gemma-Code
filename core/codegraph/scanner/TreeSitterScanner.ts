@@ -104,9 +104,35 @@ let _parser: any = null;
 const _languages = new Map<CodeGraphLanguage, any>();
 const _queries = new Map<CodeGraphLanguage, any>();
 
-/** Absolute path to a prebuilt grammar .wasm, resolved via the package root so
- *  an `exports` map cannot block the subpath lookup. */
+/**
+ * v1.5.0 Phase 6 (T022.P3.A) -- optional override for the directory holding the
+ * prebuilt grammar .wasm and the web-tree-sitter runtime `tree-sitter.wasm`.
+ *
+ * A packaged host whose process has no node_modules tree -- the bundled desktop
+ * sidecar (esbuild -> sidecar/dist/main.js) -- cannot resolve `tree-sitter-wasms`
+ * via require.resolve. Its build copies the wasm into a sibling `wasm/` dir and
+ * points the loader here. When null (dev, and the VS Code extension VSIX, which
+ * ships node_modules), grammars resolve via require.resolve and the runtime wasm
+ * loads from the web-tree-sitter package's own location. Seeded from
+ * NEXUS_TREE_SITTER_WASM_DIR so a host can override without a code change.
+ */
+let _wasmDir: string | null = process.env.NEXUS_TREE_SITTER_WASM_DIR?.trim() || null;
+
+/**
+ * Point the loader at a directory of prebuilt .wasm files (the four grammar
+ * .wasm plus the web-tree-sitter runtime `tree-sitter.wasm`). Must be called
+ * BEFORE initTreeSitter(); the load is memoized, so a later call has no effect
+ * once init has started. Pass null to restore require.resolve-based loading.
+ */
+export function setTreeSitterWasmDir(dir: string | null): void {
+  _wasmDir = dir && dir.trim() ? dir : null;
+}
+
+/** Absolute path to a prebuilt grammar .wasm. Prefers the bundled wasm dir when
+ *  set (packaged sidecar); otherwise resolves via the package root so an
+ *  `exports` map cannot block the subpath lookup (dev / VSIX). */
 function resolveGrammar(file: string): string {
+  if (_wasmDir) return path.join(_wasmDir, file);
   const pkgJson = require.resolve("tree-sitter-wasms/package.json");
   return path.join(path.dirname(pkgJson), "out", file);
 }
@@ -126,7 +152,13 @@ export async function initTreeSitter(): Promise<boolean> {
       const QueryCtor = mod.Query ?? mod.default?.Query;
       if (!ParserCtor || !LanguageNs || !QueryCtor) return false;
 
-      await ParserCtor.init();
+      // When a bundled wasm dir is set, hand emscripten a locateFile hook so the
+      // runtime tree-sitter.wasm loads from there (the packaged sidecar has no
+      // node_modules tree for web-tree-sitter to find its own wasm against).
+      const wasmDir = _wasmDir;
+      await ParserCtor.init(
+        wasmDir ? { locateFile: (name: string) => path.join(wasmDir, name) } : undefined,
+      );
       const parser = new ParserCtor();
 
       for (const [lang, file] of Object.entries(GRAMMAR_FILES) as [

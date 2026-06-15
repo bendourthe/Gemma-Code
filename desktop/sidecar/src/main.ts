@@ -4,6 +4,7 @@
 
 import { createInterface } from "node:readline";
 import { createHandlerContext, dispatch } from "./handlers.js";
+import { warmUpTreeSitter } from "./treeSitterWarmup.js";
 
 interface JsonRpcRequest {
   jsonrpc?: string;
@@ -60,6 +61,16 @@ async function handleLine(line: string): Promise<void> {
 }
 
 function main(): void {
+  // v1.5.0 Phase 6 (T022.P3.A): warm up the Tree-sitter codegraph scanner from
+  // the bundled wasm dir so codegraph scans use the parse path, not the regex
+  // fallback. Fire-and-forget; logs to stderr (stdout is the JSON-RPC channel)
+  // and never blocks message handling -- initTreeSitter is graceful.
+  void warmUpTreeSitter().then((ready) => {
+    process.stderr.write(
+      `[nexus-sidecar] tree-sitter codegraph scanner: ${ready ? "ready" : "unavailable (regex fallback)"}\n`,
+    );
+  });
+
   const rl = createInterface({ input: process.stdin, crlfDelay: Infinity });
   rl.on("line", (line) => {
     if (!line.trim()) return;

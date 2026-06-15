@@ -417,14 +417,14 @@ The project was renamed from Gemma Code to Nexus at v1.0.0 (the four-pillar desk
 | v1.2.0 | 2026-05 ecosystem adoption (code-graph MCP, command compressor, AST chunker, PrunedDenseIndex, LSP) | Phases 1-7 landed | `versions/v1/v1.2.0/plans/adoption-ecosystem-2026-05.md` |
 | v1.3.0 | skill-cleaner adoption (`nexus skills audit` token-budget report) | All 7 phases landed 2026-05-29 | `versions/v1/v1.3.0/plans/adoption-skill-cleaner.md` |
 | v1.4.0 | claude-code-harness adoption + known-gaps closure + Nexus-Hub sync | **Complete (Phases 1-9)**; closed 2026-06-09 | `versions/v1/v1.4.0/plans/adoption-claude-code-harness.md` |
-| v1.5.0 | Local Agent Maturity (2026-06 scan: energy telemetry, credential vault, swarm orchestration, multimodal input) | **In progress** -- Phases 1-3 landed 2026-06-10, Phase 4 landed 2026-06-12, Phase 5 landed 2026-06-14 (Phases 6-7 pending) | `versions/v1/v1.5.0/plans/adoption-ecosystem-2026-06.md` |
+| v1.5.0 | Local Agent Maturity (2026-06 scan: energy telemetry, credential vault, swarm orchestration, multimodal input) | **In progress** -- Phases 1-3 landed 2026-06-10, Phase 4 landed 2026-06-12, Phases 5-6 landed 2026-06-14 (Phase 7 pending) | `versions/v1/v1.5.0/plans/adoption-ecosystem-2026-06.md` |
 
 ### v1.4.0 status (COMPLETE -- closed 2026-06-09)
 
 - Adoptions A1-A12: all 12 landed (Phases 1-6).
 - Carryforward: 34 of 36 gaps resolved (6 in Phase 7, 22 in Phase 8, 2 in Phase 9: `1.1.P2.A` + `1.1.P3.B`). Re-justified as Hub-owned (open against the Nexus-Hub repo, not closeable from Nexus-AI): `T017.P3.E`, `T002.P2.A`.
 - Phase 9 (FINAL, `T032-T035`) complete: Nexus-Hub integration delta written ([development/nexus-hub-integration-delta.md](versions/v1/v1.4.0/development/nexus-hub-integration-delta.md)); `DEFAULT_UPSTREAM` fixed `bendourthe/DevAI-Hub` -> `bendourthe/Nexus-Hub`; whole-plan acceptance gate green (build/lint/arch/check/audit-prod/test+coverage; 87.19% lines; the `hono` prod advisory fixed in-phase to 4.12.25); known-gaps finalized; [RELEASE_NOTES.md](versions/v1/v1.4.0/RELEASE_NOTES.md) written; desktop product version bumped 1.3.0 -> 1.4.0.
-- Carried to v1.5.0: P3 deferrals `T016.P3.A`, `T018.P3.A`, `T018.P3.B`, `T022.P3.A`; the `HUB.P3.*` Hub-v3.x integration items; `T034.P2.A` (dev-only npm advisories).
+- Carried to v1.5.0: P3 deferrals `T016.P3.A`, `T018.P3.A`, `T018.P3.B`, `T022.P3.A` (all four now closed -- the first three in v1.5.0 Phase 4, `T022.P3.A` in Phase 6); the `HUB.P3.*` Hub-v3.x integration items; `T034.P2.A` (dev-only npm advisories).
 
 ### v1.5.0 plan (newly filed this session, 2026-06-09)
 
@@ -435,10 +435,10 @@ Derived from the [2026-06 ecosystem comparison](versions/v1/v1.5.0/comparison-ec
 - [x] Phase 3 - Inbound security: prompt-injection classifier (warn-then-allow) (landed 2026-06-10; T008-T009; `modules/coding/security/InboundClassifier.ts` routed over `fetch_page`/`web_search` in `AgentLoop`; toggles `nexus.coding.inboundClassifier.enabled`/`.deepScan`; [session history](versions/v1/v1.5.0/development/history/2026-06_phase-3-inbound-security.md))
 - [x] Phase 4 - Swarm/DAG orchestration over worktree sub-agents (landed 2026-06-12; T010-T014; `CriticAgent` + `DAGExecutor` isolate/critic options + `Orchestrator` `swarmEnabled` flag + read-tool worktree rooting + live PreCompact hook; opt-in `nexus.coding.swarmOrchestration.enabled` default off; closes v1.4.0 `T018.P3.A`, `T018.P3.B`, `T016.P3.A`; [session history](versions/v1/v1.5.0/development/history/2026-06_phase-4-swarm-orchestration.md))
 - [x] Phase 5 - Model-layer & desktop re-partials (landed 2026-06-14; T015-T020; multimodal image input + `isVisionCapableModel` vision gate (item 33), `PreviewPane` side-by-side pane (item 24), vault-only `CredentialsSettings` + `credentials.*` IPC (item 25), persistent `JsonFileSessionStore` + resume-with-history (item 26); item 38 local cron DEFERRED -- `T019.P3.A`; partially closes `T001.P3.A`; [session history](versions/v1/v1.5.0/development/history/2026-06_phase-5-desktop-re-partials.md))
-- [ ] Phase 6 - Carryforward: Tree-sitter `.wasm` packaging (closes `T022.P3.A`)
+- [x] Phase 6 - Carryforward: Tree-sitter `.wasm` packaging (landed 2026-06-14; T021-T022; scanner bundled-wasm-dir override `setTreeSitterWasmDir` + `Parser.init({locateFile})`, `build:sidecar` esbuild config copies the 4 grammar `.wasm` + web-tree-sitter runtime `.wasm` into `sidecar/dist/wasm` with a CJS dist marker + startup warm-up, VSIX `.vscodeignore` grammar trim; closes v1.4.0 `T022.P3.A`; full Tauri `build:shell` not run here (cargo absent) -- `T021.P3.A`; [session history](versions/v1/v1.5.0/development/history/2026-06_phase-6-tree-sitter-packaging.md))
 - [ ] Phase 7 - FINAL: Nexus-Hub sync + whole-plan acceptance gate
 
-**Branch**: `feat/v1.5.0-phase-3-inbound-security` (chained off the Phase 2 branch; v1.5.0 not yet merged to `main`). Phases 1-5 complete; Phases 6-7 pending.
+**Branch**: `feat/v1.5.0-phase-3-inbound-security` (chained off the Phase 2 branch; v1.5.0 not yet merged to `main`). Phases 1-6 complete; Phase 7 pending.
 
 ---
 

@@ -51,6 +51,17 @@ node_modules/better-sqlite3/binding.gyp
 node_modules/better-sqlite3/build/Release/.forge-meta
 # prebuild-install not needed at runtime
 node_modules/prebuild-install/**
+# v1.5.0 Phase 6 (T022.P3.A) -- Tree-sitter packaging. The codegraph scanner
+# (core/codegraph/scanner/TreeSitterScanner.ts) parses 4 languages; ship only
+# those 4 grammar .wasm and drop the other ~34 tree-sitter-wasms bundles to keep
+# the VSIX small (the web-tree-sitter runtime tree-sitter.wasm is kept; it is not
+# matched by any exclude). Guarantees the packaged extension uses the Tree-sitter
+# parse path, not the regex fallback.
+node_modules/tree-sitter-wasms/out/**
+!node_modules/tree-sitter-wasms/out/tree-sitter-typescript.wasm
+!node_modules/tree-sitter-wasms/out/tree-sitter-python.wasm
+!node_modules/tree-sitter-wasms/out/tree-sitter-rust.wasm
+!node_modules/tree-sitter-wasms/out/tree-sitter-go.wasm
 
 # Python and Rust artifacts
 **/__pycache__/**

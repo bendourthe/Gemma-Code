@@ -9,7 +9,7 @@
     "build:shell": "tauri build",
     "dev:web": "vite",
     "build:web": "vite build",
-    "build:sidecar": "esbuild sidecar/src/main.ts --bundle --platform=node --target=node20 --format=cjs --outfile=sidecar/dist/main.js",
+    "build:sidecar": "node sidecar/esbuild.config.mjs",
     "preview": "vite preview --port 1421 --strictPort",
     "lint": "eslint src sidecar/src tests --max-warnings=0",
     "typecheck": "tsc --noEmit",

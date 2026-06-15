@@ -4,6 +4,28 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-06-14] v1.5.0 Phase 6 -- Tree-sitter `.wasm` Packaging Closure
+
+### Goal
+
+Close the last v1.4.0 P3 packaging deferral ([docs/versions/v1/v1.5.0/plans/adoption-ecosystem-2026-06.md](versions/v1/v1.5.0/plans/adoption-ecosystem-2026-06.md), `T022.P3.A`): a packaged install fell back to the regex symbol extractor because the Tree-sitter grammar `.wasm` (and the `web-tree-sitter` runtime `.wasm`) were not bundled. The v1.4.0 scanner resolves grammars via `require.resolve("tree-sitter-wasms")`, which works in dev and in the VSIX (it ships `node_modules`) but not in the esbuild-bundled desktop sidecar, which runs with no `node_modules` tree.
+
+### What changed
+
+**T021 -- scanner bundled-wasm-dir override.** [core/codegraph/scanner/TreeSitterScanner.ts](../core/codegraph/scanner/TreeSitterScanner.ts) gained `setTreeSitterWasmDir(dir)` (also seedable via `NEXUS_TREE_SITTER_WASM_DIR`). When set, `resolveGrammar` reads each grammar `.wasm` from that dir and `initTreeSitter` hands emscripten a `Parser.init({ locateFile })` hook so the runtime `tree-sitter.wasm` loads from there too -- no `require.resolve` against `node_modules`. When unset, the existing require.resolve path is unchanged (dev + VSIX). Exported through the scanner barrel.
+
+**T021 -- desktop sidecar bundling + warm-up.** `build:sidecar` now runs [desktop/sidecar/esbuild.config.mjs](../desktop/sidecar/esbuild.config.mjs): it bundles `main.ts` (CJS), writes a `{ "type": "commonjs" }` marker into `sidecar/dist` (the bundle is CJS but `desktop/package.json` is `type: module`, so without the marker Node treats `dist/main.js` as ESM and the spawn fails -- a latent bug the warm-up surfaced), and copies the 4 grammar `.wasm` (`tree-sitter-wasms/out`) plus the `web-tree-sitter` runtime `.wasm` into `sidecar/dist/wasm`. `web-tree-sitter`'s JS is bundled; `tree-sitter-wasms` is marked external (its JS is never imported -- only a path resolved, on a branch the bundled sidecar never takes). New [desktop/sidecar/src/treeSitterWarmup.ts](../desktop/sidecar/src/treeSitterWarmup.ts) points the loader at `<dist>/wasm` and is warmed up fire-and-forget at sidecar startup ([desktop/sidecar/src/main.ts](../desktop/sidecar/src/main.ts), logging to stderr -- stdout is the JSON-RPC channel).
+
+**T021 -- VSIX.** [.vscodeignore](../.vscodeignore) trims `tree-sitter-wasms/out` to the 4 used grammars (typescript / python / rust / go) and keeps the `web-tree-sitter` runtime `.wasm`, dropping ~34 unused grammars; verified with `npx vsce ls`. The extension already warmed up Tree-sitter at activation (v1.4.0), and the VSIX ships `node_modules`, so no extension code change was needed.
+
+**T022 -- tests.** New [tests/integration/codegraph/treeSitterPackaged.test.ts](../tests/integration/codegraph/treeSitterPackaged.test.ts) stages the bundled layout in a throwaway dir with no `node_modules`, points the scanner at it, and asserts `isTreeSitterReady()` is true with all 4 grammars loaded and a regex-fallback-miss parse succeeding -- the exact packaged condition. The built `sidecar/dist/main.js` was also spawned directly: it logs `tree-sitter codegraph scanner: ready`.
+
+### Verification
+
+Root suite **4037 passed / 5 skipped / 0 failed**; `npm run build:sidecar` + `npm run build:web` clean; `tsc -b`, desktop `tsc --noEmit`, `npm run lint`, `npm run lint:shell`, `npm run check-architecture` (0 errors, 10 pre-existing warnings), `npm run check:tampering` (0 findings), desktop coverage suite all clean. The full Tauri `npm run build:shell` was not run in this environment (`cargo` absent); the bundled-sidecar readiness was verified directly by spawning the built bundle. `T022.P3.A` raised candidate -> supported. One forward-tier follow-up recorded in [the v1.5.0 known-gaps](versions/v1/v1.5.0/known-gaps.md) (`T021.P3.A` -- run the full `tauri build` on a host with the Rust toolchain). No outbound call introduced. Session history at [versions/v1/v1.5.0/development/history/2026-06_phase-6-tree-sitter-packaging.md](versions/v1/v1.5.0/development/history/2026-06_phase-6-tree-sitter-packaging.md).
+
+---
+
 ## [2026-06-12] v1.5.0 Phase 4 -- Swarm / DAG Orchestration
 
 ### Goal

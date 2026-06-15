@@ -24,6 +24,7 @@ export {
   isTreeSitterReady,
   isLanguageReady,
   extractSymbolsTreeSitter,
+  setTreeSitterWasmDir,
 } from "./TreeSitterScanner.js";
 
 export type {

@@ -386,7 +386,7 @@ No constitution file found at docs/versions/v1/v1.5.0/constitution.md - skipping
 
 #### 6.1 -- Close T022.P3.A: bundle Tree-sitter grammar .wasm into the packaged app
 
-- [ ] T021 Bundle the grammar + runtime .wasm into the VSIX / sidecar and add a warm-up
+- [x] T021 Bundle the grammar + runtime .wasm into the VSIX / sidecar and add a warm-up
 
 **Objective**: Close v1.4.0 `T022.P3.A` [from v1.4.0 known-gaps]: a packaged install currently falls back to the regex extractor because the Tree-sitter `.wasm` files are not bundled.
 
@@ -397,7 +397,7 @@ No constitution file found at docs/versions/v1/v1.5.0/constitution.md - skipping
 
 #### 6.2 -- Testing and Stabilization
 
-- [ ] T022 Run and stabilize Phase 6 tests + packaged-app check
+- [x] T022 Run and stabilize Phase 6 tests + packaged-app check
 
 **Objective**: Verify the packaging closure; iterate until stable.
 
@@ -408,11 +408,11 @@ No constitution file found at docs/versions/v1/v1.5.0/constitution.md - skipping
 
 ### Phase 6 Exit Checklist
 
-- [ ] All sub-tasks completed
-- [ ] All tests passing (incl. packaged-app readiness)
-- [ ] `T022.P3.A` closed
-- [ ] Session history generated for this phase
-- [ ] Ready to advance to Phase 7
+- [x] All sub-tasks completed
+- [x] All tests passing (incl. packaged-app readiness)
+- [x] `T022.P3.A` closed
+- [x] Session history generated for this phase
+- [x] Ready to advance to Phase 7
 
 ---
 
