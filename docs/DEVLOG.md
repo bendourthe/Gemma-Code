@@ -4,6 +4,35 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-06-15] v1.5.0 Phase 7 (FINAL) -- Nexus-Hub Sync + 6-Surface Integration + Acceptance Gate
+
+### Goal
+
+Close the v1.5.0 cycle ([docs/versions/v1/v1.5.0/plans/adoption-ecosystem-2026-06.md](versions/v1/v1.5.0/plans/adoption-ecosystem-2026-06.md), T023-T024): publish the two Phase 2 skills to Nexus-Hub, integrate every net-new Hub surface the v1.4.0 delta had routed to v1.5.0 as `HUB.P3.*`, and verify the whole-plan acceptance gate. Mid-phase the operator also flagged the v1.5.0 CI workflows red and asked for them fixed before release.
+
+### CI / workflow fixes (prerequisite)
+
+The failing v1.5.0-branch workflows were diagnosed from the run logs and fixed: **CI** docs-sync (regenerated `docs/index.md`, a stale `tools` LOC count); **Nightly** installer package check (added a real `[project.optional-dependencies] dev` extra so `pip install ...[dev]` resolves, and switched the import check to `importlib.metadata.version`, immune to an editable-install namespace quirk on Linux/macOS); **Installer-smoke** (added `--skip-extension` -- a source checkout has no VSIX; gated the removed-v0.4.0 fastapi venv check behind `--skip-backend`; fixed the extension id; on Windows: only start `ollama serve` if not already up since winget auto-starts it, poll `127.0.0.1` not `localhost` to dodge the IPv6 `::1` mismatch, and added the missing `httpx` install step). All three went green on the branch. A separate `fix/dependabot-ci-hygiene` branch stops Dependabot from breaking VSIX (`@types/vscode` minor-ignore) and exempts it from the PR checklist gate.
+
+### What changed (T023 -- six Hub consumption surfaces)
+
+The two Phase 2 skills were published onto Hub `develop` (`fe8eb68`, no release tag -- the Hub is mid-cycle on an unfinished v3.4.0). All four net-new non-skill surfaces selected this cycle were integrated, each reading from the active devai-hub bundle and inert when none is synced (so the default runtime/CI/tests are byte-unchanged):
+
+- **`HUB.P3.DATA`** -- `DevAIHubSyncer.buildManifestWithIndex` consumes `data/skills.json`: the synced manifest stays filesystem-authoritative but each entry is enriched with the index `category`, and `SyncResult.indexConsistency` reports index/tree divergence.
+- **`HUB.P3.RULES`** -- `LanguageRuleBuilder` detects the workspace language and renders `catalog/rules/<lang>/*` into a bounded `PromptBuilder` section via the additive `PromptContext.languageRules`.
+- **`HUB.P3.AGENT`** -- `HubAgentPersonaLoader` translates `catalog/agents/*.md` into `Specialist` personas (Hub tool names -> registry ids, unsafe tools dropped); `SubAgentManager` adopts one via `config.personaName`.
+- **`HUB.P3.CMD`** -- `HubCommandCatalogLoader` -> `CommandRouter` `hub-command` route (after built-ins + skills) -> `ChatController` injects the command body like a skill prompt.
+- **`HUB.P3.HOOK`** -- `catalog/hooks` added to the sparse-checkout; `HubHookInstaller` lists + installs hook scripts (path-traversal-safe, shell hooks chmod 0o755).
+- **`HUB.P3.MCPCFG`** -- `HubRegistryPolicyFilter` enforces the MCP Registry Policy on `mcp-servers.json` (default-deny: keep only `already-local` + audited `vendor-intrinsic`); `McpManager.policyFilterHubRegistry` is filter-only and never auto-connects.
+
+Full per-surface detail + carryforward dispositions in [versions/v1/v1.5.0/development/nexus-hub-integration-delta.md](versions/v1/v1.5.0/development/nexus-hub-integration-delta.md).
+
+### Verification (T024 acceptance gate)
+
+`npm run lint` 0 errors; root suite **4080 passed / 5 skipped / 0 failed** (+43); desktop suite **445 passed / 0 failed**; `tsc -b` clean; `check-architecture` 0 errors; `check:tampering` 0 findings; `check:prompts` 0 errors (1 pre-existing warning); `security:check` in sync; `check:audit-prod` 0 blocking. Whole-plan Definition of pass satisfied (all Bucket 1-3 items, the planned Bucket 4 re-partials, and the four v1.4.0 deferrals). Four forward-tier follow-ups recorded in the [v1.5.0 known-gaps](versions/v1/v1.5.0/known-gaps.md) (`T023.P3.A` sync-on-next-Hub-release; `HUB.P3.EXT.*` / `HUB.P3.NS` future; the two Hub-validator gaps remain Hub-owned). No outbound call introduced; MCP consumption is policy-gated and connection-free.
+
+---
+
 ## [2026-06-14] v1.5.0 Phase 6 -- Tree-sitter `.wasm` Packaging Closure
 
 ### Goal
