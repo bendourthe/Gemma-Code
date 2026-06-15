@@ -6,6 +6,8 @@ import { formatForUser } from "../utils/errors.js";
 import { MemoryContextScrubber } from "./MemoryContextScrubber.js";
 import { Gemma4StreamScrubber, parseChannel } from "../llm/Gemma4Parser.js";
 import { ToolCallStreamParser } from "./ToolCallStreamParser.js";
+import { toLlmMessages } from "./llmMessages.js";
+import { isVisionCapableModel } from "../config/ModelCapabilities.js";
 
 export type PostMessageFn = (message: ExtensionToWebviewMessage) => void;
 
@@ -55,8 +57,12 @@ export class StreamingPipeline {
    * phase so the webview can replace the legacy three-dots indicator with a
    * "Thinking..." -> "Thought for Ns" meta-row.
    */
-  async send(text: string, postMessage: PostMessageFn): Promise<void> {
-    this._manager.addUserMessage(text);
+  async send(
+    text: string,
+    postMessage: PostMessageFn,
+    images?: readonly string[],
+  ): Promise<void> {
+    this._manager.addUserMessage(text, images);
     const thinkStart = Date.now();
     postMessage({ type: "status", state: "thinking" });
     postMessage({
@@ -99,9 +105,13 @@ export class StreamingPipeline {
       const toolCallParser = new ToolCallStreamParser();
 
       try {
-        const ollamaMessages: OllamaMessage[] = this._manager
-          .getHistory()
-          .map((m) => ({ role: m.role, content: m.content }));
+        // v1.5.0 Phase 5 (item 33): forward image attachments only when the
+        // active model is vision-capable; text-only models get a clean
+        // text-only request.
+        const ollamaMessages: OllamaMessage[] = toLlmMessages(
+          this._manager.getHistory(),
+          isVisionCapableModel(this._modelName),
+        );
 
         postMessage({ type: "status", state: "streaming" });
 

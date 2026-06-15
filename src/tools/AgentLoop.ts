@@ -1,6 +1,8 @@
 import type { OllamaClient, OllamaMessage, OllamaOptions, OllamaToolDefinition } from "../../modules/coding/llm/types.js";
 import type { ConversationManager } from "../../modules/coding/chat/ConversationManager.js";
 import type { PostMessageFn } from "../../modules/coding/chat/StreamingPipeline.js";
+import { toLlmMessages } from "../../modules/coding/chat/llmMessages.js";
+import { isVisionCapableModel } from "../../modules/coding/config/ModelCapabilities.js";
 import type { ContextCompactor } from "../../modules/coding/chat/ContextCompactor.js";
 import type { SubAgentSpawner } from "../../modules/coding/agents/SubAgentSpawner.types.js";
 import type { SubAgentConfig, SubAgentResult } from "../../modules/coding/agents/types.js";
@@ -1021,9 +1023,12 @@ export class AgentLoop {
   private async _streamOneTurn(postMessage: PostMessageFn): Promise<string | null> {
     this._abortController = new AbortController();
 
-    const ollamaMessages: OllamaMessage[] = this._manager
-      .getHistory()
-      .map((m) => ({ role: m.role, content: m.content }));
+    // v1.5.0 Phase 5 (item 33): forward image attachments only to a
+    // vision-capable model; text-only models get a clean text-only request.
+    const ollamaMessages: OllamaMessage[] = toLlmMessages(
+      this._manager.getHistory(),
+      isVisionCapableModel(this._modelName),
+    );
 
     postMessage({ type: "status", state: "streaming" });
 

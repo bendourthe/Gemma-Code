@@ -302,7 +302,7 @@ No constitution file found at docs/versions/v1/v1.5.0/constitution.md - skipping
 
 #### 5.1 -- Item 33: Multimodal input via Gemma 4
 
-- [ ] T015 Wire image/audio input through the Chat/Coding prompt-assembly + model call for vision-capable models
+- [x] T015 Wire image/audio input through the Chat/Coding prompt-assembly + model call for vision-capable models
 
 **Objective**: Adopt report item 33 (`re-partial`): let the Chat/Coding pillars read an image/screenshot/audio clip using Gemma 4's native multimodality.
 
@@ -313,7 +313,7 @@ No constitution file found at docs/versions/v1/v1.5.0/constitution.md - skipping
 
 #### 5.2 -- Item 24: Side-by-side preview panel
 
-- [ ] T016 [P] Add a split preview pane in desktop/src/ reusing the interactive-artifact renderer
+- [x] T016 [P] Add a split preview pane in desktop/src/ reusing the interactive-artifact renderer
 
 **Objective**: Adopt report item 24 (`re-partial`): render web/files/tool outputs beside chat (Hermes Desktop, S5).
 
@@ -324,7 +324,7 @@ No constitution file found at docs/versions/v1/v1.5.0/constitution.md - skipping
 
 #### 5.3 -- Item 25: Provider / model / tool / credential management UI
 
-- [ ] T017 Add a provider/model/tool/credential management settings surface in desktop/src/
+- [x] T017 Add a provider/model/tool/credential management settings surface in desktop/src/
 
 **Objective**: Adopt report item 25 (`re-partial`): manage models/tools/credentials from the UI instead of editing config (Hermes Desktop, S5). The credential half is a VIEW over the Phase 1 vault.
 
@@ -335,7 +335,7 @@ No constitution file found at docs/versions/v1/v1.5.0/constitution.md - skipping
 
 #### 5.4 -- Item 26: Cross-surface session resume
 
-- [ ] T018 [P] Add a CLI<->desktop session-resume handshake in the sidecar
+- [x] T018 [P] Add a CLI<->desktop session-resume handshake in the sidecar
 
 **Objective**: Adopt report item 26 (`re-partial`): resume a session started in one surface from another (Hermes Desktop, S5).
 
@@ -346,7 +346,7 @@ No constitution file found at docs/versions/v1/v1.5.0/constitution.md - skipping
 
 #### 5.5 -- Item 38: Local cron scheduler (demand-gated)
 
-- [ ] T019 [P] (DEMAND-GATED) Add a local-only cron scheduler over the agent loop, or record the deferral
+- [x] T019 [P] (DEMAND-GATED) Add a local-only cron scheduler over the agent loop, or record the deferral -- DEFERRED (no confirmed demand this cycle; recorded as P3 `T019.P3.A` in known-gaps)
 
 **Objective**: Adopt report item 38 (`re-partial`, borderline): a local scheduler for recurring agent tasks (Kimi, S8). Build ONLY if a concrete need is confirmed.
 
@@ -357,7 +357,7 @@ No constitution file found at docs/versions/v1/v1.5.0/constitution.md - skipping
 
 #### 5.6 -- Testing and Stabilization
 
-- [ ] T020 Run and stabilize Phase 5 tests in tests/ and desktop/
+- [x] T020 Run and stabilize Phase 5 tests in tests/ and desktop/
 
 **Objective**: Verify the re-partials; iterate until stable.
 
@@ -368,11 +368,11 @@ No constitution file found at docs/versions/v1/v1.5.0/constitution.md - skipping
 
 ### Phase 5 Exit Checklist
 
-- [ ] All sub-tasks completed (T019 built or deferral recorded)
-- [ ] All tests passing (root + shell)
-- [ ] Credential UI verified vault-only
-- [ ] Session history generated for this phase
-- [ ] Ready to advance to Phase 6
+- [x] All sub-tasks completed (T019 built or deferral recorded)
+- [x] All tests passing (root + shell)
+- [x] Credential UI verified vault-only
+- [x] Session history generated for this phase
+- [x] Ready to advance to Phase 6
 
 ---
 

@@ -28,6 +28,11 @@ export const IPC_METHODS = [
   "mcp.invoke",
   "settings.get",
   "settings.set",
+  // v1.5.0 Phase 5 (item 25) -- credential management over the OS-keychain vault.
+  "credentials.status",
+  "credentials.list",
+  "credentials.set",
+  "credentials.delete",
   "image.generate",
   "video.generate",
   "skills.sync",
@@ -156,7 +161,12 @@ export const CodingSessionResumeRequest = z
   .object({ sessionId: z.string().min(1) })
   .strict();
 export const CodingSessionResumeResponse = z
-  .object({ session: CodingSessionSummary })
+  .object({
+    session: CodingSessionSummary,
+    // v1.5.0 Phase 5 (item 26) -- the full message history so a session started
+    // in one surface resumes with intact state in another (cross-surface resume).
+    messages: z.array(z.string()),
+  })
   .strict();
 export type CodingSessionResumeResponseT = z.infer<typeof CodingSessionResumeResponse>;
 
@@ -612,6 +622,45 @@ export const SettingsSetResponse = z
   .strict();
 export type SettingsSetResponseT = z.infer<typeof SettingsSetResponse>;
 
+// ---- Credential vault (Phase 5, item 25) ------------------------------------
+//
+// The desktop credential-management surface reaches the OS-keychain
+// `CredentialVault` (core/security) ONLY through these methods. There is no
+// config-file write path: `credentials.set` routes straight to the vault, so a
+// credential set via the UI lands in the keychain, never in a plaintext file.
+
+export const CredentialsStatusRequest = z.object({}).strict();
+export const CredentialsStatusResponse = z
+  .object({ available: z.boolean() })
+  .strict();
+export type CredentialsStatusResponseT = z.infer<typeof CredentialsStatusResponse>;
+
+export const CredentialsListRequest = z
+  .object({ integration: z.string().min(1) })
+  .strict();
+export const CredentialsListResponse = z
+  .object({ keys: z.array(z.string()) })
+  .strict();
+export type CredentialsListResponseT = z.infer<typeof CredentialsListResponse>;
+
+export const CredentialsSetRequest = z
+  .object({
+    integration: z.string().min(1),
+    key: z.string().min(1),
+    value: z.string().min(1),
+  })
+  .strict();
+export const CredentialsSetResponse = z.object({ ok: z.literal(true) }).strict();
+export type CredentialsSetResponseT = z.infer<typeof CredentialsSetResponse>;
+
+export const CredentialsDeleteRequest = z
+  .object({ integration: z.string().min(1), key: z.string().min(1) })
+  .strict();
+export const CredentialsDeleteResponse = z
+  .object({ removed: z.boolean() })
+  .strict();
+export type CredentialsDeleteResponseT = z.infer<typeof CredentialsDeleteResponse>;
+
 const NotImplementedAny = z.unknown();
 
 interface MethodSchema {
@@ -680,6 +729,26 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
   "mcp.invoke": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
   "settings.get": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
   "settings.set": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
+  "credentials.status": {
+    request: CredentialsStatusRequest,
+    response: CredentialsStatusResponse,
+    implemented: true,
+  },
+  "credentials.list": {
+    request: CredentialsListRequest,
+    response: CredentialsListResponse,
+    implemented: true,
+  },
+  "credentials.set": {
+    request: CredentialsSetRequest,
+    response: CredentialsSetResponse,
+    implemented: true,
+  },
+  "credentials.delete": {
+    request: CredentialsDeleteRequest,
+    response: CredentialsDeleteResponse,
+    implemented: true,
+  },
   "image.generate": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
   "video.generate": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
   "skills.sync": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },

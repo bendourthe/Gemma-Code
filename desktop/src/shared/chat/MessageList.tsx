@@ -12,12 +12,18 @@ export interface MessageListProps {
   messages: readonly ChatMessage[];
   enableTools?: boolean;
   emptyMessage?: string;
+  /**
+   * v1.5.0 Phase 5 (item 24) -- when provided, each bubble becomes selectable
+   * so the host can open the message's output in the side-by-side preview pane.
+   */
+  onSelectMessage?: (message: ChatMessage) => void;
 }
 
 export function MessageList({
   messages,
   enableTools = true,
   emptyMessage = "Start by asking a question or typing a message.",
+  onSelectMessage,
 }: MessageListProps): JSX.Element {
   if (messages.length === 0) {
     return (
@@ -40,7 +46,11 @@ export function MessageList({
     >
       {messages.map((msg) => (
         <li key={msg.id}>
-          <MessageBubble message={msg} enableTools={enableTools} />
+          <MessageBubble
+            message={msg}
+            enableTools={enableTools}
+            {...(onSelectMessage ? { onSelect: onSelectMessage } : {})}
+          />
         </li>
       ))}
     </ul>

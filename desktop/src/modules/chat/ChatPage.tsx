@@ -26,6 +26,7 @@ import {
   ModelSelector,
   type ChatMessage,
 } from "../../shared/chat";
+import { PreviewPane, type PreviewArtifact } from "../../components/PreviewPane";
 import { DEFAULT_MODEL_ID, FRONTEND_MODELS } from "../coding/models";
 
 export interface ChatPageProps {
@@ -53,6 +54,9 @@ export function ChatPage({
   const [messagesByChat, setMessagesByChat] = useState<Map<string, ChatMessage[]>>(
     () => new Map(),
   );
+  // v1.5.0 Phase 5 (item 24): the artifact currently shown in the side-by-side
+  // preview pane, or null when the pane is closed.
+  const [preview, setPreview] = useState<PreviewArtifact | null>(null);
 
   const breadcrumbAncestors = useMemo(() => {
     if (!activeChat) return [];
@@ -71,6 +75,23 @@ export function ChatPage({
   const handleOpenChat = useCallback((chat: Chat) => {
     setActiveChat(chat);
     setSelected({ kind: "chat", id: chat.id });
+    setPreview(null);
+  }, []);
+
+  // v1.5.0 Phase 5 (item 24): open a message's output in the side-by-side
+  // preview pane. HTML artifacts (interactive forms / tool HTML) render through
+  // the shared `InteractiveArtifact`; everything else renders as text.
+  const handleSelectMessage = useCallback((message: ChatMessage) => {
+    const isHtmlArtifact = message.content.includes("data-nexus-artifact");
+    setPreview(
+      isHtmlArtifact
+        ? { kind: "html", title: "Artifact", html: message.content }
+        : {
+            kind: "text",
+            title: message.role === "assistant" ? "Assistant output" : "Message",
+            text: message.content,
+          },
+    );
   }, []);
 
   const handleSubmit = useCallback(
@@ -146,14 +167,27 @@ export function ChatPage({
           </span>
         </header>
 
-        <div style={{ flex: 1, overflowY: "auto" }}>
-          {activeChat ? (
-            <MessageList messages={messages} enableTools={enableTools} />
-          ) : (
-            <p data-testid="chat-page-empty" style={{ color: "var(--fg-muted)" }}>
-              Select a chat from the left rail, or right-click a folder to create one.
-            </p>
-          )}
+        <div style={{ flex: 1, display: "flex", minHeight: 0, gap: "var(--space-3)" }}>
+          <div style={{ flex: 1, overflowY: "auto", minWidth: 0 }}>
+            {activeChat ? (
+              <MessageList
+                messages={messages}
+                enableTools={enableTools}
+                onSelectMessage={handleSelectMessage}
+              />
+            ) : (
+              <p data-testid="chat-page-empty" style={{ color: "var(--fg-muted)" }}>
+                Select a chat from the left rail, or right-click a folder to create one.
+              </p>
+            )}
+          </div>
+          {preview ? (
+            <PreviewPane
+              artifact={preview}
+              onClose={() => setPreview(null)}
+              style={{ flex: 1 }}
+            />
+          ) : null}
         </div>
 
         {activeChat && (

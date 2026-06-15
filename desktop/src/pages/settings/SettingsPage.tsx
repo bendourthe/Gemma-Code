@@ -7,20 +7,25 @@ import { useMemo, useState } from "react";
 
 import { ModelsSettings, type ModelsClient } from "./ModelsSettings";
 import { SkillsSettings, type SkillsSettingsClient } from "./SkillsSettings";
+import { CredentialsSettings } from "./CredentialsSettings";
+import type { CredentialsClient } from "./credentialsTypes";
 import { createMockModelsClient } from "./mockModelsClient";
 import { createMockSkillsClient } from "./mockSkillsClient";
+import { createMockCredentialsClient } from "./mockCredentialsClient";
 
-type SettingsTab = "models" | "skills";
+type SettingsTab = "models" | "skills" | "credentials";
 
 export interface SettingsPageProps {
   modelsClient?: ModelsClient;
   skillsClient?: SkillsSettingsClient;
+  credentialsClient?: CredentialsClient;
   initialTab?: SettingsTab;
 }
 
 export function SettingsPage({
   modelsClient,
   skillsClient,
+  credentialsClient,
   initialTab = "models",
 }: SettingsPageProps = {}): JSX.Element {
   const [tab, setTab] = useState<SettingsTab>(initialTab);
@@ -31,6 +36,10 @@ export function SettingsPage({
   const skills = useMemo<SkillsSettingsClient>(
     () => skillsClient ?? createMockSkillsClient(),
     [skillsClient],
+  );
+  const credentials = useMemo<CredentialsClient>(
+    () => credentialsClient ?? createMockCredentialsClient(),
+    [credentialsClient],
   );
 
   return (
@@ -52,8 +61,22 @@ export function SettingsPage({
         >
           Skills
         </button>
+        <button
+          type="button"
+          data-testid="settings-tab-credentials"
+          onClick={() => setTab("credentials")}
+          style={tabButtonStyle(tab === "credentials")}
+        >
+          Credentials
+        </button>
       </nav>
-      {tab === "models" ? <ModelsSettings client={models} /> : <SkillsSettings client={skills} />}
+      {tab === "models" ? (
+        <ModelsSettings client={models} />
+      ) : tab === "skills" ? (
+        <SkillsSettings client={skills} />
+      ) : (
+        <CredentialsSettings client={credentials} />
+      )}
     </div>
   );
 }

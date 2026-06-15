@@ -15,6 +15,10 @@ import {
   CodingSessionSendMessageRequest,
   CodingSessionStartRequest,
   CodingTraceSubscribeRequest,
+  CredentialsDeleteRequest,
+  CredentialsListRequest,
+  CredentialsSetRequest,
+  CredentialsStatusRequest,
   DiffusionDrainEventsRequest,
   DiffusionEmptyRequest,
   DiffusionImg2ImgRequest,
@@ -48,6 +52,10 @@ import {
   type FfmpegContext,
   extractWorkflow as extractVideoWorkflow,
 } from "../../../core/video/WorkflowMetadata.js";
+import {
+  type CredentialVault,
+  createCredentialVault,
+} from "../../../core/security/CredentialVault.js";
 
 export const SIDECAR_VERSION = "1.0.0-alpha.0";
 
@@ -57,6 +65,13 @@ export interface HandlerContext {
   sessions: CodingSessionManager;
   diffusion: DiffusionRuntimeClient;
   ffmpeg: FfmpegContext;
+  /**
+   * v1.5.0 Phase 5 (item 25) -- OS-keychain credential vault. The credential
+   * IPC methods route here ONLY; there is no config-file write path, so a
+   * credential set via the desktop UI lands in the keychain, never a plaintext
+   * file.
+   */
+  credentials: CredentialVault;
 }
 
 export type HandlerFn = (params: unknown, ctx: HandlerContext) => Promise<unknown>;
@@ -71,8 +86,9 @@ export function createHandlerContext(
   sessions: CodingSessionManager = new CodingSessionManager(),
   diffusion: DiffusionRuntimeClient = new InMemoryDiffusionRuntime(),
   ffmpeg: FfmpegContext = DEFAULT_FFMPEG_CONTEXT,
+  credentials: CredentialVault = createCredentialVault(),
 ): HandlerContext {
-  return { ...base, sessions, diffusion, ffmpeg };
+  return { ...base, sessions, diffusion, ffmpeg, credentials };
 }
 
 export const handlers: Record<Method, HandlerFn> = {
@@ -146,6 +162,25 @@ export const handlers: Record<Method, HandlerFn> = {
   },
   "settings.set": async () => {
     throw new NotImplementedError("settings.set");
+  },
+  // v1.5.0 Phase 5 (item 25) -- credential management over the OS-keychain
+  // vault. These route to `ctx.credentials` ONLY; no config file is touched.
+  "credentials.status": async (params, ctx) => {
+    CredentialsStatusRequest.parse(params ?? {});
+    return { available: await ctx.credentials.isAvailable() };
+  },
+  "credentials.list": async (params, ctx) => {
+    const req = CredentialsListRequest.parse(params ?? {});
+    return { keys: await ctx.credentials.list(req.integration) };
+  },
+  "credentials.set": async (params, ctx) => {
+    const req = CredentialsSetRequest.parse(params ?? {});
+    await ctx.credentials.set(req.integration, req.key, req.value);
+    return { ok: true as const };
+  },
+  "credentials.delete": async (params, ctx) => {
+    const req = CredentialsDeleteRequest.parse(params ?? {});
+    return { removed: await ctx.credentials.delete(req.integration, req.key) };
   },
   "image.generate": async () => {
     throw new NotImplementedError("image.generate");

@@ -86,12 +86,15 @@ export class ConversationManager {
     this._onDidChange.fire(this.getHistory());
   }
 
-  private _append(role: Role, content: string): Message {
+  private _append(role: Role, content: string, images?: readonly string[]): Message {
     const message: Message = {
       id: randomUUID(),
       role,
       content,
       timestamp: Date.now(),
+      // v1.5.0 Phase 5 (item 33): carry image attachments on the user turn so
+      // the prompt-assembly path can forward them to a vision-capable model.
+      ...(images && images.length > 0 ? { images } : {}),
     };
     this._messages.push(message);
     this._totalChars += content.length;
@@ -115,8 +118,8 @@ export class ConversationManager {
     return message;
   }
 
-  addUserMessage(content: string): Message {
-    return this._append("user", content);
+  addUserMessage(content: string, images?: readonly string[]): Message {
+    return this._append("user", content, images);
   }
 
   addAssistantMessage(content: string): Message {

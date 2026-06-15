@@ -117,6 +117,19 @@ describe("NexusModelRegistry (integration)", () => {
     expect(installed.every((m) => m.installed)).toBe(true);
   });
 
+  it("surfaces the catalog multimodal flag on listed models (item 33 gate)", async () => {
+    // v1.5.0 Phase 5 (T015): the Gemma 4 GGUF entry is flagged multimodal in
+    // the catalog; `list()` must surface it so the picker / vision gate can read
+    // it without re-loading the catalog.
+    const reg = await NexusModelRegistry.create({ root });
+    const list = await reg.list();
+    const gemma4Gguf = list.find((m) => m.id === "gemma-4-12b-it-gguf");
+    expect(gemma4Gguf?.multimodal).toBe(true);
+    // A text-only model carries no multimodal flag.
+    const textOnly = list.find((m) => m.id === "gemma4:e4b");
+    expect(textOnly?.multimodal).toBeFalsy();
+  });
+
   it("external models surface via the wired ExternalModelIndex", async () => {
     const external: ExternalModelIndex = {
       async list() {

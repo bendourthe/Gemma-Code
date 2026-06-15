@@ -18,6 +18,14 @@ import { z } from "zod";
 export interface LLMMessage {
   role: "system" | "user" | "assistant";
   content: string;
+  /**
+   * v1.5.0 Phase 5 (item 33) -- base64-encoded image data forwarded to a
+   * vision-capable model. Maps directly to Ollama's `/api/chat` per-message
+   * `images` array. Omitted for text-only requests; text-only models that
+   * receive it ignore it. The prompt-assembly sites only set this when the
+   * active model is vision-capable (see `isVisionCapableModel`).
+   */
+  images?: readonly string[];
 }
 
 export interface LLMOptions {

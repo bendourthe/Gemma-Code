@@ -21,6 +21,7 @@ import {
   IpcMethodError,
 } from "../protocol.js";
 import { requireModel, type SidecarModelEntry } from "./models.js";
+import type { PersistedSession, SessionStore } from "./sessionStore.js";
 
 interface SessionRecord {
   id: string;
@@ -35,10 +36,41 @@ export class CodingSessionManager {
   private readonly _sessions = new Map<string, SessionRecord>();
   private readonly _now: () => Date;
   private readonly _idFactory: () => string;
+  private readonly _store: SessionStore | undefined;
 
-  constructor(opts: { now?: () => Date; idFactory?: () => string } = {}) {
+  constructor(
+    opts: { now?: () => Date; idFactory?: () => string; store?: SessionStore } = {},
+  ) {
     this._now = opts.now ?? (() => new Date());
     this._idFactory = opts.idFactory ?? (() => randomUUID());
+    this._store = opts.store;
+    // v1.5.0 Phase 5 (item 26): hydrate from the shared store so a session
+    // started in another surface (e.g. the CLI) is visible + resumable here.
+    if (this._store) {
+      for (const s of this._store.list()) {
+        this._sessions.set(s.id, {
+          id: s.id,
+          model: s.model,
+          title: s.title,
+          createdAt: s.createdAt,
+          messages: [...s.messages],
+          cancelRequested: false,
+        });
+      }
+    }
+  }
+
+  /** Project a live record to its persisted shape and write it through. */
+  private _persist(rec: SessionRecord): void {
+    if (!this._store) return;
+    const persisted: PersistedSession = {
+      id: rec.id,
+      model: rec.model,
+      title: rec.title,
+      createdAt: rec.createdAt,
+      messages: [...rec.messages],
+    };
+    this._store.upsert(persisted);
   }
 
   start(req: CodingSessionStartRequestT): CodingSessionStartResponseT {
@@ -46,14 +78,16 @@ export class CodingSessionManager {
     const id = this._idFactory();
     const createdAt = this._now().toISOString();
     const title = req.title?.trim() || `Session ${id.slice(0, 8)}`;
-    this._sessions.set(id, {
+    const rec: SessionRecord = {
       id,
       model,
       title,
       createdAt,
       messages: [],
       cancelRequested: false,
-    });
+    };
+    this._sessions.set(id, rec);
+    this._persist(rec);
     return {
       sessionId: id,
       modelId: model.id,
@@ -66,6 +100,7 @@ export class CodingSessionManager {
     const rec = this._requireSession(sessionId, "coding.session.sendMessage");
     rec.cancelRequested = false;
     rec.messages.push(message);
+    this._persist(rec);
     // Phase 3 placeholder: produce a deterministic event stream so the shell,
     // protocol tests, and frontend can render the full union. A future
     // commit hooks NexusCodingRuntime in here.
@@ -123,6 +158,9 @@ export class CodingSessionManager {
         createdAt: rec.createdAt,
         messageCount: rec.messages.length,
       },
+      // v1.5.0 Phase 5 (item 26): the full message history so the resuming
+      // surface restores intact state, not just the summary.
+      messages: [...rec.messages],
     };
   }
 

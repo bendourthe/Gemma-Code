@@ -77,6 +77,12 @@ export interface ListedModel {
   readonly license?: string;
   readonly tags?: readonly string[];
   readonly absPath?: string;
+  /**
+   * v1.5.0 Phase 5 (item 33) -- surfaced from the catalog `multimodal` flag so
+   * consumers (the model picker, the multimodal-input gate) can tell which
+   * models accept native image input without re-reading the catalog.
+   */
+  readonly multimodal?: boolean;
 }
 
 export interface ListFilter {
@@ -165,6 +171,7 @@ export class NexusModelRegistry {
         vramGB: manifest.vramGb ?? spec?.vramGB,
         license: manifest.license ?? spec?.license,
         tags: manifest.tags ?? spec?.tags,
+        multimodal: spec?.multimodal,
       });
     }
 
@@ -183,6 +190,7 @@ export class NexusModelRegistry {
         vramGB: spec.vramGB,
         license: spec.license,
         tags: spec.tags,
+        multimodal: spec.multimodal,
       });
     }
 

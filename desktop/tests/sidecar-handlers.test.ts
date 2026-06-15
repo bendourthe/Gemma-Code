@@ -52,6 +52,11 @@ describe("sidecar handlers", () => {
           "coding.memory.snapshot",
           "coding.trace.subscribe",
           "coding.sessions.list",
+          // v1.5.0 Phase 5 wired the credential-vault surface.
+          "credentials.status",
+          "credentials.list",
+          "credentials.set",
+          "credentials.delete",
           // v1.0.0 Phase 6 wired the diffusion surface.
           "diffusion.health",
           "diffusion.version",

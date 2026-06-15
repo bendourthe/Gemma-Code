@@ -6,24 +6,48 @@
  * disables tool-call UI by default (see `<MessageList enableTools>`).
  */
 
-import type { CSSProperties } from "react";
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from "react";
 import type { ChatMessage, ToolCard } from "./types";
 
 export interface MessageBubbleProps {
   message: ChatMessage;
   /** When false, tool-call cards are omitted from the rendered output. */
   enableTools?: boolean;
+  /**
+   * v1.5.0 Phase 5 (item 24) -- when provided, the bubble becomes selectable
+   * (click / Enter / Space) so the host can open the message's output in the
+   * side-by-side preview pane. Omitted by default; non-preview hosts (e.g. the
+   * Coding pillar) render a static bubble unchanged.
+   */
+  onSelect?: (message: ChatMessage) => void;
 }
 
 export function MessageBubble({
   message,
   enableTools = true,
+  onSelect,
 }: MessageBubbleProps): JSX.Element {
+  const selectable = Boolean(onSelect);
+  const handleSelect = () => onSelect?.(message);
   return (
     <article
       data-testid={`message-bubble-${message.id}`}
       data-role={message.role}
-      style={bubbleStyle(message.role)}
+      {...(selectable
+        ? {
+            role: "button",
+            tabIndex: 0,
+            "aria-label": `Preview ${labelForRole(message.role)} message`,
+            onClick: handleSelect,
+            onKeyDown: (e: ReactKeyboardEvent) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                handleSelect();
+              }
+            },
+          }
+        : {})}
+      style={bubbleStyle(message.role, selectable)}
     >
       <header style={{ marginBottom: "var(--space-1)", color: "var(--fg-muted)", fontSize: "var(--text-xs)" }}>
         {labelForRole(message.role)}
@@ -75,12 +99,13 @@ function labelForRole(role: ChatMessage["role"]): string {
   return "System";
 }
 
-function bubbleStyle(role: ChatMessage["role"]): CSSProperties {
+function bubbleStyle(role: ChatMessage["role"], selectable = false): CSSProperties {
   return {
     padding: "var(--space-2) var(--space-3)",
     borderRadius: "var(--radius-md)",
     border: "1px solid var(--border-1)",
     backgroundColor: role === "user" ? "transparent" : "var(--bg-1)",
     color: "var(--fg-0)",
+    ...(selectable ? { cursor: "pointer" } : {}),
   };
 }
