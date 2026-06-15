@@ -1,7 +1,7 @@
 {
   "name": "@nexus/desktop",
   "private": true,
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Nexus desktop shell (Tauri 2.x + React 19 + Vite + Tailwind v4). Hosts the four pillars (Agentic AI Coding, Local Chatbot Explorer, Image Studio, Video Lab) and a Node sidecar process.",
   "type": "module",
   "scripts": {
