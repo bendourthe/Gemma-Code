@@ -17,8 +17,15 @@ printf "\nPyQt5 Installer Integration Tests (Linux)\n"
 printf "==================================================\n"
 
 # Test 1: Installer package imports
+# Import the package, then read the version from the installed dist metadata
+# rather than the module's `__version__` attribute: an editable install can
+# expose `nexus_installer` as a namespace-style package whose top-level
+# `__init__` attributes are not populated by the import hook, which made the
+# bare `from nexus_installer import __version__` flaky on Linux/macOS while the
+# submodule imports below kept working. `importlib.metadata.version` reads the
+# `.dist-info` recorded by the editable install and is immune to that quirk.
 cd "$INSTALLER_DIR"
-if python -c "from nexus_installer import __version__; print(__version__)" 2>/dev/null | grep -qE "^[0-9]+\.[0-9]+\.[0-9]+"; then
+if python -c "import nexus_installer; from importlib.metadata import version; print(version('nexus-installer'))" 2>/dev/null | grep -qE "^[0-9]+\.[0-9]+\.[0-9]+"; then
     log_pass "Installer package imports"
 else
     log_fail "Installer package imports" "Import failed"

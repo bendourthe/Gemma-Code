@@ -35,7 +35,8 @@ ensure_ollama() {
 
 run_installer() {
     log_info "running headless installer"
-    local extra_args=()
+    # Always skip the extension: the smoke checkout has no built VSIX to install.
+    local extra_args=(--skip-extension)
     [[ "$WITH_MODEL" == "1" ]] || extra_args+=(--skip-model)
     pushd "$REPO_ROOT/scripts/installer/pyqt" >/dev/null
     PYTHONPATH=src python3 -m nexus_installer.main \
@@ -51,7 +52,7 @@ run_installer() {
 
 run_verify() {
     log_info "verifying components"
-    local extra_args=(--skip-backend)
+    local extra_args=(--skip-backend --skip-extension)
     [[ "$WITH_MODEL" == "1" ]] || extra_args+=(--skip-model)
     pushd "$REPO_ROOT" >/dev/null
     python3 tests/smoke/verify-components.py \

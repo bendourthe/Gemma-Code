@@ -52,10 +52,17 @@ Write-Header "Ensuring Ollama is installed"
 if (-not (Test-Command ollama)) {
     Write-Host "  installing Ollama via winget..."
     winget install --exact --id Ollama.Ollama --silent --accept-package-agreements --accept-source-agreements | Out-Null
+    # winget writes Ollama's bin directory to the User PATH, but this process's
+    # $env:Path was captured before the install ran. Refresh from the registry
+    # so the freshly-installed `ollama` is resolvable in this same session
+    # (otherwise Start-Process below fails with "cannot find the file").
+    Update-PathFromRegistry
 }
 
 Write-Header "Starting Ollama service (background)"
-$ollamaProc = Start-Process -FilePath "ollama" -ArgumentList "serve" -PassThru -WindowStyle Hidden
+$ollamaExe = (Get-Command ollama -ErrorAction SilentlyContinue).Source
+if (-not $ollamaExe) { throw "ollama not on PATH after install" }
+$ollamaProc = Start-Process -FilePath $ollamaExe -ArgumentList "serve" -PassThru -WindowStyle Hidden
 Start-Sleep -Seconds 3
 
 # Poll /api/tags for up to 60 seconds
@@ -77,7 +84,9 @@ $installerArgs = @(
     "--headless",
     "--install-path", $InstallPath,
     "--model", $Model,
-    "--json-output"
+    "--json-output",
+    # The smoke checkout has no built VSIX to install.
+    "--skip-extension"
 )
 if (-not $WithModel) { $installerArgs += "--skip-model" }
 
@@ -94,6 +103,7 @@ $verifyArgs = @(
 )
 if (-not $WithModel) { $verifyArgs += "--skip-model" }
 $verifyArgs += "--skip-backend"
+$verifyArgs += "--skip-extension"
 
 $verifyJsonPath = Join-Path $resultsDir "verify.json"
 Push-Location $repoRoot

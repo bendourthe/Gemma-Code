@@ -22,12 +22,22 @@ def _run(cmd: list[str]) -> tuple[int, str]:
     return (proc.returncode, proc.stdout + proc.stderr)
 
 
+# v1.1.0 rename: the published extension id is `nexus-coding.nexus-coding`.
+# Keep the legacy `gemma-code.gemma-code` so a pre-rename install is also
+# cleaned up. A "not installed" exit is expected (and harmless) for whichever
+# id is absent; cleanup never fails the smoke run.
+EXTENSION_IDS = ("nexus-coding.nexus-coding", "gemma-code.gemma-code")
+
+
 def uninstall_extension() -> list[str]:
     code = shutil.which("code")
     if not code:
         return ["code CLI not on PATH; skipping extension uninstall"]
-    rc, out = _run([code, "--uninstall-extension", "gemma-code.gemma-code"])
-    return [f"uninstall exit={rc}: {out.strip()[:120]}"]
+    messages: list[str] = []
+    for ext_id in EXTENSION_IDS:
+        rc, out = _run([code, "--uninstall-extension", ext_id])
+        messages.append(f"uninstall {ext_id} exit={rc}: {out.strip()[:120]}")
+    return messages
 
 
 def remove_install_path(install_path: str) -> list[str]:

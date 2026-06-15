@@ -57,6 +57,14 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         help="Skip model download (fast smoke test)",
     )
     parser.add_argument(
+        "--skip-extension",
+        action="store_true",
+        help=(
+            "Skip the VS Code extension install. Used by the smoke tests, which "
+            "run from a source checkout that has no built VSIX to install."
+        ),
+    )
+    parser.add_argument(
         "--json-output",
         action="store_true",
         help="Emit results as JSON to stdout (headless only)",
@@ -88,6 +96,10 @@ def _run_headless(args: argparse.Namespace) -> int:
     if args.skip_model and "model" in state.components_to_install:
         state.components_to_install = [
             c for c in state.components_to_install if c != "model"
+        ]
+    if args.skip_extension and "extension" in state.components_to_install:
+        state.components_to_install = [
+            c for c in state.components_to_install if c != "extension"
         ]
 
     steps_done: list[str] = []

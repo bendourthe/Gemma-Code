@@ -22,6 +22,22 @@ dependencies = [
 [project.scripts]
 nexus-installer = "nexus_installer.main:main"
 
+# The CI installer-package-check jobs install dev tooling with the extra syntax
+# (`pip install --editable "scripts/installer/pyqt[dev]"`). PEP 735
+# `[dependency-groups]` (below) is only resolvable by `uv` / `pip --group`, so a
+# bare `[dev]` extra was previously unknown to pip -- it emitted
+# "does not provide the extra 'dev'" and installed none of the dev tooling.
+# Mirror the group as a real optional-dependencies extra so both pip and uv
+# install the same dev set without a warning.
+[project.optional-dependencies]
+dev = [
+    "PyInstaller>=6.0",
+    "pytest>=8.2.0",
+    "pytest-cov>=5.0.0",
+    "ruff>=0.4.0",
+    "mypy>=1.10.0",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

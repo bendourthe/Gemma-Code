@@ -83,4 +83,33 @@ def test_main_emits_json_and_exits_cleanly(
     data = json.loads(out)
     assert rc == 0
     assert data["success"] is True
-    assert len(data["checks"]) == 3
+    # With --skip-backend the venv check (a removed-backend artifact) and the
+    # backend-start check are both skipped, leaving the extension + ollama
+    # checks.
+    assert len(data["checks"]) == 2
+    names = {c["name"] for c in data["checks"]}
+    assert names == {"vscode-extension", "ollama-reachable"}
+
+
+def test_main_skip_extension_omits_vscode_check(
+    verify_mod, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(
+        verify_mod,
+        "check_ollama_reachable",
+        lambda _url: verify_mod.Check("ollama-reachable", True, "fake"),
+    )
+    argv = [
+        "verify-components.py",
+        "--install-path",
+        str(tmp_path),
+        "--skip-model",
+        "--skip-backend",
+        "--skip-extension",
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+    rc = verify_mod.main()
+    data = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    names = {c["name"] for c in data["checks"]}
+    assert names == {"ollama-reachable"}

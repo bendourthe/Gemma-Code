@@ -54,7 +54,9 @@ def check_vscode_extension() -> Check:
     rc, out, err = _run([code, "--list-extensions"])
     if rc != 0:
         return Check("vscode-extension", False, f"code exit {rc}: {err.strip()}")
-    present = "gemma-code.gemma-code" in out
+    # v1.1.0 rename: the published id is `nexus-coding.nexus-coding`; accept the
+    # legacy `gemma-code.gemma-code` for installs that predate the rename.
+    present = "nexus-coding.nexus-coding" in out or "gemma-code.gemma-code" in out
     return Check(
         "vscode-extension",
         present,
@@ -152,12 +154,26 @@ def main() -> int:
         action="store_true",
         help="Skip backend start check (useful when venv has no backend module)",
     )
+    parser.add_argument(
+        "--skip-extension",
+        action="store_true",
+        help=(
+            "Skip the VS Code extension check. Used by the smoke tests, which "
+            "run the installer with --skip-extension (no built VSIX in a source "
+            "checkout), so the extension is intentionally never installed."
+        ),
+    )
     args = parser.parse_args()
 
     checks: list[Check] = []
-    checks.append(check_vscode_extension())
+    if not args.skip_extension:
+        checks.append(check_vscode_extension())
     checks.append(check_ollama_reachable(args.ollama_url))
-    checks.append(check_venv(args.install_path))
+    # The Python venv (and its FastAPI backend) was removed in v0.4.0; the venv
+    # check only made sense while the installer provisioned a backend venv. Gate
+    # it behind the same --skip-backend flag the smoke tests already pass.
+    if not args.skip_backend:
+        checks.append(check_venv(args.install_path))
     if args.expect_model and not args.skip_model:
         checks.append(check_model_available(args.ollama_url, args.expect_model))
     if not args.skip_backend:

@@ -53,9 +53,14 @@ Write-Host "`nPyQt5 Installer Integration Tests (Windows)" -ForegroundColor Cyan
 Write-Host ("=" * 50)
 
 # Test 1: Installer Python package imports
+# Import the package, then read the version from the installed dist metadata
+# rather than the module's `__version__` attribute. An editable install can
+# expose `nexus_installer` as a namespace-style package whose top-level
+# `__init__` attributes are not populated by the import hook;
+# `importlib.metadata.version` reads the `.dist-info` and is immune to that.
 Test-Case "Installer package imports" {
     Push-Location $InstallerDir
-    $result = (uv run python -c "from nexus_installer import __version__; print(__version__)" 2>&1) | Get-CommandOutput
+    $result = (uv run python -c "import nexus_installer; from importlib.metadata import version; print(version('nexus-installer'))" 2>&1) | Get-CommandOutput
     Pop-Location
     if ($result -notmatch "\d+\.\d+\.\d+") { throw "Import failed: $result" }
 }
