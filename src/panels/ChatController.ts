@@ -128,6 +128,11 @@ export interface ChatControllerContext extends ChatCommandContext {
    */
   readonly planArchive?: PlanArchiveLike;
   getUnifiedRetriever(): UnifiedMemoryRetriever | null;
+  /**
+   * v1.5.0 Phase 7 (HUB.P3.CMD): resolve a Nexus-Hub command body by name.
+   * Optional -- absent in legacy/test contexts and when no Hub bundle is synced.
+   */
+  getHubCommand?(name: string): { body: string } | null;
 }
 
 /**
@@ -328,6 +333,22 @@ export class ChatController {
     if (command !== null) {
       if (command.type === "builtin") {
         await this._commandHandlers.dispatch(command.name, command.args);
+        return;
+      }
+
+      // v1.5.0 Phase 7 (HUB.P3.CMD): a Nexus-Hub command injects its markdown
+      // body as the agent directive (the same shape as a skill prompt).
+      if (command.type === "hub-command") {
+        const hub = ctx.getHubCommand?.(command.name) ?? null;
+        if (!hub) {
+          postMessage({ type: "error", text: `Hub command "${command.name}" could not be loaded.` });
+          return;
+        }
+        const expanded = hub.body.replace(/\$ARGUMENTS/g, command.args);
+        const combined = `${expanded}\n\n${command.args}`.trim();
+        await this._injectMemoryContext(command.args || combined);
+        await ctx.pipeline.send(combined, postWithRender);
+        this._checkForPlan();
         return;
       }
 

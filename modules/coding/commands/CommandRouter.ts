@@ -36,7 +36,17 @@ export interface SkillCommand {
   args: string;
 }
 
-export type Command = BuiltinCommand | SkillCommand;
+/**
+ * v1.5.0 Phase 7 (HUB.P3.CMD): a command sourced from the Nexus-Hub
+ * `catalog/commands` catalog. Resolved + injected like a skill prompt.
+ */
+export interface HubCommand {
+  type: "hub-command";
+  name: string;
+  args: string;
+}
+
+export type Command = BuiltinCommand | SkillCommand | HubCommand;
 
 const BUILTIN_DESCRIPTORS: CommandDescriptor[] = [
   { name: "help", description: "Show all available commands and skills", argumentHint: "[command]" },
@@ -64,8 +74,16 @@ export class CommandRouter {
    * @param _skillDescriptors A function that returns the current list of skill descriptors.
    *        Using a function allows the router to reflect hot-loaded skills without re-instantiation.
    */
+  /**
+   * @param _skillDescriptors current skill descriptors (function so hot-loaded
+   *        skills are reflected without re-instantiation).
+   * @param _hubCommandDescriptors v1.5.0 Phase 7 (HUB.P3.CMD): optional
+   *        Nexus-Hub command descriptors. Built-ins and skills take precedence;
+   *        a Hub command only matches when its name collides with neither.
+   */
   constructor(
-    private readonly _skillDescriptors: () => CommandDescriptor[]
+    private readonly _skillDescriptors: () => CommandDescriptor[],
+    private readonly _hubCommandDescriptors: () => CommandDescriptor[] = () => [],
   ) {}
 
   /**
@@ -91,15 +109,22 @@ export class CommandRouter {
       return { type: "skill", name, args };
     }
 
+    // v1.5.0 Phase 7 (HUB.P3.CMD): fall through to Hub commands last, so a
+    // built-in or skill of the same name always wins.
+    const hubNames = new Set(this._hubCommandDescriptors().map((d) => d.name));
+    if (hubNames.has(name)) {
+      return { type: "hub-command", name, args };
+    }
+
     getLogger().warn(`[CommandRouter] Unknown command: /${name}`);
     return null;
   }
 
   /**
-   * Returns the combined list of built-in and skill command descriptors,
-   * suitable for populating the webview autocomplete.
+   * Returns the combined list of built-in, skill, and Nexus-Hub command
+   * descriptors, suitable for populating the webview autocomplete.
    */
   getAllDescriptors(): CommandDescriptor[] {
-    return [...BUILTIN_DESCRIPTORS, ...this._skillDescriptors()];
+    return [...BUILTIN_DESCRIPTORS, ...this._skillDescriptors(), ...this._hubCommandDescriptors()];
   }
 }

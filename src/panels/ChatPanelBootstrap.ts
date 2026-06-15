@@ -21,6 +21,7 @@ import type { StreamingPipeline } from "../../modules/coding/chat/StreamingPipel
 import { PlanMode } from "../../modules/coding/chat/PlanMode.js";
 import { PromptBuilder } from "../../modules/coding/chat/PromptBuilder.js";
 import { CommandRouter } from "../../modules/coding/commands/CommandRouter.js";
+import { HubCommandCatalogLoader } from "../../modules/coding/commands/HubCommandCatalogLoader.js";
 import { SkillLoader } from "../../modules/coding/skills/SkillLoader.js";
 import { SkillMetrics } from "../../modules/coding/skills/SkillMetrics.js";
 import { CurationLoop, makeStaticInputs } from "../../modules/coding/skills/CurationLoop.js";
@@ -468,12 +469,23 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
   );
   subAgentManager.setCurationLoop(curationLoop);
 
-  const commandRouter = new CommandRouter(() =>
-    skillLoader.listSkills().map((s) => ({
-      name: s.name,
-      description: s.description,
-      argumentHint: s.argumentHint || undefined,
-    })),
+  // v1.5.0 Phase 7 (HUB.P3.CMD): expose the Nexus-Hub command catalog from the
+  // active devai-hub bundle. Inert when no bundle is synced.
+  const hubCommandLoader = (() => {
+    const activeTag = readActiveTag(defaultSkillsRoot());
+    const commandsDir = activeTag
+      ? path.join(tagDir(defaultSkillsRoot(), activeTag), "catalog", "commands")
+      : null;
+    return new HubCommandCatalogLoader(commandsDir);
+  })();
+  const commandRouter = new CommandRouter(
+    () =>
+      skillLoader.listSkills().map((s) => ({
+        name: s.name,
+        description: s.description,
+        argumentHint: s.argumentHint || undefined,
+      })),
+    () => hubCommandLoader.descriptors(),
   );
 
   const statusReporter = new ChatStatusReporter({
@@ -512,6 +524,7 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
     getSettings: () => hooks.getSettings(),
     getSkillMetrics: () => skillMetrics,
     getCurationLoop: () => curationLoop,
+    getHubCommand: (name: string) => hubCommandLoader.get(name),
     buildPromptContext: (memoryContext) =>
       toolActivation.buildPromptContext(memoryContext),
     postMessage: input.hostPostMessage,
