@@ -27,6 +27,11 @@ jobs:
           python-version: "3.12"
       - name: Install VS Code
         run: choco install vscode --no-progress -y
+      - name: Install installer deps
+        # The headless installer imports httpx (engine/ollama_installer.py); the
+        # macOS/Linux smoke jobs already install these, but the Windows job was
+        # missing the step, so the run crashed with ModuleNotFoundError: httpx.
+        run: pip install PyQt5 httpx
       - name: Run smoke test
         run: pwsh -File tests/smoke/smoke-windows.ps1
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
