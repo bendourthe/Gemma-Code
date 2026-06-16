@@ -2,6 +2,11 @@ import { describe, it, expect } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
 import { parse, HTMLElement } from "node-html-parser";
+// v1.6.0 Phase 2 (AS004): the DOM-aware remote-asset checker that began life
+// inline here is now the shared offline-integrity helper, reused by the trace
+// viewer's offline test so both self-contained HTML artifacts are guarded by
+// one implementation.
+import { findRemoteAssetRefs } from "../../helpers/offlineIntegrity";
 
 // v1.6.0 Phase 1 (AS003) -- offline-integrity + reduced-motion check for the
 // Nexus-AI interactive guide. The guide ships as a single self-contained file
@@ -20,88 +25,6 @@ const GUIDE_PATH = path.join(
   "interactive-guide",
   "nexus-ai-guide.html",
 );
-
-// http://, https://, or protocol-relative // -- anything that resolves to an
-// origin the browser would fetch on load. `data:` URIs are inline and never
-// fetched, so they are explicitly allowed (the favicon is an inline data URI).
-const REMOTE = /^(?:https?:)?\/\//i;
-
-function isRemote(url: string): boolean {
-  const v = url.trim();
-  if (v === "" || v.startsWith("data:")) return false;
-  return REMOTE.test(v);
-}
-
-// Attributes that cause the browser to fetch a resource on page load, keyed by
-// the tag they apply to. `href` is asset-loading ONLY on <link> -- on <a> and
-// <area> it is navigational (followed on click, never fetched on load), which
-// is why the guide's external GitHub anchor links are not flagged here.
-const ASSET_ATTRS: ReadonlyArray<{ tags: string[]; attr: string }> = [
-  { tags: ["script", "img", "iframe", "embed", "audio", "video", "source", "track", "input"], attr: "src" },
-  { tags: ["link"], attr: "href" },
-  { tags: ["img", "source"], attr: "srcset" },
-  { tags: ["video"], attr: "poster" },
-  { tags: ["object"], attr: "data" },
-];
-
-// CSS url(...) reference, e.g. background:url(https://cdn/x.png) or an
-// @font-face src. SVG paint refs like url(#nx-grad) are local fragments and
-// never match the remote pattern.
-const CSS_URL = /url\(\s*(['"]?)([^'")]+)\1\s*\)/gi;
-// A bare @import without url(), e.g. @import "https://cdn/x.css".
-const CSS_IMPORT = /@import\s+(['"])([^'"]+)\1/gi;
-
-/**
- * Returns every remote (network-fetched-on-load) asset reference found in the
- * given HTML. An empty array means the document is offline-self-contained.
- */
-export function findRemoteAssetRefs(html: string): string[] {
-  const root = parse(html, { comment: false });
-  const offenders: string[] = [];
-
-  const elements = root.querySelectorAll("*") as HTMLElement[];
-  for (const el of elements) {
-    const tag = (el.rawTagName || "").toLowerCase();
-
-    for (const { tags, attr } of ASSET_ATTRS) {
-      if (!tags.includes(tag)) continue;
-      const value = el.getAttribute(attr);
-      if (!value) continue;
-      if (attr === "srcset") {
-        // srcset is a comma-separated list of "<url> [descriptor]" candidates.
-        for (const candidate of value.split(",")) {
-          const url = candidate.trim().split(/\s+/)[0] ?? "";
-          if (isRemote(url)) offenders.push(`${tag}[srcset]=${url}`);
-        }
-      } else if (isRemote(value)) {
-        offenders.push(`${tag}[${attr}]=${value}`);
-      }
-    }
-
-    // Inline style="..." attribute (url() / @import).
-    const inlineStyle = el.getAttribute("style");
-    if (inlineStyle) offenders.push(...findRemoteCssRefs(inlineStyle, `${tag}[style]`));
-  }
-
-  // <style> element bodies.
-  const styles = root.querySelectorAll("style") as HTMLElement[];
-  for (const styleEl of styles) {
-    offenders.push(...findRemoteCssRefs(styleEl.innerHTML, "style"));
-  }
-
-  return offenders;
-}
-
-function findRemoteCssRefs(css: string, label: string): string[] {
-  const offenders: string[] = [];
-  for (const m of css.matchAll(CSS_URL)) {
-    if (isRemote(m[2])) offenders.push(`${label} url(${m[2]})`);
-  }
-  for (const m of css.matchAll(CSS_IMPORT)) {
-    if (isRemote(m[2])) offenders.push(`${label} @import ${m[2]}`);
-  }
-  return offenders;
-}
 
 describe("findRemoteAssetRefs", () => {
   it("flags a remote <script src>", () => {

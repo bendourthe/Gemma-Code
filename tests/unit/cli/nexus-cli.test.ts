@@ -84,4 +84,23 @@ describe("nexus CLI parseArgs", () => {
     ]);
     expect(a.flags.overwrite).toBe(true);
   });
+
+  // v1.6.0 Phase 2 (AS004) -- trace export subcommand parsing.
+  it("captures trace export with --trace, --out, and --db", () => {
+    const a = parseArgs([
+      "trace",
+      "export",
+      "--trace",
+      "11111111-2222-3333-4444-555555555555",
+      "--out",
+      "guides/trace.html",
+      "--db",
+      "/tmp/traces.db",
+    ]);
+    expect(a.command).toBe("trace");
+    expect(a.subcommand).toBe("export");
+    expect(a.flags.trace).toBe("11111111-2222-3333-4444-555555555555");
+    expect(a.flags.out).toBe("guides/trace.html");
+    expect(a.flags.db).toBe("/tmp/traces.db");
+  });
 });

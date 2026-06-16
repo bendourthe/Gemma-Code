@@ -4,6 +4,33 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-06-15] v1.6.0 Phase 2 -- Standalone Shareable Session/Trace Viewer (A4 / AS004)
+
+### Goal
+
+Implement Phase 2 of the [aisuite-harness adoption plan](versions/v1/v1.6.0/plans/adoption-aisuite-harness.md): turn a session trace into a portable, self-contained HTML artifact that opens offline -- the local-only analogue of aisuite's served trace viewer. The export must reuse the Phase 1 guide's design tokens and the `desktop/src/components/InteractiveArtifact.tsx` sanitisation rules, embed all trace data inline, and make zero network requests.
+
+### What changed
+
+**The serializer ([modules/coding/observability/TraceHtmlExport.ts](../modules/coding/observability/TraceHtmlExport.ts)).** `serializeTraceToHtml(trace, options)` takes a `Trace & { spans }` (exactly what `TraceStore.getTrace` returns) and emits one complete HTML file:
+
+- **Shared design tokens.** The `:root` palette + layered gradient body background are lifted verbatim from the Phase 1 guide, so the viewer is on-brand. The animated constellation canvas is intentionally omitted -- a shareable export should stay inert (no animation loop, no reduced-motion obligation); the gradient carries the brand statically.
+- **Inline trace data, round-trippable.** The full span list is embedded in a non-executable `<script type="application/json">` block via `embedJson`, which escapes `<` / `>` / `&` / U+2028 / U+2029 to their `\uXXXX` forms so an injected `</script>` (or a separator) in any span name cannot break out, while `JSON.parse` still recovers the original value exactly.
+- **Static-first timeline.** The timeline is pre-rendered as HTML and is fully legible with JavaScript disabled (one row per span: kind badge, name, start offset, duration, status, attributes, events). A bundled inert boot script adds progressive enhancement only -- kind-filter chips and per-span expand/collapse -- reading the inline JSON with no `fetch`, no `eval`, no timers, no remote.
+- **Sanitisation rules reused.** Mirroring the `InteractiveArtifact` trust boundary: every untrusted field (span name, attribute keys/values, event names, session id) is HTML-escaped into text positions, so `<img src=x onerror=alert(1)>` renders as inert text, never an element; the only two `<script>` tags are the JSON data block and the inert renderer; no `on*` handler attributes; no `javascript:` URL ever lands in an executable position.
+
+**CLI surface + a vscode-free reader.** A thin `nexus trace export --trace <id> --out <file> --db <path> [--title <t>]` subcommand ([bin/nexus.mjs](../bin/nexus.mjs)) opens the local SQLite trace store, fetches the trace, serializes, and writes the file. A wrinkle surfaced during the end-to-end smoke: `TraceStore.getTrace` cannot be used from a plain-Node CLI because `TraceStore` transitively `require`s `vscode` (via `secureDbPermissions` -> the vscode-coupled logger), which throws `MODULE_NOT_FOUND` outside the extension host. So the read path is a new vscode-free [modules/coding/observability/TraceDbReader.ts](../modules/coding/observability/TraceDbReader.ts) that opens the DB read-only with `better-sqlite3` directly and mirrors the exact `traces` / `spans` schema (`import type` only, so the compiled module never pulls in `TraceStore` at runtime). The plan allowed a CLI subcommand **and/or** a dashboard action; the CLI is the lower-risk, fully testable surface, and the in-dashboard button is deferred to Phase 4 (which already edits the dashboard) and recorded as `AS004.P2.B`.
+
+**Shared offline checker.** The DOM-aware `findRemoteAssetRefs` checker that began life inline in the Phase 1 test was extracted to [tests/helpers/offlineIntegrity.ts](../tests/helpers/offlineIntegrity.ts) and is now reused by both the guide's and the viewer's offline tests, so both self-contained HTML artifacts are validated by one implementation.
+
+### Verification
+
+[tests/unit/observability/TraceHtmlExport.test.ts](../tests/unit/observability/TraceHtmlExport.test.ts) -- 26 cases (document shape, design-token reuse, offline integrity, inline-JSON round-trip, static-timeline render, the XSS / `</script>`-breakout / `javascript:` / `on*` sanitisation suite, and edge cases: empty trace, null session, null endTime). [tests/unit/observability/TraceDbReader.test.ts](../tests/unit/observability/TraceDbReader.test.ts) -- 5 cases (temp-file round-trip write-via-TraceStore / read-via-reader, attribute parsing + start-time ordering, unknown-id null, serialize-the-read-trace, and corrupt-JSON-column tolerance). A throwaway end-to-end smoke also ran the real compiled `nexus trace export` CLI against a `better-sqlite3`-seeded trace DB and confirmed the written file renders the timeline, neutralises an injected `<script>`, carries exactly two script tags, and references no remote asset. Following the AS003 precedent (no browser-e2e harness in the project), the "opens offline and renders the timeline" acceptance is verified structurally over the parsed DOM; the static-first render means the load-bearing acceptance holds with zero JavaScript, with only the JS-interaction enhancements left to a future browser smoke (`AS004.P2.A`).
+
+`npm run lint` 0 errors; `npm run check:tampering` 0 findings; `npm run check-architecture` 0 errors; `tsc -b` clean; root suite **4130 passed / 5 skipped / 0 failed** (+32); coverage **TraceHtmlExport 100% lines / 88.23% branches / 100% functions**, **TraceDbReader 100% / 100% / 100%**; global coverage 87.25% lines / 83.1% branches / 90.67% functions, above the 80 / 75 / 80 gates. No outbound call, no new dependency (`better-sqlite3` is already a runtime dependency), no new credential.
+
+---
+
 ## [2026-06-15] v1.6.0 Phase 1 (FINAL sub-task) -- Nexus-AI Interactive Guide Offline-Integrity Test (AS003)
 
 ### Goal

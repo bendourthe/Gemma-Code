@@ -41,6 +41,7 @@ Usage:
   nexus memory decay --now
   nexus memory compress --file <path> [--session <id>] [--model <name>] [--dry-run]
   nexus doctor [--migration-report] [--json] [--home <dir>] [--legacy-home <dir>] [--skills-root <dir>] [--stale-days <N>]
+  nexus trace export --trace <id> --out <file> --db <path> [--title <t>]
   nexus check [...]                     deterministic source-code checks
   nexus image [...]                     image-pipeline helpers
   nexus video [...]                     video-pipeline helpers
@@ -508,6 +509,73 @@ export async function runDoctor(flags, stdout = process.stdout, stderr = process
 }
 
 // ---------------------------------------------------------------------------
+// v1.6.0 Phase 2 (A4) -- `nexus trace export` standalone trace viewer.
+//
+// The serialization logic lives in
+// `modules/coding/observability/TraceHtmlExport.ts` so it is unit-tested
+// without spawning a CLI process. This surface only opens the local trace
+// store, fetches the requested trace, serializes it to a self-contained HTML
+// file, and writes it. Local-only: it reads a SQLite trace DB and writes one
+// HTML file; no network, no telemetry.
+// ---------------------------------------------------------------------------
+
+async function loadCompiled(relParts, label) {
+  const compiled = resolvePath(__dirname, "..", "out", ...relParts);
+  if (!existsSync(compiled)) {
+    throw new Error(
+      `${label} build artifact missing. Run \`npm run build\` before invoking \`nexus trace export\` from source.`,
+    );
+  }
+  return import(pathToFileURL(compiled).href);
+}
+
+export async function runTraceExport(flags, stdout = process.stdout, stderr = process.stderr) {
+  const traceId = typeof flags.trace === "string" ? flags.trace : null;
+  const out = typeof flags.out === "string" ? flags.out : null;
+  const db = typeof flags.db === "string" ? flags.db : null;
+  if (!traceId) {
+    stderr.write("nexus trace export: --trace <id> is required.\n");
+    return 2;
+  }
+  if (!out) {
+    stderr.write("nexus trace export: --out <file> is required.\n");
+    return 2;
+  }
+  if (!db) {
+    stderr.write(
+      "nexus trace export: --db <path> is required (the SQLite trace store; the desktop app stores it under its global storage dir).\n",
+    );
+    return 2;
+  }
+  if (!existsSync(db)) {
+    stderr.write(`nexus trace export: trace database not found: ${db}\n`);
+    return 2;
+  }
+
+  // Use the vscode-free reader (not TraceStore): TraceStore pulls in the
+  // vscode-coupled logger via secureDbPermissions and cannot load in a plain
+  // Node CLI. The reader opens the SQLite store read-only.
+  const [{ readExportableTrace }, { serializeTraceToHtml }] = await Promise.all([
+    loadCompiled(["modules", "coding", "observability", "TraceDbReader.js"], "TraceDbReader"),
+    loadCompiled(["modules", "coding", "observability", "TraceHtmlExport.js"], "TraceHtmlExport"),
+  ]);
+
+  const trace = readExportableTrace(db, traceId);
+  if (!trace) {
+    stderr.write(`nexus trace export: no trace with id "${traceId}" in ${db}\n`);
+    return 1;
+  }
+  const options = {};
+  if (typeof flags.title === "string") options.title = flags.title;
+  const html = serializeTraceToHtml(trace, options);
+  const absolute = isAbsolute(out) ? out : resolvePath(process.cwd(), out);
+  mkdirSync(dirname(absolute), { recursive: true });
+  writeFileSync(absolute, html, "utf8");
+  stdout.write(`nexus trace export: wrote ${trace.spanCount} span(s) to ${absolute}\n`);
+  return 0;
+}
+
+// ---------------------------------------------------------------------------
 // v1.1.0 Phase 6 -- `nexus memory` subcommand surface.
 //
 // The CLI keeps the heavy lifting in `core/memory/MemoryAudit.ts`,
@@ -940,6 +1008,20 @@ export async function main(argv) {
       return 0;
     }
     return runDoctor(args.flags);
+  }
+
+  if (args.command === "trace") {
+    if (args.help) {
+      process.stdout.write(HELP);
+      return 0;
+    }
+    if (args.subcommand === "export") {
+      return runTraceExport(args.flags);
+    }
+    process.stderr.write(
+      `nexus trace: unknown subcommand "${args.subcommand ?? ""}". Expected: export.\n${HELP}`,
+    );
+    return 2;
   }
 
   // Pass-through: re-exec the existing sibling CLIs without an extra
