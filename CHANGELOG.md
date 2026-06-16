@@ -1,3 +1,60 @@
+# [0.44.0](https://github.com/bendourthe/Nexus-AI/compare/v0.43.0...v0.44.0) (2026-06-16)
+
+
+### Bug Fixes
+
+* **ci:** regenerate docs/index.md after the Phase 7 src move ([18a7be5](https://github.com/bendourthe/Nexus-AI/commit/18a7be5a6abab5a0d452b0136349cb3bdf1901bb))
+* **test:** accept 1.x version in PyQt installer smoke tests ([e40ae20](https://github.com/bendourthe/Nexus-AI/commit/e40ae20be13a2e3853f87998e80798d3800192d3))
+* **v1.2.0:** regenerate docs/index.md and record pre-existing protobufjs CVE ([5ecfa9b](https://github.com/bendourthe/Nexus-AI/commit/5ecfa9b935c6cd8b071ceef1667ffa9f3896c3de))
+* **v1.2.0:** regenerate tool-permission table for codegraph + lsp tools ([65d1e35](https://github.com/bendourthe/Nexus-AI/commit/65d1e355a133ace30fe215e6041024f8bb13aab1))
+* **v1.5.0:** fix Windows smoke Ollama detection (auto-start + IPv4) ([3189f88](https://github.com/bendourthe/Nexus-AI/commit/3189f880d62943f3d855941c4dd4f4dfff108be0))
+* **v1.5.0:** green CI, Nightly, and Installer-smoke workflows ([81043b7](https://github.com/bendourthe/Nexus-AI/commit/81043b7cdb9eeeb0a58619616488a6cc1892e7a5))
+* **v1.5.0:** install httpx in the Windows installer-smoke job ([b96fbb4](https://github.com/bendourthe/Nexus-AI/commit/b96fbb49e5f8aad9056dacd05b58b8761b6271db))
+* **v1.5.0:** make Windows smoke Ollama startup robust + self-diagnosing ([8bdbd69](https://github.com/bendourthe/Nexus-AI/commit/8bdbd69a65411ecba84c39393edca3f3af7f203d))
+
+
+### Features
+
+* **v1.2.0:** phase 1 skill-native foundation ([d97a643](https://github.com/bendourthe/Nexus-AI/commit/d97a6438af8de52c57a9f43d56ca1929fd83d50f))
+* **v1.2.0:** phase 2 command-output compression ([1d43b9f](https://github.com/bendourthe/Nexus-AI/commit/1d43b9f2ec2c46fdf7e6e4437e8bacf312bef4a9))
+* **v1.2.0:** phase 3 code-graph mcp module ([5b63989](https://github.com/bendourthe/Nexus-AI/commit/5b6398975e33cf8529bc74861aaaa1c665181a41))
+* **v1.2.0:** phase 4 memory enhancements (leann-derived) ([e690f97](https://github.com/bendourthe/Nexus-AI/commit/e690f9705978d63e691ce44ee770e943b9680d29))
+* **v1.2.0:** phase 5 agent loop policy enforcement ([8cff2ec](https://github.com/bendourthe/Nexus-AI/commit/8cff2eca0a64f700b95e2037df2e7e0f70114ee6))
+* **v1.2.0:** phase 6 re-partial integrations ([ab830ae](https://github.com/bendourthe/Nexus-AI/commit/ab830aea2f0212fcf34f4177d1828ac743ae881e))
+* **v1.2.0:** phase 7 stabilization benchmarks and adoption closure ([d20743b](https://github.com/bendourthe/Nexus-AI/commit/d20743b5a594f51ad8fc2d3843f6427b4acbfd75))
+* **v1.3.0:** foundational skills-audit utilities ([eeb56c4](https://github.com/bendourthe/Nexus-AI/commit/eeb56c446b37a1eaadd36ff117421f9aa0884157))
+* **v1.3.0:** skills audit command (phase 3) ([24eaab5](https://github.com/bendourthe/Nexus-AI/commit/24eaab591b136c7a9464d148c075d190da2ddf25))
+* **v1.3.0:** skills-audit benchmark + P7 docs ([4250df6](https://github.com/bendourthe/Nexus-AI/commit/4250df672f3ba4f2f3a718f0edc721bb2adbf074))
+* **v1.3.0:** skills-audit P3 flags + hub rules ([b58dfd4](https://github.com/bendourthe/Nexus-AI/commit/b58dfd403041c1e8f76c1848b3beedf34006bff2))
+* **v1.3.0:** skills-audit render-budget ladder ([248091d](https://github.com/bendourthe/Nexus-AI/commit/248091d54bd76f1f5a152299a81f8ba95b86a15b))
+* **v1.3.0:** skills-audit similarity + usage ([e207f4e](https://github.com/bendourthe/Nexus-AI/commit/e207f4e7e17263d9afbb65e6ce706281ca3fa131))
+* **v1.4.0:** phase 1 skill-native conventions ([03e9e30](https://github.com/bendourthe/Nexus-AI/commit/03e9e300477c8af88cef93a18a6da1bd02472724))
+* **v1.4.0:** phase 2 egress denylist + env scrub ([e48127c](https://github.com/bendourthe/Nexus-AI/commit/e48127cb6dd475b3eb9d361141d9fad14e4212f7))
+* **v1.4.0:** phase 3 test-tampering + scorecard ([f9d7883](https://github.com/bendourthe/Nexus-AI/commit/f9d788368b45e6dfaab16dacbab16d534dd59088))
+* **v1.4.0:** phase 4 safety config SSOT ([8e98da3](https://github.com/bendourthe/Nexus-AI/commit/8e98da39b96047be05680d5890efd672dfc9384e))
+* **v1.4.0:** phase 5 operator tooling (A6, A8) ([e162e27](https://github.com/bendourthe/Nexus-AI/commit/e162e279556e37712d1ab4215d05d45f5f5e7d52))
+* **v1.4.0:** phase 6 parallel agent exec (A10) ([4f51e53](https://github.com/bendourthe/Nexus-AI/commit/4f51e53d1b5ec0f38159bea362be3cfcdd7b4a11))
+* **v1.4.0:** phase 7 T020 src->modules/coding move (gap 1.4.P1.B) ([3588dc3](https://github.com/bendourthe/Nexus-AI/commit/3588dc38a36bc6734a2155fa30ca9da3920435e1))
+* **v1.4.0:** phase 7 T021 tsc -b project references (gap 1.1.P1.A) ([43fbd24](https://github.com/bendourthe/Nexus-AI/commit/43fbd24985cae825b0ae3a35db0a5513b3cc4442))
+* **v1.4.0:** phase 7 T022 tree-sitter (WASM) scanner (gap 3.3.P2.G) ([f921bb4](https://github.com/bendourthe/Nexus-AI/commit/f921bb49fc434a6354f348fc51daee73928fa9e8))
+* **v1.4.0:** phase 7 T023 PrunedDenseIndex multi-layer HNSW build (gap 4.2.P3.K) ([435c38e](https://github.com/bendourthe/Nexus-AI/commit/435c38e1c03677b01a9f3744ec5ae006d3edb768))
+* **v1.4.0:** phase 8 T025 migrate embedder to @huggingface/transformers (gap 7.x.P1.D) ([b048438](https://github.com/bendourthe/Nexus-AI/commit/b048438da88e4416b2770e3a8a57523b7e8bd9f8))
+* **v1.4.0:** phase 8 T026 wire permissions.deny gate + unify codegraph ignore parser (gaps 5.3.P2.R, 5.3.P3.S, 6.1.P3.W) ([a076f0d](https://github.com/bendourthe/Nexus-AI/commit/a076f0d393cb7463076e367c9b3fc9b27b1ce447))
+* **v1.4.0:** phase 8 T027 live-wire session-reflection, path-scope reevaluation, explore-MCP classification (gaps 5.4.P3.T, 5.2.P3.Q, 5.1.P2.P, 5.1.P2.O) ([3a2852f](https://github.com/bendourthe/Nexus-AI/commit/3a2852f15dac393ac18fb5c5b2f0b8b340450d49))
+* **v1.4.0:** phase 8 T028 LSP install prompts + desktop DOMPurify sanitiser (gaps 6.2.P2.X, 6.2.P3.Y, 6.3.P2.Z) ([fd04d4e](https://github.com/bendourthe/Nexus-AI/commit/fd04d4e88b114789ef2c9bd72b766d91613f3463))
+* **v1.4.0:** phase 8 T029 clear remaining v1.2.0 hygiene deferrals (gaps 2.4.P2.E, 2.4.P3.F, 4.3.P3.M, 4.x.P3.N, 3.4.P3.H, 3.5.P3.I, 6.1.P3.U) ([0672871](https://github.com/bendourthe/Nexus-AI/commit/0672871646686ef8f59bf35a8ea91565c4a452a6))
+* **v1.4.0:** phase 8 T030 100k memory benchmark, multi-root usage scan, audit deferrals (gaps 4.4.P2.L, 7.1.P2.A, T012.P2.C, T013.P3.D) ([dcd843f](https://github.com/bendourthe/Nexus-AI/commit/dcd843f65f793399f6cc21cca2d0a989e75867b0))
+* **v1.4.0:** phase 9 FINAL Nexus-Hub sync + whole-plan acceptance gate ([0034c12](https://github.com/bendourthe/Nexus-AI/commit/0034c12686dfde02873c5ae70e8e3c63b9a4263a))
+* **v1.5.0:** Hub integration HUB.P3.AGENT (Phase 7) ([55833d9](https://github.com/bendourthe/Nexus-AI/commit/55833d9ee440049c3c5ccb709b93dfb7273f86c6))
+* **v1.5.0:** Hub integration HUB.P3.CMD (Phase 7) ([5641009](https://github.com/bendourthe/Nexus-AI/commit/564100980ec78c509ffa9c6908703687d566a7d9))
+* **v1.5.0:** Hub integration HUB.P3.DATA + HUB.P3.RULES (Phase 7) ([04a0c43](https://github.com/bendourthe/Nexus-AI/commit/04a0c4318d4239662b432bcd6131b2abb89a0ca2))
+* **v1.5.0:** Hub integration HUB.P3.HOOK + HUB.P3.MCPCFG (Phase 7) ([3e918a1](https://github.com/bendourthe/Nexus-AI/commit/3e918a1ef3334eea45727ed1a3ff2f3b680ea64b))
+* **v1.5.0:** phase 1 local-only foundations (GGUF ladder, credential vault, energy telemetry) ([b60dfca](https://github.com/bendourthe/Nexus-AI/commit/b60dfcafb56e91162a319775e2ada63841e0bd49))
+* **v1.5.0:** phase 3 inbound prompt-injection classifier (warn-then-allow) ([ee64720](https://github.com/bendourthe/Nexus-AI/commit/ee64720177f6c533064294a14d0a6ac23523ff94))
+* **v1.5.0:** phase 4 swarm/DAG orchestration (planner/critic/worker; closes T018.P3.A/B + T016.P3.A) ([04efdbf](https://github.com/bendourthe/Nexus-AI/commit/04efdbf6f59cb9b26b20aa4e88567e984282b983))
+* **v1.5.0:** phase 5 model-layer & desktop re-partials (multimodal input, preview pane, vault-only credential UI, cross-surface session resume; closes T015-T020, defers item 38) ([72b562a](https://github.com/bendourthe/Nexus-AI/commit/72b562a6a855db3274871ae83d5c111d92916dbe))
+* **v1.5.0:** phase 6 Tree-sitter wasm packaging closure (closes T021-T022, T022.P3.A) ([04e1da4](https://github.com/bendourthe/Nexus-AI/commit/04e1da41d00f23629e1edbd60eeb7c800f4912d9))
+
 # [0.43.0](https://github.com/bendourthe/Nexus-AI/compare/v0.42.0...v0.43.0) (2026-05-26)
 
 
