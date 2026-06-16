@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Nexus - Local AI Studio (User Guide)</title>
+<meta name="description" content="User guide for Nexus: a local-first agentic platform with a Codex/Claude-Code/Cursor-class workflow, powered by open-source models on a single GPU. Install, set up, and use agentic coding, image, and video - all on your own machine." />
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cg stroke='%2338bdf8' stroke-width='11' stroke-linecap='round'%3E%3Cline x1='26' y1='26' x2='74' y2='74'/%3E%3Cline x1='74' y1='26' x2='26' y2='74'/%3E%3C/g%3E%3Cg fill='%2338bdf8'%3E%3Ccircle cx='26' cy='26' r='9'/%3E%3Ccircle cx='74' cy='26' r='9'/%3E%3Ccircle cx='74' cy='74' r='9'/%3E%3Ccircle cx='26' cy='74' r='9'/%3E%3C/g%3E%3Ccircle cx='50' cy='50' r='8.5' fill='%23eaf6ff'/%3E%3C/svg%3E" />
+<style>
+:root {
+  /* Backgrounds */
+  --bg-deep: #02090c;
+  --bg-0: #04141a;
+  --bg-1: #072530;
+  --bg-2: #0a3a47;
+
+  /* Ink */
+  --ink: #eaf6f8;
+  --ink-dim: #a7c1c8;
+  --ink-faint: #6f8990;
+
+  /* Brand (blue-aligned to the Nexus-AI logo) */
+  --cyan: #22d3ee;
+  --cyan-soft: #67e8f9;
+  --teal: #38bdf8;
+  --teal-soft: #7dd3fc;
+  --blue: #3b82f6;
+  --node-blue: #2f9ee6;
+  --glow: #d7fbff;
+
+  /* Semantic */
+  --green: #4ade80;
+  --amber: #fbbf24;
+  --red: #f87171;
+  --violet: #a78bfa;
+
+  /* Surfaces */
+  --surface: rgba(255,255,255,.035);
+  --surface-2: rgba(255,255,255,.06);
+  --surface-3: rgba(255,255,255,.09);
+  --border: rgba(96,165,250,.16);
+  --border-bright: rgba(56,189,248,.36);
+
+  /* Accent gradient */
+  --grad: linear-gradient(100deg, #3b82f6 0%, #38bdf8 50%, #22d3ee 100%);
+  --grad-soft: linear-gradient(100deg, rgba(59,130,246,.16), rgba(56,189,248,.16));
+
+  /* Terminal */
+  --term-bg: #07171d;
+  --term-ink: #cfe9ee;
+  --term-dim: #5f7d84;
+  --term-prompt: #7dd3fc;
+
+  /* Type */
+  --sans: "Segoe UI", -apple-system, BlinkMacSystemFont, "Inter", system-ui, Roboto, Helvetica, Arial, sans-serif;
+  --mono: "Cascadia Code", "JetBrains Mono", "SF Mono", "Consolas", "Liberation Mono", Menlo, monospace;
+
+  /* Layout */
+  --maxw: 1120px;
+  --radius: 16px;
+  --radius-sm: 10px;
+  --shadow: 0 24px 60px -28px rgba(0,0,0,.8);
+  --shadow-glow: 0 0 0 1px var(--border), 0 22px 50px -24px rgba(0,0,0,.85);
+}
+
+/* ---------- Reset ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+body {
+  font-family: var(--sans);
+  color: var(--ink);
+  background:
+    radial-gradient(1200px 700px at 80% -10%, rgba(59,130,246,.12), transparent 60%),
+    radial-gradient(1100px 800px at -10% 0%, rgba(56,189,248,.12), transparent 55%),
+    linear-gradient(180deg, var(--bg-0) 0%, var(--bg-deep) 65%, #010608 100%);
+  background-attachment: fixed;
+  min-height: 100vh;
+  line-height: 1.62;
+  font-size: 16.5px;
+  letter-spacing: .1px;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+}
+img { max-width: 100%; display: block; }
+a { color: var(--cyan-soft); text-decoration: none; }
+a:hover { color: var(--teal-soft); }
+::selection { background: rgba(56,189,248,.3); color: #fff; }
+h1, h2, h3 { line-height: 1.2; letter-spacing: -.2px; }
+code { font-family: var(--mono); font-size: .92em; }
+
+/* ---------- Background constellation canvas ---------- */
+#constellation {
+  position: fixed; inset: 0; width: 100%; height: 100%;
+  z-index: 0; pointer-events: none; opacity: .55;
+  transition: opacity .6s ease;
+}
+
+/* ---------- App scaffold ---------- */
+.shell { position: relative; z-index: 1; }
+.container { width: 100%; max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+
+/* ---------- Header / nav ---------- */
+.site-header {
+  position: sticky; top: 0; z-index: 50;
+  backdrop-filter: blur(14px);
+  background: linear-gradient(180deg, rgba(4,20,26,.92), rgba(4,20,26,.62));
+  border-bottom: 1px solid var(--border);
+}
+.nav { display: flex; align-items: center; gap: 18px; height: 64px; }
+.brand { display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; }
+.brand .mark { width: 32px; height: 32px; flex: none; filter: drop-shadow(0 0 10px rgba(56,189,248,.5)); }
+.wordmark { font-weight: 700; font-size: 18px; letter-spacing: .2px; }
+.wordmark span { color: var(--ink-faint); font-weight: 600; }
+.nav-links { display: flex; align-items: center; gap: 4px; margin-left: auto; flex-wrap: wrap; }
+.nav-links a {
+  color: var(--ink-dim); font-weight: 600; font-size: 13.5px;
+  padding: 7px 12px; border-radius: 999px; border: 1px solid transparent;
+}
+.nav-links a:hover { color: var(--ink); background: var(--surface); }
+.nav-links a.active { color: var(--bg-deep); background: var(--grad); border-color: transparent; }
+.nav-gh { display: inline-flex; align-items: center; gap: 6px; color: var(--cyan-soft) !important; border-color: var(--border) !important; }
+.nav-gh:hover { color: var(--cyan-soft) !important; border-color: var(--border-bright) !important; background: var(--surface) !important; }
+.nav-gh svg { width: 15px; height: 15px; }
+.nav-toggle { display: none; margin-left: auto; background: var(--surface); color: var(--ink); border: 1px solid var(--border); border-radius: 10px; font-size: 18px; padding: 4px 12px; cursor: pointer; }
+
+/* ---------- Pages ---------- */
+.page { display: none; padding: 44px 0 96px; }
+.page.active { display: block; animation: fade .4s ease; }
+@keyframes fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* ---------- Hero ---------- */
+.hero { text-align: center; padding: 36px 0 8px; }
+.mark-xl { width: 104px; height: 104px; margin: 0 auto 18px; display: block; filter: drop-shadow(0 0 26px rgba(56,189,248,.55)); animation: float 7s ease-in-out infinite; }
+@keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
+.hero h1 { font-size: clamp(30px, 5vw, 50px); margin: 0 0 14px; }
+.gtext { background: var(--grad); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+.lead { color: var(--ink-dim); font-size: 1.12rem; max-width: 780px; margin: 0 auto; }
+.btn-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin: 26px 0 8px; }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+  font-family: inherit; font-weight: 700; font-size: 14.5px;
+  color: var(--ink); background: var(--surface-2); border: 1px solid var(--border);
+  padding: 11px 20px; border-radius: 999px;
+}
+.btn:hover { background: var(--surface-3); color: var(--ink); border-color: var(--border-bright); }
+.btn--primary { color: var(--bg-deep); background: var(--grad); border-color: transparent; }
+.btn--primary:hover { color: var(--bg-deep); filter: brightness(1.05); }
+.btn .arr { transition: transform .2s; }
+.btn:hover .arr { transform: translateX(3px); }
+.stat-row { display: flex; gap: 26px; justify-content: center; flex-wrap: wrap; margin-top: 30px; color: var(--ink-faint); font-size: 14px; }
+.stat b { color: var(--teal-soft); font-size: 20px; font-weight: 800; margin-right: 4px; }
+
+/* ---------- Sections ---------- */
+.divider { height: 1px; background: linear-gradient(90deg, transparent, var(--border), transparent); margin: 40px 0; }
+.section { margin: 38px 0; }
+.eyebrow {
+  display: inline-block; font-family: var(--mono); font-size: 12px; letter-spacing: 1.5px;
+  text-transform: uppercase; color: var(--teal-soft); margin-bottom: 8px;
+  padding: 3px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--grad-soft);
+}
+.section h2 { font-size: clamp(22px, 3vw, 30px); margin: 6px 0 18px; }
+.page > .container > h2.page-title { font-size: clamp(24px, 3.4vw, 34px); margin: 6px 0 8px; }
+.section p, .page p { color: var(--ink-dim); }
+.sub { color: var(--ink-faint); font-size: 13.5px; }
+
+/* ---------- Cards / grids ---------- */
+.grid { display: grid; gap: 18px; }
+.grid-2 { grid-template-columns: repeat(2, 1fr); }
+.grid-3 { grid-template-columns: repeat(3, 1fr); }
+.grid-4 { grid-template-columns: repeat(4, 1fr); }
+.card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 20px 22px; box-shadow: var(--shadow);
+}
+.card h3 { margin: 8px 0 6px; font-size: 17px; }
+.card p { color: var(--ink-dim); font-size: 14.5px; margin: 0; }
+.card .num { font-family: var(--mono); font-size: 12px; color: var(--cyan-soft); }
+.ico { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 11px; background: var(--grad-soft); border: 1px solid var(--border); color: var(--teal-soft); margin-bottom: 8px; }
+.ico svg { width: 22px; height: 22px; }
+.pillar-tag { display: inline-block; font-family: var(--mono); font-size: 11px; color: var(--ink-faint); border: 1px solid var(--border); border-radius: 6px; padding: 1px 7px; margin-top: 10px; }
+
+/* ---------- Steps (numbered) ---------- */
+.steps { counter-reset: step; list-style: none; margin: 18px 0; padding: 0; }
+.steps > li { position: relative; padding: 2px 0 18px 46px; border-left: 1px solid var(--border); margin-left: 16px; }
+.steps > li:last-child { border-left-color: transparent; padding-bottom: 0; }
+.steps > li::before {
+  counter-increment: step; content: counter(step);
+  position: absolute; left: -16px; top: -2px; width: 32px; height: 32px;
+  display: grid; place-items: center; border-radius: 50%;
+  background: var(--grad); color: var(--bg-deep); font-weight: 800; font-size: 14px; font-family: var(--mono);
+  box-shadow: 0 0 0 4px var(--bg-deep);
+}
+.steps h4 { margin: 0 0 4px; font-size: 15.5px; }
+.steps p { color: var(--ink-dim); font-size: 14.5px; margin: 0; }
+
+/* ---------- Tables ---------- */
+.tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
+.tbl td, .tbl th { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.tbl th { color: var(--ink-faint); font-weight: 600; font-family: var(--mono); font-size: 12px; text-transform: uppercase; letter-spacing: .6px; }
+.tbl td:first-child code { color: var(--cyan-soft); }
+.tbl code { font-family: var(--mono); font-size: 12.5px; color: var(--cyan-soft); }
+
+/* ---------- Terminal block ---------- */
+.term { background: var(--term-bg); border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; margin: 16px 0; box-shadow: var(--shadow); }
+.term-bar { display: flex; align-items: center; gap: 8px; padding: 9px 13px; border-bottom: 1px solid var(--border); }
+.term-bar i { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+.term-bar .r { background: #ff5f57; } .term-bar .y { background: #febc2e; } .term-bar .g { background: #28c840; }
+.term-bar .label { margin-left: 8px; font-family: var(--mono); font-size: 12px; color: var(--term-dim); }
+.term-body { padding: 14px 16px; font-family: var(--mono); font-size: 13px; line-height: 1.8; color: var(--term-ink); white-space: pre-wrap; }
+.term-body .pr { color: var(--term-prompt); }
+.term-body .cm { color: var(--term-dim); }
+.term-body .ok { color: var(--green); }
+.term-body .warn { color: var(--amber); }
+.term-body .cy { color: var(--cyan-soft); }
+
+/* ---------- Callout ---------- */
+.callout { border: 1px solid var(--border-bright); border-left: 3px solid var(--teal); background: var(--grad-soft); border-radius: var(--radius-sm); padding: 16px 18px; margin: 20px 0; }
+.callout.amber { border-color: rgba(251,191,36,.4); border-left-color: var(--amber); background: rgba(251,191,36,.08); }
+.callout h3 { margin: 0 0 6px; font-size: 15px; color: var(--teal-soft); }
+.callout.amber h3 { color: var(--amber); }
+.callout p { margin: 0; color: var(--ink-dim); font-size: 14.5px; }
+.callout p + p { margin-top: 8px; }
+
+/* ---------- Badge ---------- */
+.badge { display: inline-block; font-family: var(--mono); font-size: 11px; letter-spacing: .4px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--ink-dim); background: var(--surface-2); vertical-align: middle; }
+.badge.now { color: var(--green); border-color: rgba(74,222,128,.35); }
+.badge.soon { color: var(--amber); border-color: rgba(251,191,36,.35); }
+
+/* ---------- Page nav / progress ---------- */
+.pagenav { display: flex; justify-content: space-between; gap: 14px; margin-top: 48px; }
+.pagenav a { flex: 1; display: flex; flex-direction: column; gap: 3px; padding: 14px 18px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); cursor: pointer; }
+.pagenav a:hover { border-color: var(--border-bright); background: var(--surface-2); }
+.pagenav a.next { text-align: right; }
+.pagenav a.disabled { opacity: .4; pointer-events: none; }
+.pagenav .pn-k { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--ink-faint); }
+.pagenav .pn-t { color: var(--ink); font-weight: 700; }
+.progress { display: flex; gap: 8px; justify-content: center; margin: 36px 0 0; }
+.progress i { width: 9px; height: 9px; border-radius: 50%; background: var(--surface-3); border: 1px solid var(--border); cursor: pointer; display: inline-block; }
+.progress i.on { background: var(--grad); border-color: transparent; box-shadow: 0 0 10px rgba(45,212,191,.6); }
+
+/* ---------- Footer ---------- */
+.foot { border-top: 1px solid var(--border); padding: 28px 0; color: var(--ink-faint); font-size: 13px; text-align: center; }
+.foot a { color: var(--ink-dim); }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 860px) {
+  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+  .nav-toggle { display: inline-block; }
+  .nav-links { position: absolute; top: 64px; left: 0; right: 0; flex-direction: column; align-items: stretch; gap: 2px; padding: 12px 18px; background: rgba(4,20,26,.98); border-bottom: 1px solid var(--border); display: none; }
+  .nav-links.open { display: flex; }
+  .nav-links a { padding: 10px 12px; border-radius: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .page.active { animation: none; }
+  .mark-xl { animation: none; }
+  html { scroll-behavior: auto; }
+}
+</style>
+</head>
+<body data-page="home">
+
+<!-- Brand mark: faithful inline vector (transparent, scalable - no raster) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="nx-grad" gradientUnits="userSpaceOnUse" x1="50" y1="8" x2="50" y2="92">
+      <stop offset="0" stop-color="#7fdcff"/>
+      <stop offset=".45" stop-color="#38bdf8"/>
+      <stop offset="1" stop-color="#2563eb"/>
+    </linearGradient>
+    <linearGradient id="nx-arm" gradientUnits="userSpaceOnUse" x1="50" y1="10" x2="50" y2="90">
+      <stop offset="0" stop-color="#67e8f9"/>
+      <stop offset="1" stop-color="#2f6fe6"/>
+    </linearGradient>
+    <radialGradient id="nx-core" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset=".4" stop-color="#cdeeff"/>
+      <stop offset="1" stop-color="#38bdf8" stop-opacity="0"/>
+    </radialGradient>
+    <symbol id="nexus-mark" viewBox="0 0 100 100">
+      <g fill="url(#nx-grad)" opacity=".15">
+        <polygon points="50,50 22,22 22,78"/>
+        <polygon points="50,50 78,22 78,78"/>
+      </g>
+      <g stroke="url(#nx-arm)" stroke-width="7.5" stroke-linecap="round" fill="none">
+        <line x1="22" y1="22" x2="78" y2="78"/>
+        <line x1="78" y1="22" x2="22" y2="78"/>
+      </g>
+      <g fill="url(#nx-grad)">
+        <circle cx="22" cy="22" r="8.6"/>
+        <circle cx="78" cy="22" r="8.6"/>
+        <circle cx="78" cy="78" r="8.6"/>
+        <circle cx="22" cy="78" r="8.6"/>
+      </g>
+      <circle cx="50" cy="50" r="13" fill="url(#nx-core)"/>
+      <circle cx="50" cy="50" r="4" fill="#ffffff"/>
+    </symbol>
+  </defs>
+</svg>
+
+<canvas id="constellation" aria-hidden="true"></canvas>
+
+<div class="shell">
+
+  <!-- ===== Header ===== -->
+  <header class="site-header">
+    <nav class="nav container" aria-label="Primary">
+      <div class="brand" data-go="home" role="button" tabindex="0" aria-label="Nexus home">
+        <svg class="mark" viewBox="0 0 100 100" aria-hidden="true"><use href="#nexus-mark"/></svg>
+        <span class="wordmark"><b>Nexus</b> <span>AI Studio</span></span>
+      </div>
+      <button class="nav-toggle" aria-label="Toggle navigation" id="navToggle">&#9776;</button>
+      <div class="nav-links" id="navLinks">
+        <a data-go="home">Home</a>
+        <a data-go="install">Install</a>
+        <a data-go="coding">Agentic&nbsp;Coding</a>
+        <a data-go="media">Image&nbsp;&amp;&nbsp;Video</a>
+        <a data-go="chat">Chat</a>
+        <a data-go="harness">Harness</a>
+        <a data-go="reference">Reference</a>
+        <a class="nav-gh" href="https://github.com/bendourthe/Nexus-AI" target="_blank" rel="noopener" title="View Nexus-AI on GitHub"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 012-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg> GitHub</a>
+      </div>
+    </nav>
+  </header>
+
+  <main id="app">
+
+  <!-- ===================== HOME ===================== -->
+  <section class="page" id="page-home" data-page="home">
+    <div class="container">
+      <div class="hero">
+        <svg class="mark-xl" viewBox="0 0 100 100" aria-hidden="true"><use href="#nexus-mark"/></svg>
+        <h1>The agentic coding studio that<br><span class="gtext">runs entirely on your own GPU</span></h1>
+        <p class="lead">Nexus gives you a Codex, Claude Code, Cursor, and Antigravity class workflow - the same harness, the same commands, the same plan / build / verify loops - but every token is generated locally by open-source models like Gemma 4. No API keys, no data leaving your machine, no per-token billing. Plus uncensored local image and video generation in the same app.</p>
+        <div class="btn-row">
+          <a class="btn btn--primary" data-go="install">Install &amp; set up <span class="arr">&rarr;</span></a>
+          <a class="btn" data-go="coding">Start agentic coding</a>
+        </div>
+        <div class="stat-row">
+          <span class="stat"><b>1</b> consumer GPU</span>
+          <span class="stat"><b>4</b> pillars</span>
+          <span class="stat"><b>0</b> tokens billed</span>
+          <span class="stat"><b>100%</b> local</span>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <section class="section">
+        <span class="eyebrow">The idea</span>
+        <h2>A small local model, made to punch far above its weight</h2>
+        <div class="grid grid-2" style="align-items:start">
+          <div>
+            <p class="lead" style="font-size:1.06rem">A 4B or 12B model on your laptop will never out-reason Opus 4.8 or GPT-5.5 on raw capability. Nexus closes that gap a different way: with the <strong>harness</strong>, not the model.</p>
+            <p>The goal is that agentic coding in Nexus <em>feels</em> like working in a frontier-cloud assistant. The Nexus-Hub harness wraps a small model in plan mode, verification gates, specialized sub-agents, four-layer memory, and 200+ expert skills - so the model is guided, checked, and grounded at every step instead of being asked to be brilliant in one shot. The frontier model has raw intelligence; Nexus gives a small model <em>discipline</em>.</p>
+            <p class="sub">This is the design bet of the project, not a benchmarked claim. Read how the harness works on the <a data-go="harness">Harness</a> page.</p>
+          </div>
+          <div class="card" style="background:var(--surface-2)">
+            <h3 style="margin-top:0">How it compares</h3>
+            <table class="tbl" style="margin:0">
+              <tr><th>&nbsp;</th><th>Cloud assistants</th><th>Nexus</th></tr>
+              <tr><td>Harness</td><td>Built-in</td><td>Nexus-Hub (shared)</td></tr>
+              <tr><td>Models</td><td>Frontier, hosted</td><td>Local, open-source</td></tr>
+              <tr><td>Your code</td><td>Leaves the machine</td><td>Stays local</td></tr>
+              <tr><td>Billing</td><td>Per token</td><td>None</td></tr>
+              <tr><td>Media gen</td><td>Filtered / extra</td><td>Local, uncensored</td></tr>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <span class="eyebrow">What you get</span>
+        <h2>Four pillars, one desktop app</h2>
+        <div class="grid grid-4">
+          <div class="card">
+            <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 9l-4 3 4 3M16 9l4 3-4 3M13 6l-2 12"/></svg></div>
+            <h3>Agentic Coding</h3>
+            <p>Reads your repo, edits across files, runs the terminal, and verifies its own work - with plan / auto / ask modes.</p>
+          </div>
+          <div class="card">
+            <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></div>
+            <h3>Chat Explorer</h3>
+            <p>Organized local chat in nested folders, with four-layer memory that keeps long threads coherent.</p>
+          </div>
+          <div class="card">
+            <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.8"/><path d="M21 15l-5-5L5 21"/></svg></div>
+            <h3>Image Studio</h3>
+            <p>Text-to-image, img2img, inpaint, outpaint on local diffusion models - uncensored, single-GPU.</p>
+          </div>
+          <div class="card">
+            <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="14" height="14" rx="2"/><path d="M22 8l-6 4 6 4z"/></svg></div>
+            <h3>Video Lab</h3>
+            <p>Short-form text-to-video and image-to-video with a live timeline preview, all on your machine.</p>
+          </div>
+        </div>
+      </section>
+
+      <div class="progress" data-progress></div>
+      <div class="pagenav" data-pagenav></div>
+    </div>
+  </section>
+
+  <!-- ===================== INSTALL ===================== -->
+  <section class="page" id="page-install" data-page="install">
+    <div class="container">
+      <span class="eyebrow">Install &amp; setup</span>
+      <h2 class="page-title">Get Nexus running on your machine</h2>
+      <p class="lead" style="margin:0 0 22px">Nexus runs on Windows, macOS, and Linux against a single consumer GPU (think RTX 3070 to 4090 class, or an Apple Silicon Mac). You install it once; the setup provisions the GPU toolchain, runtimes, and your chosen local models so every pillar works on first launch.</p>
+
+      <div class="callout amber">
+        <h3>Which path applies to you</h3>
+        <p>The guided installer (the wizard below) is the end-user experience and is <span class="badge soon">rolling out</span> with the cross-OS installer. The Windows wizard exists today; macOS and Linux outer shells are landing. If you want to run Nexus right now, use the <a data-go="install" onclick="return false" style="pointer-events:none;color:var(--teal-soft)">From source</a> path further down - it is <span class="badge now">shipping</span>.</p>
+      </div>
+
+      <section class="section">
+        <h2 style="font-size:22px">Prerequisites</h2>
+        <div class="grid grid-3">
+          <div class="card"><h3 style="margin-top:0">A GPU</h3><p>NVIDIA (CUDA), Apple Silicon (Metal), or AMD (ROCm). CPU-only works but is slow. 8 GB VRAM is a comfortable floor.</p></div>
+          <div class="card"><h3 style="margin-top:0">Ollama</h3><p>The local inference runtime Nexus speaks to. The installer can provision it for you; or install it yourself first.</p></div>
+          <div class="card"><h3 style="margin-top:0">Disk</h3><p>Models are large. The installer keeps a 10 GB OS reserve and shows per-model sizing before you commit.</p></div>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2 style="font-size:22px">Option A - The guided installer <span class="badge soon">rolling out</span></h2>
+        <p>A nine-step wizard that does the whole setup. You will not touch a terminal.</p>
+        <ol class="steps">
+          <li><h4>Welcome &amp; Prerequisites</h4><p>The wizard checks for the runtimes it needs and offers to provision anything missing.</p></li>
+          <li><h4>GPU Detection</h4><p>It detects your GPU and acceleration backend (CUDA / Metal / ROCm) and picks a matching hardware tier.</p></li>
+          <li><h4>Install Path</h4><p>Choose where Nexus and its models live on disk.</p></li>
+          <li><h4>Model Selection</h4><p>Pick your local models from a typed catalog. A disk-aware footer keeps a 10 GB OS reserve and shows each model's size. Recommended defaults are pre-checked for your tier.</p></li>
+          <li><h4>Configuration &amp; Review</h4><p>Confirm settings, then review the full plan before anything is written.</p></li>
+          <li><h4>Install &amp; Complete</h4><p>The installer provisions the GPU toolchain, Python, Node, Ollama, FFmpeg, the diffusion runtime, and pulls your selected models. When it finishes, every pillar works on first launch.</p></li>
+        </ol>
+      </section>
+
+      <section class="section">
+        <h2 style="font-size:22px">Option B - From source <span class="badge now">shipping today</span></h2>
+        <p>The current way to run Nexus. Prereqs: Node 20+, Rust + Cargo (for the Tauri shell), and Ollama for inference.</p>
+        <div class="term">
+          <div class="term-bar"><i class="r"></i><i class="y"></i><i class="g"></i><span class="label">bash</span></div>
+          <div class="term-body"><span class="cm"># clone and install</span>
+<span class="pr">$</span> git clone https://github.com/bendourthe/Nexus-AI.git
+<span class="pr">$</span> cd Nexus-AI
+<span class="pr">$</span> npm ci                 <span class="cm"># root + desktop workspace deps</span>
+<span class="pr">$</span> npm run build          <span class="cm"># compile shared core + Coding module</span>
+
+<span class="cm"># launch the desktop app (Vite HMR + sidecar)</span>
+<span class="pr">$</span> npm run dev:shell
+<span class="ok">&#10003;</span> Tauri window opens - pick a model and start working</div>
+        </div>
+        <p class="sub">A native bundle is produced with <code>npm run build:shell</code>; the Node sidecar is bundled with <code>npm run build:sidecar</code>.</p>
+      </section>
+
+      <section class="section">
+        <h2 style="font-size:22px">Downloading local models</h2>
+        <p>Models come from Ollama (most LLMs) or verified HTTP downloads (diffusion / video weights). The installer's Model Selection step is the easy path; you can also pull an LLM directly with Ollama and Nexus will see it.</p>
+        <div class="term">
+          <div class="term-bar"><i class="r"></i><i class="y"></i><i class="g"></i><span class="label">pull a model with Ollama</span></div>
+          <div class="term-body"><span class="pr">$</span> ollama run hf.co/unsloth/gemma-4-12b-it-GGUF   <span class="cm"># multimodal, 256K context</span>
+<span class="pr">$</span> ollama pull qwen2.5-coder:7b                  <span class="cm"># strong local coding model</span></div>
+        </div>
+        <div class="grid grid-2" style="align-items:start; margin-top:18px">
+          <div class="card">
+            <h3 style="margin-top:0">Recommended local models</h3>
+            <table class="tbl" style="margin:0">
+              <tr><th>Use</th><th>Model</th></tr>
+              <tr><td>Coding</td><td>Qwen 2.5 Coder 7B, Gemma 4 E4B</td></tr>
+              <tr><td>Multimodal chat</td><td>Gemma 4 12B-IT (GGUF)</td></tr>
+              <tr><td>General</td><td>Llama 3.1 8B</td></tr>
+              <tr><td>Image</td><td>SANA 1.5 1.6B (default)</td></tr>
+              <tr><td>Video</td><td>LTX-Video, SANA-Video 2B</td></tr>
+            </table>
+          </div>
+          <div class="card">
+            <h3 style="margin-top:0">Hardware tiers (auto-detected)</h3>
+            <table class="tbl" style="margin:0">
+              <tr><th>Tier</th><th>VRAM</th><th>Image / Video</th></tr>
+              <tr><td><code>low</code></td><td>4-8 GB</td><td>512px / video off</td></tr>
+              <tr><td><code>mid</code></td><td>8-12 GB</td><td>1024px / 720p 4s</td></tr>
+              <tr><td><code>high</code></td><td>12-20 GB</td><td>1024px / 1280p 8s</td></tr>
+              <tr><td><code>pro</code></td><td>24+ GB</td><td>1024px / CogVideoX</td></tr>
+            </table>
+            <p class="sub" style="margin-top:10px">Override with <code>nexus.diffusion.tierOverride</code>. Inference backend is set by <code>nexus.llm.backend</code> = <code>ollama</code> / <code>lmstudio</code> / <code>auto</code>.</p>
+          </div>
+        </div>
+      </section>
+
+      <div class="progress" data-progress></div>
+      <div class="pagenav" data-pagenav></div>
+    </div>
+  </section>
+
+  <!-- ===================== AGENTIC CODING ===================== -->
+  <section class="page" id="page-coding" data-page="coding">
+    <div class="container">
+      <span class="eyebrow">Agentic coding</span>
+      <h2 class="page-title">Work like you would in Codex or Claude Code</h2>
+      <p class="lead" style="margin:0 0 22px">Open the Coding pillar, pick a local model, and describe what you want. The agent reads your repo, proposes edits, runs the terminal, and verifies its own work - the same loop you know from cloud assistants, running on your GPU.</p>
+
+      <section class="section" style="margin-top:8px">
+        <h2 style="font-size:22px">The three modes</h2>
+        <div class="grid grid-3">
+          <div class="card"><span class="num">ask (default)</span><h3>Confirm each edit</h3><p>The agent shows a diff and waits for your approval before writing any file. Safest for unfamiliar code.</p></div>
+          <div class="card"><span class="num">auto</span><h3>Let it run</h3><p>End-to-end tool-using sessions with verification gates and git checkpoints, so you can roll back cleanly.</p></div>
+          <div class="card"><span class="num">plan</span><h3>Plan first</h3><p>Type <code>/plan</code>. The agent writes a numbered plan and walks each step only after you approve it.</p></div>
+        </div>
+        <p class="sub">Set the default with <code>nexus.coding.editMode</code>.</p>
+      </section>
+
+      <section class="section">
+        <h2 style="font-size:22px">A session, step by step</h2>
+        <div class="term">
+          <div class="term-bar"><i class="r"></i><i class="y"></i><i class="g"></i><span class="label">Nexus - Coding pillar (model: qwen2.5-coder:7b)</span></div>
+          <div class="term-body"><span class="pr">you&gt;</span> add a retry with backoff to the API client and prove it works
+<span class="cm">plan      </span> 1. read api/client.ts  2. add retry  3. add test  4. run tests
+<span class="cy">read      </span> read_file api/client.ts                    <span class="ok">[auto]</span>
+<span class="cy">edit      </span> edit_file api/client.ts (+24 -3)           <span class="warn">[confirm]</span>
+<span class="cy">edit      </span> create_file api/client.test.ts             <span class="warn">[confirm]</span>
+<span class="cy">verify    </span> run_terminal "npm test -- client"          <span class="warn">[confirm]</span>
+<span class="ok">pass      </span> 9 tests green - verification gate satisfied <span class="ok">&#10003;</span>
+<span class="cm">done      </span> retry path added, backed off 100ms x3, covered by tests</div>
+        </div>
+        <p class="sub">After a few edits Nexus auto-runs verification, and a pass-state gate refuses to call a task "done" until a verification tool (tests / lint / build) has actually succeeded. That gate is a big part of how a small model stays honest.</p>
+      </section>
+
+      <section class="section">
+        <h2 style="font-size:22px">Guardrails and commands</h2>
+        <div class="grid grid-2" style="align-items:start">
+          <div class="card">
+            <h3 style="margin-top:0">Permission tiers</h3>
+            <table class="tbl" style="margin:0">
+              <tr><th>Tier</th><th>Tools</th></tr>
+              <tr><td><code>auto</code></td><td>read_file, grep, list_directory</td></tr>
+              <tr><td><code>confirm</code></td><td>write / edit / create / delete, run_terminal</td></tr>
+              <tr><td><code>dangerous</code></td><td>web_search, fetch_page, MCP tools</td></tr>
+            </table>
+            <p class="sub" style="margin-top:10px">A <code>.nexus/permissions.deny</code> file blocks specific commands or paths outright.</p>
+          </div>
+          <div class="card">
+            <h3 style="margin-top:0">Slash commands</h3>
+            <table class="tbl" style="margin:0">
+              <tr><td><code>/plan</code></td><td>Toggle plan mode</td></tr>
+              <tr><td><code>/verify</code></td><td>Run verification now</td></tr>
+              <tr><td><code>/research</code></td><td>Spawn a research sub-agent</td></tr>
+              <tr><td><code>/model</code></td><td>Switch the active model</td></tr>
+              <tr><td><code>/memory</code></td><td>Search / save / inspect memory</td></tr>
+              <tr><td><code>/trace</code></td><td>Capture a bug-report trace</td></tr>
+            </table>
+            <p class="sub" style="margin-top:10px">Plus the full skill-backed command catalog synced from Nexus-Hub.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2 style="font-size:22px">See exactly what the model is doing</h2>
+        <p>Transparency is a first-class feature, not an afterthought. Nexus surfaces the reasoning and every action it takes:</p>
+        <div class="grid grid-3">
+          <div class="card"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 13l3-3 4 4 5-6"/></svg></div><h3>Trace dashboard</h3><p>Every tool call as a span with inputs, outputs, exit codes, and latency. A timeline scrubber replays a session; compare mode diffs two runs side by side.</p></div>
+          <div class="card"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3 8-8"/><path d="M4 6h10M4 12h6M4 18h10"/></svg></div><h3>Inline plan steps</h3><p>Plans render as interactive checklists, diffs as side-by-side cards, and "thought" annotations as faint sidebar notes. You watch the model think.</p></div>
+          <div class="card"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8"/></svg></div><h3>Model status dock</h3><p>Live GPU utilization, free VRAM, active model, queue depth, and power draw - updated twice a second so you always know the machine's state.</p></div>
+        </div>
+      </section>
+
+      <div class="progress" data-progress></div>
+      <div class="pagenav" data-pagenav></div>
+    </div>
+  </section>
+
+  <!-- ===================== IMAGE & VIDEO ===================== -->
+  <section class="page" id="page-media" data-page="media">
+    <div class="container">
+      <span class="eyebrow">Image &amp; video</span>
+      <h2 class="page-title">Generate media locally - and uncensored</h2>
+      <p class="lead" style="margin:0 0 22px">The Image Studio and Video Lab run diffusion and video-synthesis models on the same single GPU. Because everything happens on your machine, there is no third-party content-moderation API in the loop: you choose the weights and the prompts.</p>
+
+      <section class="section" style="margin-top:8px">
+        <h2 style="font-size:22px">Image Studio</h2>
+        <div class="grid grid-2" style="align-items:start">
+          <div class="card">
+            <h3 style="margin-top:0">Four modes</h3>
+            <table class="tbl" style="margin:0">
+              <tr><td><code>txt2img</code></td><td>Text prompt to image</td></tr>
+              <tr><td><code>img2img</code></td><td>Transform an existing image</td></tr>
+              <tr><td><code>inpaint</code></td><td>Repaint a masked region</td></tr>
+              <tr><td><code>outpaint</code></td><td>Extend the canvas any direction</td></tr>
+            </table>
+          </div>
+          <div class="card">
+            <h3 style="margin-top:0">Controls</h3>
+            <p>Prompt, size, steps, sampler, seed, and CFG - all with tier-aware defaults. Stack LoRAs (Detail Tweaker, Cinematic) and ControlNets (Pose, Depth, Canny) on capable tiers. The default model is SANA 1.5 1.6B, with a one-step SANA Sprint preview tier for near-instant iteration.</p>
+          </div>
+        </div>
+        <ol class="steps" style="margin-top:18px">
+          <li><h4>Pick a mode and model</h4><p>Open Image Studio, choose txt2img (or another mode), and accept the tier default model or pick another.</p></li>
+          <li><h4>Write your prompt and set controls</h4><p>Adjust size, steps, sampler, and add a LoRA or ControlNet if you want.</p></li>
+          <li><h4>Generate and review</h4><p>Hit Generate. Every output lands in the gallery; "Copy Workflow" pulls the full settings back out of the PNG so you can reproduce or tweak it.</p></li>
+        </ol>
+      </section>
+
+      <section class="section">
+        <h2 style="font-size:22px">Video Lab</h2>
+        <div class="grid grid-2" style="align-items:start">
+          <div class="card">
+            <h3 style="margin-top:0">Two modes</h3>
+            <table class="tbl" style="margin:0">
+              <tr><td><code>text2video</code></td><td>Prompt to short clip (LTX-Video, SANA-Video 2B)</td></tr>
+              <tr><td><code>image2video</code></td><td>Animate a still (Stable Video Diffusion)</td></tr>
+            </table>
+            <p class="sub" style="margin-top:10px">Heavier CogVideoX models are opt-in on capable tiers.</p>
+          </div>
+          <div class="card">
+            <h3 style="margin-top:0">Controls &amp; preview</h3>
+            <p>Duration, FPS, resolution, steps, CFG, and seed - tier-aware. A live timeline previewer shows a latent thumbnail per generated second as the clip renders. From the gallery you can play, save, copy the workflow, or send the last frame back into img2img.</p>
+          </div>
+        </div>
+      </section>
+
+      <div class="callout amber">
+        <h3>Uncensored, and your responsibility</h3>
+        <p>Local generation means no cloud filter sits between your prompt and the model. That is the point - and it puts lawful, ethical use entirely in your hands. Nexus makes no outbound calls by default and adds no telemetry; what you generate stays on your machine. You are responsible for the model weights you choose and for complying with the laws that apply to you.</p>
+      </div>
+
+      <div class="progress" data-progress></div>
+      <div class="pagenav" data-pagenav></div>
+    </div>
+  </section>
+
+  <!-- ===================== CHAT ===================== -->
+  <section class="page" id="page-chat" data-page="chat">
+    <div class="container">
+      <span class="eyebrow">Chat &amp; memory</span>
+      <h2 class="page-title">Organized local chat that remembers</h2>
+      <p class="lead" style="margin:0 0 22px">The Chat Explorer is a conversational interface with a filesystem-style organizer. Conversations live in nested folders you can drag and drop, and a four-layer memory keeps long-running threads coherent.</p>
+
+      <div class="grid grid-2" style="align-items:start">
+        <div class="card">
+          <h3 style="margin-top:0">Organize like files</h3>
+          <p>Nested folders with drag-and-drop, color tags, and a breadcrumb trail. Each folder can opt in to tool execution (off by default), so a chat can stay a pure conversation or become a working agent session.</p>
+        </div>
+        <div class="card">
+          <h3 style="margin-top:0">Four-layer memory</h3>
+          <table class="tbl" style="margin:0">
+            <tr><th>Layer</th><th>Holds (half-life)</th></tr>
+            <tr><td><code>working</code></td><td>In-flight state (24h)</td></tr>
+            <tr><td><code>episodic</code></td><td>Events (7d)</td></tr>
+            <tr><td><code>semantic</code></td><td>Observations (30d)</td></tr>
+            <tr><td><code>graph</code></td><td>Relations (365d)</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <section class="section">
+        <h2 style="font-size:22px">How memory helps a small model</h2>
+        <p>Retrieval fuses keyword (BM25), semantic (dense vectors), and graph traversal via Reciprocal Rank Fusion, using a bundled local embedder that never touches a remote hub. Older memories fade on an Ebbinghaus curve unless they keep getting used. You steer it directly:</p>
+        <div class="term">
+          <div class="term-bar"><i class="r"></i><i class="y"></i><i class="g"></i><span class="label">memory slash commands</span></div>
+          <div class="term-body"><span class="pr">chat&gt;</span> /remember the API base URL is read from NEXUS_API_BASE
+<span class="ok">&#10003;</span> saved to semantic memory
+<span class="pr">chat&gt;</span> /recall how do we authenticate requests
+<span class="cy">hit  </span> "requests sign with an HMAC header, see auth/sign.ts" <span class="cm">(graph, score 0.81)</span>
+<span class="pr">chat&gt;</span> /forget the old staging URL note</div>
+        </div>
+        <p class="sub">Session replay and compare-two-sessions views live in the Trace dashboard, shared with the Coding pillar.</p>
+      </section>
+
+      <div class="progress" data-progress></div>
+      <div class="pagenav" data-pagenav></div>
+    </div>
+  </section>
+
+  <!-- ===================== HARNESS ===================== -->
+  <section class="page" id="page-harness" data-page="harness">
+    <div class="container">
+      <span class="eyebrow">The harness</span>
+      <h2 class="page-title">The same harness as your cloud assistant</h2>
+      <p class="lead" style="margin:0 0 22px">Nexus does not invent its own way of working. It runs the <strong>Nexus-Hub</strong> catalog - the very same skills, slash-commands, hooks, agents, and language rules you can install into Claude Code, Codex, Cursor, or Gemini. Move between tools and the workflow is identical; only the model underneath changes.</p>
+
+      <section class="section" style="margin-top:8px">
+        <h2 style="font-size:22px">How the harness compensates for a small model</h2>
+        <div class="grid grid-2">
+          <div class="card"><span class="num">Guide</span><h3>Plan mode + sub-agents</h3><p>Decompose a task into a checked, numbered plan and hand narrow sub-tasks (research, verify) to scoped sub-agents, so the model never has to hold the whole problem at once.</p></div>
+          <div class="card"><span class="num">Check</span><h3>Verification gates</h3><p>The pass-state gate refuses to finish until tests, lint, or build actually pass - turning a model's optimism into evidence.</p></div>
+          <div class="card"><span class="num">Ground</span><h3>Memory + retrieval</h3><p>Hybrid BM25 + dense + graph retrieval feeds the model the exact lines it needs, instead of relying on it to remember your codebase.</p></div>
+          <div class="card"><span class="num">Encode</span><h3>200+ expert skills</h3><p>Senior-level procedures for security, testing, refactoring, and architecture load on demand, so the model follows an expert's checklist rather than improvising.</p></div>
+        </div>
+        <p class="sub">Together these are the bet: a guided, checked, grounded small model aiming to feel comparable to a frontier model on everyday agentic coding.</p>
+      </section>
+
+      <section class="section">
+        <h2 style="font-size:22px">Keeping the harness current</h2>
+        <p>The catalog is synced from the Nexus-Hub release with one command. Every sync runs a prompt-injection scanner over the skill bodies before anything is activated, and hot-reload swaps skills in without a restart.</p>
+        <div class="term">
+          <div class="term-bar"><i class="r"></i><i class="y"></i><i class="g"></i><span class="label">sync the harness</span></div>
+          <div class="term-body"><span class="pr">$</span> nexus skills sync            <span class="cm"># preview the latest Nexus-Hub release</span>
+<span class="pr">$</span> nexus skills sync --apply    <span class="cm"># scan, then activate</span>
+<span class="ok">&#10003;</span> 203 skills, 36 commands, 14 hooks active</div>
+        </div>
+      </section>
+
+      <div class="callout">
+        <h3>Go deeper on the harness</h3>
+        <p>The full, interactive walkthrough of the Nexus-Hub harness - its skills, commands, hooks, agents, and the whole software-lifecycle workflow - lives in its own guide:</p>
+        <p style="margin-top:12px">
+          <a class="btn btn--primary" href="../../../Nexus-Hub/guides/interactive-guide/nexus-hub-guide.html">Open the Nexus-Hub guide <span class="arr">&rarr;</span></a>
+          <a class="btn" href="https://github.com/bendourthe/Nexus-Hub" target="_blank" rel="noopener">Nexus-Hub on GitHub</a>
+        </p>
+        <p class="sub" style="margin-top:10px">The "Open the Nexus-Hub guide" link assumes the two guides sit in sibling project folders on your machine; adjust the path if you deploy them elsewhere.</p>
+      </div>
+
+      <div class="progress" data-progress></div>
+      <div class="pagenav" data-pagenav></div>
+    </div>
+  </section>
+
+  <!-- ===================== REFERENCE ===================== -->
+  <section class="page" id="page-reference" data-page="reference">
+    <div class="container">
+      <span class="eyebrow">Reference</span>
+      <h2 class="page-title">Commands, settings, and troubleshooting</h2>
+
+      <div class="grid grid-2" style="align-items:start">
+        <div class="card">
+          <h3 style="margin-top:0">CLI cheat sheet</h3>
+          <table class="tbl" style="margin:0">
+            <tr><td><code>nexus skills sync</code></td><td>Sync the Nexus-Hub harness</td></tr>
+            <tr><td><code>nexus skills list</code></td><td>List active skills</td></tr>
+            <tr><td><code>nexus memory audit</code></td><td>Inspect memory</td></tr>
+            <tr><td><code>nexus memory export</code></td><td>Export memory to JSONL</td></tr>
+            <tr><td><code>nexus check</code></td><td>Deterministic source checks</td></tr>
+            <tr><td><code>nexus doctor</code></td><td>Read-only state inventory</td></tr>
+            <tr><td><code>nexus image / video</code></td><td>Pipeline helpers</td></tr>
+          </table>
+        </div>
+        <div class="card">
+          <h3 style="margin-top:0">Key settings</h3>
+          <table class="tbl" style="margin:0">
+            <tr><td><code>nexus.llm.backend</code></td><td>ollama / lmstudio / auto</td></tr>
+            <tr><td><code>nexus.coding.editMode</code></td><td>ask / auto / plan</td></tr>
+            <tr><td><code>nexus.diffusion.tierOverride</code></td><td>Force a hardware tier</td></tr>
+            <tr><td><code>nexus.operationLog.enabled</code></td><td>Opt-in tool-call log</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <section class="section">
+        <h2 style="font-size:22px">Quick troubleshooting</h2>
+        <div class="grid grid-3">
+          <div class="card"><h3 style="margin-top:0">GPU not detected</h3><p>Check your CUDA / Metal / ROCm install, then re-run detection. Nexus falls back to CPU but warns you it will be slow.</p></div>
+          <div class="card"><h3 style="margin-top:0">Generation out of memory</h3><p>Lower the diffusion tier with <code>nexus.diffusion.tierOverride</code>, or pick a smaller model / resolution. The model status dock shows free VRAM live.</p></div>
+          <div class="card"><h3 style="margin-top:0">Model feels weak</h3><p>Use plan mode, keep verification on, and let memory warm up. The harness is what lifts a small model - lean on it.</p></div>
+        </div>
+      </section>
+
+      <div class="callout">
+        <h3>About this guide</h3>
+        <p>A single self-contained HTML file - all styles and scripts inline, no network requests, honoring reduced motion. It shares the color scheme and dynamic constellation background of the <a href="../../../Nexus-Hub/guides/interactive-guide/nexus-hub-guide.html">Nexus-Hub interactive guide</a>. Source of truth for everything here is the project <a href="https://github.com/bendourthe/Nexus-AI" target="_blank" rel="noopener">README and docs</a>.</p>
+      </div>
+
+      <div class="progress" data-progress></div>
+      <div class="pagenav" data-pagenav></div>
+    </div>
+  </section>
+
+  </main>
+
+  <footer class="foot">
+    <div class="container">Nexus - Your Local AI Studio &middot; local-first, zero tokens billed &middot; <a href="https://github.com/bendourthe/Nexus-AI" target="_blank" rel="noopener">github.com/bendourthe/Nexus-AI</a></div>
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var REDUCE = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  var PAGES = [
+    { id: "home",      title: "Home" },
+    { id: "install",   title: "Install & setup" },
+    { id: "coding",    title: "Agentic coding" },
+    { id: "media",     title: "Image & video" },
+    { id: "chat",      title: "Chat & memory" },
+    { id: "harness",   title: "The harness" },
+    { id: "reference", title: "Reference" }
+  ];
+  var current = "home";
+
+  function pageIndex(id) {
+    for (var i = 0; i < PAGES.length; i++) { if (PAGES[i].id === id) return i; }
+    return 0;
+  }
+
+  function renderPageNav(idx) {
+    var prev = idx > 0 ? PAGES[idx - 1] : null;
+    var next = idx < PAGES.length - 1 ? PAGES[idx + 1] : null;
+    var html = "";
+    html += prev
+      ? '<a class="prev" data-go="' + prev.id + '"><span class="pn-k">Previous</span><span class="pn-t">&larr; ' + prev.title + "</span></a>"
+      : '<a class="prev disabled"><span class="pn-k">Previous</span><span class="pn-t">&larr; Start</span></a>';
+    html += next
+      ? '<a class="next" data-go="' + next.id + '"><span class="pn-k">Next</span><span class="pn-t">' + next.title + " &rarr;</span></a>"
+      : '<a class="next disabled"><span class="pn-k">Next</span><span class="pn-t">Done &#10003;</span></a>';
+    var holders = document.querySelectorAll("#page-" + PAGES[idx].id + " [data-pagenav]");
+    for (var i = 0; i < holders.length; i++) { holders[i].innerHTML = html; }
+  }
+
+  function renderProgress(idx) {
+    var dots = "";
+    for (var i = 0; i < PAGES.length; i++) {
+      dots += '<i class="' + (i === idx ? "on" : "") + '" data-go="' + PAGES[i].id + '" title="' + PAGES[i].title + '"></i>';
+    }
+    var holder = document.querySelector("#page-" + PAGES[idx].id + " [data-progress]");
+    if (holder) holder.innerHTML = dots;
+  }
+
+  function show(id) {
+    var idx = pageIndex(id);
+    id = PAGES[idx].id;
+    current = id;
+    var pages = document.querySelectorAll(".page");
+    for (var i = 0; i < pages.length; i++) {
+      pages[i].classList.toggle("active", pages[i].id === "page-" + id);
+    }
+    var links = document.querySelectorAll(".nav-links a[data-go]");
+    for (var j = 0; j < links.length; j++) {
+      links[j].classList.toggle("active", links[j].getAttribute("data-go") === id);
+    }
+    renderPageNav(idx);
+    renderProgress(idx);
+    window.scrollTo(0, 0);
+    var nl = document.getElementById("navLinks");
+    if (nl) nl.classList.remove("open");
+    document.body.setAttribute("data-page", id);
+    if (constel) {
+      if (id === "home") { canvas.style.opacity = "0.55"; constel.start(); }
+      else { canvas.style.opacity = "0.16"; constel.stop(); }
+    }
+  }
+
+  function go() {
+    var id = (location.hash || "#home").replace("#", "");
+    if (pageIndex(id) === 0 && id !== "home") { id = "home"; }
+    show(id);
+  }
+
+  /* delegated navigation */
+  document.addEventListener("click", function (e) {
+    var t = e.target;
+    while (t && t !== document.body) {
+      if (t.getAttribute && t.getAttribute("data-go")) {
+        e.preventDefault();
+        var id = t.getAttribute("data-go");
+        if (location.hash !== "#" + id) { location.hash = id; } else { show(id); }
+        return;
+      }
+      t = t.parentNode;
+    }
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.target && e.target.classList && e.target.classList.contains("brand") && (e.key === "Enter" || e.key === " ")) {
+      location.hash = "home";
+    }
+  });
+  window.addEventListener("hashchange", go);
+  var navToggle = document.getElementById("navToggle");
+  if (navToggle) {
+    navToggle.addEventListener("click", function () {
+      var nl = document.getElementById("navLinks");
+      if (nl) nl.classList.toggle("open");
+    });
+  }
+
+  /* -------------------------------------------------- constellation background */
+  var canvas = document.getElementById("constellation");
+  var constel = null;
+  if (canvas && canvas.getContext) {
+    constel = (function () {
+      var ctx = canvas.getContext("2d");
+      var w, h, dpr, nodes, raf = null, running = false;
+      function resize() {
+        dpr = Math.min(window.devicePixelRatio || 1, 2);
+        w = canvas.width = Math.floor(window.innerWidth * dpr);
+        h = canvas.height = Math.floor(window.innerHeight * dpr);
+        canvas.style.width = window.innerWidth + "px";
+        canvas.style.height = window.innerHeight + "px";
+      }
+      function build() {
+        var count = Math.max(18, Math.min(46, Math.floor(window.innerWidth / 34)));
+        nodes = [];
+        for (var i = 0; i < count; i++) {
+          nodes.push({
+            x: Math.random() * w, y: Math.random() * h,
+            vx: (Math.random() - 0.5) * 0.16 * dpr,
+            vy: (Math.random() - 0.5) * 0.16 * dpr
+          });
+        }
+      }
+      function frame(advance) {
+        ctx.clearRect(0, 0, w, h);
+        var maxd = 150 * dpr;
+        for (var i = 0; i < nodes.length; i++) {
+          var n = nodes[i];
+          if (advance) {
+            n.x += n.vx; n.y += n.vy;
+            if (n.x < 0 || n.x > w) n.vx *= -1;
+            if (n.y < 0 || n.y > h) n.vy *= -1;
+          }
+          for (var j = i + 1; j < nodes.length; j++) {
+            var m = nodes[j], dx = n.x - m.x, dy = n.y - m.y, d = Math.sqrt(dx * dx + dy * dy);
+            if (d < maxd) {
+              ctx.globalAlpha = (1 - d / maxd) * 0.45;
+              ctx.strokeStyle = "#38bdf8";
+              ctx.lineWidth = 0.6 * dpr;
+              ctx.beginPath(); ctx.moveTo(n.x, n.y); ctx.lineTo(m.x, m.y); ctx.stroke();
+            }
+          }
+        }
+        ctx.globalAlpha = 0.85;
+        for (var k = 0; k < nodes.length; k++) {
+          ctx.fillStyle = "#7dd3fc";
+          ctx.beginPath(); ctx.arc(nodes[k].x, nodes[k].y, 1.5 * dpr, 0, 6.2832); ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      }
+      function loop() { frame(true); raf = window.requestAnimationFrame(loop); }
+      resize(); build();
+      window.addEventListener("resize", function () { resize(); build(); if (!running && !REDUCE) frame(false); });
+      return {
+        start: function () {
+          if (running) return;
+          running = true;
+          if (REDUCE) { frame(false); }
+          else { loop(); }
+        },
+        stop: function () {
+          running = false;
+          if (raf) { window.cancelAnimationFrame(raf); raf = null; }
+        }
+      };
+    })();
+  }
+
+  /* -------------------------------------------------- boot */
+  go();
+})();
+</script>
+</body>
+</html>
