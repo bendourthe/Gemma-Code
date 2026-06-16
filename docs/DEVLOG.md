@@ -4,6 +4,30 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-06-15] v1.6.0 Phase 3 -- Session-State Artifact Dehydration/Hydration (A1 / AS005)
+
+### Goal
+
+Implement Phase 3 of the [aisuite-harness adoption plan](versions/v1/v1.6.0/plans/adoption-aisuite-harness.md): store large session message fields out-of-line and rehydrate them on resume, the local-only analogue of aisuite's artifact-store dehydration (comparison Section 3.5: "large message fields (>20KB) are dehydrated to an artifact store and rehydrated on load"). Nexus already had the byte-cap + command-output compressor pieces but kept every captured stdout / diff / patch inline in the persisted session, so resumed sessions carried the full weight of every field. Local-only, zero-outbound, no new dependency.
+
+### What changed
+
+**Content-addressed artifact store ([core/memory/ArtifactStore.ts](../core/memory/ArtifactStore.ts)).** A synchronous file store rooted at `<nexusHome>/session-artifacts/`. `put(text)` runs the payload through [core/observability/redactSecrets.ts](../core/observability/redactSecrets.ts) **before** hashing, so the SHA-256 key (and the stored bytes) are of the redacted text and a captured secret never reaches disk. Identical content dedupes to one file (content-addressing); writes are atomic (temp + rename). `get(ref)` validates the key against a 64-hex regex (no path traversal) and returns `null` for a missing / malformed ref rather than throwing, so a pruned blob degrades a resume gracefully. This mirrors the `CommandCompressor` tee discipline (`crypto` + `fs` only, no new dependency).
+
+**Dehydrate / hydrate ([core/memory/sessionArtifacts.ts](../core/memory/sessionArtifacts.ts)).** `dehydrateMessages` replaces any message string above a configurable threshold (default 20KB) with a `{ nexusArtifact, artifact_ref, preview, kind, bytes }` marker; the inline preview is redacted, whitespace-collapsed, and truncated to 200 chars. `hydrateMessages` resolves markers back to full content, falling back to the inline preview if the artifact is missing. Both are idempotent (markers pass through dehydrate; plain strings pass through hydrate -- the latter is the tolerant read path for pre-migration sessions). `kind` is inferred from content (diff / patch / stderr / content), since the Coding-pillar session persists each turn as an opaque string rather than a record with named fields (documented mapping note in the module).
+
+**One-way migration ([core/memory/migrateSessionsDehydrate.ts](../core/memory/migrateSessionsDehydrate.ts) + [scripts/migrate-sessions-dehydrate.mjs](../scripts/migrate-sessions-dehydrate.mjs)).** Mirroring the `migrateDenseToPruned` discipline: the algorithm lives in `core/` (unit-testable), the `.mjs` is a thin argv/print runner over the compiled output. It reads a `sessions.json`, dehydrates over-threshold fields, bumps the schema `version` 1->2, and backs up the original (`sessions.backup-<ts>.json`). Idempotent (a v2 file is `already-migrated`); operates on the generic on-disk JSON shape so it stays decoupled from the sidecar's `PersistedSession` type and preserves every other field verbatim.
+
+**Sidecar wiring ([desktop/sidecar/src/coding/sessionStore.ts](../desktop/sidecar/src/coding/sessionStore.ts)).** `JsonFileSessionStore` now dehydrates on `_persist` and hydrates on `_load`, purely at the disk I/O boundary. The in-memory `_sessions` map and the public `messages: string[]` surface always carry full text, so neither `CodingSessionManager` nor the IPC contract changed. The artifact store defaults to a `session-artifacts` directory next to the sessions file (so production lands under `<nexusHome>/`), with both the store and the threshold injectable for tests. A pre-v2 file (all inline strings) loads unchanged.
+
+### Verification
+
+[tests/unit/core/memory/ArtifactStore.test.ts](../tests/unit/core/memory/ArtifactStore.test.ts) (7: put/get round-trip, content-addressing dedupe, redaction-never-on-disk, missing/malformed-ref null, `has`), [tests/unit/core/memory/sessionArtifacts.test.ts](../tests/unit/core/memory/sessionArtifacts.test.ts) (12: threshold gating, marker round-trip, idempotence, missing-artifact preview fallback, redacted/collapsed/truncated preview, `classifyKind`, the type guard), [tests/unit/core/memory/migrateSessionsDehydrate.test.ts](../tests/unit/core/memory/migrateSessionsDehydrate.test.ts) (7: dehydrate + version bump + shrink, backup / skipBackup, idempotent already-migrated, no-input on missing/corrupt, non-message-field preservation), the sidecar end-to-end test [desktop/tests/coding-session-dehydration.test.ts](../desktop/tests/coding-session-dehydration.test.ts) (4: out-of-line round-trip on resume, pre-migration v1 load, secret-never-on-disk, small-message stays inline -- plus the 5 pre-existing resume tests still green), and the size-delta benchmark [tests/integration/session-state/dehydration-size.test.ts](../tests/integration/session-state/dehydration-size.test.ts) (writes a deterministic results fixture and asserts the dehydrated persisted JSON is a small fraction of the inline size).
+
+`tsc -b` clean; desktop `tsc --noEmit` clean; `npm run lint` (+ desktop eslint) 0 errors; `npm run check-architecture` 0 errors (core never imports modules); `npm run check:tampering` 0 findings; new-module coverage **97.81% lines / 91.66% branches / 100% functions** (above the 80 / 75 / 80 gates); root suite **4155 passed / 5 skipped** (the only 2 reds are pre-existing wall-clock latency budgets -- `HybridRetriever` p99 and the `MemoryConsolidator` 10K-event stress -- that pass cleanly in isolation and never touch this path; they fail only under the saturated full-suite + coverage run); desktop suite **449 passed / 0 failed**. No outbound call, no new dependency, no new credential.
+
+---
+
 ## [2026-06-15] v1.6.0 Phase 2 -- Standalone Shareable Session/Trace Viewer (A4 / AS004)
 
 ### Goal

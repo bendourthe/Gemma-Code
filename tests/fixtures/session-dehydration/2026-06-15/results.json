@@ -1,0 +1,13 @@
+{
+  "runAt": "2026-06-15",
+  "turns": 4,
+  "fieldsDehydrated": 3,
+  "thresholdBytes": 20480,
+  "inlinePersistedBytes": 151786,
+  "dehydratedPersistedBytes": 1086,
+  "sizeRatio": 0.0072,
+  "sizeReductionPercent": "99.28%",
+  "stabilityGate": {
+    "sizeRatioMax": 0.5
+  }
+}
