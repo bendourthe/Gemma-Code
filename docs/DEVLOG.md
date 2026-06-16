@@ -4,6 +4,28 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-06-15] v1.6.0 Phase 1 (FINAL sub-task) -- Nexus-AI Interactive Guide Offline-Integrity Test (AS003)
+
+### Goal
+
+Close Phase 1 of the [aisuite-harness adoption plan](versions/v1/v1.6.0/plans/adoption-aisuite-harness.md). The H1 interactive guide ([guides/interactive-guide/nexus-ai-guide.html](../guides/interactive-guide/nexus-ai-guide.html)) shipped earlier (AS001 + AS002): a single self-contained 7-page user guide with the shared `:root` design tokens and the constellation canvas. The one open item was AS003 -- a CI guard for the Phase 1 Stability Gate (opens offline, zero outbound requests, reduced motion renders a static frame).
+
+### What changed
+
+**AS003 -- offline-integrity + reduced-motion test.** New [tests/unit/guides/nexus-ai-guide.offline.test.ts](../tests/unit/guides/nexus-ai-guide.offline.test.ts) (18 cases). It parses the real guide with the existing `node-html-parser` dependency (no new dependency, no browser harness) and asserts:
+
+- **No remote asset references.** A DOM-aware `findRemoteAssetRefs` scans only the positions a browser fetches on load -- `src` (script/img/iframe/embed/audio/video/source/track/input), `href` on `<link>` only, `srcset`, `poster`, `object[data]`, and CSS `url()` / `@import` in `<style>` blocks and inline `style`. `data:` URIs are inline and allowed (the favicon), and navigational `<a href>` to a remote origin is not an asset (the guide's GitHub links and the `git clone https://...` terminal text are correctly not flagged). Positive controls (remote `<script src>`, stylesheet `<link>`, protocol-relative, `@font-face`, `srcset`) and negative controls (anchor href, `data:`, `url(#fragment)`, plain text) guard the checker so a vacuous pass cannot slip through.
+- **Constellation canvas present.** `#constellation` exists, is a `<canvas>`, and is `aria-hidden`.
+- **Reduced motion does not animate.** The boot script reads `matchMedia("(prefers-reduced-motion: reduce)")` into `REDUCE`; the sole `requestAnimationFrame` lives inside `loop()`, and `start()` takes the `frame(false)` static-frame branch when `REDUCE` is true (and the resize handler is `!running && !REDUCE`), so the loop is unreachable under reduced motion.
+
+AS003 runs in CI through the existing `test-ts` job (the `tests/unit/**` glob); no new workflow job or npm script was added.
+
+### Verification
+
+`npm run lint` 0 errors; `npm run check:tampering` 0 findings; root suite **4098 passed / 5 skipped / 0 failed** (+18); coverage **87.18% lines / 83.02% branches / 90.6% functions**, above the 80 / 75 / 80 gates. The test file imports no covered source, so coverage is unchanged by construction. One transparency note recorded in the new [v1.6.0 known-gaps](versions/v1/v1.6.0/known-gaps.md) (`AS003.P1.A`): the reduced-motion guarantee is verified by static analysis of the boot script rather than a live browser render, because the project ships no browser-e2e harness and adding Playwright for one static file is disproportionate. No outbound call introduced.
+
+---
+
 ## [2026-06-15] v1.5.0 Phase 7 (FINAL) -- Nexus-Hub Sync + 6-Surface Integration + Acceptance Gate
 
 ### Goal

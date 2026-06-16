@@ -26,7 +26,7 @@ This plan is derived from the single-source aisuite comparison ([../comparison-a
 Phase sequencing follows the comparison's Section 5.4 reverse-engineer-first ordering. There is no `skill-native` or `vendor-intrinsic` work this cycle (the cloud surface is dropped), so all five phases are `re-full` local builds. The user-directed **H1** is sequenced first because it is the highest stated priority and because it establishes the shared design-token stylesheet that **A4** (the exportable session viewer) reuses. The `drop-outright` items (D1-D4) are recorded in the Out-of-Scope appendix and never implemented.
 
 **Definition of pass (whole-plan acceptance gate, verified in the final phase):**
-1. **[DELIVERED 2026-06-14]** H1 interactive guide is built at [guides/interactive-guide/nexus-ai-guide.html](../../../../../guides/interactive-guide/nexus-ai-guide.html) -- a self-contained, offline **user guide** (7 pages: positioning, install/setup, per-pillar usage for Coding/Image/Video/Chat, and Nexus-Hub harness links) with the constellation canvas and shared `:root` design tokens. Verified self-contained (no remote assets, no network). Only AS003 (the offline-integrity test) remains to fully close the phase.
+1. **[DELIVERED 2026-06-15]** H1 interactive guide is built at [guides/interactive-guide/nexus-ai-guide.html](../../../../../guides/interactive-guide/nexus-ai-guide.html) -- a self-contained, offline **user guide** (7 pages: positioning, install/setup, per-pillar usage for Coding/Image/Video/Chat, and Nexus-Hub harness links) with the constellation canvas and shared `:root` design tokens. Verified self-contained (no remote assets, no network) by the AS003 offline-integrity test ([tests/unit/guides/nexus-ai-guide.offline.test.ts](../../../../../tests/unit/guides/nexus-ai-guide.offline.test.ts)). Phase 1 fully closed 2026-06-15.
 2. A4 exports a self-contained HTML session/trace viewer reusing H1's tokens and `InteractiveArtifact` sanitisation; opening it offline shows the trace timeline.
 3. A1 dehydrates large session fields out-of-line and rehydrates them on resume; a one-way migration tolerates pre-migration sessions.
 4. A2 renders planner -> worker -> critic sub-runs as a nested tree in the trace dashboard and in A4's export.
@@ -51,7 +51,7 @@ Phase sequencing follows the comparison's Section 5.4 reverse-engineer-first ord
 
 | Phase | Title | Outcome |
 |-------|-------|---------|
-| 1 | Nexus-AI interactive HTML guide (H1) -- **delivered** | Self-contained, offline **user guide** (install/setup + per-pillar usage + harness links) with constellation background + shared design tokens; only AS003 test remains |
+| 1 | Nexus-AI interactive HTML guide (H1) -- **complete** | Self-contained, offline **user guide** (install/setup + per-pillar usage + harness links) with constellation background + shared design tokens; AS003 offline-integrity + reduced-motion test closed 2026-06-15 |
 | 2 | Standalone shareable session/trace viewer (A4) | Portable HTML export of a session trace, reusing H1's tokens + sanitisation |
 | 3 | Session-state artifact dehydration/hydration (A1) | Large session fields stored out-of-line + rehydrated on resume |
 | 4 | Hierarchical sub-run trace nesting (A2) | Swarm planner/worker/critic topology legible in the dashboard + A4 export |
@@ -65,7 +65,7 @@ Phase sequencing follows the comparison's Section 5.4 reverse-engineer-first ord
 **Goal**: Deliver a self-contained, offline interactive guide for Nexus-AI that adopts the Nexus-Hub interactive-guide design system (color scheme + dynamic constellation background), establishing the shared design-token stylesheet that Phase 2 reuses.
 **Prerequisites**: None.
 **Stability Gate**: The file opens offline with no network requests (verify in browser devtools: zero outbound); no `<script src>` to a remote origin; no remote `@font-face`/CSS; honors `prefers-reduced-motion` (constellation renders one static frame); passes the `InteractiveArtifact` sanitisation rules (no `on*` handlers beyond the self-contained boot script, no `javascript:` URLs).
-**Status**: DELIVERED 2026-06-14 (AS001 + AS002 done; the built guide is a 7-page user guide that supersedes the original overview scope below). AS003 (offline-integrity test) is the only open item.
+**Status**: COMPLETE 2026-06-15 (AS001 + AS002 delivered 2026-06-14; the built guide is a 7-page user guide that supersedes the original overview scope below). AS003 (offline-integrity + reduced-motion test) closed 2026-06-15.
 
 ### Sub-tasks
 
@@ -109,7 +109,7 @@ Phase sequencing follows the comparison's Section 5.4 reverse-engineer-first ord
 
 #### 1.3 -- Testing and stabilization (Phase 1)
 
-- [ ] AS003 Add an offline-integrity check + reduced-motion test for the guide
+- [x] AS003 Add an offline-integrity check + reduced-motion test for the guide -- **done 2026-06-15**: [tests/unit/guides/nexus-ai-guide.offline.test.ts](../../../../../tests/unit/guides/nexus-ai-guide.offline.test.ts) (18 cases) asserts no remote asset references (DOM-aware via node-html-parser, so anchor hrefs, `data:` URIs, and plain-text URLs are not flagged), the constellation canvas is present, and reduced-motion renders one static frame (the lone `requestAnimationFrame` is unreachable when `REDUCE` is true). Runs in CI through the existing `test-ts` job; positive and negative controls guard the checker itself.
 
 **Prompt**:
 > Add a lightweight test (or a `scripts/` check) that asserts `guides/interactive-guide/nexus-ai-guide.html` contains no remote asset references (`http(s)://` in `src`/`href`/`@font-face`/`url()` except in-page anchors), and a Playwright/e2e smoke that loads the file, confirms the constellation canvas is present, and confirms reduced-motion mode renders without an animation loop. Acceptance: checks pass in CI. Effort: Low. Risk: Low.
