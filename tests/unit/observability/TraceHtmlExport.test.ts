@@ -35,6 +35,8 @@ function span(overrides: Partial<Span> & Pick<Span, "spanId" | "name" | "kind">)
     status: "ok",
     attributes: {},
     events: [],
+    groupId: null,
+    parentRunId: null,
     ...overrides,
   };
 }

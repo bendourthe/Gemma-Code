@@ -2,7 +2,7 @@ import type { OllamaClient, OllamaOptions, OllamaToolDefinition } from "../llm/t
 import type { MemoryStore } from "../../../src/storage/MemoryStore.js";
 import type { PostMessageFn } from "../chat/StreamingPipeline.js";
 import type { SubAgentConfig, SubAgentResult, SubAgentType } from "./types.js";
-import type { SubAgentSpawner } from "./SubAgentSpawner.types.js";
+import type { SubAgentSpawner, SubAgentTraceContext } from "./SubAgentSpawner.types.js";
 import type { WorktreeManager, WorktreeHandle } from "./WorktreeManager.js";
 import { buildSubAgentContextMessage } from "./SubAgentPrompts.js";
 import { PromptBuilder } from "../chat/PromptBuilder.js";
@@ -210,15 +210,20 @@ export class SubAgentManager implements SubAgentSpawner {
     this._personaLoader = loader;
   }
 
-  async run(config: SubAgentConfig, postMessage: PostMessageFn, parentTraceId?: string, parentSpanId?: string): Promise<SubAgentResult> {
+  async run(config: SubAgentConfig, postMessage: PostMessageFn, trace?: SubAgentTraceContext): Promise<SubAgentResult> {
     const tracer = this._tracer;
-    const traceId = parentTraceId || tracer.startTrace();
+    const traceId = trace?.parentTraceId || tracer.startTrace();
+    // v1.6.0 Phase 4 (A2): when the swarm orchestrator supplies a group + parent
+    // run, stamp them on this sub-run's root span so the dashboard / export can
+    // nest planner -> worker -> critic. Absent (the ReAct path), both stay null
+    // and the span renders flat exactly as before.
     const subAgentSpanId = tracer.startSpan(
       traceId,
       `sub_agent_${config.type}`,
       "sub_agent",
-      parentSpanId,
+      trace?.parentSpanId,
       { agentType: config.type, maxIterations: config.maxIterations },
+      { groupId: trace?.groupId ?? null, parentRunId: trace?.parentRunId ?? null },
     );
 
     postMessage({
@@ -436,6 +441,7 @@ export class SubAgentManager implements SubAgentSpawner {
         toolCallCount,
         iterationsUsed,
         error: hadError ? errorText : undefined,
+        runId: subAgentSpanId || undefined,
       };
     } catch (err) {
       const errorMessage = formatForUser(err);
@@ -456,6 +462,7 @@ export class SubAgentManager implements SubAgentSpawner {
         toolCallCount: 0,
         iterationsUsed: 0,
         error: errorMessage,
+        runId: subAgentSpanId || undefined,
       };
     } finally {
       // v1.4.0 Phase 6 (A10): remove the isolation worktree when the sub-agent
@@ -582,6 +589,7 @@ export class SubAgentManager implements SubAgentSpawner {
         toolCallCount: result.toolCallCount,
         iterationsUsed: 0,
         error: result.error,
+        runId: spanId || undefined,
       };
     } catch (err) {
       const errorMessage = formatForUser(err);
@@ -599,6 +607,7 @@ export class SubAgentManager implements SubAgentSpawner {
         toolCallCount: 0,
         iterationsUsed: 0,
         error: errorMessage,
+        runId: spanId || undefined,
       };
     }
   }

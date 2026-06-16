@@ -22,6 +22,8 @@ function makeSpan(overrides?: Partial<Span>): Span {
     status: "ok",
     attributes: { toolName: "read_file", success: true },
     events: [],
+    groupId: null,
+    parentRunId: null,
     ...overrides,
   };
 }

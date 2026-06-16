@@ -60,4 +60,10 @@ export interface SubAgentResult {
   readonly toolCallCount: number;
   readonly iterationsUsed: number;
   readonly error?: string;
+  /**
+   * v1.6.0 Phase 4 (A2) -- the id of this sub-run's root span (when tracing is
+   * active), so a caller (the swarm DAGExecutor) can nest a follow-on critic
+   * run under it. Undefined when tracing is disabled.
+   */
+  readonly runId?: string;
 }

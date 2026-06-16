@@ -85,6 +85,8 @@ export interface OrchestratorBuildDeps {
   readonly postMessage: (msg: ExtensionToWebviewMessage) => void;
   /** v1.5.0 Phase 4 (item 36): opt-in swarm orchestration (worktree-isolated workers + critic gate). Default off. */
   readonly swarmEnabled?: boolean;
+  /** v1.6.0 Phase 4 (A2): shared tracer so planner/worker/critic sub-runs nest in one trace. */
+  readonly tracer?: Tracer;
 }
 
 export interface AgentLoopBuildDeps {
@@ -230,6 +232,7 @@ export class ChatController {
       memoryStore: deps.memoryStore,
       postMessage: deps.postMessage,
       swarmEnabled: deps.swarmEnabled,
+      ...(deps.tracer ? { tracer: deps.tracer } : {}),
     });
   }
 

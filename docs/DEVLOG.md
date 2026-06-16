@@ -4,6 +4,30 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-06-15] v1.6.0 Phase 4 -- Hierarchical Sub-Run Trace Nesting (A2 / AS006)
+
+### Goal
+
+Implement Phase 4 of the [aisuite-harness adoption plan](versions/v1/v1.6.0/plans/adoption-aisuite-harness.md): make the v1.5.0 swarm topology legible by rendering planner -> worker -> critic sub-runs as a nested tree in the Trace Dashboard and in the Phase 2 A4 export (comparison item A2). The pieces existed but were disconnected -- `SubAgentManager.run` accepted a `parentTraceId`/`parentSpanId` that no swarm caller ever passed, so each worker dispatched its own standalone single-span trace, and both renderers laid spans out as a flat start-time list. The swarm was invisible. Additive, local-only, falls back to the flat timeline for any trace lacking the new fields.
+
+### What changed
+
+**Additive schema + new kind ([modules/coding/observability/TraceStore.ts](../modules/coding/observability/TraceStore.ts)).** Two nullable columns -- `group_id` (one swarm dispatch) and `parent_run_id` (the parent run, a span id) -- added to the `spans` table, both in the `CREATE TABLE` (fresh stores) and via an idempotent `PRAGMA table_info`-guarded `ALTER TABLE` migration so a pre-Phase-4 DB backfills them as null. `startSpan` takes an optional `SpanNesting` and the `Span` type carries `groupId`/`parentRunId`. A new `critic` `SpanKind` represents a critic review.
+
+**Shared nesting helper ([modules/coding/observability/spanNesting.ts](../modules/coding/observability/spanNesting.ts)).** `flattenSpanForest(spans)` is a pure function returning a pre-ordered, depth-annotated list nested by `parentRunId` -- with a flat start-time fallback when no span carries run-nesting metadata (so the legacy timeline is preserved byte-for-byte), plus guards for cycles, self-references, and parents that live in another trace. Both the dashboard and the A4 export consume it so the two surfaces lay the tree out identically.
+
+**Swarm stamping ([modules/coding/orchestration/Orchestrator.ts](../modules/coding/orchestration/Orchestrator.ts) + [DAGExecutor.ts](../modules/coding/orchestration/DAGExecutor.ts) + [modules/coding/agents/SubAgentManager.ts](../modules/coding/agents/SubAgentManager.ts)).** The orchestrator (now given the shared `Tracer`) opens one trace + `groupId` per `execute()`, gated on `tracer.enabled` so the default / ReAct path is unchanged, and reuses the trace's auto-created root span as the planner run. It threads a `SwarmTraceContext` into each `DAGExecutor`, which stamps every worker run (`parentRunId`=planner, `groupId`) and emits a `critic` span nested under the worker run it reviews (status `ok`/`error` by the verdict). `SubAgentManager.run` now takes a `SubAgentTraceContext` (consolidating the dormant positional `parentTraceId`/`parentSpanId`) and returns its `runId` so the critic can nest beneath it.
+
+**Depth-indented render (both surfaces).** [src/panels/TraceDashboardPanel.ts](../src/panels/TraceDashboardPanel.ts) computes the forest and sends depth-annotated spans; the [webview](../src/panels/webview/traceDashboard.ts) indents the waterfall label by depth and colors the `critic` bar. The A4 [TraceHtmlExport.ts](../modules/coding/observability/TraceHtmlExport.ts) renders each span with a `--depth` indent via the same helper, and the vscode-free [TraceDbReader.ts](../modules/coding/observability/TraceDbReader.ts) reads the new columns, probing the live schema so a pre-migration DB still exports (flat).
+
+### Verification
+
+[spanNesting.test.ts](../tests/unit/observability/spanNesting.test.ts) (9: flat fallback + no-mutation, nested planner/worker/critic depths, sibling ordering, orphan-parent, cycle + self-reference guards, empty), [TraceStore.nesting.test.ts](../tests/unit/observability/TraceStore.nesting.test.ts) (5: persist/read-back, null defaults, `critic` kind, pre-Phase-4 migration backfill + post-migration write, idempotent re-open), [TraceHtmlExport.nesting.test.ts](../tests/unit/observability/TraceHtmlExport.nesting.test.ts) (2: depth-indented nested render, flat fallback), [SubAgentManager.nesting.test.ts](../tests/unit/agents/SubAgentManager.nesting.test.ts) (3: stamps group/parent-run + returns `runId`, joins the parent trace, null on the context-free path), [Orchestrator.swarmTrace.test.ts](../tests/unit/orchestration/Orchestrator.swarmTrace.test.ts) (2: stamps each sub-run with the group + planner run, no context when no tracer), [DAGExecutor.swarmTrace.test.ts](../tests/unit/orchestration/DAGExecutor.swarmTrace.test.ts) (3: worker + critic nest in one trace, critic span errored on rejection, no critic span on the default path).
+
+`tsc -b` clean; `npm run lint` 0 errors; `npm run check-architecture` 0 errors (10 pre-existing warnings, none from the new files); `npm run check:tampering` 0 findings; root suite **4181 passed / 5 skipped / 0 failed**; coverage on changed files -- spanNesting **100% lines / 96.3% branches / 100% functions**, TraceStore 97.9% / 84.8%, TraceHtmlExport 100% / 90.9%, TraceDbReader 98.4% / 88.9%, Tracer 99.1% / 96.1%, DAGExecutor 97.1% / 91.1%, Orchestrator 99.4% / 85.4%. No outbound call, no new dependency, no new credential; changes confined to `modules/coding` + `src/panels` (desktop workspace untouched).
+
+---
+
 ## [2026-06-15] v1.6.0 Phase 3 -- Session-State Artifact Dehydration/Hydration (A1 / AS005)
 
 ### Goal

@@ -14,7 +14,31 @@ export type SpanKind =
   | "sub_agent"
   | "planning"
   | "reflexion"
+  // v1.6.0 Phase 4 (A2) -- a critic review gating a worker sub-run's output,
+  // emitted by the swarm orchestrator. Nests under the worker run it reviews.
+  | "critic"
   | "custom";
+
+/**
+ * v1.6.0 Phase 4 (A2) -- additive run-nesting identifiers, used to make the
+ * swarm topology (planner -> worker -> critic) legible across runs. Both
+ * default to null; legacy traces and every non-swarm span leave them unset, so
+ * the dashboard and the A4 export fall back to the flat timeline unchanged.
+ */
+export interface SpanNesting {
+  /**
+   * Shared id for one swarm dispatch -- every sub-run (planner, workers,
+   * critics) of a single orchestrated `execute()` carries the same value.
+   */
+  readonly groupId?: string | null;
+  /**
+   * The id of the parent *run* (a span id): a worker records the planner run,
+   * a critic records the worker run it reviews. Distinct from `parentSpanId`
+   * (the within-trace span-tree parent), though they coincide for direct
+   * children of the planner.
+   */
+  readonly parentRunId?: string | null;
+}
 
 export type SpanStatus = "ok" | "error" | "cancelled";
 
@@ -36,6 +60,10 @@ export interface Span {
   readonly status: SpanStatus;
   readonly attributes: Record<string, string | number | boolean>;
   readonly events: SpanEvent[];
+  /** v1.6.0 Phase 4 (A2) -- swarm-dispatch group id (null for non-swarm spans). */
+  readonly groupId: string | null;
+  /** v1.6.0 Phase 4 (A2) -- parent run id for run-tree nesting (null when none). */
+  readonly parentRunId: string | null;
 }
 
 export interface Trace {
@@ -98,6 +126,8 @@ interface SpanRow {
   status: string;
   attributes: string;
   events: string;
+  group_id: string | null;
+  parent_run_id: string | null;
 }
 
 interface CountRow {
@@ -118,6 +148,8 @@ interface PendingInsert {
   readonly spanKind: SpanKind;
   readonly startTime: number;
   attributes: Record<string, string | number | boolean>;
+  readonly groupId: string | null;
+  readonly parentRunId: string | null;
 }
 
 interface PendingUpdate {
@@ -194,7 +226,9 @@ export class TraceStore {
         duration_ms INTEGER,
         status TEXT NOT NULL DEFAULT 'ok',
         attributes TEXT NOT NULL DEFAULT '{}',
-        events TEXT NOT NULL DEFAULT '[]'
+        events TEXT NOT NULL DEFAULT '[]',
+        group_id TEXT,
+        parent_run_id TEXT
       );
 
       CREATE INDEX IF NOT EXISTS idx_spans_trace ON spans(trace_id);
@@ -202,6 +236,35 @@ export class TraceStore {
       CREATE INDEX IF NOT EXISTS idx_spans_kind ON spans(kind);
       CREATE INDEX IF NOT EXISTS idx_spans_start ON spans(start_time);
     `);
+
+    // v1.6.0 Phase 4 (A2): additive migration for trace stores created before
+    // the run-nesting columns existed. CREATE TABLE IF NOT EXISTS above never
+    // rewrites an existing table, so a pre-Phase-4 DB lacks group_id /
+    // parent_run_id; add them idempotently. Existing rows read back as null,
+    // which the renderers treat as "no nesting" (flat fallback).
+    this._migrateNestingColumns();
+
+    this._db.exec(
+      "CREATE INDEX IF NOT EXISTS idx_spans_group ON spans(group_id);",
+    );
+  }
+
+  /**
+   * Idempotently add the v1.6.0 Phase 4 run-nesting columns to an existing
+   * `spans` table. Safe to run on every open: it inspects the live schema and
+   * only issues an ALTER for a column that is genuinely missing.
+   */
+  private _migrateNestingColumns(): void {
+    const cols = this._db
+      .prepare("PRAGMA table_info(spans)")
+      .all() as Array<{ name: string }>;
+    const have = new Set(cols.map((c) => c.name));
+    if (!have.has("group_id")) {
+      this._db.exec("ALTER TABLE spans ADD COLUMN group_id TEXT");
+    }
+    if (!have.has("parent_run_id")) {
+      this._db.exec("ALTER TABLE spans ADD COLUMN parent_run_id TEXT");
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -245,10 +308,13 @@ export class TraceStore {
     kind: SpanKind,
     parentSpanId?: string,
     attributes?: Record<string, string | number | boolean>,
+    nesting?: SpanNesting,
   ): Span {
     const spanId = randomUUID();
     const now = Date.now();
     const attrs = attributes ?? {};
+    const groupId = nesting?.groupId ?? null;
+    const parentRunId = nesting?.parentRunId ?? null;
 
     // Remember the start info in memory so endSpan() does not hit the DB.
     this._liveSpans.set(spanId, { startTime: now, attributes: { ...attrs } });
@@ -262,6 +328,8 @@ export class TraceStore {
       spanKind: kind,
       startTime: now,
       attributes: attrs,
+      groupId,
+      parentRunId,
     });
     this._scheduleFlush(kind === "agent_turn" && parentSpanId === undefined);
 
@@ -277,6 +345,8 @@ export class TraceStore {
       status: "ok",
       attributes: attrs,
       events: [],
+      groupId,
+      parentRunId,
     };
   }
 
@@ -321,7 +391,7 @@ export class TraceStore {
     this._flushScheduled = false;
 
     const insertStmt = this._db.prepare(
-      "INSERT INTO spans (span_id, trace_id, parent_span_id, name, kind, start_time, status, attributes, events) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO spans (span_id, trace_id, parent_span_id, name, kind, start_time, status, attributes, events, group_id, parent_run_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     );
     const updateStmt = this._db.prepare(
       "UPDATE spans SET end_time = ?, duration_ms = ?, status = ?, attributes = ? WHERE span_id = ?",
@@ -340,6 +410,8 @@ export class TraceStore {
             "ok",
             JSON.stringify(op.attributes),
             "[]",
+            op.groupId,
+            op.parentRunId,
           );
         } else {
           updateStmt.run(
@@ -448,7 +520,7 @@ export class TraceStore {
 
     const spanRows = this._db
       .prepare(
-        "SELECT span_id, trace_id, parent_span_id, name, kind, start_time, end_time, duration_ms, status, attributes, events FROM spans WHERE trace_id = ? ORDER BY start_time ASC",
+        "SELECT span_id, trace_id, parent_span_id, name, kind, start_time, end_time, duration_ms, status, attributes, events, group_id, parent_run_id FROM spans WHERE trace_id = ? ORDER BY start_time ASC",
       )
       .all(traceId) as SpanRow[];
 
@@ -537,7 +609,7 @@ export class TraceStore {
     this.flush();
     const rows = this._db
       .prepare(
-        "SELECT span_id, trace_id, parent_span_id, name, kind, start_time, end_time, duration_ms, status, attributes, events FROM spans WHERE trace_id = ? AND kind = ? ORDER BY start_time ASC",
+        "SELECT span_id, trace_id, parent_span_id, name, kind, start_time, end_time, duration_ms, status, attributes, events, group_id, parent_run_id FROM spans WHERE trace_id = ? AND kind = ? ORDER BY start_time ASC",
       )
       .all(traceId, kind) as SpanRow[];
 
@@ -548,7 +620,7 @@ export class TraceStore {
     this.flush();
     const row = this._db
       .prepare(
-        "SELECT span_id, trace_id, parent_span_id, name, kind, start_time, end_time, duration_ms, status, attributes, events FROM spans WHERE span_id = ?",
+        "SELECT span_id, trace_id, parent_span_id, name, kind, start_time, end_time, duration_ms, status, attributes, events, group_id, parent_run_id FROM spans WHERE span_id = ?",
       )
       .get(spanId) as SpanRow | undefined;
 
@@ -608,6 +680,8 @@ export class TraceStore {
       status: row.status as SpanStatus,
       attributes: JSON.parse(row.attributes),
       events: JSON.parse(row.events),
+      groupId: row.group_id,
+      parentRunId: row.parent_run_id,
     };
   }
 }

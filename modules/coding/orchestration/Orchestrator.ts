@@ -7,13 +7,15 @@
  * AgentLoop.
  */
 
+import { randomUUID } from "crypto";
 import type { SubAgentManager } from "../agents/SubAgentManager.js";
 import type { HardwareTierConfig } from "../config/HardwareTier.types.js";
 import type { OllamaClient, OllamaOptions } from "../llm/types.js";
 import type { ExtensionToWebviewMessage } from "../../../src/panels/messages.js";
 import type { MemoryStore } from "../../../src/storage/MemoryStore.js";
+import { Tracer } from "../observability/Tracer.js";
 import { DAGExecutor } from "./DAGExecutor.js";
-import type { DAGExecutionResult } from "./DAGExecutor.js";
+import type { DAGExecutionResult, SwarmTraceContext } from "./DAGExecutor.js";
 import { PlannerAgent } from "./PlannerAgent.js";
 import { ReflexionEngine } from "./ReflexionEngine.js";
 import { CriticAgent } from "./CriticAgent.js";
@@ -50,6 +52,13 @@ export interface OrchestratorConfig {
   readonly swarmEnabled?: boolean;
   /** Optional injection point for tests -- substitute a deterministic critic. */
   readonly critic?: CriticReviewer;
+  /**
+   * v1.6.0 Phase 4 (A2) -- shared tracer (the same instance the SubAgentManager
+   * uses). When wired and enabled, each `execute()` opens one trace + group so
+   * planner -> worker -> critic sub-runs nest in the dashboard / export. When
+   * omitted (or disabled), a no-op tracer is used and behavior is unchanged.
+   */
+  readonly tracer?: Tracer;
 }
 
 export interface OrchestratorResult {
@@ -75,6 +84,8 @@ export class Orchestrator {
   private readonly _isolateWrites: boolean;
   /** v1.5.0 Phase 4: critic that gates worker output before merge (null = off). */
   private readonly _critic: CriticReviewer | null;
+  /** v1.6.0 Phase 4 (A2): shared tracer for swarm-run nesting (no-op when disabled). */
+  private readonly _tracer: Tracer;
   private _maxReplanAttempts = 2;
   private _replanThreshold = 0.3;
 
@@ -103,6 +114,9 @@ export class Orchestrator {
       ? config.critic ??
         new CriticAgent(config.client, config.modelName, config.ollamaOptions)
       : null;
+    // v1.6.0 Phase 4 (A2): a disabled no-op Tracer when none is wired keeps the
+    // swarm-trace path inert (all startTrace/startSpan calls return "").
+    this._tracer = config.tracer ?? new Tracer();
   }
 
   /**
@@ -124,6 +138,13 @@ export class Orchestrator {
     let currentResult: DAGExecutionResult | null = null;
     let completedContext = "";
 
+    // v1.6.0 Phase 4 (A2): open one trace + group for the whole dispatch so the
+    // planner run and every worker/critic sub-run nest together. The trace's
+    // own root span is reused as the planner run (no extra span to manage).
+    // Built only when a real (enabled) tracer is wired; otherwise undefined so
+    // the legacy standalone-per-run tracing is preserved exactly.
+    const swarmTrace = this._buildSwarmTrace();
+
     // Initial planning.
     let dag = await this._plannerAgent.plan(userRequest, codebaseContext);
     allDags.push(dag);
@@ -140,6 +161,7 @@ export class Orchestrator {
         {
           isolateWrites: this._isolateWrites,
           critic: this._critic ?? undefined,
+          ...(swarmTrace ? { swarmTrace } : {}),
         },
       );
 
@@ -232,6 +254,26 @@ export class Orchestrator {
   // -------------------------------------------------------------------------
   // Private
   // -------------------------------------------------------------------------
+
+  /**
+   * v1.6.0 Phase 4 (A2): open the shared swarm trace + group for one
+   * `execute()`. Returns null when tracing is disabled so callers leave the
+   * legacy standalone-per-run path untouched. The trace's auto-created root
+   * span doubles as the planner run that workers nest beneath.
+   */
+  private _buildSwarmTrace(): SwarmTraceContext | null {
+    if (!this._tracer.enabled) return null;
+    const traceId = this._tracer.startTrace();
+    if (!traceId) return null;
+    const plannerRunId = this._tracer.getRootSpanId(traceId);
+    if (!plannerRunId) return null;
+    return {
+      tracer: this._tracer,
+      traceId,
+      groupId: randomUUID(),
+      plannerRunId,
+    };
+  }
 
   private _postDAGVisualization(dag: TaskDAG): void {
     const nodes = dag.getNodes().map((n) => ({

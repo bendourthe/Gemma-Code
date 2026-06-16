@@ -1,4 +1,5 @@
 import type { Span, SpanEvent, Trace } from "./TraceStore.js";
+import { flattenSpanForest } from "./spanNesting.js";
 
 /**
  * v1.6.0 Phase 2 (A4) -- serialize a session trace into a single, self-contained
@@ -148,12 +149,15 @@ function renderEvents(events: readonly SpanEvent[], traceStart: number): string 
   return `      <ul class="event-points">\n${items}\n      </ul>`;
 }
 
-function renderSpan(span: Span, traceStart: number): string {
+function renderSpan(span: Span, traceStart: number, depth: number): string {
   const kindSlug = slug(span.kind);
   const statusSlug = slug(span.status);
   const parts: string[] = [];
+  // v1.6.0 Phase 4 (A2): `--depth` drives the left indent so the run tree
+  // (planner -> worker -> critic) reads as a nested list. depth 0 = no indent,
+  // which is exactly the legacy flat layout for traces without nesting.
   parts.push(
-    `    <li class="span kind-${kindSlug} status-${statusSlug}" data-kind="${escapeHtml(kindSlug)}" data-status="${escapeHtml(statusSlug)}">`,
+    `    <li class="span kind-${kindSlug} status-${statusSlug}" data-kind="${escapeHtml(kindSlug)}" data-status="${escapeHtml(statusSlug)}" data-depth="${depth}" style="--depth:${depth}">`,
   );
   parts.push(`      <button type="button" class="span-head" aria-expanded="false">`);
   parts.push(`        <span class="badge badge-${kindSlug}">${escapeHtml(span.kind)}</span>`);
@@ -178,7 +182,12 @@ function renderTimeline(trace: ExportableTrace): string {
   if (trace.spans.length === 0) {
     return `  <p class="empty" data-testid="empty-timeline">This trace recorded no spans.</p>`;
   }
-  const rows = trace.spans.map((s) => renderSpan(s, trace.startTime)).join("\n");
+  // v1.6.0 Phase 4 (A2): arrange spans as a run tree (pre-ordered, depth
+  // annotated). For traces without run-nesting metadata this returns the flat
+  // start-time order with depth 0, so the legacy layout is preserved exactly.
+  const rows = flattenSpanForest(trace.spans)
+    .map(({ span, depth }) => renderSpan(span, trace.startTime, depth))
+    .join("\n");
   return `  <ol class="timeline" data-testid="timeline">\n${rows}\n  </ol>`;
 }
 
@@ -284,7 +293,10 @@ ol.timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direc
 li.span {
   border: 1px solid var(--border); border-radius: var(--radius-sm);
   background: var(--surface); overflow: hidden;
+  /* v1.6.0 Phase 4 (A2): indent nested runs (planner -> worker -> critic). */
+  margin-left: calc(var(--depth, 0) * 26px);
 }
+li.span[data-depth]:not([data-depth="0"]) { border-left: 2px solid var(--border-bright); }
 li.span[hidden] { display: none; }
 .span-head {
   display: flex; align-items: center; gap: 12px; width: 100%;

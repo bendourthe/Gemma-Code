@@ -5,6 +5,7 @@ import type { MetricsCollector } from "../../modules/coding/observability/Metric
 import type { ToolOutputCache } from "../storage/ToolOutputCache.js";
 import type { WebResponseCache } from "../tools/handlers/webCache.js";
 import { getCompressionStats } from "../../modules/coding/utils/Compressor.js";
+import { flattenSpanForest } from "../../modules/coding/observability/spanNesting.js";
 import { getTraceDashboardHtml } from "./webview/traceDashboard.js";
 
 export const TRACE_DASHBOARD_VIEW_ID = "nexus.coding.traceDashboard";
@@ -194,10 +195,19 @@ export class TraceDashboardPanel implements vscode.WebviewViewProvider {
     const trace = this._traceStore.getTrace(traceId);
     if (!trace) return;
 
+    // v1.6.0 Phase 4 (A2): order spans as a run tree and annotate each with its
+    // nesting depth so the waterfall can indent planner -> worker -> critic.
+    // For traces without run-nesting metadata this is the flat start-time order
+    // with depth 0 throughout, i.e. the legacy waterfall unchanged.
+    const spans = flattenSpanForest(trace.spans).map(({ span, depth }) => ({
+      ...span,
+      depth,
+    }));
+
     void this._view.webview.postMessage({
       type: "traceDetail",
       traceId,
-      spans: trace.spans,
+      spans,
     });
   }
 

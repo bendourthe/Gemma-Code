@@ -127,6 +127,8 @@ export function getTraceDashboardHtml(
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    /* Phase 4 (A2): indent nested sub-runs (planner -> worker -> critic). */
+    .span-indent { flex: none; }
     .span-bar-container {
       flex: 1;
       position: relative;
@@ -145,6 +147,7 @@ export function getTraceDashboardHtml(
     .span-bar.sub_agent { background: #009688; }
     .span-bar.reflexion { background: #f44336; }
     .span-bar.planning { background: #2196f3; }
+    .span-bar.critic { background: #ff7043; }
     .span-bar.custom { background: #607d8b; }
     .span-duration {
       font-size: 10px;
@@ -334,7 +337,14 @@ export function getTraceDashboardHtml(
         waterfallEl.innerHTML = spans.map(s => {
           const left = ((s.startTime - traceStart) / totalDuration * 100).toFixed(1);
           const width = Math.max(((s.durationMs || 1) / totalDuration * 100), 0.5).toFixed(1);
+          // Phase 4 (A2): indent the label by nesting depth so the run tree
+          // (planner -> worker -> critic) is legible. depth is 0 for flat traces.
+          const depth = typeof s.depth === 'number' && s.depth > 0 ? s.depth : 0;
+          const indent = depth > 0
+            ? '<span class="span-indent" style="width:' + (depth * 14) + 'px"></span>'
+            : '';
           return '<div class="span-row" data-span="' + escapeAttr(JSON.stringify(s)) + '">' +
+            indent +
             '<span class="span-label" title="' + escapeAttr(s.name) + '">' + escapeHtml(s.name) + '</span>' +
             '<div class="span-bar-container">' +
               '<div class="span-bar ' + escapeAttr(s.kind) + '" style="left:' + left + '%;width:' + width + '%" title="' + escapeAttr(s.kind) + '"></div>' +

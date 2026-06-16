@@ -12,6 +12,7 @@ import type { ExtensionToWebviewMessage } from "../../../src/panels/messages.js"
 import type { TaskDAG, TaskNode, TaskNodeType } from "./TaskDAG.js";
 import type { Reflection } from "./ReflexionEngine.js";
 import type { CriticReviewer } from "./CriticAgent.js";
+import type { Tracer } from "../observability/Tracer.js";
 import { formatForUser } from "../utils/errors.js";
 
 // ---------------------------------------------------------------------------
@@ -26,6 +27,22 @@ export interface DAGExecutionResult {
   readonly nodesCompleted: number;
   readonly nodesFailed: number;
   readonly nodesSkipped: number;
+}
+
+/**
+ * v1.6.0 Phase 4 (A2) -- the swarm trace context the Orchestrator threads in so
+ * every worker (and its critic) records into one shared trace, nested under the
+ * planner run. Built only when tracing is enabled; absent on the default path.
+ */
+export interface SwarmTraceContext {
+  /** Shared tracer instance (the same one the SubAgentManager uses). */
+  readonly tracer: Tracer;
+  /** The trace every sub-run of this dispatch joins. */
+  readonly traceId: string;
+  /** Group id shared by every sub-run of this `execute()`. */
+  readonly groupId: string;
+  /** The planner run id -- workers nest directly under it. */
+  readonly plannerRunId: string;
 }
 
 /**
@@ -47,6 +64,12 @@ export interface DAGExecutorOptions {
    * rejected node is routed through the existing reflexion + retry path.
    */
   readonly critic?: CriticReviewer;
+  /**
+   * v1.6.0 Phase 4 (A2): when set, each worker run is stamped with the swarm
+   * group + planner run, and a critic review emits a `critic` span nested under
+   * the worker run it reviews. Absent -> sub-runs trace standalone as before.
+   */
+  readonly swarmTrace?: SwarmTraceContext;
 }
 
 // ---------------------------------------------------------------------------
@@ -123,6 +146,7 @@ export class DAGExecutor {
 
   private readonly _isolateWrites: boolean;
   private readonly _critic: CriticReviewer | null;
+  private readonly _swarmTrace: SwarmTraceContext | null;
 
   constructor(
     private readonly _subAgentManager: SubAgentManager,
@@ -134,6 +158,7 @@ export class DAGExecutor {
   ) {
     this._isolateWrites = options.isolateWrites === true;
     this._critic = options.critic ?? null;
+    this._swarmTrace = options.swarmTrace ?? null;
   }
 
   async execute(dag: TaskDAG): Promise<DAGExecutionResult> {
@@ -227,8 +252,21 @@ export class DAGExecutor {
       ...(isolate ? { isolate: true } : {}),
     };
 
+    // v1.6.0 Phase 4 (A2): stamp this worker run with the swarm group + planner
+    // run so it nests under the planner in the trace. Undefined on the default
+    // path keeps the sub-agent's standalone-trace behavior unchanged.
+    const swarm = this._swarmTrace;
+    const trace = swarm
+      ? {
+          parentTraceId: swarm.traceId,
+          parentSpanId: swarm.plannerRunId,
+          groupId: swarm.groupId,
+          parentRunId: swarm.plannerRunId,
+        }
+      : undefined;
+
     try {
-      const result = await this._subAgentManager.run(config, this._postMessage);
+      const result = await this._subAgentManager.run(config, this._postMessage, trace);
 
       if (!result.success) {
         await this._handleNodeFailure(node, dag, result.error ?? "Sub-agent reported failure");
@@ -246,12 +284,30 @@ export class DAGExecutor {
       if (this._critic) {
         let approved = true;
         let feedback = "";
+        // v1.6.0 Phase 4 (A2): record the critic review as a `critic` span
+        // nested under the worker run it reviews, so planner -> worker ->
+        // critic is legible in the dashboard / export. Only when the swarm
+        // trace is wired and the worker reported its run id.
+        const criticSpanId =
+          swarm && result.runId
+            ? swarm.tracer.startSpan(
+                swarm.traceId,
+                `critic_${node.id}`,
+                "critic",
+                result.runId,
+                { nodeId: node.id },
+                { groupId: swarm.groupId, parentRunId: result.runId },
+              )
+            : "";
         try {
           const verdict = await this._critic.review(node, result.output);
           approved = verdict.approved;
           feedback = verdict.feedback;
         } catch {
           approved = true;
+        }
+        if (criticSpanId) {
+          swarm!.tracer.endSpan(criticSpanId, approved ? "ok" : "error", { approved });
         }
         if (!approved) {
           await this._handleNodeFailure(

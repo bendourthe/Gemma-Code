@@ -2,6 +2,7 @@ import type {
   TraceStore,
   Span,
   SpanKind,
+  SpanNesting,
   SpanStatus,
 } from "./TraceStore.js";
 
@@ -134,6 +135,7 @@ export class Tracer {
     kind: SpanKind,
     parentSpanId?: string,
     attributes?: Record<string, string | number | boolean>,
+    nesting?: SpanNesting,
   ): string {
     if (!this._store || !traceId) return "";
     const merged = this._mergeSkillContext(kind, attributes);
@@ -143,6 +145,7 @@ export class Tracer {
       kind,
       parentSpanId,
       merged,
+      nesting,
     );
     return span.spanId;
   }

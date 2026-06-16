@@ -372,6 +372,9 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
     postMessage: input.hostPostMessage,
     // v1.5.0 Phase 4 (item 36, T011): opt-in planner/critic/worker swarm.
     swarmEnabled: settings.swarmOrchestrationEnabled,
+    // v1.6.0 Phase 4 (A2): share the runtime tracer so planner/worker/critic
+    // sub-runs nest in one trace in the dashboard + A4 export.
+    tracer: runtime.tracer,
   });
 
   const extensionFsPath = extensionUri.fsPath ?? "";

@@ -35,6 +35,11 @@ interface SpanRow {
   status: string;
   attributes: string;
   events: string;
+  // v1.6.0 Phase 4 (A2): present only on stores migrated to the run-nesting
+  // schema; absent (undefined) when reading a pre-Phase-4 DB, which the reader
+  // tolerates since it opens read-only and cannot migrate.
+  group_id?: string | null;
+  parent_run_id?: string | null;
 }
 
 function rowToSpan(row: SpanRow): Span {
@@ -50,6 +55,8 @@ function rowToSpan(row: SpanRow): Span {
     status: row.status as SpanStatus,
     attributes: safeParse(row.attributes, {}),
     events: safeParse(row.events, []),
+    groupId: row.group_id ?? null,
+    parentRunId: row.parent_run_id ?? null,
   };
 }
 
@@ -75,9 +82,22 @@ export function readExportableTrace(dbPath: string, traceId: string): Exportable
       .get(traceId) as TraceRow | undefined;
     if (!traceRow) return null;
 
+    // v1.6.0 Phase 4 (A2): include the run-nesting columns only when the store
+    // has them. A pre-Phase-4 DB lacks group_id / parent_run_id, and selecting a
+    // missing column throws; probe the live schema and degrade to the base
+    // columns (group_id / parent_run_id read back as null -> flat fallback).
+    const spanCols = new Set(
+      (db.prepare("PRAGMA table_info(spans)").all() as Array<{ name: string }>).map(
+        (c) => c.name,
+      ),
+    );
+    const nestingCols =
+      spanCols.has("group_id") && spanCols.has("parent_run_id")
+        ? ", group_id, parent_run_id"
+        : "";
     const spanRows = db
       .prepare(
-        "SELECT span_id, trace_id, parent_span_id, name, kind, start_time, end_time, duration_ms, status, attributes, events FROM spans WHERE trace_id = ? ORDER BY start_time ASC",
+        `SELECT span_id, trace_id, parent_span_id, name, kind, start_time, end_time, duration_ms, status, attributes, events${nestingCols} FROM spans WHERE trace_id = ? ORDER BY start_time ASC`,
       )
       .all(traceId) as SpanRow[];
 
