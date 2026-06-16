@@ -5,10 +5,15 @@ import {
   onSettingsChange,
   type GemmaCodeSettings,
 } from "../config/settings.js";
-import { createOllamaClient } from "../llm/OllamaClient.js";
-import { createLmStudioClient } from "../llm/LmStudioClient.js";
 import type { LLMClient } from "../llm/types.js";
+import {
+  LocalAdapterRegistry,
+  createDefaultLocalAdapterRegistry,
+  LMSTUDIO_ADAPTER_NAME,
+  OLLAMA_ADAPTER_NAME,
+} from "../llm/LocalAdapterRegistry.js";
 import { configureDeniedDestinations } from "../utils/ssrf.js";
+import { getLogger } from "../utils/logger.js";
 
 /**
  * Composition root for the extension. Owns the singleton-like cross-cutting
@@ -25,11 +30,13 @@ export class NexusCodingRuntime {
   private readonly _settingsSubscription: { dispose(): void };
   private _llmClient: LLMClient | null = null;
   private _llmClientKey: string | null = null;
+  private _adapterRegistry: LocalAdapterRegistry;
 
   constructor() {
     this.tracer = new Tracer();
     this.traceFile = new TraceFile();
     this._settings = getSettings();
+    this._adapterRegistry = this._buildAdapterRegistry(this._settings);
     if (this._settings.traceAutoEnable) {
       try {
         this.traceFile.enable();
@@ -44,11 +51,18 @@ export class NexusCodingRuntime {
       const prev = this._settings;
       this._settings = next;
       configureDeniedDestinations(next.egressDenyExtra ?? []);
+      const adaptersChanged =
+        JSON.stringify(prev.localAdapters ?? []) !==
+        JSON.stringify(next.localAdapters ?? []);
+      if (adaptersChanged) {
+        this._adapterRegistry = this._buildAdapterRegistry(next);
+      }
       if (
         prev.ollamaUrl !== next.ollamaUrl ||
         prev.requestTimeout !== next.requestTimeout ||
         prev.llmBackend !== next.llmBackend ||
-        prev.lmStudioBaseUrl !== next.lmStudioBaseUrl
+        prev.lmStudioBaseUrl !== next.lmStudioBaseUrl ||
+        adaptersChanged
       ) {
         this._llmClient = null;
         this._llmClientKey = null;
@@ -57,6 +71,25 @@ export class NexusCodingRuntime {
         listener(next);
       }
     });
+  }
+
+  /**
+   * Build the local-adapter registry: the two built-ins (Ollama, LM Studio)
+   * plus any user-supplied manifests from `nexus.llm.localAdapters`. Invalid or
+   * non-local manifests are skipped with a warning rather than aborting startup,
+   * so one bad config entry never blocks the whole pillar.
+   */
+  private _buildAdapterRegistry(s: GemmaCodeSettings): LocalAdapterRegistry {
+    const registry = createDefaultLocalAdapterRegistry();
+    for (const raw of s.localAdapters ?? []) {
+      const result = registry.tryRegister(raw);
+      if (!result.ok) {
+        getLogger().warn(
+          `[NexusCodingRuntime] skipping invalid local adapter manifest: ${result.error}`,
+        );
+      }
+    }
+    return registry;
   }
 
   /**
@@ -71,37 +104,47 @@ export class NexusCodingRuntime {
   getOllamaClient(): LLMClient {
     const s = this._settings;
     const backend = this._resolveBackend(s);
-    const key = `${backend}|${s.ollamaUrl}|${s.lmStudioBaseUrl}|${s.requestTimeout}`;
+    // Built-ins draw their live base URL from settings; a custom (user-manifest)
+    // adapter falls back to its manifest endpoint (override left undefined).
+    const baseUrl =
+      backend === LMSTUDIO_ADAPTER_NAME
+        ? s.lmStudioBaseUrl
+        : backend === OLLAMA_ADAPTER_NAME
+          ? s.ollamaUrl
+          : undefined;
+    const key = `${backend}|${s.ollamaUrl}|${s.lmStudioBaseUrl}|${s.requestTimeout}|${baseUrl ?? ""}`;
     if (this._llmClient && this._llmClientKey === key) {
       return this._llmClient;
     }
-    this._llmClient =
-      backend === "lmstudio"
-        ? createLmStudioClient({
-            baseUrl: s.lmStudioBaseUrl,
-            timeoutMs: s.requestTimeout,
-          })
-        : createOllamaClient({
-            baseUrl: s.ollamaUrl,
-            timeoutMs: s.requestTimeout,
-          });
+    this._llmClient = this._adapterRegistry.createClient(backend, {
+      baseUrl,
+      timeoutMs: s.requestTimeout,
+    });
     this._llmClientKey = key;
     return this._llmClient;
   }
 
   /**
-   * Resolve `llm.backend` to a concrete adapter id. `auto` becomes `lmstudio`
-   * on macOS only -- this matches LM Studio's primary distribution; on
-   * Windows / Linux we keep Ollama as the default. The auto probe is
-   * synchronous-best-effort: a live `/v1/models` ping happens lazily inside
-   * the LmStudio client itself, so a wrong guess degrades to a clear error
-   * rather than silently hanging.
+   * Resolve `llm.backend` to a registered adapter name. A user-registered
+   * custom adapter is selectable by its manifest name. `auto` (or an
+   * unregistered name) becomes `lmstudio` on macOS only -- this matches LM
+   * Studio's primary distribution; on Windows / Linux we keep Ollama as the
+   * default. The auto probe is synchronous-best-effort: a live `/v1/models`
+   * ping happens lazily inside the LmStudio client itself, so a wrong guess
+   * degrades to a clear error rather than silently hanging.
    */
-  private _resolveBackend(s: GemmaCodeSettings): "ollama" | "lmstudio" {
-    if (s.llmBackend === "ollama") return "ollama";
-    if (s.llmBackend === "lmstudio") return "lmstudio";
-    if (process.platform === "darwin") return "lmstudio";
-    return "ollama";
+  private _resolveBackend(s: GemmaCodeSettings): string {
+    const backend = s.llmBackend;
+    if (backend && backend !== "auto" && this._adapterRegistry.has(backend)) {
+      return backend;
+    }
+    if (
+      process.platform === "darwin" &&
+      this._adapterRegistry.has(LMSTUDIO_ADAPTER_NAME)
+    ) {
+      return LMSTUDIO_ADAPTER_NAME;
+    }
+    return OLLAMA_ADAPTER_NAME;
   }
 
   /** Current settings snapshot. Always returns the latest known value. */

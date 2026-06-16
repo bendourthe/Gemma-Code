@@ -4,6 +4,28 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-06-15] v1.6.0 Phase 5 -- Local-Runtime Adapter Registry (A3 / AS007)
+
+### Goal
+
+Implement Phase 5 of the [aisuite-harness adoption plan](versions/v1/v1.6.0/plans/adoption-aisuite-harness.md): make local-runtime adapter registration manifest-driven instead of a hand-edited `if/else` switch (comparison item A3), restricted to local runtimes only. This is the demand-gated backlog phase, built as a forward-looking guarded refactor on explicit user confirmation (`/implement phase 5`) -- no third runtime ships this cycle, so the discovery path is exercised by tests until concrete demand lands. The prior wiring (ADR-0016) selected between Ollama and LM Studio via a 4-line switch in `NexusCodingRuntime._resolveBackend`; each new local runtime meant another branch, a settings-enum value, and a runtime edit. Additive, local-only, zero-outbound, no new dependency.
+
+### What changed
+
+**Manifest-driven registry ([modules/coding/llm/LocalAdapterRegistry.ts](../modules/coding/llm/LocalAdapterRegistry.ts)).** An adapter is a `{ name, protocol, endpoint, label?, capabilities? }` manifest. `validateLocalAdapterManifest` runs a strict zod schema, then a loopback-only endpoint guard (`isLoopbackEndpoint`: `127.0.0.0/8`, `::1`, `localhost`/`ip6-localhost`/`ip6-loopback`) -- intentionally stricter than `ssrf.isBlockedIp`, which also matches RFC-1918 LAN, because a *local runtime* must be loopback, not a LAN host. A non-loopback endpoint is rejected with an error that **cites the AGENTS.md MCP Registry Policy**. `LocalAdapterRegistry` maps a manifest's `protocol` (`ollama`/`openai`) to the existing `createOllamaClient`/`createLmStudioClient` factories (lazy construction; `register` throws on invalid, `tryRegister` skips-and-reports for untrusted config). The two shipped adapters are expressed as built-in manifests via `createDefaultLocalAdapterRegistry`.
+
+**Boundary-correct placement.** The registry lives under `modules/coding/llm/` rather than `core/registry/` (as the plan prompt suggested) because the `no-llm-outside-llm-folder` rule keeps concrete-client construction in that folder and `no-core-from-modules` forbids `core/` from importing the `modules/coding/utils/ssrf.ts` loopback primitive it mirrors -- a core-side copy would be a second security-relevant list that can drift.
+
+**Composition-root wiring ([modules/coding/runtime/NexusCodingRuntime.ts](../modules/coding/runtime/NexusCodingRuntime.ts)).** `_buildAdapterRegistry` seeds the built-ins plus user manifests from the new `nexus.llm.localAdapters` setting ([package.json](../package.json) `contributes` + [modules/coding/config/settings.ts](../modules/coding/config/settings.ts), carried as `unknown[]` since config is untrusted until validated), skipping invalid/non-local entries with a warning rather than aborting startup. The registry rebuilds on a live `localAdapters` change (and invalidates the cached client); `getOllamaClient()` delegates construction to `registry.createClient(name, ...)`. `_resolveBackend` now returns a registered adapter name, so `nexus.llm.backend` is widened to any string -- a user-registered adapter is selectable by its manifest name, with the existing `auto` (macOS -> LM Studio, else Ollama) fallback for unknown values. Decision recorded in [ADR-0019](adr/0019-local-adapter-registry.md) (extends ADR-0016; selection mechanism superseded).
+
+### Verification
+
+[LocalAdapterRegistry.test.ts](../tests/unit/llm/LocalAdapterRegistry.test.ts) (12: loopback accept across IPv4/IPv6/hostnames, LAN/public/malformed/non-http reject, structural validation, non-local rejection citing the policy, LAN rejection, register throw + tryRegister skip, protocol->factory mapping with option pass-through + manifest-endpoint fallback, unknown-name throw, default-registry built-ins) + [NexusCodingRuntime.test.ts](../tests/unit/runtime/NexusCodingRuntime.test.ts) (+4: LM Studio routing, custom-adapter selection by manifest name, live-reconfigure registry rebuild + cache invalidation, non-local manifest skip + Ollama fallback).
+
+`tsc -b` clean; `npm run lint` 0 errors; `npm run check-architecture` 0 errors (10 pre-existing warnings, none from the new file); `npm run check:tampering` 0 findings; root suite **4197 passed / 5 skipped / 0 failed**; coverage LocalAdapterRegistry **100% lines / 100% branches / 100% functions**, NexusCodingRuntime 78.9% lines / 64.5% branches (the residual is pre-existing composition-root boilerplate -- the public `onSettingsChange`/`dispose` -- plus the platform-gated `darwin` branch; the new registry logic is covered). No outbound call, no new dependency, no new credential; changes confined to `modules/coding` + `package.json` (desktop workspace untouched).
+
+---
+
 ## [2026-06-15] v1.6.0 Phase 4 -- Hierarchical Sub-Run Trace Nesting (A2 / AS006)
 
 ### Goal

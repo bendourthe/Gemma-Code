@@ -1,6 +1,6 @@
 # ADR-0016: Add LM Studio as a second LLM backend
 
-- **Status**: Accepted
+- **Status**: Accepted (adapter-selection mechanism superseded by [ADR-0019](./0019-local-adapter-registry.md))
 - **Date**: 2026-05-16
 - **Deciders**: v0.8.0 Phase 4 -- multi-source adoption cycle. Aligned with the jola.dev article on Gemma 4 quantisation and the multi-source comparison report Section 5a item F1.
 

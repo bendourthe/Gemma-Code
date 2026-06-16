@@ -38,4 +38,6 @@ Use [template.md](./template.md) as a starting point for new ADRs.
 | [ADR-0012](./0012-model-callable-compress-tool.md) | Model-callable compress tool surface | Accepted | 2026-05-07 |
 | [ADR-0013](./0013-webview-render-protocol.md) | Webview render protocol expansion (7 primitives) | Accepted | 2026-05-06 |
 | [ADR-0014](./0014-memory-file-architecture.md) | Memory file architecture (Instructions / Memory / Context) | Accepted | 2026-05-07 |
+| [ADR-0016](./0016-second-llm-backend.md) | Add LM Studio as a second LLM backend | Accepted (selection superseded by ADR-0019) | 2026-05-16 |
 | [ADR-0017](./0017-golden-runner-disposition.md) | Canonise the Python golden runner; defer a TS-native rewrite | Accepted | 2026-05-15 |
+| [ADR-0019](./0019-local-adapter-registry.md) | Manifest-driven local-runtime adapter registry | Accepted | 2026-06-15 |

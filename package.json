@@ -143,6 +143,60 @@
           "default": "http://127.0.0.1:1234",
           "description": "LM Studio base URL (v1.0.0; legacy `gemma-code.lmstudio.baseUrl`)."
         },
+        "nexus.llm.localAdapters": {
+          "type": "array",
+          "default": [],
+          "markdownDescription": "v1.6.0 (A3) -- additional **local-only** inference-runtime adapters, discovered from validated manifests. Each manifest is `{ name, protocol, endpoint, label?, capabilities? }`. `endpoint` MUST be a loopback address (`127.0.0.0/8`, `::1`, `localhost`); a non-loopback endpoint is rejected per the AGENTS.md MCP Registry Policy (local-first, zero-outbound). Set `nexus.llm.backend` to a manifest's `name` to select it.",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "protocol",
+              "endpoint"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Unique selector id, matched against `nexus.llm.backend`."
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Human-friendly display name."
+              },
+              "protocol": {
+                "type": "string",
+                "enum": [
+                  "ollama",
+                  "openai"
+                ],
+                "description": "Wire protocol the runtime speaks (Ollama-native or OpenAI-compatible)."
+              },
+              "endpoint": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Loopback base URL, e.g. http://127.0.0.1:8000."
+              },
+              "capabilities": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "chat": {
+                    "type": "boolean"
+                  },
+                  "embed": {
+                    "type": "boolean"
+                  },
+                  "vision": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
         "nexus.coding.editMode": {
           "type": "string",
           "enum": [

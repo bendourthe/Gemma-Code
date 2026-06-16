@@ -70,8 +70,22 @@ export interface NexusSettings {
   inboundClassifierDeepScan: boolean;
   swarmOrchestrationEnabled: boolean;
   memorySnapshotMode: "frozen" | "live";
-  llmBackend: "ollama" | "lmstudio" | "auto";
+  /**
+   * LLM backend selector. Known values are `ollama` | `lmstudio` | `auto`;
+   * v1.6.0 Phase 5 (item A3) widens this to any string so a user-registered
+   * local adapter (see `localAdapters`) is selectable by its manifest name.
+   * An unknown / unregistered value falls back to the `auto` resolution in
+   * `NexusCodingRuntime._resolveBackend`.
+   */
+  llmBackend: string;
   lmStudioBaseUrl: string;
+  /**
+   * v1.6.0 Phase 5 (item A3) -- raw, unvalidated local-runtime adapter
+   * manifests from `nexus.llm.localAdapters`. Each entry is validated and
+   * loopback-checked by the `LocalAdapterRegistry` at the composition root;
+   * carried as `unknown[]` here because config is untrusted until validated.
+   */
+  localAdapters: unknown[];
   thinkingModePreset: "nothink" | "think" | "think-max";
   memoryScoringMethod: "rrf" | "weighted";
   memoryScoringDefault: "legacy" | "hybrid";
@@ -251,9 +265,12 @@ export function getSettings(): NexusSettings {
     })(),
     llmBackend: (() => {
       const raw = c.get<string>("nexus.llm.backend", "ollama");
-      return raw === "lmstudio" || raw === "auto" ? raw : "ollama";
+      return typeof raw === "string" && raw.trim().length > 0
+        ? raw.trim()
+        : "ollama";
     })(),
     lmStudioBaseUrl: c.get<string>("nexus.llm.lmstudio.baseUrl", "http://127.0.0.1:1234"),
+    localAdapters: c.get<unknown[]>("nexus.llm.localAdapters", []),
     thinkingModePreset: (() => {
       const raw = c.get<string>("nexus.coding.thinkingModePreset", "nothink");
       return raw === "think" || raw === "think-max" ? raw : "nothink";
