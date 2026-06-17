@@ -4,6 +4,40 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-06-16] v1.6.0 Phase 6 (FINAL) -- Whole-Plan Acceptance Gate + Cycle Closure (AS008-AS010)
+
+### Goal
+
+Run the FINAL phase of the [aisuite-harness adoption plan](versions/v1/v1.6.0/plans/adoption-aisuite-harness.md): verify the whole-plan definition-of-pass, assess any Nexus-Hub touchpoint, and close the v1.6.0 cycle. This phase ships no feature code -- it is a verification + bookkeeping sweep over the five delivered phases (H1 interactive guide, A4 session/trace viewer, A1 session-state dehydration, A2 trace nesting, A3 adapter registry).
+
+### What changed
+
+**No source changes.** Phase 6 is verification + cycle closure only. The documentation surfaces were closed out:
+
+- **Known-gaps ledger ([versions/v1/v1.6.0/known-gaps.md](versions/v1/v1.6.0/known-gaps.md)).** Status moved to "complete (all 6 phases closed)"; a Phase 6 row added to the Adoption Ledger (AS008-AS010); two Phase 6 carryover follow-ups recorded -- `AS004.P2.B` (the in-dashboard "Export trace" button, intentionally not folded into this verification-only sweep) and `AS010.P6.A` (the optional future Nexus-Hub cross-link); summary recomputed to 6 of 6 phases, 11 open items (all P3 / forward-tier), 0 defects.
+- **Plan ([plans/adoption-aisuite-harness.md](versions/v1/v1.6.0/plans/adoption-aisuite-harness.md)).** Phase 6 sub-tasks checked off with a Status block; definition-of-pass item 6 marked `[DELIVERED 2026-06-16]`; the Phases-at-a-Glance row marked complete.
+- **Progress tracker ([todos.md](todos.md)).** Current-state lead + the v1.x-line cycle row updated to "v1.6.0 complete (Phases 1-6)".
+
+**Release mechanics (not hand-edited here).** README/ARCHITECTURE narrative sync, the CHANGELOG, and the npm version tag are owned by the **semantic-release** pipeline (`.releaserc`: `tagFormat: v${version}`, commit-analyzer + release-notes generator + changelog plugin), cut automatically on merge to `main` from the conventional-commit history. There is no `scripts/check_version_sync.py` in this repo, so no manual CHANGELOG / `package.json` version edit is performed.
+
+**Nexus-Hub touchpoint (AS010): assessed, no sync.** Both v1.6.0 artifacts (the guide and the trace viewer) are self-contained, project-local Nexus-AI deliverables that reuse the Nexus-Hub *reference* guide's design tokens (a one-way dependency already documented in the plan); they introduce no reusable Hub skill, command, or convention the catalog lacks. A cross-link is optional polish, recorded as `AS010.P6.A`, not a missing capability.
+
+### Verification
+
+Whole-plan acceptance gate, all green:
+
+- `npm run test`: **4197 passed / 5 skipped / 0 failed** (376 test files).
+- `npm run test:shell` (desktop workspace): **449 passed / 0 failed** (53 files).
+- `npm run build` (`tsc -b`): clean.
+- `npm run lint` (eslint src modules): **0 errors**.
+- `npm run check-architecture` (dependency-cruiser): **0 errors**, 10 pre-existing warnings.
+- `npm run security:check` (tool-permission table): "All safety surfaces in sync".
+- `npm run check:tampering` (nexus-check): **0 findings**.
+
+Definition-of-pass artifacts 1-5 confirmed present on disk (H1 guide + offline test; A4 `TraceHtmlExport`/`TraceDbReader` + `nexus trace export` CLI + test; A1 `ArtifactStore`/`sessionArtifacts`/`migrateSessionsDehydrate` + `.mjs` wrapper; A2 `spanNesting`; A3 `LocalAdapterRegistry` + ADR-0019); item 6 (all test tiers) green. No outbound call, no new dependency, no new credential; no source files changed.
+
+---
+
 ## [2026-06-15] v1.6.0 Phase 5 -- Local-Runtime Adapter Registry (A3 / AS007)
 
 ### Goal
