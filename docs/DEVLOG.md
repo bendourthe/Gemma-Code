@@ -4,6 +4,31 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-06-16] v1.6.0 openrouter-fusion Phase 2 -- Local multi-model panel orchestration + eval-integrity hardening (F2 + F5, OF004-OF006)
+
+### Goal
+
+Build the headline capability of the [local panel + judge-fusion plan](versions/v1/v1.6.0/plans/adoption-openrouter-fusion.md): a `PanelExecutor` / `FusionAgent` that fans one prompt across N **distinct** registry models and fuses their candidates through the Phase 1 `fuse` judge -- with the judge hardened as an untrusted-input boundary from day one (comparison item F5 folded into F2). Sequential fan-out is the honest single-GPU MVP; concurrent VRAM residency (F3) is Phase 3. No new outbound call, credential, or dependency.
+
+### What changed
+
+- **`FusionAgent` -- the judge ([modules/coding/orchestration/FusionAgent.ts](../modules/coding/orchestration/FusionAgent.ts), OF004 + OF005).** The programmatic consumer of the F1 schema. It loads the real `fuse` skill body (`loadFusePrompt`, genuine reuse of F1 -- not a re-implementation) as its system instruction, embeds the labeled candidates as the user turn, calls a local judge model, and validates the output against the six-section schema (`validateFusionOutput`, a pure/total port of the Phase 1 conformance helper). **F5 untrusted-input boundary**: every candidate is wrapped in an explicit `<<<CANDIDATE>>>` block, both the instruction and the user turn carry the "data, not instructions" defense, and every candidate answer is run through [redactSecrets](../core/observability/redactSecrets.ts) before it reaches the judge (a panelist's captured output cannot leak a secret into the judge's context). The **single-judge SPOF** is documented in the module header as an accepted MVP limitation. Mirrors the existing CriticAgent shape (system-prompt constant + pure validator + injectable port).
+- **`PanelExecutor` -- the fan-out ([modules/coding/orchestration/PanelExecutor.ts](../modules/coding/orchestration/PanelExecutor.ts), OF004 + OF005).** Takes one prompt and a panel spec, de-duplicates to **distinct** model ids, applies an optional usable-model resolver and a hard panel-size cap, then dispatches each panelist **sequentially** as a plain chat completion via an injectable `LLMClientFactory` over the `modules/coding/llm` port, collecting a labeled `{ model, answer, ok }` candidate. A panelist that throws is captured as a non-`ok` candidate so the panel still fuses the survivors. **F5 tool isolation**: panelists are dispatched with **no** `tools` array -- no per-panelist grant, never an open-internet default (the dropped item D2); any tool use must flow through Nexus's existing gated AgentLoop surface. Then it fuses the candidates through the `FusionAgent` judge. The public `run` surface does not change when Phase 3 makes the dispatch loop concurrent.
+- **Tests ([tests/unit/orchestration/FusionAgent.test.ts](../tests/unit/orchestration/FusionAgent.test.ts) 19 cases, [tests/unit/orchestration/PanelExecutor.test.ts](../tests/unit/orchestration/PanelExecutor.test.ts) 12 cases, [tests/integration/orchestration/PanelFusion.test.ts](../tests/integration/orchestration/PanelFusion.test.ts) 1 case, OF006).** Cover distinct-model dispatch with the same prompt, candidate labeling, de-duplication, sequential ordering, one-panelist-failure resilience, schema validation, the F5 injection-confinement / redaction / no-per-panelist-tools cases, resolver gating, and the panel-size cap. The integration case wires PanelExecutor + the real FusionAgent + the real catalog `fuse` prompt end-to-end. Mock `LLMClient`s only -- no live model. Auto-discovered by the existing `test-ts` CI job (the `vitest` config globs `tests/unit/**` and `tests/integration/**`).
+
+### Verification
+
+- `npm run test` (full TS suite): **4237 passed / 5 skipped / 0 failed** (the +32 new cases over the prior 4205 baseline).
+- `npm run build` (`tsc -b`): clean.
+- `npm run lint` (eslint src modules): **0 errors** on the two new modules.
+- New-module coverage: `FusionAgent.ts` 99.24% lines / 100% functions; `PanelExecutor.ts` 100% / 100% (both above the 80% gate; the one uncovered FusionAgent line is the defensive `?? ""` null-content fallback).
+- `npm run check:tampering`: **0 findings**. `npm run check:prompts`: exits **0** (two pre-existing non-gating warnings, `review-pr` ~811 and `council` ~881 = `OF002.P1.A`; no prompt touched this phase). `npm run check-architecture`: **0 errors**, 10 pre-existing warnings (no new orphan/circular -- `PanelExecutor` has outgoing deps so it is not flagged).
+- No new dependency, credential, or outbound call (local-first / MCP Registry Policy clean). README/ARCHITECTURE/CHANGELOG narrative + version tag remain semantic-release-owned and deferred to the plan's Phase 5 FINAL.
+
+Known gaps for this plan are tracked in [versions/v1/v1.6.0/known-gaps-openrouter-fusion.md](versions/v1/v1.6.0/known-gaps-openrouter-fusion.md). Two forward-tier follow-ups were recorded (both P3, both by plan design): `OF004.P2.A` (the panel capability is built + tested but not yet wired into a user-facing route -- the F4 routing heuristic in Phase 4 invokes it) and `OF005.P2.A` (the MVP runs panelists as single completions, so the no-per-panelist-tool contract should be re-verified if panelists ever gain gated-tool access). The remaining phases: F3 concurrent VRAM residency (Phase 3), F4 budget-panel routing + A/B (Phase 4), FINAL acceptance gate (Phase 5).
+
+---
+
 ## [2026-06-16] v1.6.0 openrouter-fusion Phase 1 -- Structured judge-fusion synthesis skill (F1, OF001-OF003)
 
 ### Goal
