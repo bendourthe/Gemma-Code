@@ -1,4 +1,4 @@
-<p align="center"><a href="https://github.com/bendourthe/Nexus-AI"><img src="assets/nexus_banner.png" alt="Nexus" width="640" /></a></p>
+<p align="center"><a href="https://github.com/bendourthe/Nexus-AI"><img src="assets/nexus-ai-banner.png" alt="Nexus" width="640" /></a></p>
 
 <p align="center"><em>Your Local AI Studio. Four Pillars, One Desktop, Zero Tokens Billed.</em></p>
 
@@ -13,7 +13,7 @@ Nexus is a local-first, native desktop AI Studio that bundles four generative AI
 ## How Nexus fits with Nexus-Hub
 
 <p align="center">
-<a href="https://github.com/bendourthe/Nexus-AI"><img src="assets/nexus_banner.png" alt="Nexus" width="360" align="middle" /></a>
+<a href="https://github.com/bendourthe/Nexus-AI"><img src="assets/nexus-ai-banner.png" alt="Nexus" width="360" align="middle" /></a>
 &nbsp;&nbsp;&nbsp;<strong style="font-size: 28px;">&harr;</strong>&nbsp;&nbsp;&nbsp;
 <a href="https://github.com/bendourthe/Nexus-Hub"><img src="https://raw.githubusercontent.com/bendourthe/Nexus-Hub/main/assets/nexus_hub_banner.png" alt="Nexus-Hub" width="360" align="middle" /></a>
 </p>

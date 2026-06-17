@@ -1,7 +1,7 @@
 """Generate the Tauri icon set + refresh the legacy `assets/` icon files.
 
-Source: the designer-authored Nexus primary mark at `assets/nexus_primary.png`
-(plus the monochrome variant for the sidebar icon). This script downsizes the
+Source: the designer-authored Nexus primary mark at
+`assets/nexus-ai-primary_no-background.png` (transparent). This script downsizes the
 source into every PNG / ICO / ICNS frame Tauri, the Windows Store tile set,
 and macOS expect, writing them under `desktop/src-tauri/icons/`. It also
 rewrites the legacy assets under `assets/` so the VS Code extension manifest
@@ -30,8 +30,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parent.parent
 ICONS_DIR = ROOT / "desktop" / "src-tauri" / "icons"
 ASSETS_DIR = ROOT / "assets"
-SOURCE_PNG = ASSETS_DIR / "nexus_primary.png"
-SOURCE_MONO_PNG = ASSETS_DIR / "nexus_monochrome.png"
+SOURCE_PNG = ASSETS_DIR / "nexus-ai-primary_no-background.png"
+SOURCE_MONO_PNG = ASSETS_DIR / "nexus-ai-primary_no-background.png"
 
 # Brand colors for the procedural fallback.
 BG = (15, 19, 24, 255)

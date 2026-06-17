@@ -15,7 +15,7 @@ from nexus_installer.constants import HEADER_HEIGHT, TEXT_SECONDARY
 _BRAND_MARK = (
     Path(__file__).resolve().parent.parent.parent.parent.parent.parent
     / "assets"
-    / "nexus_primary.png"
+    / "icon.png"
 )
 
 
