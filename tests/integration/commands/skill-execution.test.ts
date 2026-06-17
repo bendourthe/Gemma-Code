@@ -39,7 +39,7 @@ describe("Built-in skill catalog integration", () => {
     expect(expanded).not.toContain("$ARGUMENTS");
   });
 
-  it("lists all sixteen built-in skills", () => {
+  it("lists all seventeen built-in skills", () => {
     const loader = new SkillLoader(CATALOG_DIR, path.join(CATALOG_DIR, "__nonexistent_user__"));
     loader.load();
 
@@ -63,6 +63,8 @@ describe("Built-in skill catalog integration", () => {
       "lens",
       "incident-commander",
       "council",
+      // v1.6.0 adoption-openrouter-fusion Phase 1 (OF001)
+      "fuse",
     ];
 
     for (const name of expected) {

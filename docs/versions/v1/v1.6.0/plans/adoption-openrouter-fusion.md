@@ -63,6 +63,8 @@ Phase sequencing follows the comparison's Section 5.4 ordering with one dependen
 
 ## Phase 1: Structured judge-fusion synthesis skill (F1)
 
+**Status**: COMPLETE (2026-06-16). OF001-OF003 landed; `fuse` skill + `council` synthesis upgrade + 8-case schema-conformance test. Full suite 4205 passed / 5 skipped / 0 failed; lint + check:tampering clean; check:prompts exits 0 (council prompt-oversized warning recorded as `OF002.P1.A`). See [the DEVLOG entry](../../../../DEVLOG.md) and [known-gaps-openrouter-fusion.md](../known-gaps-openrouter-fusion.md).
+
 **Goal**: Define the judge-fusion synthesis as a reusable skill so it is usable immediately (even over three passes of one model) and provides the exact schema the F2 panel will consume.
 **Prerequisites**: None.
 **Stability Gate**: The `fuse` skill emits the five-part structure (consensus / contradictions / partial coverage / unique insights / blind spots) followed by a grounded final answer; it accepts an arbitrary number of labeled candidate answers; `council`'s synthesis step is upgraded to the same schema without losing its SHIP/DEFER verdict + acceptance-criteria + explicit-risks output; all skill text is ASCII, logical punctuation, no em-dashes.
@@ -72,7 +74,7 @@ Phase sequencing follows the comparison's Section 5.4 ordering with one dependen
 
 #### 1.1 -- F1: Author the `fuse` skill + fusion output schema
 
-- [ ] OF001 Add a `fuse` skill that ingests N labeled candidate answers and emits the structured judge-fusion schema
+- [x] OF001 Add a `fuse` skill that ingests N labeled candidate answers and emits the structured judge-fusion schema
 
 **Objective**: Create the judge-fusion synthesis prompt as a first-class skill, decoupled from how the candidates are produced.
 
@@ -81,14 +83,14 @@ Phase sequencing follows the comparison's Section 5.4 ordering with one dependen
 
 #### 1.2 -- F1: Upgrade `council` synthesis to the fusion schema
 
-- [ ] OF002 Align `council`'s synthesis step with the fuse schema while preserving its verdict output
+- [x] OF002 Align `council`'s synthesis step with the fuse schema while preserving its verdict output
 
 **Prompt**:
 > Update [modules/coding/skills/catalog/council/SKILL.md](../../../../../modules/coding/skills/catalog/council/SKILL.md) so its Synthesis section reuses the F1 structured-analysis vocabulary (name consensus / contradictions / blind spots across the three passes explicitly) **without** removing council's decision-oriented output (the SHIP / SHIP-WITH-CHANGES / DEFER / DROP verdict, 1-3 acceptance criteria, 1-3 explicit risks with owners). Add a one-line cross-link noting that `fuse` generalises the same synthesis over *distinct models* rather than three personas of one model. Keep the latency note. Acceptance: council still emits a verdict + acceptance criteria + risks, now phrased through the shared analysis vocabulary. Effort: Low. Risk: Low.
 
 #### 1.3 -- Testing and stabilization (Phase 1)
 
-- [ ] OF003 Add a schema-conformance check for the fuse skill output
+- [x] OF003 Add a schema-conformance check for the fuse skill output
 
 **Prompt**:
 > Add a lightweight test under `tests/unit/skills/` that loads the `fuse` skill, runs it against a fixed fixture of labeled candidate answers (use a recorded/mock model response, not a live model call), and asserts the output contains the five named analysis sections and a final-answer section, in order. Add a negative control (a malformed candidate set) confirming the skill degrades gracefully. Wire into the existing `test-ts` CI job. Acceptance: checks pass in CI; no live model dependency. Effort: Low. Risk: Low.

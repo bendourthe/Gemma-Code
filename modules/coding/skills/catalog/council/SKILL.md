@@ -5,7 +5,7 @@ argument-hint: "[decision or change]"
 version: 1.0.0
 platforms: linux,macos,windows
 metadata.tags: decision-making,reasoning,multi-perspective
-metadata.related_skills: [lens]
+metadata.related_skills: [lens, fuse]
 ---
 
 You are about to evaluate a major decision (architectural change, dependency choice, API contract, refactor scope, technology selection). Before producing a verdict, run a three-pass adversarial council. Each pass speaks in its own voice and reaches its own conclusion; the synthesis at the end reconciles them.
@@ -45,12 +45,17 @@ End the pass with a one-sentence summary: "From the user's seat, this would feel
 
 ## Synthesis
 
-After all three passes, write a final synthesis section:
+After all three passes, write a final synthesis. First reconcile the three passes through the shared judge-fusion analysis vocabulary, then commit to a decision:
 
+- **Consensus:** the points all three passes agree on.
+- **Contradictions:** where the advocate, architect, and user-impact passes directly disagree; name the passes on each side and resolve each with stated reasoning.
+- **Blind spots:** concerns no pass raised that the decision still needs.
 - **Verdict:** SHIP / SHIP-WITH-CHANGES / DEFER / DROP
 - **Acceptance criteria (1-3):** specific, testable conditions that must hold before ship
 - **Explicit risks (1-3):** the risks you are accepting if you ship this. Each risk has an owner ("we will mitigate by X" or "we are accepting this risk because Y")
 
 The synthesis must reconcile, not just average, the three passes. If the architect raised a structural concern that the advocate did not address, the verdict must reflect that.
+
+`fuse` generalises this synthesis to *distinct models* rather than three personas of one model: when your candidates come from a panel instead of three passes, run `/fuse`.
 
 $ARGUMENTS

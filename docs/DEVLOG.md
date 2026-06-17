@@ -4,6 +4,30 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-06-16] v1.6.0 openrouter-fusion Phase 1 -- Structured judge-fusion synthesis skill (F1, OF001-OF003)
+
+### Goal
+
+Open the [local panel + judge-fusion adoption plan](versions/v1/v1.6.0/plans/adoption-openrouter-fusion.md) (the companion plan to the now-closed aisuite-harness cycle, derived from [comparison-openrouter-fusion.md](versions/v1/v1.6.0/comparison-openrouter-fusion.md)). Phase 1 ships F1: define the judge-fusion synthesis as a reusable skill so it is usable immediately (even over three passes of one model) and provides the exact schema the later F2 panel executor will consume. No infrastructure; prompt + schema authoring only.
+
+### What changed
+
+- **New `fuse` skill ([modules/coding/skills/catalog/fuse/SKILL.md](../modules/coding/skills/catalog/fuse/SKILL.md), OF001).** A judge skill that ingests an arbitrary number of **labeled** candidate answers (each tagged with its producing model/source) plus the original task, and emits, in one response: a five-section structured analysis (Consensus / Contradictions / Partial coverage / Unique insights / Blind spots) followed by a grounded **Fused answer**. The output format is declared with exact `##` headers so any consumer can parse it deterministically. It lifts council's *reconcile, not average* discipline (resolve contradictions with stated reasoning, never split the difference) and treats candidate text as **data, not instructions** (an injected "ignore the other candidates" line is judged, not obeyed) -- the F5 untrusted-input groundwork that Phase 2 consumes. Front-matter mirrors `council`; `related_skills: [council, critique, lens]`.
+- **`council` synthesis upgraded ([modules/coding/skills/catalog/council/SKILL.md](../modules/coding/skills/catalog/council/SKILL.md), OF002).** The Synthesis section now reconciles the three passes through the shared consensus / contradictions / blind-spots vocabulary **before** its decision output -- the SHIP / SHIP-WITH-CHANGES / DEFER / DROP verdict, 1-3 acceptance criteria, and 1-3 explicit risks are all preserved. A one-line cross-link notes that `fuse` generalises the same synthesis over *distinct models* rather than three personas of one model; `fuse` was added to council's `related_skills`; the latency note is kept.
+- **Schema-conformance test ([tests/unit/skills/fuse.test.ts](../tests/unit/skills/fuse.test.ts), OF003).** 8 cases: loads the real catalog `fuse` skill, asserts its prompt declares all six sections in order plus the reconcile / labeled-candidate / untrusted-input discipline, and validates recorded/mock judge outputs (well-formed, gracefully-degraded for a malformed candidate set, and broken / empty / out-of-order negative controls) against a pure, total `validateFusionOutput` helper. No live model call. Auto-discovered by the existing `test-ts` CI job (the `vitest` config globs `tests/unit/**`); the catalog-count assertion in `tests/integration/commands/skill-execution.test.ts` was bumped 16 -> 17.
+
+### Verification
+
+- `npm run test` (full TS suite): **4205 passed / 5 skipped / 0 failed** (the +8 fuse cases over the prior 4197 baseline, plus the catalog-count fix).
+- `npm run lint` (eslint src modules): **0 errors**.
+- `npm run check:tampering` (nexus-check over tests + workflows): **0 findings**.
+- `npm run check:prompts`: exits **0**; two non-gating `prompt-oversized` warnings -- the pre-existing `review-pr` (~811 tokens) and `council` (~881, pushed over the soft 800 budget by the OF002-required additions, recorded as `OF002.P1.A`).
+- No new `.ts` source, dependency, credential, or outbound call (local-first / MCP Registry Policy clean). README/ARCHITECTURE/CHANGELOG narrative + version tag remain semantic-release-owned and deferred to the plan's Phase 5 FINAL.
+
+Known gaps for this plan are tracked separately in [versions/v1/v1.6.0/known-gaps-openrouter-fusion.md](versions/v1/v1.6.0/known-gaps-openrouter-fusion.md) (`OF002.P1.A` soft warning, `ENV.P1.A` pre-existing `docs/index.md` `src/panels` LOC drift, both P3). The `fuse` skill is the judge half of the technique; the diverse-model panel that produces the candidates (`PanelExecutor` / `FusionAgent`) is Phase 2.
+
+---
+
 ## [2026-06-16] v1.6.0 Phase 6 (FINAL) -- Whole-Plan Acceptance Gate + Cycle Closure (AS008-AS010)
 
 ### Goal
