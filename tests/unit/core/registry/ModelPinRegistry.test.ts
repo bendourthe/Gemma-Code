@@ -122,6 +122,78 @@ describe("ModelPinRegistry (core)", () => {
     const reg = new ModelPinRegistry({ envKeepAlive: () => "10m" });
     expect(reg.keepAliveFor("foo")).toBe("10m");
   });
+
+  // Panel keep-alive holds (OF008) -----------------------------------------
+
+  it("holdForPanel keeps models resident (-1) during the run and releases after", () => {
+    const reg = new ModelPinRegistry({ envKeepAlive: () => undefined });
+    const handle = reg.holdForPanel(["a", "b"]);
+    expect(handle.models).toEqual(["a", "b"]);
+    expect(reg.keepAliveFor("a")).toBe(-1);
+    expect(reg.keepAliveFor("b")).toBe(-1);
+    expect(reg.isHeldForPanel("a")).toBe(true);
+    handle.release();
+    expect(reg.keepAliveFor("a")).toBe("5m");
+    expect(reg.isHeldForPanel("a")).toBe(false);
+  });
+
+  it("a user's explicit pin survives a panel hold and release (-1 preserved)", () => {
+    const reg = new ModelPinRegistry({ envKeepAlive: () => undefined });
+    reg.pin("a");
+    const handle = reg.holdForPanel(["a"]);
+    expect(reg.keepAliveFor("a")).toBe(-1);
+    handle.release();
+    expect(reg.isPinned("a")).toBe(true);
+    expect(reg.keepAliveFor("a")).toBe(-1);
+  });
+
+  it("holdForPanel ref-counts overlapping holds so one release does not drop another", () => {
+    const reg = new ModelPinRegistry({ envKeepAlive: () => undefined });
+    const h1 = reg.holdForPanel(["a"]);
+    const h2 = reg.holdForPanel(["a"]);
+    h1.release();
+    expect(reg.isHeldForPanel("a")).toBe(true);
+    h2.release();
+    expect(reg.isHeldForPanel("a")).toBe(false);
+  });
+
+  it("release is idempotent (no ref-count underflow)", () => {
+    const reg = new ModelPinRegistry({ envKeepAlive: () => undefined });
+    const h1 = reg.holdForPanel(["a"]);
+    const h2 = reg.holdForPanel(["a"]);
+    h1.release();
+    h1.release(); // second release is a no-op
+    expect(reg.isHeldForPanel("a")).toBe(true); // h2 still holds
+    h2.release();
+    expect(reg.isHeldForPanel("a")).toBe(false);
+  });
+
+  it("holdForPanel de-duplicates and ignores blank ids", () => {
+    const reg = new ModelPinRegistry({ envKeepAlive: () => undefined });
+    const handle = reg.holdForPanel(["a", "a", " ", ""]);
+    expect(handle.models).toEqual(["a"]);
+    expect(reg.keepAliveFor("a")).toBe(-1);
+  });
+
+  it("a panel hold honours the env keep-alive only after release", () => {
+    const reg = new ModelPinRegistry({ envKeepAlive: () => "30m" });
+    const handle = reg.holdForPanel(["a"]);
+    expect(reg.keepAliveFor("a")).toBe(-1);
+    handle.release();
+    expect(reg.keepAliveFor("a")).toBe("30m");
+  });
+
+  it("a panel hold does not persist to the settings store", async () => {
+    const settings = new InMemorySettingsStore();
+    const reg = new ModelPinRegistry({ settings });
+    await reg.hydrate();
+    const handle = reg.holdForPanel(["a"]);
+    await flush();
+    expect(
+      await settings.get<readonly string[]>("nexus.llm.modelPins"),
+    ).toBeUndefined();
+    handle.release();
+  });
 });
 
 function flush(): Promise<void> {

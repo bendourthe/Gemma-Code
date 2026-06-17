@@ -4,6 +4,30 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-06-16] v1.6.0 openrouter-fusion Phase 3 -- Concurrent multi-model VRAM residency (F3, OF007-OF009)
+
+### Goal
+
+Turn Phase 2's sequential panel latency into parallel by letting a small panel be co-resident within a VRAM budget -- the genuinely new infrastructure of the [local panel + judge-fusion plan](versions/v1/v1.6.0/plans/adoption-openrouter-fusion.md), and the only hard enabler that did not already exist. The hard constraint is single-GPU resource safety: a panel must run concurrently only when it fits free VRAM, degrade to sequential fan-out when it does not (never OOM, never an unbounded loader), and never change the behavior of single-model sessions or the other pillars.
+
+### What changed
+
+- **`GpuScheduler.enqueuePanel` -- panel co-residency ([core/scheduler/GpuScheduler.ts](../core/scheduler/GpuScheduler.ts), OF007).** A panel is admitted as **one** scheduler job (so the single-active-job GPU ceiling is preserved for every non-panel workload; concurrency happens only *within* the admitted panel). At run start it reads free VRAM and runs the members **concurrently** when their summed `estimatedVramGB` fits, or **degrades to sequential** fan-out -- one member resident at a time, so peak reservation is the largest single member, never the sum -- when it does not. Unlike a plain `enqueue` (which still rejects a single over-budget job with `InsufficientVramError`), a panel is **never rejected** on summed VRAM; it degrades. A hard panel-size cap (`DEFAULT_PANEL_SIZE_CAP = 3`, overridable per panel via `maxPanelSize`) bounds co-residency and reports dropped members in the outcome's `droppedByCap`. One member throwing is captured as a non-`ok` result so the panel survives a member dying (mirrors `PanelExecutor`). A `panel.scheduled` telemetry marker carries the mode + size + reserved VRAM. The shared queue-admission machinery was extracted from `enqueue` into a private `_admit` helper, so existing single-model scheduling behavior is byte-for-byte unchanged.
+- **`ModelPinRegistry.holdForPanel` -- panel keep-alive ([core/registry/ModelPinRegistry.ts](../core/registry/ModelPinRegistry.ts), OF008).** A transient, **ref-counted**, in-memory (never persisted) keep-alive hold: held models report `keepAliveFor === -1` (kept resident) for the run's duration and are released via the returned handle (idempotent) afterward. The hold is layered **over** the pin set, so a user's explicit pin (`-1`) survives a panel hold/release untouched, and overlapping panels that share a model release independently. The registry structurally satisfies the scheduler's new `PanelKeepAliveCoordinator` port, so `enqueuePanel({ keepAlive: registry })` holds at run start and releases in a `finally`; the scheduler depends only on the minimal port, never the concrete registry (no new core->core import cycle).
+- **Tests ([tests/unit/core/scheduler/GpuScheduler.test.ts](../tests/unit/core/scheduler/GpuScheduler.test.ts) +10 cases, [tests/unit/core/registry/ModelPinRegistry.test.ts](../tests/unit/core/registry/ModelPinRegistry.test.ts) +7 cases, [tests/integration/scheduler/panel-residency.test.ts](../tests/integration/scheduler/panel-residency.test.ts) 3 cases, OF009).** Cover concurrent residency when VRAM fits, degrade-to-sequential (no OOM, no rejection) when it does not, the panel-size cap (explicit + default) and `droppedByCap`, one-member-failure resilience, the empty-panel guard, the `panel.scheduled` telemetry, the single-active-job ceiling (a regular job waits for the panel), and the keep-alive lifecycle (held `-1` during the run, released after, user pin + env defaults preserved). The integration cases wire the real `GpuScheduler` + the real `ModelPinRegistry`. Mock VRAM source; no live model. Auto-discovered by the existing `test-ts` CI job (the `vitest` config globs `tests/unit/**` and `tests/integration/**`).
+
+### Verification
+
+- `npm run test` (full TS suite): **4256 passed / 5 skipped / 0 failed** (the +19 net new cases over the prior 4237 baseline).
+- `npm run build` (`tsc -b`): clean.
+- New-code coverage: `GpuScheduler.ts` 99.07% lines / 91.02% branch / 100% functions; `ModelPinRegistry.ts` 100% / 100% / 100% (both well above the 80/75/80 gate; the 3 uncovered GpuScheduler lines are pre-existing snapshot/pump edge branches untouched this phase). Full-suite coverage gate green.
+- `npm run check:tampering`: **0 findings**. `npm run check-architecture`: **0 errors**, 10 pre-existing warnings (no new orphan/circular -- the panel methods sit on the already-consumed GpuScheduler + ModelPinRegistry). `core/` + `tests/` are outside the `eslint src modules` scope by project config; `tsc -b` typechecks them.
+- No new dependency, credential, or outbound call (local-first / MCP Registry Policy clean). README/ARCHITECTURE/CHANGELOG narrative + version tag remain semantic-release-owned and deferred to the plan's Phase 5 FINAL.
+
+Known gaps for this plan are tracked in [versions/v1/v1.6.0/known-gaps-openrouter-fusion.md](versions/v1/v1.6.0/known-gaps-openrouter-fusion.md). One forward-tier follow-up was recorded (P3, by plan design): `OF007.P3.A` -- the panel co-residency primitive + keep-alive are built and tested but not yet wired into a consumer (`PanelExecutor.run` still fans out sequentially in-process); the Phase 4 budget-panel routing heuristic (OF010-OF012) constructs the `PanelExecutor` and routes its fan-out through `enqueuePanel`. The remaining phases: F4 budget-panel routing + A/B (Phase 4), FINAL acceptance gate (Phase 5).
+
+---
+
 ## [2026-06-16] v1.6.0 openrouter-fusion Phase 2 -- Local multi-model panel orchestration + eval-integrity hardening (F2 + F5, OF004-OF006)
 
 ### Goal

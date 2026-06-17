@@ -135,6 +135,8 @@ Phase sequencing follows the comparison's Section 5.4 ordering with one dependen
 
 ## Phase 3: Concurrent multi-model VRAM residency (F3)
 
+**Status**: COMPLETE (2026-06-16). OF007-OF009 landed; `GpuScheduler.enqueuePanel` admits a bounded panel as one scheduler job that runs its members concurrently when their summed `estimatedVramGB` fits free VRAM and degrades to sequential fan-out (peaking at the largest single member, never the sum) when it does not -- no OOM, no rejection, single-active-job ceiling preserved for non-panel workloads; a hard panel-size cap (`DEFAULT_PANEL_SIZE_CAP = 3`, overridable per panel) bounds co-residency; `ModelPinRegistry.holdForPanel` keep-alive-holds the panel's models (ref-counted, in-memory, never persisted) for the run's duration and releases them after, leaving a user's explicit pin untouched. Full suite 4256 passed / 5 skipped / 0 failed; `tsc -b` + check:tampering (0) clean; new-code coverage GpuScheduler 99.07% lines / 100% funcs, ModelPinRegistry 100% / 100%; check-architecture 0 errors (10 pre-existing warnings, no new orphan/circular). The scheduler primitive + keep-alive are built ahead of their PanelExecutor/route consumer (Phase 4 routing wires them; recorded as `OF007.P3.A`). See [the DEVLOG entry](../../../../DEVLOG.md) and [known-gaps-openrouter-fusion.md](../known-gaps-openrouter-fusion.md).
+
 **Goal**: Turn F2's sequential latency into parallel by letting a small panel be co-resident within a VRAM budget -- the genuinely new infrastructure, and the only hard enabler that does not already exist.
 **Prerequisites**: Phase 2.
 **Stability Gate**: A small panel runs concurrently when VRAM permits; a hard panel-size cap is enforced; the scheduler **degrades to sequential fan-out** (never OOM, never an unbounded loader) when VRAM is insufficient; no behavior change to single-model sessions.
@@ -144,21 +146,21 @@ Phase sequencing follows the comparison's Section 5.4 ordering with one dependen
 
 #### 3.1 -- F3: Concurrent residency in the GPU scheduler
 
-- [ ] OF007 Allow a VRAM-gated, capped set of models to be co-resident for a panel run
+- [x] OF007 Allow a VRAM-gated, capped set of models to be co-resident for a panel run
 
 **Prompt**:
 > Implement comparison item F3. Extend [core/scheduler/GpuScheduler.ts](../../../../../core/scheduler/GpuScheduler.ts) so a panel run can request **co-residency** of a bounded set of models (a new "panel job" that reserves the summed `estimatedVramGB` of its members up-front and only admits the panel if it fits free VRAM). Enforce a hard panel-size cap (config, default small, e.g. 3). If the summed estimate exceeds free VRAM, **degrade to sequential** execution (one panelist at a time, same as the Phase 2 MVP) rather than failing. Preserve the existing single-active-job behavior for all non-panel workloads and across the other pillars (coding/chat/image/video do not change). Acceptance: a unit test proves a panel that fits VRAM runs concurrently, a panel that does not fit degrades to sequential (no OOM, no rejection), and the panel-size cap is enforced; existing single-model scheduling tests still pass. Effort: High. Risk: Medium (resource safety) -- mitigated by the VRAM gate + cap + degrade path.
 
 #### 3.2 -- F3: Panel keep-alive coordination
 
-- [ ] OF008 Coordinate ModelPinRegistry keep-alive for the duration of a panel run
+- [x] OF008 Coordinate ModelPinRegistry keep-alive for the duration of a panel run
 
 **Prompt**:
 > Wire [core/registry/ModelPinRegistry.ts](../../../../../core/registry/ModelPinRegistry.ts) so the panelist models for an in-flight panel run are kept resident for the run's duration and released afterward (do not silently override a user's explicit pin). Respect the existing keep-alive defaults and persisted pins. Acceptance: a test proves panel models are kept alive across the fan-out and released after fusion, and a user's explicit indefinite pin (`-1`) survives a panel run. Effort: Medium. Risk: Low.
 
 #### 3.3 -- Testing and stabilization (Phase 3)
 
-- [ ] OF009 VRAM-gate, OOM-degrade, and concurrency tests
+- [x] OF009 VRAM-gate, OOM-degrade, and concurrency tests
 
 **Prompt**:
 > Add integration tests simulating: a panel that fits VRAM (asserts concurrent residency), a panel that exceeds VRAM (asserts degrade-to-sequential, no OOM), the panel-size cap, and keep-alive lifecycle. Use a mock VRAM/free-memory source. Coverage gate >= 80 lines/functions across the changed scheduler/registry code. Effort: Medium. Risk: Low.

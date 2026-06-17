@@ -3,7 +3,10 @@ import {
   GpuScheduler,
   InsufficientVramError,
   JobCancelledError,
+  DEFAULT_PANEL_SIZE_CAP,
   type GpuJob,
+  type PanelMemberJob,
+  type PanelKeepAliveCoordinator,
 } from "../../../../core/scheduler/GpuScheduler.js";
 import {
   InProcessTelemetryBus,
@@ -396,5 +399,246 @@ describe("GpuScheduler", () => {
     await expect(h1.completion).rejects.toBeInstanceOf(JobCancelledError);
     release();
     await h0.completion;
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Panel co-residency (v1.6.0 adoption-openrouter-fusion Phase 3, OF007 / OF009)
+// ---------------------------------------------------------------------------
+
+interface PanelCtx {
+  active: number;
+  maxActive: number;
+  order: string[];
+}
+
+/** A panel member that tracks concurrency and records its dispatch order. */
+function trackingMember(
+  modelId: string,
+  estimatedVramGB: number,
+  ctx: PanelCtx,
+  delayMs = 5,
+): PanelMemberJob {
+  return {
+    modelId,
+    estimatedVramGB,
+    run: () =>
+      new Promise((resolve) => {
+        ctx.active += 1;
+        ctx.maxActive = Math.max(ctx.maxActive, ctx.active);
+        setTimeout(() => {
+          ctx.active -= 1;
+          ctx.order.push(modelId);
+          resolve(`done:${modelId}`);
+        }, delayMs);
+      }),
+  };
+}
+
+describe("GpuScheduler panel co-residency (OF007)", () => {
+  let bus: InProcessTelemetryBus;
+  let events: Recorded[];
+  beforeEach(() => {
+    ({ bus, events } = makeBusAndRecorder());
+  });
+
+  it("runs the panel concurrently when summed VRAM fits free VRAM", async () => {
+    const sched = new GpuScheduler({ telemetry: bus, vramProvider: () => 16 });
+    const ctx: PanelCtx = { active: 0, maxActive: 0, order: [] };
+    const handle = await sched.enqueuePanel({
+      moduleId: "coding",
+      jobType: "fusion-panel",
+      priority: "foreground",
+      members: [
+        trackingMember("m1", 2, ctx),
+        trackingMember("m2", 2, ctx),
+        trackingMember("m3", 2, ctx),
+      ],
+    });
+    const outcome = await handle.completion;
+    expect(outcome.mode).toBe("concurrent");
+    expect(ctx.maxActive).toBe(3);
+    expect(outcome.admitted).toEqual(["m1", "m2", "m3"]);
+    expect(outcome.reservedVramGB).toBe(6);
+    expect(outcome.freeVramGB).toBe(16);
+    expect(outcome.results.every((r) => r.ok)).toBe(true);
+  });
+
+  it("degrades to sequential (no OOM, no rejection) when summed VRAM exceeds free VRAM", async () => {
+    const sched = new GpuScheduler({ telemetry: bus, vramProvider: () => 8 });
+    const ctx: PanelCtx = { active: 0, maxActive: 0, order: [] };
+    const handle = await sched.enqueuePanel({
+      moduleId: "coding",
+      jobType: "fusion-panel",
+      priority: "background",
+      members: [
+        trackingMember("m1", 5, ctx),
+        trackingMember("m2", 5, ctx),
+        trackingMember("m3", 5, ctx),
+      ],
+    });
+    const outcome = await handle.completion;
+    expect(outcome.mode).toBe("sequential");
+    // Never more than one member resident at a time -> no OOM.
+    expect(ctx.maxActive).toBe(1);
+    // Peak reservation is the largest single member, never the sum.
+    expect(outcome.reservedVramGB).toBe(5);
+    expect(outcome.results).toHaveLength(3);
+    expect(outcome.results.every((r) => r.ok)).toBe(true);
+    expect(ctx.order).toEqual(["m1", "m2", "m3"]);
+  });
+
+  it("enforces an explicit panel-size cap, dropping members beyond it", async () => {
+    const sched = new GpuScheduler({ telemetry: bus, vramProvider: () => 64 });
+    const ctx: PanelCtx = { active: 0, maxActive: 0, order: [] };
+    const members: PanelMemberJob[] = ["a", "b", "c", "d", "e"].map((id) =>
+      trackingMember(id, 1, ctx),
+    );
+    const handle = await sched.enqueuePanel({
+      moduleId: "coding",
+      jobType: "fusion-panel",
+      priority: "background",
+      maxPanelSize: 2,
+      members,
+    });
+    const outcome = await handle.completion;
+    expect(outcome.admitted).toEqual(["a", "b"]);
+    expect(outcome.droppedByCap).toEqual(["c", "d", "e"]);
+    expect(outcome.results).toHaveLength(2);
+  });
+
+  it("defaults the panel-size cap to DEFAULT_PANEL_SIZE_CAP (3)", async () => {
+    const sched = new GpuScheduler({ telemetry: bus, vramProvider: () => 64 });
+    const ctx: PanelCtx = { active: 0, maxActive: 0, order: [] };
+    const members = ["a", "b", "c", "d"].map((id) => trackingMember(id, 1, ctx));
+    const handle = await sched.enqueuePanel({
+      moduleId: "coding",
+      jobType: "fusion-panel",
+      priority: "background",
+      members,
+    });
+    const outcome = await handle.completion;
+    expect(DEFAULT_PANEL_SIZE_CAP).toBe(3);
+    expect(outcome.admitted).toHaveLength(3);
+    expect(outcome.droppedByCap).toEqual(["d"]);
+  });
+
+  it("survives a single member throwing; survivors still produce results", async () => {
+    const sched = new GpuScheduler({ telemetry: bus, vramProvider: () => 16 });
+    const handle = await sched.enqueuePanel({
+      moduleId: "coding",
+      jobType: "fusion-panel",
+      priority: "background",
+      members: [
+        { modelId: "ok1", estimatedVramGB: 2, run: () => Promise.resolve("a1") },
+        {
+          modelId: "boom",
+          estimatedVramGB: 2,
+          run: () => Promise.reject(new Error("model crashed")),
+        },
+        { modelId: "ok2", estimatedVramGB: 2, run: () => Promise.resolve("a2") },
+      ],
+    });
+    const outcome = await handle.completion;
+    expect(outcome.results).toHaveLength(3);
+    const boom = outcome.results.find((r) => r.modelId === "boom");
+    expect(boom?.ok).toBe(false);
+    expect(boom?.error).toContain("model crashed");
+    expect(outcome.results.filter((r) => r.ok)).toHaveLength(2);
+  });
+
+  it("rejects a panel with no members", async () => {
+    const sched = new GpuScheduler({ telemetry: bus, vramProvider: () => 16 });
+    await expect(
+      sched.enqueuePanel({
+        moduleId: "coding",
+        jobType: "fusion-panel",
+        priority: "background",
+        members: [],
+      }),
+    ).rejects.toThrow(/no members/);
+  });
+
+  it("publishes a panel.scheduled telemetry event carrying the mode and size", async () => {
+    const sched = new GpuScheduler({ telemetry: bus, vramProvider: () => 16 });
+    const handle = await sched.enqueuePanel({
+      moduleId: "coding",
+      jobType: "fusion-panel",
+      priority: "background",
+      members: [
+        { modelId: "m1", estimatedVramGB: 2, run: () => Promise.resolve("x") },
+        { modelId: "m2", estimatedVramGB: 2, run: () => Promise.resolve("y") },
+      ],
+    });
+    await handle.completion;
+    const scheduled = events.find(
+      (e) => (e.payload as Record<string, unknown>)?.panelEvent === "panel.scheduled",
+    );
+    expect(scheduled).toBeDefined();
+    const payload = scheduled?.payload as Record<string, unknown>;
+    expect(payload.panelMode).toBe("concurrent");
+    expect(payload.panelSize).toBe(2);
+    expect(payload.reservedVramGB).toBe(4);
+  });
+
+  it("preserves the single-active-job ceiling: a regular job waits for the panel", async () => {
+    const sched = new GpuScheduler({ telemetry: bus, vramProvider: () => 16 });
+    const ctx: PanelCtx = { active: 0, maxActive: 0, order: [] };
+    const panelHandle = await sched.enqueuePanel({
+      moduleId: "coding",
+      jobType: "fusion-panel",
+      priority: "background",
+      members: [trackingMember("m1", 2, ctx, 10), trackingMember("m2", 2, ctx, 10)],
+    });
+    const jobHandle = await sched.enqueue(
+      makeJob({
+        moduleId: "image",
+        jobType: "txt2img",
+        estimatedVramGB: 2,
+        run: () => Promise.resolve().then(() => ctx.order.push("regular")),
+      }),
+    );
+    await Promise.all([panelHandle.completion, jobHandle.completion]);
+    // The panel fully drains (both members) before the regular job runs.
+    expect(ctx.order).toEqual(["m1", "m2", "regular"]);
+  });
+
+  it("invokes the keep-alive coordinator for the run's duration and releases after", async () => {
+    const sched = new GpuScheduler({ telemetry: bus, vramProvider: () => 16 });
+    const held = new Set<string>();
+    const coordLog: string[] = [];
+    const coordinator: PanelKeepAliveCoordinator = {
+      holdForPanel: (models) => {
+        for (const m of models) held.add(m);
+        coordLog.push(`hold:${models.join(",")}`);
+        return {
+          release: (): void => {
+            for (const m of models) held.delete(m);
+            coordLog.push("release");
+          },
+        };
+      },
+    };
+    let heldDuringRun = false;
+    const handle = await sched.enqueuePanel({
+      moduleId: "coding",
+      jobType: "fusion-panel",
+      priority: "background",
+      keepAlive: coordinator,
+      members: [
+        {
+          modelId: "m1",
+          estimatedVramGB: 2,
+          run: () => {
+            heldDuringRun = held.has("m1");
+            return Promise.resolve("x");
+          },
+        },
+      ],
+    });
+    await handle.completion;
+    expect(heldDuringRun).toBe(true);
+    expect(held.size).toBe(0); // released after the run
+    expect(coordLog).toEqual(["hold:m1", "release"]);
   });
 });
