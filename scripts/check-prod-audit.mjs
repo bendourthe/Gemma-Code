@@ -17,10 +17,21 @@
  * production audit and have been removed from the allowlist below. See
  * `core/memory/LocalEmbedder.ts` for the call-site migration.
  *
+ * v1.6.0 cycle close (ENV.P5.A): a DIFFERENT protobufjs advisory later
+ * surfaced -- GHSA-f38q-mgvj-vph7 (prototype-shadowing, moderate) on
+ * protobufjs@7.6.2, still reached only as the OPTIONAL
+ * @huggingface/transformers -> onnxruntime-web -> protobufjs transitive. The
+ * 7.x line ends at the vulnerable 7.6.2 and onnxruntime-web pins
+ * `protobufjs@^7.2.4`, so the only patch (protobufjs@8.x) is a semver-major
+ * move outside that range; it is re-allowlisted below with a reachability
+ * note. The co-occurring dompurify advisories WERE fixed in-range via an
+ * `overrides` bump to dompurify@^3.4.11 (package.json).
+ *
  * What remains allowlisted: `brace-expansion` -- a moderate-severity DoS
  * (GHSA-jxxr-4gwj-5jf2) carried as a deep transitive in the production tree
  * (via minimatch and friends); `npm dedupe` only fixes it locally and reverts
- * on the next `npm ci`, and no non-major upstream bump is available.
+ * on the next `npm ci`, and no non-major upstream bump is available; and
+ * `protobufjs` (see above).
  *
  * Behaviour:
  *   1. Run `npm audit --omit=dev --json`.
@@ -45,6 +56,18 @@ const ALLOWLIST = new Set([
   // that used to be allowlisted here was resolved in v1.4.0 Phase 8 by the
   // migration to @huggingface/transformers@4.x (see header).
   "brace-expansion",
+  // protobufjs moderate-severity prototype-shadowing advisory
+  // (GHSA-f38q-mgvj-vph7) on protobufjs@7.6.2, reached only as an OPTIONAL
+  // transitive: @huggingface/transformers (optionalDependencies) ->
+  // onnxruntime-web -> protobufjs. The advisory requires parsing an
+  // attacker-controlled .proto schema; the ONNX runtime only ever loads the
+  // fixed, bundled ONNX model schema, so it is not reachable with untrusted
+  // input. No in-range fix exists: the protobufjs 7.x line ends at the
+  // vulnerable 7.6.2, and onnxruntime-web pins `protobufjs@^7.2.4`, so the
+  // only patch (protobufjs@8.x) is a semver-major move outside that range.
+  // The co-occurring dompurify advisories WERE fixed in-range via an
+  // `overrides` bump to dompurify@^3.4.11 (package.json). Tracked as ENV.P5.A.
+  "protobufjs",
 ]);
 
 const SEVERITY_RANK = {

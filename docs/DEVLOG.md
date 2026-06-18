@@ -4,6 +4,29 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-06-17] v2.0.0 prep -- forward-tier carryovers resolved + CI green (OF010/OF011 live wiring, ENV audit + catalog, Hub guide sync)
+
+### Goal
+
+Resolve the optional forward-tier carryovers left open after the v1.6.0 cycles and get every CI/CD gate green ahead of a v2.0.0 release: run the deferred local A/B (`OF010.P4.A`), land the deferred live panel-routing wiring (`OF011.P4.A`), clear the two environmental gate failures (`ENV.P5.A` prod-audit, `ENV.P1.A` catalog drift), and sync the v1.6.0 feature surface into the interactive guide.
+
+### What changed
+
+- **Live A/B RUN (`OF010.P4.A`, was deferred).** Fixed a latent bug that meant [scripts/run-panel-ab.mjs](../scripts/run-panel-ab.mjs) could never run -- it imported the settings-coupled `createOllamaClient` (which `require`s `vscode`, absent in plain Node); it now uses a vscode-free `fetch` Ollama client plus a benchmark-only [scripts/_vscode-stub.cjs](../scripts/_vscode-stub.cjs) `--require` preload. Ran the A/B against local Ollama models (single `gemma4:latest` vs a `qwen2.5-coder:3b` + `llama3.2:3b` panel, judge `gemma4:latest`): **3 coding tasks, 0 panel / 0 single / 3 ties, quality delta 0.000, latency 0.83x**. `decidePanelRoutingDefault` -> `enableByDefault: false`, so `nexus.llm.panelRouting` correctly stays opt-in (off) -- now a measured no-net-win, not an un-run assumption.
+- **Live route wiring landed (`OF011.P4.A`, was deferred).** [src/panels/ChatPanelBootstrap.ts](../src/panels/ChatPanelBootstrap.ts) constructs the scheduler-backed `PanelRouter` ONLY when `nexus.llm.panelRouting` is on (`InProcessTelemetryBus` -> `GpuScheduler` with a `GpuDetector` free-VRAM provider -> `FusionAgent(getOllamaClient(), modelName, ollamaOptions, loadFusePrompt(catalogDir))` -> `ModelPinRegistry` keep-alive -> `PanelExecutor` with the Phase 3 co-residency backend -> `PanelRouter`), inside a fail-safe try/catch that leaves the router null on any error so chat startup never breaks. [src/panels/ChatController.ts](../src/panels/ChatController.ts) `submitUserMessage` consults it via `_consultPanel` before the single-model pipeline: a `panel` decision renders the fused answer and short-circuits; a `single` decision, a null router (the default), or a thrown error falls through to the unchanged single-model path (the turn is never lost). Default-off => byte-identical to the pre-OF011 turn. Tests: [tests/unit/panels/ChatController.panelRouting.test.ts](../tests/unit/panels/ChatController.panelRouting.test.ts) (4 cases: fused-render-skips-pipeline, single-falls-through, null-router-unchanged, router-throws-falls-through).
+- **`ENV.P5.A` (prod-audit) resolved at root cause.** `dompurify` bumped in-range via an `overrides` entry to `^3.4.11` (clears all 7 DOMPurify advisories; vulnerable range was `<=3.4.8`; compatible with `isomorphic-dompurify@3.9.0`'s `^3.4.0`). `protobufjs` allowlisted in [scripts/check-prod-audit.mjs](../scripts/check-prod-audit.mjs) with a reachability note: no in-range fix (the 7.x line ends at the vulnerable 7.6.2, `onnxruntime-web` pins `^7.2.4`, only patch is the 8.x major), and it is an OPTIONAL transitive whose advisory needs an attacker-controlled `.proto` schema the ONNX runtime never parses. `check:audit-prod` now exits 0.
+- **`ENV.P1.A` (catalog drift) resolved.** Regenerated `docs/index.md` (`npm run catalog`); it now reflects the OF011 `src/panels` LOC and is committed, so `catalog:check` passes.
+- **Nexus-Hub guide sync.** The interactive guide ([guides/interactive-guide/nexus-ai-guide.html](../guides/interactive-guide/nexus-ai-guide.html)) gained v1.6.0 coverage: a panel-fusion harness card, a `nexus trace export` CLI row, `nexus.llm.panelRouting` + `nexus.llm.localAdapters` settings rows, and a refreshed Nexus-Hub catalog count; the AS003 offline-integrity test still passes (18/18). The forward cross-link to the Nexus-Hub guide already existed. The reciprocal Hub-side back-link and the global `~/.claude/CLAUDE.md` stale skill-index are out-of-scope follow-ups (Hub repo / personal config).
+- **CI diagnosis.** The originally-failing CI traced entirely to the two environmental gates above (`catalog-sync` + `audit-ts`); build / lint / test / architecture / prompts / tampering / security were already green. No application defect; the exported run logs contained only runner-provisioning traces, so the real failures were found by reproducing every gate locally.
+
+### Verification
+
+- Full local gate suite (Node 24), all PASS: `npm run build`, `npm run lint`, `npm run check-architecture` (0 errors), `npm run check:prompts`, `npm run check:tampering`, `npm run security:check`, `npm run check:audit-prod` (now 0 blocking), `npm test` (full root suite), `npm run test:shell` (desktop -- confirms the dompurify bump is safe).
+- Default behavior unchanged: `panelRoutingEnabled` still defaults `false`; when off, no panel objects are constructed and the chat turn is byte-identical.
+- No new dependency beyond the `dompurify` override; no new outbound call or credential (local-first / MCP Registry Policy clean).
+
+---
+
 ## [2026-06-17] v1.6.0 openrouter-fusion Phase 5 (FINAL) -- Whole-plan acceptance gate + cycle close-out (OF013-OF015)
 
 ### Goal

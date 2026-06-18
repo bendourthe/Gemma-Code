@@ -28,6 +28,7 @@ import type { OperationLog } from "../../modules/coding/observability/OperationL
 import type { Tracer } from "../../modules/coding/observability/Tracer.js";
 import type { HardwareTierConfig } from "../../modules/coding/config/HardwareTier.types.js";
 import type { GemmaCodeSettings } from "../../modules/coding/config/settings.js";
+import type { PanelRouter } from "../../modules/coding/llm/PanelRouter.js";
 import { calculateBudget, resolveModelContextLimit } from "../../modules/coding/config/PromptBudget.js";
 import { renderMarkdown } from "../../modules/coding/utils/MarkdownRenderer.js";
 import { getLogger } from "../../modules/coding/utils/logger.js";
@@ -129,6 +130,20 @@ export interface ChatControllerContext extends ChatCommandContext {
    * later versions.
    */
   readonly planArchive?: PlanArchiveLike;
+  /**
+   * v1.6.0 adoption-openrouter-fusion Phase 5 (OF011) -- the opt-in budget-panel
+   * router. When non-null (built only when `nexus.llm.panelRouting` is on), a
+   * normal chat turn is offered to the router first; a `panel` decision renders
+   * the fused answer and short-circuits the single-model pipeline. `null` (the
+   * default) leaves the chat turn byte-identical to the pre-OF011 path.
+   */
+  readonly panelRouter?: PanelRouter | null;
+  /**
+   * v1.6.0 adoption-openrouter-fusion Phase 5 (OF011) -- supplies the distinct
+   * installed-model panel spec (models other than the primary) the router fans
+   * out across. Only consulted when `panelRouter` is non-null.
+   */
+  panelSpecProvider?(): Promise<readonly string[]>;
   getUnifiedRetriever(): UnifiedMemoryRetriever | null;
   /**
    * v1.5.0 Phase 7 (HUB.P3.CMD): resolve a Nexus-Hub command body by name.
@@ -402,9 +417,67 @@ export class ChatController {
       return;
     }
 
+    // v1.6.0 adoption-openrouter-fusion Phase 5 (OF011): offer the turn to the
+    // opt-in budget-panel router. When it escalates to (and runs) a panel, the
+    // fused answer is rendered here and the single-model pipeline is skipped.
+    // When the router is null (the default) or it keeps the single model, this
+    // is a no-op and the turn falls through unchanged.
+    if (await this._consultPanel(text, postWithRender)) {
+      return;
+    }
+
     await this._injectMemoryContext(text);
     await ctx.pipeline.send(text, postWithRender);
     this._checkForPlan();
+  }
+
+  /**
+   * v1.6.0 adoption-openrouter-fusion Phase 5 (OF011) -- live panel-routing
+   * consult. Returns `true` when the router escalated to a panel and the fused
+   * answer was rendered (the caller must then short-circuit the single-model
+   * path); returns `false` when there is no router, when the decision was to
+   * stay on the single model, or when anything failed -- in which case the
+   * caller proceeds with the normal pipeline so the user's turn is never lost.
+   *
+   * The fused answer is appended exactly the way `StreamingPipeline` commits an
+   * assistant message: the user turn is recorded first (so history + the chat
+   * store match the single-model path), then the assistant message, then a
+   * `messageComplete` with an empty `renderedHtml` so `postWithRender` renders
+   * the markdown from history by message id -- identical to the streaming path.
+   */
+  private async _consultPanel(
+    text: string,
+    postWithRender: (msg: ExtensionToWebviewMessage) => void,
+  ): Promise<boolean> {
+    const ctx = this._ctx;
+    const router = ctx.panelRouter ?? null;
+    if (!router || !ctx.panelSpecProvider) return false;
+
+    try {
+      const panelSpec = await ctx.panelSpecProvider();
+      const routed = await router.route({
+        task: text,
+        highReliability: true,
+        singleModel: ctx.getSettings().modelName,
+        panelSpec,
+      });
+      if (routed.decision.kind !== "panel" || !routed.run) {
+        return false;
+      }
+
+      ctx.manager.addUserMessage(text);
+      const msg = ctx.manager.addAssistantMessage(routed.run.fusion.fusedOutput);
+      postWithRender({
+        type: "messageComplete",
+        messageId: msg.id,
+        renderedHtml: "",
+      });
+      this._checkForPlan();
+      return true;
+    } catch (err) {
+      getLogger().warn("[PanelRouter] Panel consult failed; using single model:", err);
+      return false;
+    }
   }
 
   /** Handle the user's "approve step" click in plan mode. */

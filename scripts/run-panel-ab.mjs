@@ -85,10 +85,55 @@ const TASKS = [
   },
 ];
 
+/**
+ * Minimal vscode-free Ollama chat client for this benchmark runner. The shipped
+ * `createOllamaClient` factory (modules/coding/llm/OllamaClient.ts) statically
+ * imports the settings module, which `require`s `vscode` and so cannot load in a
+ * plain-Node script -- the same vscode coupling A4 worked around with
+ * `TraceDbReader`. This implements only the `streamChat` slice that
+ * `PanelExecutor` and `FusionAgent` consume, reading the Ollama `/api/chat`
+ * NDJSON stream over `fetch`.
+ */
+function createFetchOllamaClient(baseUrl) {
+  const root = baseUrl.replace(/\/+$/, "");
+  return {
+    async *streamChat(request) {
+      const res = await fetch(`${root}/api/chat`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ...request, stream: true }),
+      });
+      if (!res.ok || !res.body) {
+        throw new Error(`Ollama /api/chat failed: ${res.status} ${res.statusText}`);
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            const chunk = JSON.parse(trimmed);
+            yield chunk;
+            if (chunk.done) return;
+          }
+        }
+        const tail = buffer.trim();
+        if (tail) yield JSON.parse(tail);
+      } finally {
+        reader.releaseLock();
+      }
+    },
+  };
+}
+
 async function main() {
-  const { createOllamaClient } = await import(
-    "../out/modules/coding/llm/OllamaClient.js"
-  );
   const { PanelExecutor } = await import(
     "../out/modules/coding/orchestration/PanelExecutor.js"
   );
@@ -98,7 +143,7 @@ async function main() {
   const { runAbHarness, scoreByKeywords, measurePanelRun, decidePanelRoutingDefault } =
     await import("../out/modules/coding/orchestration/PanelAbHarness.js");
 
-  const client = createOllamaClient();
+  const client = createFetchOllamaClient(OLLAMA_URL);
 
   async function collect(model, prompt) {
     let answer = "";

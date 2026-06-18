@@ -649,6 +649,7 @@ code { font-family: var(--mono); font-size: .92em; }
           <div class="card"><span class="num">Check</span><h3>Verification gates</h3><p>The pass-state gate refuses to finish until tests, lint, or build actually pass - turning a model's optimism into evidence.</p></div>
           <div class="card"><span class="num">Ground</span><h3>Memory + retrieval</h3><p>Hybrid BM25 + dense + graph retrieval feeds the model the exact lines it needs, instead of relying on it to remember your codebase.</p></div>
           <div class="card"><span class="num">Encode</span><h3>200+ expert skills</h3><p>Senior-level procedures for security, testing, refactoring, and architecture load on demand, so the model follows an expert's checklist rather than improvising.</p></div>
+          <div class="card"><span class="num">Fuse</span><h3>Local model panel + judge fusion</h3><p>Opt-in (<code>nexus.llm.panelRouting</code>, off by default): fan one prompt across a panel of distinct local models, then a local judge (the <code>fuse</code> skill) reconciles their answers into one. A diverse panel can lift answer quality above any single resident model - the local stand-in for a frontier fallback. It runs several models plus a judge, so it is slower and stays opt-in.</p></div>
         </div>
         <p class="sub">Together these are the bet: a guided, checked, grounded small model aiming to feel comparable to a frontier model on everyday agentic coding.</p>
       </section>
@@ -660,7 +661,7 @@ code { font-family: var(--mono); font-size: .92em; }
           <div class="term-bar"><i class="r"></i><i class="y"></i><i class="g"></i><span class="label">sync the harness</span></div>
           <div class="term-body"><span class="pr">$</span> nexus skills sync            <span class="cm"># preview the latest Nexus-Hub release</span>
 <span class="pr">$</span> nexus skills sync --apply    <span class="cm"># scan, then activate</span>
-<span class="ok">&#10003;</span> 203 skills, 36 commands, 14 hooks active</div>
+<span class="ok">&#10003;</span> 256 skills, 18 commands, 67 hooks active</div>
         </div>
       </section>
 
@@ -693,6 +694,7 @@ code { font-family: var(--mono); font-size: .92em; }
             <tr><td><code>nexus skills list</code></td><td>List active skills</td></tr>
             <tr><td><code>nexus memory audit</code></td><td>Inspect memory</td></tr>
             <tr><td><code>nexus memory export</code></td><td>Export memory to JSONL</td></tr>
+            <tr><td><code>nexus trace export</code></td><td>Export a session trace to a self-contained, shareable HTML viewer</td></tr>
             <tr><td><code>nexus check</code></td><td>Deterministic source checks</td></tr>
             <tr><td><code>nexus doctor</code></td><td>Read-only state inventory</td></tr>
             <tr><td><code>nexus image / video</code></td><td>Pipeline helpers</td></tr>
@@ -701,7 +703,9 @@ code { font-family: var(--mono); font-size: .92em; }
         <div class="card">
           <h3 style="margin-top:0">Key settings</h3>
           <table class="tbl" style="margin:0">
-            <tr><td><code>nexus.llm.backend</code></td><td>ollama / lmstudio / auto</td></tr>
+            <tr><td><code>nexus.llm.backend</code></td><td>ollama / lmstudio / auto / custom adapter</td></tr>
+            <tr><td><code>nexus.llm.localAdapters</code></td><td>Register a loopback-only local runtime by manifest</td></tr>
+            <tr><td><code>nexus.llm.panelRouting</code></td><td>Opt-in local model-panel routing (off by default)</td></tr>
             <tr><td><code>nexus.coding.editMode</code></td><td>ask / auto / plan</td></tr>
             <tr><td><code>nexus.diffusion.tierOverride</code></td><td>Force a hardware tier</td></tr>
             <tr><td><code>nexus.operationLog.enabled</code></td><td>Opt-in tool-call log</td></tr>
