@@ -1,3 +1,23 @@
+## [2.0.0] - 2026-06-18
+
+Major GA milestone consolidating the v1.4.0 -> v1.6.0 development line into the published release. Local-first, zero-outbound throughout (MCP Registry Policy clean).
+
+### Highlights
+
+- **Local model panel + judge fusion (opt-in).** A diverse panel of local models, fused by a local judge (the `fuse` skill), as the local stand-in for a frontier fallback. Wired into the live chat turn behind `nexus.llm.panelRouting` (default off); a local A/B measured no net win on a small coding fixture, so it ships opt-in (`PanelExecutor` / `FusionAgent` / `PanelRouter`, OF010 + OF011).
+- **Local-runtime adapter registry.** Register a loopback-only inference runtime by manifest via `nexus.llm.localAdapters` (non-local endpoints rejected per the MCP Registry Policy).
+- **Shareable trace export.** `nexus trace export` writes a self-contained, offline HTML session/trace viewer.
+- **Session-state artifact dehydration**, **hierarchical sub-run trace nesting**, and the self-contained **Nexus-AI interactive guide**.
+
+### Security / CI
+
+- `dompurify` bumped to `^3.4.11` (clears 7 advisories in-range); the `protobufjs` advisory is allowlisted (optional, unreachable transitive with no in-range fix).
+- All gates green: build, lint, architecture, prompts, tampering, security, prod-audit, the full TypeScript suite, and the desktop suite.
+
+See the per-cycle docs under `docs/versions/v1/` and `docs/DEVLOG.md` for the full history.
+
+## Earlier releases
+
 # [0.44.0](https://github.com/bendourthe/Nexus-AI/compare/v0.43.0...v0.44.0) (2026-06-16)
 
 
