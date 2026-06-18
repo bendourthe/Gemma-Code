@@ -4,6 +4,29 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-06-17] v1.6.0 openrouter-fusion Phase 5 (FINAL) -- Whole-plan acceptance gate + cycle close-out (OF013-OF015)
+
+### Goal
+
+Close the [local panel + judge-fusion plan](versions/v1/v1.6.0/plans/adoption-openrouter-fusion.md): verify all six definition-of-pass items, run the full gate matrix, finalize the per-plan known-gaps, and assess the Nexus-Hub touchpoint. No feature code changes -- verification + close-out over the Phases 1-4 builds.
+
+### What changed
+
+- **Whole-plan acceptance gate (OF013).** All six definition-of-pass items verified PASS (the evidence matrix is in [versions/v1/v1.6.0/known-gaps-openrouter-fusion.md](versions/v1/v1.6.0/known-gaps-openrouter-fusion.md) Section 4): F1 fuse skill + council upgrade; F2 PanelExecutor/FusionAgent distinct-model fan-out (now parallel via the F3 backend); F5 judge untrusted-input boundary + no per-panelist tools + documented SPOF; F3 VRAM-gated co-residency with degrade-to-sequential; F4 A/B harness + opt-in routing (default off, recorded); and the testing/docs item.
+- **Docs (OF014).** The per-plan known-gaps ledger is finalized (acceptance-gate matrix, `ENV.P5.A`, `OF015.P5.A`, summary marked 5/5 COMPLETE). README/ARCHITECTURE/CHANGELOG narrative + the npm version tag remain **semantic-release-owned** and cut on merge to `main` from the conventional commits (P1-P5) -- not hand-edited (manual edits would fight the generator), matching the sibling aisuite-harness Phase 6 FINAL and every P1-P4 note. The plan, this DEVLOG, and `docs/todos.md` carry the per-phase narrative.
+- **Nexus-Hub touchpoint (OF015).** Assessed -- **not warranted** (`OF015.P5.A`). The local panel-fusion capability is internal Nexus-AI code, not a portable Hub skill/command; the Hub's `agent-orchestration-primitives` + `competitive-generation` skills already describe the multi-candidate/judge pattern at the orchestration-primitive altitude. Same disposition as the sibling plan's `AS010.P6.A`. No change pushed to the separate `bendourthe/Nexus-Hub` repo.
+
+### Verification
+
+- `npm run test`: **4291 passed / 5 skipped / 0 failed**. `npm run lint`: **0 errors**. `tsc -b`: clean.
+- `npm run check-architecture`: **0 errors**, 10 pre-existing warnings (no new orphan/circular). `npm run security:check`: in sync. `npm run check:tampering`: **0 findings**. `npm run check:prompts`: **0 errors** (2 pre-existing oversized warnings, `OF002.P1.A`).
+- `npm run check:audit-prod`: **fails on 2 pre-existing production advisories not owned by this plan** -- `dompurify` (via the direct `isomorphic-dompurify` dep) + `protobufjs` (transitive). Phase 4/5 changed **zero** dependencies, so these are environmental (newly-published advisories). Recorded as `ENV.P5.A`; remediation (reachability check + bump or allowlist) belongs to a dependency-owning cycle, not this feature plan. The plan's explicit Phase 5 Stability Gate (test / lint / check-architecture / security:check) all pass.
+- No new dependency, credential, or outbound call (local-first / MCP Registry Policy clean).
+
+The plan is **COMPLETE** (all 5 phases). The whole v1.4.0 + v1.5.0 + v1.6.0 line remains un-merged to `main`; the version tag + CHANGELOG/README/ARCHITECTURE narrative are cut by semantic-release at that merge.
+
+---
+
 ## [2026-06-17] v1.6.0 openrouter-fusion Phase 4 -- Budget-panel routing heuristic + local A/B (F4, OF010-OF012)
 
 ### Goal

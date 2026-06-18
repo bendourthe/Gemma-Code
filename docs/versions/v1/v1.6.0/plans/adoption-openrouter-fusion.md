@@ -203,15 +203,17 @@ Phase sequencing follows the comparison's Section 5.4 ordering with one dependen
 
 ## Phase 5: FINAL -- whole-plan acceptance gate + docs + Hub sync
 
+**Status**: COMPLETE (2026-06-17). OF013-OF015 closed; the plan is COMPLETE (all 5 phases). All six definition-of-pass items verified (the acceptance-gate matrix is in [known-gaps-openrouter-fusion.md](../known-gaps-openrouter-fusion.md) Section 4). Gates: `npm run test` 4291 passed / 5 skipped / 0 failed; `npm run lint` 0 errors; `tsc -b` clean; `npm run check-architecture` 0 errors (10 pre-existing warnings); `npm run security:check` in sync; `npm run check:tampering` 0; `npm run check:prompts` 0 errors (2 pre-existing warnings, `OF002.P1.A`). One pre-existing, not-owned environmental gate failure recorded: `check:audit-prod` flags `dompurify` + `protobufjs` advisories (`ENV.P5.A`). No feature code changed (verification + close-out). README/ARCHITECTURE/CHANGELOG narrative + the npm version tag are semantic-release-owned and cut on merge to `main` (OF014). Nexus-Hub touchpoint assessed -- not warranted (`OF015.P5.A`). See [the DEVLOG entry](../../../../DEVLOG.md).
+
 **Goal**: Verify the definition-of-pass, update docs, run the full test matrix, record any deferred decision.
 **Stability Gate**: `npm run test`, `npm run lint`, `npm run check-architecture`, `npm run security:check` clean; the whole-plan acceptance gate passes; docs (README/ARCHITECTURE/CHANGELOG/known-gaps) updated.
 **Recommended model**: Mid reasoning tier, medium effort -- `claude-sonnet-4-6`, medium (verification + doc sync).
 
 ### Sub-tasks
 
-- [ ] OF013 Run the whole-plan acceptance gate (Definition of pass items 1-6) and record results
-- [ ] OF014 Update README/ARCHITECTURE/CHANGELOG and v1.6.0 known-gaps; record the F4 A/B outcome and routing-default decision, and any deferred item
-- [ ] OF015 If the panel/judge capability warrants a Nexus-Hub touchpoint (e.g. an `agent-orchestration-primitives` or `competitive-generation` cross-link, since the local panel is the on-device analogue of those Hub skills), sync to Nexus-Hub
+- [x] OF013 Run the whole-plan acceptance gate (Definition of pass items 1-6) and record results
+- [x] OF014 Update README/ARCHITECTURE/CHANGELOG and v1.6.0 known-gaps; record the F4 A/B outcome and routing-default decision, and any deferred item
+- [x] OF015 If the panel/judge capability warrants a Nexus-Hub touchpoint (e.g. an `agent-orchestration-primitives` or `competitive-generation` cross-link, since the local panel is the on-device analogue of those Hub skills), sync to Nexus-Hub
 
 ---
 
