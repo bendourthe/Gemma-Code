@@ -222,6 +222,13 @@ tests/golden/snapshots/*/.git/
 tests/golden/snapshots/*/node_modules/
 
 # ==============================================================================
+# Local A/B harness output (v1.6.0 openrouter-fusion Phase 4, OF010)
+# ==============================================================================
+# scripts/run-panel-ab.mjs writes per-run panel-vs-single comparison reports
+# here when OLLAMA_URL is set; never committed (generated, machine-specific).
+tests/benchmarks/results/
+
+# ==============================================================================
 # CI Workflow Outputs (v0.4.0 Phase 1: benchmark + golden-task gates)
 # ==============================================================================
 bench-results.json

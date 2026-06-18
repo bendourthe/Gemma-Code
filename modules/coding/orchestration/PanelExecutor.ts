@@ -11,11 +11,19 @@
  * `FusionAgent` judge for synthesis, the same way the Orchestrator reuses the
  * PlannerAgent / DAGExecutor / CriticAgent trio.
  *
- * Sequential fan-out (the honest single-GPU MVP). On one consumer GPU the
- * panelists run one at a time; co-residency / concurrency is comparison item
- * F3 and lands in Phase 3, gated behind the `GpuScheduler`'s VRAM budget. The
- * public surface here does not change when Phase 3 parallelises -- `run` stays
- * the entry point; only the internal dispatch loop is upgraded.
+ * Sequential fan-out (the honest single-GPU MVP) by default. On one consumer
+ * GPU the panelists run one at a time. Co-residency / concurrency is comparison
+ * item F3: the `GpuScheduler.enqueuePanel` primitive (Phase 3, OF007) admits a
+ * bounded panel as one scheduler job that runs concurrently when its summed
+ * VRAM fits free VRAM and degrades to sequential when it does not.
+ *
+ * v1.6.0 Phase 4 (OF011, closing OF007.P3.A) wires that primitive in: passing a
+ * `concurrency` backend (a `GpuScheduler` + per-model VRAM estimates, optionally
+ * a `ModelPinRegistry` keep-alive coordinator) routes the fan-out through
+ * `enqueuePanel({ keepAlive })`, so a fitting panel is gathered concurrently and
+ * a too-large one degrades to sequential -- with no OOM and no public-surface
+ * change (`run` stays the entry point; the dispatch path is selected internally).
+ * When no `concurrency` backend is supplied, `run` keeps the sequential MVP loop.
  *
  * F5 -- tool isolation. Panelists are dispatched as plain chat completions with
  * NO `tools` array: this executor grants panelists no per-panelist tool access
@@ -28,6 +36,13 @@
 import type { LLMClient, LLMMessage, LLMOptions } from "../llm/types.js";
 import { formatForUser } from "../utils/errors.js";
 import type { PanelCandidate, FusionResult, PanelJudge } from "./FusionAgent.js";
+import type {
+  GpuModuleId,
+  JobPriority,
+  PanelJob,
+  PanelKeepAliveCoordinator,
+  PanelRunOutcome,
+} from "../../../core/scheduler/GpuScheduler.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -51,15 +66,57 @@ export interface PanelModelResolver {
   isUsable(modelId: string): boolean;
 }
 
+/**
+ * Minimal scheduler port the concurrent fan-out depends on: the single method
+ * `GpuScheduler` exposes for panel co-residency (OF007). Declared structurally
+ * so the executor stays decoupled from the concrete scheduler and a test can
+ * inject a deterministic fake.
+ */
+export interface PanelScheduler {
+  enqueuePanel(panel: PanelJob): Promise<{ completion: Promise<PanelRunOutcome> }>;
+}
+
+/**
+ * v1.6.0 Phase 4 (OF011, closing OF007.P3.A) -- the optional GPU-scheduler
+ * backend that turns `run`'s sequential MVP loop into VRAM-gated co-residency.
+ * When supplied, the fan-out is dispatched as one `enqueuePanel` job: the
+ * scheduler runs the panel concurrently when the summed `vramFor` estimates fit
+ * free VRAM and degrades to sequential when they do not (no OOM, no rejection).
+ */
+export interface PanelConcurrencyBackend {
+  /** The GPU scheduler that admits the panel as one co-residency job. */
+  readonly scheduler: PanelScheduler;
+  /** Per-model VRAM estimate (GB) used for the concurrent/sequential decision. */
+  readonly vramFor: (modelId: string) => number;
+  /** Optional keep-alive coordinator held for the run's duration (OF008). */
+  readonly keepAlive?: PanelKeepAliveCoordinator;
+  /** GPU module the panel job is attributed to. Defaults to `coding`. */
+  readonly moduleId?: GpuModuleId;
+  /** Scheduler priority for the panel job. Defaults to `foreground`. */
+  readonly priority?: JobPriority;
+  /** Hard co-residency cap forwarded to `enqueuePanel`. Defaults to the
+   * scheduler's own `DEFAULT_PANEL_SIZE_CAP`; members beyond it are reported
+   * back as `skipped`. */
+  readonly maxPanelSize?: number;
+}
+
 export interface PanelExecutorOptions {
   readonly clientFactory: LLMClientFactory;
   readonly judge: PanelJudge;
   /** Sampling options forwarded to each panelist request. */
   readonly panelOptions?: LLMOptions;
-  /** Hard panel-size cap (safety bound; Phase 3 adds VRAM-aware capping). */
+  /** Hard panel-size cap (safety bound; the concurrency backend adds its own
+   * VRAM-aware co-residency cap on top). */
   readonly maxPanelSize?: number;
   /** Optional usable-model gate; unresolvable ids are recorded as skipped. */
   readonly modelResolver?: PanelModelResolver;
+  /**
+   * v1.6.0 Phase 4 (OF011) -- optional GPU-scheduler backend. When supplied,
+   * `run` routes the fan-out through `GpuScheduler.enqueuePanel` (concurrent
+   * when VRAM fits, sequential otherwise). When omitted, `run` uses the
+   * in-process sequential MVP loop.
+   */
+  readonly concurrency?: PanelConcurrencyBackend;
 }
 
 export interface PanelRunResult {
@@ -81,6 +138,17 @@ export interface PanelRunResult {
 /** Default hard cap on panel size when the caller does not set one. */
 export const DEFAULT_MAX_PANEL_SIZE = 5;
 
+/** Narrow a scheduler member-result `value` (typed `unknown`) to a candidate. */
+function isPanelCandidate(value: unknown): value is PanelCandidate {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as PanelCandidate).model === "string" &&
+    typeof (value as PanelCandidate).answer === "string" &&
+    typeof (value as PanelCandidate).ok === "boolean"
+  );
+}
+
 // ---------------------------------------------------------------------------
 // PanelExecutor
 // ---------------------------------------------------------------------------
@@ -91,6 +159,7 @@ export class PanelExecutor {
   private readonly _panelOptions: LLMOptions;
   private readonly _maxPanelSize: number;
   private readonly _resolver: PanelModelResolver | null;
+  private readonly _concurrency: PanelConcurrencyBackend | null;
 
   constructor(options: PanelExecutorOptions) {
     this._clientFactory = options.clientFactory;
@@ -98,6 +167,7 @@ export class PanelExecutor {
     this._panelOptions = options.panelOptions ?? {};
     this._maxPanelSize = Math.max(1, options.maxPanelSize ?? DEFAULT_MAX_PANEL_SIZE);
     this._resolver = options.modelResolver ?? null;
+    this._concurrency = options.concurrency ?? null;
   }
 
   /**
@@ -118,20 +188,21 @@ export class PanelExecutor {
       );
     }
 
-    // Sequential fan-out: one panelist at a time (single-GPU MVP). Phase 3 (F3)
-    // turns this loop concurrent behind the GpuScheduler's VRAM budget.
-    const candidates: PanelCandidate[] = [];
-    for (const modelId of panel) {
-      candidates.push(await this._dispatchPanelist(prompt, modelId));
-    }
+    // When a GPU-scheduler backend is wired (Phase 4, OF011) the fan-out runs
+    // as one co-residency job (concurrent when VRAM fits, sequential when it
+    // does not); otherwise it stays the sequential single-GPU MVP loop.
+    const { candidates, dispatched, skipped: extraSkipped } =
+      this._concurrency !== null
+        ? await this._runConcurrent(prompt, panel, this._concurrency)
+        : await this._runSequential(prompt, panel);
 
     const fusion = await this._judge.fuse(prompt, candidates);
     const succeeded = candidates.filter((c) => c.ok).length;
     return {
       candidates,
       fusion,
-      dispatched: panel,
-      skipped,
+      dispatched,
+      skipped: [...skipped, ...extraSkipped],
       succeeded,
       failed: candidates.length - succeeded,
     };
@@ -140,6 +211,83 @@ export class PanelExecutor {
   // -------------------------------------------------------------------------
   // Private
   // -------------------------------------------------------------------------
+
+  /** Result of a dispatch strategy: the labeled candidates plus the panel that
+   * was actually dispatched and any members the strategy itself dropped. */
+  private async _runSequential(
+    prompt: string,
+    panel: readonly string[],
+  ): Promise<{
+    candidates: PanelCandidate[];
+    dispatched: readonly string[];
+    skipped: readonly string[];
+  }> {
+    // Sequential fan-out: one panelist at a time (single-GPU MVP).
+    const candidates: PanelCandidate[] = [];
+    for (const modelId of panel) {
+      candidates.push(await this._dispatchPanelist(prompt, modelId));
+    }
+    return { candidates, dispatched: panel, skipped: [] };
+  }
+
+  /**
+   * Concurrent fan-out via the GPU scheduler (OF011, closing OF007.P3.A).
+   * Builds one `enqueuePanel` job whose members each dispatch a panelist, holds
+   * keep-alive for the run, and maps the scheduler's per-member results back
+   * into labeled candidates. The scheduler decides concurrent vs sequential on
+   * the summed VRAM estimate, so a fitting panel is gathered concurrently and a
+   * too-large one degrades to sequential -- never OOM. Members the scheduler's
+   * co-residency cap drops are returned as `skipped` and never fused.
+   */
+  private async _runConcurrent(
+    prompt: string,
+    panel: readonly string[],
+    backend: PanelConcurrencyBackend,
+  ): Promise<{
+    candidates: PanelCandidate[];
+    dispatched: readonly string[];
+    skipped: readonly string[];
+  }> {
+    const job: PanelJob = {
+      moduleId: backend.moduleId ?? "coding",
+      jobType: "fusion-panel",
+      priority: backend.priority ?? "foreground",
+      members: panel.map((modelId) => ({
+        modelId,
+        estimatedVramGB: backend.vramFor(modelId),
+        run: () => this._dispatchPanelist(prompt, modelId),
+      })),
+      ...(backend.maxPanelSize !== undefined
+        ? { maxPanelSize: backend.maxPanelSize }
+        : {}),
+      ...(backend.keepAlive ? { keepAlive: backend.keepAlive } : {}),
+    };
+
+    const handle = await backend.scheduler.enqueuePanel(job);
+    const outcome = await handle.completion;
+
+    // Each member's `run` is `_dispatchPanelist`, which never throws (a dead
+    // panelist is captured as a non-`ok` candidate), so a member result is
+    // normally `{ ok: true, value: PanelCandidate }`. A non-`ok` member result
+    // (the scheduler caught a throw) is defensively mapped to a failed
+    // candidate so the panel still fuses the survivors.
+    const candidates: PanelCandidate[] = outcome.results.map((result) =>
+      result.ok && isPanelCandidate(result.value)
+        ? result.value
+        : {
+            model: result.modelId,
+            answer: "",
+            ok: false,
+            error: result.error ?? "panel member did not produce a candidate",
+          },
+    );
+
+    return {
+      candidates,
+      dispatched: outcome.admitted,
+      skipped: outcome.droppedByCap,
+    };
+  }
 
   /**
    * Reduce the raw spec to a distinct, resolver-approved, capped panel. Returns

@@ -169,6 +169,8 @@ Phase sequencing follows the comparison's Section 5.4 ordering with one dependen
 
 ## Phase 4: Budget-panel routing heuristic + local A/B (F4)
 
+**Status**: COMPLETE (2026-06-17). OF010-OF012 landed; `PanelAbHarness` local A/B (pure aggregation + `decidePanelRoutingDefault` gate + `scripts/run-panel-ab.mjs` live runner) + opt-in `PanelRouter`/`decidePanelRoute` heuristic (`nexus.llm.panelRouting`, default off) + `PanelExecutor` optional `concurrency` backend through `GpuScheduler.enqueuePanel` (closing Phase 3's `OF007.P3.A`) + a 35-case unit/integration suite. Full suite 4291 passed / 5 skipped / 0 failed; `tsc -b` + lint + check:tampering (0) clean; check-architecture 0 errors (10 pre-existing warnings, no new orphan/circular); new-module coverage PanelRouter 100% / 100%, PanelAbHarness 100% / 100%, PanelExecutor 100% lines / 100% funcs. **Recorded A/B decision (`OF010.P4.A`)**: the A/B was not run against live local models in this environment, so per the no-degradation gate the routing default ships opt-in (off); the live composition-root route wiring is deferred (`OF011.P4.A`). See [the DEVLOG entry](../../../../DEVLOG.md) and [known-gaps-openrouter-fusion.md](../known-gaps-openrouter-fusion.md).
+
 **Goal**: Operationalise Fusion's core economic claim for Nexus -- *escalate to a small-model panel instead of a VRAM-heavy single model* -- but only after a local A/B proves the panel actually wins on Nexus coding tasks. The budget-panel claim is `vendor-reported` (deep-research, text-only) and unproven for this domain.
 **Prerequisites**: Phases 2 and 3.
 **Stability Gate**: An A/B harness compares a small-model panel against the single best resident model on a fixed task set; the routing heuristic ships **opt-in**; it is enabled as a default **only** if the A/B shows a net quality win at acceptable latency; the A/B result is recorded regardless.
@@ -178,21 +180,21 @@ Phase sequencing follows the comparison's Section 5.4 ordering with one dependen
 
 #### 4.1 -- F4: Local A/B harness (panel vs single best resident model)
 
-- [ ] OF010 Build an A/B harness measuring a small-model panel against the single best resident model on Nexus coding tasks
+- [x] OF010 Build an A/B harness measuring a small-model panel against the single best resident model on Nexus coding tasks
 
 **Prompt**:
 > Build a local A/B harness (under `tests/benchmarks/` or `scripts/`) that runs a fixed set of representative Nexus **coding** tasks twice -- once on the single best resident model, once on a small-model panel via the Phase 2/3 `FusionAgent` -- and records quality (against task-specific assertions or a local judge rubric) and wall-clock latency for each. Apply the F5 eval-integrity discipline: isolate the task prompts from any tool that could reach a reference answer, and do not let a panelist's tool access leak the expected output (the local analogue of OpenRouter's source-exclusion fix for the DRACO rubric leak). Output a comparison report (win/loss/tie per task, aggregate quality delta, latency multiplier). Local-only; no live cloud. Acceptance: the harness runs end-to-end on a small fixture and emits a structured result file. Effort: Medium. Risk: Low.
 
 #### 4.2 -- F4: Opt-in budget-panel routing heuristic
 
-- [ ] OF011 Add an opt-in routing heuristic that escalates to a small-model panel, default-enabled only on a measured win
+- [x] OF011 Add an opt-in routing heuristic that escalates to a small-model panel, default-enabled only on a measured win
 
 **Prompt**:
 > Add a routing heuristic to the model-routing surface (the `route` path / model selection in [modules/coding/llm/](../../../../../modules/coding/llm/)) so that, for tasks flagged as benefiting from higher reliability, the system can escalate to a small-model **panel** (via `FusionAgent`) instead of selecting a single larger model that may not fit VRAM. Ship it behind an explicit opt-in setting (`nexus.llm.panelRouting`, default off). Only set the default to on if OF010's A/B shows a net quality win at acceptable latency; if not, keep it opt-in and record the decision. Surface the latency trade-off honestly in the setting's description ("slower but higher-quality," matching Fusion's own 2-3x disclosure). Acceptance: a test proves the heuristic routes to the panel when enabled and to the single model when disabled; the default state matches the OF010 result. Effort: Medium. Risk: Low.
 
 #### 4.3 -- Testing and stabilization (Phase 4)
 
-- [ ] OF012 Tests + record the A/B decision
+- [x] OF012 Tests + record the A/B decision
 
 **Prompt**:
 > Add tests for the routing heuristic (enabled/disabled paths, the default-state derivation from the A/B result). Record the A/B outcome and the resulting default decision in the v1.6.0 known-gaps / devlog. Coverage gate >= 80. Effort: Low. Risk: Low.

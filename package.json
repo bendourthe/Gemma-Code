@@ -197,6 +197,11 @@
             }
           }
         },
+        "nexus.llm.panelRouting": {
+          "type": "boolean",
+          "default": false,
+          "description": "v1.6.0 (openrouter-fusion F4) -- opt-in budget-panel routing. When on, a task flagged as benefiting from higher reliability is escalated to a diverse small-model panel (fused by a local judge) instead of a single larger model that may not fit VRAM. Off by default: this is the slower path (it runs several panelists plus a judge, the local analogue of Fusion's disclosed 2-3x latency), and the local A/B (see the v1.6.0 known-gaps) has not yet measured a net quality win for small local models on coding tasks, so per the no-degradation gate it ships opt-in. Enable to trade latency for higher answer reliability on hard tasks."
+        },
         "nexus.coding.editMode": {
           "type": "string",
           "enum": [
