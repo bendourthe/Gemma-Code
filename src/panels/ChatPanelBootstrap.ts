@@ -63,13 +63,8 @@ import type { HardwareTierConfig } from "../../modules/coding/config/HardwareTie
 import { getTierConfig } from "../../modules/coding/config/HardwareTier.js";
 import { GitSafetyNet } from "../../modules/coding/guardrails/GitSafetyNet.js";
 import type { Orchestrator } from "../../modules/coding/orchestration/Orchestrator.js";
-import { PanelExecutor } from "../../modules/coding/orchestration/PanelExecutor.js";
-import { FusionAgent, loadFusePrompt } from "../../modules/coding/orchestration/FusionAgent.js";
-import { PanelRouter } from "../../modules/coding/llm/PanelRouter.js";
-import { GpuScheduler } from "../../core/scheduler/GpuScheduler.js";
-import { InProcessTelemetryBus } from "../../core/telemetry/TelemetryBus.js";
-import { ModelPinRegistry } from "../../core/registry/ModelPinRegistry.js";
-import { getGpuDetector } from "../../modules/coding/config/GpuDetector.js";
+import { buildPanelRouter } from "./buildPanelRouter.js";
+import type { PanelRouter } from "../../modules/coding/llm/PanelRouter.js";
 import type { SubAgentManager } from "../../modules/coding/agents/SubAgentManager.js";
 import { WorktreeManager } from "../../modules/coding/agents/WorktreeManager.js";
 import { HubAgentPersonaLoader } from "../../modules/coding/agents/HubAgentPersonaLoader.js";
@@ -397,67 +392,18 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
   skillLoader.watch();
 
   // v1.6.0 adoption-openrouter-fusion Phase 5 (OF011): live-wire the opt-in
-  // budget-panel router into the chat-turn path. OPT-IN, DEFAULT-OFF: when
-  // `nexus.llm.panelRouting` is off (the default), nothing is constructed and
-  // `panelRouter` stays null so the chat turn is byte-identical to the
-  // pre-OF011 path. When on, build the Phase 3 GpuScheduler co-residency
-  // backend, the F1/F2 judge, a keep-alive coordinator, and the PanelExecutor,
-  // then wrap them in the router. Construction is fail-safe: any failure
-  // (e.g. a mis-wired catalog so `loadFusePrompt` throws) logs a warning and
-  // leaves the router null, so panel routing degrading never breaks chat
-  // startup.
-  let panelRouter: PanelRouter | null = null;
-  let panelSpecProvider: (() => Promise<readonly string[]>) | undefined;
-  if (settings.panelRoutingEnabled) {
-    try {
-      const telemetry = new InProcessTelemetryBus();
-      const scheduler = new GpuScheduler({
-        telemetry,
-        // Free VRAM in GB; degrades safely to total VRAM, then 0, when the
-        // detector cannot read a free-VRAM figure (e.g. Windows WMI / Apple).
-        vramProvider: async () => {
-          const d = await getGpuDetector().detect();
-          const free = d.primaryGpu?.freeVramMb ?? 0;
-          return free > 0
-            ? free / 1024
-            : (d.primaryGpu?.totalVramMb ?? 0) / 1024;
-        },
-      });
-      const judge = new FusionAgent(
-        runtime.getOllamaClient(),
-        settings.modelName,
-        ollamaOptions,
-        loadFusePrompt(catalogDir),
-      );
-      const keepAlive = new ModelPinRegistry();
-      const executor = new PanelExecutor({
-        clientFactory: () => runtime.getOllamaClient(),
-        judge,
-        concurrency: {
-          scheduler,
-          // 6 GB per-model estimate is a safe default for the small panelists.
-          vramFor: () => 6,
-          keepAlive,
-        },
-      });
-      panelRouter = new PanelRouter({ executor, config: { enabled: true } });
-      // Distinct installed models other than the primary; the executor de-dupes
-      // and caps, and the router gates on minimum panel size.
-      panelSpecProvider = async (): Promise<readonly string[]> => {
-        const models = await runtime.getOllamaClient().listModels();
-        return models
-          .map((m) => m.name)
-          .filter((n) => n && n !== settings.modelName);
-      };
-    } catch (err) {
-      getLogger().warn(
-        "[PanelRouter] Construction failed; panel routing disabled for this session:",
-        err,
-      );
-      panelRouter = null;
-      panelSpecProvider = undefined;
-    }
-  }
+  // budget-panel router into the chat-turn path via the extracted, unit-tested
+  // `buildPanelRouter` factory. OPT-IN / DEFAULT-OFF: when `nexus.llm.panelRouting`
+  // is off (the default) the factory returns a null router, so the chat turn is
+  // byte-identical to the pre-OF011 path; any construction failure also returns a
+  // null router (fail-safe), so panel routing degrading never breaks chat startup.
+  const { router: panelRouter, panelSpecProvider } = buildPanelRouter({
+    enabled: settings.panelRoutingEnabled,
+    getClient: () => runtime.getOllamaClient(),
+    modelName: settings.modelName,
+    ollamaOptions,
+    catalogDir,
+  });
 
   // v1.4.0 Phase 8 (gap 5.4.P3.T): a single in-process lifecycle bus per
   // session. The reflection hook subscribes here; AgentLoop emits
