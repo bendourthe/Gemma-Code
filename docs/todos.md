@@ -33,7 +33,9 @@
 - [x] Add performance benchmark suite and error handling hardening (Phase 8)
 - [x] Write comprehensive README, CHANGELOG, and architecture documentation (Phase 8)
 
-## Sprint 2 — Active (v0.1.x maintenance)
+## Sprint 2 — v0.1.x maintenance [SUPERSEDED]
+
+*Pre-rename (Gemma Code) maintenance backlog, superseded by the v1.0.0 four-pillar Nexus rebuild. Retained as history; not active work. The unchecked items below were never shipped under the v0.1.x line.*
 
 - [ ] Implement ripgrep-backed GrepCodebaseTool to replace slow workspace.findFiles approach (CHANGELOG Known Limitations)
 - [x] Build macOS and Linux installer packages (resolved in v0.3.0 Phase 7 PyQt5 installer)
@@ -281,7 +283,9 @@ All 14 P0 findings closed plus version bump. See [docs/DEVLOG.md](DEVLOG.md) and
 - [x] 6.16 marked v12 deferred with NOTE(v0.5) (renderer API break; DOMPurify already provides sanitization)
 - [x] 6.17 Lint + test + build stabilization (1165 pass / 0 fail; 0 lint errors)
 
-### Phase 7 — Simplification & Release [PENDING]
+### Phase 7 — Simplification & Release [SUPERSEDED]
+
+*Never shipped under v0.4.0: the release + simplification work rolled into the v0.5.0 Unified Adoption Release (tag `v0.5.4`). Retained as history; not active work.*
 
 17 simplification findings; ~800 LOC target deletion; v0.4.0 tag + VSIX publish.
 
@@ -306,7 +310,9 @@ All 14 P0 findings closed plus version bump. See [docs/DEVLOG.md](DEVLOG.md) and
 
 ---
 
-## v0.6.0 — Review-Driven Cycle [IN PROGRESS]
+## v0.6.0 — Review-Driven Cycle [SUPERSEDED]
+
+*Closed out by the v1.0.0 four-pillar Nexus rebuild, which superseded the remaining v0.x roadmap. Phases 1, 5, and 6 landed (below); Phases 2, 3, 4, 7, and 8 were never shipped under v0.6.0. Retained as history; not active work.*
 
 Hygiene/ratchet cycle closing the v0.6.0 review pass (1 P0, 6 P1, 9 P2, 11 P3). No new product surface; pays down v0.5.0 technical debt. Plan: [docs/archive/versions/v0/v0.6.0/plans/v0.6.0-cycle.md](archive/versions/v0/v0.6.0/plans/v0.6.0-cycle.md).
 
@@ -319,9 +325,9 @@ Closes pen-test F-001, F-003, F-004; both legs of Attack Path A refuse the opera
 - [x] 1.3 Tag MCP-originated tool calls with `source: "mcp"` peer attribution in ConfirmationGate; add `gemma-code.mcpExposedTools` allowlist (read-only by default)
 - [x] 1.4 Phase 1 testing and stabilization (17 new tests + lint + deps:check + catalog:check green)
 
-### Phase 2 — Test pipeline reliability + release-gate baselines [PENDING]
-### Phase 3 — Defense-in-depth ratchets [PENDING]
-### Phase 4 — Module-boundary ratchet [PENDING]
+### Phase 2 — Test pipeline reliability + release-gate baselines [SUPERSEDED]
+### Phase 3 — Defense-in-depth ratchets [SUPERSEDED]
+### Phase 4 — Module-boundary ratchet [SUPERSEDED]
 
 ### Phase 5 — Doc/code drift + dead-code cleanup [COMPLETED 2026-05-03]
 
@@ -348,12 +354,14 @@ Closes codebase-review #2, #3, #16 (deferred), #23. See [docs/archive/versions/v
 
 **Partial deviation**: `GemmaCodePanel.ts` is 935 lines (down from 1,724); the plan's < 400 target requires further factory work (PanelComposition + post-helper move) tracked as v0.7.0 follow-up. See history file section 3.1.
 
-### Phase 7 — Polish + simplification [PENDING]
-### Phase 8 — Release gate + ADRs + CHANGELOG [PENDING]
+### Phase 7 — Polish + simplification [SUPERSEDED]
+### Phase 8 — Release gate + ADRs + CHANGELOG [SUPERSEDED]
 
 ---
 
-## v0.7.0 — Multi-Source Adoption Cycle [IN PROGRESS]
+## v0.7.0 — Multi-Source Adoption Cycle [SUPERSEDED]
+
+*Closed out by the v1.0.0 four-pillar Nexus rebuild, which superseded the remaining v0.x roadmap. Phases 0-5 landed (below); Phases 6, 7, and 8 were never shipped under v0.7.0. Retained as history; not active work.*
 
 Phased adoption of comparison-multi-source findings across skills, memory architecture, compaction, render protocol, and per-model context overrides. Plan: [docs/archive/versions/v0/v0.7.0/plans/v0.7.0-cycle.md](archive/versions/v0/v0.7.0/plans/v0.7.0-cycle.md).
 
@@ -400,9 +408,9 @@ Polish the memory experience: complete `/memory` slash-command surface, ship a s
 
 **Follow-ups carried into v0.8.0**: same three Phase 4 panel-host items (queued-field swap, permissionPromptResponse routing, todos opt-in wiring); no new follow-ups from Phase 5.
 
-### Phase 6 — Multi-harness skill packaging [PENDING]
-### Phase 7 — HNSW vector index (optional) [PENDING]
-### Phase 8 — Release gate + ADRs + CHANGELOG [PENDING]
+### Phase 6 — Multi-harness skill packaging [SUPERSEDED]
+### Phase 7 — HNSW vector index (optional) [SUPERSEDED]
+### Phase 8 — Release gate + ADRs + CHANGELOG [SUPERSEDED]
 
 ---
 

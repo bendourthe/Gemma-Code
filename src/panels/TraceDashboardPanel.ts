@@ -6,6 +6,7 @@ import type { ToolOutputCache } from "../storage/ToolOutputCache.js";
 import type { WebResponseCache } from "../tools/handlers/webCache.js";
 import { getCompressionStats } from "../../modules/coding/utils/Compressor.js";
 import { flattenSpanForest } from "../../modules/coding/observability/spanNesting.js";
+import { serializeTraceToHtml } from "../../modules/coding/observability/TraceHtmlExport.js";
 import { getTraceDashboardHtml } from "./webview/traceDashboard.js";
 
 export const TRACE_DASHBOARD_VIEW_ID = "nexus.coding.traceDashboard";
@@ -16,6 +17,7 @@ interface TraceDashboardMessage {
     | "requestTraceDetail"
     | "requestTraceMetrics"
     | "requestCacheStats"
+    | "exportTrace"
     | "ready";
   traceId?: string;
 }
@@ -75,6 +77,8 @@ export class TraceDashboardPanel implements vscode.WebviewViewProvider {
         this._sendTraceMetrics(msg.traceId);
       } else if (msg.type === "requestCacheStats") {
         this._sendCacheStats();
+      } else if (msg.type === "exportTrace" && msg.traceId) {
+        void this._handleExportTrace(msg.traceId);
       }
     });
 
@@ -209,6 +213,63 @@ export class TraceDashboardPanel implements vscode.WebviewViewProvider {
       traceId,
       spans,
     });
+  }
+
+  /**
+   * v1.6.0 (AS004.P2.B) -- serialize the selected trace to the same
+   * self-contained, offline HTML viewer string that the `nexus trace export`
+   * CLI produces, reusing the shared `serializeTraceToHtml` serializer. Returns
+   * null when there is no trace store or no trace with that id. Pure (no vscode
+   * dialog, no disk write), so it is unit-testable directly; `_handleExportTrace`
+   * wraps it with the save dialog and the file write.
+   */
+  serializeTrace(traceId: string): string | null {
+    if (!this._traceStore) return null;
+    const trace = this._traceStore.getTrace(traceId);
+    if (!trace) return null;
+    return serializeTraceToHtml(trace);
+  }
+
+  /**
+   * v1.6.0 (AS004.P2.B) -- one-click "Export trace" action. Prompts for a save
+   * location, serializes the selected trace, and writes the self-contained HTML
+   * viewer locally. Local-only: it reads the in-process trace store and writes a
+   * single file; no network, no telemetry. Mirrors the `nexus trace export` CLI
+   * surface for users who live in the Trace Dashboard.
+   */
+  private async _handleExportTrace(traceId: string): Promise<void> {
+    const html = this.serializeTrace(traceId);
+    if (html === null) {
+      void vscode.window.showErrorMessage(
+        "Nexus: could not export trace (the trace store is unavailable or the trace no longer exists).",
+      );
+      return;
+    }
+
+    const shortId = traceId.slice(0, 8);
+    let target: vscode.Uri | undefined;
+    try {
+      target = await vscode.window.showSaveDialog({
+        defaultUri: vscode.Uri.file(`nexus-trace-${shortId}.html`),
+        saveLabel: "Export Trace",
+        filters: { "HTML viewer": ["html"] },
+      });
+    } catch {
+      target = undefined;
+    }
+    if (!target) return; // user cancelled the save dialog
+
+    try {
+      await vscode.workspace.fs.writeFile(target, Buffer.from(html, "utf8"));
+      void vscode.window.showInformationMessage(
+        `Nexus: exported trace to ${target.fsPath}`,
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      void vscode.window.showErrorMessage(
+        `Nexus: failed to write trace export: ${message}`,
+      );
+    }
   }
 
   private _sendTraceMetrics(traceId: string): void {

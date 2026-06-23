@@ -128,6 +128,8 @@ vi.mock("vscode", () => ({
     })),
     registerWebviewViewProvider: vi.fn(() => mockDisposable),
     showInformationMessage: vi.fn(),
+    showErrorMessage: vi.fn(),
+    showSaveDialog: vi.fn(),
   },
   commands: {
     registerCommand: vi.fn((_id: string, _handler: () => void) => mockDisposable),
