@@ -4,6 +4,29 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-06-29] v1.7.0 self-optimizing-skills Phase 1 -- TS-native golden-task live runner (S1, SO001)
+
+### Goal
+
+Open the [local skill self-optimization plan](versions/v1/v1.7.0/plans/adoption-self-optimizing-skills.md) by landing its hard prerequisite (S1): a TS-native golden-task **live runner** so the optimization loop (Phases 2-4) has a verifiable feedback signal. This also restores the live golden runs that broke when the Python FastAPI backend was deleted by [ADR-0001](adr/0001-python-backend-disposition.md) (the Python `_run_live()` has returned "backend call failed" for every task since v0.4.0).
+
+### What changed
+
+- **Four vscode-free `modules/coding/evaluation/` modules.** [goldenCriteria.ts](../modules/coding/evaluation/goldenCriteria.ts) is the TS port of `tests/golden/framework/evaluator.py` -- all 8 declarative criterion types (`file_contains`/`file_exists`/`file_deleted`/`output_contains`/`test_passes`/`lint_passes`/`no_errors`/`diff_matches`) with regex-or-literal matching and an injected `CommandRunner` (default shells out with a hard timeout; tests inject a fake for determinism + cross-platform). [goldenSnapshot.ts](../modules/coding/evaluation/goldenSnapshot.ts) ports `snapshot.py` `prepare_worktree`+`init_git_repo` -- copies a snapshot into a throwaway temp dir (pruning `node_modules`/`.git`/`.worktrees`/`__pycache__`) and `git init`s a clean baseline through an injected, fault-tolerant `GitRunner`. [goldenTaskLoader.ts](../modules/coding/evaluation/goldenTaskLoader.ts) is a dependency-free YAML-subset parser for the fixed `tests/golden/tasks/*.yaml` schema -> `GoldenTaskSpec` (block scalars, escaped double-quoted scalars, flow lists, mapping sequences; fail-closed on unsupported constructs). [GoldenTaskRunner.ts](../modules/coding/evaluation/GoldenTaskRunner.ts) orchestrates materialize -> (dry: skip / live: run the agent) -> evaluate -> scored `GoldenTaskResult`, with a per-task timeout via `AbortController`.
+- **The `AgentDriver` seam.** The Coding-pillar `AgentLoop` is constructible headlessly, but two of its dependencies (`ConversationManager`, the `logger`) import `vscode` and cannot load in a plain-Node CLI -- the same coupling that forced the v1.6.0 A4 `TraceDbReader`. The `no-llm-outside-llm-folder` architecture rule also bars `evaluation/` from importing a concrete `OllamaClient`. So the runner depends on an injected `AgentDriver` interface (mirroring the codebase's existing `WorktreeManager.GitRunner` / `TraceDbReader` injection pattern) rather than importing the loop: the composition root supplies the real driver; the dry path needs none; tests inject a mock; the env-gated live smoke uses the vscode-free `OllamaClient`. This keeps the runner vscode-free, CLI-ready, and architecture-compliant.
+- **Snapshot isolation decision.** Golden snapshots are standalone mini-projects (not committed nested git repos), so the v1.5.0 `WorktreeManager`'s `git worktree add HEAD` model does not apply; the faithful primitive is copy-into-temp + fresh `git init` (so `git diff` / `diff_matches` have a clean baseline and the source snapshot is never mutated).
+- **Tests (45 new).** Unit: criteria evaluator (12), YAML loader against the full 28-task corpus + the escaped-scalar / block-scalar / flow-list / fail-closed paths (13), snapshot materializer (9), runner orchestration incl. dry/live/no-driver/driver-error/timeout (8). Integration: real-snapshot dry-path (fails on the untouched tree -- the "never executed" signal) + mock-live-path (an injected driver mutates the isolated workspace and passes the criteria) (3). Plus an env-gated (`GOLDEN_LIVE_OLLAMA=1`) real-Ollama live smoke that drives the runner's live path through the vscode-free client.
+
+### Verification
+
+- `npm run test`: **4354 passed / 6 skipped / 0 failed** (the 6 skips include the new env-gated live smoke). `npm run lint`: **0 errors**. `tsc -b`: clean.
+- `npm run check-architecture`: **0 errors**, 10 pre-existing warnings (no new orphan/circular; `dep-cruiser-clean` integration test green). `npm run check:tampering`: **0 findings**. `npm run security:check`: in sync.
+- New-module coverage: **97.11% lines / 83.25% branches / 100% functions** (GoldenTaskRunner 100/96.4/100, goldenCriteria 100/82.5/100, goldenSnapshot 100/87.5/100, goldenTaskLoader 93.9/79.5/100), all above the 80/75/80 gate.
+- Local-first / MCP Registry Policy clean: no new dependency (the YAML subset is hand-parsed, consistent with the existing `generate-golden-tasks` regex extractor), no new outbound call or credential.
+- Carryovers recorded in [versions/v1/v1.7.0/known-gaps.md](versions/v1/v1.7.0/known-gaps.md): `SO001.P1.A` (production full-`AgentLoop` driver, deferred), `SO001.P1.B` (no `nexus golden run` CLI yet), `SO001.P1.C` (Windows-native shell-command criteria). README/ARCHITECTURE/CHANGELOG narrative + the npm version tag remain semantic-release-owned and are cut on merge to `main`.
+
+---
+
 ## [2026-06-17] v2.0.0 prep -- forward-tier carryovers resolved + CI green (OF010/OF011 live wiring, ENV audit + catalog, Hub guide sync)
 
 ### Goal

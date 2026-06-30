@@ -1,0 +1,193 @@
+# Plan -- local skill self-optimization loop + opencode harness hardening (v1.7.0)
+
+**Project**: Nexus
+**Version**: v1.7.0
+**Slug**: adoption-self-optimizing-skills
+**Plan Type**: Feature / Enhancement
+**Created**: 2026-06-29
+**Goal**: Reverse-engineer the text-space **skill self-optimization** technique (SkillOpt / GEPA / EvoSkill, framed by the source article as "loop engineering") into a **local-only** Nexus capability built on the existing golden task suite, `ReflexionEngine`/`CriticAgent`, the v1.5.0 worktree swarm, the v1.6.0 Fusion A/B harness, `ArtifactStore`, and the runaway-prevention budgets, so the Coding pillar can measure its own skills against a verifiable task suite and rewrite them under regression-safe gates. The hosted/frontier-optimizer configurations and the DSPy/EvoSkill/SkillOpt frameworks-as-dependencies are **never** adopted (reverse-engineer-first; egress; supply-chain surface). Secondarily, adopt the one clearly-worthwhile local item from the opencode scan -- **tree-sitter shell-command introspection** for permission gating. Every built item is local-only, zero-outbound, zero-new-data-processor, zero-new-credential, per the [AGENTS.md](../../../../../AGENTS.md) MCP Registry Policy.
+
+**Source comparisons**: [../comparison-self-optimizing-skills.md](../comparison-self-optimizing-skills.md) (primary track, S1-S6) and [../comparison-opencode.md](../comparison-opencode.md) (secondary track, O-A)
+**Companion baseline**: assumes **all v1.6.0 plans complete** -- [../../v1.6.0/plans/adoption-aisuite-harness.md](../../v1.6.0/plans/adoption-aisuite-harness.md) (A1-A4/H1) and [../../v1.6.0/plans/adoption-openrouter-fusion.md](../../v1.6.0/plans/adoption-openrouter-fusion.md) (F1-F5) are treated as shipped baseline, per the user framing for this cycle.
+
+## Goals (goals-first step)
+
+*No `STRATEGY.md` anchor exists; this goal block is seeded from the [README.md](../../../../../README.md) design principles and the two source comparisons. Assumptions are stated explicitly for confirmation.*
+
+- **Target problem**: The source article's thesis is that the bottleneck for reliable agents is no longer model capability but **skill quality**, and skills are still optimized by hand -- a slow, regression-prone loop with no gradient. The opencode scan independently confirms that even the most active open coding agent ships static, read-only skills with **zero self-optimization** and no eval substrate. Nexus is unusually well-positioned to close this: it already ships the hard prerequisite (a golden task suite of 24 declarative, machine-checkable tasks), a reflection/critic primitive, worktree-isolated git-branch workers, a local A/B harness, content-addressed redacted storage, and runaway budgets. What it lacks is (1) a **working TS-native live task runner** (the existing one posts to a Python backend deleted by [ADR-0001](../../../../../docs/adr/0001-python-backend-disposition.md), so live runs return "backend call failed"), and (2) the **loop** that composes rollout -> evaluation -> reflection -> bounded-edit -> held-out-gate over the local skill catalog, with a rejected-edit buffer and optional Pareto-frontier candidates on git branches.
+- **Persona**: the single-user, single-machine power developer Nexus is built for -- local models on one consumer GPU, no cloud, no per-token billing. The optimizer is a registry-resident local model; cost here is VRAM and wall-clock, not dollars.
+- **Definition of done (observable)**: a TS-native live runner executes the agent loop against a golden-task snapshot and emits a scored `GoldenTaskResult` (S1); the task suite carries a locked train/validation/test split and a content-addressed rejected-edit buffer (S4); a `SkillOptimizer` reflects on failing-trajectory minibatches, proposes bounded add/delete/replace skill edits under a textual learning-rate budget, accepts an edit **only** on a held-out validation gain, and buffers rejects (S2), with a local A/B that measures whether the resident optimizer model produces net-positive edits before edits are enabled by default (S6); a `CandidateFrontier` keeps multiple skill candidates on separate git branches and selects the non-dominated set across diverse tasks (S3); the terminal permission gate enumerates a shell command's touched paths via tree-sitter and fails **closed** (O-A); every skill edit requires **human approval before any skill file is overwritten**; testing across unit / static / integration / e2e / CI passes at strong coverage.
+- **Non-goals (carried from the comparisons' drops, never implemented this cycle)**: a background autonomous self-optimization routine as a default (S5 -- recorded, demand-gated, off by default); DSPy/EvoSkill/SkillOpt as dependencies (article D1); a hosted/cloud frontier optimizer (article D2); opencode's cloud routing + models.dev catalog fetch (D1), hosted session sharing (D2), remote MCP/skill transports (D3), accounts/billing/telemetry-lake/hosted gateway (D4), and LSP server auto-install (D5). See the Out-of-Scope appendix.
+
+## Overview
+
+This plan is derived from two single-source comparisons. The **primary track** (the article) reverse-engineers the SkillOpt/GEPA/EvoSkill loop into five local items spanning the comparison's RE-first ordering. The **secondary track** (opencode) contributes one local harness-hardening item (O-A); opencode is otherwise validation (Nexus matches or exceeds it on orchestration, memory, MCP role, observability defaults, and the session-state dehydration Nexus already shipped in v1.6.0 A1), and its cloud/account layer is dropped wholesale.
+
+Phase sequencing follows the comparisons' Section 5.4 reverse-engineer-first ordering with the loop's hard dependency chain made explicit: **S1 (live runner) must land first** because no optimization loop can exist without a live rollout; **S4 (split + gate + rejected-edit buffer)** is the regression-safety scaffolding S2 cannot be trusted without; **S2 (+ S6's A/B)** is the headline bounded-edit optimizer; **S3 (Pareto frontier)** is the evolutionary layer that sits on top of S2's single-file loop. **O-A** is an independent local-security enhancement with no dependency on the loop, sequenced after the primary track as a self-contained phase. The article's **S5** (background autonomous routine) is the one item where autonomy meets self-modification of skill files; it is **recorded as demand-gated and off by default**, not a numbered phase this cycle, because the discipline of "the loop proposes; the human accepts" is the load-bearing guardrail and a background routine erodes it.
+
+There is no `vendor-intrinsic` work this cycle (every cloud/framework configuration is dropped), so all six phases are local `re-full` builds or verification.
+
+**Definition of pass (whole-plan acceptance gate, verified in the final phase):**
+1. **[DELIVERED 2026-06-29]** A TS-native golden-task **live runner** (S1) executes the agent loop against a fresh copy of a task snapshot under the existing tool-permission tiers + a per-task timeout, evaluates the result against the declarative `success_criteria`, and emits a scored `GoldenTaskResult` (`passed`, `traceId`, `metrics`, `failures`, `durationMs`); the `tests/golden/` directory is no longer dry-mode-only. Built as [GoldenTaskRunner.ts](../../../../../modules/coding/evaluation/GoldenTaskRunner.ts) (+ [goldenCriteria.ts](../../../../../modules/coding/evaluation/goldenCriteria.ts), [goldenSnapshot.ts](../../../../../modules/coding/evaluation/goldenSnapshot.ts), [goldenTaskLoader.ts](../../../../../modules/coding/evaluation/goldenTaskLoader.ts)); the agent loop runs behind an injected `AgentDriver` seam (the runner stays vscode-free per `no-llm-outside-llm-folder`). Phase 1 closed 2026-06-29.
+2. The golden suite carries a locked **train/validation/test split** (the test split is never shown to the optimizer) and a content-addressed, redaction-on-write **rejected-edit buffer** (S4) reusing `ArtifactStore`.
+3. A `SkillOptimizer` (S2) reflects on minibatches of failing trajectories, proposes bounded add/delete/replace skill edits under a textual learning-rate budget, accepts an edit **only** when it improves the held-out validation split, and writes rejects to the buffer; every accepted edit is routed through `pathGuard`/`ConfirmationGate`/`ActionClassifier` and requires **human approval before a skill file is overwritten**.
+4. A local A/B (S6, folded into S2) measures the resident optimizer model's edits against the unedited baseline on the validation split; the optimizer's default-on behavior ships **only** if the A/B shows a net win, otherwise it remains opt-in and the result is recorded.
+5. A `CandidateFrontier` (S3) keeps >= 2 skill candidates on separate git branches via the worktree swarm infra, selects the non-dominated (Pareto) set across diverse tasks, and never auto-merges a winning branch without approval; `GitSafetyNet` + a hard candidate cap + auto-clean of ephemeral worktrees apply.
+6. The terminal permission gate (O-A) enumerates a shell command's touched paths/cwd via tree-sitter (bash + PowerShell + cmd) and gates them through the existing tier model, **failing closed** (un-parseable -> existing denylist/tier gate, never auto-allow).
+7. Updated testing across unit, static (`nexus-check`), integration, e2e, and CI/CD with strong coverage, all passing; README/ARCHITECTURE/CHANGELOG/known-gaps updated; Nexus-Hub touchpoint assessed.
+
+## Constitution Check
+
+*GATE: Must pass before design.* No constitution file found at `docs/versions/v1/v1.7.0/constitution.md` -- skipping the formal check. The cycle is governed by the [AGENTS.md](../../../../../AGENTS.md) MCP Registry Policy and the [README.md](../../../../../README.md) design principles (local-first, no outbound by default, single-GPU ceiling, originality over wrappers). Every phase's Stability Gate enforces them. The highest-risk principle interactions are explicit gates: **autonomous self-modification of skill files** (S2/S3 -- mitigated by held-out gate, rejected-edit buffer, git-branch isolation, and mandatory human approval before any skill file is overwritten; S5's background routine is deferred precisely to preserve this), **no outbound call / no new processor** (the optimizer is a registry-resident local model; the verifier, files, and buffer are all local), **untrusted input** (the optimizer reads voluminous trajectory token histories -- treat them as an untrusted-input boundary, reusing the v1.6.0 Fusion F5 judge-isolation + `redactSecrets` discipline), **single-GPU resource safety / runaway** (cap the loop with the v0.3.0 runaway-prevention budget), and **fail-closed security** (O-A must never loosen the permission surface).
+
+## Complexity Tracking
+
+| Item | Complexity driver | Mitigation |
+|---|---|---|
+| S1 live runner (Phase 1) | Med-High: revive a TS-native runner that drives the agent loop against snapshots + scores criteria | Reuse the existing `GoldenTaskSuite` types + declarative `success_criteria` evaluator; run in worktree-isolated snapshots (same sandbox as the swarm); enforce the tool-permission tiers + per-task timeout inside the runner |
+| S4 split + gate + buffer (Phase 2) | Med: dataset hygiene + a buffer | Add split metadata to the task suite; lock a test split the optimizer never sees; reuse `RegressionReport` for the gate and `ArtifactStore` (content-addressed + redaction-on-write) for the buffer |
+| S2 + S6 optimizer (Phase 3) | High: bounded-edit generation + reflection + held-out gating + A/B | Reuse `ReflexionEngine`/`CriticAgent` for failure diagnosis; cap edit volatility with a textual learning-rate budget; accept only on validation gain; treat trajectories as untrusted input; route edits through `pathGuard`/`ConfirmationGate`; **human approval before overwrite**; fold S6's A/B (reuse Fusion F4) to gate default-on |
+| S3 Pareto frontier (Phase 4) | High: candidate lifecycle + git-branch isolation + non-dominated selection | Reuse the v1.5.0 worktree swarm + `GitSafetyNet`; hard candidate cap + VRAM gate (mirror the swarm worker cap); auto-clean ephemeral worktrees; never auto-merge a winner |
+| O-A shell introspection (Phase 5) | Med: command-AST parse across 3 grammars + fail-closed gating | Reuse the tree-sitter pattern opencode uses (bash + PowerShell + cmd); enumerate touched paths/cwd; gate through the existing tier model; **fail closed** on parse failure |
+
+## Phases at a Glance
+
+| Phase | Title | Outcome | Recommended model |
+|-------|-------|---------|-------------------|
+| 1 | TS-native golden-task live runner (S1) -- **complete** | A live runner drives the agent loop against a snapshot under tiers + timeout and emits a scored `GoldenTaskResult`; `tests/golden/` is no longer dry-mode-only. Built as 4 vscode-free `modules/coding/evaluation/` modules (criteria evaluator, snapshot materializer, YAML loader, runner with an injected `AgentDriver` seam); closed 2026-06-29 | Strong reasoning tier, high effort -- `claude-sonnet-4-6`, high (implemented on `claude-opus-4-8`, high -- stronger tier, no-degradation) |
+| 2 | Train/val/test split + held-out gate + rejected-edit buffer (S4) | Locked split (test never shown to the optimizer) + a content-addressed redaction-on-write rejected-edit buffer reusing `ArtifactStore` | Mid reasoning tier, medium effort -- `claude-sonnet-4-6`, medium |
+| 3 | Bounded-edit skill optimizer + optimizer-quality A/B (S2 + S6) | `SkillOptimizer`: reflect -> bounded add/delete/replace skill edits under a learning-rate budget -> held-out gate -> buffer rejects; human-approval before overwrite; A/B gates default-on | Strong reasoning tier, high effort -- `claude-opus-4-8`, high |
+| 4 | Pareto-frontier candidate management on git branches (S3) | `CandidateFrontier`: >= 2 candidates on separate worktree branches, non-dominated selection across diverse tasks, no auto-merge | Strong reasoning tier, high effort -- `claude-opus-4-8`, high |
+| 5 | Tree-sitter shell-command introspection for permission gating (O-A) | Terminal gate enumerates touched paths/cwd via tree-sitter (bash/PowerShell/cmd) and fails closed | Strong reasoning tier, high effort -- `claude-sonnet-4-6`, high |
+| 6 | FINAL: whole-plan acceptance gate + docs + Hub sync | Definition-of-pass verification, docs, known-gaps; S5 + opencode O-B/O-D/O-E recorded as demand-gated backlog | Mid reasoning tier, medium effort -- `claude-sonnet-4-6`, medium |
+
+*Model recommendations are platform-agnostic tier intents plus the concrete id enumerated at planning time; `/implement` re-confirms each against the then-current model set. The recommendation defaults to the stronger tier on any high-risk or uncertain signal (S2-S3 touch autonomous self-modification, untrusted input, and git-branch concurrency; O-A is security-sensitive).*
+
+---
+
+## Phase 1: TS-native golden-task live runner (S1)
+
+**Goal**: Revive the golden task suite as a working live evaluator -- the article's hard prerequisite -- so the optimization loop has a verifiable feedback signal. Valuable on its own (it restores live golden runs deleted by ADR-0001).
+**Prerequisites**: None.
+**Stability Gate**: The runner executes inside a worktree-isolated copy of the task snapshot under the existing tool-permission tiers + a per-task timeout; no outbound call; a dry-run path still works without Ollama; the runner emits a scored `GoldenTaskResult` for every task.
+**Status**: COMPLETE 2026-06-29. Built four vscode-free `modules/coding/evaluation/` modules: [goldenCriteria.ts](../../../../../modules/coding/evaluation/goldenCriteria.ts) (TS port of `evaluator.py` -- all 8 declarative criterion types with an injected command runner so unit tests stay deterministic + cross-platform), [goldenSnapshot.ts](../../../../../modules/coding/evaluation/goldenSnapshot.ts) (TS port of `snapshot.py` `prepare_worktree`+`init_git_repo` -- copy-into-temp + `git init` baseline isolation, injected `GitRunner`, fault-tolerant), [goldenTaskLoader.ts](../../../../../modules/coding/evaluation/goldenTaskLoader.ts) (dependency-free YAML-subset loader for the fixed `tests/golden/tasks/*.yaml` schema -> `GoldenTaskSpec`; handles block scalars, escaped double-quoted scalars, flow lists, and mapping sequences; fail-closed on unsupported constructs), and [GoldenTaskRunner.ts](../../../../../modules/coding/evaluation/GoldenTaskRunner.ts) (orchestrates materialize -> dry/live -> evaluate -> scored `GoldenTaskResult`, per-task timeout with `AbortSignal`). The agent loop and concrete LLM client are vscode-coupled (`ConversationManager`, the logger) and live behind the `no-llm-outside-llm-folder` rule, so the runner depends on an injected `AgentDriver` seam (the same injection pattern the codebase uses for `GitRunner`/`TraceDbReader`) rather than importing them. The dry path needs no driver; the live smoke uses the vscode-free `OllamaClient`. Verified: `tsc -b` clean, lint 0 errors, check-architecture 0 errors (10 pre-existing warnings), check:tampering 0 findings, root suite 4354 passed / 6 skipped / 0 failed, new-module coverage 97.11% lines / 83.25% branches / 100% functions (GoldenTaskRunner 100/96.4/100, goldenCriteria 100/82.5/100, goldenSnapshot 100/87.5/100, goldenTaskLoader 93.9/79.5/100). The production wiring of a real full-AgentLoop driver (requires a vscode-free agent substrate) and a `nexus golden run` CLI are recorded as forward-tier carryovers in the [known-gaps ledger](../known-gaps.md) (`SO001.P1.A`, `SO001.P1.B`).
+
+### Sub-tasks
+
+#### 1.1 -- S1: TS-native live task runner
+
+- [x] SO001 Implement a TS-native runner that drives the agent loop against a golden-task snapshot and scores it -- **done 2026-06-29**: [goldenCriteria.ts](../../../../../modules/coding/evaluation/goldenCriteria.ts) + [goldenSnapshot.ts](../../../../../modules/coding/evaluation/goldenSnapshot.ts) + [goldenTaskLoader.ts](../../../../../modules/coding/evaluation/goldenTaskLoader.ts) + [GoldenTaskRunner.ts](../../../../../modules/coding/evaluation/GoldenTaskRunner.ts) (injected `AgentDriver` seam keeps the runner vscode-free per `no-llm-outside-llm-folder`); tests [tests/unit/evaluation/goldenCriteria.test.ts](../../../../../tests/unit/evaluation/goldenCriteria.test.ts) (12) + [goldenTaskLoader.test.ts](../../../../../tests/unit/evaluation/goldenTaskLoader.test.ts) (13, incl. the full 28-task corpus) + [goldenSnapshot.test.ts](../../../../../tests/unit/evaluation/goldenSnapshot.test.ts) (9) + [GoldenTaskRunner.test.ts](../../../../../tests/unit/evaluation/GoldenTaskRunner.test.ts) (8) + integration [golden-runner-end-to-end.test.ts](../../../../../tests/integration/golden/golden-runner-end-to-end.test.ts) (3: real-snapshot dry + mock-live) + env-gated live smoke [golden-runner.live.test.ts](../../../../../tests/integration/golden/golden-runner.live.test.ts).
+
+**Objective**: Replace the broken Python `_run_live()` (which posts to the ADR-0001-deleted backend) with a TS-native runner.
+
+**Prompt**:
+> Implement comparison item S1. In [modules/coding/evaluation/](../../../../../modules/coding/evaluation/), add a `GoldenTaskRunner` that, for a given `GoldenTask` (from [GoldenTaskSuite.ts](../../../../../modules/coding/evaluation/GoldenTaskSuite.ts)) and its snapshot under [tests/golden/snapshots/](../../../../../tests/golden/), (1) materializes a fresh worktree-isolated copy of the snapshot (reuse the v1.5.0 swarm worktree infra), (2) runs the Coding-pillar agent loop against the task `input` under the existing tool-permission tiers with a per-task timeout, (3) evaluates the resulting workspace against the declarative `success_criteria` (`file_contains`, `file_exists`, `file_deleted`, `test_passes`, `lint_passes`, `diff_matches`, `output_contains`, `no_errors` -- the set documented in [tests/golden/README.md](../../../../../tests/golden/README.md)), and (4) emits a scored `GoldenTaskResult` (`passed`, `traceId`, `metrics`, `failures`, `durationMs`). Keep the dry-run path (snapshot setup + criteria evaluation without Ollama) working for CI. Local-only; no outbound call. Acceptance: a unit test proves criteria evaluation over a fixture workspace; an integration test runs the dry path end-to-end; a live smoke (guarded behind an Ollama-available env flag) runs one task against the real backend. Effort: Med-High. Risk: Med (re-enables live execution -- isolate in a worktree, enforce the timeout + tiers).
+
+---
+
+## Phase 2: Train/validation/test split + held-out gate + rejected-edit buffer (S4)
+
+**Goal**: Build the regression-safety scaffolding the optimizer cannot be trusted without -- the article's "clean, representative held-out evaluation dataset" plus the rejected-edit buffer.
+**Prerequisites**: Phase 1 (the runner produces the scored results the gate compares).
+**Stability Gate**: The test split is never passed to the optimizer; the buffer is content-addressed + redaction-on-write; the gate is a pure comparator over scored batches.
+
+### Sub-tasks
+
+#### 2.1 -- S4: split metadata + held-out gate + rejected-edit buffer
+
+- [ ] SO002 Add a locked train/validation/test split, a held-out validation gate, and a rejected-edit buffer
+
+**Prompt**:
+> Implement comparison item S4. Add a `split: train | validation | test` field to the golden task definitions (default-assign by category so each split is representative), and a loader guard that makes the **test** split inaccessible to the optimizer code path (the article's anti-contamination requirement). Add a `validationGate(before, after): boolean` built on the existing `RegressionReport` / `framework/regression.py` comparator (accept an edit only when the validation split's aggregate improves with no per-task regression beyond a tolerance). Add a `RejectedEditBuffer` under [core/memory/](../../../../../core/memory/) backed by the content-addressed, redaction-on-write [ArtifactStore](../../../../../core/memory/ArtifactStore.ts) (so a rejected edit's trajectory text never lands on disk unredacted), keyed by skill id + edit hash, with the rejection reason and validation delta. Local-only. Acceptance: unit tests prove the test split is unreachable from the optimizer loader, the gate accepts a net-positive edit and rejects a regressing one, and the buffer round-trips a rejected edit with redaction. Effort: Med. Risk: Low.
+
+---
+
+## Phase 3: Bounded-edit skill optimizer + optimizer-quality A/B (S2 + S6)
+
+**Goal**: The headline capability -- a SkillOpt-style loop that reflects on failing trajectories and proposes regression-safe bounded edits to local skill files, with an A/B that proves the resident optimizer model is good enough before edits are trusted.
+**Prerequisites**: Phase 1 (rollout) + Phase 2 (gate + buffer).
+**Stability Gate**: Every accepted edit passes the held-out gate, routes through `pathGuard`/`ConfirmationGate`/`ActionClassifier`, and requires **human approval before any skill file is overwritten**; trajectories are treated as untrusted input + `redactSecrets`-scanned; the loop is bounded by the v0.3.0 runaway budget; default-on ships only on an A/B net win.
+
+### Sub-tasks
+
+#### 3.1 -- S2: bounded-edit skill optimizer
+
+- [ ] SO003 Implement the SkillOpt-style bounded-edit optimizer loop
+
+**Prompt**:
+> Implement comparison item S2. Add a `SkillOptimizer` (new `modules/coding/skilloptimizer/`, or `core/skills/` if the boundary rules require it) that runs the loop: (1) **rollout** the train split via the Phase 1 runner and collect scored `GoldenTaskResult`s; (2) **reflect** on minibatches of *failing* trajectories using the existing [ReflexionEngine](../../../../../modules/coding/orchestration/ReflexionEngine.ts) + [CriticAgent](../../../../../modules/coding/orchestration/CriticAgent.ts), pointed at "which skill text drove these failures" (the resident optimizer model -- never a cloud model); (3) propose **bounded** add/delete/replace edits to the target skill `.md` (from [core/skills/SkillCatalog.ts](../../../../../core/skills/SkillCatalog.ts)) under a configurable **textual learning-rate budget** that caps edit volume per round; (4) apply each candidate edit only after the Phase 2 held-out `validationGate` passes, writing rejects to the `RejectedEditBuffer`. Treat trajectory text as an untrusted-input boundary (reuse the v1.6.0 Fusion F5 judge-isolation discipline) and run captured trajectories through [redactSecrets](../../../../../core/observability/redactSecrets.ts). Route every accepted edit through `pathGuard`/`ConfirmationGate`/[ActionClassifier](../../../../../modules/coding/guardrails/ActionClassifier.ts), and **require explicit human approval before any skill file is overwritten** (the loop proposes a diff; the user accepts). Bound the whole loop with the v0.3.0 runaway-prevention budget. Local-only; no outbound; no new dependency. Acceptance: unit tests prove a proposed edit that improves validation is accepted (pending approval) and one that regresses is buffered; a test proves no skill file is written without the approval signal; a test proves the budget caps edit volume. Effort: High. Risk: Med (autonomous edit generation -- gated by approval + held-out + buffer). Do NOT pull DSPy/EvoSkill/SkillOpt as dependencies; this is the reverse-engineered loop.
+
+#### 3.2 -- S6: optimizer-quality A/B
+
+- [ ] SO004 Measure the resident optimizer model's edits against baseline before enabling default-on
+
+**Prompt**:
+> Implement comparison item S6 (folded into this phase). Reuse the v1.6.0 Fusion **F4** local A/B harness to compare, on the validation split, the skill set after `SkillOptimizer` edits against the unedited baseline. The article's reported gains (+23.5 / +24.8) used a frontier optimizer (GPT-5.5); whether a small resident model produces net-positive edits on Nexus coding tasks is **unproven** (`candidate` tier) and must be measured locally. Ship the optimizer **opt-in** by default; flip the default-on only if the A/B shows a net win, and record the measured result either way (mirror the Fusion F4 budget-panel discipline). Acceptance: the A/B runs over the validation split and emits a net-win/net-loss verdict; the default-on flag is gated on that verdict. Effort: Med. Risk: Low.
+
+---
+
+## Phase 4: Pareto-frontier candidate management on git branches (S3)
+
+**Goal**: The evolutionary layer (GEPA/EvoSkill) on top of S2's single-file loop -- keep multiple skill candidates on separate git branches and select the non-dominated set across diverse tasks.
+**Prerequisites**: Phase 3 (the optimizer produces the candidates the frontier ranks).
+**Stability Gate**: Candidates run in worktree-isolated branches under `GitSafetyNet` + a hard candidate cap + VRAM gate; ephemeral worktrees auto-clean; a winning branch is **never** auto-merged without approval.
+
+### Sub-tasks
+
+#### 4.1 -- S3: candidate frontier
+
+- [ ] SO005 Implement Pareto-frontier candidate selection over git-branch skill variants
+
+**Prompt**:
+> Implement comparison item S3. Add a `CandidateFrontier` (under `modules/coding/skilloptimizer/`) that runs the Phase 3 optimizer to produce >= 2 skill-edit candidates, materializes each on a **separate git branch** via the v1.5.0 worktree swarm infra (reuse [GitSafetyNet](../../../../../modules/coding/guardrails/GitSafetyNet.ts)), scores each candidate across the diverse train/validation tasks, and selects the **non-dominated (Pareto) set** -- candidates that each win on different tasks -- replacing the lowest-performing variant when a new candidate beats it on the held-out split (the EvoSkill replacement rule). Hard-cap the concurrent candidate count (mirror the swarm worker cap + the GPU/VRAM gate), auto-clean ephemeral worktrees, and **never auto-merge** a winning branch into the live catalog (surface the winner for human approval, reusing the Phase 3 approval gate). Reverse-engineer the genetic-Pareto selector as a lean local module; do not import DSPy or any framework. Local-only. Acceptance: unit tests prove non-dominated selection over a fixture score matrix, the lowest variant is replaced only on a held-out win, the candidate cap holds, and no branch is merged without approval. Effort: High. Risk: Med (git-branch concurrency + autonomy -- gated by cap + GitSafetyNet + approval).
+
+---
+
+## Phase 5: Tree-sitter shell-command introspection for permission gating (O-A)
+
+**Goal**: Adopt the one clearly-worthwhile local item from the opencode scan -- parse a shell command's AST to enumerate the paths/cwd it will touch and gate them through the existing tier model, turning "what will this command touch?" from a regex guess into a structural answer.
+**Prerequisites**: None (independent of the optimization track).
+**Stability Gate**: The introspection **fails closed** -- an un-parseable or grammar-unsupported command falls back to the existing denylist/tier gate, never auto-allow; no new outbound surface.
+
+### Sub-tasks
+
+#### 5.1 -- O-A: command-AST path enumeration
+
+- [ ] SO006 Add tree-sitter shell-command introspection to the terminal permission gate
+
+**Prompt**:
+> Implement comparison item O-A (from [../comparison-opencode.md](../comparison-opencode.md)). In the terminal handler ([src/tools/handlers/terminal.ts](../../../../../src/tools/handlers/terminal.ts)) and the permission/guardrails surface, add a tree-sitter-based introspection step (bash + PowerShell + cmd grammars, mirroring opencode's `tool/shell/` approach) that parses a proposed shell command and enumerates the files/paths/cwd it will operate on, then gates those through the existing `PermissionTier` model + `.nexus/permissions.deny` denylist + `GitSafetyNet`. The gate must **fail closed**: if the command cannot be parsed or uses an unsupported construct, fall back to the existing tier/denylist gate (never auto-allow), and log the fallback. Local-only; the tree-sitter grammars are a local dependency (no outbound). Acceptance: unit tests prove path enumeration over representative bash/PowerShell/cmd commands, that a command touching a denylisted path is blocked, and that an un-parseable command falls back to the existing gate without loosening it. Effort: Med. Risk: Med (security-sensitive -- must only ever tighten the surface). Cite the AGENTS.md MCP Registry Policy where relevant.
+
+---
+
+## Phase 6: FINAL -- whole-plan acceptance gate + docs + Hub sync
+
+**Goal**: Verify the definition-of-pass, run the full test matrix, update docs, assess the Nexus-Hub touchpoint, and record the demand-gated backlog.
+**Stability Gate**: `npm run test`, `npm run lint`, `npm run check-architecture`, `npm run security:check`, `npm run check:tampering` clean; the whole-plan acceptance gate passes; docs (README/ARCHITECTURE/CHANGELOG/known-gaps) updated.
+
+### Sub-tasks
+
+- [ ] SO007 Run the whole-plan acceptance gate (Definition of pass items 1-7) and record results
+- [ ] SO008 Update README/ARCHITECTURE/CHANGELOG and create `docs/versions/v1/v1.7.0/known-gaps.md`; record the demand-gated backlog (S5; opencode O-B/O-D/O-E) and any forward-tier follow-ups
+- [ ] SO009 Assess the Nexus-Hub touchpoint -- the runtime skill-optimization loop is a worked local-first example for the Hub's `skill-eval-loop` / `loop-engineering` / `continuous-learning` skills; add a cross-link only if it documents a reusable pattern the Hub catalog lacks
+
+**Prompt (SO009 framing)**:
+> The Hub already ships the *method-level* skill-authoring guidance (`skill-description-authoring`, `skill-eval-loop`, `loop-engineering`, `continuous-learning`, `skill-create`, `skill-stocktake`). This cycle builds the *runtime loop* those skills describe. Assess whether a one-line cross-link from the Hub's `skill-eval-loop` / `loop-engineering` skill to this runtime loop documents a reusable local-first pattern the catalog lacks; if so, propose the cross-link (do not duplicate logic into the Hub). Record the decision in the known-gaps ledger.
+
+---
+
+## Out-of-Scope appendix (dropped or deferred, not implemented this cycle)
+
+| ID | Item | Disposition | Grounds (MCP Registry Policy / product shape) |
+|---|---|---|---|
+| S5 | Background autonomous self-optimization routine + live-trajectory failure flagging | **Demand-gated, off by default** (not a phase this cycle) | The one item where autonomy meets self-modification of skill files. Preserves the "loop proposes, human accepts" guardrail by NOT running unattended. If ever built: explicit opt-in, local-compute budget cap (v0.3.0 runaway prevention), human approval still required before any write, all proposals queued for review. Reuse the `lifecycle.session.reflection` hook + trace store. |
+| article D1 | DSPy / GEPA / EvoSkill / SkillOpt as external frameworks/deps | **Drop** | Reverse-engineer-first: the genetic-Pareto selector, bounded-edit budget, and rejected-edit buffer are algorithms built leanly onto the existing spine (S2/S3 ARE the reverse-engineered versions). Importing a framework adds a heavy dependency + supply-chain surface. |
+| article D2 | Hosted / cloud frontier optimizer | **Drop** (`future`-watch) | Ships voluminous, possibly secret-bearing trajectories off-machine + API key + per-token billing -- conflicts with local-first / no-outbound / Zero Tokens Billed. `future`-watch only: an explicit opt-in BYO-key cloud-optimizer escape hatch, never a default. |
+| O-B | opencode `references` (local-dir + opt-in Git-repo read-only context) | **Backlog** | Useful local context surface; the local-dir half is on-brand, the Git-repo half is an opt-in outbound clone (read-only + path-guarded + `redactSecrets` on ingest). Recorded for a future cycle. |
+| O-D | opencode ACP (Agent Client Protocol) editor interop | **Backlog** | Local protocol interop over the existing sidecar; lower priority than Nexus's own desktop + VS Code surfaces. |
+| O-E | opencode guarded local plugin auto-loader (`tools/*.ts`) | **Backlog (guarded)** | A code-execution surface largely subsumed by the MCP host + skill catalog + A3 `LocalAdapterRegistry`; adopt only guarded (opt-in, allowlisted dir, no remote sources) or defer to MCP. |
+| opencode D1 | Cloud routing + models.dev startup catalog fetch | **Drop** (`future`-watch) | Outbound + API keys + per-token billing + startup network dependency -- conflicts with local-first; Nexus bundles its catalog. |
+| opencode D2 | Hosted session sharing | **Drop** | The v1.6.0 A4 self-contained offline HTML export already covers the local-only "share a trace" need. |
+| opencode D3 | Remote MCP (HTTP/SSE) + remote skill URL sources | **Drop** (LAN opt-in distant future) | Outbound surfaces; stdio MCP + Hub-scoped `nexus skills sync` already cover the harness. |
+| opencode D4 | Hosted accounts/orgs + Stripe billing + Honeycomb/usage-lake + hosted gateway | **Drop** | A full third-party commercial + data-processor relationship -- categorically rejected. |
+| opencode D5 | LSP server auto-install at runtime | **Drop** | Runtime binary download conflicts with installer-carries-the-burden + no-runtime-downloads; auto-launch of installed servers is minor convenience only. |
