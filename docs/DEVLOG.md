@@ -4,6 +4,29 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-06-30] v1.7.0 self-optimizing-skills Phase 2 -- train/val/test split + held-out gate + rejected-edit buffer (S4, SO002)
+
+### Goal
+
+Build the regression-safety scaffolding the Phase 3 skill optimizer cannot be trusted without (S4): a locked train/validation/test split whose **test** split the optimizer never sees, a held-out **validation gate** that only accepts an edit when it improves the held-out split, and a **rejected-edit buffer** so a known-bad edit is never re-proposed and is auditable -- all local-only, reusing the Phase 1 runner's scored results and the v1.6.0 `ArtifactStore`.
+
+### What changed
+
+- **Split + contamination guard.** [goldenTaskLoader.ts](../modules/coding/evaluation/goldenTaskLoader.ts) gains an additive optional `split: train|validation|test` field on `GoldenTaskSpec` (fail-closed on unknown values; absent = defaulted). [goldenSplit.ts](../modules/coding/evaluation/goldenSplit.ts) is new: `assignDefaultSplits` derives a missing split deterministically per category (tasks sorted by id, cycled train -> validation -> test, explicit splits honored) so each split is representative across families; `splitGoldenTasks` partitions; `optimizerVisibleTasks` / `loadOptimizerVisibleTasks` are the **only** loaders the optimizer code path uses and return train + validation only, re-checked by `assertNoTestSplit` (defense-in-depth) so a `test` task can never reach the loop -- the article's anti-contamination requirement, enforced structurally rather than by convention.
+- **Held-out validation gate.** [validationGate.ts](../modules/coding/evaluation/validationGate.ts) is a pure function over before/after scored `GoldenTaskResult` batches: `validationGate(before, after) -> boolean` (the plan's signature) and `evaluateValidationGate(...)` (the detailed report). It accepts only on a **strict aggregate validation-pass-rate improvement** (configurable margin) with **per-task pass->fail regressions within a tolerance** (default 0), reusing the existing `RegressionReport` shape for the per-task deltas and emitting a human-readable reason the buffer can store. No I/O, no clock, no randomness.
+- **Rejected-edit buffer.** [core/memory/RejectedEditBuffer.ts](../core/memory/RejectedEditBuffer.ts) is keyed by `skillId + editHash`: the edit / failing-trajectory text is stored through the content-addressed [ArtifactStore](../core/memory/ArtifactStore.ts) (which redacts before it hashes + writes, so the trajectory never lands on disk unredacted), the rejection reason is redacted in a JSON index, and `record` is idempotent (first write wins). It composes only `core/` surfaces (`ArtifactStore` + `redactSecrets`) over primitive inputs, so it never reaches into a pillar's types (`no-core-from-modules` clean).
+- **Tests (29 new).** [goldenSplit.test.ts](../tests/unit/evaluation/goldenSplit.test.ts) (13: split parse, deterministic default-by-category, partition, the `assertNoTestSplit` guard, and the real-corpus property that the test split is non-empty yet unreachable from the optimizer loader), [validationGate.test.ts](../tests/unit/evaluation/validationGate.test.ts) (8: accept net-positive, reject regressing/flat, enforce the regression tolerance, the min-aggregate-delta margin, the boolean wrapper), [RejectedEditBuffer.test.ts](../tests/unit/core/memory/RejectedEditBuffer.test.ts) (8: round-trip with redaction + no-secret-on-disk, idempotency, separate-key isolation, persistence across instances, missing/corrupt-index + pruned-artifact degradation).
+
+### Verification
+
+- `npm run test`: **4382 passed / 6 skipped / 0 failed**. `npm run lint`: **0 errors**. `tsc -b`: clean.
+- `npm run check-architecture`: **0 errors**, 10 pre-existing warnings (no new orphan/circular -- the split module depends one-directionally on the loader). `npm run check:tampering`: **0 findings**. `npm run security:check`: in sync.
+- New-module coverage: `goldenSplit.ts` **100/100/100**, `validationGate.ts` **100/100/100**, `RejectedEditBuffer.ts` **100/100/100** (lines/branches/functions); the added `goldenTaskLoader` split-parse is covered, its residual uncovered lines are pre-existing parser branches.
+- Local-first / MCP Registry Policy clean: no new dependency, no new outbound call or credential. README/ARCHITECTURE/CHANGELOG narrative + the npm version tag remain semantic-release-owned and are cut on merge to `main`.
+- Carryovers recorded in [versions/v1/v1.7.0/known-gaps.md](versions/v1/v1.7.0/known-gaps.md): `SO002.P2.A` (pass-rate-only gate; latency/token regression gating deferred to a Phase 3 consumer), `SO002.P2.B` (buffer is append-only; orphan GC deferred, mirrors `AS005.P3.A`), `SO002.P2.C` (corpus splits are defaulted by category, not difficulty-stratified).
+
+---
+
 ## [2026-06-29] v1.7.0 self-optimizing-skills Phase 1 -- TS-native golden-task live runner (S1, SO001)
 
 ### Goal

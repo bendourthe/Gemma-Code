@@ -51,7 +51,10 @@ max_iterations: 20
 timeout_seconds: 300
 model_tier: e4b         # or e2b / 26b / 31b / any
 tags: [fast, typescript]
+split: validation       # optional (v1.7.0 S4): train | validation | test
 ```
+
+The optional `split` field assigns a task to the train / validation / test dataset split used by the skill self-optimization loop. When omitted, a deterministic default is assigned by category (tasks sorted by id, cycled train -> validation -> test) so each split stays representative across categories. The **test** split is held out: the optimizer code path loads tasks only through `optimizerVisibleTasks` (TS, `modules/coding/evaluation/goldenSplit.ts`), which returns train + validation and never a test task.
 
 Supported `type` values:
 

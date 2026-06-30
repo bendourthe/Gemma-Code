@@ -38,6 +38,16 @@ const KNOWN_CRITERION_TYPES: ReadonlySet<string> = new Set<GoldenCriterionType>(
 ]);
 
 /**
+ * v1.7.0 Phase 2 (S4 / SO002) -- the held-out dataset split a task belongs to.
+ * `train` is rolled out by the optimizer, `validation` is the held-out gate the
+ * optimizer may read, and `test` is the contamination-guarded split the
+ * optimizer code path must never see (enforced in `goldenSplit.ts`).
+ */
+export type GoldenSplit = "train" | "validation" | "test";
+
+const KNOWN_SPLITS: ReadonlySet<string> = new Set<GoldenSplit>(["train", "validation", "test"]);
+
+/**
  * A golden task as declared in a `tests/golden/tasks/*.yaml` file. Distinct
  * from the in-process `GoldenTask` (`GoldenTaskSuite.ts`): this is the
  * out-of-process harness schema the live runner executes.
@@ -56,6 +66,13 @@ export interface GoldenTaskSpec {
   readonly timeoutSeconds: number;
   readonly modelTier: string;
   readonly tags: readonly string[];
+  /**
+   * v1.7.0 Phase 2 (S4 / SO002) -- the dataset split this task belongs to.
+   * Optional in the YAML: when absent, a deterministic default is assigned by
+   * category in `goldenSplit.ts` (`assignDefaultSplits`) so every split stays
+   * representative. Present here only when a task pins its split explicitly.
+   */
+  readonly split?: GoldenSplit;
 }
 
 // ---------------------------------------------------------------------------
@@ -311,6 +328,20 @@ function optionalInt(root: Record<string, YamlValue>, key: string, fallback: num
   return Number.isFinite(n) ? n : fallback;
 }
 
+/**
+ * Parse the optional `split` field. Absent -> `undefined` (defaulted later by
+ * category). Present but not one of the three known splits -> throw
+ * (fail-closed, matching the loader's discipline for unknown constructs).
+ */
+function optionalSplit(root: Record<string, YamlValue>, key: string, file: string): GoldenSplit | undefined {
+  const v = root[key];
+  if (v === undefined) return undefined;
+  if (typeof v !== "string" || !KNOWN_SPLITS.has(v)) {
+    throw new Error(`${file}: '${key}' must be one of train|validation|test, got ${JSON.stringify(v)}`);
+  }
+  return v as GoldenSplit;
+}
+
 function stringList(value: YamlValue | undefined): string[] {
   if (Array.isArray(value) && value.every((x) => typeof x === "string")) {
     return value as string[];
@@ -352,6 +383,7 @@ export function toGoldenTaskSpec(root: Record<string, YamlValue>, sourceLabel = 
     timeoutSeconds: optionalInt(root, "timeout_seconds", 300),
     modelTier: optionalString(root, "model_tier", "any"),
     tags: stringList(root["tags"]),
+    split: optionalSplit(root, "split", sourceLabel),
   };
 }
 
