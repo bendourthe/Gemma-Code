@@ -288,6 +288,11 @@
           "default": false,
           "description": "v1.5.0 Phase 4 (item 36) -- enable planner/critic/worker swarm orchestration for complex plan-mode requests. When on, write-capable workers run in isolated git worktrees (so concurrent writers cannot collide) and each worker's output is reviewed by a critic before it is merged into the plan; a rejected worker is retried with the critic's feedback. Concurrency stays bounded by the GPU tier's sub-agent limit (extra workers queue, they do not oversubscribe). Off by default: the orchestrator runs the legacy single-workspace, critic-less Plan-and-Execute loop."
         },
+        "nexus.coding.skillOptimizer.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "v1.7.0 Phase 3 (S2 + S6) -- enable the local bounded-edit skill optimizer: it rolls out the train split, reflects on failing trajectories, proposes a small add/delete/replace edit to a skill .md under a textual learning-rate budget, accepts it ONLY when the held-out validation split improves, and requires explicit human approval before any skill file is overwritten (rejected edits are buffered). Off by default: per the no-degradation gate, default-on flips only when the optimizer-quality A/B (decideSkillOptimizerDefault) shows the resident model produces a net-positive edit set; that A/B has not been measured on live local models here, so the optimizer ships opt-in. Enable to run the loop (every overwrite still asks for approval)."
+        },
         "nexus.memory.enabled": {
           "type": "boolean",
           "default": true,
