@@ -293,3 +293,173 @@ export interface SkillOptimizationResult {
   readonly rejectedCount: number;
   readonly stopReason: StopReason;
 }
+
+// ---------------------------------------------------------------------------
+// v1.7.0 Phase 4 (adoption-self-optimizing-skills S3 / SO005) -- Pareto-frontier
+// candidate management on git branches.
+//
+// The evolutionary (GEPA/EvoSkill) layer on top of the Phase 3 single-file loop:
+// the optimizer produces >= 2 skill-edit CANDIDATES, each is materialized on its
+// own git branch (worktree-isolated) and scored across the diverse task set, and
+// the non-dominated (Pareto) set is kept -- candidates that each win on different
+// tasks all survive. A bounded population (the hard candidate cap, mirroring the
+// swarm worker cap + the GPU/VRAM gate) is maintained by the EvoSkill replacement
+// rule: a challenger replaces the lowest-held-out incumbent ONLY when it beats it
+// on the held-out split. A winning branch is NEVER auto-merged -- it is surfaced
+// for explicit human approval (reusing the Phase 3 approval gate).
+//
+// Boundary: vscode-free. The branch materialization, candidate scoring (over the
+// Phase 1 runner), candidate production (over the Phase 3 optimizer), and the
+// live-catalog merge are all reached through injected seams -- the same
+// discipline the rest of this module uses.
+// ---------------------------------------------------------------------------
+
+/** A per-task objective score vector (task id -> score in [0,1]); the Pareto axes. */
+export type PerTaskScores = Readonly<Record<string, number>>;
+
+/** A skill-edit candidate variant produced by the optimizer, before scoring. */
+export interface SkillCandidate {
+  /** Stable id (the content hash of the underlying edit, or a caller-supplied id). */
+  readonly id: string;
+  readonly skillId: string;
+  /** The candidate skill `.md` body (frontmatter is applied at materialization). */
+  readonly body: string;
+  /** Optional human-readable label (e.g. the edit rationale) shown at approval. */
+  readonly label?: string;
+}
+
+/** An isolated git branch + worktree materialized for one candidate. */
+export interface CandidateWorkspace {
+  readonly candidateId: string;
+  /** The branch the candidate lives on (the ref survives the worktree auto-clean). */
+  readonly branch: string;
+  /** Absolute path to the ephemeral worktree checkout. */
+  readonly path: string;
+}
+
+/**
+ * A candidate's measured scores across the diverse task set.
+ *  - `perTask`: the Pareto objective vector (task id -> [0,1] score).
+ *  - `heldOut`: the aggregate held-out (validation) score used for the bounded
+ *    population's replacement rule.
+ */
+export interface CandidateScore {
+  readonly candidateId: string;
+  readonly perTask: PerTaskScores;
+  readonly heldOut: number;
+}
+
+/** Produces the raw candidate variants the frontier ranks (>= 2 to be useful). */
+export interface CandidateProducer {
+  produce(): Promise<readonly SkillCandidate[]>;
+}
+
+/**
+ * Materializes a candidate on its own git branch (in an isolated worktree) and
+ * cleans the ephemeral worktree up afterwards (the branch ref is retained for a
+ * later, approved merge). The composition root wires this over the v1.5.0
+ * `WorktreeManager` + `GitSafetyNet`; tests inject a fake. Every operation is
+ * fault-tolerant: `create` returns null when isolation is unavailable (git-less
+ * or non-repo) so the frontier degrades to a baseline-catalog score instead of
+ * throwing.
+ */
+export interface CandidateWorkspaceManager {
+  create(candidate: SkillCandidate): Promise<CandidateWorkspace | null>;
+  /** Remove the ephemeral worktree (returns whether it was removed). */
+  cleanup(workspace: CandidateWorkspace): Promise<boolean>;
+}
+
+/**
+ * Scores a candidate across the diverse task set. When `workspace` is present the
+ * candidate runs on its isolated branch; when null (isolation unavailable) the
+ * scorer falls back to a baseline-catalog measurement. The composition root wires
+ * this over the Phase 1 `GoldenTaskRunner` (via the `OptimizerRollout` seam);
+ * tests inject a deterministic fake.
+ */
+export interface CandidateScorer {
+  score(
+    candidate: SkillCandidate,
+    workspace: CandidateWorkspace | null,
+  ): Promise<CandidateScore>;
+}
+
+/**
+ * Promotes an APPROVED winning candidate branch into the live skill catalog. This
+ * is the ONLY merge path and is reachable ONLY after an explicit human-approval
+ * signal -- the frontier never auto-merges. The composition root wires this over
+ * `GitSafetyNet` (checkpoint + merge the branch); tests inject a fake. Deferred at
+ * the composition root, mirroring the Phase 3 write guardrail.
+ */
+export interface CandidatePromoter {
+  promote(
+    candidate: SkillCandidate,
+    workspace: CandidateWorkspace | null,
+  ): Promise<boolean>;
+}
+
+/** Collaborators injected into the {@link CandidateFrontier}. */
+export interface CandidateFrontierDeps {
+  readonly producer: CandidateProducer;
+  readonly workspaces: CandidateWorkspaceManager;
+  readonly scorer: CandidateScorer;
+  /** Reused from Phase 3: brokers explicit human approval before any promotion. */
+  readonly approvalGate: SkillEditApprovalGate;
+  readonly promoter: CandidatePromoter;
+}
+
+/** Per-run frontier configuration. */
+export interface CandidateFrontierConfig {
+  /**
+   * Hard cap on the retained candidate population. Mirrors the swarm worker cap +
+   * the GPU/VRAM gate: at a composition root this is set from the hardware tier's
+   * `maxConcurrentSubAgents`. Candidates beyond the cap must win a replacement.
+   */
+  readonly maxCandidates: number;
+  /**
+   * The held-out margin a challenger must EXCEED to replace the lowest incumbent
+   * (default 0 -- a strict improvement; a tie does not replace).
+   */
+  readonly replacementMargin?: number;
+  /** The skill the frontier is optimizing (all candidates share this id). */
+  readonly skillId: string;
+  /** Path-guarded skill file the approved winner would eventually be merged into. */
+  readonly skillPath: string;
+}
+
+/** What happened to a produced candidate against the bounded population. */
+export type CandidateAdmission =
+  | "admitted" // population under the cap; added
+  | "replaced-lowest" // beat the lowest incumbent on held-out; swapped in
+  | "rejected-cap"; // population at the cap and did not beat the lowest incumbent
+
+/** The record for one evaluated candidate. */
+export interface CandidateRecord {
+  readonly candidate: SkillCandidate;
+  /**
+   * The isolated branch/worktree the candidate ran on (null when isolation was
+   * unavailable and it was scored against the baseline catalog). The worktree is
+   * auto-cleaned after scoring; the branch ref persists here for promotion.
+   */
+  readonly workspace: CandidateWorkspace | null;
+  readonly score: CandidateScore;
+  readonly admission: CandidateAdmission;
+}
+
+/** The full result of a frontier evolution pass. */
+export interface FrontierResult {
+  readonly skillId: string;
+  /** Every candidate evaluated, in production order (includes `rejected-cap`). */
+  readonly evaluated: readonly CandidateRecord[];
+  /** The retained population after the cap + replacement rule (never larger than the cap). */
+  readonly population: readonly CandidateRecord[];
+  /** The non-dominated (Pareto) candidate ids across the diverse tasks. */
+  readonly frontier: readonly string[];
+  /** The winner surfaced for approval (highest held-out among the frontier), if any. */
+  readonly winnerId?: string;
+  /** Whether human approval to promote the winner was requested. */
+  readonly approvalRequested: boolean;
+  /** Whether the human approved promotion (false when withheld or not requested). */
+  readonly approved: boolean;
+  /** Whether the winning branch was promoted (ONLY ever true after approval). */
+  readonly promoted: boolean;
+}

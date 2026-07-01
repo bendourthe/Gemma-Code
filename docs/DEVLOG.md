@@ -4,6 +4,30 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-01] v1.7.0 self-optimizing-skills Phase 4 -- Pareto-frontier candidate management on git branches (S3, SO005)
+
+### Goal
+
+Land the evolutionary layer (GEPA/EvoSkill) on top of the Phase 3 single-file loop: keep multiple skill-edit **candidates** on separate git branches and select the non-dominated (Pareto) set across the diverse task set, so candidates that each win on different tasks all survive and the best is surfaced for a human to merge. The load-bearing guardrail carries over from Phase 3 -- a winning branch is **never** auto-merged; it is surfaced for explicit human approval. Reverse-engineered as a lean local module (no DSPy/GEPA/EvoSkill dependency), local-only, building entirely on the Phase 1 runner + Phase 3 optimizer + the v1.5.0 worktree-swarm infra.
+
+### What changed
+
+- **Three vscode-free `modules/coding/skilloptimizer/` modules on the Phase 3 spine.** The pure selector ([pareto.ts](../modules/coding/skilloptimizer/pareto.ts)) reverse-engineers the genetic-Pareto core: `dominates` (strict Pareto domination over shared per-task score vectors -- worse-anywhere loses, strictly-better-somewhere-and-never-worse wins; disjoint or empty vectors do not dominate), `paretoFrontier` (the non-dominated set -- diverse winners each strong on a different task all survive, identical vectors are mutually non-dominated), and the deterministic held-out extremes `lowestByHeldOut` / `highestByHeldOut` (id tie-break) the replacement rule needs. The orchestrator ([CandidateFrontier.ts](../modules/coding/skilloptimizer/CandidateFrontier.ts)) runs, per produced candidate: materialize on its own git branch (injected `CandidateWorkspaceManager`) -> score across the diverse tasks (injected `CandidateScorer` over the Phase 1 runner) -> auto-clean the ephemeral worktree immediately (one worktree live at a time -- the single-GPU discipline; the branch ref survives for promotion) -> admit into a bounded population. Frontier seams + types live in [types.ts](../modules/coding/skilloptimizer/types.ts).
+- **Hard candidate cap + EvoSkill replacement rule.** The population never exceeds `maxCandidates` (sourced from the hardware tier's `maxConcurrentSubAgents` at a composition root -- the swarm-worker/VRAM gate). At the cap, a challenger displaces the lowest-held-out incumbent **only** when it strictly beats it (by a configurable margin) on the held-out split, else it is rejected -- proven by tests over a fixture score matrix (cap holds; replace-lowest only on a held-out win; the margin is honored).
+- **No auto-merge (the security spine, carried from Phase 3).** After Pareto selection the winner (highest held-out among the frontier) is surfaced through the reused Phase 3 `SkillEditApprovalGate`, with the merge classified as a DESTRUCTIVE `write_file` (`classifyAction`). The `CandidatePromoter` seam is the only merge path and is structurally unreachable unless approval returns true -- proven by a test that a denying gate promotes nothing.
+- **Real branch-worktree materializer.** [frontierWorktree.ts](../modules/coding/skilloptimizer/frontierWorktree.ts) (`WorktreeCandidateManager`) reuses the v1.5.0 worktree-swarm `GitRunner` contract (imported as a type only, so no vscode-coupled logger is pulled in -- the optimizer subtree stays plain-Node loadable, the Phase 1/3 invariant), materializing each candidate on `nexus/skill-candidate/<skill>/<id>` via `git worktree add -b ... HEAD`, committing the candidate body (frontmatter preserved), and fault-tolerantly failing closed to null when git is unavailable or any step fails (a failed commit removes the half-made worktree). A composition root inside the vscode host may instead inject a manager backed by the concrete `WorktreeManager` + `GitSafetyNet` behind the same seam.
+- **Tests (30 new across 3 files).** [pareto.test.ts](../tests/unit/skilloptimizer/pareto.test.ts) (13: domination truth table, non-dominated selection over fixture matrices incl. diverse-winner and three-way sets, deterministic extremes), [CandidateFrontier.test.ts](../tests/unit/skilloptimizer/CandidateFrontier.test.ts) (9: non-dominated selection + winner, the cap holds with replace-lowest, reject-without-a-held-out-win, the replacement margin, **no promotion without approval**, auto-clean per candidate, graceful degradation when isolation is unavailable, empty producer, config validation), and [frontierWorktree.test.ts](../tests/unit/skilloptimizer/frontierWorktree.test.ts) (8: branch materialization + commit with frontmatter preserved, body-direct write when absent, fail-closed on non-repo / add-fail / commit-fail with worktree removal, clean/dirty/failed cleanup).
+
+### Verification
+
+- `npm run test`: **4461 passed / 6 skipped / 0 failed**. `npm run lint`: **0 errors**. `tsc -b`: clean.
+- `npm run check-architecture`: **0 errors**, 10 pre-existing warnings (no new orphan/circular; +3 modules). `npm run check:tampering`: **0 findings**. `npm run security:check`: in sync.
+- New-module coverage: pareto 100/100/100, CandidateFrontier 100/94.11/100, frontierWorktree 96.61/90/100 (the `modules/coding/skilloptimizer/` subtree at 99.47% lines / 91.51% branches / 100% functions, above the 80/75/80 gate).
+- Local-first / MCP Registry Policy clean: no new dependency, no new outbound call or credential (the scorer/producer are seams over the resident runner). README/ARCHITECTURE/CHANGELOG narrative + the npm version tag remain semantic-release-owned and are cut on merge to `main`.
+- Carryovers recorded in [versions/v1/v1.7.0/known-gaps.md](versions/v1/v1.7.0/known-gaps.md): `SO005.P4.A` (production candidate producer + scorer over the real agent, deferred behind `SO001.P1.A`/`SO003.P3.B`), `SO005.P4.B` (live branch->catalog promoter over `GitSafetyNet`), `SO005.P4.C` (no frontier CLI + auto tier-cap wiring).
+
+---
+
 ## [2026-06-30] v1.7.0 self-optimizing-skills Phase 3 -- bounded-edit skill optimizer + optimizer-quality A/B (S2 + S6, SO003 + SO004)
 
 ### Goal
