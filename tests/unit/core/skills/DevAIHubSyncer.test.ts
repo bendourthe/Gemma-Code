@@ -19,6 +19,7 @@ import {
   buildManifestWithIndex,
   parseSha256Manifest,
   verifyReleaseManifest,
+  HUB_SPARSE_CHECKOUT_PATHS,
   DEFAULT_UPSTREAM,
   type SyncDependencies,
 } from "../../../../core/skills/DevAIHubSyncer.js";
@@ -360,11 +361,14 @@ describe("DevAIHubSyncer.sync", () => {
     expect(readActiveTag(tmp)).toBe("v1.0.0");
   });
 
-  it("blocks --apply when a cloned file does not match MANIFEST.sha256 (fail closed)", async () => {
+  it("reports a MANIFEST.sha256 mismatch but does NOT block --apply (advisory)", async () => {
+    // The upstream manifest is not EOL-deterministic, so a byte mismatch must be
+    // surfaced (for review) without blocking the sync. Only the injection
+    // scanner is fail-closed.
     const alphaRel = "catalog/skills/developer-experience/alpha/SKILL.md";
     const betaRel = "catalog/skills/developer-experience/beta/SKILL.md";
     writeReleaseManifest(upstreamFixture, [
-      [alphaRel, "0".repeat(64)], // deliberately wrong hash -> tamper signal
+      [alphaRel, "0".repeat(64)], // deliberately wrong hash
       [betaRel, sha256File(path.join(upstreamFixture, betaRel))],
     ]);
     const syncer = new DevAIHubSyncer({
@@ -375,8 +379,9 @@ describe("DevAIHubSyncer.sync", () => {
     const result = await syncer.sync({ tag: "v1.0.0", apply: true });
     expect(result.manifestVerification.present).toBe(true);
     expect(result.manifestVerification.mismatched).toEqual([alphaRel]);
-    expect(result.applied).toBe(false);
-    expect(readActiveTag(tmp)).toBe(null);
+    // Advisory: the mismatch is reported but the sync still applies.
+    expect(result.applied).toBe(true);
+    expect(readActiveTag(tmp)).toBe("v1.0.0");
   });
 
   it("ignores manifest entries for files outside the sparse subset", async () => {
@@ -525,6 +530,25 @@ describe("HUB.P3.DATA -- data/skills.json index consumption", () => {
     // The bundle hash matches the plain FS walk -- category is not hashed.
     const fsOnly = buildManifest(path.join(tmp, "catalog", "skills"), "v1.0.0", "test/Fixture", new Date(0));
     expect(manifest.bundleHash).toBe(fsOnly.bundleHash);
+  });
+});
+
+describe("HUB_SPARSE_CHECKOUT_PATHS (cone-mode safety)", () => {
+  it("lists only directory paths -- git >= 2.36 cone mode rejects file args", () => {
+    for (const p of HUB_SPARSE_CHECKOUT_PATHS) {
+      // A trailing file extension (e.g. `.json`, `.sha256`) marks a file path,
+      // which `git sparse-checkout set` rejects in cone mode.
+      expect(p, `sparse path "${p}" must be a directory, not a file`).not.toMatch(/\.[a-z0-9]+$/i);
+    }
+  });
+
+  it("pulls the `data` directory (skill index) rather than the `data/skills.json` file", () => {
+    expect(HUB_SPARSE_CHECKOUT_PATHS).toContain("data");
+    expect(HUB_SPARSE_CHECKOUT_PATHS).not.toContain("data/skills.json");
+  });
+
+  it("does not list the root MANIFEST.sha256 -- cone mode auto-includes root files", () => {
+    expect(HUB_SPARSE_CHECKOUT_PATHS).not.toContain("MANIFEST.sha256");
   });
 });
 

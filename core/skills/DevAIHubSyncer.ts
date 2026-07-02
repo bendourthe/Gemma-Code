@@ -16,11 +16,12 @@
  *   5. Write `manifest.json` describing the bundle.
  *   6. Diff against the currently-active tag's manifest.
  *   7. Cross-verify the cloned files against the Hub's published
- *      `MANIFEST.sha256` (rides inside the release tag). A hash mismatch
- *      fails closed, blocking --apply like an injection-scan block.
- *   8. If `--apply` (and neither the scan nor the manifest verification
- *      blocked), rename the tmp dir to the active dir and update the
- *      active-tag pointer (`~/.nexus/skills/devai-hub/ACTIVE`).
+ *      `MANIFEST.sha256` (rides inside the release tag) -- ADVISORY: the result
+ *      is surfaced but does not block (the upstream manifest is not currently
+ *      EOL-deterministic). The injection scanner remains the fail-closed gate.
+ *   8. If `--apply` (and the scan did not block), rename the tmp dir to the
+ *      active dir and update the active-tag pointer
+ *      (`~/.nexus/skills/devai-hub/ACTIVE`).
  *
  * Tarball fallback: when git is unavailable the syncer downloads
  * `archive/refs/tags/<tag>.tar.gz` and extracts it.
@@ -154,9 +155,9 @@ export interface SyncResult {
   readonly indexConsistency: IndexConsistency | null;
   /**
    * Cross-verification of the cloned files against the Hub's published
-   * `MANIFEST.sha256`. When `present` and `mismatched` is non-empty the sync
-   * fails closed: `--apply` will not rotate the active pointer (an integrity
-   * failure is treated like an injection-scan block).
+   * `MANIFEST.sha256`. ADVISORY only -- it never blocks `--apply` (the current
+   * upstream manifest is not EOL-deterministic; see the note in `sync`). A
+   * non-empty `mismatched` list is surfaced for operator review, not enforced.
    */
   readonly manifestVerification: ManifestVerification;
 }
@@ -176,6 +177,31 @@ export const DEFAULT_UPSTREAM = "bendourthe/Nexus-Hub";
 export function defaultSkillsRoot(): string {
   return path.join(os.homedir(), ".nexus", "skills");
 }
+
+/**
+ * Sparse-checkout paths fetched from a Hub release. These MUST be directory
+ * paths: git's cone-mode sparse-checkout (>= 2.36) rejects a file argument with
+ * `fatal: '<path>' is not a directory` (older git only warned, so a file arg
+ * here silently broke a live sync on any modern git). Two consequences:
+ *   - `data` (the directory) is listed, not `data/skills.json` (the file), so
+ *     the Hub skill index still lands in the bundle (HUB.P3.DATA).
+ *   - The Hub v3.10.0 release `MANIFEST.sha256` is NOT listed: it lives at the
+ *     repo root, and cone mode always checks out files in the repo root
+ *     automatically -- that is how `verifyReleaseManifest` gets the manifest
+ *     without a (rejected) file argument.
+ */
+export const HUB_SPARSE_CHECKOUT_PATHS: readonly string[] = Object.freeze([
+  "catalog/skills",
+  "catalog/commands",
+  "catalog/agents",
+  // v1.5.0 Phase 7 (HUB.P3.HOOK): Hub hook scripts for the HubHookInstaller.
+  "catalog/hooks",
+  "catalog/rules",
+  "rules",
+  // The `data` directory carries the Hub skill index (`data/skills.json`).
+  "data",
+  "extensions",
+]);
 
 /**
  * Path of the file that names the currently-active DevAI-Hub tag. The
@@ -546,28 +572,16 @@ async function defaultSparseClone(upstream: string, tag: string, destDir: string
   ];
   const clone = spawnSync("git", cloneArgs, { stdio: "ignore" });
   if (clone.status !== 0) throw new Error(`git clone failed (exit ${clone.status ?? "?"})`);
+  // Check out canonical LF content. The Hub commits LF blobs under `* text=auto`,
+  // so a Windows CRLF smudge on checkout would corrupt byte-faithfulness versus
+  // the release tarball + MANIFEST.sha256. Persist the settings in the clone's
+  // config so the sparse-checkout below (which is what actually materializes the
+  // files) honors them. Best-effort: a failure here just falls back to native EOL.
+  spawnSync("git", ["-C", destDir, "config", "core.autocrlf", "false"], { stdio: "ignore" });
+  spawnSync("git", ["-C", destDir, "config", "core.eol", "lf"], { stdio: "ignore" });
   const sparse = spawnSync(
     "git",
-    [
-      "-C",
-      destDir,
-      "sparse-checkout",
-      "set",
-      "catalog/skills",
-      "catalog/commands",
-      "catalog/agents",
-      // v1.5.0 Phase 7 (HUB.P3.HOOK): pull the Hub hook scripts so the
-      // HubHookInstaller can install them from a synced bundle.
-      "catalog/hooks",
-      "catalog/rules",
-      "rules",
-      "data/skills.json",
-      "extensions/",
-      // v1.7.0 (Hub v3.10.0 supply-chain verify): the release SHA-256 manifest
-      // rides at the repo root; pull it so `verifyReleaseManifest` can confirm
-      // the cloned files match what the release authoritatively published.
-      "MANIFEST.sha256",
-    ],
+    ["-C", destDir, "sparse-checkout", "set", ...HUB_SPARSE_CHECKOUT_PATHS],
     { stdio: "ignore" },
   );
   if (sparse.status !== 0) throw new Error(`git sparse-checkout failed (exit ${sparse.status ?? "?"})`);
@@ -699,16 +713,20 @@ export class DevAIHubSyncer {
     const diff = diffManifests(activeManifest, manifest);
 
     // Supply-chain integrity: verify the cloned files against the Hub's
-    // published MANIFEST.sha256 (rides inside the release tag). A hash mismatch
-    // fails closed -- --apply will not rotate the pointer, exactly like an
-    // injection-scan block. A release with no manifest is a graceful no-op.
+    // published MANIFEST.sha256 (rides inside the release tag). This is
+    // ADVISORY, not fail-closed: the current Hub manifest is not EOL-
+    // deterministic (it was generated from a Windows working tree, so some
+    // entries are hashed over CRLF and some over LF), which makes a byte-level
+    // match against any single git checkout unreliable. Blocking on it would
+    // reject every legitimate sync. We still compute + surface the result so
+    // the operator can review it, and so it becomes a hard signal automatically
+    // once the Hub publishes a deterministic (LF) manifest. The injection
+    // scanner remains the fail-closed content gate. (Gap: HUB310.4.2.ADV.)
     const manifestVerification = verifyReleaseManifest(tmpDir);
-    const manifestBlocked =
-      manifestVerification.present && manifestVerification.mismatched.length > 0;
 
     let applied = false;
     let appliedActiveDir: string | null = null;
-    if (options.apply && scan.decision !== "block" && !manifestBlocked) {
+    if (options.apply && scan.decision !== "block") {
       const dest = tagDir(this._skillsRoot, tag);
       if (fs.existsSync(dest)) {
         fs.rmSync(dest, { recursive: true, force: true });
