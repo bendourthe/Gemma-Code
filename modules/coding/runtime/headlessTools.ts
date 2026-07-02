@@ -1,0 +1,389 @@
+// ---------------------------------------------------------------------------
+// v1.7.0 headless agent runtime (root fix for SO001.P1.A / the deferred
+// NexusCodingRuntime): vscode-free tool handlers scoped to a single working
+// directory.
+//
+// The shipping VS Code tool handlers (`src/tools/handlers/*`) do all file I/O
+// through `vscode.workspace.fs` + `vscode.Uri` and read `vscode.workspace`
+// config, so they cannot load in a plain-Node host (the desktop sidecar, the
+// `nexus` CLI, or the golden-task optimizer rollout). This module is the
+// vscode-free counterpart: pure `node:fs` / `node:child_process` handlers that
+// operate on an injected `workdir`, refusing any path that escapes it
+// (fail-closed, mirroring `pathGuard.resolveInsideWorkspace` + the skill
+// optimizer's `RootSkillPathResolver`). The shipping handlers are left
+// untouched -- this is an additive, headless-only tool surface.
+//
+// Tool names match the canonical `ToolName` vocabulary so the vscode-free
+// `Gemma4ToolFormat.parseToolCalls` accepts the model's calls unchanged.
+// ---------------------------------------------------------------------------
+
+import { spawn } from "node:child_process";
+import * as fs from "node:fs";
+import * as fsp from "node:fs/promises";
+import * as path from "node:path";
+
+/** Max bytes returned to the model from a single read / terminal capture. */
+export const HEADLESS_OUTPUT_BYTE_CAP = 64 * 1024;
+
+/** Per-command wall-clock ceiling for `run_terminal` when the caller sets none. */
+export const HEADLESS_TERMINAL_TIMEOUT_MS = 120_000;
+
+export interface HeadlessToolContext {
+  /** Absolute root the tools are scoped to; every path resolves inside it. */
+  readonly workdir: string;
+  /** Aborted when the per-task budget elapses; cooperative tools should stop. */
+  readonly signal?: AbortSignal;
+}
+
+export interface HeadlessToolResult {
+  readonly success: boolean;
+  readonly output: string;
+  readonly error?: string;
+}
+
+export interface HeadlessToolParam {
+  readonly type: string;
+  readonly description: string;
+  readonly required?: boolean;
+}
+
+export interface HeadlessTool {
+  readonly name: string;
+  readonly description: string;
+  readonly parameters: Readonly<Record<string, HeadlessToolParam>>;
+  execute(
+    args: Readonly<Record<string, unknown>>,
+    ctx: HeadlessToolContext,
+  ): Promise<HeadlessToolResult>;
+}
+
+/** Injected terminal executor so tests never spawn a real process. */
+export interface HeadlessExecOutcome {
+  readonly code: number | null;
+  readonly stdout: string;
+  readonly stderr: string;
+}
+export type HeadlessExec = (
+  command: string,
+  cwd: string,
+  signal: AbortSignal | undefined,
+  timeoutMs: number,
+) => Promise<HeadlessExecOutcome>;
+
+export interface HeadlessToolOptions {
+  /** Override the terminal executor (tests inject a deterministic fake). */
+  readonly exec?: HeadlessExec;
+  /** Override the output byte cap (tests). */
+  readonly byteCap?: number;
+}
+
+// --- path containment (fail-closed) ---------------------------------------
+
+/** Real-path a path through its nearest existing ancestor (non-existent leaves ok). */
+function realThroughAncestor(absolute: string): string {
+  let current = absolute;
+  const tail: string[] = [];
+  for (;;) {
+    try {
+      const real = fs.realpathSync(current);
+      return tail.length === 0 ? real : path.join(real, ...tail.reverse());
+    } catch {
+      const parent = path.dirname(current);
+      if (parent === current) return absolute;
+      tail.push(path.basename(current));
+      current = parent;
+    }
+  }
+}
+
+/**
+ * Resolve `relOrAbs` against `workdir` and refuse anything that escapes it.
+ * Throws on a traversal attempt (fail-closed) so a tool can only ever touch a
+ * file inside the sandboxed working copy.
+ */
+export function resolveInsideWorkdir(workdir: string, relOrAbs: string): string {
+  if (typeof relOrAbs !== "string" || relOrAbs.length === 0) {
+    throw new Error("path argument is required.");
+  }
+  const rootReal = realThroughAncestor(path.resolve(workdir));
+  const absolute = path.isAbsolute(relOrAbs)
+    ? relOrAbs
+    : path.resolve(rootReal, relOrAbs);
+  const real = realThroughAncestor(absolute);
+  if (real !== rootReal && !real.startsWith(rootReal + path.sep)) {
+    throw new Error(`path "${relOrAbs}" resolves outside the working directory.`);
+  }
+  return real;
+}
+
+// --- helpers ---------------------------------------------------------------
+
+function asString(args: Readonly<Record<string, unknown>>, key: string): string {
+  const v = args[key];
+  if (typeof v !== "string") {
+    throw new Error(`missing or non-string argument "${key}".`);
+  }
+  return v;
+}
+
+function optString(args: Readonly<Record<string, unknown>>, key: string): string | undefined {
+  const v = args[key];
+  return typeof v === "string" ? v : undefined;
+}
+
+/** Normalize a path to forward slashes so tool output is stable across OSes. */
+function toPosix(p: string): string {
+  return p.split(path.sep).join("/");
+}
+
+function capBytes(text: string, cap: number): string {
+  const buf = Buffer.from(text, "utf8");
+  if (buf.length <= cap) return text;
+  return `${buf.subarray(0, cap).toString("utf8")}\n... [truncated ${buf.length - cap} bytes]`;
+}
+
+function ok(output: string): HeadlessToolResult {
+  return { success: true, output };
+}
+function fail(error: string): HeadlessToolResult {
+  return { success: false, output: "", error };
+}
+
+/** Default terminal executor: spawn through the platform shell, scoped to cwd. */
+const defaultExec: HeadlessExec = (command, cwd, signal, timeoutMs) =>
+  new Promise<HeadlessExecOutcome>((resolve) => {
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+    const child = spawn(command, [], { cwd, shell: true, signal });
+    const timer = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        child.kill();
+        resolve({ code: null, stdout, stderr: `${stderr}\n[timed out after ${timeoutMs}ms]` });
+      }
+    }, timeoutMs);
+    child.stdout?.on("data", (d: Buffer) => (stdout += d.toString("utf8")));
+    child.stderr?.on("data", (d: Buffer) => (stderr += d.toString("utf8")));
+    child.on("error", (err: Error) => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        resolve({ code: null, stdout, stderr: `${stderr}${err.message}` });
+      }
+    });
+    child.on("close", (code: number | null) => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        resolve({ code, stdout, stderr });
+      }
+    });
+  });
+
+// --- the tool set ----------------------------------------------------------
+
+/**
+ * Build the vscode-free headless tool set. Every handler resolves its path
+ * inside `ctx.workdir` and fails closed on traversal. `run_terminal` runs
+ * through the injected `exec` (default: a real shell scoped to `cwd`).
+ */
+export function createHeadlessTools(options: HeadlessToolOptions = {}): HeadlessTool[] {
+  const exec = options.exec ?? defaultExec;
+  const cap = options.byteCap ?? HEADLESS_OUTPUT_BYTE_CAP;
+
+  const readFile: HeadlessTool = {
+    name: "read_file",
+    description: "Read the contents of a file relative to the working directory.",
+    parameters: { path: { type: "string", description: "File path.", required: true } },
+    async execute(args, ctx) {
+      try {
+        const abs = resolveInsideWorkdir(ctx.workdir, asString(args, "path"));
+        const content = await fsp.readFile(abs, "utf8");
+        return ok(capBytes(content, cap));
+      } catch (err) {
+        return fail(err instanceof Error ? err.message : String(err));
+      }
+    },
+  };
+
+  const writeFile: HeadlessTool = {
+    name: "write_file",
+    description: "Write (overwrite) a file relative to the working directory.",
+    parameters: {
+      path: { type: "string", description: "File path.", required: true },
+      content: { type: "string", description: "Full file contents.", required: true },
+    },
+    async execute(args, ctx) {
+      try {
+        const abs = resolveInsideWorkdir(ctx.workdir, asString(args, "path"));
+        await fsp.mkdir(path.dirname(abs), { recursive: true });
+        await fsp.writeFile(abs, asString(args, "content"), "utf8");
+        return ok(`wrote ${toPosix(path.relative(ctx.workdir, abs)) || path.basename(abs)}`);
+      } catch (err) {
+        return fail(err instanceof Error ? err.message : String(err));
+      }
+    },
+  };
+
+  const createFile: HeadlessTool = {
+    name: "create_file",
+    description: "Create a new file. Fails if the file already exists.",
+    parameters: {
+      path: { type: "string", description: "File path.", required: true },
+      content: { type: "string", description: "Full file contents.", required: true },
+    },
+    async execute(args, ctx) {
+      try {
+        const abs = resolveInsideWorkdir(ctx.workdir, asString(args, "path"));
+        await fsp.mkdir(path.dirname(abs), { recursive: true });
+        await fsp.writeFile(abs, asString(args, "content"), { encoding: "utf8", flag: "wx" });
+        return ok(`created ${toPosix(path.relative(ctx.workdir, abs)) || path.basename(abs)}`);
+      } catch (err) {
+        return fail(err instanceof Error ? err.message : String(err));
+      }
+    },
+  };
+
+  const editFile: HeadlessTool = {
+    name: "edit_file",
+    description:
+      "Replace the first occurrence of `old_text` with `new_text` in a file.",
+    parameters: {
+      path: { type: "string", description: "File path.", required: true },
+      old_text: { type: "string", description: "Exact text to replace.", required: true },
+      new_text: { type: "string", description: "Replacement text.", required: true },
+    },
+    async execute(args, ctx) {
+      try {
+        const abs = resolveInsideWorkdir(ctx.workdir, asString(args, "path"));
+        const oldText = asString(args, "old_text");
+        const newText = asString(args, "new_text");
+        const current = await fsp.readFile(abs, "utf8");
+        const idx = current.indexOf(oldText);
+        if (idx === -1) return fail("old_text not found in file.");
+        const next = current.slice(0, idx) + newText + current.slice(idx + oldText.length);
+        await fsp.writeFile(abs, next, "utf8");
+        return ok(`edited ${toPosix(path.relative(ctx.workdir, abs)) || path.basename(abs)}`);
+      } catch (err) {
+        return fail(err instanceof Error ? err.message : String(err));
+      }
+    },
+  };
+
+  const deleteFile: HeadlessTool = {
+    name: "delete_file",
+    description: "Delete a file relative to the working directory.",
+    parameters: { path: { type: "string", description: "File path.", required: true } },
+    async execute(args, ctx) {
+      try {
+        const abs = resolveInsideWorkdir(ctx.workdir, asString(args, "path"));
+        await fsp.rm(abs, { force: false });
+        return ok(`deleted ${toPosix(path.relative(ctx.workdir, abs)) || path.basename(abs)}`);
+      } catch (err) {
+        return fail(err instanceof Error ? err.message : String(err));
+      }
+    },
+  };
+
+  const listDirectory: HeadlessTool = {
+    name: "list_directory",
+    description: "List entries in a directory relative to the working directory.",
+    parameters: {
+      path: { type: "string", description: "Directory path (defaults to the root).", required: false },
+    },
+    async execute(args, ctx) {
+      try {
+        const rel = optString(args, "path") ?? ".";
+        const abs = resolveInsideWorkdir(ctx.workdir, rel);
+        const entries = await fsp.readdir(abs, { withFileTypes: true });
+        const lines = entries
+          .map((e) => `${e.isDirectory() ? "d" : "-"} ${e.name}`)
+          .sort();
+        return ok(lines.join("\n") || "(empty)");
+      } catch (err) {
+        return fail(err instanceof Error ? err.message : String(err));
+      }
+    },
+  };
+
+  const grep: HeadlessTool = {
+    name: "grep_codebase",
+    description: "Search files under the working directory for a literal substring.",
+    parameters: {
+      pattern: { type: "string", description: "Literal substring to search for.", required: true },
+      path: { type: "string", description: "Sub-directory to search (defaults to root).", required: false },
+    },
+    async execute(args, ctx) {
+      try {
+        const pattern = asString(args, "pattern");
+        const root = resolveInsideWorkdir(ctx.workdir, optString(args, "path") ?? ".");
+        const hits: string[] = [];
+        const walk = async (dir: string): Promise<void> => {
+          const entries = await fsp.readdir(dir, { withFileTypes: true });
+          for (const e of entries) {
+            if (e.name === ".git" || e.name === "node_modules") continue;
+            const abs = path.join(dir, e.name);
+            if (e.isDirectory()) {
+              await walk(abs);
+            } else if (e.isFile()) {
+              let text: string;
+              try {
+                text = await fsp.readFile(abs, "utf8");
+              } catch {
+                continue;
+              }
+              const rel = toPosix(path.relative(ctx.workdir, abs));
+              text.split(/\r?\n/).forEach((line, i) => {
+                if (line.includes(pattern)) hits.push(`${rel}:${i + 1}: ${line.trim()}`);
+              });
+            }
+            if (hits.length >= 200) return;
+          }
+        };
+        await walk(root);
+        return ok(hits.length ? capBytes(hits.join("\n"), cap) : "(no matches)");
+      } catch (err) {
+        return fail(err instanceof Error ? err.message : String(err));
+      }
+    },
+  };
+
+  const runTerminal: HeadlessTool = {
+    name: "run_terminal",
+    description: "Run a shell command in the working directory and return its output.",
+    parameters: { command: { type: "string", description: "Shell command.", required: true } },
+    async execute(args, ctx) {
+      try {
+        const command = asString(args, "command");
+        const outcome = await exec(
+          command,
+          ctx.workdir,
+          ctx.signal,
+          HEADLESS_TERMINAL_TIMEOUT_MS,
+        );
+        const body = [
+          outcome.stdout ? `stdout:\n${outcome.stdout}` : "",
+          outcome.stderr ? `stderr:\n${outcome.stderr}` : "",
+          `exit code: ${outcome.code ?? "null"}`,
+        ]
+          .filter(Boolean)
+          .join("\n");
+        return { success: outcome.code === 0, output: capBytes(body, cap) };
+      } catch (err) {
+        return fail(err instanceof Error ? err.message : String(err));
+      }
+    },
+  };
+
+  return [
+    readFile,
+    writeFile,
+    createFile,
+    editFile,
+    deleteFile,
+    listDirectory,
+    grep,
+    runTerminal,
+  ];
+}
