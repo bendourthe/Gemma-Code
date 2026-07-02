@@ -8,6 +8,8 @@
 // action.
 
 import {
+  ChatSessionSendMessageRequest,
+  ChatSessionStartRequest,
   CodingMemorySnapshotRequest,
   CodingSessionCancelRequest,
   CodingSessionListRequest,
@@ -38,6 +40,7 @@ import {
   type Method,
 } from "./protocol.js";
 import { CodingSessionManager } from "./coding/sessionManager.js";
+import { ChatSessionManager } from "./chat/sessionManager.js";
 import { memorySnapshot, traceSubscribe } from "./coding/panelData.js";
 import {
   type DiffusionRuntimeClient,
@@ -63,6 +66,8 @@ export interface HandlerContext {
   pid: number;
   platform: NodeJS.Platform;
   sessions: CodingSessionManager;
+  /** v1.7.0 -- Local Chatbot Explorer session manager. */
+  chat: ChatSessionManager;
   diffusion: DiffusionRuntimeClient;
   ffmpeg: FfmpegContext;
   /**
@@ -87,8 +92,9 @@ export function createHandlerContext(
   diffusion: DiffusionRuntimeClient = new InMemoryDiffusionRuntime(),
   ffmpeg: FfmpegContext = DEFAULT_FFMPEG_CONTEXT,
   credentials: CredentialVault = createCredentialVault(),
+  chat: ChatSessionManager = new ChatSessionManager(),
 ): HandlerContext {
-  return { ...base, sessions, diffusion, ffmpeg, credentials };
+  return { ...base, sessions, chat, diffusion, ffmpeg, credentials };
 }
 
 export const handlers: Record<Method, HandlerFn> = {
@@ -148,6 +154,15 @@ export const handlers: Record<Method, HandlerFn> = {
   // contract so the shell can compile against it, but not yet wired. These
   // throw NotImplementedError until Phase 11 lands the autocomplete / MCP /
   // settings backends; see METHOD_SCHEMAS (implemented: false) in protocol.ts.
+  "chat.session.start": async (params, ctx) => {
+    const req = ChatSessionStartRequest.parse(params ?? {});
+    return ctx.chat.start(req);
+  },
+  "chat.session.sendMessage": async (params, ctx) => {
+    const req = ChatSessionSendMessageRequest.parse(params ?? {});
+    const events = await ctx.chat.sendMessage(req.sessionId, req.message);
+    return { sessionId: req.sessionId, events };
+  },
   "coding.chat.autocomplete": async () => {
     throw new NotImplementedError("coding.chat.autocomplete");
   },

@@ -5,6 +5,9 @@
 import { createInterface } from "node:readline";
 import { CodingSessionManager } from "./coding/sessionManager.js";
 import { createHeadlessAgentRunner } from "./coding/headlessAgentRunner.js";
+import { ChatSessionManager } from "./chat/sessionManager.js";
+import { createChatMessageHandler } from "./chat/chatMessageHandler.js";
+import { createDiffusionRuntime } from "./diffusion/runtimeFactory.js";
 import { createHandlerContext, dispatch } from "./handlers.js";
 import { warmUpTreeSitter } from "./treeSitterWarmup.js";
 
@@ -31,9 +34,18 @@ interface JsonRpcResponseErr {
 // agent's tools are scoped to the session's workspacePath, or NEXUS_WORKSPACE /
 // cwd). Tests and bare `createHandlerContext()` callers keep the placeholder.
 const sessions = new CodingSessionManager({ agentRunner: createHeadlessAgentRunner() });
+// v1.7.0: route Image Studio + Video Lab to the real Python diffusion runtime
+// (set NEXUS_DIFFUSION_INMEMORY=1 for a no-GPU dev/test host).
+const diffusion = createDiffusionRuntime(process.env);
+// v1.7.0: drive the Local Chatbot Explorer with a real local-model chat stream.
+const chat = new ChatSessionManager({ runner: createChatMessageHandler() });
 const ctx = createHandlerContext(
   { pid: process.pid, platform: process.platform },
   sessions,
+  diffusion,
+  undefined,
+  undefined,
+  chat,
 );
 
 function write(payload: JsonRpcResponseOk | JsonRpcResponseErr): void {
