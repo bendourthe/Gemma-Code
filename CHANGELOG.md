@@ -1,3 +1,30 @@
+# [2.1.0](https://github.com/bendourthe/Nexus-AI/compare/v2.0.0...v2.1.0) (2026-07-02)
+
+
+### Bug Fixes
+
+* **ci:** clear prod-audit (undici 7.28.0) and catalog-sync (docs/index.md) gates ([d123c6c](https://github.com/bendourthe/Nexus-AI/commit/d123c6cb4e6986794f3c64680dfb4f61738fd495)), closes [hi#severity](https://github.com/hi/issues/severity)
+* **ci:** cover the OF011 panel-router construction to satisfy the coverage gate ([dfce0d6](https://github.com/bendourthe/Nexus-AI/commit/dfce0d6ffb5b9d33ece0bb4129d9085daa9c1097))
+* **skills:** cone-mode + canonical-LF sparse-checkout; make manifest verify advisory ([60ee303](https://github.com/bendourthe/Nexus-AI/commit/60ee303cb9dbe107f73edf0d285939ea1908c6ae))
+
+
+### Features
+
+* **cli:** nexus golden run over the headless agent (v1.7.0 SO001.P1.B) ([e816f17](https://github.com/bendourthe/Nexus-AI/commit/e816f172b51c9b96d1d5bd833718ac63581a9b18))
+* **desktop:** route Image/Video to the real Python diffusion runtime ([05bd45d](https://github.com/bendourthe/Nexus-AI/commit/05bd45dd123d06dfe3a5fbe2e9bac7ae35cad0cc))
+* **desktop:** wire the Local Chatbot Explorer to a real local-model chat stream ([9273303](https://github.com/bendourthe/Nexus-AI/commit/9273303c11fdc20de991bbe8d2bc9a7e7417ab05))
+* **desktop:** wire the real headless agent into the sidecar Coding pillar (RT.P7.A) ([669f330](https://github.com/bendourthe/Nexus-AI/commit/669f3300c430096c0eb5c22403cb5eb345d62b99))
+* **evaluation:** held-out split + validation gate + rejected-edit buffer (v1.7.0 P2, SO002) ([0b8ad7e](https://github.com/bendourthe/Nexus-AI/commit/0b8ad7e996920d5979fc3aaa2d24d2bc87b63c63))
+* **evaluation:** TS-native golden-task live runner (v1.7.0 P1, SO001) ([a60714f](https://github.com/bendourthe/Nexus-AI/commit/a60714f2956d96329fae8f69bcbefd8e53285dc8))
+* **guardrails:** tree-sitter shell-command introspection for permission gating (v1.7.0 P5, SO006) ([f027659](https://github.com/bendourthe/Nexus-AI/commit/f0276592c7a4e9f92e7cc03d29d0a759bc58089a))
+* **observability:** add in-dashboard "Export trace" button (AS004.P2.B) ([56f208f](https://github.com/bendourthe/Nexus-AI/commit/56f208f3523532252eb6c63f81c5994efa8d6c3c))
+* **runtime:** vscode-free headless agent runtime + AgentDriver (v1.7.0 SO001.P1.A) ([3278188](https://github.com/bendourthe/Nexus-AI/commit/327818817928305acf1cab30d62d9f68eecdc8df))
+* **skilloptimizer:** bounded-edit skill optimizer + A/B (v1.7.0 P3, SO003 + SO004) ([02ab67f](https://github.com/bendourthe/Nexus-AI/commit/02ab67fdff8088e754ea011c8700d7f711c941ee))
+* **skilloptimizer:** Pareto-frontier candidate management on git branches (v1.7.0 P4, SO005) ([21c52bc](https://github.com/bendourthe/Nexus-AI/commit/21c52bc9e4949f9fbc4697f3b9ad89bd0b67c2c3))
+* **skilloptimizer:** production rollout + candidate seams (v1.7.0 SO003.P3.B, SO005.P4.A/B) ([f345639](https://github.com/bendourthe/Nexus-AI/commit/f345639f81a8202c876fda16c983e243df0bef4a))
+* **skills:** Hub v3.10.0 supply-chain verify + HTTPS-only + hash-on-import (adoption P1) ([c6ef123](https://github.com/bendourthe/Nexus-AI/commit/c6ef1235ccb053f445730f2e0a407abdae69ba6b))
+* **skills:** scanner allowlist for trusted Hub source; complete v3.10.0 adoption ([f80be0e](https://github.com/bendourthe/Nexus-AI/commit/f80be0e2611f9ac727fd68e40f68727303ccaad2))
+
 ## [2.0.0] - 2026-06-18
 
 Major GA milestone consolidating the v1.4.0 -> v1.6.0 development line into the published release. Local-first, zero-outbound throughout (MCP Registry Policy clean).
