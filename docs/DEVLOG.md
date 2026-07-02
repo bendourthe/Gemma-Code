@@ -4,6 +4,31 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-02] v1.7.0 post-cycle -- vscode-free headless agent runtime + optimizer production wiring (SO001.P1.A, SO003.P3.B, SO005.P4.A/B, SO001.P1.B)
+
+### Goal
+
+Close the highest-leverage forward-tier gaps from the v1.7.0 cycle by building the deferred **headless agent runtime** (the "NexusCodingRuntime" root the plan repeatedly gated other work behind). The whole v1.7.0 optimizer loop was built against injected seams because the coding agent loop could not load in plain Node (its `ConversationManager` + logger import `vscode`). This builds a vscode-free runtime so the golden-task runner, the optimizer rollout, and the candidate frontier drive the *real* agent instead of test fakes.
+
+### What changed
+
+- **New `modules/coding/runtime/` (vscode-free).** `headlessTools.ts` -- a workdir-scoped tool set (read/write/create/edit/delete file, list_directory, grep_codebase, run_terminal) over `node:fs`/`node:child_process`, fail-closed on path traversal, injectable terminal executor. `HeadlessAgentSession.ts` -- the agentic loop: a plain message array replaces the vscode `ConversationManager`, reusing the pure vscode-free `Gemma4ToolFormat` codec (serialize declarations / parse tool calls / format results) so a model behaves identically to the extension; supports an optional `skillBody` system-prompt override (the optimizer's candidate-edit measurement) and streams token/toolCall/toolResult/done events. `HeadlessAgentDriver.ts` -- implements the Phase 1 `GoldenTaskRunner` `AgentDriver` seam, so `runGoldenTask` live mode drives the real agent (closes **SO001.P1.A**).
+- **Production optimizer seams (`modules/coding/skilloptimizer/`).** `HeadlessOptimizerRollout` (over `runGoldenTask` + the driver + the skill override) closes **SO003.P3.B**; `HeadlessCandidateProducer` / `HeadlessCandidateScorer` (over the rollout) close **SO005.P4.A**; `HeadlessCandidatePromoter` (fail-closed catalog merge, reachable only after the frontier's human-approval gate) closes **SO005.P4.B**.
+- **`nexus golden run` CLI** (`bin/nexus.mjs`, closes **SO001.P1.B**) -- dry mode (offline, evaluates snapshots against criteria) + live mode (drives the real agent over Ollama), mirroring the `nexus trace export` `loadCompiled` precedent.
+- **Boundary.** The runtime reuses the pure, vscode-free `src/tools/{Gemma4ToolFormat,ToolCatalog,types}` (a leaf `modules -> src` import; check-architecture stays 0 errors / 10 warnings, no new cycle). The shipping `src/tools/handlers/*` are untouched -- this is an additive headless surface.
+
+### Verification
+
+- `tsc -b` clean; `npm run lint` 0 errors; `npm run check-architecture` 0 errors / 10 pre-existing warnings; `npm run security:check` in sync; `npm run check:tampering` 0; `catalog:check` + `check:audit-prod` green.
+- Full suite **4533 passed / 6 skipped / 0 failed** (+35 over the cycle-close baseline of 4498): headlessTools (15), HeadlessAgentSession (7), driver end-to-end (2), optimizer-rollout (2), candidate seams (7), golden-run CLI (2).
+
+### Deferred (recorded in the v1.7.0 known-gaps)
+
+- **Desktop sidecar wiring**: the Coding pillar (`desktop/sidecar/.../CodingSessionManager`) still returns the Phase 3.1 canned stub. Wiring it to the runtime was prototyped but **reverted**: the sidecar -> `modules/coding/runtime` -> `src/tools` import chain drags repo-root `src/` into the desktop typecheck (a `shell-build.yml` CI gate), surfacing latent errors. The prerequisite is relocating the shared tool-call primitives from `src/tools` into `modules/coding` (a sizable, separate migration); the Tauri e2e also needs the Rust toolchain.
+- **`skills optimize` / `skills frontier` CLIs** (SO003.P3.D / SO005.P4.C) + the **live optimizer A/B default-on** (SO003.P3.A) + **live ConfirmationGate/pathGuard adapters** (SO003.P3.C) remain: they need the full optimizer/frontier composition root + a live local model. The production rollout/producer/scorer/promoter seams they build on are now shipped.
+
+---
+
 ## [2026-07-02] v1.7.0 self-optimizing-skills Phase 6 FINAL -- whole-plan acceptance gate + docs + Nexus-Hub touchpoint (SO007-SO009)
 
 ### Goal
