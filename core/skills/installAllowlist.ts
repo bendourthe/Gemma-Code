@@ -2,9 +2,10 @@
  * v1.1.0 Phase 8.3 -- install-source allowlist.
  *
  * `nexus skills install <ns>/<name> --from <url>` accepts only sources
- * whose URL host is in this allowlist. The list is intentionally short
- * and reviewed alongside the security audit; any addition must be
- * matched by a written justification in the changelog.
+ * whose URL host is in this allowlist AND whose scheme is `https:`
+ * (HTTPS-only, per the Nexus-Hub v3.6.0 `/skills import` hygiene gate). The
+ * list is intentionally short and reviewed alongside the security audit; any
+ * addition must be matched by a written justification in the changelog.
  *
  * The `file://` scheme is allowed only under `NEXUS_SKILLS_TEST_MODE=1`
  * so end-to-end tests can install from a local fixture without granting
@@ -67,11 +68,18 @@ export function checkInstallUrl(
     };
   }
 
-  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+  // v1.7.0 (Nexus-Hub v3.6.0 `/skills import` hygiene): HTTPS-only. Plain
+  // `http://` is rejected even for an allowlisted host -- an install source
+  // must be transport-encrypted so the fetched SKILL.md cannot be silently
+  // rewritten in transit. `file://` is handled above (test mode only).
+  if (parsed.protocol !== "https:") {
     return {
       ok: false,
       host: parsed.hostname.toLowerCase(),
-      reason: `unsupported protocol: ${parsed.protocol}`,
+      reason:
+        parsed.protocol === "http:"
+          ? "http:// is not allowed; install sources must use https://"
+          : `unsupported protocol: ${parsed.protocol}`,
     };
   }
 

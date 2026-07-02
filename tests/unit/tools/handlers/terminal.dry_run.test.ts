@@ -91,6 +91,37 @@ describe("RunTerminalTool dry_run", () => {
     expect(mockSpawn).toHaveBeenCalledOnce();
   });
 
+  it("reports enumerated touched paths for a redirection command (O-A)", async () => {
+    const tool = new RunTerminalTool();
+    const result = await tool.execute(
+      params({ command: "echo hi > out.txt", dry_run: true }),
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.output).toContain("Touched paths: [write:'out.txt']");
+    expect(mockSpawn).not.toHaveBeenCalled();
+  });
+
+  it("reports an empty touched-path list for a command that touches no files", async () => {
+    const tool = new RunTerminalTool();
+    const result = await tool.execute(params({ command: "git status", dry_run: true }));
+
+    expect(result.success).toBe(true);
+    expect(result.output).toContain("Touched paths: []");
+    expect(mockSpawn).not.toHaveBeenCalled();
+  });
+
+  it("reports the fail-closed fallback for an un-parseable command (O-A)", async () => {
+    const tool = new RunTerminalTool();
+    const result = await tool.execute(
+      params({ command: 'echo "unterminated', dry_run: true }),
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.output).toContain("Touched paths: (unresolved: unbalanced quote)");
+    expect(mockSpawn).not.toHaveBeenCalled();
+  });
+
   it("does not call spawn for any input shape when dry_run=true (fuzz sweep)", async () => {
     const tool = new RunTerminalTool();
     const fuzzInputs: string[] = [

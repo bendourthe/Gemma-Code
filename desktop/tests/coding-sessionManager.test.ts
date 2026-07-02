@@ -38,10 +38,10 @@ describe("CodingSessionManager", () => {
     expect(list.find((s) => s.sessionId === b.sessionId)?.title).toMatch(/^Session /);
   });
 
-  it("sendMessage emits the full event union and increments messageCount", () => {
+  it("sendMessage emits the full event union and increments messageCount", async () => {
     const mgr = makeMgr();
     const { sessionId } = mgr.start({ modelId: "llama3.1:8b" });
-    const events = mgr.sendMessage(sessionId, "Hello agent");
+    const events = await mgr.sendMessage(sessionId, "Hello agent");
     const kinds = events.map((e) => e.kind);
     expect(kinds).toEqual([
       "token",
@@ -53,10 +53,10 @@ describe("CodingSessionManager", () => {
     expect(mgr.list().sessions[0]?.messageCount).toBe(1);
   });
 
-  it("sendMessage carries the family name through to the tool result payload", () => {
+  it("sendMessage carries the family name through to the tool result payload", async () => {
     const mgr = makeMgr();
     const { sessionId } = mgr.start({ modelId: "deepseek-coder:6.7b" });
-    const events = mgr.sendMessage(sessionId, "ping");
+    const events = await mgr.sendMessage(sessionId, "ping");
     const complete = events.find((e) => e.kind === "toolCallComplete");
     if (complete?.kind !== "toolCallComplete") throw new Error("missing complete event");
     expect(complete.result).toContain("deepseek");
@@ -71,27 +71,27 @@ describe("CodingSessionManager", () => {
     expect(second).toEqual({ sessionId, cancelled: false });
   });
 
-  it("cancel / sendMessage / resume reject unknown sessionIds", () => {
+  it("cancel / sendMessage / resume reject unknown sessionIds", async () => {
     const mgr = makeMgr();
     expect(() => mgr.cancel("nope")).toThrow(/unknown sessionId/);
-    expect(() => mgr.sendMessage("nope", "m")).toThrow(/unknown sessionId/);
+    await expect(mgr.sendMessage("nope", "m")).rejects.toThrow(/unknown sessionId/);
     expect(() => mgr.resume("nope")).toThrow(/unknown sessionId/);
   });
 
-  it("list returns a summary per live session", () => {
+  it("list returns a summary per live session", async () => {
     const mgr = makeMgr();
     const a = mgr.start({ modelId: "gemma4:e4b" });
     const b = mgr.start({ modelId: "qwen2.5:7b" });
-    mgr.sendMessage(a.sessionId, "m1");
+    await mgr.sendMessage(a.sessionId, "m1");
     const list = mgr.list().sessions.map((s) => s.sessionId).sort();
     expect(list).toEqual([a.sessionId, b.sessionId].sort());
   });
 
-  it("resume returns the current session summary", () => {
+  it("resume returns the current session summary", async () => {
     const mgr = makeMgr();
     const a = mgr.start({ modelId: "qwen2.5:7b" });
-    mgr.sendMessage(a.sessionId, "first");
-    mgr.sendMessage(a.sessionId, "second");
+    await mgr.sendMessage(a.sessionId, "first");
+    await mgr.sendMessage(a.sessionId, "second");
     const { session } = mgr.resume(a.sessionId);
     expect(session.messageCount).toBe(2);
     expect(session.family).toBe("qwen");

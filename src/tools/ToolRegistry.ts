@@ -4,8 +4,15 @@ import type { OutputRedirector } from "./OutputRedirector.js";
 import { applyByteCap, resolveMaxBytes } from "./OutputRedirector.js";
 import type { ConfirmationGate } from "./ConfirmationGate.js";
 import { getPermissionTier, shouldRequireConfirmation, getDangerousWarning, PermissionTier } from "../../modules/coding/guardrails/PermissionTiers.js";
+import {
+  introspectShellCommand,
+  detectShellDialect,
+  normalizeTouchedPath,
+  type PathOperation,
+} from "../../modules/coding/guardrails/shellIntrospection.js";
 import { formatForUser } from "../../modules/coding/utils/errors.js";
-import { evaluateDeny, parsePermissionsDeny, type DenyList } from "../../core/storage/PermissionsDeny.js";
+import { getLogger } from "../../modules/coding/utils/logger.js";
+import { evaluateDeny, parsePermissionsDeny, type DenyList, type DenyRule } from "../../core/storage/PermissionsDeny.js";
 
 // Tools that fire their own diff-bearing confirmation in `ask` mode and a
 // diff-preview in `plan` mode. The centralized gate is skipped for these
@@ -172,6 +179,56 @@ export class ToolRegistry {
   }
 
   /**
+   * v1.7.0 Phase 5 (O-A): introspect a shell command and match each enumerated
+   * touched path against the file-tool deny rules. A write path is matched as if
+   * it were a `write_file` subject, a delete path as `delete_file`, a read path
+   * as `read_file` (`evaluateDeny` also honors `*:` blanket rules); `cwd` changes
+   * are not file operations and are skipped. Fails closed: when the command is
+   * not statically parseable the fallback is logged and no path rule is applied.
+   */
+  private _denyByTouchedPath(command: string): {
+    denied: boolean;
+    rule?: DenyRule;
+    path?: string;
+    operation?: PathOperation;
+  } {
+    const introspection = introspectShellCommand(command, detectShellDialect());
+    if (!introspection.parsed) {
+      getLogger().debug(
+        `[ToolRegistry] shell introspection fell back ` +
+          `(${introspection.unsupportedReason ?? "unparseable"}); relying on the ` +
+          `command-string denylist + tier gate for: ${command}`,
+      );
+      return { denied: false };
+    }
+
+    const OP_TO_TOOL: Readonly<Record<PathOperation, string | null>> = {
+      write: "write_file",
+      delete: "delete_file",
+      read: "read_file",
+      cwd: null,
+    };
+    for (const touched of introspection.paths) {
+      const fileTool = OP_TO_TOOL[touched.operation];
+      if (fileTool === null) continue;
+      const deny = evaluateDeny(
+        fileTool,
+        normalizeTouchedPath(touched.raw),
+        this._denyList,
+      );
+      if (deny.denied && deny.rule) {
+        return {
+          denied: true,
+          rule: deny.rule,
+          path: touched.raw,
+          operation: touched.operation,
+        };
+      }
+    }
+    return { denied: false };
+  }
+
+  /**
    * Execute a tool call. Validates the tool exists and is enabled, delegates
    * to its handler, and wraps any thrown exception as a failure ToolResult so
    * the agent loop can continue rather than crash.
@@ -224,6 +281,30 @@ export class ToolRegistry {
               `Usage: edit or remove the matching rule in .nexus/permissions.deny, ` +
               `or invoke ${call.tool} with a subject that does not match it.`,
           };
+        }
+
+        // v1.7.0 Phase 5 (O-A): shell-command introspection. Enumerate the paths
+        // a `run_terminal` command actually touches and gate each write/delete/read
+        // path against the file-tool deny rules -- so `write_file: secrets/**` now
+        // also blocks `echo x > secrets/prod.env`, not just a `write_file` call.
+        // Fail closed: an un-parseable command (dynamic construct, unbalanced
+        // quote) skips path-gating and relies on the command-string deny above +
+        // the DANGEROUS-tier confirmation below, never auto-allowing.
+        if (call.tool === "run_terminal") {
+          const pathDeny = this._denyByTouchedPath(subject);
+          if (pathDeny.denied && pathDeny.rule) {
+            return {
+              id: call.id,
+              success: false,
+              output: "",
+              error:
+                `Tool "run_terminal" touches path "${pathDeny.path}" (${pathDeny.operation}), ` +
+                `which is denied by .nexus/permissions.deny ` +
+                `(line ${pathDeny.rule.line}: "${pathDeny.rule.toolName}: ${pathDeny.rule.pattern}"). ` +
+                `Usage: edit or remove the matching rule in .nexus/permissions.deny, ` +
+                `or run a command that does not touch that path.`,
+            };
+          }
         }
       }
     }

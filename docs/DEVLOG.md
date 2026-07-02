@@ -4,6 +4,211 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-02] Nexus-Hub v3.10.0 adoption -- Phase 1 supply-chain + import hardening (HUB310.4.2 / 4.3a / 4.3b)
+
+### Goal
+
+Act on the Nexus-Hub v3.10.0 adoption evaluation ([docs/versions/v1/v1.7.0/plans/adoption-nexus-hub-v3.10.0.md](versions/v1/v1.7.0/plans/adoption-nexus-hub-v3.10.0.md)). The evaluation found the six Hub consumption surfaces already wired (v1.5.0 Phase 7), so "adopting v3.10.0" is a runtime sync plus a small, policy-clean hardening phase -- not new plumbing. **Phase 0 compatibility gate** (a cross-repo sweep of v3.10.0 content against the six wired parsers) came back **CLEAN**: no consumer patch needed. This closes **Phase 1** (the code phase).
+
+### What changed (all local-only, zero new outbound calls / credentials)
+
+- **4.2 -- release-manifest verification (advisory)** ([DevAIHubSyncer.ts](../core/skills/DevAIHubSyncer.ts)). The Hub v3.10.0 publishes a `MANIFEST.sha256` (standard `sha256sum` text) at the repo root inside the release tag. Added `parseSha256Manifest` + `verifyReleaseManifest` (iterates manifest entries, hashes each cloned file in the sparse subset, ignores entries outside it, never flags clone artifacts like `.git`) and `manifestVerification` on `SyncResult`. **Advisory, not fail-closed** -- see the live-validation finding below: the upstream manifest is not EOL-deterministic, so blocking on it would reject every legitimate sync. The `nexus skills sync` CLI prints one concise advisory line or `verified N file(s)`; the injection scanner stays the fail-closed content gate.
+- **Sparse-checkout cone-mode + canonical-LF fix (root cause).** Running the live sync surfaced a pre-existing latent bug: `defaultSparseClone` passed FILE paths (`data/skills.json`) to `git sparse-checkout set`, which git **>= 2.36 rejects in cone mode** (`fatal: '...' is not a directory`), so every live sync on modern git failed at the sparse step -- undetected because HUB.P3.DATA was only tested with directory-copy fixtures. Fixed by extracting a directory-only `HUB_SPARSE_CHECKOUT_PATHS` (`data` dir, not `data/skills.json`; the root `MANIFEST.sha256` rides in via cone mode's automatic root-file inclusion) and persisting `core.autocrlf=false` + `core.eol=lf` in the clone so files materialize as canonical LF. Verified manually against the real v3.10.0 release and guarded by a unit test asserting the list is file-arg-free.
+- **Live validation surfaced two Tier 0 blockers:** (1) `HUB310.SCAN` -- the `--apply` sync was fail-closed-blocked by the injection scanner on 9 findings, all benign content in the Hub's own security-education skills (`prompt-injection-defense`, `ai-attack-patterns`, `skill-security-scan`, `powershell-expert`, ...) that legitimately contain the very patterns they teach. (2) `HUB310.4.2.ADV` -- the Hub's `MANIFEST.sha256` is not EOL-deterministic (mixed CRLF/LF hashes from a Windows generation), proven by `architect.md` matching LF while `adversarial-reviewer.md` matches CRLF; hence 4.2 is advisory until the Hub re-cuts a deterministic (LF) manifest.
+- **Scanner allowlist + Tier 0 sync completed (HUB310.SCAN, HUB310.T0).** Resolved `HUB310.SCAN` with a reviewed, surgical per-(skill, rule) allowlist ([hubSkillScanAllowlist.ts](../core/skills/hubSkillScanAllowlist.ts)) plus a `ScanSuppression` mechanism on `PromptInjectionScanner`; each of the 9 findings was read in context and adjudicated benign (a Python injection-detection pattern list, a Backstage `system:` YAML field, a TS `system:` API property, an SSH `-KeyFilePath` example, fenced example attack payloads). The allowlist is applied ONLY to the trusted `DevAIHubSyncer` source -- third-party `nexus skills install` imports keep the fully-strict scanner (matching the Hub's own `skill-security-scan` provenance principle). With it, `nexus skills sync --apply --tag v3.10.0` **applied**: active bundle `~/.nexus/skills/devai-hub/v3.10.0`, 259 skills, the 2 v1.5.0-carryforward skills (`direct-corpus-interaction`, `agent-presets`) present -- resolving `1.1.P3.B` / `T023.P3.A`. The adoption plan is now COMPLETE (Phase 0 sync + Phase 1 hardening; Phase 2 deferred by design).
+- **4.3a -- HTTPS-only import** ([installAllowlist.ts](../core/skills/installAllowlist.ts)). `checkInstallUrl` now rejects plain `http://` even for an allowlisted host (transport-encryption required); `ftp://` etc. keep the `unsupported protocol` reason; `file://` stays test-mode-only.
+- **4.3b -- hash-on-import** ([SkillInstaller.ts](../core/skills/SkillInstaller.ts)). `installSkill` records a SHA-256 `contentHash` of the fetched body (returned on success and on a scanner block); the `nexus skills install` success line prints it.
+
+The URL allowlist, injection scan-with-block, path-clamping, and overwrite/namespace guards were already present, so 4.3 was a two-item delta, not a rebuild.
+
+### Verification
+
+- `tsc -b` clean; `npm run lint` 0 errors; `npm run check-architecture` 0 errors / 10 pre-existing warnings (no new orphan/cycle); `check:tampering` 0; `catalog:check` in sync; `security:check` in sync; `check:audit-prod` 0 blocking.
+- Full suite **4548 passed / 6 skipped / 0 failed**; new tests: DevAIHubSyncer +9 (parse/verify units + sync integration: match applies, mismatch fails closed, no-manifest no-op, out-of-subset skip), installAllowlist +1 (http:// rejected), SkillInstaller +2 (contentHash on success + on block).
+
+### Deferred (recorded in the v1.7.0 known-gaps as `HUB310.*`)
+
+- **Tier 0 runtime sync** (`HUB310.T0`): the syncer is wired + hardened but the active `~/.nexus/skills/devai-hub/` bundle has not been rotated to v3.10.0 -- a consent-gated runtime action, not code. Running it resolves the v1.5.0 carryforward `1.1.P3.B` / `T023.P3.A`.
+- **Tier 2 product features** (`HUB310.T2`): in-product `model-routing`; `extensions/` MCP revisit (already covered in-process). Demand-gated.
+- **Hub-side** (`HUB310.HUBSIDE`): `catalog/rules/bash/testing.md` is missing upstream (handled gracefully by `LanguageRuleBuilder`); a Hub-cycle follow-up, no Nexus-AI action.
+
+### Branch
+
+Delivered on `feat/hub-v3.10.0-adoption-hardening` off `develop` (independent of the paused `feat/desktop-pillars` release).
+
+---
+
+## [2026-07-02] v1.7.0 post-cycle -- vscode-free headless agent runtime + optimizer production wiring (SO001.P1.A, SO003.P3.B, SO005.P4.A/B, SO001.P1.B)
+
+### Goal
+
+Close the highest-leverage forward-tier gaps from the v1.7.0 cycle by building the deferred **headless agent runtime** (the "NexusCodingRuntime" root the plan repeatedly gated other work behind). The whole v1.7.0 optimizer loop was built against injected seams because the coding agent loop could not load in plain Node (its `ConversationManager` + logger import `vscode`). This builds a vscode-free runtime so the golden-task runner, the optimizer rollout, and the candidate frontier drive the *real* agent instead of test fakes.
+
+### What changed
+
+- **New `modules/coding/runtime/` (vscode-free).** `headlessTools.ts` -- a workdir-scoped tool set (read/write/create/edit/delete file, list_directory, grep_codebase, run_terminal) over `node:fs`/`node:child_process`, fail-closed on path traversal, injectable terminal executor. `HeadlessAgentSession.ts` -- the agentic loop: a plain message array replaces the vscode `ConversationManager`, reusing the pure vscode-free `Gemma4ToolFormat` codec (serialize declarations / parse tool calls / format results) so a model behaves identically to the extension; supports an optional `skillBody` system-prompt override (the optimizer's candidate-edit measurement) and streams token/toolCall/toolResult/done events. `HeadlessAgentDriver.ts` -- implements the Phase 1 `GoldenTaskRunner` `AgentDriver` seam, so `runGoldenTask` live mode drives the real agent (closes **SO001.P1.A**).
+- **Production optimizer seams (`modules/coding/skilloptimizer/`).** `HeadlessOptimizerRollout` (over `runGoldenTask` + the driver + the skill override) closes **SO003.P3.B**; `HeadlessCandidateProducer` / `HeadlessCandidateScorer` (over the rollout) close **SO005.P4.A**; `HeadlessCandidatePromoter` (fail-closed catalog merge, reachable only after the frontier's human-approval gate) closes **SO005.P4.B**.
+- **`nexus golden run` CLI** (`bin/nexus.mjs`, closes **SO001.P1.B**) -- dry mode (offline, evaluates snapshots against criteria) + live mode (drives the real agent over Ollama), mirroring the `nexus trace export` `loadCompiled` precedent.
+- **Boundary.** The runtime reuses the pure, vscode-free `src/tools/{Gemma4ToolFormat,ToolCatalog,types}` (a leaf `modules -> src` import; check-architecture stays 0 errors / 10 warnings, no new cycle). The shipping `src/tools/handlers/*` are untouched -- this is an additive headless surface.
+
+### Verification
+
+- `tsc -b` clean; `npm run lint` 0 errors; `npm run check-architecture` 0 errors / 10 pre-existing warnings; `npm run security:check` in sync; `npm run check:tampering` 0; `catalog:check` + `check:audit-prod` green.
+- Full suite **4533 passed / 6 skipped / 0 failed** (+35 over the cycle-close baseline of 4498): headlessTools (15), HeadlessAgentSession (7), driver end-to-end (2), optimizer-rollout (2), candidate seams (7), golden-run CLI (2).
+
+### Deferred (recorded in the v1.7.0 known-gaps)
+
+- **Desktop sidecar wiring**: the Coding pillar (`desktop/sidecar/.../CodingSessionManager`) still returns the Phase 3.1 canned stub. Wiring it to the runtime was prototyped but **reverted**: the sidecar -> `modules/coding/runtime` -> `src/tools` import chain drags repo-root `src/` into the desktop typecheck (a `shell-build.yml` CI gate), surfacing latent errors. The prerequisite is relocating the shared tool-call primitives from `src/tools` into `modules/coding` (a sizable, separate migration); the Tauri e2e also needs the Rust toolchain.
+- **`skills optimize` / `skills frontier` CLIs** (SO003.P3.D / SO005.P4.C) + the **live optimizer A/B default-on** (SO003.P3.A) + **live ConfirmationGate/pathGuard adapters** (SO003.P3.C) remain: they need the full optimizer/frontier composition root + a live local model. The production rollout/producer/scorer/promoter seams they build on are now shipped.
+
+---
+
+## [2026-07-02] v1.7.0 self-optimizing-skills Phase 6 FINAL -- whole-plan acceptance gate + docs + Nexus-Hub touchpoint (SO007-SO009)
+
+### Goal
+
+Close the v1.7.0 "local skill self-optimization loop + opencode harness hardening" cycle: verify the whole-plan definition-of-pass, run the full quality-gate matrix, finalize the docs, record the demand-gated backlog, and assess the Nexus-Hub touchpoint. No feature code changes -- this is a verification + close-out phase.
+
+### What was verified (SO007 -- whole-plan acceptance gate)
+
+- **All seven Definition-of-pass items pass.** Items 1-6 were delivered across Phases 1-5 and were re-confirmed physically present this phase: S1 [GoldenTaskRunner.ts](../modules/coding/evaluation/GoldenTaskRunner.ts); S4 [goldenSplit.ts](../modules/coding/evaluation/goldenSplit.ts) / [validationGate.ts](../modules/coding/evaluation/validationGate.ts) / [RejectedEditBuffer.ts](../core/memory/RejectedEditBuffer.ts); S2+S6 [SkillOptimizer.ts](../modules/coding/skilloptimizer/SkillOptimizer.ts) / [SkillOptimizerAb.ts](../modules/coding/skilloptimizer/SkillOptimizerAb.ts); S3 [CandidateFrontier.ts](../modules/coding/skilloptimizer/CandidateFrontier.ts) / [pareto.ts](../modules/coding/skilloptimizer/pareto.ts) / [frontierWorktree.ts](../modules/coding/skilloptimizer/frontierWorktree.ts); O-A [shellIntrospection.ts](../modules/coding/guardrails/shellIntrospection.ts). Item 7 (testing + docs) is delivered by this phase.
+- **The full gate is green.** `npm run test`: **4498 passed / 6 skipped / 0 failed**. Coverage: lines **88.22%** / branches **84.01%** / functions **91.35%** (all above the CI 80 / 75 / 80 thresholds). `tsc -b`: clean. `npm run lint`: **0 errors**. `npm run check-architecture`: **0 errors**, 10 pre-existing warnings (no new orphan/circular). `npm run security:check`: in sync. `npm run check:tampering`: **0 findings**.
+
+### What changed (SO008 -- docs) and what did not
+
+- **Finalized**: this DEVLOG entry, the [v1.7.0 known-gaps ledger](versions/v1/v1.7.0/known-gaps.md) (Phase 6 row added, status flipped to COMPLETE, summary recomputed to 6/6 phases + 17 forward-tier follow-ups, demand-gated backlog recorded), [todos.md](todos.md), the [plan](versions/v1/v1.7.0/plans/adoption-self-optimizing-skills.md) (Definition-of-pass item 7 + Phase 6 sub-tasks SO007-SO009 checked off, Phase 6 status COMPLETE), and a Phase 6 history file under [versions/v1/v1.7.0/development/history/](versions/v1/v1.7.0/development/history/).
+- **Not touched (by policy)**: README.md and ARCHITECTURE.md carry no per-version content, and the CHANGELOG narrative + the npm version tag are semantic-release-owned and cut on merge to `main` -- so no manual edit to those three (same posture as the v1.6.0 FINAL close).
+- **Demand-gated backlog recorded**: S5 (background autonomous self-optimization routine, off by default) and opencode O-B / O-D / O-E remain in the plan's Out-of-Scope appendix, none implemented this cycle; the load-bearing guardrail "the loop proposes; the human accepts" is preserved by S5's deferral.
+
+### Nexus-Hub touchpoint (SO009)
+
+Assessed **not warranted** as an in-repo change (`SO009.P6.A`). The Hub already ships the method-level guidance (`skill-eval-loop`, `loop-engineering`, `continuous-learning`, `skill-create`, `skill-stocktake`); this cycle built the *runtime* loop those skills describe, which is Nexus-internal product code, not a portable skill artifact the Hub catalog lacks. The plan forbids duplicating loop logic into the Hub, and the Hub is a sibling repo (not editable from this commit). A one-line Hub-side cross-link to this cycle as a worked local-first example is recorded as a demand-gated suggestion for a future Hub sync. Precedent: v1.6.0 `OF015.P5.A` and v1.6.0-aisuite `AS010.P6.A`, both assessed not-warranted.
+
+### Cycle summary
+
+v1.7.0 is complete across all six phases. The Coding pillar now has a working TS-native golden-task live runner (S1), a locked train/validation/test split with a held-out validation gate and a content-addressed rejected-edit buffer (S4), a bounded-edit `SkillOptimizer` with an optimizer-quality A/B (S2+S6, opt-in default-off pending a live A/B), a Pareto-frontier candidate manager over git-branch skill variants (S3), and a fail-closed tree-sitter-style shell-command introspection gate for permission enforcement (O-A). Every item is local-only, zero-outbound, zero-new-dependency, zero-new-credential, per the AGENTS.md MCP Registry Policy. The optimizer and frontier ship opt-in / human-approval-gated so autonomous self-modification of skill files never runs unattended.
+
+---
+
+## [2026-07-01] v1.7.0 self-optimizing-skills Phase 5 -- tree-sitter shell-command introspection for permission gating (O-A, SO006)
+
+### Goal
+
+Adopt the one clearly-worthwhile local item from the opencode scan: parse a shell command to enumerate the paths / cwd it will touch and gate those through the existing permission surface, turning "what will this command touch?" from a regex guess into a structural answer. The load-bearing invariant is **fail closed** -- an un-parseable or unsupported command falls back to the existing denylist / tier gate and never auto-allows; the introspection only ever *tightens* the surface. Local-only, no new outbound call or credential, reverse-engineered per the AGENTS.md MCP Registry Policy.
+
+### What changed
+
+- **New vscode-free, dependency-free `modules/coding/guardrails/shellIntrospection.ts`.** `introspectShellCommand(command, dialect)` reverse-engineers opencode's `tool/shell/` command introspection as a lean structural parser: a **quote-aware tokenizer** splits chained sub-commands (`;`/`&&`/`||`/`|`/newline), keeps quoted spans intact, and emits redirection operators (`>`/`>>`/`2>`/`2>>`/`<`; an fd-dup `2>&1` target is skipped, not treated as a path) as their own tokens; per-dialect **file-command tables** (bash `rm`/`cp`/`mv`/`touch`/`mkdir`/`tee`/`cat`...; cmd `del`/`copy`/`move`/`type`...; PowerShell `Remove-Item`/`Set-Content`/`Out-File`/`Copy-Item`/`Get-Content`... incl. `-Path`/`-FilePath`/`-LiteralPath`/`-Destination` named-param values) classify each argument as read / write / delete, and the `cd`-family (`cd`/`Set-Location`/`pushd`) as a cwd change. `detectShellDialect` maps win32 -> cmd, else bash (what `run_terminal`'s `{ shell: true }` actually executes). `normalizeTouchedPath` folds back-slashes and a leading `./` for denylist matching.
+- **Fails closed by construction.** `introspectShellCommand` returns `{ parsed: false }` on any construct that could hide a path from static analysis: command / process substitution (`$(`, `<(`, `>(`), variable expansion (`$` for bash/PowerShell, `%`/`!` for cmd), backtick, `Invoke-Expression`, or an unbalanced quote. The introspection is additive -- it can only add a refusal, never downgrade a tier or approve a command.
+- **Path-scoped deny gating wired into `ToolRegistry`.** `_denyByTouchedPath` runs for a `run_terminal` call after the existing whole-command-string deny match: each enumerated write path is matched against `write_file` deny rules, each delete against `delete_file`, each read against `read_file` (`evaluateDeny` also honors blanket `*:` rules) -- so `write_file: secrets/**` now also blocks `echo x > secrets/prod.env`, not just a literal `write_file` call. When the command is not statically parseable the fallback is logged (`getLogger().debug`) and no path rule is fabricated: the DANGEROUS-tier confirmation + command-string denylist still gate, never auto-allowing.
+- **Dry-run transparency.** The `run_terminal` dry-run report gains a `Touched paths:` line (`write:'out.txt'`, `delete:'build'`, ... or `(unresolved: <reason>)` on a fail-closed command) so the confirmation surface answers "what will this command touch?" structurally.
+- **Reverse-engineered, no new dependency (MCP Registry Policy bucket 3).** The bundled `tree-sitter-wasms` ships a bash grammar only (used by the codegraph scanner); no PowerShell / cmd grammar exists there, and pulling native grammars conflicts with no-runtime-download, so the structural tokenizer is the always-available, fail-closed core across all three dialects. An AST-backed *bash* upgrade over the already-bundled `tree-sitter-bash.wasm` is recorded as a forward-tier follow-up (`SO006.P5.A`).
+- **Tests (37 new across 3 files).** [tests/unit/guardrails/shellIntrospection.test.ts](../tests/unit/guardrails/shellIntrospection.test.ts) (29: bash/cmd/PowerShell enumeration, redirections incl. fd-dup skip + fd-append, cwd changes, unknown-command args ignored, quoted paths, fail-closed on substitution / expansion / backtick / `%VAR%` / `Invoke-Expression` / unbalanced quote, normalize), [ToolRegistry.test.ts](../tests/unit/tools/ToolRegistry.test.ts) (+5: write path blocked, blanket `*` block, non-denied allowed, fail-closed no-fabricated-block, command-string gate not loosened on fallback), [terminal.dry_run.test.ts](../tests/unit/tools/handlers/terminal.dry_run.test.ts) (+3: touched-path line, empty list, unresolved fallback).
+
+### Verification
+
+- `npm run test`: **4498 passed / 6 skipped / 0 failed**. `npm run lint`: **0 errors**. `tsc -b`: clean.
+- `npm run check-architecture`: **0 errors**, 10 pre-existing warnings (no new orphan/circular; +1 module). `npm run check:tampering`: **0 findings**. `npm run security:check`: in sync (no permission-tier change -- `run_terminal` stays DANGEROUS; the gate is a tightening layer).
+- New-module coverage: `shellIntrospection.ts` **100% lines / 92.59% branches / 100% functions** (above the 80/75/80 gate).
+- Local-first / MCP Registry Policy clean: no new dependency, no new outbound call or credential; the introspector is a pure local parse and only tightens the permission surface. README/ARCHITECTURE/CHANGELOG narrative + the npm version tag remain semantic-release-owned and are cut on merge to `main`.
+- Carryovers recorded in [versions/v1/v1.7.0/known-gaps.md](versions/v1/v1.7.0/known-gaps.md): `SO006.P5.A` (tree-sitter-bash AST upgrade over the structural parser), `SO006.P5.B` (opt-in workspace-escape hard-block), `SO006.P5.C` (glob-expansion / read-scope precision).
+
+---
+
+## [2026-07-01] v1.7.0 self-optimizing-skills Phase 4 -- Pareto-frontier candidate management on git branches (S3, SO005)
+
+### Goal
+
+Land the evolutionary layer (GEPA/EvoSkill) on top of the Phase 3 single-file loop: keep multiple skill-edit **candidates** on separate git branches and select the non-dominated (Pareto) set across the diverse task set, so candidates that each win on different tasks all survive and the best is surfaced for a human to merge. The load-bearing guardrail carries over from Phase 3 -- a winning branch is **never** auto-merged; it is surfaced for explicit human approval. Reverse-engineered as a lean local module (no DSPy/GEPA/EvoSkill dependency), local-only, building entirely on the Phase 1 runner + Phase 3 optimizer + the v1.5.0 worktree-swarm infra.
+
+### What changed
+
+- **Three vscode-free `modules/coding/skilloptimizer/` modules on the Phase 3 spine.** The pure selector ([pareto.ts](../modules/coding/skilloptimizer/pareto.ts)) reverse-engineers the genetic-Pareto core: `dominates` (strict Pareto domination over shared per-task score vectors -- worse-anywhere loses, strictly-better-somewhere-and-never-worse wins; disjoint or empty vectors do not dominate), `paretoFrontier` (the non-dominated set -- diverse winners each strong on a different task all survive, identical vectors are mutually non-dominated), and the deterministic held-out extremes `lowestByHeldOut` / `highestByHeldOut` (id tie-break) the replacement rule needs. The orchestrator ([CandidateFrontier.ts](../modules/coding/skilloptimizer/CandidateFrontier.ts)) runs, per produced candidate: materialize on its own git branch (injected `CandidateWorkspaceManager`) -> score across the diverse tasks (injected `CandidateScorer` over the Phase 1 runner) -> auto-clean the ephemeral worktree immediately (one worktree live at a time -- the single-GPU discipline; the branch ref survives for promotion) -> admit into a bounded population. Frontier seams + types live in [types.ts](../modules/coding/skilloptimizer/types.ts).
+- **Hard candidate cap + EvoSkill replacement rule.** The population never exceeds `maxCandidates` (sourced from the hardware tier's `maxConcurrentSubAgents` at a composition root -- the swarm-worker/VRAM gate). At the cap, a challenger displaces the lowest-held-out incumbent **only** when it strictly beats it (by a configurable margin) on the held-out split, else it is rejected -- proven by tests over a fixture score matrix (cap holds; replace-lowest only on a held-out win; the margin is honored).
+- **No auto-merge (the security spine, carried from Phase 3).** After Pareto selection the winner (highest held-out among the frontier) is surfaced through the reused Phase 3 `SkillEditApprovalGate`, with the merge classified as a DESTRUCTIVE `write_file` (`classifyAction`). The `CandidatePromoter` seam is the only merge path and is structurally unreachable unless approval returns true -- proven by a test that a denying gate promotes nothing.
+- **Real branch-worktree materializer.** [frontierWorktree.ts](../modules/coding/skilloptimizer/frontierWorktree.ts) (`WorktreeCandidateManager`) reuses the v1.5.0 worktree-swarm `GitRunner` contract (imported as a type only, so no vscode-coupled logger is pulled in -- the optimizer subtree stays plain-Node loadable, the Phase 1/3 invariant), materializing each candidate on `nexus/skill-candidate/<skill>/<id>` via `git worktree add -b ... HEAD`, committing the candidate body (frontmatter preserved), and fault-tolerantly failing closed to null when git is unavailable or any step fails (a failed commit removes the half-made worktree). A composition root inside the vscode host may instead inject a manager backed by the concrete `WorktreeManager` + `GitSafetyNet` behind the same seam.
+- **Tests (30 new across 3 files).** [pareto.test.ts](../tests/unit/skilloptimizer/pareto.test.ts) (13: domination truth table, non-dominated selection over fixture matrices incl. diverse-winner and three-way sets, deterministic extremes), [CandidateFrontier.test.ts](../tests/unit/skilloptimizer/CandidateFrontier.test.ts) (9: non-dominated selection + winner, the cap holds with replace-lowest, reject-without-a-held-out-win, the replacement margin, **no promotion without approval**, auto-clean per candidate, graceful degradation when isolation is unavailable, empty producer, config validation), and [frontierWorktree.test.ts](../tests/unit/skilloptimizer/frontierWorktree.test.ts) (8: branch materialization + commit with frontmatter preserved, body-direct write when absent, fail-closed on non-repo / add-fail / commit-fail with worktree removal, clean/dirty/failed cleanup).
+
+### Verification
+
+- `npm run test`: **4461 passed / 6 skipped / 0 failed**. `npm run lint`: **0 errors**. `tsc -b`: clean.
+- `npm run check-architecture`: **0 errors**, 10 pre-existing warnings (no new orphan/circular; +3 modules). `npm run check:tampering`: **0 findings**. `npm run security:check`: in sync.
+- New-module coverage: pareto 100/100/100, CandidateFrontier 100/94.11/100, frontierWorktree 96.61/90/100 (the `modules/coding/skilloptimizer/` subtree at 99.47% lines / 91.51% branches / 100% functions, above the 80/75/80 gate).
+- Local-first / MCP Registry Policy clean: no new dependency, no new outbound call or credential (the scorer/producer are seams over the resident runner). README/ARCHITECTURE/CHANGELOG narrative + the npm version tag remain semantic-release-owned and are cut on merge to `main`.
+- Carryovers recorded in [versions/v1/v1.7.0/known-gaps.md](versions/v1/v1.7.0/known-gaps.md): `SO005.P4.A` (production candidate producer + scorer over the real agent, deferred behind `SO001.P1.A`/`SO003.P3.B`), `SO005.P4.B` (live branch->catalog promoter over `GitSafetyNet`), `SO005.P4.C` (no frontier CLI + auto tier-cap wiring).
+
+---
+
+## [2026-06-30] v1.7.0 self-optimizing-skills Phase 3 -- bounded-edit skill optimizer + optimizer-quality A/B (S2 + S6, SO003 + SO004)
+
+### Goal
+
+Land the headline capability of the cycle: a SkillOpt/GEPA-style loop that reflects on failing golden-task trajectories and proposes **regression-safe, bounded** edits to local skill `.md` files, plus the A/B that proves the resident optimizer model is good enough before its edits are trusted to ship default-on. The load-bearing guardrail is "the loop proposes; the human accepts" -- no skill file is ever overwritten without explicit human approval. Reverse-engineered (no DSPy/EvoSkill/SkillOpt dependency), local-only, building entirely on the Phase 1 runner + Phase 2 split/gate/buffer + the existing `ReflexionEngine`/`CriticAgent`, the v0.3.0 runaway budget, and the v1.6.0 Fusion F4 A/B harness.
+
+### What changed
+
+- **Eight vscode-free `modules/coding/skilloptimizer/` modules.** The loop ([SkillOptimizer.ts](../modules/coding/skilloptimizer/SkillOptimizer.ts)) composes the existing spine through injected seams (the Phase 1 `AgentDriver` precedent): `rollout(train)` surfaces failing trajectories -> [ReflexionDiagnoser.ts](../modules/coding/skilloptimizer/ReflexionDiagnoser.ts) (composes `ReflexionEngine`, treats trajectory text as an untrusted-input boundary and `redactSecrets`-scans it) diagnoses which skill text drove them -> [SkillEditProposer.ts](../modules/coding/skilloptimizer/SkillEditProposer.ts) (resident `OllamaClient` port, JSON-parsed via the shared tolerant extractor, fail-closed to no-edit) proposes a bounded add/delete/replace edit -> an optional [EditCritic.ts](../modules/coding/skilloptimizer/EditCritic.ts) (composes `CriticAgent`) cheap-rejects before a rollout -> the Phase 2 `evaluateValidationGate` accepts only on a held-out validation win -> the Phase 2 `RejectedEditBuffer` records every reject (redacted). [skillEdit.ts](../modules/coding/skilloptimizer/skillEdit.ts) holds the pure helpers (apply ops, changed-char volume, the learning-rate predicate, deterministic hash, frontmatter split/reassembly, the approval diff); [io.ts](../modules/coding/skilloptimizer/io.ts) is the bundled fail-closed catalog-root path resolver + atomic file I/O; [types.ts](../modules/coding/skilloptimizer/types.ts) declares the seams.
+- **Two budgets bound the loop.** The v0.3.0 runaway [`BudgetMiddleware`](../src/tools/BudgetMiddleware.ts) caps the number of rounds (`maxRounds` -> `maxIterations`); a per-round **textual learning-rate budget** (`withinLearningRate`: max ops + max changed chars) caps how much a single edit may change, so the optimizer takes small, reviewable steps. A re-proposed edit (already attempted this run or already in the buffer) halts the loop with "no-progress" so it can never spin.
+- **Approval-before-overwrite (the security spine).** Every gate-accepted edit is `classifyAction`-classified (a skill overwrite is a DESTRUCTIVE `write_file`), path-resolved inside the catalog root (fail-closed on traversal via `RootSkillPathResolver`, mirroring `pathGuard.resolveInsideWorkspace`), and written **only** after an explicit `SkillEditApprovalGate.requestApproval` returns true. The file write is the loop's only side effect and is structurally unreachable without the approval signal -- proven by a test that a denying gate produces zero writes. `pathGuard` + `ConfirmationGate` are vscode-coupled, so (per the Phase 1 discipline) they are reached through seams the composition root adapts; the optimizer module stays vscode-free.
+- **Optimizer-quality A/B (S6).** [SkillOptimizerAb.ts](../modules/coding/skilloptimizer/SkillOptimizerAb.ts) reuses the v1.6.0 Fusion F4 [`PanelAbHarness`](../modules/coding/orchestration/PanelAbHarness.ts) with the baseline skill as the single arm and the optimized skill as the panel arm (quality = held-out validation pass signal, latency = rollout wall-clock); `decideSkillOptimizerDefault` flips default-on only on a measured net win at acceptable quality + latency, mirroring `decidePanelRoutingDefault`. New opt-in setting `nexus.coding.skillOptimizer.enabled` ships **default off**: no live local A/B ran here, so per the no-degradation gate there is no measured net win to flip it (`SO003.P3.A`, the same posture as v1.6.0 `OF010.P4.A`).
+- **Tests (48 new across 7 files).** [SkillOptimizer.test.ts](../tests/unit/skilloptimizer/SkillOptimizer.test.ts) (11: accept+apply a validation-improving edit, buffer a regressing one, **no write without approval**, the learning-rate cap rejects before any rollout, the runaway budget caps rounds, a path escape is refused, no-failing-tasks halts, the critic short-circuits, the `test`-split contamination guard throws, config validation), plus `skillEdit` (14), `SkillEditProposer` (6), `ReflexionDiagnoser` (4, incl. secret redaction before the model), `EditCritic` (2), `io` (5), `SkillOptimizerAb` (6).
+
+### Verification
+
+- `npm run test`: **4431 passed / 6 skipped / 0 failed**. `npm run lint`: **0 errors**. `tsc -b`: clean.
+- `npm run check-architecture`: **0 errors**, 10 pre-existing warnings (no new orphan/circular). `npm run check:tampering`: **0 findings**. `npm run security:check`: in sync.
+- New-module coverage: the `modules/coding/skilloptimizer/` subtree at **99.62% lines / 89.61% branches / 100% functions** (above the 80/75/80 gate); global coverage 88.05 / 83.85 / 91.25.
+- Local-first / MCP Registry Policy clean: no new dependency, no new outbound call or credential (the optimizer model is the resident `OllamaClient`). README/ARCHITECTURE/CHANGELOG narrative + the npm version tag remain semantic-release-owned and are cut on merge to `main`.
+- Carryovers recorded in [versions/v1/v1.7.0/known-gaps.md](versions/v1/v1.7.0/known-gaps.md): `SO003.P3.A` (opt-in default-off pending a live A/B), `SO003.P3.B` (production rollout over the real `AgentLoop` deferred behind `SO001.P1.A`), `SO003.P3.C` (live `ConfirmationGate`/`pathGuard` adapters deferred), `SO003.P3.D` (no `nexus skills optimize` CLI yet).
+
+---
+
+## [2026-06-30] v1.7.0 self-optimizing-skills Phase 2 -- train/val/test split + held-out gate + rejected-edit buffer (S4, SO002)
+
+### Goal
+
+Build the regression-safety scaffolding the Phase 3 skill optimizer cannot be trusted without (S4): a locked train/validation/test split whose **test** split the optimizer never sees, a held-out **validation gate** that only accepts an edit when it improves the held-out split, and a **rejected-edit buffer** so a known-bad edit is never re-proposed and is auditable -- all local-only, reusing the Phase 1 runner's scored results and the v1.6.0 `ArtifactStore`.
+
+### What changed
+
+- **Split + contamination guard.** [goldenTaskLoader.ts](../modules/coding/evaluation/goldenTaskLoader.ts) gains an additive optional `split: train|validation|test` field on `GoldenTaskSpec` (fail-closed on unknown values; absent = defaulted). [goldenSplit.ts](../modules/coding/evaluation/goldenSplit.ts) is new: `assignDefaultSplits` derives a missing split deterministically per category (tasks sorted by id, cycled train -> validation -> test, explicit splits honored) so each split is representative across families; `splitGoldenTasks` partitions; `optimizerVisibleTasks` / `loadOptimizerVisibleTasks` are the **only** loaders the optimizer code path uses and return train + validation only, re-checked by `assertNoTestSplit` (defense-in-depth) so a `test` task can never reach the loop -- the article's anti-contamination requirement, enforced structurally rather than by convention.
+- **Held-out validation gate.** [validationGate.ts](../modules/coding/evaluation/validationGate.ts) is a pure function over before/after scored `GoldenTaskResult` batches: `validationGate(before, after) -> boolean` (the plan's signature) and `evaluateValidationGate(...)` (the detailed report). It accepts only on a **strict aggregate validation-pass-rate improvement** (configurable margin) with **per-task pass->fail regressions within a tolerance** (default 0), reusing the existing `RegressionReport` shape for the per-task deltas and emitting a human-readable reason the buffer can store. No I/O, no clock, no randomness.
+- **Rejected-edit buffer.** [core/memory/RejectedEditBuffer.ts](../core/memory/RejectedEditBuffer.ts) is keyed by `skillId + editHash`: the edit / failing-trajectory text is stored through the content-addressed [ArtifactStore](../core/memory/ArtifactStore.ts) (which redacts before it hashes + writes, so the trajectory never lands on disk unredacted), the rejection reason is redacted in a JSON index, and `record` is idempotent (first write wins). It composes only `core/` surfaces (`ArtifactStore` + `redactSecrets`) over primitive inputs, so it never reaches into a pillar's types (`no-core-from-modules` clean).
+- **Tests (29 new).** [goldenSplit.test.ts](../tests/unit/evaluation/goldenSplit.test.ts) (13: split parse, deterministic default-by-category, partition, the `assertNoTestSplit` guard, and the real-corpus property that the test split is non-empty yet unreachable from the optimizer loader), [validationGate.test.ts](../tests/unit/evaluation/validationGate.test.ts) (8: accept net-positive, reject regressing/flat, enforce the regression tolerance, the min-aggregate-delta margin, the boolean wrapper), [RejectedEditBuffer.test.ts](../tests/unit/core/memory/RejectedEditBuffer.test.ts) (8: round-trip with redaction + no-secret-on-disk, idempotency, separate-key isolation, persistence across instances, missing/corrupt-index + pruned-artifact degradation).
+
+### Verification
+
+- `npm run test`: **4382 passed / 6 skipped / 0 failed**. `npm run lint`: **0 errors**. `tsc -b`: clean.
+- `npm run check-architecture`: **0 errors**, 10 pre-existing warnings (no new orphan/circular -- the split module depends one-directionally on the loader). `npm run check:tampering`: **0 findings**. `npm run security:check`: in sync.
+- New-module coverage: `goldenSplit.ts` **100/100/100**, `validationGate.ts` **100/100/100**, `RejectedEditBuffer.ts` **100/100/100** (lines/branches/functions); the added `goldenTaskLoader` split-parse is covered, its residual uncovered lines are pre-existing parser branches.
+- Local-first / MCP Registry Policy clean: no new dependency, no new outbound call or credential. README/ARCHITECTURE/CHANGELOG narrative + the npm version tag remain semantic-release-owned and are cut on merge to `main`.
+- Carryovers recorded in [versions/v1/v1.7.0/known-gaps.md](versions/v1/v1.7.0/known-gaps.md): `SO002.P2.A` (pass-rate-only gate; latency/token regression gating deferred to a Phase 3 consumer), `SO002.P2.B` (buffer is append-only; orphan GC deferred, mirrors `AS005.P3.A`), `SO002.P2.C` (corpus splits are defaulted by category, not difficulty-stratified).
+
+---
+
+## [2026-06-29] v1.7.0 self-optimizing-skills Phase 1 -- TS-native golden-task live runner (S1, SO001)
+
+### Goal
+
+Open the [local skill self-optimization plan](versions/v1/v1.7.0/plans/adoption-self-optimizing-skills.md) by landing its hard prerequisite (S1): a TS-native golden-task **live runner** so the optimization loop (Phases 2-4) has a verifiable feedback signal. This also restores the live golden runs that broke when the Python FastAPI backend was deleted by [ADR-0001](adr/0001-python-backend-disposition.md) (the Python `_run_live()` has returned "backend call failed" for every task since v0.4.0).
+
+### What changed
+
+- **Four vscode-free `modules/coding/evaluation/` modules.** [goldenCriteria.ts](../modules/coding/evaluation/goldenCriteria.ts) is the TS port of `tests/golden/framework/evaluator.py` -- all 8 declarative criterion types (`file_contains`/`file_exists`/`file_deleted`/`output_contains`/`test_passes`/`lint_passes`/`no_errors`/`diff_matches`) with regex-or-literal matching and an injected `CommandRunner` (default shells out with a hard timeout; tests inject a fake for determinism + cross-platform). [goldenSnapshot.ts](../modules/coding/evaluation/goldenSnapshot.ts) ports `snapshot.py` `prepare_worktree`+`init_git_repo` -- copies a snapshot into a throwaway temp dir (pruning `node_modules`/`.git`/`.worktrees`/`__pycache__`) and `git init`s a clean baseline through an injected, fault-tolerant `GitRunner`. [goldenTaskLoader.ts](../modules/coding/evaluation/goldenTaskLoader.ts) is a dependency-free YAML-subset parser for the fixed `tests/golden/tasks/*.yaml` schema -> `GoldenTaskSpec` (block scalars, escaped double-quoted scalars, flow lists, mapping sequences; fail-closed on unsupported constructs). [GoldenTaskRunner.ts](../modules/coding/evaluation/GoldenTaskRunner.ts) orchestrates materialize -> (dry: skip / live: run the agent) -> evaluate -> scored `GoldenTaskResult`, with a per-task timeout via `AbortController`.
+- **The `AgentDriver` seam.** The Coding-pillar `AgentLoop` is constructible headlessly, but two of its dependencies (`ConversationManager`, the `logger`) import `vscode` and cannot load in a plain-Node CLI -- the same coupling that forced the v1.6.0 A4 `TraceDbReader`. The `no-llm-outside-llm-folder` architecture rule also bars `evaluation/` from importing a concrete `OllamaClient`. So the runner depends on an injected `AgentDriver` interface (mirroring the codebase's existing `WorktreeManager.GitRunner` / `TraceDbReader` injection pattern) rather than importing the loop: the composition root supplies the real driver; the dry path needs none; tests inject a mock; the env-gated live smoke uses the vscode-free `OllamaClient`. This keeps the runner vscode-free, CLI-ready, and architecture-compliant.
+- **Snapshot isolation decision.** Golden snapshots are standalone mini-projects (not committed nested git repos), so the v1.5.0 `WorktreeManager`'s `git worktree add HEAD` model does not apply; the faithful primitive is copy-into-temp + fresh `git init` (so `git diff` / `diff_matches` have a clean baseline and the source snapshot is never mutated).
+- **Tests (45 new).** Unit: criteria evaluator (12), YAML loader against the full 28-task corpus + the escaped-scalar / block-scalar / flow-list / fail-closed paths (13), snapshot materializer (9), runner orchestration incl. dry/live/no-driver/driver-error/timeout (8). Integration: real-snapshot dry-path (fails on the untouched tree -- the "never executed" signal) + mock-live-path (an injected driver mutates the isolated workspace and passes the criteria) (3). Plus an env-gated (`GOLDEN_LIVE_OLLAMA=1`) real-Ollama live smoke that drives the runner's live path through the vscode-free client.
+
+### Verification
+
+- `npm run test`: **4354 passed / 6 skipped / 0 failed** (the 6 skips include the new env-gated live smoke). `npm run lint`: **0 errors**. `tsc -b`: clean.
+- `npm run check-architecture`: **0 errors**, 10 pre-existing warnings (no new orphan/circular; `dep-cruiser-clean` integration test green). `npm run check:tampering`: **0 findings**. `npm run security:check`: in sync.
+- New-module coverage: **97.11% lines / 83.25% branches / 100% functions** (GoldenTaskRunner 100/96.4/100, goldenCriteria 100/82.5/100, goldenSnapshot 100/87.5/100, goldenTaskLoader 93.9/79.5/100), all above the 80/75/80 gate.
+- Local-first / MCP Registry Policy clean: no new dependency (the YAML subset is hand-parsed, consistent with the existing `generate-golden-tasks` regex extractor), no new outbound call or credential.
+- Carryovers recorded in [versions/v1/v1.7.0/known-gaps.md](versions/v1/v1.7.0/known-gaps.md): `SO001.P1.A` (production full-`AgentLoop` driver, deferred), `SO001.P1.B` (no `nexus golden run` CLI yet), `SO001.P1.C` (Windows-native shell-command criteria). README/ARCHITECTURE/CHANGELOG narrative + the npm version tag remain semantic-release-owned and are cut on merge to `main`.
+
+---
+
 ## [2026-06-17] v2.0.0 prep -- forward-tier carryovers resolved + CI green (OF010/OF011 live wiring, ENV audit + catalog, Hub guide sync)
 
 ### Goal

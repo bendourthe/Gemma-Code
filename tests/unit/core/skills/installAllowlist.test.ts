@@ -45,6 +45,12 @@ describe("installAllowlist", () => {
     expect(r.reason).toMatch(/unsupported protocol/);
   });
 
+  it("rejects plain http:// even for an allowlisted host (HTTPS-only)", () => {
+    const r = checkInstallUrl("http://github.com/owner/repo/skill.md");
+    expect(r.ok).toBe(false);
+    expect(r.reason).toMatch(/https:\/\//);
+  });
+
   it("custom allowlist overrides the built-in", () => {
     const ok = checkInstallUrl("https://internal.corp/skill.md", {
       allowlist: ["internal.corp"],

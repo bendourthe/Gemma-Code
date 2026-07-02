@@ -226,6 +226,7 @@ export function getTraceDashboardHtml(
 <body>
   <div id="header">
     <h2>Traces</h2>
+    <button class="btn" id="export-btn" style="display:none;" title="Export this trace as a self-contained, offline HTML file">Export</button>
     <button class="btn" id="refresh-btn">Refresh</button>
   </div>
   <div id="metrics-bar" style="display:none;"></div>
@@ -251,7 +252,11 @@ export function getTraceDashboardHtml(
       const refreshBtn = document.getElementById('refresh-btn');
       const metricsBar = document.getElementById('metrics-bar');
       const cachePanelsEl = document.getElementById('cache-panels');
+      const exportBtn = document.getElementById('export-btn');
       let currentView = 'list';
+      // AS004.P2.B: the trace currently shown in the detail view; the Export
+      // button targets it. null while the list view is active.
+      let currentTraceId = null;
 
       refreshBtn.addEventListener('click', () => {
         vscode.postMessage({ type: 'requestTraceList' });
@@ -261,13 +266,21 @@ export function getTraceDashboardHtml(
         showListView();
       });
 
+      exportBtn.addEventListener('click', () => {
+        if (currentTraceId) {
+          vscode.postMessage({ type: 'exportTrace', traceId: currentTraceId });
+        }
+      });
+
       function showListView() {
         currentView = 'list';
+        currentTraceId = null;
         contentEl.style.display = '';
         waterfallEl.style.display = 'none';
         spanDetailEl.style.display = 'none';
         backBtn.style.display = 'none';
         metricsBar.style.display = 'none';
+        exportBtn.style.display = 'none';
         vscode.postMessage({ type: 'requestTraceList' });
       }
 
@@ -277,6 +290,7 @@ export function getTraceDashboardHtml(
         waterfallEl.style.display = '';
         backBtn.style.display = '';
         spanDetailEl.style.display = 'none';
+        exportBtn.style.display = '';
       }
 
       const formatDate = window.__gemmaWebviewHelpers.formatDate;
@@ -318,6 +332,7 @@ export function getTraceDashboardHtml(
         contentEl.querySelectorAll('.trace-item').forEach(el => {
           el.addEventListener('click', () => {
             const traceId = el.dataset.id;
+            currentTraceId = traceId;
             vscode.postMessage({ type: 'requestTraceDetail', traceId: traceId });
             vscode.postMessage({ type: 'requestTraceMetrics', traceId: traceId });
           });

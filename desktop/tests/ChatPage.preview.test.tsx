@@ -8,6 +8,9 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ChatPage } from "../src/modules/chat/ChatPage";
 import { InMemoryChatExplorerClient } from "../src/modules/chat/chatExplorerClient";
+import type { ChatSessionClient } from "../src/modules/chat/chatIpcClient";
+
+const REPLY = "Assistant reply text";
 
 async function openChatAndSend(): Promise<void> {
   const client = new InMemoryChatExplorerClient();
@@ -17,12 +20,23 @@ async function openChatAndSend(): Promise<void> {
     title: "draft",
     modelId: "gemma4:e4b",
   });
+  const chatSession: ChatSessionClient = {
+    start: async () => ({ sessionId: "s1", modelId: "gemma4:e4b", createdAt: "t" }),
+    sendMessage: async () => ({
+      sessionId: "s1",
+      events: [
+        { kind: "token", text: REPLY },
+        { kind: "done", finishReason: "stop" },
+      ],
+    }),
+  };
   const user = userEvent.setup();
-  render(<ChatPage client={client} />);
+  render(<ChatPage client={client} chatSession={chatSession} />);
   await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
   await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
   const textarea = screen.getByTestId("chat-input-textarea");
   await user.type(textarea, "hello{Enter}");
+  await screen.findByText(REPLY); // wait for the async assistant reply to render
 }
 
 describe("<ChatPage> preview pane", () => {
@@ -34,23 +48,21 @@ describe("<ChatPage> preview pane", () => {
   it("renders the selected message output beside the chat", async () => {
     await openChatAndSend();
     const user = userEvent.setup();
-    // Click the assistant echo bubble to open it in the preview pane.
-    const assistant = screen.getByText(/Echo of your message/);
+    // Click the assistant reply bubble to open it in the preview pane.
+    const assistant = screen.getByText(REPLY);
     await user.click(assistant);
 
     const pane = screen.getByTestId("preview-pane");
     expect(pane).toBeInTheDocument();
     // Both the message list and the preview pane are mounted side-by-side.
     expect(screen.getByTestId("message-list")).toBeInTheDocument();
-    expect(screen.getByTestId("preview-pane-text")).toHaveTextContent(
-      "Echo of your message",
-    );
+    expect(screen.getByTestId("preview-pane-text")).toHaveTextContent(REPLY);
   });
 
   it("closes the pane when the close button is clicked", async () => {
     await openChatAndSend();
     const user = userEvent.setup();
-    await user.click(screen.getByText(/Echo of your message/));
+    await user.click(screen.getByText(REPLY));
     expect(screen.getByTestId("preview-pane")).toBeInTheDocument();
     await user.click(screen.getByTestId("preview-pane-close"));
     expect(screen.queryByTestId("preview-pane")).not.toBeInTheDocument();

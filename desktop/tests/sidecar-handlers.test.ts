@@ -52,6 +52,9 @@ describe("sidecar handlers", () => {
           "coding.memory.snapshot",
           "coding.trace.subscribe",
           "coding.sessions.list",
+          // v1.7.0 wired the Local Chatbot Explorer surface.
+          "chat.session.start",
+          "chat.session.sendMessage",
           // v1.5.0 Phase 5 wired the credential-vault surface.
           "credentials.status",
           "credentials.list",

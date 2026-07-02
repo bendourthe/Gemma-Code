@@ -11,6 +11,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ChatPage } from "../src/modules/chat/ChatPage";
 import { InMemoryChatExplorerClient } from "../src/modules/chat/chatExplorerClient";
+import type { ChatSessionClient } from "../src/modules/chat/chatIpcClient";
 
 describe("<ChatPage>", () => {
   it("renders the empty-state when no chat is active", () => {
@@ -36,18 +37,47 @@ describe("<ChatPage>", () => {
     expect(screen.getByTestId("chat-breadcrumb")).toHaveTextContent("Work");
   });
 
-  it("submitting a message renders a user + echoed assistant bubble", async () => {
+  it("submitting a message renders the user bubble + the streamed assistant reply", async () => {
     const client = new InMemoryChatExplorerClient();
     const folder = client.createFolder({ parentId: null, name: "Work" });
     const chat = client.createChat({ folderId: folder.id, title: "draft", modelId: "gemma4:e4b" });
+    const chatSession: ChatSessionClient = {
+      start: async () => ({ sessionId: "s1", modelId: "gemma4:e4b", createdAt: "t" }),
+      sendMessage: async () => ({
+        sessionId: "s1",
+        events: [
+          { kind: "token", text: "Hi " },
+          { kind: "token", text: "there" },
+          { kind: "done", finishReason: "stop" },
+        ],
+      }),
+    };
     const user = userEvent.setup();
-    render(<ChatPage client={client} />);
+    render(<ChatPage client={client} chatSession={chatSession} />);
     await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
     await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
     const textarea = screen.getByTestId("chat-input-textarea");
     await user.type(textarea, "hello{Enter}");
-    expect(screen.getByText("hello")).toBeInTheDocument();
-    expect(screen.getByText(/Echo of your message/)).toBeInTheDocument();
+    expect(await screen.findByText("hello")).toBeInTheDocument();
+    expect(await screen.findByText("Hi there")).toBeInTheDocument();
+  });
+
+  it("shows an inline notice when the chat backend is unavailable", async () => {
+    const client = new InMemoryChatExplorerClient();
+    const folder = client.createFolder({ parentId: null, name: "Work" });
+    const chat = client.createChat({ folderId: folder.id, title: "draft", modelId: "gemma4:e4b" });
+    const chatSession: ChatSessionClient = {
+      start: async () => {
+        throw new Error("ipc-unavailable");
+      },
+      sendMessage: async () => ({ sessionId: "s1", events: [] }),
+    };
+    const user = userEvent.setup();
+    render(<ChatPage client={client} chatSession={chatSession} />);
+    await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
+    await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
+    await user.type(screen.getByTestId("chat-input-textarea"), "hello{Enter}");
+    expect(await screen.findByText(/chat unavailable/)).toBeInTheDocument();
   });
 
   it("tools are disabled by default and toggleable per chat", async () => {

@@ -15,8 +15,13 @@
  *   4. Compute a content hash over the checked-out tree.
  *   5. Write `manifest.json` describing the bundle.
  *   6. Diff against the currently-active tag's manifest.
- *   7. If `--apply`, rename the tmp dir to the active dir and update the
- *      active-tag pointer (`~/.nexus/skills/devai-hub/ACTIVE`).
+ *   7. Cross-verify the cloned files against the Hub's published
+ *      `MANIFEST.sha256` (rides inside the release tag) -- ADVISORY: the result
+ *      is surfaced but does not block (the upstream manifest is not currently
+ *      EOL-deterministic). The injection scanner remains the fail-closed gate.
+ *   8. If `--apply` (and the scan did not block), rename the tmp dir to the
+ *      active dir and update the active-tag pointer
+ *      (`~/.nexus/skills/devai-hub/ACTIVE`).
  *
  * Tarball fallback: when git is unavailable the syncer downloads
  * `archive/refs/tags/<tag>.tar.gz` and extracts it.
@@ -28,6 +33,7 @@ import * as path from "node:path";
 import { createHash } from "node:crypto";
 
 import { PromptInjectionScanner, type ScanResult } from "./PromptInjectionScanner.js";
+import { HUB_SKILL_SCAN_ALLOWLIST } from "./hubSkillScanAllowlist.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -110,6 +116,24 @@ export interface ManifestDiff {
   readonly removed: readonly string[];
 }
 
+/**
+ * Result of cross-verifying a synced bundle against the Hub's published
+ * `MANIFEST.sha256` (a standard `sha256sum` text file that rides inside the
+ * release tag, per Nexus-Hub v3.6.0/v3.10.0). This is supply-chain integrity
+ * *evidence*: it confirms the files we actually cloned hash to what the release
+ * authoritatively published. It is scoped to the sparse subset we fetch --
+ * manifest entries for files outside that subset are simply not checked, so an
+ * intentionally-unsynced file is never reported as a problem.
+ */
+export interface ManifestVerification {
+  /** `false` when the release ships no `MANIFEST.sha256` (older tags). A no-op. */
+  readonly present: boolean;
+  /** Number of cloned files that appeared in the manifest and were hashed. */
+  readonly checked: number;
+  /** relPaths whose on-disk SHA-256 did not match the published manifest. */
+  readonly mismatched: readonly string[];
+}
+
 export interface SyncResult {
   readonly tag: string;
   readonly tmpDir: string;
@@ -130,6 +154,13 @@ export interface SyncResult {
    * they never block the sync because the on-disk tree is authoritative.
    */
   readonly indexConsistency: IndexConsistency | null;
+  /**
+   * Cross-verification of the cloned files against the Hub's published
+   * `MANIFEST.sha256`. ADVISORY only -- it never blocks `--apply` (the current
+   * upstream manifest is not EOL-deterministic; see the note in `sync`). A
+   * non-empty `mismatched` list is surfaced for operator review, not enforced.
+   */
+  readonly manifestVerification: ManifestVerification;
 }
 
 // ---------------------------------------------------------------------------
@@ -147,6 +178,31 @@ export const DEFAULT_UPSTREAM = "bendourthe/Nexus-Hub";
 export function defaultSkillsRoot(): string {
   return path.join(os.homedir(), ".nexus", "skills");
 }
+
+/**
+ * Sparse-checkout paths fetched from a Hub release. These MUST be directory
+ * paths: git's cone-mode sparse-checkout (>= 2.36) rejects a file argument with
+ * `fatal: '<path>' is not a directory` (older git only warned, so a file arg
+ * here silently broke a live sync on any modern git). Two consequences:
+ *   - `data` (the directory) is listed, not `data/skills.json` (the file), so
+ *     the Hub skill index still lands in the bundle (HUB.P3.DATA).
+ *   - The Hub v3.10.0 release `MANIFEST.sha256` is NOT listed: it lives at the
+ *     repo root, and cone mode always checks out files in the repo root
+ *     automatically -- that is how `verifyReleaseManifest` gets the manifest
+ *     without a (rejected) file argument.
+ */
+export const HUB_SPARSE_CHECKOUT_PATHS: readonly string[] = Object.freeze([
+  "catalog/skills",
+  "catalog/commands",
+  "catalog/agents",
+  // v1.5.0 Phase 7 (HUB.P3.HOOK): Hub hook scripts for the HubHookInstaller.
+  "catalog/hooks",
+  "catalog/rules",
+  "rules",
+  // The `data` directory carries the Hub skill index (`data/skills.json`).
+  "data",
+  "extensions",
+]);
 
 /**
  * Path of the file that names the currently-active DevAI-Hub tag. The
@@ -364,6 +420,74 @@ export function buildManifestWithIndex(
 }
 
 // ---------------------------------------------------------------------------
+// Release-manifest verification (supply-chain integrity)
+// ---------------------------------------------------------------------------
+
+/** Path of the Hub's published `MANIFEST.sha256` inside a synced bundle. */
+export function releaseManifestPath(bundleDir: string): string {
+  return path.join(bundleDir, "MANIFEST.sha256");
+}
+
+/**
+ * Parse a standard `sha256sum` text manifest into a `relPath -> lowercase-hash`
+ * map. Each line is `<64-hex-hash><space><space|*><relpath>` (two spaces is
+ * text mode, ` *` is binary mode). Blank lines and lines that do not match are
+ * skipped. Paths are normalized to forward slashes.
+ */
+export function parseSha256Manifest(text: string): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trimEnd();
+    if (!line) continue;
+    const m = /^([0-9a-fA-F]{64}) [ *](.+)$/.exec(line);
+    if (!m) continue;
+    const hash = m[1]!.toLowerCase();
+    const relPath = m[2]!.replace(/\\/g, "/");
+    out.set(relPath, hash);
+  }
+  return out;
+}
+
+/**
+ * Cross-verify a synced bundle against the Hub's published `MANIFEST.sha256`.
+ *
+ * Iterates the *manifest entries* (not the clone) so bundle artifacts that are
+ * not part of the release -- the `.git` dir, our own `manifest.json` -- are
+ * never considered. For each manifest entry whose file exists in the clone
+ * (the sparse subset we fetched), the on-disk SHA-256 is compared to the
+ * published hash. Entries whose files are outside the sparse subset are skipped
+ * (they were intentionally not fetched, not tampered). Best-effort and
+ * throw-free: a missing or unreadable manifest degrades to `present: false`.
+ */
+export function verifyReleaseManifest(bundleDir: string): ManifestVerification {
+  let text: string;
+  try {
+    text = fs.readFileSync(releaseManifestPath(bundleDir), "utf-8");
+  } catch {
+    return { present: false, checked: 0, mismatched: [] };
+  }
+  const entries = parseSha256Manifest(text);
+  let checked = 0;
+  const mismatched: string[] = [];
+  for (const [relPath, expected] of entries) {
+    const full = path.join(bundleDir, relPath);
+    let buf: Buffer;
+    try {
+      if (!fs.statSync(full).isFile()) continue;
+      buf = fs.readFileSync(full);
+    } catch {
+      // Not in the sparse subset (or unreadable): not fetched, so not checked.
+      continue;
+    }
+    checked += 1;
+    const actual = createHash("sha256").update(buf).digest("hex");
+    if (actual !== expected) mismatched.push(relPath);
+  }
+  mismatched.sort();
+  return { present: true, checked, mismatched };
+}
+
+// ---------------------------------------------------------------------------
 // Active-tag pointer
 // ---------------------------------------------------------------------------
 
@@ -449,24 +573,16 @@ async function defaultSparseClone(upstream: string, tag: string, destDir: string
   ];
   const clone = spawnSync("git", cloneArgs, { stdio: "ignore" });
   if (clone.status !== 0) throw new Error(`git clone failed (exit ${clone.status ?? "?"})`);
+  // Check out canonical LF content. The Hub commits LF blobs under `* text=auto`,
+  // so a Windows CRLF smudge on checkout would corrupt byte-faithfulness versus
+  // the release tarball + MANIFEST.sha256. Persist the settings in the clone's
+  // config so the sparse-checkout below (which is what actually materializes the
+  // files) honors them. Best-effort: a failure here just falls back to native EOL.
+  spawnSync("git", ["-C", destDir, "config", "core.autocrlf", "false"], { stdio: "ignore" });
+  spawnSync("git", ["-C", destDir, "config", "core.eol", "lf"], { stdio: "ignore" });
   const sparse = spawnSync(
     "git",
-    [
-      "-C",
-      destDir,
-      "sparse-checkout",
-      "set",
-      "catalog/skills",
-      "catalog/commands",
-      "catalog/agents",
-      // v1.5.0 Phase 7 (HUB.P3.HOOK): pull the Hub hook scripts so the
-      // HubHookInstaller can install them from a synced bundle.
-      "catalog/hooks",
-      "catalog/rules",
-      "rules",
-      "data/skills.json",
-      "extensions/",
-    ],
+    ["-C", destDir, "sparse-checkout", "set", ...HUB_SPARSE_CHECKOUT_PATHS],
     { stdio: "ignore" },
   );
   if (sparse.status !== 0) throw new Error(`git sparse-checkout failed (exit ${sparse.status ?? "?"})`);
@@ -533,7 +649,11 @@ export class DevAIHubSyncer {
     this._skillsRoot = options.skillsRoot ?? defaultSkillsRoot();
     this._upstream = options.upstream ?? DEFAULT_UPSTREAM;
     this._deps = options.deps ?? defaultDependencies(this._upstream);
-    this._scanner = options.scanner ?? new PromptInjectionScanner();
+    // The default scanner carries the reviewed Hub-skill allowlist (HUB310.SCAN):
+    // the pinned devai-hub source is a trusted producer catalog whose security
+    // skills contain the patterns they teach. Untrusted third-party imports
+    // (SkillInstaller) construct their own scanner with no suppressions.
+    this._scanner = options.scanner ?? new PromptInjectionScanner(undefined, HUB_SKILL_SCAN_ALLOWLIST);
   }
 
   /**
@@ -571,6 +691,7 @@ export class DevAIHubSyncer {
         activeDir: candidateDir,
         // Nothing was re-fetched, so no fresh index check is performed.
         indexConsistency: null,
+        manifestVerification: { present: false, checked: 0, mismatched: [] },
       };
     }
 
@@ -596,6 +717,18 @@ export class DevAIHubSyncer {
     const scan = scanBundleDir(skillsDir, this._scanner);
     const diff = diffManifests(activeManifest, manifest);
 
+    // Supply-chain integrity: verify the cloned files against the Hub's
+    // published MANIFEST.sha256 (rides inside the release tag). This is
+    // ADVISORY, not fail-closed: the current Hub manifest is not EOL-
+    // deterministic (it was generated from a Windows working tree, so some
+    // entries are hashed over CRLF and some over LF), which makes a byte-level
+    // match against any single git checkout unreliable. Blocking on it would
+    // reject every legitimate sync. We still compute + surface the result so
+    // the operator can review it, and so it becomes a hard signal automatically
+    // once the Hub publishes a deterministic (LF) manifest. The injection
+    // scanner remains the fail-closed content gate. (Gap: HUB310.4.2.ADV.)
+    const manifestVerification = verifyReleaseManifest(tmpDir);
+
     let applied = false;
     let appliedActiveDir: string | null = null;
     if (options.apply && scan.decision !== "block") {
@@ -620,6 +753,7 @@ export class DevAIHubSyncer {
       applied,
       activeDir: applied ? appliedActiveDir : activeDir,
       indexConsistency,
+      manifestVerification,
     };
   }
 }

@@ -31,15 +31,16 @@ export interface PathExplanation {
  */
 export class GraphQueryEngine {
   private readonly _graphMemory: GraphMemory;
-  private readonly _embedder: EmbeddingClient | null;
   private readonly _entityExtractor: EntityExtractor;
 
   constructor(
     graphMemory: GraphMemory,
-    embedder?: EmbeddingClient | null,
+    // Reserved for future semantic scoring; accepted for constructor-API
+    // compatibility but not currently read (underscore-prefixed so the unused
+    // parameter is intentional). The dead `_embedder` field was removed.
+    _embedder?: EmbeddingClient | null,
   ) {
     this._graphMemory = graphMemory;
-    this._embedder = embedder ?? null;
     this._entityExtractor = new EntityExtractor();
   }
 

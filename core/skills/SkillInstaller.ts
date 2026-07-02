@@ -24,6 +24,7 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { createHash } from "node:crypto";
 
 import { PromptInjectionScanner, type ScanResult } from "./PromptInjectionScanner.js";
 import { checkInstallUrl, type AllowlistOptions } from "./installAllowlist.js";
@@ -64,6 +65,15 @@ export interface InstallResult {
   readonly ok: boolean;
   /** Absolute path of the written SKILL.md when `ok === true`. */
   readonly writtenTo?: string;
+  /**
+   * SHA-256 (hex) over the fetched SKILL.md body -- "hash-on-import", per the
+   * Nexus-Hub v3.6.0 `/skills import` hygiene gate. Present whenever the source
+   * was fetched (on success and on a scanner block), so the operator can record
+   * exactly what content was imported (or rejected). Absent on pre-fetch
+   * failures (`wrong-namespace` / `invalid-url` / `path-traversal` / `exists` /
+   * `fetch-failed`).
+   */
+  readonly contentHash?: string;
   /** Scanner verdict (recorded even on success so the CLI can render warnings). */
   readonly scan: ScanResult;
   /** Reason code when `ok === false`. */
@@ -228,11 +238,17 @@ export async function installSkill(
     };
   }
 
+  // Hash-on-import: record the SHA-256 of exactly what was fetched, before the
+  // scan/write decisions, so the value is available on both the block and the
+  // success path.
+  const contentHash = createHash("sha256").update(content, "utf-8").digest("hex");
+
   const scanner = opts.scanner ?? new PromptInjectionScanner();
   const scan = scanner.scanText(content, `${spec.namespace}/${spec.name}/SKILL.md`);
   if (scan.decision === "block") {
     return {
       ok: false,
+      contentHash,
       scan,
       reason: "scanner-blocked",
       message: `injection scanner blocked the install (${scan.findings.length} finding(s))`,
@@ -245,6 +261,7 @@ export async function installSkill(
   return {
     ok: true,
     writtenTo: targetFile,
+    contentHash,
     scan,
   };
 }
