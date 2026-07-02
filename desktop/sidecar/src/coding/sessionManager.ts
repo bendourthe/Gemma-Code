@@ -21,6 +21,7 @@ import {
   IpcMethodError,
 } from "../protocol.js";
 import { requireModel, type SidecarModelEntry } from "./models.js";
+import type { AgentRunner } from "./headlessAgentRunner.js";
 import type { PersistedSession, SessionStore } from "./sessionStore.js";
 
 interface SessionRecord {
@@ -30,6 +31,8 @@ interface SessionRecord {
   createdAt: string;
   messages: string[];
   cancelRequested: boolean;
+  /** v1.7.0 -- project root the headless agent's tools are scoped to (in-memory). */
+  workspacePath?: string;
 }
 
 export class CodingSessionManager {
@@ -37,13 +40,25 @@ export class CodingSessionManager {
   private readonly _now: () => Date;
   private readonly _idFactory: () => string;
   private readonly _store: SessionStore | undefined;
+  private readonly _agentRunner: AgentRunner | undefined;
 
   constructor(
-    opts: { now?: () => Date; idFactory?: () => string; store?: SessionStore } = {},
+    opts: {
+      now?: () => Date;
+      idFactory?: () => string;
+      store?: SessionStore;
+      /**
+       * v1.7.0 -- production agent runner over the headless runtime. When
+       * injected, `sendMessage` drives a real agent turn; when omitted (tests,
+       * bare dev), it falls back to the deterministic placeholder event stream.
+       */
+      agentRunner?: AgentRunner;
+    } = {},
   ) {
     this._now = opts.now ?? (() => new Date());
     this._idFactory = opts.idFactory ?? (() => randomUUID());
     this._store = opts.store;
+    this._agentRunner = opts.agentRunner;
     // v1.5.0 Phase 5 (item 26): hydrate from the shared store so a session
     // started in another surface (e.g. the CLI) is visible + resumable here.
     if (this._store) {
@@ -85,6 +100,7 @@ export class CodingSessionManager {
       createdAt,
       messages: [],
       cancelRequested: false,
+      workspacePath: req.workspacePath,
     };
     this._sessions.set(id, rec);
     this._persist(rec);
@@ -96,14 +112,27 @@ export class CodingSessionManager {
     };
   }
 
-  sendMessage(sessionId: string, message: string): readonly CodingSessionEventT[] {
+  async sendMessage(
+    sessionId: string,
+    message: string,
+  ): Promise<readonly CodingSessionEventT[]> {
     const rec = this._requireSession(sessionId, "coding.session.sendMessage");
     rec.cancelRequested = false;
     rec.messages.push(message);
     this._persist(rec);
-    // Phase 3 placeholder: produce a deterministic event stream so the shell,
-    // protocol tests, and frontend can render the full union. A future
-    // commit hooks NexusCodingRuntime in here.
+    // v1.7.0: when a production agent runner is injected, drive a real headless
+    // agent turn (scoped to the session's workspace). The persist above is
+    // synchronous, so a fire-and-forget caller still records the message.
+    if (this._agentRunner) {
+      return this._agentRunner({
+        sessionId: rec.id,
+        message,
+        model: rec.model,
+        workspacePath: rec.workspacePath,
+      });
+    }
+    // Fallback (tests / bare dev): a deterministic placeholder event stream so
+    // the shell, protocol tests, and frontend can render the full union.
     const events: CodingSessionEventT[] = [
       { kind: "token", text: `Acknowledged: ${message.slice(0, 80)}` },
       {

@@ -117,7 +117,7 @@ export const handlers: Record<Method, HandlerFn> = {
   },
   "coding.session.sendMessage": async (params, ctx) => {
     const req = CodingSessionSendMessageRequest.parse(params ?? {});
-    const events = ctx.sessions.sendMessage(req.sessionId, req.message);
+    const events = await ctx.sessions.sendMessage(req.sessionId, req.message);
     return { sessionId: req.sessionId, events };
   },
   "coding.session.cancel": async (params, ctx) => {

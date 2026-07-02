@@ -70,6 +70,10 @@ export const CodingSessionStartRequest = z
   .object({
     modelId: z.string().min(1),
     title: z.string().max(200).optional(),
+    // v1.7.0 -- optional project root the headless agent's file/terminal tools
+    // are scoped to. When omitted, the sidecar falls back to NEXUS_WORKSPACE or
+    // its cwd. Additive + optional, so existing callers are unaffected.
+    workspacePath: z.string().min(1).optional(),
   })
   .strict();
 export type CodingSessionStartRequestT = z.infer<typeof CodingSessionStartRequest>;

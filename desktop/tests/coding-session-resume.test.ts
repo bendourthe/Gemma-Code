@@ -34,7 +34,7 @@ afterEach(() => {
 });
 
 describe("CodingSessionManager -- cross-surface resume (item 26)", () => {
-  it("a session started in one surface resumes with intact history in another", () => {
+  it("a session started in one surface resumes with intact history in another", async () => {
     const storePath = tempStorePath("xsurface");
 
     // Surface A ("CLI"): start a session and send two messages.
@@ -46,8 +46,8 @@ describe("CodingSessionManager -- cross-surface resume (item 26)", () => {
       store: new JsonFileSessionStore(storePath),
     });
     const started = cli.start({ modelId: "gemma4:e4b", title: "Shared work" });
-    cli.sendMessage(started.sessionId, "first message");
-    cli.sendMessage(started.sessionId, "second message");
+    await cli.sendMessage(started.sessionId, "first message");
+    await cli.sendMessage(started.sessionId, "second message");
 
     // Surface B ("desktop"): a brand-new manager + store over the same file.
     const desktop = new CodingSessionManager({
@@ -66,14 +66,14 @@ describe("CodingSessionManager -- cross-surface resume (item 26)", () => {
     expect(resumed.messages).toEqual(["first message", "second message"]);
   });
 
-  it("messages appended after resume persist back to the shared store", () => {
+  it("messages appended after resume persist back to the shared store", async () => {
     const storePath = tempStorePath("append");
     const cli = new CodingSessionManager({ store: new JsonFileSessionStore(storePath) });
     const started = cli.start({ modelId: "gemma4:e4b" });
-    cli.sendMessage(started.sessionId, "from cli");
+    await cli.sendMessage(started.sessionId, "from cli");
 
     const desktop = new CodingSessionManager({ store: new JsonFileSessionStore(storePath) });
-    desktop.sendMessage(started.sessionId, "from desktop");
+    await desktop.sendMessage(started.sessionId, "from desktop");
 
     // A third surface sees both turns.
     const third = new CodingSessionManager({ store: new JsonFileSessionStore(storePath) });

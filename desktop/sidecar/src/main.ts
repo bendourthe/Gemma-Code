@@ -3,6 +3,8 @@
 // Rust core (desktop/src-tauri/src/sidecar.rs) owns the lifecycle.
 
 import { createInterface } from "node:readline";
+import { CodingSessionManager } from "./coding/sessionManager.js";
+import { createHeadlessAgentRunner } from "./coding/headlessAgentRunner.js";
 import { createHandlerContext, dispatch } from "./handlers.js";
 import { warmUpTreeSitter } from "./treeSitterWarmup.js";
 
@@ -25,7 +27,14 @@ interface JsonRpcResponseErr {
   error: { code: number; message: string };
 }
 
-const ctx = createHandlerContext({ pid: process.pid, platform: process.platform });
+// v1.7.0: drive the Coding pillar with the real headless agent runtime (the
+// agent's tools are scoped to the session's workspacePath, or NEXUS_WORKSPACE /
+// cwd). Tests and bare `createHandlerContext()` callers keep the placeholder.
+const sessions = new CodingSessionManager({ agentRunner: createHeadlessAgentRunner() });
+const ctx = createHandlerContext(
+  { pid: process.pid, platform: process.platform },
+  sessions,
+);
 
 function write(payload: JsonRpcResponseOk | JsonRpcResponseErr): void {
   process.stdout.write(`${JSON.stringify(payload)}\n`);
