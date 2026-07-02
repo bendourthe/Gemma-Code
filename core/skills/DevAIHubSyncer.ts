@@ -33,6 +33,7 @@ import * as path from "node:path";
 import { createHash } from "node:crypto";
 
 import { PromptInjectionScanner, type ScanResult } from "./PromptInjectionScanner.js";
+import { HUB_SKILL_SCAN_ALLOWLIST } from "./hubSkillScanAllowlist.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -648,7 +649,11 @@ export class DevAIHubSyncer {
     this._skillsRoot = options.skillsRoot ?? defaultSkillsRoot();
     this._upstream = options.upstream ?? DEFAULT_UPSTREAM;
     this._deps = options.deps ?? defaultDependencies(this._upstream);
-    this._scanner = options.scanner ?? new PromptInjectionScanner();
+    // The default scanner carries the reviewed Hub-skill allowlist (HUB310.SCAN):
+    // the pinned devai-hub source is a trusted producer catalog whose security
+    // skills contain the patterns they teach. Untrusted third-party imports
+    // (SkillInstaller) construct their own scanner with no suppressions.
+    this._scanner = options.scanner ?? new PromptInjectionScanner(undefined, HUB_SKILL_SCAN_ALLOWLIST);
   }
 
   /**

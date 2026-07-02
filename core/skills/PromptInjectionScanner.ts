@@ -56,6 +56,24 @@ interface Rule {
 }
 
 /**
+ * A reviewed waiver for a single known-safe (source, rule) match. Used to
+ * suppress documented false positives in a TRUSTED producer catalog (e.g. the
+ * pinned Nexus-Hub sync source, whose security-education skills legitimately
+ * contain the very patterns they teach). Deliberately narrow: a suppression
+ * waives exactly one rule for one source, so a NEW / different injection
+ * pattern in an allowlisted skill still blocks. Never applied to untrusted
+ * third-party imports.
+ */
+export interface ScanSuppression {
+  /** The scanned source path ends with this (catalog-relative) path. */
+  readonly source: string;
+  /** The specific rule id waived for that source. */
+  readonly ruleId: string;
+  /** Why the match is a known false positive (audit trail). */
+  readonly reason: string;
+}
+
+/**
  * Built-in pattern set. Each rule is a single case-insensitive regex; the
  * scanner walks the content line-by-line so the line number is precise.
  *
@@ -157,10 +175,29 @@ const RULES: readonly Rule[] = [
 
 export class PromptInjectionScanner {
   private readonly _rules: readonly Rule[];
+  private readonly _suppressions: readonly ScanSuppression[];
 
-  /** Optional custom rule set for tests; defaults to the built-in `RULES`. */
-  constructor(rules: readonly Rule[] = RULES) {
+  /**
+   * @param rules Optional custom rule set for tests; defaults to the built-in
+   *   `RULES`. Pass `undefined` to keep the defaults while supplying suppressions.
+   * @param suppressions Reviewed (source, rule) waivers for a trusted producer
+   *   catalog (see `ScanSuppression`). Empty by default -- untrusted callers
+   *   (e.g. third-party skill install) get the fully-strict scanner.
+   */
+  constructor(
+    rules: readonly Rule[] = RULES,
+    suppressions: readonly ScanSuppression[] = [],
+  ) {
     this._rules = rules;
+    this._suppressions = suppressions;
+  }
+
+  /** True when `(source, ruleId)` is a reviewed, allowlisted false positive. */
+  private _isSuppressed(source: string, ruleId: string): boolean {
+    const norm = source.replace(/\\/g, "/");
+    return this._suppressions.some(
+      (s) => s.ruleId === ruleId && norm.endsWith(s.source.replace(/\\/g, "/")),
+    );
   }
 
   scanText(content: string, source: string): ScanResult {
@@ -173,6 +210,9 @@ export class PromptInjectionScanner {
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i] ?? "";
         if (rule.pattern.test(line)) {
+          // A reviewed allowlist entry waives this exact rule for this source
+          // (trusted producer catalog only); a different rule still fires.
+          if (this._isSuppressed(source, rule.id)) break;
           findings.push({
             ruleId: rule.id,
             severity: rule.severity,

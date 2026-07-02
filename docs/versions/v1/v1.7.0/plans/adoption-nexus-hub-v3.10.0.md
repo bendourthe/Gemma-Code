@@ -1,7 +1,8 @@
 # Nexus-Hub Adoption Comparison + Plan (Hub v3.10.0)
 
-**Date**: 2026-07-01
-**Type**: Comparison + adoption plan (report only -- no code changes made)
+**Date**: 2026-07-01 (plan) / 2026-07-02 (executed)
+**Status**: **COMPLETE** -- Phase 0 (runtime sync) done: the active `devai-hub` bundle is rotated to v3.10.0 (259 skills; the 2 v1.5.0-carryforward skills now present). Phase 1 (hardening) delivered. Phase 2 deferred by design (demand-gated). Open items are upstream-gated (`HUB310.4.2.ADV`, `HUB310.HUBSIDE`) or demand-gated (`HUB310.T2`); all recorded in [../known-gaps.md](../known-gaps.md).
+**Type**: Comparison + adoption plan (started report-only; Phases 0-1 subsequently executed with code + a live sync)
 **Hub snapshot**: `bendourthe/Nexus-Hub` v3.10.0 (released 2026-06-30) -- 259 skills / 16 commands / 23 agents / 25 hooks / 10 MCP servers (4 internal + 6 vendor-intrinsic)
 **Nexus-AI snapshot**: v2.0.0, branch `feat/v1.7.0-phase-1-golden-runner`; last Hub integration cycle v1.5.0 Phase 7 (T023), which wired all six non-skill surfaces
 **Predecessor**: [../../v1.5.0/development/nexus-hub-integration-delta.md](../../v1.5.0/development/nexus-hub-integration-delta.md)
@@ -120,11 +121,11 @@ Verdict legend: **SYNC** = flows via runtime `nexus skills sync` through an alre
 
 ## 5. Phased adoption plan
 
-**Phase 0 -- Runtime sync + compatibility check (no code, do first, does not block release)**
-1. Point the syncer at v3.10.0 and run `nexus skills sync` (dry-run) to produce the manifest diff.
-2. Run the consumer shape-compatibility check (4.1 precondition) against the v3.10.0 bundle.
-3. If clean, `nexus skills sync --apply`. This resolves the v1.5.0 carryforwards `1.1.P3.B` / `T023.P3.A` (the 2 skills are now released) and pulls all v3.4.0 -> v3.10.0 catalog content through the wired consumers.
-- **Exit**: a synced v3.10.0 bundle active; any shape drift captured as a Tier 1 consumer patch.
+**Phase 0 -- Runtime sync + compatibility check -- DONE 2026-07-02**
+1. Compatibility check: a cross-repo sweep confirmed all six wired parsers handle v3.10.0 content unchanged -- **CLEAN**, no consumer patch needed.
+2. The cone-mode + canonical-LF sparse-checkout fix (see Phase 1 / `HUB310.4.2.ADV`) let a live sync actually fetch all 259 skills.
+3. `nexus skills sync --apply --tag v3.10.0` was run and **applied**: the active bundle is now `~/.nexus/skills/devai-hub/v3.10.0` (259 skills; `direct-corpus-interaction` + `agent-presets` present), which required the `HUB310.SCAN` scanner allowlist to clear 9 security-education false positives first.
+- **Exit MET**: v3.10.0 bundle active; resolves the v1.5.0 carryforwards `1.1.P3.B` / `T023.P3.A`. No shape drift found.
 
 **Phase 1 -- Supply-chain + import hardening (small code) -- DELIVERED 2026-07-02**
 1. Cross-verify the cloned bundle against the Hub's published SHA-256 release manifest in `DevAIHubSyncer`. (4.2) -- **DONE (advisory)**: `verifyReleaseManifest` / `parseSha256Manifest`, `manifestVerification` on `SyncResult`, concise CLI reporting. Made **advisory rather than fail-closed** after live validation proved the upstream `MANIFEST.sha256` is not EOL-deterministic (mixed CRLF/LF hashes -> ~45% false-positive mismatch against any git checkout; `HUB310.4.2.ADV`); a fail-closed gate would reject every sync. The live run also surfaced and fixed a pre-existing sparse-checkout bug (git >= 2.36 cone mode rejects file args) and added a canonical-LF checkout: the syncer now uses a directory-only `HUB_SPARSE_CHECKOUT_PATHS`, relies on cone-mode root-file inclusion for `MANIFEST.sha256`, and clones with `core.autocrlf=false` / `core.eol=lf`.
@@ -132,10 +133,10 @@ Verdict legend: **SYNC** = flows via runtime `nexus skills sync` through an alre
 - **Exit MET**: sync computes an advisory integrity report against the release manifest (fail-closed deferred to `HUB310.4.2.ADV` pending a deterministic upstream manifest); imports are HTTPS-only + content-hashed; the cone-mode + LF checkout fix makes a real live sync fetch all 259 skills. All static gates green (`tsc -b`, lint, check-architecture 0 errors, tampering / catalog / security / prod-audit clean). The live sync surfaced two Tier 0 blockers (`HUB310.SCAN` injection-scanner on Hub security skills; `HUB310.4.2.ADV` non-deterministic manifest). Delivered on branch `feat/hub-v3.10.0-adoption-hardening` off `develop`.
 - **Not adopted (SKIP, recorded):** the v3.6.0 `install_allowed` per-skill frontmatter flag -- it is a Hub-authoring convention; Nexus-AI's ingest is HTTPS-only + injection-scanned + content-hashed, so honoring an upstream opt-in flag adds little and is deferred unless demand appears.
 
-**Phase 2 -- Optional product features (evaluate, deferred)**
-1. Assess in-product `model-routing` for local model auto-selection. (4.4)
-2. Re-confirm `extensions/` coverage; adopt only a specifically-missing capability. (4.5)
-- **Exit**: a go/defer decision recorded; no work unless demand justifies it.
+**Phase 2 -- Optional product features -- DEFERRED (disposition recorded)**
+1. In-product `model-routing` for local model auto-selection (4.4): **DEFER** -- the skill itself flows via the Phase 0 sync; an in-product router is optional polish over a small fixed local model set. Revisit on demand (`HUB310.T2`).
+2. `extensions/` MCP coverage (4.5): **DEFER** -- Nexus-AI already ships in-process equivalents; no specifically-missing capability found in v3.4.0 -> v3.10.0.
+- **Exit MET**: go/defer decision recorded (defer); no code unless demand justifies it.
 
 **Housekeeping (deferred)**: `HUB.P3.NS` namespace rename in a dedicated cycle if the naming drift becomes confusing.
 
