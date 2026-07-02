@@ -121,6 +121,19 @@ export async function runSkillsSync(flags, stdout = process.stdout, stderr = pro
     }
     return 1;
   }
+  const mv = result.manifestVerification;
+  if (mv.present && mv.mismatched.length > 0) {
+    stderr.write(
+      `nexus skills sync: blocked by MANIFEST.sha256 mismatch (${mv.mismatched.length} file(s) differ from the published release)\n`,
+    );
+    for (const rel of mv.mismatched) {
+      stderr.write(`  MODIFIED ${rel}\n`);
+    }
+    return 1;
+  }
+  if (mv.present) {
+    stdout.write(`  verified ${mv.checked} file(s) against MANIFEST.sha256\n`);
+  }
   if (result.scan.decision === "warn") {
     stderr.write(
       `nexus skills sync: ${result.scan.findings.length} warning(s) from injection scanner\n`,
@@ -204,6 +217,9 @@ export async function runSkillsInstall(args, stdout = process.stdout, stderr = p
   });
   if (result.ok) {
     stdout.write(`nexus skills install: wrote ${result.writtenTo}\n`);
+    if (result.contentHash) {
+      stdout.write(`  sha256: ${result.contentHash}\n`);
+    }
     if (result.scan && result.scan.decision === "warn") {
       stderr.write(
         `nexus skills install: ${result.scan.findings.length} scanner warning(s) recorded (install allowed).\n`,

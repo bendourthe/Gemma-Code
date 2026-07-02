@@ -12,6 +12,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { pathToFileURL } from "node:url";
+import { createHash } from "node:crypto";
 
 import {
   installSkill,
@@ -162,6 +163,37 @@ describe("installSkill", () => {
     expect(result.scan.decision).toBe("block");
     expect(result.scan.findings.length).toBeGreaterThan(0);
     expect(fs.existsSync(path.resolve(root, "user", "poisoned"))).toBe(false);
+  });
+
+  it("records a SHA-256 contentHash of the fetched body on success (hash-on-import)", async () => {
+    const result = await installSkill(
+      { namespace: "user", name: "hashed" },
+      {
+        url: "https://github.com/owner/repo/raw/main/SKILL.md",
+        skillsRoot: root,
+        fetcher: inMemoryFetcher(CLEAN_SKILL),
+      },
+    );
+    expect(result.ok).toBe(true);
+    expect(result.contentHash).toBe(
+      createHash("sha256").update(CLEAN_SKILL, "utf-8").digest("hex"),
+    );
+  });
+
+  it("still records the contentHash when the scanner blocks the install", async () => {
+    const result = await installSkill(
+      { namespace: "user", name: "poisoned-hash" },
+      {
+        url: "https://github.com/owner/repo/raw/main/SKILL.md",
+        skillsRoot: root,
+        fetcher: inMemoryFetcher(POISONED_SKILL),
+      },
+    );
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe("scanner-blocked");
+    expect(result.contentHash).toBe(
+      createHash("sha256").update(POISONED_SKILL, "utf-8").digest("hex"),
+    );
   });
 
   it("refuses to overwrite an existing skill unless overwrite is set", async () => {

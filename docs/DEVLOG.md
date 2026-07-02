@@ -4,6 +4,37 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-02] Nexus-Hub v3.10.0 adoption -- Phase 1 supply-chain + import hardening (HUB310.4.2 / 4.3a / 4.3b)
+
+### Goal
+
+Act on the Nexus-Hub v3.10.0 adoption evaluation ([docs/versions/v1/v1.7.0/plans/adoption-nexus-hub-v3.10.0.md](versions/v1/v1.7.0/plans/adoption-nexus-hub-v3.10.0.md)). The evaluation found the six Hub consumption surfaces already wired (v1.5.0 Phase 7), so "adopting v3.10.0" is a runtime sync plus a small, policy-clean hardening phase -- not new plumbing. **Phase 0 compatibility gate** (a cross-repo sweep of v3.10.0 content against the six wired parsers) came back **CLEAN**: no consumer patch needed. This closes **Phase 1** (the code phase).
+
+### What changed (all local-only, zero new outbound calls / credentials)
+
+- **4.2 -- release-manifest verification** ([DevAIHubSyncer.ts](../core/skills/DevAIHubSyncer.ts)). The Hub v3.10.0 publishes a `MANIFEST.sha256` (standard `sha256sum` text) that rides at the repo root inside the release tag. Added `parseSha256Manifest` + `verifyReleaseManifest` (iterates manifest entries, hashes each cloned file in the sparse subset, ignores entries outside it, never flags clone artifacts like `.git`), added `MANIFEST.sha256` to the sparse-checkout, added `manifestVerification` to `SyncResult`, and made `--apply` **fail closed** on a hash mismatch (like an injection-scan block). A release with no manifest is a graceful no-op. The `nexus skills sync` CLI now prints `verified N file(s)` or a `MODIFIED` block.
+- **4.3a -- HTTPS-only import** ([installAllowlist.ts](../core/skills/installAllowlist.ts)). `checkInstallUrl` now rejects plain `http://` even for an allowlisted host (transport-encryption required); `ftp://` etc. keep the `unsupported protocol` reason; `file://` stays test-mode-only.
+- **4.3b -- hash-on-import** ([SkillInstaller.ts](../core/skills/SkillInstaller.ts)). `installSkill` records a SHA-256 `contentHash` of the fetched body (returned on success and on a scanner block); the `nexus skills install` success line prints it.
+
+The URL allowlist, injection scan-with-block, path-clamping, and overwrite/namespace guards were already present, so 4.3 was a two-item delta, not a rebuild.
+
+### Verification
+
+- `tsc -b` clean; `npm run lint` 0 errors; `npm run check-architecture` 0 errors / 10 pre-existing warnings (no new orphan/cycle); `check:tampering` 0; `catalog:check` in sync; `security:check` in sync; `check:audit-prod` 0 blocking.
+- Full suite **4548 passed / 6 skipped / 0 failed**; new tests: DevAIHubSyncer +9 (parse/verify units + sync integration: match applies, mismatch fails closed, no-manifest no-op, out-of-subset skip), installAllowlist +1 (http:// rejected), SkillInstaller +2 (contentHash on success + on block).
+
+### Deferred (recorded in the v1.7.0 known-gaps as `HUB310.*`)
+
+- **Tier 0 runtime sync** (`HUB310.T0`): the syncer is wired + hardened but the active `~/.nexus/skills/devai-hub/` bundle has not been rotated to v3.10.0 -- a consent-gated runtime action, not code. Running it resolves the v1.5.0 carryforward `1.1.P3.B` / `T023.P3.A`.
+- **Tier 2 product features** (`HUB310.T2`): in-product `model-routing`; `extensions/` MCP revisit (already covered in-process). Demand-gated.
+- **Hub-side** (`HUB310.HUBSIDE`): `catalog/rules/bash/testing.md` is missing upstream (handled gracefully by `LanguageRuleBuilder`); a Hub-cycle follow-up, no Nexus-AI action.
+
+### Branch
+
+Delivered on `feat/hub-v3.10.0-adoption-hardening` off `develop` (independent of the paused `feat/desktop-pillars` release).
+
+---
+
 ## [2026-07-02] v1.7.0 post-cycle -- vscode-free headless agent runtime + optimizer production wiring (SO001.P1.A, SO003.P3.B, SO005.P4.A/B, SO001.P1.B)
 
 ### Goal

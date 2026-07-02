@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { createHash } from "node:crypto";
 import {
   DevAIHubSyncer,
   buildManifest,
@@ -16,9 +17,22 @@ import {
   readManifestOnDisk,
   readSkillIndex,
   buildManifestWithIndex,
+  parseSha256Manifest,
+  verifyReleaseManifest,
   DEFAULT_UPSTREAM,
   type SyncDependencies,
 } from "../../../../core/skills/DevAIHubSyncer.js";
+
+/** SHA-256 (hex) of a file, for building fixture MANIFEST.sha256 entries. */
+function sha256File(p: string): string {
+  return createHash("sha256").update(fs.readFileSync(p)).digest("hex");
+}
+
+/** Write a standard `sha256sum` text manifest (`<hash>  <relpath>`) at the bundle root. */
+function writeReleaseManifest(bundleDir: string, entries: Array<[string, string]>): void {
+  const body = entries.map(([rel, hash]) => `${hash}  ${rel}`).join("\n") + "\n";
+  fs.writeFileSync(path.join(bundleDir, "MANIFEST.sha256"), body, "utf-8");
+}
 
 function mkTmpDir(prefix = "devaihub-test-"): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -313,6 +327,79 @@ describe("DevAIHubSyncer.sync", () => {
     expect(readActiveTag(tmp)).toBe(null);
   });
 
+  it("treats a release with no MANIFEST.sha256 as a no-op and still applies", async () => {
+    const syncer = new DevAIHubSyncer({
+      skillsRoot: tmp,
+      deps: fixtureDeps(upstreamFixture),
+      upstream: "test/Fixture",
+    });
+    const result = await syncer.sync({ tag: "v1.0.0", apply: true });
+    expect(result.manifestVerification.present).toBe(false);
+    expect(result.applied).toBe(true);
+  });
+
+  it("verifies cloned files against MANIFEST.sha256 and applies when hashes match", async () => {
+    const rels = [
+      "catalog/skills/developer-experience/alpha/SKILL.md",
+      "catalog/skills/developer-experience/beta/SKILL.md",
+    ];
+    writeReleaseManifest(
+      upstreamFixture,
+      rels.map((r) => [r, sha256File(path.join(upstreamFixture, r))] as [string, string]),
+    );
+    const syncer = new DevAIHubSyncer({
+      skillsRoot: tmp,
+      deps: fixtureDeps(upstreamFixture),
+      upstream: "test/Fixture",
+    });
+    const result = await syncer.sync({ tag: "v1.0.0", apply: true });
+    expect(result.manifestVerification.present).toBe(true);
+    expect(result.manifestVerification.checked).toBe(2);
+    expect(result.manifestVerification.mismatched).toEqual([]);
+    expect(result.applied).toBe(true);
+    expect(readActiveTag(tmp)).toBe("v1.0.0");
+  });
+
+  it("blocks --apply when a cloned file does not match MANIFEST.sha256 (fail closed)", async () => {
+    const alphaRel = "catalog/skills/developer-experience/alpha/SKILL.md";
+    const betaRel = "catalog/skills/developer-experience/beta/SKILL.md";
+    writeReleaseManifest(upstreamFixture, [
+      [alphaRel, "0".repeat(64)], // deliberately wrong hash -> tamper signal
+      [betaRel, sha256File(path.join(upstreamFixture, betaRel))],
+    ]);
+    const syncer = new DevAIHubSyncer({
+      skillsRoot: tmp,
+      deps: fixtureDeps(upstreamFixture),
+      upstream: "test/Fixture",
+    });
+    const result = await syncer.sync({ tag: "v1.0.0", apply: true });
+    expect(result.manifestVerification.present).toBe(true);
+    expect(result.manifestVerification.mismatched).toEqual([alphaRel]);
+    expect(result.applied).toBe(false);
+    expect(readActiveTag(tmp)).toBe(null);
+  });
+
+  it("ignores manifest entries for files outside the sparse subset", async () => {
+    const alphaRel = "catalog/skills/developer-experience/alpha/SKILL.md";
+    const betaRel = "catalog/skills/developer-experience/beta/SKILL.md";
+    writeReleaseManifest(upstreamFixture, [
+      [alphaRel, sha256File(path.join(upstreamFixture, alphaRel))],
+      [betaRel, sha256File(path.join(upstreamFixture, betaRel))],
+      // Published by the release but never fetched by the sparse checkout.
+      ["scripts/installer.sh", "a".repeat(64)],
+    ]);
+    const syncer = new DevAIHubSyncer({
+      skillsRoot: tmp,
+      deps: fixtureDeps(upstreamFixture),
+      upstream: "test/Fixture",
+    });
+    const result = await syncer.sync({ tag: "v1.0.0", apply: true });
+    // Only the two present files are hashed; the absent scripts/ entry is skipped.
+    expect(result.manifestVerification.checked).toBe(2);
+    expect(result.manifestVerification.mismatched).toEqual([]);
+    expect(result.applied).toBe(true);
+  });
+
   it("rejects invalid tag names", async () => {
     const syncer = new DevAIHubSyncer({
       skillsRoot: tmp,
@@ -438,5 +525,62 @@ describe("HUB.P3.DATA -- data/skills.json index consumption", () => {
     // The bundle hash matches the plain FS walk -- category is not hashed.
     const fsOnly = buildManifest(path.join(tmp, "catalog", "skills"), "v1.0.0", "test/Fixture", new Date(0));
     expect(manifest.bundleHash).toBe(fsOnly.bundleHash);
+  });
+});
+
+describe("release-manifest verification (Hub v3.10.0 supply-chain verify)", () => {
+  let tmp: string;
+  beforeEach(() => {
+    tmp = mkTmpDir("devaihub-verify-");
+  });
+  afterEach(() => {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  });
+
+  it("parseSha256Manifest reads text-mode and binary-mode lines, skipping junk", () => {
+    const h = "a".repeat(64);
+    const map = parseSha256Manifest(
+      `${h}  catalog/a.md\n${h} *catalog/b.md\n\n# a comment\nnot a manifest line\n`,
+    );
+    expect(map.get("catalog/a.md")).toBe(h);
+    expect(map.get("catalog/b.md")).toBe(h);
+    expect(map.size).toBe(2);
+  });
+
+  it("returns present:false when no MANIFEST.sha256 exists", () => {
+    expect(verifyReleaseManifest(tmp)).toEqual({ present: false, checked: 0, mismatched: [] });
+  });
+
+  it("reports matching files as checked with no mismatches", () => {
+    const rel = "catalog/skills/x/SKILL.md";
+    const full = path.join(tmp, rel);
+    fs.mkdirSync(path.dirname(full), { recursive: true });
+    fs.writeFileSync(full, "# X\n", "utf-8");
+    writeReleaseManifest(tmp, [[rel, sha256File(full)]]);
+    expect(verifyReleaseManifest(tmp)).toEqual({ present: true, checked: 1, mismatched: [] });
+  });
+
+  it("flags a file whose on-disk hash differs from the manifest", () => {
+    const rel = "catalog/skills/x/SKILL.md";
+    const full = path.join(tmp, rel);
+    fs.mkdirSync(path.dirname(full), { recursive: true });
+    fs.writeFileSync(full, "# tampered\n", "utf-8");
+    writeReleaseManifest(tmp, [[rel, "b".repeat(64)]]);
+    const v = verifyReleaseManifest(tmp);
+    expect(v.present).toBe(true);
+    expect(v.mismatched).toEqual([rel]);
+  });
+
+  it("skips manifest entries whose file is absent from the clone", () => {
+    // Only `present.md` exists on disk; the `absent.md` entry is not fetched.
+    const rel = "catalog/skills/present/SKILL.md";
+    const full = path.join(tmp, rel);
+    fs.mkdirSync(path.dirname(full), { recursive: true });
+    fs.writeFileSync(full, "# present\n", "utf-8");
+    writeReleaseManifest(tmp, [
+      [rel, sha256File(full)],
+      ["scripts/absent.md", "c".repeat(64)],
+    ]);
+    expect(verifyReleaseManifest(tmp)).toEqual({ present: true, checked: 1, mismatched: [] });
   });
 });

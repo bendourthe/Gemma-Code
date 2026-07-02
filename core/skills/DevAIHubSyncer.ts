@@ -15,7 +15,11 @@
  *   4. Compute a content hash over the checked-out tree.
  *   5. Write `manifest.json` describing the bundle.
  *   6. Diff against the currently-active tag's manifest.
- *   7. If `--apply`, rename the tmp dir to the active dir and update the
+ *   7. Cross-verify the cloned files against the Hub's published
+ *      `MANIFEST.sha256` (rides inside the release tag). A hash mismatch
+ *      fails closed, blocking --apply like an injection-scan block.
+ *   8. If `--apply` (and neither the scan nor the manifest verification
+ *      blocked), rename the tmp dir to the active dir and update the
  *      active-tag pointer (`~/.nexus/skills/devai-hub/ACTIVE`).
  *
  * Tarball fallback: when git is unavailable the syncer downloads
@@ -110,6 +114,24 @@ export interface ManifestDiff {
   readonly removed: readonly string[];
 }
 
+/**
+ * Result of cross-verifying a synced bundle against the Hub's published
+ * `MANIFEST.sha256` (a standard `sha256sum` text file that rides inside the
+ * release tag, per Nexus-Hub v3.6.0/v3.10.0). This is supply-chain integrity
+ * *evidence*: it confirms the files we actually cloned hash to what the release
+ * authoritatively published. It is scoped to the sparse subset we fetch --
+ * manifest entries for files outside that subset are simply not checked, so an
+ * intentionally-unsynced file is never reported as a problem.
+ */
+export interface ManifestVerification {
+  /** `false` when the release ships no `MANIFEST.sha256` (older tags). A no-op. */
+  readonly present: boolean;
+  /** Number of cloned files that appeared in the manifest and were hashed. */
+  readonly checked: number;
+  /** relPaths whose on-disk SHA-256 did not match the published manifest. */
+  readonly mismatched: readonly string[];
+}
+
 export interface SyncResult {
   readonly tag: string;
   readonly tmpDir: string;
@@ -130,6 +152,13 @@ export interface SyncResult {
    * they never block the sync because the on-disk tree is authoritative.
    */
   readonly indexConsistency: IndexConsistency | null;
+  /**
+   * Cross-verification of the cloned files against the Hub's published
+   * `MANIFEST.sha256`. When `present` and `mismatched` is non-empty the sync
+   * fails closed: `--apply` will not rotate the active pointer (an integrity
+   * failure is treated like an injection-scan block).
+   */
+  readonly manifestVerification: ManifestVerification;
 }
 
 // ---------------------------------------------------------------------------
@@ -364,6 +393,74 @@ export function buildManifestWithIndex(
 }
 
 // ---------------------------------------------------------------------------
+// Release-manifest verification (supply-chain integrity)
+// ---------------------------------------------------------------------------
+
+/** Path of the Hub's published `MANIFEST.sha256` inside a synced bundle. */
+export function releaseManifestPath(bundleDir: string): string {
+  return path.join(bundleDir, "MANIFEST.sha256");
+}
+
+/**
+ * Parse a standard `sha256sum` text manifest into a `relPath -> lowercase-hash`
+ * map. Each line is `<64-hex-hash><space><space|*><relpath>` (two spaces is
+ * text mode, ` *` is binary mode). Blank lines and lines that do not match are
+ * skipped. Paths are normalized to forward slashes.
+ */
+export function parseSha256Manifest(text: string): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trimEnd();
+    if (!line) continue;
+    const m = /^([0-9a-fA-F]{64}) [ *](.+)$/.exec(line);
+    if (!m) continue;
+    const hash = m[1]!.toLowerCase();
+    const relPath = m[2]!.replace(/\\/g, "/");
+    out.set(relPath, hash);
+  }
+  return out;
+}
+
+/**
+ * Cross-verify a synced bundle against the Hub's published `MANIFEST.sha256`.
+ *
+ * Iterates the *manifest entries* (not the clone) so bundle artifacts that are
+ * not part of the release -- the `.git` dir, our own `manifest.json` -- are
+ * never considered. For each manifest entry whose file exists in the clone
+ * (the sparse subset we fetched), the on-disk SHA-256 is compared to the
+ * published hash. Entries whose files are outside the sparse subset are skipped
+ * (they were intentionally not fetched, not tampered). Best-effort and
+ * throw-free: a missing or unreadable manifest degrades to `present: false`.
+ */
+export function verifyReleaseManifest(bundleDir: string): ManifestVerification {
+  let text: string;
+  try {
+    text = fs.readFileSync(releaseManifestPath(bundleDir), "utf-8");
+  } catch {
+    return { present: false, checked: 0, mismatched: [] };
+  }
+  const entries = parseSha256Manifest(text);
+  let checked = 0;
+  const mismatched: string[] = [];
+  for (const [relPath, expected] of entries) {
+    const full = path.join(bundleDir, relPath);
+    let buf: Buffer;
+    try {
+      if (!fs.statSync(full).isFile()) continue;
+      buf = fs.readFileSync(full);
+    } catch {
+      // Not in the sparse subset (or unreadable): not fetched, so not checked.
+      continue;
+    }
+    checked += 1;
+    const actual = createHash("sha256").update(buf).digest("hex");
+    if (actual !== expected) mismatched.push(relPath);
+  }
+  mismatched.sort();
+  return { present: true, checked, mismatched };
+}
+
+// ---------------------------------------------------------------------------
 // Active-tag pointer
 // ---------------------------------------------------------------------------
 
@@ -466,6 +563,10 @@ async function defaultSparseClone(upstream: string, tag: string, destDir: string
       "rules",
       "data/skills.json",
       "extensions/",
+      // v1.7.0 (Hub v3.10.0 supply-chain verify): the release SHA-256 manifest
+      // rides at the repo root; pull it so `verifyReleaseManifest` can confirm
+      // the cloned files match what the release authoritatively published.
+      "MANIFEST.sha256",
     ],
     { stdio: "ignore" },
   );
@@ -571,6 +672,7 @@ export class DevAIHubSyncer {
         activeDir: candidateDir,
         // Nothing was re-fetched, so no fresh index check is performed.
         indexConsistency: null,
+        manifestVerification: { present: false, checked: 0, mismatched: [] },
       };
     }
 
@@ -596,9 +698,17 @@ export class DevAIHubSyncer {
     const scan = scanBundleDir(skillsDir, this._scanner);
     const diff = diffManifests(activeManifest, manifest);
 
+    // Supply-chain integrity: verify the cloned files against the Hub's
+    // published MANIFEST.sha256 (rides inside the release tag). A hash mismatch
+    // fails closed -- --apply will not rotate the pointer, exactly like an
+    // injection-scan block. A release with no manifest is a graceful no-op.
+    const manifestVerification = verifyReleaseManifest(tmpDir);
+    const manifestBlocked =
+      manifestVerification.present && manifestVerification.mismatched.length > 0;
+
     let applied = false;
     let appliedActiveDir: string | null = null;
-    if (options.apply && scan.decision !== "block") {
+    if (options.apply && scan.decision !== "block" && !manifestBlocked) {
       const dest = tagDir(this._skillsRoot, tag);
       if (fs.existsSync(dest)) {
         fs.rmSync(dest, { recursive: true, force: true });
@@ -620,6 +730,7 @@ export class DevAIHubSyncer {
       applied,
       activeDir: applied ? appliedActiveDir : activeDir,
       indexConsistency,
+      manifestVerification,
     };
   }
 }
