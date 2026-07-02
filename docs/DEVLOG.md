@@ -4,6 +4,31 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-01] v1.7.0 self-optimizing-skills Phase 5 -- tree-sitter shell-command introspection for permission gating (O-A, SO006)
+
+### Goal
+
+Adopt the one clearly-worthwhile local item from the opencode scan: parse a shell command to enumerate the paths / cwd it will touch and gate those through the existing permission surface, turning "what will this command touch?" from a regex guess into a structural answer. The load-bearing invariant is **fail closed** -- an un-parseable or unsupported command falls back to the existing denylist / tier gate and never auto-allows; the introspection only ever *tightens* the surface. Local-only, no new outbound call or credential, reverse-engineered per the AGENTS.md MCP Registry Policy.
+
+### What changed
+
+- **New vscode-free, dependency-free `modules/coding/guardrails/shellIntrospection.ts`.** `introspectShellCommand(command, dialect)` reverse-engineers opencode's `tool/shell/` command introspection as a lean structural parser: a **quote-aware tokenizer** splits chained sub-commands (`;`/`&&`/`||`/`|`/newline), keeps quoted spans intact, and emits redirection operators (`>`/`>>`/`2>`/`2>>`/`<`; an fd-dup `2>&1` target is skipped, not treated as a path) as their own tokens; per-dialect **file-command tables** (bash `rm`/`cp`/`mv`/`touch`/`mkdir`/`tee`/`cat`...; cmd `del`/`copy`/`move`/`type`...; PowerShell `Remove-Item`/`Set-Content`/`Out-File`/`Copy-Item`/`Get-Content`... incl. `-Path`/`-FilePath`/`-LiteralPath`/`-Destination` named-param values) classify each argument as read / write / delete, and the `cd`-family (`cd`/`Set-Location`/`pushd`) as a cwd change. `detectShellDialect` maps win32 -> cmd, else bash (what `run_terminal`'s `{ shell: true }` actually executes). `normalizeTouchedPath` folds back-slashes and a leading `./` for denylist matching.
+- **Fails closed by construction.** `introspectShellCommand` returns `{ parsed: false }` on any construct that could hide a path from static analysis: command / process substitution (`$(`, `<(`, `>(`), variable expansion (`$` for bash/PowerShell, `%`/`!` for cmd), backtick, `Invoke-Expression`, or an unbalanced quote. The introspection is additive -- it can only add a refusal, never downgrade a tier or approve a command.
+- **Path-scoped deny gating wired into `ToolRegistry`.** `_denyByTouchedPath` runs for a `run_terminal` call after the existing whole-command-string deny match: each enumerated write path is matched against `write_file` deny rules, each delete against `delete_file`, each read against `read_file` (`evaluateDeny` also honors blanket `*:` rules) -- so `write_file: secrets/**` now also blocks `echo x > secrets/prod.env`, not just a literal `write_file` call. When the command is not statically parseable the fallback is logged (`getLogger().debug`) and no path rule is fabricated: the DANGEROUS-tier confirmation + command-string denylist still gate, never auto-allowing.
+- **Dry-run transparency.** The `run_terminal` dry-run report gains a `Touched paths:` line (`write:'out.txt'`, `delete:'build'`, ... or `(unresolved: <reason>)` on a fail-closed command) so the confirmation surface answers "what will this command touch?" structurally.
+- **Reverse-engineered, no new dependency (MCP Registry Policy bucket 3).** The bundled `tree-sitter-wasms` ships a bash grammar only (used by the codegraph scanner); no PowerShell / cmd grammar exists there, and pulling native grammars conflicts with no-runtime-download, so the structural tokenizer is the always-available, fail-closed core across all three dialects. An AST-backed *bash* upgrade over the already-bundled `tree-sitter-bash.wasm` is recorded as a forward-tier follow-up (`SO006.P5.A`).
+- **Tests (37 new across 3 files).** [tests/unit/guardrails/shellIntrospection.test.ts](../tests/unit/guardrails/shellIntrospection.test.ts) (29: bash/cmd/PowerShell enumeration, redirections incl. fd-dup skip + fd-append, cwd changes, unknown-command args ignored, quoted paths, fail-closed on substitution / expansion / backtick / `%VAR%` / `Invoke-Expression` / unbalanced quote, normalize), [ToolRegistry.test.ts](../tests/unit/tools/ToolRegistry.test.ts) (+5: write path blocked, blanket `*` block, non-denied allowed, fail-closed no-fabricated-block, command-string gate not loosened on fallback), [terminal.dry_run.test.ts](../tests/unit/tools/handlers/terminal.dry_run.test.ts) (+3: touched-path line, empty list, unresolved fallback).
+
+### Verification
+
+- `npm run test`: **4498 passed / 6 skipped / 0 failed**. `npm run lint`: **0 errors**. `tsc -b`: clean.
+- `npm run check-architecture`: **0 errors**, 10 pre-existing warnings (no new orphan/circular; +1 module). `npm run check:tampering`: **0 findings**. `npm run security:check`: in sync (no permission-tier change -- `run_terminal` stays DANGEROUS; the gate is a tightening layer).
+- New-module coverage: `shellIntrospection.ts` **100% lines / 92.59% branches / 100% functions** (above the 80/75/80 gate).
+- Local-first / MCP Registry Policy clean: no new dependency, no new outbound call or credential; the introspector is a pure local parse and only tightens the permission surface. README/ARCHITECTURE/CHANGELOG narrative + the npm version tag remain semantic-release-owned and are cut on merge to `main`.
+- Carryovers recorded in [versions/v1/v1.7.0/known-gaps.md](versions/v1/v1.7.0/known-gaps.md): `SO006.P5.A` (tree-sitter-bash AST upgrade over the structural parser), `SO006.P5.B` (opt-in workspace-escape hard-block), `SO006.P5.C` (glob-expansion / read-scope precision).
+
+---
+
 ## [2026-07-01] v1.7.0 self-optimizing-skills Phase 4 -- Pareto-frontier candidate management on git branches (S3, SO005)
 
 ### Goal

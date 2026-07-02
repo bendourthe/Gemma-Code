@@ -7,6 +7,10 @@ import type {
 } from "../types.js";
 import { resolveInsideWorkspace } from "./pathGuard.js";
 import { BLOCKED_PATTERNS } from "../../../modules/coding/guardrails/policy.js";
+import {
+  introspectShellCommand,
+  detectShellDialect,
+} from "../../../modules/coding/guardrails/shellIntrospection.js";
 import { formatForUser } from "../../../modules/coding/utils/errors.js";
 import {
   CommandCompressor,
@@ -324,12 +328,23 @@ export class RunTerminalTool implements ToolHandler {
     const blockedField =
       blockedPattern === null ? "no" : `yes:${blockedPattern}`;
     const tokenList = tokens.map((t) => `'${t}'`).join(", ");
+    // v1.7.0 Phase 5 (O-A): surface the structural path enumeration so the
+    // confirmation surface can answer "what will this command touch?". Fails
+    // closed: an un-parseable command reports the fallback reason instead of a
+    // path list, matching the gate's fail-closed behavior.
+    const introspection = introspectShellCommand(command, detectShellDialect());
+    const touchedField = introspection.parsed
+      ? `[${introspection.paths
+          .map((p) => `${p.operation}:'${p.raw}'`)
+          .join(", ")}]`
+      : `(unresolved: ${introspection.unsupportedReason ?? "unparseable"})`;
     const output =
       "=== DRY RUN: no execution occurred ===\n" +
       `Tokens: [${tokenList}]\n` +
       `CWD: ${cwd}\n` +
       `Allowlisted: ${allowlisted}\n` +
-      `Blocked-pattern match: ${blockedField}`;
+      `Blocked-pattern match: ${blockedField}\n` +
+      `Touched paths: ${touchedField}`;
     return { id, success: true, output };
   }
 

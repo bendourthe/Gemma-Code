@@ -19,3 +19,14 @@ export {
   getDangerousWarning,
 } from "./PermissionTiers.js";
 export { BLOCKED_PATTERNS } from "./policy.js";
+export {
+  introspectShellCommand,
+  detectShellDialect,
+  normalizeTouchedPath,
+} from "./shellIntrospection.js";
+export type {
+  ShellDialect,
+  PathOperation,
+  TouchedPath,
+  CommandIntrospection,
+} from "./shellIntrospection.js";

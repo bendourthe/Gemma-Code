@@ -372,4 +372,105 @@ describe("ToolRegistry", () => {
       expect(handler.execute).toHaveBeenCalledOnce();
     });
   });
+
+  // v1.7.0 Phase 5 (O-A): shell-command introspection extends the deny gate so a
+  // `run_terminal` command's *touched paths* are matched against file-tool deny
+  // rules -- not just the command string. Redirection-based commands are used so
+  // the test is deterministic across the platform-derived shell dialect.
+  describe("shell-command introspection deny gate (O-A)", () => {
+    it("blocks a run_terminal command whose write target matches a write_file rule", async () => {
+      const registry = new ToolRegistry();
+      const handler = makeHandler({ id: "call_001", success: true, output: "ran" });
+      registry.register("run_terminal", handler);
+      registry.setPermissionsDeny(parsePermissionsDeny("write_file: secrets/**"));
+
+      const result = await registry.execute(
+        makeCall({
+          tool: "run_terminal",
+          parameters: { command: "echo leaked > secrets/prod.env" },
+        }),
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.error).toMatch(/touches path "secrets\/prod\.env" \(write\)/);
+      expect(result.error).toMatch(/denied by \.nexus\/permissions\.deny/);
+      expect(handler.execute).not.toHaveBeenCalled();
+    });
+
+    it("blocks a touched write path via a blanket * rule", async () => {
+      const registry = new ToolRegistry();
+      const handler = makeHandler({ id: "call_001", success: true, output: "ran" });
+      registry.register("run_terminal", handler);
+      registry.setPermissionsDeny(parsePermissionsDeny("*: secrets/**"));
+
+      const result = await registry.execute(
+        makeCall({
+          tool: "run_terminal",
+          parameters: { command: "echo x >> secrets/notes.txt" },
+        }),
+      );
+
+      expect(result.success).toBe(false);
+      expect(handler.execute).not.toHaveBeenCalled();
+    });
+
+    it("allows a run_terminal command whose touched paths are not denied", async () => {
+      const registry = new ToolRegistry();
+      const handler = makeHandler({ id: "call_001", success: true, output: "ran" });
+      registry.register("run_terminal", handler);
+      registry.setPermissionsDeny(parsePermissionsDeny("write_file: secrets/**"));
+
+      const result = await registry.execute(
+        makeCall({
+          tool: "run_terminal",
+          parameters: { command: "echo build info > build/info.txt" },
+        }),
+      );
+
+      expect(result.success).toBe(true);
+      expect(handler.execute).toHaveBeenCalledOnce();
+    });
+
+    it("fails closed on an un-parseable command: no fabricated path block", async () => {
+      // An unbalanced quote makes the command un-parseable in every dialect, so
+      // path-gating declines (it cannot prove the command touches secrets/**).
+      // The DANGEROUS-tier confirmation still gates it in production; here, with
+      // no confirmation gate and no command-string rule, the handler runs -- the
+      // introspection never fabricates a verdict it cannot substantiate.
+      const registry = new ToolRegistry();
+      const handler = makeHandler({ id: "call_001", success: true, output: "ran" });
+      registry.register("run_terminal", handler);
+      registry.setPermissionsDeny(parsePermissionsDeny("write_file: secrets/**"));
+
+      const result = await registry.execute(
+        makeCall({
+          tool: "run_terminal",
+          parameters: { command: 'echo "leak > secrets/prod.env' },
+        }),
+      );
+
+      expect(result.success).toBe(true);
+      expect(handler.execute).toHaveBeenCalledOnce();
+    });
+
+    it("does not loosen the existing command-string deny gate on fallback", async () => {
+      // Even when introspection cannot parse the command, the command-string
+      // deny rule still fires first -- the fallback never bypasses it.
+      const registry = new ToolRegistry();
+      const handler = makeHandler({ id: "call_001", success: true, output: "ran" });
+      registry.register("run_terminal", handler);
+      registry.setPermissionsDeny(parsePermissionsDeny("run_terminal: echo *"));
+
+      const result = await registry.execute(
+        makeCall({
+          tool: "run_terminal",
+          parameters: { command: 'echo "unterminated' },
+        }),
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.error).toMatch(/denied by \.nexus\/permissions\.deny/);
+      expect(handler.execute).not.toHaveBeenCalled();
+    });
+  });
 });
