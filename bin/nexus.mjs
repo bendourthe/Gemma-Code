@@ -42,6 +42,7 @@ Usage:
   nexus memory compress --file <path> [--session <id>] [--model <name>] [--dry-run]
   nexus doctor [--migration-report] [--json] [--home <dir>] [--legacy-home <dir>] [--skills-root <dir>] [--stale-days <N>]
   nexus trace export --trace <id> --out <file> --db <path> [--title <t>]
+  nexus golden run [--task <id>] [--mode dry|live] [--model <name>]
   nexus check [...]                     deterministic source-code checks
   nexus image [...]                     image-pipeline helpers
   nexus video [...]                     video-pipeline helpers
@@ -527,6 +528,67 @@ async function loadCompiled(relParts, label) {
     );
   }
   return import(pathToFileURL(compiled).href);
+}
+
+// ---------------------------------------------------------------------------
+// v1.7.0 SO001.P1.B -- `nexus golden run` live golden-task runner.
+//
+// Loads the compiled TS-native GoldenTaskRunner (Phase 1) + the vscode-free
+// HeadlessAgentDriver (SO001.P1.A) and runs the golden corpus. `--mode dry`
+// (default) evaluates each task's snapshot against its success_criteria with
+// no agent (offline, CI-safe); `--mode live` drives the real headless agent
+// against a fresh snapshot copy via the local Ollama backend. Local-only.
+// ---------------------------------------------------------------------------
+
+export async function runGoldenRun(flags, stdout = process.stdout, stderr = process.stderr) {
+  const mode = flags.mode === "live" ? "live" : "dry";
+  const tasksDir = resolvePath(__dirname, "..", "tests", "golden", "tasks");
+  const snapshotRoot = resolvePath(__dirname, "..", "tests", "golden", "snapshots");
+
+  const [runnerMod, loaderMod] = await Promise.all([
+    loadCompiled(["modules", "coding", "evaluation", "GoldenTaskRunner.js"], "GoldenTaskRunner"),
+    loadCompiled(["modules", "coding", "evaluation", "goldenTaskLoader.js"], "goldenTaskLoader"),
+  ]);
+
+  let tasks;
+  try {
+    tasks = loaderMod.loadAllGoldenTasks(tasksDir);
+  } catch (err) {
+    stderr.write(
+      `nexus golden run: failed to load tasks from ${tasksDir}: ${err instanceof Error ? err.message : String(err)}\n`,
+    );
+    return 1;
+  }
+  if (typeof flags.task === "string") {
+    tasks = tasks.filter((t) => t.id === flags.task);
+    if (tasks.length === 0) {
+      stderr.write(`nexus golden run: no task with id "${flags.task}".\n`);
+      return 1;
+    }
+  }
+
+  const options = { mode, snapshotRoot, initGit: false };
+  if (mode === "live") {
+    const model = typeof flags.model === "string" ? flags.model : "gemma4:e4b";
+    const [driverMod, llmMod] = await Promise.all([
+      loadCompiled(["modules", "coding", "runtime", "HeadlessAgentDriver.js"], "HeadlessAgentDriver"),
+      loadCompiled(["modules", "coding", "llm", "OllamaClient.js"], "OllamaClient"),
+    ]);
+    options.driver = new driverMod.HeadlessAgentDriver({
+      llm: llmMod.createOllamaClient(),
+      model,
+    });
+  }
+
+  let passed = 0;
+  for (const spec of tasks) {
+    const result = await runnerMod.runGoldenTask(spec, options);
+    if (result.passed) passed += 1;
+    const detail = result.failures.length > 0 ? ` -- ${result.failures[0]}` : "";
+    stdout.write(`${result.passed ? "PASS" : "FAIL"} ${spec.id}${detail}\n`);
+  }
+  stdout.write(`nexus golden run: ${passed}/${tasks.length} passed (${mode} mode)\n`);
+  return passed === tasks.length ? 0 : 1;
 }
 
 export async function runTraceExport(flags, stdout = process.stdout, stderr = process.stderr) {
@@ -1020,6 +1082,20 @@ export async function main(argv) {
     }
     process.stderr.write(
       `nexus trace: unknown subcommand "${args.subcommand ?? ""}". Expected: export.\n${HELP}`,
+    );
+    return 2;
+  }
+
+  if (args.command === "golden") {
+    if (args.help) {
+      process.stdout.write(HELP);
+      return 0;
+    }
+    if (args.subcommand === "run") {
+      return runGoldenRun(args.flags);
+    }
+    process.stderr.write(
+      `nexus golden: unknown subcommand "${args.subcommand ?? ""}". Expected: run.\n${HELP}`,
     );
     return 2;
   }
