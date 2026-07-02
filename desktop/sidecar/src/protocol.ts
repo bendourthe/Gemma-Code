@@ -22,6 +22,9 @@ export const IPC_METHODS = [
   "coding.memory.snapshot",
   "coding.trace.subscribe",
   "coding.sessions.list",
+  // v1.7.0 -- Local Chatbot Explorer (non-agentic chat pillar).
+  "chat.session.start",
+  "chat.session.sendMessage",
   // v1.1.0 Phase 11 -- nexus VS Code extension surface.
   "coding.chat.autocomplete",
   "mcp.list",
@@ -131,6 +134,53 @@ export const CodingSessionSendMessageResponse = z
   .strict();
 export type CodingSessionSendMessageResponseT = z.infer<
   typeof CodingSessionSendMessageResponse
+>;
+
+// ---- Chat session lifecycle (Local Chatbot Explorer) -------------------------
+//
+// v1.7.0 -- a non-agentic chat pillar: send a message, stream a local-model
+// reply. Mirrors the coding session shape but the event union is just
+// token/done (no tool-call cards).
+
+export const ChatSessionStartRequest = z
+  .object({
+    modelId: z.string().min(1),
+    title: z.string().max(200).optional(),
+  })
+  .strict();
+export type ChatSessionStartRequestT = z.infer<typeof ChatSessionStartRequest>;
+
+export const ChatSessionStartResponse = z
+  .object({
+    sessionId: z.string().min(1),
+    modelId: z.string().min(1),
+    createdAt: z.string().min(1),
+  })
+  .strict();
+export type ChatSessionStartResponseT = z.infer<typeof ChatSessionStartResponse>;
+
+export const ChatSessionSendMessageRequest = z
+  .object({
+    sessionId: z.string().min(1),
+    message: z.string().min(1),
+  })
+  .strict();
+export type ChatSessionSendMessageRequestT = z.infer<typeof ChatSessionSendMessageRequest>;
+
+export const ChatSessionEvent = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("token"), text: z.string() }),
+  z.object({ kind: z.literal("done"), finishReason: z.string().optional() }),
+]);
+export type ChatSessionEventT = z.infer<typeof ChatSessionEvent>;
+
+export const ChatSessionSendMessageResponse = z
+  .object({
+    sessionId: z.string().min(1),
+    events: z.array(ChatSessionEvent),
+  })
+  .strict();
+export type ChatSessionSendMessageResponseT = z.infer<
+  typeof ChatSessionSendMessageResponse
 >;
 
 export const CodingSessionCancelRequest = z
@@ -728,6 +778,16 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
   // responses) remain exported for Phase 11 to adopt; until then these are
   // marked unimplemented so `dispatch` reaches the NotImplementedError stub in
   // handlers.ts instead of failing the strict request schema on empty params.
+  "chat.session.start": {
+    request: ChatSessionStartRequest,
+    response: ChatSessionStartResponse,
+    implemented: true,
+  },
+  "chat.session.sendMessage": {
+    request: ChatSessionSendMessageRequest,
+    response: ChatSessionSendMessageResponse,
+    implemented: true,
+  },
   "coding.chat.autocomplete": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
   "mcp.list": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
   "mcp.invoke": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },

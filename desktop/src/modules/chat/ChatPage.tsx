@@ -12,13 +12,18 @@
  * known-gap 3.P1.N.
  */
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { FolderTree, type SelectedNode } from "./FolderTree";
 import { Breadcrumb } from "./Breadcrumb";
 import { InMemoryChatExplorerClient } from "./chatExplorerClient";
 import type {
   ChatExplorerClient,
 } from "./chatExplorerClient";
+import {
+  createChatIpcClient,
+  joinChatReply,
+  type ChatSessionClient,
+} from "./chatIpcClient";
 import type { Chat } from "./types";
 import {
   ChatInput,
@@ -32,12 +37,15 @@ import { DEFAULT_MODEL_ID, FRONTEND_MODELS } from "../coding/models";
 export interface ChatPageProps {
   /** Optional client override (tests inject an InMemoryChatExplorerClient). */
   client?: ChatExplorerClient;
+  /** Optional chat-session client override (tests inject a fake; default: IPC). */
+  chatSession?: ChatSessionClient;
   /** Default model id used when starting a fresh chat. */
   defaultModelId?: string;
 }
 
 export function ChatPage({
   client: clientOverride,
+  chatSession: chatSessionOverride,
   defaultModelId = DEFAULT_MODEL_ID,
 }: ChatPageProps = {}): JSX.Element {
   // The client survives re-renders but is recreated per ChatPage instance.
@@ -46,6 +54,11 @@ export function ChatPage({
     () => clientOverride ?? new InMemoryChatExplorerClient(),
   );
   const client = clientOverride ?? internalClient;
+  const [chatSession] = useState<ChatSessionClient>(
+    () => chatSessionOverride ?? createChatIpcClient(),
+  );
+  // Per-chat sidecar session id, lazily started on first message.
+  const sessionIdsRef = useRef<Map<string, string>>(new Map());
 
   const [selected, setSelected] = useState<SelectedNode | null>(null);
   const [activeChat, setActiveChat] = useState<Chat | null>(null);
@@ -95,28 +108,44 @@ export function ChatPage({
   }, []);
 
   const handleSubmit = useCallback(
-    (text: string) => {
+    async (text: string) => {
       if (!activeChat) return;
+      const chat = activeChat;
+      const baseId = `${chat.id}-${Date.now()}`;
+      // Render the user's message immediately.
       setMessagesByChat((prev) => {
         const next = new Map(prev);
-        const list = next.get(activeChat.id) ?? [];
-        const messageId = `${activeChat.id}-${list.length}`;
-        const userMessage: ChatMessage = {
-          id: `${messageId}-user`,
-          role: "user",
-          content: text,
-        };
-        const assistantMessage: ChatMessage = {
-          id: `${messageId}-assistant`,
-          role: "assistant",
-          content: `(local stub) Echo of your message: ${text}`,
-        };
-        next.set(activeChat.id, [...list, userMessage, assistantMessage]);
+        const list = next.get(chat.id) ?? [];
+        next.set(chat.id, [...list, { id: `${baseId}-user`, role: "user", content: text }]);
         return next;
       });
-      client.renameChat(activeChat.id, activeChat.title); // touch updatedAt
+      client.renameChat(chat.id, chat.title); // touch updatedAt
+
+      // Drive a real local-model turn via the sidecar (lazily starting a
+      // session per chat). Falls back to an inline notice if IPC is unavailable
+      // (e.g. running the web bundle outside the Tauri shell).
+      let content: string;
+      try {
+        let sessionId = sessionIdsRef.current.get(chat.id);
+        if (!sessionId) {
+          const started = await chatSession.start({ modelId: chat.modelId, title: chat.title });
+          sessionId = started.sessionId;
+          sessionIdsRef.current.set(chat.id, sessionId);
+        }
+        const reply = await chatSession.sendMessage({ sessionId, message: text });
+        content = joinChatReply(reply.events) || "(no reply)";
+      } catch (err) {
+        content = `(chat unavailable) ${err instanceof Error ? err.message : String(err)}`;
+      }
+
+      setMessagesByChat((prev) => {
+        const next = new Map(prev);
+        const list = next.get(chat.id) ?? [];
+        next.set(chat.id, [...list, { id: `${baseId}-assistant`, role: "assistant", content }]);
+        return next;
+      });
     },
-    [activeChat, client],
+    [activeChat, client, chatSession],
   );
 
   return (
