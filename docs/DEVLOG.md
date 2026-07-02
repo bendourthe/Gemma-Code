@@ -4,6 +4,33 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-02] v1.7.0 self-optimizing-skills Phase 6 FINAL -- whole-plan acceptance gate + docs + Nexus-Hub touchpoint (SO007-SO009)
+
+### Goal
+
+Close the v1.7.0 "local skill self-optimization loop + opencode harness hardening" cycle: verify the whole-plan definition-of-pass, run the full quality-gate matrix, finalize the docs, record the demand-gated backlog, and assess the Nexus-Hub touchpoint. No feature code changes -- this is a verification + close-out phase.
+
+### What was verified (SO007 -- whole-plan acceptance gate)
+
+- **All seven Definition-of-pass items pass.** Items 1-6 were delivered across Phases 1-5 and were re-confirmed physically present this phase: S1 [GoldenTaskRunner.ts](../modules/coding/evaluation/GoldenTaskRunner.ts); S4 [goldenSplit.ts](../modules/coding/evaluation/goldenSplit.ts) / [validationGate.ts](../modules/coding/evaluation/validationGate.ts) / [RejectedEditBuffer.ts](../core/memory/RejectedEditBuffer.ts); S2+S6 [SkillOptimizer.ts](../modules/coding/skilloptimizer/SkillOptimizer.ts) / [SkillOptimizerAb.ts](../modules/coding/skilloptimizer/SkillOptimizerAb.ts); S3 [CandidateFrontier.ts](../modules/coding/skilloptimizer/CandidateFrontier.ts) / [pareto.ts](../modules/coding/skilloptimizer/pareto.ts) / [frontierWorktree.ts](../modules/coding/skilloptimizer/frontierWorktree.ts); O-A [shellIntrospection.ts](../modules/coding/guardrails/shellIntrospection.ts). Item 7 (testing + docs) is delivered by this phase.
+- **The full gate is green.** `npm run test`: **4498 passed / 6 skipped / 0 failed**. Coverage: lines **88.22%** / branches **84.01%** / functions **91.35%** (all above the CI 80 / 75 / 80 thresholds). `tsc -b`: clean. `npm run lint`: **0 errors**. `npm run check-architecture`: **0 errors**, 10 pre-existing warnings (no new orphan/circular). `npm run security:check`: in sync. `npm run check:tampering`: **0 findings**.
+
+### What changed (SO008 -- docs) and what did not
+
+- **Finalized**: this DEVLOG entry, the [v1.7.0 known-gaps ledger](versions/v1/v1.7.0/known-gaps.md) (Phase 6 row added, status flipped to COMPLETE, summary recomputed to 6/6 phases + 17 forward-tier follow-ups, demand-gated backlog recorded), [todos.md](todos.md), the [plan](versions/v1/v1.7.0/plans/adoption-self-optimizing-skills.md) (Definition-of-pass item 7 + Phase 6 sub-tasks SO007-SO009 checked off, Phase 6 status COMPLETE), and a Phase 6 history file under [versions/v1/v1.7.0/development/history/](versions/v1/v1.7.0/development/history/).
+- **Not touched (by policy)**: README.md and ARCHITECTURE.md carry no per-version content, and the CHANGELOG narrative + the npm version tag are semantic-release-owned and cut on merge to `main` -- so no manual edit to those three (same posture as the v1.6.0 FINAL close).
+- **Demand-gated backlog recorded**: S5 (background autonomous self-optimization routine, off by default) and opencode O-B / O-D / O-E remain in the plan's Out-of-Scope appendix, none implemented this cycle; the load-bearing guardrail "the loop proposes; the human accepts" is preserved by S5's deferral.
+
+### Nexus-Hub touchpoint (SO009)
+
+Assessed **not warranted** as an in-repo change (`SO009.P6.A`). The Hub already ships the method-level guidance (`skill-eval-loop`, `loop-engineering`, `continuous-learning`, `skill-create`, `skill-stocktake`); this cycle built the *runtime* loop those skills describe, which is Nexus-internal product code, not a portable skill artifact the Hub catalog lacks. The plan forbids duplicating loop logic into the Hub, and the Hub is a sibling repo (not editable from this commit). A one-line Hub-side cross-link to this cycle as a worked local-first example is recorded as a demand-gated suggestion for a future Hub sync. Precedent: v1.6.0 `OF015.P5.A` and v1.6.0-aisuite `AS010.P6.A`, both assessed not-warranted.
+
+### Cycle summary
+
+v1.7.0 is complete across all six phases. The Coding pillar now has a working TS-native golden-task live runner (S1), a locked train/validation/test split with a held-out validation gate and a content-addressed rejected-edit buffer (S4), a bounded-edit `SkillOptimizer` with an optimizer-quality A/B (S2+S6, opt-in default-off pending a live A/B), a Pareto-frontier candidate manager over git-branch skill variants (S3), and a fail-closed tree-sitter-style shell-command introspection gate for permission enforcement (O-A). Every item is local-only, zero-outbound, zero-new-dependency, zero-new-credential, per the AGENTS.md MCP Registry Policy. The optimizer and frontier ship opt-in / human-approval-gated so autonomous self-modification of skill files never runs unattended.
+
+---
+
 ## [2026-07-01] v1.7.0 self-optimizing-skills Phase 5 -- tree-sitter shell-command introspection for permission gating (O-A, SO006)
 
 ### Goal
