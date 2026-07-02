@@ -5,6 +5,7 @@
 import { createInterface } from "node:readline";
 import { CodingSessionManager } from "./coding/sessionManager.js";
 import { createHeadlessAgentRunner } from "./coding/headlessAgentRunner.js";
+import { createDiffusionRuntime } from "./diffusion/runtimeFactory.js";
 import { createHandlerContext, dispatch } from "./handlers.js";
 import { warmUpTreeSitter } from "./treeSitterWarmup.js";
 
@@ -31,9 +32,13 @@ interface JsonRpcResponseErr {
 // agent's tools are scoped to the session's workspacePath, or NEXUS_WORKSPACE /
 // cwd). Tests and bare `createHandlerContext()` callers keep the placeholder.
 const sessions = new CodingSessionManager({ agentRunner: createHeadlessAgentRunner() });
+// v1.7.0: route Image Studio + Video Lab to the real Python diffusion runtime
+// (set NEXUS_DIFFUSION_INMEMORY=1 for a no-GPU dev/test host).
+const diffusion = createDiffusionRuntime(process.env);
 const ctx = createHandlerContext(
   { pid: process.pid, platform: process.platform },
   sessions,
+  diffusion,
 );
 
 function write(payload: JsonRpcResponseOk | JsonRpcResponseErr): void {
