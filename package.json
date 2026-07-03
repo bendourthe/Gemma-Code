@@ -969,7 +969,7 @@
     "@electron/rebuild": "^4.0.3",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/git": "^10.0.1",
-    "@semantic-release/github": "^11.0.1",
+    "@semantic-release/github": "^12.0.9",
     "@stryker-mutator/core": "^8.7.0",
     "@stryker-mutator/vitest-runner": "^8.7.0",
     "@types/better-sqlite3": "^7.6.13",
