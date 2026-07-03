@@ -1,8 +1,11 @@
-# Dependabot v2 configuration for Gemma Code v0.5.0
+# Dependabot v2 configuration for Nexus-AI
 #
-# Opens grouped dependency PRs every Monday at 06:00 UTC. Grouping keeps the
-# noise down: at most ~3 PRs per week (npm dev, npm runtime, github-actions)
-# instead of one PR per package. CI gates run on each PR; do NOT auto-merge.
+# Opens grouped dependency PRs MONTHLY with a low open-PR limit. Rationale: each
+# Dependabot PR triggers CI, and CI minutes are a single account-wide GitHub
+# Actions pool shared across all repos. Monthly + grouping + a small limit keeps
+# that cost bounded (a couple of PRs per ecosystem per month, not one per
+# package). CI is configured to skip the heavy fleet on Dependabot PRs (see the
+# `dependabot[bot]` guards in .github/workflows). Do NOT auto-merge.
 #
 # Major-version bumps for vscode-related dependencies are ignored on purpose:
 # they need manual coordination with the engines.vscode pin.
@@ -19,11 +22,12 @@ updates:
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "monday"
+      interval: "monthly"
       time: "06:00"
       timezone: "UTC"
-    open-pull-requests-limit: 10
+    # Kept intentionally low: fewer concurrent PRs => fewer CI runs. Raise once
+    # the Actions minutes budget is healthy again.
+    open-pull-requests-limit: 3
     # Group only minor/patch updates. Major-version bumps come as
     # individual PRs because each one needs an isolated review (breaking
     # API changes, ecosystem-wide ramifications). Without the
@@ -59,17 +63,15 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "monday"
+      interval: "monthly"
       time: "06:00"
       timezone: "UTC"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 2
 
   - package-ecosystem: "pip"
     directory: "/scripts/installer/pyqt"
     schedule:
-      interval: "weekly"
-      day: "monday"
+      interval: "monthly"
       time: "06:00"
       timezone: "UTC"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 2

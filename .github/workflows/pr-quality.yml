@@ -8,7 +8,8 @@ name: PR Quality
 
 on:
   pull_request:
-    types: [opened, edited, synchronize, reopened]
+    # 'edited' dropped: it re-ran the whole gate on every PR-body edit (wasteful).
+    types: [opened, synchronize, reopened]
     branches: ["main"]
 
 concurrency:
@@ -19,6 +20,8 @@ jobs:
   checklist:
     name: Submission Checklist gate
     runs-on: ubuntu-latest
+    # Cost control: Dependabot PRs have no human checklist to enforce; skip them.
+    if: ${{ github.actor != 'dependabot[bot]' }}
     permissions:
       contents: read
       pull-requests: read

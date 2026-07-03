@@ -25,6 +25,9 @@ jobs:
   analyze:
     name: Analyze (javascript-typescript)
     runs-on: ubuntu-latest
+    # Cost control: skip on Dependabot PRs. A dependency bump does not need a
+    # full SAST scan, and push-to-main + the weekly schedule still cover the tree.
+    if: ${{ github.actor != 'dependabot[bot]' }}
     permissions:
       actions: read
       contents: read

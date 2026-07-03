@@ -2,7 +2,7 @@ name: Nightly
 
 on:
   schedule:
-    - cron: "0 2 * * *"  # 02:00 UTC every day
+    - cron: "0 2 * * 0"  # 02:00 UTC weekly (Sunday). Was daily -- throttled to cut CI-minute cost.
   workflow_dispatch:      # allow manual trigger
 
 concurrency:

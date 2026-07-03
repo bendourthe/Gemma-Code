@@ -11,6 +11,7 @@ on:
     paths:
       - "desktop/**"
       - ".github/workflows/shell-build.yml"
+  workflow_dispatch: {}
 
 concurrency:
   group: shell-build-${{ github.workflow }}-${{ github.head_ref || github.ref }}
@@ -22,7 +23,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
+        # Cost control: PRs run ubuntu-only (fast, platform-agnostic gate); the
+        # full macOS (10x) + Windows (2x) matrix runs on push-to-main and manual
+        # dispatch, where the release-representative build matters.
+        os: ${{ github.event_name == 'pull_request' && fromJSON('["ubuntu-latest"]') || fromJSON('["windows-latest","macos-latest","ubuntu-latest"]') }}
     runs-on: ${{ matrix.os }}
     defaults:
       run:

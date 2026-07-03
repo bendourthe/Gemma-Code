@@ -19,6 +19,8 @@ jobs:
   diff-cover:
     name: diff-cover (80% on changed lines)
     runs-on: ubuntu-latest
+    # Cost control: skip on Dependabot PRs (they change deps, not source lines).
+    if: ${{ github.actor != 'dependabot[bot]' }}
     permissions:
       contents: read
       pull-requests: write

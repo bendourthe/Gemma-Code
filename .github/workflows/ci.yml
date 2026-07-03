@@ -360,6 +360,9 @@ jobs:
   init-check-windows:
     name: init.ps1 (Windows)
     runs-on: windows-latest
+    # Cost control: Windows is a 2x-minute runner. Validate the PowerShell
+    # bootstrap on push to main only, not on every PR (init.sh covers Linux on PRs).
+    if: ${{ github.event_name != 'pull_request' }}
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
