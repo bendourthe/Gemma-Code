@@ -21,7 +21,7 @@ class TestInstallEngineOrder:
             patch("nexus_installer.engine.installer.OllamaInstaller") as MockOllama,
             patch("nexus_installer.engine.installer.ExtensionInstaller") as MockExt,
             patch("nexus_installer.engine.installer.VenvInstaller") as MockVenv,
-            patch("nexus_installer.engine.installer.ModelPuller") as MockPuller,
+            patch("nexus_installer.engine.installer.ModelStepRouter") as MockRouter,
             patch(
                 "nexus_installer.engine.installer.DesktopProvisioner"
             ) as MockDesktop,
@@ -38,7 +38,7 @@ class TestInstallEngineOrder:
                 call_order.append("venv"),
                 True,
             )[1]
-            MockPuller.return_value.pull.side_effect = lambda s, l, p: (
+            MockRouter.return_value.install.side_effect = lambda s, l, p: (
                 call_order.append("model"),
                 True,
             )[1]
@@ -91,7 +91,7 @@ class TestInstallEngineSkips:
 
         with (
             patch("nexus_installer.engine.installer.ExtensionInstaller") as MockExt,
-            patch("nexus_installer.engine.installer.ModelPuller") as MockPuller,
+            patch("nexus_installer.engine.installer.ModelStepRouter") as MockRouter,
         ):
             MockExt.return_value.install.return_value = True
 
@@ -103,7 +103,7 @@ class TestInstallEngineSkips:
 
             engine.run(state)
 
-            MockPuller.return_value.pull.assert_not_called()
+            MockRouter.return_value.install.assert_not_called()
 
     def test_skips_desktop_when_removed(self) -> None:
         state = InstallerState(
@@ -203,3 +203,12 @@ class TestInstallEngineCancel:
             engine._desktop_provisioner = MockDesktop.return_value
             engine.cancel()
             MockDesktop.return_value.cancel.assert_called_once()
+
+    def test_cancel_propagates_to_model_router(self) -> None:
+        with patch(
+            "nexus_installer.engine.installer.ModelStepRouter"
+        ) as MockRouter:
+            engine = InstallEngine()
+            engine._model_router = MockRouter.return_value
+            engine.cancel()
+            MockRouter.return_value.cancel.assert_called_once()

@@ -48,6 +48,15 @@ class InstallerState:
     disk_reserve_gb: int = DEFAULT_DISK_RESERVE_GB
     install_vscode_extension: bool = True
 
+    # v1.8.0 Phase 3 -- protocol-routed multi-model selection.
+    # `selected_model_ids` (catalog ids, any protocol) wins over the legacy
+    # single `selected_model` when non-empty; `failed_models` collects
+    # per-model failures for the complete-page summary; `models_root`
+    # overrides the default `~/.nexus/models` weights destination.
+    selected_model_ids: list[str] = field(default_factory=list)
+    failed_models: list[str] = field(default_factory=list)
+    models_root: str = ""
+
     # v1.8.0 Phase 2 -- Nexus desktop app provisioning.
     desktop_install_dir: str = ""  # empty = platform installer default
     desktop_bundle_override: str = ""  # local bundle path; skips release fetch

@@ -4,6 +4,29 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-03] v1.8.0 one-shot installer -- Phase 3: Hugging Face weights downloader, image/video selection becomes real (T301-T304)
+
+### Goal
+
+Close gap G2 ([plan](versions/v1/v1.8.0/plans/one-shot-installer.md) Phase 3): HF-protocol catalog entries (SANA, SDXL, FLUX, LTX-Video, SVD) were selectable dead ends -- the model step only ran `ollama pull`. Give every `source.protocol: "huggingface"` entry a real, resumable, SHA-256-verified download path into a documented runtime layout, and route the model step by protocol with per-model failure isolation.
+
+### What changed
+
+- **T301 -- weights manifests + model-path contract**: `weights.files[]` (path + sha256, versions.lock.json discipline) on all 16 HF entries in [catalog.json](../core/registry/catalog.json) via a format-preserving transform; the runtime's model-path contract was verified *undefined* (real diffusers executors are still OA-09 stubs) and therefore defined + documented in catalog `_meta`: `<models_root>/weights/<model-id>/{repo-relative path}` (default `~/.nexus/models`), the per-model directory diffusers `from_pretrained` loads. Typed in [catalog.ts](../core/registry/catalog.ts) with `validateSpec` checks. New stdlib-only [pin-hf-weights.py](../scripts/installer/build/pin-hf-weights.py) rotates placeholder pins (HF API `lfs.oid` mode / `--from-dir` local-hash mode / `--check` gate); pins stay placeholders this session (no HF egress from the dev sandbox -- `OSI003.P3.A`).
+- **T302 -- [engine/hf_weights_puller.py](../scripts/installer/pyqt/src/nexus_installer/engine/hf_weights_puller.py)** (new): per-file `.partial` + Range resume (206 append / 200 restart / 416 promote; cancel keeps partials), 3-attempt backoff retry, SHA-256 verify -- real-pin mismatch deletes + fails closed, placeholder pin warns + logs the computed digest (the `fetch-payload.py` discipline); traversal-safe manifest paths; disk pre-check vs the 10 GB OS reserve.
+- **T303 -- [engine/model_router.py](../scripts/installer/pyqt/src/nexus_installer/engine/model_router.py)** (new): the engine's model step (GUI + headless) now routes each selected id by catalog protocol (`ollama` -> `ModelPuller.pull_model`, unchanged; `huggingface` -> weights puller; unknown ids -> ollama verbatim, the historical behavior), aggregates sizeGB-weighted progress across mixed selections, isolates per-model failures onto new `InstallerState.failed_models` (named bullets on the complete page), and threads the new `selected_model_ids` multi-select state (wizard UI producer lands with Phase 4's catalog rework, `OSI003.P3.D`).
+- **T304 -- tests**: 62 new cases ([test_hf_weights_puller.py](../scripts/installer/pyqt/tests/test_hf_weights_puller.py) + [test_model_router.py](../scripts/installer/pyqt/tests/test_model_router.py)) + engine-suite updates; env-gated (`NEXUS_HF_WEIGHTS_SMOKE=1`) integration smoke downloads the smallest real entry (`sana-1.6b-int4`, 1.4 GB) -- deferred to the operator's GPU box with the runtime-load leg (`OSI003.P3.C`).
+
+### Verification
+
+Installer pytest suite **494 passed / 2 skipped / 0 failed** (+61; the new skip is the env-gated HF smoke); `hf_weights_puller` 94% / `model_router` 98% line coverage; ruff 0 new findings; `tsc -b` clean; root Vitest suite (`npm test`) **4565 passed / 6 skipped / 0 failed** (unchanged). Known-gaps: new `OSI003.P3.A-D` (pin rotation, full multi-file manifests for Phase 4/T403, GPU-box smoke, wizard multi-select wiring). See the [phase history](versions/v1/v1.8.0/development/history/2026-07_phase-3-hf-weights-downloader.md).
+
+### Branch
+
+`feat/v1.8.0-installer-phase-3`, stacked on `feat/v1.8.0-installer-phase-2`.
+
+---
+
 ## [2026-07-02] v1.8.0 one-shot installer -- Phase 2: desktop provisioner, the installer installs Nexus (T201-T204)
 
 ### Goal

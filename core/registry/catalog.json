@@ -1,8 +1,8 @@
 {
   "_meta": {
     "version": 1,
-    "phase": "v1.1.0 Phase 12",
-    "comment": "Curated installable model catalog used by Settings UI. LLMs ship in Phase 5; image models are flagged for Phase 6 (Image Studio); video models for Phase 7 (Video Lab); NVIDIA SANA family (image + video + ControlNet + VAE) landed in v1.1.0 Phase 12. Each entry's source.sha256 is the verifier digest for the primary weights blob; Ollama-sourced entries delegate digest verification to `ollama pull` and carry no sha256. The SANA family placeholders (`sha256: 0...`) are rotated by Phase 15 operator action OA-03."
+    "phase": "v1.8.0 Phase 3",
+    "comment": "Curated installable model catalog used by the Settings UI and the installer wizard. LLMs ship in Phase 5; image models are flagged for Phase 6 (Image Studio); video models for Phase 7 (Video Lab); NVIDIA SANA family landed in v1.1.0 Phase 12. Ollama-sourced entries delegate digest verification to `ollama pull` and carry no sha256. Hugging Face entries carry a per-model `weights` manifest (v1.8.0 Phase 3): an explicit file list, each downloaded from https://huggingface.co/{repo}/resolve/main/{path} into <models_root>/weights/<model-id>/{path} (models_root defaults to ~/.nexus/models) -- the per-model directory the diffusion runtime loads at startup (diffusers from_pretrained on the model directory; repo-relative subpaths like transformer/ are preserved). Each file pins a SHA-256 (versions.lock.json discipline): all-zero digests are placeholders -- the installer's weights puller warns, skips verification, and logs the computed digest; rotate pins with scripts/installer/build/pin-hf-weights.py. source.sha256 remains the primary-blob digest for older consumers and is superseded by weights.files[].sha256."
   },
   "models": [
     {
@@ -200,6 +200,15 @@
         "url": "https://huggingface.co/stabilityai/sdxl-turbo/resolve/main/sd_xl_turbo_1.0_fp16.safetensors",
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "sd_xl_turbo_1.0_fp16.safetensors",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
+      },
       "tags": ["phase-6", "image"]
     },
     {
@@ -218,6 +227,15 @@
         "repo": "stabilityai/stable-diffusion-xl-base-1.0",
         "url": "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors",
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "sd_xl_base_1.0.safetensors",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
       },
       "tags": ["phase-6", "image"]
     },
@@ -238,6 +256,15 @@
         "url": "https://huggingface.co/black-forest-labs/FLUX.1-schnell/resolve/main/flux1-schnell.safetensors",
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "flux1-schnell.safetensors",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
+      },
       "tags": ["phase-6", "image"]
     },
     {
@@ -256,6 +283,15 @@
         "repo": "runwayml/stable-diffusion-v1-5",
         "url": "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.safetensors",
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "v1-5-pruned-emaonly.safetensors",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
       },
       "tags": ["phase-6", "image"]
     },
@@ -276,6 +312,15 @@
         "url": "https://huggingface.co/Lightricks/LTX-Video/resolve/main/ltx-video-2b-v0.9.safetensors",
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "ltx-video-2b-v0.9.safetensors",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
+      },
       "tags": ["phase-7", "video"]
     },
     {
@@ -294,6 +339,15 @@
         "repo": "stabilityai/stable-video-diffusion-img2vid-xt-1-1",
         "url": "https://huggingface.co/stabilityai/stable-video-diffusion-img2vid-xt-1-1/resolve/main/svd_xt_1_1.safetensors",
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "svd_xt_1_1.safetensors",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
       },
       "tags": ["phase-7", "video"]
     },
@@ -320,6 +374,15 @@
         "url": "https://huggingface.co/Efficient-Large-Model/SANA1.5_1.6B_1024px_diffusers/resolve/main/transformer/diffusion_pytorch_model.safetensors",
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "transformer/diffusion_pytorch_model.safetensors",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
+      },
       "tags": ["recommended", "image", "phase-12", "sana"]
     },
     {
@@ -344,6 +407,15 @@
         "repo": "Efficient-Large-Model/sana-sprint",
         "url": "https://huggingface.co/Efficient-Large-Model/sana-sprint/resolve/main/transformer/diffusion_pytorch_model.safetensors",
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "transformer/diffusion_pytorch_model.safetensors",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
       },
       "tags": ["recommended", "image", "phase-12", "sana", "sprint"]
     },
@@ -370,6 +442,15 @@
         "url": "https://huggingface.co/Efficient-Large-Model/Sana_1600M_2Kpx_BF16/resolve/main/transformer/diffusion_pytorch_model.safetensors",
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "transformer/diffusion_pytorch_model.safetensors",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
+      },
       "tags": ["image", "phase-12", "sana", "2k"]
     },
     {
@@ -394,6 +475,15 @@
         "repo": "Efficient-Large-Model/Sana_1600M_4Kpx_BF16",
         "url": "https://huggingface.co/Efficient-Large-Model/Sana_1600M_4Kpx_BF16/resolve/main/transformer/diffusion_pytorch_model.safetensors",
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "transformer/diffusion_pytorch_model.safetensors",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
       },
       "tags": ["image", "phase-12", "sana", "4k"]
     },
@@ -421,6 +511,15 @@
         "url": "https://huggingface.co/Efficient-Large-Model/SANA1.5_1.6B_1024px_int4/resolve/main/transformer/diffusion_pytorch_model.safetensors",
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "transformer/diffusion_pytorch_model.safetensors",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
+      },
       "tags": ["image", "phase-12", "sana", "int4"]
     },
     {
@@ -444,6 +543,15 @@
         "repo": "mit-han-lab/dc-ae-f32c32-sana-1.1",
         "url": "https://huggingface.co/mit-han-lab/dc-ae-f32c32-sana-1.1/resolve/main/diffusion_pytorch_model.safetensors",
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "diffusion_pytorch_model.safetensors",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
       },
       "tags": ["vae", "phase-12", "sana", "auto-loaded"]
     },
@@ -470,6 +578,15 @@
         "url": "https://huggingface.co/Efficient-Large-Model/SANA-ControlNet-Pose/resolve/main/diffusion_pytorch_model.safetensors",
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "diffusion_pytorch_model.safetensors",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
+      },
       "tags": ["controlnet", "phase-12", "sana", "pose"]
     },
     {
@@ -494,6 +611,15 @@
         "repo": "Efficient-Large-Model/SANA-ControlNet-Depth",
         "url": "https://huggingface.co/Efficient-Large-Model/SANA-ControlNet-Depth/resolve/main/diffusion_pytorch_model.safetensors",
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "diffusion_pytorch_model.safetensors",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
       },
       "tags": ["controlnet", "phase-12", "sana", "depth"]
     },
@@ -520,6 +646,15 @@
         "url": "https://huggingface.co/Efficient-Large-Model/SANA-ControlNet-Canny/resolve/main/diffusion_pytorch_model.safetensors",
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "diffusion_pytorch_model.safetensors",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
+      },
       "tags": ["controlnet", "phase-12", "sana", "canny"]
     },
     {
@@ -543,6 +678,15 @@
         "repo": "Efficient-Large-Model/SANA-Video-2B",
         "url": "https://huggingface.co/Efficient-Large-Model/SANA-Video-2B/resolve/main/transformer/diffusion_pytorch_model.safetensors",
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "transformer/diffusion_pytorch_model.safetensors",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
       },
       "tags": ["video", "phase-12", "sana"]
     }

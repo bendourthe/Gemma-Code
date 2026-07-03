@@ -29,7 +29,19 @@ class ModelPuller:
         if not model:
             log("No model selected. Skipping model pull.", "warn")
             return True
+        return self.pull_model(model, log, progress)
 
+    def pull_model(
+        self,
+        model: str,
+        log: Callable[[str, str], None],
+        progress: Callable[[float], None],
+    ) -> bool:
+        """Pull one named model via `ollama pull`. Returns True on success.
+
+        v1.8.0 Phase 3: split out of `pull` so the protocol router can pull
+        each ollama-sourced model of a multi-selection individually.
+        """
         log(f"Pulling model {model}... This may take several minutes.", "info")
 
         try:

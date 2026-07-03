@@ -109,7 +109,7 @@ def _run_headless(args: argparse.Namespace) -> int:
     # engine imports (useful for `--help`, `--version`).
     from nexus_installer.engine.desktop_provisioner import DesktopProvisioner
     from nexus_installer.engine.extension_installer import ExtensionInstaller
-    from nexus_installer.engine.model_puller import ModelPuller
+    from nexus_installer.engine.model_router import ModelStepRouter
     from nexus_installer.engine.ollama_installer import OllamaInstaller
     from nexus_installer.engine.venv_installer import VenvInstaller
     from nexus_installer.installer_state import InstallerState
@@ -193,10 +193,11 @@ def _run_headless(args: argparse.Namespace) -> int:
         )
         (steps_done if ok else steps_failed).append("venv")
     if "model" in state.components_to_install:
-        puller = ModelPuller()
+        # v1.8.0 Phase 3: routed by catalog protocol, same as the GUI engine.
+        router = ModelStepRouter()
         ok = run_step(
-            "Pulling Gemma Model",
-            lambda: puller.pull(state, log, lambda _pct: None),
+            "Downloading Models",
+            lambda: router.install(state, log, lambda _pct: None),
         )
         (steps_done if ok else steps_failed).append("model")
     if "desktop" in state.components_to_install:

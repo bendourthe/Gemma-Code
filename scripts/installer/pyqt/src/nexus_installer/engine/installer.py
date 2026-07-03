@@ -6,7 +6,7 @@ from PyQt5.QtCore import QObject, QThread, pyqtSignal
 
 from nexus_installer.engine.desktop_provisioner import DesktopProvisioner
 from nexus_installer.engine.extension_installer import ExtensionInstaller
-from nexus_installer.engine.model_puller import ModelPuller
+from nexus_installer.engine.model_router import ModelStepRouter
 from nexus_installer.engine.ollama_installer import OllamaInstaller
 from nexus_installer.engine.venv_installer import VenvInstaller
 from nexus_installer.installer_state import InstallerState
@@ -22,7 +22,7 @@ class InstallEngine(QObject):
 
     def __init__(self) -> None:
         super().__init__()
-        self._model_puller: ModelPuller | None = None
+        self._model_router: ModelStepRouter | None = None
         self._desktop_provisioner: DesktopProvisioner | None = None
 
     def run(self, state: InstallerState) -> None:
@@ -64,17 +64,19 @@ class InstallEngine(QObject):
             ok = VenvInstaller().install(state, log)
             advance("venv", ok)
 
-        # 4. Model pull (longest step, has its own progress)
+        # 4. Model downloads (longest step, has its own progress).
+        # v1.8.0 Phase 3: routed by catalog protocol (ollama pull vs
+        # Hugging Face weights) with per-model failure isolation.
         if "model" in state.components_to_install:
-            log("--- Pulling Gemma Model ---", "info")
-            self._model_puller = ModelPuller()
+            log("--- Downloading Models ---", "info")
+            self._model_router = ModelStepRouter()
             model_base = steps_done / max(total_steps, 1)
 
             def on_model_progress(pct: float) -> None:
                 # Scale this step's own progress into its band of the total.
                 self.progress_update.emit(model_base + pct / max(total_steps, 1))
 
-            ok = self._model_puller.pull(state, log, on_model_progress)
+            ok = self._model_router.install(state, log, on_model_progress)
             advance("model", ok)
 
         # 5. Nexus desktop app (v1.8.0 Phase 2; has its own download progress)
@@ -101,8 +103,8 @@ class InstallEngine(QObject):
 
     def cancel(self) -> None:
         """Request cancellation of the current operation."""
-        if self._model_puller:
-            self._model_puller.cancel()
+        if self._model_router:
+            self._model_router.cancel()
         if self._desktop_provisioner:
             self._desktop_provisioner.cancel()
 

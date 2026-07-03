@@ -174,7 +174,7 @@ class CompletePage(QWidget):
         state = self._state
 
         # Update title based on failures
-        if state.failed_steps:
+        if state.failed_steps or state.failed_models:
             self._title.setText("Installation Completed with Warnings")
             self._subtitle.setStyleSheet(
                 f"color: {WARNING}; font-size: 13px; background: transparent;"
@@ -182,8 +182,14 @@ class CompletePage(QWidget):
             self._subtitle.setText(
                 "Some components could not be installed. See details below."
             )
-            failure_text = "<br>".join(f"\u2022 {step}" for step in state.failed_steps)
-            self._warning_callout.set_body(failure_text)
+            # v1.8.0 Phase 3 -- per-model failure isolation: name each model
+            # that failed so the user knows what to re-run, not just "model".
+            failures = [f"\u2022 {step}" for step in state.failed_steps]
+            failures.extend(
+                f"\u2022 model download failed: {model_id}"
+                for model_id in state.failed_models
+            )
+            self._warning_callout.set_body("<br>".join(failures))
             self._warning_callout.setVisible(True)
         else:
             self._title.setText("Installation Complete")

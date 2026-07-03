@@ -27,6 +27,22 @@ export interface ModelSpecSource {
   readonly sha256?: string;
 }
 
+/**
+ * v1.8.0 Phase 3 -- one file of a per-model weights manifest. `path` is the
+ * repo-relative path under `https://huggingface.co/{repo}/resolve/main/` and
+ * the destination path under `<models_root>/weights/<model-id>/`. An all-zero
+ * `sha256` is a placeholder pin (see `_meta.comment` in catalog.json).
+ */
+export interface ModelWeightsFile {
+  readonly path: string;
+  readonly sha256: string;
+}
+
+export interface ModelWeightsManifest {
+  readonly layoutVersion: 1;
+  readonly files: readonly ModelWeightsFile[];
+}
+
 export interface ModelSpec {
   readonly id: string;
   readonly family: string;
@@ -40,6 +56,7 @@ export interface ModelSpec {
   readonly requiredVramGB?: number;
   readonly license?: string;
   readonly source: ModelSpecSource;
+  readonly weights?: ModelWeightsManifest;
   readonly tags?: readonly string[];
   readonly releaseDate?: string;
   readonly uncensored?: boolean;
@@ -70,6 +87,19 @@ export function validateSpec(spec: ModelSpec): void {
   }
   if (spec.source.protocol !== "ollama" && spec.source.sha256 && !/^[a-f0-9]{64}$/.test(spec.source.sha256)) {
     throw new Error(`ModelCatalog: ${spec.id} has malformed source.sha256`);
+  }
+  if (spec.weights) {
+    if (!Array.isArray(spec.weights.files) || spec.weights.files.length === 0) {
+      throw new Error(`ModelCatalog: ${spec.id} weights manifest has no files`);
+    }
+    for (const file of spec.weights.files) {
+      if (!file.path || file.path.startsWith("/") || file.path.includes("..") || file.path.includes("\\")) {
+        throw new Error(`ModelCatalog: ${spec.id} weights file path is unsafe: ${file.path}`);
+      }
+      if (!/^[a-f0-9]{64}$/.test(file.sha256)) {
+        throw new Error(`ModelCatalog: ${spec.id} weights file ${file.path} has malformed sha256`);
+      }
+    }
   }
 }
 
