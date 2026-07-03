@@ -13,7 +13,7 @@ class TestInstallEngineOrder:
         state = InstallerState(
             vscode_path="/usr/bin/code",
             python_path="/usr/bin/python3",
-            components_to_install=["ollama", "extension", "venv", "model"],
+            components_to_install=["ollama", "extension", "venv", "model", "desktop"],
         )
         call_order: list[str] = []
 
@@ -22,6 +22,9 @@ class TestInstallEngineOrder:
             patch("nexus_installer.engine.installer.ExtensionInstaller") as MockExt,
             patch("nexus_installer.engine.installer.VenvInstaller") as MockVenv,
             patch("nexus_installer.engine.installer.ModelPuller") as MockPuller,
+            patch(
+                "nexus_installer.engine.installer.DesktopProvisioner"
+            ) as MockDesktop,
         ):
             MockOllama.return_value.install.side_effect = lambda s, l: (
                 call_order.append("ollama"),
@@ -39,6 +42,10 @@ class TestInstallEngineOrder:
                 call_order.append("model"),
                 True,
             )[1]
+            MockDesktop.return_value.install.side_effect = lambda s, l, p: (
+                call_order.append("desktop"),
+                True,
+            )[1]
 
             engine = InstallEngine()
             # Connect signals to prevent errors
@@ -49,7 +56,7 @@ class TestInstallEngineOrder:
 
             engine.run(state)
 
-            assert call_order == ["ollama", "extension", "venv", "model"]
+            assert call_order == ["ollama", "extension", "venv", "model", "desktop"]
 
 
 class TestInstallEngineSkips:
@@ -98,6 +105,30 @@ class TestInstallEngineSkips:
 
             MockPuller.return_value.pull.assert_not_called()
 
+    def test_skips_desktop_when_removed(self) -> None:
+        state = InstallerState(
+            components_to_install=["extension"],
+            vscode_path="/usr/bin/code",
+        )
+
+        with (
+            patch("nexus_installer.engine.installer.ExtensionInstaller") as MockExt,
+            patch(
+                "nexus_installer.engine.installer.DesktopProvisioner"
+            ) as MockDesktop,
+        ):
+            MockExt.return_value.install.return_value = True
+
+            engine = InstallEngine()
+            engine.log_message.connect(lambda *a: None)
+            engine.progress_update.connect(lambda *a: None)
+            engine.step_completed.connect(lambda *a: None)
+            engine.install_finished.connect(lambda *a: None)
+
+            engine.run(state)
+
+            MockDesktop.return_value.install.assert_not_called()
+
 
 class TestInstallEnginePartialFailure:
     def test_continues_after_failure(self) -> None:
@@ -131,3 +162,44 @@ class TestInstallEnginePartialFailure:
             assert len(finished_args) == 1
             assert finished_args[0][0] is False
             assert "ollama" in finished_args[0][1]
+
+    def test_desktop_failure_reported_but_run_completes(self) -> None:
+        state = InstallerState(
+            components_to_install=["extension", "desktop"],
+            vscode_path="/usr/bin/code",
+        )
+        finished_args: list[tuple[bool, str]] = []
+
+        with (
+            patch("nexus_installer.engine.installer.ExtensionInstaller") as MockExt,
+            patch(
+                "nexus_installer.engine.installer.DesktopProvisioner"
+            ) as MockDesktop,
+        ):
+            MockExt.return_value.install.return_value = True
+            MockDesktop.return_value.install.return_value = False
+
+            engine = InstallEngine()
+            engine.log_message.connect(lambda *a: None)
+            engine.progress_update.connect(lambda *a: None)
+            engine.step_completed.connect(lambda *a: None)
+            engine.install_finished.connect(
+                lambda ok, msg: finished_args.append((ok, msg))
+            )
+
+            engine.run(state)
+
+            assert finished_args[0][0] is False
+            assert "desktop" in finished_args[0][1]
+            assert "desktop" in state.failed_steps
+
+
+class TestInstallEngineCancel:
+    def test_cancel_propagates_to_desktop_provisioner(self) -> None:
+        with patch(
+            "nexus_installer.engine.installer.DesktopProvisioner"
+        ) as MockDesktop:
+            engine = InstallEngine()
+            engine._desktop_provisioner = MockDesktop.return_value
+            engine.cancel()
+            MockDesktop.return_value.cancel.assert_called_once()

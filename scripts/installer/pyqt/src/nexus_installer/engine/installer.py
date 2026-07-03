@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from PyQt5.QtCore import QObject, QThread, pyqtSignal
 
+from nexus_installer.engine.desktop_provisioner import DesktopProvisioner
 from nexus_installer.engine.extension_installer import ExtensionInstaller
 from nexus_installer.engine.model_puller import ModelPuller
 from nexus_installer.engine.ollama_installer import OllamaInstaller
@@ -22,6 +23,7 @@ class InstallEngine(QObject):
     def __init__(self) -> None:
         super().__init__()
         self._model_puller: ModelPuller | None = None
+        self._desktop_provisioner: DesktopProvisioner | None = None
 
     def run(self, state: InstallerState) -> None:
         """Execute all installation steps in sequence. Call from a QThread."""
@@ -66,14 +68,26 @@ class InstallEngine(QObject):
         if "model" in state.components_to_install:
             log("--- Pulling Gemma Model ---", "info")
             self._model_puller = ModelPuller()
+            model_base = steps_done / max(total_steps, 1)
 
             def on_model_progress(pct: float) -> None:
-                # Model pull is the final step; scale its progress into the remaining range
-                base = (total_steps - 1) / max(total_steps, 1)
-                self.progress_update.emit(base + pct / max(total_steps, 1))
+                # Scale this step's own progress into its band of the total.
+                self.progress_update.emit(model_base + pct / max(total_steps, 1))
 
             ok = self._model_puller.pull(state, log, on_model_progress)
             advance("model", ok)
+
+        # 5. Nexus desktop app (v1.8.0 Phase 2; has its own download progress)
+        if "desktop" in state.components_to_install:
+            log("--- Installing Nexus Desktop ---", "info")
+            self._desktop_provisioner = DesktopProvisioner()
+            desktop_base = steps_done / max(total_steps, 1)
+
+            def on_desktop_progress(pct: float) -> None:
+                self.progress_update.emit(desktop_base + pct / max(total_steps, 1))
+
+            ok = self._desktop_provisioner.install(state, log, on_desktop_progress)
+            advance("desktop", ok)
 
         # Final report
         if steps_failed:
@@ -89,6 +103,8 @@ class InstallEngine(QObject):
         """Request cancellation of the current operation."""
         if self._model_puller:
             self._model_puller.cancel()
+        if self._desktop_provisioner:
+            self._desktop_provisioner.cancel()
 
 
 class _InstallThread(QThread):

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from nexus_installer.installer_state import InstallerState
-from nexus_installer.pages.review import _MODEL_SIZES
+from nexus_installer.pages.review import _COMPONENT_LABELS, _MODEL_SIZES
 
 
 class TestModelSizes:
@@ -45,3 +45,10 @@ class TestReviewSummary:
         assert _MODEL_SIZES["gemma4:31b"] >= 18
         # Small model -> shorter time
         assert _MODEL_SIZES["gemma4:e2b"] < 8
+
+    def test_desktop_component_has_friendly_label(self) -> None:
+        # v1.8.0 Phase 2: the desktop component renders as a product name,
+        # not a bare capitalized id.
+        assert _COMPONENT_LABELS["desktop"] == "Nexus Desktop app"
+        state = InstallerState()
+        assert "desktop" in state.components_to_install

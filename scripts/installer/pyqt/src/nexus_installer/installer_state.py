@@ -34,7 +34,7 @@ class InstallerState:
     disk_space_gb: float = 0.0
     platform: str = field(default_factory=lambda: sys.platform)
     components_to_install: list[str] = field(
-        default_factory=lambda: ["extension", "ollama", "venv", "model"]
+        default_factory=lambda: ["extension", "ollama", "venv", "model", "desktop"]
     )
     ollama_url: str = "http://localhost:11434"
     enable_thinking: bool = True
@@ -47,6 +47,14 @@ class InstallerState:
     selected_models_gb: float = 0.0
     disk_reserve_gb: int = DEFAULT_DISK_RESERVE_GB
     install_vscode_extension: bool = True
+
+    # v1.8.0 Phase 2 -- Nexus desktop app provisioning.
+    desktop_install_dir: str = ""  # empty = platform installer default
+    desktop_bundle_override: str = ""  # local bundle path; skips release fetch
+    desktop_installed: bool = False
+    desktop_health_ok: bool = False
+    desktop_exe_path: str = ""
+    launch_desktop_on_finish: bool = True
 
     def can_select_model(self, model_gb: float) -> bool:
         """Return True when adding `model_gb` keeps the OS reserve intact."""

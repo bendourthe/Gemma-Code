@@ -83,3 +83,21 @@ class TestInstallerWindow:
         window.show_first_page()
         window._go_next()
         assert window.current_index == 0  # Blocked by validation
+
+    def test_finish_runs_last_page_hook(self, qt_app: object) -> None:
+        # v1.8.0 Phase 2 (T203): Finish invokes the page's on_finish hook
+        # (the complete page uses it to launch the Nexus desktop app).
+        from nexus_installer.window import InstallerWindow
+
+        finished: list[bool] = []
+
+        class LastPage(QWidget):
+            def on_finish(self) -> None:
+                finished.append(True)
+
+        window = InstallerWindow()
+        window.add_page(QWidget())
+        window.add_page(LastPage())
+        window.switch_page(1)
+        window._go_next()  # "Finish"
+        assert finished == [True]

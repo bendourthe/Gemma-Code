@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import contextlib
 import subprocess
 import sys
 from typing import TYPE_CHECKING
 
 from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtWidgets import (
+    QCheckBox,
     QFileDialog,
     QHBoxLayout,
     QLabel,
@@ -139,6 +141,16 @@ class CompletePage(QWidget):
         )
         layout.addWidget(manage_card)
 
+        # v1.8.0 Phase 2 -- launch the desktop app when the wizard finishes.
+        self._launch_checkbox = QCheckBox("Launch Nexus when I click Finish")
+        self._launch_checkbox.setChecked(state.launch_desktop_on_finish)
+        self._launch_checkbox.stateChanged.connect(
+            lambda _s: setattr(
+                state, "launch_desktop_on_finish", self._launch_checkbox.isChecked()
+            )
+        )
+        layout.addWidget(self._launch_checkbox)
+
         # Action buttons
         btn_row = QHBoxLayout()
         self._open_vscode_btn = PrimaryButton("Open VS Code")
@@ -193,6 +205,24 @@ class CompletePage(QWidget):
             "nexus-coding.nexus-coding (installed)" if ext_installed else "Not installed",
             ext_installed,
         )
+        if state.desktop_installed:
+            desktop_detail = (
+                "Installed (health check passed)"
+                if state.desktop_health_ok
+                else "Installed (health check failed -- try launching from the OS menu)"
+            )
+        else:
+            desktop_detail = "Not installed"
+        self._add_service(
+            "Nexus Desktop",
+            desktop_detail,
+            state.desktop_installed and state.desktop_health_ok,
+        )
+
+        # Launching only makes sense when the desktop app actually landed.
+        self._launch_checkbox.setEnabled(state.desktop_installed)
+        if not state.desktop_installed:
+            self._launch_checkbox.setChecked(False)
 
     def _add_service(self, name: str, detail: str, ok: bool) -> None:
         row = QHBoxLayout()
@@ -213,6 +243,18 @@ class CompletePage(QWidget):
         container = QWidget()
         container.setLayout(row)
         self._services_layout.addWidget(container)
+
+    def on_finish(self) -> None:
+        """Called by the window when Finish is clicked on this page."""
+        state = self._state
+        if not (
+            state.launch_desktop_on_finish
+            and state.desktop_installed
+            and state.desktop_exe_path
+        ):
+            return
+        with contextlib.suppress(OSError):
+            subprocess.Popen([state.desktop_exe_path])
 
     def _open_vscode(self) -> None:
         try:

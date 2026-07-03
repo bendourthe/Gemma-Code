@@ -58,6 +58,15 @@ class ConfigurationPage(QWidget):
         )
         layout.addWidget(self._venv_toggle)
 
+        # v1.8.0 Phase 2 -- the desktop app ships default-checked, like the
+        # extension choice.
+        self._desktop_toggle = QCheckBox("Install the Nexus desktop app (recommended)")
+        self._desktop_toggle.setChecked("desktop" in state.components_to_install)
+        self._desktop_toggle.stateChanged.connect(
+            lambda s: self._toggle_component("desktop", s)
+        )
+        layout.addWidget(self._desktop_toggle)
+
         self._shortcut_toggle = QCheckBox("Add Start Menu / Applications shortcut")
         self._shortcut_toggle.setChecked(True)
         layout.addWidget(self._shortcut_toggle)

@@ -36,7 +36,8 @@ ensure_ollama() {
 run_installer() {
     log_info "running headless installer"
     # Always skip the extension: the smoke checkout has no built VSIX to install.
-    local extra_args=(--skip-extension)
+    # Skip the desktop app too: no published release to fetch on CI.
+    local extra_args=(--skip-extension --skip-desktop)
     [[ "$WITH_MODEL" == "1" ]] || extra_args+=(--skip-model)
     pushd "$REPO_ROOT/scripts/installer/pyqt" >/dev/null
     QT_QPA_PLATFORM=offscreen PYTHONPATH=src python3 -m nexus_installer.main \

@@ -191,7 +191,11 @@ class InstallerWindow(QMainWindow):
             self._error_label.setVisible(False)
             self.switch_page(self._current_index + 1)
         elif self._current_index == len(self._pages) - 1:
-            # Last page: "Finish" closes the app
+            # Last page: "Finish" runs the page's finish hook (e.g. launching
+            # the Nexus desktop app), then closes the app.
+            page = self._pages[self._current_index]
+            if hasattr(page, "on_finish"):
+                page.on_finish()
             self.close()
 
     def _is_install_step(self) -> bool:

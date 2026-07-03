@@ -60,3 +60,75 @@ class TestLogExport:
         text = "\n".join(state.install_log)
         assert "[INFO]" in text
         assert "[SUCCESS]" in text
+
+
+class TestLaunchNexusOnFinish:
+    """v1.8.0 Phase 2 (T203): the 'Launch Nexus' checkbox + finish hook."""
+
+    def _page(self, state: InstallerState):
+        from nexus_installer.pages.complete import CompletePage
+
+        return CompletePage(state)
+
+    def test_checkbox_default_checked(self, qt_app: object) -> None:
+        state = InstallerState()
+        page = self._page(state)
+        assert page._launch_checkbox.isChecked() is True
+        assert state.launch_desktop_on_finish is True
+
+    def test_unchecking_updates_state(self, qt_app: object) -> None:
+        state = InstallerState()
+        page = self._page(state)
+        page._launch_checkbox.setChecked(False)
+        assert state.launch_desktop_on_finish is False
+
+    def test_refresh_disables_checkbox_when_desktop_missing(
+        self, qt_app: object
+    ) -> None:
+        state = InstallerState(desktop_installed=False)
+        page = self._page(state)
+        page._refresh()
+        assert page._launch_checkbox.isEnabled() is False
+        assert page._launch_checkbox.isChecked() is False
+
+    def test_on_finish_launches_installed_desktop(self, qt_app: object) -> None:
+        state = InstallerState(
+            desktop_installed=True,
+            desktop_exe_path=r"C:\apps\Nexus\Nexus.exe",
+            launch_desktop_on_finish=True,
+        )
+        page = self._page(state)
+        with patch("subprocess.Popen") as mock_popen:
+            page.on_finish()
+        mock_popen.assert_called_once_with([r"C:\apps\Nexus\Nexus.exe"])
+
+    def test_on_finish_respects_unchecked_box(self, qt_app: object) -> None:
+        state = InstallerState(
+            desktop_installed=True,
+            desktop_exe_path=r"C:\apps\Nexus\Nexus.exe",
+            launch_desktop_on_finish=False,
+        )
+        page = self._page(state)
+        with patch("subprocess.Popen") as mock_popen:
+            page.on_finish()
+        mock_popen.assert_not_called()
+
+    def test_on_finish_noop_when_not_installed(self, qt_app: object) -> None:
+        state = InstallerState(launch_desktop_on_finish=True)
+        page = self._page(state)
+        with patch("subprocess.Popen") as mock_popen:
+            page.on_finish()
+        mock_popen.assert_not_called()
+
+    def test_refresh_shows_health_status_row(self, qt_app: object) -> None:
+        from PyQt5.QtWidgets import QLabel
+
+        state = InstallerState(desktop_installed=True, desktop_health_ok=True)
+        page = self._page(state)
+        page._refresh()
+        # The services card should now contain a Nexus Desktop row.
+        texts = [
+            label.text() for label in page._services_card.findChildren(QLabel)
+        ]
+        assert "Nexus Desktop" in texts
+        assert any("health check passed" in t for t in texts)

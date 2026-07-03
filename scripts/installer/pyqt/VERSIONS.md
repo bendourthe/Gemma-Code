@@ -13,6 +13,15 @@ The Nexus cross-platform installer (v1.0.0; renamed from Gemma Code in Phase 2.5
 | Linux script SHA-256 | `0000...` (placeholder) | Update `OLLAMA_LINUX_SCRIPT_SHA256`. Re-record whenever upstream changes the script. |
 | Trusted Windows signers | `CN=Ollama Inc.` | Update `TRUSTED_WINDOWS_SIGNERS` if the code-signing cert rotates. |
 
+## Nexus Desktop (v1.8.0 Phase 2)
+
+| Field | Value | Notes |
+| --- | --- | --- |
+| Pinned tag | `v2.1.0` | Bump by editing `NEXUS_DESKTOP_PINNED_TAG` in `src/nexus_installer/engine/desktop_provisioner.py`. semantic-release owns the tag; the bundle version is the tag without the leading `v`. |
+| Assets | `Nexus-Desktop_{version}_x64-setup.exe` / `_universal.dmg` / `_amd64.AppImage` | Downloaded from `https://github.com/bendourthe/Nexus-AI/releases/download/<tag>/<asset>`. Names are staged by `release.yml`'s `desktop-bundle` jobs. |
+| Verification | `SHA256SUMS.txt` from the same release | Per-asset SHA-256, fail closed. No per-file constant to bump here: the manifest is fetched at install time and covers every attached asset (T102). |
+| Local override | `InstallerState.desktop_bundle_override` | Installs a locally-built bundle without a release fetch (checksum skipped, logged loudly). Used by the T204 integration test against the `.local-fixtures/` T104 bundle. |
+
 ## Update Procedure
 
 1. Download the intended binary locally.

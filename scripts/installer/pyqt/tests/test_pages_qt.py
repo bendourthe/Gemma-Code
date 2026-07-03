@@ -105,6 +105,23 @@ class TestConfigurationPage:
         page = ConfigurationPage(state)
         assert page is not None
 
+    def test_desktop_toggle_default_checked(self, qt_app: object) -> None:
+        from nexus_installer.pages.configuration import ConfigurationPage
+
+        state = InstallerState()
+        page = ConfigurationPage(state)
+        assert page._desktop_toggle.isChecked() is True
+
+    def test_desktop_toggle_updates_components(self, qt_app: object) -> None:
+        from nexus_installer.pages.configuration import ConfigurationPage
+
+        state = InstallerState()
+        page = ConfigurationPage(state)
+        page._desktop_toggle.setChecked(False)
+        assert "desktop" not in state.components_to_install
+        page._desktop_toggle.setChecked(True)
+        assert "desktop" in state.components_to_install
+
 
 class TestReviewPage:
     def test_creates_with_summary(self, qt_app: object) -> None:

@@ -20,6 +20,13 @@ _MODEL_SIZES: dict[str, float] = {
     "gemma4:31b": 20.0,
 }
 
+# Friendly names for components whose bare id reads poorly when capitalized.
+_COMPONENT_LABELS: dict[str, str] = {
+    "desktop": "Nexus Desktop app",
+    "venv": "Python environment",
+    "extension": "VS Code extension",
+}
+
 
 class ReviewPage(QWidget):
     """Summary page showing all selected options before installation."""
@@ -71,7 +78,8 @@ class ReviewPage(QWidget):
         check = f'<span style="color:{SUCCESS};">\u2713</span>'
 
         components = "".join(
-            f"{check} {c.capitalize()}<br>" for c in s.components_to_install
+            f"{check} {_COMPONENT_LABELS.get(c, c.capitalize())}<br>"
+            for c in s.components_to_install
         )
 
         model_size = _MODEL_SIZES.get(s.selected_model, 0)

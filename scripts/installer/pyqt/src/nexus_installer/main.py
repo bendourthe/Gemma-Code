@@ -75,6 +75,23 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--skip-desktop",
+        action="store_true",
+        help=(
+            "Skip the Nexus desktop app install. Used by the smoke tests, "
+            "which must not fetch release assets or install a GUI app on CI."
+        ),
+    )
+    parser.add_argument(
+        "--desktop-bundle",
+        default=None,
+        help=(
+            "Install the Nexus desktop app from a local bundle file instead "
+            "of fetching the pinned GitHub release (offline installs and "
+            "pre-release rehearsals; checksum verification is skipped)."
+        ),
+    )
+    parser.add_argument(
         "--json-output",
         action="store_true",
         help="Emit results as JSON to stdout (headless only)",
@@ -90,6 +107,7 @@ def _run_headless(args: argparse.Namespace) -> int:
     """
     # Import inside the function so non-headless invocations never touch the
     # engine imports (useful for `--help`, `--version`).
+    from nexus_installer.engine.desktop_provisioner import DesktopProvisioner
     from nexus_installer.engine.extension_installer import ExtensionInstaller
     from nexus_installer.engine.model_puller import ModelPuller
     from nexus_installer.engine.ollama_installer import OllamaInstaller
@@ -113,6 +131,12 @@ def _run_headless(args: argparse.Namespace) -> int:
         state.components_to_install = [
             c for c in state.components_to_install if c != "extension"
         ]
+    if args.skip_desktop and "desktop" in state.components_to_install:
+        state.components_to_install = [
+            c for c in state.components_to_install if c != "desktop"
+        ]
+    if args.desktop_bundle:
+        state.desktop_bundle_override = args.desktop_bundle
 
     steps_done: list[str] = []
     steps_failed: list[str] = []
@@ -175,6 +199,13 @@ def _run_headless(args: argparse.Namespace) -> int:
             lambda: puller.pull(state, log, lambda _pct: None),
         )
         (steps_done if ok else steps_failed).append("model")
+    if "desktop" in state.components_to_install:
+        provisioner = DesktopProvisioner()
+        ok = run_step(
+            "Installing Nexus Desktop",
+            lambda: provisioner.install(state, log),
+        )
+        (steps_done if ok else steps_failed).append("desktop")
 
     success = not steps_failed
     summary = {
@@ -249,6 +280,8 @@ def main() -> None:
         state.install_path = args.install_path
     if args.model:
         state.selected_model = args.model
+    if args.desktop_bundle:
+        state.desktop_bundle_override = args.desktop_bundle
 
     window = InstallerWindow(state=state)
 

@@ -105,6 +105,8 @@ $installerArgs = @(
     "--json-output",
     # The smoke checkout has no built VSIX to install.
     "--skip-extension",
+    # No published desktop release to fetch, and CI must not install a GUI app.
+    "--skip-desktop",
     # Detect the already-running Ollama on IPv4 (see localhost/::1 note above)
     # so the installer skips its own Ollama install step.
     "--ollama-url", $ollamaUrl

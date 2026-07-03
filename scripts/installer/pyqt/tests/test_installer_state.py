@@ -40,6 +40,16 @@ class TestInstallerStateDefaults:
         assert "ollama" in state.components_to_install
         assert "venv" in state.components_to_install
         assert "model" in state.components_to_install
+        assert "desktop" in state.components_to_install
+
+    def test_desktop_defaults(self) -> None:
+        state = InstallerState()
+        assert state.desktop_install_dir == ""
+        assert state.desktop_bundle_override == ""
+        assert state.desktop_installed is False
+        assert state.desktop_health_ok is False
+        assert state.desktop_exe_path == ""
+        assert state.launch_desktop_on_finish is True
 
     def test_default_model_empty(self) -> None:
         state = InstallerState()

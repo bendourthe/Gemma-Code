@@ -4,6 +4,29 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-02] v1.8.0 one-shot installer -- Phase 2: desktop provisioner, the installer installs Nexus (T201-T204)
+
+### Goal
+
+Close gap G1's installer half ([plan](versions/v1/v1.8.0/plans/one-shot-installer.md) Phase 2): the wizard gains a fifth step that fetches the Nexus desktop bundle from the pinned GitHub release (SHA-256-verified, fail closed), installs it per-OS, health-checks the first launch, and offers "Launch Nexus" on Finish. Local-first under the Actions freeze: the release-fetch path is fully unit-tested, and the end-to-end proof runs the T104 fixture bundle through the real engine.
+
+### What changed
+
+- **T201 -- [engine/desktop_provisioner.py](../scripts/installer/pyqt/src/nexus_installer/engine/desktop_provisioner.py)** (new): pinned tag `v2.1.0` ([VERSIONS.md](../scripts/installer/pyqt/VERSIONS.md) entry added) -> per-OS/arch asset resolution against the Phase 1 canonical names (fail-closed on unsupported arches) -> resumable download (`.partial` + Range: 206 appends, 200 restarts, 416 promotes; cancel keeps the partial; persistent download dir so multi-GB pulls survive wizard restarts) -> `SHA256SUMS.txt` verification **before any install dispatch** -> per-OS install: NSIS `/S` (+ `/D=` last-unquoted), `hdiutil attach`/`ditto` to `/Applications`/`detach`-in-finally, AppImage to `~/.local/bin` + `.desktop` entry + icon. Windows exe resolution prefers `Nexus.exe` then the bundle's actual `nexus-shell.exe` (first fixture run failed on the product-name assumption; the Tauri crate's binary name won). `InstallerState.desktop_bundle_override` / `--desktop-bundle` installs a local bundle with the fetch + checksum skipped (warn-logged) -- the freeze-era wizard path.
+- **T202 -- engine step 5 + threading**: `"desktop"` joins the default components; step 5 runs after the model pull with its own progress band and cancel wiring (also fixed the model step's hardcoded "final step" progress base, wrong once a fifth step exists); default-checked "Install the Nexus desktop app (recommended)" toggle on the ConfigurationPage; friendly ReviewPage component labels; headless-mode step + `--skip-desktop`, passed by all three smoke scripts (no published release to fetch on CI).
+- **T203 -- first-run health check + Launch Nexus**: `first_run_health_check` launch-probe (spawn `--version`; pass = exit 0 or alive past a 5 s grace, then terminated). A failed check warns and surfaces on the complete page's new "Nexus Desktop" services row but does not fail the install step. Default-checked "Launch Nexus when I click Finish" checkbox; the window's Finish branch now calls the last page's `on_finish` hook. The sidecar-ping tier is deferred (`OSI002.P2.B`) until the shell-only bundle gap (`OSI001.P1.B`) closes -- a ping would fail by construction today.
+- **T204 -- tests**: 39 new cases in [test_desktop_provisioner.py](../scripts/installer/pyqt/tests/test_desktop_provisioner.py) (resolution, SHA256SUMS parsing, real-tempfile verify paths, resume semantics, per-OS dispatch, exe resolution, orchestration, health check) + engine ordering/skip/failure-isolation/cancel, state defaults, page suites. The env-gated (`NEXUS_DESKTOP_FIXTURE_TEST=1`) Windows integration test installs the T104 fixture for real, asserts the resolved binary + passed health check, and uninstalls in a `finally` -- run green on the dev box, with the Start-menu `Nexus.lnk` verified present after install and gone after uninstall.
+
+### Verification
+
+Installer pytest suite **433 passed / 1 skipped / 0 failed** (+42 new; the skip is the env-gated fixture test, run green separately); `desktop_provisioner.py` 89% line coverage; ruff 0 new findings on changed files; root Vitest suite **4565 passed / 6 skipped / 0 failed** (unchanged). Known-gaps: `OSI001.P1.B` amended with the Phase 2 outcome; new `OSI002.P2.A-D` (live release-fetch rehearsal, sidecar-ping tier, mac/linux hardware legs, unwired wizard pages). See the [phase history](versions/v1/v1.8.0/development/history/2026-07_phase-2-desktop-provisioner.md).
+
+### Branch
+
+`feat/v1.8.0-installer-phase-2`, stacked on `feat/v1.8.0-installer-phase-1`.
+
+---
+
 ## [2026-07-02] v1.8.0 one-shot installer -- Phase 1: release pipeline produces desktop bundles (T101-T104)
 
 ### Goal
