@@ -45,6 +45,16 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "@types/vscode"
         update-types: ["version-update:semver-major"]
+      # web-tree-sitter must move in lockstep with the prebuilt grammar .wasm in
+      # `tree-sitter-wasms`. The 0.26 runtime is ABI-incompatible with the
+      # grammars shipped by tree-sitter-wasms@0.1.13 (its latest), so the WASM
+      # dylink load fails and the codegraph TreeSitterScanner tests break. Hold
+      # at 0.25.x (patch bumps still allowed); lift this once tree-sitter-wasms
+      # ships a 0.26-ABI grammar build and bump both together.
+      - dependency-name: "web-tree-sitter"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-major"
 
   - package-ecosystem: "github-actions"
     directory: "/"
