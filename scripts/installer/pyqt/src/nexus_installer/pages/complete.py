@@ -24,6 +24,7 @@ from nexus_installer.constants import (
     BORDER,
     FONT_MONO,
     SUCCESS,
+    TEXT_BODY,
     TEXT_SECONDARY,
     WARNING,
 )
@@ -89,9 +90,9 @@ class CompletePage(QWidget):
         )
         layout.addWidget(self._title)
 
-        self._subtitle = QLabel("Gemma Code is installed and ready to use.")
+        self._subtitle = QLabel("Nexus is installed and ready to use.")
         self._subtitle.setStyleSheet(
-            f"color: {TEXT_SECONDARY}; font-size: 13px; background: transparent;"
+            f"color: {TEXT_BODY}; font-size: 13px; background: transparent;"
         )
         layout.addWidget(self._subtitle)
 
@@ -115,8 +116,8 @@ class CompletePage(QWidget):
         self._services_layout = QVBoxLayout(self._services_card)
         layout.addWidget(self._services_card)
 
-        # Managing Gemma Code card
-        manage_label = QLabel("Managing Gemma Code")
+        # Managing Nexus card
+        manage_label = QLabel("Managing Nexus")
         manage_label.setStyleSheet(
             "font-size: 14px; font-weight: bold; background: transparent;"
         )
@@ -278,7 +279,7 @@ class CompletePage(QWidget):
         path, _ = QFileDialog.getSaveFileName(
             self,
             "Save Installation Log",
-            "gemma-code-install.log",
+            "nexus-install.log",
             "Text Files (*.log *.txt)",
         )
         if path:

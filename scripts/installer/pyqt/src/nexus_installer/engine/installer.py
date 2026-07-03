@@ -20,6 +20,11 @@ class InstallEngine(QObject):
     step_completed = pyqtSignal(str)  # component name
     install_finished = pyqtSignal(bool, str)  # (success, error_message)
 
+    # v1.8.0 Phase 5 -- step-level signals for the grouped-progress UI.
+    step_started = pyqtSignal(str)  # component name
+    step_progress = pyqtSignal(str, float)  # (component, 0.0-1.0 within step)
+    step_failed = pyqtSignal(str)  # component name
+
     def __init__(self) -> None:
         super().__init__()
         self._model_router: ModelStepRouter | None = None
@@ -43,23 +48,27 @@ class InstallEngine(QObject):
             else:
                 steps_failed.append(step_name)
                 state.failed_steps.append(step_name)
+                self.step_failed.emit(step_name)
             base = steps_done / max(total_steps, 1)
             self.progress_update.emit(min(base, 1.0))
 
         # 1. Ollama
         if "ollama" in state.components_to_install:
+            self.step_started.emit("ollama")
             log("--- Installing Ollama ---", "info")
             ok = OllamaInstaller().install(state, log)
             advance("ollama", ok)
 
         # 2. VS Code extension
         if "extension" in state.components_to_install:
+            self.step_started.emit("extension")
             log("--- Installing VS Code Extension ---", "info")
             ok = ExtensionInstaller().install(state, log)
             advance("extension", ok)
 
         # 3. Python venv
         if "venv" in state.components_to_install:
+            self.step_started.emit("venv")
             log("--- Creating Python Environment ---", "info")
             ok = VenvInstaller().install(state, log)
             advance("venv", ok)
@@ -68,12 +77,14 @@ class InstallEngine(QObject):
         # v1.8.0 Phase 3: routed by catalog protocol (ollama pull vs
         # Hugging Face weights) with per-model failure isolation.
         if "model" in state.components_to_install:
+            self.step_started.emit("model")
             log("--- Downloading Models ---", "info")
             self._model_router = ModelStepRouter()
             model_base = steps_done / max(total_steps, 1)
 
             def on_model_progress(pct: float) -> None:
                 # Scale this step's own progress into its band of the total.
+                self.step_progress.emit("model", pct)
                 self.progress_update.emit(model_base + pct / max(total_steps, 1))
 
             ok = self._model_router.install(state, log, on_model_progress)
@@ -81,11 +92,13 @@ class InstallEngine(QObject):
 
         # 5. Nexus desktop app (v1.8.0 Phase 2; has its own download progress)
         if "desktop" in state.components_to_install:
+            self.step_started.emit("desktop")
             log("--- Installing Nexus Desktop ---", "info")
             self._desktop_provisioner = DesktopProvisioner()
             desktop_base = steps_done / max(total_steps, 1)
 
             def on_desktop_progress(pct: float) -> None:
+                self.step_progress.emit("desktop", pct)
                 self.progress_update.emit(desktop_base + pct / max(total_steps, 1))
 
             ok = self._desktop_provisioner.install(state, log, on_desktop_progress)

@@ -15,6 +15,7 @@ from PyQt5.QtWidgets import QHBoxLayout, QLabel, QWidget
 from nexus_installer.constants import (
     BG_CARD,
     BORDER,
+    ERROR,
     SUCCESS,
     TEXT_PRIMARY,
     TEXT_SECONDARY,
@@ -40,7 +41,7 @@ def format_disk_footer_text(
     if free_gb <= 0:
         color = TEXT_SECONDARY
     elif remaining < reserve_gb:
-        color = "#ef4444"
+        color = ERROR
     elif remaining < 2 * reserve_gb:
         color = WARNING
     else:

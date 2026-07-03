@@ -5,10 +5,10 @@ from __future__ import annotations
 from PyQt5.QtGui import QColor, QTextCharFormat, QTextCursor
 from PyQt5.QtWidgets import QTextEdit, QWidget
 
-from nexus_installer.constants import ERROR, SUCCESS, WARNING
+from nexus_installer.constants import ERROR, SUCCESS, TEXT_SECONDARY, WARNING
 
 _LEVEL_COLORS: dict[str, str] = {
-    "info": "#8bb4cc",
+    "info": TEXT_SECONDARY,
     "success": SUCCESS,
     "error": ERROR,
     "warn": WARNING,

@@ -1,22 +1,58 @@
-﻿"""Welcome page: project intro and 'before you begin' callout with live detection."""
+﻿"""Welcome page: product lockup, intro, and 'before you begin' live checks."""
 
 from __future__ import annotations
 
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PyQt5.QtCore import QThread, pyqtSignal
+from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtGui import QPixmap
 from PyQt5.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
-from nexus_installer.constants import SUCCESS, TEXT_SECONDARY, WARNING
+from nexus_installer.constants import (
+    ACCENT_CHAT,
+    ACCENT_CODING,
+    ACCENT_IMAGE,
+    ACCENT_VIDEO,
+    SUCCESS,
+    TEXT_BODY,
+    TEXT_SECONDARY,
+    WARNING,
+)
 from nexus_installer.widgets.callout_box import CalloutBox
 
 if TYPE_CHECKING:
     from nexus_installer.installer_state import InstallerState
 
 DETECTION_TIMEOUT = 5
+
+# The desktop app's own icon (v1.8.0 Phase 5, T503): the installer shows the
+# product it installs. Walk-up resolution mirrors the header brand mark; a
+# frozen build without the repo tree falls back to the bundled assets icon,
+# and no icon at all degrades to a text-only lockup.
+def _find_desktop_icon() -> Path:
+    for parent in Path(__file__).resolve().parents:
+        candidate = parent / "desktop" / "src-tauri" / "icons" / "128x128.png"
+        if candidate.is_file():
+            return candidate
+        fallback = parent / "assets" / "icon.png"
+        if fallback.is_file():
+            return fallback
+    return Path("assets") / "icon.png"
+
+
+_DESKTOP_ICON = _find_desktop_icon()
+
+# (label, module accent) -- the desktop app's four pillars.
+_PILLARS: tuple[tuple[str, str], ...] = (
+    ("Chat", ACCENT_CHAT),
+    ("Agentic Coding", ACCENT_CODING),
+    ("Image", ACCENT_IMAGE),
+    ("Video", ACCENT_VIDEO),
+)
 
 
 class _QuickCheckWorker(QThread):
@@ -111,23 +147,59 @@ class WelcomePage(QWidget):
         layout = QVBoxLayout(self)
         layout.setSpacing(16)
 
-        title = QLabel("Welcome")
+        # Product lockup: desktop app icon + title.
+        lockup = QHBoxLayout()
+        lockup.setSpacing(14)
+        if _DESKTOP_ICON.exists():
+            mark = QLabel()
+            pixmap = QPixmap(str(_DESKTOP_ICON))
+            mark.setPixmap(
+                pixmap.scaled(
+                    56,
+                    56,
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+            )
+            mark.setStyleSheet("background: transparent;")
+            lockup.addWidget(mark, alignment=Qt.AlignmentFlag.AlignVCenter)
+
+        title = QLabel("Welcome to Nexus")
         title.setStyleSheet(
             "font-size: 24px; font-weight: bold; background: transparent;"
         )
-        layout.addWidget(title)
+        lockup.addWidget(title, alignment=Qt.AlignmentFlag.AlignVCenter)
+        lockup.addStretch()
+        layout.addLayout(lockup)
 
         subtitle = QLabel(
-            "This wizard will install Gemma Code, a fully offline agentic coding "
-            "assistant powered by Gemma 4 via Ollama. The process takes approximately "
-            "5-15 minutes depending on your internet connection."
+            "Nexus is your fully local AI workstation: chat, agentic coding, "
+            "and image and video generation, all running on your own hardware. "
+            "This wizard installs everything for you -- the runtime, the models "
+            "you pick, the VS Code extension, and the Nexus desktop app -- with "
+            "no terminal required. Duration depends on your connection and the "
+            "models you select."
         )
         subtitle.setObjectName("secondaryLabel")
         subtitle.setStyleSheet(
-            f"color: {TEXT_SECONDARY}; font-size: 13px; background: transparent;"
+            f"color: {TEXT_BODY}; font-size: 13px; background: transparent;"
         )
         subtitle.setWordWrap(True)
         layout.addWidget(subtitle)
+
+        # Pillar chips in the desktop app's module accents.
+        chips = QHBoxLayout()
+        chips.setSpacing(8)
+        for pillar_name, pillar_accent in _PILLARS:
+            chip = QLabel(pillar_name)
+            chip.setStyleSheet(
+                f"color: {pillar_accent}; border: 1px solid {pillar_accent}; "
+                f"border-radius: 10px; padding: 2px 10px; font-size: 11px; "
+                f"background: transparent;"
+            )
+            chips.addWidget(chip)
+        chips.addStretch()
+        layout.addLayout(chips)
 
         # Before-you-begin callout
         self._callout = CalloutBox(title="Before you begin")

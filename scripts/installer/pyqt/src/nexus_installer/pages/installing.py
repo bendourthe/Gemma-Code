@@ -1,4 +1,12 @@
-﻿"""Installing page: progress bar, real-time log, and cancel button."""
+"""Installing page: overall progress, per-phase groups, and cancel button.
+
+v1.8.0 Phase 5 (T502): the single progress bar + one big log becomes a
+grouped view -- an overall bar on top, then one labeled `PhaseGroup` per
+install phase (Dependencies -> VS Code Extension -> Models -> Nexus
+Desktop), each with its own progress bar and collapsible log. Engine steps
+map onto groups via `PHASE_GROUPS`; log lines route to whichever group's
+step is active.
+"""
 
 from __future__ import annotations
 
@@ -13,17 +21,26 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
+from nexus_installer.constants import TEXT_SECONDARY
 from nexus_installer.engine.installer import InstallEngine, start_install
-from nexus_installer.widgets.log_panel import LogPanel
+from nexus_installer.widgets.phase_group import PhaseGroup
 from nexus_installer.widgets.secondary_button import SecondaryButton
 
 if TYPE_CHECKING:
     from nexus_installer.engine.installer import _InstallThread
     from nexus_installer.installer_state import InstallerState
 
+# Phase title -> the engine step names it covers, in engine order.
+PHASE_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("Dependencies", ("ollama", "venv")),
+    ("VS Code Extension", ("extension",)),
+    ("Models", ("model",)),
+    ("Nexus Desktop", ("desktop",)),
+)
+
 
 class InstallingPage(QWidget):
-    """Page showing installation progress with log panel."""
+    """Page showing per-phase installation progress with grouped logs."""
 
     def __init__(self, state: InstallerState, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -31,6 +48,9 @@ class InstallingPage(QWidget):
         self._thread: _InstallThread | None = None
         self._engine: InstallEngine | None = None
         self._is_running = False
+        self._groups: list[PhaseGroup] = []
+        self._active_group: PhaseGroup | None = None
+        self._log_lines: list[str] = []
 
         layout = QVBoxLayout(self)
         layout.setSpacing(12)
@@ -41,17 +61,26 @@ class InstallingPage(QWidget):
         )
         layout.addWidget(self._title)
 
-        # Progress bar
+        # Overall progress bar on top
+        overall_label = QLabel("Overall progress")
+        overall_label.setStyleSheet(
+            f"color: {TEXT_SECONDARY}; font-size: 11px; background: transparent;"
+        )
+        layout.addWidget(overall_label)
+
         self._progress = QProgressBar()
         self._progress.setMinimum(0)
         self._progress.setMaximum(0)  # Indeterminate
         self._progress.setTextVisible(False)
         layout.addWidget(self._progress)
 
-        # Log panel
-        self._log = LogPanel()
-        self._log.setMinimumHeight(300)
-        layout.addWidget(self._log, stretch=1)
+        # Per-phase groups
+        self._groups_layout = QVBoxLayout()
+        self._groups_layout.setSpacing(8)
+        layout.addLayout(self._groups_layout)
+        self._build_groups()
+
+        layout.addStretch(1)
 
         # Cancel button
         btn_row = QHBoxLayout()
@@ -65,6 +94,35 @@ class InstallingPage(QWidget):
     def is_running(self) -> bool:
         return self._is_running
 
+    @property
+    def phase_groups(self) -> list[PhaseGroup]:
+        return list(self._groups)
+
+    def _build_groups(self) -> None:
+        """(Re)create one PhaseGroup per phase with selected components."""
+        while self._groups_layout.count():
+            item = self._groups_layout.takeAt(0)
+            widget = item.widget() if item else None
+            if widget is not None:
+                widget.deleteLater()
+        self._groups = []
+        self._active_group = None
+
+        components = self._state.components_to_install
+        for title, steps in PHASE_GROUPS:
+            covered = [s for s in steps if s in components]
+            if not covered:
+                continue
+            group = PhaseGroup(title, covered)
+            self._groups_layout.addWidget(group)
+            self._groups.append(group)
+
+    def _group_for(self, step: str) -> PhaseGroup | None:
+        for group in self._groups:
+            if group.covers(step):
+                return group
+        return None
+
     def start_installation(self) -> None:
         """Begin the installation process. Called when this page becomes active."""
         if self._is_running:
@@ -74,16 +132,49 @@ class InstallingPage(QWidget):
         self._title.setText("Installing...")
         self._progress.setMaximum(0)  # Indeterminate
         self._cancel_btn.setEnabled(True)
+        self._log_lines = []
+        # The configuration page may have toggled components since __init__.
+        self._build_groups()
 
         self._engine = InstallEngine()
         self._engine.log_message.connect(self._on_log)
         self._engine.progress_update.connect(self._on_progress)
+        self._engine.step_started.connect(self._on_step_started)
+        self._engine.step_progress.connect(self._on_step_progress)
+        self._engine.step_completed.connect(self._on_step_completed)
+        self._engine.step_failed.connect(self._on_step_failed)
         self._engine.install_finished.connect(self._on_finished)
 
         self._thread = start_install(self._engine, self._state)
 
+    def _on_step_started(self, name: str) -> None:
+        group = self._group_for(name)
+        if group is not None:
+            group.mark_started(name)
+            self._active_group = group
+
+    def _on_step_progress(self, name: str, fraction: float) -> None:
+        group = self._group_for(name)
+        if group is not None:
+            group.set_step_progress(name, fraction)
+
+    def _on_step_completed(self, name: str) -> None:
+        group = self._group_for(name)
+        if group is not None:
+            group.mark_step_done(name)
+
+    def _on_step_failed(self, name: str) -> None:
+        group = self._group_for(name)
+        if group is not None:
+            group.mark_step_failed(name)
+
     def _on_log(self, message: str, level: str) -> None:
-        self._log.append_log(message, level)
+        self._log_lines.append(message)
+        target = self._active_group
+        if target is None and self._groups:
+            target = self._groups[0]
+        if target is not None:
+            target.append_log(message, level)
 
     def _on_progress(self, value: float) -> None:
         if self._progress.maximum() == 0:
@@ -123,4 +214,4 @@ class InstallingPage(QWidget):
 
     def get_log_text(self) -> str:
         """Return the full installation log."""
-        return self._log.get_full_log()
+        return "\n".join(self._log_lines)

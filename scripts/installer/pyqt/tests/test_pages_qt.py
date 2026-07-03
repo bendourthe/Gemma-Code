@@ -16,6 +16,31 @@ class TestWelcomePage:
             page = WelcomePage(state)
             assert page is not None
 
+    def test_copy_names_nexus_not_gemma_code(self, qt_app: object) -> None:
+        """v1.8.0 Phase 5 (T503) -- the welcome copy sells the product."""
+        with patch("nexus_installer.pages.welcome._QuickCheckWorker.start"):
+            from PyQt5.QtWidgets import QLabel
+
+            from nexus_installer.pages.welcome import WelcomePage
+
+            state = InstallerState()
+            page = WelcomePage(state)
+            all_text = " ".join(lbl.text() for lbl in page.findChildren(QLabel))
+            assert "Nexus" in all_text
+            assert "Gemma Code" not in all_text
+
+    def test_pillar_chips_present(self, qt_app: object) -> None:
+        with patch("nexus_installer.pages.welcome._QuickCheckWorker.start"):
+            from PyQt5.QtWidgets import QLabel
+
+            from nexus_installer.pages.welcome import WelcomePage
+
+            state = InstallerState()
+            page = WelcomePage(state)
+            texts = [lbl.text() for lbl in page.findChildren(QLabel)]
+            for pillar in ("Chat", "Agentic Coding", "Image", "Video"):
+                assert pillar in texts
+
 
 class TestPrerequisitesPage:
     def test_creates_and_has_validate(self, qt_app: object) -> None:
@@ -171,3 +196,15 @@ class TestCompletePage:
         state = InstallerState()
         page = CompletePage(state)
         assert page is not None
+
+    def test_copy_names_nexus_not_gemma_code(self, qt_app: object) -> None:
+        """v1.8.0 Phase 5 (T503) -- complete-page copy matches the product."""
+        from PyQt5.QtWidgets import QLabel
+
+        from nexus_installer.pages.complete import CompletePage
+
+        state = InstallerState()
+        page = CompletePage(state)
+        all_text = " ".join(lbl.text() for lbl in page.findChildren(QLabel))
+        assert "Managing Nexus" in all_text
+        assert "Gemma Code" not in all_text

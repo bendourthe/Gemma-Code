@@ -8,7 +8,8 @@ from PyQt5.QtWidgets import QWidget
 
 from nexus_installer.constants import (
     ACCENT,
-    BORDER,
+    BG_WINDOW,
+    BORDER_STRONG,
     FONT_PRIMARY,
     STEP_BAR_HEIGHT,
     TEXT_SECONDARY,
@@ -65,7 +66,7 @@ class StepIndicator(QWidget):
             if i < self._current_step:
                 pen_color = QColor(ACCENT)
             else:
-                pen_color = QColor(BORDER)
+                pen_color = QColor(BORDER_STRONG)
             painter.setPen(QPen(pen_color, 2))
             painter.drawLine(
                 QPointF(x1, center_y),
@@ -93,7 +94,7 @@ class StepIndicator(QWidget):
                 painter.drawEllipse(rect)
             else:
                 # Future: hollow border color
-                painter.setPen(QPen(QColor(BORDER), 2))
+                painter.setPen(QPen(QColor(BORDER_STRONG), 2))
                 painter.setBrush(Qt.BrushStyle.NoBrush)
                 painter.drawEllipse(rect)
 
@@ -115,10 +116,10 @@ class StepIndicator(QWidget):
 
     @staticmethod
     def _draw_checkmark(painter: QPainter, cx: float, cy: float, r: int) -> None:
-        """Draw a white checkmark inside a completed dot."""
+        """Draw a dark checkmark inside a completed accent dot."""
         painter.setPen(
             QPen(
-                QColor("#ffffff"),
+                QColor(BG_WINDOW),
                 2,
                 Qt.PenStyle.SolidLine,
                 Qt.PenCapStyle.RoundCap,

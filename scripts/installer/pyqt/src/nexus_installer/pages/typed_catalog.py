@@ -29,8 +29,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
     QCheckBox,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QScrollArea,
@@ -45,7 +47,9 @@ from nexus_installer.constants import (
     BG_CARD,
     BORDER,
     ERROR,
+    SECTION_ACCENTS,
     SUCCESS,
+    TEXT_BODY,
     TEXT_PRIMARY,
     TEXT_SECONDARY,
     WARNING,
@@ -236,13 +240,19 @@ class _ModelCard(QWidget):
         host_vram_gb: int,
         host_ram_gb: int,
         gpu_vendor: str,
+        accent: str = ACCENT,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self.model = model
+        # Scoped selector + WA_StyledBackground: an unqualified stylesheet
+        # would propagate the border to every child QLabel (each line
+        # rendered as its own boxed pill -- the pre-Phase-5 look).
+        self.setObjectName("modelCard")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setStyleSheet(
-            f"background-color: {BG_CARD}; border: 1px solid {BORDER}; "
-            f"border-radius: 8px; padding: 10px;"
+            f"QWidget#modelCard {{ background-color: {BG_CARD}; "
+            f"border: 1px solid {BORDER}; border-radius: 8px; }}"
         )
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 8, 12, 8)
@@ -251,6 +261,11 @@ class _ModelCard(QWidget):
         title_row = QHBoxLayout()
         self.checkbox = QCheckBox()
         self.checkbox.setChecked(checked)
+        # v1.8.0 Phase 5 -- the checked state carries the section accent.
+        self.checkbox.setStyleSheet(
+            f"QCheckBox::indicator:checked {{ background-color: {accent}; "
+            f"border-color: {accent}; }}"
+        )
         title_row.addWidget(self.checkbox)
 
         release_suffix = (
@@ -266,15 +281,15 @@ class _ModelCard(QWidget):
         if recommended:
             badge = QLabel("Recommended")
             badge.setStyleSheet(
-                f"color: {ACCENT}; font-size: 10px; font-weight: bold; "
-                f"border: 1px solid {ACCENT}; border-radius: 3px; "
+                f"color: {accent}; font-size: 10px; font-weight: bold; "
+                f"border: 1px solid {accent}; border-radius: 3px; "
                 f"padding: 1px 6px; background: transparent;"
             )
             title_row.addWidget(badge)
 
         size_label = QLabel(f"{model.size_gb:.1f} GB on disk")
         size_label.setStyleSheet(
-            f"color: {ACCENT}; font-weight: bold; background: transparent;"
+            f"color: {accent}; font-weight: bold; background: transparent;"
         )
         title_row.addWidget(size_label)
         layout.addLayout(title_row)
@@ -294,7 +309,7 @@ class _ModelCard(QWidget):
         if recommended and model.why_recommended:
             why = QLabel(f"Why this one: {model.why_recommended}")
             why.setStyleSheet(
-                f"color: {ACCENT}; font-size: 11px; background: transparent;"
+                f"color: {accent}; font-size: 11px; background: transparent;"
             )
             why.setWordWrap(True)
             layout.addWidget(why)
@@ -399,7 +414,7 @@ class TypedCatalogPage(QWidget):
 
         self._subtitle = QLabel("")
         self._subtitle.setStyleSheet(
-            f"color: {TEXT_SECONDARY}; font-size: 13px; background: transparent;"
+            f"color: {TEXT_BODY}; font-size: 13px; background: transparent;"
         )
         self._subtitle.setWordWrap(True)
         layout.addWidget(self._subtitle)
@@ -488,9 +503,19 @@ class TypedCatalogPage(QWidget):
         state: InstallerState,
         defaults: set[str],
     ) -> QWidget:
+        # v1.8.0 Phase 5 -- each section carries its desktop module accent
+        # (chat cyan, agentic magenta, image orange, video green).
+        accent = SECTION_ACCENTS.get(section_key, ACCENT)
+
         container = QWidget()
         outer = QVBoxLayout(container)
         outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        accent_rule = QFrame()
+        accent_rule.setFixedHeight(2)
+        accent_rule.setStyleSheet(f"background-color: {accent}; border: none;")
+        outer.addWidget(accent_rule)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -529,6 +554,7 @@ class TypedCatalogPage(QWidget):
                     host_vram_gb=host_vram_gb,
                     host_ram_gb=host_ram_gb,
                     gpu_vendor=gpu_vendor,
+                    accent=accent,
                 )
                 card.setSizePolicy(
                     QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed

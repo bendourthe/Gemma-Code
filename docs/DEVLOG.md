@@ -4,6 +4,28 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-03] v1.8.0 one-shot installer -- Phase 5: desktop-token restyle + per-phase progress UX (T501-T503)
+
+### Goal
+
+Close gap G4 ([plan](versions/v1/v1.8.0/plans/one-shot-installer.md) Phase 5): the installer still wore the legacy single-accent teal `#0ABFBF` on `#0f1318` while the desktop app it installs uses the darker `#0a0d14` surface stack with four per-module accents, and the installing page showed one indeterminate bar over one big log. Make the installer read as the same product family and show clear per-phase progress.
+
+### What changed
+
+- **T501 -- design-token port + restyle**: [constants.py](../scripts/installer/pyqt/src/nexus_installer/constants.py) is now a direct port of [desktop/src/styles/tokens.css](../desktop/src/styles/tokens.css) and documented as the single palette source: bg `#0a0d14`/`#11151f`/`#181d2a` (+ elevated), a four-tier foreground scale (new `TEXT_BODY #d6dbe7` for body copy), the desktop's white-alpha borders composited to solid `#191c22`/`#272a30`, lead accent moved to the chatbot cyan `#22d3ee`, and the module accents (`ACCENT_CHAT/CODING/IMAGE/VIDEO` + `SECTION_ACCENTS`, audio on the info blue). [theme.py](../scripts/installer/pyqt/src/nexus_installer/theme.py) consumes the tokens, adds QTabWidget/QTabBar styling for the catalog, and switches primary-button text + step-indicator checkmarks to dark-on-bright (the desktop treatment); its mojibake comment rules are ASCII again. The typed catalog gets per-section accents (tab accent rule; per-card pill, size, "Why this one", and checkbox accents) and the `_ModelCard` unqualified-stylesheet wart (every child label rendered as a boxed pill) is fixed with a scoped `QWidget#modelCard` selector. Stray hardcoded hexes in window / disk footer / log panel aligned to constants.
+- **T502 -- per-phase progress**: new [widgets/phase_group.py](../scripts/installer/pyqt/src/nexus_installer/widgets/phase_group.py) (status icon, per-group progress bar, collapsible Details log) and a regrouped [pages/installing.py](../scripts/installer/pyqt/src/nexus_installer/pages/installing.py): overall bar on top, then **Dependencies** (ollama + venv) -> **VS Code Extension** -> **Models** -> **Nexus Desktop**, built from the selected components and rebuilt at start. [engine/installer.py](../scripts/installer/pyqt/src/nexus_installer/engine/installer.py) gains `step_started` / `step_progress` / `step_failed` signals (existing signals untouched); model + desktop steps stream real within-step progress, and log lines route to the active group's log while `get_log_text()` keeps the full aggregate.
+- **T503 -- welcome/complete polish + archives**: the welcome page gets a product lockup (the desktop app's own icon + "Welcome to Nexus"), product copy replacing the stale "Gemma Code ... 5-15 minutes" text, and four pillar chips in the module accents; the complete page reads "Nexus is installed and ready to use." / "Managing Nexus" and saves `nexus-install.log`. Fixed en route: the header brand mark never rendered from the source tree (fixed-depth path landed on the nonexistent `scripts/assets/`) -- both lookups now walk up, matching the PyInstaller bundle layout too. Eight before/after captures archived under [assets/2026-07_phase-5/](versions/v1/v1.8.0/development/history/assets/2026-07_phase-5/).
+
+### Verification
+
+Installer pytest suite **564 passed / 2 skipped / 0 failed** (+26: `test_phase_group.py` widget lifecycle + signal routing, engine step-signal ordering/failure/forwarding, palette/section-accent/tab-selector theme assertions, welcome/complete copy checks); `phase_group` 96% / `engine/installer` 93% / `installing` 82% lines; ruff 0 new findings; `tsc -b` clean; root Vitest **4569 passed / 6 skipped / 0 failed** (unchanged -- no TS surface touched). DoD evidence: the archived after-installing capture shows the four phase groups progressing (deps done, extension done, models 55%, desktop waiting) in the desktop palette; group-card background pixel-verified `#181d2a`. Known-gaps: new `OSI005.P5.A/B` (dependency-step bars completion-quantized; font faces not bundled), dispositions recorded on `OSI002.P2.D` + `OSI004.P4.D`. See the [phase history](versions/v1/v1.8.0/development/history/2026-07_phase-5-desktop-restyle.md).
+
+### Branch
+
+`feat/v1.8.0-installer-phase-5`, stacked on `feat/v1.8.0-installer-phase-4`.
+
+---
+
 ## [2026-07-03] v1.8.0 one-shot installer -- Phase 4: catalog curation + selection UX, chat/agentic split + uncensored defaults (T401-T404)
 
 ### Goal

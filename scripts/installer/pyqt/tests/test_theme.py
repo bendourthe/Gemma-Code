@@ -26,6 +26,8 @@ class TestGenerateStylesheet:
             "QCheckBox",
             "QFrame#calloutBox",
             "QFrame#card",
+            "QTabWidget::pane",
+            "QTabBar::tab",
         ]:
             assert selector in sheet, f"Missing selector: {selector}"
 
@@ -43,21 +45,53 @@ class TestConstants:
             "BG_HEADER",
             "BG_CARD",
             "BG_INPUT",
+            "BG_ELEVATED",
             "BORDER",
+            "BORDER_STRONG",
             "ACCENT",
+            "ACCENT_BRIGHT",
             "ACCENT_DIM",
             "ACCENT_FOCUS",
+            "ACCENT_CHAT",
+            "ACCENT_CODING",
+            "ACCENT_IMAGE",
+            "ACCENT_VIDEO",
             "TEXT_PRIMARY",
+            "TEXT_BODY",
             "TEXT_SECONDARY",
             "TEXT_MUTED",
             "SUCCESS",
             "ERROR",
             "WARNING",
+            "INFO",
         ]
         for name in required:
             assert hasattr(constants, name), f"Missing constant: {name}"
             value = getattr(constants, name)
             assert isinstance(value, str)
+            assert value.startswith("#")
+
+    def test_palette_matches_desktop_tokens(self) -> None:
+        """v1.8.0 Phase 5 -- the installer palette is the desktop token port."""
+        assert constants.BG_WINDOW == "#0a0d14"  # --bg-0
+        assert constants.BG_HEADER == "#11151f"  # --bg-1
+        assert constants.BG_CARD == "#181d2a"  # --bg-2
+        assert constants.TEXT_PRIMARY == "#f5f7fb"  # --fg-0
+        assert constants.TEXT_BODY == "#d6dbe7"  # --fg-1
+        assert constants.ACCENT_CHAT == "#22d3ee"  # --accent-chatbot
+        assert constants.ACCENT_CODING == "#ec4899"  # --accent-coding
+        assert constants.ACCENT_IMAGE == "#f97316"  # --accent-image
+        assert constants.ACCENT_VIDEO == "#22c55e"  # --accent-video
+
+    def test_section_accents_cover_all_catalog_tabs(self) -> None:
+        assert set(constants.SECTION_ACCENTS) == {
+            "chat",
+            "agentic",
+            "image",
+            "video",
+            "audio",
+        }
+        for value in constants.SECTION_ACCENTS.values():
             assert value.startswith("#")
 
     def test_required_dimensions_exist(self) -> None:

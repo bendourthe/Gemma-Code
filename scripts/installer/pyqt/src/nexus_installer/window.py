@@ -14,6 +14,7 @@ from PyQt5.QtWidgets import (
 )
 
 from nexus_installer.constants import (
+    ERROR,
     SIDE_MARGIN,
     STEP_NAMES,
     VERTICAL_MARGIN,
@@ -78,7 +79,8 @@ class InstallerWindow(QMainWindow):
         self._error_label.setObjectName("errorLabel")
         self._error_label.setVisible(False)
         self._error_label.setStyleSheet(
-            "color: #ef4444; font-size: 12px; padding: 4px 32px; background: transparent;"
+            f"color: {ERROR}; font-size: 12px; padding: 4px 32px; "
+            f"background: transparent;"
         )
         main_layout.addWidget(self._error_label)
 

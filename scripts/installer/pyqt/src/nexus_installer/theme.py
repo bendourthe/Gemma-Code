@@ -1,18 +1,22 @@
-﻿"""QSS stylesheet generation from design-token constants."""
+"""QSS stylesheet generation from design-token constants."""
 
 from __future__ import annotations
 
 from nexus_installer.constants import (
     ACCENT,
+    ACCENT_BRIGHT,
     ACCENT_DIM,
     ACCENT_FOCUS,
     BG_CARD,
+    BG_ELEVATED,
     BG_HEADER,
     BG_INPUT,
     BG_WINDOW,
     BORDER,
+    BORDER_STRONG,
     BUTTON_HEIGHT,
     BUTTON_RADIUS,
+    ERROR,
     FONT_MONO,
     FONT_PRIMARY,
     TEXT_MUTED,
@@ -24,7 +28,7 @@ from nexus_installer.constants import (
 def generate_stylesheet() -> str:
     """Return the complete QSS stylesheet for the installer UI."""
     return f"""
-/* â”€â”€ Global â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* -- Global ---------------------------------------------------------- */
 QMainWindow, QWidget {{
     background-color: {BG_WINDOW};
     color: {TEXT_PRIMARY};
@@ -32,12 +36,12 @@ QMainWindow, QWidget {{
     font-size: 13px;
 }}
 
-/* â”€â”€ Header band â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* -- Header band ------------------------------------------------------ */
 QWidget#headerBand {{
     background-color: {BG_HEADER};
 }}
 
-/* â”€â”€ Labels â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* -- Labels ------------------------------------------------------------ */
 QLabel {{
     color: {TEXT_PRIMARY};
     background: transparent;
@@ -49,11 +53,11 @@ QLabel#mutedLabel {{
     color: {TEXT_MUTED};
 }}
 QLabel#errorLabel {{
-    color: #ef4444;
+    color: {ERROR};
     font-size: 12px;
 }}
 
-/* â”€â”€ Cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* -- Cards ------------------------------------------------------------- */
 QFrame#card {{
     background-color: {BG_CARD};
     border: 1px solid {BORDER};
@@ -61,13 +65,13 @@ QFrame#card {{
     padding: 16px;
 }}
 
-/* â”€â”€ Primary button (cyan gradient) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* -- Primary button (cyan gradient) ---------------------------------- */
 QPushButton#primaryButton {{
     background-color: qlineargradient(
         x1:0, y1:0, x2:0, y2:1,
         stop:0 {ACCENT}, stop:1 {ACCENT_DIM}
     );
-    color: #000000;
+    color: {BG_WINDOW};
     font-weight: bold;
     font-size: 13px;
     border: none;
@@ -78,23 +82,23 @@ QPushButton#primaryButton {{
 QPushButton#primaryButton:hover {{
     background-color: qlineargradient(
         x1:0, y1:0, x2:0, y2:1,
-        stop:0 #0cd4d4, stop:1 {ACCENT}
+        stop:0 {ACCENT_BRIGHT}, stop:1 {ACCENT}
     );
 }}
 QPushButton#primaryButton:pressed {{
     background-color: {ACCENT_DIM};
 }}
 QPushButton#primaryButton:disabled {{
-    background-color: #2a3a4a;
+    background-color: {BG_ELEVATED};
     color: {TEXT_MUTED};
 }}
 
-/* â”€â”€ Secondary button (transparent border) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* -- Secondary button (transparent border) --------------------------- */
 QPushButton#secondaryButton {{
     background-color: transparent;
     color: {TEXT_SECONDARY};
     font-size: 13px;
-    border: 1px solid {BORDER};
+    border: 1px solid {BORDER_STRONG};
     border-radius: {BUTTON_RADIUS}px;
     min-height: {BUTTON_HEIGHT}px;
     padding: 0 24px;
@@ -111,11 +115,11 @@ QPushButton#secondaryButton:disabled {{
     color: {TEXT_MUTED};
 }}
 
-/* â”€â”€ Text input fields â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* -- Text input fields ------------------------------------------------- */
 QLineEdit {{
     background-color: {BG_INPUT};
     color: {TEXT_PRIMARY};
-    border: 1px solid {BORDER};
+    border: 1px solid {BORDER_STRONG};
     border-radius: 8px;
     padding: 8px 12px;
     font-size: 13px;
@@ -125,10 +129,10 @@ QLineEdit:focus {{
     border-color: {ACCENT_FOCUS};
 }}
 
-/* â”€â”€ Text area / Log panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* -- Text area / Log panel --------------------------------------------- */
 QTextEdit {{
     background-color: {BG_INPUT};
-    color: #8bb4cc;
+    color: {TEXT_SECONDARY};
     border: 1px solid {BORDER};
     border-radius: 8px;
     padding: 8px;
@@ -137,7 +141,7 @@ QTextEdit {{
     selection-background-color: {ACCENT_DIM};
 }}
 
-/* â”€â”€ Scroll area â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* -- Scroll area -------------------------------------------------------- */
 QScrollArea {{
     background-color: transparent;
     border: none;
@@ -151,7 +155,7 @@ QScrollBar:vertical {{
     border: none;
 }}
 QScrollBar::handle:vertical {{
-    background: {BORDER};
+    background: {BORDER_STRONG};
     border-radius: 4px;
     min-height: 30px;
 }}
@@ -159,7 +163,7 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
     height: 0px;
 }}
 
-/* â”€â”€ Progress bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* -- Progress bar ------------------------------------------------------- */
 QProgressBar {{
     background-color: {BG_CARD};
     border: none;
@@ -177,7 +181,33 @@ QProgressBar::chunk {{
     border-radius: 4px;
 }}
 
-/* â”€â”€ Checkbox (toggle base) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* -- Tabs (typed model catalog) ---------------------------------------- */
+QTabWidget::pane {{
+    border: 1px solid {BORDER};
+    border-radius: 8px;
+    background-color: transparent;
+    top: -1px;
+}}
+QTabBar::tab {{
+    background-color: {BG_HEADER};
+    color: {TEXT_SECONDARY};
+    border: 1px solid {BORDER};
+    border-bottom: none;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+    padding: 6px 14px;
+    margin-right: 2px;
+}}
+QTabBar::tab:hover {{
+    color: {TEXT_PRIMARY};
+}}
+QTabBar::tab:selected {{
+    background-color: {BG_CARD};
+    color: {TEXT_PRIMARY};
+    border-color: {BORDER_STRONG};
+}}
+
+/* -- Checkbox (toggle base) -------------------------------------------- */
 QCheckBox {{
     color: {TEXT_PRIMARY};
     spacing: 8px;
@@ -186,7 +216,7 @@ QCheckBox {{
 QCheckBox::indicator {{
     width: 18px;
     height: 18px;
-    border: 2px solid {BORDER};
+    border: 2px solid {BORDER_STRONG};
     border-radius: 4px;
     background-color: {BG_INPUT};
 }}
@@ -199,7 +229,14 @@ QCheckBox::indicator:disabled {{
     border-color: {BG_CARD};
 }}
 
-/* â”€â”€ Callout box â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* -- Phase group card (installing page) --------------------------------- */
+QFrame#phaseGroup {{
+    background-color: {BG_CARD};
+    border: 1px solid {BORDER};
+    border-radius: 8px;
+}}
+
+/* -- Callout box --------------------------------------------------------- */
 QFrame#calloutBox {{
     background-color: {BG_CARD};
     border: none;

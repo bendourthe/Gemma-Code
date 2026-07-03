@@ -194,6 +194,103 @@ class TestInstallEnginePartialFailure:
             assert "desktop" in state.failed_steps
 
 
+class TestInstallEngineStepSignals:
+    """v1.8.0 Phase 5 -- step-level signals feeding the grouped-progress UI."""
+
+    def test_step_started_precedes_completion(self) -> None:
+        state = InstallerState(
+            components_to_install=["ollama", "extension"],
+            vscode_path="/usr/bin/code",
+        )
+        events: list[tuple[str, str]] = []
+
+        with (
+            patch("nexus_installer.engine.installer.OllamaInstaller") as MockOllama,
+            patch("nexus_installer.engine.installer.ExtensionInstaller") as MockExt,
+        ):
+            MockOllama.return_value.install.return_value = True
+            MockExt.return_value.install.return_value = True
+
+            engine = InstallEngine()
+            engine.step_started.connect(lambda n: events.append(("started", n)))
+            engine.step_completed.connect(lambda n: events.append(("completed", n)))
+            engine.install_finished.connect(lambda *a: None)
+
+            engine.run(state)
+
+        assert events == [
+            ("started", "ollama"),
+            ("completed", "ollama"),
+            ("started", "extension"),
+            ("completed", "extension"),
+        ]
+
+    def test_step_failed_emitted_on_failure(self) -> None:
+        state = InstallerState(
+            components_to_install=["ollama", "extension"],
+            vscode_path="/usr/bin/code",
+        )
+        failed: list[str] = []
+        completed: list[str] = []
+
+        with (
+            patch("nexus_installer.engine.installer.OllamaInstaller") as MockOllama,
+            patch("nexus_installer.engine.installer.ExtensionInstaller") as MockExt,
+        ):
+            MockOllama.return_value.install.return_value = False
+            MockExt.return_value.install.return_value = True
+
+            engine = InstallEngine()
+            engine.step_failed.connect(failed.append)
+            engine.step_completed.connect(completed.append)
+            engine.install_finished.connect(lambda *a: None)
+
+            engine.run(state)
+
+        assert failed == ["ollama"]
+        assert completed == ["extension"]
+
+    def test_step_progress_forwarded_from_model_and_desktop(self) -> None:
+        state = InstallerState(
+            components_to_install=["model", "desktop"],
+            vscode_path="/usr/bin/code",
+        )
+        progress: list[tuple[str, float]] = []
+
+        with (
+            patch("nexus_installer.engine.installer.ModelStepRouter") as MockRouter,
+            patch(
+                "nexus_installer.engine.installer.DesktopProvisioner"
+            ) as MockDesktop,
+        ):
+
+            def run_model(s: object, log: object, cb: object) -> bool:
+                cb(0.25)  # type: ignore[operator]
+                cb(0.75)  # type: ignore[operator]
+                return True
+
+            def run_desktop(s: object, log: object, cb: object) -> bool:
+                cb(0.5)  # type: ignore[operator]
+                return True
+
+            MockRouter.return_value.install.side_effect = run_model
+            MockDesktop.return_value.install.side_effect = run_desktop
+
+            engine = InstallEngine()
+            engine.step_progress.connect(
+                lambda n, pct: progress.append((n, pct))
+            )
+            engine.install_finished.connect(lambda *a: None)
+
+            engine.run(state)
+
+        assert progress == [
+            ("model", 0.25),
+            ("model", 0.75),
+            ("desktop", 0.5),
+        ]
+
+
 class TestInstallEngineCancel:
     def test_cancel_propagates_to_desktop_provisioner(self) -> None:
         with patch(

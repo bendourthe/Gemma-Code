@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from nexus_installer.constants import ERROR, TEXT_SECONDARY
 from nexus_installer.installer_state import InstallerState
 from nexus_installer.widgets.disk_aware_footer import (
     DiskAwareFooter,
@@ -50,15 +51,15 @@ class TestFormatDiskFooter:
     def test_boundary_remains_green(self) -> None:
         _, _, _, color = format_disk_footer_text(100, 80, 10)
         # Remaining 20 == 2 * reserve -> still above warning threshold.
-        assert color != "#ef4444"
+        assert color != ERROR
 
     def test_below_reserve_is_red(self) -> None:
         _, _, _, color = format_disk_footer_text(100, 95, 10)
-        assert color == "#ef4444"
+        assert color == ERROR
 
     def test_unknown_disk_uses_secondary(self) -> None:
         _, _, _, color = format_disk_footer_text(0, 5, 10)
-        assert color == "#6b7f96"
+        assert color == TEXT_SECONDARY
 
 
 class TestDiskAwareFooter:

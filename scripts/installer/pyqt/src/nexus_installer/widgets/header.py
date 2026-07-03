@@ -10,13 +10,23 @@ from PyQt5.QtWidgets import QHBoxLayout, QLabel, QWidget
 
 from nexus_installer.constants import HEADER_HEIGHT, TEXT_SECONDARY
 
-# Resolve the brand mark from the repository assets tree. PyInstaller bundles
-# this path when building the frozen installer (see installer-build.yml).
-_BRAND_MARK = (
-    Path(__file__).resolve().parent.parent.parent.parent.parent.parent
-    / "assets"
-    / "icon.png"
-)
+
+def _find_brand_mark() -> Path:
+    """Locate `assets/icon.png` by walking up from this module.
+
+    Works from the source tree (repo root `assets/`) and from a frozen
+    bundle (the PyInstaller spec stages the icon under `assets/` at the
+    bundle root). The previous fixed-depth resolution landed on
+    `scripts/assets/`, which does not exist, so the mark never rendered.
+    """
+    for parent in Path(__file__).resolve().parents:
+        candidate = parent / "assets" / "icon.png"
+        if candidate.is_file():
+            return candidate
+    return Path("assets") / "icon.png"
+
+
+_BRAND_MARK = _find_brand_mark()
 
 
 class Header(QWidget):
