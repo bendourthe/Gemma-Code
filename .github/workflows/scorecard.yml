@@ -11,14 +11,15 @@ name: Scorecard
 # All actions are pinned by full commit SHA per the repo's SHA-pin policy;
 # the trailing `# vX.Y.Z` comment records the human-readable tag.
 
+# Gated to manual dispatch only. This repo is PRIVATE, and OpenSSF Scorecard is
+# designed for PUBLIC repositories: its checkout runs with `persist-credentials:
+# false` and cannot authenticate to a private repo (checkout fails with
+# "Repository not found"), while `publish_results: true` targets the public
+# OpenSSF API. The automatic push / schedule / branch-protection triggers
+# therefore failed on every run. Re-enable them (and revisit publish_results) if
+# this repository is ever made public.
 on:
-  branch_protection_rule:
-  schedule:
-    # Weekly, offset from the CodeQL cron (27 4 * * 1) to avoid contending for
-    # the same runner window.
-    - cron: "41 5 * * 1"
-  push:
-    branches: ["main"]
+  workflow_dispatch:
 
 concurrency:
   group: scorecard-${{ github.workflow }}-${{ github.head_ref || github.ref }}
