@@ -1001,7 +1001,7 @@
     "tiktoken": "^1.0.17",
     "tree-sitter-wasms": "^0.1.13",
     "web-tree-sitter": "^0.25.10",
-    "zod": "^3.23.8"
+    "zod": "^4.4.3"
   },
   "optionalDependencies": {
     "@huggingface/transformers": "^4.2.0",
