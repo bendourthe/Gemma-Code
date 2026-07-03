@@ -981,7 +981,7 @@
     "@vitest/coverage-v8": "^2.1.9",
     "@vscode/vsce": "^2.24.0",
     "dependency-cruiser": "^16.10.4",
-    "eslint": "^8.57.0",
+    "eslint": "^10.6.0",
     "husky": "^9.1.7",
     "lint-staged": "^15.5.2",
     "msw": "^2.13.4",
