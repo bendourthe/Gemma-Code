@@ -155,6 +155,67 @@ describe("catalog", () => {
     expect(() => validateSpec(vae)).not.toThrow();
   });
 
+  it("validateSpec rejects an invalid task (v1.8.0 Phase 4)", () => {
+    expect(() =>
+      validateSpec({
+        id: "x", family: "x", name: "x", tag: "1",
+        type: "llm",
+        task: "banter" as ModelSpec["task"],
+        displayName: "X",
+        source: { protocol: "ollama" },
+      }),
+    ).toThrow(/invalid task/);
+  });
+
+  it("validateSpec requires provenance on uncensored entries (v1.8.0 Phase 4)", () => {
+    expect(() =>
+      validateSpec({
+        id: "x", family: "x", name: "x", tag: "1",
+        type: "image",
+        task: "image",
+        displayName: "X",
+        uncensored: true,
+        source: { protocol: "huggingface", url: "https://x/y" },
+      }),
+    ).toThrow(/provenance/);
+  });
+
+  it("bundled catalog carries the Phase 4 curated uncensored image/video entries", async () => {
+    const file = await loadCatalog();
+    const byId = new Map(file.models.map((m) => [m.id, m]));
+    const expectations: Array<[string, ModelSpec["type"], string]> = [
+      ["juggernaut-xl-v9", "image", "CreativeML Open RAIL-M"],
+      ["realvisxl-v5", "image", "OpenRAIL++"],
+      ["wan2.1-t2v-1.3b", "video", "Apache-2.0"],
+      ["wan2.2-ti2v-5b", "video", "Apache-2.0"],
+    ];
+    for (const [id, type, licensePrefix] of expectations) {
+      const entry = byId.get(id);
+      expect(entry, `${id} should exist`).toBeDefined();
+      expect(entry?.type).toBe(type);
+      expect(entry?.uncensored).toBe(true);
+      expect(entry?.provenance, `${id} must record provenance`).toBeTruthy();
+      expect(entry?.license?.startsWith(licensePrefix)).toBe(true);
+      expect(entry?.source.protocol).toBe("huggingface");
+      expect(entry?.weights?.files.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("every user-facing bundled entry carries a task and the Phase 4 copy fields", async () => {
+    const file = await loadCatalog();
+    const userFacing = file.models.filter(
+      (m) => m.type !== "vae" && m.type !== "controlnet",
+    );
+    for (const entry of userFacing) {
+      expect(entry.task, `${entry.id} missing task`).toBeDefined();
+      expect(entry.strengths?.length, `${entry.id} missing strengths`).toBeGreaterThan(0);
+      expect(entry.differentiators, `${entry.id} missing differentiators`).toBeTruthy();
+    }
+    // Chat/agentic split exists in the shipped data.
+    expect(userFacing.some((m) => m.task === "chat")).toBe(true);
+    expect(userFacing.some((m) => m.task === "agentic")).toBe(true);
+  });
+
   it("bundled catalog carries the full SANA family from Phase 12", async () => {
     const file = await loadCatalog();
     const ids = new Set(file.models.map((m) => m.id));

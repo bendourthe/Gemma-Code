@@ -4,6 +4,30 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-03] v1.8.0 one-shot installer -- Phase 4: catalog curation + selection UX, chat/agentic split + uncensored defaults (T401-T404)
+
+### Goal
+
+Close gap G3 ([plan](versions/v1/v1.8.0/plans/one-shot-installer.md) Phase 4): the catalog UX had one undifferentiated Text tab, thin per-model copy, and zero uncensored image/video entries despite the product decision that uncensored image + video are the defaults where hardware fits -- and the typed catalog page itself was still unwired, leaving the Phase 3 multi-select surface without a producer (`OSI003.P3.D`).
+
+### What changed
+
+- **T401 -- schema + section split + card copy**: [catalog.json](../core/registry/catalog.json) entries gain `task` (chat / agentic / image / video / audio / embed), `strengths[]`, `whyRecommended`, `differentiators` (+ `provenance` on curated entries), typed and validated in [catalog.ts](../core/registry/catalog.ts) (invalid-task rejection; **`uncensored: true` without `provenance` throws** -- the curation policy as a schema rule). [typed_catalog.py](../scripts/installer/pyqt/src/nexus_installer/pages/typed_catalog.py) splits Text into **Chat** and **Agentic Coding** (tabs now Chat / Agentic Coding / Image / Video / Audio; embed entries render under Chat) and the cards render the new copy plus a Recommended pill.
+- **T402 -- text-side curation**: authored copy for all 13 text entries -- chat ladder gemma4 e2b -> e4b -> 12B-GGUF (multimodal, 256K) -> 26b -> 31b, agentic ladder qwen2.5-coder 7b -> 14b -> deepseek-coder-v2 16b, with `whyRecommended` on every tier default and nomic-embed documented as the memory layer's always-on support model.
+- **T403 -- uncensored curation + tier defaults**: four web-verified entries added with license + provenance recorded per entry: `juggernaut-xl-v9` + `realvisxl-v5` (SDXL fine-tunes; CreativeML Open RAIL-M / OpenRAIL++) and `wan2.1-t2v-1.3b` + `wan2.2-ti2v-5b` (Alibaba originals; Apache-2.0); censored alternatives stay listed. [recommended.json](../core/registry/recommended.json) rewritten to a v2 **per-VRAM-tier matrix** (cpu / 8 / 12 / 16 / 24) with uncensored image + video defaults on every GPU tier; new pure [tier_defaults.py](../scripts/installer/pyqt/src/nexus_installer/tier_defaults.py) resolves the tier and fit-gates the selection (chat + agentic guaranteed via a fitting-fallback ladder; image/video fit-gated with no substitution; cpu never selects image/video; cumulative disk reserve honored).
+- **Wizard wiring (closes `OSI003.P3.D`)**: `TypedCatalogPage` replaces `ModelSelectionPage` at step 4 ("Models") in [main.py](../scripts/installer/pyqt/src/nexus_installer/main.py); defaults recompute on `showEvent` until the user touches a checkbox (pages are built before GPU detection finishes); every change writes the section-ordered `selected_model_ids` (unknown ids survive for the `--model` -> ollama contract), the legacy `selected_model` chat pick, and `selected_models_gb`; the review page renders the multi-selection. The end-to-end smoke caught a latent bug: the page's `_repo_root()` (`parents[5]`) never resolved the real registry files -- fixed with the `model_router` walk-up.
+- **T404 -- tier matrix tests**: new [test_tier_defaults.py](../scripts/installer/pyqt/tests/test_tier_defaults.py) runs the REAL catalog + matrix per simulated tier (8/12/16/24 GB + CPU-only) asserting VRAM fit, disk fit, one-chat + one-agentic + embed composition, and uncensored image/video defaults, plus synthetic fallback/disk-gating suites; [test_typed_catalog.py](../scripts/installer/pyqt/tests/test_typed_catalog.py) rewritten for the sectioned page.
+
+### Verification
+
+Installer pytest suite **538 passed / 2 skipped / 0 failed** (540 collected, +46); `tier_defaults` 94% / `typed_catalog` 93% / `review` 91% line coverage; ruff 0 new findings; `tsc -b` clean; root Vitest suite (`npm test`) **4569 passed / 6 skipped / 0 failed** (+4 schema tests). Offscreen smoke: all five hardware tiers produce the designed default matrix from the real registry files. Known-gaps: `OSI003.P3.D` resolved; new `OSI004.P4.A-E` (pin rotation + manifest enumeration for the new entries, GPU-box load verification, PyInstaller registry-file packaging for Phase 6, legacy page retirement, size/VRAM true-up). See the [phase history](versions/v1/v1.8.0/development/history/2026-07_phase-4-catalog-curation.md).
+
+### Branch
+
+`feat/v1.8.0-installer-phase-4`, stacked on `feat/v1.8.0-installer-phase-3`.
+
+---
+
 ## [2026-07-03] v1.8.0 one-shot installer -- Phase 3: Hugging Face weights downloader, image/video selection becomes real (T301-T304)
 
 ### Goal

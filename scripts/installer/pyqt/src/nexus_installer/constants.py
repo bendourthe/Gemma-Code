@@ -73,7 +73,7 @@ STEP_NAMES: list[str] = [
     "Prerequisites",
     "GPU Detection",
     "Install Path",
-    "Model Selection",
+    "Models",
     "Configuration",
     "Review",
     "Installing",

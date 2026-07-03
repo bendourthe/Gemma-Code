@@ -1,16 +1,23 @@
-"""v1.1.0 Phase 14.6 -- Text / Image / Video / Audio tabbed model picker.
+"""v1.8.0 Phase 4 -- Chat / Agentic Coding / Image / Video / Audio model picker.
 
-Replaces the v1.0.0 single-list recommended-models page. Each tab is fed by
-`core/registry/catalog.json` (filtered to the matching `type`) and the
-recommended set is read from `core/registry/recommended.json`. Each model
-card surfaces VRAM / RAM / disk fit, context window, multimodality, censored
-flag, license, and release date so the user has all the metadata needed to
-decide before downloading.
+Evolves the v1.1.0 Text/Image/Video/Audio tabs: the Text tab is split into
+**Chat** and **Agentic Coding** sections driven by the catalog's `task`
+field, and each model card renders the Phase 4 copy (`strengths`,
+`whyRecommended`, `differentiators`) alongside the existing VRAM / RAM /
+disk fit, context window, censored flag, license, and release date.
 
-The page collaborates with `InstallerState.selected_models_gb` and the
-`DiskAwareFooter`: any selection change updates the state and triggers the
-footer refresh. Checkboxes that would dip the host below the 10 GB OS
-reserve are disabled with a tooltip.
+Pre-ticked defaults come from the per-VRAM-tier matrix in
+`core/registry/recommended.json` (schema v2) resolved against the detected
+hardware by `nexus_installer.tier_defaults` -- including the uncensored
+image/video defaults on tiers whose hardware fits them. Defaults are
+recomputed on `showEvent` (GPU detection finishes after the wizard pages
+are constructed) until the user touches a checkbox.
+
+The page is the wired producer of `InstallerState.selected_model_ids`
+(closes `OSI003.P3.D`): every selection change writes the ordered id list
+the protocol-routed model step consumes, keeps the legacy single
+`selected_model` pointing at the chat pick, and updates
+`selected_models_gb` for the disk-aware footer / install guard.
 """
 
 from __future__ import annotations
@@ -43,22 +50,40 @@ from nexus_installer.constants import (
     TEXT_SECONDARY,
     WARNING,
 )
+from nexus_installer.tier_defaults import (
+    default_selection,
+    load_tier_matrix,
+    resolve_tier,
+)
 
 if TYPE_CHECKING:
     from nexus_installer.installer_state import InstallerState
 
 
 TYPE_TABS: tuple[tuple[str, str, str], ...] = (
-    # (registry_key, tab_label, type_icon)
-    ("text", "Text", "[T]"),
+    # (section_key, tab_label, type_icon)
+    ("chat", "Chat", "[C]"),
+    ("agentic", "Agentic Coding", "[>]"),
     ("image", "Image", "[I]"),
     ("video", "Video", "[V]"),
     ("audio", "Audio", "[A]"),
 )
 
+# Fallback when an entry carries no `task` field: catalog `type` -> tab.
+# Embedding models render inside the Chat section (memory-layer support).
 CATALOG_TYPE_TO_TAB = {
-    "llm": "text",
-    "embed": "text",
+    "llm": "chat",
+    "embed": "chat",
+    "image": "image",
+    "video": "video",
+    "audio": "audio",
+}
+
+# Primary mapping: catalog `task` -> tab.
+TASK_TO_TAB = {
+    "chat": "chat",
+    "agentic": "agentic",
+    "embed": "chat",
     "image": "image",
     "video": "video",
     "audio": "audio",
@@ -71,7 +96,8 @@ class CatalogModel:
 
     id: str
     display_name: str
-    type: str  # one of: text / image / video / audio
+    type: str  # tab key: chat / agentic / image / video / audio
+    task: str  # catalog task: chat / agentic / image / video / audio / embed
     size_gb: float
     required_vram_gb: int
     required_ram_gb: int
@@ -82,10 +108,13 @@ class CatalogModel:
     multimodal: bool
     uncensored: bool
     description: str
+    strengths: tuple[str, ...] = ()
+    why_recommended: str = ""
+    differentiators: str = ""
 
     @property
     def is_text_model(self) -> bool:
-        return self.type == "text"
+        return self.type in ("chat", "agentic")
 
 
 def _coerce_int(value: object, default: int = 0) -> int:
@@ -112,16 +141,21 @@ def load_catalog_models(catalog_path: Path) -> list[CatalogModel]:
         return []
     models: list[CatalogModel] = []
     for entry in data.get("models", []):
+        raw_task = str(entry.get("task") or "")
         raw_type = entry.get("type") or ""
-        tab_type = CATALOG_TYPE_TO_TAB.get(raw_type)
-        if tab_type is None:
+        tab = TASK_TO_TAB.get(raw_task) or CATALOG_TYPE_TO_TAB.get(raw_type)
+        if tab is None:
             # VAEs, ControlNets, etc. are not user-facing top-level picks.
             continue
+        strengths = entry.get("strengths")
+        if not isinstance(strengths, list):
+            strengths = []
         models.append(
             CatalogModel(
                 id=entry.get("id", ""),
                 display_name=entry.get("displayName") or entry.get("id", ""),
-                type=tab_type,
+                type=tab,
+                task=raw_task or ("chat" if tab == "chat" else tab),
                 size_gb=_coerce_float(entry.get("sizeGB")),
                 required_vram_gb=_coerce_int(
                     entry.get("requiredVramGB", entry.get("vramGB"))
@@ -136,26 +170,12 @@ def load_catalog_models(catalog_path: Path) -> list[CatalogModel]:
                 multimodal=bool(entry.get("multimodal")),
                 uncensored=bool(entry.get("uncensored")),
                 description=str(entry.get("description") or ""),
+                strengths=tuple(str(s) for s in strengths),
+                why_recommended=str(entry.get("whyRecommended") or ""),
+                differentiators=str(entry.get("differentiators") or ""),
             )
         )
     return models
-
-
-def load_recommended_ids(recommended_path: Path) -> dict[str, list[str]]:
-    """Read `recommended.json` and return `{tab: [model_id, ...]}`."""
-    empty = {key: [] for key, _, _ in TYPE_TABS}
-    if not recommended_path.exists():
-        return empty
-    try:
-        data = json.loads(recommended_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return empty
-    out = dict(empty)
-    for key, _, _ in TYPE_TABS:
-        ids = data.get(key) or []
-        if isinstance(ids, list):
-            out[key] = [str(i) for i in ids]
-    return out
 
 
 def compatibility_badge(
@@ -205,13 +225,14 @@ class TypedSelection:
 
 
 class _ModelCard(QWidget):
-    """One model card with metadata + checkbox."""
+    """One model card with metadata, Phase 4 copy, and checkbox."""
 
     def __init__(
         self,
         model: CatalogModel,
         *,
         recommended: bool,
+        checked: bool,
         host_vram_gb: int,
         host_ram_gb: int,
         gpu_vendor: str,
@@ -229,7 +250,7 @@ class _ModelCard(QWidget):
 
         title_row = QHBoxLayout()
         self.checkbox = QCheckBox()
-        self.checkbox.setChecked(recommended)
+        self.checkbox.setChecked(checked)
         title_row.addWidget(self.checkbox)
 
         release_suffix = (
@@ -241,6 +262,15 @@ class _ModelCard(QWidget):
         )
         title.setWordWrap(True)
         title_row.addWidget(title, stretch=1)
+
+        if recommended:
+            badge = QLabel("Recommended")
+            badge.setStyleSheet(
+                f"color: {ACCENT}; font-size: 10px; font-weight: bold; "
+                f"border: 1px solid {ACCENT}; border-radius: 3px; "
+                f"padding: 1px 6px; background: transparent;"
+            )
+            title_row.addWidget(badge)
 
         size_label = QLabel(f"{model.size_gb:.1f} GB on disk")
         size_label.setStyleSheet(
@@ -260,6 +290,14 @@ class _ModelCard(QWidget):
             f"color: {badge_color}; font-size: 11px; background: transparent;"
         )
         layout.addWidget(badge)
+
+        if recommended and model.why_recommended:
+            why = QLabel(f"Why this one: {model.why_recommended}")
+            why.setStyleSheet(
+                f"color: {ACCENT}; font-size: 11px; background: transparent;"
+            )
+            why.setWordWrap(True)
+            layout.addWidget(why)
 
         if model.is_text_model and (
             model.context_window_in or model.context_window_out
@@ -289,6 +327,7 @@ class _ModelCard(QWidget):
             meta.setStyleSheet(
                 f"color: {TEXT_SECONDARY}; font-size: 11px; background: transparent;"
             )
+            meta.setWordWrap(True)
             layout.addWidget(meta)
 
         if model.description:
@@ -299,9 +338,26 @@ class _ModelCard(QWidget):
             desc.setWordWrap(True)
             layout.addWidget(desc)
 
+        if model.strengths:
+            good_at = QLabel("Good at: " + "; ".join(model.strengths))
+            good_at.setStyleSheet(
+                f"color: {TEXT_SECONDARY}; font-size: 11px; background: transparent;"
+            )
+            good_at.setWordWrap(True)
+            layout.addWidget(good_at)
+
+        if model.differentiators:
+            diff = QLabel(model.differentiators)
+            diff.setStyleSheet(
+                f"color: {TEXT_SECONDARY}; font-size: 11px; font-style: italic; "
+                f"background: transparent;"
+            )
+            diff.setWordWrap(True)
+            layout.addWidget(diff)
+
 
 class TypedCatalogPage(QWidget):
-    """Tabbed catalog page (Text / Image / Video / Audio)."""
+    """Sectioned catalog page (Chat / Agentic Coding / Image / Video / Audio)."""
 
     DISK_TOOLTIP = (
         "Would dip below the 10 GB OS reserve. Free up disk or untick another model."
@@ -325,33 +381,30 @@ class TypedCatalogPage(QWidget):
         self._catalog: dict[str, CatalogModel] = {
             m.id: m for m in load_catalog_models(catalog_path)
         }
-        self._recommended: dict[str, list[str]] = load_recommended_ids(recommended_path)
+        self._matrix = load_tier_matrix(recommended_path)
         self._selection = TypedSelection()
         self._cards: list[_ModelCardState] = []
+        # A pre-seeded selection (CLI --model override or back-navigation)
+        # counts as user intent: defaults must not stomp it.
+        self._user_touched = False
 
         layout = QVBoxLayout(self)
         layout.setSpacing(12)
 
-        title = QLabel("Recommended Models")
+        title = QLabel("Choose Your Models")
         title.setStyleSheet(
             "font-size: 24px; font-weight: bold; background: transparent;"
         )
         layout.addWidget(title)
 
-        vram_gb = max(0, int(state.vram_mb / 1024))
-        subtitle = QLabel(
-            f"Detected: {state.gpu_name or 'no GPU'} ({vram_gb} GB VRAM). "
-            "Pick the top item per type, or tick more to expand the install."
-        )
-        subtitle.setStyleSheet(
+        self._subtitle = QLabel("")
+        self._subtitle.setStyleSheet(
             f"color: {TEXT_SECONDARY}; font-size: 13px; background: transparent;"
         )
-        subtitle.setWordWrap(True)
-        layout.addWidget(subtitle)
+        self._subtitle.setWordWrap(True)
+        layout.addWidget(self._subtitle)
 
         self._tabs = QTabWidget()
-        for key, label, icon in TYPE_TABS:
-            self._tabs.addTab(self._build_tab(key, icon, vram_gb, state), label)
         layout.addWidget(self._tabs, stretch=1)
 
         self._totals_label = QLabel("")
@@ -360,18 +413,80 @@ class TypedCatalogPage(QWidget):
         )
         layout.addWidget(self._totals_label)
 
+        # Ids not in the catalog are kept: the model router sends unknown
+        # ids to `ollama pull` verbatim (the --model override contract).
+        seeded = list(state.selected_model_ids)
+        if seeded:
+            self._selection.selected = set(seeded)
+            self._user_touched = True
+        else:
+            self._selection.selected = set(self._current_defaults())
+
+        self._rebuild_tabs()
+        self._update_selection_state()
+
+    # -----------------------------------------------------------------
+    # Hardware-tier defaults
+    # -----------------------------------------------------------------
+
+    def _current_defaults(self) -> list[str]:
+        tier = resolve_tier(self._state.vram_mb, self._state.gpu_vendor)
+        return default_selection(
+            self._catalog,
+            self._matrix,
+            tier,
+            vram_gb=max(0, int(self._state.vram_mb / 1024)),
+            free_disk_gb=self._state.free_disk_gb,
+            reserve_gb=self._state.disk_reserve_gb,
+        )
+
+    def showEvent(self, event: object) -> None:  # noqa: N802
+        """Refresh defaults on show: GPU detection finishes after __init__."""
+        super().showEvent(event)  # type: ignore[arg-type]
+        self.refresh_from_state()
+
+    def refresh_from_state(self) -> None:
+        """Recompute tier defaults + badges from the current installer state."""
+        if not self._user_touched:
+            self._selection.selected = set(self._current_defaults())
+        self._rebuild_tabs()
         self._update_selection_state()
 
     # -----------------------------------------------------------------
     # Tab builders
     # -----------------------------------------------------------------
 
+    def _rebuild_tabs(self) -> None:
+        current = max(0, self._tabs.currentIndex())
+        self._cards.clear()
+        while self._tabs.count():
+            page = self._tabs.widget(0)
+            self._tabs.removeTab(0)
+            if page is not None:
+                page.deleteLater()
+
+        vram_gb = max(0, int(self._state.vram_mb / 1024))
+        self._subtitle.setText(
+            f"Detected: {self._state.gpu_name or 'no GPU'} ({vram_gb} GB VRAM). "
+            "We pre-selected the best fit for your hardware -- one chat and one "
+            "agentic coding model, plus image and video where your GPU allows. "
+            "Tick more to expand the install."
+        )
+
+        defaults = set(self._current_defaults())
+        for key, label, icon in TYPE_TABS:
+            self._tabs.addTab(
+                self._build_tab(key, icon, vram_gb, self._state, defaults), label
+            )
+        self._tabs.setCurrentIndex(min(current, self._tabs.count() - 1))
+
     def _build_tab(
         self,
-        registry_key: str,
+        section_key: str,
         icon: str,
         host_vram_gb: int,
         state: InstallerState,
+        defaults: set[str],
     ) -> QWidget:
         container = QWidget()
         outer = QVBoxLayout(container)
@@ -383,46 +498,41 @@ class TypedCatalogPage(QWidget):
         layout = QVBoxLayout(inner)
         layout.setSpacing(8)
 
-        models = [m for m in self._catalog.values() if m.type == registry_key]
+        models = [m for m in self._catalog.values() if m.type == section_key]
         models.sort(
             key=lambda m: (
-                m.id not in self._recommended.get(registry_key, []),
+                m.id not in defaults,
                 -float(m.release_date.replace("-", "") or 0),
                 m.display_name,
             )
         )
 
         if not models:
-            empty = QLabel(f"No {registry_key} models in catalog.")
-            empty.setStyleSheet(
-                f"color: {TEXT_SECONDARY}; font-size: 12px; background: transparent;"
+            empty_text = (
+                "No audio models recommended yet."
+                if section_key == "audio"
+                else f"No {section_key} models in catalog."
             )
-            layout.addWidget(empty)
-        elif registry_key == "audio" and not self._recommended.get("audio"):
-            empty = QLabel("No audio models recommended yet.")
+            empty = QLabel(empty_text)
             empty.setStyleSheet(
                 f"color: {TEXT_SECONDARY}; font-size: 12px; background: transparent;"
             )
             layout.addWidget(empty)
         else:
-            recommended_ids = set(self._recommended.get(registry_key, []))
             host_ram_gb = state.free_disk_gb  # placeholder until HostProfile threaded
-            host_vram = host_vram_gb
             gpu_vendor = state.gpu_vendor or "none"
             for model in models:
-                is_recommended = model.id in recommended_ids
                 card = _ModelCard(
                     model,
-                    recommended=is_recommended,
-                    host_vram_gb=host_vram,
+                    recommended=model.id in defaults,
+                    checked=model.id in self._selection.selected,
+                    host_vram_gb=host_vram_gb,
                     host_ram_gb=host_ram_gb,
                     gpu_vendor=gpu_vendor,
                 )
                 card.setSizePolicy(
                     QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
                 )
-                if is_recommended:
-                    self._selection.selected.add(model.id)
                 card.checkbox.stateChanged.connect(
                     lambda _state, mid=model.id: self._on_checkbox_toggled(mid)
                 )
@@ -451,6 +561,7 @@ class TypedCatalogPage(QWidget):
         card = self._find_card(model_id)
         if card is None:
             return
+        self._user_touched = True
         if card.checkbox.isChecked():
             self._selection.selected.add(model_id)
         else:
@@ -463,9 +574,42 @@ class TypedCatalogPage(QWidget):
                 return card
         return None
 
+    def _ordered_selection(self) -> list[str]:
+        """Selection ids in a stable section-then-id order for the engine.
+
+        Ids without a catalog entry sort last (unknown ids route to
+        `ollama pull` verbatim -- the --model override contract).
+        """
+        tab_rank = {key: rank for rank, (key, _, _) in enumerate(TYPE_TABS)}
+
+        def rank(mid: str) -> tuple[int, str]:
+            model = self._catalog.get(mid)
+            if model is None:
+                return (len(TYPE_TABS) + 1, mid)
+            return (tab_rank.get(model.type, len(TYPE_TABS)), mid)
+
+        return sorted(self._selection.selected, key=rank)
+
     def _update_selection_state(self) -> None:
         total = self._selection.total_gb(self._catalog)
         self._state.selected_models_gb = total
+
+        # v1.8.0 Phase 4 (OSI003.P3.D): publish the multi-selection the
+        # protocol-routed model step consumes, and keep the legacy single
+        # `selected_model` pointing at the chat pick for older consumers
+        # (config write, review fallback).
+        ordered = self._ordered_selection()
+        self._state.selected_model_ids = ordered
+        chat_picks = [
+            mid
+            for mid in ordered
+            if mid in self._catalog and self._catalog[mid].task == "chat"
+        ]
+        if not chat_picks:
+            # Custom --model overrides are typically ollama chat tags.
+            chat_picks = [mid for mid in ordered if mid not in self._catalog]
+        self._state.selected_model = chat_picks[0] if chat_picks else ""
+
         free = self._state.free_disk_gb
         reserve = self._state.disk_reserve_gb
 
@@ -506,24 +650,36 @@ class TypedCatalogPage(QWidget):
 # ---------------------------------------------------------------------------
 
 
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[5]
+def _registry_file(name: str) -> Path:
+    """Locate `core/registry/<name>` by walking up from this module.
+
+    Mirrors `engine.model_router.default_catalog_path`: works from the
+    source tree and an editable install (the previous fixed-depth
+    `parents[5]` landed on `scripts/`, a latent bug while this page was
+    unwired). A missing file is handled by the tolerant loaders.
+    """
+    for parent in Path(__file__).resolve().parents:
+        candidate = parent / "core" / "registry" / name
+        if candidate.is_file():
+            return candidate
+    return Path("core") / "registry" / name
 
 
 def _default_catalog_path() -> Path:
-    return _repo_root() / "core" / "registry" / "catalog.json"
+    return _registry_file("catalog.json")
 
 
 def _default_recommended_path() -> Path:
-    return _repo_root() / "core" / "registry" / "recommended.json"
+    return _registry_file("recommended.json")
 
 
 __all__ = [
+    "CATALOG_TYPE_TO_TAB",
+    "TASK_TO_TAB",
     "TYPE_TABS",
     "CatalogModel",
     "TypedCatalogPage",
     "TypedSelection",
     "compatibility_badge",
     "load_catalog_models",
-    "load_recommended_ids",
 ]

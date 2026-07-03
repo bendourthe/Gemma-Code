@@ -52,3 +52,30 @@ class TestReviewSummary:
         assert _COMPONENT_LABELS["desktop"] == "Nexus Desktop app"
         state = InstallerState()
         assert "desktop" in state.components_to_install
+
+    def test_multi_selection_summary(self, qt_app) -> None:
+        # v1.8.0 Phase 4: the typed catalog publishes selected_model_ids;
+        # the review summary lists them with the authoritative size total.
+        from nexus_installer.pages.review import ReviewPage
+
+        state = InstallerState()
+        state.selected_model_ids = ["gemma4:e4b", "juggernaut-xl-v9"]
+        state.selected_models_gb = 9.6
+        page = ReviewPage(state)
+        page._rebuild_summary()
+        text = page._summary_label.text()
+        assert "2 selected" in text
+        assert "gemma4:e4b" in text
+        assert "juggernaut-xl-v9" in text
+        assert "9.6 GB" in text
+
+    def test_single_model_fallback_summary(self, qt_app) -> None:
+        from nexus_installer.pages.review import ReviewPage
+
+        state = InstallerState()
+        state.selected_model = "gemma4:e4b"
+        page = ReviewPage(state)
+        page._rebuild_summary()
+        text = page._summary_label.text()
+        assert "gemma4:e4b" in text
+        assert "8" in text  # legacy size table

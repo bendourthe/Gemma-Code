@@ -20,6 +20,29 @@ export type ModelType =
   | "controlnet"
   | "vae";
 
+/**
+ * v1.8.0 Phase 4 -- user-facing catalog section a model belongs to.
+ * `chat` and `agentic` split the former Text tab; `embed` entries render
+ * inside the Chat section (memory-layer support models). Support types
+ * (vae, controlnet) carry no task.
+ */
+export type ModelTask =
+  | "chat"
+  | "agentic"
+  | "image"
+  | "video"
+  | "audio"
+  | "embed";
+
+const MODEL_TASKS: readonly ModelTask[] = [
+  "chat",
+  "agentic",
+  "image",
+  "video",
+  "audio",
+  "embed",
+];
+
 export interface ModelSpecSource {
   readonly protocol: "ollama" | "huggingface" | "url";
   readonly url?: string;
@@ -49,8 +72,17 @@ export interface ModelSpec {
   readonly name: string;
   readonly tag: string;
   readonly type: ModelType;
+  readonly task?: ModelTask;
   readonly displayName: string;
   readonly description?: string;
+  /** v1.8.0 Phase 4 -- wizard-card copy: what the model is good at. */
+  readonly strengths?: readonly string[];
+  /** v1.8.0 Phase 4 -- wizard-card copy: why this entry is a tier default. */
+  readonly whyRecommended?: string;
+  /** v1.8.0 Phase 4 -- wizard-card copy: what sets it apart in its section. */
+  readonly differentiators?: string;
+  /** v1.8.0 Phase 4 -- publisher + lineage record; required for uncensored entries. */
+  readonly provenance?: string;
   readonly sizeGB?: number;
   readonly vramGB?: number;
   readonly requiredVramGB?: number;
@@ -78,6 +110,14 @@ export function validateSpec(spec: ModelSpec): void {
   }
   if (!spec.type || !["llm", "embed", "image", "video", "controlnet", "vae"].includes(spec.type)) {
     throw new Error(`ModelCatalog: invalid type for ${spec.id}: ${spec.type}`);
+  }
+  if (spec.task !== undefined && !MODEL_TASKS.includes(spec.task)) {
+    throw new Error(`ModelCatalog: invalid task for ${spec.id}: ${spec.task}`);
+  }
+  if (spec.uncensored === true && !spec.provenance) {
+    throw new Error(
+      `ModelCatalog: ${spec.id} is uncensored but records no provenance (curation policy: license + provenance per uncensored entry)`,
+    );
   }
   if (!spec.source || !spec.source.protocol) {
     throw new Error(`ModelCatalog: entry missing source for ${spec.id}`);

@@ -82,7 +82,21 @@ class ReviewPage(QWidget):
             for c in s.components_to_install
         )
 
-        model_size = _MODEL_SIZES.get(s.selected_model, 0)
+        # v1.8.0 Phase 4: the typed catalog publishes a multi-selection with
+        # an authoritative size total; fall back to the legacy single-model
+        # estimate when the multi-selection is empty (headless overrides).
+        if s.selected_model_ids:
+            model_size = s.selected_models_gb
+            models_line = (
+                f"<b>Models:</b> {len(s.selected_model_ids)} selected "
+                f"(~{model_size:.1f} GB download)<br>"
+                + "".join(f"&nbsp;&nbsp;{mid}<br>" for mid in s.selected_model_ids)
+            )
+        else:
+            model_size = _MODEL_SIZES.get(s.selected_model, 0)
+            models_line = (
+                f"<b>Model:</b> {s.selected_model} ({model_size} GB download)<br>"
+            )
         estimated_disk = model_size + 2.0  # ~2 GB overhead for venv + extension
 
         # Rough install time heuristic
@@ -96,7 +110,7 @@ class ReviewPage(QWidget):
         html = (
             f"<b>Install path:</b> {s.install_path}<br><br>"
             f"<b>Components:</b><br>{components}<br>"
-            f"<b>Model:</b> {s.selected_model} ({model_size} GB download)<br><br>"
+            f"{models_line}<br>"
             f"<b>GPU:</b> {s.gpu_name or 'None detected'}"
             f"{f' ({s.vram_mb} MB VRAM)' if s.vram_mb else ''}<br><br>"
             f"<b>Estimated disk usage:</b> ~{estimated_disk:.0f} GB<br>"

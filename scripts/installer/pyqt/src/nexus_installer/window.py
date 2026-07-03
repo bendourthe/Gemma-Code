@@ -226,8 +226,8 @@ class InstallerWindow(QMainWindow):
             return True
         QMessageBox.critical(self, "Insufficient disk space", result.message)
         # Bounce the user back to the model picker page (one step before
-        # configuration / review). The page index for the v1.1.0 wizard
-        # chain is Model Selection = 4 in `STEP_NAMES`.
+        # configuration / review). The page index for the wizard chain is
+        # Models (the typed catalog) = 4 in `STEP_NAMES`.
         target = max(0, self.review_page_index - 2)
         self.switch_page(target)
         return False

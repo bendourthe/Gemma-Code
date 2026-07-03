@@ -247,9 +247,9 @@ def main() -> None:
     from nexus_installer.pages.gpu_detection import GpuDetectionPage
     from nexus_installer.pages.install_path import InstallPathPage
     from nexus_installer.pages.installing import InstallingPage
-    from nexus_installer.pages.model_selection import ModelSelectionPage
     from nexus_installer.pages.prerequisites import PrerequisitesPage
     from nexus_installer.pages.review import ReviewPage
+    from nexus_installer.pages.typed_catalog import TypedCatalogPage
     from nexus_installer.pages.welcome import WelcomePage
     from nexus_installer.window import InstallerWindow
 
@@ -280,7 +280,11 @@ def main() -> None:
     if args.install_path:
         state.install_path = args.install_path
     if args.model:
+        # Seed both selection surfaces: the typed catalog page treats a
+        # pre-seeded multi-selection as user intent and will not stomp it
+        # with the hardware-tier defaults.
         state.selected_model = args.model
+        state.selected_model_ids = [args.model]
     if args.desktop_bundle:
         state.desktop_bundle_override = args.desktop_bundle
 
@@ -290,7 +294,10 @@ def main() -> None:
     window.add_page(PrerequisitesPage(state))
     window.add_page(GpuDetectionPage(state))
     window.add_page(InstallPathPage(state))
-    window.add_page(ModelSelectionPage(state))
+    # v1.8.0 Phase 4: the typed catalog (Chat / Agentic / Image / Video /
+    # Audio, hardware-tier defaults) replaces the single-model page and
+    # produces `state.selected_model_ids` for the protocol-routed step.
+    window.add_page(TypedCatalogPage(state))
     window.add_page(ConfigurationPage(state))
     window.add_page(ReviewPage(state))
     window.add_page(InstallingPage(state))

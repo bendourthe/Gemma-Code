@@ -1,8 +1,8 @@
 {
   "_meta": {
     "version": 1,
-    "phase": "v1.8.0 Phase 3",
-    "comment": "Curated installable model catalog used by the Settings UI and the installer wizard. LLMs ship in Phase 5; image models are flagged for Phase 6 (Image Studio); video models for Phase 7 (Video Lab); NVIDIA SANA family landed in v1.1.0 Phase 12. Ollama-sourced entries delegate digest verification to `ollama pull` and carry no sha256. Hugging Face entries carry a per-model `weights` manifest (v1.8.0 Phase 3): an explicit file list, each downloaded from https://huggingface.co/{repo}/resolve/main/{path} into <models_root>/weights/<model-id>/{path} (models_root defaults to ~/.nexus/models) -- the per-model directory the diffusion runtime loads at startup (diffusers from_pretrained on the model directory; repo-relative subpaths like transformer/ are preserved). Each file pins a SHA-256 (versions.lock.json discipline): all-zero digests are placeholders -- the installer's weights puller warns, skips verification, and logs the computed digest; rotate pins with scripts/installer/build/pin-hf-weights.py. source.sha256 remains the primary-blob digest for older consumers and is superseded by weights.files[].sha256."
+    "phase": "v1.8.0 Phase 4",
+    "comment": "Curated installable model catalog used by the Settings UI and the installer wizard. LLMs ship in Phase 5; image models are flagged for Phase 6 (Image Studio); video models for Phase 7 (Video Lab); NVIDIA SANA family landed in v1.1.0 Phase 12. Ollama-sourced entries delegate digest verification to `ollama pull` and carry no sha256. Hugging Face entries carry a per-model `weights` manifest (v1.8.0 Phase 3): an explicit file list, each downloaded from https://huggingface.co/{repo}/resolve/main/{path} into <models_root>/weights/<model-id>/{path} (models_root defaults to ~/.nexus/models) -- the per-model directory the diffusion runtime loads at startup (diffusers from_pretrained on the model directory; repo-relative subpaths like transformer/ are preserved). Each file pins a SHA-256 (versions.lock.json discipline): all-zero digests are placeholders -- the installer's weights puller warns, skips verification, and logs the computed digest; rotate pins with scripts/installer/build/pin-hf-weights.py. source.sha256 remains the primary-blob digest for older consumers and is superseded by weights.files[].sha256. v1.8.0 Phase 4 adds the selection-UX fields: `task` (chat | agentic | image | video | audio | embed) drives the installer's catalog sections; `strengths` / `whyRecommended` / `differentiators` carry the per-model copy the wizard cards render; `provenance` records publisher + lineage for curated entries (required on uncensored ones). Uncensored entries (uncensored: true) were curated 2026-07-03 with license + provenance verified per entry; per-VRAM-tier defaults live in recommended.json."
   },
   "models": [
     {
@@ -11,8 +11,16 @@
       "name": "gemma4",
       "tag": "e2b",
       "type": "llm",
+      "task": "chat",
       "displayName": "Gemma 4 E2B",
-      "description": "Google Gemma 4 2B-parameter instruct model. Lightweight tier for 6 GB VRAM.",
+      "description": "Google Gemma 4 2B-parameter instruct model. The smallest chat tier: stays responsive on 4 GB VRAM or even CPU-only machines.",
+      "strengths": [
+        "Fast everyday chat and quick questions",
+        "Summarizing short documents and drafting notes",
+        "Runs acceptably with no dedicated GPU at all"
+      ],
+      "whyRecommended": "The only chat tier that stays responsive without a dedicated GPU, so every machine gets a working assistant.",
+      "differentiators": "Smallest download of the chat family (1.6 GB); trades reasoning depth for speed and reach.",
       "sizeGB": 1.6,
       "vramGB": 4,
       "license": "Gemma Terms of Use",
@@ -24,8 +32,16 @@
       "name": "gemma4",
       "tag": "e4b",
       "type": "llm",
+      "task": "chat",
       "displayName": "Gemma 4 E4B",
-      "description": "Google Gemma 4 4B-parameter instruct model. Recommended default.",
+      "description": "Google Gemma 4 4B-parameter instruct model. The balanced default: strong general chat quality on mainstream 6-8 GB gaming GPUs.",
+      "strengths": [
+        "General conversation, drafting, and rewriting",
+        "Reliable instruction following for its size",
+        "Loads fast and leaves VRAM headroom on 8 GB cards"
+      ],
+      "whyRecommended": "Best chat quality per gigabyte on mainstream gaming GPUs; the default most users should start with.",
+      "differentiators": "The sweet spot of the Gemma 4 ladder: near-instant loads at 2.7 GB with noticeably better answers than the 2B tier.",
       "sizeGB": 2.7,
       "vramGB": 6,
       "license": "Gemma Terms of Use",
@@ -38,8 +54,15 @@
       "name": "gemma4",
       "tag": "26b",
       "type": "llm",
+      "task": "chat",
       "displayName": "Gemma 4 26B",
-      "description": "Gemma 4 26B-parameter instruct model. Mid tier; 16 GB VRAM minimum.",
+      "description": "Gemma 4 26B mixture-of-experts instruct model. Upper-mid chat tier for 18 GB+ VRAM: deeper reasoning and longer documents than the E-series.",
+      "strengths": [
+        "Nuanced multi-step reasoning",
+        "Long-document comprehension and synthesis",
+        "MoE routing keeps generation fast for its quality class"
+      ],
+      "differentiators": "Mixture-of-experts: 26B-class answers while activating only a fraction of the parameters per token.",
       "sizeGB": 14.5,
       "vramGB": 18,
       "license": "Gemma Terms of Use",
@@ -51,8 +74,16 @@
       "name": "gemma4",
       "tag": "31b",
       "type": "llm",
+      "task": "chat",
       "displayName": "Gemma 4 31B",
-      "description": "Gemma 4 31B-parameter instruct model. Upper tier; 24 GB VRAM.",
+      "description": "Gemma 4 31B dense instruct model. The flagship local chat tier: strongest answer quality in the catalog on a single 24 GB GPU.",
+      "strengths": [
+        "Complex reasoning and analysis",
+        "High-fidelity long-form writing",
+        "Best factual grounding of the Gemma family"
+      ],
+      "whyRecommended": "The strongest local chat quality that fits a single 24 GB GPU.",
+      "differentiators": "Dense 31B weights: maximum quality per prompt, no expert-routing variance.",
       "sizeGB": 17.5,
       "vramGB": 22,
       "license": "Gemma Terms of Use",
@@ -64,8 +95,16 @@
       "name": "gemma-4-12b-it-GGUF",
       "tag": "Q4_K_XL",
       "type": "llm",
+      "task": "chat",
       "displayName": "Gemma 4 12B-IT (Unsloth GGUF)",
       "description": "Unsloth Dynamic-2.0 GGUF quant ladder of Gemma 4 12B instruction-tuned (IQ2_M / Q3_K / Q4_K_XL / Q5_K / Q6_K / BF16). Native text/image/audio multimodal input, 256K context. Run via `ollama run hf.co/unsloth/gemma-4-12b-it-GGUF:<QUANT>`. Per-quant disk/VRAM sizing and hardware-tier mapping live in modules/coding/config/Gemma4GgufQuants.ts; Q4_K_XL is the recommended default quant.",
+      "strengths": [
+        "Multimodal input: text, images, and audio in one chat",
+        "256K context window for whole-project or book-length material",
+        "Quant ladder scales from 8 GB up to workstation cards"
+      ],
+      "whyRecommended": "Multimodal input and a 256K context window at a size that fits 12 GB GPUs.",
+      "differentiators": "The only chat entry with native image + audio input; Unsloth Dynamic-2.0 quants keep quality close to BF16 at half the size.",
       "sizeGB": 7.37,
       "vramGB": 11,
       "requiredVramGB": 11,
@@ -83,8 +122,15 @@
       "name": "llama3.1",
       "tag": "8b",
       "type": "llm",
+      "task": "chat",
       "displayName": "Llama 3.1 8B Instruct",
-      "description": "Meta Llama 3.1 8B instruction-tuned model.",
+      "description": "Meta Llama 3.1 8B instruction-tuned model. A well-rounded alternative chat model with a large fine-tune and tooling ecosystem.",
+      "strengths": [
+        "Balanced general-purpose chat",
+        "Huge community ecosystem of fine-tunes and guides",
+        "128K context window"
+      ],
+      "differentiators": "The most widely deployed open 8B: predictable behavior and the broadest third-party compatibility.",
       "sizeGB": 4.7,
       "vramGB": 8,
       "license": "Llama 3.1 Community License",
@@ -96,8 +142,15 @@
       "name": "llama3.1",
       "tag": "70b",
       "type": "llm",
+      "task": "chat",
       "displayName": "Llama 3.1 70B Instruct",
-      "description": "Llama 3.1 70B; advanced tier (>= 40 GB VRAM or aggressive offload).",
+      "description": "Llama 3.1 70B instruction-tuned model. Workstation-class chat tier: needs 40 GB+ VRAM or aggressive CPU offload.",
+      "strengths": [
+        "Frontier-adjacent reasoning fully offline",
+        "Strong coding and math for a chat generalist",
+        "128K context window"
+      ],
+      "differentiators": "The largest chat option in the catalog; for multi-GPU or unified-memory workstations only.",
       "sizeGB": 39.0,
       "vramGB": 40,
       "license": "Llama 3.1 Community License",
@@ -109,8 +162,15 @@
       "name": "qwen2.5",
       "tag": "7b",
       "type": "llm",
+      "task": "chat",
       "displayName": "Qwen 2.5 7B Instruct",
-      "description": "Alibaba Qwen 2.5 7B instruction-tuned model.",
+      "description": "Alibaba Qwen 2.5 7B instruction-tuned model. Multilingual chat alternative with strong math and structured-output skills.",
+      "strengths": [
+        "Strong multilingual coverage (29+ languages)",
+        "Good at JSON and structured output",
+        "Solid math for a 7B model"
+      ],
+      "differentiators": "The multilingual pick of the 7-8 GB class; noticeably better non-English answers than same-size peers.",
       "sizeGB": 4.4,
       "vramGB": 7,
       "license": "Apache-2.0",
@@ -122,8 +182,15 @@
       "name": "qwen2.5",
       "tag": "14b",
       "type": "llm",
+      "task": "chat",
       "displayName": "Qwen 2.5 14B Instruct",
-      "description": "Qwen 2.5 14B; mid tier.",
+      "description": "Qwen 2.5 14B instruction-tuned model. Mid-tier multilingual chat for 12 GB GPUs.",
+      "strengths": [
+        "Multilingual chat with deeper reasoning than the 7B",
+        "Reliable structured output at scale",
+        "Fits 12 GB cards comfortably"
+      ],
+      "differentiators": "Scales the Qwen multilingual strengths to the 12 GB tier under a permissive Apache-2.0 license.",
       "sizeGB": 8.2,
       "vramGB": 12,
       "license": "Apache-2.0",
@@ -135,8 +202,16 @@
       "name": "qwen2.5-coder",
       "tag": "7b",
       "type": "llm",
+      "task": "agentic",
       "displayName": "Qwen 2.5 Coder 7B",
-      "description": "Qwen 2.5 Coder 7B; recommended for the Coding module.",
+      "description": "Qwen 2.5 Coder 7B: a code-specialized model for the Coding pillar. Generation, repair, and editor completions across 40+ languages.",
+      "strengths": [
+        "Code generation and bug fixing across 40+ languages",
+        "Fill-in-the-middle for inline editor completions",
+        "Tool-calling for agentic coding workflows"
+      ],
+      "whyRecommended": "The most capable agentic-coding model that fits 8 GB cards, and it still runs CPU-only in a pinch.",
+      "differentiators": "Purpose-trained on code: outperforms general-purpose 7B chat models on coding benchmarks by a wide margin.",
       "sizeGB": 4.4,
       "vramGB": 7,
       "license": "Apache-2.0",
@@ -149,8 +224,16 @@
       "name": "qwen2.5-coder",
       "tag": "14b",
       "type": "llm",
+      "task": "agentic",
       "displayName": "Qwen 2.5 Coder 14B",
-      "description": "Qwen 2.5 Coder 14B; mid tier.",
+      "description": "Qwen 2.5 Coder 14B: the mid agentic-coding tier. Stronger multi-file reasoning and refactoring than the 7B, still fits 12 GB GPUs.",
+      "strengths": [
+        "Multi-file refactoring and cross-module reasoning",
+        "More reliable tool-calling in long agent loops",
+        "Better test generation and code review than the 7B tier"
+      ],
+      "whyRecommended": "Meaningfully stronger multi-file agentic work than the 7B tier while still fitting a 12 GB GPU.",
+      "differentiators": "The best coding quality per VRAM in the 12 GB class; Apache-2.0 licensed.",
       "sizeGB": 8.2,
       "vramGB": 12,
       "license": "Apache-2.0",
@@ -162,8 +245,16 @@
       "name": "deepseek-coder-v2",
       "tag": "16b",
       "type": "llm",
+      "task": "agentic",
       "displayName": "DeepSeek Coder V2 16B",
-      "description": "DeepSeek Coder V2; advanced coding tier.",
+      "description": "DeepSeek Coder V2 Lite (16B MoE, 2.4B active). The advanced agentic-coding tier: near-flagship coding skill with fast MoE inference on 14 GB+ VRAM.",
+      "strengths": [
+        "Top-of-catalog code generation and repair quality",
+        "Fast generation: only 2.4B parameters active per token",
+        "Strong on math-heavy and algorithmic code"
+      ],
+      "whyRecommended": "Top agentic quality in the catalog: mixture-of-experts delivers near-flagship coding skill at consumer-GPU speeds.",
+      "differentiators": "MoE architecture: 16B-class quality with the per-token cost of a 2.4B model.",
       "sizeGB": 8.9,
       "vramGB": 14,
       "license": "DeepSeek License",
@@ -175,8 +266,16 @@
       "name": "nomic-embed-text",
       "tag": "latest",
       "type": "embed",
+      "task": "embed",
       "displayName": "Nomic Embed Text",
-      "description": "768-D embedding model used by the semantic memory layer.",
+      "description": "768-D embedding model used by the semantic memory layer. Not a chat model: it powers search, recall, and retrieval across your conversations and files.",
+      "strengths": [
+        "Semantic search over conversations and documents",
+        "Long-context retrieval (8K tokens per passage)",
+        "Tiny footprint: 0.27 GB, runs on any hardware"
+      ],
+      "whyRecommended": "Required by the semantic memory layer; tiny and runs anywhere, so it ships in every default selection.",
+      "differentiators": "The only embedding model in the catalog; without it, memory search falls back to keyword matching.",
       "sizeGB": 0.27,
       "vramGB": 1,
       "license": "Apache-2.0",
@@ -189,8 +288,15 @@
       "name": "sdxl-turbo",
       "tag": "fp16",
       "type": "image",
+      "task": "image",
       "displayName": "SDXL Turbo",
-      "description": "Stable Diffusion XL Turbo. 1-4 step generation. Flagged for Phase 6.",
+      "description": "Stable Diffusion XL Turbo: adversarial-distilled SDXL for 1-4 step generation. The speed pick of the SDXL lineage (research license).",
+      "strengths": [
+        "Near-real-time drafts: 1-4 denoising steps",
+        "Good for rapid prompt iteration",
+        "Full SDXL ecosystem compatibility"
+      ],
+      "differentiators": "Fastest SDXL variant in the catalog; quality ceiling below the fine-tuned checkpoints.",
       "sizeGB": 6.9,
       "vramGB": 8,
       "license": "Stability AI Non-Commercial",
@@ -217,8 +323,15 @@
       "name": "sdxl-base",
       "tag": "1.0",
       "type": "image",
+      "task": "image",
       "displayName": "Stable Diffusion XL 1.0 Base",
-      "description": "SDXL 1.0 base checkpoint. Flagged for Phase 6.",
+      "description": "SDXL 1.0 base checkpoint from Stability AI. The reference model of the SDXL lineage and the compatibility baseline for its LoRA/ControlNet ecosystem.",
+      "strengths": [
+        "Broadest LoRA and ControlNet compatibility",
+        "Well-documented, predictable prompting",
+        "Strong general-purpose 1024px generation"
+      ],
+      "differentiators": "The unmodified SDXL reference: fine-tunes beat it on looks, nothing beats it on ecosystem compatibility.",
       "sizeGB": 6.9,
       "vramGB": 10,
       "license": "OpenRAIL++",
@@ -240,13 +353,104 @@
       "tags": ["phase-6", "image"]
     },
     {
+      "id": "juggernaut-xl-v9",
+      "family": "sdxl",
+      "name": "juggernaut-xl",
+      "tag": "v9",
+      "type": "image",
+      "task": "image",
+      "displayName": "Juggernaut XL v9",
+      "description": "Photorealistic SDXL 1.0 fine-tune by KandooAI and RunDiffusion (RunDiffusion Photo v2 dataset). The catalog's uncensored photorealism default for 8-12 GB GPUs: no weights-level content filter.",
+      "strengths": [
+        "Best-in-class photorealistic people and scenes",
+        "Uncensored weights: no baked-in content filter",
+        "Works with the whole SDXL LoRA/ControlNet ecosystem"
+      ],
+      "whyRecommended": "The proven photorealism workhorse of the SDXL family, with uncensored weights and a clearly documented license.",
+      "differentiators": "One of the most-downloaded SDXL fine-tunes ever (6M+ downloads); markedly more lifelike output than SDXL base at the same VRAM cost.",
+      "provenance": "Community SDXL 1.0 fine-tune co-developed by KandooAI and RunDiffusion; published at huggingface.co/RunDiffusion/Juggernaut-XL-v9 (RunDiffusionPhoto v2 blend). Uncensored basis: photoreal training data and no safety filter in the weights. License verified 2026-07-03 from the HF model card.",
+      "sizeGB": 6.9,
+      "vramGB": 8,
+      "requiredVramGB": 8,
+      "releaseDate": "2024-02-19",
+      "uncensored": true,
+      "multimodal": false,
+      "contextWindow": null,
+      "license": "CreativeML Open RAIL-M (no paid-API redeployment without a RunDiffusion license)",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "RunDiffusion/Juggernaut-XL-v9",
+        "url": "https://huggingface.co/RunDiffusion/Juggernaut-XL-v9/resolve/main/Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
+      },
+      "tags": ["recommended", "image", "uncensored", "sdxl", "phase-4"]
+    },
+    {
+      "id": "realvisxl-v5",
+      "family": "sdxl",
+      "name": "realvisxl",
+      "tag": "v5.0",
+      "type": "image",
+      "task": "image",
+      "displayName": "RealVisXL V5.0",
+      "description": "Photorealistic SDXL 1.0 fine-tune by SG161222. The catalog's uncensored photorealism default for 16 GB+ GPUs: exceptional skin, lighting, and detail rendering with no weights-level content filter.",
+      "strengths": [
+        "Exceptional skin texture, lighting, and fine detail",
+        "Uncensored weights: no baked-in content filter",
+        "Strong prompt adherence for a photoreal fine-tune"
+      ],
+      "whyRecommended": "The sharpest photoreal detail of the SDXL fine-tune class; uncensored weights under a standard OpenRAIL++ license.",
+      "differentiators": "Tuned for maximum realism rather than speed; pairs well with higher step counts on 16 GB+ cards.",
+      "provenance": "Community SDXL 1.0 fine-tune by SG161222; published at huggingface.co/SG161222/RealVisXL_V5.0 (fp16 checkpoint). Uncensored basis: photoreal training data and no safety filter in the weights. License verified 2026-07-03 from the HF model card.",
+      "sizeGB": 6.9,
+      "vramGB": 10,
+      "requiredVramGB": 10,
+      "releaseDate": "2024-08-01",
+      "uncensored": true,
+      "multimodal": false,
+      "contextWindow": null,
+      "license": "OpenRAIL++",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "SG161222/RealVisXL_V5.0",
+        "url": "https://huggingface.co/SG161222/RealVisXL_V5.0/resolve/main/RealVisXL_V5.0_fp16.safetensors",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "RealVisXL_V5.0_fp16.safetensors",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
+      },
+      "tags": ["recommended", "image", "uncensored", "sdxl", "phase-4"]
+    },
+    {
       "id": "flux-schnell",
       "family": "flux",
       "name": "flux",
       "tag": "schnell",
       "type": "image",
+      "task": "image",
       "displayName": "FLUX.1 Schnell",
-      "description": "Black Forest Labs FLUX.1 Schnell (4-step). Flagged for Phase 6.",
+      "description": "Black Forest Labs FLUX.1 Schnell: 12B-parameter rectified-flow transformer distilled for 4-step generation. The prompt-adherence flagship for 24 GB GPUs.",
+      "strengths": [
+        "Best prompt adherence and text rendering in the catalog",
+        "4-step generation despite its size",
+        "Apache-2.0: fully permissive license"
+      ],
+      "differentiators": "A different architecture class than SDXL: dramatically better at complex compositions and legible text, at 3x the download size.",
       "sizeGB": 23.0,
       "vramGB": 24,
       "license": "Apache-2.0",
@@ -273,8 +477,15 @@
       "name": "sd1",
       "tag": "5",
       "type": "image",
+      "task": "image",
       "displayName": "Stable Diffusion 1.5",
-      "description": "Legacy SD 1.5 checkpoint. Flagged for Phase 6.",
+      "description": "Legacy SD 1.5 checkpoint. The lightest image model in the catalog: 512px generation on 4 GB VRAM with a vast legacy fine-tune ecosystem.",
+      "strengths": [
+        "Runs on 4 GB VRAM",
+        "Enormous legacy LoRA and checkpoint ecosystem",
+        "Fast at 512px"
+      ],
+      "differentiators": "The compatibility floor: lowest quality of the image catalog, but runs where nothing else fits.",
       "sizeGB": 4.0,
       "vramGB": 4,
       "license": "OpenRAIL",
@@ -301,8 +512,15 @@
       "name": "ltx-video",
       "tag": "0.9",
       "type": "video",
+      "task": "video",
       "displayName": "LTX-Video 0.9",
-      "description": "Lightricks LTX-Video for text-to-video. Flagged for Phase 7.",
+      "description": "Lightricks LTX-Video: DiT-based text-to-video built for speed. The fastest generation in the video catalog on 12 GB+ GPUs.",
+      "strengths": [
+        "Fastest clip generation in the catalog",
+        "Good motion coherence for short clips",
+        "Text-to-video and image-to-video in one model"
+      ],
+      "differentiators": "The speed pick: generates a clip in seconds where diffusion peers take minutes.",
       "sizeGB": 13.0,
       "vramGB": 12,
       "license": "OpenRAIL-M",
@@ -324,13 +542,128 @@
       "tags": ["phase-7", "video"]
     },
     {
+      "id": "wan2.1-t2v-1.3b",
+      "family": "wan",
+      "name": "wan2.1-t2v",
+      "tag": "1.3b",
+      "type": "video",
+      "task": "video",
+      "displayName": "Wan 2.1 T2V 1.3B",
+      "description": "Alibaba Wan 2.1 text-to-video, 1.3B parameters. The catalog's uncensored-capable video default for 8-16 GB GPUs: leading motion quality for its size, ~8 GB VRAM at 480p.",
+      "strengths": [
+        "Runs on ~8 GB consumer GPUs (480p)",
+        "Leading VBench motion quality in the small-model class",
+        "Uncensored-capable: no weights-level content filter"
+      ],
+      "whyRecommended": "The best open video model that fits consumer 8-16 GB GPUs, under a fully permissive Apache-2.0 license.",
+      "differentiators": "The consumer-hardware entry point for local video: where LTX-Video optimizes speed, Wan 2.1 optimizes quality per GB of VRAM.",
+      "provenance": "Published by Alibaba (Wan-AI) at huggingface.co/Wan-AI/Wan2.1-T2V-1.3B; original release, not a fine-tune. Uncensored basis: no safety filter in the released weights (content filtering in the hosted service is pipeline-level). License verified 2026-07-03 from the HF model card.",
+      "sizeGB": 17.6,
+      "vramGB": 8,
+      "requiredVramGB": 8,
+      "releaseDate": "2025-02-25",
+      "uncensored": true,
+      "multimodal": false,
+      "contextWindow": null,
+      "license": "Apache-2.0",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "Wan-AI/Wan2.1-T2V-1.3B",
+        "url": "https://huggingface.co/Wan-AI/Wan2.1-T2V-1.3B/resolve/main/diffusion_pytorch_model.safetensors",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "diffusion_pytorch_model.safetensors",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          {
+            "path": "models_t5_umt5-xxl-enc-bf16.pth",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          {
+            "path": "Wan2.1_VAE.pth",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
+      },
+      "tags": ["recommended", "video", "uncensored", "wan", "phase-4"]
+    },
+    {
+      "id": "wan2.2-ti2v-5b",
+      "family": "wan",
+      "name": "wan2.2-ti2v",
+      "tag": "5b",
+      "type": "video",
+      "task": "video",
+      "displayName": "Wan 2.2 TI2V 5B",
+      "description": "Alibaba Wan 2.2 text+image-to-video, 5B parameters with the 64x-compression Wan2.2-VAE. The catalog's uncensored-capable video default for 24 GB GPUs: 720p at 24 fps on a single RTX 4090-class card.",
+      "strengths": [
+        "720p @ 24 fps on a single 24 GB GPU",
+        "Text-to-video and image-to-video in one model",
+        "Uncensored-capable: no weights-level content filter"
+      ],
+      "whyRecommended": "The strongest local video quality that fits a single 24 GB GPU, under a fully permissive Apache-2.0 license.",
+      "differentiators": "The high-compression Wan2.2-VAE makes true 720p24 practical on one consumer card; among the fastest 720p open models.",
+      "provenance": "Published by Alibaba (Wan-AI) at huggingface.co/Wan-AI/Wan2.2-TI2V-5B; original release, not a fine-tune. Uncensored basis: no safety filter in the released weights (content filtering in the hosted service is pipeline-level). License verified 2026-07-03 from the HF model card.",
+      "sizeGB": 34.2,
+      "vramGB": 24,
+      "requiredVramGB": 24,
+      "releaseDate": "2025-07-28",
+      "uncensored": true,
+      "multimodal": false,
+      "contextWindow": null,
+      "license": "Apache-2.0",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "Wan-AI/Wan2.2-TI2V-5B",
+        "url": "https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B/resolve/main/diffusion_pytorch_model-00001-of-00003.safetensors",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "diffusion_pytorch_model-00001-of-00003.safetensors",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          {
+            "path": "diffusion_pytorch_model-00002-of-00003.safetensors",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          {
+            "path": "diffusion_pytorch_model-00003-of-00003.safetensors",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          {
+            "path": "models_t5_umt5-xxl-enc-bf16.pth",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          {
+            "path": "Wan2.2_VAE.pth",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
+      },
+      "tags": ["recommended", "video", "uncensored", "wan", "phase-4"]
+    },
+    {
       "id": "svd",
       "family": "svd",
       "name": "stable-video-diffusion",
       "tag": "1.1",
       "type": "video",
+      "task": "video",
       "displayName": "Stable Video Diffusion 1.1",
-      "description": "Stability AI SVD image+text-to-video. Flagged for Phase 7.",
+      "description": "Stability AI SVD XT 1.1: image-to-video generation (animate a still image). Research license.",
+      "strengths": [
+        "Animates existing images with coherent camera motion",
+        "Predictable, stable short clips",
+        "Well-documented reference pipeline"
+      ],
+      "differentiators": "Image-to-video specialist: give it a picture, not a prompt.",
       "sizeGB": 9.5,
       "vramGB": 12,
       "license": "Stability AI Non-Commercial",
@@ -357,8 +690,16 @@
       "name": "sana",
       "tag": "1.6b-1024",
       "type": "image",
+      "task": "image",
       "displayName": "SANA 1.5 1.6B 1024px",
-      "description": "NVIDIA SANA 1.5 1.6B at 1024px. New default 1024px image model (v1.1.0). Apache-2.0 weights; ~2x faster than SDXL Turbo.",
+      "description": "NVIDIA SANA 1.5 1.6B at 1024px. The efficient 1024px image model (v1.1.0 default): ~2x faster than SDXL Turbo on 6 GB VRAM. Apache-2.0 weights.",
+      "strengths": [
+        "Very fast 1024px generation on 6 GB VRAM",
+        "Strong text rendering for its size",
+        "Apache-2.0: fully permissive license"
+      ],
+      "whyRecommended": "The efficiency pick: full 1024px quality on GPUs that cannot fit the SDXL-class models.",
+      "differentiators": "Linear-attention architecture: SDXL-class output at a fraction of the compute and VRAM.",
       "sizeGB": 3.2,
       "vramGB": 6,
       "requiredVramGB": 6,
@@ -391,8 +732,15 @@
       "name": "sana-sprint",
       "tag": "1024",
       "type": "image",
+      "task": "image",
       "displayName": "SANA Sprint 1024px",
-      "description": "NVIDIA Sana-Sprint 1-step distilled SANA. Speed tier; powers the Fast Preview toggle in Image Studio.",
+      "description": "NVIDIA Sana-Sprint: 1-step distilled SANA. The speed tier that powers the Fast Preview toggle in Image Studio.",
+      "strengths": [
+        "Single-step generation: instant previews",
+        "Same 6 GB VRAM footprint as SANA 1.5",
+        "Apache-2.0: fully permissive license"
+      ],
+      "differentiators": "One denoising step: the fastest image entry in the catalog, tuned for previews over final quality.",
       "sizeGB": 3.5,
       "vramGB": 6,
       "requiredVramGB": 6,
@@ -425,8 +773,15 @@
       "name": "sana",
       "tag": "1.6b-2k",
       "type": "image",
+      "task": "image",
       "displayName": "SANA 1.6B 2K",
-      "description": "NVIDIA SANA 1.6B at 2048px (BF16). Gated to diffusion-mid+ hosts.",
+      "description": "NVIDIA SANA 1.6B at 2048px (BF16). High-resolution tier gated to diffusion-mid+ hosts (12 GB VRAM).",
+      "strengths": [
+        "Native 2048px generation",
+        "Same efficient linear-attention core as SANA 1.5",
+        "Apache-2.0: fully permissive license"
+      ],
+      "differentiators": "The 2K step of the SANA resolution ladder.",
       "sizeGB": 3.2,
       "vramGB": 12,
       "requiredVramGB": 12,
@@ -459,8 +814,15 @@
       "name": "sana",
       "tag": "1.6b-4k",
       "type": "image",
+      "task": "image",
       "displayName": "SANA 1.6B 4K",
-      "description": "NVIDIA SANA 1.6B at 4096px (BF16). Gated to diffusion-high+ hosts.",
+      "description": "NVIDIA SANA 1.6B at 4096px (BF16). Ultra-high-resolution tier gated to diffusion-high+ hosts (20 GB VRAM).",
+      "strengths": [
+        "Native 4096px generation",
+        "Poster-scale output without upscalers",
+        "Apache-2.0: fully permissive license"
+      ],
+      "differentiators": "The only native-4K image entry in the catalog.",
       "sizeGB": 3.2,
       "vramGB": 20,
       "requiredVramGB": 20,
@@ -493,8 +855,15 @@
       "name": "sana",
       "tag": "1.6b-int4",
       "type": "image",
+      "task": "image",
       "displayName": "SANA 1.5 1.6B INT4 (SVDQuant)",
-      "description": "NVIDIA SANA 1.5 1.6B INT4 quantized via SVDQuant (nunchaku). Fits diffusion-low (8 GB VRAM) hosts. Requires the nunchaku runtime dep.",
+      "description": "NVIDIA SANA 1.5 1.6B INT4 quantized via SVDQuant (nunchaku). Fits diffusion-low (5 GB VRAM) hosts. Requires the nunchaku runtime dep.",
+      "strengths": [
+        "Smallest capable 1024px model (1.4 GB, 5 GB VRAM)",
+        "INT4 quantization with minimal quality loss",
+        "Apache-2.0: fully permissive license"
+      ],
+      "differentiators": "The low-VRAM safety net of the image catalog; needs the nunchaku runtime dependency.",
       "sizeGB": 1.4,
       "vramGB": 5,
       "requiredVramGB": 5,
@@ -663,8 +1032,15 @@
       "name": "sana-video",
       "tag": "2b-720p",
       "type": "video",
+      "task": "video",
       "displayName": "SANA-Video 2B 720p",
-      "description": "NVIDIA SANA-Video 2B at 720p. Fast 720p tier in Video Lab (between LTX-Video and CogVideoX).",
+      "description": "NVIDIA SANA-Video 2B at 720p. Fast 720p tier in Video Lab (between LTX-Video and the Wan family).",
+      "strengths": [
+        "Fast 720p clips on 12 GB VRAM",
+        "Efficient linear-attention video architecture",
+        "Apache-2.0: fully permissive license"
+      ],
+      "differentiators": "The efficiency pick for 720p: faster than the Wan family, higher fidelity than LTX-Video.",
       "sizeGB": 4.0,
       "vramGB": 12,
       "requiredVramGB": 12,

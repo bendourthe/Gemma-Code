@@ -1,20 +1,49 @@
 {
   "_meta": {
-    "version": 1,
-    "phase": "v1.1.0 Phase 14.6",
-    "comment": "Per-type recommended model bundles for the installer's typed catalog UI. Each entry is the id of an entry in catalog.json. The wizard pre-ticks every id listed here on the matching tab; everything else in the catalog appears un-ticked for opt-in selection. Audio is empty in v1.1.0 -- the tab shows the empty-state copy."
+    "version": 2,
+    "phase": "v1.8.0 Phase 4",
+    "comment": "Per-VRAM-tier default model selections for the installer's typed catalog UI (replaces the v1 flat per-tab lists). `tiers` maps a hardware tier (cpu, or the GPU VRAM budget in GB) to per-section default entry ids from catalog.json. The wizard resolves the tier from the detected GPU (nexus_installer/tier_defaults.py), fit-gates every id against detected VRAM and free disk, and pre-ticks the result; everything else in the catalog appears un-ticked for opt-in. Every tier includes one chat and one agentic model plus the embed model the memory layer needs; image and video defaults are the uncensored entries (the v1.8.0 product decision) on tiers whose hardware fits them, with censored alternatives left listed in the catalog. The cpu tier gets no image/video defaults (diffusion requires a GPU). Audio stays empty until audio curation lands (plan Section 4)."
   },
-  "text": [
-    "gemma4:e4b",
-    "llama3.1:8b",
-    "qwen2.5-coder:7b"
-  ],
-  "image": [
-    "sana-1.6b-1024",
-    "sana-sprint-1024"
-  ],
-  "video": [
-    "ltx-video"
-  ],
-  "audio": []
+  "tiers": {
+    "cpu": {
+      "chat": ["gemma4:e2b"],
+      "agentic": ["qwen2.5-coder:7b"],
+      "embed": ["nomic-embed-text"],
+      "image": [],
+      "video": [],
+      "audio": []
+    },
+    "8": {
+      "chat": ["gemma4:e4b"],
+      "agentic": ["qwen2.5-coder:7b"],
+      "embed": ["nomic-embed-text"],
+      "image": ["juggernaut-xl-v9"],
+      "video": ["wan2.1-t2v-1.3b"],
+      "audio": []
+    },
+    "12": {
+      "chat": ["gemma-4-12b-it-gguf"],
+      "agentic": ["qwen2.5-coder:14b"],
+      "embed": ["nomic-embed-text"],
+      "image": ["juggernaut-xl-v9"],
+      "video": ["wan2.1-t2v-1.3b"],
+      "audio": []
+    },
+    "16": {
+      "chat": ["gemma-4-12b-it-gguf"],
+      "agentic": ["deepseek-coder-v2:16b"],
+      "embed": ["nomic-embed-text"],
+      "image": ["realvisxl-v5"],
+      "video": ["wan2.1-t2v-1.3b"],
+      "audio": []
+    },
+    "24": {
+      "chat": ["gemma4:31b"],
+      "agentic": ["deepseek-coder-v2:16b"],
+      "embed": ["nomic-embed-text"],
+      "image": ["realvisxl-v5"],
+      "video": ["wan2.2-ti2v-5b"],
+      "audio": []
+    }
+  }
 }
