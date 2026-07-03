@@ -42,7 +42,7 @@ jobs:
         id: package
         run: |
           npx vsce package --no-dependencies
-          VSIX="gemma-code-${{ steps.version.outputs.version }}.vsix"
+          VSIX="nexus-coding-${{ steps.version.outputs.version }}.vsix"
           echo "vsix_name=$VSIX" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
@@ -80,7 +80,7 @@ jobs:
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: installer-windows
-          path: scripts/installer/pyqt/dist/GemmaCodeSetup.exe
+          path: scripts/installer/pyqt/dist/NexusSetup.exe
           retention-days: 30
 
   # -- Build macOS installer (PyQt5) ------------------------------------------
@@ -109,8 +109,8 @@ jobs:
         with:
           name: installer-macos
           path: |
-            scripts/installer/pyqt/dist/GemmaCodeSetup.dmg
-            scripts/installer/pyqt/dist/Gemma Code Installer
+            scripts/installer/pyqt/dist/NexusSetup.dmg
+            scripts/installer/pyqt/dist/Nexus Installer
           retention-days: 30
 
   # -- Build Linux installer (PyQt5) ------------------------------------------
@@ -142,8 +142,112 @@ jobs:
         with:
           name: installer-linux
           path: |
-            scripts/installer/pyqt/dist/GemmaCodeSetup-x86_64.AppImage
-            scripts/installer/pyqt/dist/gemma-code-setup
+            scripts/installer/pyqt/dist/NexusSetup-x86_64.AppImage
+            scripts/installer/pyqt/dist/nexus-setup
+          retention-days: 30
+
+  # -- Build Nexus desktop bundles (Tauri, 3-OS) -------------------------------
+  #
+  # v1.8.0 Phase 1 (T101): the one-shot installer fetches the desktop app from
+  # the GitHub release at install time, so every release must publish
+  # versioned, checksummed Tauri bundles for all three platforms. Runs on tag
+  # pushes only (this workflow's sole trigger); rehearse with a pre-release
+  # tag on a scratch branch. tauri.conf.json's version is synced from the
+  # semantic-release-owned package.json at build time, never by hand.
+
+  desktop-bundle:
+    name: Desktop bundle (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    needs: build-vsix
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows
+            os: windows-latest
+          - platform: macos
+            os: macos-latest
+          - platform: linux
+            os: ubuntu-latest
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install Linux Tauri prerequisites
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+
+      - name: Add macOS universal targets
+        if: matrix.platform == 'macos'
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - name: Cache cargo registry + target
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            desktop/src-tauri/target
+          key: ${{ matrix.os }}-desktop-bundle-cargo-${{ hashFiles('desktop/src-tauri/Cargo.toml') }}
+          restore-keys: |
+            ${{ matrix.os }}-desktop-bundle-cargo-
+
+      - name: Install workspace deps
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Sync tauri.conf.json version from package.json
+        run: node scripts/sync-tauri-version.mjs
+
+      - name: Build sidecar bundle (fail-fast)
+        working-directory: desktop
+        run: npm run build:sidecar
+
+      - name: Tauri build (windows / linux)
+        if: matrix.platform != 'macos'
+        working-directory: desktop
+        run: npm run build:shell
+
+      - name: Tauri build (macos, universal)
+        if: matrix.platform == 'macos'
+        working-directory: desktop
+        run: npm run build:shell -- --target universal-apple-darwin
+
+      - name: Stage bundle under its canonical release name (windows)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $v = "${{ needs.build-vsix.outputs.version }}"
+          New-Item -ItemType Directory -Force bundle-out | Out-Null
+          Copy-Item "desktop/src-tauri/target/release/bundle/nsis/*-setup.exe" "bundle-out/Nexus-Desktop_${v}_x64-setup.exe"
+
+      - name: Stage bundle under its canonical release name (macos)
+        if: matrix.platform == 'macos'
+        run: |
+          V="${{ needs.build-vsix.outputs.version }}"
+          mkdir -p bundle-out
+          cp desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg "bundle-out/Nexus-Desktop_${V}_universal.dmg"
+
+      - name: Stage bundles under their canonical release names (linux)
+        if: matrix.platform == 'linux'
+        run: |
+          V="${{ needs.build-vsix.outputs.version }}"
+          mkdir -p bundle-out
+          cp desktop/src-tauri/target/release/bundle/appimage/*.AppImage "bundle-out/Nexus-Desktop_${V}_amd64.AppImage"
+          cp desktop/src-tauri/target/release/bundle/deb/*.deb "bundle-out/Nexus-Desktop_${V}_amd64.deb"
+
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: desktop-bundle-${{ matrix.platform }}
+          path: bundle-out/*
           retention-days: 30
 
   # -- Create GitHub Release ---------------------------------------------------
@@ -151,7 +255,7 @@ jobs:
   create-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
-    needs: [build-vsix, build-installer-windows, build-installer-macos, build-installer-linux]
+    needs: [build-vsix, build-installer-windows, build-installer-macos, build-installer-linux, desktop-bundle]
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
@@ -177,6 +281,41 @@ jobs:
           name: installer-linux
           path: artifacts/
 
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: desktop-bundle-windows
+          path: artifacts/
+
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: desktop-bundle-macos
+          path: artifacts/
+
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: desktop-bundle-linux
+          path: artifacts/
+
+      # v1.8.0 Phase 1 (T102): one SHA256SUMS.txt covering every attached
+      # asset -- the installer's desktop_provisioner verifies its downloads
+      # against this file (fail closed). The explicit file list makes the
+      # release fail loudly if any expected asset is missing.
+      - name: Generate SHA256SUMS.txt (installer verification source)
+        run: |
+          VERSION="${{ needs.build-vsix.outputs.version }}"
+          cd artifacts
+          sha256sum \
+            "${{ needs.build-vsix.outputs.vsix_name }}" \
+            NexusSetup.exe \
+            NexusSetup.dmg \
+            NexusSetup-x86_64.AppImage \
+            "Nexus-Desktop_${VERSION}_x64-setup.exe" \
+            "Nexus-Desktop_${VERSION}_universal.dmg" \
+            "Nexus-Desktop_${VERSION}_amd64.AppImage" \
+            "Nexus-Desktop_${VERSION}_amd64.deb" \
+            > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
       - name: Extract release notes from CHANGELOG
         id: changelog
         run: |
@@ -189,12 +328,14 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
         with:
-          name: "Gemma Code v${{ needs.build-vsix.outputs.version }}"
+          name: "Nexus v${{ needs.build-vsix.outputs.version }}"
           body: ${{ steps.changelog.outputs.notes }}
           draft: false
           prerelease: ${{ contains(github.ref, '-') }}
           files: |
             artifacts/${{ needs.build-vsix.outputs.vsix_name }}
-            artifacts/GemmaCodeSetup.exe
-            artifacts/GemmaCodeSetup.dmg
-            artifacts/GemmaCodeSetup-x86_64.AppImage
+            artifacts/NexusSetup.exe
+            artifacts/NexusSetup.dmg
+            artifacts/NexusSetup-x86_64.AppImage
+            artifacts/Nexus-Desktop_*
+            artifacts/SHA256SUMS.txt

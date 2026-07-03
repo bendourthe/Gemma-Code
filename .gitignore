@@ -222,6 +222,14 @@ tests/golden/snapshots/*/.git/
 tests/golden/snapshots/*/node_modules/
 
 # ==============================================================================
+# Local build fixtures (v1.8.0 one-shot-installer Phase 1, T104)
+# ==============================================================================
+# Locally-built desktop bundles stashed as integration fixtures for the
+# desktop provisioner tests (Phase 2, T204); machine-built binaries, never
+# committed.
+.local-fixtures/
+
+# ==============================================================================
 # Local A/B harness output (v1.6.0 openrouter-fusion Phase 4, OF010)
 # ==============================================================================
 # scripts/run-panel-ab.mjs writes per-run panel-vs-single comparison reports

@@ -4,6 +4,31 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-02] v1.8.0 one-shot installer -- Phase 1: release pipeline produces desktop bundles (T101-T104)
+
+### Goal
+
+Open the v1.8.0 "one-shot end-user installer" cycle ([plan](versions/v1/v1.8.0/plans/one-shot-installer.md)) by closing its fetch-from-release prerequisite (gap G1): the installer will download the Nexus desktop app from the GitHub release at install time, so the release pipeline must first publish versioned, checksummed Tauri bundles for all three platforms -- and stop referencing artifact names that no longer exist. All proofs are local per the Actions freeze ($0 until 2026-08-01).
+
+### What changed
+
+- **T101 -- `desktop-bundle` job set** in [release.yml](../.github/workflows/release.yml): a 3-OS matrix (windows/macos/ubuntu, `fail-fast: false`, 90-min cap) building `npm ci` -> version sync -> fail-fast `build:sidecar` -> `tauri build` (macOS as `--target universal-apple-darwin`), staging bundles under canonical names `Nexus-Desktop_{version}_x64-setup.exe` / `_universal.dmg` / `_amd64.AppImage` / `_amd64.deb`. Tag-triggered by construction (`release.yml`'s only trigger is version tags). Conventions (pinned `dtolnay/rust-toolchain` SHA, Linux webkit2gtk-4.1 prereqs, cargo cache) mirror `shell-build.yml`; zero new third-party actions.
+- **Build-time version sync** ([scripts/sync-tauri-version.mjs](../scripts/sync-tauri-version.mjs) + 7 tests): `tauri.conf.json`'s `version` (found stale at 1.5.0, the G1 symptom) now syncs from the semantic-release-owned root package.json before every bundle build; pure exported functions + `--check` mode; committed conf bumped to 2.1.0.
+- **T102 -- `SHA256SUMS.txt`**: `create-release` generates one checksum file over an explicit fail-loud list of every attached asset (VSIX + 3 wizard installers + 4 desktop bundles) and attaches it -- the Phase 2 `desktop_provisioner`'s fail-closed verification source.
+- **T103 -- rename (grep-audited)**: the PyQt build scripts already emit `NexusSetup.*`, so `release.yml`'s `GemmaCodeSetup.*` upload paths were dead-broken, not merely stale. Fixed all artifact paths + the `gemma-code-*.vsix` asset name (vsce emits `nexus-coding-*.vsix`) + the "Gemma Code v..." release title; renamed the wizard's `setApplicationName` / argparse description and an integration-test banner to "Nexus Installer". The other three installer workflows carried no old names. Residual repo-wide `gemma-code` references are classified in [known-gaps `NAME.P1.A`](versions/v1/v1.8.0/known-gaps.md) -- the actionable class is the v1.0.0 compat shim surface whose removal was promised "until v1.2.0" and is now ~5 majors overdue (operator-raised).
+- **T104 -- local Windows proof**: installed rustup (stable-msvc 1.96.1; MSVC + NSIS already present), built `Nexus_2.1.0_x64-setup.exe` (NSIS, 1.6 MB) + `Nexus_2.1.0_x64_en-US.msi` (2.1 MB) in 2m27s, verified the silent install/uninstall round-trip (`/S /D=<scratch>` -> `nexus-shell.exe` + uninstaller -> clean removal), and stashed the NSIS bundle at `.local-fixtures/` (new gitignored dir) as the Phase 2 / T204 fixture. SmartScreen is untestable locally (no Mark-of-the-Web on a local build); the unsigned-download warning is a recorded gap, signing stays out of scope per plan.
+- **Finding for Phase 2** (`OSI001.P1.B`): the bundle ships the Tauri shell only -- no sidecar dist is packaged, so the installed app cannot serve the Coding pillar until the v1.7.0 `RT.P7.A`/`RT.P7.B` carryover is resolved; pinned to Phase 2's DoD.
+
+### Verification
+
+Root suite **4565 passed / 6 skipped / 0 failed** (+7 new); `tsc -b` clean; lint 0 errors; `release.yml` YAML-parse validated; local bundle build + silent install + silent uninstall all exit 0.
+
+### Branch
+
+`feat/v1.8.0-installer-phase-1` off `develop`.
+
+---
+
 ## [2026-07-02] Nexus-Hub v3.10.0 adoption -- Phase 1 supply-chain + import hardening (HUB310.4.2 / 4.3a / 4.3b)
 
 ### Goal

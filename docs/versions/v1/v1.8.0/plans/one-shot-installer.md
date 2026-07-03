@@ -2,7 +2,7 @@
 
 **Date**: 2026-07-03
 **Scope**: feature (major enhancement on the existing PyQt/NSIS installer + release pipeline)
-**Status**: PLANNED -- not started
+**Status**: IN PROGRESS -- Phase 1 closed 2026-07-02 (local legs; CI rehearsal deferred to Phase 6 / post-freeze per design). See [../known-gaps.md](../known-gaps.md) and [../development/history/2026-07_phase-1-release-pipeline-desktop-bundles.md](../development/history/2026-07_phase-1-release-pipeline-desktop-bundles.md).
 **Decisions (operator, 2026-07-03)**: all three platforms in this cycle (Windows first among equals); the Nexus desktop app is **fetched from the GitHub release at install time** (SHA-256-verified), not bundled inside the installer executable.
 **Predecessor known-gaps ingest**: [../../v1.7.0/known-gaps.md](../../v1.7.0/known-gaps.md) reviewed -- no installer-blocking carryovers. Cycle-wide constraint inherited from the 2026-07-02 CI incident: **GitHub Actions minutes are frozen ($0 budget) until 2026-08-01**, and `nightly` / `shell-build` / `installer-smoke` / `golden-tasks` are disabled. Every phase below is local-first-verifiable; CI legs land as dispatch-gated rehearsals after the reset.
 
@@ -59,10 +59,10 @@
 
 The installer cannot fetch what no release publishes. Make the release pipeline emit versioned, checksummed Nexus desktop bundles for all three platforms, and fix stale naming.
 
-- [ ] T101: Add a `desktop-bundle` job set to `release.yml` (3-OS matrix, tag-triggered only): `npm ci` -> `npm run build:sidecar` -> `tauri build` -> attach `Nexus-Desktop_{version}_x64-setup.exe` (NSIS), `Nexus-Desktop_{version}_universal.dmg`, `Nexus-Desktop_{version}_amd64.AppImage` (+ `.deb`). Sync `tauri.conf.json` version from package.json at build time (it is stale at 1.5.0).
-- [ ] T102: Emit a single `SHA256SUMS.txt` release asset covering every attached artifact (desktop bundles + installers + VSIX); this is the installer's verification source.
-- [ ] T103: Rename installer artifacts `GemmaCodeSetup.*` -> `NexusSetup.*` across `release.yml`, `installer-macos.yml`, `installer-linux.yml`, `installer-build.yml`, and any docs referencing the old names (grep-audited).
-- [ ] T104: Local proof under the freeze: run `tauri build` on the dev Windows box; record bundle name/size/SmartScreen behavior in the phase notes; stash the produced NSIS bundle as the Phase 2 test fixture.
+- [x] T101: Add a `desktop-bundle` job set to `release.yml` (3-OS matrix, tag-triggered only): `npm ci` -> `npm run build:sidecar` -> `tauri build` -> attach `Nexus-Desktop_{version}_x64-setup.exe` (NSIS), `Nexus-Desktop_{version}_universal.dmg`, `Nexus-Desktop_{version}_amd64.AppImage` (+ `.deb`). Sync `tauri.conf.json` version from package.json at build time (it is stale at 1.5.0). *(Done 2026-07-02: `scripts/sync-tauri-version.mjs` + 7 tests; CI execution deferred to the T603 post-freeze rehearsal.)*
+- [x] T102: Emit a single `SHA256SUMS.txt` release asset covering every attached artifact (desktop bundles + installers + VSIX); this is the installer's verification source. *(Done 2026-07-02: explicit fail-loud asset list in `create-release`.)*
+- [x] T103: Rename installer artifacts `GemmaCodeSetup.*` -> `NexusSetup.*` across `release.yml`, `installer-macos.yml`, `installer-linux.yml`, `installer-build.yml`, and any docs referencing the old names (grep-audited). *(Done 2026-07-02: only `release.yml` carried old names -- its upload paths were dead-broken vs the scripts' actual `NexusSetup.*` output; also fixed the wizard app name + vsix asset name + release title. Residual repo-wide `gemma-code` classes recorded as known-gaps `NAME.P1.A`.)*
+- [x] T104: Local proof under the freeze: run `tauri build` on the dev Windows box; record bundle name/size/SmartScreen behavior in the phase notes; stash the produced NSIS bundle as the Phase 2 test fixture. *(Done 2026-07-02: rustup stable-msvc installed; `Nexus_2.1.0_x64-setup.exe` 1.6 MB + MSI 2.1 MB in 2m27s; silent install/uninstall round-trip clean; fixture at `.local-fixtures/`; sidecar-not-bundled finding -> known-gaps `OSI001.P1.B`.)*
 - **DoD**: A dry-run tag on a scratch branch (post-Aug-1) attaches all bundles + SHA256SUMS; locally, `tauri build` produces an installable NSIS bundle. No signing this cycle (record as known gap; unsigned SmartScreen warning documented on the download page).
 
 ### Phase 2 -- Desktop provisioner: the installer installs Nexus

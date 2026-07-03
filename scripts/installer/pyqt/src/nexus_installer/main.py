@@ -19,7 +19,7 @@ from nexus_installer import __version__
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Gemma Code Installer")
+    parser = argparse.ArgumentParser(description="Nexus Installer")
     parser.add_argument(
         "--step",
         type=int,
@@ -222,7 +222,7 @@ def main() -> None:
     from nexus_installer.window import InstallerWindow
 
     app = QApplication(sys.argv)
-    app.setApplicationName("Gemma Code Installer")
+    app.setApplicationName("Nexus Installer")
     app.setApplicationVersion(__version__)
 
     # Set window icon from repo assets

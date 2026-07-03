@@ -60,7 +60,7 @@ function Assert-PathExists {
 # ── Pre-flight checks ─────────────────────────────────────────────────────────
 
 Write-Host ''
-Write-Host '=== Gemma Code Installer Integration Tests ===' -ForegroundColor Cyan
+Write-Host '=== Nexus Installer Integration Tests ===' -ForegroundColor Cyan
 Write-Host "Installer dir : $InstallerDir"
 Write-Host "Repo root     : $RepoRoot"
 Write-Host ''
