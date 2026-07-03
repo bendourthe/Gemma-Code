@@ -38,7 +38,7 @@ jobs:
         language: ["javascript-typescript"]
     continue-on-error: true # nexus-check-allow: no-disabled-ci-check -- baseline CodeQL rollout is intentionally non-blocking until gating is flipped on (see header)
     steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@f411752efdf656cb71aa17b755b22c890960da1d # v3.35.5
