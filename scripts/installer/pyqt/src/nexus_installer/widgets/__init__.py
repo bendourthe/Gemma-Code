@@ -1,6 +1,8 @@
 ﻿"""Reusable UI widgets for the installer wizard."""
 
 from nexus_installer.widgets.callout_box import CalloutBox
+from nexus_installer.widgets.constellation import ConstellationBackground
+from nexus_installer.widgets.float_logo import FloatingLogo
 from nexus_installer.widgets.footer import Footer
 from nexus_installer.widgets.header import Header
 from nexus_installer.widgets.log_panel import LogPanel
@@ -10,6 +12,8 @@ from nexus_installer.widgets.step_indicator import StepIndicator
 
 __all__ = [
     "CalloutBox",
+    "ConstellationBackground",
+    "FloatingLogo",
     "Footer",
     "Header",
     "LogPanel",

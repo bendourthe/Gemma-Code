@@ -8,6 +8,14 @@ rewrites the legacy assets under `assets/` so the VS Code extension manifest
 and any historical reference to `assets/icon.png` / `assets/icon.ico` /
 `assets/icon.svg` / `assets/sidebar-icon.svg` carries the new branding.
 
+Every emitted frame preserves the source alpha (v1.9.0 T201): the mark is
+downsized straight from the transparent source and never composited onto an
+opaque fill, so no frame reads as a black box. A superellipse (squircle)
+alpha mask then rounds each frame's silhouette for the OS taskbar / dock,
+trimming only the corners -- the mask multiplies alpha, so transparent stays
+transparent and opaque corners can never survive. The result is the
+transparent, rounded brand icon the guide's floating mark expects.
+
 Re-run after any branding refresh:
 
     python scripts/desktop/generate-icons.py
@@ -23,7 +31,7 @@ import io
 import struct
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageChops, ImageDraw, ImageFont
 
 # Repository root resolved from this script's location.
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -36,6 +44,58 @@ SOURCE_MONO_PNG = ASSETS_DIR / "nexus-ai-primary_no-background.png"
 # Brand colors for the procedural fallback.
 BG = (15, 19, 24, 255)
 FG = (10, 191, 191, 255)
+
+# Superellipse (squircle) rounding. n ~ 4 is the Apple-style squircle: it keeps
+# the edges nearly full and only rounds the corners, so a near-full-bleed mark
+# reads as a clean rounded tile without being clipped. Masks are supersampled
+# then downscaled so the rounded edge is anti-aliased, and cached by size.
+_SUPERELLIPSE_EXPONENT = 4.0
+_SUPERELLIPSE_SUPERSAMPLE = 4
+_mask_cache: dict[int, Image.Image] = {}
+
+
+def _superellipse_alpha_mask(size: int) -> Image.Image:
+    """Return an anti-aliased 'L' mask (255 inside, 0 outside) for a squircle.
+
+    The boundary is `|x/a|^n + |y/b|^n = 1` with `a = b = size/2` centered on
+    the frame. Rather than test every pixel, each row's horizontal half-extent
+    is solved directly (`x = a * (1 - |y/b|^n)^(1/n)`) and filled as one span,
+    which is O(size) instead of O(size^2). The mask is built at
+    `supersample`x and LANCZOS-downscaled so the rounded edge is smooth.
+    """
+    cached = _mask_cache.get(size)
+    if cached is not None:
+        return cached
+    hi = max(1, size) * _SUPERELLIPSE_SUPERSAMPLE
+    mask = Image.new("L", (hi, hi), 0)
+    draw = ImageDraw.Draw(mask)
+    half = hi / 2.0
+    n = _SUPERELLIPSE_EXPONENT
+    for y in range(hi):
+        ny = abs((y + 0.5 - half) / half)
+        if ny >= 1.0:
+            continue
+        x_ext = half * (1.0 - ny**n) ** (1.0 / n)
+        draw.line([(half - x_ext, y), (half + x_ext, y)], fill=255)
+    result = mask.resize((size, size), Image.Resampling.LANCZOS)
+    _mask_cache[size] = result
+    return result
+
+
+def _apply_rounded_corners(img: Image.Image) -> Image.Image:
+    """Round an RGBA frame with the squircle mask, preserving transparency.
+
+    The mask is multiplied into the existing alpha channel, so pixels that are
+    already transparent stay transparent and the corners are forced to zero --
+    the rounding only ever removes alpha, it never paints an opaque fill.
+    """
+    if img.mode != "RGBA":
+        img = img.convert("RGBA")
+    mask = _superellipse_alpha_mask(img.size[0])
+    r, g, b, a = img.split()
+    rounded_alpha = ImageChops.multiply(a, mask)
+    img.putalpha(rounded_alpha)
+    return img
 
 
 def _load_source() -> Image.Image | None:
@@ -102,12 +162,20 @@ def _procedural(size: int) -> Image.Image:
     return img
 
 
-def render_square(size: int, source: Image.Image | None) -> Image.Image:
+def render_square(
+    size: int, source: Image.Image | None, rounded: bool = True
+) -> Image.Image:
     if source is None:
-        return _procedural(size)
-    # Use Lanczos resampling so the soft-glow + ring details stay crisp at
-    # 32 px while keeping the 256 px frame visually identical to the source.
-    return source.resize((size, size), Image.Resampling.LANCZOS)
+        img = _procedural(size)
+    else:
+        # Use Lanczos resampling so the soft-glow + ring details stay crisp at
+        # 32 px while keeping the 256 px frame visually identical to the source.
+        img = source.resize((size, size), Image.Resampling.LANCZOS)
+    if img.mode != "RGBA":
+        img = img.convert("RGBA")
+    if rounded:
+        img = _apply_rounded_corners(img)
+    return img
 
 
 def write_png(path: Path, size: int, source: Image.Image | None) -> None:

@@ -69,6 +69,44 @@
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
   --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
 
+  /* ---------------------------------------------------------------------
+   * Glow layer (v1.9.0 T202) -- the guide's cyan/blue glow, signature
+   * gradient, and radial-glow background. Ported verbatim from the
+   * north-star reference (guides/interactive-guide/nexus-ai-guide.html) so
+   * the installer and the app share one look. Additive: nothing above
+   * changes. See docs/versions/v1/v1.9.0/design-tokens.md.
+   * ------------------------------------------------------------------- */
+
+  /* Deepest gradient stop for the radial-glow body treatment. */
+  --bg-deep: #010608;
+
+  /* Constellation node/link colors (the animated network background). */
+  --glow-cyan: #38bdf8;
+  --glow-cyan-node: #7dd3fc;
+
+  /* Floating-mark glow drop-shadows (small header mark vs. large hero mark). */
+  --glow-sm: 0 0 8px rgba(56, 189, 248, 0.45);
+  --glow-md: 0 0 16px rgba(56, 189, 248, 0.45);
+  --glow-lg: 0 0 24px rgba(56, 189, 248, 0.5);
+
+  /* Signature accent gradient (headings, active pills, strong CTAs). */
+  --grad-signature: linear-gradient(100deg, #3b82f6 0%, #38bdf8 50%, #22d3ee 100%);
+  --grad-signature-soft: linear-gradient(
+    100deg,
+    rgba(59, 130, 246, 0.16),
+    rgba(56, 189, 248, 0.16)
+  );
+
+  /* Radial-glow page background: two cyan/blue radial pools over the dark
+   * vertical gradient. Mount behind app/installer content at ~0.55 opacity. */
+  --bg-radial-glow: radial-gradient(
+      1200px 700px at 80% -10%,
+      rgba(59, 130, 246, 0.12),
+      transparent 60%
+    ),
+    radial-gradient(1100px 800px at -10% 0%, rgba(56, 189, 248, 0.12), transparent 55%),
+    linear-gradient(180deg, var(--bg-0) 0%, var(--bg-1) 65%, var(--bg-deep) 100%);
+
   color-scheme: dark;
 }
 

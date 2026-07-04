@@ -39,3 +39,26 @@ button {
   font-size: inherit;
   cursor: pointer;
 }
+
+/* Floating-glow logo primitive (v1.9.0 T203). The <FloatingLogo/> mark bobs
+ * +/-9px over 7s; the glow is applied inline via the --glow-* tokens. Motion
+ * is disabled under prefers-reduced-motion, leaving a static glowing mark. */
+@keyframes nexus-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-9px);
+  }
+}
+
+.nexus-floating-logo {
+  animation: nexus-float 7s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nexus-floating-logo {
+    animation: none;
+  }
+}

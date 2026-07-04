@@ -69,6 +69,43 @@ WARNING = "#f59e0b"
 INFO = "#38bdf8"
 
 # ---------------------------------------------------------------------------
+# Glow layer (v1.9.0 T202). Port of the guide's cyan/blue glow, signature
+# gradient, and radial-glow background (guides/interactive-guide/
+# nexus-ai-guide.html), mirroring tokens.css so the installer and the app
+# share one look. Consumed by the constellation background + floating-glow
+# logo primitives (T203). See docs/versions/v1/v1.9.0/design-tokens.md.
+# ---------------------------------------------------------------------------
+# Deepest gradient stop for the radial-glow body treatment (--bg-deep).
+BG_DEEP = "#010608"
+
+# Constellation node/link colors (--glow-cyan / --glow-cyan-node).
+CONSTELLATION_LINK = "#38bdf8"
+CONSTELLATION_NODE = "#7dd3fc"
+
+# Floating-mark glow. QGraphicsDropShadowEffect takes a QColor + blur radius;
+# the base color is the guide's rgba(56,189,248,*) cyan. GLOW_RGBA is the
+# (r, g, b, a) tuple at the hero mark's .5 alpha (128/255).
+GLOW_RGBA = (56, 189, 248, 128)
+GLOW_BLUR_SMALL = 8
+GLOW_BLUR_MEDIUM = 16
+GLOW_BLUR_LARGE = 24
+
+# Signature accent gradient stops (position, color) for QLinearGradient.
+SIGNATURE_GRADIENT_STOPS: list[tuple[float, str]] = [
+    (0.0, "#3b82f6"),
+    (0.5, "#38bdf8"),
+    (1.0, "#22d3ee"),
+]
+
+# Radial-glow background pools: (color rgba, alpha 0-1) painted over BG_WINDOW.
+# The PyQt ConstellationBackground / installer body use these to reproduce the
+# guide's two cyan/blue radial pools.
+RADIAL_GLOW_POOLS: list[tuple[tuple[int, int, int], float]] = [
+    ((59, 130, 246), 0.12),
+    ((56, 189, 248), 0.12),
+]
+
+# ---------------------------------------------------------------------------
 # Platform-aware font families
 # ---------------------------------------------------------------------------
 if sys.platform == "darwin":

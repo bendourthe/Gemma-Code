@@ -4,6 +4,29 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-04] v1.9.0 installer + app overhaul -- Phase 2: shared brand foundation (icons + tokens + constellation primitive) (T201-T204)
+
+### Goal
+
+Make the installer and the desktop app read as one product by fixing the brand assets and building the shared visual primitives both will consume ([plan](versions/v1/v1.9.0/plans/installer-and-app-experience-overhaul.md) Phase 2). The v1.8.0 icon set was opaque black (the logo read as a black box in the header/taskbar/dock) even though the designer source was transparent, and neither stack had the guide's glow layer, constellation background, or floating-logo treatment.
+
+### What changed
+
+- **T201 -- icons** ([generate-icons.py](../scripts/desktop/generate-icons.py)): the generator already resized straight from the transparent source (the committed black icons were stale from an older opaque-source run). Added a superellipse (squircle) alpha mask (`_superellipse_alpha_mask` per-row span fill, supersampled + LANCZOS-smoothed, cached) + `_apply_rounded_corners` (multiplies the mask into existing alpha -- only ever removes corner opacity), and `render_square(..., rounded=True)` rounds every frame. Re-ran it: `assets/icon.{png,ico,svg}`, `sidebar-icon.svg`, and the whole `desktop/src-tauri/icons/` set are now transparent + squircle-rounded (corner alpha 0, opaque ratio ~0.19 vs. the previous 1.00). The source is a near-full-bleed emblem, so the rounding is genuinely visible.
+- **T202 -- tokens** ([tokens.css](../desktop/src/styles/tokens.css) + [constants.py](../scripts/installer/pyqt/src/nexus_installer/constants.py)): added the guide's glow layer to both palettes, additively -- `--bg-deep`, constellation node/link colors, `--glow-sm/md/lg` drop-shadows, the signature gradient, and the radial-glow background (with the `GLOW_RGBA` / `SIGNATURE_GRADIENT_STOPS` / `RADIAL_GLOW_POOLS` Python mirrors). Recorded in [design-tokens.md](versions/v1/v1.9.0/design-tokens.md).
+- **T203 -- primitives**: ported the guide's canvas routine to a pure engine ([constellation.ts](../desktop/src/components/constellation.ts): node count max(18,min(46,w/34)), dpr cap 2, `#38bdf8` links <=150px at `(1-d/maxd)*0.45`, `#7dd3fc` r=1.5 nodes) wired into a React [`<ConstellationBackground/>`](../desktop/src/components/ConstellationBackground.tsx) (reduced-motion static frame, visibility pause, `pointer-events:none`) and a PyQt [`ConstellationBackground`](../scripts/installer/pyqt/src/nexus_installer/widgets/constellation.py) (QTimer + QPainter, cap 46, hide/show pause, `NEXUS_REDUCED_MOTION`). Floating-glow logo: React [FloatingLogo.tsx](../desktop/src/components/FloatingLogo.tsx) (`--glow-*` drop-shadow + `@keyframes nexus-float`) and PyQt [float_logo.py](../scripts/installer/pyqt/src/nexus_installer/widgets/float_logo.py) (`QGraphicsDropShadowEffect` + `QPropertyAnimation` +/-9px / 7s InOutSine), both fed the transparent mark, both reduced-motion aware.
+- **T204 -- tests**: installer `test_icon_generation.py` (mask shape + rounding + committed-icon alpha), `test_constellation.py`, `test_float_logo.py`, `test_brand_tokens.py`; desktop `constellation.test.ts`, `ConstellationBackground.test.tsx` (mocked ctx + rAF), `FloatingLogo.test.tsx`, `brandTokens.test.ts`. Added `Pillow>=10.0` to the installer dev deps so the icon assertions run in CI.
+
+### Verification
+
+Installer pytest **632 passed / 2 skipped / 0 failed** (+41), new widgets 97% lines. Desktop vitest **496 passed / 0 failed** (+34), new files 100% lines, suite 93.75% / 85.31% / 82.96% (>= 80/80/70/80 gate), `tsc --noEmit` + eslint clean. Icon probe confirms transparent + rounded corners on the regenerated set. `ruff` clean on changed files. New known-gaps `IAE.P2.A` (PyQt reduced-motion env-var signal -> wire in Phase 3) + `IAE.P2.B` (on-device icon rendering visual check -> Phase 6). The primitives are built + unit-tested but not yet mounted (Phase 3 T302/T303 + Phase 5 T501/T502). See the [phase history](versions/v1/v1.9.0/development/history/2026-07_phase-2-shared-brand-foundation.md).
+
+### Branch
+
+Phase 1 landed on `feat/v1.9.0-installer-phase-1`. Phase 2 continues on the v1.9.0 line; confirm the target branch (continue here or cut `feat/v1.9.0-installer-phase-2`) at commit time.
+
+---
+
 ## [2026-07-04] v1.9.0 installer + app overhaul -- Phase 1: single-artifact installer build (drop NSIS) (T101-T105)
 
 ### Goal

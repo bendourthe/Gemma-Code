@@ -36,6 +36,10 @@ dev = [
     "pytest-cov>=5.0.0",
     "ruff>=0.4.0",
     "mypy>=1.10.0",
+    # Pillow backs the brand-icon generator (scripts/desktop/generate-icons.py)
+    # and the T204 icon alpha/rounding assertions (tests/test_icon_generation.py),
+    # which skip cleanly if it is absent.
+    "Pillow>=10.0",
 ]
 
 [build-system]
@@ -52,6 +56,7 @@ dev = [
     "pytest-cov>=5.0.0",
     "ruff>=0.4.0",
     "mypy>=1.10.0",
+    "Pillow>=10.0",
 ]
 
 [tool.pytest.ini_options]
