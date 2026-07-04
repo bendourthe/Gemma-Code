@@ -36,9 +36,46 @@ QMainWindow, QWidget {{
     font-size: 13px;
 }}
 
+/* -- Frameless title bar (v1.9.0 T301) -------------------------------- */
+QWidget#titleBar {{
+    background-color: {BG_HEADER};
+    border-bottom: 1px solid {BORDER};
+}}
+QLabel#titleBarTitle {{
+    color: {TEXT_PRIMARY};
+    font-size: 13px;
+    font-weight: 600;
+    background: transparent;
+}}
+QPushButton#titleBarButton, QPushButton#titleBarCloseButton {{
+    background-color: transparent;
+    color: {TEXT_SECONDARY};
+    border: none;
+    border-radius: 5px;
+    font-size: 13px;
+}}
+QPushButton#titleBarButton:hover {{
+    background-color: {BG_ELEVATED};
+    color: {TEXT_PRIMARY};
+}}
+QPushButton#titleBarCloseButton:hover {{
+    background-color: {ERROR};
+    color: {TEXT_PRIMARY};
+}}
+
 /* -- Header band ------------------------------------------------------ */
 QWidget#headerBand {{
     background-color: {BG_HEADER};
+}}
+
+/* -- Constellation body: keep the content band transparent so the
+   BackgroundWidget (radial glow + constellation, T302) shows through.
+   Chrome bands (title bar, header, footer) keep their solid fills. --- */
+QScrollArea#contentScroll,
+QWidget#scrollViewport,
+QWidget#contentWrapper,
+QWidget#contentWrapper > QWidget {{
+    background: transparent;
 }}
 
 /* -- Labels ------------------------------------------------------------ */

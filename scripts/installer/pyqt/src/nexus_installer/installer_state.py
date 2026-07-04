@@ -11,11 +11,13 @@ DEFAULT_DISK_RESERVE_GB = 10
 
 
 def _default_install_path() -> str:
+    # v1.9.0 Phase 3 (T305): the product installs as "Nexus AI Studio"; the
+    # default path is NexusAI on every OS (never the legacy GemmaCode).
     if sys.platform == "win32":
-        return r"C:\Program Files\GemmaCode"
+        return r"C:\Program Files\NexusAI"
     if sys.platform == "darwin":
-        return "/Applications/GemmaCode"
-    return "/usr/local/share/gemma-code"
+        return "/Applications/NexusAI"
+    return "/usr/local/share/nexus-ai"
 
 
 @dataclass

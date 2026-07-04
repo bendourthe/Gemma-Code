@@ -1,4 +1,4 @@
-﻿"""Entry point for the Gemma Code installer wizard.
+﻿"""Entry point for the Nexus AI Studio installer wizard.
 
 Supports two modes:
 
@@ -19,7 +19,7 @@ from nexus_installer import __version__
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Nexus Installer")
+    parser = argparse.ArgumentParser(description="Nexus AI Studio Installer")
     parser.add_argument(
         "--step",
         type=int,
@@ -34,7 +34,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--version",
         action="version",
-        version=f"gemma-code-installer {__version__}",
+        version=f"nexus-ai-studio-installer {__version__}",
     )
     parser.add_argument(
         "--headless",
@@ -270,7 +270,8 @@ def main() -> None:
     from nexus_installer.window import InstallerWindow
 
     app = QApplication(sys.argv)
-    app.setApplicationName("Nexus Installer")
+    app.setApplicationName("Nexus AI Studio")
+    app.setApplicationDisplayName("Nexus AI Studio")
     app.setApplicationVersion(__version__)
 
     # Set window icon from repo assets

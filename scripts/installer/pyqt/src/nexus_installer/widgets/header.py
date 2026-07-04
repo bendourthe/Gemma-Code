@@ -1,36 +1,23 @@
-﻿"""64px header band: logo area, title, and step counter."""
+"""64px header band: floating-glow brand lockup, title, and step counter.
+
+v1.9.0 Phase 3 (T303): the black-box ``assets/icon.png`` QLabel is replaced by
+the Phase 2 :class:`FloatingLogo` primitive fed the transparent brand mark, so
+the header reads as one family with the guide and never renders a black square.
+The title is the product name "Nexus AI Studio" (T304).
+"""
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QPixmap
 from PyQt5.QtWidgets import QHBoxLayout, QLabel, QWidget
 
-from nexus_installer.constants import HEADER_HEIGHT, TEXT_SECONDARY
-
-
-def _find_brand_mark() -> Path:
-    """Locate `assets/icon.png` by walking up from this module.
-
-    Works from the source tree (repo root `assets/`) and from a frozen
-    bundle (the PyInstaller spec stages the icon under `assets/` at the
-    bundle root). The previous fixed-depth resolution landed on
-    `scripts/assets/`, which does not exist, so the mark never rendered.
-    """
-    for parent in Path(__file__).resolve().parents:
-        candidate = parent / "assets" / "icon.png"
-        if candidate.is_file():
-            return candidate
-    return Path("assets") / "icon.png"
-
-
-_BRAND_MARK = _find_brand_mark()
+from nexus_installer.constants import GLOW_BLUR_MEDIUM, HEADER_HEIGHT, TEXT_SECONDARY
+from nexus_installer.widgets.background import resolve_reduced_motion
+from nexus_installer.widgets.float_logo import FloatingLogo
 
 
 class Header(QWidget):
-    """Fixed-height header with brand mark, title, and step counter."""
+    """Fixed-height header with a floating-glow brand mark, title, and counter."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -41,21 +28,15 @@ class Header(QWidget):
         layout.setContentsMargins(24, 0, 24, 0)
         layout.setSpacing(12)
 
-        if _BRAND_MARK.exists():
-            mark = QLabel()
-            pixmap = QPixmap(str(_BRAND_MARK))
-            mark.setPixmap(
-                pixmap.scaled(
-                    36,
-                    36,
-                    Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation,
-                )
-            )
-            mark.setStyleSheet("background: transparent;")
-            layout.addWidget(mark, alignment=Qt.AlignmentFlag.AlignVCenter)
+        # Floating, glowing transparent mark (fixes the black-box logo, T303).
+        self._logo = FloatingLogo(
+            size=30,
+            glow_blur=GLOW_BLUR_MEDIUM,
+            reduced_motion=resolve_reduced_motion(),
+        )
+        layout.addWidget(self._logo, alignment=Qt.AlignmentFlag.AlignVCenter)
 
-        self._title = QLabel("Nexus")
+        self._title = QLabel("Nexus AI Studio")
         self._title.setStyleSheet(
             "font-size: 18px; font-weight: bold; background: transparent;"
         )

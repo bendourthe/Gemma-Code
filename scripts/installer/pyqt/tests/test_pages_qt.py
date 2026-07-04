@@ -41,6 +41,28 @@ class TestWelcomePage:
             for pillar in ("Chat", "Agentic Coding", "Image", "Video"):
                 assert pillar in texts
 
+    def test_title_is_nexus_ai_studio(self, qt_app: object) -> None:
+        """v1.9.0 Phase 3 (T304) -- welcome title carries the product name."""
+        with patch("nexus_installer.pages.welcome._QuickCheckWorker.start"):
+            from PyQt5.QtWidgets import QLabel
+
+            from nexus_installer.pages.welcome import WelcomePage
+
+            state = InstallerState()
+            page = WelcomePage(state)
+            texts = [lbl.text() for lbl in page.findChildren(QLabel)]
+            assert "Welcome to Nexus AI Studio" in texts
+
+    def test_uses_floating_logo_hero(self, qt_app: object) -> None:
+        """v1.9.0 Phase 3 (T303) -- the black-box icon becomes a float-glow hero."""
+        with patch("nexus_installer.pages.welcome._QuickCheckWorker.start"):
+            from nexus_installer.pages.welcome import WelcomePage
+            from nexus_installer.widgets.float_logo import FloatingLogo
+
+            state = InstallerState()
+            page = WelcomePage(state)
+            assert isinstance(page._logo, FloatingLogo)
+
 
 class TestPrerequisitesPage:
     def test_creates_and_has_validate(self, qt_app: object) -> None:
@@ -103,6 +125,26 @@ class TestInstallPathPage:
         state = InstallerState()
         page = InstallPathPage(state)
         assert page is not None
+
+    def test_default_path_is_nexusai(self, qt_app: object) -> None:
+        """v1.9.0 Phase 3 (T305) -- the default path is NexusAI, not GemmaCode."""
+        from nexus_installer.pages.install_path import InstallPathPage
+
+        state = InstallerState()
+        page = InstallPathPage(state)
+        assert "GemmaCode" not in page._path_input.text()
+
+    def test_callout_names_nexus_models(self, qt_app: object) -> None:
+        """v1.9.0 Phase 3 (T305) -- the storage callout drops the 'Gemma' string."""
+        from PyQt5.QtWidgets import QLabel
+
+        from nexus_installer.pages.install_path import InstallPathPage
+
+        state = InstallerState()
+        page = InstallPathPage(state)
+        all_text = " ".join(lbl.text() for lbl in page.findChildren(QLabel))
+        assert "Nexus models" in all_text
+        assert "Gemma model" not in all_text
 
     def test_validate_empty_path_fails(self, qt_app: object) -> None:
         from nexus_installer.pages.install_path import InstallPathPage

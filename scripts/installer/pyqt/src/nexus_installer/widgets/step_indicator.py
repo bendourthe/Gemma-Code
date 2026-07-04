@@ -82,15 +82,19 @@ class StepIndicator(QWidget):
             rect = QRectF(cx - r, center_y - r, 2 * r, 2 * r)
 
             if i < self._current_step:
-                # Completed: filled accent with checkmark
+                # Completed: glowing filled accent dot with a checkmark (T303).
+                self._draw_glow(painter, cx, center_y, r)
                 painter.setPen(Qt.PenStyle.NoPen)
                 painter.setBrush(QColor(ACCENT))
                 painter.drawEllipse(rect)
                 self._draw_checkmark(painter, cx, center_y, r)
             elif i == self._current_step:
-                # Active: hollow accent stroke
+                # Active: glowing highlighted ring with a soft accent fill.
+                self._draw_glow(painter, cx, center_y, r)
+                fill = QColor(ACCENT)
+                fill.setAlphaF(0.18)
                 painter.setPen(QPen(QColor(ACCENT), 2))
-                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.setBrush(fill)
                 painter.drawEllipse(rect)
             else:
                 # Future: hollow border color
@@ -113,6 +117,17 @@ class StepIndicator(QWidget):
             )
 
         painter.end()
+
+    @staticmethod
+    def _draw_glow(painter: QPainter, cx: float, cy: float, r: int) -> None:
+        """Draw a soft cyan halo behind a completed / active step dot (T303)."""
+        painter.setPen(Qt.PenStyle.NoPen)
+        for scale, alpha in ((2.0, 0.10), (1.55, 0.16), (1.2, 0.22)):
+            glow = QColor(ACCENT)
+            glow.setAlphaF(alpha)
+            painter.setBrush(glow)
+            gr = r * scale
+            painter.drawEllipse(QPointF(cx, cy), gr, gr)
 
     @staticmethod
     def _draw_checkmark(painter: QPainter, cx: float, cy: float, r: int) -> None:

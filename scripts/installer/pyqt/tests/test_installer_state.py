@@ -13,12 +13,14 @@ class TestInstallerStateDefaults:
         assert state.platform == sys.platform
 
     def test_default_install_path_windows(self, monkeypatch: object) -> None:
+        # v1.9.0 Phase 3 (T305): default path is NexusAI, never GemmaCode.
         import nexus_installer.installer_state as mod
 
         monkeypatch.setattr(sys, "platform", "win32")  # type: ignore[attr-defined]
         # Re-invoke default factory
         path = mod._default_install_path()
-        assert "GemmaCode" in path
+        assert "NexusAI" in path
+        assert "GemmaCode" not in path
 
     def test_default_install_path_darwin(self, monkeypatch: object) -> None:
         import nexus_installer.installer_state as mod
@@ -26,6 +28,8 @@ class TestInstallerStateDefaults:
         monkeypatch.setattr(sys, "platform", "darwin")  # type: ignore[attr-defined]
         path = mod._default_install_path()
         assert "/Applications" in path
+        assert "NexusAI" in path
+        assert "GemmaCode" not in path
 
     def test_default_install_path_linux(self, monkeypatch: object) -> None:
         import nexus_installer.installer_state as mod
@@ -33,6 +37,8 @@ class TestInstallerStateDefaults:
         monkeypatch.setattr(sys, "platform", "linux")  # type: ignore[attr-defined]
         path = mod._default_install_path()
         assert "/usr/local" in path
+        assert "nexus-ai" in path
+        assert "gemma" not in path
 
     def test_default_components(self) -> None:
         state = InstallerState()

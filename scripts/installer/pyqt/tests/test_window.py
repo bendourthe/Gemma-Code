@@ -12,6 +12,76 @@ class TestInstallerWindow:
         window = InstallerWindow()
         assert "Nexus" in window.windowTitle()
 
+    def test_title_is_nexus_ai_studio(self, qt_app: object) -> None:
+        # v1.9.0 Phase 3 (T304): the OS/taskbar caption is the product name.
+        from nexus_installer.window import InstallerWindow
+
+        window = InstallerWindow()
+        assert window.windowTitle() == "Nexus AI Studio"
+        assert "Setup" not in window.windowTitle()
+
+    def test_frameless_by_default_mounts_title_bar(self, qt_app: object) -> None:
+        # v1.9.0 Phase 3 (T301): frameless window with a custom title bar.
+        from PyQt5.QtCore import Qt
+
+        from nexus_installer.window import InstallerWindow
+
+        window = InstallerWindow()
+        assert window.frameless is True
+        assert window.title_bar is not None
+        assert window.title_bar.title() == "Nexus AI Studio"
+        assert bool(window.windowFlags() & Qt.WindowType.FramelessWindowHint)
+
+    def test_native_fallback_has_no_title_bar(self, qt_app: object) -> None:
+        # The documented fallback (frameless=False) keeps native decorations.
+        from PyQt5.QtCore import Qt
+
+        from nexus_installer.window import InstallerWindow
+
+        window = InstallerWindow(frameless=False)
+        assert window.frameless is False
+        assert window.title_bar is None
+        assert not (window.windowFlags() & Qt.WindowType.FramelessWindowHint)
+
+    def test_background_mounted(self, qt_app: object) -> None:
+        # v1.9.0 Phase 3 (T302): constellation body treatment behind content.
+        from nexus_installer.window import InstallerWindow
+
+        window = InstallerWindow()
+        assert window._background is not None
+        assert window._background.constellation is not None
+
+    def test_resize_grips_present_when_frameless(self, qt_app: object) -> None:
+        from nexus_installer.window import InstallerWindow
+
+        window = InstallerWindow()
+        assert len(window._grips) == 2
+        assert all(g.isVisibleTo(window._central) for g in window._grips)
+
+    def test_resize_grips_hidden_when_native(self, qt_app: object) -> None:
+        from nexus_installer.window import InstallerWindow
+
+        window = InstallerWindow(frameless=False)
+        assert all(not g.isVisibleTo(window._central) for g in window._grips)
+
+    def test_title_bar_close_wired_to_window(self, qt_app: object) -> None:
+        # Clicking the title-bar close button closes the window.
+        from nexus_installer.window import InstallerWindow
+
+        window = InstallerWindow()
+        window.add_page(QWidget())
+        window.show_first_page()
+        assert window.title_bar is not None
+        window.title_bar.close_button.click()
+        assert window.isHidden()
+
+    def test_toggle_maximized_does_not_crash(self, qt_app: object) -> None:
+        from nexus_installer.window import InstallerWindow
+
+        window = InstallerWindow()
+        window._toggle_maximized()
+        window._toggle_maximized()
+
     def test_has_header_and_footer(self, qt_app: object) -> None:
         from nexus_installer.window import InstallerWindow
 

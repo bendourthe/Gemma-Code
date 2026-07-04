@@ -70,7 +70,7 @@ class InstallPathPage(QWidget):
                 "\u2022 VS Code extension: installed via <code>code --install-extension</code><br>"
                 "\u2022 Ollama: system-wide (platform package manager)<br>"
                 "\u2022 Python venv: <code>&lt;install_path&gt;/venv/</code><br>"
-                "\u2022 Gemma model: stored by Ollama in its default model directory"
+                "\u2022 Nexus models: stored by Ollama in its default model directory"
             ),
         )
         layout.addWidget(callout)

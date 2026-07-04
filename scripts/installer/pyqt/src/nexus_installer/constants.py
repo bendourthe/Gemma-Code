@@ -121,6 +121,9 @@ else:
 # ---------------------------------------------------------------------------
 # Layout dimensions (pixels)
 # ---------------------------------------------------------------------------
+# v1.9.0 Phase 3 (T301): the custom frameless title bar replaces the native OS
+# chrome, so its height is a first-class layout dimension.
+TITLE_BAR_HEIGHT = 40
 HEADER_HEIGHT = 64
 STEP_BAR_HEIGHT = 88
 FOOTER_HEIGHT = 56

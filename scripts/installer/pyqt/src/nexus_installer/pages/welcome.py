@@ -5,11 +5,9 @@ from __future__ import annotations
 import shutil
 import subprocess
 import sys
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtGui import QPixmap
 from PyQt5.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from nexus_installer.constants import (
@@ -17,34 +15,20 @@ from nexus_installer.constants import (
     ACCENT_CODING,
     ACCENT_IMAGE,
     ACCENT_VIDEO,
+    GLOW_BLUR_LARGE,
     SUCCESS,
     TEXT_BODY,
     TEXT_SECONDARY,
     WARNING,
 )
+from nexus_installer.widgets.background import resolve_reduced_motion
 from nexus_installer.widgets.callout_box import CalloutBox
+from nexus_installer.widgets.float_logo import FloatingLogo
 
 if TYPE_CHECKING:
     from nexus_installer.installer_state import InstallerState
 
 DETECTION_TIMEOUT = 5
-
-# The desktop app's own icon (v1.8.0 Phase 5, T503): the installer shows the
-# product it installs. Walk-up resolution mirrors the header brand mark; a
-# frozen build without the repo tree falls back to the bundled assets icon,
-# and no icon at all degrades to a text-only lockup.
-def _find_desktop_icon() -> Path:
-    for parent in Path(__file__).resolve().parents:
-        candidate = parent / "desktop" / "src-tauri" / "icons" / "128x128.png"
-        if candidate.is_file():
-            return candidate
-        fallback = parent / "assets" / "icon.png"
-        if fallback.is_file():
-            return fallback
-    return Path("assets") / "icon.png"
-
-
-_DESKTOP_ICON = _find_desktop_icon()
 
 # (label, module accent) -- the desktop app's four pillars.
 _PILLARS: tuple[tuple[str, str], ...] = (
@@ -147,24 +131,17 @@ class WelcomePage(QWidget):
         layout = QVBoxLayout(self)
         layout.setSpacing(16)
 
-        # Product lockup: desktop app icon + title.
+        # Product lockup: floating-glow transparent hero mark + title (T303).
         lockup = QHBoxLayout()
         lockup.setSpacing(14)
-        if _DESKTOP_ICON.exists():
-            mark = QLabel()
-            pixmap = QPixmap(str(_DESKTOP_ICON))
-            mark.setPixmap(
-                pixmap.scaled(
-                    56,
-                    56,
-                    Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation,
-                )
-            )
-            mark.setStyleSheet("background: transparent;")
-            lockup.addWidget(mark, alignment=Qt.AlignmentFlag.AlignVCenter)
+        self._logo = FloatingLogo(
+            size=64,
+            glow_blur=GLOW_BLUR_LARGE,
+            reduced_motion=resolve_reduced_motion(),
+        )
+        lockup.addWidget(self._logo, alignment=Qt.AlignmentFlag.AlignVCenter)
 
-        title = QLabel("Welcome to Nexus")
+        title = QLabel("Welcome to Nexus AI Studio")
         title.setStyleSheet(
             "font-size: 24px; font-weight: bold; background: transparent;"
         )

@@ -37,6 +37,17 @@ class TestStepIndicator:
         pixmap = indicator.grab()
         assert pixmap.width() > 0
 
+    def test_glow_restyle_renders_at_every_step(self, qt_app: object) -> None:
+        """v1.9.0 Phase 3 (T303) -- glowing completed + highlighted current dot."""
+        from nexus_installer.widgets.step_indicator import StepIndicator
+
+        assert hasattr(StepIndicator, "_draw_glow")
+        indicator = StepIndicator(STEP_NAMES)
+        indicator.resize(800, 88)
+        for step in (0, len(STEP_NAMES) // 2, len(STEP_NAMES) - 1):
+            indicator.set_current(step)
+            assert indicator.grab().width() > 0
+
 
 class TestLogPanel:
     def test_append_log(self, qt_app: object) -> None:
