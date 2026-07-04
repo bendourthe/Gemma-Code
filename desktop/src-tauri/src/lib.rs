@@ -38,9 +38,19 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![ipc_call])
         .setup(|app| {
-            // Force-dark theme regardless of system preference.
+            // Window icon (title bar + taskbar): the transparent no-background
+            // Nexus mark, deliberately distinct from the exe/Explorer icon
+            // (the navy `nexus-ai-primary` embedded via bundle.icon). The
+            // window icon defaults to the embedded exe icon, so we override it
+            // here; the PNG is embedded at compile time (image-png feature).
             for window in app.webview_windows().values() {
+                // Force-dark theme regardless of system preference.
                 let _ = window.set_theme(Some(tauri::Theme::Dark));
+                if let Ok(icon) =
+                    tauri::image::Image::from_bytes(include_bytes!("../icons/window-icon.png"))
+                {
+                    let _ = window.set_icon(icon);
+                }
             }
             // Spawn the Node sidecar; failure is non-fatal in dev (logged).
             match Sidecar::spawn(app.handle()) {

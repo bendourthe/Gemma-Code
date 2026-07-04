@@ -68,6 +68,10 @@ VIAddVersionKey "LegalCopyright"  "${APP_HOMEPAGE}"
 !include "FileFunc.nsh"
 
 !define MUI_ABORTWARNING
+; Installer + uninstaller icon (the NexusSetup.exe file icon in Explorer);
+; generated from assets/nexus-ai-primary.png (v1.8.0 Phase 6 follow-up).
+!define MUI_ICON "..\..\..\..\assets\icon.ico"
+!define MUI_UNICON "..\..\..\..\assets\icon.ico"
 !define MUI_FINISHPAGE_RUN "$INSTDIR\${WIZARD_EXE}"
 !define MUI_FINISHPAGE_RUN_TEXT "Run the Nexus Setup wizard now"
 
