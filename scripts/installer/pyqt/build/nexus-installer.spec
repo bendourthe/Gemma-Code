@@ -17,17 +17,22 @@ REPO_ROOT = PYQT_ROOT.parent.parent.parent
 
 # Platform-specific settings
 if sys.platform == "win32":
-    # v1.8.0 Phase 6 (T601): the frozen wizard is `nexus-installer.exe`; the
-    # NSIS outer shell (build/nsis/nexus-setup.nsi) wraps it and owns the
-    # user-facing `NexusSetup.exe` name.
-    APP_NAME = "nexus-installer"
+    # v1.9.0 Phase 1 (T101): the PyInstaller onefile IS the distributable.
+    # The NSIS outer shell was retired (moved to scripts/installer/legacy/), so
+    # the frozen wizard carries the user-facing `NexusSetup.exe` name directly
+    # -- one modern window, no generic pre-wizard dialog.
+    APP_NAME = "NexusSetup"
     ICON = str(REPO_ROOT / "assets" / "icon.ico")
 elif sys.platform == "darwin":
-    APP_NAME = "Nexus Installer"
+    # Shipped as the onefile `Nexus AI Studio Setup`, packaged into
+    # NexusSetup.dmg by build-macos.sh.
+    APP_NAME = "Nexus AI Studio Setup"
     # macOS needs .icns; fall back to .png if .icns not available
     icns_path = REPO_ROOT / "assets" / "icon.icns"
     ICON = str(icns_path) if icns_path.exists() else str(REPO_ROOT / "assets" / "icon.png")
 else:
+    # Shipped as the onefile `nexus-setup`, packaged into
+    # NexusSetup-x86_64.AppImage by build-linux.sh.
     APP_NAME = "nexus-setup"
     ICON = str(REPO_ROOT / "assets" / "icon.png")
 

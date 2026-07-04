@@ -1,34 +1,28 @@
 name: Installer build (Windows)
 
 # Builds NexusSetup.exe -- the Windows one-shot installer: the PyQt wizard
-# frozen by PyInstaller (dist/nexus-installer.exe) wrapped in the NSIS outer
-# shell (scripts/installer/build/nsis/nexus-setup.nsi), then smoke-tested
-# with a silent install/probe/uninstall round-trip. Implemented for real in
-# v1.8.0 Phase 6 (T601); the pipeline sketch lives in
+# frozen by PyInstaller as a single onefile (dist/NexusSetup.exe), then
+# smoke-tested by booting the frozen exe (--version + --check-registry).
+# v1.9.0 Phase 1 (T102/T103) dropped the NSIS outer shell: the onefile IS the
+# distributable, so double-clicking it opens exactly one modern branded window
+# (no generic pre-wizard dialog). The pipeline sketch lives in
 # scripts/installer/build/windows-pipeline.md.
 #
 # The exe is SLIM by design (operator decision 2026-07-03): the wizard
 # downloads dependencies, models, and the desktop app at install time, all
-# SHA-256-verified. The v1.0.0-era multi-GB payload embed is opt-in via the
-# include_payload input and stays blocked on the versions.lock.json pin
-# rotation (the devai_hub entry is still a placeholder URL).
+# SHA-256-verified.
 #
 # Trigger: workflow_dispatch only while the Actions freeze holds (until
-# 2026-08-01, $0 budget). The T603 post-freeze rehearsal expands this to
+# 2026-08-01, $0 budget). The Phase 6 post-freeze rehearsal expands this to
 # `push: tags: v*` once the artifact builds cleanly on a Windows runner.
 
 on:
   workflow_dispatch:
     inputs:
       reason:
-        description: "Reason for the manual run (release rehearsal, payload refresh, ...)"
+        description: "Reason for the manual run (release rehearsal, ...)"
         required: false
         default: "manual rehearsal"
-      include_payload:
-        description: "Embed the offline payload tree (requires rotated versions.lock.json pins)"
-        type: boolean
-        required: false
-        default: false
 
 concurrency:
   group: installer-build-${{ github.workflow }}-${{ github.ref }}
@@ -55,18 +49,6 @@ jobs:
         with:
           version: "latest"
 
-      # NSIS ships in the windows-latest runner image since 2024-Q4.
-      # Verify it is on PATH so the job fails fast if Microsoft removes it.
-      - name: Verify NSIS is available
-        shell: pwsh
-        run: |
-          $candidate = "${env:ProgramFiles(x86)}\NSIS\makensis.exe"
-          if (-not (Test-Path $candidate)) {
-            Write-Error "NSIS not found at $candidate. Install via choco install nsis -y."
-            exit 1
-          }
-          & $candidate /VERSION
-
       - name: Resolve pinned versions
         shell: pwsh
         run: |
@@ -85,24 +67,12 @@ jobs:
           npm run build
           npx vsce package --no-dependencies
 
-      # Optional offline payload (see header). Blocked on the pin rotation:
-      # fetch-payload.py fails closed on the placeholder devai_hub URL.
-      - name: Fetch payload (offline builds only)
-        if: ${{ inputs.include_payload }}
+      - name: Build NexusSetup.exe (PyInstaller onefile)
         shell: pwsh
         run: |
-          python scripts/installer/build/fetch-payload.py --os win --arch x64 --out build/payload/
+          pwsh -NonInteractive -File scripts/installer/pyqt/build/build-windows.ps1 -SkipSign
 
-      - name: Build NexusSetup.exe (PyInstaller wizard + NSIS outer)
-        shell: pwsh
-        run: |
-          $payloadArgs = @()
-          if ("${{ inputs.include_payload }}" -eq "true") {
-            $payloadArgs = @("-PayloadDir", "build/payload")
-          }
-          pwsh -NonInteractive -File scripts/installer/pyqt/build/build-windows.ps1 -SkipSign @payloadArgs
-
-      - name: Smoke-test the installer (silent install / probe / uninstall)
+      - name: Smoke-test the installer (boot the frozen exe)
         shell: pwsh
         run: |
           pwsh -NonInteractive -File scripts/installer/pyqt/build/smoke-windows-exe.ps1
@@ -112,6 +82,6 @@ jobs:
         if: always()
         with:
           name: NexusSetup-windows
-          path: scripts/installer/pyqt/dist/NexusSetup.exe
+          path: dist/NexusSetup.exe
           if-no-files-found: warn
           retention-days: 14

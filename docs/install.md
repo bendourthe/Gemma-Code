@@ -15,25 +15,24 @@ The installer itself is small; it downloads what you select (models, GPU runtime
 ## Windows
 
 1. Download `NexusSetup.exe` from the latest release.
-2. Double-click it. **You will see a SmartScreen warning** ("Windows protected your PC") because the binary is not yet code-signed (signing is planned; see the note below). Click **More info**, then **Run anyway**.
+2. Double-click it. It opens a single modern branded window (no generic pre-wizard dialog). **You will see a SmartScreen warning** ("Windows protected your PC") because the binary is not yet code-signed (signing is planned; see the note below). Click **More info**, then **Run anyway**.
 3. The setup wizard walks you through: hardware detection, install location, model selection (chat, coding, image, video), the VS Code extension, and the Nexus desktop app. Progress is shown per phase; everything is downloaded checksum-verified.
-4. When it finishes, Nexus is in your Start Menu, and "Nexus Setup" remains available there if you want to re-run the wizard later (add models, reinstall components).
+4. When it finishes, the Nexus desktop app is installed and launched. To change your setup later (add models, reinstall components), just run `NexusSetup.exe` again.
 
-Scripted / silent installs:
+Scripted / headless installs (`NexusSetup.exe` is the wizard itself -- there is no separate extract step):
 
 ```powershell
-# Extract the wizard silently (no provisioning), then run it headless:
-NexusSetup.exe /S /D=C:\Nexus\Setup
-C:\Nexus\Setup\nexus-installer.exe --headless --json-output
+# Run the installer without a GUI, emitting a machine-parseable JSON summary:
+NexusSetup.exe --headless --json-output
 ```
 
-The `/D=` path must be last on the command line and must not contain spaces (an NSIS constraint). `nexus-installer.exe --help` lists the headless flags (`--model`, `--skip-model`, `--skip-extension`, `--skip-desktop`, `--install-path`).
+`NexusSetup.exe --help` lists the headless flags (`--model`, `--skip-model`, `--skip-extension`, `--skip-desktop`, `--install-path`).
 
 ## macOS
 
-1. Download `NexusSetup.dmg`, open it, and drag **Nexus Installer** to Applications.
-2. **Gatekeeper will block the first launch** ("cannot be opened because the developer cannot be verified") because the app is not yet notarized. Right-click (Control-click) the app and choose **Open**, then **Open** again in the dialog. You only need to do this once.
-   - Alternative from a terminal: `xattr -d com.apple.quarantine "/Applications/Nexus Installer.app"`
+1. Download `NexusSetup.dmg`, open it, and drag **Nexus AI Studio Setup** to Applications.
+2. **Gatekeeper will block the first launch** ("cannot be opened because the developer cannot be verified") because it is not yet notarized. Right-click (Control-click) it and choose **Open**, then **Open** again in the dialog. You only need to do this once.
+   - Alternative from a terminal: `xattr -d com.apple.quarantine "/Applications/Nexus AI Studio Setup"`
 3. Follow the wizard. Apple Silicon Macs use the Metal GPU path automatically.
 
 ## Linux
@@ -80,7 +79,9 @@ Everything lands under your user account (no admin rights needed for the wizard 
 
 ## Uninstalling
 
-- **Windows**: "Nexus Setup" and "Nexus" both appear under Settings > Apps. The uninstaller asks whether to keep `~/.nexus` (models, skills, settings); silent uninstalls always keep it.
+The installer itself does not register an uninstaller or a Start-menu entry -- it is a run-once setup tool, so once the Nexus desktop app is installed you can simply delete `NexusSetup.exe`. The product's own uninstaller ships with the desktop app.
+
+- **Windows**: "Nexus" appears under Settings > Apps (installed by the desktop-app bundle); use it to remove the app. Delete `NexusSetup.exe` when you no longer need to re-run setup. `~/.nexus` (models, skills, settings) is preserved unless you remove it manually.
 - **macOS**: drag the apps out of Applications; remove `~/.nexus` if you also want the data gone.
 - **Linux**: delete the AppImage, `~/.local/bin/Nexus.AppImage`, the `~/.local/share/applications/nexus.desktop` entry, and optionally `~/.nexus`.
 

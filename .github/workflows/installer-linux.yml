@@ -1,13 +1,11 @@
 name: Installer build (Linux)
 
-# Builds NexusSetup-x86_64.AppImage -- the Linux outer shell around the PyQt
-# wizard. v1.8.0 Phase 6 (T601) aligned this workflow with the canonical
-# build path: it now calls scripts/installer/pyqt/build/build-linux.sh
-# (spec-driven PyInstaller, so the bundled VSIX + registry data files apply)
-# instead of a hand-rolled `pyinstaller` invocation, packages the VSIX from
-# the repo root (the old `extensions/nexus-coding` path never existed), and
-# drops the v1.0.0-era payload embed -- the wizard downloads everything at
-# install time, SHA-256-verified (operator decision 2026-07-03).
+# Builds NexusSetup-x86_64.AppImage -- the Linux one-shot installer. v1.9.0
+# Phase 1 (T102/T103) made the PyInstaller onefile (spec APP_NAME
+# "nexus-setup") the distributable directly: build-linux.sh freezes it into a
+# staging dir and packages exactly one artifact,
+# dist/NexusSetup-x86_64.AppImage, at the repo root. There is no NSIS/outer-
+# shell layer on any platform anymore.
 #
 # Runtime note: the AppImage links against glibc 2.31+ and needs FUSE
 # (libfuse2) to mount; both caveats are documented on the download page.
@@ -68,7 +66,7 @@ jobs:
           npm run build
           npx vsce package --no-dependencies
 
-      - name: Build installer (PyInstaller wizard + AppImage)
+      - name: Build installer (PyInstaller onefile + AppImage)
         run: bash scripts/installer/pyqt/build/build-linux.sh
 
       - name: Upload artifact
@@ -76,8 +74,6 @@ jobs:
         if: always()
         with:
           name: NexusSetup-linux
-          path: |
-            scripts/installer/pyqt/dist/NexusSetup-x86_64.AppImage
-            scripts/installer/pyqt/dist/nexus-setup
+          path: dist/NexusSetup-x86_64.AppImage
           if-no-files-found: warn
           retention-days: 14

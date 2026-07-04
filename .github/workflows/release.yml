@@ -80,7 +80,7 @@ jobs:
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: installer-windows
-          path: scripts/installer/pyqt/dist/NexusSetup.exe
+          path: dist/NexusSetup.exe
           retention-days: 30
 
   # -- Build macOS installer (PyQt5) ------------------------------------------
@@ -108,9 +108,7 @@ jobs:
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: installer-macos
-          path: |
-            scripts/installer/pyqt/dist/NexusSetup.dmg
-            scripts/installer/pyqt/dist/Nexus Installer
+          path: dist/NexusSetup.dmg
           retention-days: 30
 
   # -- Build Linux installer (PyQt5) ------------------------------------------
@@ -141,9 +139,7 @@ jobs:
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: installer-linux
-          path: |
-            scripts/installer/pyqt/dist/NexusSetup-x86_64.AppImage
-            scripts/installer/pyqt/dist/nexus-setup
+          path: dist/NexusSetup-x86_64.AppImage
           retention-days: 30
 
   # -- Build Nexus desktop bundles (Tauri, 3-OS) -------------------------------

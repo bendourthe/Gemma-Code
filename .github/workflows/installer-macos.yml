@@ -1,18 +1,14 @@
 name: Installer build (macOS)
 
-# Builds NexusSetup.dmg -- the macOS outer shell around the PyQt wizard.
-# v1.8.0 Phase 6 (T601) aligned this workflow with the canonical build path:
-# it now calls scripts/installer/pyqt/build/build-macos.sh (spec-driven
-# PyInstaller, so the bundled VSIX + registry data files apply) instead of a
-# hand-rolled `pyinstaller` invocation, packages the VSIX from the repo root
-# (the old `extensions/nexus-coding` path never existed), and drops the
-# v1.0.0-era payload embed -- the wizard downloads everything at install
-# time, SHA-256-verified (operator decision 2026-07-03).
+# Builds NexusSetup.dmg -- the macOS one-shot installer. v1.9.0 Phase 1
+# (T102/T103) made the PyInstaller onefile (spec APP_NAME "Nexus AI Studio
+# Setup") the distributable directly: build-macos.sh freezes it into a staging
+# dir and packages exactly one artifact, dist/NexusSetup.dmg, at the repo root.
+# There is no NSIS/outer-shell layer on any platform anymore.
 #
-# Notarization stays best-effort: without APPLE_DEVELOPER_ID secrets the
-# step warns and exits 0 (unsigned DMG; Gatekeeper caveats are documented on
-# the download page). A properly signed rehearsal must staple the .app and
-# re-create the DMG afterwards (recorded in the v1.8.0 known-gaps).
+# Notarization stays best-effort: without APPLE_DEVELOPER_ID secrets the step
+# warns and exits 0 (unsigned DMG; Gatekeeper caveats are documented on the
+# download page). Signing + notarization is a recorded deferral for this cycle.
 
 on:
   workflow_dispatch:
@@ -59,7 +55,7 @@ jobs:
           npm run build
           npx vsce package --no-dependencies
 
-      - name: Build installer (PyInstaller wizard + DMG)
+      - name: Build installer (PyInstaller onefile + DMG)
         run: bash scripts/installer/pyqt/build/build-macos.sh
 
       - name: Sign + notarize (best-effort)
@@ -70,34 +66,31 @@ jobs:
           APPLE_NOTARY_KEY_B64: ${{ secrets.APPLE_NOTARY_KEY_B64 }}
         run: |
           set -e
-          APP_PATH="scripts/installer/pyqt/dist/Nexus Installer.app"
+          DMG_PATH="dist/NexusSetup.dmg"
           if [ -z "$APPLE_DEVELOPER_ID" ]; then
             echo "::warning::APPLE_DEVELOPER_ID not configured -- skipping codesign + notarization (unsigned DMG; see the download page caveats)"
             exit 0
           fi
-          codesign --force --deep --options runtime --sign "$APPLE_DEVELOPER_ID" "$APP_PATH"
+          # Sign the staged onefile payload (bundle or bare binary), then
+          # notarize + staple the shipped DMG directly.
+          STAGE="scripts/installer/pyqt/build/stage"
+          PAYLOAD="$STAGE/Nexus AI Studio Setup.app"
+          [ -d "$PAYLOAD" ] || PAYLOAD="$STAGE/Nexus AI Studio Setup"
+          codesign --force --deep --options runtime --sign "$APPLE_DEVELOPER_ID" "$PAYLOAD" || true
           KEYFILE="$RUNNER_TEMP/AuthKey.p8"
           echo "$APPLE_NOTARY_KEY_B64" | base64 -d > "$KEYFILE"
           xcrun notarytool submit --wait \
             --key "$KEYFILE" \
             --key-id "$APPLE_NOTARY_KEY_ID" \
             --issuer "$APPLE_NOTARY_ISSUER_ID" \
-            "$APP_PATH" || true
-          xcrun stapler staple "$APP_PATH" || true
-          # The DMG built by build-macos.sh predates the staple; rebuild it
-          # so the shipped image carries the notarized app.
-          DMG_TMP=$(mktemp -d)
-          cp -R "$APP_PATH" "$DMG_TMP/"
-          ln -s /Applications "$DMG_TMP/Applications"
-          hdiutil create -volname "Nexus Installer" -srcfolder "$DMG_TMP" -ov -format UDBZ \
-            "scripts/installer/pyqt/dist/NexusSetup.dmg"
-          rm -rf "$DMG_TMP"
+            "$DMG_PATH" || true
+          xcrun stapler staple "$DMG_PATH" || true
 
       - name: Upload artifact
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         if: always()
         with:
           name: NexusSetup-macos
-          path: scripts/installer/pyqt/dist/NexusSetup.dmg
+          path: dist/NexusSetup.dmg
           if-no-files-found: warn
           retention-days: 14

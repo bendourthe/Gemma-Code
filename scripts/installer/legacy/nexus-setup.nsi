@@ -1,4 +1,10 @@
 ; ============================================================================
+; RETIRED in v1.9.0 Phase 1 (T103). This NSIS outer shell is no longer part of
+; the build pipeline: the PyInstaller onefile IS the distributable
+; (`NexusSetup.exe`, built by scripts/installer/pyqt/build/build-windows.ps1),
+; so double-clicking the installer opens exactly one modern branded window
+; with no generic pre-wizard dialog. Kept here for reference only.
+; ============================================================================
 ; NexusSetup.exe -- NSIS outer shell around the PyQt wizard (v1.8.0 Phase 6)
 ; ============================================================================
 ;

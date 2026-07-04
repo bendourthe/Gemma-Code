@@ -4,6 +4,30 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-04] v1.9.0 installer + app overhaul -- Phase 1: single-artifact installer build (drop NSIS) (T101-T105)
+
+### Goal
+
+Eliminate the two-installer experience and the two-artifact/deep-path build ([plan](versions/v1/v1.9.0/plans/installer-and-app-experience-overhaul.md) Phase 1). The v1.8.0 `NexusSetup.exe` was an NSIS MUI2 outer shell that extracted and launched the PyQt wizard (`nexus-installer.exe`), so users saw a generic old-style NSIS dialog first and only then the modern wizard -- two installers -- and the Windows build emitted two `.exe` files into a deep `pyqt/dist/` folder plus a hand-copy. Phase 1 makes the PyInstaller onefile the distributable directly: one modern window, one artifact per OS, one easy location.
+
+### What changed
+
+- **T101** -- [nexus-installer.spec](../scripts/installer/pyqt/build/nexus-installer.spec): Windows `APP_NAME` `nexus-installer` -> `NexusSetup` (PyInstaller emits `NexusSetup.exe` directly); macOS -> `Nexus AI Studio Setup`; Linux stays `nexus-setup`. Onefile + windowed + icon unchanged.
+- **T102** -- [build-windows.ps1](../scripts/installer/pyqt/build/build-windows.ps1) rewritten to a 4-step single-onefile flow writing straight to the repo-root `dist/NexusSetup.exe` (NSIS stage, two-artifact loop, `pyqt/dist` hand-copy, and the NSIS-only `-PayloadDir` param all gone). [build-macos.sh](../scripts/installer/pyqt/build/build-macos.sh) / [build-linux.sh](../scripts/installer/pyqt/build/build-linux.sh) aligned: freeze the onefile into a `build/stage` dir, then package exactly one artifact (`NexusSetup.dmg` / `NexusSetup-x86_64.AppImage`) into the repo-root `dist/`.
+- **T103** -- NSIS shell retired to [scripts/installer/legacy/nexus-setup.nsi](../scripts/installer/legacy/nexus-setup.nsi) (git-moved + RETIRED banner; empty `build/nsis/` removed). Upload paths fixed in [installer-build.yml](../.github/workflows/installer-build.yml) (dropped the NSIS-verify + Fetch-payload steps and the `include_payload` input), [installer-macos.yml](../.github/workflows/installer-macos.yml), [installer-linux.yml](../.github/workflows/installer-linux.yml), and [release.yml](../.github/workflows/release.yml) to the single repo-root `dist/` artifact (stray raw-binary uploads dropped).
+- **T104** -- [docs/install.md](install.md): single-window flow; direct `NexusSetup.exe --headless` (no `/S /D=` extract step); installer no longer self-registers an uninstaller or Start-menu shortcut (the product uninstaller ships with the desktop bundle); SmartScreen/Gatekeeper note kept.
+- **T105** -- [smoke-windows-exe.ps1](../scripts/installer/pyqt/build/smoke-windows-exe.ps1) rewritten to assert a single artifact then boot the frozen exe (`--version` + `--check-registry`; NSIS install/uninstall round-trip gone); [test_packaging.py](../scripts/installer/pyqt/tests/test_packaging.py) NSIS assertions replaced with single-artifact / no-NSIS / repo-root-dist checks; stale [windows-pipeline.md](../scripts/installer/build/windows-pipeline.md) rewritten to the single-onefile pipeline. (`VERSIONS.md` had no NSIS/artifact-path content -> no change.)
+
+### Verification
+
+Local DoD proof on the dev box: `pyinstaller nexus-installer.spec --distpath dist` produced exactly one artifact, `dist/NexusSetup.exe` (**65.3 MB**, 68,506,718 bytes), exit 0 -- no NSIS, no second exe. Packaging smoke all-green against the frozen exe (single artifact, no leftover `nexus-installer.exe`, `--version` exit 0, `--check-registry` exit 0). Installer pytest suite **591 passed / 2 skipped / 0 failed**; ruff on `test_packaging.py` clean (0 new findings); no TypeScript changed so `tsc -b` / root Vitest unaffected. New known-gaps `IAE.P1.A` (offline payload embed dropped -- NSIS-only, supersedes v1.8.0 `OSI006.P6.D`) and `IAE.P1.B` (mac/linux + clean-VM build proof -> Phase 6). The `--version`/`QApplication` naming ("gemma-code-installer" / "Nexus Installer") is unchanged -- the rebrand is scheduled in Phase 3 (T304). See the [phase history](versions/v1/v1.9.0/development/history/2026-07_phase-1-single-artifact-installer.md).
+
+### Branch
+
+Currently on `feat/v1.8.0-installer-phase-6` (where the v1.9.0 plan was authored). v1.9.0 Phase 1 feature work should land on a v1.9.0 branch before merge -- confirm at commit time.
+
+---
+
 ## [2026-07-03] v1.8.0 one-shot installer -- Phase 6: Windows .exe completion + rehearsal staging (T601 + T605; T602-T604 recorded)
 
 ### Goal
