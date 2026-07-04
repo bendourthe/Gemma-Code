@@ -89,6 +89,9 @@ out/
 # under scripts/installer/build/ and are inputs, not build outputs.
 !scripts/installer/build/
 !scripts/installer/build/**
+# ...but the PyInstaller workpath inside pyqt/build/ IS a build output
+# (re-excluded after the allow rules above; v1.8.0 Phase 6, T601).
+scripts/installer/pyqt/build/work/
 
 # ==============================================================================
 # Archives

@@ -124,7 +124,7 @@ The cycle plan lives at [docs/versions/v1/v1.3.0/plans/adoption-skill-cleaner.md
 
 ## Quick Start (developer workflow)
 
-Production-ready installers ship in v1.1.0 Phase 14 (the cross-OS installer). Until then, develop against the source tree:
+End users: grab the one-file installer for your OS from the [releases page](https://github.com/bendourthe/Nexus-AI/releases) and follow the [installation guide](docs/install.md) (including the unsigned-binary warnings). Developers work against the source tree:
 
 ```bash
 # Prereqs: Node 20+, Rust + Cargo (for Tauri core), Ollama for inference.

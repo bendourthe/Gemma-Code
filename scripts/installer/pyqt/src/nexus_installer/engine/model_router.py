@@ -25,6 +25,7 @@ import json
 from collections.abc import Callable
 from pathlib import Path
 
+from nexus_installer import registry_paths
 from nexus_installer.engine.hf_weights_puller import HFWeightsPuller
 from nexus_installer.engine.model_puller import ModelPuller
 from nexus_installer.installer_state import InstallerState
@@ -36,17 +37,14 @@ CatalogEntry = dict[str, object]
 
 
 def default_catalog_path() -> Path:
-    """Locate the repo's `core/registry/catalog.json` from this module.
+    """Locate `core/registry/catalog.json` (bundle, source tree, or editable).
 
-    Walks up from this file so the lookup works from both the source tree
-    and an editable install; a missing catalog is handled gracefully by
+    Delegates to the shared `registry_paths` resolver (v1.8.0 Phase 6), which
+    checks the PyInstaller bundle (`sys._MEIPASS`) before walking up the
+    source tree; a missing catalog is handled gracefully by
     `load_catalog_index` (all models then route to ollama).
     """
-    for parent in Path(__file__).resolve().parents:
-        candidate = parent / "core" / "registry" / "catalog.json"
-        if candidate.is_file():
-            return candidate
-    return Path("core") / "registry" / "catalog.json"
+    return registry_paths.default_catalog_path()
 
 
 def load_catalog_index(catalog_path: Path) -> dict[str, CatalogEntry]:

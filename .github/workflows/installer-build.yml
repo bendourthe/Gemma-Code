@@ -1,11 +1,21 @@
 name: Installer build (Windows)
 
-# Builds the v1.0.0 single-binary Windows installer (Nexus-1.0.0-Setup.exe).
-# Implements the pipeline sketched in
-# scripts/installer/build/windows-pipeline.md. Currently a placeholder gated
-# behind workflow_dispatch -- the payload-fetching script and NSIS template
-# are filled in across Phase 9.2-9.7. Once the artifact builds cleanly on a
-# Windows runner the trigger expands to `push: tags: v1.0.0*`.
+# Builds NexusSetup.exe -- the Windows one-shot installer: the PyQt wizard
+# frozen by PyInstaller (dist/nexus-installer.exe) wrapped in the NSIS outer
+# shell (scripts/installer/build/nsis/nexus-setup.nsi), then smoke-tested
+# with a silent install/probe/uninstall round-trip. Implemented for real in
+# v1.8.0 Phase 6 (T601); the pipeline sketch lives in
+# scripts/installer/build/windows-pipeline.md.
+#
+# The exe is SLIM by design (operator decision 2026-07-03): the wizard
+# downloads dependencies, models, and the desktop app at install time, all
+# SHA-256-verified. The v1.0.0-era multi-GB payload embed is opt-in via the
+# include_payload input and stays blocked on the versions.lock.json pin
+# rotation (the devai_hub entry is still a placeholder URL).
+#
+# Trigger: workflow_dispatch only while the Actions freeze holds (until
+# 2026-08-01, $0 budget). The T603 post-freeze rehearsal expands this to
+# `push: tags: v*` once the artifact builds cleanly on a Windows runner.
 
 on:
   workflow_dispatch:
@@ -14,6 +24,11 @@ on:
         description: "Reason for the manual run (release rehearsal, payload refresh, ...)"
         required: false
         default: "manual rehearsal"
+      include_payload:
+        description: "Embed the offline payload tree (requires rotated versions.lock.json pins)"
+        type: boolean
+        required: false
+        default: false
 
 concurrency:
   group: installer-build-${{ github.workflow }}-${{ github.ref }}
@@ -21,7 +36,7 @@ concurrency:
 
 jobs:
   build-windows-installer:
-    name: Build Nexus-1.0.0-Setup.exe
+    name: Build NexusSetup.exe
     runs-on: windows-latest
     timeout-minutes: 120
     steps:
@@ -34,6 +49,7 @@ jobs:
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: "22.x"
+          cache: "npm"
 
       - uses: astral-sh/setup-uv@e4db8464a088ece1b920f60402e813ea4de65b8f # v4
         with:
@@ -44,54 +60,58 @@ jobs:
       - name: Verify NSIS is available
         shell: pwsh
         run: |
-          $candidate = "$env:ProgramFiles (x86)\NSIS\makensis.exe"
+          $candidate = "${env:ProgramFiles(x86)}\NSIS\makensis.exe"
           if (-not (Test-Path $candidate)) {
             Write-Error "NSIS not found at $candidate. Install via choco install nsis -y."
             exit 1
           }
           & $candidate /VERSION
 
-      # Placeholder steps -- expanded in Phase 9.2-9.7. Each step is a no-op
-      # echo so the workflow stays valid until the implementation lands.
-
       - name: Resolve pinned versions
-        run: |
-          Write-Host "TODO Phase 9.2: read scripts/installer/devai-hub-baseline.json + pyproject.toml + .nvmrc"
         shell: pwsh
+        run: |
+          $version = (Get-Content package.json | ConvertFrom-Json).version
+          Write-Host "package.json version: $version"
+          $baseline = Get-Content scripts/installer/devai-hub-baseline.json | ConvertFrom-Json
+          Write-Host "devai-hub baseline tag: $($baseline.source.tag)"
 
-      - name: Fetch payload (CUDA, Python, wheels, Node, Ollama, ffmpeg, DevAI-Hub)
-        run: |
-          Write-Host "TODO Phase 9.2-9.6: run scripts/installer/build/fetch-payload.py --out build/payload/"
+      # The wizard bundles the VSIX (PyInstaller datas); vsce packages the
+      # root workspace (the repo root IS the nexus-coding extension package,
+      # same as release.yml's build-vsix job).
+      - name: Build VSIX (Nexus Coding extension)
         shell: pwsh
+        run: |
+          npm ci --prefer-offline --no-audit
+          npm run build
+          npx vsce package --no-dependencies
 
-      - name: Compute payload manifest.json
-        run: |
-          Write-Host "TODO Phase 9.2: emit SHA-256 manifest into build/payload/manifest.json"
+      # Optional offline payload (see header). Blocked on the pin rotation:
+      # fetch-payload.py fails closed on the placeholder devai_hub URL.
+      - name: Fetch payload (offline builds only)
+        if: ${{ inputs.include_payload }}
         shell: pwsh
+        run: |
+          python scripts/installer/build/fetch-payload.py --os win --arch x64 --out build/payload/
 
-      - name: Freeze the wizard with PyInstaller
-        working-directory: scripts/installer/pyqt
-        run: |
-          Write-Host "TODO Phase 9.3+: uv sync; uv run pyinstaller --onefile --windowed --name nexus-installer src/nexus_installer/main.py"
+      - name: Build NexusSetup.exe (PyInstaller wizard + NSIS outer)
         shell: pwsh
+        run: |
+          $payloadArgs = @()
+          if ("${{ inputs.include_payload }}" -eq "true") {
+            $payloadArgs = @("-PayloadDir", "build/payload")
+          }
+          pwsh -NonInteractive -File scripts/installer/pyqt/build/build-windows.ps1 -SkipSign @payloadArgs
 
-      - name: Compile NSIS outer (Nexus-1.0.0-Setup.exe)
-        run: |
-          Write-Host "TODO Phase 9.7: & $env:ProgramFiles' (x86)\NSIS\makensis.exe' scripts/installer/build/nsis/nexus-setup.nsi"
+      - name: Smoke-test the installer (silent install / probe / uninstall)
         shell: pwsh
-
-      - name: Smoke-run the installer in silent mode
         run: |
-          Write-Host "TODO Phase 9.7: build/Nexus-1.0.0-Setup.exe /S /D=C:\Nexus-Smoke; assert exit code 0"
-        shell: pwsh
+          pwsh -NonInteractive -File scripts/installer/pyqt/build/smoke-windows-exe.ps1
 
       - name: Upload artifact
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         if: always()
         with:
-          name: Nexus-1.0.0-Setup
-          path: |
-            build/Nexus-1.0.0-Setup.exe
-            build/payload/manifest.json
+          name: NexusSetup-windows
+          path: scripts/installer/pyqt/dist/NexusSetup.exe
           if-no-files-found: warn
           retention-days: 14

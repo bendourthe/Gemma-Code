@@ -42,6 +42,7 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
+from nexus_installer import registry_paths
 from nexus_installer.constants import (
     ACCENT,
     BG_CARD,
@@ -677,18 +678,13 @@ class TypedCatalogPage(QWidget):
 
 
 def _registry_file(name: str) -> Path:
-    """Locate `core/registry/<name>` by walking up from this module.
+    """Locate `core/registry/<name>` (bundle, source tree, or editable).
 
-    Mirrors `engine.model_router.default_catalog_path`: works from the
-    source tree and an editable install (the previous fixed-depth
-    `parents[5]` landed on `scripts/`, a latent bug while this page was
-    unwired). A missing file is handled by the tolerant loaders.
+    Delegates to the shared `registry_paths` resolver (v1.8.0 Phase 6),
+    which checks the PyInstaller bundle (`sys._MEIPASS`) before walking up
+    the source tree. A missing file is handled by the tolerant loaders.
     """
-    for parent in Path(__file__).resolve().parents:
-        candidate = parent / "core" / "registry" / name
-        if candidate.is_file():
-            return candidate
-    return Path("core") / "registry" / name
+    return registry_paths.registry_file(name)
 
 
 def _default_catalog_path() -> Path:

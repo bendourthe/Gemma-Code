@@ -1,10 +1,16 @@
 name: Installer build (Linux)
 
-# Builds Nexus-<version>.AppImage -- the Linux AppImage outer shell that
-# wraps the cross-platform PyQt5 wizard from v1.1.0 Phase 14. Statically
-# links against glibc 2.31+; the .desktop file documents that minimum so
-# older distros (Ubuntu 18.04, Debian 10) get a clear "unsupported" message
-# rather than a silent crash.
+# Builds NexusSetup-x86_64.AppImage -- the Linux outer shell around the PyQt
+# wizard. v1.8.0 Phase 6 (T601) aligned this workflow with the canonical
+# build path: it now calls scripts/installer/pyqt/build/build-linux.sh
+# (spec-driven PyInstaller, so the bundled VSIX + registry data files apply)
+# instead of a hand-rolled `pyinstaller` invocation, packages the VSIX from
+# the repo root (the old `extensions/nexus-coding` path never existed), and
+# drops the v1.0.0-era payload embed -- the wizard downloads everything at
+# install time, SHA-256-verified (operator decision 2026-07-03).
+#
+# Runtime note: the AppImage links against glibc 2.31+ and needs FUSE
+# (libfuse2) to mount; both caveats are documented on the download page.
 
 on:
   workflow_dispatch:
@@ -26,8 +32,6 @@ jobs:
     name: Build Nexus AppImage
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    env:
-      NEXUS_PLATFORM: linux-x86_64
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
 
@@ -38,89 +42,42 @@ jobs:
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: "22.x"
+          cache: "npm"
 
+      # appimagetool is itself an AppImage and needs FUSE to run; the xcb /
+      # xkb libraries satisfy PyQt5's link-time deps during the PyInstaller
+      # analysis. build-linux.sh picks up /tmp/appimagetool when present.
       - name: Install AppImage tooling
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends fuse libfuse2 libxcb-xinerama0 libxkbcommon-x11-0
           wget -O /tmp/appimagetool https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
           chmod +x /tmp/appimagetool
-
-      # YAML note: a bare `run: echo "X: Y"` (unquoted scalar containing a
-      # colon-space) is parsed as a nested mapping. We use the block scalar
-      # `run: |` so the inner colons are safe.
+          sudo mv /tmp/appimagetool /usr/local/bin/appimagetool
 
       - name: Resolve pinned versions
         run: |
-          python -c "import json,sys; data=json.load(open('scripts/installer/devai-hub-baseline.json')); print('devai-hub baseline tag:', data['source']['tag'])"
+          python -c "import json; data=json.load(open('scripts/installer/devai-hub-baseline.json')); print('devai-hub baseline tag:', data['source']['tag'])"
 
-      - name: Fetch payload (CUDA, ROCm, Python, wheels, Node, Ollama, ffmpeg, DevAI-Hub)
-        run: |
-          python scripts/installer/build/fetch-payload.py \
-            --os linux --arch x64 \
-            --out build/payload/
-
+      # The wizard bundles the VSIX (PyInstaller datas); vsce packages the
+      # root workspace (the repo root IS the nexus-coding extension package,
+      # same as release.yml's build-vsix job).
       - name: Build VSIX (Nexus Coding extension)
         run: |
-          npm install -g @vscode/vsce
-          (cd extensions/nexus-coding && vsce package --out ../../build/payload/extensions/nexus-coding-${GITHUB_REF_NAME:-dev}.vsix)
+          npm ci --prefer-offline --no-audit
+          npm run build
+          npx vsce package --no-dependencies
 
-      - name: Install Python deps + PyInstaller
-        run: |
-          cd scripts/installer/pyqt
-          python -m pip install --upgrade pip
-          python -m pip install -e .
-          python -m pip install pyinstaller
-
-      - name: Freeze the wizard with PyInstaller
-        run: |
-          cd scripts/installer/pyqt
-          pyinstaller --noconfirm --onefile --windowed --name nexus-installer \
-            --add-data "../../../build/payload:payload" \
-            src/nexus_installer/main.py
-
-      - name: Assemble AppDir
-        run: |
-          set -e
-          VERSION="${GITHUB_REF_NAME:-1.1.0-dev}"
-          APPDIR=build/AppDir
-          mkdir -p "$APPDIR/usr/bin" "$APPDIR/usr/share/applications" "$APPDIR/usr/share/icons/hicolor/256x256/apps"
-          cp scripts/installer/pyqt/dist/nexus-installer "$APPDIR/usr/bin/nexus-installer"
-          cp -R build/payload "$APPDIR/usr/share/nexus-payload"
-          if [ -f assets/icon.png ]; then
-            cp assets/icon.png "$APPDIR/usr/share/icons/hicolor/256x256/apps/nexus.png"
-            cp assets/icon.png "$APPDIR/nexus.png"
-          fi
-          cat > "$APPDIR/nexus.desktop" <<EOF
-          [Desktop Entry]
-          Type=Application
-          Name=Nexus
-          Comment=Local-first AI Studio (requires glibc 2.31+)
-          Exec=nexus-installer
-          Icon=nexus
-          Categories=Development;
-          EOF
-          cp "$APPDIR/nexus.desktop" "$APPDIR/usr/share/applications/nexus.desktop"
-          cat > "$APPDIR/AppRun" <<'EOF'
-          #!/usr/bin/env bash
-          HERE="$(dirname "$(readlink -f "$0")")"
-          export PATH="$HERE/usr/bin:$PATH"
-          export NEXUS_PAYLOAD_DIR="$HERE/usr/share/nexus-payload"
-          exec "$HERE/usr/bin/nexus-installer" "$@"
-          EOF
-          chmod +x "$APPDIR/AppRun"
-
-      - name: Compile AppImage
-        run: |
-          set -e
-          VERSION="${GITHUB_REF_NAME:-1.1.0-dev}"
-          ARCH=x86_64 /tmp/appimagetool build/AppDir "build/Nexus-${VERSION}.AppImage"
+      - name: Build installer (PyInstaller wizard + AppImage)
+        run: bash scripts/installer/pyqt/build/build-linux.sh
 
       - name: Upload artifact
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         if: always()
         with:
-          name: Nexus-Linux-AppImage
-          path: build/Nexus*.AppImage
+          name: NexusSetup-linux
+          path: |
+            scripts/installer/pyqt/dist/NexusSetup-x86_64.AppImage
+            scripts/installer/pyqt/dist/nexus-setup
           if-no-files-found: warn
           retention-days: 14

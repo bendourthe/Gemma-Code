@@ -1,11 +1,18 @@
 name: Installer build (macOS)
 
-# Builds Nexus-<version>.dmg -- the macOS DMG outer shell that wraps the
-# cross-platform PyQt5 wizard introduced in v1.1.0 Phase 14. The job ships
-# the same payload as the Windows installer (CUDA replaced with the MPS
-# wheels), notarized + stapled for Gatekeeper. Tagging a release pushes the
-# dmg as an artifact; manual reruns (workflow_dispatch) still work for
-# rehearsals.
+# Builds NexusSetup.dmg -- the macOS outer shell around the PyQt wizard.
+# v1.8.0 Phase 6 (T601) aligned this workflow with the canonical build path:
+# it now calls scripts/installer/pyqt/build/build-macos.sh (spec-driven
+# PyInstaller, so the bundled VSIX + registry data files apply) instead of a
+# hand-rolled `pyinstaller` invocation, packages the VSIX from the repo root
+# (the old `extensions/nexus-coding` path never existed), and drops the
+# v1.0.0-era payload embed -- the wizard downloads everything at install
+# time, SHA-256-verified (operator decision 2026-07-03).
+#
+# Notarization stays best-effort: without APPLE_DEVELOPER_ID secrets the
+# step warns and exits 0 (unsigned DMG; Gatekeeper caveats are documented on
+# the download page). A properly signed rehearsal must staple the .app and
+# re-create the DMG afterwards (recorded in the v1.8.0 known-gaps).
 
 on:
   workflow_dispatch:
@@ -27,8 +34,6 @@ jobs:
     name: Build Nexus DMG
     runs-on: macos-latest
     timeout-minutes: 120
-    env:
-      NEXUS_PLATFORM: macos-arm64
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
 
@@ -39,39 +44,23 @@ jobs:
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: "22.x"
-
-      # YAML note: a bare `run: echo "X: Y"` (unquoted scalar containing a
-      # colon-space) is parsed as a nested mapping. We use the block scalar
-      # `run: |` so the inner colons are safe.
+          cache: "npm"
 
       - name: Resolve pinned versions
         run: |
-          python -c "import json,sys; data=json.load(open('scripts/installer/devai-hub-baseline.json')); print('devai-hub baseline tag:', data['source']['tag'])"
+          python -c "import json; data=json.load(open('scripts/installer/devai-hub-baseline.json')); print('devai-hub baseline tag:', data['source']['tag'])"
 
-      - name: Fetch payload (Python, wheels-mac, Node, Ollama, ffmpeg, DevAI-Hub)
-        run: |
-          python scripts/installer/build/fetch-payload.py \
-            --os mac --arch arm64 \
-            --out build/payload/
-
+      # The wizard bundles the VSIX (PyInstaller datas); vsce packages the
+      # root workspace (the repo root IS the nexus-coding extension package,
+      # same as release.yml's build-vsix job).
       - name: Build VSIX (Nexus Coding extension)
         run: |
-          npm install -g @vscode/vsce
-          (cd extensions/nexus-coding && vsce package --out ../../build/payload/extensions/nexus-coding-${GITHUB_REF_NAME:-dev}.vsix)
+          npm ci --prefer-offline --no-audit
+          npm run build
+          npx vsce package --no-dependencies
 
-      - name: Install Python deps + PyInstaller
-        run: |
-          cd scripts/installer/pyqt
-          python -m pip install --upgrade pip
-          python -m pip install -e .
-          python -m pip install pyinstaller
-
-      - name: Freeze the wizard with PyInstaller
-        run: |
-          cd scripts/installer/pyqt
-          pyinstaller --noconfirm --windowed --name nexus-installer \
-            --add-data "../../../build/payload:payload" \
-            src/nexus_installer/main.py
+      - name: Build installer (PyInstaller wizard + DMG)
+        run: bash scripts/installer/pyqt/build/build-macos.sh
 
       - name: Sign + notarize (best-effort)
         env:
@@ -81,9 +70,9 @@ jobs:
           APPLE_NOTARY_KEY_B64: ${{ secrets.APPLE_NOTARY_KEY_B64 }}
         run: |
           set -e
-          APP_PATH="scripts/installer/pyqt/dist/nexus-installer.app"
+          APP_PATH="scripts/installer/pyqt/dist/Nexus Installer.app"
           if [ -z "$APPLE_DEVELOPER_ID" ]; then
-            echo "::warning::APPLE_DEVELOPER_ID not configured -- skipping codesign + notarization (Phase 15 / OA-11 closes this)"
+            echo "::warning::APPLE_DEVELOPER_ID not configured -- skipping codesign + notarization (unsigned DMG; see the download page caveats)"
             exit 0
           fi
           codesign --force --deep --options runtime --sign "$APPLE_DEVELOPER_ID" "$APP_PATH"
@@ -95,30 +84,20 @@ jobs:
             --issuer "$APPLE_NOTARY_ISSUER_ID" \
             "$APP_PATH" || true
           xcrun stapler staple "$APP_PATH" || true
-
-      - name: Create the DMG (drag-to-Applications)
-        run: |
-          set -e
-          npm install -g create-dmg
-          VERSION="${GITHUB_REF_NAME:-1.1.0-dev}"
-          mkdir -p build/dmg-stage
-          cp -R scripts/installer/pyqt/dist/nexus-installer.app build/dmg-stage/Nexus.app
-          create-dmg \
-            --overwrite \
-            --dmg-title "Nexus ${VERSION}" \
-            --identity "${APPLE_DEVELOPER_ID:-}" \
-            build/dmg-stage/Nexus.app build/ || true
-          # create-dmg names the output Nexus-<version>.dmg; fall back to a
-          # deterministic name when the tool errored (e.g. unsigned build).
-          if ! ls build/Nexus*.dmg >/dev/null 2>&1; then
-            hdiutil create -fs HFS+ -srcfolder build/dmg-stage -volname "Nexus ${VERSION}" "build/Nexus-${VERSION}.dmg"
-          fi
+          # The DMG built by build-macos.sh predates the staple; rebuild it
+          # so the shipped image carries the notarized app.
+          DMG_TMP=$(mktemp -d)
+          cp -R "$APP_PATH" "$DMG_TMP/"
+          ln -s /Applications "$DMG_TMP/Applications"
+          hdiutil create -volname "Nexus Installer" -srcfolder "$DMG_TMP" -ov -format UDBZ \
+            "scripts/installer/pyqt/dist/NexusSetup.dmg"
+          rm -rf "$DMG_TMP"
 
       - name: Upload artifact
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         if: always()
         with:
-          name: Nexus-macOS-dmg
-          path: build/Nexus*.dmg
+          name: NexusSetup-macos
+          path: scripts/installer/pyqt/dist/NexusSetup.dmg
           if-no-files-found: warn
           retention-days: 14

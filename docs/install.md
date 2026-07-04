@@ -1,0 +1,89 @@
+# Installing Nexus
+
+Nexus ships as a **one-file installer** per platform. Download it, run it, answer a few questions, and you end up with the Nexus desktop app, the VS Code extension (optional), and local AI models matched to your hardware. No terminal, no manual dependency setup.
+
+The installers are attached to each [GitHub release](https://github.com/bendourthe/Nexus-AI/releases), alongside a `SHA256SUMS.txt` you can use to verify your download. The first releases carrying the full asset set follow the v1.8.0 cycle's post-freeze release rehearsal.
+
+| Platform | Download | Size class |
+|---|---|---|
+| Windows 10/11 (x64) | `NexusSetup.exe` | ~65 MB |
+| macOS 12+ (Apple Silicon) | `NexusSetup.dmg` | ~70 MB |
+| Linux x86_64 (glibc 2.31+) | `NexusSetup-x86_64.AppImage` | ~70 MB |
+
+The installer itself is small; it downloads what you select (models, GPU runtime, the desktop app) during installation, verifying every download against pinned SHA-256 checksums. Expect 5-60 GB of downloads depending on the models you pick, so plan for disk space and a decent connection.
+
+## Windows
+
+1. Download `NexusSetup.exe` from the latest release.
+2. Double-click it. **You will see a SmartScreen warning** ("Windows protected your PC") because the binary is not yet code-signed (signing is planned; see the note below). Click **More info**, then **Run anyway**.
+3. The setup wizard walks you through: hardware detection, install location, model selection (chat, coding, image, video), the VS Code extension, and the Nexus desktop app. Progress is shown per phase; everything is downloaded checksum-verified.
+4. When it finishes, Nexus is in your Start Menu, and "Nexus Setup" remains available there if you want to re-run the wizard later (add models, reinstall components).
+
+Scripted / silent installs:
+
+```powershell
+# Extract the wizard silently (no provisioning), then run it headless:
+NexusSetup.exe /S /D=C:\Nexus\Setup
+C:\Nexus\Setup\nexus-installer.exe --headless --json-output
+```
+
+The `/D=` path must be last on the command line and must not contain spaces (an NSIS constraint). `nexus-installer.exe --help` lists the headless flags (`--model`, `--skip-model`, `--skip-extension`, `--skip-desktop`, `--install-path`).
+
+## macOS
+
+1. Download `NexusSetup.dmg`, open it, and drag **Nexus Installer** to Applications.
+2. **Gatekeeper will block the first launch** ("cannot be opened because the developer cannot be verified") because the app is not yet notarized. Right-click (Control-click) the app and choose **Open**, then **Open** again in the dialog. You only need to do this once.
+   - Alternative from a terminal: `xattr -d com.apple.quarantine "/Applications/Nexus Installer.app"`
+3. Follow the wizard. Apple Silicon Macs use the Metal GPU path automatically.
+
+## Linux
+
+1. Download `NexusSetup-x86_64.AppImage` and make it executable:
+
+   ```bash
+   chmod +x NexusSetup-x86_64.AppImage
+   ./NexusSetup-x86_64.AppImage
+   ```
+
+2. AppImages need FUSE. On Ubuntu 22.04+ / Debian 12+, install it once with `sudo apt install libfuse2`. If FUSE is unavailable (containers, some minimal distros), extract and run instead:
+
+   ```bash
+   ./NexusSetup-x86_64.AppImage --appimage-extract
+   ./squashfs-root/AppRun
+   ```
+
+3. Requires glibc 2.31+ (Ubuntu 20.04+, Debian 11+, Fedora 32+). Older distros are unsupported.
+
+## Verifying your download
+
+Each release attaches a `SHA256SUMS.txt` covering every asset:
+
+```bash
+# Linux / macOS
+sha256sum -c --ignore-missing SHA256SUMS.txt
+```
+
+```powershell
+# Windows
+(Get-FileHash NexusSetup.exe -Algorithm SHA256).Hash
+# compare against the NexusSetup.exe line in SHA256SUMS.txt
+```
+
+## What the installer actually does
+
+1. **Dependencies**: GPU runtime for your hardware (CUDA / ROCm / Metal, or CPU-only), Node runtime, Ollama, ffmpeg, and the diffusion Python environment.
+2. **VS Code extension** (optional, on by default when VS Code is present).
+3. **Models**: your selection from the typed catalog (Chat, Agentic Coding, Image, Video, Audio), downloaded with live progress; image/video weights come from Hugging Face, text models via Ollama.
+4. **Nexus desktop app**: fetched from the matching GitHub release, checksum-verified against `SHA256SUMS.txt`, installed and health-checked, then launched from the finish page.
+
+Everything lands under your user account (no admin rights needed for the wizard itself); user data lives in `~/.nexus`.
+
+## Uninstalling
+
+- **Windows**: "Nexus Setup" and "Nexus" both appear under Settings > Apps. The uninstaller asks whether to keep `~/.nexus` (models, skills, settings); silent uninstalls always keep it.
+- **macOS**: drag the apps out of Applications; remove `~/.nexus` if you also want the data gone.
+- **Linux**: delete the AppImage, `~/.local/bin/Nexus.AppImage`, the `~/.local/share/applications/nexus.desktop` entry, and optionally `~/.nexus`.
+
+## A note on the security warnings
+
+The Windows executable and the macOS app are **not yet code-signed or notarized** (the certificates are a recorded, deliberate deferral for this cycle), so SmartScreen and Gatekeeper flag them as from an unidentified developer. The mitigations are the checksum file above and the fact that every payload the installer fetches is SHA-256-pinned. If a future release ships signed binaries, these warnings disappear and this page will be updated.

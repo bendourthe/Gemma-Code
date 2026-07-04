@@ -4,6 +4,28 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-03] v1.8.0 one-shot installer -- Phase 6: Windows .exe completion + rehearsal staging (T601 + T605; T602-T604 recorded)
+
+### Goal
+
+Close gap G5's buildable half ([plan](versions/v1/v1.8.0/plans/one-shot-installer.md) Phase 6): `installer-build.yml` was still the v1.0.0 TODO skeleton (six echo steps), the NSIS outer was a stale v1.1.0 template invoking a wizard flag that never existed, and no end-to-end `NexusSetup.exe` had ever been built. The phase's rehearsal legs (T602 clean-VM, T603 CI under the Actions freeze, T604 mac/linux hardware) cannot run in this environment and are recorded as operator / post-freeze actions per the plan's own local-first design.
+
+### What changed
+
+- **T601 -- the Windows pipeline is real**: [installer-build.yml](../.github/workflows/installer-build.yml) rewritten to the dispatch-gated real pipeline (NSIS verify -> pinned-version resolve -> root-workspace VSIX build matching release.yml -> optional `include_payload` embed -> build -> smoke -> upload). The exe is **slim by design** (operator decision: everything downloads at install time, SHA-256-verified), so the rewritten [nexus-setup.nsi](../scripts/installer/build/nsis/nexus-setup.nsi) is a per-user shell: extract wizard, finish-page launch, HKCU uninstall entry, silent extract-only mode, `~/.nexus` always preserved on silent uninstall -- and the old template's unsupported `--verify-only` call plus its misplaced `nexus://` / file-association registrations are gone. [build-windows.ps1](../scripts/installer/pyqt/build/build-windows.ps1) gains the makensis stage (wizard renamed `nexus-installer.exe`; NSIS owns `NexusSetup.exe` at the exact path release.yml already uploads), new [smoke-windows-exe.ps1](../scripts/installer/pyqt/build/smoke-windows-exe.ps1) does the silent install/probe/uninstall round-trip, and the mac/linux workflows switch to the canonical spec-driven build scripts + root VSIX packaging (their hand-rolled PyInstaller bypassed the spec's datas; their `cd extensions/nexus-coding` never existed; the macOS DMG is now re-created after stapling).
+- **`OSI004.P4.C` closed**: new [registry_paths.py](../scripts/installer/pyqt/src/nexus_installer/registry_paths.py) (`sys._MEIPASS`-first resolver, 100% lines) backs both the model router and the typed catalog, the spec bundles `core/registry/{catalog,recommended}.json`, and a new `--check-registry` CLI diagnostic asserts them inside the frozen exe.
+- **T605 -- download docs**: new end-user [docs/install.md](install.md) (per-OS steps, SmartScreen/Gatekeeper unsigned click-throughs, FUSE/glibc caveats, SHA256SUMS verification, silent/headless usage, uninstall notes); README Quick Start points at it, replacing the stale "installers ship in v1.1.0 Phase 14" line.
+
+### Verification
+
+Local DoD proof on the dev box: `NexusSetup.exe` **64.7 MB** built end-to-end (PyInstaller wizard 65.2 MB -> NSIS lzma outer), then the packaging smoke all-green -- silent install exit 0, wizard extracted, `--version` boot probe exit 0, `--check-registry` exit 0 (bundled registry resolves inside the frozen exe), silent uninstall clean with HKCU + Start Menu verified absent. Installer pytest suite **590 passed / 2 skipped / 0 failed** (+26); `registry_paths` 100% lines; ruff 0 new findings; `tsc -b` clean; root Vitest **4569 / 6 / 0** unchanged. Known-gaps: `OSI004.P4.C` resolved; new `OSI006.P6.A-D` (T602/T603/T604 rehearsals + the pin-rotation-blocked payload path); dispositions on `OSI001.P1.B`, `OSI002.P2.D`, `OSI005.P5.A/B`. See the [phase history](versions/v1/v1.8.0/development/history/2026-07_phase-6-windows-exe-completion.md).
+
+### Branch
+
+`feat/v1.8.0-installer-phase-6`, stacked on `feat/v1.8.0-installer-phase-5`.
+
+---
+
 ## [2026-07-03] v1.8.0 one-shot installer -- Phase 5: desktop-token restyle + per-phase progress UX (T501-T503)
 
 ### Goal

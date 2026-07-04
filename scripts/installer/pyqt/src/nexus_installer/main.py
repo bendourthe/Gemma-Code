@@ -96,6 +96,15 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Emit results as JSON to stdout (headless only)",
     )
+    parser.add_argument(
+        "--check-registry",
+        action="store_true",
+        help=(
+            "Diagnostic: resolve the bundled catalog.json / recommended.json "
+            "registry files and exit 0 when both are present (used by the "
+            "packaging smoke against the frozen exe)."
+        ),
+    )
     return parser
 
 
@@ -230,6 +239,13 @@ def _run_headless(args: argparse.Namespace) -> int:
 def main() -> None:
     """Parse arguments and dispatch to GUI or headless mode."""
     args = _build_arg_parser().parse_args()
+
+    if args.check_registry:
+        # Qt-free diagnostic for the packaging smoke (v1.8.0 Phase 6, T601):
+        # asserts the frozen bundle packaged the registry data files.
+        from nexus_installer.registry_paths import check_registry
+
+        sys.exit(check_registry())
 
     if args.headless:
         sys.exit(_run_headless(args))

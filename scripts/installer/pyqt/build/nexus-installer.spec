@@ -17,7 +17,10 @@ REPO_ROOT = PYQT_ROOT.parent.parent.parent
 
 # Platform-specific settings
 if sys.platform == "win32":
-    APP_NAME = "NexusSetup"
+    # v1.8.0 Phase 6 (T601): the frozen wizard is `nexus-installer.exe`; the
+    # NSIS outer shell (build/nsis/nexus-setup.nsi) wraps it and owns the
+    # user-facing `NexusSetup.exe` name.
+    APP_NAME = "nexus-installer"
     ICON = str(REPO_ROOT / "assets" / "icon.ico")
 elif sys.platform == "darwin":
     APP_NAME = "Nexus Installer"
@@ -31,12 +34,27 @@ else:
 # Locate bundled data files
 datas = []
 
-# VSIX file
-vsix_candidates = list(REPO_ROOT.glob("gemma-code-*.vsix")) + list(
-    (REPO_ROOT / "scripts" / "installer").glob("gemma-code-*.vsix")
+# VSIX file. vsce emits `nexus-coding-*.vsix` (the root package name) since
+# the v1.1.0 rename; the legacy `gemma-code-*.vsix` glob is kept as a
+# fallback until the NAME.P1.A compat sweep retires it.
+vsix_candidates = (
+    list(REPO_ROOT.glob("nexus-coding-*.vsix"))
+    + list((REPO_ROOT / "scripts" / "installer").glob("nexus-coding-*.vsix"))
+    + list(REPO_ROOT.glob("gemma-code-*.vsix"))
+    + list((REPO_ROOT / "scripts" / "installer").glob("gemma-code-*.vsix"))
 )
 if vsix_candidates:
     datas.append((str(vsix_candidates[0]), "."))
+
+# Model-registry data files (v1.8.0 Phase 6, T601 / closes OSI004.P4.C): the
+# typed catalog page and the engine's model router resolve these via
+# `nexus_installer.registry_paths`, which checks the bundle (sys._MEIPASS)
+# first. Without them a packaged wizard renders an empty catalog and routes
+# every model id to ollama.
+for registry_name in ("catalog.json", "recommended.json"):
+    registry_path = REPO_ROOT / "core" / "registry" / registry_name
+    if registry_path.exists():
+        datas.append((str(registry_path), "core/registry"))
 
 # Backend requirements
 req_candidates = [

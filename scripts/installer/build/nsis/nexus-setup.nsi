@@ -1,63 +1,79 @@
 ; ============================================================================
-; Nexus 1.1.0 -- NSIS outer installer (Phase 9.7 / v1.1.0 Phase 15.6 version bump)
+; NexusSetup.exe -- NSIS outer shell around the PyQt wizard (v1.8.0 Phase 6)
 ; ============================================================================
 ;
-; Builds Nexus-1.1.0-Setup.exe -- the Windows-shell layer around the PyQt5
-; wizard. Responsibilities:
+; The wizard (`nexus-installer.exe`, PyInstaller onefile) provisions
+; everything at install time -- GPU runtime, Node, Ollama, ffmpeg, diffusion
+; venv, models, VS Code extension, and the Nexus desktop app fetched from the
+; pinned GitHub release (operator decision, 2026-07-03). The NSIS outer is
+; therefore a SLIM shell; its only responsibilities are:
 ;
-;   - UAC elevation
-;   - Payload extraction to %TEMP%\Nexus-Setup\
-;   - Manifest verification before launching the wizard
-;   - Wizard launch (nexus-installer.exe)
-;   - HKLM Uninstall registry entry
-;   - Start Menu / Desktop shortcuts
-;   - .nexus-workflow.json file association
-;   - nexus:// URL handler
-;   - Uninstaller with data-preservation prompt
+;   - Extract the wizard to a stable per-user location ($LOCALAPPDATA\Nexus\Setup)
+;   - Launch the wizard after install (interactive runs; the Finish page
+;     checkbox) so "download one file, double-click, answer questions" holds
+;   - Start Menu shortcut so the wizard can be re-run later
+;   - HKCU uninstall entry + uninstaller (with a ~\.nexus data-preservation
+;     prompt; silent uninstalls always preserve data)
+;   - Silent mode (/S [/D=dir]) for the CI packaging smoke: extract-only,
+;     no wizard launch (the full provisioning flow is exercised by the
+;     headless smoke scripts and the T602/T604 VM rehearsals)
 ;
-; All cross-platform provisioning logic (CUDA, Python venv, Node, Ollama,
-; recommended models, DevAI-Hub baseline) lives inside the PyQt wizard. NSIS
-; is the Windows shell only.
+; The v1.0.0-era payload tree (CUDA/Python/wheels/Ollama/ffmpeg baked into
+; the exe, ~6 GB) is NOT embedded by default -- every engine provisioner
+; downloads (SHA-256-verified) or degrades gracefully when payload/ is
+; absent. An offline/air-gapped build can still embed one by passing
+; /DPAYLOAD_DIR=<abs path to build\payload> (see installer-build.yml's
+; include_payload input; blocked on the versions.lock.json pin rotation).
 ;
-; Build:
-;   makensis scripts/installer/build/nsis/nexus-setup.nsi
+; Build (from the repo root; build-windows.ps1 does this):
+;   makensis /DAPP_VERSION=<x.y.z> scripts\installer\build\nsis\nexus-setup.nsi
 ;
-; Inputs (relative to this .nsi file, set by build pipeline):
-;   ..\..\..\build\wizard\nexus-installer.exe
-;   ..\..\..\build\payload\
-; Output:
-;   ..\..\..\build\Nexus-1.1.0-Setup.exe
+; Inputs  (relative to this .nsi): ..\..\pyqt\dist\nexus-installer.exe
+; Output  (relative to this .nsi): ..\..\pyqt\dist\NexusSetup.exe
 ; ============================================================================
 
-!define APP_NAME       "Nexus"
-!define APP_VERSION    "1.1.0"
-!define APP_PUBLISHER  "Nexus"
-!define APP_HOMEPAGE   "https://github.com/bendourthe/Nexus-AI"
-!define APP_EXE        "nexus.exe"
-!define APP_INSTALL_DIR "$LOCALAPPDATA\Nexus"
-!define APP_REG_UNINST  "Software\Microsoft\Windows\CurrentVersion\Uninstall\Nexus"
-!define APP_URL_SCHEME  "nexus"
-!define APP_DOC_EXT     ".nexus-workflow.json"
-!define APP_DOC_PROGID  "Nexus.Workflow"
+Unicode true
 
-Name              "${APP_NAME} ${APP_VERSION}"
-OutFile           "..\..\..\..\build\Nexus-1.1.0-Setup.exe"
-InstallDir        "${APP_INSTALL_DIR}"
-RequestExecutionLevel admin
+!ifndef APP_VERSION
+  !define APP_VERSION "0.0.0"
+!endif
+
+!define APP_NAME        "Nexus Setup"
+!define APP_PUBLISHER   "Nexus"
+!define APP_HOMEPAGE    "https://github.com/bendourthe/Nexus-AI"
+!define WIZARD_EXE      "nexus-installer.exe"
+!define APP_REG_UNINST  "Software\Microsoft\Windows\CurrentVersion\Uninstall\NexusSetup"
+
+Name       "${APP_NAME} ${APP_VERSION}"
+OutFile    "..\..\pyqt\dist\NexusSetup.exe"
+InstallDir "$LOCALAPPDATA\Nexus\Setup"
+; Per-user install: the wizard provisions into user-space (~\.nexus,
+; %LOCALAPPDATA%) and elevates its own sub-installers only where they
+; require it, so the outer shell needs no UAC prompt.
+RequestExecutionLevel user
 SetCompressor /SOLID lzma
+
+VIProductVersion "${APP_VERSION}.0"
+VIAddVersionKey "ProductName"     "${APP_NAME}"
+VIAddVersionKey "ProductVersion"  "${APP_VERSION}"
+VIAddVersionKey "CompanyName"     "${APP_PUBLISHER}"
+VIAddVersionKey "FileDescription" "Nexus one-shot installer"
+VIAddVersionKey "FileVersion"     "${APP_VERSION}"
+VIAddVersionKey "LegalCopyright"  "${APP_HOMEPAGE}"
 
 ; ----------------------------------------------------------------------------
 ; Pages
 ; ----------------------------------------------------------------------------
 !include "MUI2.nsh"
+!include "FileFunc.nsh"
 
 !define MUI_ABORTWARNING
+!define MUI_FINISHPAGE_RUN "$INSTDIR\${WIZARD_EXE}"
+!define MUI_FINISHPAGE_RUN_TEXT "Run the Nexus Setup wizard now"
 
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_LICENSE "..\..\..\..\LICENSE"
 !insertmacro MUI_PAGE_DIRECTORY
-Var DESKTOP_SHORTCUT
-!insertmacro MUI_PAGE_COMPONENTS
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
 
@@ -67,124 +83,62 @@ Var DESKTOP_SHORTCUT
 !insertmacro MUI_LANGUAGE "English"
 
 ; ----------------------------------------------------------------------------
-; Sections
+; Install
 ; ----------------------------------------------------------------------------
-Section "Nexus Runtime (required)" SEC_RUNTIME
+Section "Nexus Setup wizard (required)" SEC_WIZARD
   SectionIn RO
   SetOutPath "$INSTDIR"
 
-  ; Frozen PyQt wizard exe (drives the rest of the install). Placed under
-  ; %TEMP%\Nexus-Setup\ so the user can re-run it later if needed.
-  CreateDirectory "$TEMP\Nexus-Setup"
-  SetOutPath "$TEMP\Nexus-Setup"
-  File "..\..\..\..\build\wizard\nexus-installer.exe"
-  File /r "..\..\..\..\build\payload\"
+  File "..\..\pyqt\dist\${WIZARD_EXE}"
 
-  ; Verify the payload manifest before launching the wizard. The manifest
-  ; lists SHA-256 for every file; the wizard re-verifies on its side, but
-  ; this gives us a fast-fail if the .exe was tampered with in transit.
-  ExecWait '"$TEMP\Nexus-Setup\nexus-installer.exe" --verify-only' $0
-  ${If} $0 != 0
-    MessageBox MB_ICONSTOP "Installer payload verification failed. Aborting."
-    Abort
-  ${EndIf}
+!ifdef PAYLOAD_DIR
+  ; Optional offline payload (air-gapped builds only; see header).
+  SetOutPath "$INSTDIR\payload"
+  File /r "${PAYLOAD_DIR}\*.*"
+  SetOutPath "$INSTDIR"
+!endif
 
-  ; Launch the wizard in interactive mode. The wizard handles CUDA, Python
-  ; venv, Node, Ollama, recommended models, DevAI-Hub baseline. We pass our
-  ; install dir so the wizard installs the program executable into the
-  ; matching location.
-  ExecWait '"$TEMP\Nexus-Setup\nexus-installer.exe" --install-dir "$INSTDIR"' $0
-  ${If} $0 != 0
-    MessageBox MB_ICONSTOP "Installer wizard failed. Rolling back."
-    Abort
-  ${EndIf}
-
-  ; Uninstall registry entry
-  WriteRegStr HKLM "${APP_REG_UNINST}" "DisplayName"     "${APP_NAME}"
-  WriteRegStr HKLM "${APP_REG_UNINST}" "DisplayVersion"  "${APP_VERSION}"
-  WriteRegStr HKLM "${APP_REG_UNINST}" "Publisher"       "${APP_PUBLISHER}"
-  WriteRegStr HKLM "${APP_REG_UNINST}" "URLInfoAbout"    "${APP_HOMEPAGE}"
-  WriteRegStr HKLM "${APP_REG_UNINST}" "InstallLocation" "$INSTDIR"
-  WriteRegStr HKLM "${APP_REG_UNINST}" "UninstallString" "$INSTDIR\Uninstall.exe"
-  WriteRegDWORD HKLM "${APP_REG_UNINST}" "NoModify"       1
-  WriteRegDWORD HKLM "${APP_REG_UNINST}" "NoRepair"       0
-
-  ; Compute and record EstimatedSize (KB). NSIS does not have a native size
-  ; helper, so the wizard writes the rounded size to manifest-size.txt.
-  Push $0
-  ClearErrors
-  FileOpen $0 "$INSTDIR\manifest-size.txt" r
-  ${If} ${Errors}
-    WriteRegDWORD HKLM "${APP_REG_UNINST}" "EstimatedSize" 6000000
-  ${Else}
-    FileRead $0 $1
-    FileClose $0
-    WriteRegStr HKLM "${APP_REG_UNINST}" "EstimatedSize" $1
-  ${EndIf}
-  Pop $0
-
-  ; Start Menu shortcut
+  ; Start Menu shortcut (folder shared with the desktop app's own "Nexus.lnk")
   CreateDirectory "$SMPROGRAMS\Nexus"
-  CreateShortcut "$SMPROGRAMS\Nexus\Nexus.lnk" "$INSTDIR\${APP_EXE}"
+  CreateShortcut "$SMPROGRAMS\Nexus\Nexus Setup.lnk" "$INSTDIR\${WIZARD_EXE}"
 
-  ; Desktop shortcut (optional)
-  ${If} $DESKTOP_SHORTCUT == "1"
-    CreateShortcut "$DESKTOP\Nexus.lnk" "$INSTDIR\${APP_EXE}"
-  ${EndIf}
+  ; Uninstall registry entry (HKCU -- per-user install)
+  WriteRegStr HKCU "${APP_REG_UNINST}" "DisplayName"     "${APP_NAME}"
+  WriteRegStr HKCU "${APP_REG_UNINST}" "DisplayVersion"  "${APP_VERSION}"
+  WriteRegStr HKCU "${APP_REG_UNINST}" "Publisher"       "${APP_PUBLISHER}"
+  WriteRegStr HKCU "${APP_REG_UNINST}" "URLInfoAbout"    "${APP_HOMEPAGE}"
+  WriteRegStr HKCU "${APP_REG_UNINST}" "InstallLocation" "$INSTDIR"
+  WriteRegStr HKCU "${APP_REG_UNINST}" "UninstallString" "$\"$INSTDIR\Uninstall.exe$\""
+  WriteRegDWORD HKCU "${APP_REG_UNINST}" "NoModify" 1
+  WriteRegDWORD HKCU "${APP_REG_UNINST}" "NoRepair" 1
 
-  ; File association: .nexus-workflow.json -> Nexus
-  WriteRegStr HKCR "${APP_DOC_EXT}" "" "${APP_DOC_PROGID}"
-  WriteRegStr HKCR "${APP_DOC_PROGID}" "" "Nexus Workflow"
-  WriteRegStr HKCR "${APP_DOC_PROGID}\shell\open\command" "" '"$INSTDIR\${APP_EXE}" "%1"'
+  ${GetSize} "$INSTDIR" "/S=0K" $0 $1 $2
+  IntFmt $0 "0x%08X" $0
+  WriteRegDWORD HKCU "${APP_REG_UNINST}" "EstimatedSize" "$0"
 
-  ; URL handler: nexus://
-  WriteRegStr HKCR "${APP_URL_SCHEME}" "" "URL: Nexus Protocol"
-  WriteRegStr HKCR "${APP_URL_SCHEME}" "URL Protocol" ""
-  WriteRegStr HKCR "${APP_URL_SCHEME}\shell\open\command" "" '"$INSTDIR\${APP_EXE}" "%1"'
-
-  ; Write the uninstaller
   WriteUninstaller "$INSTDIR\Uninstall.exe"
 SectionEnd
 
-Section /o "Desktop Shortcut" SEC_DESKTOP
-  StrCpy $DESKTOP_SHORTCUT "1"
-SectionEnd
-
-LangString DESC_SEC_RUNTIME ${LANG_ENGLISH} "Nexus desktop runtime: CUDA, Python venv, Node 22, Ollama, recommended models, DevAI-Hub baseline."
-LangString DESC_SEC_DESKTOP ${LANG_ENGLISH} "Add a Nexus icon to your Desktop."
-!insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
-  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_RUNTIME} $(DESC_SEC_RUNTIME)
-  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_DESKTOP} $(DESC_SEC_DESKTOP)
-!insertmacro MUI_FUNCTION_DESCRIPTION_END
-
 ; ----------------------------------------------------------------------------
-; Uninstaller
+; Uninstall
 ; ----------------------------------------------------------------------------
 Section "Uninstall"
-  ; Confirm data preservation: keep ~\.nexus (models, skills, settings) by
-  ; default; user can opt to nuke it explicitly.
-  MessageBox MB_YESNO|MB_ICONQUESTION \
-    "Keep your Nexus data ($PROFILE\.nexus\)?$\r$\nThis includes models, skills, and settings.$\r$\nYes: preserve.  No: delete." \
-    IDYES skip_user_data
-    RMDir /r "$PROFILE\.nexus"
-  skip_user_data:
+  ; ~\.nexus holds the user's models, skills, settings, and sessions. Ask
+  ; before touching it; silent uninstalls (CI smoke) always preserve it.
+  IfSilent keep_user_data
+  MessageBox MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON1 \
+    "Keep your Nexus data ($PROFILE\.nexus)?$\r$\nThis includes downloaded models, skills, and settings.$\r$\n$\r$\nYes: keep the data.  No: delete it." \
+    IDYES keep_user_data
+  RMDir /r "$PROFILE\.nexus"
+  keep_user_data:
 
-  ; Remove the program runtime
-  RMDir /r "$INSTDIR"
+  Delete "$INSTDIR\${WIZARD_EXE}"
+  RMDir /r "$INSTDIR\payload"
+  Delete "$INSTDIR\Uninstall.exe"
+  RMDir "$INSTDIR"
 
-  ; Remove the wizard cache
-  RMDir /r "$TEMP\Nexus-Setup"
+  Delete "$SMPROGRAMS\Nexus\Nexus Setup.lnk"
+  RMDir "$SMPROGRAMS\Nexus"   ; removed only when empty (desktop app may own it)
 
-  ; Remove shortcuts
-  Delete "$SMPROGRAMS\Nexus\Nexus.lnk"
-  RMDir  "$SMPROGRAMS\Nexus"
-  Delete "$DESKTOP\Nexus.lnk"
-
-  ; Remove file association + URL handler
-  DeleteRegKey HKCR "${APP_DOC_EXT}"
-  DeleteRegKey HKCR "${APP_DOC_PROGID}"
-  DeleteRegKey HKCR "${APP_URL_SCHEME}"
-
-  ; Remove the Uninstall registry entry
-  DeleteRegKey HKLM "${APP_REG_UNINST}"
+  DeleteRegKey HKCU "${APP_REG_UNINST}"
 SectionEnd
