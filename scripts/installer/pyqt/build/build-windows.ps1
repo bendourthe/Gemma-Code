@@ -116,4 +116,12 @@ if (-not $SkipSign) {
     Write-Host "[6/6] Signing skipped (--SkipSign)." -ForegroundColor Yellow
 }
 
-Write-Host "`nBuild complete: $ExePath" -ForegroundColor Green
+# Convenience copy: surface the final artifact at the repo root (dist/ is
+# gitignored) so local builds are easy to find; CI keeps uploading from the
+# canonical PyInstaller location next to the spec.
+$RootDist = Join-Path $RepoRoot "dist"
+New-Item -ItemType Directory -Force -Path $RootDist | Out-Null
+Copy-Item -Force $ExePath (Join-Path $RootDist "NexusSetup.exe")
+
+Write-Host "`nBuild complete: $RootDist\NexusSetup.exe" -ForegroundColor Green
+Write-Host "  (canonical CI path: $ExePath)" -ForegroundColor Green
