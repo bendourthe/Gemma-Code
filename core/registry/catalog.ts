@@ -17,6 +17,7 @@ export type ModelType =
   | "embed"
   | "image"
   | "video"
+  | "audio"
   | "controlnet"
   | "vae";
 
@@ -83,6 +84,26 @@ export interface ModelSpec {
   readonly differentiators?: string;
   /** v1.8.0 Phase 4 -- publisher + lineage record; required for uncensored entries. */
   readonly provenance?: string;
+  /**
+   * v1.9.0 Phase 4 -- country (or "Community") of the model's primary
+   * publisher, surfaced as an Origin chip in the installer catalog cards.
+   */
+  readonly origin?: string;
+  /**
+   * v1.9.0 Phase 4 -- agentic-coding capability. Agentic-capable chat models
+   * (the Gemma 4 family) set this so the installer's Agentic tab lists them
+   * alongside the coding specialists (`task: "agentic"`); the coders set it
+   * too. Distinct from `task`: a model's `task` is its primary section, while
+   * `agentic` is an orthogonal capability flag.
+   */
+  readonly agentic?: boolean;
+  /**
+   * v1.9.0 Phase 4 -- optional guardrails nuance. The installer derives a
+   * coarse display label ("Uncensored" / "Safety-tuned" / "N/A") from
+   * `uncensored`; set this to override the derived label with a specific
+   * phrase when a model needs nuance.
+   */
+  readonly guardrails?: string;
   readonly sizeGB?: number;
   readonly vramGB?: number;
   readonly requiredVramGB?: number;
@@ -108,7 +129,7 @@ export function validateSpec(spec: ModelSpec): void {
   if (!spec.id || !spec.family || !spec.name || !spec.tag) {
     throw new Error(`ModelCatalog: entry missing id/family/name/tag: ${JSON.stringify(spec)}`);
   }
-  if (!spec.type || !["llm", "embed", "image", "video", "controlnet", "vae"].includes(spec.type)) {
+  if (!spec.type || !["llm", "embed", "image", "video", "audio", "controlnet", "vae"].includes(spec.type)) {
     throw new Error(`ModelCatalog: invalid type for ${spec.id}: ${spec.type}`);
   }
   if (spec.task !== undefined && !MODEL_TASKS.includes(spec.task)) {

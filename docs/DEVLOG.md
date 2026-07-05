@@ -4,6 +4,32 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-04] v1.9.0 installer + app overhaul -- Phase 4: model selector redesign + metadata + Gemma-4-agentic + audio pillar (T401-T407)
+
+### Goal
+
+Make the installer's model catalog scannable and complete ([plan](versions/v1/v1.9.0/plans/installer-and-app-experience-overhaul.md) Phase 4). The v1.8.0 catalog was text-dense, carried no country/guardrails metadata users need to choose, excluded the flagship Gemma 4 from the Agentic tab, and had an empty Audio tab.
+
+### What changed
+
+- **T401 -- schema** ([catalog.ts](../core/registry/catalog.ts) + [typed_catalog.py](../scripts/installer/pyqt/src/nexus_installer/pages/typed_catalog.py)): added `"audio"` to `ModelType`; added optional `origin`, `agentic`, `guardrails` to `ModelSpec`; `CatalogModel` derives a `guardrails_label` (Uncensored / Safety-tuned / N/A) and `is_required` (embed). Followed the `"audio"` type through `ModelStorage.ts` (`ModelManifest` type/runtime unions) + `NexusModelRegistry.ts` (`makeHttpManifest` maps audio -> `"audio"` runtime).
+- **T402 -- metadata**: wrote `origin` + `agentic` to all 34 user-facing entries (Gemma 4 family + Qwen-Coder/DeepSeek flagged `agentic`) via a text-insertion pass that left the inline `source` objects unreflowed. Origin sources recorded in the phase history.
+- **T403 -- cards**: rebuilt `_ModelCard` to a compact chip row (Origin, Best-at, Agentic yes/no, Guardrails, context, license) + a single status badge (**Required** > incompatibility > **Recommended** > **Compatible**), a prominent right-aligned disk accent, larger cyan selection boxes, and a locked-on Required state for `nomic-embed-text`. Page footer adds **Refresh Models** + a reassurance note (the wizard's global Next is the Continue). Duplicate-id cards (a Gemma in Chat + Agentic) stay in sync.
+- **T404 -- Agentic**: tab renamed "Agentic Coding" -> **Agentic**; it now lists agentic-capable chat models (Gemma 4) alongside the coders, ranked Gemma-first (recommended default on top). [recommended.json](../core/registry/recommended.json) + [tier_defaults.py](../scripts/installer/pyqt/src/nexus_installer/tier_defaults.py) make the agentic default a fitting Gemma 4 variant per tier; chat/agentic are single-pick and an agentic-capable chat pick covers the agentic section (so one Gemma serves both -- no redundant coder; the coder is the in-list fallback when no Gemma fits).
+- **T405 -- audio**: five entries -- faster-whisper (STT, MIT) + Kokoro (TTS, Apache-2.0) default on every tier (CPU-capable), plus Piper (TTS, MIT), MusicGen (CC-BY-NC-4.0), and Stable Audio Open (community license) listed opt-in.
+- **T406 -- cleanup**: removed the unwired `ModelSelectionPage` + `RecommendedModelsPage` + their tests and the review page's `_MODEL_SIZES` table (closes `OSI004.P4.D`); the review summary reads from `selected_model_ids` / `selected_models_gb`.
+- **T407 -- tests**: catalog.ts Vitest (audio type, audio pillar, origin, agentic); typed_catalog + tier_defaults (origin/agentic parsing, guardrails/required derivation, Agentic tab membership + ordering, cross-tab sync, Refresh, Gemma-covers-agentic, audio defaults, coder fallback).
+
+### Verification
+
+Installer pytest **651 passed / 2 skipped / 0 failed**; changed-module coverage typed_catalog 96% / tier_defaults 94% / review 94% lines. Root Vitest **4573 passed / 6 skipped / 0 failed** (+4). `tsc -b` + `eslint src modules` + `ruff check`/`format` clean on changed files. New gaps `IAE.P4.A` (audio runtime not implemented -- download-only), `IAE.P4.B` (desktop DTO mirror needs `"audio"` -> Phase 5), `IAE.P4.C` (audio weights pins are placeholders -> Phase 6). See the [phase history](versions/v1/v1.9.0/development/history/2026-07_phase-4-model-selector-metadata-audio.md).
+
+### Branch
+
+Continues on the v1.9.0 line (`feat/v1.9.0-installer-phase-1`).
+
+---
+
 ## [2026-07-04] v1.9.0 installer + app overhaul -- Phase 2: shared brand foundation (icons + tokens + constellation primitive) (T201-T204)
 
 ### Goal

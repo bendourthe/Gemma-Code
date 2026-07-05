@@ -1,11 +1,13 @@
-"""v1.8.0 Phase 4 (T404) -- hardware-tier default matrix tests.
+"""Hardware-tier default matrix tests.
 
 Runs the real `core/registry/catalog.json` + `recommended.json` through
 `nexus_installer.tier_defaults` for every simulated GPU tier (8 / 12 / 16 /
-24 GB + CPU-only) and asserts the T404 contract: the default selection fits
-VRAM and disk, always includes one chat + one agentic model (plus the embed
-model the memory layer needs), and includes uncensored image + video
-defaults exactly on the tiers whose hardware fits them.
+24 GB + CPU-only) and asserts the tier contract: the default selection fits
+VRAM and disk, always includes a chat model plus agentic coverage (the embed
+model the memory layer needs and the CPU-capable speech models too), and
+includes uncensored image + video defaults exactly on the tiers whose
+hardware fits them. v1.9.0 Phase 4: agentic coverage may come from an
+agentic-capable chat model (a Gemma 4 variant) rather than a distinct coder.
 """
 
 from __future__ import annotations
@@ -101,13 +103,19 @@ class TestRealMatrixDefaults:
             )
             by_task.setdefault(model.task, []).append(mid)
 
-        # Composition: always one chat + one agentic (+ the embed support
-        # model), plus image and video on every GPU tier of the matrix.
+        # Composition: always a chat model + agentic coverage (+ the embed
+        # support model), plus image, video, and speech on every GPU tier.
+        # v1.9.0 Phase 4: agentic coverage can come from an agentic-capable
+        # chat model (a Gemma 4 variant) rather than a distinct coder.
+        agentic_covered = any(
+            models[mid].task == "agentic" or models[mid].agentic for mid in ids
+        )
         assert by_task.get("chat"), f"tier {tier}: no chat default"
-        assert by_task.get("agentic"), f"tier {tier}: no agentic default"
+        assert agentic_covered, f"tier {tier}: no agentic-capable default"
         assert by_task.get("embed"), f"tier {tier}: no embed default"
         assert by_task.get("image"), f"tier {tier}: no image default"
         assert by_task.get("video"), f"tier {tier}: no video default"
+        assert by_task.get("audio"), f"tier {tier}: no audio (speech) default"
 
         # Product decision: image + video defaults are uncensored entries.
         for mid in by_task["image"] + by_task["video"]:
@@ -130,16 +138,20 @@ class TestRealMatrixDefaults:
             reserve_gb=RESERVE_GB,
         )
         tasks = {models[mid].task for mid in ids}
+        agentic_covered = any(
+            models[mid].task == "agentic" or models[mid].agentic for mid in ids
+        )
         assert "chat" in tasks
-        assert "agentic" in tasks
+        assert agentic_covered
         assert "embed" in tasks
+        assert "audio" in tasks, "cpu tier still gets the CPU-capable speech models"
         assert "image" not in tasks, "cpu tier must not select image models"
         assert "video" not in tasks, "cpu tier must not select video models"
 
     def test_sub_tier_gpu_degrades_gracefully(self) -> None:
-        # A 6 GB GPU uses the 8 GB matrix: chat fits, the agentic pick falls
-        # back (nothing agentic fits 6 GB -> smallest by size), image/video
-        # are fit-gated out rather than substituted.
+        # A 6 GB GPU uses the 8 GB matrix: the chat Gemma (6 GB) fits and, as
+        # an agentic-capable model, also covers the agentic section; image and
+        # video are fit-gated out rather than substituted.
         models = _models()
         ids = default_selection(
             models,
@@ -150,8 +162,11 @@ class TestRealMatrixDefaults:
             reserve_gb=RESERVE_GB,
         )
         tasks = {models[mid].task for mid in ids}
+        agentic_covered = any(
+            models[mid].task == "agentic" or models[mid].agentic for mid in ids
+        )
         assert "chat" in tasks
-        assert "agentic" in tasks
+        assert agentic_covered
         assert "image" not in tasks
         assert "video" not in tasks
 
@@ -172,14 +187,61 @@ class TestRealMatrixDefaults:
                         files = entry["weights"]["files"]
                         assert files, f"{mid}: HF entry without weights manifest"
 
+    @pytest.mark.parametrize("tier_vram", [8, 12, 16, 24])
+    def test_gemma_covers_agentic_without_redundant_coder(self, tier_vram: int) -> None:
+        # v1.9.0 Phase 4 (T404): the chat pick is an agentic-capable Gemma 4
+        # variant, so it also covers the agentic section -- no coding
+        # specialist is pre-selected (coders stay opt-in).
+        models = _models()
+        ids = default_selection(
+            models,
+            _matrix(),
+            str(tier_vram),
+            vram_gb=tier_vram,
+            free_disk_gb=SIMULATED_FREE_DISK_GB,
+            reserve_gb=RESERVE_GB,
+        )
+        assert any(models[mid].agentic and models[mid].task == "chat" for mid in ids), (
+            f"tier {tier_vram}: no agentic-capable Gemma covering agentic"
+        )
+        coders = [mid for mid in ids if models[mid].task == "agentic"]
+        assert not coders, f"tier {tier_vram}: unexpected coder default {coders}"
+
+    def test_audio_speech_defaults_on_every_tier(self) -> None:
+        # STT + TTS default on every tier (permissive + CPU-capable); the
+        # non-commercial generation models are never defaults.
+        models = _models()
+        for tier, vram in [("cpu", 0), ("8", 8), ("12", 12), ("16", 16), ("24", 24)]:
+            ids = default_selection(
+                models,
+                _matrix(),
+                tier,
+                vram_gb=vram,
+                free_disk_gb=SIMULATED_FREE_DISK_GB,
+                reserve_gb=RESERVE_GB,
+            )
+            assert "faster-whisper-large-v3" in ids, f"tier {tier}: no STT default"
+            assert "kokoro-82m" in ids, f"tier {tier}: no TTS default"
+            assert "musicgen-medium" not in ids
+            assert "stable-audio-open-1.0" not in ids
+
     def test_matrix_sections_match_entry_tasks(self) -> None:
+        # v1.9.0 Phase 4: the agentic section may list agentic-capable chat
+        # models (the Gemma 4 family, task == "chat") in addition to coders.
         models = _models()
         for tier, sections in _matrix().items():
             for section, ids in sections.items():
                 for mid in ids:
-                    assert models[mid].task == section, (
-                        f"{tier}/{section}: {mid} has task {models[mid].task}"
-                    )
+                    model = models[mid]
+                    if section == "agentic":
+                        assert model.task == "agentic" or model.agentic, (
+                            f"{tier}/agentic: {mid} is neither a coder nor "
+                            f"agentic-capable (task={model.task})"
+                        )
+                    else:
+                        assert model.task == section, (
+                            f"{tier}/{section}: {mid} has task {model.task}"
+                        )
 
 
 @dataclass
@@ -188,6 +250,7 @@ class _FakeModel:
     task: str
     size_gb: float
     required_vram_gb: int
+    agentic: bool = False
 
 
 class TestFallbackLogic:
@@ -294,3 +357,33 @@ class TestFallbackLogic:
         tasks = {self._models()[mid].task for mid in ids}
         assert "chat" in tasks
         assert "agentic" in tasks
+
+    def test_agentic_capable_chat_covers_agentic_no_coder(self) -> None:
+        # v1.9.0 Phase 4: a Gemma-style agentic-capable chat model chosen for
+        # chat also covers the agentic section, so no coder is added.
+        models = {
+            "gemma": _FakeModel("gemma", "chat", 3.0, 6, agentic=True),
+            "coder": _FakeModel("coder", "agentic", 4.0, 7),
+        }
+        matrix = {"8": {"chat": ["gemma"], "agentic": ["gemma", "coder"]}}
+        ids = default_selection(
+            models, matrix, "8", vram_gb=8, free_disk_gb=500, reserve_gb=10
+        )
+        assert "gemma" in ids
+        assert "coder" not in ids
+
+    def test_coder_is_in_list_fallback_when_no_gemma_fits(self) -> None:
+        # When the agentic list's Gemma does not fit, the coder below it in the
+        # priority list is taken instead.
+        models = {
+            "chat-small": _FakeModel("chat-small", "chat", 2.0, 4),
+            "gemma-big": _FakeModel("gemma-big", "chat", 20.0, 24, agentic=True),
+            "coder": _FakeModel("coder", "agentic", 4.0, 7),
+        }
+        matrix = {"8": {"chat": ["chat-small"], "agentic": ["gemma-big", "coder"]}}
+        ids = default_selection(
+            models, matrix, "8", vram_gb=8, free_disk_gb=500, reserve_gb=10
+        )
+        assert "chat-small" in ids
+        assert "coder" in ids
+        assert "gemma-big" not in ids

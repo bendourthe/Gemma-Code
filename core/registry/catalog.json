@@ -1,8 +1,8 @@
 {
   "_meta": {
     "version": 1,
-    "phase": "v1.8.0 Phase 4",
-    "comment": "Curated installable model catalog used by the Settings UI and the installer wizard. LLMs ship in Phase 5; image models are flagged for Phase 6 (Image Studio); video models for Phase 7 (Video Lab); NVIDIA SANA family landed in v1.1.0 Phase 12. Ollama-sourced entries delegate digest verification to `ollama pull` and carry no sha256. Hugging Face entries carry a per-model `weights` manifest (v1.8.0 Phase 3): an explicit file list, each downloaded from https://huggingface.co/{repo}/resolve/main/{path} into <models_root>/weights/<model-id>/{path} (models_root defaults to ~/.nexus/models) -- the per-model directory the diffusion runtime loads at startup (diffusers from_pretrained on the model directory; repo-relative subpaths like transformer/ are preserved). Each file pins a SHA-256 (versions.lock.json discipline): all-zero digests are placeholders -- the installer's weights puller warns, skips verification, and logs the computed digest; rotate pins with scripts/installer/build/pin-hf-weights.py. source.sha256 remains the primary-blob digest for older consumers and is superseded by weights.files[].sha256. v1.8.0 Phase 4 adds the selection-UX fields: `task` (chat | agentic | image | video | audio | embed) drives the installer's catalog sections; `strengths` / `whyRecommended` / `differentiators` carry the per-model copy the wizard cards render; `provenance` records publisher + lineage for curated entries (required on uncensored ones). Uncensored entries (uncensored: true) were curated 2026-07-03 with license + provenance verified per entry; per-VRAM-tier defaults live in recommended.json."
+    "phase": "v1.9.0 Phase 4",
+    "comment": "Curated installable model catalog used by the Settings UI and the installer wizard. LLMs ship in Phase 5; image models are flagged for Phase 6 (Image Studio); video models for Phase 7 (Video Lab); NVIDIA SANA family landed in v1.1.0 Phase 12. Ollama-sourced entries delegate digest verification to `ollama pull` and carry no sha256. Hugging Face entries carry a per-model `weights` manifest (v1.8.0 Phase 3): an explicit file list, each downloaded from https://huggingface.co/{repo}/resolve/main/{path} into <models_root>/weights/<model-id>/{path} (models_root defaults to ~/.nexus/models) -- the per-model directory the diffusion runtime loads at startup (diffusers from_pretrained on the model directory; repo-relative subpaths like transformer/ are preserved). Each file pins a SHA-256 (versions.lock.json discipline): all-zero digests are placeholders -- the installer's weights puller warns, skips verification, and logs the computed digest; rotate pins with scripts/installer/build/pin-hf-weights.py. source.sha256 remains the primary-blob digest for older consumers and is superseded by weights.files[].sha256. v1.8.0 Phase 4 adds the selection-UX fields: `task` (chat | agentic | image | video | audio | embed) drives the installer's catalog sections; `strengths` / `whyRecommended` / `differentiators` carry the per-model copy the wizard cards render; `provenance` records publisher + lineage for curated entries (required on uncensored ones). Uncensored entries (uncensored: true) were curated 2026-07-03 with license + provenance verified per entry; per-VRAM-tier defaults live in recommended.json. v1.9.0 Phase 4 adds the scannable-catalog metadata: `origin` (publisher country, or Community) and `agentic` (agentic-coding capability flag -- set on the Gemma 4 family + the coding specialists so both surface in the installer's Agentic tab); an optional `guardrails` string overrides the installer's derived Uncensored/Safety-tuned/N/A label. The audio pillar (type/task `audio`) is curated: speech (faster-whisper STT MIT, Kokoro + Piper TTS) and generation (MusicGen CC-BY-NC-4.0, Stable Audio Open community-license) -- STT/TTS are permissive + CPU-capable and default on every tier; the non-commercial generation models are listed opt-in (never defaults)."
   },
   "models": [
     {
@@ -13,6 +13,8 @@
       "type": "llm",
       "task": "chat",
       "displayName": "Gemma 4 E2B",
+      "origin": "USA",
+      "agentic": true,
       "description": "Google Gemma 4 2B-parameter instruct model. The smallest chat tier: stays responsive on 4 GB VRAM or even CPU-only machines.",
       "strengths": [
         "Fast everyday chat and quick questions",
@@ -34,6 +36,8 @@
       "type": "llm",
       "task": "chat",
       "displayName": "Gemma 4 E4B",
+      "origin": "USA",
+      "agentic": true,
       "description": "Google Gemma 4 4B-parameter instruct model. The balanced default: strong general chat quality on mainstream 6-8 GB gaming GPUs.",
       "strengths": [
         "General conversation, drafting, and rewriting",
@@ -56,6 +60,8 @@
       "type": "llm",
       "task": "chat",
       "displayName": "Gemma 4 26B",
+      "origin": "USA",
+      "agentic": true,
       "description": "Gemma 4 26B mixture-of-experts instruct model. Upper-mid chat tier for 18 GB+ VRAM: deeper reasoning and longer documents than the E-series.",
       "strengths": [
         "Nuanced multi-step reasoning",
@@ -76,6 +82,8 @@
       "type": "llm",
       "task": "chat",
       "displayName": "Gemma 4 31B",
+      "origin": "USA",
+      "agentic": true,
       "description": "Gemma 4 31B dense instruct model. The flagship local chat tier: strongest answer quality in the catalog on a single 24 GB GPU.",
       "strengths": [
         "Complex reasoning and analysis",
@@ -97,6 +105,8 @@
       "type": "llm",
       "task": "chat",
       "displayName": "Gemma 4 12B-IT (Unsloth GGUF)",
+      "origin": "USA",
+      "agentic": true,
       "description": "Unsloth Dynamic-2.0 GGUF quant ladder of Gemma 4 12B instruction-tuned (IQ2_M / Q3_K / Q4_K_XL / Q5_K / Q6_K / BF16). Native text/image/audio multimodal input, 256K context. Run via `ollama run hf.co/unsloth/gemma-4-12b-it-GGUF:<QUANT>`. Per-quant disk/VRAM sizing and hardware-tier mapping live in modules/coding/config/Gemma4GgufQuants.ts; Q4_K_XL is the recommended default quant.",
       "strengths": [
         "Multimodal input: text, images, and audio in one chat",
@@ -124,6 +134,7 @@
       "type": "llm",
       "task": "chat",
       "displayName": "Llama 3.1 8B Instruct",
+      "origin": "USA",
       "description": "Meta Llama 3.1 8B instruction-tuned model. A well-rounded alternative chat model with a large fine-tune and tooling ecosystem.",
       "strengths": [
         "Balanced general-purpose chat",
@@ -144,6 +155,7 @@
       "type": "llm",
       "task": "chat",
       "displayName": "Llama 3.1 70B Instruct",
+      "origin": "USA",
       "description": "Llama 3.1 70B instruction-tuned model. Workstation-class chat tier: needs 40 GB+ VRAM or aggressive CPU offload.",
       "strengths": [
         "Frontier-adjacent reasoning fully offline",
@@ -164,6 +176,7 @@
       "type": "llm",
       "task": "chat",
       "displayName": "Qwen 2.5 7B Instruct",
+      "origin": "China",
       "description": "Alibaba Qwen 2.5 7B instruction-tuned model. Multilingual chat alternative with strong math and structured-output skills.",
       "strengths": [
         "Strong multilingual coverage (29+ languages)",
@@ -184,6 +197,7 @@
       "type": "llm",
       "task": "chat",
       "displayName": "Qwen 2.5 14B Instruct",
+      "origin": "China",
       "description": "Qwen 2.5 14B instruction-tuned model. Mid-tier multilingual chat for 12 GB GPUs.",
       "strengths": [
         "Multilingual chat with deeper reasoning than the 7B",
@@ -204,6 +218,8 @@
       "type": "llm",
       "task": "agentic",
       "displayName": "Qwen 2.5 Coder 7B",
+      "origin": "China",
+      "agentic": true,
       "description": "Qwen 2.5 Coder 7B: a code-specialized model for the Coding pillar. Generation, repair, and editor completions across 40+ languages.",
       "strengths": [
         "Code generation and bug fixing across 40+ languages",
@@ -226,6 +242,8 @@
       "type": "llm",
       "task": "agentic",
       "displayName": "Qwen 2.5 Coder 14B",
+      "origin": "China",
+      "agentic": true,
       "description": "Qwen 2.5 Coder 14B: the mid agentic-coding tier. Stronger multi-file reasoning and refactoring than the 7B, still fits 12 GB GPUs.",
       "strengths": [
         "Multi-file refactoring and cross-module reasoning",
@@ -247,6 +265,8 @@
       "type": "llm",
       "task": "agentic",
       "displayName": "DeepSeek Coder V2 16B",
+      "origin": "China",
+      "agentic": true,
       "description": "DeepSeek Coder V2 Lite (16B MoE, 2.4B active). The advanced agentic-coding tier: near-flagship coding skill with fast MoE inference on 14 GB+ VRAM.",
       "strengths": [
         "Top-of-catalog code generation and repair quality",
@@ -268,6 +288,7 @@
       "type": "embed",
       "task": "embed",
       "displayName": "Nomic Embed Text",
+      "origin": "USA",
       "description": "768-D embedding model used by the semantic memory layer. Not a chat model: it powers search, recall, and retrieval across your conversations and files.",
       "strengths": [
         "Semantic search over conversations and documents",
@@ -290,6 +311,7 @@
       "type": "image",
       "task": "image",
       "displayName": "SDXL Turbo",
+      "origin": "UK",
       "description": "Stable Diffusion XL Turbo: adversarial-distilled SDXL for 1-4 step generation. The speed pick of the SDXL lineage (research license).",
       "strengths": [
         "Near-real-time drafts: 1-4 denoising steps",
@@ -325,6 +347,7 @@
       "type": "image",
       "task": "image",
       "displayName": "Stable Diffusion XL 1.0 Base",
+      "origin": "UK",
       "description": "SDXL 1.0 base checkpoint from Stability AI. The reference model of the SDXL lineage and the compatibility baseline for its LoRA/ControlNet ecosystem.",
       "strengths": [
         "Broadest LoRA and ControlNet compatibility",
@@ -360,6 +383,7 @@
       "type": "image",
       "task": "image",
       "displayName": "Juggernaut XL v9",
+      "origin": "USA",
       "description": "Photorealistic SDXL 1.0 fine-tune by KandooAI and RunDiffusion (RunDiffusion Photo v2 dataset). The catalog's uncensored photorealism default for 8-12 GB GPUs: no weights-level content filter.",
       "strengths": [
         "Best-in-class photorealistic people and scenes",
@@ -402,6 +426,7 @@
       "type": "image",
       "task": "image",
       "displayName": "RealVisXL V5.0",
+      "origin": "Community",
       "description": "Photorealistic SDXL 1.0 fine-tune by SG161222. The catalog's uncensored photorealism default for 16 GB+ GPUs: exceptional skin, lighting, and detail rendering with no weights-level content filter.",
       "strengths": [
         "Exceptional skin texture, lighting, and fine detail",
@@ -444,6 +469,7 @@
       "type": "image",
       "task": "image",
       "displayName": "FLUX.1 Schnell",
+      "origin": "Germany",
       "description": "Black Forest Labs FLUX.1 Schnell: 12B-parameter rectified-flow transformer distilled for 4-step generation. The prompt-adherence flagship for 24 GB GPUs.",
       "strengths": [
         "Best prompt adherence and text rendering in the catalog",
@@ -479,6 +505,7 @@
       "type": "image",
       "task": "image",
       "displayName": "Stable Diffusion 1.5",
+      "origin": "UK",
       "description": "Legacy SD 1.5 checkpoint. The lightest image model in the catalog: 512px generation on 4 GB VRAM with a vast legacy fine-tune ecosystem.",
       "strengths": [
         "Runs on 4 GB VRAM",
@@ -514,6 +541,7 @@
       "type": "video",
       "task": "video",
       "displayName": "LTX-Video 0.9",
+      "origin": "Israel",
       "description": "Lightricks LTX-Video: DiT-based text-to-video built for speed. The fastest generation in the video catalog on 12 GB+ GPUs.",
       "strengths": [
         "Fastest clip generation in the catalog",
@@ -549,6 +577,7 @@
       "type": "video",
       "task": "video",
       "displayName": "Wan 2.1 T2V 1.3B",
+      "origin": "China",
       "description": "Alibaba Wan 2.1 text-to-video, 1.3B parameters. The catalog's uncensored-capable video default for 8-16 GB GPUs: leading motion quality for its size, ~8 GB VRAM at 480p.",
       "strengths": [
         "Runs on ~8 GB consumer GPUs (480p)",
@@ -599,6 +628,7 @@
       "type": "video",
       "task": "video",
       "displayName": "Wan 2.2 TI2V 5B",
+      "origin": "China",
       "description": "Alibaba Wan 2.2 text+image-to-video, 5B parameters with the 64x-compression Wan2.2-VAE. The catalog's uncensored-capable video default for 24 GB GPUs: 720p at 24 fps on a single RTX 4090-class card.",
       "strengths": [
         "720p @ 24 fps on a single 24 GB GPU",
@@ -657,6 +687,7 @@
       "type": "video",
       "task": "video",
       "displayName": "Stable Video Diffusion 1.1",
+      "origin": "UK",
       "description": "Stability AI SVD XT 1.1: image-to-video generation (animate a still image). Research license.",
       "strengths": [
         "Animates existing images with coherent camera motion",
@@ -692,6 +723,7 @@
       "type": "image",
       "task": "image",
       "displayName": "SANA 1.5 1.6B 1024px",
+      "origin": "USA",
       "description": "NVIDIA SANA 1.5 1.6B at 1024px. The efficient 1024px image model (v1.1.0 default): ~2x faster than SDXL Turbo on 6 GB VRAM. Apache-2.0 weights.",
       "strengths": [
         "Very fast 1024px generation on 6 GB VRAM",
@@ -734,6 +766,7 @@
       "type": "image",
       "task": "image",
       "displayName": "SANA Sprint 1024px",
+      "origin": "USA",
       "description": "NVIDIA Sana-Sprint: 1-step distilled SANA. The speed tier that powers the Fast Preview toggle in Image Studio.",
       "strengths": [
         "Single-step generation: instant previews",
@@ -775,6 +808,7 @@
       "type": "image",
       "task": "image",
       "displayName": "SANA 1.6B 2K",
+      "origin": "USA",
       "description": "NVIDIA SANA 1.6B at 2048px (BF16). High-resolution tier gated to diffusion-mid+ hosts (12 GB VRAM).",
       "strengths": [
         "Native 2048px generation",
@@ -816,6 +850,7 @@
       "type": "image",
       "task": "image",
       "displayName": "SANA 1.6B 4K",
+      "origin": "USA",
       "description": "NVIDIA SANA 1.6B at 4096px (BF16). Ultra-high-resolution tier gated to diffusion-high+ hosts (20 GB VRAM).",
       "strengths": [
         "Native 4096px generation",
@@ -857,6 +892,7 @@
       "type": "image",
       "task": "image",
       "displayName": "SANA 1.5 1.6B INT4 (SVDQuant)",
+      "origin": "USA",
       "description": "NVIDIA SANA 1.5 1.6B INT4 quantized via SVDQuant (nunchaku). Fits diffusion-low (5 GB VRAM) hosts. Requires the nunchaku runtime dep.",
       "strengths": [
         "Smallest capable 1024px model (1.4 GB, 5 GB VRAM)",
@@ -898,6 +934,7 @@
       "tag": "f32c32-sana-1.1",
       "type": "vae",
       "displayName": "DC-AE f32c32 (SANA 1.1)",
+      "origin": "USA",
       "description": "MIT HAN Lab Deep Compression AutoEncoder (32x compression, 32 channels). Auto-loaded by every SANA pipeline.",
       "sizeGB": 0.32,
       "vramGB": 1,
@@ -931,6 +968,7 @@
       "tag": "pose",
       "type": "controlnet",
       "displayName": "SANA-ControlNet Pose",
+      "origin": "USA",
       "description": "Pose-conditioning ControlNet for SANA. Pairs with the OpenPose preprocessor (controlnet_aux).",
       "sizeGB": 0.7,
       "vramGB": 2,
@@ -965,6 +1003,7 @@
       "tag": "depth",
       "type": "controlnet",
       "displayName": "SANA-ControlNet Depth",
+      "origin": "USA",
       "description": "Depth-conditioning ControlNet for SANA. Pairs with the MiDaS preprocessor (controlnet_aux).",
       "sizeGB": 0.7,
       "vramGB": 2,
@@ -999,6 +1038,7 @@
       "tag": "canny",
       "type": "controlnet",
       "displayName": "SANA-ControlNet Canny",
+      "origin": "USA",
       "description": "Canny-edge-conditioning ControlNet for SANA. Pairs with the OpenCV Canny preprocessor.",
       "sizeGB": 0.7,
       "vramGB": 2,
@@ -1034,6 +1074,7 @@
       "type": "video",
       "task": "video",
       "displayName": "SANA-Video 2B 720p",
+      "origin": "USA",
       "description": "NVIDIA SANA-Video 2B at 720p. Fast 720p tier in Video Lab (between LTX-Video and the Wan family).",
       "strengths": [
         "Fast 720p clips on 12 GB VRAM",
@@ -1065,6 +1106,210 @@
         ]
       },
       "tags": ["video", "phase-12", "sana"]
+    },
+    {
+      "id": "faster-whisper-large-v3",
+      "family": "whisper",
+      "name": "faster-whisper-large-v3",
+      "tag": "ct2",
+      "type": "audio",
+      "task": "audio",
+      "displayName": "Faster-Whisper Large v3",
+      "origin": "USA",
+      "description": "OpenAI Whisper Large v3 converted to CTranslate2 (Systran) for fast local speech-to-text. Transcribes and translates 90+ languages; runs on CPU or GPU.",
+      "strengths": [
+        "Accurate multilingual speech-to-text (90+ languages)",
+        "4-5x faster than reference Whisper via CTranslate2",
+        "Runs on CPU -- no GPU required"
+      ],
+      "whyRecommended": "The de-facto local speech-to-text model: accurate, multilingual, and fast enough to run without a GPU.",
+      "differentiators": "MIT-licensed and CPU-capable, so every install gets working transcription regardless of hardware.",
+      "sizeGB": 1.5,
+      "requiredVramGB": 0,
+      "releaseDate": "2023-11-07",
+      "uncensored": false,
+      "multimodal": false,
+      "contextWindow": null,
+      "license": "MIT",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "Systran/faster-whisper-large-v3",
+        "url": "https://huggingface.co/Systran/faster-whisper-large-v3/resolve/main/model.bin",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "model.bin",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
+      },
+      "tags": ["recommended", "audio", "speech", "stt", "phase-4"]
+    },
+    {
+      "id": "kokoro-82m",
+      "family": "kokoro",
+      "name": "kokoro-82m",
+      "tag": "v1",
+      "type": "audio",
+      "task": "audio",
+      "displayName": "Kokoro 82M",
+      "origin": "Community",
+      "description": "Kokoro is an 82M-parameter open-weight text-to-speech model with natural, expressive voices. Tiny, fast, and CPU-friendly (Apache-2.0).",
+      "strengths": [
+        "Natural, expressive speech synthesis",
+        "Only 82M parameters -- runs on CPU in real time",
+        "Apache-2.0: fully permissive license"
+      ],
+      "whyRecommended": "The best-quality local text-to-speech that still runs on CPU, under a fully permissive license.",
+      "differentiators": "Punches far above its 0.35 GB size; the go-to open TTS model for local, offline voice.",
+      "sizeGB": 0.35,
+      "requiredVramGB": 0,
+      "releaseDate": "2025-01-27",
+      "uncensored": false,
+      "multimodal": false,
+      "contextWindow": null,
+      "license": "Apache-2.0",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "hexgrad/Kokoro-82M",
+        "url": "https://huggingface.co/hexgrad/Kokoro-82M/resolve/main/kokoro-v1_0.pth",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "kokoro-v1_0.pth",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
+      },
+      "tags": ["recommended", "audio", "speech", "tts", "phase-4"]
+    },
+    {
+      "id": "piper-en-us-lessac",
+      "family": "piper",
+      "name": "piper-en-us-lessac",
+      "tag": "medium",
+      "type": "audio",
+      "task": "audio",
+      "displayName": "Piper (en-US Lessac, medium)",
+      "origin": "Community",
+      "description": "Piper is a fast, local neural text-to-speech system optimized for low-power devices. This is the US-English Lessac medium voice (ONNX).",
+      "strengths": [
+        "Extremely fast, low-latency on-device TTS",
+        "Tiny footprint: runs on a Raspberry Pi-class CPU",
+        "Dozens of voices and languages available"
+      ],
+      "differentiators": "The lightest TTS option in the catalog; optimized for embedded and low-power hardware rather than maximum expressiveness.",
+      "sizeGB": 0.06,
+      "requiredVramGB": 0,
+      "releaseDate": "2023-06-01",
+      "uncensored": false,
+      "multimodal": false,
+      "contextWindow": null,
+      "license": "MIT",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "rhasspy/piper-voices",
+        "url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "en/en_US/lessac/medium/en_US-lessac-medium.onnx",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
+      },
+      "tags": ["audio", "speech", "tts", "phase-4"]
+    },
+    {
+      "id": "musicgen-medium",
+      "family": "musicgen",
+      "name": "musicgen-medium",
+      "tag": "medium",
+      "type": "audio",
+      "task": "audio",
+      "displayName": "MusicGen Medium",
+      "origin": "USA",
+      "description": "Meta MusicGen 1.5B: text-to-music generation. Generates short instrumental music clips from a text description. Non-commercial license (CC-BY-NC-4.0).",
+      "strengths": [
+        "Text-to-music generation from a prompt",
+        "Coherent melody and instrumentation for short clips",
+        "Single-stage autoregressive model"
+      ],
+      "differentiators": "The music-generation pillar of the audio catalog; needs a GPU and ships under a non-commercial license, so it is opt-in rather than a default.",
+      "sizeGB": 3.4,
+      "vramGB": 8,
+      "requiredVramGB": 8,
+      "releaseDate": "2023-06-09",
+      "uncensored": false,
+      "multimodal": false,
+      "contextWindow": null,
+      "license": "CC-BY-NC-4.0",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "facebook/musicgen-medium",
+        "url": "https://huggingface.co/facebook/musicgen-medium/resolve/main/state_dict.bin",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "state_dict.bin",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
+      },
+      "tags": ["audio", "generation", "music", "phase-4"]
+    },
+    {
+      "id": "stable-audio-open-1.0",
+      "family": "stable-audio",
+      "name": "stable-audio-open",
+      "tag": "1.0",
+      "type": "audio",
+      "task": "audio",
+      "displayName": "Stable Audio Open 1.0",
+      "origin": "UK",
+      "description": "Stability AI Stable Audio Open: text-to-audio generation for sound effects and short musical samples (up to ~47s). Stability AI Community License.",
+      "strengths": [
+        "Text-to-audio: sound effects and musical samples",
+        "Generates variable-length stereo audio",
+        "Strong for foley and instrument one-shots"
+      ],
+      "differentiators": "The sound-design counterpart to MusicGen; tuned for samples and effects rather than full songs. GPU-gated, opt-in (community license).",
+      "sizeGB": 4.9,
+      "vramGB": 8,
+      "requiredVramGB": 8,
+      "releaseDate": "2024-06-05",
+      "uncensored": false,
+      "multimodal": false,
+      "contextWindow": null,
+      "license": "Stability AI Community License",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "stabilityai/stable-audio-open-1.0",
+        "url": "https://huggingface.co/stabilityai/stable-audio-open-1.0/resolve/main/model.safetensors",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "model.safetensors",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
+      },
+      "tags": ["audio", "generation", "sound", "phase-4"]
     }
   ]
 }

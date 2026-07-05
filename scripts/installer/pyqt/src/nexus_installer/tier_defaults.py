@@ -43,6 +43,11 @@ SECTION_ORDER: tuple[str, ...] = ("chat", "agentic", "embed", "image", "video", 
 # Sections that must always contribute at least one model.
 GUARANTEED_SECTIONS: tuple[str, ...] = ("chat", "agentic")
 
+# Sections that select exactly one default (the first fitting id in the tier's
+# priority list). The remaining sections take every fitting id (e.g. audio
+# defaults to both a speech-to-text and a text-to-speech model).
+SINGLE_PICK_SECTIONS: tuple[str, ...] = ("chat", "agentic")
+
 # Sections excluded entirely on GPU-less hosts.
 GPU_ONLY_SECTIONS: tuple[str, ...] = ("image", "video")
 
@@ -54,6 +59,24 @@ class FitModel(Protocol):
     task: str
     size_gb: float
     required_vram_gb: int
+    # v1.9.0 Phase 4 -- agentic-coding capability. Agentic-capable chat models
+    # (Gemma 4) set this so they satisfy the `agentic` section without carrying
+    # `task == "agentic"`. Optional on the protocol: `_qualifies` reads it via
+    # getattr with a False default so pre-Phase-4 fit models still work.
+    agentic: bool
+
+
+def _qualifies(model: FitModel, section: str) -> bool:
+    """Whether `model` can serve the given catalog section.
+
+    v1.9.0 Phase 4: the ``agentic`` section accepts both the coding
+    specialists (``task == "agentic"``) and agentic-capable chat models (the
+    Gemma 4 family, which set the ``agentic`` flag but keep ``task ==
+    "chat"``). Every other section requires an exact task match.
+    """
+    if section == "agentic":
+        return model.task == "agentic" or bool(getattr(model, "agentic", False))
+    return model.task == section
 
 
 def resolve_tier(vram_mb: int, gpu_vendor: str) -> str:
@@ -126,23 +149,35 @@ def default_selection(
     for section in SECTION_ORDER:
         if tier == "cpu" and section in GPU_ONLY_SECTIONS:
             continue
+        single = section in SINGLE_PICK_SECTIONS
         picked = False
         for model_id in tier_map.get(section, []):
             model = models.get(model_id)
-            if model is None or model.id in selected:
+            if model is None:
                 continue
-            if model.task != section:
+            if model.id in selected:
+                # Already chosen by an earlier section (e.g. the Gemma 4 chat
+                # pick also covers the agentic section): the section is
+                # satisfied, so a single-pick section adds no redundant model.
+                if _qualifies(model, section):
+                    picked = True
+                    if single:
+                        break
+                continue
+            if not _qualifies(model, section):
                 continue
             if fits_vram(model) and fits_disk(model):
                 take(model)
                 picked = True
+                if single:
+                    break
         if picked or section not in GUARANTEED_SECTIONS:
             continue
-        # Guaranteed-section fallback: best model of the task that fits.
+        # Guaranteed-section fallback: best qualifying model that fits.
         candidates = [
             m
             for m in models.values()
-            if m.task == section and m.id not in selected
+            if _qualifies(m, section) and m.id not in selected
         ]
         fitting = [m for m in candidates if fits_vram(m) and fits_disk(m)]
         if fitting:
@@ -164,6 +199,7 @@ __all__ = [
     "GPU_TIERS",
     "GUARANTEED_SECTIONS",
     "SECTION_ORDER",
+    "SINGLE_PICK_SECTIONS",
     "TIER_ORDER",
     "FitModel",
     "default_selection",

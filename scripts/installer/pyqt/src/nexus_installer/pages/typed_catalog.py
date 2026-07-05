@@ -1,17 +1,20 @@
-"""v1.8.0 Phase 4 -- Chat / Agentic Coding / Image / Video / Audio model picker.
+"""Chat / Agentic / Image / Video / Audio model picker.
 
-Evolves the v1.1.0 Text/Image/Video/Audio tabs: the Text tab is split into
-**Chat** and **Agentic Coding** sections driven by the catalog's `task`
-field, and each model card renders the Phase 4 copy (`strengths`,
-`whyRecommended`, `differentiators`) alongside the existing VRAM / RAM /
-disk fit, context window, censored flag, license, and release date.
+The Text tab is split into **Chat** and **Agentic** sections driven by the
+catalog's `task` field. v1.9.0 Phase 4: each card renders a scannable chip
+row (Origin, Best-at, Agentic yes/no, Guardrails, context, license) plus a
+prominent disk-size accent and a single status badge (Required / Recommended
+/ Compatible), and the Agentic tab also lists agentic-capable chat models
+(the Gemma 4 family, which set the `agentic` flag) ranked with Gemma 4 first
+as the recommended agentic default and the coding specialists below.
 
 Pre-ticked defaults come from the per-VRAM-tier matrix in
 `core/registry/recommended.json` (schema v2) resolved against the detected
 hardware by `nexus_installer.tier_defaults` -- including the uncensored
-image/video defaults on tiers whose hardware fits them. Defaults are
-recomputed on `showEvent` (GPU detection finishes after the wizard pages
-are constructed) until the user touches a checkbox.
+image/video defaults on tiers whose hardware fits them and the permissive
+speech (audio) defaults on every tier. Defaults are recomputed on
+`showEvent` (GPU detection finishes after the wizard pages are constructed)
+until the user touches a checkbox; the Refresh Models control resets to them.
 
 The page is the wired producer of `InstallerState.selected_model_ids`
 (closes `OSI003.P3.D`): every selection change writes the ordered id list
@@ -35,6 +38,7 @@ from PyQt5.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QPushButton,
     QScrollArea,
     QSizePolicy,
     QTabWidget,
@@ -45,12 +49,15 @@ from PyQt5.QtWidgets import (
 from nexus_installer import registry_paths
 from nexus_installer.constants import (
     ACCENT,
+    ACCENT_BRIGHT,
     BG_CARD,
     BORDER,
+    BORDER_STRONG,
     ERROR,
     SECTION_ACCENTS,
     SUCCESS,
     TEXT_BODY,
+    TEXT_MUTED,
     TEXT_PRIMARY,
     TEXT_SECONDARY,
     WARNING,
@@ -68,7 +75,10 @@ if TYPE_CHECKING:
 TYPE_TABS: tuple[tuple[str, str, str], ...] = (
     # (section_key, tab_label, type_icon)
     ("chat", "Chat", "[C]"),
-    ("agentic", "Agentic Coding", "[>]"),
+    # v1.9.0 Phase 4 (T404): renamed from "Agentic Coding"; the tab now lists
+    # agentic-capable chat models (the Gemma 4 family) alongside the coding
+    # specialists, with Gemma 4 ranked first as the recommended agentic default.
+    ("agentic", "Agentic", "[>]"),
     ("image", "Image", "[I]"),
     ("video", "Video", "[V]"),
     ("audio", "Audio", "[A]"),
@@ -116,10 +126,42 @@ class CatalogModel:
     strengths: tuple[str, ...] = ()
     why_recommended: str = ""
     differentiators: str = ""
+    # v1.9.0 Phase 4 -- scannable metadata (T401/T402).
+    origin: str = ""
+    agentic: bool = False
+    guardrails: str = ""
 
     @property
     def is_text_model(self) -> bool:
         return self.type in ("chat", "agentic")
+
+    @property
+    def is_required(self) -> bool:
+        """The embedding model is required by the semantic memory layer.
+
+        v1.9.0 Phase 4 (T403): nomic-embed is the de-facto required model, so
+        its card gets a Required badge and a locked-on checkbox. Derived from
+        the task rather than a schema field -- the memory layer needs *an*
+        embedding model, and there is exactly one embed entry.
+        """
+        return self.task == "embed"
+
+    @property
+    def guardrails_label(self) -> str:
+        """Coarse guardrails display label (v1.9.0 Phase 4, T401).
+
+        One of "Uncensored" / "Safety-tuned" / "N/A", derived from the
+        `uncensored` flag with an optional explicit `guardrails` override for
+        nuance. Speech/embedding models carry no meaningful guardrails signal
+        ("N/A").
+        """
+        if self.guardrails:
+            return self.guardrails
+        if self.uncensored:
+            return "Uncensored"
+        if self.task in ("embed", "audio"):
+            return "N/A"
+        return "Safety-tuned"
 
 
 def _coerce_int(value: object, default: int = 0) -> int:
@@ -178,6 +220,9 @@ def load_catalog_models(catalog_path: Path) -> list[CatalogModel]:
                 strengths=tuple(str(s) for s in strengths),
                 why_recommended=str(entry.get("whyRecommended") or ""),
                 differentiators=str(entry.get("differentiators") or ""),
+                origin=str(entry.get("origin") or ""),
+                agentic=bool(entry.get("agentic")),
+                guardrails=str(entry.get("guardrails") or ""),
             )
         )
     return models
@@ -207,6 +252,62 @@ def compatibility_badge(
             WARNING,
         )
     return "Compatible", SUCCESS
+
+
+def _card_status(
+    model: CatalogModel,
+    *,
+    recommended: bool,
+    accent: str,
+    host_vram_gb: int,
+    host_ram_gb: int,
+    gpu_vendor: str,
+) -> tuple[str, str, bool]:
+    """Resolve the single status badge for a card (v1.9.0 Phase 4, T403).
+
+    Returns ``(text, color, fits)``. Priority: Required (embed) > hardware
+    incompatibility warning > Recommended > Compatible. ``fits`` is False only
+    for the incompatibility state, so the card can also surface the detail.
+    """
+    compat_text, compat_color = compatibility_badge(
+        model,
+        total_vram_gb=host_vram_gb,
+        total_ram_gb=host_ram_gb,
+        gpu_vendor=gpu_vendor,
+    )
+    fits = compat_color == SUCCESS
+    if model.is_required:
+        return "Required", accent, fits
+    if not fits:
+        return compat_text, compat_color, False
+    if recommended:
+        return "Recommended", accent, True
+    return "Compatible", SUCCESS, True
+
+
+def _pill(
+    text: str, *, color: str = TEXT_SECONDARY, border: str = BORDER_STRONG
+) -> QLabel:
+    """A compact rounded metadata chip (v1.9.0 Phase 4, T403)."""
+    chip = QLabel(text)
+    chip.setStyleSheet(
+        f"color: {color}; font-size: 10px; background: transparent; "
+        f"border: 1px solid {border}; border-radius: 9px; padding: 1px 8px;"
+    )
+    return chip
+
+
+# Larger cyan selection boxes (T403): a 20px rounded indicator that fills with
+# the section accent when checked. Formatted per-card with the section accent.
+_CHECKBOX_QSS = (
+    "QCheckBox::indicator {{ width: 20px; height: 20px; border-radius: 5px; "
+    "border: 2px solid {border}; background: {bg}; }}"
+    "QCheckBox::indicator:hover {{ border-color: {accent}; }}"
+    "QCheckBox::indicator:checked {{ background-color: {accent}; "
+    "border-color: {accent}; }}"
+    "QCheckBox::indicator:disabled {{ border-color: {accent}; "
+    "background-color: {accent}; }}"
+)
 
 
 @dataclass
@@ -256,21 +357,26 @@ class _ModelCard(QWidget):
             f"border: 1px solid {BORDER}; border-radius: 8px; }}"
         )
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 8, 12, 8)
-        layout.setSpacing(4)
+        layout.setContentsMargins(14, 10, 14, 10)
+        layout.setSpacing(6)
 
+        # --- Title row: [checkbox] name (release)  [status badge]  [disk] ---
         title_row = QHBoxLayout()
+        title_row.setSpacing(8)
         self.checkbox = QCheckBox()
         self.checkbox.setChecked(checked)
-        # v1.8.0 Phase 5 -- the checked state carries the section accent.
+        # v1.9.0 Phase 4 (T403) -- larger cyan selection box carrying the
+        # section accent. The required (embed) model is locked on.
         self.checkbox.setStyleSheet(
-            f"QCheckBox::indicator:checked {{ background-color: {accent}; "
-            f"border-color: {accent}; }}"
+            _CHECKBOX_QSS.format(accent=accent, border=BORDER_STRONG, bg="transparent")
         )
+        # The required (embed) lock is applied by the page in
+        # `_update_selection_state` so a seeded / CLI-override selection is
+        # never silently forced on.
         title_row.addWidget(self.checkbox)
 
         release_suffix = (
-            f"  --  released {model.release_date}" if model.release_date else ""
+            f"   released {model.release_date}" if model.release_date else ""
         )
         title = QLabel(f"{model.display_name}{release_suffix}")
         title.setStyleSheet(
@@ -279,33 +385,87 @@ class _ModelCard(QWidget):
         title.setWordWrap(True)
         title_row.addWidget(title, stretch=1)
 
-        if recommended:
-            badge = QLabel("Recommended")
-            badge.setStyleSheet(
-                f"color: {accent}; font-size: 10px; font-weight: bold; "
-                f"border: 1px solid {accent}; border-radius: 3px; "
-                f"padding: 1px 6px; background: transparent;"
-            )
-            title_row.addWidget(badge)
+        badge_text, badge_color, fits = _card_status(
+            model,
+            recommended=recommended,
+            accent=accent,
+            host_vram_gb=host_vram_gb,
+            host_ram_gb=host_ram_gb,
+            gpu_vendor=gpu_vendor,
+        )
+        status = QLabel(badge_text)
+        status.setStyleSheet(
+            f"color: {badge_color}; font-size: 10px; font-weight: bold; "
+            f"border: 1px solid {badge_color}; border-radius: 9px; "
+            f"padding: 1px 8px; background: transparent;"
+        )
+        title_row.addWidget(status)
 
-        size_label = QLabel(f"{model.size_gb:.1f} GB on disk")
+        size_label = QLabel(f"{model.size_gb:.1f} GB")
         size_label.setStyleSheet(
-            f"color: {accent}; font-weight: bold; background: transparent;"
+            f"color: {accent}; font-weight: bold; font-size: 15px; "
+            f"background: transparent;"
         )
         title_row.addWidget(size_label)
         layout.addLayout(title_row)
 
-        badge_text, badge_color = compatibility_badge(
-            model,
-            total_vram_gb=host_vram_gb,
-            total_ram_gb=host_ram_gb,
-            gpu_vendor=gpu_vendor,
-        )
-        badge = QLabel(badge_text)
-        badge.setStyleSheet(
-            f"color: {badge_color}; font-size: 11px; background: transparent;"
-        )
-        layout.addWidget(badge)
+        # --- Metadata chip row (Origin, Best-at, Agentic, Guardrails, ctx, license) ---
+        chip_row = QHBoxLayout()
+        chip_row.setSpacing(6)
+        chip_row.setContentsMargins(28, 0, 0, 0)
+        if model.origin:
+            chip_row.addWidget(_pill(f"Origin: {model.origin}"))
+        if model.strengths:
+            best = model.strengths[0]
+            if len(best) > 32:
+                best = best[:29].rstrip() + "..."
+            chip_row.addWidget(_pill(f"Best at: {best}"))
+        if model.is_text_model:
+            agentic_color = accent if model.agentic else TEXT_MUTED
+            chip_row.addWidget(
+                _pill(
+                    f"Agentic: {'Yes' if model.agentic else 'No'}",
+                    color=agentic_color,
+                    border=agentic_color,
+                )
+            )
+        guard = model.guardrails_label
+        guard_color = WARNING if guard == "Uncensored" else TEXT_SECONDARY
+        chip_row.addWidget(_pill(f"Guardrails: {guard}", color=guard_color))
+        if model.is_text_model and (
+            model.context_window_in or model.context_window_out
+        ):
+            ctx_bits = []
+            if model.context_window_in:
+                ctx_bits.append(f"{model.context_window_in // 1000}k in")
+            if model.context_window_out:
+                ctx_bits.append(f"{model.context_window_out // 1000}k out")
+            chip_row.addWidget(_pill("Context: " + " / ".join(ctx_bits)))
+        if model.multimodal:
+            chip_row.addWidget(
+                _pill("Multimodal", color=ACCENT_BRIGHT, border=ACCENT_BRIGHT)
+            )
+        if model.license_name:
+            chip_row.addWidget(_pill(model.license_name))
+        chip_row.addStretch()
+        layout.addLayout(chip_row)
+
+        # --- Body copy: incompatibility note (if any), description, why-this-one ---
+        if not fits:
+            warn = QLabel(badge_text)
+            warn.setStyleSheet(
+                f"color: {badge_color}; font-size: 11px; background: transparent;"
+            )
+            warn.setWordWrap(True)
+            layout.addWidget(warn)
+
+        if model.description:
+            desc = QLabel(model.description)
+            desc.setStyleSheet(
+                f"color: {TEXT_BODY}; font-size: 11px; background: transparent;"
+            )
+            desc.setWordWrap(True)
+            layout.addWidget(desc)
 
         if recommended and model.why_recommended:
             why = QLabel(f"Why this one: {model.why_recommended}")
@@ -314,62 +474,6 @@ class _ModelCard(QWidget):
             )
             why.setWordWrap(True)
             layout.addWidget(why)
-
-        if model.is_text_model and (
-            model.context_window_in or model.context_window_out
-        ):
-            ctx_text = "Context: "
-            parts = []
-            if model.context_window_in:
-                parts.append(f"{model.context_window_in // 1000}k in")
-            if model.context_window_out:
-                parts.append(f"{model.context_window_out // 1000}k out")
-            ctx_text += " / ".join(parts) if parts else "n/a"
-            ctx = QLabel(ctx_text)
-            ctx.setStyleSheet(
-                f"color: {TEXT_SECONDARY}; font-size: 11px; background: transparent;"
-            )
-            layout.addWidget(ctx)
-
-        meta_bits: list[str] = []
-        if model.multimodal:
-            meta_bits.append("Multimodal: text + image")
-        if model.uncensored:
-            meta_bits.append("Uncensored")
-        if model.license_name:
-            meta_bits.append(model.license_name)
-        if meta_bits:
-            meta = QLabel("  -  ".join(meta_bits))
-            meta.setStyleSheet(
-                f"color: {TEXT_SECONDARY}; font-size: 11px; background: transparent;"
-            )
-            meta.setWordWrap(True)
-            layout.addWidget(meta)
-
-        if model.description:
-            desc = QLabel(model.description)
-            desc.setStyleSheet(
-                f"color: {TEXT_SECONDARY}; font-size: 11px; background: transparent;"
-            )
-            desc.setWordWrap(True)
-            layout.addWidget(desc)
-
-        if model.strengths:
-            good_at = QLabel("Good at: " + "; ".join(model.strengths))
-            good_at.setStyleSheet(
-                f"color: {TEXT_SECONDARY}; font-size: 11px; background: transparent;"
-            )
-            good_at.setWordWrap(True)
-            layout.addWidget(good_at)
-
-        if model.differentiators:
-            diff = QLabel(model.differentiators)
-            diff.setStyleSheet(
-                f"color: {TEXT_SECONDARY}; font-size: 11px; font-style: italic; "
-                f"background: transparent;"
-            )
-            diff.setWordWrap(True)
-            layout.addWidget(diff)
 
 
 class TypedCatalogPage(QWidget):
@@ -429,6 +533,29 @@ class TypedCatalogPage(QWidget):
         )
         layout.addWidget(self._totals_label)
 
+        # v1.9.0 Phase 4 (T403) footer: a Refresh Models control that resets
+        # the picks to the recommended set for the detected hardware, plus a
+        # reassurance note. The wizard's global Next button is the Continue.
+        footer_row = QHBoxLayout()
+        footer_row.setSpacing(12)
+        self._refresh_button = QPushButton("Refresh Models")
+        self._refresh_button.setObjectName("secondaryButton")
+        self._refresh_button.setToolTip(
+            "Reset the selection to the recommended models for your hardware."
+        )
+        self._refresh_button.clicked.connect(self._on_refresh_clicked)
+        footer_row.addWidget(self._refresh_button)
+        reassurance = QLabel(
+            "You can add or remove models anytime after install from the Nexus "
+            "model manager."
+        )
+        reassurance.setStyleSheet(
+            f"color: {TEXT_SECONDARY}; font-size: 11px; background: transparent;"
+        )
+        reassurance.setWordWrap(True)
+        footer_row.addWidget(reassurance, stretch=1)
+        layout.addLayout(footer_row)
+
         # Ids not in the catalog are kept: the model router sends unknown
         # ids to `ollama pull` verbatim (the --model override contract).
         seeded = list(state.selected_model_ids)
@@ -468,6 +595,18 @@ class TypedCatalogPage(QWidget):
         self._rebuild_tabs()
         self._update_selection_state()
 
+    def _on_refresh_clicked(self) -> None:
+        """Reset the selection to the recommended set for the detected hardware.
+
+        v1.9.0 Phase 4 (T403): the Refresh Models control clears any manual
+        picks and re-applies the tier defaults, so a user who over-edited can
+        get back to the recommendation in one click.
+        """
+        self._user_touched = False
+        self._selection.selected = set(self._current_defaults())
+        self._rebuild_tabs()
+        self._update_selection_state()
+
     # -----------------------------------------------------------------
     # Tab builders
     # -----------------------------------------------------------------
@@ -484,9 +623,10 @@ class TypedCatalogPage(QWidget):
         vram_gb = max(0, int(self._state.vram_mb / 1024))
         self._subtitle.setText(
             f"Detected: {self._state.gpu_name or 'no GPU'} ({vram_gb} GB VRAM). "
-            "We pre-selected the best fit for your hardware -- one chat and one "
-            "agentic coding model, plus image and video where your GPU allows. "
-            "Tick more to expand the install."
+            "We pre-selected the best fit for your hardware -- a chat + agentic "
+            "model (Gemma 4 handles both), the memory model, and speech, plus "
+            "image and video where your GPU allows. Tick more to expand the "
+            "install."
         )
 
         defaults = set(self._current_defaults())
@@ -495,6 +635,53 @@ class TypedCatalogPage(QWidget):
                 self._build_tab(key, icon, vram_gb, self._state, defaults), label
             )
         self._tabs.setCurrentIndex(min(current, self._tabs.count() - 1))
+
+    def _models_for_section(self, section_key: str) -> list[CatalogModel]:
+        """Models shown under a tab.
+
+        v1.9.0 Phase 4 (T404): the Agentic tab lists both the coding
+        specialists (``type == "agentic"``) and agentic-capable chat models
+        (the Gemma 4 family, which carry the ``agentic`` flag but render under
+        Chat as their primary tab). Every other tab is an exact type match.
+        """
+        if section_key == "agentic":
+            return [
+                m for m in self._catalog.values() if m.type == "agentic" or m.agentic
+            ]
+        return [m for m in self._catalog.values() if m.type == section_key]
+
+    def _sorted_section_models(
+        self, section_key: str, defaults: set[str]
+    ) -> list[CatalogModel]:
+        """Models for a tab in display order.
+
+        v1.9.0 Phase 4 (T404): the Agentic tab ranks the recommended default
+        first, then the agentic-capable Gemma 4 variants (biggest first), then
+        the coding specialists -- "Gemma 4 on top, coders below". Every other
+        tab keeps the tier-default-first / newest / A-Z order.
+        """
+        models = self._models_for_section(section_key)
+        if section_key == "agentic":
+
+            def agentic_rank(m: CatalogModel) -> tuple[int, float, str]:
+                if m.id in defaults:
+                    group = 0
+                elif m.task != "agentic":  # agentic-capable chat model (Gemma)
+                    group = 1
+                else:  # coding specialist
+                    group = 2
+                return (group, -float(m.required_vram_gb), m.display_name)
+
+            models.sort(key=agentic_rank)
+        else:
+            models.sort(
+                key=lambda m: (
+                    m.id not in defaults,
+                    -float(m.release_date.replace("-", "") or 0),
+                    m.display_name,
+                )
+            )
+        return models
 
     def _build_tab(
         self,
@@ -524,14 +711,7 @@ class TypedCatalogPage(QWidget):
         layout = QVBoxLayout(inner)
         layout.setSpacing(8)
 
-        models = [m for m in self._catalog.values() if m.type == section_key]
-        models.sort(
-            key=lambda m: (
-                m.id not in defaults,
-                -float(m.release_date.replace("-", "") or 0),
-                m.display_name,
-            )
-        )
+        models = self._sorted_section_models(section_key, defaults)
 
         if not models:
             empty_text = (
@@ -641,6 +821,21 @@ class TypedCatalogPage(QWidget):
         reserve = self._state.disk_reserve_gb
 
         for card in self._cards:
+            # v1.9.0 Phase 4 (T404): a model can appear in two tabs (a Gemma 4
+            # variant renders under both Chat and Agentic). Sync every card's
+            # checkbox to the shared selection so both stay in lockstep.
+            want = card.model.id in self._selection.selected
+            if card.checkbox.isChecked() != want:
+                card.checkbox.blockSignals(True)
+                card.checkbox.setChecked(want)
+                card.checkbox.blockSignals(False)
+
+            # Required (embed) models are locked on while selected.
+            if card.model.is_required and want:
+                card.checkbox.setEnabled(False)
+                card.checkbox.setToolTip("Required by the semantic memory layer.")
+                card.disabled_for_disk = False
+                continue
             if card.checkbox.isChecked():
                 card.checkbox.setEnabled(True)
                 card.checkbox.setToolTip("")

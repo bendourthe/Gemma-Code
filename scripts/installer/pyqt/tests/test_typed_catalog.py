@@ -30,6 +30,8 @@ def _write_catalog(tmp_path: Path) -> Path:
                 "displayName": "Gemma 4 E4B",
                 "type": "llm",
                 "task": "chat",
+                "origin": "USA",
+                "agentic": True,
                 "sizeGB": 2.7,
                 "requiredVramGB": 6,
                 "releaseDate": "2025-08-01",
@@ -47,11 +49,15 @@ def _write_catalog(tmp_path: Path) -> Path:
                 "displayName": "Qwen 2.5 Coder 7B",
                 "type": "llm",
                 "task": "agentic",
+                "origin": "China",
+                "agentic": True,
                 "sizeGB": 4.4,
                 "requiredVramGB": 7,
                 "releaseDate": "2025-06-01",
                 "license": "Apache-2.0",
                 "description": "Test agentic model",
+                "strengths": ["code generation"],
+                "differentiators": "Coding specialist",
             },
             {
                 "id": "nomic-embed-text",
@@ -113,35 +119,35 @@ def _write_recommended(tmp_path: Path) -> Path:
         "tiers": {
             "cpu": {
                 "chat": ["gemma4:e4b"],
-                "agentic": ["qwen2.5-coder:7b"],
+                "agentic": ["gemma4:e4b", "qwen2.5-coder:7b"],
                 "embed": ["nomic-embed-text"],
                 "image": [],
                 "video": [],
             },
             "8": {
                 "chat": ["gemma4:e4b"],
-                "agentic": ["qwen2.5-coder:7b"],
+                "agentic": ["gemma4:e4b", "qwen2.5-coder:7b"],
                 "embed": ["nomic-embed-text"],
                 "image": ["juggernaut-xl-v9"],
                 "video": ["wan2.1-t2v-1.3b"],
             },
             "12": {
                 "chat": ["gemma4:e4b"],
-                "agentic": ["qwen2.5-coder:7b"],
+                "agentic": ["gemma4:e4b", "qwen2.5-coder:7b"],
                 "embed": ["nomic-embed-text"],
                 "image": ["juggernaut-xl-v9"],
                 "video": ["wan2.1-t2v-1.3b"],
             },
             "16": {
                 "chat": ["gemma4:e4b"],
-                "agentic": ["qwen2.5-coder:7b"],
+                "agentic": ["gemma4:e4b", "qwen2.5-coder:7b"],
                 "embed": ["nomic-embed-text"],
                 "image": ["juggernaut-xl-v9"],
                 "video": ["wan2.1-t2v-1.3b"],
             },
             "24": {
                 "chat": ["gemma4:e4b"],
-                "agentic": ["qwen2.5-coder:7b"],
+                "agentic": ["gemma4:e4b", "qwen2.5-coder:7b"],
                 "embed": ["nomic-embed-text"],
                 "image": ["juggernaut-xl-v9"],
                 "video": ["wan2.1-t2v-1.3b"],
@@ -196,6 +202,15 @@ class TestLoadCatalog:
         assert gemma.strengths == ("general chat", "drafting")
         assert gemma.why_recommended == "Best chat per GB"
         assert gemma.differentiators == "The balanced default"
+
+    def test_origin_and_agentic_parsed(self, tmp_path: Path) -> None:
+        # v1.9.0 Phase 4 (T401/T402): origin + agentic capability flag.
+        models = {m.id: m for m in load_catalog_models(_write_catalog(tmp_path))}
+        assert models["gemma4:e4b"].origin == "USA"
+        assert models["gemma4:e4b"].agentic is True
+        assert models["qwen2.5-coder:7b"].origin == "China"
+        assert models["qwen2.5-coder:7b"].agentic is True
+        assert models["juggernaut-xl-v9"].agentic is False
 
     def test_missing_catalog_returns_empty(self, tmp_path: Path) -> None:
         assert load_catalog_models(tmp_path / "nope.json") == []
@@ -255,6 +270,50 @@ class TestCompatibilityBadge:
         assert text == "Compatible"
 
 
+class TestModelMetadata:
+    """v1.9.0 Phase 4 (T401): guardrails label + required-model derivation."""
+
+    def _model(self, **overrides: object) -> CatalogModel:
+        base: dict[str, object] = {
+            "id": "m",
+            "display_name": "M",
+            "type": "chat",
+            "task": "chat",
+            "size_gb": 1.0,
+            "required_vram_gb": 0,
+            "required_ram_gb": 0,
+            "release_date": "",
+            "license_name": "",
+            "context_window_in": 0,
+            "context_window_out": 0,
+            "multimodal": False,
+            "uncensored": False,
+            "description": "",
+        }
+        base.update(overrides)
+        return CatalogModel(**base)  # type: ignore[arg-type]
+
+    def test_guardrails_uncensored(self) -> None:
+        assert self._model(uncensored=True).guardrails_label == "Uncensored"
+
+    def test_guardrails_explicit_override_wins(self) -> None:
+        assert self._model(guardrails="Aligned").guardrails_label == "Aligned"
+
+    def test_guardrails_embed_and_audio_are_na(self) -> None:
+        assert self._model(task="embed").guardrails_label == "N/A"
+        assert self._model(task="audio", type="audio").guardrails_label == "N/A"
+
+    def test_guardrails_default_is_safety_tuned(self) -> None:
+        assert self._model(task="chat").guardrails_label == "Safety-tuned"
+        img = self._model(task="image", type="image")
+        assert img.guardrails_label == "Safety-tuned"
+
+    def test_is_required_is_embed_only(self) -> None:
+        assert self._model(task="embed").is_required is True
+        assert self._model(task="chat").is_required is False
+        assert self._model(task="agentic", type="agentic").is_required is False
+
+
 class TestTypedSelection:
     def test_total_gb(self) -> None:
         models = {
@@ -296,9 +355,7 @@ class TestTypedSelection:
 
 
 class TestTypedCatalogPage:
-    def _page(
-        self, state: InstallerState, tmp_path: Path
-    ) -> TypedCatalogPage:
+    def _page(self, state: InstallerState, tmp_path: Path) -> TypedCatalogPage:
         return TypedCatalogPage(
             state,
             catalog_path=_write_catalog(tmp_path),
@@ -308,7 +365,7 @@ class TestTypedCatalogPage:
     def test_five_sections(self, qt_app, tmp_path: Path) -> None:
         page = self._page(_gpu_state(), tmp_path)
         labels = [page._tabs.tabText(i) for i in range(page._tabs.count())]
-        assert labels == ["Chat", "Agentic Coding", "Image", "Video", "Audio"]
+        assert labels == ["Chat", "Agentic", "Image", "Video", "Audio"]
 
     def test_audio_tab_shows_empty_state(self, qt_app, tmp_path: Path) -> None:
         page = self._page(_gpu_state(), tmp_path)
@@ -317,13 +374,15 @@ class TestTypedCatalogPage:
     def test_gpu_tier_defaults_pre_ticked(self, qt_app, tmp_path: Path) -> None:
         page = self._page(_gpu_state(vram_mb=8192), tmp_path)
         selected = page.selection().selected
+        # v1.9.0 Phase 4: the Gemma chat pick is agentic-capable and covers the
+        # agentic section, so no coder is pre-selected (it stays opt-in).
         assert selected == {
             "gemma4:e4b",
-            "qwen2.5-coder:7b",
             "nomic-embed-text",
             "juggernaut-xl-v9",
             "wan2.1-t2v-1.3b",
         }
+        assert "qwen2.5-coder:7b" not in selected
 
     def test_cpu_tier_skips_image_and_video(self, qt_app, tmp_path: Path) -> None:
         state = InstallerState()
@@ -335,15 +394,16 @@ class TestTypedCatalogPage:
         assert "juggernaut-xl-v9" not in selected
         assert "wan2.1-t2v-1.3b" not in selected
         assert "gemma4:e4b" in selected
-        assert "qwen2.5-coder:7b" in selected
+        # v1.9.0 Phase 4: the agentic-capable Gemma covers agentic; no coder.
+        assert "qwen2.5-coder:7b" not in selected
 
     def test_selection_written_to_state(self, qt_app, tmp_path: Path) -> None:
         state = _gpu_state(vram_mb=8192)
         self._page(state, tmp_path)
         # OSI003.P3.D: the page is the wired producer of selected_model_ids.
+        # v1.9.0 Phase 4: Gemma covers chat + agentic, so no coder is added.
         assert set(state.selected_model_ids) == {
             "gemma4:e4b",
-            "qwen2.5-coder:7b",
             "nomic-embed-text",
             "juggernaut-xl-v9",
             "wan2.1-t2v-1.3b",
@@ -354,13 +414,9 @@ class TestTypedCatalogPage:
         # The legacy single-model surface points at the chat pick.
         assert state.selected_model == "gemma4:e4b"
         # Totals feed the disk-aware footer / install guard.
-        assert state.selected_models_gb == pytest.approx(
-            2.7 + 4.4 + 0.27 + 6.9 + 17.6
-        )
+        assert state.selected_models_gb == pytest.approx(2.7 + 0.27 + 6.9 + 17.6)
 
-    def test_seeded_selection_wins_over_defaults(
-        self, qt_app, tmp_path: Path
-    ) -> None:
+    def test_seeded_selection_wins_over_defaults(self, qt_app, tmp_path: Path) -> None:
         state = _gpu_state(vram_mb=8192)
         state.selected_model_ids = ["custom-ollama-tag"]
         page = self._page(state, tmp_path)
@@ -405,6 +461,98 @@ class TestTypedCatalogPage:
         # Defaults themselves are disk-gated: with 15 GB free and a 10 GB
         # reserve only the small text-side models fit.
         assert state.selected_models_gb < 15
+
+    def test_agentic_tab_includes_agentic_capable_chat_model(
+        self, qt_app, tmp_path: Path
+    ) -> None:
+        # v1.9.0 Phase 4 (T404): the Agentic tab lists the coding specialist
+        # AND the agentic-capable Gemma chat model; the chat model still
+        # appears under Chat as its primary tab.
+        page = self._page(_gpu_state(), tmp_path)
+        agentic_ids = {m.id for m in page._models_for_section("agentic")}
+        assert "qwen2.5-coder:7b" in agentic_ids
+        assert "gemma4:e4b" in agentic_ids
+        chat_ids = {m.id for m in page._models_for_section("chat")}
+        assert "gemma4:e4b" in chat_ids
+        assert "qwen2.5-coder:7b" not in chat_ids
+
+    def test_agentic_ordering_recommended_default_first(
+        self, qt_app, tmp_path: Path
+    ) -> None:
+        # The recommended agentic default (the Gemma pick on this tier) ranks
+        # first; the coding specialist ranks below it.
+        page = self._page(_gpu_state(vram_mb=8192), tmp_path)
+        defaults = set(page.selection().selected)
+        ordered = [m.id for m in page._sorted_section_models("agentic", defaults)]
+        assert ordered[0] == "gemma4:e4b"
+        assert ordered.index("gemma4:e4b") < ordered.index("qwen2.5-coder:7b")
+
+    def test_required_embed_checkbox_locked(self, qt_app, tmp_path: Path) -> None:
+        # v1.9.0 Phase 4 (T403): nomic-embed is Required -- checked + locked.
+        page = self._page(_gpu_state(), tmp_path)
+        card = page._find_card("nomic-embed-text")
+        assert card is not None
+        assert card.model.is_required
+        assert card.checkbox.isChecked() is True
+        assert card.checkbox.isEnabled() is False
+
+    def test_cross_tab_checkbox_sync(self, qt_app, tmp_path: Path) -> None:
+        # v1.9.0 Phase 4 (T404): gemma4:e4b renders in both Chat and Agentic;
+        # toggling the shared selection keeps every card for the id in sync.
+        page = self._page(_gpu_state(vram_mb=8192), tmp_path)
+        gemma_cards = [c for c in page._cards if c.model.id == "gemma4:e4b"]
+        assert len(gemma_cards) == 2
+        assert all(c.checkbox.isChecked() for c in gemma_cards)
+        gemma_cards[0].checkbox.setChecked(False)
+        assert "gemma4:e4b" not in page.selection().selected
+        assert all(not c.checkbox.isChecked() for c in gemma_cards)
+
+    def test_refresh_models_resets_to_defaults(self, qt_app, tmp_path: Path) -> None:
+        # v1.9.0 Phase 4 (T403): Refresh Models clears manual edits and
+        # re-applies the recommended set for the detected hardware.
+        page = self._page(_gpu_state(vram_mb=8192), tmp_path)
+        card = page._find_card("juggernaut-xl-v9")
+        assert card is not None
+        card.checkbox.setChecked(False)
+        assert "juggernaut-xl-v9" not in page.selection().selected
+        page._on_refresh_clicked()
+        assert "juggernaut-xl-v9" in page.selection().selected
+
+
+class TestRealCatalogPage:
+    """v1.9.0 Phase 4: the shipped catalog drives the audio pillar + Agentic tab."""
+
+    def test_audio_tab_populated(self, qt_app) -> None:
+        state = _gpu_state(vram_mb=8192)
+        page = TypedCatalogPage(state)  # real bundled catalog + recommended
+        audio_ids = {m.id for m in page._models_for_section("audio")}
+        assert audio_ids, "the audio pillar must be populated"
+        assert "faster-whisper-large-v3" in audio_ids
+        assert "kokoro-82m" in audio_ids
+
+    def test_agentic_tab_lists_gemma_first(self, qt_app) -> None:
+        state = _gpu_state(vram_mb=8192)
+        page = TypedCatalogPage(state)
+        defaults = set(page.selection().selected)
+        ordered = [m.id for m in page._sorted_section_models("agentic", defaults)]
+        # A Gemma 4 variant leads; the coding specialists rank below it.
+        assert ordered[0].startswith("gemma")
+        coder_ranks = [
+            i for i, mid in enumerate(ordered) if "coder" in mid or "deepseek" in mid
+        ]
+        gemma_ranks = [i for i, mid in enumerate(ordered) if mid.startswith("gemma")]
+        assert min(gemma_ranks) < min(coder_ranks)
+
+    def test_audio_speech_defaults_selected_on_cpu(self, qt_app) -> None:
+        # Speech models are CPU-capable and default on every tier.
+        state = InstallerState()
+        state.gpu_vendor = "none"
+        state.vram_mb = 0
+        state.free_disk_gb = 200
+        page = TypedCatalogPage(state)
+        selected = page.selection().selected
+        assert "faster-whisper-large-v3" in selected
+        assert "kokoro-82m" in selected
 
 
 class TestCatalogTabMapping:

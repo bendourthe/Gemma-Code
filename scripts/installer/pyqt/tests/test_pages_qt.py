@@ -155,15 +155,6 @@ class TestInstallPathPage:
         assert ok is False
 
 
-class TestModelSelectionPage:
-    def test_creates_with_models(self, qt_app: object) -> None:
-        from nexus_installer.pages.model_selection import ModelSelectionPage
-
-        state = InstallerState(recommended_model="gemma4:e4b", vram_mb=8192)
-        page = ModelSelectionPage(state)
-        assert len(page._cards) == 4
-
-
 class TestConfigurationPage:
     def test_creates_with_toggles(self, qt_app: object) -> None:
         from nexus_installer.pages.configuration import ConfigurationPage

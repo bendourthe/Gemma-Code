@@ -49,11 +49,28 @@ describe("catalog", () => {
     expect(() =>
       validateSpec({
         id: "x", family: "x", name: "x", tag: "1",
-        type: "audio" as ModelSpec["type"],
+        type: "hologram" as ModelSpec["type"],
         displayName: "X",
         source: { protocol: "ollama" },
       }),
     ).toThrow(/invalid type/);
+  });
+
+  it("validateSpec accepts the audio type (v1.9.0 Phase 4)", () => {
+    const spec: ModelSpec = {
+      id: "kokoro",
+      family: "kokoro",
+      name: "kokoro",
+      tag: "v1",
+      type: "audio",
+      task: "audio",
+      displayName: "Kokoro",
+      source: {
+        protocol: "huggingface",
+        url: "https://huggingface.co/x/resolve/main/kokoro.pth",
+      },
+    };
+    expect(() => validateSpec(spec)).not.toThrow();
   });
 
   it("validateSpec requires url for non-ollama protocols", () => {
@@ -246,5 +263,65 @@ describe("catalog", () => {
     expect(sana?.license).toBe("Apache-2.0");
     const sanaInt4 = file.models.find((m) => m.id === "sana-1.6b-int4");
     expect(sanaInt4?.runtimeDeps).toEqual(["nunchaku"]);
+  });
+
+  it("carries the v1.9.0 Phase 4 audio pillar (speech + generation)", async () => {
+    const file = await loadCatalog();
+    const byId = new Map(file.models.map((m) => [m.id, m]));
+    const speech: Array<[string, string]> = [
+      ["faster-whisper-large-v3", "MIT"],
+      ["kokoro-82m", "Apache-2.0"],
+      ["piper-en-us-lessac", "MIT"],
+    ];
+    const generation = ["musicgen-medium", "stable-audio-open-1.0"];
+    for (const [id, licensePrefix] of speech) {
+      const entry = byId.get(id);
+      expect(entry, `${id} should exist`).toBeDefined();
+      expect(entry?.type).toBe("audio");
+      expect(entry?.task).toBe("audio");
+      expect(entry?.license?.startsWith(licensePrefix)).toBe(true);
+      // Speech models are CPU-capable (compatible on any host).
+      expect(entry?.requiredVramGB ?? 0).toBe(0);
+      expect(entry?.source.protocol).toBe("huggingface");
+      expect(entry?.weights?.files.length).toBeGreaterThan(0);
+    }
+    for (const id of generation) {
+      const entry = byId.get(id);
+      expect(entry, `${id} should exist`).toBeDefined();
+      expect(entry?.type).toBe("audio");
+      expect(entry?.license, `${id} must record a license`).toBeTruthy();
+    }
+  });
+
+  it("populates origin on every user-facing entry (v1.9.0 Phase 4)", async () => {
+    const file = await loadCatalog();
+    const userFacing = file.models.filter(
+      (m) => m.type !== "vae" && m.type !== "controlnet",
+    );
+    for (const entry of userFacing) {
+      expect(entry.origin, `${entry.id} missing origin`).toBeTruthy();
+    }
+  });
+
+  it("flags the agentic-capable models (Gemma 4 family + coders)", async () => {
+    const file = await loadCatalog();
+    const byId = new Map(file.models.map((m) => [m.id, m]));
+    const agentic = [
+      "gemma4:e2b",
+      "gemma4:e4b",
+      "gemma4:26b",
+      "gemma4:31b",
+      "gemma-4-12b-it-gguf",
+      "qwen2.5-coder:7b",
+      "qwen2.5-coder:14b",
+      "deepseek-coder-v2:16b",
+    ];
+    for (const id of agentic) {
+      expect(byId.get(id)?.agentic, `${id} should be agentic-capable`).toBe(true);
+    }
+    // A general chat model that is not agentic-coding-capable is not flagged.
+    expect(byId.get("llama3.1:8b")?.agentic ?? false).toBe(false);
+    // The Gemma 4 family keeps its primary task as chat (surfaced in both tabs).
+    expect(byId.get("gemma4:e4b")?.task).toBe("chat");
   });
 });

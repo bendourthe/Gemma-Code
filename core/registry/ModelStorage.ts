@@ -39,12 +39,13 @@ export interface ModelManifest {
   readonly family: string;
   readonly name: string;
   readonly tag: string;
-  readonly type: "llm" | "embed" | "image" | "video" | "controlnet" | "vae";
+  readonly type: "llm" | "embed" | "image" | "video" | "audio" | "controlnet" | "vae";
   readonly runtime?:
     | "ollama"
     | "lmstudio"
     | "diffusion"
     | "video"
+    | "audio"
     | "embed"
     | "controlnet"
     | "vae";

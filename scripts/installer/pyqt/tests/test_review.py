@@ -1,50 +1,24 @@
-﻿"""Tests for the review page summary logic."""
+"""Tests for the review page summary logic."""
 
 from __future__ import annotations
 
 from nexus_installer.installer_state import InstallerState
-from nexus_installer.pages.review import _COMPONENT_LABELS, _MODEL_SIZES
-
-
-class TestModelSizes:
-    def test_all_models_have_sizes(self) -> None:
-        for model in ("gemma4:e2b", "gemma4:e4b", "gemma4:26b", "gemma4:31b"):
-            assert model in _MODEL_SIZES
-            assert _MODEL_SIZES[model] > 0
-
-    def test_sizes_ascending(self) -> None:
-        sizes = [
-            _MODEL_SIZES[m]
-            for m in ("gemma4:e2b", "gemma4:e4b", "gemma4:26b", "gemma4:31b")
-        ]
-        assert sizes == sorted(sizes)
+from nexus_installer.pages.review import _COMPONENT_LABELS
 
 
 class TestReviewSummary:
     def test_state_fields_populated(self) -> None:
         state = InstallerState()
-        state.install_path = "/opt/gemma"
+        state.install_path = "/opt/nexus"
         state.selected_model = "gemma4:e4b"
         state.gpu_name = "NVIDIA RTX 4090"
         state.vram_mb = 24576
         state.components_to_install = ["extension", "ollama", "venv", "model"]
 
         # Verify all fields are accessible for summary rendering
-        assert state.install_path == "/opt/gemma"
+        assert state.install_path == "/opt/nexus"
         assert state.selected_model == "gemma4:e4b"
         assert len(state.components_to_install) == 4
-
-    def test_estimated_disk_calculation(self) -> None:
-        model_size = _MODEL_SIZES.get("gemma4:e4b", 0)
-        overhead = 2.0
-        total = model_size + overhead
-        assert total == 10.0  # 8 + 2
-
-    def test_time_estimate_heuristic(self) -> None:
-        # Large model -> longer time
-        assert _MODEL_SIZES["gemma4:31b"] >= 18
-        # Small model -> shorter time
-        assert _MODEL_SIZES["gemma4:e2b"] < 8
 
     def test_desktop_component_has_friendly_label(self) -> None:
         # v1.8.0 Phase 2: the desktop component renders as a product name,
@@ -70,6 +44,9 @@ class TestReviewSummary:
         assert "9.6 GB" in text
 
     def test_single_model_fallback_summary(self, qt_app) -> None:
+        # v1.9.0 Phase 4 (T406): the legacy `_MODEL_SIZES` estimate table is
+        # gone; a lone `selected_model` (a headless --model override) still
+        # renders by name, using the authoritative `selected_models_gb`.
         from nexus_installer.pages.review import ReviewPage
 
         state = InstallerState()
@@ -78,4 +55,15 @@ class TestReviewSummary:
         page._rebuild_summary()
         text = page._summary_label.text()
         assert "gemma4:e4b" in text
-        assert "8" in text  # legacy size table
+
+    def test_empty_selection_summary(self, qt_app) -> None:
+        # v1.9.0 Phase 4 (T406): no selection at all reads clearly rather than
+        # crashing on the removed size table.
+        from nexus_installer.pages.review import ReviewPage
+
+        state = InstallerState()
+        state.selected_model = ""
+        page = ReviewPage(state)
+        page._rebuild_summary()
+        text = page._summary_label.text()
+        assert "none selected" in text

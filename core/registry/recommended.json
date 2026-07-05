@@ -1,49 +1,49 @@
 {
   "_meta": {
     "version": 2,
-    "phase": "v1.8.0 Phase 4",
-    "comment": "Per-VRAM-tier default model selections for the installer's typed catalog UI (replaces the v1 flat per-tab lists). `tiers` maps a hardware tier (cpu, or the GPU VRAM budget in GB) to per-section default entry ids from catalog.json. The wizard resolves the tier from the detected GPU (nexus_installer/tier_defaults.py), fit-gates every id against detected VRAM and free disk, and pre-ticks the result; everything else in the catalog appears un-ticked for opt-in. Every tier includes one chat and one agentic model plus the embed model the memory layer needs; image and video defaults are the uncensored entries (the v1.8.0 product decision) on tiers whose hardware fits them, with censored alternatives left listed in the catalog. The cpu tier gets no image/video defaults (diffusion requires a GPU). Audio stays empty until audio curation lands (plan Section 4)."
+    "phase": "v1.9.0 Phase 4",
+    "comment": "Per-VRAM-tier default model selections for the installer's typed catalog UI. `tiers` maps a hardware tier (cpu, or the GPU VRAM budget in GB) to per-section default entry ids from catalog.json. The wizard resolves the tier from the detected GPU (nexus_installer/tier_defaults.py), fit-gates every id against detected VRAM and free disk, and pre-ticks the result; everything else in the catalog appears un-ticked for opt-in. v1.9.0 Phase 4: the agentic default is a Gemma 4 variant (Gemma 4 is agentic-coding-capable), so the agentic list is [<best-fitting Gemma 4 variant>, <coder fallback>] -- the Gemma is preferred and, because it is usually the same id as the chat pick, one model covers both chat and agentic; the coding specialist (qwen2.5-coder / deepseek-coder-v2) is the in-list fallback taken only when no Gemma 4 variant fits. chat/agentic are single-pick sections; embed/image/audio/video take every fitting id. image/video defaults are the uncensored entries (the v1.8.0 product decision) on tiers whose hardware fits them; the cpu tier gets no image/video (diffusion requires a GPU). Audio defaults are the permissive, CPU-capable speech models (faster-whisper STT + Kokoro TTS) on every tier; the GPU-gated, non-commercial generation models stay opt-in."
   },
   "tiers": {
     "cpu": {
       "chat": ["gemma4:e2b"],
-      "agentic": ["qwen2.5-coder:7b"],
+      "agentic": ["gemma4:e2b", "qwen2.5-coder:7b"],
       "embed": ["nomic-embed-text"],
       "image": [],
       "video": [],
-      "audio": []
+      "audio": ["faster-whisper-large-v3", "kokoro-82m"]
     },
     "8": {
       "chat": ["gemma4:e4b"],
-      "agentic": ["qwen2.5-coder:7b"],
+      "agentic": ["gemma4:e4b", "qwen2.5-coder:7b"],
       "embed": ["nomic-embed-text"],
       "image": ["juggernaut-xl-v9"],
       "video": ["wan2.1-t2v-1.3b"],
-      "audio": []
+      "audio": ["faster-whisper-large-v3", "kokoro-82m"]
     },
     "12": {
       "chat": ["gemma-4-12b-it-gguf"],
-      "agentic": ["qwen2.5-coder:14b"],
+      "agentic": ["gemma-4-12b-it-gguf", "qwen2.5-coder:14b"],
       "embed": ["nomic-embed-text"],
       "image": ["juggernaut-xl-v9"],
       "video": ["wan2.1-t2v-1.3b"],
-      "audio": []
+      "audio": ["faster-whisper-large-v3", "kokoro-82m"]
     },
     "16": {
       "chat": ["gemma-4-12b-it-gguf"],
-      "agentic": ["deepseek-coder-v2:16b"],
+      "agentic": ["gemma-4-12b-it-gguf", "deepseek-coder-v2:16b"],
       "embed": ["nomic-embed-text"],
       "image": ["realvisxl-v5"],
       "video": ["wan2.1-t2v-1.3b"],
-      "audio": []
+      "audio": ["faster-whisper-large-v3", "kokoro-82m"]
     },
     "24": {
       "chat": ["gemma4:31b"],
-      "agentic": ["deepseek-coder-v2:16b"],
+      "agentic": ["gemma4:31b", "deepseek-coder-v2:16b"],
       "embed": ["nomic-embed-text"],
       "image": ["realvisxl-v5"],
       "video": ["wan2.2-ti2v-5b"],
-      "audio": []
+      "audio": ["faster-whisper-large-v3", "kokoro-82m"]
     }
   }
 }

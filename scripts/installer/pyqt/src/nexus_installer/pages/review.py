@@ -1,4 +1,4 @@
-﻿"""Review page: read-only summary of all installation choices."""
+"""Review page: read-only summary of all installation choices."""
 
 from __future__ import annotations
 
@@ -11,14 +11,6 @@ from nexus_installer.widgets.callout_box import CalloutBox
 
 if TYPE_CHECKING:
     from nexus_installer.installer_state import InstallerState
-
-# Approximate download sizes per model (GB)
-_MODEL_SIZES: dict[str, float] = {
-    "gemma4:e2b": 5.1,
-    "gemma4:e4b": 8.0,
-    "gemma4:26b": 18.0,
-    "gemma4:31b": 20.0,
-}
 
 # Friendly names for components whose bare id reads poorly when capitalized.
 _COMPONENT_LABELS: dict[str, str] = {
@@ -62,7 +54,10 @@ class ReviewPage(QWidget):
         # Internet warning callout
         callout = CalloutBox(
             title="Note",
-            body="Installation will download components from the internet. Ensure you have a stable connection.",
+            body=(
+                "Installation will download components from the internet. "
+                "Ensure you have a stable connection."
+            ),
         )
         self._layout.addWidget(callout)
 
@@ -82,9 +77,11 @@ class ReviewPage(QWidget):
             for c in s.components_to_install
         )
 
-        # v1.8.0 Phase 4: the typed catalog publishes a multi-selection with
-        # an authoritative size total; fall back to the legacy single-model
-        # estimate when the multi-selection is empty (headless overrides).
+        # v1.9.0 Phase 4 (T406): the typed catalog is the wired producer of
+        # `selected_model_ids` with an authoritative size total, so the legacy
+        # per-model size table is gone. A single `selected_model` (a headless
+        # `--model` override that never runs the review page) still renders by
+        # name; an empty selection reads as "none selected".
         if s.selected_model_ids:
             model_size = s.selected_models_gb
             models_line = (
@@ -92,11 +89,12 @@ class ReviewPage(QWidget):
                 f"(~{model_size:.1f} GB download)<br>"
                 + "".join(f"&nbsp;&nbsp;{mid}<br>" for mid in s.selected_model_ids)
             )
+        elif s.selected_model:
+            model_size = s.selected_models_gb
+            models_line = f"<b>Model:</b> {s.selected_model}<br>"
         else:
-            model_size = _MODEL_SIZES.get(s.selected_model, 0)
-            models_line = (
-                f"<b>Model:</b> {s.selected_model} ({model_size} GB download)<br>"
-            )
+            model_size = 0.0
+            models_line = "<b>Models:</b> none selected<br>"
         estimated_disk = model_size + 2.0  # ~2 GB overhead for venv + extension
 
         # Rough install time heuristic
