@@ -4,6 +4,28 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-04] v1.9.0 installer + app overhaul -- Phase 6 FINAL: cross-platform rehearsal + docs + close-out (T601-T603)
+
+### Goal
+
+Close the v1.9.0 cycle ([plan](versions/v1/v1.9.0/plans/installer-and-app-experience-overhaul.md) Phase 6): re-prove the single-artifact installer build, disposition every "-> Phase 6" known gap, defer the environmentally-blocked legs, and land the whole-plan close-out. Verification + close-out only -- no feature code.
+
+### What changed
+
+- **T601 -- Windows build re-proof**: a from-scratch PyInstaller onefile rebuild (`uv run pyinstaller build/nexus-installer.spec --distpath dist --workpath build/work --clean --noconfirm`) produced exactly one `dist/NexusSetup.exe` (75,624,237 bytes / ~72.1 MB; the delta vs. Phase 1's ~65 MB is normal onefile variance from the freshly `uv sync`'d deps + UPX). `smoke-windows-exe.ps1` all-green: single artifact, no leftover `nexus-installer.exe`, `--version` exit 0, `--check-registry` exit 0 (bundled `catalog.json`/`recommended.json` resolve inside the frozen bundle). Second independent Windows proof (Phase 1 + Phase 6). The local rebuild bundled no VSIX (none in the working tree; the extension is packaged by the root workspace in CI) -- a release-pipeline step, not a build-proof concern. `build-windows.ps1` was **not modified**: its `2>&1 | Select-String` under `ErrorActionPreference=Stop` is correct under `pwsh` (CI + Phase 1); this sandbox lacks `pwsh` on PATH, so PyInstaller was invoked directly to get an authoritative exit code.
+- **T602 -- CI legs deferred**: the rewritten installer workflows + release upload paths + desktop-bundle build are wired (Phases 1/5), but the runs, the audio-weights pin rotation, and the spaced-`productName` bundle verification are dispatch-gated post-freeze -- the Actions freeze runs until 2026-08-01 (today 2026-07-04) and the sandbox has no HF egress (`IAE.P4.C` / `IAE.P5.D`).
+- **T603 -- docs + close-out**: [plan](versions/v1/v1.9.0/plans/installer-and-app-experience-overhaul.md) status -> COMPLETE (Phases 1-6) with T601/T602/T603 dispositioned and the DoD annotated observable-by-observable; [known-gaps](versions/v1/v1.9.0/known-gaps.md) header -> COMPLETE with a Phase 6 section sorting every open item into operator-on-device / post-freeze-CI / deliberate-deferral buckets (summary now 6/6); [install.md](install.md) release-provenance line freshened to v1.9.0; the v1.9.0 row added to the [todos.md](todos.md) v1.x line table. README/CHANGELOG narrative + the npm version tag stay semantic-release-owned (cut on merge to `main`).
+
+### Verification
+
+Build: one `dist/NexusSetup.exe` (75,624,237 bytes) from a clean tree. Smoke: `smoke-windows-exe.ps1` 4/4 PASS. Installer pytest: **651 passed / 2 skipped / 0 failed / 0 errors** (653 collected; JUnit XML `tests=653 failures=0 errors=0 skipped=2`) -- unchanged from Phase 4 (Phases 5/6 touched no installer code). TS/desktop suites unchanged since their last green runs (Phase 6 changed only docs). No new known gaps opened. Whole-plan DoD (Section 0's 7 observables) met locally + by construction; the 3-OS on-device rehearsal + post-freeze CI legs are recorded operator/dispatch rehearsals. See the [phase history](versions/v1/v1.9.0/development/history/2026-07_phase-6-rehearsal-and-closeout.md).
+
+### Branch
+
+Continues on the v1.9.0 line (`feat/v1.9.0-installer-phase-1`). v1.9.0 complete across all 6 phases; ready for release (version tag cut on merge to `main`).
+
+---
+
 ## [2026-07-04] v1.9.0 installer + app overhaul -- Phase 5: desktop app (Nexus AI Studio) full UI/UX overhaul (T501-T505)
 
 ### Goal

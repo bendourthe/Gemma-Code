@@ -1,9 +1,9 @@
 # v1.9.0 -- Known Gaps, Deferrals, and Carryovers
 
-**Status**: PLANNED -- cycle not started. v1.9.0 is the "Installer + Nexus AI Studio Experience Overhaul" cycle ([plans/installer-and-app-experience-overhaul.md](plans/installer-and-app-experience-overhaul.md)): one modern branded single installer, a rebranded/​restyled PyQt wizard, a richer scannable model catalog (origin + guardrails + agentic metadata + a full audio pillar), and a full UI/UX overhaul of the Tauri desktop app on all three platforms. This file is appended phase-by-phase; items move to `## 2. Resolved` when closed.
+**Status**: COMPLETE (Phases 1-6) -- in-session work landed 2026-07-04. v1.9.0 is the "Installer + Nexus AI Studio Experience Overhaul" cycle ([plans/installer-and-app-experience-overhaul.md](plans/installer-and-app-experience-overhaul.md)): one modern branded single installer, a rebranded/​restyled PyQt wizard, a richer scannable model catalog (origin + guardrails + agentic metadata + a full audio pillar), and a full UI/UX overhaul of the Tauri desktop app on all three platforms. This file is appended phase-by-phase; items move to `## 2. Resolved` when closed. The remaining open items are the on-device 3-OS visual/behavioral rehearsal and the post-freeze CI legs (both environmentally blocked in-session), recorded as operator/dispatch rehearsals -- the same disposition as v1.8.0's `OSI006.P6.A/C`.
 
 **Audience**: v1.9.0 phase authors, code reviewer, future-cycle planners
-**Last updated**: 2026-07-04 (Phase 5 landed)
+**Last updated**: 2026-07-04 (Phase 6 FINAL -- rehearsal + docs + close-out landed)
 **Predecessor**: [../v1.8.0/known-gaps.md](../v1.8.0/known-gaps.md).
 
 Severity tags: **P0** release-blocker; **P1** should-fix; **P2** nice-to-have; **P3** out-of-scope for v1.9.0 / recorded for future planning.
@@ -75,6 +75,24 @@ Note: the deliberate two-mark brand presence (compact static mark + wordmark in 
 
 Notes: (1) `origin` for community fine-tunes is publisher-country best-effort -- RealVisXL is `"Community"` (SG161222, an individual with no clearly attributable country) and Juggernaut is `"USA"` (RunDiffusion); the Stability-lineage SDXL/SD/SVD entries follow the operator-verified `"UK"` grouping. (2) The guardrails surface is a deliberately coarse 3-value label (Uncensored / Safety-tuned / N/A) derived from `uncensored` + an optional `guardrails` override -- not a per-model policy audit. (3) The Gemma-4-as-agentic-default decision is web-confirmed per the operator (2026-07-03), not benchmarked in-repo; on the smallest tiers the agentic default is a small Gemma 4 variant (e2b/e4b), which is generous but matches the "Gemma 4 first where hardware fits" decision.
 
+### Phase 6 -- Cross-platform rehearsal + docs + close-out (FINAL, 2026-07-04)
+
+Phase 6 opened no new gaps. It re-proved the Windows single-artifact build a second time, deferred the environmentally-blocked legs, and landed the whole-plan close-out. Disposition of the "-> Phase 6" items that could not be executed in this headless, single-OS, no-egress sandbox:
+
+| ID | Sev | Cat | Phase 6 disposition |
+|---|---|---|---|
+| `IAE.P1.B` | P1 | DF | **Windows leg re-closed; mac/Linux + clean-VM remain operator rehearsals.** A from-scratch PyInstaller onefile rebuild produced exactly one `dist/NexusSetup.exe` (75,624,237 bytes / ~72.1 MB) and `smoke-windows-exe.ps1` was all-green (single artifact, no leftover `nexus-installer.exe`, `--version` + `--check-registry` exit 0). This is the second independent Windows build proof (Phase 1 + Phase 6). The macOS DMG + Linux AppImage local builds and the Windows clean-VM double-click-to-finish rehearsal are **not runnable here** (no mac/Linux hardware, no clean VM) -> stay operator rehearsals, mirroring v1.8.0 `OSI006.P6.A/C`. |
+| `IAE.P2.B` | P2 | DF | **Stays open (operator visual check).** The regenerated icons are transparent + squircle-rounded and asserted by the Pillow corner-alpha / non-opaque checks (part of the 651-green installer suite), but the on-device dock/taskbar/marketplace *eyeball* has no GUI surface in this headless sandbox. Folds into the operator 3-OS rehearsal. |
+| `IAE.P3.A` / `IAE.P5.A` | P1 | DF | **Stay open (operator on-device).** Frameless per-OS move/resize/snap/minimize for the wizard (`IAE.P3.A`) and the app (`IAE.P5.A`) are unit-tested offscreen/jsdom but not exercised on real Windows/macOS/Linux WMs. The `NEXUS_NATIVE_TITLEBAR` / `decorations` fallbacks are the documented escape hatches -> operator 3-OS rehearsal. |
+| `IAE.P5.B` | P2 | DF | **Stays open (operator on-device).** Tauri edge/corner resize with `decorations:false` is webview-dependent; verify per OS in the rehearsal, or add CSS resize handles / native-decorations fallback. |
+| `IAE.P4.C` / `IAE.P5.D` | P2 / P3 | DF | **Stay open (post-freeze CI / no egress).** Audio-weights sha256 pin rotation needs HF egress (blocked in-sandbox, same as every other HF pin -- `OSI003.P3.A`); the spaced-`productName` 3-OS bundle build runs in CI. Both are dispatch-gated post-freeze (Actions freeze until 2026-08-01; today 2026-07-04) -> T602 rehearsal. |
+
+**T602 CI legs** (rewritten installer workflows + release upload paths + desktop-bundle build; one artifact per OS + `SHA256SUMS.txt`): the workflows are wired and upload paths corrected (Phases 1/5), but the runs are dispatch-gated post-freeze (>= 2026-08-01) -- not executed here.
+
+**Deliberate forward-cycle deferrals** (correctly categorized, not Phase 6 work): `IAE.P1.A` (offline payload embed dropped -- NSIS-only), `IAE.P3.B` (mac/Linux reduced-motion native query), `IAE.P3.C` (Inter/JetBrains Mono TTF bundling), `IAE.P4.A` (audio runtime not implemented -- download-only, parallels image/video stubs), `IAE.P5.C` (pillar-page internal component polish).
+
+**Whole-plan DoD acceptance (Section 0 observables)**: met locally + by construction, with the on-device 3-OS rehearsal + post-freeze CI recorded above -- see the plan's Phase 6 DoD note. No feature code changed in Phase 6 (verification + close-out only).
+
 ---
 
 ## 2. Resolved
@@ -89,6 +107,9 @@ Notes: (1) `origin` for community fine-tunes is publisher-country best-effort --
 
 ## 3. Summary
 
-- **Phases**: 5 / 6 started (Phase 5 landed 2026-07-04).
-- **Open**: `IAE.P1.A` (P2, offline payload embed dropped), `IAE.P1.B` (P1, cross-platform + clean-VM build proof -> Phase 6), `IAE.P2.A` (P2, PyQt reduced-motion -- **partially resolved** in Phase 3: env var + Windows native query wired; mac/Linux residual is `IAE.P3.B`), `IAE.P2.B` (P2, on-device icon rendering visual check -> Phase 6), `IAE.P3.A` (P1, frameless per-OS window behavior -> Phase 6), `IAE.P3.B` (P2, mac/Linux reduced-motion native query), `IAE.P3.C` (P2, Inter/JetBrains Mono TTF bundling deferred), `IAE.P4.A` (P1, audio runtime not implemented -- download-only), `IAE.P4.C` (P2, audio weights sha256 pins are placeholders -> Phase 6), `IAE.P5.A` (P1, app frameless per-OS window behavior -> Phase 6), `IAE.P5.B` (P2, app edge-resize with decorations off -> Phase 6), `IAE.P5.C` (P2, pillar-page internal component polish deferred), `IAE.P5.D` (P3, spaced productName bundle-name verification -> Phase 6).
+- **Phases**: 6 / 6 COMPLETE (Phase 6 FINAL landed 2026-07-04; in-session work done).
+- **Open (all environmentally blocked in-session; recorded as operator / post-freeze rehearsals)**:
+  - *Operator on-device 3-OS rehearsal* (no mac/Linux hardware, no clean VM, no GUI surface here): `IAE.P1.B` (P1, mac/Linux + clean-VM build proof -- Windows leg re-closed twice), `IAE.P2.B` (P2, on-device icon-render eyeball), `IAE.P3.A` (P1, wizard frameless per-OS), `IAE.P5.A` (P1, app frameless per-OS), `IAE.P5.B` (P2, app edge-resize with decorations off).
+  - *Post-freeze CI / no egress* (Actions freeze until 2026-08-01): `IAE.P4.C` (P2, audio weights sha256 pin rotation -- needs HF egress), `IAE.P5.D` (P3, spaced-`productName` bundle-name verification -- T602 CI).
+  - *Deliberate forward-cycle deferrals* (correctly categorized, not Phase 6 work): `IAE.P1.A` (P2, offline payload embed dropped -- NSIS-only), `IAE.P2.A` (P2, PyQt reduced-motion -- **partially resolved** Phase 3: env var + Windows native query; mac/Linux residual is `IAE.P3.B`), `IAE.P3.B` (P2, mac/Linux reduced-motion native query), `IAE.P3.C` (P2, Inter/JetBrains Mono TTF bundling), `IAE.P4.A` (P1, audio runtime not implemented -- download-only), `IAE.P5.C` (P2, pillar-page internal component polish).
 - **Resolved**: `OSI004.P4.D` (legacy model-selection pages removed, Phase 4), `IAE.P4.B` (desktop DTO mirror gained `"audio"`, Phase 5), `NAME.P1.A` desktop half (app rebranded "Nexus AI Studio", Phase 5).

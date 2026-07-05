@@ -2,7 +2,7 @@
 
 Nexus ships as a **one-file installer** per platform. Download it, run it, answer a few questions, and you end up with the Nexus desktop app, the VS Code extension (optional), and local AI models matched to your hardware. No terminal, no manual dependency setup.
 
-The installers are attached to each [GitHub release](https://github.com/bendourthe/Nexus-AI/releases), alongside a `SHA256SUMS.txt` you can use to verify your download. The first releases carrying the full asset set follow the v1.8.0 cycle's post-freeze release rehearsal.
+The installers are attached to each [GitHub release](https://github.com/bendourthe/Nexus-AI/releases), alongside a `SHA256SUMS.txt` you can use to verify your download. The single-window branded installer described here is the v1.9.0 build; the first releases carrying the full asset set for every OS follow the post-freeze release rehearsal (the GitHub Actions build freeze lifts 2026-08-01).
 
 | Platform | Download | Size class |
 |---|---|---|
