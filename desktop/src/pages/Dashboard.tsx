@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { ModuleCard } from "../components/ModuleCard";
 import { LocalModelStatus } from "../components/LocalModelStatus";
+import { FloatingLogo } from "../components/FloatingLogo";
 import { TopBar } from "../components/TopBar";
 import type { TelemetryStream } from "../components/LocalModelStatus.types";
 import { readProfileSync } from "../lib/profile";
@@ -74,16 +75,29 @@ export function Dashboard({
           gap: "var(--space-4)",
         }}
       >
-        <h1
-          style={{
-            margin: 0,
-            fontSize: "var(--text-xl)",
-            fontWeight: 600,
-            color: "var(--fg-0)",
-          }}
+        <div
+          data-testid="dashboard-hero"
+          style={{ display: "flex", alignItems: "center", gap: "var(--space-4)" }}
         >
-          NEXUS Dashboard: Your Local AI Workspace
-        </h1>
+          <FloatingLogo src="/nexus-mark.png" size={52} glow="md" data-testid="dashboard-hero-logo" />
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <h1
+              className="nexus-gradient-text"
+              style={{
+                margin: 0,
+                fontSize: "var(--text-2xl)",
+                fontWeight: 700,
+                letterSpacing: "-0.01em",
+                lineHeight: 1.1,
+              }}
+            >
+              Nexus AI Studio
+            </h1>
+            <span style={{ fontSize: "var(--text-sm)", color: "var(--fg-muted)" }}>
+              Your Local AI Workspace
+            </span>
+          </div>
+        </div>
         <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
           <TopBar
             chatClient={chatClient}

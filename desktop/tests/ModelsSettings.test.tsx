@@ -214,4 +214,47 @@ describe("ModelsSettings", () => {
       expect(screen.getByTestId("models-disk-summary").textContent).toMatch(/Models occupy/);
     });
   });
+
+  it("renders audio models and filters by the Audio type (IAE.P4.B)", async () => {
+    const audioClient: ModelsClient = {
+      async list() {
+        return [
+          {
+            id: "gemma4:e4b",
+            displayName: "Gemma 4 E4B",
+            family: "gemma4",
+            type: "llm",
+            installed: true,
+            source: "registry",
+          },
+          {
+            id: "faster-whisper",
+            displayName: "faster-whisper (STT)",
+            family: "whisper",
+            type: "audio",
+            installed: false,
+            source: "catalog-only",
+            license: "MIT",
+          },
+        ];
+      },
+      install() {
+        return Object.assign({ cancel() {} }, { done: Promise.resolve() });
+      },
+      async remove() {},
+      async diskUsage() {
+        return { usedBytes: 0, freeBytes: null };
+      },
+    };
+    render(<ModelsSettings client={audioClient} />);
+    await waitFor(() => expect(screen.queryByTestId("models-loading")).not.toBeInTheDocument());
+    // The audio model renders with the audio icon under the default "all" filter.
+    expect(screen.getByTestId("models-icon-audio")).toBeInTheDocument();
+    // Filtering to Audio keeps the audio entry and drops the LLM.
+    fireEvent.change(screen.getByTestId("models-filter-type"), { target: { value: "audio" } });
+    await waitFor(() => {
+      expect(screen.getByTestId("section-available-count").textContent).toBe("(1)");
+      expect(screen.getByTestId("section-installed-count").textContent).toBe("(0)");
+    });
+  });
 });

@@ -109,4 +109,11 @@ describe("Dashboard", () => {
     expect(screen.getByTestId("dashboard-fab-sparkle")).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-fab-help")).toBeInTheDocument();
   });
+
+  it("renders the branded hero with the floating mark and gradient heading (Phase 5)", () => {
+    renderDashboard();
+    const hero = screen.getByTestId("dashboard-hero");
+    expect(hero).toHaveTextContent("Nexus AI Studio");
+    expect(screen.getByTestId("dashboard-hero-logo")).toBeInTheDocument();
+  });
 });

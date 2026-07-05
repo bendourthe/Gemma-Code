@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Route, Routes, useLocation } from "react-router-dom";
 import { Sidebar } from "./components/Sidebar";
+import { TitleBar } from "./components/TitleBar";
+import { ConstellationBackground } from "./components/ConstellationBackground";
 import { Dashboard } from "./pages/Dashboard";
 import { ModulePlaceholder } from "./pages/ModulePlaceholder";
 import { StyleguidePage } from "./pages/Styleguide";
@@ -31,10 +33,16 @@ export function App({ telemetryStream }: AppProps = {}): JSX.Element {
     return () => created.stop();
   }, [telemetryStream]);
 
+  // Fixed-viewport shell: the title bar is fixed chrome and the content row
+  // scrolls internally. The ambient radial-glow + constellation backdrop sits
+  // behind everything (z-index 0); foreground chrome layers above at z-index 1.
   const layoutStyle = useMemo<React.CSSProperties>(
     () => ({
       display: "flex",
-      minHeight: "100vh",
+      flexDirection: "column",
+      height: "100vh",
+      overflow: "hidden",
+      position: "relative",
       backgroundColor: "var(--bg-0)",
       color: "var(--fg-0)",
     }),
@@ -43,28 +51,50 @@ export function App({ telemetryStream }: AppProps = {}): JSX.Element {
 
   return (
     <div data-testid="app-root" style={layoutStyle}>
-      <Sidebar />
-      <main style={{ display: "flex", flex: 1, flexDirection: "column" }}>
-        <Routes>
-          <Route path="/" element={<Dashboard telemetryStream={stream} />} />
-          <Route path="/chatbot" element={<ChatPage />} />
-          <Route path="/coding" element={<CodingPage />} />
-          <Route path="/images" element={<ImageStudioPage />} />
-          <Route path="/videos" element={<VideoLabPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route
-            path="/profile"
-            element={
-              <ModulePlaceholder
-                moduleId="coding"
-                message="Profile editor placeholder. Reads ~/.nexus/profile.json once Phase 2 lands the storage migration."
-              />
-            }
-          />
-          <Route path="/_styleguide" element={<StyleguidePage />} />
-        </Routes>
-        <DockMount stream={stream} />
-      </main>
+      <div className="nexus-app-backdrop" data-testid="app-backdrop" aria-hidden />
+      <ConstellationBackground opacity={0.5} zIndex={0} data-testid="app-constellation" />
+      <TitleBar />
+      <div
+        data-testid="app-content"
+        style={{
+          display: "flex",
+          flex: 1,
+          minHeight: 0,
+          position: "relative",
+          zIndex: 1,
+        }}
+      >
+        <Sidebar />
+        <main
+          style={{
+            display: "flex",
+            flex: 1,
+            flexDirection: "column",
+            minWidth: 0,
+            position: "relative",
+          }}
+        >
+          <Routes>
+            <Route path="/" element={<Dashboard telemetryStream={stream} />} />
+            <Route path="/chatbot" element={<ChatPage />} />
+            <Route path="/coding" element={<CodingPage />} />
+            <Route path="/images" element={<ImageStudioPage />} />
+            <Route path="/videos" element={<VideoLabPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route
+              path="/profile"
+              element={
+                <ModulePlaceholder
+                  moduleId="coding"
+                  message="Profile editor placeholder. Reads ~/.nexus/profile.json once Phase 2 lands the storage migration."
+                />
+              }
+            />
+            <Route path="/_styleguide" element={<StyleguidePage />} />
+          </Routes>
+          <DockMount stream={stream} />
+        </main>
+      </div>
     </div>
   );
 }

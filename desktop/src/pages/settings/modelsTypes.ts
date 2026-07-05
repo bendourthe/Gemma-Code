@@ -12,6 +12,7 @@ export type ModelType =
   | "embed"
   | "image"
   | "video"
+  | "audio"
   | "controlnet"
   | "vae";
 

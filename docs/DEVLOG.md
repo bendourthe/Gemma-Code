@@ -4,6 +4,31 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-04] v1.9.0 installer + app overhaul -- Phase 5: desktop app (Nexus AI Studio) full UI/UX overhaul (T501-T505)
+
+### Goal
+
+Bring the Tauri desktop app to visual parity with the rebuilt installer so the two read as one product ([plan](versions/v1/v1.9.0/plans/installer-and-app-experience-overhaul.md) Phase 5): a frameless custom dark title bar, the shared constellation + radial-glow backdrop, the "Nexus AI Studio" rebrand, the transparent floating mark, and a cohesive glow/gradient restyle across the shell.
+
+### What changed
+
+- **T501 -- frameless title bar**: set `decorations: false` ([tauri.conf.json](../desktop/src-tauri/tauri.conf.json)) and added a React [`<TitleBar/>`](../desktop/src/components/TitleBar.tsx) (transparent static glowing mark + "Nexus AI Studio" wordmark + minimize / maximize-restore / close; `data-tauri-drag-region` for native move + double-click-maximize; the maximize glyph syncs with the real window state). Window controls go through a safe [windowControls.ts](../desktop/src/lib/windowControls.ts) wrapper that lazily imports `@tauri-apps/api/window` and no-ops outside a Tauri runtime (Vitest, `vite dev:web`). Added the first Tauri capability file [capabilities/default.json](../desktop/src-tauri/capabilities/default.json) granting `core:window` start-dragging / minimize / maximize / unmaximize / toggle-maximize / is-maximized / close (app-defined commands like `ipc_call` need no grant). `lib.rs` window theme/icon behavior is unchanged (controls are JS-side).
+- **T502 -- constellation backdrop**: mounted the Phase 2 [`<ConstellationBackground/>`](../desktop/src/components/ConstellationBackground.tsx) at 0.5 opacity behind the whole shell over a fixed radial-glow layer (`.nexus-app-backdrop`), with the foreground chrome layered above at `z-index: 1`. The four pillar page roots set no opaque background, so they inherit the ambient backdrop; reduced-motion + hidden-pause come from the primitive.
+- **T503 -- naming**: `productName` -> "Nexus AI Studio" + window title ([tauri.conf.json](../desktop/src-tauri/tauri.conf.json)), [index.html](../desktop/index.html) `<title>`, the Sidebar brand lockup, and the Dashboard hero all read "Nexus AI Studio" (identifier `ai.nexus.shell` kept). The Sidebar + title bar + Dashboard hero use the already-transparent `/nexus-mark.png`.
+- **T504 -- cohesive restyle** (inline-token approach; Tailwind v4 is not a real dep, so the existing inline-token + `globals.css` system is standardized, not replaced): added `.nexus-app-backdrop`, `.nexus-gradient-text`, `.nexus-glass`, and the `.nexus-titlebar*` chrome classes to [globals.css](../desktop/src/styles/globals.css). The Sidebar becomes a translucent glass panel with a signature-gradient wordmark + glowing mark; the Dashboard gets an animated `FloatingLogo` hero + gradient heading; the Coding + Video pillar titles get their module-accent + soft glow. Pillar-page internals keep their v1.0.0 working layouts by design (the "cohesive restyle, not a feature rewrite" cut-line) -- the family look is carried by the shell.
+- **IAE.P4.B closed**: added `"audio"` to the desktop DTO mirror [modelsTypes.ts](../desktop/src/pages/settings/modelsTypes.ts) `ModelType` (matching core's order) and gave [ModelsSettings](../desktop/src/pages/settings/ModelsSettings.tsx) an Audio type filter + an audio icon (label "S", `--accent-audio`), so an audio model marshalled over IPC renders and filters correctly.
+- **T505 -- tests**: new `TitleBar.test.tsx` (mark/wordmark, drag region, control wiring, maximize glyph swap, mount-state sync), `windowControls.test.ts` (override seam, no-op path, mocked-Tauri real path), `desktopBranding.test.ts` (productName / decorations / titles / capability permissions); extended `App.test.tsx` (title bar + backdrop + constellation mount), `Sidebar.test.tsx` (rebrand lockup), `Dashboard.test.tsx` (hero), `ModelsSettings.test.tsx` (audio filter + icon).
+
+### Verification
+
+Desktop Vitest **515 passed / 0 failed** (+19); coverage lines 93.83% / branches 85.51% / functions 83.43% (>= the 80/70/80 gate) with TitleBar 100% and Sidebar / Dashboard 100% lines. `tsc --noEmit` + `eslint` (0 warnings) clean; `cargo check` + `cargo clippy` clean (the new capability + config validate through `tauri-build`). CI/CD check: `release.yml`'s `desktop-bundle` staging copies by wildcard (`bundle/nsis/*-setup.exe`, `*.dmg`, `*.AppImage`, `*.deb`), so the `productName` rename does not break the upload globs. New gaps `IAE.P5.A` (frameless per-OS move/resize/snap not on-device verified -> Phase 6), `IAE.P5.B` (Tauri edge-resize with `decorations:false` relies on the webview; native-decorations fallback available), `IAE.P5.C` (pillar-page internal component polish deferred), `IAE.P5.D` (macOS/Linux reduced-motion still `matchMedia`, native app parity is exact). See the [phase history](versions/v1/v1.9.0/development/history/2026-07_phase-5-desktop-app-overhaul.md).
+
+### Branch
+
+Continues on the v1.9.0 line (`feat/v1.9.0-installer-phase-1`).
+
+---
+
 ## [2026-07-04] v1.9.0 installer + app overhaul -- Phase 4: model selector redesign + metadata + Gemma-4-agentic + audio pillar (T401-T407)
 
 ### Goal

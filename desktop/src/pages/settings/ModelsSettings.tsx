@@ -44,6 +44,7 @@ const TYPE_FILTERS: ReadonlyArray<{ value: "all" | ModelType; label: string }> =
   { value: "llm", label: "LLM" },
   { value: "image", label: "Image" },
   { value: "video", label: "Video" },
+  { value: "audio", label: "Audio" },
   { value: "embed", label: "Embed" },
 ];
 
@@ -397,25 +398,29 @@ function ModelIcon({ type }: { type?: ModelType }): JSX.Element {
       ? "I"
       : type === "video"
         ? "V"
-        : type === "embed"
-          ? "E"
-          : type === "controlnet"
-            ? "C"
-            : type === "vae"
-              ? "A"
-              : "L";
+        : type === "audio"
+          ? "S"
+          : type === "embed"
+            ? "E"
+            : type === "controlnet"
+              ? "C"
+              : type === "vae"
+                ? "A"
+                : "L";
   const color =
     type === "image"
       ? "var(--accent-image, #ec4899)"
       : type === "video"
         ? "var(--accent-video, #6366f1)"
-        : type === "embed"
-          ? "var(--accent-embed, #14b8a6)"
-          : type === "controlnet"
-            ? "var(--accent-controlnet, #f59e0b)"
-            : type === "vae"
-              ? "var(--accent-vae, #8b5cf6)"
-              : "var(--accent-llm, #10b981)";
+        : type === "audio"
+          ? "var(--accent-audio, #d946ef)"
+          : type === "embed"
+            ? "var(--accent-embed, #14b8a6)"
+            : type === "controlnet"
+              ? "var(--accent-controlnet, #f59e0b)"
+              : type === "vae"
+                ? "var(--accent-vae, #8b5cf6)"
+                : "var(--accent-llm, #10b981)";
   return (
     <span
       aria-hidden

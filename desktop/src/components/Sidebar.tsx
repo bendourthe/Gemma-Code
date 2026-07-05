@@ -102,8 +102,8 @@ export function Sidebar(): JSX.Element {
     <aside
       data-testid="sidebar"
       aria-label="Primary navigation"
+      className="nexus-glass"
       style={{
-        backgroundColor: "var(--bg-1)",
         borderRight: "1px solid var(--border-subtle)",
         width: 248,
         display: "flex",
@@ -113,6 +113,7 @@ export function Sidebar(): JSX.Element {
       }}
     >
       <div
+        data-testid="sidebar-brand"
         style={{
           display: "flex",
           alignItems: "center",
@@ -128,17 +129,20 @@ export function Sidebar(): JSX.Element {
           height={28}
           style={{
             borderRadius: 6,
+            filter: "drop-shadow(var(--glow-sm))",
             outline: activeBorder ? `1px solid var(${activeBorder})` : "none",
           }}
         />
         <span
+          className="nexus-gradient-text"
           style={{
-            fontSize: "var(--text-lg)",
-            fontWeight: 600,
-            letterSpacing: "0.02em",
+            fontSize: "var(--text-md)",
+            fontWeight: 700,
+            letterSpacing: "0.01em",
+            whiteSpace: "nowrap",
           }}
         >
-          Nexus
+          Nexus AI Studio
         </span>
       </div>
 

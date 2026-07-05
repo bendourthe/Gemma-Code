@@ -244,7 +244,16 @@ export function VideoLabPage({
       }}
     >
       <header>
-        <h1 style={{ margin: 0, fontSize: "var(--text-lg)" }}>Video Lab</h1>
+        <h1
+          style={{
+            margin: 0,
+            fontSize: "var(--text-lg)",
+            color: "var(--accent-video)",
+            textShadow: "0 0 18px var(--accent-video-soft)",
+          }}
+        >
+          Video Lab
+        </h1>
       </header>
 
       <div

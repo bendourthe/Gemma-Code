@@ -60,6 +60,17 @@ describe("App shell", () => {
     );
     expect(screen.getByTestId("styleguide")).toBeInTheDocument();
   });
+
+  it("mounts the frameless title bar and the ambient constellation backdrop (Phase 5)", () => {
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <App telemetryStream={null} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByTestId("title-bar")).toBeInTheDocument();
+    expect(screen.getByTestId("app-backdrop")).toBeInTheDocument();
+    expect(screen.getByTestId("app-constellation")).toBeInTheDocument();
+  });
 });
 
 describe("ModulePlaceholder", () => {

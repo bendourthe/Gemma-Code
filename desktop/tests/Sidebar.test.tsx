@@ -23,6 +23,12 @@ describe("Sidebar", () => {
     expect(screen.getByTestId("nav-admin-profile")).toBeInTheDocument();
   });
 
+  it("shows the Nexus AI Studio brand lockup (Phase 5 rebrand)", () => {
+    renderAt("/");
+    const brand = screen.getByTestId("sidebar-brand");
+    expect(brand).toHaveTextContent("Nexus AI Studio");
+  });
+
   it("marks the coding route as active when the route matches", () => {
     renderAt("/coding");
     const link = screen.getByTestId("nav-coding") as HTMLAnchorElement;

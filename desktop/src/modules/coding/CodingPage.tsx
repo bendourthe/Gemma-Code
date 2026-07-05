@@ -213,7 +213,16 @@ export function CodingPage({
       }}
     >
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h1 style={{ margin: 0, color: "var(--accent-coding)" }}>Agentic AI Coding</h1>
+        <h1
+          style={{
+            margin: 0,
+            fontSize: "var(--text-lg)",
+            color: "var(--accent-coding)",
+            textShadow: "0 0 18px var(--accent-coding-soft)",
+          }}
+        >
+          Agentic AI Coding
+        </h1>
         <ModelSelector
           testId="coding-model-select"
           models={FRONTEND_MODELS}
