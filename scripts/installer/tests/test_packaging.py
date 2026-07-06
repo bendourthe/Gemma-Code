@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-PYQT_ROOT = Path(__file__).parent.parent
-BUILD_DIR = PYQT_ROOT / "build"
-REPO_ROOT = PYQT_ROOT.parent.parent.parent
+INSTALLER_ROOT = Path(__file__).parent.parent
+BUILD_DIR = INSTALLER_ROOT / "build"
+REPO_ROOT = INSTALLER_ROOT.parent.parent
 LEGACY_DIR = REPO_ROOT / "scripts" / "installer" / "legacy"
 BUILD_NSIS_DIR = REPO_ROOT / "scripts" / "installer" / "build" / "nsis"
 WORKFLOWS = REPO_ROOT / ".github" / "workflows"
@@ -151,7 +151,7 @@ class TestWorkflows:
 
     def test_workflows_upload_the_single_artifact_from_repo_root_dist(self) -> None:
         # v1.9.0 Phase 1 (T103): one artifact per OS, uploaded from the
-        # repo-root dist/ (no deep scripts/installer/pyqt/dist path).
+        # repo-root dist/ (no deep scripts/installer/dist path).
         checks = {
             "installer-build.yml": "dist/NexusSetup.exe",
             "installer-macos.yml": "dist/NexusSetup.dmg",
@@ -160,4 +160,4 @@ class TestWorkflows:
         for name, artifact in checks.items():
             content = (WORKFLOWS / name).read_text()
             assert f"path: {artifact}" in content
-            assert "scripts/installer/pyqt/dist" not in content
+            assert "scripts/installer/dist" not in content

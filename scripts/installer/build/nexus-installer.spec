@@ -12,8 +12,8 @@ block_cipher = None
 
 # Resolve paths relative to this spec file
 SPEC_DIR = Path(SPECPATH)
-PYQT_ROOT = SPEC_DIR.parent
-REPO_ROOT = PYQT_ROOT.parent.parent.parent
+INSTALLER_ROOT = SPEC_DIR.parent
+REPO_ROOT = INSTALLER_ROOT.parent.parent
 
 # Platform-specific settings
 if sys.platform == "win32":
@@ -77,8 +77,8 @@ if icon_png.exists():
     datas.append((str(icon_png), "assets"))
 
 a = Analysis(
-    [str(PYQT_ROOT / "src" / "nexus_installer" / "main.py")],
-    pathex=[str(PYQT_ROOT / "src")],
+    [str(INSTALLER_ROOT / "src" / "nexus_installer" / "main.py")],
+    pathex=[str(INSTALLER_ROOT / "src")],
     binaries=[],
     datas=datas,
     hiddenimports=[

@@ -23,7 +23,7 @@ dependencies = [
 nexus-installer = "nexus_installer.main:main"
 
 # The CI installer-package-check jobs install dev tooling with the extra syntax
-# (`pip install --editable "scripts/installer/pyqt[dev]"`). PEP 735
+# (`pip install --editable "scripts/installer[dev]"`). PEP 735
 # `[dependency-groups]` (below) is only resolvable by `uv` / `pip --group`, so a
 # bare `[dev]` extra was previously unknown to pip -- it emitted
 # "does not provide the extra 'dev'" and installed none of the dev tooling.

@@ -13,7 +13,7 @@ Thanks for your interest in improving Nexus. This document covers the minimum yo
 - Pre-execution safety layer at [src/guardrails/](./src/guardrails) (action classification, loop detection, git checkpoints, permission tiers).
 - Local trace store + dashboard at [src/observability/](./src/observability).
 - Tauri desktop shell under [desktop/](./desktop) (Phase 1).
-- PyQt5 installer under [scripts/installer/pyqt/](./scripts/installer/pyqt/) (`nexus_installer` Python package, renamed from `gemma_installer` in Phase 2.5).
+- PyQt5 installer under [scripts/installer/](./scripts/installer/) (`nexus_installer` Python package, renamed from `gemma_installer` in Phase 2.5).
 - Deterministic-checks CLI at [bin/nexus-check.mjs](./bin/nexus-check.mjs) (renamed from `gemma-check` in Phase 2.4; legacy alias kept for one cycle).
 - Tests mirror source layout under [tests/unit/](./tests/unit), [tests/integration/](./tests/integration), and [tests/golden/](./tests/golden).
 

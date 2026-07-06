@@ -25,7 +25,7 @@ under `.github/workflows/installer-smoke.yml`.
 ## When to run manually
 
 Run one of these scripts locally if you have changed anything under
-`scripts/installer/pyqt/`. The scripts are quick (<2 min on a dev machine)
+`scripts/installer/`. The scripts are quick (<2 min on a dev machine)
 and require only the installer's own Python dependencies.
 
 Run the full smoke suite (see [tests/smoke/README.md](../../smoke/README.md))

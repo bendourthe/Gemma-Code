@@ -67,7 +67,7 @@ modules/                    per-pillar code (one folder per pillar)
 src/                        VS Code extension TypeScript source (Coding engine
                               host during v1.0.0 compat window)
 desktop/                    Tauri shell + Node sidecar (Phase 1)
-scripts/installer/pyqt/     Nexus installer (Python, renamed from gemma_installer)
+scripts/installer/     Nexus installer (Python, renamed from gemma_installer)
 bin/nexus-check.mjs         deterministic-checks CLI (renamed from gemma-check)
 tests/                      Unit / integration / e2e test suites
 docs/                       Architecture docs, plans, history, known gaps

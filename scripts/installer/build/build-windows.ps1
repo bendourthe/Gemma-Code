@@ -19,12 +19,12 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$PyqtRoot = Split-Path -Parent $PSScriptRoot
-$RepoRoot = (Resolve-Path "$PyqtRoot\..\..\..").Path
+$InstallerRoot = Split-Path -Parent $PSScriptRoot
+$RepoRoot = (Resolve-Path "$InstallerRoot\..\..").Path
 $DistDir  = Join-Path $RepoRoot "dist"
 
 Write-Host "[1/4] Installing build dependencies..." -ForegroundColor Cyan
-Push-Location $PyqtRoot
+Push-Location $InstallerRoot
 uv sync --quiet
 uv pip install pyinstaller --quiet
 Pop-Location
@@ -53,7 +53,7 @@ if ($Vsix) {
 # canonical local output is easy to find -- no deep pyqt/dist + hand-copy.
 Write-Host "[3/4] Running PyInstaller (single onefile -> dist/NexusSetup.exe)..." -ForegroundColor Cyan
 New-Item -ItemType Directory -Force -Path $DistDir | Out-Null
-Push-Location $PyqtRoot
+Push-Location $InstallerRoot
 uv run pyinstaller build/nexus-installer.spec --distpath "$DistDir" --workpath build/work --clean --noconfirm 2>&1 |
     Select-String -NotMatch "^(INFO|DEBUG)" | ForEach-Object { $_.Line }
 Pop-Location

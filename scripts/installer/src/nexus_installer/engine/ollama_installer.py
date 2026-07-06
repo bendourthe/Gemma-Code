@@ -19,7 +19,7 @@ from nexus_installer.engine.platform_utils import (
 )
 from nexus_installer.installer_state import InstallerState
 
-# Pinned release tag. Bump by updating scripts/installer/pyqt/VERSIONS.md.
+# Pinned release tag. Bump by updating scripts/installer/VERSIONS.md.
 OLLAMA_PINNED_TAG = "v0.3.6"
 OLLAMA_WINDOWS_URL = (
     f"https://github.com/ollama/ollama/releases/download/{OLLAMA_PINNED_TAG}/OllamaSetup.exe"

@@ -7,20 +7,20 @@ set -euo pipefail
 # repo-root dist/: NexusSetup-x86_64.AppImage.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PYQT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-REPO_ROOT="$(cd "$PYQT_ROOT/../../.." && pwd)"
-STAGE_DIR="$PYQT_ROOT/build/stage"
+INSTALLER_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_ROOT="$(cd "$INSTALLER_ROOT/../.." && pwd)"
+STAGE_DIR="$INSTALLER_ROOT/build/stage"
 DIST_DIR="$REPO_ROOT/dist"
 
 log_info()  { printf "[INFO]  %s\n" "$*" >&2; }
 log_error() { printf "[ERROR] %s\n" "$*" >&2; }
 
 log_info "[1/4] Installing build dependencies..."
-cd "$PYQT_ROOT"
+cd "$INSTALLER_ROOT"
 pip install pyinstaller pyqt5 httpx --quiet 2>/dev/null || true
 
 log_info "[2/4] Running PyInstaller (single onefile)..."
-cd "$PYQT_ROOT"
+cd "$INSTALLER_ROOT"
 rm -rf "$STAGE_DIR"
 pyinstaller build/nexus-installer.spec --distpath "$STAGE_DIR" --workpath build/work --clean --noconfirm 2>&1 | grep -v "^INFO\|^DEBUG" || true
 

@@ -37,7 +37,7 @@ Produces `dist/NexusSetup.exe` -- the Windows one-shot installer. Since v1.9.0 P
 +----------------------------------------------------------+
 ```
 
-`scripts/installer/pyqt/build/build-windows.ps1` runs steps 1-5. The macOS
+`scripts/installer/build/build-windows.ps1` runs steps 1-5. The macOS
 (`build-macos.sh`) and Linux (`build-linux.sh`) scripts follow the same
 contract: one PyInstaller onefile, packaged into exactly one artifact at the
 repo-root `dist/` (`NexusSetup.dmg` / `NexusSetup-x86_64.AppImage`).
@@ -58,8 +58,8 @@ and `release.yml`).
 
 ```powershell
 # from the repository root
-pwsh -File scripts/installer/pyqt/build/build-windows.ps1 -SkipSign
-pwsh -File scripts/installer/pyqt/build/smoke-windows-exe.ps1
+pwsh -File scripts/installer/build/build-windows.ps1 -SkipSign
+pwsh -File scripts/installer/build/smoke-windows-exe.ps1
 # dist/NexusSetup.exe is the artifact
 ```
 

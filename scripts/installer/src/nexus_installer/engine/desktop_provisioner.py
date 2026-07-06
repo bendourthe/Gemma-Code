@@ -37,7 +37,7 @@ from nexus_installer.engine.platform_utils import (
 from nexus_installer.installer_state import InstallerState
 
 # Pinned release tag carrying the desktop bundles. Bump by updating
-# scripts/installer/pyqt/VERSIONS.md in lockstep (semantic-release owns
+# scripts/installer/VERSIONS.md in lockstep (semantic-release owns
 # the tag; the bundle version is the tag without the leading "v").
 NEXUS_DESKTOP_PINNED_TAG = "v2.1.0"
 NEXUS_DESKTOP_VERSION = NEXUS_DESKTOP_PINNED_TAG.lstrip("v")

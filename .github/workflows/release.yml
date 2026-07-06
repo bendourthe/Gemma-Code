@@ -75,7 +75,7 @@ jobs:
           path: .
 
       - name: Build installer
-        run: pwsh -NonInteractive -File scripts/installer/pyqt/build/build-windows.ps1 -SkipSign
+        run: pwsh -NonInteractive -File scripts/installer/build/build-windows.ps1 -SkipSign
 
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
@@ -103,7 +103,7 @@ jobs:
           path: .
 
       - name: Build installer
-        run: bash scripts/installer/pyqt/build/build-macos.sh
+        run: bash scripts/installer/build/build-macos.sh
 
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
@@ -134,7 +134,7 @@ jobs:
           path: .
 
       - name: Build installer
-        run: bash scripts/installer/pyqt/build/build-linux.sh
+        run: bash scripts/installer/build/build-linux.sh
 
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:

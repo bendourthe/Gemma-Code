@@ -1,7 +1,7 @@
 # Diffusion runtime dependency manifest (v1.1.0 Phase 12.4).
 #
 # This list pairs with the wheel-prefix manifest at
-# `scripts/installer/pyqt/src/nexus_installer/engine/diffusion_venv_provisioner.py`
+# `scripts/installer/src/nexus_installer/engine/diffusion_venv_provisioner.py`
 # (`REQUIRED_WHEEL_PREFIXES`). The installer fetches the matching wheels
 # into `payload/python/wheels/` during the installer-build CI job and
 # the diffusion venv provisioner runs `pip install --no-index` against

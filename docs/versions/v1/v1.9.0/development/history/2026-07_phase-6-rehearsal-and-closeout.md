@@ -41,6 +41,20 @@ The rewritten installer workflows + release upload paths + the desktop-bundle bu
 
 None. Phase 6 opened no new gaps; it dispositioned the existing "-> Phase 6" items (see [known-gaps.md](../known-gaps.md) Phase 6 section).
 
+## Build-structure flatten + outdated-installer cleanup (operator request, 2026-07-05)
+
+During close-out the operator asked to remove outdated installers and simplify the installer/build directory structure (fewer subdirectories, more intuitive build locations). Two things landed:
+
+**Outdated-artifact cleanup**: removed 131 MB of stale gitignored build output -- the deep-path `scripts/installer/pyqt/dist/NexusSetup.exe` (68 MB, 2026-07-03) and the pre-Phase-1 two-artifact `nexus-installer.exe` (68 MB), plus the PyInstaller `work/` scratch. The single canonical output is repo-root `dist/NexusSetup.exe`.
+
+**Directory flatten**: the wizard tree moved up one level and the two `build/` dirs merged into one.
+- `scripts/installer/pyqt/{src,tests,pyproject.toml,VERSIONS.md}` -> `scripts/installer/{src,tests,pyproject.toml,VERSIONS.md}` (the `pyqt/` layer is gone).
+- `scripts/installer/pyqt/build/*` merged into the existing `scripts/installer/build/`, so one build dir now holds the build scripts + `nexus-installer.spec` + `hooks/` + `smoke-windows-exe.ps1` alongside `pin-hf-weights.py` / `versions.lock.json` / `windows-pipeline.md`.
+
+Every file moved via `git mv` (history preserved; ~120 renames). Depth-encoded paths were corrected for the shallower tree: the spec's `REPO_ROOT` (now `INSTALLER_ROOT.parent.parent`), the three build scripts + the smoke script (one fewer `..`), and four test helpers (`parents[4]` -> `parents[3]`; `PYQT_ROOT` -> `INSTALLER_ROOT`). The walk-up resolvers (`registry_paths.py`, `float_logo.py`, `title_bar.py`) are depth-independent and unchanged. Notably, `main.py` and `desktop_provisioner.py` carried fixed-depth icon paths that were previously one level short (resolving to a non-existent `scripts/assets/`); the flatten *corrects* them (that code was written for the shallower layout before the `pyqt/` layer was inserted). References updated across the 7 CI workflows, the dependabot pip `directory`, `.gitignore`, the smoke + integration test scripts, `pyproject`/module comments, and `ARCHITECTURE.md` / `AGENTS.md` / `SECURITY.md` / `CONTRIBUTING.md`. The retired NSIS scripts stay archived under `scripts/installer/legacy/` by design.
+
+Verified: `uv sync` + installer pytest **651 passed / 2 skipped / 0 failed** at the new root; a clean PyInstaller rebuild from `scripts/installer/build/` produced one `dist/NexusSetup.exe` (~72.1 MB) and `smoke-windows-exe.ps1` is 4/4 green -- including `--check-registry`, which proves the spec's new `REPO_ROOT` resolution still bundles `catalog.json` / `recommended.json` inside the frozen exe.
+
 ## Whole-plan acceptance
 
 Section 0's seven observables are met locally + by construction (Windows build proven twice; the branded frameless installer, `NexusAI` path + zero-Gemma, scannable model cards, Gemma-4-first Agentic tab, populated Audio pillar, and the branded desktop shell all delivered across Phases 1-5). The residual verification -- the 3-OS on-device visual/behavioral rehearsal and the post-freeze CI legs -- is recorded in [known-gaps.md](../known-gaps.md), consistent with the plan's "verified locally now and via the post-freeze CI/pre-release rehearsal". v1.9.0 is ready for release; the version tag + CHANGELOG cut on merge to `main` via semantic-release.

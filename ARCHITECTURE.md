@@ -32,7 +32,7 @@ modules/                     per-pillar code (one folder per generative pillar)
 
 src/                         pre-v1.0.0 Coding engine (compat host for one cycle)
 desktop/                     Tauri shell + Node sidecar (Phase 1)
-scripts/installer/pyqt/      Nexus installer (PyQt5 wizard, renamed from gemma_installer)
+scripts/installer/           Nexus installer (PyQt5 wizard, renamed from gemma_installer)
 bin/nexus-check.mjs          deterministic-checks CLI (renamed from gemma-check)
 ```
 
@@ -250,8 +250,8 @@ This replaces the v0.1.0 custom XML protocol. See [docs/archive/versions/v0/v0.1
 
 | Component | Location | Purpose |
 |-----------|----------|---------|
-| InstallEngine | `scripts/installer/pyqt/src/gemma_installer/engine/installer.py` | Cross-platform install orchestrator |
-| PyQt5 installer wizard | `scripts/installer/pyqt/src/gemma_installer/` | 9-page GUI installer; now supports `--headless` mode |
+| InstallEngine | `scripts/installer/src/nexus_installer/engine/installer.py` | Cross-platform install orchestrator |
+| PyQt5 installer wizard | `scripts/installer/src/nexus_installer/` | 9-page GUI installer; now supports `--headless` mode |
 | Smoke tests | `tests/smoke/` | Cross-platform installer verification |
 | Golden task framework | `tests/golden/framework/` | YAML task loader, runner, evaluator, reporter, baseline, regression, comparison |
 | Golden task suite | `tests/golden/tasks/` + `tests/golden/snapshots/` | 24 declarative tasks across 5 categories |

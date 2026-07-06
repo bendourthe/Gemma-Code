@@ -69,7 +69,7 @@ updates:
     open-pull-requests-limit: 2
 
   - package-ecosystem: "pip"
-    directory: "/scripts/installer/pyqt"
+    directory: "/scripts/installer"
     schedule:
       interval: "monthly"
       time: "06:00"

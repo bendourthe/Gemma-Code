@@ -95,7 +95,7 @@ if (-not $ready) {
 }
 
 Write-Header "Running installer in headless mode"
-Push-Location (Join-Path $repoRoot "scripts\installer\pyqt")
+Push-Location (Join-Path $repoRoot "scripts\installer")
 $env:PYTHONPATH = "src"
 $installerArgs = @(
     "-m", "nexus_installer.main",

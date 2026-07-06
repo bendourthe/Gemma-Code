@@ -11,7 +11,7 @@ param()
 
 $ErrorActionPreference = 'Stop'
 $RepoRoot = (Resolve-Path "$PSScriptRoot\..\..\..").Path
-$InstallerDir = "$RepoRoot\scripts\installer\pyqt"
+$InstallerDir = "$RepoRoot\scripts\installer"
 $VenvRoot = "$env:LOCALAPPDATA\GemmaCode\venv"
 $ExtensionId = "gemma-code.gemma-code"
 

@@ -67,7 +67,7 @@ jobs:
           npx vsce package --no-dependencies
 
       - name: Build installer (PyInstaller onefile + AppImage)
-        run: bash scripts/installer/pyqt/build/build-linux.sh
+        run: bash scripts/installer/build/build-linux.sh
 
       - name: Upload artifact
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0

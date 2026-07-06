@@ -56,7 +56,7 @@ jobs:
           npx vsce package --no-dependencies
 
       - name: Build installer (PyInstaller onefile + DMG)
-        run: bash scripts/installer/pyqt/build/build-macos.sh
+        run: bash scripts/installer/build/build-macos.sh
 
       - name: Sign + notarize (best-effort)
         env:
@@ -73,7 +73,7 @@ jobs:
           fi
           # Sign the staged onefile payload (bundle or bare binary), then
           # notarize + staple the shipped DMG directly.
-          STAGE="scripts/installer/pyqt/build/stage"
+          STAGE="scripts/installer/build/stage"
           PAYLOAD="$STAGE/Nexus AI Studio Setup.app"
           [ -d "$PAYLOAD" ] || PAYLOAD="$STAGE/Nexus AI Studio Setup"
           codesign --force --deep --options runtime --sign "$APPLE_DEVELOPER_ID" "$PAYLOAD" || true

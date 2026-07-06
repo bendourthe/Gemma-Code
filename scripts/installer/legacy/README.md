@@ -2,7 +2,7 @@
 
 These files are deprecated artifacts from NSIS-based Windows installers. They are retained for reference but are no longer used in the build pipeline.
 
-The current installer is the cross-platform PyQt5 wizard at `scripts/installer/pyqt/`. Since v1.9.0 Phase 1 the PyInstaller onefile IS the distributable (`NexusSetup.exe`); there is no NSIS outer shell -- double-clicking the installer opens exactly one modern branded window.
+The current installer is the cross-platform PyQt5 wizard at `scripts/installer/`. Since v1.9.0 Phase 1 the PyInstaller onefile IS the distributable (`NexusSetup.exe`); there is no NSIS outer shell -- double-clicking the installer opens exactly one modern branded window.
 
 ## Files
 

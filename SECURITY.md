@@ -35,7 +35,7 @@ Gemma Code follows coordinated disclosure. We will work with you to understand a
 The following components are in scope for security reports:
 
 - TypeScript extension host code (`src/`)
-- PyQt5 cross-platform installer (`scripts/installer/pyqt/`)
+- PyQt5 cross-platform installer (`scripts/installer/`)
 - Webview HTML/JS (`src/panels/webview/`)
 - MCP client/server implementation (`src/mcp/`)
 
@@ -64,7 +64,7 @@ Gemma Code is designed with a privacy-first, local-only architecture:
 
 The cross-platform PyQt5 installer pulls third-party binaries (currently Ollama) over HTTPS and verifies them before execution:
 
-- **Pinned release tag**: the installer downloads a specific Ollama version recorded in `scripts/installer/pyqt/VERSIONS.md`. Upstream tag changes do not flow in automatically.
+- **Pinned release tag**: the installer downloads a specific Ollama version recorded in `scripts/installer/VERSIONS.md`. Upstream tag changes do not flow in automatically.
 - **SHA-256 checksum verification**: both the Windows `OllamaSetup.exe` and the Linux `install.sh` are hash-checked against pinned digests before execution. A mismatch aborts the install.
 - **Authenticode verification (Windows)**: `Get-AuthenticodeSignature` is used to confirm the Windows installer is signed by a trusted subject (`CN=Ollama Inc.`). Invalid or untrusted signatures abort the install.
 - **No `curl | sh`**: the Linux path downloads the install script to a temp file, verifies its hash, runs it via `bash`, then cleans up. This replaces the classic pipe-to-shell pattern that is vulnerable to TCP-hijack supply-chain attacks.

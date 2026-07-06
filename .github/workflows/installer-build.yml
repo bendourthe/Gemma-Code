@@ -70,12 +70,12 @@ jobs:
       - name: Build NexusSetup.exe (PyInstaller onefile)
         shell: pwsh
         run: |
-          pwsh -NonInteractive -File scripts/installer/pyqt/build/build-windows.ps1 -SkipSign
+          pwsh -NonInteractive -File scripts/installer/build/build-windows.ps1 -SkipSign
 
       - name: Smoke-test the installer (boot the frozen exe)
         shell: pwsh
         run: |
-          pwsh -NonInteractive -File scripts/installer/pyqt/build/smoke-windows-exe.ps1
+          pwsh -NonInteractive -File scripts/installer/build/smoke-windows-exe.ps1
 
       - name: Upload artifact
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0

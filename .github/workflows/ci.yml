@@ -395,7 +395,7 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: |
-          cd scripts/installer/pyqt
+          cd scripts/installer
           uv sync --quiet
           uv run pytest tests/ -v --tb=short
 
@@ -466,12 +466,12 @@ jobs:
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.cache/pip-audit
-          key: pip-audit-${{ runner.os }}-${{ hashFiles('scripts/installer/pyqt/uv.lock') }}
+          key: pip-audit-${{ runner.os }}-${{ hashFiles('scripts/installer/uv.lock') }}
       - name: Export installer dependencies to requirements-audit.txt
         # `--no-emit-project` excludes the local `gemma-code-installer` package
         # from the audited set; pip-audit cannot look up an unpublished package.
         run: |
-          cd scripts/installer/pyqt
+          cd scripts/installer
           uv export \
             --no-hashes \
             --no-annotate \
@@ -480,5 +480,5 @@ jobs:
             > requirements-audit.txt
       - name: Run pip-audit
         run: |
-          cd scripts/installer/pyqt
+          cd scripts/installer
           uv run --with pip-audit -- pip-audit --strict -r requirements-audit.txt

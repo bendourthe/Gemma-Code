@@ -58,7 +58,7 @@ class ExtensionInstaller:
             os.path.dirname(os.path.abspath(__file__)),  # engine/
             os.path.join(
                 os.path.dirname(os.path.abspath(__file__)), "..", ".."
-            ),  # pyqt/
+            ),  # src/
             os.path.join(
                 os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."
             ),  # installer/

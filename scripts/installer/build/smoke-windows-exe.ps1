@@ -18,8 +18,8 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$ExePath = (Join-Path (Resolve-Path "$PSScriptRoot\..\..\..\..").Path "dist\NexusSetup.exe"),
-    [string]$DistDir = (Resolve-Path "$PSScriptRoot\..\..\..\..").Path
+    [string]$ExePath = (Join-Path (Resolve-Path "$PSScriptRoot\..\..\..").Path "dist\NexusSetup.exe"),
+    [string]$DistDir = (Resolve-Path "$PSScriptRoot\..\..\..").Path
 )
 
 $ErrorActionPreference = 'Stop'

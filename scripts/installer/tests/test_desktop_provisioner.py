@@ -521,7 +521,7 @@ class TestFirstRunHealthCheck:
 
 # -- T204 integration leg: real NSIS install of the T104 fixture ------------
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
+_REPO_ROOT = Path(__file__).resolve().parents[3]
 _FIXTURE = _REPO_ROOT / ".local-fixtures" / "Nexus_2.1.0_x64-setup.exe"
 
 

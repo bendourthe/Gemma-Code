@@ -39,7 +39,7 @@ run_installer() {
     # Skip the desktop app too: no published release to fetch on CI.
     local extra_args=(--skip-extension --skip-desktop)
     [[ "$WITH_MODEL" == "1" ]] || extra_args+=(--skip-model)
-    pushd "$REPO_ROOT/scripts/installer/pyqt" >/dev/null
+    pushd "$REPO_ROOT/scripts/installer" >/dev/null
     QT_QPA_PLATFORM=offscreen PYTHONPATH=src python3 -m nexus_installer.main \
         --headless \
         --install-path "$INSTALL_PATH" \

@@ -4,7 +4,7 @@ set -euo pipefail
 # macOS integration test for the PyQt5 installer.
 
 REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-INSTALLER_DIR="$REPO_ROOT/scripts/installer/pyqt"
+INSTALLER_DIR="$REPO_ROOT/scripts/installer"
 PASSED=0
 FAILED=0
 

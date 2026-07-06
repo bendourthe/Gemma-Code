@@ -16,7 +16,7 @@ import pytest
 def _load_module():
     if "fetch_payload" in sys.modules:
         return sys.modules["fetch_payload"]
-    repo_root = Path(__file__).resolve().parents[4]
+    repo_root = Path(__file__).resolve().parents[3]
     script_path = repo_root / "scripts" / "installer" / "build" / "fetch-payload.py"
     spec = importlib.util.spec_from_file_location("fetch_payload", script_path)
     assert spec and spec.loader
@@ -48,7 +48,7 @@ def test_placeholder_detection() -> None:
 
 
 def test_lockfile_present_and_parses() -> None:
-    repo_root = Path(__file__).resolve().parents[4]
+    repo_root = Path(__file__).resolve().parents[3]
     lockfile = repo_root / "scripts" / "installer" / "build" / "versions.lock.json"
     data = json.loads(lockfile.read_text(encoding="utf-8"))
     assert "platforms" in data

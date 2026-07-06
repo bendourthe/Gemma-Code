@@ -144,7 +144,7 @@ jobs:
         # visible so the runner reports the actual error instead of silently
         # succeeding into broken tests.
         run: |
-          python -m pip install --quiet --editable "scripts/installer/pyqt[dev]"
+          python -m pip install --quiet --editable "scripts/installer[dev]"
           bash tests/integration/installer/test-install-pyqt-macos.sh
 
   installer-package-check-linux:
@@ -161,7 +161,7 @@ jobs:
         env:
             QT_QPA_PLATFORM: offscreen
         run: |
-          python -m pip install --quiet --editable "scripts/installer/pyqt[dev]"
+          python -m pip install --quiet --editable "scripts/installer[dev]"
           bash tests/integration/installer/test-install-pyqt-linux.sh
 
   # -- Failure notification ----------------------------------------------------
