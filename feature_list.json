@@ -184,7 +184,7 @@
     {
       "id": "f021",
       "name": "Extended SKILL.md YAML frontmatter",
-      "description": "Skill loader accepts version, platforms, metadata.tags, metadata.related_skills; mirror parser in package-skills.mjs round-trips through 4 harness adapters.",
+      "description": "Skill loader accepts version, platforms, metadata.tags, metadata.related_skills.",
       "status": "not_started",
       "evidence": "src/skills/SkillLoader.ts",
       "testedAt": null,

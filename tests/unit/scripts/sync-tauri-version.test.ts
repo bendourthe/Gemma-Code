@@ -15,7 +15,7 @@ import { spawnSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-// @ts-expect-error -- .mjs script export, no .d.ts by design (matches package-skills.test.ts).
+// @ts-expect-error -- .mjs script export, no .d.ts by design.
 import { readRootVersion, syncedTauriConf } from "../../../scripts/sync-tauri-version.mjs";
 
 const REPO_ROOT = path.resolve(__dirname, "../../..");

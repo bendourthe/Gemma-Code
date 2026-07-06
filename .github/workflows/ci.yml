@@ -146,51 +146,6 @@ jobs:
           awk -v v="$functions" 'BEGIN { exit (v + 0 < 80) }' || { echo "TS function coverage $functions% is below the 80% threshold"; exit 1; }
           echo "TS coverage gates: OK"
 
-  # -- Multi-harness skill packaging ----------------------------------------
-  #
-  # Runs `scripts/package-skills.mjs` and uploads the dist/{harness}/ trees
-  # as build artifacts so the v0.7.0+ release pipeline can attach them to
-  # the GitHub release without an additional manual step. The script is
-  # deterministic, so this also serves as a sync check: if the catalog
-  # changes, the artifact diff makes that visible.
-
-  package-skills:
-    name: Package skills for sibling harnesses
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
-        with:
-          node-version: "22"
-          cache: "npm"
-      - run: npm ci --prefer-offline --no-audit
-      - name: Package skills (claude-code, cursor, opencode, gemini-cli)
-        run: npm run package:skills -- --quiet
-      - name: Upload Claude Code bundle
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
-        with:
-          name: skills-claude-code
-          path: dist/claude-code/
-          retention-days: 30
-      - name: Upload Cursor bundle
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
-        with:
-          name: skills-cursor
-          path: dist/cursor/
-          retention-days: 30
-      - name: Upload OpenCode bundle
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
-        with:
-          name: skills-opencode
-          path: dist/opencode/
-          retention-days: 30
-      - name: Upload Gemini CLI bundle
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
-        with:
-          name: skills-gemini-cli
-          path: dist/gemini-cli/
-          retention-days: 30
-
   # -- nexus-check self-scan (v1.0.0; renamed from gemma-check in Phase 2.4) -
   #
   # Runs the standalone deterministic-checks CLI against `src/`. The CLI is

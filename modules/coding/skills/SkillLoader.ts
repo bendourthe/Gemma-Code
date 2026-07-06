@@ -57,8 +57,7 @@ export interface Skill {
  * The parser stays intentionally small (no full YAML dependency): it
  * supports flow-style arrays (`platforms: [linux, macos]`) and nested
  * `metadata.tags` / `metadata.related_skills` keys via dotted access in
- * the raw map. That mirrors the surface the `package-skills.mjs` adapter
- * already consumes.
+ * the raw map.
  *
  * Example frontmatter:
  *   ---

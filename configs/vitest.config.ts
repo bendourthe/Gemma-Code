@@ -1,8 +1,8 @@
 import { defineConfig } from "vitest/config";
 import { resolve } from "path";
 
-// v0.9.0 Phase 1 (sub-task 1.1) -- the two CLI script entry points
-// (`bin/gemma-check.mjs` and `scripts/package-skills.mjs`) start with a
+// v0.9.0 Phase 1 (sub-task 1.1) -- the CLI script entry points
+// (e.g. `bin/nexus-check.mjs`, `scripts/sync-tauri-version.mjs`) start with a
 // `#!/usr/bin/env node` shebang so they can be invoked directly via the npm
 // `bin` field on POSIX systems. Vite's transform pipeline does not strip the
 // shebang when those files are imported as ESM dependencies of a test file,
