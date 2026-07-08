@@ -324,4 +324,23 @@ describe("catalog", () => {
     // The Gemma 4 family keeps its primary task as chat (surfaced in both tabs).
     expect(byId.get("gemma4:e4b")?.task).toBe("chat");
   });
+
+  it("every user-facing description is non-empty and names its origin (v1.9.0 Phase 2)", async () => {
+    const file = await loadCatalog();
+    const userFacing = file.models.filter(
+      (m) => m.type !== "vae" && m.type !== "controlnet",
+    );
+    for (const entry of userFacing) {
+      const desc = entry.description ?? "";
+      expect(desc.length, `${entry.id} missing description`).toBeGreaterThan(0);
+      // DoD #8: the one-line summary states where the model is from. Country
+      // origins appear verbatim; "Community" reads as "community" in prose.
+      const origin = entry.origin ?? "";
+      const needle = origin === "Community" ? "community" : origin;
+      expect(
+        desc.toLowerCase().includes(needle.toLowerCase()),
+        `${entry.id} description should name its origin (${origin})`,
+      ).toBe(true);
+    }
+  });
 });

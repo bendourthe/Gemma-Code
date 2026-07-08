@@ -4,6 +4,29 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-07] v1.9.0 installer + app UI rework -- Phase 2: shared catalog.json plain-language copy rewrite (T005-T007)
+
+### Goal
+
+Rewrite the model copy in the shared [catalog.json](../core/registry/catalog.json) so descriptions read as plain language per the Phase-1 [T004 template](versions/v1/v1.9.0/ui-rework-design.md), without breaking any of its three readers (the TS validator, the Python installer loader, and the app's Settings->Models).
+
+### What changed
+
+- **T005 -- no schema change**: Phase 1's T002 decision (derive the provider color from the existing `family` field) means no `publisher` field is needed, so `catalog.ts` / the Python `CatalogModel` loader / `modelsTypes.ts` are untouched. This removes the plan's top risk (shared-reader churn) entirely.
+- **T006 -- copy rewrite**: rewrote the `description` of all **34 user-facing models** (every entry with a non-null `task`) to the T004 template -- sentence 1 states maker + kind/size + origin country, sentence 2 gives plain positioning; use-cases stay in `strengths[]` (the card's separate "Best for" line, Phase 6). Relocated the one over-technical headline (the `gemma-4-12b-it-gguf` "Unsloth Dynamic-2.0 GGUF quant ladder / IQ2_M / Q4_K_XL ..." offender) into its `differentiators` detail line; dropped headline jargon (MoE, DiT, rectified-flow, adversarial-distilled, linear-attention, CTranslate2, SVDQuant, Wan2.2-VAE) elsewhere. The 4 internal components (1 VAE + 3 ControlNets, `task: null`) are never rendered as selectable cards and were left unchanged (recorded as `UIR.P2.A`).
+- **T007 -- accuracy**: every fact grounded in the existing curated copy + the `origin` field; no invented facts. Fine-tune makers are credited correctly rather than by the color-map publisher (Juggernaut XL -> KandooAI/RunDiffusion, RealVis -> SG161222, SD1.5 left unattributed by maker), since `provider_color` keys off `family` (the SDXL *lineage*) for coloring only.
+- **Mechanism**: a byte-preserving edit (JSON-value-precise string replacement, not a `json.dump` reserialization) so only the 34 `description` values + 1 `differentiators` value change -- CRLF line endings, key order, whitespace, and every non-copy field are preserved. `git diff` shows exactly 35 insertions / 35 deletions, all on `description`/`differentiators` lines.
+
+### Verification
+
+All three readers green: the TS `validateSpec` catalog suite (`tests/unit/core/registry/*` -- 32 passed, including the new guard), the Python installer loader (`test_typed_catalog.py` -- 46 passed), and the app `tsc --noEmit` typecheck (clean). Programmatic accuracy check: every rewritten description names its origin country and carries no headline jargon. Spot-checked 3 cards (Gemma 4 12B, Juggernaut XL v9, Kokoro 82M) read as plain language. Added 1 stable regression guard to [catalog.test.ts](../tests/unit/core/registry/catalog.test.ts) (every user-facing description is non-empty and names its origin -- the DoD #8 contract); no jargon-blocklist test (too brittle). No test pinned the old prose. No installer/app code changed.
+
+### Branch
+
+Continues on the v1.9.0 installer line (`feat/v1.9.0-installer-phase-1`); Phase 2 ships in the installer PR (the installer consumes the rewritten copy first, via Phase 6's card rebuild). The pre-existing inline-size / header / icon baseline edits remain uncommitted for Phases 3/4/5 (`UIR.P1.A`).
+
+---
+
 ## [2026-07-07] v1.9.0 installer + app UI rework -- Phase 1: shared design foundations (T001-T004)
 
 ### Goal

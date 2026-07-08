@@ -128,3 +128,11 @@ Separate follow-up plan ([plans/installer-and-app-ui-rework.md](plans/installer-
 | `UIR.P1.B` | P3 | NI | **Neutral tabs + optional aurora violet are planned, not built.** T002 decided the catalog tab bar renders neutral (single lead accent) so per-provider color is the only card signal, and T003's aurora spec flags an optional `--aurora-violet` token -- neither is implemented in Phase 1 (foundations only). | Neutral tabs land in Phase 6 (T022); the optional violet token, if wanted, is introduced in Phase 8 (T029) in `globals.css`. Not gaps -- recorded so the later phases pick them up. |
 
 Phase 1 opened **no P0/P1 blocking gaps**: all four tasks (T001-T004) are complete and locally verified (type scale strictly descending + 14px floor; every catalog family resolves to a provider color with a working fallback; aurora spec names only existing tokens; `constants.py` imports cleanly; installer suite 657 passed / 2 skipped / 0 failed). Decisions are recorded in [ui-rework-design.md](ui-rework-design.md).
+
+### Phase 2 -- Shared catalog.json plain-language copy rewrite (2026-07-07)
+
+| ID | Sev | Cat | Item | Disposition |
+|---|---|---|---|---|
+| `UIR.P2.A` | P3 | DF | **Internal component copy left as-is.** The 4 catalog entries with `task: null` (the SANA VAE `dc-ae-f32c32-sana-1.1` and the 3 SANA ControlNets) are auto-loaded components, never rendered as selectable model cards, so their (technical) descriptions were deliberately not rewritten to the plain-language template -- a plain-language headline adds no value where nothing is shown. | Cosmetic only. If the app ever surfaces components in Settings->Models, give them a one-line plain summary then. Not a blocker. |
+
+Phase 2 opened **no P0/P1 blocking gaps**: T005 needed no schema change (Phase 1 derive-from-family), T006 rewrote all 34 user-facing descriptions byte-preservingly, and T007's accuracy check passed. All three readers stay green (TS validateSpec, Python loader `test_typed_catalog.py`, desktop `tsc --noEmit`); +1 regression guard added to `catalog.test.ts`.

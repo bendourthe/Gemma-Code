@@ -15,7 +15,7 @@
       "displayName": "Gemma 4 E2B",
       "origin": "USA",
       "agentic": true,
-      "description": "Google Gemma 4 2B-parameter instruct model. The smallest chat tier: stays responsive on 4 GB VRAM or even CPU-only machines.",
+      "description": "Google's Gemma 4 E2B is a compact 2B-parameter chat model from the USA. The smallest chat tier: it stays responsive on a 4 GB GPU, or even with no dedicated GPU at all.",
       "strengths": [
         "Fast everyday chat and quick questions",
         "Summarizing short documents and drafting notes",
@@ -38,7 +38,7 @@
       "displayName": "Gemma 4 E4B",
       "origin": "USA",
       "agentic": true,
-      "description": "Google Gemma 4 4B-parameter instruct model. The balanced default: strong general chat quality on mainstream 6-8 GB gaming GPUs.",
+      "description": "Google's Gemma 4 E4B is a balanced 4B-parameter chat model from the USA. The default pick: strong general chat quality on mainstream 6-8 GB gaming GPUs.",
       "strengths": [
         "General conversation, drafting, and rewriting",
         "Reliable instruction following for its size",
@@ -62,7 +62,7 @@
       "displayName": "Gemma 4 26B",
       "origin": "USA",
       "agentic": true,
-      "description": "Gemma 4 26B mixture-of-experts instruct model. Upper-mid chat tier for 18 GB+ VRAM: deeper reasoning and longer documents than the E-series.",
+      "description": "Google's Gemma 4 26B is a larger chat model from the USA for 18 GB+ GPUs. Upper-mid tier: deeper reasoning and longer documents than the E-series.",
       "strengths": [
         "Nuanced multi-step reasoning",
         "Long-document comprehension and synthesis",
@@ -84,7 +84,7 @@
       "displayName": "Gemma 4 31B",
       "origin": "USA",
       "agentic": true,
-      "description": "Gemma 4 31B dense instruct model. The flagship local chat tier: strongest answer quality in the catalog on a single 24 GB GPU.",
+      "description": "Google's Gemma 4 31B is the flagship local chat model from the USA. The strongest answer quality in the catalog, on a single 24 GB GPU.",
       "strengths": [
         "Complex reasoning and analysis",
         "High-fidelity long-form writing",
@@ -107,14 +107,14 @@
       "displayName": "Gemma 4 12B-IT (Unsloth GGUF)",
       "origin": "USA",
       "agentic": true,
-      "description": "Unsloth Dynamic-2.0 GGUF quant ladder of Gemma 4 12B instruction-tuned (IQ2_M / Q3_K / Q4_K_XL / Q5_K / Q6_K / BF16). Native text/image/audio multimodal input, 256K context. Run via `ollama run hf.co/unsloth/gemma-4-12b-it-GGUF:<QUANT>`. Per-quant disk/VRAM sizing and hardware-tier mapping live in modules/coding/config/Gemma4GgufQuants.ts; Q4_K_XL is the recommended default quant.",
+      "description": "Google's Gemma 4 12B is a mid-size chat model from the USA that also understands images and audio. It reads book-length material in one go and runs on 8 GB VRAM and up.",
       "strengths": [
         "Multimodal input: text, images, and audio in one chat",
         "256K context window for whole-project or book-length material",
         "Quant ladder scales from 8 GB up to workstation cards"
       ],
       "whyRecommended": "Multimodal input and a 256K context window at a size that fits 12 GB GPUs.",
-      "differentiators": "The only chat entry with native image + audio input; Unsloth Dynamic-2.0 quants keep quality close to BF16 at half the size.",
+      "differentiators": "Native image + audio input with a 256K context; ships as Unsloth Dynamic-2.0 GGUF quants (Q4_K_XL is the default) that stay close to full quality at about half the size.",
       "sizeGB": 7.37,
       "vramGB": 11,
       "requiredVramGB": 11,
@@ -135,7 +135,7 @@
       "task": "chat",
       "displayName": "Llama 3.1 8B Instruct",
       "origin": "USA",
-      "description": "Meta Llama 3.1 8B instruction-tuned model. A well-rounded alternative chat model with a large fine-tune and tooling ecosystem.",
+      "description": "Meta's Llama 3.1 8B is a well-rounded chat model from the USA. A dependable alternative with the broadest fine-tune and tooling ecosystem of any open model its size.",
       "strengths": [
         "Balanced general-purpose chat",
         "Huge community ecosystem of fine-tunes and guides",
@@ -156,7 +156,7 @@
       "task": "chat",
       "displayName": "Llama 3.1 70B Instruct",
       "origin": "USA",
-      "description": "Llama 3.1 70B instruction-tuned model. Workstation-class chat tier: needs 40 GB+ VRAM or aggressive CPU offload.",
+      "description": "Meta's Llama 3.1 70B is a workstation-class chat model from the USA. Near-frontier reasoning fully offline, but it needs 40 GB+ of VRAM or aggressive CPU offload.",
       "strengths": [
         "Frontier-adjacent reasoning fully offline",
         "Strong coding and math for a chat generalist",
@@ -177,7 +177,7 @@
       "task": "chat",
       "displayName": "Qwen 2.5 7B Instruct",
       "origin": "China",
-      "description": "Alibaba Qwen 2.5 7B instruction-tuned model. Multilingual chat alternative with strong math and structured-output skills.",
+      "description": "Alibaba's Qwen 2.5 7B is a multilingual chat model from China. A strong non-English alternative with good math and structured-output skills on a 7-8 GB GPU.",
       "strengths": [
         "Strong multilingual coverage (29+ languages)",
         "Good at JSON and structured output",
@@ -198,7 +198,7 @@
       "task": "chat",
       "displayName": "Qwen 2.5 14B Instruct",
       "origin": "China",
-      "description": "Qwen 2.5 14B instruction-tuned model. Mid-tier multilingual chat for 12 GB GPUs.",
+      "description": "Alibaba's Qwen 2.5 14B is a mid-size multilingual chat model from China for 12 GB GPUs. Deeper reasoning than the 7B, with the same multilingual strengths.",
       "strengths": [
         "Multilingual chat with deeper reasoning than the 7B",
         "Reliable structured output at scale",
@@ -220,7 +220,7 @@
       "displayName": "Qwen 2.5 Coder 7B",
       "origin": "China",
       "agentic": true,
-      "description": "Qwen 2.5 Coder 7B: a code-specialized model for the Coding pillar. Generation, repair, and editor completions across 40+ languages.",
+      "description": "Alibaba's Qwen 2.5 Coder 7B is a code-specialized model from China. Built for the Coding pillar: generation, repair, and editor completions across 40+ languages.",
       "strengths": [
         "Code generation and bug fixing across 40+ languages",
         "Fill-in-the-middle for inline editor completions",
@@ -244,7 +244,7 @@
       "displayName": "Qwen 2.5 Coder 14B",
       "origin": "China",
       "agentic": true,
-      "description": "Qwen 2.5 Coder 14B: the mid agentic-coding tier. Stronger multi-file reasoning and refactoring than the 7B, still fits 12 GB GPUs.",
+      "description": "Alibaba's Qwen 2.5 Coder 14B is a mid-tier coding model from China that still fits 12 GB GPUs. Stronger multi-file reasoning and refactoring than the 7B.",
       "strengths": [
         "Multi-file refactoring and cross-module reasoning",
         "More reliable tool-calling in long agent loops",
@@ -267,7 +267,7 @@
       "displayName": "DeepSeek Coder V2 16B",
       "origin": "China",
       "agentic": true,
-      "description": "DeepSeek Coder V2 Lite (16B MoE, 2.4B active). The advanced agentic-coding tier: near-flagship coding skill with fast MoE inference on 14 GB+ VRAM.",
+      "description": "DeepSeek's Coder V2 16B is an advanced coding model from China with fast inference on 14 GB+ GPUs. Near-flagship coding skill for the Agentic tier.",
       "strengths": [
         "Top-of-catalog code generation and repair quality",
         "Fast generation: only 2.4B parameters active per token",
@@ -289,7 +289,7 @@
       "task": "embed",
       "displayName": "Nomic Embed Text",
       "origin": "USA",
-      "description": "768-D embedding model used by the semantic memory layer. Not a chat model: it powers search, recall, and retrieval across your conversations and files.",
+      "description": "Nomic AI's Nomic Embed Text is a small embedding model from the USA, not a chat model. It powers the semantic memory layer: search, recall, and retrieval across your conversations and files.",
       "strengths": [
         "Semantic search over conversations and documents",
         "Long-context retrieval (8K tokens per passage)",
@@ -312,7 +312,7 @@
       "task": "image",
       "displayName": "SDXL Turbo",
       "origin": "UK",
-      "description": "Stable Diffusion XL Turbo: adversarial-distilled SDXL for 1-4 step generation. The speed pick of the SDXL lineage (research license).",
+      "description": "Stability AI's SDXL Turbo is a speed-tuned image model from the UK that draws in 1-4 steps. The fast-draft pick of the SDXL lineage, ideal for rapid prompt iteration.",
       "strengths": [
         "Near-real-time drafts: 1-4 denoising steps",
         "Good for rapid prompt iteration",
@@ -348,7 +348,7 @@
       "task": "image",
       "displayName": "Stable Diffusion XL 1.0 Base",
       "origin": "UK",
-      "description": "SDXL 1.0 base checkpoint from Stability AI. The reference model of the SDXL lineage and the compatibility baseline for its LoRA/ControlNet ecosystem.",
+      "description": "Stability AI's Stable Diffusion XL 1.0 is the reference image model from the UK. The compatibility baseline for the SDXL LoRA and ControlNet ecosystem.",
       "strengths": [
         "Broadest LoRA and ControlNet compatibility",
         "Well-documented, predictable prompting",
@@ -384,7 +384,7 @@
       "task": "image",
       "displayName": "Juggernaut XL v9",
       "origin": "USA",
-      "description": "Photorealistic SDXL 1.0 fine-tune by KandooAI and RunDiffusion (RunDiffusion Photo v2 dataset). The catalog's uncensored photorealism default for 8-12 GB GPUs: no weights-level content filter.",
+      "description": "Juggernaut XL v9 is a photorealistic image model from the USA: a community fine-tune of SDXL by KandooAI and RunDiffusion with no built-in content filter. The uncensored photorealism default for 8-12 GB GPUs.",
       "strengths": [
         "Best-in-class photorealistic people and scenes",
         "Uncensored weights: no baked-in content filter",
@@ -427,7 +427,7 @@
       "task": "image",
       "displayName": "RealVisXL V5.0",
       "origin": "Community",
-      "description": "Photorealistic SDXL 1.0 fine-tune by SG161222. The catalog's uncensored photorealism default for 16 GB+ GPUs: exceptional skin, lighting, and detail rendering with no weights-level content filter.",
+      "description": "RealVisXL V5.0 is a photorealistic image model from the open-source community: a fine-tune of SDXL by SG161222 with no built-in content filter. The uncensored photorealism default for 16 GB+ GPUs.",
       "strengths": [
         "Exceptional skin texture, lighting, and fine detail",
         "Uncensored weights: no baked-in content filter",
@@ -470,7 +470,7 @@
       "task": "image",
       "displayName": "FLUX.1 Schnell",
       "origin": "Germany",
-      "description": "Black Forest Labs FLUX.1 Schnell: 12B-parameter rectified-flow transformer distilled for 4-step generation. The prompt-adherence flagship for 24 GB GPUs.",
+      "description": "Black Forest Labs' FLUX.1 Schnell is a large image model from Germany that generates in just 4 steps. The prompt-adherence flagship for 24 GB GPUs, with the best text rendering in the catalog.",
       "strengths": [
         "Best prompt adherence and text rendering in the catalog",
         "4-step generation despite its size",
@@ -506,7 +506,7 @@
       "task": "image",
       "displayName": "Stable Diffusion 1.5",
       "origin": "UK",
-      "description": "Legacy SD 1.5 checkpoint. The lightest image model in the catalog: 512px generation on 4 GB VRAM with a vast legacy fine-tune ecosystem.",
+      "description": "Stable Diffusion 1.5 is the classic lightweight image model from the UK. The lightest in the catalog: 512px generation on 4 GB VRAM, with a vast legacy fine-tune ecosystem.",
       "strengths": [
         "Runs on 4 GB VRAM",
         "Enormous legacy LoRA and checkpoint ecosystem",
@@ -542,7 +542,7 @@
       "task": "video",
       "displayName": "LTX-Video 0.9",
       "origin": "Israel",
-      "description": "Lightricks LTX-Video: DiT-based text-to-video built for speed. The fastest generation in the video catalog on 12 GB+ GPUs.",
+      "description": "Lightricks' LTX-Video is a speed-focused text-to-video model from Israel for 12 GB+ GPUs. The fastest clip generation in the catalog, with good motion on short clips.",
       "strengths": [
         "Fastest clip generation in the catalog",
         "Good motion coherence for short clips",
@@ -578,7 +578,7 @@
       "task": "video",
       "displayName": "Wan 2.1 T2V 1.3B",
       "origin": "China",
-      "description": "Alibaba Wan 2.1 text-to-video, 1.3B parameters. The catalog's uncensored-capable video default for 8-16 GB GPUs: leading motion quality for its size, ~8 GB VRAM at 480p.",
+      "description": "Alibaba's Wan 2.1 T2V is a 1.3B text-to-video model from China that runs on ~8 GB VRAM at 480p, with no built-in content filter. The consumer-hardware entry point for local video.",
       "strengths": [
         "Runs on ~8 GB consumer GPUs (480p)",
         "Leading VBench motion quality in the small-model class",
@@ -629,7 +629,7 @@
       "task": "video",
       "displayName": "Wan 2.2 TI2V 5B",
       "origin": "China",
-      "description": "Alibaba Wan 2.2 text+image-to-video, 5B parameters with the 64x-compression Wan2.2-VAE. The catalog's uncensored-capable video default for 24 GB GPUs: 720p at 24 fps on a single RTX 4090-class card.",
+      "description": "Alibaba's Wan 2.2 TI2V is a 5B text-and-image-to-video model from China that reaches 720p at 24 fps on a single 24 GB card, with no built-in content filter. The higher-resolution local-video default.",
       "strengths": [
         "720p @ 24 fps on a single 24 GB GPU",
         "Text-to-video and image-to-video in one model",
@@ -688,7 +688,7 @@
       "task": "video",
       "displayName": "Stable Video Diffusion 1.1",
       "origin": "UK",
-      "description": "Stability AI SVD XT 1.1: image-to-video generation (animate a still image). Research license.",
+      "description": "Stability AI's Stable Video Diffusion 1.1 is an image-to-video model from the UK. It animates a still image into a short clip with coherent camera motion.",
       "strengths": [
         "Animates existing images with coherent camera motion",
         "Predictable, stable short clips",
@@ -724,7 +724,7 @@
       "task": "image",
       "displayName": "SANA 1.5 1.6B 1024px",
       "origin": "USA",
-      "description": "NVIDIA SANA 1.5 1.6B at 1024px. The efficient 1024px image model (v1.1.0 default): ~2x faster than SDXL Turbo on 6 GB VRAM. Apache-2.0 weights.",
+      "description": "NVIDIA's SANA 1.5 1.6B is an efficient 1024px image model from the USA. About 2x faster than SDXL Turbo on 6 GB VRAM, with permissive Apache-2.0 weights.",
       "strengths": [
         "Very fast 1024px generation on 6 GB VRAM",
         "Strong text rendering for its size",
@@ -767,7 +767,7 @@
       "task": "image",
       "displayName": "SANA Sprint 1024px",
       "origin": "USA",
-      "description": "NVIDIA Sana-Sprint: 1-step distilled SANA. The speed tier that powers the Fast Preview toggle in Image Studio.",
+      "description": "NVIDIA's SANA Sprint is a one-step image model from the USA. The speed tier behind Image Studio's Fast Preview toggle, at the same 6 GB footprint as SANA 1.5.",
       "strengths": [
         "Single-step generation: instant previews",
         "Same 6 GB VRAM footprint as SANA 1.5",
@@ -809,7 +809,7 @@
       "task": "image",
       "displayName": "SANA 1.6B 2K",
       "origin": "USA",
-      "description": "NVIDIA SANA 1.6B at 2048px (BF16). High-resolution tier gated to diffusion-mid+ hosts (12 GB VRAM).",
+      "description": "NVIDIA's SANA 1.6B 2K is a high-resolution image model from the USA for 12 GB GPUs. Native 2048px generation on the efficient SANA core.",
       "strengths": [
         "Native 2048px generation",
         "Same efficient linear-attention core as SANA 1.5",
@@ -851,7 +851,7 @@
       "task": "image",
       "displayName": "SANA 1.6B 4K",
       "origin": "USA",
-      "description": "NVIDIA SANA 1.6B at 4096px (BF16). Ultra-high-resolution tier gated to diffusion-high+ hosts (20 GB VRAM).",
+      "description": "NVIDIA's SANA 1.6B 4K is an ultra-high-resolution image model from the USA for 20 GB GPUs. Native 4096px, poster-scale output without upscalers.",
       "strengths": [
         "Native 4096px generation",
         "Poster-scale output without upscalers",
@@ -893,7 +893,7 @@
       "task": "image",
       "displayName": "SANA 1.5 1.6B INT4 (SVDQuant)",
       "origin": "USA",
-      "description": "NVIDIA SANA 1.5 1.6B INT4 quantized via SVDQuant (nunchaku). Fits diffusion-low (5 GB VRAM) hosts. Requires the nunchaku runtime dep.",
+      "description": "NVIDIA's SANA 1.5 1.6B INT4 is a compressed image model from the USA that fits 5 GB GPUs. The low-VRAM way to still get 1024px generation (needs the nunchaku runtime).",
       "strengths": [
         "Smallest capable 1024px model (1.4 GB, 5 GB VRAM)",
         "INT4 quantization with minimal quality loss",
@@ -1075,7 +1075,7 @@
       "task": "video",
       "displayName": "SANA-Video 2B 720p",
       "origin": "USA",
-      "description": "NVIDIA SANA-Video 2B at 720p. Fast 720p tier in Video Lab (between LTX-Video and the Wan family).",
+      "description": "NVIDIA's SANA-Video 2B is a fast 720p text-to-video model from the USA for 12 GB GPUs. The efficiency pick: faster than the Wan family, higher fidelity than LTX-Video.",
       "strengths": [
         "Fast 720p clips on 12 GB VRAM",
         "Efficient linear-attention video architecture",
@@ -1116,7 +1116,7 @@
       "task": "audio",
       "displayName": "Faster-Whisper Large v3",
       "origin": "USA",
-      "description": "OpenAI Whisper Large v3 converted to CTranslate2 (Systran) for fast local speech-to-text. Transcribes and translates 90+ languages; runs on CPU or GPU.",
+      "description": "OpenAI's Whisper Large v3 (Faster-Whisper build) is a speech-to-text model from the USA that runs on CPU or GPU. Accurate transcription and translation across 90+ languages, on any hardware.",
       "strengths": [
         "Accurate multilingual speech-to-text (90+ languages)",
         "4-5x faster than reference Whisper via CTranslate2",
@@ -1157,7 +1157,7 @@
       "task": "audio",
       "displayName": "Kokoro 82M",
       "origin": "Community",
-      "description": "Kokoro is an 82M-parameter open-weight text-to-speech model with natural, expressive voices. Tiny, fast, and CPU-friendly (Apache-2.0).",
+      "description": "Kokoro 82M is a tiny open-weight text-to-speech model from the open-source community, with natural, expressive voices. Fast and CPU-friendly at just 0.35 GB.",
       "strengths": [
         "Natural, expressive speech synthesis",
         "Only 82M parameters -- runs on CPU in real time",
@@ -1198,7 +1198,7 @@
       "task": "audio",
       "displayName": "Piper (en-US Lessac, medium)",
       "origin": "Community",
-      "description": "Piper is a fast, local neural text-to-speech system optimized for low-power devices. This is the US-English Lessac medium voice (ONNX).",
+      "description": "Piper is a fast on-device text-to-speech system from the open-source community; this is the US-English Lessac (medium) voice. Low-latency speech even on a Raspberry Pi-class CPU.",
       "strengths": [
         "Extremely fast, low-latency on-device TTS",
         "Tiny footprint: runs on a Raspberry Pi-class CPU",
@@ -1238,7 +1238,7 @@
       "task": "audio",
       "displayName": "MusicGen Medium",
       "origin": "USA",
-      "description": "Meta MusicGen 1.5B: text-to-music generation. Generates short instrumental music clips from a text description. Non-commercial license (CC-BY-NC-4.0).",
+      "description": "Meta's MusicGen Medium is a 1.5B text-to-music model from the USA that turns a prompt into short instrumental clips. Opt-in rather than a default: it needs a GPU and ships under a non-commercial license.",
       "strengths": [
         "Text-to-music generation from a prompt",
         "Coherent melody and instrumentation for short clips",
@@ -1279,7 +1279,7 @@
       "task": "audio",
       "displayName": "Stable Audio Open 1.0",
       "origin": "UK",
-      "description": "Stability AI Stable Audio Open: text-to-audio generation for sound effects and short musical samples (up to ~47s). Stability AI Community License.",
+      "description": "Stability AI's Stable Audio Open is a text-to-audio model from the UK for sound effects and short musical samples (up to ~47s). Opt-in under a community license; the sound-design counterpart to MusicGen.",
       "strengths": [
         "Text-to-audio: sound effects and musical samples",
         "Generates variable-length stereo audio",
