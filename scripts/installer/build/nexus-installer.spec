@@ -71,10 +71,17 @@ for req in req_candidates:
         datas.append((str(req), "."))
         break
 
-# Icon for the installer UI
-icon_png = REPO_ROOT / "assets" / "icon.png"
-if icon_png.exists():
-    datas.append((str(icon_png), "assets"))
+# Runtime UI icons + brand mark (v1.9.0 T019). Resolved by
+# `nexus_installer.registry_paths` (asset_file / resolve_window_icon) from
+# `sys._MEIPASS/assets` in the frozen bundle: `icon.ico` is the multi-resolution
+# window/taskbar icon set via `setWindowIcon` (fixes the generic Python host
+# icon fallback, T018), `icon.png` is the fallback, and the transparent mark
+# feeds the header's StaticLogo. Without these staged, a packaged wizard shows
+# the generic icon and a blank header mark.
+for asset_name in ("icon.ico", "icon.png", "nexus-ai-primary_no-background.png"):
+    asset_path = REPO_ROOT / "assets" / asset_name
+    if asset_path.exists():
+        datas.append((str(asset_path), "assets"))
 
 a = Analysis(
     [str(INSTALLER_ROOT / "src" / "nexus_installer" / "main.py")],

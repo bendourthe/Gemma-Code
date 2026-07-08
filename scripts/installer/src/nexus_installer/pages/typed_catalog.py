@@ -70,6 +70,7 @@ from nexus_installer.tier_defaults import (
     load_tier_matrix,
     resolve_tier,
 )
+from nexus_installer.widgets.model_checkbox import ModelCheckBox
 
 if TYPE_CHECKING:
     from nexus_installer.installer_state import InstallerState
@@ -300,19 +301,6 @@ def _pill(
     return chip
 
 
-# Larger cyan selection boxes (T403): a 20px rounded indicator that fills with
-# the section accent when checked. Formatted per-card with the section accent.
-_CHECKBOX_QSS = (
-    "QCheckBox::indicator {{ width: 20px; height: 20px; border-radius: 5px; "
-    "border: 2px solid {border}; background: {bg}; }}"
-    "QCheckBox::indicator:hover {{ border-color: {accent}; }}"
-    "QCheckBox::indicator:checked {{ background-color: {accent}; "
-    "border-color: {accent}; }}"
-    "QCheckBox::indicator:disabled {{ border-color: {accent}; "
-    "background-color: {accent}; }}"
-)
-
-
 @dataclass
 class _ModelCardState:
     """Track a card's checkbox + the model it represents."""
@@ -366,13 +354,11 @@ class _ModelCard(QWidget):
         # --- Title row: [checkbox] name (release)  [status badge]  [disk] ---
         title_row = QHBoxLayout()
         title_row.setSpacing(8)
-        self.checkbox = QCheckBox()
+        # v1.9.0 Phase 5 (T021) -- the custom-painted ModelCheckBox: a rounded
+        # box with a crisp glyph and full state coverage. `accent` is the
+        # per-provider color (Phase 6); the required (embed) model is locked on.
+        self.checkbox = ModelCheckBox(accent=accent)
         self.checkbox.setChecked(checked)
-        # v1.9.0 Phase 4 (T403) -- larger cyan selection box carrying the
-        # section accent. The required (embed) model is locked on.
-        self.checkbox.setStyleSheet(
-            _CHECKBOX_QSS.format(accent=accent, border=BORDER_STRONG, bg="transparent")
-        )
         # The required (embed) lock is applied by the page in
         # `_update_selection_state` so a seeded / CLI-override selection is
         # never silently forced on.

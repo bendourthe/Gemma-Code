@@ -4,6 +4,31 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-08] v1.9.0 installer + app UI rework -- Phase 5: installer chrome - taskbar/window icon, scrollbars, checkbox (T018-T021)
+
+### Goal
+
+Make the taskbar icon reliable in the frozen (PyInstaller) build and modernize the scrollbars and the per-model checkbox. This is the plan's highest-risk phase (frozen-path resolution must be proven in the built exe, not just the dev run).
+
+### What changed
+
+- **T018 -- frozen-path icon resolution**: added `asset_file(name)` + `resolve_window_icon()` to [registry_paths.py](../scripts/installer/src/nexus_installer/registry_paths.py), mirroring the existing `_MEIPASS`-first `registry_file` resolver. [main.py](../scripts/installer/src/nexus_installer/main.py) drops the fragile fixed-depth `../../../../assets/icon.ico` walk (which silently missed inside the onefile, so the taskbar fell back to the generic Python host icon) and resolves the icon bundle-first; the icon is set app-wide **and** [window.py](../scripts/installer/src/nexus_installer/window.py) calls `setWindowIcon` on the window itself. `resolve_window_icon` prefers the multi-res `.ico`, then `.png`, then the brand mark; returns `None` (skip) if none is staged. The `import os` used only by the old walk is removed. The Windows `AppUserModelID` call is kept (T019).
+- **T019 -- icon staging**: [nexus-installer.spec](../scripts/installer/build/nexus-installer.spec) now stages `icon.ico` + `icon.png` + the transparent mark under `assets/` (one loop), and its comment is corrected from the retired FloatingLogo to `StaticLogo`.
+- **T020 -- scrollbars** ([theme.py](../scripts/installer/src/nexus_installer/theme.py)): transparent track, a slim (10px) pill handle (`border-radius` half the width) in a subtle `TEXT_MUTED` that brightens to `TEXT_SECONDARY` on hover, zero-size arrow buttons, and a matching horizontal rule; the app-level rule is inherited by the nested catalog scroll areas.
+- **T021 -- checkbox**: a new custom-painted [ModelCheckBox](../scripts/installer/src/nexus_installer/widgets/model_checkbox.py) (a text-less `QCheckBox` that paints a rounded box + a crisp checkmark glyph, with a configurable `accent` and distinct unchecked/hover/checked/checked-hover/focus/disabled/locked states) replaces the per-card `_CHECKBOX_QSS` in [typed_catalog.py](../scripts/installer/src/nexus_installer/pages/typed_catalog.py); the glyph is painted (not a QSS `image: url()`) so it always resolves in the frozen bundle. The base `QCheckBox` QSS (the configuration-page toggles) is modernized too: 20px hit target, rounded box, accent fill, hover / checked-hover / disabled / locked (checked+disabled) states. The per-provider accent is wired in Phase 6.
+
+### Verification
+
+**Frozen build proven end-to-end**: `uv run pyinstaller build/nexus-installer.spec` produced `NexusSetup.exe` (73.7 MB) which boots (`--version` -> `nexus-ai-studio-installer 1.1.0`) and resolves `_MEIPASS`-staged files (`--check-registry` exit 0 from the real `_MEI...` extraction dir); the Analysis TOC confirms `icon.ico` + `icon.png` + the mark are collected into the bundle under `assets\`. Since `resolve_window_icon` uses the same `_MEIPASS` mechanism `--check-registry` exercises, the frozen taskbar icon now resolves. Unit tests: `asset_file` + `resolve_window_icon` across source-tree / mocked-`_MEIPASS` / not-frozen / missing-fallback; `ModelCheckBox` across all states (paints without error); the spec-staging assertion (`icon.ico` in datas). Installer suite **670 passed / 2 skipped / 0 failed** (+14). Offscreen QSS smoke: pill scrollbars (transparent track, hover, horizontal) + checkbox states present, no leaked tokens. ruff clean on changed files.
+
+The actual OS taskbar/window icon *rendering* + the scrollbar/checkbox look need a real GUI (the headless sandbox can't display), recorded for the Phase 7 frozen-build visual QA (`UIR.P5.A`).
+
+### Branch
+
+Continues on the v1.9.0 installer line (`feat/v1.9.0-installer-phase-1`). Phase 5 owns `main.py` + `nexus-installer.spec`, so their planning-session baseline edits (the `AppUserModelID` call, the brand-mark staging) land here alongside the T018/T019 work, resolving the `main.py` half of `UIR.P3.B`. The `build-windows.ps1` stderr-handling baseline edit is a build-script robustness fix outside T018-T021 and stays unstaged.
+
+---
+
 ## [2026-07-07] v1.9.0 installer + app UI rework -- Phase 4: installer logo de-lag + two-tone wordmark + stepper legibility (T012-T017)
 
 ### Goal

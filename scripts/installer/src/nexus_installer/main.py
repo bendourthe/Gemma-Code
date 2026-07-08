@@ -1,4 +1,4 @@
-﻿"""Entry point for the Nexus AI Studio installer wizard.
+"""Entry point for the Nexus AI Studio installer wizard.
 
 Supports two modes:
 
@@ -16,6 +16,7 @@ import json
 import sys
 
 from nexus_installer import __version__
+from nexus_installer.registry_paths import resolve_window_icon
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
@@ -251,8 +252,6 @@ def main() -> None:
         sys.exit(_run_headless(args))
 
     # Import PyQt5 lazily so --version/--help/--headless don't require Qt.
-    import os
-
     from PyQt5.QtCore import Qt
     from PyQt5.QtGui import QIcon
     from PyQt5.QtWidgets import QApplication
@@ -269,25 +268,29 @@ def main() -> None:
     from nexus_installer.pages.welcome import WelcomePage
     from nexus_installer.window import InstallerWindow
 
+    # Windows: set an explicit AppUserModelID before the first window is created
+    # so the OS taskbar shows this app's own (transparent, rounded) icon instead
+    # of grouping under the generic Python host icon.
+    if sys.platform == "win32":
+        import contextlib
+        import ctypes
+
+        with contextlib.suppress(Exception):
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(  # type: ignore[attr-defined]
+                "com.nexusai.studio.installer"
+            )
+
     app = QApplication(sys.argv)
     app.setApplicationName("Nexus AI Studio")
     app.setApplicationDisplayName("Nexus AI Studio")
     app.setApplicationVersion(__version__)
 
-    # Set window icon from repo assets
-    icon_candidates = [
-        os.path.join(
-            os.path.dirname(__file__), "..", "..", "..", "..", "assets", "icon.ico"
-        ),
-        os.path.join(
-            os.path.dirname(__file__), "..", "..", "..", "..", "assets", "icon.png"
-        ),
-    ]
-    for icon_path in icon_candidates:
-        icon_path = os.path.normpath(icon_path)
-        if os.path.isfile(icon_path):
-            app.setWindowIcon(QIcon(icon_path))
-            break
+    # Window / taskbar icon, resolved bundle-first (sys._MEIPASS) so the frozen
+    # onefile shows the Nexus mark instead of the generic Python host icon; the
+    # old fixed-depth relative walk silently missed inside the bundle (T018).
+    icon_path = resolve_window_icon()
+    if icon_path is not None:
+        app.setWindowIcon(QIcon(str(icon_path)))
 
     # macOS Retina support
     if sys.platform == "darwin":

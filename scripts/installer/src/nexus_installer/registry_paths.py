@@ -35,6 +35,41 @@ def registry_file(name: str) -> Path:
     return Path("core") / "registry" / name
 
 
+def asset_file(name: str) -> Path:
+    """Locate ``assets/<name>`` for frozen and source runs alike (v1.9.0 T018).
+
+    Same bundle-first discipline as :func:`registry_file`: a packaged wizard
+    resolves the icon from ``sys._MEIPASS/assets`` (the spec stages it there),
+    never depending on a source checkout. The old fixed-depth ``../../../..``
+    relative walk silently missed in the frozen onefile, so the taskbar fell
+    back to the generic Python host icon.
+    """
+    if getattr(sys, "frozen", False):
+        candidate = Path(getattr(sys, "_MEIPASS", "")) / "assets" / name
+        if candidate.is_file():
+            return candidate
+    for parent in Path(__file__).resolve().parents:
+        candidate = parent / "assets" / name
+        if candidate.is_file():
+            return candidate
+    return Path("assets") / name
+
+
+def resolve_window_icon() -> Path | None:
+    """Return the best available window / taskbar icon, or ``None``.
+
+    Prefers the multi-resolution ``.ico`` (crispest for the Windows taskbar),
+    then ``icon.png``, then the transparent brand mark. Returns ``None`` when no
+    icon asset is staged so callers skip ``setWindowIcon`` rather than hand Qt a
+    non-existent path.
+    """
+    for name in ("icon.ico", "icon.png", "nexus-ai-primary_no-background.png"):
+        path = asset_file(name)
+        if path.is_file():
+            return path
+    return None
+
+
 def default_catalog_path() -> Path:
     return registry_file("catalog.json")
 
@@ -64,8 +99,10 @@ def check_registry() -> int:
 
 
 __all__ = [
+    "asset_file",
     "check_registry",
     "default_catalog_path",
     "default_recommended_path",
     "registry_file",
+    "resolve_window_icon",
 ]

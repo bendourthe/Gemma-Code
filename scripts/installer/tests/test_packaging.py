@@ -32,6 +32,16 @@ class TestSpecFile:
         assert "recommended.json" in content
         assert "core/registry" in content
 
+    def test_spec_stages_runtime_icons(self) -> None:
+        # v1.9.0 Phase 5 (T019): the runtime window/taskbar icon (icon.ico) and
+        # the brand mark must be staged under assets/ so setWindowIcon resolves
+        # them from sys._MEIPASS in the frozen bundle -- otherwise the taskbar
+        # falls back to the generic Python host icon.
+        content = (BUILD_DIR / "nexus-installer.spec").read_text()
+        assert "icon.ico" in content
+        assert "nexus-ai-primary_no-background.png" in content
+        assert '"assets"' in content
+
     def test_spec_prefers_renamed_vsix(self) -> None:
         content = (BUILD_DIR / "nexus-installer.spec").read_text()
         assert "nexus-coding-*.vsix" in content

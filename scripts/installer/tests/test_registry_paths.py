@@ -22,6 +22,13 @@ def _make_bundle(root: Path, names: tuple[str, ...]) -> None:
         (registry / name).write_text("{}", encoding="utf-8")
 
 
+def _make_assets(root: Path, names: tuple[str, ...]) -> None:
+    assets = root / "assets"
+    assets.mkdir(parents=True)
+    for name in names:
+        (assets / name).write_bytes(b"\x00")
+
+
 class TestRegistryFile:
     def test_source_tree_walkup_finds_real_catalog(self) -> None:
         path = registry_paths.registry_file("catalog.json")
@@ -64,6 +71,55 @@ class TestRegistryFile:
     def test_default_helpers_point_at_the_two_registry_files(self) -> None:
         assert registry_paths.default_catalog_path().name == "catalog.json"
         assert registry_paths.default_recommended_path().name == "recommended.json"
+
+
+class TestAssetFile:
+    def test_source_tree_walkup_finds_icon_ico(self) -> None:
+        path = registry_paths.asset_file("icon.ico")
+        assert path.is_file()
+        assert path.parts[-2:] == ("assets", "icon.ico")
+
+    def test_frozen_prefers_bundle_dir(self, tmp_path, monkeypatch) -> None:
+        _make_assets(tmp_path, ("icon.ico",))
+        monkeypatch.setattr(sys, "frozen", True, raising=False)
+        monkeypatch.setattr(sys, "_MEIPASS", str(tmp_path), raising=False)
+        path = registry_paths.asset_file("icon.ico")
+        assert path == tmp_path / "assets" / "icon.ico"
+
+    def test_frozen_missing_from_bundle_falls_back_to_walkup(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        monkeypatch.setattr(sys, "frozen", True, raising=False)
+        monkeypatch.setattr(sys, "_MEIPASS", str(tmp_path), raising=False)
+        path = registry_paths.asset_file("icon.ico")
+        assert path.is_file()
+        assert not str(path).startswith(str(tmp_path))
+
+    def test_not_frozen_ignores_meipass(self, tmp_path, monkeypatch) -> None:
+        _make_assets(tmp_path, ("icon.ico",))
+        monkeypatch.setattr(sys, "_MEIPASS", str(tmp_path), raising=False)
+        monkeypatch.delattr(sys, "frozen", raising=False)
+        path = registry_paths.asset_file("icon.ico")
+        assert not str(path).startswith(str(tmp_path))
+
+    def test_missing_everywhere_returns_relative_fallback(self) -> None:
+        path = registry_paths.asset_file("no-such-icon.ico")
+        assert path == Path("assets") / "no-such-icon.ico"
+
+
+class TestResolveWindowIcon:
+    def test_source_tree_prefers_ico(self) -> None:
+        path = registry_paths.resolve_window_icon()
+        assert path is not None
+        assert path.is_file()
+        assert path.name == "icon.ico"  # .ico wins over .png / the mark
+
+    def test_none_when_no_icon_asset(self, monkeypatch) -> None:
+        # asset_file returns a non-existent path for every candidate.
+        monkeypatch.setattr(
+            registry_paths, "asset_file", lambda name: Path("nope") / name
+        )
+        assert registry_paths.resolve_window_icon() is None
 
 
 class TestCheckRegistry:

@@ -12,6 +12,7 @@ from __future__ import annotations
 import os
 
 from PyQt5.QtCore import QEvent, Qt
+from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import (
     QLabel,
     QMainWindow,
@@ -35,6 +36,7 @@ from nexus_installer.constants import (
 )
 from nexus_installer.engine.install_guard import evaluate_install_guard
 from nexus_installer.installer_state import InstallerState
+from nexus_installer.registry_paths import resolve_window_icon
 from nexus_installer.theme import generate_stylesheet
 from nexus_installer.widgets.background import BackgroundWidget
 from nexus_installer.widgets.footer import Footer
@@ -76,6 +78,11 @@ class InstallerWindow(QMainWindow):
         self._title_bar: TitleBar | None = None
         self._central: QWidget | None = None
         self.setWindowTitle(WINDOW_TITLE)
+        # Set the window icon explicitly (not only app-wide) so the taskbar
+        # button reliably shows the Nexus mark in the frozen build (T018).
+        _icon_path = resolve_window_icon()
+        if _icon_path is not None:
+            self.setWindowIcon(QIcon(str(_icon_path)))
         self.setMinimumSize(WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT)
         self.resize(WINDOW_DEFAULT_WIDTH, WINDOW_DEFAULT_HEIGHT)
         self.setStyleSheet(generate_stylesheet())

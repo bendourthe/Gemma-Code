@@ -210,18 +210,45 @@ QScrollArea {{
 QScrollArea > QWidget > QWidget {{
     background-color: transparent;
 }}
+/* Modern pill scrollbars (v1.9.0 T020): transparent track, slim rounded
+   handle brightening on hover, no arrow buttons; horizontal mirrors vertical.
+   Nested catalog scroll areas inherit this app-level rule. */
 QScrollBar:vertical {{
-    background: {BG_WINDOW};
-    width: 8px;
+    background: transparent;
+    width: 10px;
+    margin: 2px 2px 2px 0;
     border: none;
 }}
 QScrollBar::handle:vertical {{
-    background: {BORDER_STRONG};
+    background: {TEXT_MUTED};
     border-radius: 4px;
-    min-height: 30px;
+    min-height: 36px;
 }}
-QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+QScrollBar::handle:vertical:hover {{
+    background: {TEXT_SECONDARY};
+}}
+QScrollBar:horizontal {{
+    background: transparent;
+    height: 10px;
+    margin: 0 2px 2px 2px;
+    border: none;
+}}
+QScrollBar::handle:horizontal {{
+    background: {TEXT_MUTED};
+    border-radius: 4px;
+    min-width: 36px;
+}}
+QScrollBar::handle:horizontal:hover {{
+    background: {TEXT_SECONDARY};
+}}
+QScrollBar::add-line, QScrollBar::sub-line {{
+    width: 0px;
     height: 0px;
+    border: none;
+    background: none;
+}}
+QScrollBar::add-page, QScrollBar::sub-page {{
+    background: transparent;
 }}
 
 /* -- Progress bar ------------------------------------------------------- */
@@ -268,26 +295,42 @@ QTabBar::tab:selected {{
     border-color: {BORDER_STRONG};
 }}
 
-/* -- Checkbox (toggle base) -------------------------------------------- */
+/* -- Checkbox (toggle base, v1.9.0 T021) --------------------------------
+   Modern control: comfortable 20px hit target, rounded box, accent fill when
+   checked, and distinct hover / checked-hover / disabled / locked (checked +
+   disabled) states. The per-model card checkbox is the custom-painted
+   ModelCheckBox (with a crisp glyph); these base rules cover the plain
+   toggles (configuration page). */
 QCheckBox {{
     color: {TEXT_PRIMARY};
-    spacing: 8px;
+    spacing: 10px;
     font-size: {FS_BODY}px;
 }}
 QCheckBox::indicator {{
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
     border: 2px solid {BORDER_STRONG};
-    border-radius: 4px;
+    border-radius: 6px;
     background-color: {BG_INPUT};
+}}
+QCheckBox::indicator:hover {{
+    border-color: {ACCENT};
 }}
 QCheckBox::indicator:checked {{
     background-color: {ACCENT};
     border-color: {ACCENT};
 }}
+QCheckBox::indicator:checked:hover {{
+    background-color: {ACCENT_BRIGHT};
+    border-color: {ACCENT_BRIGHT};
+}}
 QCheckBox::indicator:disabled {{
     background-color: {BG_CARD};
-    border-color: {BG_CARD};
+    border-color: {BORDER};
+}}
+QCheckBox::indicator:checked:disabled {{
+    background-color: {ACCENT_DIM};
+    border-color: {ACCENT_DIM};
 }}
 
 /* -- Phase group card (installing page) --------------------------------- */
