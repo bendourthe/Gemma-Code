@@ -4,6 +4,28 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-07] v1.9.0 installer + app UI rework -- Phase 1: shared design foundations (T001-T004)
+
+### Goal
+
+Decide, once, the four design primitives every later phase of the [installer-and-app-ui-rework](versions/v1/v1.9.0/plans/installer-and-app-ui-rework.md) plan consumes: the installer type scale (T001), the per-provider color palette (T002), the aurora/shimmer animation spec (T003), and the plain-language model-copy template (T004). Foundations only -- no page/widget wiring yet (that is Phases 3/6/8).
+
+### What changed
+
+- **T001 -- type scale** ([constants.py](../scripts/installer/src/nexus_installer/constants.py)): added a strictly-descending pixel scale `FS_DISPLAY 34 / FS_H1 28 / FS_H2 20 / FS_H3 17 / FS_BODY 16 / FS_BODY_STRONG 16 / FS_CAPTION 14` (hard 14px floor, retiring the 8pt/11pt lows), a `TYPE_SCALE` tuple for the descent check, and weight tokens `FW_REGULAR/MEDIUM/SEMIBOLD/BOLD`. Operator-confirmed values. Emphasis is a weight, not a larger size (`FS_BODY_STRONG == FS_BODY`). Phase 3 wires these into `theme.py` scale-classes.
+- **T002 -- provider palette** ([constants.py](../scripts/installer/src/nexus_installer/constants.py)): added `PROVIDER_COLORS` (11 publishers + a neutral `PROVIDER_FALLBACK #94a3b8`), `FAMILY_TO_PUBLISHER` (every one of the catalog's 17 families -> publisher), and pure resolvers `publisher_for_family()` / `provider_color()`. Operator decision: **derive the publisher from the existing `family` field** (the catalog's `origin` is a country, not a publisher) -- zero catalog-schema change, so the plan's top risk (shared-reader churn) is avoided. Tabs will render neutral (Phase 6) so the per-provider color is the only card color signal (DoD #7).
+- **T003 + T004 -- design spec** (new [ui-rework-design.md](versions/v1/v1.9.0/ui-rework-design.md)): the aurora + shimmer animation contract for Phase 8 (transform-driven oversized blurred radial layers on staggered 9-11s loops + a signature-gradient shimmer bar, coupled to job progress, reduced-motion static-glow fallback) built **only on existing app tokens** (`--glow-cyan`, `--grad-signature`, `--accent-image/-video`, `--glow-lg`, ...); and the plain-language model-copy template for Phase 2 (sentence 1 = "{Publisher}'s {model} is a {size/kind} {modality} model from {country}"; sentence 2 = plain "best at"; quant-ladder/MoE jargon relocates to `differentiators`), with a real before/after worked from `gemma-4-12b-it-gguf`.
+
+### Verification
+
+`python -c "import nexus_installer.constants"` clean. Phase-1 self-consistency asserted programmatically: `TYPE_SCALE` strictly descending and floored at 14; all 17 catalog families resolve to a valid provider color with a working Community fallback; the aurora spec names only tokens present in `tokens.css`/`globals.css` (grep-checked), and `--aurora-violet` is correctly *not* yet defined (Phase 8 introduces it if wanted). Added 6 regression tests to [test_brand_tokens.py](../scripts/installer/tests/test_brand_tokens.py) (scale descent/floor, weight ordering, palette fallback, family->color coverage against the real catalog, unknown-family fallback). Installer suite **657 passed / 2 skipped / 0 failed** (+6 from the 651 baseline); ruff check + format clean on the two changed files. No TS/desktop code touched.
+
+### Branch
+
+Continues on the v1.9.0 installer line (`feat/v1.9.0-installer-phase-1`); Phases 1-7 land as the installer PR. Note: the working tree carries a manual first-pass of inline `font-size` bumps + header/icon/height tweaks from the planning session -- these are the plan's assumed baseline, **not** Phase 1, and Phase 3 (typography) / Phase 4 (header/stepper) / Phase 5 (icon) supersede them with scale tokens.
+
+---
+
 ## [2026-07-04] v1.9.0 installer + app overhaul -- Phase 6 FINAL: cross-platform rehearsal + docs + close-out (T601-T603)
 
 ### Goal

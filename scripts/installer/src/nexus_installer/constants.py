@@ -52,6 +52,73 @@ SECTION_ACCENTS: dict[str, str] = {
 }
 
 # ---------------------------------------------------------------------------
+# Provider (publisher) palette (v1.9.0 T002).
+#
+# The Models page colors each model by its PUBLISHER, not by the tab it appears
+# under, so a model listed in both Chat and Agentic shows one consistent color
+# (DoD #7). The catalog has no `publisher` field (its `origin` is a country), so
+# the publisher -- and thus the color -- is derived from the existing `family`
+# field via FAMILY_TO_PUBLISHER + PROVIDER_COLORS. Tabs render neutral so the
+# provider color is the only card color signal. Hues stay distinguishable on the
+# dark theme, brand-adjacent where a publisher has a known brand color; unknown
+# / community publishers fall back to a neutral slate.
+# See docs/versions/v1/v1.9.0/ui-rework-design.md.
+# ---------------------------------------------------------------------------
+PROVIDER_FALLBACK = "#94a3b8"  # slate -- community / unknown publisher
+
+PROVIDER_COLORS: dict[str, str] = {
+    "Google": "#22d3ee",  # cyan
+    "Meta": "#60a5fa",  # blue
+    "Alibaba": "#a78bfa",  # violet
+    "DeepSeek": "#818cf8",  # indigo
+    "NVIDIA": "#a3e635",  # lime
+    "Stability AI": "#f472b6",  # pink
+    "Black Forest Labs": "#fbbf24",  # amber
+    "Lightricks": "#fb923c",  # orange
+    "OpenAI": "#34d399",  # emerald
+    "Nomic AI": "#2dd4bf",  # teal
+    "Community": PROVIDER_FALLBACK,  # slate (fallback)
+}
+
+# Catalog `family` -> publisher. Every family currently present in
+# core/registry/catalog.json maps here; an unseen family resolves to
+# "Community" (the neutral fallback) via publisher_for_family().
+FAMILY_TO_PUBLISHER: dict[str, str] = {
+    "gemma4": "Google",
+    "llama": "Meta",
+    "musicgen": "Meta",
+    "qwen": "Alibaba",
+    "wan": "Alibaba",
+    "deepseek": "DeepSeek",
+    "nomic": "Nomic AI",
+    "sdxl": "Stability AI",
+    "sd1": "Stability AI",
+    "svd": "Stability AI",
+    "stable-audio": "Stability AI",
+    "flux": "Black Forest Labs",
+    "sana": "NVIDIA",
+    "ltx": "Lightricks",
+    "whisper": "OpenAI",
+    "kokoro": "Community",
+    "piper": "Community",
+}
+
+
+def publisher_for_family(family: str) -> str:
+    """Resolve a catalog `family` to its publisher name (fallback: Community)."""
+    return FAMILY_TO_PUBLISHER.get(family, "Community")
+
+
+def provider_color(family: str) -> str:
+    """Resolve a catalog `family` to its provider (publisher) color.
+
+    Keyed to the publisher so a model shows one color across every tab it
+    appears in. Unknown families / publishers fall back to the neutral slate.
+    """
+    return PROVIDER_COLORS.get(publisher_for_family(family), PROVIDER_FALLBACK)
+
+
+# ---------------------------------------------------------------------------
 # Text colors (tokens.css --fg-0 / --fg-1 / --fg-muted / --fg-disabled)
 # ---------------------------------------------------------------------------
 TEXT_PRIMARY = "#f5f7fb"
@@ -119,14 +186,51 @@ else:
     FONT_MONO = "Ubuntu Mono"
 
 # ---------------------------------------------------------------------------
+# Type scale (v1.9.0 T001).
+#
+# One coherent, strictly-descending pixel scale with a logical hierarchy
+# (Display > H1 > H2 > H3 > Body > Caption) and a hard 14px floor. It retires
+# the ~90 ad-hoc inline `font-size` strings and the 8pt/11pt lows scattered
+# across the pages/widgets (Phase 3 wires these into scale-classes in theme.py
+# and every page/widget label). The QSS base stays 15px. FS_BODY_STRONG shares
+# FS_BODY's size -- emphasis comes from FW_SEMIBOLD, not a larger size. Sizes
+# are px ints; QSS consumers format as f"{FS_H1}px".
+# See docs/versions/v1/v1.9.0/ui-rework-design.md.
+# ---------------------------------------------------------------------------
+FS_DISPLAY = 34  # page hero / welcome title
+FS_H1 = 28  # page titles
+FS_H2 = 20  # section heads
+FS_H3 = 17  # sub-heads / card titles
+FS_BODY = 16  # paragraph / descriptions
+FS_BODY_STRONG = 16  # emphasized body (pair with FW_SEMIBOLD)
+FS_CAPTION = 14  # pills, meta, step labels -- hard floor
+
+# Ordered largest -> smallest (FS_BODY_STRONG omitted: it equals FS_BODY). The
+# Phase 1 verification asserts this is strictly descending and floored at 14.
+TYPE_SCALE: tuple[int, ...] = (
+    FS_DISPLAY,
+    FS_H1,
+    FS_H2,
+    FS_H3,
+    FS_BODY,
+    FS_CAPTION,
+)
+
+# Font weights (QFont weights / QSS font-weight values).
+FW_REGULAR = 400
+FW_MEDIUM = 500
+FW_SEMIBOLD = 600
+FW_BOLD = 700
+
+# ---------------------------------------------------------------------------
 # Layout dimensions (pixels)
 # ---------------------------------------------------------------------------
 # v1.9.0 Phase 3 (T301): the custom frameless title bar replaces the native OS
 # chrome, so its height is a first-class layout dimension.
-TITLE_BAR_HEIGHT = 40
-HEADER_HEIGHT = 64
-STEP_BAR_HEIGHT = 88
-FOOTER_HEIGHT = 56
+TITLE_BAR_HEIGHT = 44
+HEADER_HEIGHT = 74
+STEP_BAR_HEIGHT = 96
+FOOTER_HEIGHT = 62
 
 SIDE_MARGIN = 32
 VERTICAL_MARGIN = 28

@@ -113,3 +113,18 @@ Phase 6 opened no new gaps. It re-proved the Windows single-artifact build a sec
   - *Post-freeze CI / no egress* (Actions freeze until 2026-08-01): `IAE.P4.C` (P2, audio weights sha256 pin rotation -- needs HF egress), `IAE.P5.D` (P3, spaced-`productName` bundle-name verification -- T602 CI).
   - *Deliberate forward-cycle deferrals* (correctly categorized, not Phase 6 work): `IAE.P1.A` (P2, offline payload embed dropped -- NSIS-only), `IAE.P2.A` (P2, PyQt reduced-motion -- **partially resolved** Phase 3: env var + Windows native query; mac/Linux residual is `IAE.P3.B`), `IAE.P3.B` (P2, mac/Linux reduced-motion native query), `IAE.P3.C` (P2, Inter/JetBrains Mono TTF bundling), `IAE.P4.A` (P1, audio runtime not implemented -- download-only), `IAE.P5.C` (P2, pillar-page internal component polish).
 - **Resolved**: `OSI004.P4.D` (legacy model-selection pages removed, Phase 4), `IAE.P4.B` (desktop DTO mirror gained `"audio"`, Phase 5), `NAME.P1.A` desktop half (app rebranded "Nexus AI Studio", Phase 5).
+
+---
+
+## 4. installer-and-app-ui-rework follow-up plan (v1.9.0)
+
+Separate follow-up plan ([plans/installer-and-app-ui-rework.md](plans/installer-and-app-ui-rework.md)) sharing this version dir; `UIR` id prefix. Appended phase-by-phase.
+
+### Phase 1 -- Shared design foundations (2026-07-07)
+
+| ID | Sev | Cat | Item | Disposition |
+|---|---|---|---|---|
+| `UIR.P1.A` | P1 | DF | **Working-tree carries a manual first-pass of inline sizes that Phase 3/4/5 must supersede, not extend.** When Phase 1 began, the tree already held ad-hoc inline `font-size` bumps (e.g. theme base 13->15px, welcome title 24->28px, header title 18->22px + logo 30->40, error/dot/chip sizes) plus the `constants.py` height reconciliation (TITLE_BAR/HEADER/STEP_BAR/FOOTER) and the icon-staging edits (main.py AppUserModelID, spec brand-mark `datas`, build-windows.ps1 stderr fix) -- a planning-session baseline the plan's Section 1.1 grounding describes. These are **not** Phase 1 work and are the *wrong* mechanism (hardcoded inline sizes). | Phase 3 (T008-T011) replaces the inline sizes with the new `FS_*` scale-classes and removes them; Phase 4 (T012-T017) owns the header/logo/stepper edits; Phase 5 (T018-T019) owns the icon staging. Phase 3 must **replace**, not build on top of, the inline bumps. |
+| `UIR.P1.B` | P3 | NI | **Neutral tabs + optional aurora violet are planned, not built.** T002 decided the catalog tab bar renders neutral (single lead accent) so per-provider color is the only card signal, and T003's aurora spec flags an optional `--aurora-violet` token -- neither is implemented in Phase 1 (foundations only). | Neutral tabs land in Phase 6 (T022); the optional violet token, if wanted, is introduced in Phase 8 (T029) in `globals.css`. Not gaps -- recorded so the later phases pick them up. |
+
+Phase 1 opened **no P0/P1 blocking gaps**: all four tasks (T001-T004) are complete and locally verified (type scale strictly descending + 14px floor; every catalog family resolves to a provider color with a working fallback; aurora spec names only existing tokens; `constants.py` imports cleanly; installer suite 657 passed / 2 skipped / 0 failed). Decisions are recorded in [ui-rework-design.md](ui-rework-design.md).
