@@ -11,6 +11,7 @@ from nexus_installer.constants import (
     BG_WINDOW,
     BORDER_STRONG,
     FONT_PRIMARY,
+    FS_CAPTION,
     STEP_BAR_HEIGHT,
     TEXT_SECONDARY,
 )
@@ -21,7 +22,13 @@ class StepIndicator(QWidget):
 
     DOT_RADIUS = 13
     CONNECTOR_Y_OFFSET = 0
-    LABEL_Y_OFFSET = 22
+    # v1.9.0 Phase 4 (T017): label band height raised for the enlarged (14px)
+    # labels, sized to fit two wrapped lines so a longer two-word step name
+    # ("GPU Detection", "Install Path") wraps cleanly rather than clipping.
+    LABEL_Y_OFFSET = 36
+    # Vertical gap between a dot's bottom edge and the label below it. >= the
+    # dot radius so labels clear the completed/active dot glow halo (T017).
+    LABEL_GAP = 14
 
     def __init__(self, steps: list[str], parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -74,7 +81,8 @@ class StepIndicator(QWidget):
             )
 
         # Draw dots
-        label_font = QFont(FONT_PRIMARY, 8)
+        label_font = QFont(FONT_PRIMARY)
+        label_font.setPixelSize(FS_CAPTION)
         painter.setFont(label_font)
 
         for i, name in enumerate(self._steps):
@@ -102,17 +110,20 @@ class StepIndicator(QWidget):
                 painter.setBrush(Qt.BrushStyle.NoBrush)
                 painter.drawEllipse(rect)
 
-            # Label below dot
+            # Label clearly below the dot (clears the glow halo), wrapping the
+            # longer two-word names rather than clipping them at min width.
             painter.setPen(QColor(TEXT_SECONDARY))
             label_rect = QRectF(
                 cx - spacing / 2,
-                center_y + r + 6,
+                center_y + r + self.LABEL_GAP,
                 spacing,
                 self.LABEL_Y_OFFSET,
             )
             painter.drawText(
                 label_rect,
-                Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop,
+                Qt.AlignmentFlag.AlignHCenter
+                | Qt.AlignmentFlag.AlignTop
+                | Qt.TextFlag.TextWordWrap,
                 name,
             )
 

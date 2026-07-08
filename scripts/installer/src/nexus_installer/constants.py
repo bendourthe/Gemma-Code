@@ -41,6 +41,12 @@ ACCENT_CODING = "#ec4899"  # --accent-coding
 ACCENT_IMAGE = "#f97316"  # --accent-image
 ACCENT_VIDEO = "#22c55e"  # --accent-video
 
+# Two-tone header wordmark (v1.9.0 T015), matching the interactive guide's
+# "Nexus AI Studio" treatment: bright near-white "Nexus" + muted slate-teal
+# " AI Studio".
+WORDMARK_PRIMARY = "#eaf6f8"  # "Nexus" (weight 700)
+WORDMARK_SECONDARY = "#6f8990"  # " AI Studio" (weight 600)
+
 # Catalog section key -> accent. Audio has no dedicated module accent in the
 # desktop tokens yet; the info blue stands in until one exists.
 SECTION_ACCENTS: dict[str, str] = {
@@ -229,7 +235,9 @@ FW_BOLD = 700
 # chrome, so its height is a first-class layout dimension.
 TITLE_BAR_HEIGHT = 44
 HEADER_HEIGHT = 74
-STEP_BAR_HEIGHT = 96
+# v1.9.0 Phase 4 (T017): raised from 88 so the enlarged (>=14px) step labels sit
+# clearly below the dots with no overlap, at min and default window widths.
+STEP_BAR_HEIGHT = 112
 FOOTER_HEIGHT = 62
 
 SIDE_MARGIN = 32

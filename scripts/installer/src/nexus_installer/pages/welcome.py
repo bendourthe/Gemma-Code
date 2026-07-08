@@ -1,4 +1,4 @@
-"""Welcome page: product lockup, intro, and 'before you begin' live checks."""
+"""Welcome page: hero title, intro, and 'before you begin' live checks."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import subprocess
 import sys
 from typing import TYPE_CHECKING
 
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtCore import QThread, pyqtSignal
 from PyQt5.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from nexus_installer.constants import (
@@ -18,15 +18,12 @@ from nexus_installer.constants import (
     FS_BODY,
     FS_CAPTION,
     FS_DISPLAY,
-    GLOW_BLUR_LARGE,
     SUCCESS,
     TEXT_BODY,
     TEXT_SECONDARY,
     WARNING,
 )
-from nexus_installer.widgets.background import resolve_reduced_motion
 from nexus_installer.widgets.callout_box import CalloutBox
-from nexus_installer.widgets.float_logo import FloatingLogo
 
 if TYPE_CHECKING:
     from nexus_installer.installer_state import InstallerState
@@ -136,23 +133,13 @@ class WelcomePage(QWidget):
         layout = QVBoxLayout(self)
         layout.setSpacing(16)
 
-        # Product lockup: floating-glow transparent hero mark + title (T303).
-        lockup = QHBoxLayout()
-        lockup.setSpacing(14)
-        self._logo = FloatingLogo(
-            size=64,
-            glow_blur=GLOW_BLUR_LARGE,
-            reduced_motion=resolve_reduced_motion(),
-        )
-        lockup.addWidget(self._logo, alignment=Qt.AlignmentFlag.AlignVCenter)
-
+        # Hero title. The floating-logo lockup is retired (T013): no logo beside
+        # the title, no bob animation -- just the wordmark-scale hero heading.
         title = QLabel("Welcome to Nexus AI Studio")
         title.setStyleSheet(
             f"font-size: {FS_DISPLAY}px; font-weight: bold; background: transparent;"
         )
-        lockup.addWidget(title, alignment=Qt.AlignmentFlag.AlignVCenter)
-        lockup.addStretch()
-        layout.addLayout(lockup)
+        layout.addWidget(title)
 
         subtitle = QLabel(
             "Nexus is your fully local AI workstation: chat, agentic coding, "

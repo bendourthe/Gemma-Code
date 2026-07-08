@@ -1,4 +1,4 @@
-﻿"""Tests for wizard pages requiring QApplication."""
+"""Tests for wizard pages requiring QApplication."""
 
 from __future__ import annotations
 
@@ -53,15 +53,18 @@ class TestWelcomePage:
             texts = [lbl.text() for lbl in page.findChildren(QLabel)]
             assert "Welcome to Nexus AI Studio" in texts
 
-    def test_uses_floating_logo_hero(self, qt_app: object) -> None:
-        """v1.9.0 Phase 3 (T303) -- the black-box icon becomes a float-glow hero."""
+    def test_hero_has_no_logo(self, qt_app: object) -> None:
+        """v1.9.0 Phase 4 (T013) -- the Welcome logo lockup is retired.
+
+        The hero is now just the title; there is no logo widget beside it (and
+        so no floating-logo animation on the Welcome page).
+        """
         with patch("nexus_installer.pages.welcome._QuickCheckWorker.start"):
             from nexus_installer.pages.welcome import WelcomePage
-            from nexus_installer.widgets.float_logo import FloatingLogo
 
             state = InstallerState()
             page = WelcomePage(state)
-            assert isinstance(page._logo, FloatingLogo)
+            assert not hasattr(page, "_logo")
 
 
 class TestPrerequisitesPage:

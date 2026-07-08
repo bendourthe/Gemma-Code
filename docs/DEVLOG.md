@@ -4,6 +4,32 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-07] v1.9.0 installer + app UI rework -- Phase 4: installer logo de-lag + two-tone wordmark + stepper legibility (T012-T017)
+
+### Goal
+
+Kill the laggy floating logo, match the interactive guide's two-tone wordmark, and make the step indicator readable and non-overlapping.
+
+### What changed
+
+- **T012 + T014 -- de-lag**: retired the animated `FloatingLogo` entirely (deleted `widgets/float_logo.py` + `tests/test_float_logo.py`) and added a new [StaticLogo](../scripts/installer/src/nexus_installer/widgets/static_logo.py) -- a still `QLabel` with the transparent brand mark + a cyan `QGraphicsDropShadowEffect` glow and **no** `QPropertyAnimation`. The [header](../scripts/installer/src/nexus_installer/widgets/header.py) now uses `StaticLogo(size=40)`. `widgets/__init__.py` drops the `FloatingLogo` export and adds `StaticLogo`; `test_pages_qt`'s hero assertion is replaced by `test_hero_has_no_logo`.
+- **T013 -- Welcome hero**: removed the logo lockup beside "Welcome to Nexus AI Studio" per the operator decision; the title (FS_DISPLAY) is added directly, re-balancing the page. No logo, no animation on the Welcome page.
+- **T015 -- two-tone wordmark**: the header title is the guide treatment -- rich-text spans give "Nexus" `WORDMARK_PRIMARY #eaf6f8` weight 700 and " AI Studio" `WORDMARK_SECONDARY #6f8990` weight 600; the widget `QFont` carries the size (FS_H2) + a small absolute letter-spacing. New `WORDMARK_PRIMARY`/`WORDMARK_SECONDARY` constants.
+- **T016 -- step counter**: "Step X of Y" enlarged from caption to `FS_BODY` (16).
+- **T017 -- stepper**: the label font goes from 8pt to a 14px pixel size (`FS_CAPTION`, the floor); a new `LABEL_GAP = 14` (>= the dot radius) drops the labels clearly below the dots and clears the completed/active glow halo; `LABEL_Y_OFFSET` 22 -> 36 (fits two wrapped lines); `STEP_BAR_HEIGHT` 88/96 -> **112** so nothing overlaps; and `drawText` gains `TextWordWrap` so the longer two-word names wrap rather than clip.
+
+### Verification
+
+Installer suite **656 passed / 2 skipped / 0 failed** (removed 7 float-logo tests, added 5 in `test_static_logo.py` + the reworked Welcome test). `grep` confirms no `QPropertyAnimation`/bob remains in the installer source. Offscreen smoke: the header carries a `StaticLogo` (no `is_animating` API) + the two-tone wordmark (plain text "Nexus AI Studio", both hex tones in the markup) + a 16px step counter; the window builds with `STEP_BAR_HEIGHT=112`. Stepper geometry math checks at both min (840) and default (912) widths: labels clear the glow (`label_top >= glow_bottom`) and fit the band (`label_bottom <= 112`). ruff clean on the changed files.
+
+Note: the headless sandbox resolves **no** real font (offscreen `QFontInfo` returns an empty family), so real per-label horizontal fit at the 840 min width -- and the wordmark's exact two-tone rendering + letter-spacing -- cannot be measured here; both are recorded for the Phase 7 frozen-build visual QA (`UIR.P4.A`).
+
+### Branch
+
+Continues on the v1.9.0 installer line (`feat/v1.9.0-installer-phase-1`). The stepper label font (8pt) that Phase 3 deliberately left is now resolved here. Out-of-scope baseline files stay unstaged (main.py -> Phase 5; the spec comment still names FloatingLogo but the asset it stages is now used by StaticLogo -- Phase 5 owns the spec).
+
+---
+
 ## [2026-07-07] v1.9.0 installer + app UI rework -- Phase 3: installer typography + hierarchy sweep (T008-T011)
 
 ### Goal
