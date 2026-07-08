@@ -37,6 +37,19 @@ class TestGenerateStylesheet:
         assert constants.ACCENT in sheet
         assert constants.TEXT_PRIMARY in sheet
 
+    def test_type_scale_classes_use_tokens(self) -> None:
+        """v1.9.0 T008: the scale object-name classes drive the hierarchy."""
+        sheet = generate_stylesheet()
+        assert "QLabel#pageTitle" in sheet
+        assert "QLabel#sectionHead" in sheet
+        # Sizes come from the Phase-1 tokens and are fully interpolated (a
+        # leaked "{FS_...}" / "{FW_...}" would mean a missed f-string prefix).
+        assert f"font-size: {constants.FS_H1}px" in sheet  # pageTitle
+        assert f"font-size: {constants.FS_H2}px" in sheet  # sectionHead
+        assert f"font-size: {constants.FS_CAPTION}px" in sheet  # secondary/caption
+        assert "{FS_" not in sheet
+        assert "{FW_" not in sheet
+
 
 class TestConstants:
     def test_required_colors_exist(self) -> None:

@@ -6,7 +6,14 @@ from typing import TYPE_CHECKING
 
 from PyQt5.QtWidgets import QLabel, QVBoxLayout, QWidget
 
-from nexus_installer.constants import BG_CARD, BORDER, SUCCESS, TEXT_SECONDARY
+from nexus_installer.constants import (
+    BG_CARD,
+    BORDER,
+    FS_BODY,
+    FS_CAPTION,
+    SUCCESS,
+    TEXT_SECONDARY,
+)
 from nexus_installer.widgets.callout_box import CalloutBox
 
 if TYPE_CHECKING:
@@ -31,14 +38,12 @@ class ReviewPage(QWidget):
         self._layout.setSpacing(16)
 
         title = QLabel("Review")
-        title.setStyleSheet(
-            "font-size: 24px; font-weight: bold; background: transparent;"
-        )
+        title.setObjectName("pageTitle")
         self._layout.addWidget(title)
 
         subtitle = QLabel("Please review your installation settings before proceeding.")
         subtitle.setStyleSheet(
-            f"color: {TEXT_SECONDARY}; font-size: 13px; background: transparent;"
+            f"color: {TEXT_SECONDARY}; font-size: {FS_BODY}px; background: transparent;"
         )
         self._layout.addWidget(subtitle)
 
@@ -47,7 +52,7 @@ class ReviewPage(QWidget):
         self._summary_label.setWordWrap(True)
         self._summary_label.setStyleSheet(
             f"background-color: {BG_CARD}; border: 1px solid {BORDER}; "
-            f"border-radius: 8px; padding: 16px; font-size: 12px;"
+            f"border-radius: 8px; padding: 16px; font-size: {FS_CAPTION}px;"
         )
         self._layout.addWidget(self._summary_label)
 

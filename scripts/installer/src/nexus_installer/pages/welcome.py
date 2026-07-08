@@ -1,4 +1,4 @@
-﻿"""Welcome page: product lockup, intro, and 'before you begin' live checks."""
+"""Welcome page: product lockup, intro, and 'before you begin' live checks."""
 
 from __future__ import annotations
 
@@ -15,6 +15,9 @@ from nexus_installer.constants import (
     ACCENT_CODING,
     ACCENT_IMAGE,
     ACCENT_VIDEO,
+    FS_BODY,
+    FS_CAPTION,
+    FS_DISPLAY,
     GLOW_BLUR_LARGE,
     SUCCESS,
     TEXT_BODY,
@@ -103,21 +106,23 @@ class _StatusDot(QWidget):
 
         self._dot = QLabel("\u25cf")
         self._dot.setStyleSheet(
-            f"color: {TEXT_SECONDARY}; font-size: 10px; background: transparent;"
+            f"color: {TEXT_SECONDARY}; font-size: {FS_CAPTION}px; "
+            f"background: transparent;"
         )
         self._dot.setFixedWidth(14)
         layout.addWidget(self._dot)
 
         self._label = QLabel(text)
         self._label.setStyleSheet(
-            f"color: {TEXT_SECONDARY}; font-size: 12px; background: transparent;"
+            f"color: {TEXT_SECONDARY}; font-size: {FS_CAPTION}px; "
+            f"background: transparent;"
         )
         layout.addWidget(self._label, stretch=1)
 
     def set_ok(self, ok: bool) -> None:
         color = SUCCESS if ok else WARNING
         self._dot.setStyleSheet(
-            f"color: {color}; font-size: 10px; background: transparent;"
+            f"color: {color}; font-size: {FS_CAPTION}px; background: transparent;"
         )
 
 
@@ -143,7 +148,7 @@ class WelcomePage(QWidget):
 
         title = QLabel("Welcome to Nexus AI Studio")
         title.setStyleSheet(
-            "font-size: 24px; font-weight: bold; background: transparent;"
+            f"font-size: {FS_DISPLAY}px; font-weight: bold; background: transparent;"
         )
         lockup.addWidget(title, alignment=Qt.AlignmentFlag.AlignVCenter)
         lockup.addStretch()
@@ -159,7 +164,7 @@ class WelcomePage(QWidget):
         )
         subtitle.setObjectName("secondaryLabel")
         subtitle.setStyleSheet(
-            f"color: {TEXT_BODY}; font-size: 13px; background: transparent;"
+            f"color: {TEXT_BODY}; font-size: {FS_BODY}px; background: transparent;"
         )
         subtitle.setWordWrap(True)
         layout.addWidget(subtitle)
@@ -171,7 +176,7 @@ class WelcomePage(QWidget):
             chip = QLabel(pillar_name)
             chip.setStyleSheet(
                 f"color: {pillar_accent}; border: 1px solid {pillar_accent}; "
-                f"border-radius: 10px; padding: 2px 10px; font-size: 11px; "
+                f"border-radius: 10px; padding: 2px 10px; font-size: {FS_CAPTION}px; "
                 f"background: transparent;"
             )
             chips.addWidget(chip)

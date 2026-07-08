@@ -54,6 +54,9 @@ from nexus_installer.constants import (
     BORDER,
     BORDER_STRONG,
     ERROR,
+    FS_BODY,
+    FS_CAPTION,
+    FS_H3,
     SECTION_ACCENTS,
     SUCCESS,
     TEXT_BODY,
@@ -291,7 +294,7 @@ def _pill(
     """A compact rounded metadata chip (v1.9.0 Phase 4, T403)."""
     chip = QLabel(text)
     chip.setStyleSheet(
-        f"color: {color}; font-size: 10px; background: transparent; "
+        f"color: {color}; font-size: {FS_CAPTION}px; background: transparent; "
         f"border: 1px solid {border}; border-radius: 9px; padding: 1px 8px;"
     )
     return chip
@@ -395,7 +398,7 @@ class _ModelCard(QWidget):
         )
         status = QLabel(badge_text)
         status.setStyleSheet(
-            f"color: {badge_color}; font-size: 10px; font-weight: bold; "
+            f"color: {badge_color}; font-size: {FS_CAPTION}px; font-weight: bold; "
             f"border: 1px solid {badge_color}; border-radius: 9px; "
             f"padding: 1px 8px; background: transparent;"
         )
@@ -403,7 +406,7 @@ class _ModelCard(QWidget):
 
         size_label = QLabel(f"{model.size_gb:.1f} GB")
         size_label.setStyleSheet(
-            f"color: {accent}; font-weight: bold; font-size: 15px; "
+            f"color: {accent}; font-weight: bold; font-size: {FS_H3}px; "
             f"background: transparent;"
         )
         title_row.addWidget(size_label)
@@ -454,7 +457,8 @@ class _ModelCard(QWidget):
         if not fits:
             warn = QLabel(badge_text)
             warn.setStyleSheet(
-                f"color: {badge_color}; font-size: 11px; background: transparent;"
+                f"color: {badge_color}; font-size: {FS_CAPTION}px; "
+                f"background: transparent;"
             )
             warn.setWordWrap(True)
             layout.addWidget(warn)
@@ -462,7 +466,8 @@ class _ModelCard(QWidget):
         if model.description:
             desc = QLabel(model.description)
             desc.setStyleSheet(
-                f"color: {TEXT_BODY}; font-size: 11px; background: transparent;"
+                f"color: {TEXT_BODY}; font-size: {FS_CAPTION}px; "
+                f"background: transparent;"
             )
             desc.setWordWrap(True)
             layout.addWidget(desc)
@@ -470,7 +475,7 @@ class _ModelCard(QWidget):
         if recommended and model.why_recommended:
             why = QLabel(f"Why this one: {model.why_recommended}")
             why.setStyleSheet(
-                f"color: {accent}; font-size: 11px; background: transparent;"
+                f"color: {accent}; font-size: {FS_CAPTION}px; background: transparent;"
             )
             why.setWordWrap(True)
             layout.addWidget(why)
@@ -512,14 +517,12 @@ class TypedCatalogPage(QWidget):
         layout.setSpacing(12)
 
         title = QLabel("Choose Your Models")
-        title.setStyleSheet(
-            "font-size: 24px; font-weight: bold; background: transparent;"
-        )
+        title.setObjectName("pageTitle")
         layout.addWidget(title)
 
         self._subtitle = QLabel("")
         self._subtitle.setStyleSheet(
-            f"color: {TEXT_BODY}; font-size: 13px; background: transparent;"
+            f"color: {TEXT_BODY}; font-size: {FS_BODY}px; background: transparent;"
         )
         self._subtitle.setWordWrap(True)
         layout.addWidget(self._subtitle)
@@ -550,7 +553,8 @@ class TypedCatalogPage(QWidget):
             "model manager."
         )
         reassurance.setStyleSheet(
-            f"color: {TEXT_SECONDARY}; font-size: 11px; background: transparent;"
+            f"color: {TEXT_SECONDARY}; font-size: {FS_CAPTION}px; "
+            f"background: transparent;"
         )
         reassurance.setWordWrap(True)
         footer_row.addWidget(reassurance, stretch=1)
@@ -721,7 +725,8 @@ class TypedCatalogPage(QWidget):
             )
             empty = QLabel(empty_text)
             empty.setStyleSheet(
-                f"color: {TEXT_SECONDARY}; font-size: 12px; background: transparent;"
+                f"color: {TEXT_SECONDARY}; font-size: {FS_CAPTION}px; "
+                f"background: transparent;"
             )
             layout.addWidget(empty)
         else:

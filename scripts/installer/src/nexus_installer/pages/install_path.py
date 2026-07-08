@@ -1,4 +1,4 @@
-﻿"""Install path page: choose install directory with disk space display."""
+"""Install path page: choose install directory with disk space display."""
 
 from __future__ import annotations
 
@@ -15,7 +15,13 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from nexus_installer.constants import ERROR, SUCCESS, TEXT_SECONDARY, WARNING
+from nexus_installer.constants import (
+    ERROR,
+    FS_CAPTION,
+    SUCCESS,
+    TEXT_SECONDARY,
+    WARNING,
+)
 from nexus_installer.widgets.callout_box import CalloutBox
 from nexus_installer.widgets.secondary_button import SecondaryButton
 
@@ -34,9 +40,7 @@ class InstallPathPage(QWidget):
         layout.setSpacing(16)
 
         title = QLabel("Install Location")
-        title.setStyleSheet(
-            "font-size: 24px; font-weight: bold; background: transparent;"
-        )
+        title.setObjectName("pageTitle")
         layout.addWidget(title)
 
         # Path input row
@@ -53,7 +57,8 @@ class InstallPathPage(QWidget):
         # Disk space display
         self._disk_label = QLabel("")
         self._disk_label.setStyleSheet(
-            f"color: {TEXT_SECONDARY}; font-size: 12px; background: transparent;"
+            f"color: {TEXT_SECONDARY}; font-size: {FS_CAPTION}px; "
+            f"background: transparent;"
         )
         layout.addWidget(self._disk_label)
 
@@ -110,7 +115,7 @@ class InstallPathPage(QWidget):
         else:
             color = ERROR
         self._disk_label.setStyleSheet(
-            f"color: {color}; font-size: 12px; background: transparent;"
+            f"color: {color}; font-size: {FS_CAPTION}px; background: transparent;"
         )
         self._disk_label.setText(f"{gb_free} GB available on selected drive")
 

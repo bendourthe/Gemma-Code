@@ -1,4 +1,4 @@
-﻿"""88px custom-painted step progress indicator with connected dots."""
+"""Custom-painted step progress indicator with connected dots."""
 
 from __future__ import annotations
 

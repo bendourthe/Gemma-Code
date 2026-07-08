@@ -1,4 +1,4 @@
-﻿"""Complete page: services status, management commands, and launch buttons."""
+"""Complete page: services status, management commands, and launch buttons."""
 
 from __future__ import annotations
 
@@ -23,6 +23,8 @@ from nexus_installer.constants import (
     BG_INPUT,
     BORDER,
     FONT_MONO,
+    FS_BODY,
+    FS_CAPTION,
     SUCCESS,
     TEXT_BODY,
     TEXT_SECONDARY,
@@ -49,14 +51,15 @@ class _CommandRow(QWidget):
 
         desc = QLabel(label)
         desc.setStyleSheet(
-            f"color: {TEXT_SECONDARY}; font-size: 12px; background: transparent;"
+            f"color: {TEXT_SECONDARY}; font-size: {FS_CAPTION}px; "
+            f"background: transparent;"
         )
         desc.setFixedWidth(180)
         layout.addWidget(desc)
 
         code_label = QLabel(command)
         code_label.setStyleSheet(
-            f"font-family: '{FONT_MONO}'; font-size: 10pt; "
+            f"font-family: '{FONT_MONO}'; font-size: {FS_BODY}px; "
             f"color: {ACCENT}; background-color: {BG_INPUT}; "
             f"padding: 4px 8px; border-radius: 4px;"
         )
@@ -85,14 +88,12 @@ class CompletePage(QWidget):
 
         # Title (updated dynamically on show)
         self._title = QLabel("Installation Complete")
-        self._title.setStyleSheet(
-            "font-size: 24px; font-weight: bold; background: transparent;"
-        )
+        self._title.setObjectName("pageTitle")
         layout.addWidget(self._title)
 
         self._subtitle = QLabel("Nexus is installed and ready to use.")
         self._subtitle.setStyleSheet(
-            f"color: {TEXT_BODY}; font-size: 13px; background: transparent;"
+            f"color: {TEXT_BODY}; font-size: {FS_BODY}px; background: transparent;"
         )
         layout.addWidget(self._subtitle)
 
@@ -103,9 +104,7 @@ class CompletePage(QWidget):
 
         # Running Services card
         services_label = QLabel("Running Services")
-        services_label.setStyleSheet(
-            "font-size: 14px; font-weight: bold; background: transparent;"
-        )
+        services_label.setObjectName("sectionHead")
         layout.addWidget(services_label)
 
         self._services_card = QWidget()
@@ -118,9 +117,7 @@ class CompletePage(QWidget):
 
         # Managing Nexus card
         manage_label = QLabel("Managing Nexus")
-        manage_label.setStyleSheet(
-            "font-size: 14px; font-weight: bold; background: transparent;"
-        )
+        manage_label.setObjectName("sectionHead")
         layout.addWidget(manage_label)
 
         manage_card = QWidget()
@@ -178,7 +175,7 @@ class CompletePage(QWidget):
         if state.failed_steps or state.failed_models:
             self._title.setText("Installation Completed with Warnings")
             self._subtitle.setStyleSheet(
-                f"color: {WARNING}; font-size: 13px; background: transparent;"
+                f"color: {WARNING}; font-size: {FS_BODY}px; background: transparent;"
             )
             self._subtitle.setText(
                 "Some components could not be installed. See details below."
@@ -209,7 +206,9 @@ class CompletePage(QWidget):
         ext_installed = "extension" not in state.failed_steps
         self._add_service(
             "VS Code extension",
-            "nexus-coding.nexus-coding (installed)" if ext_installed else "Not installed",
+            "nexus-coding.nexus-coding (installed)"
+            if ext_installed
+            else "Not installed",
             ext_installed,
         )
         if state.desktop_installed:
@@ -235,7 +234,7 @@ class CompletePage(QWidget):
         row = QHBoxLayout()
         name_label = QLabel(name)
         name_label.setStyleSheet(
-            "font-size: 13px; font-weight: bold; background: transparent;"
+            f"font-size: {FS_BODY}px; font-weight: bold; background: transparent;"
         )
         name_label.setFixedWidth(160)
         row.addWidget(name_label)
@@ -243,7 +242,7 @@ class CompletePage(QWidget):
         detail_label = QLabel(detail)
         color = SUCCESS if ok else WARNING
         detail_label.setStyleSheet(
-            f"color: {color}; font-size: 12px; background: transparent;"
+            f"color: {color}; font-size: {FS_CAPTION}px; background: transparent;"
         )
         row.addWidget(detail_label, stretch=1)
 

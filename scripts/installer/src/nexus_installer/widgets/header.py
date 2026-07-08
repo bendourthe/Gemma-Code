@@ -1,4 +1,4 @@
-"""64px header band: floating-glow brand lockup, title, and step counter.
+"""Header band: floating-glow brand lockup, title, and step counter.
 
 v1.9.0 Phase 3 (T303): the black-box ``assets/icon.png`` QLabel is replaced by
 the Phase 2 :class:`FloatingLogo` primitive fed the transparent brand mark, so
@@ -11,7 +11,13 @@ from __future__ import annotations
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QHBoxLayout, QLabel, QWidget
 
-from nexus_installer.constants import GLOW_BLUR_MEDIUM, HEADER_HEIGHT, TEXT_SECONDARY
+from nexus_installer.constants import (
+    FS_CAPTION,
+    FS_H2,
+    GLOW_BLUR_MEDIUM,
+    HEADER_HEIGHT,
+    TEXT_SECONDARY,
+)
 from nexus_installer.widgets.background import resolve_reduced_motion
 from nexus_installer.widgets.float_logo import FloatingLogo
 
@@ -29,8 +35,9 @@ class Header(QWidget):
         layout.setSpacing(12)
 
         # Floating, glowing transparent mark (fixes the black-box logo, T303).
+        # Sized to read as the header's brand anchor, left of the wordmark.
         self._logo = FloatingLogo(
-            size=30,
+            size=40,
             glow_blur=GLOW_BLUR_MEDIUM,
             reduced_motion=resolve_reduced_motion(),
         )
@@ -38,7 +45,7 @@ class Header(QWidget):
 
         self._title = QLabel("Nexus AI Studio")
         self._title.setStyleSheet(
-            "font-size: 18px; font-weight: bold; background: transparent;"
+            f"font-size: {FS_H2}px; font-weight: bold; background: transparent;"
         )
         layout.addWidget(self._title, alignment=Qt.AlignmentFlag.AlignVCenter)
 
@@ -47,7 +54,8 @@ class Header(QWidget):
         self._step_counter = QLabel("")
         self._step_counter.setObjectName("secondaryLabel")
         self._step_counter.setStyleSheet(
-            f"color: {TEXT_SECONDARY}; font-size: 12px; background: transparent;"
+            f"color: {TEXT_SECONDARY}; font-size: {FS_CAPTION}px; "
+            f"background: transparent;"
         )
         layout.addWidget(self._step_counter, alignment=Qt.AlignmentFlag.AlignVCenter)
 

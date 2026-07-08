@@ -19,6 +19,12 @@ from nexus_installer.constants import (
     ERROR,
     FONT_MONO,
     FONT_PRIMARY,
+    FS_BODY,
+    FS_CAPTION,
+    FS_H1,
+    FS_H2,
+    FW_BOLD,
+    FW_SEMIBOLD,
     TEXT_MUTED,
     TEXT_PRIMARY,
     TEXT_SECONDARY,
@@ -33,7 +39,7 @@ QMainWindow, QWidget {{
     background-color: {BG_WINDOW};
     color: {TEXT_PRIMARY};
     font-family: "{FONT_PRIMARY}";
-    font-size: 13px;
+    font-size: {FS_BODY}px;
 }}
 
 /* -- Frameless title bar (v1.9.0 T301) -------------------------------- */
@@ -43,7 +49,7 @@ QWidget#titleBar {{
 }}
 QLabel#titleBarTitle {{
     color: {TEXT_PRIMARY};
-    font-size: 13px;
+    font-size: {FS_BODY}px;
     font-weight: 600;
     background: transparent;
 }}
@@ -52,7 +58,7 @@ QPushButton#titleBarButton, QPushButton#titleBarCloseButton {{
     color: {TEXT_SECONDARY};
     border: none;
     border-radius: 5px;
-    font-size: 13px;
+    font-size: {FS_BODY}px;
 }}
 QPushButton#titleBarButton:hover {{
     background-color: {BG_ELEVATED};
@@ -85,13 +91,31 @@ QLabel {{
 }}
 QLabel#secondaryLabel {{
     color: {TEXT_SECONDARY};
+    font-size: {FS_CAPTION}px;
 }}
 QLabel#mutedLabel {{
     color: {TEXT_MUTED};
+    font-size: {FS_CAPTION}px;
 }}
 QLabel#errorLabel {{
     color: {ERROR};
-    font-size: 12px;
+    font-size: {FS_CAPTION}px;
+}}
+
+/* -- Type-scale classes (v1.9.0 T008): the Phase-1 scale, centralized.
+   Uniform roles use these object names; varied / dynamic-color labels set the
+   size inline from the same FS_* tokens. ---------------------------------- */
+QLabel#pageTitle {{
+    font-size: {FS_H1}px;
+    font-weight: {FW_BOLD};
+    color: {TEXT_PRIMARY};
+    background: transparent;
+}}
+QLabel#sectionHead {{
+    font-size: {FS_H2}px;
+    font-weight: {FW_SEMIBOLD};
+    color: {TEXT_PRIMARY};
+    background: transparent;
 }}
 
 /* -- Cards ------------------------------------------------------------- */
@@ -110,7 +134,7 @@ QPushButton#primaryButton {{
     );
     color: {BG_WINDOW};
     font-weight: bold;
-    font-size: 13px;
+    font-size: {FS_BODY}px;
     border: none;
     border-radius: {BUTTON_RADIUS}px;
     min-height: {BUTTON_HEIGHT}px;
@@ -134,7 +158,7 @@ QPushButton#primaryButton:disabled {{
 QPushButton#secondaryButton {{
     background-color: transparent;
     color: {TEXT_SECONDARY};
-    font-size: 13px;
+    font-size: {FS_BODY}px;
     border: 1px solid {BORDER_STRONG};
     border-radius: {BUTTON_RADIUS}px;
     min-height: {BUTTON_HEIGHT}px;
@@ -159,7 +183,7 @@ QLineEdit {{
     border: 1px solid {BORDER_STRONG};
     border-radius: 8px;
     padding: 8px 12px;
-    font-size: 13px;
+    font-size: {FS_BODY}px;
     min-height: 36px;
 }}
 QLineEdit:focus {{
@@ -174,7 +198,7 @@ QTextEdit {{
     border-radius: 8px;
     padding: 8px;
     font-family: "{FONT_MONO}";
-    font-size: 9pt;
+    font-size: {FS_CAPTION}px;
     selection-background-color: {ACCENT_DIM};
 }}
 
@@ -248,7 +272,7 @@ QTabBar::tab:selected {{
 QCheckBox {{
     color: {TEXT_PRIMARY};
     spacing: 8px;
-    font-size: 13px;
+    font-size: {FS_BODY}px;
 }}
 QCheckBox::indicator {{
     width: 18px;

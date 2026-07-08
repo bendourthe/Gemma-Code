@@ -1,11 +1,11 @@
-﻿"""56px footer band with hint text and Back/Next navigation buttons."""
+"""Footer band with hint text and Back/Next navigation buttons."""
 
 from __future__ import annotations
 
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QHBoxLayout, QLabel, QWidget
 
-from nexus_installer.constants import FOOTER_HEIGHT, TEXT_MUTED
+from nexus_installer.constants import FOOTER_HEIGHT, FS_CAPTION, TEXT_MUTED
 from nexus_installer.widgets.primary_button import PrimaryButton
 from nexus_installer.widgets.secondary_button import SecondaryButton
 
@@ -25,7 +25,7 @@ class Footer(QWidget):
 
         self._hint = QLabel("")
         self._hint.setStyleSheet(
-            f"color: {TEXT_MUTED}; font-size: 11px; background: transparent;"
+            f"color: {TEXT_MUTED}; font-size: {FS_CAPTION}px; background: transparent;"
         )
         layout.addWidget(self._hint, alignment=Qt.AlignmentFlag.AlignVCenter)
 

@@ -1,4 +1,4 @@
-﻿"""Main QMainWindow: frameless title bar, header, step indicator, content, footer.
+"""Main QMainWindow: frameless title bar, header, step indicator, content, footer.
 
 v1.9.0 Phase 3 (T301/T302): the window is frameless by default -- the OS chrome
 is replaced by a custom :class:`TitleBar`, and an animated constellation over a
@@ -105,11 +105,11 @@ class InstallerWindow(QMainWindow):
             self._title_bar.close_requested.connect(self.close)
             main_layout.addWidget(self._title_bar)
 
-        # Header band (fixed 64px)
+        # Header band (height: HEADER_HEIGHT)
         self._header = Header()
         main_layout.addWidget(self._header)
 
-        # Step indicator (fixed 88px)
+        # Step indicator (height: STEP_BAR_HEIGHT)
         self._step_indicator = StepIndicator(STEP_NAMES)
         main_layout.addWidget(self._step_indicator)
 
@@ -132,13 +132,13 @@ class InstallerWindow(QMainWindow):
         self._error_label = QLabel("")
         self._error_label.setObjectName("errorLabel")
         self._error_label.setVisible(False)
+        # Font size comes from the QLabel#errorLabel scale-class in theme.py.
         self._error_label.setStyleSheet(
-            f"color: {ERROR}; font-size: 12px; padding: 4px 32px; "
-            f"background: transparent;"
+            f"color: {ERROR}; padding: 4px 32px; background: transparent;"
         )
         main_layout.addWidget(self._error_label)
 
-        # Footer band (fixed 56px)
+        # Footer band (height: FOOTER_HEIGHT)
         self._footer = Footer()
         self._footer.back_clicked.connect(self._go_back)
         self._footer.next_clicked.connect(self._go_next)

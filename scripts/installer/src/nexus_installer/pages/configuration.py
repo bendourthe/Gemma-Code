@@ -1,4 +1,4 @@
-﻿"""Configuration page: toggles for components and optional settings."""
+"""Configuration page: toggles for components and optional settings."""
 
 from __future__ import annotations
 
@@ -12,7 +12,12 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from nexus_installer.constants import BG_CARD, BORDER, TEXT_SECONDARY
+from nexus_installer.constants import (
+    BG_CARD,
+    BORDER,
+    FS_CAPTION,
+    TEXT_SECONDARY,
+)
 
 if TYPE_CHECKING:
     from nexus_installer.installer_state import InstallerState
@@ -29,16 +34,12 @@ class ConfigurationPage(QWidget):
         layout.setSpacing(16)
 
         title = QLabel("Configuration")
-        title.setStyleSheet(
-            "font-size: 24px; font-weight: bold; background: transparent;"
-        )
+        title.setObjectName("pageTitle")
         layout.addWidget(title)
 
         # Component toggles
         components_label = QLabel("Components")
-        components_label.setStyleSheet(
-            "font-size: 14px; font-weight: bold; background: transparent;"
-        )
+        components_label.setObjectName("sectionHead")
         layout.addWidget(components_label)
 
         self._ollama_toggle = QCheckBox("Install Ollama")
@@ -73,9 +74,7 @@ class ConfigurationPage(QWidget):
 
         # Feature toggles
         features_label = QLabel("Features")
-        features_label.setStyleSheet(
-            "font-size: 14px; font-weight: bold; background: transparent;"
-        )
+        features_label.setObjectName("sectionHead")
         layout.addWidget(features_label)
 
         self._thinking_toggle = QCheckBox(
@@ -98,9 +97,7 @@ class ConfigurationPage(QWidget):
 
         # Ollama URL
         url_label = QLabel("Ollama URL")
-        url_label.setStyleSheet(
-            "font-size: 14px; font-weight: bold; background: transparent;"
-        )
+        url_label.setObjectName("sectionHead")
         layout.addWidget(url_label)
 
         self._url_input = QLineEdit(state.ollama_url)
@@ -109,9 +106,7 @@ class ConfigurationPage(QWidget):
 
         # Extension settings preview
         settings_label = QLabel("VS Code Extension Settings")
-        settings_label.setStyleSheet(
-            "font-size: 14px; font-weight: bold; background: transparent;"
-        )
+        settings_label.setObjectName("sectionHead")
         layout.addWidget(settings_label)
 
         model_name = state.selected_model or state.recommended_model or "gemma4:e4b"
@@ -122,7 +117,7 @@ class ConfigurationPage(QWidget):
             f"\u2022 Top-K: 64"
         )
         settings_preview.setStyleSheet(
-            f"color: {TEXT_SECONDARY}; font-size: 12px; "
+            f"color: {TEXT_SECONDARY}; font-size: {FS_CAPTION}px; "
             f"background-color: {BG_CARD}; border: 1px solid {BORDER}; "
             f"border-radius: 8px; padding: 12px;"
         )

@@ -1,11 +1,11 @@
-﻿"""Info callout widget with a 3px left accent stripe."""
+"""Info callout widget with a 3px left accent stripe."""
 
 from __future__ import annotations
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QFrame, QLabel, QVBoxLayout, QWidget
 
-from nexus_installer.constants import TEXT_SECONDARY
+from nexus_installer.constants import FS_CAPTION, FS_H3, TEXT_SECONDARY
 
 
 class CalloutBox(QFrame):
@@ -27,7 +27,7 @@ class CalloutBox(QFrame):
         if title:
             self._title = QLabel(title)
             self._title.setStyleSheet(
-                "font-weight: bold; font-size: 13px; background: transparent;"
+                f"font-weight: bold; font-size: {FS_H3}px; background: transparent;"
             )
             self._title.setWordWrap(True)
             layout.addWidget(self._title)
@@ -37,7 +37,8 @@ class CalloutBox(QFrame):
         self._body_label = QLabel(body)
         self._body_label.setObjectName("secondaryLabel")
         self._body_label.setStyleSheet(
-            f"color: {TEXT_SECONDARY}; font-size: 12px; background: transparent;"
+            f"color: {TEXT_SECONDARY}; font-size: {FS_CAPTION}px; "
+            f"background: transparent;"
         )
         self._body_label.setWordWrap(True)
         self._body_label.setTextFormat(Qt.TextFormat.RichText)

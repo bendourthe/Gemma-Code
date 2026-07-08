@@ -4,6 +4,29 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-07] v1.9.0 installer + app UI rework -- Phase 3: installer typography + hierarchy sweep (T008-T011)
+
+### Goal
+
+Replace the ~90 ad-hoc inline `font-size` strings across the active installer pages/widgets with the Phase-1 scale tokens, giving every page a coherent, legible hierarchy (Display > H1 > H2 > H3 > Body > Caption) with a hard 14px floor.
+
+### What changed
+
+- **T008 -- scale system in [theme.py](../scripts/installer/src/nexus_installer/theme.py)**: added `QLabel#pageTitle` (FS_H1/bold) and `QLabel#sectionHead` (FS_H2/semibold) object-name classes wired to the Phase-1 tokens, wired `secondaryLabel`/`mutedLabel` to `FS_CAPTION`, and converted the base QSS sizes (15px control text -> `FS_BODY`, 14px errorLabel -> `FS_CAPTION`, 11pt log mono -> `FS_CAPTION`) to tokens.
+- **T009/T010 -- page/widget sweep**: every active page (welcome, prerequisites, gpu_detection, install_path, configuration, review, installing, complete, typed_catalog) and widget (header, footer, phase_group, callout_box) now consumes the scale. Uniform roles use the classes -- page titles -> `pageTitle` (8 pages; the Welcome hero uses `FS_DISPLAY` inline), section heads -> `sectionHead` (configuration x4, complete x2, establishing the H2 tier). Everything else uses inline `FS_*` tokens (colors/backgrounds preserved). One-offs fixed: the lone 19px GPU-name label -> `FS_H2`, the 18px size/rec-model accents -> `FS_H3`, the 13px dots/pills/badges -> `FS_CAPTION`, and the pt-based mono (11pt/12pt) -> px tokens. The mechanical substitution + f-string wrapping ran via a reviewed script; CRLF preserved.
+- **T011 -- height docstring reconciliation**: the stale hardcoded heights in the docstrings/comments (header "64px", step_indicator "88px", footer "56px", window.py x3) -- which disagreed with the current `HEADER_HEIGHT=74` / `STEP_BAR_HEIGHT=96` / `FOOTER_HEIGHT=62` constants -- were genericized to reference the constant, so they cannot drift again. The window error label's redundant inline `font-size` was dropped (the `QLabel#errorLabel` class owns it).
+- **Scope note**: `theme.py` object-name classes are used for the uniform roles; varied / dynamic-color labels (SUCCESS/WARNING/ERROR/ACCENT) keep an inline style with the size from the same tokens, since a QSS class cannot carry a runtime color. Header/step-counter stay a plain wordmark for now -- the two-tone restyle + stepper legibility are Phase 4.
+
+### Verification
+
+Grep gate: zero literal `font-size: <digit>` remain in the active files (storage / vscode_extension are unwired and out of scope; step_indicator label font is Phase 4). The generated QSS interpolates every token (pageTitle 28 / sectionHead 20 / body 16 / caption 14) with no leaked `{FS_...}`/`{FW_...}`. Installer suite **658 passed / 2 skipped / 0 failed** (+1 T008 guard in test_theme.py; no test pinned old style strings). Offscreen full-wizard composition smoke green, with the pageTitle/sectionHead object-name wiring asserted. ruff clean on the changed lines (2 pre-existing E501s on untouched lines -- an install_path callout body and a prerequisites subprocess arg -- were left per scope discipline). Visual per-page hierarchy confirmation is deferred to the Phase 7 frozen-build QA (no GUI surface in this headless sandbox), recorded as `UIR.P3.A`.
+
+### Branch
+
+Continues on the v1.9.0 installer line (`feat/v1.9.0-installer-phase-1`). This supersedes the planning-session inline-size bumps on the active pages (`UIR.P1.A`, now resolved). The out-of-scope baseline files (main.py icon staging -> Phase 5; the unwired storage/vscode_extension; the unused disk_aware_footer) stay unstaged for their owning phases; a stray `ruff format` also touched those 4 (cosmetic, uncommitted, absorbed later).
+
+---
+
 ## [2026-07-07] v1.9.0 installer + app UI rework -- Phase 2: shared catalog.json plain-language copy rewrite (T005-T007)
 
 ### Goal

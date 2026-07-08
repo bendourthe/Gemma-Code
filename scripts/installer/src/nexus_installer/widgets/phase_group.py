@@ -23,6 +23,8 @@ from nexus_installer.constants import (
     ACCENT,
     BORDER,
     ERROR,
+    FS_BODY,
+    FS_CAPTION,
     SUCCESS,
     TEXT_MUTED,
     TEXT_PRIMARY,
@@ -80,14 +82,15 @@ class PhaseGroup(QFrame):
 
         self._title = QLabel(title)
         self._title.setStyleSheet(
-            f"color: {TEXT_PRIMARY}; font-size: 13px; font-weight: bold; "
+            f"color: {TEXT_PRIMARY}; font-size: {FS_BODY}px; font-weight: bold; "
             f"background: transparent;"
         )
         header.addWidget(self._title, stretch=1)
 
         self._status = QLabel("Waiting")
         self._status.setStyleSheet(
-            f"color: {TEXT_SECONDARY}; font-size: 11px; background: transparent;"
+            f"color: {TEXT_SECONDARY}; font-size: {FS_CAPTION}px; "
+            f"background: transparent;"
         )
         header.addWidget(self._status)
 
@@ -96,7 +99,7 @@ class PhaseGroup(QFrame):
         self._toggle.setStyleSheet(
             f"QPushButton {{ background: transparent; color: {TEXT_SECONDARY}; "
             f"border: 1px solid {BORDER}; border-radius: 4px; "
-            f"font-size: 10px; padding: 2px 8px; }}"
+            f"font-size: {FS_CAPTION}px; padding: 2px 8px; }}"
             f"QPushButton:checked {{ color: {TEXT_PRIMARY}; "
             f"border-color: {ACCENT}; }}"
         )
@@ -203,7 +206,7 @@ class PhaseGroup(QFrame):
         glyph, color = _STATE_ICONS[state]
         self._icon.setText(glyph)
         self._icon.setStyleSheet(
-            f"color: {color}; font-size: 12px; background: transparent;"
+            f"color: {color}; font-size: {FS_CAPTION}px; background: transparent;"
         )
         status_text = {
             STATE_PENDING: "Waiting",
@@ -219,7 +222,8 @@ class PhaseGroup(QFrame):
         }[state]
         self._status.setText(status_text)
         self._status.setStyleSheet(
-            f"color: {status_color}; font-size: 11px; background: transparent;"
+            f"color: {status_color}; font-size: {FS_CAPTION}px; "
+            f"background: transparent;"
         )
 
 

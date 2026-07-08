@@ -1,4 +1,4 @@
-﻿"""Prerequisites check page: detect VS Code, Python, Ollama, and disk space."""
+"""Prerequisites check page: detect VS Code, Python, Ollama, and disk space."""
 
 from __future__ import annotations
 
@@ -15,6 +15,8 @@ from nexus_installer.constants import (
     BG_CARD,
     BORDER,
     ERROR,
+    FS_BODY,
+    FS_CAPTION,
     SUCCESS,
     TEXT_SECONDARY,
     WARNING,
@@ -197,7 +199,7 @@ class _PrereqRow(QWidget):
 
         self._icon = QLabel("\u25cf")
         self._icon.setStyleSheet(
-            f"color: {TEXT_SECONDARY}; font-size: 14px; background: transparent;"
+            f"color: {TEXT_SECONDARY}; font-size: {FS_BODY}px; background: transparent;"
         )
         self._icon.setFixedWidth(18)
         layout.addWidget(self._icon)
@@ -207,14 +209,15 @@ class _PrereqRow(QWidget):
 
         self._name = QLabel(name)
         self._name.setStyleSheet(
-            "font-size: 13px; font-weight: bold; background: transparent;"
+            f"font-size: {FS_BODY}px; font-weight: bold; background: transparent;"
         )
         info_layout.addWidget(self._name)
 
         self._detail = QLabel("Checking...")
         self._detail.setObjectName("secondaryLabel")
         self._detail.setStyleSheet(
-            f"color: {TEXT_SECONDARY}; font-size: 11px; background: transparent;"
+            f"color: {TEXT_SECONDARY}; font-size: {FS_CAPTION}px; "
+            f"background: transparent;"
         )
         info_layout.addWidget(self._detail)
 
@@ -222,19 +225,19 @@ class _PrereqRow(QWidget):
 
     def set_found(self, detail: str) -> None:
         self._icon.setStyleSheet(
-            f"color: {SUCCESS}; font-size: 14px; background: transparent;"
+            f"color: {SUCCESS}; font-size: {FS_BODY}px; background: transparent;"
         )
         self._detail.setText(detail)
 
     def set_missing(self, detail: str) -> None:
         self._icon.setStyleSheet(
-            f"color: {ERROR}; font-size: 14px; background: transparent;"
+            f"color: {ERROR}; font-size: {FS_BODY}px; background: transparent;"
         )
         self._detail.setText(detail)
 
     def set_warning(self, detail: str) -> None:
         self._icon.setStyleSheet(
-            f"color: {WARNING}; font-size: 14px; background: transparent;"
+            f"color: {WARNING}; font-size: {FS_BODY}px; background: transparent;"
         )
         self._detail.setText(detail)
 
@@ -257,15 +260,14 @@ class PrerequisitesPage(QWidget):
         layout.setSpacing(16)
 
         title = QLabel("Prerequisites Check")
-        title.setStyleSheet(
-            "font-size: 24px; font-weight: bold; background: transparent;"
-        )
+        title.setObjectName("pageTitle")
         layout.addWidget(title)
 
         # Card container
         card = QWidget()
         card.setStyleSheet(
-            f"background-color: {BG_CARD}; border: 1px solid {BORDER}; border-radius: 8px;"
+            f"background-color: {BG_CARD}; border: 1px solid {BORDER}; "
+            f"border-radius: 8px;"
         )
         card_layout = QVBoxLayout(card)
         card_layout.setContentsMargins(0, 8, 0, 8)

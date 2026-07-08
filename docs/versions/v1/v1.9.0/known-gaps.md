@@ -136,3 +136,12 @@ Phase 1 opened **no P0/P1 blocking gaps**: all four tasks (T001-T004) are comple
 | `UIR.P2.A` | P3 | DF | **Internal component copy left as-is.** The 4 catalog entries with `task: null` (the SANA VAE `dc-ae-f32c32-sana-1.1` and the 3 SANA ControlNets) are auto-loaded components, never rendered as selectable model cards, so their (technical) descriptions were deliberately not rewritten to the plain-language template -- a plain-language headline adds no value where nothing is shown. | Cosmetic only. If the app ever surfaces components in Settings->Models, give them a one-line plain summary then. Not a blocker. |
 
 Phase 2 opened **no P0/P1 blocking gaps**: T005 needed no schema change (Phase 1 derive-from-family), T006 rewrote all 34 user-facing descriptions byte-preservingly, and T007's accuracy check passed. All three readers stay green (TS validateSpec, Python loader `test_typed_catalog.py`, desktop `tsc --noEmit`); +1 regression guard added to `catalog.test.ts`.
+
+### Phase 3 -- Installer typography + hierarchy sweep (2026-07-07)
+
+| ID | Sev | Cat | Item | Disposition |
+|---|---|---|---|---|
+| `UIR.P3.A` | P1 | DF | **Per-page visual hierarchy not eyeballed in a running GUI.** The scale sweep is verified structurally (grep gate: 0 literal font-sizes in active files; QSS token interpolation; offscreen full-wizard composition + pageTitle/sectionHead object-name wiring; installer suite 658 green), but "launch and confirm H1>H2>H3>Body on each page" needs a GUI surface, which this headless sandbox lacks. | Fold into the Phase 7 frozen-build walk-through (DoD items 1-2: hierarchy + step-label legibility), alongside the other on-device checks. |
+| `UIR.P3.B` | P3 | WN | **Stray `ruff format` touched 4 out-of-scope baseline files.** The sweep's formatting pass also reformatted `main.py` (Phase 5 icon baseline), the unwired `storage.py` / `vscode_extension.py`, and the unused `disk_aware_footer.py` -- cosmetic only, left **unstaged** (not part of the Phase 3 commit). | Absorbed when those files are handled in their owning phase (main.py -> Phase 5). No action needed now; noted for traceability. |
+
+Phase 3 opened **no P0 blockers**: `UIR.P1.A` (the planning-session inline-size bumps on the active pages) is resolved -- those literals are replaced by the scale tokens. `UIR.P3.A` is the standard "on-device visual" deferral pattern (mirrors `IAE.P*` on-device checks). 2 pre-existing E501s (an install_path callout body, a prerequisites subprocess arg) were left untouched per scope discipline.

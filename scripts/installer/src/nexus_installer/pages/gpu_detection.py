@@ -1,4 +1,4 @@
-﻿"""GPU detection page: probe system GPUs and recommend a model tier."""
+"""GPU detection page: probe system GPUs and recommend a model tier."""
 
 from __future__ import annotations
 
@@ -15,6 +15,10 @@ from nexus_installer.constants import (
     ACCENT,
     BG_CARD,
     BORDER,
+    FS_BODY,
+    FS_CAPTION,
+    FS_H2,
+    FS_H3,
     SUCCESS,
     TEXT_SECONDARY,
     WARNING,
@@ -295,33 +299,33 @@ class GpuDetectionPage(QWidget):
         layout.setSpacing(16)
 
         title = QLabel("GPU Detection")
-        title.setStyleSheet(
-            "font-size: 24px; font-weight: bold; background: transparent;"
-        )
+        title.setObjectName("pageTitle")
         layout.addWidget(title)
 
         self._status_label = QLabel("Detecting GPU...")
         self._status_label.setStyleSheet(
-            f"color: {TEXT_SECONDARY}; font-size: 13px; background: transparent;"
+            f"color: {TEXT_SECONDARY}; font-size: {FS_BODY}px; background: transparent;"
         )
         layout.addWidget(self._status_label)
 
         # GPU info card
         self._gpu_card = QWidget()
         self._gpu_card.setStyleSheet(
-            f"background-color: {BG_CARD}; border: 1px solid {BORDER}; border-radius: 8px; padding: 16px;"
+            f"background-color: {BG_CARD}; border: 1px solid {BORDER}; "
+            f"border-radius: 8px; padding: 16px;"
         )
         gpu_card_layout = QVBoxLayout(self._gpu_card)
 
         self._gpu_name_label = QLabel("")
         self._gpu_name_label.setStyleSheet(
-            "font-size: 16px; font-weight: bold; background: transparent;"
+            f"font-size: {FS_H2}px; font-weight: bold; background: transparent;"
         )
         gpu_card_layout.addWidget(self._gpu_name_label)
 
         self._gpu_detail_label = QLabel("")
         self._gpu_detail_label.setStyleSheet(
-            f"color: {TEXT_SECONDARY}; font-size: 12px; background: transparent;"
+            f"color: {TEXT_SECONDARY}; font-size: {FS_CAPTION}px; "
+            f"background: transparent;"
         )
         gpu_card_layout.addWidget(self._gpu_detail_label)
 
@@ -332,13 +336,15 @@ class GpuDetectionPage(QWidget):
         self._rec_callout = CalloutBox(title="Recommended Model")
         self._rec_model_label = QLabel("")
         self._rec_model_label.setStyleSheet(
-            f"color: {ACCENT}; font-size: 15px; font-weight: bold; background: transparent;"
+            f"color: {ACCENT}; font-size: {FS_H3}px; font-weight: bold; "
+            f"background: transparent;"
         )
         self._rec_callout.add_item(self._rec_model_label)
 
         self._rec_desc_label = QLabel("")
         self._rec_desc_label.setStyleSheet(
-            f"color: {TEXT_SECONDARY}; font-size: 12px; background: transparent;"
+            f"color: {TEXT_SECONDARY}; font-size: {FS_CAPTION}px; "
+            f"background: transparent;"
         )
         self._rec_callout.add_item(self._rec_desc_label)
 
@@ -360,7 +366,7 @@ class GpuDetectionPage(QWidget):
         if name:
             self._status_label.setText("GPU detected successfully.")
             self._status_label.setStyleSheet(
-                f"color: {SUCCESS}; font-size: 13px; background: transparent;"
+                f"color: {SUCCESS}; font-size: {FS_BODY}px; background: transparent;"
             )
 
             self._gpu_name_label.setText(name)
@@ -374,7 +380,7 @@ class GpuDetectionPage(QWidget):
                 "No dedicated GPU detected. CPU-only mode will be used."
             )
             self._status_label.setStyleSheet(
-                f"color: {WARNING}; font-size: 13px; background: transparent;"
+                f"color: {WARNING}; font-size: {FS_BODY}px; background: transparent;"
             )
 
         # Model recommendation

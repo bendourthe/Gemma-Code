@@ -21,7 +21,10 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from nexus_installer.constants import TEXT_SECONDARY
+from nexus_installer.constants import (
+    FS_CAPTION,
+    TEXT_SECONDARY,
+)
 from nexus_installer.engine.installer import InstallEngine, start_install
 from nexus_installer.widgets.phase_group import PhaseGroup
 from nexus_installer.widgets.secondary_button import SecondaryButton
@@ -56,15 +59,14 @@ class InstallingPage(QWidget):
         layout.setSpacing(12)
 
         self._title = QLabel("Installing...")
-        self._title.setStyleSheet(
-            "font-size: 24px; font-weight: bold; background: transparent;"
-        )
+        self._title.setObjectName("pageTitle")
         layout.addWidget(self._title)
 
         # Overall progress bar on top
         overall_label = QLabel("Overall progress")
         overall_label.setStyleSheet(
-            f"color: {TEXT_SECONDARY}; font-size: 11px; background: transparent;"
+            f"color: {TEXT_SECONDARY}; font-size: {FS_CAPTION}px; "
+            f"background: transparent;"
         )
         layout.addWidget(overall_label)
 
