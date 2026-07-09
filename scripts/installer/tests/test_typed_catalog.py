@@ -554,6 +554,34 @@ class TestRealCatalogPage:
         assert "faster-whisper-large-v3" in selected
         assert "kokoro-82m" in selected
 
+    def test_cards_colored_by_provider_not_tab(self, qt_app) -> None:
+        # v1.9.0 Phase 6 (T022, DoD #7): cards are colored by the model's
+        # provider (family), so a model that appears in both Chat and Agentic
+        # shows one consistent color rather than two per-tab colors.
+        from collections import defaultdict
+
+        from nexus_installer.constants import provider_color
+
+        state = _gpu_state(vram_mb=24576)
+        page = TypedCatalogPage(state)
+        page.refresh_from_state()
+        accents: dict[str, set[str]] = defaultdict(set)
+        for card in page._cards:
+            accents[card.model.id].add(card.checkbox.accent)
+        multi = {mid: cols for mid, cols in accents.items() if len(cols) > 1}
+        assert not multi, f"models colored inconsistently across tabs: {multi}"
+        # gemma4:e4b renders in both Chat and Agentic with one Google color.
+        assert sum(1 for c in page._cards if c.model.id == "gemma4:e4b") == 2
+        assert accents["gemma4:e4b"] == {provider_color("gemma4")}
+
+    def test_provider_legend_lists_multiple_providers(self, qt_app) -> None:
+        # v1.9.0 Phase 6 (T025): the color legend names each provider present.
+        page = TypedCatalogPage(_gpu_state(vram_mb=8192))
+        html = page._provider_legend_html()
+        assert html  # the bundled catalog spans several providers
+        assert "Google" in html and "Alibaba" in html
+        assert not page._legend.isHidden()
+
 
 class TestCatalogTabMapping:
     @pytest.mark.parametrize(

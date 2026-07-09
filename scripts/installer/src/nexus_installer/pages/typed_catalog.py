@@ -1,12 +1,15 @@
 """Chat / Agentic / Image / Video / Audio model picker.
 
 The Text tab is split into **Chat** and **Agentic** sections driven by the
-catalog's `task` field. v1.9.0 Phase 4: each card renders a scannable chip
-row (Origin, Best-at, Agentic yes/no, Guardrails, context, license) plus a
-prominent disk-size accent and a single status badge (Required / Recommended
-/ Compatible), and the Agentic tab also lists agentic-capable chat models
-(the Gemma 4 family, which set the `agentic` flag) ranked with Gemma 4 first
-as the recommended agentic default and the coding specialists below.
+catalog's `task` field. Each card (v1.9.0 Phase 6) leads with a plain-language
+description and a full-width "Best for" line (from the model's strengths),
+then a compact fact-pill row (Origin, Agentic yes/no, context, Multimodal,
+license, and an Uncensored flag when there is no content filter), a status
+badge (Required / Recommended / Compatible), and a prominent disk-size accent.
+Card colors are keyed to the model's **provider** (from `family`), so a model
+shown in both Chat and Agentic has one consistent color; the tab bar itself is
+neutral. The Agentic tab also lists agentic-capable chat models (the Gemma 4
+family, which set the `agentic` flag) ranked Gemma-first.
 
 Pre-ticked defaults come from the per-VRAM-tier matrix in
 `core/registry/recommended.json` (schema v2) resolved against the detected
@@ -14,7 +17,7 @@ hardware by `nexus_installer.tier_defaults` -- including the uncensored
 image/video defaults on tiers whose hardware fits them and the permissive
 speech (audio) defaults on every tier. Defaults are recomputed on
 `showEvent` (GPU detection finishes after the wizard pages are constructed)
-until the user touches a checkbox; the Refresh Models control resets to them.
+until the user touches a checkbox; the Reset-to-recommended control resets to them.
 
 The page is the wired producer of `InstallerState.selected_model_ids`
 (closes `OSI003.P3.D`): every selection change writes the ordered id list
@@ -57,13 +60,15 @@ from nexus_installer.constants import (
     FS_BODY,
     FS_CAPTION,
     FS_H3,
-    SECTION_ACCENTS,
+    PROVIDER_COLORS,
     SUCCESS,
     TEXT_BODY,
     TEXT_MUTED,
     TEXT_PRIMARY,
     TEXT_SECONDARY,
     WARNING,
+    provider_color,
+    publisher_for_family,
 )
 from nexus_installer.tier_defaults import (
     default_selection,
@@ -134,6 +139,8 @@ class CatalogModel:
     origin: str = ""
     agentic: bool = False
     guardrails: str = ""
+    # v1.9.0 Phase 6 (T022) -- the per-provider card color is keyed to family.
+    family: str = ""
 
     @property
     def is_text_model(self) -> bool:
@@ -227,6 +234,7 @@ def load_catalog_models(catalog_path: Path) -> list[CatalogModel]:
                 origin=str(entry.get("origin") or ""),
                 agentic=bool(entry.get("agentic")),
                 guardrails=str(entry.get("guardrails") or ""),
+                family=str(entry.get("family") or ""),
             )
         )
     return models
@@ -398,17 +406,46 @@ class _ModelCard(QWidget):
         title_row.addWidget(size_label)
         layout.addLayout(title_row)
 
-        # --- Metadata chip row (Origin, Best-at, Agentic, Guardrails, ctx, license) ---
+        # --- Incompatibility note (only when the model does not fit) ---
+        if not fits:
+            warn = QLabel(badge_text)
+            warn.setStyleSheet(
+                f"color: {badge_color}; font-size: {FS_CAPTION}px; "
+                f"background: transparent;"
+            )
+            warn.setWordWrap(True)
+            layout.addWidget(warn)
+
+        # --- Plain-language description leads the card (Phase 2 copy, T023) ---
+        if model.description:
+            desc = QLabel(model.description)
+            desc.setStyleSheet(
+                f"color: {TEXT_BODY}; font-size: {FS_BODY}px; background: transparent;"
+            )
+            desc.setWordWrap(True)
+            layout.addWidget(desc)
+
+        # --- Full-width "Best for" line from strengths (no truncation, T023) ---
+        if model.strengths:
+            best_for = QLabel(
+                f'<span style="color: {accent}; font-weight: 600;">Best for:</span> '
+                f"{', '.join(model.strengths)}"
+            )
+            best_for.setStyleSheet(
+                f"color: {TEXT_BODY}; font-size: {FS_CAPTION}px; "
+                f"background: transparent;"
+            )
+            best_for.setWordWrap(True)
+            layout.addWidget(best_for)
+
+        # --- Compact fact pills: only the few key facts (T023). "Best at" moves
+        #     to the Best-for line above; the always-on Guardrails pill becomes
+        #     an Uncensored flag shown only when there is no content filter. ---
         chip_row = QHBoxLayout()
         chip_row.setSpacing(6)
-        chip_row.setContentsMargins(28, 0, 0, 0)
+        chip_row.setContentsMargins(28, 2, 0, 0)
         if model.origin:
             chip_row.addWidget(_pill(f"Origin: {model.origin}"))
-        if model.strengths:
-            best = model.strengths[0]
-            if len(best) > 32:
-                best = best[:29].rstrip() + "..."
-            chip_row.addWidget(_pill(f"Best at: {best}"))
         if model.is_text_model:
             agentic_color = accent if model.agentic else TEXT_MUTED
             chip_row.addWidget(
@@ -418,9 +455,6 @@ class _ModelCard(QWidget):
                     border=agentic_color,
                 )
             )
-        guard = model.guardrails_label
-        guard_color = WARNING if guard == "Uncensored" else TEXT_SECONDARY
-        chip_row.addWidget(_pill(f"Guardrails: {guard}", color=guard_color))
         if model.is_text_model and (
             model.context_window_in or model.context_window_out
         ):
@@ -434,30 +468,14 @@ class _ModelCard(QWidget):
             chip_row.addWidget(
                 _pill("Multimodal", color=ACCENT_BRIGHT, border=ACCENT_BRIGHT)
             )
+        if model.guardrails_label == "Uncensored":
+            chip_row.addWidget(_pill("Uncensored", color=WARNING, border=WARNING))
         if model.license_name:
             chip_row.addWidget(_pill(model.license_name))
         chip_row.addStretch()
         layout.addLayout(chip_row)
 
-        # --- Body copy: incompatibility note (if any), description, why-this-one ---
-        if not fits:
-            warn = QLabel(badge_text)
-            warn.setStyleSheet(
-                f"color: {badge_color}; font-size: {FS_CAPTION}px; "
-                f"background: transparent;"
-            )
-            warn.setWordWrap(True)
-            layout.addWidget(warn)
-
-        if model.description:
-            desc = QLabel(model.description)
-            desc.setStyleSheet(
-                f"color: {TEXT_BODY}; font-size: {FS_CAPTION}px; "
-                f"background: transparent;"
-            )
-            desc.setWordWrap(True)
-            layout.addWidget(desc)
-
+        # --- Why this one (recommended picks only) ---
         if recommended and model.why_recommended:
             why = QLabel(f"Why this one: {model.why_recommended}")
             why.setStyleSheet(
@@ -513,6 +531,20 @@ class TypedCatalogPage(QWidget):
         self._subtitle.setWordWrap(True)
         layout.addWidget(self._subtitle)
 
+        # v1.9.0 Phase 6 (T025): a compact per-provider color legend so the
+        # per-maker card colors are self-explanatory. Shown only when more than
+        # one provider is present (the catalog spans several); hidden otherwise.
+        self._legend = QLabel("")
+        self._legend.setTextFormat(Qt.TextFormat.RichText)
+        self._legend.setStyleSheet(
+            f"font-size: {FS_CAPTION}px; background: transparent;"
+        )
+        self._legend.setWordWrap(True)
+        legend_html = self._provider_legend_html()
+        self._legend.setText(legend_html)
+        self._legend.setVisible(bool(legend_html))
+        layout.addWidget(self._legend)
+
         self._tabs = QTabWidget()
         layout.addWidget(self._tabs, stretch=1)
 
@@ -522,12 +554,12 @@ class TypedCatalogPage(QWidget):
         )
         layout.addWidget(self._totals_label)
 
-        # v1.9.0 Phase 4 (T403) footer: a Refresh Models control that resets
+        # v1.9.0 Phase 4 (T403) footer: a Reset-to-recommended control that resets
         # the picks to the recommended set for the detected hardware, plus a
         # reassurance note. The wizard's global Next button is the Continue.
         footer_row = QHBoxLayout()
         footer_row.setSpacing(12)
-        self._refresh_button = QPushButton("Refresh Models")
+        self._refresh_button = QPushButton("Reset to recommended")
         self._refresh_button.setObjectName("secondaryButton")
         self._refresh_button.setToolTip(
             "Reset the selection to the recommended models for your hardware."
@@ -588,7 +620,7 @@ class TypedCatalogPage(QWidget):
     def _on_refresh_clicked(self) -> None:
         """Reset the selection to the recommended set for the detected hardware.
 
-        v1.9.0 Phase 4 (T403): the Refresh Models control clears any manual
+        v1.9.0 Phase 4 (T403): the Reset-to-recommended control clears any manual
         picks and re-applies the tier defaults, so a user who over-edited can
         get back to the recommendation in one click.
         """
@@ -601,6 +633,24 @@ class TypedCatalogPage(QWidget):
     # Tab builders
     # -----------------------------------------------------------------
 
+    def _provider_legend_html(self) -> str:
+        """Rich-text provider color legend, or '' when <= 1 provider (T025).
+
+        One "* Publisher" swatch per distinct provider in the catalog, each dot
+        in that provider's color. Skipped gracefully for a single-provider view.
+        """
+        publishers = sorted(
+            {publisher_for_family(m.family) for m in self._catalog.values()}
+        )
+        if len(publishers) <= 1:
+            return ""
+        parts = [
+            f'<span style="color: {PROVIDER_COLORS.get(pub, ACCENT)};">&#9679;</span> '
+            f'<span style="color: {TEXT_SECONDARY};">{pub}</span>'
+            for pub in publishers
+        ]
+        return "&nbsp;&nbsp;&nbsp;".join(parts)
+
     def _rebuild_tabs(self) -> None:
         current = max(0, self._tabs.currentIndex())
         self._cards.clear()
@@ -612,11 +662,10 @@ class TypedCatalogPage(QWidget):
 
         vram_gb = max(0, int(self._state.vram_mb / 1024))
         self._subtitle.setText(
-            f"Detected: {self._state.gpu_name or 'no GPU'} ({vram_gb} GB VRAM). "
-            "We pre-selected the best fit for your hardware -- a chat + agentic "
-            "model (Gemma 4 handles both), the memory model, and speech, plus "
-            "image and video where your GPU allows. Tick more to expand the "
-            "install."
+            f"Detected {self._state.gpu_name or 'no GPU'} ({vram_gb} GB VRAM). "
+            "We've pre-selected the best fit for your hardware -- tick more to "
+            "add them, or untick any you don't want. Each card is colored by its "
+            "maker."
         )
 
         defaults = set(self._current_defaults())
@@ -681,10 +730,10 @@ class TypedCatalogPage(QWidget):
         state: InstallerState,
         defaults: set[str],
     ) -> QWidget:
-        # v1.8.0 Phase 5 -- each section carries its desktop module accent
-        # (chat cyan, agentic magenta, image orange, video green).
-        accent = SECTION_ACCENTS.get(section_key, ACCENT)
-
+        # v1.9.0 Phase 6 (T022): the tab bar + section rule are neutral (a single
+        # lead accent). Each card's color is keyed to the model's provider (via
+        # provider_color(family)), so a model that appears in both Chat and
+        # Agentic shows one consistent color rather than two per-tab colors.
         container = QWidget()
         outer = QVBoxLayout(container)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -692,7 +741,7 @@ class TypedCatalogPage(QWidget):
 
         accent_rule = QFrame()
         accent_rule.setFixedHeight(2)
-        accent_rule.setStyleSheet(f"background-color: {accent}; border: none;")
+        accent_rule.setStyleSheet(f"background-color: {ACCENT}; border: none;")
         outer.addWidget(accent_rule)
 
         scroll = QScrollArea()
@@ -726,7 +775,7 @@ class TypedCatalogPage(QWidget):
                     host_vram_gb=host_vram_gb,
                     host_ram_gb=host_ram_gb,
                     gpu_vendor=gpu_vendor,
-                    accent=accent,
+                    accent=provider_color(model.family),
                 )
                 card.setSizePolicy(
                     QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
@@ -847,8 +896,10 @@ class TypedCatalogPage(QWidget):
                 card.checkbox.setToolTip("")
                 card.disabled_for_disk = False
 
+        count = len(self._selection.selected)
         self._totals_label.setText(
-            f"Total: {total:.1f} GB across {len(self._selection.selected)} models."
+            f"{count} model{'s' if count != 1 else ''} selected  --  "
+            f"{total:.1f} GB total download"
         )
         if self._on_selection_changed:
             with contextlib.suppress(Exception):

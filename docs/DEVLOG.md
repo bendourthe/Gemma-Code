@@ -4,6 +4,29 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-09] v1.9.0 installer + app UI rework -- Phase 6: installer Models page - per-provider color + plain-language cards + intro copy (T022-T025)
+
+### Goal
+
+Recolor the Models page by provider (not by tab), rebuild the model card so the plain-language description and a readable "Best for" line replace the cramped truncated pill, and simplify the intro/total copy.
+
+### What changed (all in [typed_catalog.py](../scripts/installer/src/nexus_installer/pages/typed_catalog.py))
+
+- **T022 -- per-provider color**: `CatalogModel` gains a `family` field (loaded from the catalog); each card's accent is now `provider_color(model.family)` (the Phase-1 family->publisher->color resolver) instead of the per-section `SECTION_ACCENTS`. The section rule under each tab is a single neutral lead accent, and the tab bar is already neutral -- so a model that appears in both Chat and Agentic (the Gemma 4 family) shows **one** consistent color, not two (DoD #7). The size label, checkbox fill (the Phase-5 `ModelCheckBox` accent), "Best for" label, and "why this one" line all key off the provider color.
+- **T023 -- card rebuild**: the card now leads with the plain-language `description` (Phase-2 copy, at `FS_BODY`), then a clearly-labeled, full-width **"Best for"** line built from all of `strengths[]` (no 32-char truncation, no cramped pill), then a compact fact-pill row of only the key facts (Origin, Agentic yes/no, Context, Multimodal, license) plus an **Uncensored** flag shown only when there is no content filter (the always-on Guardrails pill is gone). "Best at" is retired from the pill row.
+- **T024 -- copy**: the "Choose Your Models" subtitle is shorter and now notes that cards are colored by maker; the totals line reads "N models selected -- X.X GB total download"; the footer button is renamed "Reset to recommended" (aligned with its actual behavior + tooltip).
+- **T025 -- legend**: a compact per-provider color legend (a rich-text row of colored swatches + publisher names) sits under the subtitle, shown only when more than one provider is present (the bundled catalog spans 11) and hidden gracefully otherwise.
+
+### Verification
+
+Installer suite **672 passed / 2 skipped / 0 failed** (+2). Offscreen Models-page smoke against the real bundled catalog: **no model shows more than one color**; `gemma4:e4b` renders in both the Chat and Agentic tabs with the single Google cyan (`provider_color("gemma4")`); `qwen`->violet, `sdxl`->pink resolve correctly; the legend lists all 11 providers. +2 regression guards in [test_typed_catalog.py](../scripts/installer/tests/test_typed_catalog.py) (`test_cards_colored_by_provider_not_tab`, `test_provider_legend_lists_multiple_providers`). ruff clean. Visual confirmation that the colors read well and the card/legend layout holds at the default width is on-device (`UIR.P6.A`, Phase 7).
+
+### Branch
+
+Continues on the v1.9.0 installer line (`feat/v1.9.0-installer-phase-1`). Phase 6 consumes Phase 1's `provider_color()` + Phase 2's rewritten catalog copy + Phase 5's `ModelCheckBox` (now fed the provider accent). Touches only `typed_catalog.py` + its test -- no baseline-file entanglement.
+
+---
+
 ## [2026-07-08] v1.9.0 installer + app UI rework -- Phase 5: installer chrome - taskbar/window icon, scrollbars, checkbox (T018-T021)
 
 ### Goal
