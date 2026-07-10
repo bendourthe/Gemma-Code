@@ -73,5 +73,5 @@ class TestStoragePage:
         state.selected_models_gb = 30
         state.gpu_vendor = "nvidia"
         page = StoragePage(state)
-        # Card should have at least 6 rows (free, runtime, models, devai, reserve, net).
-        assert page._card_layout.count() >= 6
+        # Card should have at least 5 rows (free, runtime, models, reserve, net).
+        assert page._card_layout.count() >= 5

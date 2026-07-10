@@ -11,7 +11,6 @@ Produces `dist/NexusSetup.exe` -- the Windows one-shot installer. Since v1.9.0 P
 +----------------------------------------------------------+
 | 1. Resolve pinned versions                               |
 |    - read package.json for the release version           |
-|    - read scripts/installer/devai-hub-baseline.json      |
 +----------------------------------------------------------+
                               |
 +----------------------------------------------------------+

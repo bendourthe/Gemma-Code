@@ -4,6 +4,32 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-10] v1.10.0 Nexus-Hub consumption re-architecture -- Phase 5: remove the installer bundled-baseline redundancy (T026-T030)
+
+### Goal
+
+Delete the broken bundled-baseline path from the installer. It fetched/extracted a placeholder `devai-hub-baseline.tar.gz` whose pins were `REPLACE_ME` / `example.invalid` (all-zero sha) and lived in an unwired dispatch chain. The Nexus-Hub catalog is fetched at runtime into `~/.nexus-ai/catalog/`, never bundled.
+
+### What changed
+
+- **T026 deletes**: `scripts/installer/devai-hub-baseline.json`, `engine/devai_hub_provisioner.py`, `tests/test_devai_hub_provisioner.py`. [provisioner_dispatch.py](../scripts/installer/src/nexus_installer/engine/provisioner_dispatch.py): dropped `"devai-hub"` from all four host chains + the `DevAIHubProvisioner` import + factory entry + the now-unused `manifest_path` param. `build/fetch-payload.py`: dropped the `devai_hub` tarball fetch. `build/versions.lock.json`: dropped the placeholder `devai_hub` pin + updated the comment.
+- **T027** [storage.py](../scripts/installer/src/nexus_installer/pages/storage.py): removed `DEVAI_HUB_BASELINE_GB`, the `devai_hub_gb` field/param/total-term/display-row/`__all__` entry; the disk-review math no longer reserves the 0.4 GB baseline (5 rows, not 6).
+- **T028 workflows**: `installer-build.yml` drops the baseline-tag echo (keeps the version echo); `installer-linux.yml` + `installer-macos.yml` drop the "Resolve pinned versions" step that read the baseline JSON. `build/windows-pipeline.md` updated.
+- **T029** `nexus-installer.spec`: a marker comment records that the Hub catalog is fetched at runtime, never bundled (the `datas` list already carried no Hub payload).
+- **T030 tests**: `test_storage_page` row count 6 -> 5; `test_provisioner_dispatch` asserts no host chain contains `"devai-hub"`; `test_packaging` asserts the spec bundles no Hub payload and the baseline manifest is gone.
+
+### Verification
+
+Installer pytest suite green (0 failed / 2 skipped; the reporter prints progress only, but every run reaches 100% with no F/E). `ruff` clean on the changed `src` + `tests`. Two pre-existing `build/fetch-payload.py` findings (UP037 + E501 on lines untouched here) and one pre-existing `storage.py` `refresh()` `QLayoutItem | None` union-attr nit are the installer's existing baseline, not introduced by this phase (`NHC.P5.A`).
+
+### Note
+
+`storage.py` also carries an uncommitted v1.9.0 font-size tweak (one of the 4 leftover UI-rework files). It was isolated via a single-file `git stash` during this phase so the Phase 5 commit stays traceable, then restored afterward.
+
+### Branch
+
+`feat/v1.10.0-nexus-hub-consumption`.
+
 ## [2026-07-10] v1.10.0 Nexus-Hub consumption re-architecture -- Phase 4: rename AutoSync + one-shot migration + guarded cleanup (T021-T025)
 
 ### Goal

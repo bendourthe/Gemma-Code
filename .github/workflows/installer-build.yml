@@ -54,8 +54,6 @@ jobs:
         run: |
           $version = (Get-Content package.json | ConvertFrom-Json).version
           Write-Host "package.json version: $version"
-          $baseline = Get-Content scripts/installer/devai-hub-baseline.json | ConvertFrom-Json
-          Write-Host "devai-hub baseline tag: $($baseline.source.tag)"
 
       # The wizard bundles the VSIX (PyInstaller datas); vsce packages the
       # root workspace (the repo root IS the nexus-coding extension package,

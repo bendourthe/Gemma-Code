@@ -38,6 +38,12 @@ Tracks unfinished work, deferrals, and cross-repo coordination for the v1.10.0 N
 | NHC.P4.A | P2 | DF | The one-shot legacy-cache cleanup and the weekly auto-sync worker are wired into `bootstrapCoding`, which the live sidecar (`desktop/sidecar/src/main.ts`) does not yet call. So the cleanup does not actually run on a real launch yet. | Activates when Phase 6 wires `bootstrapCoding` (+ first-launch fetch + update detection) into the live sidecar startup. Fully built + tested now. |
 | NHC.P4.B | P3 | NI | The setting-key rename (`autoSync.devai-hub` -> `autoSync.nexus-hub`) migrates the value in the sidecar `SettingsStore` (`~/.nexus/settings.json`) forward. A value set only in VS Code's own `settings.json` (the contributed setting) is not auto-migrated. | Low impact: the feature is opt-in + default-off and not wired live yet; a user re-opts-in via the renamed setting if their old value lived only in VS Code settings. |
 
+## 1e. Phase 5 -- remove the installer bundled-baseline redundancy (landed 2026-07-10)
+
+| ID | Sev | Cat | Gap | Disposition |
+|----|-----|-----|-----|-------------|
+| NHC.P5.A | P3 | NI | The installer carries a pre-existing lint/type baseline untouched by this phase: `build/fetch-payload.py` has a UP037 + an E501 (on lines Phase 5 did not modify), and `storage.py` `refresh()` has a `QLayoutItem \| None` union-attr mypy nit (pre-existing; line-shifted by the row removal). | Not introduced by Phase 5; the changed src + tests are ruff-clean and the phase adds no new mypy errors. Left as-is (out of scope; the installer's existing baseline). |
+
 ## 2. Cross-repo coordination (Nexus-Hub)
 
 | ID | Sev | Cat | Gap | Disposition |

@@ -2,7 +2,7 @@
 
 Renders right before the final "Begin Installation" click. Surfaces every
 disk-side cost: runtime libraries (CUDA / Python / Node / Ollama / ffmpeg),
-selected models, DevAI-Hub baseline, the 10 GB OS reserve, and the net
+selected models, the 10 GB OS reserve, and the net
 remaining space. The "Net after install" color is the guard: red when below
 the reserve, yellow when below 2x the reserve, green otherwise.
 """
@@ -40,8 +40,6 @@ RUNTIME_COMPONENT_COSTS_GB: dict[str, float] = {
     "ffmpeg": 0.1,
 }
 
-DEVAI_HUB_BASELINE_GB = 0.4
-
 
 @dataclass(frozen=True)
 class StorageBreakdown:
@@ -50,12 +48,11 @@ class StorageBreakdown:
     free_gb: float
     runtime_gb: float
     models_gb: float
-    devai_hub_gb: float
     reserve_gb: float
 
     @property
     def total_install_gb(self) -> float:
-        return self.runtime_gb + self.models_gb + self.devai_hub_gb
+        return self.runtime_gb + self.models_gb
 
     @property
     def net_remaining_gb(self) -> float:
@@ -88,7 +85,6 @@ def build_breakdown(
     *,
     os_family: str | None = None,
     cuda_compatible: bool | None = None,
-    devai_hub_gb: float = DEVAI_HUB_BASELINE_GB,
 ) -> StorageBreakdown:
     family = os_family or _os_family_from_state(state)
     cuda = cuda_compatible
@@ -99,7 +95,6 @@ def build_breakdown(
         free_gb=float(state.free_disk_gb),
         runtime_gb=runtime,
         models_gb=float(state.selected_models_gb),
-        devai_hub_gb=devai_hub_gb,
         reserve_gb=float(state.disk_reserve_gb),
     )
 
@@ -179,11 +174,6 @@ class StoragePage(QWidget):
                 f"{breakdown.models_gb:.1f} GB",
                 None,
             ),
-            (
-                "Required for DevAI-Hub baseline",
-                f"{breakdown.devai_hub_gb:.1f} GB",
-                None,
-            ),
             ("OS reserve", f"{breakdown.reserve_gb:.0f} GB", None),
         ]
         color = net_color(breakdown.net_remaining_gb, breakdown.reserve_gb)
@@ -215,7 +205,6 @@ class StoragePage(QWidget):
 
 
 __all__ = [
-    "DEVAI_HUB_BASELINE_GB",
     "RUNTIME_COMPONENT_COSTS_GB",
     "StorageBreakdown",
     "StoragePage",

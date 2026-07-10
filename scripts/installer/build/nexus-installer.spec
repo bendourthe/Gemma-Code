@@ -36,7 +36,9 @@ else:
     APP_NAME = "nexus-setup"
     ICON = str(REPO_ROOT / "assets" / "icon.png")
 
-# Locate bundled data files
+# Locate bundled data files.
+# v1.10.0: the Nexus-Hub catalog is NOT bundled here -- it is fetched at runtime
+# into ~/.nexus-ai/catalog/ by NexusHubSyncer (no baseline payload in the exe).
 datas = []
 
 # VSIX file. vsce emits `nexus-coding-*.vsix` (the root package name) since

@@ -32,6 +32,17 @@ class TestSpecFile:
         assert "recommended.json" in content
         assert "core/registry" in content
 
+    def test_spec_bundles_no_hub_catalog_payload(self) -> None:
+        # v1.10.0 Phase 5: the Nexus-Hub catalog is fetched at runtime into
+        # ~/.nexus-ai/catalog/, never bundled into the exe.
+        content = (BUILD_DIR / "nexus-installer.spec").read_text()
+        assert "devai-hub-baseline" not in content
+        assert "devai_hub" not in content
+
+    def test_no_bundled_hub_baseline_manifest(self) -> None:
+        # The broken bundled-baseline manifest is removed.
+        assert not (INSTALLER_ROOT / "devai-hub-baseline.json").exists()
+
     def test_spec_stages_runtime_icons(self) -> None:
         # v1.9.0 Phase 5 (T019): the runtime window/taskbar icon (icon.ico) and
         # the brand mark must be staged under assets/ so setWindowIcon resolves

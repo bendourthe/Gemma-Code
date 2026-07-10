@@ -36,7 +36,6 @@ def chain_for(profile: HostProfile) -> list[str]:
             "node",
             "ollama-windows",
             "ffmpeg",
-            "devai-hub",
         ]
     if profile.os_family == "macos":
         first = "metal" if profile.metal_compatible else "cpu-only"
@@ -46,7 +45,6 @@ def chain_for(profile: HostProfile) -> list[str]:
             "node",
             "ollama-macos",
             "ffmpeg",
-            "devai-hub",
         ]
     if profile.os_family == "linux":
         if profile.cuda_compatible:
@@ -61,14 +59,12 @@ def chain_for(profile: HostProfile) -> list[str]:
             "node",
             "ollama-linux",
             "ffmpeg",
-            "devai-hub",
         ]
-    return ["cpu-only", "node", "ffmpeg", "devai-hub"]
+    return ["cpu-only", "node", "ffmpeg"]
 
 
 def default_provisioner_factory(
     payload_dir: Path,
-    manifest_path: Path,
 ) -> Mapping[str, Any]:
     """Build a name -> provisioner mapping wired to bundled payload paths.
 
@@ -78,7 +74,6 @@ def default_provisioner_factory(
     from nexus_installer.engine.cpu_only_provisioner import CpuOnlyProvisioner
     from nexus_installer.engine.cuda_linux_provisioner import CudaLinuxProvisioner
     from nexus_installer.engine.cuda_provisioner import CudaProvisioner
-    from nexus_installer.engine.devai_hub_provisioner import DevAIHubProvisioner
     from nexus_installer.engine.diffusion_venv_provisioner import (
         DiffusionVenvProvisioner,
     )
@@ -107,7 +102,6 @@ def default_provisioner_factory(
         "ollama-macos": OllamaMacosProvisioner(payload_dir),
         "ollama-linux": OllamaLinuxProvisioner(payload_dir),
         "ffmpeg": FfmpegProvisioner(payload_dir),
-        "devai-hub": DevAIHubProvisioner(payload_dir, manifest_path),
     }
 
 

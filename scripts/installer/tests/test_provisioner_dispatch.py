@@ -97,6 +97,19 @@ class TestChainFor:
         )
         assert chain[0] == "cpu-only"
 
+    def test_no_chain_includes_the_retired_devai_hub_provisioner(self) -> None:
+        # v1.10.0 Phase 5: the bundled-baseline provisioner is removed; no host
+        # chain may still reference it.
+        for profile in (
+            _profile(),
+            _profile(os_family="macos", metal_compatible=True, cuda_compatible=False),
+            _profile(os_family="linux", target_install_path="/home/x"),
+            _profile(
+                os_family="unknown", cuda_compatible=False, metal_compatible=False
+            ),
+        ):
+            assert "devai-hub" not in chain_for(profile)
+
 
 class _StubProvisioner:
     def __init__(

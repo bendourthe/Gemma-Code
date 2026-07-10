@@ -1,6 +1,6 @@
 """v1.1.0 Phase 14.10 -- cross-OS payload fetcher.
 
-Downloads CUDA / ROCm / Python / Node / Ollama / ffmpeg / DevAI-Hub baseline,
+Downloads CUDA / ROCm / Python / Node / Ollama / ffmpeg,
 SANA model weights, the local embedder, and the Nexus VS Code extension VSIX
 into a single per-OS `payload/` tree the installer then copies onto disk.
 
@@ -145,12 +145,6 @@ def fetch_all(out_dir: Path, os_label: str, arch: str, lockfile: Path) -> None:
                 sha256=PLACEHOLDER_SHA256,
             )
             download(asset, out_dir / "python" / "wheels" / filename_for(url, wheel_name))
-
-    # DevAI-Hub baseline tarball.
-    devai = common.get("devai_hub")
-    if devai:
-        asset = PinnedAsset.from_entry("devai_hub", devai)
-        download(asset, out_dir / "devai-hub-baseline.tar.gz")
 
     # Model weights + local embedder.
     models = common.get("models", {})

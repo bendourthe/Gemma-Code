@@ -2,14 +2,9 @@
   "_meta": {
     "version": 1,
     "phase": "v1.1.0 Phase 14.10",
-    "comment": "Per-OS / per-arch payload pin file used by fetch-payload.py. Each entry pins URL + SHA-256 for every asset (CUDA runtime, Python embeddable, wheels, Node, Ollama, ffmpeg, DevAI-Hub, model weights, embedder, VSIX). Placeholders (all-zero sha256) are intentional in the v1.1.0 ship and will be rotated by Phase 15 / OA-03."
+    "comment": "Per-OS / per-arch payload pin file used by fetch-payload.py. Each entry pins URL + SHA-256 for every asset (CUDA runtime, Python embeddable, wheels, Node, Ollama, ffmpeg, model weights, embedder, VSIX). Placeholders (all-zero sha256) are intentional in the v1.1.0 ship and will be rotated by Phase 15 / OA-03. The Nexus-Hub catalog is no longer bundled here -- v1.10.0 fetches it at runtime into ~/.nexus-ai/catalog/."
   },
   "common": {
-    "devai_hub": {
-      "tag": "REPLACE_ME",
-      "url": "https://example.invalid/devai-hub-baseline.tar.gz",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-    },
     "models": {
       "sana_1_6b_1024": {
         "url": "https://huggingface.co/Efficient-Large-Model/SANA1.5_1.6B_1024px_diffusers/resolve/main/transformer/diffusion_pytorch_model.safetensors",

@@ -42,10 +42,6 @@ jobs:
           node-version: "22.x"
           cache: "npm"
 
-      - name: Resolve pinned versions
-        run: |
-          python -c "import json; data=json.load(open('scripts/installer/devai-hub-baseline.json')); print('devai-hub baseline tag:', data['source']['tag'])"
-
       # The wizard bundles the VSIX (PyInstaller datas); vsce packages the
       # root workspace (the repo root IS the nexus-coding extension package,
       # same as release.yml's build-vsix job).
