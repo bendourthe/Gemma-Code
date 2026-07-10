@@ -14,8 +14,11 @@
  *   - SkillsReloader -- fs.watch the nexus-hub-version.json sentinel under
  *     ~/.nexus-ai/catalog so a successful `nexus skills sync --apply`
  *     hot-reloads the catalog (closes 10.P1.GGG).
- *   - DevAI-Hub auto-sync worker -- registered with the IdleScheduler
- *     under `nexus.skills.autoSync.devai-hub` (closes 10.P1.HHH).
+ *   - Nexus-Hub auto-sync worker -- registered with the IdleScheduler
+ *     under `nexus.skills.autoSync.nexus-hub` (closes 10.P1.HHH).
+ *
+ * v1.10.0 Phase 4 runs a one-shot, guarded cleanup of the legacy
+ * `~/.nexus/skills/devai-hub/` catalog cache on bootstrap.
  *
  * Closes [v0.9.0:10.N.A] ModelPinRegistry wiring.
  */
@@ -33,10 +36,11 @@ import {
   type ReloadableCatalog,
 } from "../../../../core/skills/SkillsReloader.js";
 import {
-  createDevAIHubSyncTask,
-  DEVAI_HUB_SYNC_TASK_ID,
+  createNexusHubSyncTask,
+  NEXUS_HUB_SYNC_TASK_ID,
   type SyncWorkerRunner,
-} from "../../../../core/skills/DevAIHubAutoSync.js";
+} from "../../../../core/skills/NexusHubAutoSync.js";
+import { migrateLegacyCatalogCleanup } from "../../../../core/skills/migrateLegacyCatalog.js";
 import type { IdleScheduler } from "./idleScheduler.js";
 
 export interface CodingBootstrapOptions {
@@ -58,13 +62,13 @@ export interface CodingBootstrapOptions {
    */
   readonly catalogRoot?: string;
   /**
-   * Idle scheduler used to register the weekly DevAI-Hub auto-sync worker.
+   * Idle scheduler used to register the weekly Nexus-Hub auto-sync worker.
    * Omit to skip the registration.
    */
   readonly idleScheduler?: IdleScheduler;
   /**
    * Inject a sync runner for tests. Defaults to a closure that lazy-loads
-   * `DevAIHubSyncer` and runs `sync({apply: true})`.
+   * `NexusHubSyncer` and runs `sync({apply: true})`.
    */
   readonly syncRunner?: SyncWorkerRunner;
   /** Override the cadence for the auto-sync worker (tests). Defaults to 7 days. */
@@ -84,11 +88,14 @@ export interface CodingBootstrap {
   readonly keepAliveResolver: (model: string) => number | string | null;
   /** Active SkillsReloader when a catalog was supplied; null otherwise. */
   readonly skillsReloader: SkillsReloader | null;
-  /** True when the DevAI-Hub auto-sync worker was registered with the IdleScheduler. */
+  /** True when the Nexus-Hub auto-sync worker was registered with the IdleScheduler. */
   readonly autoSyncRegistered: boolean;
+  /** True when the one-shot legacy `~/.nexus/skills/devai-hub/` cleanup removed the cache this run. */
+  readonly legacyCatalogMigrated: boolean;
 }
 
-const AUTO_SYNC_SETTING_KEY = "nexus.skills.autoSync.devai-hub";
+const AUTO_SYNC_SETTING_KEY = "nexus.skills.autoSync.nexus-hub";
+const LEGACY_AUTO_SYNC_SETTING_KEY = "nexus.skills.autoSync.devai-hub";
 
 export async function bootstrapCoding(opts: CodingBootstrapOptions): Promise<CodingBootstrap> {
   const settings =
@@ -98,6 +105,15 @@ export async function bootstrapCoding(opts: CodingBootstrapOptions): Promise<Cod
     });
   const modelPins = new ModelPinRegistry({ settings });
   await modelPins.hydrate();
+
+  // v1.10.0 Phase 4: one-shot, guarded cleanup of the legacy
+  // `~/.nexus/skills/devai-hub/` catalog cache (best-effort; never blocks boot).
+  let legacyCatalogMigrated = false;
+  try {
+    legacyCatalogMigrated = migrateLegacyCatalogCleanup(opts.nexusHome).removedLegacyCatalog;
+  } catch {
+    legacyCatalogMigrated = false;
+  }
 
   let skillsReloader: SkillsReloader | null = null;
   if (opts.skillCatalog) {
@@ -110,10 +126,19 @@ export async function bootstrapCoding(opts: CodingBootstrapOptions): Promise<Cod
 
   let autoSyncRegistered = false;
   if (opts.idleScheduler) {
-    const enabled = await settings.get<boolean>(AUTO_SYNC_SETTING_KEY);
+    // Read the new key; one-shot migrate the legacy key's value forward so an
+    // existing opt-in survives the `devai-hub` -> `nexus-hub` setting rename.
+    let enabled = await settings.get<boolean>(AUTO_SYNC_SETTING_KEY);
+    if (enabled === undefined) {
+      const legacy = await settings.get<boolean>(LEGACY_AUTO_SYNC_SETTING_KEY);
+      if (legacy !== undefined) {
+        await settings.set(AUTO_SYNC_SETTING_KEY, legacy);
+        enabled = legacy;
+      }
+    }
     if (enabled === true) {
       opts.idleScheduler.register(
-        createDevAIHubSyncTask({
+        createNexusHubSyncTask({
           runner: opts.syncRunner,
           cadenceMs: opts.autoSyncCadenceMs,
           idleThresholdMs: opts.autoSyncIdleMs,
@@ -122,7 +147,7 @@ export async function bootstrapCoding(opts: CodingBootstrapOptions): Promise<Cod
       autoSyncRegistered = true;
     } else {
       // Make sure a stale registration is cleared when the setting flips off.
-      opts.idleScheduler.unregister(DEVAI_HUB_SYNC_TASK_ID);
+      opts.idleScheduler.unregister(NEXUS_HUB_SYNC_TASK_ID);
     }
   }
 
@@ -132,6 +157,7 @@ export async function bootstrapCoding(opts: CodingBootstrapOptions): Promise<Cod
     keepAliveResolver: (model) => modelPins.keepAliveFor(model),
     skillsReloader,
     autoSyncRegistered,
+    legacyCatalogMigrated,
   };
 }
 

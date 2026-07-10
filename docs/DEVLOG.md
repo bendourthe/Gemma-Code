@@ -4,6 +4,31 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-10] v1.10.0 Nexus-Hub consumption re-architecture -- Phase 4: rename AutoSync + one-shot migration + guarded cleanup (T021-T025)
+
+### Goal
+
+Rename the auto-sync worker + setting key off the `devai-hub` namespace, migrate an existing opt-in forward, and add a guarded one-shot cleanup of the legacy `~/.nexus/skills/devai-hub/` catalog cache.
+
+### What changed
+
+- **T021 rename** [NexusHubAutoSync.ts](../core/skills/NexusHubAutoSync.ts) (was `DevAIHubAutoSync.ts`): task id `nexus.skills.devai-hub-sync` -> `nexus.skills.nexus-hub-sync`; `createDevAIHubSyncTask` -> `createNexusHubSyncTask` (+ the cadence/idle constants). `defaultSyncRunner` already lazy-loads `NexusHubSyncer` (Phase 2).
+- **T022 setting key**: `nexus.skills.autoSync.devai-hub` -> `nexus.skills.autoSync.nexus-hub` in [package.json](../package.json) + [codingBootstrap](../desktop/sidecar/src/runtime/codingBootstrap.ts). A read-migration in `bootstrapCoding` honors the legacy key's value once and rewrites it to the new key, so an existing opt-in survives the rename.
+- **T023/T024** new [migrateLegacyCatalog.ts](../core/skills/migrateLegacyCatalog.ts): `migrateLegacyCatalogCleanup(nexusHome)` removes ONLY `<nexusHome>/skills/devai-hub/` (and `<nexusHome>/skills/` if it becomes empty), guarded against an empty/root home, one-way + idempotent. The catalog is a cache, so no content is moved -- the syncer repopulates `~/.nexus-ai/catalog/` on first launch. Wired into `bootstrapCoding` (best-effort, non-fatal); surfaced as `legacyCatalogMigrated`.
+- **SAFETY**: an adversarial test proves the cleanup preserves `settings.json`, `mcp.json`, `models/`, `session-artifacts/`, and `skills/user/` while removing only the `devai-hub` cache; empty/root homes are refused.
+
+### Verification
+
+Full root suite **4588 passed / 6 skipped / 0 failed**; root `tsc -b` + desktop `tsc --noEmit` + eslint (root + desktop) clean. New/updated tests: [migrateLegacyCatalog.test.ts](../tests/unit/core/skills/migrateLegacyCatalog.test.ts) (8 -- removal, empty-skills-root, user-skills-preserved, app-data-untouched, idempotency, empty/root guards), renamed [NexusHubAutoSync.test.ts](../tests/unit/core/skills/NexusHubAutoSync.test.ts) (7), + 2 `codingBootstrap` tests (legacy setting migration + one-shot cleanup).
+
+### Note
+
+The cleanup + auto-sync run through `bootstrapCoding`, which is not yet called by the live sidecar (Phase 6 wires it); they activate then (`NHC.P4.A`). The app-data home consolidation (`~/.nexus/*` -> `~/.nexus-ai/*`) remains a separate follow-up plan (`NHC.HOME.1`).
+
+### Branch
+
+`feat/v1.10.0-nexus-hub-consumption`.
+
 ## [2026-07-09] v1.10.0 Nexus-Hub consumption re-architecture -- Phase 3: reroute all readers to the catalog resolver (T014-T020)
 
 ### Goal

@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { promises as fs } from "node:fs";
+import { existsSync } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
@@ -9,7 +10,7 @@ import {
 } from "../sidecar/src/runtime/codingBootstrap";
 import { InMemorySettingsStore } from "../../core/storage/SettingsStore";
 import { IdleScheduler } from "../sidecar/src/runtime/idleScheduler";
-import { DEVAI_HUB_SYNC_TASK_ID } from "../../core/skills/DevAIHubAutoSync";
+import { NEXUS_HUB_SYNC_TASK_ID } from "../../core/skills/NexusHubAutoSync";
 
 describe("bootstrapCoding", () => {
   let root: string;
@@ -61,7 +62,7 @@ describe("bootstrapCoding", () => {
     expect(boot.skillsReloader).toBeNull();
   });
 
-  it("registers the DevAI-Hub auto-sync worker when the setting is true", async () => {
+  it("registers the Nexus-Hub auto-sync worker when the setting is true", async () => {
     const settings = new InMemorySettingsStore();
     await settings.set(AUTO_SYNC_SETTING_KEY, true);
     const scheduler = new IdleScheduler({ now: () => 0 });
@@ -111,6 +112,30 @@ describe("bootstrapCoding", () => {
     expect(boot2.autoSyncRegistered).toBe(false);
     expect(scheduler.size()).toBe(0);
     // Direct constant access matches the well-known id.
-    expect(DEVAI_HUB_SYNC_TASK_ID).toBe("nexus.skills.devai-hub-sync");
+    expect(NEXUS_HUB_SYNC_TASK_ID).toBe("nexus.skills.nexus-hub-sync");
+  });
+
+  it("migrates the legacy autoSync.devai-hub setting value to the new key", async () => {
+    const settings = new InMemorySettingsStore();
+    await settings.set("nexus.skills.autoSync.devai-hub", true); // legacy key only
+    const scheduler = new IdleScheduler({ now: () => 0 });
+    const boot = await bootstrapCoding({
+      nexusHome: root,
+      settings,
+      idleScheduler: scheduler,
+      syncRunner: async () => {},
+    });
+    expect(boot.autoSyncRegistered).toBe(true);
+    // The legacy value was rewritten forward to the new key.
+    expect(await settings.get<boolean>("nexus.skills.autoSync.nexus-hub")).toBe(true);
+  });
+
+  it("runs the one-shot legacy devai-hub cleanup on bootstrap and preserves app data", async () => {
+    await fs.mkdir(path.join(root, "skills", "devai-hub", "v1.0.0"), { recursive: true });
+    await fs.writeFile(path.join(root, "settings.json"), '{"keep":1}', "utf8");
+    const boot = await bootstrapCoding({ nexusHome: root, settings: new InMemorySettingsStore() });
+    expect(boot.legacyCatalogMigrated).toBe(true);
+    expect(existsSync(path.join(root, "skills", "devai-hub"))).toBe(false);
+    expect(existsSync(path.join(root, "settings.json"))).toBe(true);
   });
 });

@@ -1,38 +1,39 @@
 /**
- * v1.1.0 Phase 8.2 -- weekly DevAI-Hub auto-sync worker tests.
+ * v1.1.0 Phase 8.2 -- weekly Nexus-Hub auto-sync worker tests.
+ * v1.10.0 Phase 4 -- renamed from DevAIHubAutoSync; task id moves to the
+ * `nexus-hub` namespace.
  *
- * Asserts the factory returns the right shape and that the IdleScheduler
- * fires the worker after the documented 7-day cadence using a fast-clock
- * fixture.
+ * Asserts the factory returns the right shape and that the IdleScheduler fires
+ * the worker after the documented 7-day cadence using a fast-clock fixture.
  */
 
 import { describe, it, expect } from "vitest";
 import {
-  createDevAIHubSyncTask,
+  createNexusHubSyncTask,
   defaultSyncRunner,
-  DEVAI_HUB_SYNC_CADENCE_MS,
-  DEVAI_HUB_SYNC_IDLE_MS,
-  DEVAI_HUB_SYNC_TASK_ID,
-} from "../../../../core/skills/DevAIHubAutoSync.js";
+  NEXUS_HUB_SYNC_CADENCE_MS,
+  NEXUS_HUB_SYNC_IDLE_MS,
+  NEXUS_HUB_SYNC_TASK_ID,
+} from "../../../../core/skills/NexusHubAutoSync.js";
 import { IdleScheduler } from "../../../../desktop/sidecar/src/runtime/idleScheduler.js";
 
-describe("DevAIHubAutoSync", () => {
+describe("NexusHubAutoSync", () => {
   it("exposes the documented constants", () => {
-    expect(DEVAI_HUB_SYNC_TASK_ID).toBe("nexus.skills.devai-hub-sync");
-    expect(DEVAI_HUB_SYNC_CADENCE_MS).toBe(7 * 24 * 60 * 60_000);
-    expect(DEVAI_HUB_SYNC_IDLE_MS).toBe(5 * 60_000);
+    expect(NEXUS_HUB_SYNC_TASK_ID).toBe("nexus.skills.nexus-hub-sync");
+    expect(NEXUS_HUB_SYNC_CADENCE_MS).toBe(7 * 24 * 60 * 60_000);
+    expect(NEXUS_HUB_SYNC_IDLE_MS).toBe(5 * 60_000);
   });
 
-  it("createDevAIHubSyncTask returns the scheduler-ready shape with defaults", () => {
-    const task = createDevAIHubSyncTask({ runner: async () => {} });
-    expect(task.id).toBe(DEVAI_HUB_SYNC_TASK_ID);
-    expect(task.idleThresholdMs).toBe(DEVAI_HUB_SYNC_IDLE_MS);
-    expect(task.cadenceMs).toBe(DEVAI_HUB_SYNC_CADENCE_MS);
+  it("createNexusHubSyncTask returns the scheduler-ready shape with defaults", () => {
+    const task = createNexusHubSyncTask({ runner: async () => {} });
+    expect(task.id).toBe(NEXUS_HUB_SYNC_TASK_ID);
+    expect(task.idleThresholdMs).toBe(NEXUS_HUB_SYNC_IDLE_MS);
+    expect(task.cadenceMs).toBe(NEXUS_HUB_SYNC_CADENCE_MS);
     expect(typeof task.run).toBe("function");
   });
 
-  it("createDevAIHubSyncTask accepts overrides for cadence and idle threshold", () => {
-    const task = createDevAIHubSyncTask({
+  it("createNexusHubSyncTask accepts overrides for cadence and idle threshold", () => {
+    const task = createNexusHubSyncTask({
       runner: async () => {},
       cadenceMs: 1000,
       idleThresholdMs: 50,
@@ -52,7 +53,7 @@ describe("DevAIHubAutoSync", () => {
     let runs = 0;
     const scheduler = new IdleScheduler({ now: clock.now });
     scheduler.register(
-      createDevAIHubSyncTask({
+      createNexusHubSyncTask({
         runner: async () => {
           runs += 1;
         },
@@ -92,7 +93,7 @@ describe("DevAIHubAutoSync", () => {
     let runs = 0;
     const scheduler = new IdleScheduler({ now: clock.now });
     scheduler.register(
-      createDevAIHubSyncTask({
+      createNexusHubSyncTask({
         runner: async () => {
           runs += 1;
         },
@@ -117,11 +118,11 @@ describe("DevAIHubAutoSync", () => {
   it("toggling registration on / off is observable via scheduler.size()", async () => {
     let now = 0;
     const scheduler = new IdleScheduler({ now: () => now });
-    scheduler.register(createDevAIHubSyncTask({ runner: async () => {} }));
+    scheduler.register(createNexusHubSyncTask({ runner: async () => {} }));
     expect(scheduler.size()).toBe(1);
-    scheduler.unregister(DEVAI_HUB_SYNC_TASK_ID);
+    scheduler.unregister(NEXUS_HUB_SYNC_TASK_ID);
     expect(scheduler.size()).toBe(0);
-    scheduler.register(createDevAIHubSyncTask({ runner: async () => {} }));
+    scheduler.register(createNexusHubSyncTask({ runner: async () => {} }));
     expect(scheduler.size()).toBe(1);
   });
 });

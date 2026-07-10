@@ -379,10 +379,10 @@
           "default": true,
           "description": "v1.1.0 Phase 1.7 -- when true, the curator background task runs on the IdleTimeScheduler's idle cadence (archive stale skills, dedup memory, patch frontmatter). When false, the curator is disabled entirely. The legacy edit-threshold curator-cadence fallback has been removed; the IdleTimeScheduler is now the sole entry point."
         },
-        "nexus.skills.autoSync.devai-hub": {
+        "nexus.skills.autoSync.nexus-hub": {
           "type": "boolean",
           "default": false,
-          "description": "v1.1.0 Phase 8.2 -- when true, the sidecar registers a weekly `IdleTimeScheduler` worker that runs `nexus skills sync --apply` against the upstream DevAI-Hub baseline. Cadence: 7 days. Idle threshold: 5 minutes. Off by default; the user opts in from Settings -> Skills."
+          "description": "v1.1.0 Phase 8.2 (renamed from nexus.skills.autoSync.devai-hub in v1.10.0) -- when true, the sidecar registers a weekly `IdleTimeScheduler` worker that runs `nexus skills sync --apply` to refresh the Nexus-Hub catalog at ~/.nexus-ai/catalog/. Cadence: 7 days. Idle threshold: 5 minutes. Off by default; the user opts in from Settings -> Skills."
         },
         "nexus.skills.preferUpstream": {
           "type": "boolean",

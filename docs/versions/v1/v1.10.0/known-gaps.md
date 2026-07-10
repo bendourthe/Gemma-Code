@@ -31,6 +31,13 @@ Tracks unfinished work, deferrals, and cross-repo coordination for the v1.10.0 N
 | NHC.P3.B | P3 | DF | The Hub mcp-configs reader (`modules/coding/mcp/hubMcpRegistry.ts`) is built + tested but not yet consumed by the live MCP connect flow; it only reads + policy-filters, never auto-connects. | Matches the existing filter-only posture. Live consumption of the allowed set is wired with the in-app surface in Phase 6. |
 | NHC.P3.C | P3 | NI | `bin/nexus.mjs`'s `skills audit` command still resolves the old `~/.nexus/skills/devai-hub/` path inline (not via the removed exports). | Cosmetic + inert for a dev CLI; folded into the Phase 7 naming scrub / any later CLI pass. |
 
+## 1d. Phase 4 -- rename AutoSync + one-shot migration + guarded cleanup (landed 2026-07-10)
+
+| ID | Sev | Cat | Gap | Disposition |
+|----|-----|-----|-----|-------------|
+| NHC.P4.A | P2 | DF | The one-shot legacy-cache cleanup and the weekly auto-sync worker are wired into `bootstrapCoding`, which the live sidecar (`desktop/sidecar/src/main.ts`) does not yet call. So the cleanup does not actually run on a real launch yet. | Activates when Phase 6 wires `bootstrapCoding` (+ first-launch fetch + update detection) into the live sidecar startup. Fully built + tested now. |
+| NHC.P4.B | P3 | NI | The setting-key rename (`autoSync.devai-hub` -> `autoSync.nexus-hub`) migrates the value in the sidecar `SettingsStore` (`~/.nexus/settings.json`) forward. A value set only in VS Code's own `settings.json` (the contributed setting) is not auto-migrated. | Low impact: the feature is opt-in + default-off and not wired live yet; a user re-opts-in via the renamed setting if their old value lived only in VS Code settings. |
+
 ## 2. Cross-repo coordination (Nexus-Hub)
 
 | ID | Sev | Cat | Gap | Disposition |
