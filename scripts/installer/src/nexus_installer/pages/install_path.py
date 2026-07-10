@@ -72,10 +72,11 @@ class InstallPathPage(QWidget):
         callout = CalloutBox(
             title="What gets installed where",
             body=(
-                "\u2022 VS Code extension: installed via <code>code --install-extension</code><br>"
-                "\u2022 Ollama: system-wide (platform package manager)<br>"
-                "\u2022 Python venv: <code>&lt;install_path&gt;/venv/</code><br>"
-                "\u2022 Nexus models: stored by Ollama in its default model directory"
+                "\u2022 VS Code extension: added to your VS Code<br>"
+                "\u2022 Ollama: installed system-wide (the local model runtime)<br>"
+                "\u2022 Python tools: in a self-contained folder inside "
+                "your install path<br>"
+                "\u2022 Nexus models: downloaded to Ollama's model folder"
             ),
         )
         layout.addWidget(callout)

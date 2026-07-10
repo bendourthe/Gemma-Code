@@ -78,7 +78,7 @@ class ConfigurationPage(QWidget):
         layout.addWidget(features_label)
 
         self._thinking_toggle = QCheckBox(
-            "Enable thinking mode (chain-of-thought reasoning)"
+            "Enable thinking mode (show the model's step-by-step reasoning)"
         )
         self._thinking_toggle.setChecked(state.enable_thinking)
         self._thinking_toggle.stateChanged.connect(
@@ -87,7 +87,7 @@ class ConfigurationPage(QWidget):
         layout.addWidget(self._thinking_toggle)
 
         self._memory_toggle = QCheckBox(
-            "Enable persistent memory (cross-session recall)"
+            "Enable persistent memory (remember context across sessions)"
         )
         self._memory_toggle.setChecked(state.enable_memory)
         self._memory_toggle.stateChanged.connect(

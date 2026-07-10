@@ -4,6 +4,30 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-09] v1.9.0 installer + app UI rework -- Phase 7: installer whole-app copy/readability pass + end-to-end QA (T026-T028)
+
+### Goal
+
+A final copy/readability sweep across the active installer pages, a consistency pass, and a full build-and-walk verification against the DoD. This closes the **installer PR** (Phases 1-7).
+
+### What changed
+
+- **T026 -- plain-language copy**: removed the jargon the operator flagged. The GPU-page model-tier labels drop "MoE" / "Dense" / the "E4B/E2B" codenames -> "Top quality" / "Balanced" / "Recommended" / "Lightweight" (the param size still shows in the model name); the [install_path](../scripts/installer/src/nexus_installer/pages/install_path.py) "What gets installed where" callout drops the `code --install-extension` command, "venv", and "platform package manager" for plain wording (keeps the "Nexus models" line); the [configuration](../scripts/installer/src/nexus_installer/pages/configuration.py) feature toggles lose "chain-of-thought reasoning" -> "show the model's step-by-step reasoning" and "cross-session recall" -> "remember context across sessions". Reviewed prerequisites / review / installing / complete: their copy is already plain (the complete-page "Managing Nexus" command rows are power-user commands, left intact).
+- **T027 -- consistency pass**: confirmed (grep gate) that every active page/widget -- callout boxes, phase groups, footers, the welcome/prereq status dots -- carries **zero** literal `font-size` (all sizes come from the Phase-1 `FS_*` scale), and colors are the semantic/provider tokens (no ad-hoc hex).
+- **T028 -- build + QA consolidation**: re-built the frozen installer end-to-end and rolled the deferred per-phase on-device visual checks (`UIR.P3.A`/`P4.A`/`P5.A`/`P6.A`) into a single installer visual-QA rehearsal (`UIR.P7.A`) -- the "walk all 9 steps, capture a screenshot each, verify DoD 1-8" pass, which needs a GUI this headless sandbox cannot provide.
+
+### Verification
+
+Installer suite **672 passed / 2 skipped / 0 failed**; the one gpu-tier test that pinned the old label substring (`"31B" in label`) was decoupled to assert the model name (the size is already in the name). Grep gate: 0 literal font-sizes in active files. **Frozen build re-run this phase** (`pyinstaller build/nexus-installer.spec`) produced `NexusSetup.exe` (73.7 MB) which boots (`--version` -> `nexus-ai-studio-installer 1.1.0`) and resolves `_MEIPASS`-staged files (`--check-registry` exit 0 from the real `_MEI...` dir) -- so the whole installer with Phases 1-7 applied builds + boots cleanly. ruff clean on the changed lines (3 pre-existing E501s -- a PowerShell command string + two test mock lines -- left per scope discipline). No TS/app code touched.
+
+The on-device installer walk-through (DoD items 1-8: type hierarchy, step labels, static no-lag logo, taskbar icon, two-tone wordmark, scrollbars/checkbox, provider colors, plain copy) is recorded as `UIR.P7.A` for the operator rehearsal -- the same disposition as the v1.9.0 `installer-and-app-experience-overhaul` `IAE.P*` on-device checks.
+
+### Branch
+
+Continues on the v1.9.0 installer line (`feat/v1.9.0-installer-phase-1`). Phases 1-7 (the installer PR) are code-complete; the remaining Phases 8-9 are the app PR (aurora generation animation + chat disclaimer) on a separate branch.
+
+---
+
 ## [2026-07-09] v1.9.0 installer + app UI rework -- Phase 6: installer Models page - per-provider color + plain-language cards + intro copy (T022-T025)
 
 ### Goal

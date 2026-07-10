@@ -18,7 +18,9 @@ class TestRecommendModel:
     def test_high_vram_recommends_31b(self) -> None:
         name, label, _ = recommend_model(24576)
         assert name == "gemma4:31b"
-        assert "31B" in label
+        # v1.9.0 T026: the label is a plain-language descriptor (the size "31B"
+        # is already shown in the model name), so assert it exists, not its text.
+        assert label
 
     def test_20gb_recommends_31b(self) -> None:
         name, _, _ = recommend_model(20480)

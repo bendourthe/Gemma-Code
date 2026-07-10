@@ -34,11 +34,12 @@ DETECTION_TIMEOUT = 5
 # Model recommendation thresholds (mirrors HardwareTier.ts)
 # ---------------------------------------------------------------------------
 MODEL_TIERS: list[tuple[int, str, str, str]] = [
-    # (min_vram_mb, model_name, label, description)
-    (20480, "gemma4:31b", "Dense 31B", "Best quality, requires high VRAM"),
-    (8192, "gemma4:26b", "26B MoE", "Excellent balance of quality and speed"),
-    (6144, "gemma4:e4b", "E4B (4.5B)", "Recommended for most GPUs"),
-    (4096, "gemma4:e2b", "E2B (2.3B)", "Lightweight, fast responses"),
+    # (min_vram_mb, model_name, label, description) -- plain-language labels
+    # (v1.9.0 T026): no "MoE"/"Dense"/param jargon in the user-facing copy.
+    (20480, "gemma4:31b", "Top quality", "Best answers; needs a high-VRAM GPU"),
+    (8192, "gemma4:26b", "Balanced", "Excellent quality and speed"),
+    (6144, "gemma4:e4b", "Recommended", "The best fit for most GPUs"),
+    (4096, "gemma4:e2b", "Lightweight", "Fast responses on modest GPUs"),
 ]
 
 
@@ -47,7 +48,7 @@ def recommend_model(vram_mb: int) -> tuple[str, str, str]:
     for min_vram, name, label, desc in MODEL_TIERS:
         if vram_mb >= min_vram:
             return name, label, desc
-    return "gemma4:e2b", "E2B (2.3B)", "Lightweight -- CPU-only mode may be slow"
+    return "gemma4:e2b", "Lightweight", "Runs on CPU; responses may be slow"
 
 
 # ---------------------------------------------------------------------------

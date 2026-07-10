@@ -169,3 +169,21 @@ Phase 5 opened **no P0 blockers** and closed the highest-risk item of the plan (
 | `UIR.P6.A` | P2 | DF | **Card-color readability + Models-page layout not eyeballed.** The per-provider coloring is proven structurally (no model shows >1 color across tabs; `gemma4:e4b` is one Google-cyan in both Chat and Agentic; the 11-provider legend renders), but whether the palette reads well against the dark cards, and whether the description-led card + full-width "Best for" + slim pill row + legend all lay out cleanly at the default 912px width, needs a running GUI. | Fold into the Phase 7 frozen-build walk-through (DoD items 7 provider colors + 8 plain copy). |
 
 Phase 6 opened **no P0/P1 blockers**: T022 (per-provider color) is verified to satisfy DoD #7 (same model = one color across tabs) against the real catalog; T023-T025 (card rebuild, copy, legend) are code-complete with regression guards. The phase touched only `typed_catalog.py` + its test, with no baseline-file entanglement.
+
+### Phase 7 -- Installer whole-app copy/readability pass + end-to-end QA (2026-07-09)
+
+| ID | Sev | Cat | Item | Disposition |
+|---|---|---|---|---|
+| `UIR.P7.A` | P1 | DF | **Installer on-device visual walk-through (DoD 1-8) not run.** T028's "build the frozen installer, walk all 9 steps, capture a screenshot each, and verify DoD items 1-8" needs a running GUI, which this headless sandbox lacks (no display; the offscreen Qt platform resolves no fonts). This **consolidates** the per-phase deferrals `UIR.P3.A` (type hierarchy), `UIR.P4.A` (two-tone wordmark + stepper legibility + logo no-lag), `UIR.P5.A` (taskbar/window icon + scrollbars + checkbox), and `UIR.P6.A` (per-provider card colors + plain copy) into one installer rehearsal. Everything is verified structurally / by-construction: the frozen exe builds + boots + resolves `_MEIPASS` (Phase 5), the installer suite is green, the type scale + provider color + no-literal-font-size grep gates pass, and no `QPropertyAnimation` remains. | Operator rehearsal on a real desktop: build `dist/NexusSetup.exe`, walk Welcome -> Complete, and confirm DoD 1-8 (below), capturing a screenshot per step. Mirrors the v1.9.0 `installer-and-app-experience-overhaul` `IAE.P*` on-device pattern. |
+
+**Installer DoD 1-8 rehearsal checklist** (operator, on-device):
+1. Every page uses one coherent type scale (Display > H1 > H2 > H3 > Body > Caption); nothing below 14px.
+2. "Step X of Y" + the per-step labels are legible and sit clearly below the stepper dots with no overlap (check at the 840px min width too).
+3. No floating-logo bob anywhere; the header shows a static Nexus mark; no perceptible lag on any page.
+4. The Windows taskbar + window show the Nexus mark (not the generic Python icon) for the frozen `NexusSetup.exe`.
+5. The header wordmark is the guide's two-tone "**Nexus** AI Studio" treatment.
+6. Scrollbars are transparent-track pill-shaped; the per-model checkbox shows crisp checked/unchecked/hover/focus/disabled states.
+7. On the Models step, a model in both Chat and Agentic shows the **same** (per-provider) color; the legend reads clearly.
+8. Model descriptions + all page copy read as plain language.
+
+Phase 7 opened **no P0 blockers**: the installer PR (Phases 1-7) is code-complete and green; the only open item is the on-device visual rehearsal `UIR.P7.A` (which subsumes P3.A/P4.A/P5.A/P6.A). Residual pre-existing E501s (a gpu_detection PowerShell string, two test mock lines) were left per scope discipline.
