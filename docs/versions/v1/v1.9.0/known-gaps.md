@@ -187,3 +187,11 @@ Phase 6 opened **no P0/P1 blockers**: T022 (per-provider color) is verified to s
 8. Model descriptions + all page copy read as plain language.
 
 Phase 7 opened **no P0 blockers**: the installer PR (Phases 1-7) is code-complete and green; the only open item is the on-device visual rehearsal `UIR.P7.A` (which subsumes P3.A/P4.A/P5.A/P6.A). Residual pre-existing E501s (a gpu_detection PowerShell string, two test mock lines) were left per scope discipline.
+
+### Phase 8 -- App generation animation (aurora in Image Studio + Video Lab) (2026-07-09)
+
+| ID | Sev | Cat | Item | Disposition |
+|---|---|---|---|---|
+| `UIR.P8.A` | P1 | DF | **Aurora render + reduced-motion not visually confirmed.** The `GenerationCanvas` is structurally verified (5 unit tests: 3 aurora layers + shimmer, materializing preview opacity coupled to progress, overlay children, no-preview omission; `tsc` + eslint clean; desktop suite 520 green) and mounted in both studios, but the actual animation -- the layers drifting smoothly at 60fps, the shimmer sweep, the "materializing" preview, and the `prefers-reduced-motion` static-glow fallback -- can only be seen in a running app (`tauri dev` / `dev:web`), which this headless sandbox cannot launch. Perf-bounding alongside the constellation backdrop is likewise unverified. | Operator rehearsal: run `tauri dev`, start an image job and a video job, and confirm the aurora + shimmer play in the rounded preview box, the live preview/thumbnails overlay it, it hands off cleanly to the final media, and (with OS reduce-motion on) it shows the soft static glow with no drift. Part of the Phase 9 app end-to-end QA. |
+
+Phase 8 opened **no P0 blockers**: the aurora component is code-complete, tested, and mounted; only the visual/perf confirmation (`UIR.P8.A`) is deferred to the on-device app rehearsal. Uses the Phase-1 aurora spec + existing tokens; the optional `--aurora-violet` token was introduced as the spec allowed.

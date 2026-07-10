@@ -159,3 +159,132 @@ button {
   background-color: var(--status-err);
   color: var(--fg-0);
 }
+
+/* ---------------------------------------------------------------------------
+ * v1.9.0 Phase 8 (T029/T030) -- the on-brand aurora "generating" animation for
+ * the Image Studio + Video Lab preview boxes (the <GenerationCanvas/> mark).
+ * Oversized blurred radial-gradient layers drift via transform on staggered
+ * loops (mix-blend-mode: screen) inside a rounded, overflow-hidden box, plus a
+ * sweeping shimmer bar. Built on the existing glow tokens; all motion is gated
+ * behind prefers-reduced-motion (a soft static glow fallback). See
+ * docs/versions/v1/v1.9.0/ui-rework-design.md Section 3.
+ * ------------------------------------------------------------------------- */
+
+:root {
+  /* The aurora's third hue (the spec's optional violet), scoped here. */
+  --aurora-violet: #a78bfa;
+}
+
+.nexus-generation-canvas {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--bg-1);
+  box-shadow: var(--glow-lg);
+  /* Contain the layers' screen blend to this box. */
+  isolation: isolate;
+}
+
+.nexus-aurora-layer {
+  position: absolute;
+  inset: -35%;
+  border-radius: 50%;
+  filter: blur(26px);
+  mix-blend-mode: screen;
+  will-change: transform;
+  pointer-events: none;
+}
+
+.nexus-aurora-layer-1 {
+  background: radial-gradient(circle at 30% 30%, var(--glow-cyan), transparent 60%);
+  animation: nexus-aurora-1 9s ease-in-out infinite;
+}
+.nexus-aurora-layer-2 {
+  background: radial-gradient(circle at 70% 40%, var(--glow-cyan-node), transparent 60%);
+  animation: nexus-aurora-2 10s ease-in-out infinite;
+}
+.nexus-aurora-layer-3 {
+  background: radial-gradient(circle at 50% 70%, var(--aurora-violet), transparent 60%);
+  animation: nexus-aurora-3 11s ease-in-out infinite;
+}
+
+@keyframes nexus-aurora-1 {
+  0%,
+  100% {
+    transform: translate3d(-8%, -6%, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(10%, 8%, 0) scale(1.15);
+  }
+}
+@keyframes nexus-aurora-2 {
+  0%,
+  100% {
+    transform: translate3d(8%, 4%, 0) scale(1.1);
+  }
+  50% {
+    transform: translate3d(-10%, -8%, 0) scale(1);
+  }
+}
+@keyframes nexus-aurora-3 {
+  0%,
+  100% {
+    transform: translate3d(-4%, 10%, 0) scale(1.05);
+  }
+  50% {
+    transform: translate3d(6%, -10%, 0) scale(1.2);
+  }
+}
+
+/* Sweeping highlight bar (the ChatGPT-style shimmer). */
+.nexus-aurora-shimmer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    rgba(234, 246, 248, 0.16) 50%,
+    transparent 70%
+  );
+  background-size: 300% 100%;
+  animation: nexus-aurora-shimmer 2.4s ease-in-out infinite;
+}
+@keyframes nexus-aurora-shimmer {
+  0% {
+    background-position: 180% 0;
+  }
+  100% {
+    background-position: -80% 0;
+  }
+}
+
+/* Live latent preview overlaid on the aurora, materializing via inline opacity. */
+.nexus-generation-preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  z-index: 1;
+}
+
+/* Arbitrary overlay content (e.g. the Video Lab thumbnail strip). */
+.nexus-generation-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nexus-aurora-layer,
+  .nexus-aurora-shimmer {
+    display: none;
+  }
+  /* Soft static cyan glow instead of the drifting aurora. */
+  .nexus-generation-canvas {
+    background:
+      radial-gradient(circle at 50% 45%, rgba(56, 189, 248, 0.22), transparent 62%),
+      var(--bg-1);
+  }
+}

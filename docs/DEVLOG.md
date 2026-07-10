@@ -4,6 +4,29 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-09] v1.9.0 installer + app UI rework -- Phase 8: app generation animation (aurora in Image Studio + Video Lab) (T029-T032)
+
+### Goal
+
+Build a reusable on-brand aurora "generating" component and mount it in the two studios' preview boxes while a job runs, replacing the bare placeholder text. First phase of the **app PR** (Tauri/React, `desktop/`).
+
+### What changed
+
+- **T029 -- `GenerationCanvas`** ([components/GenerationCanvas.tsx](../desktop/src/components/GenerationCanvas.tsx)): a rounded, `overflow: hidden` box with three oversized (`inset: -35%`) blurred (`filter: blur(26px)`) radial-gradient layers that drift via `transform: translate3d(...) scale(...)` on staggered 9/10/11s ease-in-out loops (`mix-blend-mode: screen`, `will-change: transform`), plus a sweeping shimmer bar. The keyframes + classes live in [globals.css](../desktop/src/styles/globals.css) using existing glow tokens (`--glow-cyan`, `--glow-cyan-node`, `--glow-lg`, `--radius-lg`) + a new scoped `--aurora-violet`; a per-pillar tint (`--accent-image` / `--accent-video`) recolors the third layer. All motion is gated behind `@media (prefers-reduced-motion: reduce)`, which hides the layers/shimmer and shows a soft static cyan glow.
+- **T030 -- progress coupling**: an optional live latent-preview image is overlaid and fades in with `progress` (opacity `0.35 -> 1.0`) so the result reads as "materializing"; `children` overlay arbitrary content (the Video Lab thumbnail strip).
+- **T031 -- Image Studio** ([ImageStudioPage.tsx](../desktop/src/modules/image/ImageStudioPage.tsx)): the txt2img preview box shows the `GenerationCanvas` (tint `image`) while `isGenerating`, overlaying the live latent; it hands off to the final output (in the gallery) on completion, and shows a calm "Your generated image will appear here." placeholder when idle.
+- **T032 -- Video Lab** ([VideoLabPage.tsx](../desktop/src/modules/video/VideoLabPage.tsx)): while a job runs, the aurora (tint `video`) backs the per-second thumbnail strip (extracted to a `thumbnailStrip` const so it renders in every state); the strip is a plain card when idle / after a run, and the completed clip hands off to the `TimelinePreviewer` below.
+
+### Verification
+
+Desktop suite **520 passed / 0 failed** (+5 new `GenerationCanvas` tests: busy aurora region with 3 layers + shimmer, materializing preview opacity coupled to progress, no-preview omission, overlay children, progress clamping). `tsc --noEmit` clean; eslint clean on the changed files. The two `VideoLabPage` tests that asserted the always-present strip were reconciled by rendering the strip in every state (the aurora only wraps it during generation). The actual aurora rendering + drift + the reduced-motion static-glow fallback need a running app (`tauri dev` / browser) -> recorded as `UIR.P8.A`.
+
+### Branch
+
+Continues on `feat/v1.9.0-installer-phase-1` (operator opted to keep Phases 8-9 on the same branch rather than a separate app branch, since everything is local with no PRs open and the docs stay consistent). Consumes the Phase-1 aurora spec (`ui-rework-design.md` Section 3) and existing `tokens.css` glow tokens. Phase 9 (chat disclaimer + logo/icon parity + app QA) is the plan's final phase.
+
+---
+
 ## [2026-07-09] v1.9.0 installer + app UI rework -- Phase 7: installer whole-app copy/readability pass + end-to-end QA (T026-T028)
 
 ### Goal

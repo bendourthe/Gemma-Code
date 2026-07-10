@@ -18,6 +18,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { GenerationCanvas } from "../../components/GenerationCanvas";
 import {
   DEFAULT_VIDEO_FORM_VALUES,
   VideoPromptForm,
@@ -231,6 +232,55 @@ export function VideoLabPage({
     [activePreview, resolveMp4Url],
   );
 
+  // The per-second live-preview strip. Rendered in every state; while a job
+  // runs it is overlaid on the aurora GenerationCanvas (T032), otherwise it is
+  // a plain card (idle placeholder, or the captured previews after a run).
+  const thumbnailStrip = (
+    <div
+      data-testid="video-thumbnail-strip"
+      style={{
+        display: "flex",
+        gap: "var(--space-1)",
+        minHeight: "60px",
+        padding: "var(--space-2)",
+        alignItems: "center",
+        overflowX: "auto",
+      }}
+    >
+      {thumbnails.length === 0 && (
+        <span
+          data-testid="video-thumbnail-empty"
+          style={{ color: isGenerating ? "var(--fg-1)" : "var(--fg-muted)" }}
+        >
+          {isGenerating
+            ? "Rendering live previews..."
+            : "Live previews appear here while a job runs."}
+        </span>
+      )}
+      {thumbnails.map((thumb, index) => (
+        <div
+          key={`thumb-${index}`}
+          data-testid={`video-thumbnail-${index}`}
+          style={{
+            width: "80px",
+            height: "45px",
+            background: "var(--bg-2)",
+            borderRadius: "var(--radius-sm)",
+            flex: "0 0 auto",
+          }}
+        >
+          {thumb && (
+            <img
+              alt={`Frame at ${index}s`}
+              src={`data:image/jpeg;base64,${thumb}`}
+              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+            />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+
   return (
     <section
       data-testid="video-lab-page"
@@ -327,45 +377,30 @@ export function VideoLabPage({
         </aside>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
-          <div
-            data-testid="video-thumbnail-strip"
-            style={{
-              display: "flex",
-              gap: "var(--space-1)",
-              minHeight: "60px",
-              padding: "var(--space-1)",
-              background: "var(--bg-1)",
-              borderRadius: "var(--radius-md)",
-              overflowX: "auto",
-            }}
-          >
-            {thumbnails.length === 0 && (
-              <span data-testid="video-thumbnail-empty" style={{ color: "var(--fg-muted)" }}>
-                Live previews appear here while a job runs.
-              </span>
-            )}
-            {thumbnails.map((thumb, index) => (
-              <div
-                key={`thumb-${index}`}
-                data-testid={`video-thumbnail-${index}`}
-                style={{
-                  width: "80px",
-                  height: "45px",
-                  background: "var(--bg-2)",
-                  borderRadius: "var(--radius-sm)",
-                  flex: "0 0 auto",
-                }}
-              >
-                {thumb && (
-                  <img
-                    alt={`Frame at ${index}s`}
-                    src={`data:image/jpeg;base64,${thumb}`}
-                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                  />
-                )}
-              </div>
-            ))}
-          </div>
+          {/* v1.9.0 Phase 8 (T032): while a job runs, the aurora "generating"
+              mark backs the per-second thumbnail strip (the live previews
+              overlay it as they arrive); otherwise the strip is a plain card.
+              The completed clip hands off to the TimelinePreviewer below. */}
+          {isGenerating ? (
+            <GenerationCanvas
+              tint="video"
+              progress={progressTotal ? progressStep / progressTotal : undefined}
+              ariaLabel="Generating video"
+              data-testid="video-generation-canvas"
+              style={{ minHeight: "72px" }}
+            >
+              {thumbnailStrip}
+            </GenerationCanvas>
+          ) : (
+            <div
+              style={{
+                background: "var(--bg-1)",
+                borderRadius: "var(--radius-md)",
+              }}
+            >
+              {thumbnailStrip}
+            </div>
+          )}
 
           <TimelinePreviewer src={previewerSrc} fps={activePreview?.fps ?? values.fps} />
         </div>

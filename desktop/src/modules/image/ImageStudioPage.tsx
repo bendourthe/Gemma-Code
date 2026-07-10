@@ -15,6 +15,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { GenerationCanvas } from "../../components/GenerationCanvas";
 import {
   DEFAULT_FORM_VALUES,
   ImagePromptForm,
@@ -327,16 +328,24 @@ export function ImageStudioPage({
           {mode === "txt2img" && (
             <div
               data-testid="image-canvas-preview"
-              style={{
-                aspectRatio: `${values.width} / ${values.height}`,
-                background: "var(--bg-1)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "var(--fg-muted)",
-              }}
+              style={{ aspectRatio: `${values.width} / ${values.height}` }}
             >
-              {livePreview ? (
+              {isGenerating ? (
+                // v1.9.0 Phase 8 (T031): the aurora "generating" mark, with the
+                // live latent overlaid and materializing with progress; hands
+                // off to the final output (in the gallery) when the job ends.
+                <GenerationCanvas
+                  tint="image"
+                  progress={progressTotal ? progressStep / progressTotal : undefined}
+                  previewSrc={
+                    livePreview ? `data:image/png;base64,${livePreview}` : undefined
+                  }
+                  previewAlt="Latent preview"
+                  ariaLabel="Generating image"
+                  data-testid="image-generation-canvas"
+                  style={{ width: "100%", height: "100%" }}
+                />
+              ) : livePreview ? (
                 <img
                   alt="Latent preview"
                   src={`data:image/png;base64,${livePreview}`}
@@ -344,7 +353,19 @@ export function ImageStudioPage({
                   style={{ maxWidth: "100%", maxHeight: "100%" }}
                 />
               ) : (
-                "Latent preview will appear here while the job runs."
+                <div
+                  style={{
+                    height: "100%",
+                    background: "var(--bg-1)",
+                    borderRadius: "var(--radius-lg)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "var(--fg-muted)",
+                  }}
+                >
+                  Your generated image will appear here.
+                </div>
               )}
             </div>
           )}
