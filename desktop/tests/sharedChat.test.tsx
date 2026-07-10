@@ -135,6 +135,13 @@ describe("<ChatInput>", () => {
     await user.type(textarea, "   {Enter}");
     expect(onSubmit).not.toHaveBeenCalled();
   });
+
+  it("shows the accuracy disclaimer under the composer (v1.9.0 T033)", () => {
+    render(<ChatInput onSubmit={() => undefined} />);
+    const disclaimer = screen.getByTestId("chat-input-disclaimer");
+    expect(disclaimer).toHaveTextContent(/runs locally and can make mistakes/i);
+    expect(disclaimer).toHaveTextContent(/Verify important information/i);
+  });
 });
 
 describe("<ModelSelector>", () => {

@@ -240,6 +240,12 @@ def main() -> None:
         "128x128.png": 128,
         "128x128@2x.png": 256,
         "icon.png": 512,
+        # v1.9.0 Phase 9 (T034): the runtime window/taskbar icon the Tauri shell
+        # loads via `include_bytes!("../icons/window-icon.png")` in lib.rs (also
+        # the default source for the in-app <FloatingLogo/>). Emitting it here
+        # keeps it from going stale on a rebrand -- it was previously
+        # hand-committed and outside this generator.
+        "window-icon.png": 256,
     }
     for name, size in pngs.items():
         write_png(ICONS_DIR / name, size, source)

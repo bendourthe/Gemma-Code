@@ -74,9 +74,21 @@ export function ChatInput({
       >
         Send
       </button>
+      {/* v1.9.0 Phase 9 (T033) -- accuracy disclaimer under the shared composer;
+          appears under both the chat and coding composers (which wrap this). */}
+      <p data-testid="chat-input-disclaimer" style={disclaimerStyle}>
+        Nexus runs locally and can make mistakes. Verify important information.
+      </p>
     </div>
   );
 }
+
+const disclaimerStyle: CSSProperties = {
+  margin: 0,
+  textAlign: "center",
+  fontSize: "var(--text-xs)",
+  color: "var(--fg-muted)",
+};
 
 const textareaStyle: CSSProperties = {
   width: "100%",

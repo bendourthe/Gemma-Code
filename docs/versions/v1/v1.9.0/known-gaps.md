@@ -195,3 +195,26 @@ Phase 7 opened **no P0 blockers**: the installer PR (Phases 1-7) is code-complet
 | `UIR.P8.A` | P1 | DF | **Aurora render + reduced-motion not visually confirmed.** The `GenerationCanvas` is structurally verified (5 unit tests: 3 aurora layers + shimmer, materializing preview opacity coupled to progress, overlay children, no-preview omission; `tsc` + eslint clean; desktop suite 520 green) and mounted in both studios, but the actual animation -- the layers drifting smoothly at 60fps, the shimmer sweep, the "materializing" preview, and the `prefers-reduced-motion` static-glow fallback -- can only be seen in a running app (`tauri dev` / `dev:web`), which this headless sandbox cannot launch. Perf-bounding alongside the constellation backdrop is likewise unverified. | Operator rehearsal: run `tauri dev`, start an image job and a video job, and confirm the aurora + shimmer play in the rounded preview box, the live preview/thumbnails overlay it, it hands off cleanly to the final media, and (with OS reduce-motion on) it shows the soft static glow with no drift. Part of the Phase 9 app end-to-end QA. |
 
 Phase 8 opened **no P0 blockers**: the aurora component is code-complete, tested, and mounted; only the visual/perf confirmation (`UIR.P8.A`) is deferred to the on-device app rehearsal. Uses the Phase-1 aurora spec + existing tokens; the optional `--aurora-violet` token was introduced as the spec allowed.
+
+### Phase 9 -- App chat disclaimer + logo/icon parity + end-to-end QA (FINAL, 2026-07-09)
+
+| ID | Sev | Cat | Item | Disposition |
+|---|---|---|---|---|
+| `UIR.P9.A` | P1 | DF | **App on-device walk-through (DoD 9-11) not run.** T036's "build/run the app, capture screenshots of the disclaimer, both generation animations, and the taskbar/window icon; verify DoD 9-11" needs a running Tauri app / built bundle, which this headless sandbox cannot launch. Consolidates the app-side visual checks incl. `UIR.P8.A` (aurora render/reduced-motion). Everything is verified in code: the disclaimer renders under the shared composer (tested), `window-icon.png` is now generator-emitted, the Dashboard logo is transform-only, and the desktop suite is green (521). | Operator rehearsal: `tauri dev` or a built bundle -- confirm the chat + coding composers show the disclaimer, an image job and a video job play the aurora in their preview boxes (and reduced-motion shows the static glow), the taskbar/window shows the Nexus mark, and the Dashboard logo bob is smooth. Verifies DoD 9-11. |
+
+Phase 9 opened **no P0 blockers**: the app PR is code-complete and green; T033 (disclaimer) + T034 (window-icon.png regenerable) + T035 (transform-only logo, no swap needed) are done in code, and only the on-device app QA (`UIR.P9.A`) is deferred.
+
+---
+
+## 5. Whole-cycle close -- installer-and-app-ui-rework (2026-07-09)
+
+All **9 phases** (T001-T036) are code-complete and green. Every Section-0 DoD observable is met in code / by construction; the frozen `NexusSetup.exe` re-builds + boots; installer suite 672 passed / 2 skipped, desktop suite 521 passed, root TS suites unaffected, `tsc`/eslint/ruff clean.
+
+**Open (all environmentally blocked in this headless single-OS no-GUI sandbox -- recorded as operator on-device rehearsals, mirroring the sibling `installer-and-app-experience-overhaul` `IAE.P*` pattern):**
+- `UIR.P7.A` (P1) -- installer on-device walk-through, DoD 1-8 (subsumes `UIR.P3.A`/`P4.A`/`P5.A`/`P6.A`).
+- `UIR.P8.A` (P1) -- app aurora render + reduced-motion (subsumed by `UIR.P9.A`).
+- `UIR.P9.A` (P1) -- app on-device walk-through, DoD 9-11.
+
+**Deferred / cosmetic:** `UIR.P1.B` (neutral tabs shipped Phase 6; `--aurora-violet` shipped Phase 8 -- both resolved), `UIR.P2.A` (component copy), `UIR.P3.B` (stray-ruff on unwired files), plus the pre-existing E501s left per scope discipline.
+
+**Release**: gated on the on-device QA passing, then merge to `main` -- the version bump + CHANGELOG + tag are semantic-release-owned (cut on merge), not hand-authored (same discipline as every prior v1.x cycle). DoD #12 ("build/run BOTH artifacts and visually confirm each item") is satisfied by construction here and completed by the operator rehearsals above.

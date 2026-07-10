@@ -4,6 +4,33 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-09] v1.9.0 installer + app UI rework -- Phase 9 FINAL: app chat disclaimer + logo/icon parity + end-to-end QA (T033-T036)
+
+### Goal
+
+Add the accuracy disclaimer under the composer, confirm the app does not reproduce the installer's icon/logo issues, and verify the app DoD. This is the plan's final phase; it completes the app PR and closes the `installer-and-app-ui-rework` cycle (all 9 phases).
+
+### What changed
+
+- **T033 -- chat disclaimer** ([ChatInput.tsx](../desktop/src/shared/chat/ChatInput.tsx)): a short, subtle, centered, caption-size (`--text-xs`, `--fg-muted`) disclaimer -- "Nexus runs locally and can make mistakes. Verify important information." -- rendered under the shared composer, so it appears under **both** the chat and coding composers (the coding input wraps `ChatInput`).
+- **T034 -- icon parity** ([generate-icons.py](../scripts/desktop/generate-icons.py)): the runtime window/taskbar icon `desktop/src-tauri/icons/window-icon.png` (loaded by `lib.rs` via `include_bytes!`, and the `FloatingLogo` default source) was previously hand-committed and outside the generator, so a rebrand could leave it stale. It is now emitted from the transparent source alongside the rest of the icon set (256x256; verified). No binary churn: the script edit makes it regenerable on the next run.
+- **T035 -- logo-lag parity**: confirmed the Dashboard `FloatingLogo` bob is the `nexus-float` keyframe animating **`transform: translateY` only** (GPU-compositable, reduced-motion-gated) -- so it does not reproduce the installer's Qt `QPropertyAnimation` lag (which is why that one was retired to a static mark in Phase 4). No swap needed; the transform-only bob is smooth by construction.
+- **T036 -- app end-to-end QA**: consolidated the app on-device visual checks (the disclaimer, both aurora animations, the taskbar/window icon, the Dashboard logo no-lag) into `UIR.P9.A`.
+
+### Verification
+
+Desktop suite **521 passed / 0 failed** (+1: the disclaimer renders under the composer with the accuracy copy). `tsc --noEmit` + eslint clean on the changed files. `generate-icons.py` verified to emit `window-icon.png` (256x256 RGBA) from the source. The on-device app walk-through (DoD items 9-11: aurora animations in both studios, chat disclaimer, taskbar/window icon + smooth logo) is `UIR.P9.A` for the operator rehearsal (`tauri dev` / a built bundle) -- the headless sandbox has no GUI.
+
+### Whole-plan close
+
+All 9 phases of `installer-and-app-ui-rework` are code-complete and green: installer suite 672 passed / 2 skipped, desktop suite 521 passed, `tsc`/eslint/ruff clean, the frozen `NexusSetup.exe` re-built + boots. Every Section-0 DoD observable is met in code / by construction; the remaining work is the operator on-device visual QA (`UIR.P7.A` installer DoD 1-8, `UIR.P8.A`/`UIR.P9.A` app) and the release itself. Per the repo's semantic-release model, the version bump + CHANGELOG + tag are cut on merge to `main` (not hand-authored here); the release is gated on the on-device QA passing.
+
+### Branch
+
+All 9 phases are on `feat/v1.9.0-installer-phase-1` (operator kept both workstreams on one branch; can split at push). Ready to merge to `main` (where semantic-release cuts the version) once the on-device QA passes.
+
+---
+
 ## [2026-07-09] v1.9.0 installer + app UI rework -- Phase 8: app generation animation (aurora in Image Studio + Video Lab) (T029-T032)
 
 ### Goal
