@@ -4,6 +4,26 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-09] v1.10.0 Nexus-Hub consumption re-architecture -- Phase 1: shared catalog-path + layout resolver (T001-T005)
+
+### Goal
+
+Lay the foundation for consuming the Nexus-Hub catalog from a single, standardized, isolated on-disk subtree -- `~/.nexus-ai/catalog/`, read the same way Claude Code reads `~/.claude/` -- replacing the version-scoped `~/.nexus/skills/devai-hub/<tag>/` path plus the broken bundled-baseline payload. Phase 1 ships only the shared resolver; nothing consumes it yet (the syncer retarget is Phase 2, the reader reroute is Phase 3). See the [plan](versions/v1/v1.10.0/plans/nexus-hub-consumption-rearchitecture.md).
+
+### What changed
+
+- **T001-T004 -- pure resolver** ([core/storage/paths.ts](../core/storage/paths.ts)): `nexusAiHome()` (`~/.nexus-ai/`), `catalogRoot()` (the isolated `~/.nexus-ai/catalog/` subtree), a frozen `HUB_LAYOUT` map (`skills`/`commands`/`agents`/`rules`/`hooks`/`mcp_configs`/`templates`/`instructions`), `hubLayoutDir()` (resolves a subdir/file, preferring a manifest-provided `layout` and falling back per-key to the default so a partial or pre-coordination bundle still resolves), and `hubVersionManifestPath()`. The module keeps its no-filesystem purity invariant.
+- **T003 -- deterministic manifest I/O** ([core/storage/hubVersionManifest.ts](../core/storage/hubVersionManifest.ts), new): `buildHubVersionManifest` / `serializeHubVersionManifest` (2-space, canonical key order, trailing newline, no timestamps or absolute paths) / `readHubVersionManifest` (returns `null` on missing/invalid/version-less files -- the offline "not yet synced" state -- and merges a partial `layout` over defaults) / `writeHubVersionManifest` / `resolveHubLayout`. Split out of `paths.ts` so the latter stays fs-free; this is a deliberate refinement of the plan's T003 placement (recorded as `NHC.P1.C`).
+- Subdir names are always resolved from the manifest `layout` map, never hardcoded (DoD 2 groundwork).
+
+### Verification
+
+24 new unit tests across [hubCatalogPaths.test.ts](../tests/unit/core/storage/hubCatalogPaths.test.ts) (10: root/catalog resolution, layout override + partial fallback, frozen+complete `HUB_LAYOUT`, and a CI invariant asserting `paths.ts` performs no filesystem I/O) and [hubVersionManifest.test.ts](../tests/unit/core/storage/hubVersionManifest.test.ts) (14: contract shape, byte-deterministic serialization, no timestamps/abs-paths, write+read round-trip + idempotency, read tolerance, layout resolution). Full `tests/unit/core/storage` suite **64 passed / 0 failed**; `tsc -b` clean (exit 0). Changes are additive; `paths.ts` is outside the `eslint src modules` scope by project design (0 errors). New deferrals recorded in [known-gaps](versions/v1/v1.10.0/known-gaps.md): `NHC.P1.A` (`NEXUS_AI_HOME` override applied at the CLI/composition layer, not `paths.ts`), `NHC.P1.B` (resolver not yet consumed -- Phase 2/3), plus the cross-repo `COORD-1`/`COORD-2` items.
+
+### Branch
+
+`feat/v1.10.0-nexus-hub-consumption` (branched off the v1.9.0 tip `d291c2a`). The 4 uncommitted v1.9.0 installer font-size tweaks were intentionally left unstaged (they belong to the v1.9.0 line).
+
 ## [2026-07-09] v1.9.0 installer + app UI rework -- Phase 9 FINAL: app chat disclaimer + logo/icon parity + end-to-end QA (T033-T036)
 
 ### Goal
