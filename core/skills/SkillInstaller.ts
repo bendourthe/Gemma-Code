@@ -28,7 +28,7 @@ import { createHash } from "node:crypto";
 
 import { PromptInjectionScanner, type ScanResult } from "./PromptInjectionScanner.js";
 import { checkInstallUrl, type AllowlistOptions } from "./installAllowlist.js";
-import { defaultSkillsRoot } from "./DevAIHubSyncer.js";
+import { defaultSkillsRoot } from "./NexusHubSyncer.js";
 
 export interface SkillSpec {
   /** Namespace (e.g. `user`). The installer rejects non-`user` namespaces. */

@@ -13,7 +13,7 @@
  *   nexus image ...        -> bin/nexus-image.mjs
  *   nexus video ...        -> bin/nexus-video.mjs
  *
- * The skills sync core logic lives in `core/skills/DevAIHubSyncer.ts` so it
+ * The skills sync core logic lives in `core/skills/NexusHubSyncer.ts` so it
  * is unit-testable without spawning a CLI process. Only the argv parsing
  * and console-rendering surface lives in this file.
  */
@@ -90,10 +90,10 @@ async function loadSyncer() {
   // Try the compiled bundle first; fall back to importing the TS source via
   // a registered loader is not available in plain Node, so we require the
   // built artifact when this CLI is invoked from a packaged install.
-  const compiled = resolvePath(__dirname, "..", "out", "core", "skills", "DevAIHubSyncer.js");
+  const compiled = resolvePath(__dirname, "..", "out", "core", "skills", "NexusHubSyncer.js");
   if (!existsSync(compiled)) {
     throw new Error(
-      "DevAIHubSyncer build artifact missing. Run `npm run build` before invoking `nexus skills sync` from source.",
+      "NexusHubSyncer build artifact missing. Run `npm run build` before invoking `nexus skills sync` from source.",
     );
   }
   return import(pathToFileURL(compiled).href);
@@ -101,7 +101,7 @@ async function loadSyncer() {
 
 export async function runSkillsSync(flags, stdout = process.stdout, stderr = process.stderr) {
   const mod = await loadSyncer();
-  const syncer = new mod.DevAIHubSyncer({});
+  const syncer = new mod.NexusHubSyncer({});
   const result = await syncer.sync({
     tag: typeof flags.tag === "string" ? flags.tag : undefined,
     apply: flags.apply === true || flags.apply === "true",
@@ -125,7 +125,7 @@ export async function runSkillsSync(flags, stdout = process.stdout, stderr = pro
   if (mv.present && mv.mismatched.length > 0) {
     // Advisory only: the Hub's published manifest is not EOL-deterministic, so a
     // byte-level mismatch against a git-cloned bundle is expected and does not
-    // block the sync (see DevAIHubSyncer). One concise line, not a noisy dump.
+    // block the sync (see NexusHubSyncer). One concise line, not a noisy dump.
     stderr.write(
       `nexus skills sync: MANIFEST.sha256 verification is advisory -- ${mv.mismatched.length}/${mv.checked} file(s) differ (upstream manifest not EOL-deterministic; not blocking)\n`,
     );
@@ -148,24 +148,24 @@ export async function runSkillsSync(flags, stdout = process.stdout, stderr = pro
 }
 
 export async function runSkillsList(_flags, stdout = process.stdout) {
-  // List is a thin wrapper over the on-disk active manifest until the
-  // SkillCatalog IPC adapter lands in v1.1.0.
+  // Thin wrapper over the installed catalog subtree (~/.nexus-ai/catalog).
   const mod = await loadSyncer();
-  const syncer = new mod.DevAIHubSyncer({});
-  const root = syncer["_skillsRoot"]; // not exported; use the well-known default
-  const active = mod.readActiveTag(root);
-  if (!active) {
-    stdout.write("nexus skills list: no DevAI-Hub tag is active.\n");
+  const syncer = new mod.NexusHubSyncer({});
+  const root = syncer["_catalogRoot"]; // not exported; use the well-known default
+  let version = null;
+  try {
+    version = JSON.parse(readFileSync(joinPath(root, "nexus-hub-version.json"), "utf8")).version ?? null;
+  } catch {
+    version = null;
+  }
+  if (!version) {
+    stdout.write("nexus skills list: catalog not yet synced. Run `nexus skills sync --apply`.\n");
     return 0;
   }
-  const manifest = mod.readManifestOnDisk(mod.tagDir(root, active));
-  if (!manifest) {
-    stdout.write(`nexus skills list: active tag ${active} has no manifest.\n`);
-    return 0;
-  }
-  stdout.write(`Active tag: ${active}\n`);
+  const manifest = mod.buildManifest(joinPath(root, "skills"), version, "");
+  stdout.write(`Installed catalog version: ${version}\n`);
   for (const skill of manifest.skills) {
-    stdout.write(`  devai-hub/${skill.name}\t${skill.contentHash.slice(0, 12)}\n`);
+    stdout.write(`  nexus-hub/${skill.name}\t${skill.contentHash.slice(0, 12)}\n`);
   }
   return 0;
 }

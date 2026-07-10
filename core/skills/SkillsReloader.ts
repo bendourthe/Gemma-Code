@@ -17,7 +17,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-import { activeTagPointerPath, defaultSkillsRoot } from "./DevAIHubSyncer.js";
+import { activeTagPointerPath, defaultSkillsRoot } from "./NexusHubSyncer.js";
 
 export interface ReloadableCatalog {
   reload(): Promise<void> | void;

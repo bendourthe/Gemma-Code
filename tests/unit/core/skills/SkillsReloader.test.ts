@@ -15,7 +15,7 @@ import {
   SkillsReloader,
   type ReloadableCatalog,
 } from "../../../../core/skills/SkillsReloader.js";
-import { activeTagPointerPath } from "../../../../core/skills/DevAIHubSyncer.js";
+import { activeTagPointerPath } from "../../../../core/skills/NexusHubSyncer.js";
 
 class CountingCatalog implements ReloadableCatalog {
   count = 0;

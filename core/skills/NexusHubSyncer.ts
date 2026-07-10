@@ -1,27 +1,30 @@
 /**
- * v1.0.0 Phase 10.2 -- DevAI-Hub sync core.
+ * v1.0.0 Phase 10.2 -- Nexus-Hub sync core.
+ * v1.10.0 Phase 2 -- renamed from `DevAIHubSyncer`; retargeted to the single
+ * standardized catalog subtree `~/.nexus-ai/catalog/` (read like `~/.claude/`).
  *
- * Pull a pinned `bendourthe/Nexus-Hub` release into
- * `~/.nexus/skills/devai-hub/<tag>/`, scan it with the prompt-injection
- * scanner (Phase 10.3), and present a manifest diff. The CLI in
+ * Pull a pinned `bendourthe/Nexus-Hub` release into `~/.nexus-ai/catalog/`, scan
+ * it with the prompt-injection scanner, and present a manifest diff. The CLI in
  * `bin/nexus.mjs` is a thin shell on top of this module.
  *
  * The sync pipeline:
- *   1. Resolve the latest pinned tag (or use --tag).
- *   2. If the active install matches the requested tag's content hash,
+ *   1. Resolve the latest released tag (or use --tag).
+ *   2. If the installed `nexus-hub-version.json` already records that tag,
  *      report "already up to date".
- *   3. Otherwise sparse-clone into a tmp dir
- *      (`~/.nexus/skills/.tmp-devai-hub-<tag>/`).
- *   4. Compute a content hash over the checked-out tree.
- *   5. Write `manifest.json` describing the bundle.
- *   6. Diff against the currently-active tag's manifest.
- *   7. Cross-verify the cloned files against the Hub's published
- *      `MANIFEST.sha256` (rides inside the release tag) -- ADVISORY: the result
- *      is surfaced but does not block (the upstream manifest is not currently
- *      EOL-deterministic). The injection scanner remains the fail-closed gate.
- *   8. If `--apply` (and the scan did not block), rename the tmp dir to the
- *      active dir and update the active-tag pointer
- *      (`~/.nexus/skills/devai-hub/ACTIVE`).
+ *   3. Otherwise sparse-clone into a tmp staging dir that is a SIBLING of the
+ *      catalog subtree (`~/.nexus-ai/.tmp-catalog-<tag>/`), never inside app data.
+ *   4. Build a manifest over the staged `catalog/skills` tree and scan it.
+ *   5. Diff against the currently-installed catalog's skills tree.
+ *   6. Cross-verify the cloned files against the Hub's published
+ *      `MANIFEST.sha256` -- ADVISORY (does not block; the injection scanner is
+ *      the fail-closed gate).
+ *   7. If `--apply` (and the scan did not block), atomically swap the staged
+ *      `catalog/` directory into `~/.nexus-ai/catalog/` and write a deterministic
+ *      `nexus-hub-version.json`.
+ *
+ * SAFETY (v1.10.0): every destructive operation is scoped to the catalog subtree
+ * (`assertScopedCatalogRoot`). The syncer never touches `~/.nexus/` or app data;
+ * the catalog refresh is structurally unable to escape its own subtree.
  *
  * Tarball fallback: when git is unavailable the syncer downloads
  * `archive/refs/tags/<tag>.tar.gz` and extracts it.
@@ -34,6 +37,16 @@ import { createHash } from "node:crypto";
 
 import { PromptInjectionScanner, type ScanResult } from "./PromptInjectionScanner.js";
 import { HUB_SKILL_SCAN_ALLOWLIST } from "./hubSkillScanAllowlist.js";
+import {
+  catalogRoot as resolveCatalogRoot,
+  hubLayoutDir,
+  type HubLayout,
+} from "../storage/paths.js";
+import {
+  readHubVersionManifest,
+  writeHubVersionManifest,
+  resolveHubLayout,
+} from "../storage/hubVersionManifest.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -53,10 +66,10 @@ export interface SyncDependencies {
 export interface SyncOptions {
   /** Tag to pull. Omit to use the latest. */
   tag?: string;
-  /** Apply the result to the active install pointer when set. */
+  /** Apply the result to the installed catalog when set. */
   apply?: boolean;
-  /** Root of the user's `.nexus/skills/` tree (defaults to `~/.nexus/skills`). */
-  skillsRoot?: string;
+  /** Root of the isolated catalog subtree (defaults to `~/.nexus-ai/catalog`). */
+  catalogRoot?: string;
   /** Inject deps for tests. */
   deps?: SyncDependencies;
   /** Custom scanner (tests). */
@@ -69,7 +82,7 @@ export interface SyncOptions {
 }
 
 export interface SkillEntry {
-  /** Relative path to the SKILL.md (`catalog/skills/<cat>/<slug>/SKILL.md`). */
+  /** Relative path to the SKILL.md, relative to the catalog `skills/` dir. */
   readonly relPath: string;
   /** Slug derived from the parent directory of the SKILL.md. */
   readonly name: string;
@@ -77,16 +90,15 @@ export interface SkillEntry {
   readonly contentHash: string;
   /**
    * Category from the Hub's `data/skills.json` index, when the index is present
-   * and lists this skill (HUB.P3.DATA). Purely additive metadata: it never
-   * affects the bundle hash (which is computed from relPath + contentHash only),
-   * so the "already up to date" short-circuit is unchanged.
+   * and lists this skill. Purely additive metadata: it never affects the bundle
+   * hash (which is computed from relPath + contentHash only).
    */
   readonly category?: string;
 }
 
 /** A single skill row read from the Hub's `data/skills.json` index. */
 export interface SkillIndexEntry {
-  /** relPath relative to `catalog/skills` (matches `SkillEntry.relPath`). */
+  /** relPath relative to the catalog `skills/` dir (matches `SkillEntry.relPath`). */
   readonly relPath: string;
   readonly name: string;
   readonly category?: string;
@@ -100,10 +112,10 @@ export interface IndexConsistency {
   readonly onlyOnDisk: readonly string[];
 }
 
-export interface DevAIHubManifest {
+export interface NexusHubManifest {
   readonly tag: string;
   readonly upstream: string;
-  /** ISO timestamp the manifest was written. */
+  /** ISO timestamp the manifest was built (in-memory only; not persisted). */
   readonly fetchedAt: string;
   /** SHA-256 over the sorted skill hashes (stable across reorderings). */
   readonly bundleHash: string;
@@ -119,11 +131,9 @@ export interface ManifestDiff {
 /**
  * Result of cross-verifying a synced bundle against the Hub's published
  * `MANIFEST.sha256` (a standard `sha256sum` text file that rides inside the
- * release tag, per Nexus-Hub v3.6.0/v3.10.0). This is supply-chain integrity
- * *evidence*: it confirms the files we actually cloned hash to what the release
- * authoritatively published. It is scoped to the sparse subset we fetch --
- * manifest entries for files outside that subset are simply not checked, so an
- * intentionally-unsynced file is never reported as a problem.
+ * release tag). Supply-chain integrity *evidence*, scoped to the sparse subset
+ * we fetch -- manifest entries for files outside that subset are simply not
+ * checked, so an intentionally-unsynced file is never reported as a problem.
  */
 export interface ManifestVerification {
   /** `false` when the release ships no `MANIFEST.sha256` (older tags). A no-op. */
@@ -137,28 +147,25 @@ export interface ManifestVerification {
 export interface SyncResult {
   readonly tag: string;
   readonly tmpDir: string;
-  readonly manifest: DevAIHubManifest;
-  /** Diff against the currently-active manifest (`null` when no active install). */
+  readonly manifest: NexusHubManifest;
+  /** Diff against the previously-installed catalog (`null`-safe when fresh). */
   readonly diff: ManifestDiff;
   readonly scan: ScanResult;
-  /** `true` when the requested tag's contentHash matches the active install. */
+  /** `true` when the installed version already matches the requested tag. */
   readonly alreadyUpToDate: boolean;
-  /** `true` when --apply ran and rotated the active pointer. */
+  /** `true` when --apply ran and swapped the catalog subtree. */
   readonly applied: boolean;
-  /** When applied, the new active dir; otherwise null. */
+  /** The catalog root when a catalog is installed; otherwise null. */
   readonly activeDir: string | null;
   /**
-   * Index-vs-tree divergence from the Hub's `data/skills.json` (HUB.P3.DATA).
-   * `null` when the bundle ships no index. Non-empty lists are a Hub-side
-   * integrity signal (the published index lags or leads its own skills tree);
-   * they never block the sync because the on-disk tree is authoritative.
+   * Index-vs-tree divergence from the Hub's `data/skills.json`. `null` when the
+   * bundle ships no index. Never blocks the sync (the on-disk tree is
+   * authoritative).
    */
   readonly indexConsistency: IndexConsistency | null;
   /**
    * Cross-verification of the cloned files against the Hub's published
-   * `MANIFEST.sha256`. ADVISORY only -- it never blocks `--apply` (the current
-   * upstream manifest is not EOL-deterministic; see the note in `sync`). A
-   * non-empty `mismatched` list is surfaced for operator review, not enforced.
+   * `MANIFEST.sha256`. ADVISORY only -- it never blocks `--apply`.
    */
   readonly manifestVerification: ManifestVerification;
 }
@@ -167,57 +174,118 @@ export interface SyncResult {
 // Defaults
 // ---------------------------------------------------------------------------
 
-// v1.4.0 Phase 9 (T033, gap 1.1.P3.B): the upstream skill catalog repo was
-// renamed `bendourthe/DevAI-Hub` -> `bendourthe/Nexus-Hub`. The old name was
-// the documented blocker for `nexus skills sync` (it resolved no release tag).
-// The local on-disk namespace (`~/.nexus/skills/devai-hub/`, the ACTIVE
-// pointer, and the `source: "devai-hub"` provenance label) is intentionally
-// left unchanged: it is an on-disk contract, not the GitHub coordinate.
+// The upstream skill catalog repo. The local on-disk store was retargeted in
+// v1.10.0 from the version-scoped `~/.nexus/skills/devai-hub/<tag>/` path to the
+// single standardized subtree `~/.nexus-ai/catalog/` (see `core/storage/paths.ts`).
 export const DEFAULT_UPSTREAM = "bendourthe/Nexus-Hub";
+
+/**
+ * Sparse-checkout paths fetched from a Hub release. These MUST be directory
+ * paths: git's cone-mode sparse-checkout (>= 2.36) rejects a file argument.
+ *   - `catalog` is the entire published catalog; it becomes `~/.nexus-ai/catalog/`
+ *     verbatim on apply (repo `catalog/skills` -> `<catalogRoot>/skills`).
+ *   - `.claude-plugin` carries `plugin.json`, the catalog's declared version
+ *     (read for `nexus-hub-version.json`); it is read from the staging clone and
+ *     is NOT part of the applied catalog subtree.
+ * Cone mode auto-checks-out repo-root files (e.g. `MANIFEST.sha256`), so those
+ * are available to `verifyReleaseManifest` without a (rejected) file argument.
+ */
+export const HUB_SPARSE_CHECKOUT_PATHS: readonly string[] = Object.freeze([
+  "catalog",
+  ".claude-plugin",
+]);
 
 export function defaultSkillsRoot(): string {
   return path.join(os.homedir(), ".nexus", "skills");
 }
 
-/**
- * Sparse-checkout paths fetched from a Hub release. These MUST be directory
- * paths: git's cone-mode sparse-checkout (>= 2.36) rejects a file argument with
- * `fatal: '<path>' is not a directory` (older git only warned, so a file arg
- * here silently broke a live sync on any modern git). Two consequences:
- *   - `data` (the directory) is listed, not `data/skills.json` (the file), so
- *     the Hub skill index still lands in the bundle (HUB.P3.DATA).
- *   - The Hub v3.10.0 release `MANIFEST.sha256` is NOT listed: it lives at the
- *     repo root, and cone mode always checks out files in the repo root
- *     automatically -- that is how `verifyReleaseManifest` gets the manifest
- *     without a (rejected) file argument.
- */
-export const HUB_SPARSE_CHECKOUT_PATHS: readonly string[] = Object.freeze([
-  "catalog/skills",
-  "catalog/commands",
-  "catalog/agents",
-  // v1.5.0 Phase 7 (HUB.P3.HOOK): Hub hook scripts for the HubHookInstaller.
-  "catalog/hooks",
-  "catalog/rules",
-  "rules",
-  // The `data` directory carries the Hub skill index (`data/skills.json`).
-  "data",
-  "extensions",
-]);
+// ---------------------------------------------------------------------------
+// Legacy path helpers (v1.0.0 devai-hub on-disk model).
+//
+// TRANSITIONAL (v1.10.0 Phase 2 -> removed in Phase 3): these still name the old
+// `~/.nexus/skills/devai-hub/<tag>/` + ACTIVE-pointer layout and are retained
+// ONLY so the not-yet-rerouted readers (SkillsReloader, SkillInstaller,
+// ChatPanelBootstrap) and the CLI list/audit commands keep compiling against
+// the old path. The new `sync()` below does NOT use any of them. Phase 3
+// reroutes those readers to the layout resolver and deletes this block.
+// ---------------------------------------------------------------------------
 
-/**
- * Path of the file that names the currently-active DevAI-Hub tag. The
- * SkillLoader watches this file and reloads when its content changes.
- */
+/** @deprecated transitional; removed in v1.10.0 Phase 3. */
 export function activeTagPointerPath(skillsRoot: string): string {
   return path.join(skillsRoot, "devai-hub", "ACTIVE");
 }
 
+/** @deprecated transitional; removed in v1.10.0 Phase 3. */
 export function tagDir(skillsRoot: string, tag: string): string {
   return path.join(skillsRoot, "devai-hub", tag);
 }
 
+/** @deprecated transitional; removed in v1.10.0 Phase 3. */
 export function tmpDirFor(skillsRoot: string, tag: string): string {
   return path.join(skillsRoot, `.tmp-devai-hub-${tag}`);
+}
+
+/** @deprecated transitional; removed in v1.10.0 Phase 3. */
+export function readActiveTag(skillsRoot: string): string | null {
+  const ptr = activeTagPointerPath(skillsRoot);
+  try {
+    return fs.readFileSync(ptr, "utf-8").trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+/** @deprecated transitional; removed in v1.10.0 Phase 3. */
+export function writeActiveTag(skillsRoot: string, tag: string): void {
+  const ptr = activeTagPointerPath(skillsRoot);
+  fs.mkdirSync(path.dirname(ptr), { recursive: true });
+  fs.writeFileSync(ptr, tag, { encoding: "utf-8" });
+}
+
+/** @deprecated transitional; removed in v1.10.0 Phase 3. Reads a legacy per-tag `manifest.json`. */
+export function readManifestOnDisk(dir: string): NexusHubManifest | null {
+  const file = path.join(dir, "manifest.json");
+  if (!fs.existsSync(file)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf-8")) as NexusHubManifest;
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Subtree-scope guard
+// ---------------------------------------------------------------------------
+
+/**
+ * Guard: the syncer's destructive operations (wipe + swap) may only ever touch
+ * the catalog subtree it owns. Refuse an empty path or a filesystem root so a
+ * misconfigured `catalogRoot` can never escalate into deleting app data or the
+ * home directory. This is the structural backstop behind the "catalog refresh
+ * can never touch app data" invariant (v1.10.0).
+ */
+export function assertScopedCatalogRoot(root: string): void {
+  if (!root || root.trim() === "") {
+    throw new Error("NexusHubSyncer: catalog root must not be empty");
+  }
+  const resolved = path.resolve(root);
+  const parsed = path.parse(resolved);
+  if (resolved === parsed.root || path.dirname(resolved) === resolved) {
+    throw new Error(
+      `NexusHubSyncer: refusing to operate on a filesystem root: ${resolved}`,
+    );
+  }
+}
+
+/** Read the catalog's declared version from a cloned `.claude-plugin/plugin.json`. */
+function readPluginVersion(repoDir: string): string | null {
+  try {
+    const raw = fs.readFileSync(path.join(repoDir, ".claude-plugin", "plugin.json"), "utf-8");
+    const version = (JSON.parse(raw) as { version?: unknown }).version;
+    return typeof version === "string" && version.trim() !== "" ? version : null;
+  } catch {
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -230,7 +298,7 @@ export function buildManifest(
   tag: string,
   upstream: string,
   now: Date = new Date(),
-): DevAIHubManifest {
+): NexusHubManifest {
   const skills: SkillEntry[] = [];
   if (fs.existsSync(root)) {
     walkSkillMd(root, root, skills);
@@ -285,8 +353,8 @@ function walkSkillMd(root: string, dir: string, out: SkillEntry[]): void {
 
 /** Compute the added / modified / removed slug lists between two manifests. */
 export function diffManifests(
-  prev: DevAIHubManifest | null,
-  next: DevAIHubManifest,
+  prev: NexusHubManifest | null,
+  next: NexusHubManifest,
 ): ManifestDiff {
   if (!prev) {
     return {
@@ -323,20 +391,19 @@ export function summarizeDiff(diff: ManifestDiff): string {
 }
 
 // ---------------------------------------------------------------------------
-// Skill index (HUB.P3.DATA) -- consume the Hub's data/skills.json
+// Skill index -- consume the Hub's data/skills.json (when present)
 // ---------------------------------------------------------------------------
 
-/** Default path of the Hub skill index inside a synced bundle. */
+/** Default path of the Hub skill index inside a synced catalog dir. */
 export function skillIndexPath(bundleDir: string): string {
   return path.join(bundleDir, "data", "skills.json");
 }
 
 /**
- * Read the Hub's `data/skills.json` from a synced bundle (HUB.P3.DATA). Returns
- * the listed skills normalized to `relPath` (relative to `catalog/skills`, so it
- * lines up with `SkillEntry.relPath`), or `null` when the file is absent or not
- * the expected shape. Best-effort: a malformed index degrades to "no index", it
- * never throws.
+ * Read the Hub's `data/skills.json` from a synced catalog dir. Returns the listed
+ * skills normalized to `relPath` (relative to the `skills/` dir, matching
+ * `SkillEntry.relPath`), or `null` when the file is absent or not the expected
+ * shape. Best-effort: a malformed index degrades to "no index", never throws.
  */
 export function readSkillIndex(bundleDir: string): SkillIndexEntry[] | null {
   let raw: string;
@@ -376,7 +443,7 @@ export function readSkillIndex(bundleDir: string): SkillIndexEntry[] | null {
 
 /** Compute index-vs-tree divergence (both lists are sorted relPaths). */
 export function computeIndexConsistency(
-  manifest: DevAIHubManifest,
+  manifest: NexusHubManifest,
   index: readonly SkillIndexEntry[],
 ): IndexConsistency {
   const onDisk = new Set(manifest.skills.map((s) => s.relPath));
@@ -387,21 +454,22 @@ export function computeIndexConsistency(
 }
 
 /**
- * Build a manifest from the on-disk `catalog/skills` tree, enriched with the
- * `category` recorded in the Hub's `data/skills.json` index (HUB.P3.DATA). The
- * filesystem tree stays authoritative (it is what `SkillLoader` actually loads),
- * so a stale/leading index only affects the additive `category` field, never
- * which skills are tracked or the bundle hash. Returns the manifest plus the
- * index-vs-tree consistency report (`indexConsistency` is `null` when the bundle
- * ships no index).
+ * Build a manifest from the on-disk `skills/` tree, enriched with the `category`
+ * recorded in the Hub's `data/skills.json` index (when present). The filesystem
+ * tree stays authoritative, so a stale/leading index only affects the additive
+ * `category` field, never which skills are tracked or the bundle hash.
+ *
+ * `bundleDir` is the catalog dir (skills at `<bundleDir>/skills`, index at
+ * `<bundleDir>/data/skills.json`) -- v1.10.0 dropped the old `catalog/` prefix
+ * so the local layout matches `~/.nexus-ai/catalog/`.
  */
 export function buildManifestWithIndex(
   bundleDir: string,
   tag: string,
   upstream: string,
   now: Date = new Date(),
-): { manifest: DevAIHubManifest; indexConsistency: IndexConsistency | null } {
-  const skillsDir = path.join(bundleDir, "catalog", "skills");
+): { manifest: NexusHubManifest; indexConsistency: IndexConsistency | null } {
+  const skillsDir = path.join(bundleDir, "skills");
   const base = buildManifest(skillsDir, tag, upstream, now);
   const index = readSkillIndex(bundleDir);
   if (!index) {
@@ -423,16 +491,15 @@ export function buildManifestWithIndex(
 // Release-manifest verification (supply-chain integrity)
 // ---------------------------------------------------------------------------
 
-/** Path of the Hub's published `MANIFEST.sha256` inside a synced bundle. */
+/** Path of the Hub's published `MANIFEST.sha256` inside a cloned repo dir. */
 export function releaseManifestPath(bundleDir: string): string {
   return path.join(bundleDir, "MANIFEST.sha256");
 }
 
 /**
  * Parse a standard `sha256sum` text manifest into a `relPath -> lowercase-hash`
- * map. Each line is `<64-hex-hash><space><space|*><relpath>` (two spaces is
- * text mode, ` *` is binary mode). Blank lines and lines that do not match are
- * skipped. Paths are normalized to forward slashes.
+ * map. Each line is `<64-hex-hash><space><space|*><relpath>`. Blank / non-matching
+ * lines are skipped. Paths are normalized to forward slashes.
  */
 export function parseSha256Manifest(text: string): Map<string, string> {
   const out = new Map<string, string>();
@@ -449,15 +516,11 @@ export function parseSha256Manifest(text: string): Map<string, string> {
 }
 
 /**
- * Cross-verify a synced bundle against the Hub's published `MANIFEST.sha256`.
- *
- * Iterates the *manifest entries* (not the clone) so bundle artifacts that are
- * not part of the release -- the `.git` dir, our own `manifest.json` -- are
- * never considered. For each manifest entry whose file exists in the clone
- * (the sparse subset we fetched), the on-disk SHA-256 is compared to the
- * published hash. Entries whose files are outside the sparse subset are skipped
- * (they were intentionally not fetched, not tampered). Best-effort and
- * throw-free: a missing or unreadable manifest degrades to `present: false`.
+ * Cross-verify a cloned repo dir against the Hub's published `MANIFEST.sha256`.
+ * Iterates the manifest entries (not the clone) so artifacts not part of the
+ * release are never considered. Entries whose files are outside the sparse
+ * subset are skipped. Best-effort and throw-free: a missing manifest degrades
+ * to `present: false`.
  */
 export function verifyReleaseManifest(bundleDir: string): ManifestVerification {
   let text: string;
@@ -485,35 +548,6 @@ export function verifyReleaseManifest(bundleDir: string): ManifestVerification {
   }
   mismatched.sort();
   return { present: true, checked, mismatched };
-}
-
-// ---------------------------------------------------------------------------
-// Active-tag pointer
-// ---------------------------------------------------------------------------
-
-export function readActiveTag(skillsRoot: string): string | null {
-  const ptr = activeTagPointerPath(skillsRoot);
-  try {
-    return fs.readFileSync(ptr, "utf-8").trim() || null;
-  } catch {
-    return null;
-  }
-}
-
-export function writeActiveTag(skillsRoot: string, tag: string): void {
-  const ptr = activeTagPointerPath(skillsRoot);
-  fs.mkdirSync(path.dirname(ptr), { recursive: true });
-  fs.writeFileSync(ptr, tag, { encoding: "utf-8" });
-}
-
-export function readManifestOnDisk(dir: string): DevAIHubManifest | null {
-  const file = path.join(dir, "manifest.json");
-  if (!fs.existsSync(file)) return null;
-  try {
-    return JSON.parse(fs.readFileSync(file, "utf-8")) as DevAIHubManifest;
-  } catch {
-    return null;
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -573,11 +607,8 @@ async function defaultSparseClone(upstream: string, tag: string, destDir: string
   ];
   const clone = spawnSync("git", cloneArgs, { stdio: "ignore" });
   if (clone.status !== 0) throw new Error(`git clone failed (exit ${clone.status ?? "?"})`);
-  // Check out canonical LF content. The Hub commits LF blobs under `* text=auto`,
-  // so a Windows CRLF smudge on checkout would corrupt byte-faithfulness versus
-  // the release tarball + MANIFEST.sha256. Persist the settings in the clone's
-  // config so the sparse-checkout below (which is what actually materializes the
-  // files) honors them. Best-effort: a failure here just falls back to native EOL.
+  // Check out canonical LF content so a Windows CRLF smudge does not corrupt
+  // byte-faithfulness versus the release tarball + MANIFEST.sha256. Best-effort.
   spawnSync("git", ["-C", destDir, "config", "core.autocrlf", "false"], { stdio: "ignore" });
   spawnSync("git", ["-C", destDir, "config", "core.eol", "lf"], { stdio: "ignore" });
   const sparse = spawnSync(
@@ -639,27 +670,32 @@ export function defaultDependencies(upstream: string = DEFAULT_UPSTREAM): SyncDe
 // Main syncer
 // ---------------------------------------------------------------------------
 
-export class DevAIHubSyncer {
-  private readonly _skillsRoot: string;
+export class NexusHubSyncer {
+  private readonly _catalogRoot: string;
   private readonly _deps: SyncDependencies;
   private readonly _scanner: PromptInjectionScanner;
   private readonly _upstream: string;
 
   constructor(options: SyncOptions = {}) {
-    this._skillsRoot = options.skillsRoot ?? defaultSkillsRoot();
+    this._catalogRoot = options.catalogRoot ?? resolveCatalogRoot();
     this._upstream = options.upstream ?? DEFAULT_UPSTREAM;
     this._deps = options.deps ?? defaultDependencies(this._upstream);
-    // The default scanner carries the reviewed Hub-skill allowlist (HUB310.SCAN):
-    // the pinned devai-hub source is a trusted producer catalog whose security
-    // skills contain the patterns they teach. Untrusted third-party imports
-    // (SkillInstaller) construct their own scanner with no suppressions.
+    // The default scanner carries the reviewed Hub-skill allowlist: the pinned
+    // upstream source is a trusted producer catalog whose security skills contain
+    // the patterns they teach. Untrusted third-party imports (SkillInstaller)
+    // construct their own scanner with no suppressions.
     this._scanner = options.scanner ?? new PromptInjectionScanner(undefined, HUB_SKILL_SCAN_ALLOWLIST);
   }
 
+  /** Staging dir: a SIBLING of the catalog subtree, never inside app data. */
+  private _stagingDir(tag: string): string {
+    return path.join(path.dirname(this._catalogRoot), `.tmp-catalog-${tag}`);
+  }
+
   /**
-   * Run the full sync pipeline. The default behaviour is "preview-only"
-   * (the tmp dir is left intact for the user to review). Pass `apply: true`
-   * to rotate the active pointer atomically.
+   * Run the full sync pipeline. The default behaviour is "preview-only" (the
+   * staging dir is left intact for the user to review). Pass `apply: true` to
+   * swap the catalog subtree and write the version manifest.
    */
   async sync(options: { tag?: string; apply?: boolean } = {}): Promise<SyncResult> {
     const tag = options.tag ?? (await this._deps.resolveLatestTag());
@@ -667,36 +703,36 @@ export class DevAIHubSyncer {
       throw new Error(`invalid tag: ${tag}`);
     }
 
-    const activeTag = readActiveTag(this._skillsRoot);
-    const activeDir = activeTag ? tagDir(this._skillsRoot, activeTag) : null;
-    const activeManifest = activeDir ? readManifestOnDisk(activeDir) : null;
+    const catalogRootDir = this._catalogRoot;
+    assertScopedCatalogRoot(catalogRootDir);
 
-    // Short-circuit: already up to date.
-    const candidateDir = tagDir(this._skillsRoot, tag);
-    const candidateManifest = readManifestOnDisk(candidateDir);
-    if (
-      activeTag === tag &&
-      candidateManifest &&
-      activeManifest &&
-      candidateManifest.bundleHash === activeManifest.bundleHash
-    ) {
+    // The currently-installed catalog (if any): scan its skills tree to diff
+    // against, and read its recorded version for the up-to-date short-circuit.
+    const layout: HubLayout = resolveHubLayout(catalogRootDir);
+    const installedSkillsDir = hubLayoutDir(catalogRootDir, "skills", layout);
+    const installedMeta = readHubVersionManifest(catalogRootDir);
+    const prevManifest = fs.existsSync(installedSkillsDir)
+      ? buildManifest(installedSkillsDir, installedMeta?.version ?? "", this._upstream)
+      : null;
+
+    // Short-circuit: the recorded version already matches the requested tag.
+    if (installedMeta?.version === tag && prevManifest) {
       return {
         tag,
-        tmpDir: candidateDir,
-        manifest: candidateManifest,
+        tmpDir: catalogRootDir,
+        manifest: prevManifest,
         diff: { added: [], modified: [], removed: [] },
         scan: { decision: "pass", findings: [] },
         alreadyUpToDate: true,
         applied: false,
-        activeDir: candidateDir,
-        // Nothing was re-fetched, so no fresh index check is performed.
+        activeDir: catalogRootDir,
         indexConsistency: null,
         manifestVerification: { present: false, checked: 0, mismatched: [] },
       };
     }
 
-    const tmpDir = tmpDirFor(this._skillsRoot, tag);
-    // Clean any leftover tmp dir from a prior aborted run.
+    const tmpDir = this._stagingDir(tag);
+    // Clean any leftover staging dir from a prior aborted run.
     if (fs.existsSync(tmpDir)) {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
@@ -707,51 +743,52 @@ export class DevAIHubSyncer {
       await this._deps.tarballFetch(tag, tmpDir);
     }
 
-    const skillsDir = path.join(tmpDir, "catalog", "skills");
-    // HUB.P3.DATA: build from the on-disk tree (authoritative) but enrich each
-    // entry with the category recorded in the Hub's data/skills.json index, and
-    // capture any index-vs-tree divergence for the caller to surface.
-    const { manifest, indexConsistency } = buildManifestWithIndex(tmpDir, tag, this._upstream);
-    fs.writeFileSync(path.join(tmpDir, "manifest.json"), JSON.stringify(manifest, null, 2));
+    // The Hub repo stores everything under `catalog/`; that directory becomes the
+    // local catalog root verbatim (repo `catalog/skills` -> `<catalogRoot>/skills`).
+    const stagedCatalogDir = path.join(tmpDir, "catalog");
+    const stagedSkillsDir = path.join(stagedCatalogDir, "skills");
 
-    const scan = scanBundleDir(skillsDir, this._scanner);
-    const diff = diffManifests(activeManifest, manifest);
-
-    // Supply-chain integrity: verify the cloned files against the Hub's
-    // published MANIFEST.sha256 (rides inside the release tag). This is
-    // ADVISORY, not fail-closed: the current Hub manifest is not EOL-
-    // deterministic (it was generated from a Windows working tree, so some
-    // entries are hashed over CRLF and some over LF), which makes a byte-level
-    // match against any single git checkout unreliable. Blocking on it would
-    // reject every legitimate sync. We still compute + surface the result so
-    // the operator can review it, and so it becomes a hard signal automatically
-    // once the Hub publishes a deterministic (LF) manifest. The injection
-    // scanner remains the fail-closed content gate. (Gap: HUB310.4.2.ADV.)
+    const { manifest, indexConsistency } = buildManifestWithIndex(
+      stagedCatalogDir,
+      tag,
+      this._upstream,
+    );
+    const scan = scanBundleDir(stagedSkillsDir, this._scanner);
+    const diff = diffManifests(prevManifest, manifest);
+    // Supply-chain evidence against the repo-root MANIFEST.sha256. ADVISORY: it
+    // never blocks `--apply` (the injection scanner is the fail-closed gate).
     const manifestVerification = verifyReleaseManifest(tmpDir);
+    // Record the catalog's declared version (plugin.json) when present, else the tag.
+    const version = readPluginVersion(tmpDir) ?? tag;
 
     let applied = false;
-    let appliedActiveDir: string | null = null;
+    let appliedActiveDir: string | null = fs.existsSync(installedSkillsDir)
+      ? catalogRootDir
+      : null;
     if (options.apply && scan.decision !== "block") {
-      const dest = tagDir(this._skillsRoot, tag);
-      if (fs.existsSync(dest)) {
-        fs.rmSync(dest, { recursive: true, force: true });
+      // Destructive swap, scoped to the catalog subtree ONLY (never app data).
+      assertScopedCatalogRoot(catalogRootDir);
+      if (fs.existsSync(catalogRootDir)) {
+        fs.rmSync(catalogRootDir, { recursive: true, force: true });
       }
-      fs.mkdirSync(path.dirname(dest), { recursive: true });
-      fs.renameSync(tmpDir, dest);
-      writeActiveTag(this._skillsRoot, tag);
+      fs.mkdirSync(path.dirname(catalogRootDir), { recursive: true });
+      fs.renameSync(stagedCatalogDir, catalogRootDir);
+      // Drop the rest of the clone (repo-root files, .git, .claude-plugin).
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+      writeHubVersionManifest(catalogRootDir, { version, sourceRepo: this._upstream });
       applied = true;
-      appliedActiveDir = dest;
+      appliedActiveDir = catalogRootDir;
     }
 
     return {
       tag,
-      tmpDir: applied ? appliedActiveDir! : tmpDir,
+      tmpDir: applied ? catalogRootDir : tmpDir,
       manifest,
       diff,
       scan,
       alreadyUpToDate: false,
       applied,
-      activeDir: applied ? appliedActiveDir : activeDir,
+      activeDir: appliedActiveDir,
       indexConsistency,
       manifestVerification,
     };

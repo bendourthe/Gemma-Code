@@ -47,8 +47,8 @@ export interface DevAIHubSyncTask {
  */
 export function defaultSyncRunner(): SyncWorkerRunner {
   return async () => {
-    const mod = await import("./DevAIHubSyncer.js");
-    const syncer = new mod.DevAIHubSyncer({});
+    const mod = await import("./NexusHubSyncer.js");
+    const syncer = new mod.NexusHubSyncer({});
     await syncer.sync({ apply: true });
   };
 }

@@ -4,6 +4,34 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-09] v1.10.0 Nexus-Hub consumption re-architecture -- Phase 2: rename + retarget syncer to the isolated catalog subtree (T006-T013)
+
+### Goal
+
+Rename `DevAIHubSyncer` -> `NexusHubSyncer` and retarget it from the version-scoped `~/.nexus/skills/devai-hub/<tag>/` + ACTIVE-pointer model to the single isolated subtree `~/.nexus-ai/catalog/`, writing a deterministic `nexus-hub-version.json`, with the destructive refresh structurally scoped to that subtree.
+
+### What changed
+
+- **T006 rename** ([core/skills/NexusHubSyncer.ts](../core/skills/NexusHubSyncer.ts), was `DevAIHubSyncer.ts`): class + the `NexusHubManifest` type renamed; every importer updated (`DevAIHubAutoSync`, [bin/nexus.mjs](../bin/nexus.mjs), `SkillsReloader`, `SkillInstaller`, [ChatPanelBootstrap](../src/panels/ChatPanelBootstrap.ts), tests).
+- **T007 retarget**: the syncer targets `catalogRoot()` (`~/.nexus-ai/catalog`) via the Phase 1 resolver; the `<tag>` subfolder + ACTIVE-pointer model are gone. The up-to-date short-circuit keys on the recorded `nexus-hub-version.json` version; the diff is computed by scanning the installed vs staged `skills/` trees.
+- **T008 subtree-scope guard** (`assertScopedCatalogRoot`): the wipe/refetch only ever touches the catalog subtree; an empty or filesystem-root `catalogRoot` is refused. Staging happens in a sibling `~/.nexus-ai/.tmp-catalog-<tag>/`, and apply swaps the staged `catalog/` dir into place, so app data is structurally untouchable.
+- **T009**: `HUB_SPARSE_CHECKOUT_PATHS` -> `["catalog", ".claude-plugin"]`; the repo `catalog/` becomes `~/.nexus-ai/catalog/` verbatim, dropping the old local `catalog/` prefix in the manifest/skills joins.
+- **T010**: on apply, write a deterministic `nexus-hub-version.json` (version from `.claude-plugin/plugin.json` when present, else the release tag).
+- **T011**: the prompt-injection scan (fail-closed) and the GitHub `releases/latest` poll are unchanged. `nexus skills list` reads the new version manifest + catalog skills.
+
+### Scope refinement (deferred; recorded in known-gaps)
+
+- **T012 provenance-token rename** (`"devai-hub"` -> `"nexus-hub"` in `SkillCatalog`/`SkillAuditor`/`SkillRenderLine`/tracer/IPC enum) is **deferred to Phase 3** (`NHC.P2.A`): it is coupled to how the loader assigns provenance from the on-disk namespace dir, which reroutes in Phase 3. Doing it now would leave a half-changed enum + a runtime mismatch.
+- The old path helpers (`defaultSkillsRoot`/`activeTagPointerPath`/`tagDir`/`readActiveTag`/...) are retained as **transitional shims** for the not-yet-rerouted readers (`NHC.P2.B`), removed in Phase 3. The syncer writes the new path while readers still read the old one -- inert, since neither the syncer nor auto-sync is wired into the live app yet.
+
+### Verification
+
+Full root suite **4583 passed / 6 skipped / 0 failed**; `tsc -b` clean; eslint clean on the changed `src` file. The rewritten [NexusHubSyncer.test.ts](../tests/unit/core/skills/NexusHubSyncer.test.ts) (48 tests) covers the catalog-subtree swap, version-manifest determinism, version-source precedence (plugin.json over tag), and an **adversarial subtree-scope test** proving a re-sync leaves sibling app data untouched and rejects an empty/root `catalogRoot`.
+
+### Branch
+
+`feat/v1.10.0-nexus-hub-consumption`.
+
 ## [2026-07-09] v1.10.0 Nexus-Hub consumption re-architecture -- Phase 1: shared catalog-path + layout resolver (T001-T005)
 
 ### Goal

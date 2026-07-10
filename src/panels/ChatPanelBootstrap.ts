@@ -10,7 +10,7 @@ import {
   defaultSkillsRoot,
   readActiveTag,
   tagDir,
-} from "../../core/skills/DevAIHubSyncer.js";
+} from "../../core/skills/NexusHubSyncer.js";
 import { resolveLanguageRules } from "../../modules/coding/chat/LanguageRuleBuilder.js";
 import { createCredentialVault } from "../../core/security/CredentialVault.js";
 import type { PathScopedSkillSource } from "../tools/AgentLoop.js";
