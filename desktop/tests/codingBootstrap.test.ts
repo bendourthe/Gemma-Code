@@ -49,6 +49,7 @@ describe("bootstrapCoding", () => {
     };
     const boot = await bootstrapCoding({
       nexusHome: root,
+      catalogRoot: path.join(root, "catalog"),
       skillCatalog: catalog,
     });
     expect(boot.skillsReloader).not.toBeNull();

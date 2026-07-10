@@ -9,13 +9,7 @@ import {
   buildManifest,
   diffManifests,
   summarizeDiff,
-  readActiveTag,
-  writeActiveTag,
-  tagDir,
-  tmpDirFor,
-  activeTagPointerPath,
   defaultSkillsRoot,
-  readManifestOnDisk,
   readSkillIndex,
   buildManifestWithIndex,
   parseSha256Manifest,
@@ -77,14 +71,6 @@ function copyDir(src: string, dest: string): void {
 describe("DEFAULT_UPSTREAM", () => {
   it("points at the bendourthe/Nexus-Hub repo", () => {
     expect(DEFAULT_UPSTREAM).toBe("bendourthe/Nexus-Hub");
-  });
-
-  it("transitional legacy shim: activeTagPointerPath still names the old on-disk namespace", () => {
-    // v1.10.0 Phase 2: the legacy path helpers are retained (old
-    // `~/.nexus/skills/devai-hub/` model) only until the readers reroute in
-    // Phase 3. The new syncer does not use them.
-    const ptr = activeTagPointerPath("/skills-root");
-    expect(ptr.replace(/\\/g, "/")).toBe("/skills-root/devai-hub/ACTIVE");
   });
 });
 
@@ -150,56 +136,11 @@ describe("buildManifest + diffManifests", () => {
   });
 });
 
-describe("legacy path helpers (transitional; removed in Phase 3)", () => {
-  let tmp: string;
-  beforeEach(() => {
-    tmp = mkTmpDir();
-  });
-  afterEach(() => {
-    fs.rmSync(tmp, { recursive: true, force: true });
-  });
-
-  it("read returns null when no pointer exists", () => {
-    expect(readActiveTag(tmp)).toBe(null);
-  });
-  it("write + read round-trips the tag", () => {
-    writeActiveTag(tmp, "v1.3.2");
-    expect(readActiveTag(tmp)).toBe("v1.3.2");
-    expect(fs.existsSync(activeTagPointerPath(tmp))).toBe(true);
-  });
-  it("tagDir + tmpDirFor compose deterministically", () => {
-    const td = tagDir(tmp, "v1.3.2");
-    const tmpd = tmpDirFor(tmp, "v1.3.2");
-    expect(td).toMatch(/devai-hub[\\/]v1\.3\.2/);
-    expect(tmpd).toMatch(/\.tmp-devai-hub-v1\.3\.2/);
-  });
-  it("defaultSkillsRoot returns ~/.nexus/skills", () => {
+describe("defaultSkillsRoot (app-data user-skills root)", () => {
+  it("returns ~/.nexus/skills", () => {
+    // Retained after the catalog reroute: this is the app-data user-skills root
+    // (SkillInstaller / SkillLoader), NOT the Hub catalog subtree.
     expect(defaultSkillsRoot()).toBe(path.join(os.homedir(), ".nexus", "skills"));
-  });
-});
-
-describe("readManifestOnDisk edge cases", () => {
-  let tmp: string;
-  beforeEach(() => {
-    tmp = mkTmpDir();
-  });
-  afterEach(() => {
-    fs.rmSync(tmp, { recursive: true, force: true });
-  });
-
-  it("returns null when manifest.json does not exist", () => {
-    expect(readManifestOnDisk(tmp)).toBeNull();
-  });
-
-  it("returns null when manifest.json contains malformed JSON", () => {
-    fs.writeFileSync(path.join(tmp, "manifest.json"), "not json");
-    expect(readManifestOnDisk(tmp)).toBeNull();
-  });
-
-  it("readActiveTag returns null when the pointer file is empty", () => {
-    fs.mkdirSync(path.join(tmp, "devai-hub"), { recursive: true });
-    fs.writeFileSync(path.join(tmp, "devai-hub", "ACTIVE"), "");
-    expect(readActiveTag(tmp)).toBeNull();
   });
 });
 

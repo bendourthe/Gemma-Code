@@ -199,59 +199,12 @@ export function defaultSkillsRoot(): string {
   return path.join(os.homedir(), ".nexus", "skills");
 }
 
-// ---------------------------------------------------------------------------
-// Legacy path helpers (v1.0.0 devai-hub on-disk model).
-//
-// TRANSITIONAL (v1.10.0 Phase 2 -> removed in Phase 3): these still name the old
-// `~/.nexus/skills/devai-hub/<tag>/` + ACTIVE-pointer layout and are retained
-// ONLY so the not-yet-rerouted readers (SkillsReloader, SkillInstaller,
-// ChatPanelBootstrap) and the CLI list/audit commands keep compiling against
-// the old path. The new `sync()` below does NOT use any of them. Phase 3
-// reroutes those readers to the layout resolver and deletes this block.
-// ---------------------------------------------------------------------------
-
-/** @deprecated transitional; removed in v1.10.0 Phase 3. */
-export function activeTagPointerPath(skillsRoot: string): string {
-  return path.join(skillsRoot, "devai-hub", "ACTIVE");
-}
-
-/** @deprecated transitional; removed in v1.10.0 Phase 3. */
-export function tagDir(skillsRoot: string, tag: string): string {
-  return path.join(skillsRoot, "devai-hub", tag);
-}
-
-/** @deprecated transitional; removed in v1.10.0 Phase 3. */
-export function tmpDirFor(skillsRoot: string, tag: string): string {
-  return path.join(skillsRoot, `.tmp-devai-hub-${tag}`);
-}
-
-/** @deprecated transitional; removed in v1.10.0 Phase 3. */
-export function readActiveTag(skillsRoot: string): string | null {
-  const ptr = activeTagPointerPath(skillsRoot);
-  try {
-    return fs.readFileSync(ptr, "utf-8").trim() || null;
-  } catch {
-    return null;
-  }
-}
-
-/** @deprecated transitional; removed in v1.10.0 Phase 3. */
-export function writeActiveTag(skillsRoot: string, tag: string): void {
-  const ptr = activeTagPointerPath(skillsRoot);
-  fs.mkdirSync(path.dirname(ptr), { recursive: true });
-  fs.writeFileSync(ptr, tag, { encoding: "utf-8" });
-}
-
-/** @deprecated transitional; removed in v1.10.0 Phase 3. Reads a legacy per-tag `manifest.json`. */
-export function readManifestOnDisk(dir: string): NexusHubManifest | null {
-  const file = path.join(dir, "manifest.json");
-  if (!fs.existsSync(file)) return null;
-  try {
-    return JSON.parse(fs.readFileSync(file, "utf-8")) as NexusHubManifest;
-  } catch {
-    return null;
-  }
-}
+// v1.10.0 Phase 3: the legacy `~/.nexus/skills/devai-hub/<tag>/` + ACTIVE-pointer
+// path helpers were removed here once the readers rerouted to the catalog
+// resolver (`core/storage/paths.ts` + `hubVersionManifest.ts`). The single-root
+// model needs no per-tag pointer -- the installed version lives in
+// `nexus-hub-version.json`. (`defaultSkillsRoot`, above, stays: it is the
+// app-data user-skills root, not the Hub catalog.)
 
 // ---------------------------------------------------------------------------
 // Subtree-scope guard

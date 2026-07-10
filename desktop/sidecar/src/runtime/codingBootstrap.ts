@@ -11,9 +11,9 @@
  *     existing optional callback)
  *
  * v1.1.0 Phase 8 adds two opt-in surfaces:
- *   - SkillsReloader -- fs.watch the DevAI-Hub ACTIVE pointer so a
- *     successful `nexus skills sync --apply` hot-reloads the catalog
- *     (closes 10.P1.GGG).
+ *   - SkillsReloader -- fs.watch the nexus-hub-version.json sentinel under
+ *     ~/.nexus-ai/catalog so a successful `nexus skills sync --apply`
+ *     hot-reloads the catalog (closes 10.P1.GGG).
  *   - DevAI-Hub auto-sync worker -- registered with the IdleScheduler
  *     under `nexus.skills.autoSync.devai-hub` (closes 10.P1.HHH).
  *
@@ -23,6 +23,7 @@
 import * as path from "node:path";
 
 import { ModelPinRegistry } from "../../../../core/registry/ModelPinRegistry.js";
+import { catalogRoot } from "../../../../core/storage/paths.js";
 import {
   JsonFileSettingsStore,
   type SettingsStore,
@@ -46,11 +47,16 @@ export interface CodingBootstrapOptions {
   /** Pre-built settings store (tests). */
   readonly settings?: SettingsStore;
   /**
-   * Optional skill catalog to hot-reload when the DevAI-Hub ACTIVE pointer
-   * rotates. Omit to skip the file-watcher attachment (tests + headless
+   * Optional skill catalog to hot-reload when the Hub catalog version manifest
+   * changes. Omit to skip the file-watcher attachment (tests + headless
    * sidecars that have no catalog yet).
    */
   readonly skillCatalog?: ReloadableCatalog;
+  /**
+   * Root of the isolated Hub catalog subtree the reloader watches. Defaults to
+   * `~/.nexus-ai/catalog` (the global catalog). Injectable for tests.
+   */
+  readonly catalogRoot?: string;
   /**
    * Idle scheduler used to register the weekly DevAI-Hub auto-sync worker.
    * Omit to skip the registration.
@@ -93,12 +99,10 @@ export async function bootstrapCoding(opts: CodingBootstrapOptions): Promise<Cod
   const modelPins = new ModelPinRegistry({ settings });
   await modelPins.hydrate();
 
-  const skillsRoot = path.join(opts.nexusHome, "skills");
-
   let skillsReloader: SkillsReloader | null = null;
   if (opts.skillCatalog) {
     skillsReloader = new SkillsReloader({
-      skillsRoot,
+      catalogRoot: opts.catalogRoot ?? catalogRoot(),
       catalog: opts.skillCatalog,
     });
     skillsReloader.start();

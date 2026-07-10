@@ -1,15 +1,17 @@
 /**
- * v1.1.0 Phase 8.1 -- ACTIVE pointer watcher driving SkillLoader.reload().
+ * v1.1.0 Phase 8.1 -- catalog sentinel watcher driving SkillLoader.reload().
+ * v1.10.0 Phase 3 -- retargeted from the `~/.nexus/skills/devai-hub/ACTIVE`
+ * pointer to the `nexus-hub-version.json` sentinel under `~/.nexus-ai/catalog/`.
  *
- * Watches `~/.nexus/skills/devai-hub/ACTIVE` and triggers a debounced
- * `reload()` on the supplied catalog when the pointer's content changes.
+ * Watches `<catalogRoot>/nexus-hub-version.json` and triggers a debounced
+ * `reload()` on the supplied catalog when the sentinel changes (the manifest is
+ * rewritten on every `NexusHubSyncer.sync({apply:true})`).
  *
- * `nexus skills sync --apply` rotates the active install with a
- * write-tmp-then-rename pattern. A naive `fs.watch` consumer would fire
- * twice (once for the tmp create, once for the rename); the debounce
- * collapses bursts within `debounceMs` (default 200 ms) into a single
- * reload. The watcher is deliberately tolerant of the parent directory
- * not existing yet -- the syncer creates it on first apply.
+ * `sync --apply` swaps the catalog subtree then rewrites the version manifest. A
+ * naive `fs.watch` consumer would fire more than once; the debounce collapses
+ * bursts within `debounceMs` (default 200 ms) into a single reload. The watcher
+ * is deliberately tolerant of the catalog dir not existing yet -- the syncer
+ * creates it on first apply.
  *
  * Closes v1.0.0 carryforward `10.P1.GGG` (SkillLoader hot-reload).
  */
@@ -17,24 +19,25 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-import { activeTagPointerPath, defaultSkillsRoot } from "./NexusHubSyncer.js";
+import { catalogRoot as resolveCatalogRoot, hubVersionManifestPath } from "../storage/paths.js";
+import { readHubVersionManifest } from "../storage/hubVersionManifest.js";
 
 export interface ReloadableCatalog {
   reload(): Promise<void> | void;
 }
 
 export interface SkillsReloaderOptions {
-  /** Root of the user's `.nexus/skills/` tree. Defaults to `~/.nexus/skills`. */
-  readonly skillsRoot?: string;
-  /** Catalog whose `reload()` is invoked on pointer change. */
+  /** Root of the isolated Hub catalog subtree. Defaults to `~/.nexus-ai/catalog`. */
+  readonly catalogRoot?: string;
+  /** Catalog whose `reload()` is invoked on sentinel change. */
   readonly catalog: ReloadableCatalog;
   /** Debounce window in ms. Defaults to 200. */
   readonly debounceMs?: number;
   /** Injectable timer pair for tests. */
   readonly setTimeout?: (cb: () => void, ms: number) => unknown;
   readonly clearTimeout?: (handle: unknown) => void;
-  /** Called after every successful reload. Used by UI ("Loaded N new skills"). */
-  readonly onReload?: (tag: string | null) => void;
+  /** Called after every successful reload with the installed catalog version. */
+  readonly onReload?: (version: string | null) => void;
   /** Called when a reload throws. Defaults to a console.warn. */
   readonly onError?: (err: unknown) => void;
 }
@@ -44,18 +47,18 @@ interface WatchHandle {
 }
 
 /**
- * Open `fs.watch` on the ACTIVE pointer file. Returns a `WatchHandle`
- * with a `close()` method that detaches the watcher and clears any
- * pending debounce timer. Calling `start()` twice without `stop()` is
- * a no-op (idempotent).
+ * Open `fs.watch` on the version-manifest sentinel. Returns a `WatchHandle`
+ * with a `close()` method that detaches the watcher and clears any pending
+ * debounce timer. Calling `start()` twice without `stop()` is a no-op
+ * (idempotent).
  */
 export class SkillsReloader {
-  private readonly _skillsRoot: string;
+  private readonly _catalogRoot: string;
   private readonly _catalog: ReloadableCatalog;
   private readonly _debounceMs: number;
   private readonly _setTimeout: (cb: () => void, ms: number) => unknown;
   private readonly _clearTimeout: (handle: unknown) => void;
-  private readonly _onReload: (tag: string | null) => void;
+  private readonly _onReload: (version: string | null) => void;
   private readonly _onError: (err: unknown) => void;
   private _watcher: fs.FSWatcher | null = null;
   private _dirWatcher: fs.FSWatcher | null = null;
@@ -63,7 +66,7 @@ export class SkillsReloader {
   private _reloadCount = 0;
 
   constructor(opts: SkillsReloaderOptions) {
-    this._skillsRoot = opts.skillsRoot ?? defaultSkillsRoot();
+    this._catalogRoot = opts.catalogRoot ?? resolveCatalogRoot();
     this._catalog = opts.catalog;
     this._debounceMs = opts.debounceMs ?? 200;
     this._setTimeout =
@@ -82,29 +85,28 @@ export class SkillsReloader {
   }
 
   /**
-   * Begin watching the ACTIVE pointer. Returns a `WatchHandle` so callers
-   * can detach on shutdown. Safe to call when the pointer file does not
-   * yet exist; the directory watcher waits for the first `--apply` run
-   * to create it before promoting to a file-level watch.
+   * Begin watching the version-manifest sentinel. Returns a `WatchHandle` so
+   * callers can detach on shutdown. Safe to call when the sentinel does not yet
+   * exist; the directory watcher waits for the first `--apply` run to create it
+   * before promoting to a file-level watch.
    */
   start(): WatchHandle {
     if (this._watcher || this._dirWatcher) {
       return { close: () => this.stop() };
     }
-    const pointer = activeTagPointerPath(this._skillsRoot);
-    const dir = path.dirname(pointer);
+    const pointer = hubVersionManifestPath(this._catalogRoot);
+    const dir = path.dirname(pointer); // = catalogRoot
 
     if (fs.existsSync(pointer)) {
       this._attachFileWatcher(pointer);
     } else if (fs.existsSync(dir)) {
       this._attachDirWatcher(dir, pointer);
     } else {
-      // Neither the file nor its parent dir exists yet. Watch the skills
-      // root (which is always created at sidecar boot) for the `devai-hub`
-      // subtree to appear.
-      const skillsRootExists = fs.existsSync(this._skillsRoot);
-      if (skillsRootExists) {
-        this._attachDirWatcher(this._skillsRoot, pointer);
+      // Neither the sentinel nor the catalog dir exists yet. Watch the parent
+      // (`~/.nexus-ai`) for the catalog subtree to appear on first sync.
+      const parent = path.dirname(dir);
+      if (fs.existsSync(parent)) {
+        this._attachDirWatcher(parent, pointer);
       }
     }
 
@@ -134,18 +136,18 @@ export class SkillsReloader {
   }
 
   /**
-   * Test surface -- schedule a debounced reload as if the OS file watcher
-   * had fired. Production code reaches this via the `fs.watch` callback;
-   * tests use it to assert the debounce collapses bursts.
+   * Test surface -- schedule a debounced reload as if the OS file watcher had
+   * fired. Production code reaches this via the `fs.watch` callback; tests use
+   * it to assert the debounce collapses bursts.
    */
   triggerForTest(): void {
-    this._scheduleReload(activeTagPointerPath(this._skillsRoot));
+    this._scheduleReload();
   }
 
   private _attachFileWatcher(pointer: string): void {
     try {
       this._watcher = fs.watch(pointer, { persistent: false }, () => {
-        this._scheduleReload(pointer);
+        this._scheduleReload();
       });
     } catch (err) {
       this._onError(err);
@@ -156,8 +158,8 @@ export class SkillsReloader {
     try {
       this._dirWatcher = fs.watch(dir, { persistent: false }, (_evt, filename) => {
         if (!filename) {
-          // Some platforms (notably Linux when an inotify rename fires
-          // without a filename payload) deliver null. Re-check by hand.
+          // Some platforms (notably Linux when an inotify rename fires without a
+          // filename payload) deliver null. Re-check by hand.
           if (fs.existsSync(pointer)) this._promoteToFileWatch(pointer);
           return;
         }
@@ -165,7 +167,7 @@ export class SkillsReloader {
         if (typeof filename === "string" && filename.endsWith(candidate)) {
           if (fs.existsSync(pointer)) {
             this._promoteToFileWatch(pointer);
-            this._scheduleReload(pointer);
+            this._scheduleReload();
           }
         }
       });
@@ -181,28 +183,22 @@ export class SkillsReloader {
     this._attachFileWatcher(pointer);
   }
 
-  private _scheduleReload(pointer: string): void {
+  private _scheduleReload(): void {
     if (this._pendingHandle !== null) {
       this._clearTimeout(this._pendingHandle);
     }
     this._pendingHandle = this._setTimeout(() => {
       this._pendingHandle = null;
-      void this._fireReload(pointer);
+      void this._fireReload();
     }, this._debounceMs);
   }
 
-  private async _fireReload(pointer?: string): Promise<void> {
-    const ptr = pointer ?? activeTagPointerPath(this._skillsRoot);
-    let activeTag: string | null = null;
-    try {
-      activeTag = fs.readFileSync(ptr, "utf-8").trim() || null;
-    } catch {
-      activeTag = null;
-    }
+  private async _fireReload(): Promise<void> {
+    const version = readHubVersionManifest(this._catalogRoot)?.version ?? null;
     try {
       await this._catalog.reload();
       this._reloadCount++;
-      this._onReload(activeTag);
+      this._onReload(version);
     } catch (err) {
       this._onError(err);
     }
@@ -210,8 +206,8 @@ export class SkillsReloader {
 }
 
 /**
- * Convenience factory used by `codingBootstrap.ts`. Returns the reloader
- * already `start()`-ed against the default `~/.nexus/skills/` tree.
+ * Convenience factory used by `codingBootstrap.ts`. Returns the reloader already
+ * `start()`-ed against the default `~/.nexus-ai/catalog/` subtree.
  */
 export function startSkillsReloader(opts: SkillsReloaderOptions): SkillsReloader {
   const reloader = new SkillsReloader(opts);

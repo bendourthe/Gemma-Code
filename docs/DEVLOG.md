@@ -4,6 +4,33 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-09] v1.10.0 Nexus-Hub consumption re-architecture -- Phase 3: reroute all readers to the catalog resolver (T014-T020)
+
+### Goal
+
+Point every runtime reader at the isolated catalog subtree (`~/.nexus-ai/catalog/`) via the layout resolver, drop the old ACTIVE-pointer/tag indirection, and remove the now-unused legacy path helpers.
+
+### What changed
+
+- **T014** [ChatPanelBootstrap.ts](../src/panels/ChatPanelBootstrap.ts): the three Hub resolutions (rules/agents/commands) now use `hubLayoutDir(catalogRoot(), key, resolveHubLayout(root))` with an `fs.existsSync` inert-when-absent gate; the `readActiveTag`+`tagDir`+`"catalog"` indirection is gone. The rules memo keys on the catalog version.
+- **T015** [SkillsReloader.ts](../core/skills/SkillsReloader.ts): watches the `nexus-hub-version.json` sentinel under `catalogRoot` (rewritten on every `sync --apply`) instead of the ACTIVE pointer; `onReload` reports the installed version.
+- **T017** [codingBootstrap.ts](../desktop/sidecar/src/runtime/codingBootstrap.ts): feeds `catalogRoot()` to the reloader (new injectable `catalogRoot` option; still not wired into the live sidecar).
+- **T018** new [hubMcpRegistry.ts](../modules/coding/mcp/hubMcpRegistry.ts): reads `<catalogRoot>/mcp-configs/mcp-servers.json` (layout-resolved) and routes it through the pure `filterHubRegistry` policy filter. Inert (empty result) when unsynced; never connects a server.
+- **T016** SkillLoader: unchanged by design -- Hub `SKILL.md` skills were never loaded through it (Hub content reaches the runtime as commands/agents/rules via the dedicated loaders); the bundled builtin catalog stays the offline fallback (`NHC.P3.A`).
+- **T019**: no core baseline-fallback read exists (the placeholder baseline is installer-only, removed in P5); removed the now-unused legacy Hub path helpers (`activeTagPointerPath`/`tagDir`/`tmpDirFor`/`readActiveTag`/`writeActiveTag`/`readManifestOnDisk`) from `NexusHubSyncer.ts`, resolving `NHC.P2.B`. `defaultSkillsRoot` stays (app-data user-skills root).
+
+### Verification
+
+Full root suite **4580 passed / 6 skipped / 0 failed**; root `tsc -b` clean; desktop `tsc --noEmit` + eslint clean (the desktop's stricter `noUnusedParameters` caught + fixed a dead param left by the reloader refactor -- worth running both typecheckers); desktop `codingBootstrap` 7 passed. New/updated tests: rewritten [SkillsReloader.test.ts](../tests/unit/core/skills/SkillsReloader.test.ts) (sentinel model), new [hubMcpRegistry.test.ts](../tests/unit/mcp/hubMcpRegistry.test.ts) (inert + policy filter), `NexusHubSyncer.test.ts` cleanup.
+
+### Deferred
+
+The `"devai-hub"` provenance token rename stays deferred to Phase 7 (nothing rerouted here produces it; `NHC.P2.A`). The Hub mcp reader is built + tested but not yet consumed by the live MCP flow (`NHC.P3.B`, wired in Phase 6).
+
+### Branch
+
+`feat/v1.10.0-nexus-hub-consumption`.
+
 ## [2026-07-09] v1.10.0 Nexus-Hub consumption re-architecture -- Phase 2: rename + retarget syncer to the isolated catalog subtree (T006-T013)
 
 ### Goal

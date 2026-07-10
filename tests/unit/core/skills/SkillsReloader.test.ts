@@ -1,9 +1,8 @@
 /**
  * v1.1.0 Phase 8.1 -- SkillsReloader fixture tests.
- *
- * Drives the `nexus skills sync --apply` write-tmp-then-rename pattern
- * against a fixture skills root and asserts that `reload()` fires once
- * per pointer rotation thanks to the 200 ms debounce.
+ * v1.10.0 Phase 3 -- retargeted to the `nexus-hub-version.json` sentinel under
+ * `~/.nexus-ai/catalog/`. The watcher fires a debounced reload() when the
+ * catalog version manifest changes (rewritten on every `sync --apply`).
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
@@ -15,7 +14,7 @@ import {
   SkillsReloader,
   type ReloadableCatalog,
 } from "../../../../core/skills/SkillsReloader.js";
-import { activeTagPointerPath } from "../../../../core/skills/NexusHubSyncer.js";
+import { writeHubVersionManifest } from "../../../../core/storage/hubVersionManifest.js";
 
 class CountingCatalog implements ReloadableCatalog {
   count = 0;
@@ -52,43 +51,32 @@ function mktmp(): string {
 
 describe("SkillsReloader", () => {
   let root: string;
+  let catalogRoot: string;
   beforeEach(() => {
     root = mktmp();
+    catalogRoot = path.join(root, "catalog");
   });
   afterEach(() => {
     fs.rmSync(root, { recursive: true, force: true });
   });
 
-  it("debounces a write-tmp-then-rename burst into a single reload", async () => {
-    // We do NOT rely on fs.watch firing here -- Windows occasionally
-    // throws EPERM when watching a freshly-renamed file, and the OS
-    // schedule is non-deterministic. The watcher is unit-tested via the
-    // `triggerForTest` surface, which calls into the same `_scheduleReload`
-    // path the real callback uses. Production hits this path via the OS
-    // event.
-    const skillsRoot = path.join(root, "skills");
-    const pointer = activeTagPointerPath(skillsRoot);
-    fs.mkdirSync(path.dirname(pointer), { recursive: true });
-    fs.writeFileSync(pointer, "v1.3.1", "utf-8");
-
+  it("debounces a burst into a single reload", async () => {
+    // Drive scheduling directly via `triggerForTest` to avoid the OS
+    // file-watcher dependency (Windows occasionally throws EPERM on a
+    // freshly-renamed file); production hits the same `_scheduleReload` path.
     const catalog = new CountingCatalog();
     const timers = makeTimerPair();
     const reloader = new SkillsReloader({
-      skillsRoot,
+      catalogRoot,
       catalog,
       debounceMs: 200,
       setTimeout: timers.setTimeoutFn,
       clearTimeout: timers.clearTimeoutFn,
     });
-    // Do not call start() -- we drive scheduling directly to avoid the
-    // OS file-watcher dependency on Windows.
 
-    // Burst: two scheduling calls back-to-back simulate the syncer's
-    // write-tmp-then-rename rotation pattern.
     reloader.triggerForTest();
     reloader.triggerForTest();
 
-    // Debounce keeps at most one pending timer.
     expect(timers.pending.length).toBe(1);
     timers.flush();
     await catalog.lastResolved;
@@ -96,50 +84,39 @@ describe("SkillsReloader", () => {
   });
 
   it("reloadNow fires immediately and increments reloadCount", async () => {
-    const skillsRoot = path.join(root, "skills");
-    const pointer = activeTagPointerPath(skillsRoot);
-    fs.mkdirSync(path.dirname(pointer), { recursive: true });
-    fs.writeFileSync(pointer, "v1.4.0", "utf-8");
     const catalog = new CountingCatalog();
-    const reloader = new SkillsReloader({ skillsRoot, catalog });
-    // Skip start() -- the unit test verifies reloadNow() in isolation.
+    const reloader = new SkillsReloader({ catalogRoot, catalog });
     await reloader.reloadNow();
     expect(catalog.count).toBe(1);
     expect(reloader.reloadCount).toBe(1);
   });
 
   it("stop() detaches watchers and drops a pending debounce timer", () => {
-    const skillsRoot = path.join(root, "skills");
-    fs.mkdirSync(skillsRoot, { recursive: true });
+    fs.mkdirSync(catalogRoot, { recursive: true });
     let timersCleared = 0;
     const reloader = new SkillsReloader({
-      skillsRoot,
+      catalogRoot,
       catalog: new CountingCatalog(),
       setTimeout: () => ({}),
       clearTimeout: () => {
         timersCleared += 1;
       },
     });
-    // triggerForTest queues a pending timer without needing fs.watch.
     reloader.triggerForTest();
     reloader.stop();
-    // No exception; idempotent.
-    reloader.stop();
+    reloader.stop(); // idempotent
     expect(timersCleared).toBeGreaterThanOrEqual(1);
   });
 
-  it("onReload callback receives the active tag", async () => {
-    const skillsRoot = path.join(root, "skills");
-    const pointer = activeTagPointerPath(skillsRoot);
-    fs.mkdirSync(path.dirname(pointer), { recursive: true });
-    fs.writeFileSync(pointer, "v1.5.0", "utf-8");
+  it("onReload callback receives the installed catalog version", async () => {
+    writeHubVersionManifest(catalogRoot, { version: "v1.5.0" });
     let observed: string | null = "";
     const catalog = new CountingCatalog();
     const reloader = new SkillsReloader({
-      skillsRoot,
+      catalogRoot,
       catalog,
-      onReload: (tag) => {
-        observed = tag;
+      onReload: (version) => {
+        observed = version;
       },
     });
     await reloader.reloadNow();
@@ -147,11 +124,9 @@ describe("SkillsReloader", () => {
   });
 
   it("reports an error via onError when reload throws", async () => {
-    const skillsRoot = path.join(root, "skills");
-    fs.mkdirSync(path.dirname(activeTagPointerPath(skillsRoot)), { recursive: true });
     const errors: unknown[] = [];
     const reloader = new SkillsReloader({
-      skillsRoot,
+      catalogRoot,
       catalog: {
         reload(): Promise<void> {
           return Promise.reject(new Error("boom"));

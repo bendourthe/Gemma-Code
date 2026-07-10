@@ -6,11 +6,8 @@ import { createHookBus } from "../../core/lifecycle/HookBus.js";
 import { attachSessionReflectionHook } from "../../core/lifecycle/SessionReflectionHook.js";
 import { attachPreCompactWipHook } from "../../core/lifecycle/PreCompactHook.js";
 import { matchPathScope } from "../../core/skills/SkillCatalog.js";
-import {
-  defaultSkillsRoot,
-  readActiveTag,
-  tagDir,
-} from "../../core/skills/NexusHubSyncer.js";
+import { catalogRoot, hubLayoutDir } from "../../core/storage/paths.js";
+import { readHubVersionManifest, resolveHubLayout } from "../../core/storage/hubVersionManifest.js";
 import { resolveLanguageRules } from "../../modules/coding/chat/LanguageRuleBuilder.js";
 import { createCredentialVault } from "../../core/security/CredentialVault.js";
 import type { PathScopedSkillSource } from "../tools/AgentLoop.js";
@@ -217,23 +214,23 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
   // tier config without a full panel reconstruction.
   let registry: ToolRegistry | null = null;
   // v1.5.0 Phase 7 (HUB.P3.RULES): resolve the workspace's Hub language rules
-  // from the active devai-hub bundle, memoized by (active tag, workspace) so the
-  // filesystem read happens once per change rather than per prompt rebuild.
-  // Inert by default: with no synced bundle, this returns undefined and no
-  // language-rules section is added.
+  // from the synced catalog (`~/.nexus-ai/catalog/rules`), memoized by (catalog
+  // version, workspace) so the filesystem read happens once per change rather
+  // than per prompt rebuild. Inert by default: with no synced catalog the rules
+  // dir does not exist, so this returns undefined and no rules section is added.
   let cachedLanguageRules: { key: string; value: string | undefined } | null = null;
   const resolveHubLanguageRules = (): string | undefined => {
     try {
-      const skillsRoot = defaultSkillsRoot();
-      const activeTag = readActiveTag(skillsRoot) ?? "";
+      const root = catalogRoot();
+      const version = readHubVersionManifest(root)?.version ?? "";
       const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? "";
-      const key = `${activeTag}::${workspacePath}`;
+      const key = `${version}::${workspacePath}`;
       if (cachedLanguageRules && cachedLanguageRules.key === key) {
         return cachedLanguageRules.value;
       }
       let value: string | undefined;
-      if (activeTag) {
-        const rulesRoot = path.join(tagDir(skillsRoot, activeTag), "catalog", "rules");
+      const rulesRoot = hubLayoutDir(root, "rules", resolveHubLayout(root));
+      if (fs.existsSync(rulesRoot)) {
         value =
           resolveLanguageRules({
             workspacePath: workspacePath || undefined,
@@ -358,14 +355,14 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
   }
 
   // v1.5.0 Phase 7 (HUB.P3.AGENT): expose the Nexus-Hub agent personas from the
-  // active devai-hub bundle so a sub-agent can be dispatched with a persona name.
-  // Inert when no bundle is synced (the agents dir simply does not exist).
+  // synced catalog so a sub-agent can be dispatched with a persona name. Inert
+  // when the catalog is not synced (the agents dir simply does not exist).
   {
-    const activeTag = readActiveTag(defaultSkillsRoot());
-    const agentsDir = activeTag
-      ? path.join(tagDir(defaultSkillsRoot(), activeTag), "catalog", "agents")
-      : null;
-    subAgentManager.setPersonaLoader(new HubAgentPersonaLoader(agentsDir));
+    const root = catalogRoot();
+    const agentsDir = hubLayoutDir(root, "agents", resolveHubLayout(root));
+    subAgentManager.setPersonaLoader(
+      new HubAgentPersonaLoader(fs.existsSync(agentsDir) ? agentsDir : null),
+    );
   }
 
   const initialTier = getTierConfig(settings.gpuTierOverride ?? 2);
@@ -495,13 +492,11 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
   subAgentManager.setCurationLoop(curationLoop);
 
   // v1.5.0 Phase 7 (HUB.P3.CMD): expose the Nexus-Hub command catalog from the
-  // active devai-hub bundle. Inert when no bundle is synced.
+  // synced catalog. Inert when the catalog is not synced.
   const hubCommandLoader = (() => {
-    const activeTag = readActiveTag(defaultSkillsRoot());
-    const commandsDir = activeTag
-      ? path.join(tagDir(defaultSkillsRoot(), activeTag), "catalog", "commands")
-      : null;
-    return new HubCommandCatalogLoader(commandsDir);
+    const root = catalogRoot();
+    const commandsDir = hubLayoutDir(root, "commands", resolveHubLayout(root));
+    return new HubCommandCatalogLoader(fs.existsSync(commandsDir) ? commandsDir : null);
   })();
   const commandRouter = new CommandRouter(
     () =>
