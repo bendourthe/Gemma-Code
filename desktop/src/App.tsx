@@ -11,6 +11,7 @@ import { ChatPage } from "./modules/chat/ChatPage";
 import { ImageStudioPage } from "./modules/image/ImageStudioPage";
 import { VideoLabPage } from "./modules/video/VideoLabPage";
 import { SettingsPage } from "./pages/settings/SettingsPage";
+import { createIpcSkillsClient } from "./pages/settings/ipcSkillsClient";
 import { LocalModelStatusDock } from "./components/LocalModelStatusDock";
 import { createMockTelemetryStream } from "./lib/telemetryMock";
 import type { TelemetryStream } from "./components/LocalModelStatus.types";
@@ -19,6 +20,12 @@ export interface AppProps {
   // Test seam: callers may inject a fake telemetry stream.
   telemetryStream?: TelemetryStream | null;
 }
+
+// v1.10.0 Phase 6: the Settings > Skills tab drives its update-detection surface
+// through the real sidecar `skills.*` IPC (installed version, upstream latest,
+// one-click resync). Constructed once at module load so SettingsPage's memo
+// does not re-run its load effect on every App render.
+const skillsClient = createIpcSkillsClient();
 
 export function App({ telemetryStream }: AppProps = {}): JSX.Element {
   const [stream, setStream] = useState<TelemetryStream | null>(telemetryStream ?? null);
@@ -80,7 +87,7 @@ export function App({ telemetryStream }: AppProps = {}): JSX.Element {
             <Route path="/coding" element={<CodingPage />} />
             <Route path="/images" element={<ImageStudioPage />} />
             <Route path="/videos" element={<VideoLabPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/settings" element={<SettingsPage skillsClient={skillsClient} />} />
             <Route
               path="/profile"
               element={

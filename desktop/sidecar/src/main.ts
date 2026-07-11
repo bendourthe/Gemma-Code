@@ -10,6 +10,11 @@ import { createChatMessageHandler } from "./chat/chatMessageHandler.js";
 import { createDiffusionRuntime } from "./diffusion/runtimeFactory.js";
 import { createHandlerContext, dispatch } from "./handlers.js";
 import { warmUpTreeSitter } from "./treeSitterWarmup.js";
+import { existsSync } from "node:fs";
+import { NexusHubSyncer } from "../../../core/skills/NexusHubSyncer.js";
+import { migrateLegacyCatalogCleanup } from "../../../core/skills/migrateLegacyCatalog.js";
+import { nexusHome, catalogRoot, hubLayoutDir } from "../../../core/storage/paths.js";
+import { resolveHubLayout } from "../../../core/storage/hubVersionManifest.js";
 
 interface JsonRpcRequest {
   jsonrpc?: string;
@@ -81,6 +86,31 @@ async function handleLine(line: string): Promise<void> {
   }
 }
 
+// v1.10.0 Phase 6 (T031): on sidecar startup, run the one-shot legacy-cache
+// cleanup (removes ~/.nexus/skills/devai-hub) and, if the Nexus-Hub catalog is
+// not yet populated at ~/.nexus-ai/catalog/, fetch it. Best-effort + non-fatal:
+// an offline host stays in the "catalog not yet synced" state until the next
+// successful sync. Fire-and-forget, so it never blocks JSON-RPC handling.
+async function firstLaunchCatalog(): Promise<void> {
+  try {
+    migrateLegacyCatalogCleanup(nexusHome());
+  } catch {
+    // Cleanup is best-effort; never block startup.
+  }
+  const root = catalogRoot();
+  const skillsDir = hubLayoutDir(root, "skills", resolveHubLayout(root));
+  if (existsSync(skillsDir)) return; // already synced
+  try {
+    const result = await new NexusHubSyncer({}).sync({ apply: true });
+    process.stderr.write(
+      `[nexus-sidecar] Nexus-Hub catalog: fetched ${result.tag}${result.applied ? "" : " (not applied)"}\n`,
+    );
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`[nexus-sidecar] Nexus-Hub catalog: not yet synced (${msg})\n`);
+  }
+}
+
 function main(): void {
   // v1.5.0 Phase 6 (T022.P3.A): warm up the Tree-sitter codegraph scanner from
   // the bundled wasm dir so codegraph scans use the parse path, not the regex
@@ -91,6 +121,9 @@ function main(): void {
       `[nexus-sidecar] tree-sitter codegraph scanner: ${ready ? "ready" : "unavailable (regex fallback)"}\n`,
     );
   });
+
+  // v1.10.0 Phase 6: best-effort Nexus-Hub catalog cleanup + first-launch fetch.
+  void firstLaunchCatalog();
 
   const rl = createInterface({ input: process.stdin, crlfDelay: Infinity });
   rl.on("line", (line) => {

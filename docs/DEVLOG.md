@@ -4,6 +4,32 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-10] v1.10.0 Nexus-Hub consumption re-architecture -- Phase 6: live first-launch fetch + skills.* IPC + in-app update detection (T031-T034, T036)
+
+### Goal
+
+Activate the catalog machinery in the running app: fetch the Nexus-Hub catalog on first launch, expose sync/status/update-check over IPC, and surface an in-app "update available" prompt.
+
+### What changed
+
+- **T031 live first-launch fetch** ([main.ts](../desktop/sidecar/src/main.ts)): the sidecar now runs the one-shot legacy-cache cleanup (P4) and fetches the catalog into `~/.nexus-ai/catalog/` when unpopulated -- fire-and-forget + non-fatal (offline -> "catalog not yet synced", logged to stderr). This is the first live consumer of `NexusHubSyncer` + `migrateLegacyCatalogCleanup` (activates `NHC.P4.A`'s cleanup).
+- **T032 `skills.*` IPC** ([protocol.ts](../desktop/sidecar/src/protocol.ts) + [handlers.ts](../desktop/sidecar/src/handlers.ts)): `skills.sync` (runs `NexusHubSyncer.sync`; reports tag/applied/alreadyUpToDate/blocked/summary), `skills.status` (installed version from `nexus-hub-version.json` + catalog-present + source repo), `skills.upstreamLatest` (polls the GitHub releases API; null on offline). All three flipped to `implemented: true` with real zod schemas.
+- **T033** [ipcSkillsClient.ts](../desktop/src/pages/settings/ipcSkillsClient.ts) (new) + [App.tsx](../desktop/src/App.tsx): a real Skills client over `skills.*` wired into the live `SettingsPage`. Update-detection methods are real; `list()` is empty and skill-management mutations reject (that surface is a separate SkillCatalog IPC, not scoped here).
+- **T034** [SkillsSettings](../desktop/src/pages/settings/SkillsSettings.tsx): an "update available: X -> Y [Update now]" banner (upstream newer than installed) + a "catalog not yet synced [Sync now]" empty state.
+
+### Scope
+
+- **T035** (rename the `"devai-hub"` wire enum + slash namespaces) stays consolidated into the Phase 7 naming scrub (`NHC.P2.A`) -- nothing here produces that token.
+- Full skill-management IPC (list / enable-disable / quarantine / divergence) is deferred (`NHC.P6.B`). The weekly *idle* auto-sync worker needs an idle-activity loop the request-driven sidecar lacks; it stays deferred (`NHC.P6.C`).
+
+### Verification
+
+Desktop `tsc --noEmit` + eslint clean; desktop suite **533 passed / 0 failed** (new: `ipcSkillsClient` 7, `SkillsSettingsBanner` 3; updated the `sidecar-handlers` unimplemented-set test to exclude the 3 now-implemented `skills.*` methods). The backend handlers + first-launch routine are thin adapters over already-unit-tested logic (`NexusHubSyncer` P2, `migrateLegacyCatalog` P4); hermetic handler tests need a test-injectable home/deps seam (`NHC.P6.D`). No root/core files changed.
+
+### Branch
+
+`feat/v1.10.0-nexus-hub-consumption`.
+
 ## [2026-07-10] v1.10.0 Nexus-Hub consumption re-architecture -- Phase 5: remove the installer bundled-baseline redundancy (T026-T030)
 
 ### Goal

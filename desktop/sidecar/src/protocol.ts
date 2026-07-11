@@ -39,6 +39,8 @@ export const IPC_METHODS = [
   "image.generate",
   "video.generate",
   "skills.sync",
+  "skills.status",
+  "skills.upstreamLatest",
   "telemetry.subscribe",
   "diffusion.health",
   "diffusion.version",
@@ -715,6 +717,35 @@ export const CredentialsDeleteResponse = z
   .strict();
 export type CredentialsDeleteResponseT = z.infer<typeof CredentialsDeleteResponse>;
 
+// v1.10.0 Phase 6 -- Nexus-Hub catalog sync + update detection.
+export const SkillsSyncRequest = z.object({ tag: z.string().optional() }).strict();
+export const SkillsSyncResponse = z
+  .object({
+    tag: z.string(),
+    applied: z.boolean(),
+    alreadyUpToDate: z.boolean(),
+    blocked: z.boolean(),
+    summary: z.string(),
+  })
+  .strict();
+export type SkillsSyncResponseT = z.infer<typeof SkillsSyncResponse>;
+
+export const SkillsStatusRequest = z.object({}).strict();
+export const SkillsStatusResponse = z
+  .object({
+    installedVersion: z.string().nullable(),
+    catalogPresent: z.boolean(),
+    sourceRepo: z.string(),
+  })
+  .strict();
+export type SkillsStatusResponseT = z.infer<typeof SkillsStatusResponse>;
+
+export const SkillsUpstreamLatestRequest = z.object({}).strict();
+export const SkillsUpstreamLatestResponse = z
+  .object({ latestTag: z.string().nullable() })
+  .strict();
+export type SkillsUpstreamLatestResponseT = z.infer<typeof SkillsUpstreamLatestResponse>;
+
 const NotImplementedAny = z.unknown();
 
 interface MethodSchema {
@@ -815,7 +846,13 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
   },
   "image.generate": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
   "video.generate": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
-  "skills.sync": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
+  "skills.sync": { request: SkillsSyncRequest, response: SkillsSyncResponse, implemented: true },
+  "skills.status": { request: SkillsStatusRequest, response: SkillsStatusResponse, implemented: true },
+  "skills.upstreamLatest": {
+    request: SkillsUpstreamLatestRequest,
+    response: SkillsUpstreamLatestResponse,
+    implemented: true,
+  },
   "telemetry.subscribe": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
   "diffusion.health": {
     request: DiffusionEmptyRequest,

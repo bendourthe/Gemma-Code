@@ -73,6 +73,10 @@ describe("sidecar handlers", () => {
           "diffusion.video.text2video",
           "diffusion.video.image2video",
           "diffusion.video.workflow.extract",
+          // v1.10.0 Phase 6 wired the Nexus-Hub catalog sync + update detection.
+          "skills.sync",
+          "skills.status",
+          "skills.upstreamLatest",
         ].includes(m),
     );
     for (const m of unimplemented) {

@@ -184,6 +184,33 @@ export function SkillsSettings({ client }: SkillsSettingsProps): JSX.Element {
         </div>
       </header>
 
+      {!loading && activeTag === null && (
+        <div data-testid="skills-not-synced" style={bannerStyle}>
+          The Nexus-Hub catalog is not yet synced.{" "}
+          <button
+            type="button"
+            data-testid="skills-sync-empty"
+            onClick={handleSyncNow}
+            disabled={syncing}
+          >
+            {syncing ? "Syncing..." : "Sync now"}
+          </button>
+        </div>
+      )}
+      {!loading && activeTag !== null && upstreamTag !== null && upstreamTag !== activeTag && (
+        <div data-testid="skills-update-available" style={bannerStyle}>
+          Update available: {activeTag} to {upstreamTag}.{" "}
+          <button
+            type="button"
+            data-testid="skills-update-now"
+            onClick={handleSyncNow}
+            disabled={syncing}
+          >
+            {syncing ? "Updating..." : "Update now"}
+          </button>
+        </div>
+      )}
+
       <div role="alert" aria-live="polite" style={{ minHeight: "1.5em", color: "var(--accent-warning, #d97706)" }}>
         {error ?? ""}
       </div>
@@ -408,6 +435,17 @@ const headerStyle: React.CSSProperties = {
   alignItems: "baseline",
   justifyContent: "space-between",
   gap: "var(--space-4, 16px)",
+};
+
+const bannerStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "var(--space-2, 8px)",
+  padding: "var(--space-2, 8px) var(--space-3, 12px)",
+  borderRadius: "var(--radius-2, 6px)",
+  border: "1px solid var(--accent-primary, #6366f1)",
+  background: "var(--bg-1, transparent)",
+  color: "var(--fg-0)",
 };
 
 const controlsRowStyle: React.CSSProperties = {

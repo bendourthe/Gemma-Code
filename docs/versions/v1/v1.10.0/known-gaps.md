@@ -44,6 +44,14 @@ Tracks unfinished work, deferrals, and cross-repo coordination for the v1.10.0 N
 |----|-----|-----|-----|-------------|
 | NHC.P5.A | P3 | NI | The installer carries a pre-existing lint/type baseline untouched by this phase: `build/fetch-payload.py` has a UP037 + an E501 (on lines Phase 5 did not modify), and `storage.py` `refresh()` has a `QLayoutItem \| None` union-attr mypy nit (pre-existing; line-shifted by the row removal). | Not introduced by Phase 5; the changed src + tests are ruff-clean and the phase adds no new mypy errors. Left as-is (out of scope; the installer's existing baseline). |
 
+## 1f. Phase 6 -- live first-launch fetch + skills.* IPC + update detection (landed 2026-07-10)
+
+| ID | Sev | Cat | Gap | Disposition |
+|----|-----|-----|-----|-------------|
+| NHC.P6.B | P2 | DF | Full skill-management IPC is not wired: `SkillsSettings` can list / enable-disable / approve-quarantine / pick-divergence via its client contract, but no sidecar handlers back those. `ipcSkillsClient.list()` returns `[]` and the mutation methods reject; only the update-detection subset (status / upstreamLatest / sync) is live. | Out of this plan's update-detection DoD; it is a separate SkillCatalog read+write IPC feature. File as its own plan when skill-management UI is prioritized. |
+| NHC.P6.C | P2 | DF | The weekly *idle* auto-sync worker is not live, and the Settings auto-sync toggle is not wired to a settings IPC (`ipcSkillsClient.autoSyncEnabled` -> false, `setAutoSyncEnabled` -> no-op). The request-driven sidecar has no idle-activity loop to drive `IdleScheduler`. | First-launch fetch + manual "Sync now" cover the DoD. Wiring the idle-scheduler loop (+ a settings IPC for the toggle) is a follow-up; the worker + setting-key migration are already built (P4). |
+| NHC.P6.D | P3 | QG | The sidecar `skills.*` handlers + the `main.ts` first-launch routine have no hermetic tests: they construct `NexusHubSyncer` internally and resolve `~/.nexus-ai` via `os.homedir()` (no `NEXUS_AI_HOME` override -- `NHC.P1.A`), so a test cannot redirect the home or inject deps, and `skills.sync`/`upstreamLatest` do real git/network. | Covered indirectly: the underlying logic is unit-tested (`NexusHubSyncer` P2, `migrateLegacyCatalog` P4), the IPC contract is exercised client-side (`ipcSkillsClient` test), and the wiring is typechecked. Add injection seams when the app-data-home plan lands the `NEXUS_AI_HOME` override. |
+
 ## 2. Cross-repo coordination (Nexus-Hub)
 
 | ID | Sev | Cat | Gap | Disposition |

@@ -31,6 +31,10 @@ import {
   DiffusionVideoText2VideoRequest,
   DiffusionVideoWorkflowExtractRequest,
   DiffusionWorkflowExtractRequest,
+  SkillsSyncRequest,
+  type SkillsStatusResponseT,
+  type SkillsSyncResponseT,
+  type SkillsUpstreamLatestResponseT,
   IPC_METHODS,
   METHOD_SCHEMAS,
   NotImplementedError,
@@ -39,6 +43,18 @@ import {
   isMethod,
   type Method,
 } from "./protocol.js";
+import { existsSync } from "node:fs";
+import {
+  NexusHubSyncer,
+  defaultDependencies,
+  summarizeDiff,
+} from "../../../core/skills/NexusHubSyncer.js";
+import { catalogRoot, hubLayoutDir } from "../../../core/storage/paths.js";
+import {
+  readHubVersionManifest,
+  resolveHubLayout,
+  DEFAULT_HUB_SOURCE_REPO,
+} from "../../../core/storage/hubVersionManifest.js";
 import { CodingSessionManager } from "./coding/sessionManager.js";
 import { ChatSessionManager } from "./chat/sessionManager.js";
 import { memorySnapshot, traceSubscribe } from "./coding/panelData.js";
@@ -203,8 +219,35 @@ export const handlers: Record<Method, HandlerFn> = {
   "video.generate": async () => {
     throw new NotImplementedError("video.generate");
   },
-  "skills.sync": async () => {
-    throw new NotImplementedError("skills.sync");
+  "skills.sync": async (params): Promise<SkillsSyncResponseT> => {
+    const req = SkillsSyncRequest.parse(params ?? {});
+    const result = await new NexusHubSyncer({}).sync({ tag: req.tag, apply: true });
+    return {
+      tag: result.tag,
+      applied: result.applied,
+      alreadyUpToDate: result.alreadyUpToDate,
+      blocked: result.scan.decision === "block",
+      summary: summarizeDiff(result.diff),
+    };
+  },
+  "skills.status": async (): Promise<SkillsStatusResponseT> => {
+    const root = catalogRoot();
+    const manifest = readHubVersionManifest(root);
+    const skillsDir = hubLayoutDir(root, "skills", resolveHubLayout(root));
+    return {
+      installedVersion: manifest?.version ?? null,
+      catalogPresent: existsSync(skillsDir),
+      sourceRepo: manifest?.source_repo ?? DEFAULT_HUB_SOURCE_REPO,
+    };
+  },
+  "skills.upstreamLatest": async (): Promise<SkillsUpstreamLatestResponseT> => {
+    try {
+      const latestTag = await defaultDependencies().resolveLatestTag();
+      return { latestTag };
+    } catch {
+      // Offline / rate-limited: report "unknown" rather than throwing.
+      return { latestTag: null };
+    }
   },
   "telemetry.subscribe": async () => {
     throw new NotImplementedError("telemetry.subscribe");
