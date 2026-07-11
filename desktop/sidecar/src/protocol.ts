@@ -601,7 +601,7 @@ export const SlashSuggestion = z
     name: z.string().min(1),
     description: z.string(),
     template: z.string(),
-    namespace: z.enum(["builtin", "user", "devai-hub"]).optional(),
+    namespace: z.enum(["builtin", "user", "nexus-hub"]).optional(),
     skillId: z.string().optional(),
   })
   .strict();

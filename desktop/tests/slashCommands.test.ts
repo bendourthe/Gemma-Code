@@ -75,10 +75,10 @@ describe("filterSlashCommandsWithSkills (Phase 8.4 preferUpstream)", () => {
       description: "User-authored variant.",
     },
     {
-      id: "devai-hub/code-quality",
+      id: "nexus-hub/code-quality",
       displayName: "code-quality",
-      namespace: "devai-hub",
-      description: "DevAI-Hub baseline.",
+      namespace: "nexus-hub",
+      description: "Nexus-Hub baseline.",
     },
     {
       id: "user/lonely",
@@ -102,15 +102,15 @@ describe("filterSlashCommandsWithSkills (Phase 8.4 preferUpstream)", () => {
     const codeQualityEntries = out.filter((c) => c.name === "code-quality");
     expect(codeQualityEntries).toHaveLength(2);
     expect(codeQualityEntries[0]?.namespace).toBe("user");
-    expect(codeQualityEntries[1]?.namespace).toBe("devai-hub");
+    expect(codeQualityEntries[1]?.namespace).toBe("nexus-hub");
   });
 
-  it("when preferUpstream is true, the devai-hub variant comes first", () => {
+  it("when preferUpstream is true, the nexus-hub variant comes first", () => {
     const out = filterSlashCommandsWithSkills("/code", skills, {
       preferUpstream: true,
     });
     const codeQualityEntries = out.filter((c) => c.name === "code-quality");
-    expect(codeQualityEntries[0]?.namespace).toBe("devai-hub");
+    expect(codeQualityEntries[0]?.namespace).toBe("nexus-hub");
     expect(codeQualityEntries[1]?.namespace).toBe("user");
   });
 

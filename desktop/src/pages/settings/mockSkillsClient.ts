@@ -18,12 +18,12 @@ const SAMPLE: SkillRowDto[] = [
     provenance: { source: "builtin", contentHash: "b".repeat(64) },
   },
   {
-    id: "devai-hub/code-quality",
+    id: "nexus-hub/code-quality",
     displayName: "Code Quality",
     category: "code-review",
-    path: "/devai-hub/v1.3.2/code-quality/SKILL.md",
+    path: "/nexus-hub/v1.3.2/code-quality/SKILL.md",
     active: true,
-    provenance: { source: "devai-hub", tag: "v1.3.2", contentHash: "d".repeat(64) },
+    provenance: { source: "nexus-hub", tag: "v1.3.2", contentHash: "d".repeat(64) },
   },
   {
     id: "user/code-quality",
@@ -36,7 +36,7 @@ const SAMPLE: SkillRowDto[] = [
   },
 ];
 
-// The devai-hub copy also diverges; reflect that on its row.
+// The nexus-hub copy also diverges; reflect that on its row.
 SAMPLE[1]!.diverged = true;
 
 export function createMockSkillsClient(): SkillsSettingsClient {

@@ -12,16 +12,16 @@ import type {
  * The Tracer keeps an optional "current skill" context. When a `tool_call`
  * span starts while a skill is active, the provenance fields are flattened
  * into the span attributes so the dashboard and `/trace dump` JSON can
- * render "Skill: devai-hub@v1.3.2/<name>". The flattening is intentional:
+ * render "Skill: nexus-hub@v1.3.2/<name>". The flattening is intentional:
  * the TraceStore attributes column only carries `string | number | boolean`
  * values so we can't store a nested object directly.
  */
 export interface SkillSpanContext {
-  /** Canonical skill id, namespaced for non-builtin sources (e.g. `devai-hub/code-quality`). */
+  /** Canonical skill id, namespaced for non-builtin sources (e.g. `nexus-hub/code-quality`). */
   readonly id: string;
-  /** `builtin` | `user` | `devai-hub`. Matches `SkillProvenance.source`. */
-  readonly namespace: "builtin" | "user" | "devai-hub";
-  /** Provenance tag (e.g. `v1.3.2`) for devai-hub sourced skills. */
+  /** `builtin` | `user` | `nexus-hub`. Matches `SkillProvenance.source`. */
+  readonly namespace: "builtin" | "user" | "nexus-hub";
+  /** Provenance tag (e.g. `v1.3.2`) for nexus-hub sourced skills. */
   readonly tag?: string;
   /** SHA-256 over the SKILL.md body and any bundled scripts. */
   readonly contentHash?: string;
@@ -54,7 +54,7 @@ export function readSkillContextFromAttributes(
   const id = attributes["skill.id"];
   const ns = attributes["skill.namespace"];
   if (typeof id !== "string" || typeof ns !== "string") return null;
-  if (ns !== "builtin" && ns !== "user" && ns !== "devai-hub") return null;
+  if (ns !== "builtin" && ns !== "user" && ns !== "nexus-hub") return null;
   const ctx: SkillSpanContext = {
     id,
     namespace: ns,

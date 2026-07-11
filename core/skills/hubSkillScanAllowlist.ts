@@ -15,8 +15,8 @@
  * is DELIBERATELY NARROW:
  *   - each entry waives exactly ONE rule for ONE skill (a new / different
  *     injection pattern in an allowlisted skill still blocks),
- *   - it is applied ONLY to the trusted `devai-hub` sync source
- *     (`DevAIHubSyncer`); untrusted third-party `nexus skills install` imports
+ *   - it is applied ONLY to the trusted `nexus-hub` sync source
+ *     (`NexusHubSyncer`); untrusted third-party `nexus skills install` imports
  *     keep the fully-strict scanner (`SkillInstaller` passes no suppressions).
  *
  * Every entry was reviewed against the Hub v3.10.0 checkout by reading the

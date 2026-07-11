@@ -21,13 +21,13 @@ const SAMPLE: readonly Skill[] = [
     provenance: { source: "builtin", contentHash: BUILTIN_HASH },
   },
   {
-    id: "devai-hub/skill-eval-loop",
+    id: "nexus-hub/skill-eval-loop",
     displayName: "Skill Eval Loop",
     category: "workflow",
-    path: "/skills/devai-hub/skill-eval-loop/SKILL.md",
+    path: "/skills/nexus-hub/skill-eval-loop/SKILL.md",
     frontmatter: { name: "skill-eval-loop" },
     body: "# Eval\n",
-    provenance: { source: "devai-hub", tag: "v1.3.2", contentHash: DEVAI_HASH },
+    provenance: { source: "nexus-hub", tag: "v1.3.2", contentHash: DEVAI_HASH },
   },
 ];
 
@@ -42,7 +42,7 @@ describe("InMemorySkillCatalog", () => {
     expect(records).toHaveLength(2);
     expect(records.map((r) => r.id)).toEqual([
       "writing-editing",
-      "devai-hub/skill-eval-loop",
+      "nexus-hub/skill-eval-loop",
     ]);
     expect((records[0] as { body?: string }).body).toBeUndefined();
   });
@@ -57,9 +57,9 @@ describe("InMemorySkillCatalog", () => {
     await expect(catalog.load("nope")).rejects.toThrow(/unknown skill id nope/);
   });
 
-  it("namespaced devai-hub/<name> ids are first-class", () => {
+  it("namespaced nexus-hub/<name> ids are first-class", () => {
     const records = catalog.list();
-    expect(records.some((r) => r.id.startsWith("devai-hub/"))).toBe(true);
+    expect(records.some((r) => r.id.startsWith("nexus-hub/"))).toBe(true);
   });
 
   it("reload() resolves and may be a no-op", async () => {
@@ -83,7 +83,7 @@ describe("InMemorySkillCatalog", () => {
       contentHash: BUILTIN_HASH,
     });
     expect(records[1]!.provenance).toEqual({
-      source: "devai-hub",
+      source: "nexus-hub",
       tag: "v1.3.2",
       contentHash: DEVAI_HASH,
     });
@@ -93,13 +93,13 @@ describe("InMemorySkillCatalog", () => {
     const builtin = catalog.listByNamespace("builtin");
     expect(builtin).toHaveLength(1);
     expect(builtin[0]!.id).toBe("writing-editing");
-    const devai = catalog.listByNamespace("devai-hub");
+    const devai = catalog.listByNamespace("nexus-hub");
     expect(devai).toHaveLength(1);
-    expect(devai[0]!.id).toBe("devai-hub/skill-eval-loop");
+    expect(devai[0]!.id).toBe("nexus-hub/skill-eval-loop");
     expect(catalog.listByNamespace("user")).toEqual([]);
   });
 
-  it("does not collide when a user skill shares a name with devai-hub", () => {
+  it("does not collide when a user skill shares a name with nexus-hub", () => {
     catalog.resetForTesting([
       {
         ...SAMPLE[0]!,
@@ -114,18 +114,18 @@ describe("InMemorySkillCatalog", () => {
         provenance: { source: "user", contentHash: USER_HASH },
       },
       {
-        id: "devai-hub/code-quality",
+        id: "nexus-hub/code-quality",
         displayName: "Code Quality",
         category: "review",
         path: "/d/code-quality/SKILL.md",
         frontmatter: {},
         body: "devai",
-        provenance: { source: "devai-hub", tag: "v1.3.2", contentHash: DEVAI_HASH },
+        provenance: { source: "nexus-hub", tag: "v1.3.2", contentHash: DEVAI_HASH },
       },
     ]);
     const ids = catalog.list().map((r) => r.id);
     expect(ids).toContain("user/code-quality");
-    expect(ids).toContain("devai-hub/code-quality");
+    expect(ids).toContain("nexus-hub/code-quality");
     expect(new Set(ids).size).toBe(ids.length); // unique
   });
 
@@ -141,13 +141,13 @@ describe("InMemorySkillCatalog", () => {
         provenance: { source: "user", contentHash: USER_HASH },
       },
       {
-        id: "devai-hub/code-quality",
+        id: "nexus-hub/code-quality",
         displayName: "Code Quality",
         category: "review",
         path: "/d/code-quality/SKILL.md",
         frontmatter: {},
         body: "devai",
-        provenance: { source: "devai-hub", tag: "v1.3.2", contentHash: DEVAI_HASH },
+        provenance: { source: "nexus-hub", tag: "v1.3.2", contentHash: DEVAI_HASH },
       },
     ]);
     const records = catalog.list();
@@ -166,14 +166,14 @@ describe("canonicalSkillId / namespaceForSource", () => {
     expect(canonicalSkillId("builtin", "code-quality")).toBe("code-quality");
   });
 
-  it("prefixes the namespace for user and devai-hub sources", () => {
+  it("prefixes the namespace for user and nexus-hub sources", () => {
     expect(canonicalSkillId("user", "my-skill")).toBe("user/my-skill");
-    expect(canonicalSkillId("devai-hub", "code-quality")).toBe("devai-hub/code-quality");
+    expect(canonicalSkillId("nexus-hub", "code-quality")).toBe("nexus-hub/code-quality");
   });
 
   it("namespaceForSource() echoes the source", () => {
     expect(namespaceForSource("builtin")).toBe("builtin");
     expect(namespaceForSource("user")).toBe("user");
-    expect(namespaceForSource("devai-hub")).toBe("devai-hub");
+    expect(namespaceForSource("nexus-hub")).toBe("nexus-hub");
   });
 });

@@ -90,7 +90,7 @@ describe("renderSkillBlockWithinBudget -- truncated rung", () => {
 });
 
 describe("renderSkillBlockWithinBudget -- omitted rung", () => {
-  it("drops devai-hub before user before builtin until the remainder fits", () => {
+  it("drops nexus-hub before user before builtin until the remainder fits", () => {
     // Equal-length ids + paths so every line tokenizes to the same cost; a
     // one-line budget then forces dropping all but the highest-priority source.
     const builtin = skill({
@@ -107,7 +107,7 @@ describe("renderSkillBlockWithinBudget -- omitted rung", () => {
     const hub = skill({
       id: "skill-hh",
       path: "/r/skill-hh/SKILL.md",
-      provenance: { source: "devai-hub", contentHash: HASH },
+      provenance: { source: "nexus-hub", contentHash: HASH },
       frontmatter: { description: "x" },
     });
     const budget = tokenize(renderSkillBlock([builtin])); // exactly one full line

@@ -60,7 +60,7 @@ export function detectPrimaryLanguage(
 /**
  * Load and render the Hub rules for `lang` from `rulesRoot` (the directory that
  * contains the per-language subdirectories, e.g.
- * `<active-devai-hub>/catalog/rules`). Concatenates the available rule files
+ * `<active-nexus-hub>/catalog/rules`). Concatenates the available rule files
  * under a section header, truncating to `maxChars`. Returns `null` when the
  * language directory has no readable rule files.
  */

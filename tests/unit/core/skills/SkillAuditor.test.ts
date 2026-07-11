@@ -74,10 +74,10 @@ function fixtureCatalog(): InMemorySkillCatalog {
       frontmatter: { description: "Take notes." },
     }),
     skill({
-      id: "devai-hub/research",
+      id: "nexus-hub/research",
       displayName: "Research",
-      path: "/skills/devai-hub/v1/research/SKILL.md",
-      provenance: { source: "devai-hub", contentHash: HASH },
+      path: "/skills/nexus-hub/v1/research/SKILL.md",
+      provenance: { source: "nexus-hub", contentHash: HASH },
       frontmatter: { description: "Do research." },
     }),
   ]);
@@ -149,10 +149,10 @@ describe("auditSkills -- root summary", () => {
   it("rolls skills up by provenance source in precedence order", async () => {
     const report = await auditSkills({ catalog: fixtureCatalog() });
     const bySource = new Map(report.roots.map((r) => [r.source, r]));
-    expect(report.roots.map((r) => r.source)).toEqual(["builtin", "user", "devai-hub"]);
+    expect(report.roots.map((r) => r.source)).toEqual(["builtin", "user", "nexus-hub"]);
     expect(bySource.get("builtin")!.skillCount).toBe(5);
     expect(bySource.get("user")!.skillCount).toBe(2);
-    expect(bySource.get("devai-hub")!.skillCount).toBe(1);
+    expect(bySource.get("nexus-hub")!.skillCount).toBe(1);
     expect(bySource.get("builtin")!.root).toBe("/skills/builtin");
   });
 });

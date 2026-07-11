@@ -15,9 +15,9 @@ const BUILTINS: readonly SlashSuggestion[] = Object.freeze([
 const SKILLS: readonly SlashSkillRecord[] = Object.freeze([
   { id: "user/code-quality", displayName: "code-quality", namespace: "user" },
   {
-    id: "devai-hub/code-quality",
+    id: "nexus-hub/code-quality",
     displayName: "code-quality",
-    namespace: "devai-hub",
+    namespace: "nexus-hub",
     description: "Upstream code-quality skill.",
   },
   { id: "user/lint-fix", displayName: "lint-fix", namespace: "user" },
@@ -64,7 +64,7 @@ describe("autocompleteSlashCommands", () => {
     expect(names.slice(BUILTINS.length)).toContain("lint-fix");
   });
 
-  it("orders same-named user / devai-hub skills by preferUpstream=false (user first)", () => {
+  it("orders same-named user / nexus-hub skills by preferUpstream=false (user first)", () => {
     const result = autocompleteSlashCommands(
       { input: "/code", preferUpstream: false },
       { builtins: BUILTINS, skills: SKILLS },
@@ -72,16 +72,16 @@ describe("autocompleteSlashCommands", () => {
     const codeQualityHits = result.filter((r) => r.name === "code-quality");
     expect(codeQualityHits).toHaveLength(2);
     expect(codeQualityHits[0]?.namespace).toBe("user");
-    expect(codeQualityHits[1]?.namespace).toBe("devai-hub");
+    expect(codeQualityHits[1]?.namespace).toBe("nexus-hub");
   });
 
-  it("orders same-named user / devai-hub skills by preferUpstream=true (devai-hub first)", () => {
+  it("orders same-named user / nexus-hub skills by preferUpstream=true (nexus-hub first)", () => {
     const result = autocompleteSlashCommands(
       { input: "/code", preferUpstream: true },
       { builtins: BUILTINS, skills: SKILLS },
     );
     const hits = result.filter((r) => r.name === "code-quality");
-    expect(hits[0]?.namespace).toBe("devai-hub");
+    expect(hits[0]?.namespace).toBe("nexus-hub");
     expect(hits[1]?.namespace).toBe("user");
   });
 
@@ -91,7 +91,7 @@ describe("autocompleteSlashCommands", () => {
       { builtins: BUILTINS, skills: SKILLS },
     );
     const upstream = result.find(
-      (r) => r.name === "code-quality" && r.namespace === "devai-hub",
+      (r) => r.name === "code-quality" && r.namespace === "nexus-hub",
     );
     const user = result.find(
       (r) => r.name === "code-quality" && r.namespace === "user",

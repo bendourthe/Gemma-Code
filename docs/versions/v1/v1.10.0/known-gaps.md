@@ -52,6 +52,13 @@ Tracks unfinished work, deferrals, and cross-repo coordination for the v1.10.0 N
 | NHC.P6.C | P2 | DF | The weekly *idle* auto-sync worker is not live, and the Settings auto-sync toggle is not wired to a settings IPC (`ipcSkillsClient.autoSyncEnabled` -> false, `setAutoSyncEnabled` -> no-op). The request-driven sidecar has no idle-activity loop to drive `IdleScheduler`. | First-launch fetch + manual "Sync now" cover the DoD. Wiring the idle-scheduler loop (+ a settings IPC for the toggle) is a follow-up; the worker + setting-key migration are already built (P4). |
 | NHC.P6.D | P3 | QG | The sidecar `skills.*` handlers + the `main.ts` first-launch routine have no hermetic tests: they construct `NexusHubSyncer` internally and resolve `~/.nexus-ai` via `os.homedir()` (no `NEXUS_AI_HOME` override -- `NHC.P1.A`), so a test cannot redirect the home or inject deps, and `skills.sync`/`upstreamLatest` do real git/network. | Covered indirectly: the underlying logic is unit-tested (`NexusHubSyncer` P2, `migrateLegacyCatalog` P4), the IPC contract is exercised client-side (`ipcSkillsClient` test), and the wiring is typechecked. Add injection seams when the app-data-home plan lands the `NEXUS_AI_HOME` override. |
 
+## 1g. Phase 7 -- DevAI/devai naming scrub (landed 2026-07-10)
+
+| ID | Sev | Cat | Gap | Disposition |
+|----|-----|-----|-----|-------------|
+| NHC.P7.A | P3 | NI | The `check:naming` gate ([scripts/check-no-devai-hub.mjs](../../../../scripts/check-no-devai-hub.mjs)) is JS/TS-scoped (`core`, `modules`, `src`, `desktop/src`, `desktop/sidecar/src`, `bin`) and matches only the quoted `"devai-hub"` enum value. It does not scan the Python installer (whose only remaining mentions are correct negative regression-guards, e.g. `assert "devai-hub" not in ...`), does not scan `docs/`/CHANGELOG (dated historical notes), and does not flag bare-prose old-path mentions in comments. | Intended scope: the gate guards the load-bearing token from creeping back into shipped code, not historical prose. The installer guards are enforced by the installer's own suite. |
+| NHC.P7.B | P3 | DF | `bin/nexus.mjs`'s `skills audit` command still resolves the old `~/.nexus/skills/devai-hub/` path inline and is therefore allowlisted in the naming gate (supersedes `NHC.P3.C`). | Inert for a dev-only CLI reader; reroute to the catalog resolver when the CLI gets its own pass. Removing the allowlist entry then re-tightens the gate automatically. |
+
 ## 2. Cross-repo coordination (Nexus-Hub)
 
 | ID | Sev | Cat | Gap | Disposition |

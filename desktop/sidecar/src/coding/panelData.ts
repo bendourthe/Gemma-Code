@@ -25,7 +25,7 @@ const PLACEHOLDER_SNAPSHOT: MemorySnapshotT = Object.freeze({
   anticipated: [
     "Likely next ask: add Qwen 2.5 tool-format coverage",
   ],
-  proposedSkills: ["devai-hub/python-cleanup"],
+  proposedSkills: ["nexus-hub/python-cleanup"],
 });
 
 const REDACTED_TOKEN = "<redacted>";
@@ -52,7 +52,7 @@ const PLACEHOLDER_TRACE: readonly TraceEventT[] = Object.freeze([
     id: "t-001",
     timestamp: "2026-05-17T11:30:00.000Z",
     kind: "skill",
-    summary: "Loaded skill devai-hub/python-cleanup",
+    summary: "Loaded skill nexus-hub/python-cleanup",
   },
   {
     id: "t-002",

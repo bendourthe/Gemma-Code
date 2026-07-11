@@ -76,7 +76,7 @@ describe("dedupeByRealpath (symlink fixture)", () => {
     "drops the lower-priority source when two paths resolve to the same physical file",
     () => {
       const deduped = dedupeByRealpath([
-        skill("devai-hub/x", "devai-hub", linkedSkillMd),
+        skill("nexus-hub/x", "nexus-hub", linkedSkillMd),
         skill("x", "builtin", realSkillMd),
       ]);
       expect(deduped).toHaveLength(1);
@@ -84,10 +84,10 @@ describe("dedupeByRealpath (symlink fixture)", () => {
     },
   );
 
-  it.skipIf(!CAN_SYMLINK)("keeps user over devai-hub regardless of input order", () => {
+  it.skipIf(!CAN_SYMLINK)("keeps user over nexus-hub regardless of input order", () => {
     const deduped = dedupeByRealpath([
       skill("user/x", "user", realSkillMd),
-      skill("devai-hub/x", "devai-hub", linkedSkillMd),
+      skill("nexus-hub/x", "nexus-hub", linkedSkillMd),
     ]);
     expect(deduped).toHaveLength(1);
     expect(deduped[0]!.provenance.source).toBe("user");
@@ -100,7 +100,7 @@ describe("dedupeByRealpath (symlink fixture)", () => {
     dedupeByRealpath(
       [
         skill("x", "builtin", realSkillMd),
-        skill("devai-hub/x", "devai-hub", linkedSkillMd),
+        skill("nexus-hub/x", "nexus-hub", linkedSkillMd),
       ],
       bus,
     );
@@ -112,7 +112,7 @@ describe("dedupeByRealpath (symlink fixture)", () => {
 
   it.skipIf(!CAN_SYMLINK)("InMemorySkillCatalog dedups symlinked roots at construction", () => {
     const catalog = new InMemorySkillCatalog([
-      skill("devai-hub/x", "devai-hub", linkedSkillMd),
+      skill("nexus-hub/x", "nexus-hub", linkedSkillMd),
       skill("x", "builtin", realSkillMd),
     ]);
     const records = catalog.list();
@@ -134,7 +134,7 @@ describe("dedupeByRealpath (no symlinks)", () => {
     // Two different logical paths that do not exist on disk must NOT collapse.
     const deduped = dedupeByRealpath([
       skill("a", "builtin", "/nope/one/SKILL.md"),
-      skill("b", "devai-hub", "/nope/two/SKILL.md"),
+      skill("b", "nexus-hub", "/nope/two/SKILL.md"),
     ]);
     expect(deduped).toHaveLength(2);
   });

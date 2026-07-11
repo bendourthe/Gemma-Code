@@ -10,7 +10,7 @@
 // reference) is tracked in v1.0.0 known-gaps and runs as the Phase 3.7
 // operator action.
 //
-// v1.1.0 Phase 8.4: skill-backed slash commands (user / devai-hub) can be
+// v1.1.0 Phase 8.4: skill-backed slash commands (user / nexus-hub) can be
 // folded into the autocomplete via `filterSlashCommandsWithSkills`. When
 // two skills share a display name, the `nexus.skills.preferUpstream`
 // setting controls which one appears first (closes 10.P2.JJJ).
@@ -24,11 +24,11 @@ export interface SlashCommand {
   /**
    * v1.1.0 Phase 8.4 -- where this command came from. Built-ins omit
    * the field. Skill-backed entries carry their namespace so the UI can
-   * render a "devai-hub" / "user" badge and the ordering policy can
+   * render a "nexus-hub" / "user" badge and the ordering policy can
    * differentiate between same-named candidates.
    */
-  readonly namespace?: "builtin" | "user" | "devai-hub";
-  /** Optional canonical skill id (e.g. `devai-hub/code-quality`). */
+  readonly namespace?: "builtin" | "user" | "nexus-hub";
+  /** Optional canonical skill id (e.g. `nexus-hub/code-quality`). */
   readonly skillId?: string;
 }
 
@@ -80,19 +80,19 @@ export function filterSlashCommands(input: string): readonly SlashCommand[] {
  * not depend on the core skills types directly.
  */
 export interface SkillForAutocomplete {
-  /** Canonical id (e.g. `devai-hub/code-quality` or `user/code-quality`). */
+  /** Canonical id (e.g. `nexus-hub/code-quality` or `user/code-quality`). */
   readonly id: string;
   /** Display name (slash-command surface uses this verbatim as the name). */
   readonly displayName: string;
   /** Provenance source. Determines ordering when names collide. */
-  readonly namespace: "builtin" | "user" | "devai-hub";
+  readonly namespace: "builtin" | "user" | "nexus-hub";
   /** Short description -- rendered next to the entry in the dropdown. */
   readonly description?: string;
 }
 
 export interface FilterOptions {
   /**
-   * When `true`, same-named user / devai-hub pairs surface the devai-hub
+   * When `true`, same-named user / nexus-hub pairs surface the nexus-hub
    * variant first. When `false` (default), the user variant wins.
    */
   readonly preferUpstream?: boolean;
@@ -115,7 +115,7 @@ function toSlashCommandFromSkill(skill: SkillForAutocomplete): SlashCommand {
 
 /**
  * Stable ordering for skill entries sharing the same display name. The
- * primary key is namespace: `devai-hub` first when `preferUpstream`, else
+ * primary key is namespace: `nexus-hub` first when `preferUpstream`, else
  * `user` first. Secondary tiebreak preserves catalog order via the
  * caller-supplied array.
  */
@@ -124,8 +124,8 @@ function sortByPreference(
   preferUpstream: boolean,
 ): SlashCommand[] {
   const order: Record<string, number> = preferUpstream
-    ? { "devai-hub": 0, user: 1, builtin: 2, "": 3 }
-    : { user: 0, "devai-hub": 1, builtin: 2, "": 3 };
+    ? { "nexus-hub": 0, user: 1, builtin: 2, "": 3 }
+    : { user: 0, "nexus-hub": 1, builtin: 2, "": 3 };
   return [...entries].sort((a, b) => {
     const aRank = order[a.namespace ?? ""] ?? 4;
     const bRank = order[b.namespace ?? ""] ?? 4;
@@ -137,7 +137,7 @@ function sortByPreference(
  * Return autocomplete entries for `input`, folding skill-backed commands
  * into the catalog. Builtin entries are always listed first (preserves
  * the existing UI); skills follow, ordered by `preferUpstream`. When two
- * skills (user + devai-hub) share a `displayName`, both appear in the
+ * skills (user + nexus-hub) share a `displayName`, both appear in the
  * dropdown so the user can pick explicitly; the `preferUpstream` flag
  * decides which one comes first within that pair.
  *

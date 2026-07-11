@@ -1,9 +1,9 @@
 /**
  * v1.0.0 Phase 2.6 -- SkillCatalog stub.
- * v1.0.0 Phase 10 -- Namespacing + provenance for DevAI-Hub sync.
+ * v1.0.0 Phase 10 -- Namespacing + provenance for Nexus-Hub sync.
  *
  * Cross-module surface for listing, loading, and hot-reloading skills.
- * Phase 10 (`nexus skills sync`) wires DevAI-Hub sparse-clone results into
+ * Phase 10 (`nexus skills sync`) wires Nexus-Hub sparse-clone results into
  * this catalog under `~/.nexus/skills/devai-hub/<tag>/`.
  *
  * The Coding module already has its own `SkillLoader` under
@@ -18,12 +18,12 @@ import type { TelemetryBus } from "../telemetry/TelemetryBus.js";
  * Provenance tag carried on every catalog record (Phase 10.1). Built-in
  * skills shipped with the binary report `source: "builtin"`; user-authored
  * files at `~/.nexus/skills/user/` report `source: "user"`; everything
- * pulled in via `nexus skills sync` reports `source: "devai-hub"` with the
+ * pulled in via `nexus skills sync` reports `source: "nexus-hub"` with the
  * pinned tag and content hash.
  */
 export interface SkillProvenance {
-  readonly source: "builtin" | "user" | "devai-hub";
-  /** Pinned tag (e.g. `v1.3.2`) for devai-hub sourced skills. */
+  readonly source: "builtin" | "user" | "nexus-hub";
+  /** Pinned tag (e.g. `v1.3.2`) for nexus-hub sourced skills. */
   readonly tag?: string;
   /** SHA-256 hex over the SKILL.md body (and any bundled scripts). */
   readonly contentHash: string;
@@ -47,7 +47,7 @@ export interface SkillPathScope {
 }
 
 export interface SkillRecord {
-  /** Skill id. For non-builtin sources this is `<namespace>/<name>` (e.g. `devai-hub/code-quality`). */
+  /** Skill id. For non-builtin sources this is `<namespace>/<name>` (e.g. `nexus-hub/code-quality`). */
   id: string;
   displayName: string;
   category?: string;
@@ -86,7 +86,7 @@ export interface Skill extends SkillRecord {
  * provenance source so the catalog can address skills with stable IDs even
  * when two sources happen to share a display name.
  */
-export type SkillNamespace = "builtin" | "user" | "devai-hub";
+export type SkillNamespace = "builtin" | "user" | "nexus-hub";
 
 export function namespaceForSource(source: SkillProvenance["source"]): SkillNamespace {
   return source;
@@ -94,7 +94,7 @@ export function namespaceForSource(source: SkillProvenance["source"]): SkillName
 
 /**
  * Compute the canonical catalog id for a skill given its source and name.
- * Non-builtin sources are namespaced (`devai-hub/code-quality`); built-in
+ * Non-builtin sources are namespaced (`nexus-hub/code-quality`); built-in
  * skills keep their unprefixed names for backwards compatibility with
  * existing slash-command resolution.
  */
@@ -299,7 +299,7 @@ function matchGlob(pattern: string, candidate: string): boolean {
 /**
  * Compute the set of normalized display names (case-insensitive) that
  * occur in more than one provenance source. Used to flag collisions
- * between a local user skill and a DevAI-Hub skill of the same name
+ * between a local user skill and a Nexus-Hub skill of the same name
  * (Phase 10.6).
  */
 function computeDivergedNames(skills: readonly Skill[]): Set<string> {
@@ -324,13 +324,13 @@ function displayKey(skill: SkillRecord): string {
 /**
  * v1.3.0 Phase 2 (adoption-skill-cleaner T006, insight I-07 + I-09) --
  * keep-priority when two logical paths resolve to the same physical path.
- * Lower number wins (`builtin` > `user` > `devai-hub`), mirroring the
+ * Lower number wins (`builtin` > `user` > `nexus-hub`), mirroring the
  * provenance precedence used elsewhere in the catalog.
  */
 const SOURCE_PRIORITY: Readonly<Record<SkillProvenance["source"], number>> = {
   builtin: 0,
   user: 1,
-  "devai-hub": 2,
+  "nexus-hub": 2,
 };
 
 /**

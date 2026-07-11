@@ -278,7 +278,7 @@ export async function auditSkills(opts: SkillAuditOptions): Promise<SkillAuditRe
     list.push(r.path);
     bySource.set(r.provenance.source, list);
   }
-  const sourceOrder: ReadonlyArray<SkillProvenance["source"]> = ["builtin", "user", "devai-hub"];
+  const sourceOrder: ReadonlyArray<SkillProvenance["source"]> = ["builtin", "user", "nexus-hub"];
   const roots: SkillRootSummary[] = sourceOrder
     .filter((source) => bySource.has(source))
     .map((source) => {

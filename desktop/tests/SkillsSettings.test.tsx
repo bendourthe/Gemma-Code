@@ -18,13 +18,13 @@ function makeRows(): SkillRowDto[] {
       provenance: { source: "builtin", contentHash: "b".repeat(64) },
     },
     {
-      id: "devai-hub/code-quality",
+      id: "nexus-hub/code-quality",
       displayName: "Code Quality",
       category: "code-review",
       path: "/d/SKILL.md",
       active: true,
       diverged: true,
-      provenance: { source: "devai-hub", tag: "v1.3.2", contentHash: "d".repeat(64) },
+      provenance: { source: "nexus-hub", tag: "v1.3.2", contentHash: "d".repeat(64) },
     },
     {
       id: "user/code-quality",
@@ -36,12 +36,12 @@ function makeRows(): SkillRowDto[] {
       provenance: { source: "user", contentHash: "u".repeat(64) },
     },
     {
-      id: "devai-hub/evil",
+      id: "nexus-hub/evil",
       displayName: "Evil",
       category: "?",
       path: "/d/evil/SKILL.md",
       active: false,
-      provenance: { source: "devai-hub", tag: "v1.3.2", contentHash: "e".repeat(64) },
+      provenance: { source: "nexus-hub", tag: "v1.3.2", contentHash: "e".repeat(64) },
       quarantine: {
         decision: "block",
         findings: [
@@ -62,11 +62,11 @@ function makeRows(): SkillRowDto[] {
 function makeClient(rows: SkillRowDto[]): SkillsSettingsClient & {
   toggled: string[];
   approved: string[];
-  divergedPrefs: Array<{ name: string; pref: "user" | "devai-hub" }>;
+  divergedPrefs: Array<{ name: string; pref: "user" | "nexus-hub" }>;
 } {
   const toggled: string[] = [];
   const approved: string[] = [];
-  const divergedPrefs: Array<{ name: string; pref: "user" | "devai-hub" }> = [];
+  const divergedPrefs: Array<{ name: string; pref: "user" | "nexus-hub" }> = [];
   let autoSync = false;
   return {
     list: async () => rows,
@@ -106,9 +106,9 @@ describe("SkillsSettings", () => {
     render(<SkillsSettings client={client} />);
     await waitFor(() => expect(screen.queryByTestId("skills-loading")).toBeNull());
     expect(screen.getByTestId("section-builtin-count").textContent).toBe("(1)");
-    // devai-hub/code-quality is shown; devai-hub/evil is quarantined so it
+    // nexus-hub/code-quality is shown; nexus-hub/evil is quarantined so it
     // moves to the Quarantined section.
-    expect(screen.getByTestId("section-devai-hub-count").textContent).toBe("(1)");
+    expect(screen.getByTestId("section-nexus-hub-count").textContent).toBe("(1)");
     expect(screen.getByTestId("section-user-count").textContent).toBe("(1)");
     expect(screen.getByTestId("section-quarantined-count").textContent).toBe("(1)");
   });
@@ -117,7 +117,7 @@ describe("SkillsSettings", () => {
     const client = makeClient(makeRows());
     render(<SkillsSettings client={client} />);
     await waitFor(() => expect(screen.queryByTestId("skills-loading")).toBeNull());
-    expect(screen.getByTestId("skills-diverged-devai-hub/code-quality")).toBeTruthy();
+    expect(screen.getByTestId("skills-diverged-nexus-hub/code-quality")).toBeTruthy();
     expect(screen.getByTestId("skills-diverged-user/code-quality")).toBeTruthy();
   });
 
@@ -158,7 +158,7 @@ describe("SkillsSettings", () => {
     render(<SkillsSettings client={client} />);
     await waitFor(() => expect(screen.queryByTestId("skills-loading")).toBeNull());
     expect(screen.getByTestId("section-quarantined")).toBeTruthy();
-    expect(screen.getByTestId("skills-quarantine-finding-devai-hub/evil-0").textContent).toMatch(
+    expect(screen.getByTestId("skills-quarantine-finding-nexus-hub/evil-0").textContent).toMatch(
       /injection\.jailbreak\.ignore-previous/,
     );
   });
@@ -169,9 +169,9 @@ describe("SkillsSettings", () => {
     render(<SkillsSettings client={client} />);
     await waitFor(() => expect(screen.queryByTestId("skills-loading")).toBeNull());
     await act(async () => {
-      fireEvent.click(screen.getByTestId("skills-approve-devai-hub/evil"));
+      fireEvent.click(screen.getByTestId("skills-approve-nexus-hub/evil"));
     });
-    expect(spy).toHaveBeenCalledWith("devai-hub/evil");
+    expect(spy).toHaveBeenCalledWith("nexus-hub/evil");
   });
 
   it("Toggle button calls setActive with the inverted state", async () => {
@@ -180,10 +180,10 @@ describe("SkillsSettings", () => {
     render(<SkillsSettings client={client} />);
     await waitFor(() => expect(screen.queryByTestId("skills-loading")).toBeNull());
     await act(async () => {
-      fireEvent.click(screen.getByTestId("skills-toggle-devai-hub/code-quality"));
+      fireEvent.click(screen.getByTestId("skills-toggle-nexus-hub/code-quality"));
     });
     // The row started active=true so the toggle should flip it to false.
-    expect(spy).toHaveBeenCalledWith("devai-hub/code-quality", false);
+    expect(spy).toHaveBeenCalledWith("nexus-hub/code-quality", false);
   });
 
   it("Diverged 'Use as default' button calls setDivergedPreference", async () => {
@@ -192,9 +192,9 @@ describe("SkillsSettings", () => {
     render(<SkillsSettings client={client} />);
     await waitFor(() => expect(screen.queryByTestId("skills-loading")).toBeNull());
     await act(async () => {
-      fireEvent.click(screen.getByTestId("skills-set-default-devai-hub/code-quality"));
+      fireEvent.click(screen.getByTestId("skills-set-default-nexus-hub/code-quality"));
     });
-    expect(spy).toHaveBeenCalledWith("Code Quality", "devai-hub");
+    expect(spy).toHaveBeenCalledWith("Code Quality", "nexus-hub");
   });
 
   it("surfaces an error message when list() rejects", async () => {

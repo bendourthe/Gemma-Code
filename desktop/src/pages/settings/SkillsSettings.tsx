@@ -1,18 +1,18 @@
 /**
  * v1.0.0 Phase 10.4 + 10.6 -- Settings > Skills page.
  *
- * Surfaces the DevAI-Hub sync surface and the per-skill enable/disable
+ * Surfaces the Nexus-Hub sync surface and the per-skill enable/disable
  * controls. The page is provider-driven: callers inject a `SkillsClient`
  * so tests (and the eventual IPC wiring) can swap the real disk-backed
- * `SkillCatalog` + `DevAIHubSyncer` for an in-memory fake.
+ * `SkillCatalog` + `NexusHubSyncer` for an in-memory fake.
  *
  * Sections:
  *   - Header: active tag, upstream-latest tag, "Sync now" + "Auto-sync
  *     weekly" toggle.
  *   - Quarantined: skills the prompt-injection scanner flagged at `high`
  *     severity; rendered separately with a "Review and approve" action.
- *   - Per-namespace lists: `builtin`, `user`, `devai-hub`. Each row shows
- *     the namespaced id, the source tag (when devai-hub), and a small
+ *   - Per-namespace lists: `builtin`, `user`, `nexus-hub`. Each row shows
+ *     the namespaced id, the source tag (when nexus-hub), and a small
  *     `diverged` badge for names that exist in more than one namespace
  *     (Phase 10.6).
  */
@@ -29,7 +29,7 @@ export type SkillRowDto = SkillRecord & {
 
 export interface SkillsSettingsClient {
   list(): Promise<readonly SkillRowDto[]>;
-  /** Returns the currently-active DevAI-Hub tag (null when nothing synced). */
+  /** Returns the currently-active Nexus-Hub tag (null when nothing synced). */
   activeTag(): Promise<string | null>;
   /** Returns the latest tag available upstream (null when offline). */
   upstreamLatestTag(): Promise<string | null>;
@@ -43,7 +43,7 @@ export interface SkillsSettingsClient {
   /** Toggle a skill's active state. */
   setActive(id: string, active: boolean): Promise<void>;
   /** Pick which side of a divergence is the default (Phase 10.6). */
-  setDivergedPreference?(displayName: string, preference: "user" | "devai-hub"): Promise<void>;
+  setDivergedPreference?(displayName: string, preference: "user" | "nexus-hub"): Promise<void>;
 }
 
 export interface SkillsSettingsProps {
@@ -98,7 +98,7 @@ export function SkillsSettings({ client }: SkillsSettingsProps): JSX.Element {
     const out: Record<SkillNamespace, SkillRowDto[]> = {
       builtin: [],
       user: [],
-      "devai-hub": [],
+      "nexus-hub": [],
     };
     const quarantined: SkillRowDto[] = [];
     for (const item of items) {
@@ -158,7 +158,7 @@ export function SkillsSettings({ client }: SkillsSettingsProps): JSX.Element {
 
   async function handleDivergedPreference(
     item: SkillRowDto,
-    preference: "user" | "devai-hub",
+    preference: "user" | "nexus-hub",
   ): Promise<void> {
     if (!client.setDivergedPreference) return;
     try {
@@ -259,9 +259,9 @@ export function SkillsSettings({ client }: SkillsSettingsProps): JSX.Element {
             />
           )}
           <Section
-            title="DevAI-Hub"
-            testId="section-devai-hub"
-            items={grouped["devai-hub"]}
+            title="Nexus-Hub"
+            testId="section-nexus-hub"
+            items={grouped["nexus-hub"]}
             renderRow={(item) => (
               <StandardRow
                 item={item}
@@ -332,7 +332,7 @@ function Section({ title, testId, items, renderRow, accent }: SectionProps): JSX
 interface StandardRowProps {
   item: SkillRowDto;
   onToggleActive: () => void;
-  onDivergedPreference: (preference: "user" | "devai-hub") => void;
+  onDivergedPreference: (preference: "user" | "nexus-hub") => void;
 }
 
 function StandardRow({ item, onToggleActive, onDivergedPreference }: StandardRowProps): JSX.Element {
@@ -354,7 +354,7 @@ function StandardRow({ item, onToggleActive, onDivergedPreference }: StandardRow
         <div style={{ fontSize: "0.85em", color: "var(--fg-muted)" }}>
           {item.id}
           {item.provenance.tag ? ` - ${item.provenance.tag}` : ""}
-          {item.provenance.source === "devai-hub" ? " - upstream" : ""}
+          {item.provenance.source === "nexus-hub" ? " - upstream" : ""}
         </div>
       </div>
       <div style={{ display: "flex", gap: "var(--space-2, 8px)", alignItems: "center" }}>
@@ -363,7 +363,7 @@ function StandardRow({ item, onToggleActive, onDivergedPreference }: StandardRow
             type="button"
             data-testid={`skills-set-default-${item.id}`}
             onClick={() =>
-              onDivergedPreference(item.provenance.source === "devai-hub" ? "devai-hub" : "user")
+              onDivergedPreference(item.provenance.source === "nexus-hub" ? "nexus-hub" : "user")
             }
           >
             Use as default

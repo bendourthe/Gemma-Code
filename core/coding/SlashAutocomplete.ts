@@ -14,7 +14,7 @@
  * lists for the same `(input, skills, preferUpstream)` triple.
  */
 
-export type SlashNamespace = "builtin" | "user" | "devai-hub";
+export type SlashNamespace = "builtin" | "user" | "nexus-hub";
 
 export interface SlashSuggestion {
   readonly name: string;
@@ -27,7 +27,7 @@ export interface SlashSuggestion {
 export interface SlashSkillRecord {
   readonly id: string;
   readonly displayName: string;
-  readonly namespace: "user" | "devai-hub";
+  readonly namespace: "user" | "nexus-hub";
   readonly description?: string;
 }
 
@@ -42,14 +42,14 @@ export interface AutocompleteContext {
 }
 
 const PREFER_UPSTREAM_ORDER: Record<SlashNamespace, number> = {
-  "devai-hub": 0,
+  "nexus-hub": 0,
   user: 1,
   builtin: 2,
 };
 
 const PREFER_USER_ORDER: Record<SlashNamespace, number> = {
   user: 0,
-  "devai-hub": 1,
+  "nexus-hub": 1,
   builtin: 2,
 };
 

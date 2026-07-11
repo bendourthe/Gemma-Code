@@ -9,7 +9,7 @@
  *     to overwrite existing files unless `overwrite: true` is set.
  *   - `remove(spec, opts)` -- delete `<skillsRoot>/user/<ns>/<name>/`
  *     if (and only if) the resolved path stays under
- *     `<skillsRoot>/user/`. The DevAI-Hub baseline at
+ *     `<skillsRoot>/user/`. The Nexus-Hub baseline at
  *     `<skillsRoot>/devai-hub/` is read-only from this CLI.
  *
  * The `Fetcher` injection lets tests use a `file://` URL or a
@@ -268,7 +268,7 @@ export async function installSkill(
 
 /**
  * Remove a previously-installed user skill. Refuses to act on any
- * namespace other than `user/` -- the DevAI-Hub baseline rotates via
+ * namespace other than `user/` -- the Nexus-Hub baseline rotates via
  * `nexus skills sync` and is read-only here. Idempotent in the
  * not-found case (`reason: "not-found"`, `ok: false`).
  */
@@ -280,7 +280,7 @@ export function removeSkill(
     return {
       ok: false,
       reason: "wrong-namespace",
-      message: `remove only acts on 'user/'; the DevAI-Hub baseline is read-only from this CLI`,
+      message: `remove only acts on 'user/'; the Nexus-Hub baseline is read-only from this CLI`,
     };
   }
   const skillsRoot = opts.skillsRoot ?? defaultSkillsRoot();

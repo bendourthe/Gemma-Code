@@ -25,7 +25,7 @@ export interface ToolActivationContextDeps {
   getUnifiedRetriever(): UnifiedMemoryRetriever | null;
   /**
    * v1.5.0 Phase 7 (HUB.P3.RULES): optional resolver for the workspace's
-   * Nexus-Hub language rules (via LanguageRuleBuilder over the active devai-hub
+   * Nexus-Hub language rules (via LanguageRuleBuilder over the active nexus-hub
    * bundle). Returns undefined when the feature is off or no rules apply, in
    * which case PromptBuilder injects no language-rules section.
    */

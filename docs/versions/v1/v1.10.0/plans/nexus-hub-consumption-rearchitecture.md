@@ -215,12 +215,12 @@ Wire the never-wired machinery into the live app, implement the `skills.*` IPC, 
 
 ---
 
-## Phase 7 - DevAI/devai naming scrub (repo-wide)
+## Phase 7 - DevAI/devai naming scrub (repo-wide) (landed 2026-07-10)
 
-- [ ] **T037** Scrub remaining non-load-bearing `DevAI`/`devai` references in code comments, docstrings, demo/mock data (`panelData.ts`, `mockSkillsClient.ts`, `SkillsSettings.tsx` labels), and setting descriptions.
-- [ ] **T038** Finish any remaining load-bearing token renames not covered in P2/P4/P6 (`SlashAutocomplete`, `Tracer` namespace guard, `AgentLoop` source literal, `DoctorReport`/`ToolActivationContext`/`LanguageRuleBuilder` comments) to `"nexus-hub"`, in lockstep with their tests.
-- [ ] **T039** Preserve ONLY: (a) the one-shot migration code naming `~/.nexus/skills/devai-hub/`, and (b) dated historical `renamed from` notes in docs/CHANGELOG. Add a repo-grep CI gate that fails on any other `DevAIHub`/`devai-hub`/`DevAI` occurrence.
-- [ ] **T040** [tests] Update all tests asserting the old literals (`"devai-hub"`, `nexus.skills.devai-hub-sync`, `/skills-root/devai-hub/ACTIVE`) to the new contracts. Gate: root + desktop + installer suites green, `tsc`/lint/ruff clean, naming-grep gate green.
+- [x] **T037** Scrub remaining non-load-bearing `DevAI`/`devai` references in code comments, docstrings, demo/mock data (`panelData.ts`, `mockSkillsClient.ts`, `SkillsSettings.tsx` labels), and setting descriptions.
+- [x] **T038** Finish any remaining load-bearing token renames not covered in P2/P4/P6 (`SlashAutocomplete`, `Tracer` namespace guard, `AgentLoop` source literal, `DoctorReport`/`ToolActivationContext`/`LanguageRuleBuilder` comments) to `"nexus-hub"`, in lockstep with their tests.
+- [x] **T039** Preserve ONLY: (a) the one-shot migration code naming `~/.nexus/skills/devai-hub/`, and (b) dated historical `renamed from` notes in docs/CHANGELOG. Add a repo-grep CI gate that fails on any other `DevAIHub`/`devai-hub`/`DevAI` occurrence.
+- [x] **T040** [tests] Update all tests asserting the old literals (`"devai-hub"`, `nexus.skills.devai-hub-sync`, `/skills-root/devai-hub/ACTIVE`) to the new contracts. Gate: root + desktop + installer suites green, `tsc`/lint/ruff clean, naming-grep gate green.
 
 **Phase 7 acceptance:** the codebase reads as "Nexus-Hub" end to end; only the two allowed exceptions remain.
 

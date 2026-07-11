@@ -102,7 +102,7 @@ describe("installSkill", () => {
 
   it("rejects non-user namespaces", async () => {
     const result = await installSkill(
-      { namespace: "devai-hub", name: "foo" },
+      { namespace: "nexus-hub", name: "foo" },
       {
         url: "https://github.com/owner/repo",
         skillsRoot: root,
@@ -268,7 +268,7 @@ describe("removeSkill", () => {
   });
 
   it("rejects removal in non-user namespaces", () => {
-    const r = removeSkill({ namespace: "devai-hub", name: "x" }, { skillsRoot: root });
+    const r = removeSkill({ namespace: "nexus-hub", name: "x" }, { skillsRoot: root });
     expect(r.ok).toBe(false);
     expect(r.reason).toBe("wrong-namespace");
   });

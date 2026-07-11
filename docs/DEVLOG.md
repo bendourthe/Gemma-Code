@@ -4,6 +4,33 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-10] v1.10.0 Nexus-Hub consumption re-architecture -- Phase 7: DevAI/devai naming scrub (T037-T040)
+
+### Goal
+
+Retire the legacy `"devai-hub"` name so the codebase reads as "Nexus-Hub" end to end, and add a gate that keeps it retired.
+
+### What changed
+
+- **T038 load-bearing token rename** ([SkillCatalog.ts](../core/skills/SkillCatalog.ts), [SkillAuditor.ts](../core/skills/SkillAuditor.ts), [SkillRenderLine.ts](../core/skills/SkillRenderLine.ts), [SlashAutocomplete.ts](../core/coding/SlashAutocomplete.ts), [Tracer.ts](../modules/coding/observability/Tracer.ts), [AgentLoop.ts](../src/tools/AgentLoop.ts), [protocol.ts](../desktop/sidecar/src/protocol.ts), [slashCommands.ts](../desktop/src/modules/coding/slashCommands.ts), [SkillsSettings.tsx](../desktop/src/pages/settings/SkillsSettings.tsx)): the provenance/namespace enum value `"devai-hub"` -> `"nexus-hub"` (`SkillProvenance.source`, `SkillNamespace`, `SOURCE_PRIORITY`, the tracer namespace guard, the `AgentLoop` source literal, the IPC `z.enum`, and the slash-command ordering maps). Closes `NHC.P2.A` (deferred through P2-P6 because the token is coupled to provenance and no rerouted reader produced it until now).
+- **T037 cosmetic scrub**: live-concept prose updated to the new name -- the user-visible SkillInstaller "baseline is read-only" message, the SkillsSettings section title/testid ("Nexus-Hub" / `section-nexus-hub`), demo/mock ids ([panelData.ts](../desktop/sidecar/src/coding/panelData.ts), [mockSkillsClient.ts](../desktop/src/pages/settings/mockSkillsClient.ts)), and comments in `DoctorReport`, `LanguageRuleBuilder`, `ToolActivationContext`, `hubSkillScanAllowlist`, `SkillUsageScanner`.
+- **T039 naming gate** ([scripts/check-no-devai-hub.mjs](../scripts/check-no-devai-hub.mjs), `npm run check:naming`, wired into the `nexus-check` CI job): dependency-free (node:fs / node:path only); fails if the quoted `"devai-hub"` enum value reappears in JS/TS source (`core`, `modules`, `src`, `desktop/src`, `desktop/sidecar/src`, `bin`), allowlisting `migrateLegacyCatalog.ts` (one-shot old-path cleanup) and `bin/nexus.mjs` (the deferred `skills audit` reader, `NHC.P3.C`).
+- **T040 tests**: every test asserting the old literal (SkillCatalog / SkillAuditor / SkillRenderLine / SlashAutocomplete / Tracer / AgentLoop / SkillInstaller + desktop slashCommands / SkillsSettings + the integration SkillUsageScanner fixture) retargeted to `"nexus-hub"`.
+
+### Scope / exceptions kept
+
+Per the plan's two allowed exceptions, these intentionally keep the old name: the one-shot migration code naming `~/.nexus/skills/devai-hub/` ([migrateLegacyCatalog.ts](../core/skills/migrateLegacyCatalog.ts), the `codingBootstrap.ts` legacy setting key, the `main.ts` cleanup comment), dated "renamed from `DevAIHub*`" notes (`NexusHubSyncer` / `NexusHubAutoSync` / `SkillsReloader`), the allowlisted `bin/nexus.mjs` audit reader (`NHC.P3.C`), and the installer's negative regression-guards (`assert "devai-hub" not in ...`, `test_no_chain_includes_the_retired_devai_hub_provisioner`). The gate is JS/TS-scoped, so it does not touch the Python installer's guards.
+
+### Verification
+
+Naming gate clean; root `tsc -b` clean + **1029 passed / 0 failed**; desktop `tsc --noEmit` clean + **533 passed / 0 failed**; eslint clean. No installer files changed (its only `devai-hub` mentions are correct negative guards).
+
+### Branch
+
+`feat/v1.10.0-nexus-hub-consumption`
+
+---
+
 ## [2026-07-10] v1.10.0 Nexus-Hub consumption re-architecture -- Phase 6: live first-launch fetch + skills.* IPC + in-app update detection (T031-T034, T036)
 
 ### Goal

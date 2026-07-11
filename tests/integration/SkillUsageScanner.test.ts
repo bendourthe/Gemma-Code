@@ -121,9 +121,9 @@ describe("scanUsage", () => {
   });
 
   it("spans multiple skill roots in one pass (gap T012.P2.C)", async () => {
-    // A second root (e.g. the devai-hub catalog) alongside the user root.
-    const devaiRoot = path.join(root, "devai-hub");
-    const dir = path.join(devaiRoot, "sigma");
+    // A second root (e.g. the nexus-hub catalog) alongside the user root.
+    const hubRoot = path.join(root, "nexus-hub");
+    const dir = path.join(hubRoot, "sigma");
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(
       path.join(dir, "SKILL.md"),
@@ -132,7 +132,7 @@ describe("scanUsage", () => {
     );
 
     const usage = await scanUsage({
-      skillsRoot: [skillsRoot, devaiRoot],
+      skillsRoot: [skillsRoot, hubRoot],
       sessionsRoot,
       months: 3,
     });

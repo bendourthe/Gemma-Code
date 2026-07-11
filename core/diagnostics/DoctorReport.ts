@@ -57,7 +57,7 @@ export interface DoctorReport {
 
 export interface SkillRootInput {
   readonly dir: string;
-  /** Provenance label, e.g. "builtin" | "user" | "devai-hub". */
+  /** Provenance label, e.g. "builtin" | "user" | "nexus-hub". */
   readonly source: string;
 }
 

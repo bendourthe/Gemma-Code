@@ -56,8 +56,8 @@ describe("AgentLoop.setCurrentSkill (Phase 8.5)", () => {
     );
 
     loop.setCurrentSkill({
-      id: "devai-hub/code-quality",
-      namespace: "devai-hub",
+      id: "nexus-hub/code-quality",
+      namespace: "nexus-hub",
       tag: "v1.3.2",
     });
 
@@ -68,8 +68,8 @@ describe("AgentLoop.setCurrentSkill (Phase 8.5)", () => {
       { kind: "lifecycle.skill.entry" }
     >;
     expect(ev.sessionId).toBe("sess-skill-1");
-    expect(ev.skillId).toBe("devai-hub/code-quality");
-    expect(ev.namespace).toBe("devai-hub");
+    expect(ev.skillId).toBe("nexus-hub/code-quality");
+    expect(ev.namespace).toBe("nexus-hub");
   });
 
   it("does not emit on clear (setCurrentSkill(null) is a no-op for the bus)", () => {

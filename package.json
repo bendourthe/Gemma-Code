@@ -946,6 +946,7 @@
     "security:gen": "node scripts/generate-tool-permission-table.mjs",
     "security:check": "node scripts/generate-tool-permission-table.mjs --check",
     "check:audit-prod": "node scripts/check-prod-audit.mjs",
+    "check:naming": "node scripts/check-no-devai-hub.mjs",
     "mutate": "stryker run configs/stryker.config.json",
     "debug": "node scripts/debug/cli.mjs",
     "work": "node scripts/work.mjs",

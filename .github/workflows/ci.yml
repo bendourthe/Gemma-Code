@@ -174,6 +174,11 @@ jobs:
       # no-tautological-assertion) gate the merge; the rest emit warnings.
       - name: nexus-check (test-tampering rules)
         run: npm run check:tampering
+      # v1.10.0 Phase 7 (T039) -- naming gate: fail if the load-bearing
+      # "devai-hub" enum value (renamed to "nexus-hub" in v1.10.0) reappears in
+      # source. Dependency-free (node:fs / node:path only), so no npm ci.
+      - name: naming gate (no devai-hub enum value)
+        run: npm run check:naming
 
   # -- v0.9.0 Phase 7 (sub-task 7.5) -- PR-time fast-bench gate --------------
   #

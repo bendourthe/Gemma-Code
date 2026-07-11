@@ -22,14 +22,14 @@ describe("Tracer skill provenance (Phase 10.5)", () => {
 
   it("flattens SkillSpanContext to skill.* attributes", () => {
     const flat = skillContextAttributes({
-      id: "devai-hub/code-quality",
-      namespace: "devai-hub",
+      id: "nexus-hub/code-quality",
+      namespace: "nexus-hub",
       tag: "v1.3.2",
       contentHash: "abcd1234",
     });
     expect(flat).toEqual({
-      "skill.id": "devai-hub/code-quality",
-      "skill.namespace": "devai-hub",
+      "skill.id": "nexus-hub/code-quality",
+      "skill.namespace": "nexus-hub",
       "skill.tag": "v1.3.2",
       "skill.contentHash": "abcd1234",
     });
@@ -48,8 +48,8 @@ describe("Tracer skill provenance (Phase 10.5)", () => {
 
   it("readSkillContextFromAttributes round-trips", () => {
     const ctx = {
-      id: "devai-hub/code-quality",
-      namespace: "devai-hub" as const,
+      id: "nexus-hub/code-quality",
+      namespace: "nexus-hub" as const,
       tag: "v1.3.2",
       contentHash: "abcd1234",
     };
@@ -74,8 +74,8 @@ describe("Tracer skill provenance (Phase 10.5)", () => {
   it("startSpan(tool_call) folds skill context into attributes", () => {
     const traceId = tracer.startTrace("session-1");
     tracer.setCurrentSkill({
-      id: "devai-hub/code-quality",
-      namespace: "devai-hub",
+      id: "nexus-hub/code-quality",
+      namespace: "nexus-hub",
       tag: "v1.3.2",
       contentHash: "abcd1234",
     });
@@ -85,8 +85,8 @@ describe("Tracer skill provenance (Phase 10.5)", () => {
     tracer.endSpan(spanId, "ok");
     store.flush();
     const span = store.getSpan(spanId)!;
-    expect(span.attributes["skill.id"]).toBe("devai-hub/code-quality");
-    expect(span.attributes["skill.namespace"]).toBe("devai-hub");
+    expect(span.attributes["skill.id"]).toBe("nexus-hub/code-quality");
+    expect(span.attributes["skill.namespace"]).toBe("nexus-hub");
     expect(span.attributes["skill.tag"]).toBe("v1.3.2");
     expect(span.attributes["toolName"]).toBe("grep");
   });
@@ -94,8 +94,8 @@ describe("Tracer skill provenance (Phase 10.5)", () => {
   it("does NOT fold skill context into non-tool-call spans", () => {
     const traceId = tracer.startTrace("session-1");
     tracer.setCurrentSkill({
-      id: "devai-hub/code-quality",
-      namespace: "devai-hub",
+      id: "nexus-hub/code-quality",
+      namespace: "nexus-hub",
       tag: "v1.3.2",
     });
     const spanId = tracer.startSpan(traceId, "llm-call", "llm_call");
@@ -120,11 +120,11 @@ describe("Tracer skill provenance (Phase 10.5)", () => {
 
   it("folds skill context into sub_agent spans too", () => {
     const traceId = tracer.startTrace("session-1");
-    tracer.setCurrentSkill({ id: "devai-hub/code-quality", namespace: "devai-hub" });
+    tracer.setCurrentSkill({ id: "nexus-hub/code-quality", namespace: "nexus-hub" });
     const spanId = tracer.startSpan(traceId, "sub", "sub_agent");
     tracer.endSpan(spanId, "ok");
     store.flush();
     const span = store.getSpan(spanId)!;
-    expect(span.attributes["skill.namespace"]).toBe("devai-hub");
+    expect(span.attributes["skill.namespace"]).toBe("nexus-hub");
   });
 });

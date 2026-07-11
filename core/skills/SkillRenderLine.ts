@@ -78,7 +78,7 @@ export interface BudgetedRender {
 
 /**
  * Keep-priority for a provenance source, per insight I-09: built-in skills are
- * the most authoritative and are dropped last; devai-hub skills are dropped
+ * the most authoritative and are dropped last; nexus-hub skills are dropped
  * first. Higher number = kept longer.
  */
 function sourceKeepPriority(source: SkillProvenance["source"]): number {
@@ -87,7 +87,7 @@ function sourceKeepPriority(source: SkillProvenance["source"]): number {
       return 2;
     case "user":
       return 1;
-    case "devai-hub":
+    case "nexus-hub":
       return 0;
     default:
       return 0;
@@ -120,7 +120,7 @@ function truncateDescription(description: string, maxChars: number): string {
  *                     per-description token budget that the line overhead
  *                     (id + path + framing) leaves over, and return that if it
  *                     fits.
- *   3. `omitted`   -- otherwise drop the lowest-priority skills (devai-hub
+ *   3. `omitted`   -- otherwise drop the lowest-priority skills (nexus-hub
  *                     before user before builtin, per insight I-09) one at a
  *                     time until the remainder fits at *full* description.
  *

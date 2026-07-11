@@ -202,7 +202,7 @@ export interface AgentLoopOptions {
 export interface PathScopedSkillSource {
   reevaluatePathScope(
     currentPath: string | null,
-  ): readonly { readonly id: string; readonly provenance: { readonly source: "builtin" | "user" | "devai-hub" } }[];
+  ): readonly { readonly id: string; readonly provenance: { readonly source: "builtin" | "user" | "nexus-hub" } }[];
 }
 
 export class AgentLoop {
