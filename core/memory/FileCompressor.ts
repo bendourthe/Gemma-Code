@@ -12,7 +12,7 @@
  * (default `false`); when the gate is off, `compressFile()` short-circuits
  * before any LLM call and returns a `disabled` result.
  *
- * Adopts agentmemory A9 (see docs/versions/v1/v1.1.0/comparison-agentmemory.md
+ * Adopts agentmemory A9 (see docs/v1/v1.1/comparison-agentmemory.md
  * Section 11.3 P2).
  */
 

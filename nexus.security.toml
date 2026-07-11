@@ -10,7 +10,7 @@
 #
 # This file captures all three safety surfaces, but the *direction of authority*
 # differs by surface (see Section 13 of
-# docs/versions/v1/v1.3.0/comparison-claude-code-harness.md, which warns:
+# docs/v1/v1.3/comparison-claude-code-harness.md, which warns:
 # "avoid two sources of truth for permissions"):
 #
 #   [network] / [secrets]  -- AUTHORED HERE. Edit these arrays, then run

@@ -3,7 +3,7 @@
  * quant ladder + hardware-aware quant picker.
  *
  * Adopts report item 32 (`local-only`) from
- * `docs/versions/v1/v1.5.0/comparison-ecosystem-2026-06.md`. Source: the
+ * `docs/v1/v1.5/comparison-ecosystem-2026-06.md`. Source: the
  * Unsloth `gemma-4-12b-it-GGUF` model card (Dynamic-2.0 GGUF quants).
  *
  * The model itself is registered in `core/registry/catalog.json`

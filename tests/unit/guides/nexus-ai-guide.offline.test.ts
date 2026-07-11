@@ -12,7 +12,7 @@ import { findRemoteAssetRefs } from "../../helpers/offlineIntegrity";
 // Nexus-AI interactive guide. The guide ships as a single self-contained file
 // that MUST open offline with zero outbound network requests (see the Phase 1
 // Stability Gate in
-// docs/versions/v1/v1.6.0/plans/adoption-aisuite-harness.md). This test is the
+// docs/v1/v1.6/plans/adoption-aisuite-harness.md). This test is the
 // CI guard for that property: it parses the real guide and asserts no remote
 // asset references, that the constellation canvas is present, and that
 // reduced-motion mode renders a single static frame instead of starting a

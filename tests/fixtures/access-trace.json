@@ -1,7 +1,7 @@
 {
   "$schema": "./access-trace.schema.json",
   "version": 1,
-  "description": "Synthetic Zipfian access trace for eviction-strategy benchmarking. Regenerate via the snippet in docs/archive/versions/v0/v0.6.0/development/history/2026-04_phase-2-test-pipeline.md once golden-task cache instrumentation lands.",
+  "description": "Synthetic Zipfian access trace for eviction-strategy benchmarking. Regenerate via the snippet in docs/archive/v0/v0.6/development/history/2026-04_phase-2-test-pipeline.md once golden-task cache instrumentation lands.",
   "generation": {
     "method": "zipfian-synthetic",
     "rngSeed": 305419896,

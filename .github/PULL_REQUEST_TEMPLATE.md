@@ -35,7 +35,7 @@
      Lying here breaks downstream consumers; please be honest. -->
 
 - [ ] I have read CONTRIBUTING.md (or CONTRIBUTING-BEGINNERS.md)
-- [ ] I completed the [self-review checklist](../docs/versions/v1/v1.4.0/development/self-review-checklist.md) (G1-G5: DRY, all-symbols-called, DoD-verified-with-evidence, no-test-regression, TDD-red-evidence) and recorded the evidence above
+- [ ] I completed the [self-review checklist](../docs/v1/v1.4/development/self-review-checklist.md) (G1-G5: DRY, all-symbols-called, DoD-verified-with-evidence, no-test-regression, TDD-red-evidence) and recorded the evidence above
 - [ ] `npm run lint` passes locally
 - [ ] `npm run check` passes locally
 - [ ] `npm test` passes locally
@@ -43,4 +43,4 @@
 - [ ] I added tests for new behaviour (or `- [ ] N/A: <reason>`)
 - [ ] I updated docs / DEVLOG / ADR where relevant (or `- [ ] N/A: <reason>`)
 - [ ] **No new outbound network calls or new third-party data processors introduced** (cite MCP Registry Policy if claiming exception)
-- [ ] The evidence above is verified-only output per the [evidence-pack discipline](../docs/versions/v1/v1.4.0/development/evidence-pack.md) (every claim is a captured command result, not an assertion). Note: PR ready is not release ready.
+- [ ] The evidence above is verified-only output per the [evidence-pack discipline](../docs/v1/v1.4/development/evidence-pack.md) (every claim is a captured command result, not an assertion). Note: PR ready is not release ready.

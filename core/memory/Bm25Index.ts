@@ -16,7 +16,7 @@
  * is cheap enough at the v1.1.0 corpus sizes). Index mutation is
  * synchronous and O(tokens-per-doc + log(doc-count)).
  *
- * Adopts agentmemory A1 (see docs/versions/v1/v1.1.0/comparison-agentmemory.md
+ * Adopts agentmemory A1 (see docs/v1/v1.1/comparison-agentmemory.md
  * Section 11.2 P1).
  */
 

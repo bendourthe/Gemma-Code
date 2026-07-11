@@ -7,7 +7,7 @@
  * Memory ingest, code-graph re-index, and (future) skill-catalog refresh
  * all share this one debounced event source.
  *
- * DEVIATION (logged as DF in `docs/versions/v1/v1.2.0/known-gaps.md`): the plan prompt
+ * DEVIATION (logged as DF in `docs/v1/v1.2/known-gaps.md`): the plan prompt
  * says to wrap `chokidar`. The Nexus repo does not currently ship
  * `chokidar`, and the re-partial bucket does not justify adding a new
  * dependency. Node's `fs.watch` covers the OS-native event sources

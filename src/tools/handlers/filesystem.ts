@@ -39,7 +39,7 @@ function workspaceRoot(): string {
 
 // Realpath-aware resolution: every filesystem tool routes user-supplied paths
 // through the unified pathGuard so symlinks that point outside the workspace
-// are rejected. See docs/archive/versions/v0/v0.6.0/plans/v0.6.0-cycle.md sub-task 1.1.
+// are rejected. See docs/archive/v0/v0.6/plans/v0.6.0-cycle.md sub-task 1.1.
 //
 // v1.5.0 Phase 4 (T012, closes v1.4.0 T018.P3.B read-tool half): an optional
 // `root` re-bases resolution onto a worktree-isolated sub-agent's dedicated

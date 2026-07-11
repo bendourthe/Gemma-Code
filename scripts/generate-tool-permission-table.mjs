@@ -9,7 +9,7 @@
  *
  * Artifacts regenerated (each idempotent):
  *   1. The tool-permission-tier table in
- *      docs/archive/versions/v0/v0.5.0/architecture.md, between the markers
+ *      docs/archive/v0/v0.5/architecture.md, between the markers
  *        <!-- BEGIN:TOOL-PERMISSION-TABLE --> / <!-- END:TOOL-PERMISSION-TABLE -->
  *      Source: src/guardrails/PermissionTiers.ts (the canonical tier map).
  *   2. The [permissions] mirror block in nexus.security.toml, between the markers
@@ -43,7 +43,7 @@ const repoRoot = path.resolve(__dirname, "..");
 
 const ssotPath = path.join(repoRoot, "nexus.security.toml");
 const permTiersPath = path.join(repoRoot, "modules/coding/guardrails/PermissionTiers.ts");
-const docPath = path.join(repoRoot, "docs/archive/versions/v0/v0.5.0/architecture.md");
+const docPath = path.join(repoRoot, "docs/archive/v0/v0.5/architecture.md");
 const generatedTsPath = path.join(
   repoRoot,
   "modules/coding/utils/generated/safetyConfig.generated.ts",

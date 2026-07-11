@@ -1,6 +1,6 @@
 # Skills-audit benchmark fixtures (2026-05-28)
 
-Raw fixtures for the v1.3.0 adoption-skill-cleaner Phase 7 skills-audit benchmark ([docs/versions/v1/v1.3.0/benchmarks/skills-audit-2026-05-28.md](../../../../docs/versions/v1/v1.3.0/benchmarks/skills-audit-2026-05-28.md)).
+Raw fixtures for the v1.3.0 adoption-skill-cleaner Phase 7 skills-audit benchmark ([docs/versions/v1/v1.3.0/benchmarks/skills-audit-2026-05-28.md](../../../../docs/v1/v1.3/benchmarks/skills-audit-2026-05-28.md)).
 
 ## Files
 

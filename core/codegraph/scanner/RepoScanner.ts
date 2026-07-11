@@ -10,7 +10,7 @@
  * languages well enough to drive the Phase 3.6 stability gate (which
  * measures tool-call reduction on the Coding pillar, not symbol-extraction
  * precision). The migration to Tree-sitter is tracked as a `DF` (deferred)
- * entry in `docs/versions/v1/v1.2.0/known-gaps.md`.
+ * entry in `docs/v1/v1.2/known-gaps.md`.
  *
  * Behaviors required by the plan:
  *   - SHA-256 content hash per file; skip when matching the store row.

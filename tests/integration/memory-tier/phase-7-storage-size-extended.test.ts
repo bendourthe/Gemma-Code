@@ -15,7 +15,7 @@
  * exactly as Phase 4.4 documented. Both gates from Phase 4.4 stay in
  * force (Pruned <=20% of Standard, recall@10 >=80%).
  *
- * Plan reference: docs/versions/v1/v1.2.0/plans/adoption-ecosystem-2026-05.md sub-task 7.2
+ * Plan reference: docs/v1/v1.2/plans/adoption-ecosystem-2026-05.md sub-task 7.2
  */
 
 import { describe, expect, it } from "vitest";

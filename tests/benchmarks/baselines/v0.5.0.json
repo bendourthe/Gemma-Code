@@ -1,5 +1,5 @@
 {
-  "note": "Captured on the v0.5.4 release tag (the v0.5.0 line) per docs/archive/versions/v0/v0.6.0/plans/v0.6.0-cycle.md sub-task 2.4. Live-Ollama benches (model-tier-matrix, time-to-first-token) auto-skip when OLLAMA_URL is unset; the captured set is the deterministic in-process subset.",
+  "note": "Captured on the v0.5.4 release tag (the v0.5.0 line) per docs/archive/v0/v0.6/plans/v0.6.0-cycle.md sub-task 2.4. Live-Ollama benches (model-tier-matrix, time-to-first-token) auto-skip when OLLAMA_URL is unset; the captured set is the deterministic in-process subset.",
   "version": "0.5.0",
   "thresholds": {
     "regressionPct": 20

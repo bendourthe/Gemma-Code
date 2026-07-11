@@ -26,7 +26,7 @@ export type ModelFamily = "gemma" | "llama" | "qwen" | "sdxl" | "ltx" | "svd" | 
  * v1.3.0 Phase 2 (adoption-skill-cleaner T004) -- fallback context window
  * applied when a model record does not declare one. Matches skill-cleaner's
  * default for GPT-5.5 (see
- * `docs/versions/v1/v1.3.0/comparison-skill-cleaner.md`, insight I-05); used
+ * `docs/v1/v1.3/comparison-skill-cleaner.md`, insight I-05); used
  * as a model-agnostic upper bound when the active model is unknown.
  */
 export const DEFAULT_CONTEXT_WINDOW = 272_000;

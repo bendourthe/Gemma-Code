@@ -6,7 +6,7 @@
  * (`core/registry/ModelRegistry.ts`), `renderSkillLine` / `renderSkillBlock`
  * (`core/skills/SkillRenderLine.ts`), and the existing `SkillCatalog` realpath
  * dedup -- into the five-report shape from insight I-01 of
- * `docs/versions/v1/v1.3.0/comparison-skill-cleaner.md`.
+ * `docs/v1/v1.3/comparison-skill-cleaner.md`.
  *
  * Phase 3 populates four of the five reports: Budget (I-05), Description
  * candidates (I-06 ranking; the render fallback ladder is Phase 5 / T015),

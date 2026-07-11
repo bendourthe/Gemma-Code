@@ -1,6 +1,6 @@
 # Nexus shared core
 
-Provides infrastructure consumed by every pillar module under [`../modules/`](../modules/). Per the v1.0.0 cycle plan ([../docs/versions/v1/v1.0.0/plans/phase-02-rebrand-and-core-extraction.md](../docs/versions/v1/v1.0.0/plans/phase-02-rebrand-and-core-extraction.md) sub-tasks 2.3 and 2.6), this tree owns:
+Provides infrastructure consumed by every pillar module under [`../modules/`](../modules/). Per the v1.0.0 cycle plan ([../docs/versions/v1/v1.0.0/plans/phase-02-rebrand-and-core-extraction.md](../docs/v1/v1.0/plans/phase-02-rebrand-and-core-extraction.md) sub-tasks 2.3 and 2.6), this tree owns:
 
 - **`registry/`** — `ModelRegistry` (Phase 2.6 stub, Phase 5 full implementation): list / install / remove / inspect models in `~/.nexus/models/`.
 - **`memory/`** — `MemoryHub` (Phase 2.6 stub): cross-module facade over the four-layer memory system (working / episodic / semantic / graph).
@@ -14,4 +14,4 @@ Provides infrastructure consumed by every pillar module under [`../modules/`](..
 
 ## Compatibility window (v1.0.0 cycle)
 
-During v1.0.0, the historical [`../src/`](../src/) tree still hosts the Coding engine. Once Phase 2.3's wholesale move completes (tracked in [`../docs/versions/v1/v1.0.0/known-gaps.md`](../docs/versions/v1/v1.0.0/known-gaps.md) under code `MV`), the layout simplifies to `core/` + `modules/<pillar>/`.
+During v1.0.0, the historical [`../src/`](../src/) tree still hosts the Coding engine. Once Phase 2.3's wholesale move completes (tracked in [`../docs/versions/v1/v1.0.0/known-gaps.md`](../docs/v1/v1.0/known-gaps.md) under code `MV`), the layout simplifies to `core/` + `modules/<pillar>/`.

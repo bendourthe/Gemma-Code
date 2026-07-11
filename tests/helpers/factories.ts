@@ -25,7 +25,7 @@ export function mockOf<T extends object>(partial: Partial<T>): T {
   return partial as unknown as T;
 }
 
-// Smoke-test classification helpers (see docs/archive/versions/v0/v0.5.0/test-pyramid.md).
+// Smoke-test classification helpers (see docs/archive/v0/v0.5/test-pyramid.md).
 // `missing_env`: skip when required environment variables are absent.
 // `upstream_unavailable`: skip when a configured upstream is unreachable.
 

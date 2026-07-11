@@ -4,7 +4,7 @@ A reusable, transparent QWidget that paints the guide's animated network:
 slowly drifting cyan nodes joined by distance-faded links. It is the PyQt
 twin of the desktop `<ConstellationBackground/>` (both port
 guides/interactive-guide/nexus-ai-guide.html), so the installer and the app
-share one look. See docs/versions/v1/v1.9.0/design-tokens.md.
+share one look. See docs/v1/v1.9/design-tokens.md.
 
 The widget paints only the constellation on a translucent background; the
 consumer (Phase 3) mounts it over the radial-glow body treatment. It:

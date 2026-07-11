@@ -3,7 +3,7 @@
  * background. Ported from the north-star reference
  * (guides/interactive-guide/nexus-ai-guide.html) so the React
  * `<ConstellationBackground/>` and the PyQt `ConstellationBackground` widget
- * animate identically. See docs/versions/v1/v1.9.0/design-tokens.md.
+ * animate identically. See docs/v1/v1.9/design-tokens.md.
  *
  * These functions hold no DOM references so they are unit-testable without a
  * real canvas; the component wires them to a `<canvas>` + requestAnimationFrame.

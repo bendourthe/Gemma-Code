@@ -32,7 +32,7 @@
  *     error that now carries the per-platform install command (gap 6.2.P2.X)
  *     rather than silently falling back to grep.
  *
- * DEVIATION (logged in `docs/versions/v1/v1.2.0/known-gaps.md`): the plan prompt
+ * DEVIATION (logged in `docs/v1/v1.2/known-gaps.md`): the plan prompt
  * lists `typescript-language-server`, `pylsp`, and `rust-analyzer`. The
  * runtime resolution uses `which`-style PATH lookup; we never bundle an
  * LSP server binary because the installer policy is no-network at

@@ -6,7 +6,7 @@
 .DESCRIPTION
     Simulates and validates each installer step in sequence.
     Designed to run in Windows Sandbox or a Docker Windows container
-    (see docs/archive/versions/v0/v0.1.0/testing.md for environment setup instructions).
+    (see docs/archive/v0/v0.1/testing.md for environment setup instructions).
 
     Each test function writes PASS/FAIL to stdout and sets $Script:FailCount.
     Exit code is the total number of failures (0 = all passed).

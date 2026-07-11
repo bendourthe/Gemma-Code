@@ -14,7 +14,7 @@
  * stays addressable for external callers but no longer gates the terminal
  * tool's stdout path.
  *
- * No telemetry path exists; per `docs/versions/v1/v1.2.0/plans/adoption-ecosystem-2026-05.md`
+ * No telemetry path exists; per `docs/v1/v1.2/plans/adoption-ecosystem-2026-05.md`
  * Section 9.4 N4, Nexus is no-telemetry by construction.
  */
 

@@ -6,7 +6,7 @@
  * the test validates that the extension renders its "Ollama unreachable" state
  * gracefully when the backend is unavailable.
  *
- * Setup requirements — see docs/archive/versions/v0/v0.1.0/testing.md for full instructions.
+ * Setup requirements — see docs/archive/v0/v0.1/testing.md for full instructions.
  *   npm install --save-dev @vscode/test-electron playwright
  *
  * Run:

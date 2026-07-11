@@ -12,7 +12,7 @@
  * native bindings would force every dev machine through a native compile.
  * Phase 4.1 reuses `extractSymbols()` from `core/codegraph/scanner/RepoScanner.ts`
  * so the AST-awareness here is the same approximation Phase 3 already ships.
- * The Tree-sitter upgrade is tracked in `docs/versions/v1/v1.2.0/known-gaps.md` (DF).
+ * The Tree-sitter upgrade is tracked in `docs/v1/v1.2/known-gaps.md` (DF).
  *
  * Fallback: any non-supported language (or non-code file) falls back to a
  * size-based chunker that splits at line boundaries with a configurable max

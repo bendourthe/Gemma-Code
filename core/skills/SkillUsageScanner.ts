@@ -2,7 +2,7 @@
  * v1.3.0 Phase 4 (adoption-skill-cleaner T012) -- session-log usage scanner.
  *
  * Implements insight I-10 from
- * `docs/versions/v1/v1.3.0/comparison-skill-cleaner.md`: determine which skills
+ * `docs/v1/v1.3/comparison-skill-cleaner.md`: determine which skills
  * have no recent invocation evidence by scanning Nexus's own session-replay
  * logs. Nexus's logs are richer than skill-cleaner's text-only `~/.codex/`
  * scan because Nexus emits structured `HookBus` skill-load events, so this

@@ -167,7 +167,7 @@ button {
  * loops (mix-blend-mode: screen) inside a rounded, overflow-hidden box, plus a
  * sweeping shimmer bar. Built on the existing glow tokens; all motion is gated
  * behind prefers-reduced-motion (a soft static glow fallback). See
- * docs/versions/v1/v1.9.0/ui-rework-design.md Section 3.
+ * docs/v1/v1.9/ui-rework-design.md Section 3.
  * ------------------------------------------------------------------------- */
 
 :root {

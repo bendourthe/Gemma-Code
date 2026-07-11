@@ -6,7 +6,7 @@
  * loop consults the graph via the 8 `codegraph_*` MCP tools so it does not
  * have to spawn discovery sub-agents that scan files repeatedly.
  *
- * See `docs/versions/v1/v1.2.0/plans/adoption-ecosystem-2026-05.md` Phase 3 for the
+ * See `docs/v1/v1.2/plans/adoption-ecosystem-2026-05.md` Phase 3 for the
  * full design context and stability gate (<=30% of the tool calls the
  * reference task takes without the graph available).
  */

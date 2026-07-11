@@ -7,7 +7,7 @@ Thanks for your interest in improving Nexus. This document covers the minimum yo
 ## Project tour
 
 - v1.0.0 shared core under [core/](./core) (`ModelRegistry`, `MemoryHub`, `TelemetryBus`, `SkillCatalog`, `StorageMigration`).
-- Per-pillar modules under [modules/](./modules). The Coding pillar currently lives under [src/](./src) during the one-cycle compat window; wholesale move to [modules/coding/](./modules/coding/) is tracked in [docs/versions/v1/v1.0.0/known-gaps.md](./docs/versions/v1/v1.0.0/known-gaps.md) under code `MV`.
+- Per-pillar modules under [modules/](./modules). The Coding pillar currently lives under [src/](./src) during the one-cycle compat window; wholesale move to [modules/coding/](./modules/coding/) is tracked in [docs/versions/v1/v1.0.0/known-gaps.md](docs/v1/v1.0/known-gaps.md) under code `MV`.
 - Composition root: [src/extension.ts](./src/extension.ts) -> [src/runtime/NexusCodingRuntime.ts](./src/runtime/NexusCodingRuntime.ts) -> [src/panels/NexusCodingPanel.ts](./src/panels/NexusCodingPanel.ts).
 - Vendor-neutral LLM port at [src/llm/types.ts](./src/llm/types.ts); the Ollama adapter at [src/llm/OllamaClient.ts](./src/llm/OllamaClient.ts).
 - Pre-execution safety layer at [src/guardrails/](./src/guardrails) (action classification, loop detection, git checkpoints, permission tiers).
@@ -17,7 +17,7 @@ Thanks for your interest in improving Nexus. This document covers the minimum yo
 - Deterministic-checks CLI at [bin/nexus-check.mjs](./bin/nexus-check.mjs) (renamed from `gemma-check` in Phase 2.4; legacy alias kept for one cycle).
 - Tests mirror source layout under [tests/unit/](./tests/unit), [tests/integration/](./tests/integration), and [tests/golden/](./tests/golden).
 
-For deeper architecture see [ARCHITECTURE.md](./ARCHITECTURE.md) and [docs/versions/v1/v1.0.0/architecture.md](./docs/versions/v1/v1.0.0/architecture.md). The canonical agent directive is [AGENTS.md](./AGENTS.md).
+For deeper architecture see [ARCHITECTURE.md](./ARCHITECTURE.md) and [docs/versions/v1/v1.0.0/architecture.md](docs/v1/v1.0/architecture.md). The canonical agent directive is [AGENTS.md](./AGENTS.md).
 
 ## One-command setup
 
@@ -100,7 +100,7 @@ Aim to remove suppressions once the upstream issue is resolved. The 20-char mini
 - Golden suite (operator-invoked; not in CI): Python framework at [tests/golden/framework/](./tests/golden/framework/). Canonised in [ADR-0017](./docs/adr/0017-golden-runner-disposition.md). Capture a new baseline with `python tests/golden/framework/run_all.py --model gemma4:e4b --output tests/golden/baselines/<version>.json` on a quiescent workstation with `ollama serve` running.
 - Add tests next to the unit you change. Mirror source paths under `tests/unit/`.
 - New tracing/runtime work must use a per-test `new Tracer()` instance -- the singleton was retired in v0.4.0.
-- Tests that depend on environment variables or upstream services must follow the Smoke-Test Classification Rubric in [docs/archive/versions/v0/v0.5.0/test-pyramid.md](./docs/archive/versions/v0/v0.5.0/test-pyramid.md). Use `skipIfNoOllama()` / `skipIfMissingEnv()` from [tests/helpers/factories.ts](./tests/helpers/factories.ts); do not write bare `if (!process.env.X) return;` early returns.
+- Tests that depend on environment variables or upstream services must follow the Smoke-Test Classification Rubric in [docs/archive/versions/v0/v0.5.0/test-pyramid.md](docs/archive/v0/v0.5/test-pyramid.md). Use `skipIfNoOllama()` / `skipIfMissingEnv()` from [tests/helpers/factories.ts](./tests/helpers/factories.ts); do not write bare `if (!process.env.X) return;` early returns.
 - Set `LMSTUDIO_LIVE=1` to run the env-gated LM Studio live test at [tests/integration/llm/LmStudioClient.live.test.ts](./tests/integration/llm/LmStudioClient.live.test.ts) (requires a running local LM Studio server on `127.0.0.1:1234` with at least one model loaded; override the URL with `LMSTUDIO_BASE_URL`). Without the env var the test is skipped silently.
 - For non-trivial refactors and any externalization of compiled state to runtime data, follow the [refactor playbook](./docs/refactor-playbook.md) — write characterization tests *before* touching the module so behavior preservation is provable.
 
@@ -119,16 +119,16 @@ Manual dispatch supports `dry_run` and `max_age_days` inputs. Add `WIP:` to a co
 When you ship a new tool (built-in handler or MCP-side):
 
 - Update [src/tools/ToolCatalog.ts](./src/tools/ToolCatalog.ts) with the schema (name, description with one usage example, parameters with `required` flags).
-- Update [docs/archive/versions/v0/v0.5.0/tool-audit.md](./docs/archive/versions/v0/v0.5.0/tool-audit.md) with a row classifying the tool against the severity rubric (`blocker | friction | optimization`).
+- Update [docs/archive/versions/v0/v0.5.0/tool-audit.md](docs/archive/v0/v0.5/tool-audit.md) with a row classifying the tool against the severity rubric (`blocker | friction | optimization`).
 - Ensure every error returned by the handler contains the failing parameter name and a `Usage:` hint per the actionability convention. Property-based tests in [tests/unit/tools/errors.test.ts](./tests/unit/tools/errors.test.ts) enforce this on every PR.
 
 ## Tool quality and severity
 
-When discussing tool surfaces (existing or proposed), use the severity rubric in [docs/archive/versions/v0/v0.5.0/tool-audit.md](./docs/archive/versions/v0/v0.5.0/tool-audit.md): `blocker | friction | optimization`. The labels are vocabulary, not a CI gate; they keep PR descriptions and review threads grounded in the same definitions. If you add a new tool or change an existing tool's schema, update the audit table in the same PR.
+When discussing tool surfaces (existing or proposed), use the severity rubric in [docs/archive/versions/v0/v0.5.0/tool-audit.md](docs/archive/v0/v0.5/tool-audit.md): `blocker | friction | optimization`. The labels are vocabulary, not a CI gate; they keep PR descriptions and review threads grounded in the same definitions. If you add a new tool or change an existing tool's schema, update the audit table in the same PR.
 
 ## Issue records
 
-For multi-week investigations and recurring patterns, capture a forensic record under [docs/issues/](./docs/issues/) using [docs/issues/_template.md](./docs/issues/_template.md). The template is YAML-frontmatter Markdown with four sections: What, Why, Resolution, References. Use the severity rubric from [docs/archive/versions/v0/v0.5.0/tool-audit.md](./docs/archive/versions/v0/v0.5.0/tool-audit.md) (`blocker | friction | optimization`).
+For multi-week investigations and recurring patterns, capture a forensic record under [docs/issues/](./docs/issues/) using [docs/issues/_template.md](./docs/issues/_template.md). The template is YAML-frontmatter Markdown with four sections: What, Why, Resolution, References. Use the severity rubric from [docs/archive/versions/v0/v0.5.0/tool-audit.md](docs/archive/v0/v0.5/tool-audit.md) (`blocker | friction | optimization`).
 
 This is an opt-in convention. Small issues do not need an entry. Do not retroactively backfill closed issues; start the practice from the next investigation forward. Filenames follow `<id>-<short-slug>.md` (e.g. `0001-ollama-warm-up-latency.md`).
 

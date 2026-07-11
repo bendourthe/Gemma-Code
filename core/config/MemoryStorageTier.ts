@@ -11,7 +11,7 @@
  * `scripts/migrate-dense-index-to-pruned.ts`). The Phase 4.4 benchmark
  * decides whether a later cycle promotes `Pruned` to the default.
  *
- * See `docs/versions/v1/v1.2.0/plans/adoption-ecosystem-2026-05.md` Phase 4.3 for the
+ * See `docs/v1/v1.2/plans/adoption-ecosystem-2026-05.md` Phase 4.3 for the
  * full design context.
  */
 

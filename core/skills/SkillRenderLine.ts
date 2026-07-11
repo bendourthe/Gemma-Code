@@ -2,7 +2,7 @@
  * v1.3.0 Phase 2 (adoption-skill-cleaner T005) -- canonical skill render formatter.
  *
  * Implements insight I-02 from
- * `docs/versions/v1/v1.3.0/comparison-skill-cleaner.md`: a single source of
+ * `docs/v1/v1.3/comparison-skill-cleaner.md`: a single source of
  * truth for the `- name: description (file: path)` line shape that both the
  * agent loop and the future `SkillAuditor` (Phase 3) consume, so the auditor's
  * token math stays faithful to what the model actually sees.

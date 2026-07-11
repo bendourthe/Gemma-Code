@@ -2,7 +2,7 @@
  * v1.3.0 Phase 4 (adoption-skill-cleaner T011) -- content-similarity detector.
  *
  * Implements insight I-08 from
- * `docs/versions/v1/v1.3.0/comparison-skill-cleaner.md`: surface near-duplicate
+ * `docs/v1/v1.3/comparison-skill-cleaner.md`: surface near-duplicate
  * skills whose names differ but whose bodies overlap above a configurable
  * Jaccard threshold. The `SkillAuditor` (T013) consumes `findSimilarPairs` to
  * populate the `duplicates.bySimilarity` report.

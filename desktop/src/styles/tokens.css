@@ -1,5 +1,5 @@
 /* Nexus design tokens - dark-theme base + four module accent colors.
- * Source: docs/versions/v1/v1.0.0/design-tokens.md, docs/versions/v1/v1.0.0/pivot-brief.md S3.
+ * Source: docs/v1/v1.0/design-tokens.md, docs/v1/v1.0/pivot-brief.md S3.
  * Consumed via Tailwind v4 `@theme inline` in tailwind.css. */
 
 :root {
@@ -74,7 +74,7 @@
    * gradient, and radial-glow background. Ported verbatim from the
    * north-star reference (guides/interactive-guide/nexus-ai-guide.html) so
    * the installer and the app share one look. Additive: nothing above
-   * changes. See docs/versions/v1/v1.9.0/design-tokens.md.
+   * changes. See docs/v1/v1.9/design-tokens.md.
    * ------------------------------------------------------------------- */
 
   /* Deepest gradient stop for the radial-glow body treatment. */

@@ -261,7 +261,7 @@ export function promoteSqlMemoryToFile(
  * v0.8.0 Phase 5 sub-task 5.10 -- documented + override-able section mapping.
  *
  * The default mapping was set in v0.7.0 Phase 5 and now lives in
- * `docs/archive/versions/v0/v0.8.0/memory-promotion-mapping.md`. Users can override any entry via
+ * `docs/archive/v0/v0.8/memory-promotion-mapping.md`. Users can override any entry via
  * the `gemma-code.memory.promotionMapping` setting (a flat object of
  * SQL-type -> section heading). Unknown SQL types fall back to "Preferences".
  */

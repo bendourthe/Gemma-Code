@@ -879,7 +879,7 @@ Hygiene and ratchet release. Closes the only chained P0 security finding from th
 - `tests/integration/memory-consolidator-large.test.ts` -- 10K-event stress test for the `db.transaction`-wrapped consolidation pass; asserts wall-time below 5 s.
 - `tests/unit/tools/handlers/pathGuard.test.ts` -- four mutation-survivor regression tests added during the Stryker pass (workspaceRoot null/empty, lexical fallback, absolute-out-of-root rejection).
 - `tests/unit/storage/eviction/` -- per-strategy unit tests across the five `Evictor` implementations.
-- `tests/golden/baselines/v0.6.0.json` (post-Phase-1 measurement; final regeneration scheduled against the post-Phase-7 build with live Ollama -- see [docs/archive/versions/v0/v0.6.0/development/history/2026-05_phase-8-release-gate.md](./docs/archive/versions/v0/v0.6.0/development/history/2026-05_phase-8-release-gate.md)).
+- `tests/golden/baselines/v0.6.0.json` (post-Phase-1 measurement; final regeneration scheduled against the post-Phase-7 build with live Ollama -- see [docs/archive/versions/v0/v0.6.0/development/history/2026-05_phase-8-release-gate.md](docs/archive/v0/v0.6/development/history/2026-05_phase-8-release-gate.md)).
 - `tests/benchmarks/baselines/v0.6.0.json` (regeneration vs. v0.5.0 baseline scheduled per the same release-gate procedure).
 
 ### Changed
@@ -944,7 +944,7 @@ Unified adoption release. Combines five comparison-driven adoption plans (token-
 ### Phase 1 -- Identity and Naming
 
 - AGENTS.md adopted as the sole canonical directive; no CLAUDE.md anywhere in the repo
-- Test-pyramid taxonomy split into "smoke" / "regression" / "scenario" with the rubric in [docs/archive/versions/v0/v0.5.0/test-pyramid.md](./docs/archive/versions/v0/v0.5.0/test-pyramid.md)
+- Test-pyramid taxonomy split into "smoke" / "regression" / "scenario" with the rubric in [docs/archive/versions/v0/v0.5.0/test-pyramid.md](docs/archive/v0/v0.5/test-pyramid.md)
 - Generic naming convention applied across product files (no provider branding)
 
 ### Phase 2 -- Tool Surface Hardening
@@ -1058,12 +1058,12 @@ Unified adoption release. Combines five comparison-driven adoption plans (token-
 **Release artifacts**
 - `package.json` version bumped to 0.5.0
 - This CHANGELOG entry
-- [docs/archive/versions/v0/v0.5.0/architecture.md](./docs/archive/versions/v0/v0.5.0/architecture.md) describing the v0.5.0 architecture
+- [docs/archive/versions/v0/v0.5.0/architecture.md](docs/archive/v0/v0.5/architecture.md) describing the v0.5.0 architecture
 - v0.5.0 git tag prepared (push deferred to explicit user confirmation)
 
 ### Deferred / Out of Scope
 
-The following are recorded for v0.6.0+: LSTM predictive caching (hard constraint), multi-provider LLM proxy, voice transcription, distributed cache, `/memory prune` and `/memory lint --apply`, auto-merge for Dependabot, `format=json` on `read_file` and `run_terminal`. See [docs/archive/versions/v0/v0.5.0/plans/implementation-plan.md](./docs/archive/versions/v0/v0.5.0/plans/implementation-plan.md) "Out of Scope" section for the full table.
+The following are recorded for v0.6.0+: LSTM predictive caching (hard constraint), multi-provider LLM proxy, voice transcription, distributed cache, `/memory prune` and `/memory lint --apply`, auto-merge for Dependabot, `format=json` on `read_file` and `run_terminal`. See [docs/archive/versions/v0/v0.5.0/plans/implementation-plan.md](docs/archive/v0/v0.5/plans/implementation-plan.md) "Out of Scope" section for the full table.
 
 ---
 

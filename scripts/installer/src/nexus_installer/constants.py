@@ -68,7 +68,7 @@ SECTION_ACCENTS: dict[str, str] = {
 # provider color is the only card color signal. Hues stay distinguishable on the
 # dark theme, brand-adjacent where a publisher has a known brand color; unknown
 # / community publishers fall back to a neutral slate.
-# See docs/versions/v1/v1.9.0/ui-rework-design.md.
+# See docs/v1/v1.9/ui-rework-design.md.
 # ---------------------------------------------------------------------------
 PROVIDER_FALLBACK = "#94a3b8"  # slate -- community / unknown publisher
 
@@ -146,7 +146,7 @@ INFO = "#38bdf8"
 # gradient, and radial-glow background (guides/interactive-guide/
 # nexus-ai-guide.html), mirroring tokens.css so the installer and the app
 # share one look. Consumed by the constellation background + floating-glow
-# logo primitives (T203). See docs/versions/v1/v1.9.0/design-tokens.md.
+# logo primitives (T203). See docs/v1/v1.9/design-tokens.md.
 # ---------------------------------------------------------------------------
 # Deepest gradient stop for the radial-glow body treatment (--bg-deep).
 BG_DEEP = "#010608"
@@ -201,7 +201,7 @@ else:
 # and every page/widget label). The QSS base stays 15px. FS_BODY_STRONG shares
 # FS_BODY's size -- emphasis comes from FW_SEMIBOLD, not a larger size. Sizes
 # are px ints; QSS consumers format as f"{FS_H1}px".
-# See docs/versions/v1/v1.9.0/ui-rework-design.md.
+# See docs/v1/v1.9/ui-rework-design.md.
 # ---------------------------------------------------------------------------
 FS_DISPLAY = 34  # page hero / welcome title
 FS_H1 = 28  # page titles

@@ -2,7 +2,7 @@
  * v1.3.0 Phase 2 (adoption-skill-cleaner T003) -- model-agnostic token-cost helper.
  *
  * Implements insight I-04 from
- * `docs/versions/v1/v1.3.0/comparison-skill-cleaner.md`: the
+ * `docs/v1/v1.3/comparison-skill-cleaner.md`: the
  * `ceil(utf8_bytes / 4)` approximation from skill-cleaner's "Analyzer Notes".
  *
  * Single shared estimator so the SkillAuditor (Phase 3), the existing

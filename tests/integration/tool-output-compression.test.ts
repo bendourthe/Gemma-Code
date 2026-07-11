@@ -6,7 +6,7 @@
  * tail_output and grep_output transparently decode it, and the round-trip is
  * byte-equivalent.
  *
- * The plan-level assertion (see docs/archive/versions/v0/v0.5.0/plans/token-optimizer-adoption.md
+ * The plan-level assertion (see docs/archive/v0/v0.5/plans/token-optimizer-adoption.md
  * Phase 1, sub-task 1.2) is: a 12 KB grep result is < 6 KB on disk after
  * compression.
  */
