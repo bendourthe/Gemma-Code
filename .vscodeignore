@@ -67,7 +67,22 @@ node_modules/tree-sitter-wasms/out/**
 **/__pycache__/**
 **/*.pyc
 **/*.pyo
-target/**
+# `target/**` only matches a top-level target dir; use `**/target/**` so nested
+# Rust build trees (desktop/src-tauri/target/, and its node_modules symlink copy)
+# are excluded too.
+**/target/**
+
+# v2.x -- the desktop Tauri app is a SEPARATE product, not part of the VS Code
+# extension (no shipped extension code imports @nexus/desktop). It, and its
+# npm-workspace symlink under node_modules/@nexus, were being packaged into the
+# VSIX -- dragging in ~4.8 GB of Rust build artifacts (the target/ tree packaged
+# twice: directly and via the symlink). Exclude both.
+desktop/**
+node_modules/@nexus/**
+
+# Build outputs and local fixtures -- not extension runtime files.
+dist/**
+.local-fixtures/**
 
 # TypeScript source maps and declaration files (already excluded via pattern below)
 **/*.ts

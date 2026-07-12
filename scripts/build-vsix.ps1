@@ -96,6 +96,12 @@ try {
     # ── Step 4b: Rebuild native modules for VS Code Electron ─────────────────
 
     Invoke-Step 'Rebuild better-sqlite3 for VS Code Electron' {
+        # @electron/rebuild streams progress to stderr; under Windows PowerShell
+        # 5.1 with ErrorActionPreference=Stop the first stderr line is promoted to
+        # a terminating NativeCommandError and aborts the build before it can
+        # finish. Drop to Continue inside this step so only a non-zero exit code
+        # (checked by Invoke-Step via $LASTEXITCODE) fails it.
+        $ErrorActionPreference = 'Continue'
         npx @electron/rebuild --version 36.4.0 --only better-sqlite3 --force
     }
 
@@ -134,6 +140,9 @@ try {
     # ── Step 8: Package VSIX ─────────────────────────────────────────────────
 
     Invoke-Step 'vsce package (create VSIX)' {
+        # vsce also streams progress/warnings to stderr; same PS 5.1 guard as the
+        # electron-rebuild step above (Invoke-Step still gates on $LASTEXITCODE).
+        $ErrorActionPreference = 'Continue'
         $Version = (Get-Content (Join-Path $RepoRoot 'package.json') | ConvertFrom-Json).version
         $VsixName = "gemma-code-$Version.vsix"
         $VsixOut  = Join-Path $OutputDir $VsixName
