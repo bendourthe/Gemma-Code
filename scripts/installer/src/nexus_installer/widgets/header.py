@@ -13,8 +13,6 @@ from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import QHBoxLayout, QLabel, QWidget
 
 from nexus_installer.constants import (
-    FS_BODY,
-    FS_H2,
     GLOW_BLUR_MEDIUM,
     HEADER_HEIGHT,
     TEXT_SECONDARY,
@@ -22,6 +20,14 @@ from nexus_installer.constants import (
     WORDMARK_SECONDARY,
 )
 from nexus_installer.widgets.static_logo import StaticLogo
+
+# v2.x -- the header brand band is enlarged ~3x so the mark + "Nexus AI Studio"
+# wordmark read as the product banner, comfortably exceeding the page title
+# ("Installing..." at FS_H1 = 28). Header-local sizes (not the shared FS_*
+# scale, which tops out at FS_DISPLAY = 34).
+HEADER_LOGO_SIZE = 120
+HEADER_TITLE_PX = 44
+HEADER_STEP_PX = 24
 
 
 class Header(QWidget):
@@ -37,7 +43,7 @@ class Header(QWidget):
         layout.setSpacing(12)
 
         # Static glowing transparent mark (no animation -> no lag; T012).
-        self._logo = StaticLogo(size=40, glow_blur=GLOW_BLUR_MEDIUM)
+        self._logo = StaticLogo(size=HEADER_LOGO_SIZE, glow_blur=GLOW_BLUR_MEDIUM)
         layout.addWidget(self._logo, alignment=Qt.AlignmentFlag.AlignVCenter)
 
         # Two-tone wordmark matching the interactive guide (T015): bright
@@ -50,7 +56,7 @@ class Header(QWidget):
         )
         self._title.setStyleSheet("background: transparent;")
         title_font = self._title.font()
-        title_font.setPixelSize(FS_H2)
+        title_font.setPixelSize(HEADER_TITLE_PX)
         title_font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 0.3)
         self._title.setFont(title_font)
         layout.addWidget(self._title, alignment=Qt.AlignmentFlag.AlignVCenter)
@@ -60,7 +66,8 @@ class Header(QWidget):
         self._step_counter = QLabel("")
         self._step_counter.setObjectName("secondaryLabel")
         self._step_counter.setStyleSheet(
-            f"color: {TEXT_SECONDARY}; font-size: {FS_BODY}px; background: transparent;"
+            f"color: {TEXT_SECONDARY}; font-size: {HEADER_STEP_PX}px; "
+            "background: transparent;"
         )
         layout.addWidget(self._step_counter, alignment=Qt.AlignmentFlag.AlignVCenter)
 

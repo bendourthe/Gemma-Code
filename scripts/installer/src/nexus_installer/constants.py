@@ -234,7 +234,9 @@ FW_BOLD = 700
 # v1.9.0 Phase 3 (T301): the custom frameless title bar replaces the native OS
 # chrome, so its height is a first-class layout dimension.
 TITLE_BAR_HEIGHT = 44
-HEADER_HEIGHT = 74
+# v2.x: enlarged ~3x (was 74) to seat the bigger brand mark + wordmark so the
+# header reads as the product banner (see widgets/header.py HEADER_* sizes).
+HEADER_HEIGHT = 160
 # v1.9.0 Phase 4 (T017): raised from 88 so the enlarged (>=14px) step labels sit
 # clearly below the dots with no overlap, at min and default window widths.
 STEP_BAR_HEIGHT = 112

@@ -27,6 +27,14 @@ def run_command(
     timeout: int = 300,
 ) -> tuple[int, str, str]:
     """Run a command and return (exit_code, stdout, stderr)."""
+    # The installer is a windowed (no-console) PyInstaller app. Spawning a
+    # console child -- notably VS Code's `code` CLI, a `.cmd` wrapper that runs
+    # through cmd.exe -- without CREATE_NO_WINDOW allocates a transient console
+    # whose teardown surfaces as STATUS_CONTROL_C_EXIT (0xC000013A), making a
+    # perfectly good `code --install-extension` report a spurious failure.
+    # CREATE_NO_WINDOW runs the child with no console and no Ctrl-signal
+    # propagation; stdin is nulled since there is no console stdin to inherit.
+    creationflags = subprocess.CREATE_NO_WINDOW if is_windows() else 0
     try:
         result = subprocess.run(
             cmd,
@@ -34,6 +42,8 @@ def run_command(
             text=True,
             cwd=cwd,
             timeout=timeout,
+            stdin=subprocess.DEVNULL,
+            creationflags=creationflags,
         )
         return result.returncode, result.stdout, result.stderr
     except subprocess.TimeoutExpired:
