@@ -5,12 +5,12 @@
   "embeddingDim": 384,
   "standard": {
     "onDiskBytes": 3088902,
-    "ingestMs": 29
+    "ingestMs": 38
   },
   "pruned": {
     "onDiskBytes": 574202,
     "ingestMs": 1,
-    "compactMs": 844
+    "compactMs": 1114
   },
   "storageRatio": 0.1859,
   "storageRatioPercent": "18.59%",

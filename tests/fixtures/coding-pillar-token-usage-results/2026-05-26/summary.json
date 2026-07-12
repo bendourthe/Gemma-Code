@@ -9,16 +9,16 @@
   ],
   "fixtureRepo": "tests/fixtures/codegraph-benchmark-repo/",
   "withoutAdoption": {
-    "tokenBytes": 34430,
+    "tokenBytes": 34522,
     "toolCalls": 11
   },
   "withAdoption": {
     "tokenBytes": 2147,
     "toolCalls": 6
   },
-  "tokenRatio": 0.0624,
-  "tokenRatioPercent": "6.24%",
-  "tokenDeltaPercent": "93.76%",
+  "tokenRatio": 0.0622,
+  "tokenRatioPercent": "6.22%",
+  "tokenDeltaPercent": "93.78%",
   "toolCallRatio": 0.5455,
   "toolCallRatioPercent": "54.55%",
   "toolCallDeltaPercent": "45.45%",

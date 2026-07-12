@@ -8,7 +8,7 @@
       "args": {
         "pattern": "redactSecrets"
       },
-      "resultBytes": 1114
+      "resultBytes": 1156
     },
     {
       "step": 2,
@@ -16,7 +16,7 @@
       "args": {
         "path": "audit.ts"
       },
-      "resultBytes": 325
+      "resultBytes": 335
     },
     {
       "step": 3,
@@ -24,7 +24,7 @@
       "args": {
         "path": "errorReporter.ts"
       },
-      "resultBytes": 253
+      "resultBytes": 262
     },
     {
       "step": 4,
@@ -32,7 +32,7 @@
       "args": {
         "path": "logger.ts"
       },
-      "resultBytes": 146
+      "resultBytes": 153
     },
     {
       "step": 5,
@@ -40,7 +40,7 @@
       "args": {
         "path": "masker.ts"
       },
-      "resultBytes": 229
+      "resultBytes": 240
     },
     {
       "step": 6,
@@ -48,7 +48,7 @@
       "args": {
         "path": "session.ts"
       },
-      "resultBytes": 157
+      "resultBytes": 162
     },
     {
       "step": 7,
@@ -56,7 +56,7 @@
       "args": {
         "path": "redact.ts"
       },
-      "resultBytes": 348
+      "resultBytes": 356
     }
   ]
 }
