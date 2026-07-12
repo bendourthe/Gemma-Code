@@ -128,7 +128,7 @@ class StoragePage(QWidget):
 
         title = QLabel("Storage Review")
         title.setStyleSheet(
-            "font-size: 24px; font-weight: bold; background: transparent;"
+            "font-size: 28px; font-weight: bold; background: transparent;"
         )
         layout.addWidget(title)
 
@@ -137,7 +137,7 @@ class StoragePage(QWidget):
             "the 10 GB OS reserve to begin."
         )
         intro.setStyleSheet(
-            f"color: {TEXT_SECONDARY}; font-size: 13px; background: transparent;"
+            f"color: {TEXT_SECONDARY}; font-size: 15px; background: transparent;"
         )
         intro.setWordWrap(True)
         layout.addWidget(intro)
@@ -189,11 +189,11 @@ class StoragePage(QWidget):
             row = QHBoxLayout()
             label = QLabel(label_text)
             label.setStyleSheet(
-                f"color: {TEXT_PRIMARY}; font-size: 13px; background: transparent;"
+                f"color: {TEXT_PRIMARY}; font-size: 15px; background: transparent;"
             )
             value = QLabel(value_text)
             value.setStyleSheet(
-                f"color: {value_color or TEXT_PRIMARY}; font-size: 13px; "
+                f"color: {value_color or TEXT_PRIMARY}; font-size: 15px; "
                 "font-weight: bold; background: transparent;"
             )
             row.addWidget(label)

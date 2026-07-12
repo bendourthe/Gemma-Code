@@ -54,9 +54,25 @@ if ($Vsix) {
 Write-Host "[3/4] Running PyInstaller (single onefile -> dist/NexusSetup.exe)..." -ForegroundColor Cyan
 New-Item -ItemType Directory -Force -Path $DistDir | Out-Null
 Push-Location $InstallerRoot
-uv run pyinstaller build/nexus-installer.spec --distpath "$DistDir" --workpath build/work --clean --noconfirm 2>&1 |
-    Select-String -NotMatch "^(INFO|DEBUG)" | ForEach-Object { $_.Line }
+# PyInstaller writes its entire progress log to stderr. Under Windows
+# PowerShell 5.1, merging that into the pipeline (2>&1) wraps each line in a
+# NativeCommandError record, and with $ErrorActionPreference='Stop' (set at the
+# top) the first such line aborts the build before it can finish. Send stderr
+# to a log file instead: the console stays clean, nothing is promoted to a
+# terminating error, and $LASTEXITCODE still carries PyInstaller's real exit
+# code. Works on PowerShell 5.1 and 7+. The log is kept for debugging.
+$BuildLog = Join-Path $DistDir "pyinstaller-build.log"
+$PrevEAP = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
+uv run pyinstaller build/nexus-installer.spec --distpath "$DistDir" --workpath build/work --clean --noconfirm 2> $BuildLog
+$PyiExit = $LASTEXITCODE
+$ErrorActionPreference = $PrevEAP
 Pop-Location
+
+if ($PyiExit -ne 0) {
+    Write-Host "ERROR: PyInstaller exited with code $PyiExit. See $BuildLog." -ForegroundColor Red
+    exit 1
+}
 
 $ExePath = Join-Path $DistDir "NexusSetup.exe"
 if (-not (Test-Path $ExePath)) {

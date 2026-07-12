@@ -69,10 +69,10 @@ class DiskAwareFooter(QWidget):
 
         for lbl in (self._free_label, self._selected_label):
             lbl.setStyleSheet(
-                f"color: {TEXT_PRIMARY}; font-size: 12px; background: transparent;"
+                f"color: {TEXT_PRIMARY}; font-size: 14px; background: transparent;"
             )
         self._remaining_label.setStyleSheet(
-            f"color: {TEXT_SECONDARY}; font-size: 12px; background: transparent;"
+            f"color: {TEXT_SECONDARY}; font-size: 14px; background: transparent;"
         )
 
         layout.addWidget(self._free_label)
@@ -93,7 +93,7 @@ class DiskAwareFooter(QWidget):
         self._selected_label.setText(selected_text)
         self._remaining_label.setText(remaining_text)
         self._remaining_label.setStyleSheet(
-            f"color: {color}; font-size: 12px; background: transparent;"
+            f"color: {color}; font-size: 14px; background: transparent;"
         )
 
     def update_selection(self, selected_gb: float) -> None:

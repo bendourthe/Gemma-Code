@@ -63,7 +63,7 @@ class VsCodeExtensionPage(QWidget):
 
         title = QLabel("Nexus VS Code Extension")
         title.setStyleSheet(
-            "font-size: 24px; font-weight: bold; background: transparent;"
+            "font-size: 28px; font-weight: bold; background: transparent;"
         )
         layout.addWidget(title)
 
@@ -72,7 +72,7 @@ class VsCodeExtensionPage(QWidget):
             "agentic coding directly inside VS Code (or Cursor / Insiders)."
         )
         intro.setStyleSheet(
-            f"color: {TEXT_SECONDARY}; font-size: 13px; background: transparent;"
+            f"color: {TEXT_SECONDARY}; font-size: 15px; background: transparent;"
         )
         intro.setWordWrap(True)
         layout.addWidget(intro)
@@ -101,7 +101,7 @@ class VsCodeExtensionPage(QWidget):
         detected_label = QLabel(detection_text)
         detected_label.setStyleSheet(
             f"color: {ACCENT if detected else TEXT_SECONDARY}; "
-            "font-size: 12px; background: transparent;"
+            "font-size: 14px; background: transparent;"
         )
         card_layout.addWidget(detected_label)
 
@@ -110,7 +110,7 @@ class VsCodeExtensionPage(QWidget):
             "--install-extension nexus-coding-1.1.0.vsix`."
         )
         note.setStyleSheet(
-            f"color: {TEXT_SECONDARY}; font-size: 11px; background: transparent;"
+            f"color: {TEXT_SECONDARY}; font-size: 14px; background: transparent;"
         )
         note.setWordWrap(True)
         card_layout.addWidget(note)
