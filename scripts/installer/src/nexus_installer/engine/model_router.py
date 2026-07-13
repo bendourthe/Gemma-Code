@@ -73,6 +73,34 @@ def protocol_for(entry: CatalogEntry | None) -> str:
     return "ollama"
 
 
+def ollama_target_for(entry: CatalogEntry | None, model_id: str) -> str:
+    """Resolve the `ollama pull` argument for an ollama-protocol model.
+
+    Prefer the catalog `source.url` (an `ollama://` URI) over the display id: a
+    HuggingFace-GGUF-via-ollama entry must pull `hf.co/<repo>:<quant>` (the
+    `source.url` host/path plus the `tag`), not the bare id -- pulling the id
+    (e.g. `gemma-4-12b-it-gguf`) yields "pull model manifest: file does not
+    exist". Falls back to the id when the entry, source, or url is absent
+    (the historical behavior for uncatalogued ids).
+    """
+    if entry is None:
+        return model_id
+    source = entry.get("source")
+    if not isinstance(source, dict):
+        return model_id
+    url = source.get("url")
+    if not isinstance(url, str) or not url.startswith("ollama://"):
+        return model_id
+    target = url[len("ollama://") :]
+    if not target:
+        return model_id
+    tag = entry.get("tag")
+    last_segment = target.rsplit("/", 1)[-1]
+    if isinstance(tag, str) and tag and ":" not in last_segment:
+        target = f"{target}:{tag}"
+    return target
+
+
 def resolve_selected_models(state: InstallerState) -> list[str]:
     """The model ids the step should install, de-duplicated in order.
 
@@ -157,7 +185,8 @@ class ModelStepRouter:
             else:
                 ollama_puller = ModelPuller()
                 self._active = ollama_puller
-                ok = ollama_puller.pull_model(model_id, log, model_progress)
+                target = ollama_target_for(entry, model_id)
+                ok = ollama_puller.pull_model(target, log, model_progress)
             self._active = None
 
             if self._cancelled:

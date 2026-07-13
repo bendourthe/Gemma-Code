@@ -15,6 +15,7 @@ from nexus_installer.engine.model_router import (
     ModelStepRouter,
     default_catalog_path,
     load_catalog_index,
+    ollama_target_for,
     protocol_for,
     resolve_selected_models,
 )
@@ -23,6 +24,36 @@ from nexus_installer.installer_state import InstallerState
 _MOD = "nexus_installer.engine.model_router"
 
 _PLACEHOLDER = "0" * 64
+
+
+class TestOllamaTargetResolution:
+    def test_resolves_hf_gguf_url_with_quant_tag(self) -> None:
+        # Regression: the display id is not a real ollama tag; the source.url
+        # host/path + quant tag is (the gemma-4-12b-it-gguf "file does not
+        # exist" bug).
+        entry = {
+            "id": "gemma-4-12b-it-gguf",
+            "tag": "Q4_K_XL",
+            "source": {
+                "protocol": "ollama",
+                "url": "ollama://hf.co/unsloth/gemma-4-12b-it-GGUF",
+            },
+        }
+        assert (
+            ollama_target_for(entry, "gemma-4-12b-it-gguf")
+            == "hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_XL"
+        )
+
+    def test_registry_url_keeps_inline_tag(self) -> None:
+        entry = {"source": {"protocol": "ollama", "url": "ollama://gemma4:31b"}}
+        assert ollama_target_for(entry, "gemma4-31b") == "gemma4:31b"
+
+    def test_falls_back_to_id_without_entry(self) -> None:
+        assert ollama_target_for(None, "llama3.1:8b") == "llama3.1:8b"
+
+    def test_falls_back_to_id_without_ollama_url(self) -> None:
+        entry = {"source": {"protocol": "huggingface", "url": "https://hf.co/x"}}
+        assert ollama_target_for(entry, "some-id") == "some-id"
 
 
 def _write_catalog(tmp_path: Path) -> Path:

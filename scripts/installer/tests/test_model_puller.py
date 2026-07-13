@@ -68,6 +68,7 @@ class TestModelPullerExecution:
         )
         mock_proc.wait.return_value = None
         mock_proc.returncode = 0
+        mock_proc.poll.return_value = None  # "still running"; stdout EOF ends the loop
 
         with patch(
             "nexus_installer.engine.model_puller.subprocess.Popen",
@@ -87,6 +88,7 @@ class TestModelPullerExecution:
         mock_proc.stdout = iter(["error: model not found\n"])
         mock_proc.wait.return_value = None
         mock_proc.returncode = 1
+        mock_proc.poll.return_value = None  # "still running"; stdout EOF ends the loop
 
         with patch(
             "nexus_installer.engine.model_puller.subprocess.Popen",
