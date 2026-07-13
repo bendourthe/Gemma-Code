@@ -296,6 +296,14 @@ def main() -> None:
     if sys.platform == "darwin":
         app.setAttribute(Qt.ApplicationAttribute.AA_UseHighDpiPixmaps, True)
 
+    # Dark-mode title bars on all native dialogs/popups (Windows only), so
+    # QMessageBox / QFileDialog match the app's dark theme instead of a light OS
+    # title bar. No-op off Windows.
+    from nexus_installer.widgets.win_titlebar import DarkTitleBarFilter
+
+    dark_titlebar_filter = DarkTitleBarFilter(app)
+    app.installEventFilter(dark_titlebar_filter)
+
     state = InstallerState()
     if args.install_path:
         state.install_path = args.install_path

@@ -73,22 +73,36 @@ class TestPhaseGroupLifecycle:
         assert group.progress == 0.0
 
 
-class TestPhaseGroupLog:
-    def test_log_hidden_by_default(self, qt_app: object) -> None:
+class TestPhaseGroupDetails:
+    def test_details_and_logs_hidden_by_default(self, qt_app: object) -> None:
         group = PhaseGroup("Models", ["model"])
+        assert group.details_visible is False
         assert group.log_visible is False
 
-    def test_toggle_shows_log(self, qt_app: object) -> None:
+    def test_toggle_shows_details(self, qt_app: object) -> None:
         group = PhaseGroup("Models", ["model"])
         group._toggle.setChecked(True)
-        assert group.log_visible is True
+        assert group.details_visible is True
         group._toggle.setChecked(False)
+        assert group.details_visible is False
+
+    def test_logs_toggle_shows_logs(self, qt_app: object) -> None:
+        group = PhaseGroup("Models", ["model"])
+        group._logs_toggle.setChecked(True)
+        assert group.log_visible is True
+        group._logs_toggle.setChecked(False)
         assert group.log_visible is False
 
     def test_append_and_read_log(self, qt_app: object) -> None:
         group = PhaseGroup("Models", ["model"])
         group.append_log("pulling gemma4:e4b", "info")
         assert "pulling gemma4:e4b" in group.log_text()
+
+    def test_failed_step_autoexpands_details(self, qt_app: object) -> None:
+        group = PhaseGroup("Models", ["model"])
+        group.mark_step_failed("model")
+        assert group.details_visible is True
+        assert group.state == STATE_FAILED
 
 
 class TestInstallingPageGroups:
