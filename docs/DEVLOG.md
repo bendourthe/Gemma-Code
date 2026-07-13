@@ -4,6 +4,39 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-13] v1.11.0 installer overhaul -- Phase 1: download-engine root-cause + parallel per-model progress (T101-T106)
+
+### Goal
+
+Make every model download succeed or fail fast with a plain reason -- killing the field failure where 4/8 models died (`ollama pull` exit -1 with no output) -- and emit the per-model telemetry the new installing-page UI (P5) needs.
+
+### The root cause (T101, forensically proven)
+
+Not the suspected stdin/flags: a **cp1252 decode bomb**. Ollama's braille progress spinner cycles through U+2800-U+28FF; frame U+280F encodes to UTF-8 `e2 a0 8f`, and `0x8f` is unmapped in cp1252 -- the locale codec `text=True` uses on Windows. ~1.1s into any real pull the reader thread raised `UnicodeDecodeError`, the v1.10 `except (OSError, ValueError)` swallowed it as a **fake EOF**, the loop broke while the download was still running, and `wait(10)` terminated the healthy pull -> "exit code -1" with zero visible lines (the spinner has no newlines, so no complete line was ever delivered). Reproduced under windowed `pythonw` with an instrumented reader: `READER-EXC UnicodeDecodeError ... 0x8f` -> `stdout-closed` -> `wait10 TIMEOUT -> -1` at 11.1s, twice.
+
+### What changed
+
+- **T102 indestructible reader** ([model_puller.py](../scripts/installer/src/nexus_installer/engine/model_puller.py)): byte-mode pipes decoded UTF-8 `errors="replace"` (cannot raise); splits on `\n` AND `\r` so progress rewrites parse live; strips ANSI/VT escapes + spinner-only fragments; decile-throttled progress logging; a reader failure is logged as a reader failure -- never EOF; failure reasons captured on `last_error` for the per-model failure events.
+- **T102 no-console spawn discipline** ([platform_utils.py](../scripts/installer/src/nexus_installer/engine/platform_utils.py) `no_window_kwargs()` + a 20-site sweep across pages/engine): kills the "command prompts opening and closing" the operator saw -- every Windows-relevant `subprocess` call now runs hidden with nulled stdin (probes, pip/venv, nvidia-smi, PowerShell authenticode, `cmd /c start`, `run_command_streaming`).
+- **T102 server-awareness** ([model_router.py](../scripts/installer/src/nexus_installer/engine/model_router.py) `ensure_ollama_server` + the [ollama_installer.py](../scripts/installer/src/nexus_installer/engine/ollama_installer.py) verify fix): health-check the API, start a managed hidden `ollama serve` (streams to DEVNULL -- can never hold our pipes) and wait for readiness. Also fixed `_verify_ollama`'s start-then-kill bug (`run_command(["ollama","serve"], timeout=3)` killed its own server on timeout).
+- **T103 live catalog audit**: all 38 models checked against the ollama registry / HF-GGUF trees / ranged GETs. 13/13 ollama targets valid (incl. `hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_XL` -- the GGUF exists). 12 HF entries broken -> **6 re-pointed to verified open paths** (flux-schnell -> Comfy-Org mirror; sana-sprint + sana-video-720p -> public diffusers repos; sana-2K/4K + dc-ae file-path fixes) -> re-audit **32/38 OK**; the 6 remaining gated models have no public equivalent, are not defaults, and now fail fast with a 401 reason (`IO.P1.A`).
+- **T104 pin rotation**: 25 pins rotated via the HF API LFS digests + piper pinned by direct download+hash (26 total); only the 6 gated entries keep placeholders; `build-windows.ps1` now surfaces remaining placeholders as a build warning.
+- **T105 parallel downloads + telemetry**: `ModelStepRouter` runs a bounded pool (default 3) with per-model failure isolation and pool-wide cancel; new `ModelStepEvents` -> engine Qt signals `model_started/progress/completed/failed` carrying `ModelProgress` (fraction, bytes, speed EMA, ETA) -- the P5 UI's data source.
+
+### Verification
+
+Installer suite green (full run, incl. 47 reworked/new model tests: decode-bomb regression feeding raw `0x8f` bytes, \r-split progress, server gating, parallel pool, lifecycle events); root registry suite 114 green (shared catalog.json); ruff/mypy no new findings. **Acceptance**: the fixed `ModelPuller` pulling the exact field-failure model (`nomic-embed-text:latest`, uncached) from windowed pythonw -> success, 77 progress samples, clean logs.
+
+### Gaps opened
+
+`IO.P1.A` (6 gated models: UI-flag-or-remove decision in P5/P6), `IO.P1.B` (clean-machine Ollama install broken by v0.3.6 + all-zero checksum pin -- P3 target), `IO.P1.D`-(telemetry estimates), `IO.P1.E` (frozen-exe end-to-end re-run pending the P2 harness). See [v1/v1.11/known-gaps.md](v1/v1.11/known-gaps.md).
+
+### Branch
+
+`feat/v1.11.0-installer-overhaul`
+
+---
+
 ## [2026-07-11] v1.10.0 Nexus-Hub consumption re-architecture -- Phase 8 (FINAL): docs architecture refactor + known-gaps reconciliation + CI (T041-T048)
 
 ### Goal

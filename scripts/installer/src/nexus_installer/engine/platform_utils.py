@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import sys
 from collections.abc import Callable
+from typing import Any
 
 
 def is_windows() -> bool:
@@ -21,20 +22,34 @@ def is_linux() -> bool:
     return sys.platform.startswith("linux")
 
 
+def no_window_kwargs() -> dict[str, Any]:
+    """Subprocess kwargs that keep console children invisible and well-fed.
+
+    The installer is a windowed (no-console) PyInstaller app. Spawning a
+    console-subsystem child without CREATE_NO_WINDOW pops a transient console
+    window (the "command prompts opening and closing" a real install run
+    showed), and for `.cmd` wrappers like VS Code's `code` CLI the console
+    teardown can surface as STATUS_CONTROL_C_EXIT (0xC000013A), turning a
+    successful command into a spurious failure. stdin is nulled because a
+    windowed parent has no console stdin to inherit (the child would get an
+    invalid handle).
+
+    v1.11.0 Phase 1 (T102): the ONE spawn discipline every installer
+    subprocess call site routes through, so this bug class cannot recur
+    per-call-site.
+    """
+    kwargs: dict[str, Any] = {"stdin": subprocess.DEVNULL}
+    if is_windows():
+        kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+    return kwargs
+
+
 def run_command(
     cmd: list[str],
     cwd: str | None = None,
     timeout: int = 300,
 ) -> tuple[int, str, str]:
     """Run a command and return (exit_code, stdout, stderr)."""
-    # The installer is a windowed (no-console) PyInstaller app. Spawning a
-    # console child -- notably VS Code's `code` CLI, a `.cmd` wrapper that runs
-    # through cmd.exe -- without CREATE_NO_WINDOW allocates a transient console
-    # whose teardown surfaces as STATUS_CONTROL_C_EXIT (0xC000013A), making a
-    # perfectly good `code --install-extension` report a spurious failure.
-    # CREATE_NO_WINDOW runs the child with no console and no Ctrl-signal
-    # propagation; stdin is nulled since there is no console stdin to inherit.
-    creationflags = subprocess.CREATE_NO_WINDOW if is_windows() else 0
     try:
         result = subprocess.run(
             cmd,
@@ -42,8 +57,7 @@ def run_command(
             text=True,
             cwd=cwd,
             timeout=timeout,
-            stdin=subprocess.DEVNULL,
-            creationflags=creationflags,
+            **no_window_kwargs(),
         )
         return result.returncode, result.stdout, result.stderr
     except subprocess.TimeoutExpired:
@@ -68,6 +82,7 @@ def run_command_streaming(
             stderr=subprocess.STDOUT,
             text=True,
             cwd=cwd,
+            **no_window_kwargs(),
         )
         assert proc.stdout is not None
         for line in proc.stdout:

@@ -32,6 +32,7 @@ from nexus_installer.engine.platform_utils import (
     is_linux,
     is_macos,
     is_windows,
+    no_window_kwargs,
     run_command,
 )
 from nexus_installer.installer_state import InstallerState
@@ -471,6 +472,7 @@ def first_run_health_check(
             [exe, "--version"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
+            **no_window_kwargs(),
         )
     except OSError as e:
         log(f"Failed to launch the desktop app: {e}", "error")

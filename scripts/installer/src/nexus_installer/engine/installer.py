@@ -6,7 +6,7 @@ from PyQt5.QtCore import QObject, QThread, pyqtSignal
 
 from nexus_installer.engine.desktop_provisioner import DesktopProvisioner
 from nexus_installer.engine.extension_installer import ExtensionInstaller
-from nexus_installer.engine.model_router import ModelStepRouter
+from nexus_installer.engine.model_router import ModelStepEvents, ModelStepRouter
 from nexus_installer.engine.ollama_installer import OllamaInstaller
 from nexus_installer.engine.venv_installer import VenvInstaller
 from nexus_installer.installer_state import InstallerState
@@ -24,6 +24,13 @@ class InstallEngine(QObject):
     step_started = pyqtSignal(str)  # component name
     step_progress = pyqtSignal(str, float)  # (component, 0.0-1.0 within step)
     step_failed = pyqtSignal(str)  # component name
+
+    # v1.11.0 Phase 1 (T105) -- per-model telemetry for the per-model progress
+    # rows (P5 UI). model_progress carries a `ModelProgress` dataclass.
+    model_started = pyqtSignal(str)  # model id
+    model_progress = pyqtSignal(object)  # ModelProgress
+    model_completed = pyqtSignal(str)  # model id
+    model_failed = pyqtSignal(str, str)  # (model id, plain-language reason)
 
     def __init__(self) -> None:
         super().__init__()
@@ -87,7 +94,13 @@ class InstallEngine(QObject):
                 self.step_progress.emit("model", pct)
                 self.progress_update.emit(model_base + pct / max(total_steps, 1))
 
-            ok = self._model_router.install(state, log, on_model_progress)
+            events = ModelStepEvents(
+                started=self.model_started.emit,
+                progress=self.model_progress.emit,
+                completed=self.model_completed.emit,
+                failed=self.model_failed.emit,
+            )
+            ok = self._model_router.install(state, log, on_model_progress, events)
             advance("model", ok)
 
         # 5. Nexus desktop app (v1.8.0 Phase 2; has its own download progress)

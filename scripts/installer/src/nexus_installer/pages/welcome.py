@@ -23,6 +23,7 @@ from nexus_installer.constants import (
     TEXT_SECONDARY,
     WARNING,
 )
+from nexus_installer.engine.platform_utils import no_window_kwargs
 from nexus_installer.widgets.callout_box import CalloutBox
 
 if TYPE_CHECKING:
@@ -83,6 +84,7 @@ class _QuickCheckWorker(QThread):
                     capture_output=True,
                     text=True,
                     timeout=DETECTION_TIMEOUT,
+                    **no_window_kwargs(),
                 )
                 minor = int(result.stdout.strip())
                 if minor >= 11:

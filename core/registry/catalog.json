@@ -333,7 +333,7 @@
         "files": [
           {
             "path": "sd_xl_turbo_1.0_fp16.safetensors",
-            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            "sha256": "e869ac7d6942cb327d68d5ed83a40447aadf20e0c3358d98b2cc9e270db0da26"
           }
         ]
       },
@@ -369,7 +369,7 @@
         "files": [
           {
             "path": "sd_xl_base_1.0.safetensors",
-            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            "sha256": "31e35c80fc4829d14f90153f4c74cd59c90b779f6afe05a74cd6120b893f7e5b"
           }
         ]
       },
@@ -412,7 +412,7 @@
         "files": [
           {
             "path": "Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors",
-            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            "sha256": "c9e3e68f89b8e38689e1097d4be4573cf308de4e3fd044c64ca697bdb4aa8bca"
           }
         ]
       },
@@ -455,7 +455,7 @@
         "files": [
           {
             "path": "RealVisXL_V5.0_fp16.safetensors",
-            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            "sha256": "6a35a7855770ae9820a3c931d4964c3817b6d9e3c6f9c4dabb5b3a94e5643b80"
           }
         ]
       },
@@ -482,8 +482,8 @@
       "license": "Apache-2.0",
       "source": {
         "protocol": "huggingface",
-        "repo": "black-forest-labs/FLUX.1-schnell",
-        "url": "https://huggingface.co/black-forest-labs/FLUX.1-schnell/resolve/main/flux1-schnell.safetensors",
+        "repo": "Comfy-Org/flux1-schnell",
+        "url": "https://huggingface.co/Comfy-Org/flux1-schnell/resolve/main/flux1-schnell.safetensors",
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
       "weights": {
@@ -491,7 +491,7 @@
         "files": [
           {
             "path": "flux1-schnell.safetensors",
-            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            "sha256": "9403429e0052277ac2a87ad800adece5481eecefd9ed334e1f348723621d2a0a"
           }
         ]
       },
@@ -527,7 +527,7 @@
         "files": [
           {
             "path": "v1-5-pruned-emaonly.safetensors",
-            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            "sha256": "6ce0161689b3853acaa03779ec93eafe75a02f4ced659bee03f50797806fa2fa"
           }
         ]
       },
@@ -563,7 +563,7 @@
         "files": [
           {
             "path": "ltx-video-2b-v0.9.safetensors",
-            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            "sha256": "45369c2ae94e3949b127ef99ca9fe173b077f1ca0fecf8185e4115afcbc09581"
           }
         ]
       },
@@ -606,15 +606,15 @@
         "files": [
           {
             "path": "diffusion_pytorch_model.safetensors",
-            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            "sha256": "96b6b242ca1c2f24e9d02cd6596066fab6d310e2d7538f33ae267cb18d957e8f"
           },
           {
             "path": "models_t5_umt5-xxl-enc-bf16.pth",
-            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            "sha256": "7cace0da2b446bbbbc57d031ab6cf163a3d59b366da94e5afe36745b746fd81d"
           },
           {
             "path": "Wan2.1_VAE.pth",
-            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            "sha256": "38071ab59bd94681c686fa51d75a1968f64e470262043be31f7a094e442fd981"
           }
         ]
       },
@@ -657,23 +657,23 @@
         "files": [
           {
             "path": "diffusion_pytorch_model-00001-of-00003.safetensors",
-            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            "sha256": "720b06c4ade5e87c1246bba8ac95b664c638749cd9b102cf84d823bb44c026a1"
           },
           {
             "path": "diffusion_pytorch_model-00002-of-00003.safetensors",
-            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            "sha256": "09ec5ef720d8396f6cfa51fbdcbdb2327e37722afd6e89fd38f1e7e5e782c283"
           },
           {
             "path": "diffusion_pytorch_model-00003-of-00003.safetensors",
-            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            "sha256": "6306f7894c345de9093ad588771c2abfaeb668a81f7a6d9a918bd26ba3568e49"
           },
           {
             "path": "models_t5_umt5-xxl-enc-bf16.pth",
-            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            "sha256": "7cace0da2b446bbbbc57d031ab6cf163a3d59b366da94e5afe36745b746fd81d"
           },
           {
             "path": "Wan2.2_VAE.pth",
-            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            "sha256": "20eb789667fa5e60e7516bf509512f6cb61f01b0aa0695eadaea930c13892b36"
           }
         ]
       },
@@ -752,7 +752,7 @@
         "files": [
           {
             "path": "transformer/diffusion_pytorch_model.safetensors",
-            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            "sha256": "300b4109622d8ffd12d827a4127d2f82f102e3b9a0d413285f6bcf46729a3e54"
           }
         ]
       },
@@ -785,8 +785,8 @@
       "license": "Apache-2.0",
       "source": {
         "protocol": "huggingface",
-        "repo": "Efficient-Large-Model/sana-sprint",
-        "url": "https://huggingface.co/Efficient-Large-Model/sana-sprint/resolve/main/transformer/diffusion_pytorch_model.safetensors",
+        "repo": "Efficient-Large-Model/Sana_Sprint_1.6B_1024px_diffusers",
+        "url": "https://huggingface.co/Efficient-Large-Model/Sana_Sprint_1.6B_1024px_diffusers/resolve/main/transformer/diffusion_pytorch_model.safetensors",
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
       "weights": {
@@ -794,7 +794,7 @@
         "files": [
           {
             "path": "transformer/diffusion_pytorch_model.safetensors",
-            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            "sha256": "effac51c73537487ac1505993f0e7fbd292c310b23aae96f2c3e53131e876f2d"
           }
         ]
       },
@@ -828,15 +828,15 @@
       "source": {
         "protocol": "huggingface",
         "repo": "Efficient-Large-Model/Sana_1600M_2Kpx_BF16",
-        "url": "https://huggingface.co/Efficient-Large-Model/Sana_1600M_2Kpx_BF16/resolve/main/transformer/diffusion_pytorch_model.safetensors",
+        "url": "https://huggingface.co/Efficient-Large-Model/Sana_1600M_2Kpx_BF16/resolve/main/checkpoints/Sana_1600M_2Kpx_BF16.pth",
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
       "weights": {
         "layoutVersion": 1,
         "files": [
           {
-            "path": "transformer/diffusion_pytorch_model.safetensors",
-            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            "path": "checkpoints/Sana_1600M_2Kpx_BF16.pth",
+            "sha256": "3e3c5076e7a5747e6994ef4501746193ee99b9bb2ae2e570512208ed6b4ab8d5"
           }
         ]
       },
@@ -870,15 +870,15 @@
       "source": {
         "protocol": "huggingface",
         "repo": "Efficient-Large-Model/Sana_1600M_4Kpx_BF16",
-        "url": "https://huggingface.co/Efficient-Large-Model/Sana_1600M_4Kpx_BF16/resolve/main/transformer/diffusion_pytorch_model.safetensors",
+        "url": "https://huggingface.co/Efficient-Large-Model/Sana_1600M_4Kpx_BF16/resolve/main/checkpoints/Sana_1600M_4Kpx_BF16.pth",
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
       "weights": {
         "layoutVersion": 1,
         "files": [
           {
-            "path": "transformer/diffusion_pytorch_model.safetensors",
-            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            "path": "checkpoints/Sana_1600M_4Kpx_BF16.pth",
+            "sha256": "6a0f015d5913553e45c72fe50bac971ee7290b377aa6f9ee989f6ce1aa9b5a12"
           }
         ]
       },
@@ -947,15 +947,15 @@
       "source": {
         "protocol": "huggingface",
         "repo": "mit-han-lab/dc-ae-f32c32-sana-1.1",
-        "url": "https://huggingface.co/mit-han-lab/dc-ae-f32c32-sana-1.1/resolve/main/diffusion_pytorch_model.safetensors",
+        "url": "https://huggingface.co/mit-han-lab/dc-ae-f32c32-sana-1.1/resolve/main/model.safetensors",
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
       "weights": {
         "layoutVersion": 1,
         "files": [
           {
-            "path": "diffusion_pytorch_model.safetensors",
-            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            "path": "model.safetensors",
+            "sha256": "01a99a6d08b8e1d54bf9af28cab521432cdeee372720e84c38bac8b8abe27ba6"
           }
         ]
       },
@@ -1092,16 +1092,20 @@
       "license": "Apache-2.0",
       "source": {
         "protocol": "huggingface",
-        "repo": "Efficient-Large-Model/SANA-Video-2B",
-        "url": "https://huggingface.co/Efficient-Large-Model/SANA-Video-2B/resolve/main/transformer/diffusion_pytorch_model.safetensors",
+        "repo": "Efficient-Large-Model/SANA-Video_2B_720p_diffusers",
+        "url": "https://huggingface.co/Efficient-Large-Model/SANA-Video_2B_720p_diffusers/resolve/main/transformer/diffusion_pytorch_model-00001-of-00002.safetensors",
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
       "weights": {
         "layoutVersion": 1,
         "files": [
           {
-            "path": "transformer/diffusion_pytorch_model.safetensors",
-            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            "path": "transformer/diffusion_pytorch_model-00001-of-00002.safetensors",
+            "sha256": "c7c58e08418fc09a240bf936d46b629304002053c5ea9860ee156fd3c9de2546"
+          },
+          {
+            "path": "transformer/diffusion_pytorch_model-00002-of-00002.safetensors",
+            "sha256": "9d083c8419daa52591a969462f93f3d693128e7e57a69fa6ee2b89f942e887fa"
           }
         ]
       },
@@ -1142,7 +1146,7 @@
         "files": [
           {
             "path": "model.bin",
-            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            "sha256": "69f74147e3334731bc3a76048724833325d2ec74642fb52620eda87352e3d4f1"
           }
         ]
       },
@@ -1183,7 +1187,7 @@
         "files": [
           {
             "path": "kokoro-v1_0.pth",
-            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            "sha256": "496dba118d1a58f5f3db2efc88dbdc216e0483fc89fe6e47ee1f2c53f18ad1e4"
           }
         ]
       },
@@ -1216,14 +1220,14 @@
         "protocol": "huggingface",
         "repo": "rhasspy/piper-voices",
         "url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx",
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+        "sha256": "5efe09e69902187827af646e1a6e9d269dee769f9877d17b16b1b46eeaaf019f"
       },
       "weights": {
         "layoutVersion": 1,
         "files": [
           {
             "path": "en/en_US/lessac/medium/en_US-lessac-medium.onnx",
-            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            "sha256": "5efe09e69902187827af646e1a6e9d269dee769f9877d17b16b1b46eeaaf019f"
           }
         ]
       },
@@ -1264,7 +1268,7 @@
         "files": [
           {
             "path": "state_dict.bin",
-            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            "sha256": "fbc9f401db2aba7518adf208ce5a56aca4ece335242e8274ce1ebd3dfbc86cf5"
           }
         ]
       },

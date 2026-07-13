@@ -23,6 +23,7 @@ from nexus_installer.constants import (
     TEXT_SECONDARY,
     WARNING,
 )
+from nexus_installer.engine.platform_utils import no_window_kwargs
 from nexus_installer.widgets.callout_box import CalloutBox
 
 if TYPE_CHECKING:
@@ -64,6 +65,7 @@ def _run_cmd(cmd: list[str], timeout: int = DETECTION_TIMEOUT) -> str | None:
             capture_output=True,
             text=True,
             timeout=timeout,
+            **no_window_kwargs(),
         )
         if result.returncode == 0 and result.stdout.strip():
             return result.stdout.strip()

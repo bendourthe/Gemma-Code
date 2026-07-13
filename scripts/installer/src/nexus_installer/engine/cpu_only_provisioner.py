@@ -11,6 +11,8 @@ import subprocess
 from collections.abc import Callable
 from pathlib import Path
 
+from nexus_installer.engine.platform_utils import no_window_kwargs
+
 LogFn = Callable[[str, str], None]
 
 
@@ -50,7 +52,12 @@ class CpuOnlyProvisioner:
         ]
         try:
             result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=1800, check=False
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=1800,
+                check=False,
+                **no_window_kwargs(),
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
             log(f"CPU-only wheel install crashed: {exc}", "error")

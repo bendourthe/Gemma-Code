@@ -19,7 +19,11 @@ import venv
 from collections.abc import Callable
 from pathlib import Path
 
-from nexus_installer.engine.platform_utils import is_macos, is_windows
+from nexus_installer.engine.platform_utils import (
+    is_macos,
+    is_windows,
+    no_window_kwargs,
+)
 
 LogFn = Callable[[str, str], None]
 
@@ -136,6 +140,7 @@ class DiffusionVenvProvisioner:
                 capture_output=True,
                 text=True,
                 timeout=120,
+                **no_window_kwargs(),
             )
             if result.returncode != 0:
                 log(f"venv creation failed: {result.stderr.strip()}", "error")
@@ -171,6 +176,7 @@ class DiffusionVenvProvisioner:
                 capture_output=True,
                 text=True,
                 timeout=1800,
+                **no_window_kwargs(),
             )
         except (subprocess.TimeoutExpired, OSError) as exc:
             log(f"pip install crashed: {exc}", "error")

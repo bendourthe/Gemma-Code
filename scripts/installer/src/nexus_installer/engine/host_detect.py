@@ -20,7 +20,12 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from nexus_installer.engine.platform_utils import is_linux, is_macos, is_windows
+from nexus_installer.engine.platform_utils import (
+    is_linux,
+    is_macos,
+    is_windows,
+    no_window_kwargs,
+)
 
 DETECTION_TIMEOUT_S = 6
 
@@ -65,6 +70,7 @@ def _run(cmd: list[str], timeout: int = DETECTION_TIMEOUT_S) -> str | None:
             text=True,
             timeout=timeout,
             check=False,
+            **no_window_kwargs(),
         )
     except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
         return None

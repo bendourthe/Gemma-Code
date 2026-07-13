@@ -54,6 +54,20 @@ if ($Vsix) {
 Write-Host "[3/4] Running PyInstaller (single onefile -> dist/NexusSetup.exe)..." -ForegroundColor Cyan
 New-Item -ItemType Directory -Force -Path $DistDir | Out-Null
 Push-Location $InstallerRoot
+
+# v1.11.0 Phase 1 (T104): surface placeholder HF weight pins as a build
+# warning -- a placeholder pin makes the installer skip hash verification for
+# that download. The check logs to stderr, so route it to a file under the
+# PS 5.1 EAP=Stop discipline (same rationale as the PyInstaller block below).
+$PinLog = Join-Path $DistDir "pin-check.log"
+$PrevEAP = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
+uv run python build/pin-hf-weights.py --check > $PinLog 2>&1
+$PinExit = $LASTEXITCODE
+$ErrorActionPreference = $PrevEAP
+if ($PinExit -ne 0) {
+    Write-Host "  WARNING: placeholder HF weight pins remain; those downloads skip hash verification. See $PinLog." -ForegroundColor Yellow
+}
 # PyInstaller writes its entire progress log to stderr. Under Windows
 # PowerShell 5.1, merging that into the pipeline (2>&1) wraps each line in a
 # NativeCommandError record, and with $ErrorActionPreference='Stop' (set at the

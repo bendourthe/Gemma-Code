@@ -21,6 +21,7 @@ from nexus_installer.constants import (
     TEXT_SECONDARY,
     WARNING,
 )
+from nexus_installer.engine.platform_utils import no_window_kwargs
 from nexus_installer.widgets.secondary_button import SecondaryButton
 
 if TYPE_CHECKING:
@@ -115,6 +116,7 @@ def find_python() -> tuple[str, str]:
                 capture_output=True,
                 text=True,
                 timeout=DETECTION_TIMEOUT,
+                **no_window_kwargs(),
             )
             version = result.stdout.strip()
             parts = version.split(".")
@@ -141,6 +143,7 @@ def find_ollama() -> tuple[bool, str]:
             capture_output=True,
             text=True,
             timeout=DETECTION_TIMEOUT,
+            **no_window_kwargs(),
         )
         return True, result.stdout.strip()
     except (subprocess.TimeoutExpired, OSError):

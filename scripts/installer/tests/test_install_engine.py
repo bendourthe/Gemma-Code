@@ -38,7 +38,7 @@ class TestInstallEngineOrder:
                 call_order.append("venv"),
                 True,
             )[1]
-            MockRouter.return_value.install.side_effect = lambda s, l, p: (
+            MockRouter.return_value.install.side_effect = lambda s, l, p, e=None: (
                 call_order.append("model"),
                 True,
             )[1]
@@ -264,7 +264,9 @@ class TestInstallEngineStepSignals:
             ) as MockDesktop,
         ):
 
-            def run_model(s: object, log: object, cb: object) -> bool:
+            def run_model(
+                s: object, log: object, cb: object, events: object = None
+            ) -> bool:
                 cb(0.25)  # type: ignore[operator]
                 cb(0.75)  # type: ignore[operator]
                 return True

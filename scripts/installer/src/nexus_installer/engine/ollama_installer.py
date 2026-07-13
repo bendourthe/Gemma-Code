@@ -15,6 +15,7 @@ from nexus_installer.engine.platform_utils import (
     is_linux,
     is_macos,
     is_windows,
+    no_window_kwargs,
     run_command,
 )
 from nexus_installer.installer_state import InstallerState
@@ -75,6 +76,7 @@ def _verify_authenticode_windows(
             text=True,
             timeout=30,
             check=False,
+            **no_window_kwargs(),
         )
     except (OSError, subprocess.TimeoutExpired) as e:
         log(f"Authenticode check failed to run: {e}", "error")
@@ -225,8 +227,28 @@ class OllamaInstaller:
         log: Callable[[str, str], None],
     ) -> bool:
         log("Verifying Ollama connectivity...", "info")
-        # Start ollama serve if not running
-        run_command(["ollama", "serve"], timeout=3)
+        # v1.11.0 Phase 1 (T102): start `ollama serve` as a DETACHED hidden
+        # child if it is not already running. The old `run_command(...,
+        # timeout=3)` started the server and then KILLED it when the 3s
+        # timeout expired (subprocess.run terminates its child on timeout),
+        # leaving a clean machine with no server for the model step. Streams
+        # go to DEVNULL so the server can never inherit installer pipes; the
+        # process is deliberately left running (the product needs it).
+        try:
+            resp = httpx.get(f"{state.ollama_url}/api/version", timeout=3)
+            server_up = resp.status_code == 200
+        except httpx.HTTPError:
+            server_up = False
+        if not server_up:
+            try:
+                subprocess.Popen(
+                    ["ollama", "serve"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    **no_window_kwargs(),
+                )
+            except (OSError, FileNotFoundError) as exc:
+                log(f"Could not start the Ollama server: {exc}", "warn")
         deadline = time.monotonic() + OLLAMA_HEALTH_TIMEOUT
         while time.monotonic() < deadline:
             try:

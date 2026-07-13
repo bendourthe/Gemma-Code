@@ -30,6 +30,7 @@ from nexus_installer.constants import (
     TEXT_SECONDARY,
     WARNING,
 )
+from nexus_installer.engine.platform_utils import no_window_kwargs
 from nexus_installer.widgets.callout_box import CalloutBox
 from nexus_installer.widgets.primary_button import PrimaryButton
 from nexus_installer.widgets.secondary_button import SecondaryButton
@@ -266,7 +267,11 @@ class CompletePage(QWidget):
         try:
             if sys.platform == "win32":
                 vscode = self._state.vscode_path or "code"
-                subprocess.Popen(["cmd", "/c", "start", "", vscode])
+                # no_window_kwargs hides the transient cmd console that
+                # otherwise flashes while `start` hands off to the GUI app.
+                subprocess.Popen(
+                    ["cmd", "/c", "start", "", vscode], **no_window_kwargs()
+                )
             elif sys.platform == "darwin":
                 subprocess.Popen(["open", "-a", "Visual Studio Code"])
             else:
