@@ -30,8 +30,38 @@ async fn ipc_call(
         .map_err(|e| e.to_string())
 }
 
+/// Force process-wide dark mode on Windows so native common dialogs (the file
+/// pickers behind the Image/Video `<input type="file">`), context menus, and
+/// scrollbars follow the app's dark theme -- consistent with the frameless dark
+/// main window and the installer's dark chrome. A window's `set_theme(Dark)`
+/// darkens only that window's title bar, not separate OS dialogs, hence this
+/// app-level call at startup.
+#[cfg(target_os = "windows")]
+fn force_dark_app_mode() {
+    use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA};
+
+    // uxtheme.dll ordinal 135 = SetPreferredAppMode (Windows 10 1809+); absent on
+    // older builds, where GetProcAddress returns None and this no-ops.
+    // PreferredAppMode::ForceDark = 2.
+    unsafe {
+        let module = LoadLibraryA(b"uxtheme.dll\0".as_ptr());
+        if module.is_null() {
+            return;
+        }
+        if let Some(func) = GetProcAddress(module, 135 as *const u8) {
+            let set_preferred_app_mode: extern "system" fn(i32) -> i32 =
+                std::mem::transmute(func);
+            let _ = set_preferred_app_mode(2);
+        }
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn force_dark_app_mode() {}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    force_dark_app_mode();
     let builder = tauri::Builder::default()
         .manage(AppState {
             sidecar: Mutex::new(None),

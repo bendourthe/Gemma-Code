@@ -24,6 +24,15 @@ serde_json = "1.0"
 tokio = { version = "1.40", features = ["full"] }
 thiserror = "1.0"
 
+[target.'cfg(windows)'.dependencies]
+# uxtheme SetPreferredAppMode (by ordinal) for process-wide dark mode, so native
+# common dialogs (the file pickers behind the Image/Video <input type=file>),
+# context menus, and scrollbars follow the app's dark theme -- see lib.rs.
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_System_LibraryLoader",
+] }
+
 [features]
 custom-protocol = ["tauri/custom-protocol"]
 
