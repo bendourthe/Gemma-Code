@@ -102,15 +102,15 @@ The blocker phase: make every model download succeed or fail fast with a clear r
 
 ---
 
-## Phase 2 - Clean-machine test harness (Windows Sandbox + Docker Linux + macOS checklist)
+## Phase 2 - Clean-machine test harness (Windows Sandbox + Docker Linux + macOS checklist) (landed 2026-07-14)
 
 The verification vehicle for every later phase (D3).
 
-- [ ] **T201** Windows Sandbox harness under `scripts/installer/testing/`: a generated `.wsb` config mapping `dist/` read-only, an in-sandbox bootstrap script that runs `NexusSetup.exe` (interactive mode by default; `--headless-smoke` mode for scripted assertions), and a host-side runner (`run-sandbox-test.ps1`) that launches the sandbox, collects the installer's log export to a mapped output folder, and prints a pass/fail summary. Sandbox = fresh Windows every run (no Ollama/Python/VS Code) - exactly the persona machine.
-- [ ] **T202** Scriptable assertion mode: an installer CLI flag (`--headless-smoke <profile>`) that drives the engine without the wizard (select profile-defined components/models, run, exit non-zero on any step failure, write a machine-readable result JSON). This is what the sandbox runner and CI-later consume.
-- [ ] **T203** Docker Linux harness: a container image with no preinstalled deps that exercises the Linux install path (`build-linux.sh` output or source-mode engine run) with the same result-JSON contract.
-- [ ] **T204** macOS manual checklist: `docs/v1/v1.11/testing/macos-install-checklist.md` - step-by-step verification for a physical Mac, mirroring the sandbox assertions.
-- [ ] **T205** [tests] Harness self-tests (result-JSON schema, runner arg handling) + a documented runbook (`scripts/installer/testing/README.md`). Gate: one full sandbox run of the CURRENT installer recorded in the phase history (expected: reproduces any still-open failures - that is the point).
+- [x] **T201** Windows Sandbox harness under `scripts/installer/testing/`: a generated `.wsb` config mapping `dist/` read-only, an in-sandbox bootstrap script that runs `NexusSetup.exe` (interactive mode by default; `--headless-smoke` mode for scripted assertions), and a host-side runner (`run-sandbox-test.ps1`) that launches the sandbox, collects the installer's log export to a mapped output folder, and prints a pass/fail summary. Sandbox = fresh Windows every run (no Ollama/Python/VS Code) - exactly the persona machine.
+- [x] **T202** Scriptable assertion mode: an installer CLI flag (`--headless-smoke <profile>`) that drives the engine without the wizard (select profile-defined components/models, run, exit non-zero on any step failure, write a machine-readable result JSON). This is what the sandbox runner and CI-later consume.
+- [x] **T203** Docker Linux harness: a container image with no preinstalled deps that exercises the Linux install path (`build-linux.sh` output or source-mode engine run) with the same result-JSON contract.
+- [x] **T204** macOS manual checklist: `docs/v1/v1.11/testing/macos-install-checklist.md` - step-by-step verification for a physical Mac, mirroring the sandbox assertions.
+- [x] **T205** [tests] Harness self-tests (result-JSON schema, runner arg handling) + a documented runbook (`scripts/installer/testing/README.md`). Gate: one full sandbox run of the CURRENT installer recorded in the phase history (expected: reproduces any still-open failures - that is the point).
 
 **Acceptance:** `./run-sandbox-test.ps1 -Profile default` performs a full clean-machine install run and produces a pass/fail JSON + collected logs, repeatably.
 

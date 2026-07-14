@@ -1,0 +1,28 @@
+<Configuration>
+  <!-- v1.11.0 Phase 2 (T201): Windows Sandbox config template.
+       run-sandbox-test.ps1 substitutes {{DIST_DIR}}, {{TESTING_DIR}},
+       {{OUTPUT_DIR}}, and {{PROFILE}} and launches the generated .wsb.
+       The sandbox is a fresh Windows every boot: no Ollama, no Python,
+       no VS Code - exactly the non-technical user's machine. -->
+  <Networking>Enable</Networking>
+  <MappedFolders>
+    <MappedFolder>
+      <HostFolder>{{DIST_DIR}}</HostFolder>
+      <SandboxFolder>C:\NexusDist</SandboxFolder>
+      <ReadOnly>true</ReadOnly>
+    </MappedFolder>
+    <MappedFolder>
+      <HostFolder>{{TESTING_DIR}}</HostFolder>
+      <SandboxFolder>C:\NexusTesting</SandboxFolder>
+      <ReadOnly>true</ReadOnly>
+    </MappedFolder>
+    <MappedFolder>
+      <HostFolder>{{OUTPUT_DIR}}</HostFolder>
+      <SandboxFolder>C:\NexusOutput</SandboxFolder>
+      <ReadOnly>false</ReadOnly>
+    </MappedFolder>
+  </MappedFolders>
+  <LogonCommand>
+    <Command>powershell.exe -ExecutionPolicy Bypass -NoProfile -File C:\NexusTesting\sandbox-bootstrap.ps1 -ProfileName {{PROFILE}}</Command>
+  </LogonCommand>
+</Configuration>

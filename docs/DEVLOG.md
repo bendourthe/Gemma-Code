@@ -4,6 +4,34 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-14] v1.11.0 installer overhaul -- Phase 2: clean-machine test harness (T201-T205)
+
+### Goal
+
+One-command install verification on machines with NONE of the prerequisites -- the non-technical user's reality -- so failures like Phase 1's are caught in a harness, not by a real user.
+
+### What changed
+
+- **T202 headless-smoke contract** ([smoke.py](../scripts/installer/src/nexus_installer/smoke.py) + [main.py](../scripts/installer/src/nexus_installer/main.py)): `NexusSetup.exe --headless-smoke <profile.json> --smoke-output <result.json>` drives the existing Qt-free headless engine from a validated profile (components, model selection, paths; BOM-tolerant after local validation caught PowerShell's `Out-File` BOM breaking loads) and writes a versioned `nexus-smoke-result/v1` JSON (success, steps, failed models, leveled logs). Exit 0 only when every step succeeded; exit 2 on a bad profile.
+- **T201 Windows Sandbox harness** ([testing/](../scripts/installer/testing/)): `run-sandbox-test.ps1` generates a `.wsb` from a template (dist/ + testing/ mapped read-only, temp output writable), boots a factory-fresh Windows, and polls for the result the in-sandbox [sandbox-bootstrap.ps1](../scripts/installer/testing/sandbox-bootstrap.ps1) writes (`Start-Process -Wait` -- a windowed exe returns immediately under `&`, which local validation caught). Profiles: `sandbox-minimal` (deps only) and `sandbox-default` (+ a small real model).
+- **T203 Docker Linux harness**: a no-deps `python:3.12-slim` image (the headless path needs only httpx -- PyQt5 imports are lazy) running the engine in source mode with the same result contract via `run-docker-test.sh`.
+- **T204** [macOS manual checklist](v1/v1.11/testing/macos-install-checklist.md) mirroring the harness assertions.
+- **T205** 14 harness self-tests (profile validation incl. the BOM regression, result schema, shipped-artifact consistency: template placeholders, runner/bootstrap contract references) + the [runbook README](../scripts/installer/testing/README.md).
+
+### Validated / deferred
+
+Validated locally: the full contract from source (exit 0, valid result JSON) AND from the rebuilt frozen exe (windowed-detached run wrote a green `nexus-smoke-result/v1` -- also derisking `IO.P1.E`); the sandbox runner's degradation path (exit 2 + enable instructions); the T104 pin warning firing in the rebuild. Deferred as operator actions (`IO.P2.A`): the first REAL sandbox/docker runs -- Windows Sandbox is not enabled on the dev host (feature install + reboot) and Docker is absent; the first clean run is expected to FAIL at the Ollama step, reproducing `IO.P1.B` -- the harness catching exactly what it exists to catch.
+
+### Verification
+
+Installer suite green (full run, +14 harness tests); ruff/mypy clean on the new/changed files (main.py's 3 pre-existing baseline errors line-shifted, none new); packaging smoke 4/4 on the rebuilt exe (SHA `0A09C20F`).
+
+### Branch
+
+`feat/v1.11.0-installer-overhaul`
+
+---
+
 ## [2026-07-13] v1.11.0 installer overhaul -- Phase 1: download-engine root-cause + parallel per-model progress (T101-T106)
 
 ### Goal

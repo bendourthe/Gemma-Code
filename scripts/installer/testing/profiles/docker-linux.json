@@ -1,0 +1,8 @@
+{
+  "name": "docker-linux",
+  "components": ["ollama", "venv"],
+  "selected_model_ids": [],
+  "install_path": "/tmp/nexus-smoke",
+  "models_root": "/tmp/nexus-smoke/models",
+  "ollama_url": "http://127.0.0.1:11434"
+}

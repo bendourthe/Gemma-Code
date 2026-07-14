@@ -1,0 +1,8 @@
+{
+  "name": "sandbox-default",
+  "components": ["ollama", "venv", "model"],
+  "selected_model_ids": ["nomic-embed-text"],
+  "install_path": "C:\\NexusSmoke",
+  "models_root": "C:\\NexusSmoke\\models",
+  "ollama_url": "http://127.0.0.1:11434"
+}

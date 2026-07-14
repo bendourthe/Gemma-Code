@@ -1,0 +1,8 @@
+{
+  "name": "sandbox-minimal",
+  "components": ["ollama", "venv"],
+  "selected_model_ids": [],
+  "install_path": "C:\\NexusSmoke",
+  "models_root": "C:\\NexusSmoke\\models",
+  "ollama_url": "http://127.0.0.1:11434"
+}

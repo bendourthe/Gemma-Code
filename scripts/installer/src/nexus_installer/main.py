@@ -97,6 +97,26 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Emit results as JSON to stdout (headless only)",
     )
+    # v1.11.0 Phase 2 (T202) -- the clean-machine harness contract.
+    parser.add_argument(
+        "--headless-smoke",
+        default=None,
+        metavar="PROFILE_JSON",
+        help=(
+            "Run the install engine headlessly, driven by a smoke-profile "
+            "JSON file (components, model selection, paths). Implies "
+            "--headless. Used by the Windows Sandbox / Docker harnesses."
+        ),
+    )
+    parser.add_argument(
+        "--smoke-output",
+        default=None,
+        metavar="RESULT_JSON",
+        help=(
+            "Write the machine-readable result JSON (schema "
+            "nexus-smoke-result/v1) to this path (headless only)."
+        ),
+    )
     parser.add_argument(
         "--check-registry",
         action="store_true",
@@ -123,6 +143,13 @@ def _run_headless(args: argparse.Namespace) -> int:
     from nexus_installer.engine.ollama_installer import OllamaInstaller
     from nexus_installer.engine.venv_installer import VenvInstaller
     from nexus_installer.installer_state import InstallerState
+    from nexus_installer.smoke import (
+        SmokeProfileError,
+        apply_smoke_profile,
+        build_smoke_result,
+        load_smoke_profile,
+        write_smoke_result,
+    )
 
     state = InstallerState()
     if args.install_path:
@@ -147,6 +174,17 @@ def _run_headless(args: argparse.Namespace) -> int:
         ]
     if args.desktop_bundle:
         state.desktop_bundle_override = args.desktop_bundle
+
+    # v1.11.0 Phase 2 (T202): a smoke profile overrides the arg-derived state.
+    profile_name = "(args)"
+    if args.headless_smoke:
+        try:
+            profile = load_smoke_profile(args.headless_smoke)
+        except SmokeProfileError as exc:
+            print(f"headless-smoke: {exc}", file=sys.stderr)
+            return 2
+        apply_smoke_profile(state, profile)
+        profile_name = profile["name"]
 
     steps_done: list[str] = []
     steps_failed: list[str] = []
@@ -219,15 +257,13 @@ def _run_headless(args: argparse.Namespace) -> int:
         (steps_done if ok else steps_failed).append("desktop")
 
     success = not steps_failed
-    summary = {
-        "success": success,
-        "install_path": state.install_path,
-        "model": state.selected_model,
-        "steps_done": steps_done,
-        "steps_failed": steps_failed,
-        "logs": log_entries,
-    }
+    summary = build_smoke_result(
+        profile_name, state, steps_done, steps_failed, log_entries
+    )
+    summary["model"] = state.selected_model  # legacy key, kept for CI scripts
 
+    if args.smoke_output:
+        write_smoke_result(args.smoke_output, summary)
     if args.json_output:
         print(json.dumps(summary))
     else:
@@ -248,7 +284,7 @@ def main() -> None:
 
         sys.exit(check_registry())
 
-    if args.headless:
+    if args.headless or args.headless_smoke:
         sys.exit(_run_headless(args))
 
     # Import PyQt5 lazily so --version/--help/--headless don't require Qt.
