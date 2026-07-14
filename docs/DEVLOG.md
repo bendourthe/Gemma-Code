@@ -4,6 +4,30 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-14] v1.11.0 installer overhaul -- Phase 3: dependency self-sufficiency (T301-T304)
+
+### Goal
+
+Make every dependency step work from absolute scratch -- no Ollama, no Python, no VS Code -- with plain-language failure surfaces, closing the audit's landmines before the harness proves them.
+
+### What changed
+
+- **T301 audit** (full table in [known-gaps 1c](v1/v1.11/known-gaps.md)): the live engine's five steps + detection surfaces were audited from-scratch. Headline findings: the venv step is a no-op stub since v0.4.0 (no system-Python assumption exists); the payload provisioner chain (`provisioner_dispatch` cuda/python/node/ffmpeg) is UNWIRED scaffolding with zero live callers and no bundled payload -- the desktop app owns its own diffusion runtime (`IO.P3.A`); GPU-less detection degrades cleanly (code-verified).
+- **T302 Ollama pins are real (closes `IO.P1.B`)** ([ollama_installer.py](../scripts/installer/src/nexus_installer/engine/ollama_installer.py)): `v0.32.0` with the GitHub-published asset digests for both platforms (the old v0.3.6 + all-zero sha256 could NEVER verify -- a clean machine always aborted). Windows keeps Authenticode fail-closed on top. **Linux moved off `install.sh` entirely** (unpinnable: the script drifts with every upstream release) to the immutable `ollama-linux-amd64.tar.zst` release asset, installed user-locally (no sudo; we manage `ollama serve` ourselves since P1), extracted with path-traversal filtering (`filter="data"`), and PATH-prepended for every child spawn. [check-ollama-pin.py](../scripts/installer/build/check-ollama-pin.py) is the advisory freshness check (prints rotation digests; `--strict` for CI).
+- **T302 VS Code absent = clean skip**: a machine without VS Code is a normal user machine, not an error -- the extension step now SKIPS with guidance (`state.skipped_steps`), while real failures (missing VSIX, install error) carry structured reasons.
+- **T303 structured failure surfaces**: `InstallerState.record_step_failure(step, summary, suggestion)` -- one plain-language sentence + a suggested next action per failure -- populated across the ollama (5 modes) and extension paths, included in the smoke result (`step_failures`, `skipped_steps`), and ready for the P5 UI to render beside View/Copy/Save log.
+- **IO.P1.C closed**: the last four provisioner spawn sites (metal/rocm/macos/linux) route through `no_window_kwargs()`.
+
+### Verification
+
+Full installer suite green (updated + new: real-digest pin guards that fail if a placeholder ever returns, tar.zst extraction + traversal-block fixture tests, Linux user-local flow incl. PATH prepend and missing-binary failure, extension skip semantics, structured-failure recording); ruff/mypy clean on every changed file (the rewritten ollama_installer is now fully lint-clean); live headless-smoke regression green with the new result fields. The T304 sandbox end-to-end gate is pending the operator Sandbox enable + P4 (`IO.P3.B`).
+
+### Branch
+
+`feat/v1.11.0-installer-overhaul`
+
+---
+
 ## [2026-07-14] v1.11.0 installer overhaul -- Phase 2: clean-machine test harness (T201-T205)
 
 ### Goal

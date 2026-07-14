@@ -26,6 +26,26 @@ Tracks unfinished work, deferrals, and coordination for the v1.11.0 installer ov
 | IO.P2.B | P3 | NI | The sandbox runner cannot programmatically close the sandbox window (no stable CLI across Win11 builds); it is left open for inspection with a printed note. | Revisit when the `wsb.exe` CLI (Win11 22H2+) can be feature-detected; low value until then. |
 | IO.P2.C | P3 | NI | Smoke profiles are BOM-tolerant (`utf-8-sig`) after the local validation caught PowerShell's `Out-File -Encoding utf8` BOM breaking profile loads (regression-tested). | Fixed in-phase; recorded for the P3 audit's attention to operator-authored config robustness. |
 
+## 1c. Phase 3 -- dependency self-sufficiency (landed 2026-07-14)
+
+**T301 audit table (live engine steps, from-scratch behavior):**
+
+| Step | From-scratch behavior found | Fixed by |
+|---|---|---|
+| ollama | ALWAYS aborted: v0.3.6 pin + all-zero sha256 could never verify (IO.P1.B); `_verify_ollama` start-then-killed its own server (fixed in P1) | T302: pin v0.32.0 + GitHub-published digests (Win exe + Linux tar.zst); Authenticode kept fail-closed; Linux moved off unpinnable install.sh to the immutable release asset, user-local (no sudo), PATH-prepended |
+| extension | Absent VS Code = step FAILURE ("VS Code CLI not found") on a normal user machine | T302: clean SKIP with guidance + `state.skipped_steps`; real failures carry structured reasons |
+| venv | No-op stub since v0.4.0 (ADR-0001) -- no system-Python assumption exists in the live path | none needed (audit finding) |
+| model | Fixed in P1 (decode bomb, server-awareness, parallel) | -- |
+| desktop | 404s on missing release assets | P4 (embedding) |
+| GPU detection | `_run_cmd` returns None on missing nvidia-smi -> clean "none" vendor -> CPU path; CUDA provisioner has explicit cpu-fallback/missing-payload modes | none needed (code-verified; GPU-less empirical run = sandbox/operator) |
+| disk gates | `can_select_model` reserve-floor logic + HF puller disk precheck present | none needed |
+
+| ID | Sev | Cat | Gap | Disposition |
+|----|-----|-----|-----|-------------|
+| IO.P3.A | P2 | NI | **The payload provisioner chain is UNWIRED scaffolding**: `provisioner_dispatch.run_chain/chain_for` (cuda/python/node/ffmpeg/per-OS-ollama with bundled payloads) has ZERO callers outside its own tests, and no payload is bundled (the exe is 220 MB; the wheels would be GBs). The desktop app owns its own diffusion runtime (sidecar `diffusion/runtimeFactory.ts` et al.), so Image/Video provisioning does not depend on this chain. | Product decision beyond this cycle: either wire + bundle (huge artifact) or retire the chain. Recorded for the P8 refactor pass; the audit's spawn-discipline fixes were applied to its provisioners anyway (IO.P1.C closed). |
+| IO.P3.B | P2 | QG | **T304's "default-profile sandbox run completes end-to-end" gate is pending**: Windows Sandbox is still an operator action (IO.P2.A), and end-to-end completion is structurally impossible before P4 lands the embedded desktop step. The phase's unit gates all ran (full suite, live headless-smoke regression green). | Run `testing/run-sandbox-test.ps1 -ProfileName sandbox-default` after enabling Sandbox; re-run after P4 for the full-completion assertion. |
+| IO.P3.C | P3 | NI | The Ollama pin (v0.32.0) means a ~1.4 GB dependency download on both platforms at install time (upstream's size, not ours); the pinned tag will drift behind upstream over time. | `build/check-ollama-pin.py` (advisory; `--strict` for CI) prints the current digests for one-command rotation. |
+
 ## 2. Cross-cutting
 
 | ID | Sev | Cat | Gap | Disposition |

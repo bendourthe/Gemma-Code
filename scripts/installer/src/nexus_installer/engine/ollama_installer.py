@@ -1,13 +1,29 @@
-﻿"""Platform-specific Ollama installation."""
+"""Platform-specific Ollama installation.
+
+v1.11.0 Phase 3 (T302, closes IO.P1.B): the pins are REAL. The previous
+`v0.3.6` tag shipped with an all-zero SHA-256 placeholder, so `_verify_sha256`
+could never match and a clean machine always aborted at "Checksum mismatch"
+(it only ever worked where Ollama pre-existed). Both platforms now pin the
+same release tag with the GitHub-published asset digests, and the Linux path
+installs the deterministic `ollama-linux-amd64.tar.zst` release asset
+user-locally (no sudo; we manage `ollama serve` ourselves since Phase 1)
+instead of executing the undeterministic, unpinnable `install.sh`.
+
+Pin freshness is advisory-checked at build time by
+`scripts/installer/build/check-ollama-pin.py`.
+"""
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import os
 import subprocess
+import tarfile
 import tempfile
 import time
 from collections.abc import Callable
+from pathlib import Path
 
 import httpx
 
@@ -20,22 +36,27 @@ from nexus_installer.engine.platform_utils import (
 )
 from nexus_installer.installer_state import InstallerState
 
-# Pinned release tag. Bump by updating scripts/installer/VERSIONS.md.
-OLLAMA_PINNED_TAG = "v0.3.6"
+# Pinned release tag + the GitHub-published sha256 digests of its assets
+# (`gh api /repos/ollama/ollama/releases` -> assets[].digest). Update all
+# three together; `check-ollama-pin.py` warns when the pin falls behind.
+OLLAMA_PINNED_TAG = "v0.32.0"
 OLLAMA_WINDOWS_URL = (
     f"https://github.com/ollama/ollama/releases/download/{OLLAMA_PINNED_TAG}/OllamaSetup.exe"
 )
-OLLAMA_LINUX_INSTALL_URL = "https://ollama.com/install.sh"
-
-# SHA-256 checksums for pinned artifacts. Must be updated in lockstep with
-# OLLAMA_PINNED_TAG. Pull the checksum from the upstream release page.
 OLLAMA_WINDOWS_SHA256 = (
-    # TODO: replace with actual pinned sha256 before shipping.
-    "0000000000000000000000000000000000000000000000000000000000000000"
+    "07846c9074875e4d47518d41636880a9d9a40a7e1483659ac00be7aec082de06"
 )
-OLLAMA_LINUX_SCRIPT_SHA256 = (
-    # TODO: replace with pinned sha256 of the install.sh at install time.
-    "0000000000000000000000000000000000000000000000000000000000000000"
+OLLAMA_LINUX_ASSET = "ollama-linux-amd64.tar.zst"
+OLLAMA_LINUX_URL = (
+    f"https://github.com/ollama/ollama/releases/download/{OLLAMA_PINNED_TAG}/{OLLAMA_LINUX_ASSET}"
+)
+OLLAMA_LINUX_SHA256 = (
+    "56362d7609dfa9e35aaebb7c9cab25605d8f0528ec3d5d585dc83d6642002bab"
+)
+
+MANUAL_INSTALL_SUGGESTION = (
+    "Re-run the installer to retry; if it keeps failing, install Ollama "
+    "manually from ollama.com/download and run this installer again."
 )
 
 # Authenticode subjects the Windows installer is allowed to be signed by.
@@ -58,20 +79,38 @@ def _verify_sha256(path: str, expected: str) -> bool:
     return _sha256_file(path) == expected
 
 
+def linux_install_root() -> Path:
+    """User-local Ollama install root on Linux (no sudo required)."""
+    return Path.home() / ".local" / "share" / "nexus" / "ollama"
+
+
+def _extract_tar_zst(archive: Path, dest: Path) -> None:
+    """Extract a .tar.zst archive into `dest` with path-traversal filtering."""
+    import zstandard  # local import: only the Linux install path needs it
+
+    dest.mkdir(parents=True, exist_ok=True)
+    dctx = zstandard.ZstdDecompressor()
+    with (
+        archive.open("rb") as fh,
+        dctx.stream_reader(fh) as reader,
+        tarfile.open(fileobj=reader, mode="r|") as tar,
+    ):
+        tar.extractall(dest, filter="data")
+
+
 def _verify_authenticode_windows(
     path: str,
     log: Callable[[str, str], None],
 ) -> bool:
-    """Run PowerShell Get-AuthenticodeSignature and require a Valid status with trusted subject."""
+    """Require a Valid Authenticode status from a trusted signer (PowerShell)."""
+    command = (
+        f"(Get-AuthenticodeSignature -FilePath '{path}' | "
+        "Select-Object -Property Status,SignerCertificate | "
+        "ConvertTo-Csv -NoTypeInformation)"
+    )
     try:
         result = subprocess.run(
-            [
-                "powershell",
-                "-NoProfile",
-                "-NonInteractive",
-                "-Command",
-                f"(Get-AuthenticodeSignature -FilePath '{path}' | Select-Object -Property Status,SignerCertificate | ConvertTo-Csv -NoTypeInformation)",
-            ],
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command", command],
             capture_output=True,
             text=True,
             timeout=30,
@@ -82,7 +121,10 @@ def _verify_authenticode_windows(
         log(f"Authenticode check failed to run: {e}", "error")
         return False
     if result.returncode != 0:
-        log(f"Authenticode check returned {result.returncode}: {result.stderr}", "error")
+        log(
+            f"Authenticode check returned {result.returncode}: {result.stderr}",
+            "error",
+        )
         return False
     output = result.stdout
     if '"Valid"' not in output:
@@ -114,6 +156,13 @@ class OllamaInstaller:
         if is_linux():
             return self._install_linux(state, log)
 
+        state.record_step_failure(
+            "ollama",
+            "This operating system is not supported for automatic Ollama "
+            "installation.",
+            "Install Ollama manually from ollama.com/download, then re-run "
+            "the installer.",
+        )
         log("Unsupported platform for Ollama installation.", "error")
         return False
 
@@ -122,45 +171,65 @@ class OllamaInstaller:
         state: InstallerState,
         log: Callable[[str, str], None],
     ) -> bool:
-        log(f"Downloading Ollama {OLLAMA_PINNED_TAG} for Windows...", "info")
+        log(f"Downloading Ollama {OLLAMA_PINNED_TAG} for Windows (~1.4 GB)...", "info")
         tmp_path = ""
         try:
             with tempfile.NamedTemporaryFile(suffix=".exe", delete=False) as f:
                 tmp_path = f.name
             with httpx.stream(
-                "GET", OLLAMA_WINDOWS_URL, follow_redirects=True, timeout=300
+                "GET", OLLAMA_WINDOWS_URL, follow_redirects=True, timeout=1800
             ) as resp:
                 resp.raise_for_status()
                 with open(tmp_path, "wb") as f:
-                    for chunk in resp.iter_bytes(8192):
+                    for chunk in resp.iter_bytes(65536):
                         f.write(chunk)
             log("Verifying checksum...", "info")
             if not _verify_sha256(tmp_path, OLLAMA_WINDOWS_SHA256):
+                state.record_step_failure(
+                    "ollama",
+                    "The downloaded Ollama installer did not match its "
+                    "security checksum.",
+                    MANUAL_INSTALL_SUGGESTION,
+                )
                 log(
-                    "Checksum mismatch for downloaded Ollama installer. Aborting to prevent supply-chain compromise.",
+                    "Checksum mismatch for downloaded Ollama installer. "
+                    "Aborting to prevent supply-chain compromise.",
                     "error",
                 )
                 return False
             log("Verifying Authenticode signature...", "info")
             if not _verify_authenticode_windows(tmp_path, log):
+                state.record_step_failure(
+                    "ollama",
+                    "The Ollama installer's publisher signature could not be verified.",
+                    MANUAL_INSTALL_SUGGESTION,
+                )
                 log("Authenticode verification failed. Aborting.", "error")
                 return False
             log("Installing Ollama silently...", "info")
             code, _, stderr = run_command(
-                [tmp_path, "/SILENT", "/AUTOSTART=0"], timeout=120
+                [tmp_path, "/SILENT", "/AUTOSTART=0"], timeout=600
             )
             if code != 0:
+                state.record_step_failure(
+                    "ollama",
+                    f"The Ollama setup program reported an error (code {code}).",
+                    MANUAL_INSTALL_SUGGESTION,
+                )
                 log(f"Ollama installer exited with code {code}: {stderr}", "error")
                 return False
         except (httpx.HTTPError, OSError) as e:
+            state.record_step_failure(
+                "ollama",
+                "Ollama could not be downloaded (a network problem interrupted it).",
+                "Check the internet connection and re-run the installer.",
+            )
             log(f"Failed to download Ollama: {e}", "error")
             return False
         finally:
             if tmp_path and os.path.exists(tmp_path):
-                try:
+                with contextlib.suppress(OSError):
                     os.unlink(tmp_path)
-                except OSError:
-                    pass
         return self._verify_ollama(state, log)
 
     def _install_macos(
@@ -171,6 +240,11 @@ class OllamaInstaller:
         log("Installing Ollama via Homebrew...", "info")
         code, _, stderr = run_command(["brew", "install", "ollama"], timeout=300)
         if code != 0:
+            state.record_step_failure(
+                "ollama",
+                "Ollama could not be installed via Homebrew.",
+                "Install Ollama from ollama.com/download, then re-run the installer.",
+            )
             log(f"Homebrew install failed: {stderr}. Trying direct download...", "warn")
             log(
                 "Please install Ollama manually from https://ollama.com/download",
@@ -184,41 +258,81 @@ class OllamaInstaller:
         state: InstallerState,
         log: Callable[[str, str], None],
     ) -> bool:
-        log("Downloading Ollama install script...", "info")
+        """Install the pinned release archive user-locally (no sudo).
+
+        Replaces the `install.sh` flow: the script at ollama.com/install.sh
+        changes with every upstream release, so a hash pin of it rots within
+        weeks (and the old all-zero pin never matched at all). The versioned
+        release asset is immutable, so its digest is pinnable forever.
+        """
+        dest_root = linux_install_root()
+        log(
+            f"Downloading Ollama {OLLAMA_PINNED_TAG} for Linux (~1.4 GB)...",
+            "info",
+        )
         tmp_path = ""
         try:
-            with tempfile.NamedTemporaryFile(suffix=".sh", delete=False, mode="wb") as f:
+            with tempfile.NamedTemporaryFile(suffix=".tar.zst", delete=False) as f:
                 tmp_path = f.name
-                with httpx.stream(
-                    "GET", OLLAMA_LINUX_INSTALL_URL, follow_redirects=True, timeout=60
-                ) as resp:
-                    resp.raise_for_status()
-                    for chunk in resp.iter_bytes(8192):
+            with httpx.stream(
+                "GET", OLLAMA_LINUX_URL, follow_redirects=True, timeout=1800
+            ) as resp:
+                resp.raise_for_status()
+                with open(tmp_path, "wb") as f:
+                    for chunk in resp.iter_bytes(65536):
                         f.write(chunk)
-            log("Verifying install script checksum...", "info")
-            if not _verify_sha256(tmp_path, OLLAMA_LINUX_SCRIPT_SHA256):
+            log("Verifying checksum...", "info")
+            if not _verify_sha256(tmp_path, OLLAMA_LINUX_SHA256):
+                state.record_step_failure(
+                    "ollama",
+                    "The downloaded Ollama package did not match its "
+                    "security checksum.",
+                    MANUAL_INSTALL_SUGGESTION,
+                )
                 log(
-                    "Checksum mismatch for Ollama install script. "
-                    "The upstream script has changed since the pinned hash was recorded. "
-                    "Aborting to prevent execution of untrusted code.",
+                    "Checksum mismatch for the Ollama Linux archive. "
+                    "Aborting to prevent supply-chain compromise.",
                     "error",
                 )
                 return False
-            os.chmod(tmp_path, 0o700)
-            log("Executing install script...", "info")
-            code = subprocess.call(["bash", tmp_path], timeout=300)
-            if code != 0:
-                log("Ollama installation script failed.", "error")
-                return False
-        except (httpx.HTTPError, OSError, subprocess.TimeoutExpired) as e:
+            log(f"Extracting Ollama to {dest_root}...", "info")
+            _extract_tar_zst(Path(tmp_path), dest_root)
+        except (httpx.HTTPError, OSError, tarfile.TarError) as e:
+            state.record_step_failure(
+                "ollama",
+                "Ollama could not be downloaded or unpacked.",
+                "Check the internet connection and free disk space, then "
+                "re-run the installer.",
+            )
             log(f"Ollama install failed: {e}", "error")
             return False
         finally:
             if tmp_path and os.path.exists(tmp_path):
-                try:
+                with contextlib.suppress(OSError):
                     os.unlink(tmp_path)
-                except OSError:
-                    pass
+
+        # The release archive lays out bin/ollama (+ lib/); tolerate a
+        # root-level binary for older layouts.
+        bin_dir = dest_root / "bin"
+        ollama_bin = bin_dir / "ollama"
+        if not ollama_bin.exists():
+            alt = dest_root / "ollama"
+            if alt.exists():
+                bin_dir, ollama_bin = dest_root, alt
+        if not ollama_bin.exists():
+            state.record_step_failure(
+                "ollama",
+                "The Ollama package unpacked but its program file was not found.",
+                MANUAL_INSTALL_SUGGESTION,
+            )
+            log(f"ollama binary not found under {dest_root} after extraction.", "error")
+            return False
+        with contextlib.suppress(OSError):
+            os.chmod(ollama_bin, 0o755)
+        # Make `ollama` resolvable for this process and every child it spawns
+        # (the model step, the managed `ollama serve`).
+        os.environ["PATH"] = f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}"
+        log(f"Ollama installed at {dest_root} (user-local).", "success")
         return self._verify_ollama(state, log)
 
     def _verify_ollama(
@@ -260,5 +374,11 @@ class OllamaInstaller:
             except httpx.HTTPError:
                 pass
             time.sleep(2)
+        state.record_step_failure(
+            "ollama",
+            "Ollama installed but its background service did not respond.",
+            "Restart the computer and re-run the installer, or start Ollama "
+            "manually and try again.",
+        )
         log("Ollama did not respond within 30 seconds.", "error")
         return False

@@ -9,11 +9,18 @@ from nexus_installer.installer_state import InstallerState
 
 
 class TestExtensionInstaller:
-    def test_fails_without_vscode(self) -> None:
+    def test_skips_without_vscode(self) -> None:
+        """v1.11.0 Phase 3 (T302): a machine without VS Code is a normal user
+        machine -- the step SKIPS with guidance instead of failing."""
         state = InstallerState(vscode_path="")
         log = MagicMock()
         result = ExtensionInstaller().install(state, log)
-        assert result is False
+        assert result is True
+        assert state.skipped_steps == ["extension"]
+        assert state.step_failures == []
+        assert any(
+            "skipped" in call.args[0].lower() for call in log.call_args_list
+        )
 
     def test_fails_without_vsix(self) -> None:
         state = InstallerState(vscode_path="/usr/bin/code")
@@ -21,6 +28,9 @@ class TestExtensionInstaller:
         with patch.object(ExtensionInstaller, "_find_vsix", return_value=None):
             result = ExtensionInstaller().install(state, log)
             assert result is False
+        # T303: a structured, plain-language failure is recorded.
+        assert state.step_failures and state.step_failures[0]["step"] == "extension"
+        assert state.step_failures[0]["suggestion"]
 
     def test_success_with_vsix_and_verification(self) -> None:
         state = InstallerState(vscode_path="/usr/bin/code")
@@ -58,3 +68,4 @@ class TestExtensionInstaller:
         ):
             result = ExtensionInstaller().install(state, log)
             assert result is False
+        assert state.step_failures and state.step_failures[0]["step"] == "extension"

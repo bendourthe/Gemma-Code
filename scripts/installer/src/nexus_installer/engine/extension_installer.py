@@ -21,14 +21,28 @@ class ExtensionInstaller:
         state: InstallerState,
         log: Callable[[str, str], None],
     ) -> bool:
-        """Install the VSIX. Returns True on success."""
+        """Install the VSIX. Returns True on success (or a clean skip)."""
         vscode = state.vscode_path
         if not vscode:
-            log("VS Code CLI not found. Cannot install extension.", "error")
-            return False
+            # v1.11.0 Phase 3 (T302): a machine without VS Code is a normal
+            # user machine, not an error condition -- skip with guidance.
+            state.record_skipped_step("extension")
+            log(
+                "Skipped: VS Code was not found on this computer. Install VS "
+                "Code from code.visualstudio.com and re-run this installer, "
+                "or add the Nexus extension later from within VS Code.",
+                "warn",
+            )
+            return True
 
         vsix_path = self._find_vsix()
         if not vsix_path:
+            state.record_step_failure(
+                "extension",
+                "The VS Code extension package was missing from the installer bundle.",
+                "Re-download the installer; if it keeps failing, report this "
+                "with the saved log.",
+            )
             log("VSIX file not found. Skipping extension installation.", "error")
             return False
 
@@ -38,6 +52,12 @@ class ExtensionInstaller:
             timeout=120,
         )
         if code != 0:
+            state.record_step_failure(
+                "extension",
+                "The VS Code extension could not be installed.",
+                "Open VS Code and install the extension manually (Extensions "
+                "panel -> ... -> Install from VSIX), or re-run the installer.",
+            )
             log(f"Extension install failed (code {code}): {stderr}", "error")
             return False
 

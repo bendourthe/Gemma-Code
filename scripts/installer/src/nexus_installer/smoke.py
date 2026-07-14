@@ -109,7 +109,10 @@ def build_smoke_result(
         "success": not steps_failed,
         "steps_done": steps_done,
         "steps_failed": steps_failed,
+        "skipped_steps": list(state.skipped_steps),
         "failed_models": list(state.failed_models),
+        # T303: one plain-language sentence + suggested action per failure.
+        "step_failures": list(state.step_failures),
         "install_path": state.install_path,
         "components": list(state.components_to_install),
         "logs": log_entries,

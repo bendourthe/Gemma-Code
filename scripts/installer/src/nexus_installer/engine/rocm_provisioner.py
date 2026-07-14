@@ -12,7 +12,7 @@ import subprocess
 from collections.abc import Callable
 from pathlib import Path
 
-from nexus_installer.engine.platform_utils import is_linux
+from nexus_installer.engine.platform_utils import is_linux, no_window_kwargs
 
 LogFn = Callable[[str, str], None]
 
@@ -62,7 +62,12 @@ class RocmProvisioner:
         ]
         try:
             result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=1800, check=False
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=1800,
+                check=False,
+                **no_window_kwargs(),
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
             log(f"ROCm wheel install crashed: {exc}", "error")

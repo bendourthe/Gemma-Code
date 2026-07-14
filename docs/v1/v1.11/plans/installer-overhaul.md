@@ -118,14 +118,14 @@ The verification vehicle for every later phase (D3).
 
 ---
 
-## Phase 3 - Dependency self-sufficiency (Ollama, Python, CUDA, VS Code, disk)
+## Phase 3 - Dependency self-sufficiency (Ollama, Python, CUDA, VS Code, disk) (landed 2026-07-14; sandbox gate = operator action)
 
 Prove and harden every prerequisite step on the clean machine - the "no browser, no terminal, ever" guarantee (uses the P2 harness for every item).
 
-- [ ] **T301** Sandbox-audit each provisioning step from scratch: Ollama (download+silent install+server start), the Python environment step (must bootstrap from the bundled/frozen runtime or a fetched standalone build - never assume system Python), CUDA/GPU path (detection on a GPU-less sandbox must degrade to CPU cleanly with plain-language messaging; on-GPU host verify the CUDA-aware config), VS Code detection (absent VS Code = clear "skipped: VS Code not found" outcome with guidance, not an error), disk-space gates. Document each step's from-scratch behavior in an audit table.
-- [ ] **T302** Fix every gap the T301 audit finds (each fix lands with its own regression test). Known candidates: dependency download URLs pinned + hash-verified + fail-soft with retry; every child process spawned with the no-console discipline (`CREATE_NO_WINDOW` + `stdin=DEVNULL` via ONE shared spawn helper - unify `run_command` / `run_command_streaming` / `model_puller` so this class of bug cannot recur per-call-site).
-- [ ] **T303** Plain-language failure surfaces: every dependency step failure produces (a) a one-sentence user-facing explanation, (b) a suggested next action, (c) the View/Copy/Save log affordance (P5 UI renders these; this phase supplies the structured error data).
-- [ ] **T304** [tests] Per-step unit tests + a full sandbox matrix run (default profile, minimal profile, GPU-less). Gate: default-profile sandbox run completes end-to-end with zero manual intervention.
+- [x] **T301** Sandbox-audit each provisioning step from scratch: Ollama (download+silent install+server start), the Python environment step (must bootstrap from the bundled/frozen runtime or a fetched standalone build - never assume system Python), CUDA/GPU path (detection on a GPU-less sandbox must degrade to CPU cleanly with plain-language messaging; on-GPU host verify the CUDA-aware config), VS Code detection (absent VS Code = clear "skipped: VS Code not found" outcome with guidance, not an error), disk-space gates. Document each step's from-scratch behavior in an audit table.
+- [x] **T302** Fix every gap the T301 audit finds (each fix lands with its own regression test). Known candidates: dependency download URLs pinned + hash-verified + fail-soft with retry; every child process spawned with the no-console discipline (`CREATE_NO_WINDOW` + `stdin=DEVNULL` via ONE shared spawn helper - unify `run_command` / `run_command_streaming` / `model_puller` so this class of bug cannot recur per-call-site).
+- [x] **T303** Plain-language failure surfaces: every dependency step failure produces (a) a one-sentence user-facing explanation, (b) a suggested next action, (c) the View/Copy/Save log affordance (P5 UI renders these; this phase supplies the structured error data).
+- [~] **T304** [tests] Per-step unit tests + a full sandbox matrix run (default profile, minimal profile, GPU-less). Gate: default-profile sandbox run completes end-to-end with zero manual intervention.
 
 **Acceptance:** a fresh sandbox with nothing preinstalled reaches "Installation Complete" (models per P1, desktop per P4 once landed) without the user leaving the wizard.
 

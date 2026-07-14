@@ -115,6 +115,23 @@ class TestResultContract:
         result = build_smoke_result("p", InstallerState(), ["venv"], [], [])
         assert result["success"] is True
 
+    def test_structured_failures_and_skips_included(self) -> None:
+        """T303: the result carries the plain-language failure surfaces."""
+        state = InstallerState()
+        state.record_skipped_step("extension")
+        state.record_step_failure(
+            "ollama", "Ollama could not be downloaded.", "Check the connection."
+        )
+        result = build_smoke_result("p", state, [], ["ollama"], [])
+        assert result["skipped_steps"] == ["extension"]
+        assert result["step_failures"] == [
+            {
+                "step": "ollama",
+                "summary": "Ollama could not be downloaded.",
+                "suggestion": "Check the connection.",
+            }
+        ]
+
 
 class TestShippedHarnessFiles:
     """The checked-in harness artifacts stay mutually consistent."""

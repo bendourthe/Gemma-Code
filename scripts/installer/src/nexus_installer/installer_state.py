@@ -44,6 +44,15 @@ class InstallerState:
     install_log: list[str] = field(default_factory=list)
     failed_steps: list[str] = field(default_factory=list)
 
+    # v1.11.0 Phase 3 (T303) -- structured, user-facing failure surfaces.
+    # A skipped step is a clear outcome, not an error (e.g. the VS Code
+    # extension when VS Code is absent). A step failure carries a one-sentence
+    # plain-language summary plus a suggested next action; the installing page
+    # (P5) renders these next to the View/Copy/Save log actions, and the
+    # headless smoke result includes them verbatim.
+    skipped_steps: list[str] = field(default_factory=list)
+    step_failures: list[dict[str, str]] = field(default_factory=list)
+
     # v1.1.0 Phase 14 -- cross-OS additions.
     free_disk_gb: int = 0
     selected_models_gb: float = 0.0
@@ -66,6 +75,21 @@ class InstallerState:
     desktop_health_ok: bool = False
     desktop_exe_path: str = ""
     launch_desktop_on_finish: bool = True
+
+    def record_step_failure(self, step: str, summary: str, suggestion: str) -> None:
+        """Record a plain-language failure for `step` (T303).
+
+        `summary` is one user-facing sentence stating what happened;
+        `suggestion` is the next action a non-technical user can take.
+        """
+        self.step_failures.append(
+            {"step": step, "summary": summary, "suggestion": suggestion}
+        )
+
+    def record_skipped_step(self, step: str) -> None:
+        """Mark `step` as deliberately skipped (a clear outcome, not an error)."""
+        if step not in self.skipped_steps:
+            self.skipped_steps.append(step)
 
     def can_select_model(self, model_gb: float) -> bool:
         """Return True when adding `model_gb` keeps the OS reserve intact."""

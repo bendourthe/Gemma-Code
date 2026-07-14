@@ -13,7 +13,7 @@ import subprocess
 from collections.abc import Callable
 from pathlib import Path
 
-from nexus_installer.engine.platform_utils import is_macos
+from nexus_installer.engine.platform_utils import is_macos, no_window_kwargs
 
 LogFn = Callable[[str, str], None]
 
@@ -59,6 +59,7 @@ class OllamaMacosProvisioner:
                 capture_output=True,
                 timeout=15,
                 check=False,
+                **no_window_kwargs(),
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
             log(f"Ollama.app open command failed: {exc}", "warn")

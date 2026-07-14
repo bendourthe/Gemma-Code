@@ -22,7 +22,7 @@ from pathlib import Path
 
 import httpx
 
-from nexus_installer.engine.platform_utils import is_linux
+from nexus_installer.engine.platform_utils import is_linux, no_window_kwargs
 
 LogFn = Callable[[str, str], None]
 
@@ -100,7 +100,9 @@ class OllamaLinuxProvisioner:
                     )
                     return False
             os.chmod(tmp_path, 0o700)
-            code = subprocess.call(["bash", tmp_path], timeout=600)
+            code = subprocess.call(
+                ["bash", tmp_path], timeout=600, **no_window_kwargs()
+            )
             if code != 0:
                 log(f"Ollama install.sh exited with code {code}", "error")
                 return False
