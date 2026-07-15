@@ -89,6 +89,8 @@ out/
 # ...but the PyInstaller workpath + the mac/linux staging dir under build/
 # ARE build outputs (re-excluded after the allow rules above).
 scripts/installer/build/work/
+# v1.11.0 P4: generated desktop-bundle staging (embedded into NexusSetup.exe)
+scripts/installer/build/desktop-payload/
 scripts/installer/build/stage/
 
 # ==============================================================================

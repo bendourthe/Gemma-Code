@@ -144,7 +144,9 @@ try {
         # electron-rebuild step above (Invoke-Step still gates on $LASTEXITCODE).
         $ErrorActionPreference = 'Continue'
         $Version = (Get-Content (Join-Path $RepoRoot 'package.json') | ConvertFrom-Json).version
-        $VsixName = "gemma-code-$Version.vsix"
+        # v1.11.0 Phase 4 (T403): the artifact carries the product name
+        # (nexus-coding), closing the NAME.P1.A remnant for this artifact.
+        $VsixName = "nexus-coding-$Version.vsix"
         $VsixOut  = Join-Path $OutputDir $VsixName
         npx vsce package --out $VsixOut
         if ($LASTEXITCODE -eq 0) {

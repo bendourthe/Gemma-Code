@@ -1,32 +1,33 @@
 """v1.8.0 Phase 2 -- Nexus desktop app provisioner.
 
-Fetches the platform's desktop bundle from the pinned GitHub release
-(SHA-256-verified against the release's SHA256SUMS.txt, fail closed),
-installs it per-OS, and runs a first-run health check. Follows the
-download / verify / install structure of `ollama_installer.py`.
+v1.11.0 Phase 4 (T401/T402): the desktop app is EMBEDDED in the installer.
+The previous flow fetched the platform bundle from a pinned GitHub release,
+verified against the release's SHA256SUMS.txt -- and 404'd whenever the tag
+shipped without binary assets (semantic-release cut v2.1.0 during the Actions
+freeze with no uploads), so the desktop step failed on every real install.
+Now `build-windows.ps1` stages the Tauri NSIS bundle plus a build-time
+manifest (name, version, sha256) into the PyInstaller payload, and this
+provisioner installs from that embedded payload: hash-verified against the
+manifest (fail closed on corruption), silent NSIS run, first-launch health
+check. Zero network for the desktop step.
 
-The desktop app is fetched at install time rather than bundled inside
-the installer executable (operator decision, 2026-07-03). While the
-release that carries the bundles has not shipped yet (Actions freeze),
-`InstallerState.desktop_bundle_override` installs a locally-built
-bundle instead -- the T104 fixture path used by the integration test.
+`InstallerState.desktop_bundle_override` remains the dev seam: a locally-built
+bundle installs directly, skipping the payload and its verification.
 """
 
 from __future__ import annotations
 
-import contextlib
 import glob
 import hashlib
+import json
 import os
-import platform
 import shutil
 import stat
 import subprocess
 import sys
 import tempfile
 from collections.abc import Callable
-
-import httpx
+from pathlib import Path
 
 from nexus_installer.engine.platform_utils import (
     is_linux,
@@ -37,99 +38,72 @@ from nexus_installer.engine.platform_utils import (
 )
 from nexus_installer.installer_state import InstallerState
 
-# Pinned release tag carrying the desktop bundles. Bump by updating
-# scripts/installer/VERSIONS.md in lockstep (semantic-release owns
-# the tag; the bundle version is the tag without the leading "v").
-NEXUS_DESKTOP_PINNED_TAG = "v2.1.0"
-NEXUS_DESKTOP_VERSION = NEXUS_DESKTOP_PINNED_TAG.lstrip("v")
-
-RELEASE_DOWNLOAD_URL = (
-    "https://github.com/bendourthe/Nexus-AI/releases/download/{tag}/{asset}"
-)
-SHA256SUMS_ASSET = "SHA256SUMS.txt"
+# Bundle subdirectory inside the frozen payload (sys._MEIPASS) and the
+# source-tree staging dir (scripts/installer/build/desktop-payload/).
+DESKTOP_BUNDLE_SUBDIR = "desktop-bundle"
 
 # Grace period for the first-run health check: a GUI app that is still
 # alive after this many seconds launched successfully.
 HEALTH_CHECK_GRACE_SECONDS = 5
-DOWNLOAD_CHUNK_SIZE = 65536
+
+REDOWNLOAD_SUGGESTION = (
+    "Re-download the installer; if it keeps failing, report this with the "
+    "saved log."
+)
 
 
-def resolve_asset_name(
-    platform_str: str | None = None,
-    machine: str | None = None,
-    version: str = NEXUS_DESKTOP_VERSION,
-) -> str | None:
-    """Return the release asset name for the OS/arch, or None if unsupported.
-
-    Mirrors the asset names staged by release.yml's desktop-bundle jobs:
-    Windows x64 NSIS, macOS universal DMG, Linux amd64 AppImage.
-    """
-    plat = platform_str if platform_str is not None else sys.platform
-    arch = (machine if machine is not None else platform.machine()).lower()
-
-    if plat == "win32":
-        if arch in ("amd64", "x86_64"):
-            return f"Nexus-Desktop_{version}_x64-setup.exe"
-        return None
-    if plat == "darwin":
-        # The DMG is a universal binary: both arm64 and x86_64 are served.
-        return f"Nexus-Desktop_{version}_universal.dmg"
-    if plat.startswith("linux"):
-        if arch in ("amd64", "x86_64"):
-            return f"Nexus-Desktop_{version}_amd64.AppImage"
-        return None
-    return None
-
-
-def parse_sha256sums(text: str) -> dict[str, str]:
-    """Parse `sha256sum` output lines into {filename: hex_digest}.
-
-    Accepts both text-mode ("hash  name") and binary-mode ("hash *name")
-    separators. Malformed lines are skipped.
-    """
-    entries: dict[str, str] = {}
-    for line in text.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        parts = line.split(None, 1)
-        if len(parts) != 2:
-            continue
-        digest, name = parts
-        if len(digest) != 64:
-            continue
-        try:
-            int(digest, 16)
-        except ValueError:
-            continue
-        entries[name.lstrip("*").strip()] = digest.lower()
-    return entries
-
-
-def _sha256_file(path: str) -> str:
+def _sha256_file(path: str | Path) -> str:
     """Return the hex SHA-256 digest of a file."""
     hasher = hashlib.sha256()
     with open(path, "rb") as handle:
-        for chunk in iter(lambda: handle.read(DOWNLOAD_CHUNK_SIZE), b""):
+        for chunk in iter(lambda: handle.read(65536), b""):
             hasher.update(chunk)
     return hasher.hexdigest()
 
 
-def _download_dir() -> str:
-    """Return the persistent download directory (partial files survive reruns)."""
-    path = os.path.join(tempfile.gettempdir(), "nexus-installer-downloads")
-    os.makedirs(path, exist_ok=True)
-    return path
+def embedded_payload_dir() -> Path | None:
+    """Locate the embedded desktop payload (frozen bundle first, then source).
+
+    Mirrors `registry_paths.registry_file`'s bundle-first discipline: a frozen
+    `NexusSetup.exe` resolves `sys._MEIPASS/desktop-bundle/`; a source run
+    resolves `scripts/installer/build/desktop-payload/` (staged by
+    build-windows.ps1) so the flow is testable without freezing.
+    """
+    if getattr(sys, "frozen", False):
+        candidate = Path(getattr(sys, "_MEIPASS", "")) / DESKTOP_BUNDLE_SUBDIR
+        if (candidate / "manifest.json").is_file():
+            return candidate
+    for parent in Path(__file__).resolve().parents:
+        candidate = parent / "build" / "desktop-payload"
+        if (candidate / "manifest.json").is_file():
+            return candidate
+    return None
+
+
+def load_payload_manifest(payload_dir: Path) -> dict[str, str] | None:
+    """Read + validate the payload manifest. Returns None when malformed."""
+    try:
+        data = json.loads(
+            (payload_dir / "manifest.json").read_text(encoding="utf-8-sig")
+        )
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    for key in ("filename", "version", "sha256"):
+        if not isinstance(data.get(key), str) or not data[key]:
+            return None
+    return {str(k): str(v) for k, v in data.items()}
 
 
 class DesktopProvisioner:
-    """Downloads, verifies, and installs the Nexus desktop app."""
+    """Verifies and installs the embedded Nexus desktop app."""
 
     def __init__(self) -> None:
         self._cancelled = False
 
     def cancel(self) -> None:
-        """Request cancellation of an in-flight download."""
+        """Kept for engine compatibility; the embedded flow has no download."""
         self._cancelled = True
 
     def install(
@@ -145,26 +119,33 @@ class DesktopProvisioner:
         """
         progress = progress or (lambda _pct: None)
 
+        bundle_path: str | None
         if state.desktop_bundle_override:
             bundle_path = state.desktop_bundle_override
             if not os.path.isfile(bundle_path):
+                state.record_step_failure(
+                    "desktop",
+                    "The local desktop bundle override was not found.",
+                    f"Check the path passed via --desktop-bundle: {bundle_path}",
+                )
                 log(f"Local desktop bundle not found: {bundle_path}", "error")
                 return False
             log(
                 f"Using local desktop bundle override: {bundle_path} "
-                "(release download and checksum verification skipped).",
+                "(embedded payload and checksum verification skipped).",
                 "warn",
             )
         else:
-            bundle_path = self._download_and_verify(state, log, progress)
+            bundle_path = self._resolve_embedded(state, log)
             if not bundle_path:
                 return False
+            progress(0.3)
 
         if not self._dispatch_install(bundle_path, state, log):
             return False
+        progress(0.9)
 
         state.desktop_installed = True
-        progress(1.0)
         log("Nexus desktop installed.", "success")
 
         if not first_run_health_check(state, log):
@@ -173,119 +154,72 @@ class DesktopProvisioner:
                 "did not pass. You can still launch it from the OS menu.",
                 "warn",
             )
+        progress(1.0)
         return True
 
-    # -- download + verify ------------------------------------------------
+    # -- embedded payload ---------------------------------------------------
 
-    def _download_and_verify(
+    def _resolve_embedded(
         self,
         state: InstallerState,
         log: Callable[[str, str], None],
-        progress: Callable[[float], None],
     ) -> str | None:
-        """Download the platform bundle and verify it. Returns its path or None."""
-        asset = resolve_asset_name()
-        if not asset:
+        """Locate + hash-verify the embedded bundle. Returns its path or None."""
+        payload_dir = embedded_payload_dir()
+        if payload_dir is None:
+            state.record_step_failure(
+                "desktop",
+                "The desktop app package was missing from this installer "
+                "build.",
+                REDOWNLOAD_SUGGESTION,
+            )
             log(
-                "No Nexus desktop bundle is published for this OS/architecture "
-                f"({platform.machine()}). Skipping desktop installation.",
+                "No embedded desktop payload found (this installer build did "
+                "not stage one for this platform).",
                 "error",
             )
             return None
 
-        tag = NEXUS_DESKTOP_PINNED_TAG
-        sums_url = RELEASE_DOWNLOAD_URL.format(tag=tag, asset=SHA256SUMS_ASSET)
-        log(f"Fetching checksum manifest for Nexus desktop {tag}...", "info")
-        try:
-            resp = httpx.get(sums_url, follow_redirects=True, timeout=60)
-            resp.raise_for_status()
-        except httpx.HTTPError as e:
-            log(f"Failed to fetch {SHA256SUMS_ASSET}: {e}", "error")
+        manifest = load_payload_manifest(payload_dir)
+        if manifest is None:
+            state.record_step_failure(
+                "desktop",
+                "The desktop app package inside the installer is unreadable.",
+                REDOWNLOAD_SUGGESTION,
+            )
+            log(f"Malformed desktop payload manifest in {payload_dir}.", "error")
             return None
 
-        expected = parse_sha256sums(resp.text).get(asset)
-        if not expected:
+        bundle = payload_dir / manifest["filename"]
+        if not bundle.is_file():
+            state.record_step_failure(
+                "desktop",
+                "The desktop app package inside the installer is incomplete.",
+                REDOWNLOAD_SUGGESTION,
+            )
+            log(f"Embedded desktop bundle missing: {bundle}", "error")
+            return None
+
+        log(
+            f"Verifying the embedded Nexus desktop {manifest['version']} "
+            "bundle...",
+            "info",
+        )
+        if _sha256_file(bundle) != manifest["sha256"].lower():
+            state.record_step_failure(
+                "desktop",
+                "The desktop app package inside the installer failed its "
+                "integrity check.",
+                REDOWNLOAD_SUGGESTION,
+            )
             log(
-                f"{SHA256SUMS_ASSET} has no entry for {asset}. "
-                "Aborting to prevent installing an unverified bundle.",
+                "Embedded desktop bundle checksum mismatch. Aborting to "
+                "prevent installing a corrupted app.",
                 "error",
             )
             return None
-
-        dest = os.path.join(_download_dir(), asset)
-        url = RELEASE_DOWNLOAD_URL.format(tag=tag, asset=asset)
-        log(f"Downloading {asset}...", "info")
-        if not self._download_with_resume(url, dest, log, progress):
-            return None
-
-        log("Verifying checksum...", "info")
-        if _sha256_file(dest) != expected:
-            log(
-                f"Checksum mismatch for {asset}. Aborting to prevent "
-                "supply-chain compromise.",
-                "error",
-            )
-            with contextlib.suppress(OSError):
-                os.unlink(dest)
-            return None
-        log("Checksum verified.", "success")
-        return dest
-
-    def _download_with_resume(
-        self,
-        url: str,
-        dest: str,
-        log: Callable[[str, str], None],
-        progress: Callable[[float], None],
-    ) -> bool:
-        """Download `url` to `dest` via a resumable .partial file."""
-        partial = dest + ".partial"
-        existing = os.path.getsize(partial) if os.path.exists(partial) else 0
-        headers = {"Range": f"bytes={existing}-"} if existing else {}
-        if existing:
-            log(f"Resuming download from byte {existing}...", "info")
-
-        try:
-            with httpx.stream(
-                "GET", url, headers=headers, follow_redirects=True, timeout=300
-            ) as resp:
-                if resp.status_code == 416:
-                    # The partial file already covers the full asset.
-                    os.replace(partial, dest)
-                    progress(1.0)
-                    return True
-                resp.raise_for_status()
-
-                if resp.status_code == 206:
-                    mode = "ab"
-                    total = existing + int(resp.headers.get("content-length", 0) or 0)
-                else:
-                    # Server ignored the Range header: restart from scratch.
-                    mode = "wb"
-                    existing = 0
-                    total = int(resp.headers.get("content-length", 0) or 0)
-
-                received = existing
-                with open(partial, mode) as f:
-                    for chunk in resp.iter_bytes(DOWNLOAD_CHUNK_SIZE):
-                        if self._cancelled:
-                            log(
-                                "Desktop download cancelled; partial file kept "
-                                "for resume.",
-                                "warn",
-                            )
-                            return False
-                        f.write(chunk)
-                        received += len(chunk)
-                        if total > 0:
-                            # Reserve the last 5% of the band for install.
-                            progress(min(received / total, 1.0) * 0.95)
-        except (httpx.HTTPError, OSError) as e:
-            log(f"Failed to download Nexus desktop bundle: {e}", "error")
-            return False
-
-        os.replace(partial, dest)
-        return True
+        log("Embedded bundle verified.", "success")
+        return str(bundle)
 
     # -- per-OS install ----------------------------------------------------
 
@@ -301,6 +235,11 @@ class DesktopProvisioner:
             return self._install_macos(bundle_path, state, log)
         if is_linux():
             return self._install_linux(bundle_path, state, log)
+        state.record_step_failure(
+            "desktop",
+            "This operating system is not supported for the desktop app.",
+            "The Nexus desktop app supports Windows, macOS, and Linux.",
+        )
         log("Unsupported platform for Nexus desktop installation.", "error")
         return False
 
@@ -317,6 +256,13 @@ class DesktopProvisioner:
             cmd.append(f"/D={state.desktop_install_dir}")
         code, _, stderr = run_command(cmd, timeout=600)
         if code != 0:
+            state.record_step_failure(
+                "desktop",
+                f"The desktop app's setup program reported an error "
+                f"(code {code}).",
+                "Re-run the installer; if it keeps failing, save the log and "
+                "report it.",
+            )
             log(f"Desktop installer exited with code {code}: {stderr}", "error")
             return False
         install_dir = state.desktop_install_dir or os.path.join(
@@ -418,6 +364,42 @@ class DesktopProvisioner:
 
         state.desktop_exe_path = appimage
         return True
+
+
+def check_desktop_payload() -> int:
+    """Diagnostic for the packaging smoke: 0 when the embedded payload is
+    present, manifest-valid, and hash-verified (Windows builds embed it;
+    other platforms return 1 until their build scripts stage one).
+
+    Invoked via ``nexus-installer --check-desktop-payload`` against the frozen
+    exe. Prints details when a console is attached (windowed frozen builds
+    have no stdout; the exit code is the signal there).
+    """
+
+    def emit(message: str) -> None:
+        if sys.stdout is not None:
+            print(message)
+
+    payload_dir = embedded_payload_dir()
+    if payload_dir is None:
+        emit("desktop payload: MISSING")
+        return 1
+    manifest = load_payload_manifest(payload_dir)
+    if manifest is None:
+        emit(f"desktop payload: MALFORMED manifest ({payload_dir})")
+        return 1
+    bundle = payload_dir / manifest["filename"]
+    if not bundle.is_file():
+        emit(f"desktop payload: bundle missing ({bundle})")
+        return 1
+    if _sha256_file(bundle) != manifest["sha256"].lower():
+        emit("desktop payload: HASH MISMATCH")
+        return 1
+    emit(
+        f"desktop payload: ok ({manifest['filename']} v{manifest['version']}, "
+        f"{bundle.stat().st_size} bytes)"
+    )
+    return 0
 
 
 def _resolve_windows_exe(install_dir: str) -> str:

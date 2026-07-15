@@ -1,14 +1,15 @@
-"""Tests for the Nexus desktop provisioner (v1.8.0 Phase 2, T204).
+"""Tests for the Nexus desktop provisioner.
 
-Mirrors the existing provisioner suites: mocked httpx / subprocess, real
-temp files for the download + verify path, per-OS dispatch, state
-threading, and an env-gated Windows integration test against the T104
-local fixture bundle.
+v1.11.0 Phase 4 (T402/T404): the desktop app installs from an EMBEDDED,
+manifest-verified payload (no GitHub-release fetch). Covers payload
+resolution + hash verification (fail closed), the packaging diagnostic,
+per-OS dispatch, state threading, and the local-override dev seam.
 """
 
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import subprocess
 import sys
@@ -18,238 +19,164 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from nexus_installer.engine.desktop_provisioner import (
-    NEXUS_DESKTOP_PINNED_TAG,
-    NEXUS_DESKTOP_VERSION,
     DesktopProvisioner,
     _resolve_windows_exe,
+    check_desktop_payload,
     first_run_health_check,
-    parse_sha256sums,
-    resolve_asset_name,
+    load_payload_manifest,
 )
 from nexus_installer.installer_state import InstallerState
 
 _MOD = "nexus_installer.engine.desktop_provisioner"
 
 
-def _mock_stream_response(chunks: list[bytes], status_code: int = 200, headers=None):
-    """Build a context-manager mock for httpx.stream()."""
-    resp = MagicMock()
-    resp.status_code = status_code
-    resp.headers = headers or {"content-length": str(sum(len(c) for c in chunks))}
-    resp.iter_bytes.return_value = iter(chunks)
-    resp.__enter__ = lambda s: resp
-    resp.__exit__ = MagicMock(return_value=False)
-    return resp
+def _write_payload(
+    tmp_path: Path,
+    content: bytes = b"bundle-bytes",
+    version: str = "2.1.0",
+    sha: str | None = None,
+    filename: str = "Nexus-Desktop-Setup.exe",
+) -> Path:
+    """Stage a payload dir shaped like build-windows.ps1's output."""
+    payload = tmp_path / "desktop-payload"
+    payload.mkdir(parents=True, exist_ok=True)
+    (payload / filename).write_bytes(content)
+    manifest = {
+        "filename": filename,
+        "version": version,
+        "sha256": sha or hashlib.sha256(content).hexdigest(),
+    }
+    (payload / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    return payload
 
 
-class TestResolveAssetName:
-    def test_windows_x64(self) -> None:
-        name = resolve_asset_name("win32", "AMD64")
-        assert name == f"Nexus-Desktop_{NEXUS_DESKTOP_VERSION}_x64-setup.exe"
+class TestPayloadManifest:
+    def test_valid_manifest_loads(self, tmp_path: Path) -> None:
+        payload = _write_payload(tmp_path)
+        manifest = load_payload_manifest(payload)
+        assert manifest is not None
+        assert manifest["filename"] == "Nexus-Desktop-Setup.exe"
+        assert manifest["version"] == "2.1.0"
 
-    def test_windows_arm64_unsupported(self) -> None:
-        assert resolve_asset_name("win32", "ARM64") is None
+    def test_malformed_json_returns_none(self, tmp_path: Path) -> None:
+        payload = tmp_path / "p"
+        payload.mkdir()
+        (payload / "manifest.json").write_text("{nope", encoding="utf-8")
+        assert load_payload_manifest(payload) is None
 
-    def test_macos_universal_serves_both_arches(self) -> None:
-        for arch in ("arm64", "x86_64"):
-            name = resolve_asset_name("darwin", arch)
-            assert name == f"Nexus-Desktop_{NEXUS_DESKTOP_VERSION}_universal.dmg"
-
-    def test_linux_amd64(self) -> None:
-        name = resolve_asset_name("linux", "x86_64")
-        assert name == f"Nexus-Desktop_{NEXUS_DESKTOP_VERSION}_amd64.AppImage"
-
-    def test_linux_aarch64_unsupported(self) -> None:
-        assert resolve_asset_name("linux", "aarch64") is None
-
-    def test_unknown_platform_unsupported(self) -> None:
-        assert resolve_asset_name("freebsd14", "x86_64") is None
-
-    def test_version_derived_from_pinned_tag(self) -> None:
-        assert f"v{NEXUS_DESKTOP_VERSION}" == NEXUS_DESKTOP_PINNED_TAG
-
-
-class TestParseSha256sums:
-    def test_parses_text_mode_lines(self) -> None:
-        digest = "a" * 64
-        entries = parse_sha256sums(f"{digest}  Nexus-Desktop_2.1.0_x64-setup.exe\n")
-        assert entries == {"Nexus-Desktop_2.1.0_x64-setup.exe": digest}
-
-    def test_parses_binary_mode_asterisk(self) -> None:
-        digest = "b" * 64
-        entries = parse_sha256sums(f"{digest} *NexusSetup.exe\n")
-        assert entries == {"NexusSetup.exe": digest}
-
-    def test_skips_malformed_lines(self) -> None:
-        text = "\n".join(
-            [
-                "not-a-hash  file.exe",  # bad digest length
-                "z" * 64 + "  file2.exe",  # non-hex digest
-                "c" * 64,  # no filename
-                "",
-                "d" * 64 + "  good.exe",
-            ]
+    def test_missing_keys_return_none(self, tmp_path: Path) -> None:
+        payload = tmp_path / "p"
+        payload.mkdir()
+        (payload / "manifest.json").write_text(
+            json.dumps({"filename": "x.exe"}), encoding="utf-8"
         )
-        assert parse_sha256sums(text) == {"good.exe": "d" * 64}
+        assert load_payload_manifest(payload) is None
 
-    def test_lowercases_digests(self) -> None:
-        entries = parse_sha256sums("A" * 64 + "  X.exe")
-        assert entries["X.exe"] == "a" * 64
+    def test_bom_manifest_loads(self, tmp_path: Path) -> None:
+        """PowerShell-authored manifests may carry a BOM (IO.P2.C lesson)."""
+        payload = tmp_path / "p"
+        payload.mkdir()
+        body = json.dumps(
+            {"filename": "x.exe", "version": "1.0.0", "sha256": "a" * 64}
+        )
+        (payload / "manifest.json").write_bytes(b"\xef\xbb\xbf" + body.encode())
+        assert load_payload_manifest(payload) is not None
 
 
-class TestDownloadAndVerify:
-    """Exercise the real download/verify path with mocked httpx + temp files."""
+class TestResolveEmbedded:
+    """The embedded bundle is hash-verified against its build-time manifest;
+    every failure mode is fail-closed with a structured, plain-language
+    reason (T303)."""
 
-    def _run(
-        self,
-        tmp_path: Path,
-        payload: bytes,
-        manifest_digest: str,
-        asset: str = "Nexus-Desktop_2.1.0_x64-setup.exe",
-    ) -> tuple[str | None, MagicMock]:
+    def _resolve(
+        self, payload_dir: Path | None
+    ) -> tuple[str | None, InstallerState, MagicMock]:
         state = InstallerState()
         log = MagicMock()
-        provisioner = DesktopProvisioner()
+        with patch(f"{_MOD}.embedded_payload_dir", return_value=payload_dir):
+            result = DesktopProvisioner()._resolve_embedded(state, log)
+        return result, state, log
 
-        sums_resp = MagicMock()
-        sums_resp.status_code = 200
-        sums_resp.text = f"{manifest_digest}  {asset}\n"
-        sums_resp.raise_for_status = MagicMock()
+    def test_intact_payload_resolves(self, tmp_path: Path) -> None:
+        payload = _write_payload(tmp_path)
+        result, state, _ = self._resolve(payload)
+        assert result == str(payload / "Nexus-Desktop-Setup.exe")
+        assert state.step_failures == []
 
-        with (
-            patch(f"{_MOD}.resolve_asset_name", return_value=asset),
-            patch(f"{_MOD}._download_dir", return_value=str(tmp_path)),
-            patch(f"{_MOD}.httpx") as mock_httpx,
-        ):
-            mock_httpx.get.return_value = sums_resp
-            mock_httpx.stream.return_value = _mock_stream_response([payload])
-            mock_httpx.HTTPError = Exception
-            result = provisioner._download_and_verify(
-                state, log, lambda _pct: None
-            )
-        return result, log
-
-    def test_matching_hash_returns_bundle_path(self, tmp_path: Path) -> None:
-        payload = b"bundle-bytes"
-        digest = hashlib.sha256(payload).hexdigest()
-        result, _log = self._run(tmp_path, payload, digest)
-        assert result is not None
-        assert os.path.isfile(result)
-        with open(result, "rb") as f:
-            assert f.read() == payload
-
-    def test_hash_mismatch_fails_closed_and_deletes(self, tmp_path: Path) -> None:
-        result, log = self._run(tmp_path, b"bundle-bytes", "0" * 64)
+    def test_missing_payload_fails_with_reason(self) -> None:
+        result, state, _ = self._resolve(None)
         assert result is None
-        assert not any(tmp_path.iterdir())  # downloaded file removed
+        assert state.step_failures
+        assert state.step_failures[0]["step"] == "desktop"
+        assert "missing" in state.step_failures[0]["summary"].lower()
+
+    def test_malformed_manifest_fails_closed(self, tmp_path: Path) -> None:
+        payload = tmp_path / "p"
+        payload.mkdir()
+        (payload / "manifest.json").write_text("{nope", encoding="utf-8")
+        result, state, _ = self._resolve(payload)
+        assert result is None
+        assert state.step_failures
+
+    def test_missing_bundle_file_fails_closed(self, tmp_path: Path) -> None:
+        payload = _write_payload(tmp_path)
+        (payload / "Nexus-Desktop-Setup.exe").unlink()
+        result, state, _ = self._resolve(payload)
+        assert result is None
+        assert state.step_failures
+
+    def test_hash_mismatch_fails_closed(self, tmp_path: Path) -> None:
+        payload = _write_payload(tmp_path, sha="0" * 64)
+        result, state, log = self._resolve(payload)
+        assert result is None
         assert any(
             "checksum mismatch" in call.args[0].lower()
             for call in log.call_args_list
             if call.args
         )
+        assert "integrity" in state.step_failures[0]["summary"]
 
-    def test_missing_manifest_entry_fails_closed(self, tmp_path: Path) -> None:
+
+class TestInstallFromEmbedded:
+    def test_install_verifies_then_dispatches(self, tmp_path: Path) -> None:
+        payload = _write_payload(tmp_path)
         state = InstallerState()
-        log = MagicMock()
-        provisioner = DesktopProvisioner()
-
-        sums_resp = MagicMock()
-        sums_resp.status_code = 200
-        sums_resp.text = "a" * 64 + "  some-other-asset.exe\n"
-        sums_resp.raise_for_status = MagicMock()
-
         with (
-            patch(f"{_MOD}.resolve_asset_name", return_value="wanted.exe"),
-            patch(f"{_MOD}._download_dir", return_value=str(tmp_path)),
-            patch(f"{_MOD}.httpx") as mock_httpx,
+            patch(f"{_MOD}.embedded_payload_dir", return_value=payload),
+            patch.object(
+                DesktopProvisioner, "_dispatch_install", return_value=True
+            ) as mock_dispatch,
+            patch(f"{_MOD}.first_run_health_check", return_value=True),
         ):
-            mock_httpx.get.return_value = sums_resp
-            mock_httpx.HTTPError = Exception
-            result = provisioner._download_and_verify(state, log, lambda _p: None)
+            ok = DesktopProvisioner().install(state, MagicMock())
+        assert ok is True
+        assert state.desktop_installed is True
+        assert mock_dispatch.call_args[0][0] == str(
+            payload / "Nexus-Desktop-Setup.exe"
+        )
 
-        assert result is None
-        mock_httpx.stream.assert_not_called()  # never downloads unverifiable bytes
-
-    def test_manifest_fetch_error_fails(self, tmp_path: Path) -> None:
+    def test_missing_payload_fails_install(self) -> None:
         state = InstallerState()
-        log = MagicMock()
-        provisioner = DesktopProvisioner()
-
-        import httpx as real_httpx
-
-        with (
-            patch(f"{_MOD}.resolve_asset_name", return_value="wanted.exe"),
-            patch(f"{_MOD}._download_dir", return_value=str(tmp_path)),
-            patch(f"{_MOD}.httpx") as mock_httpx,
-        ):
-            mock_httpx.HTTPError = real_httpx.HTTPError
-            mock_httpx.get.side_effect = real_httpx.ConnectError("offline")
-            result = provisioner._download_and_verify(state, log, lambda _p: None)
-
-        assert result is None
-
-    def test_unsupported_arch_fails(self, tmp_path: Path) -> None:
-        state = InstallerState()
-        log = MagicMock()
-        with patch(f"{_MOD}.resolve_asset_name", return_value=None):
-            result = DesktopProvisioner()._download_and_verify(
-                state, log, lambda _p: None
-            )
-        assert result is None
-
-
-class TestDownloadResume:
-    def _download(
-        self,
-        tmp_path: Path,
-        response: MagicMock,
-        partial_content: bytes | None = None,
-        provisioner: DesktopProvisioner | None = None,
-    ) -> tuple[bool, Path, DesktopProvisioner]:
-        dest = tmp_path / "asset.bin"
-        if partial_content is not None:
-            (tmp_path / "asset.bin.partial").write_bytes(partial_content)
-        provisioner = provisioner or DesktopProvisioner()
-        with patch(f"{_MOD}.httpx") as mock_httpx:
-            mock_httpx.stream.return_value = response
-            mock_httpx.HTTPError = Exception
-            ok = provisioner._download_with_resume(
-                "https://example.invalid/asset.bin",
-                str(dest),
-                MagicMock(),
-                lambda _p: None,
-            )
-            stream_kwargs = mock_httpx.stream.call_args.kwargs
-        self._last_headers = stream_kwargs.get("headers", {})
-        return ok, dest, provisioner
-
-    def test_resume_sends_range_and_appends_on_206(self, tmp_path: Path) -> None:
-        resp = _mock_stream_response([b"-tail"], status_code=206)
-        ok, dest, _ = self._download(tmp_path, resp, partial_content=b"head")
-        assert ok is True
-        assert self._last_headers == {"Range": "bytes=4-"}
-        assert dest.read_bytes() == b"head-tail"
-
-    def test_restarts_when_server_ignores_range(self, tmp_path: Path) -> None:
-        resp = _mock_stream_response([b"fresh"], status_code=200)
-        ok, dest, _ = self._download(tmp_path, resp, partial_content=b"stale")
-        assert ok is True
-        assert dest.read_bytes() == b"fresh"
-
-    def test_416_promotes_complete_partial(self, tmp_path: Path) -> None:
-        resp = _mock_stream_response([], status_code=416)
-        ok, dest, _ = self._download(tmp_path, resp, partial_content=b"whole-file")
-        assert ok is True
-        assert dest.read_bytes() == b"whole-file"
-
-    def test_cancel_keeps_partial_for_resume(self, tmp_path: Path) -> None:
-        provisioner = DesktopProvisioner()
-        provisioner.cancel()
-        resp = _mock_stream_response([b"chunk1", b"chunk2"])
-        ok, dest, _ = self._download(tmp_path, resp, provisioner=provisioner)
+        with patch(f"{_MOD}.embedded_payload_dir", return_value=None):
+            ok = DesktopProvisioner().install(state, MagicMock())
         assert ok is False
-        assert not dest.exists()
-        assert (tmp_path / "asset.bin.partial").exists()
+        assert state.desktop_installed is False
+
+
+class TestCheckDesktopPayloadDiagnostic:
+    def test_intact_payload_exits_zero(self, tmp_path: Path) -> None:
+        payload = _write_payload(tmp_path)
+        with patch(f"{_MOD}.embedded_payload_dir", return_value=payload):
+            assert check_desktop_payload() == 0
+
+    def test_missing_payload_exits_one(self) -> None:
+        with patch(f"{_MOD}.embedded_payload_dir", return_value=None):
+            assert check_desktop_payload() == 1
+
+    def test_hash_mismatch_exits_one(self, tmp_path: Path) -> None:
+        payload = _write_payload(tmp_path, sha="0" * 64)
+        with patch(f"{_MOD}.embedded_payload_dir", return_value=payload):
+            assert check_desktop_payload() == 1
 
 
 class TestInstallDispatchWindows:
@@ -415,7 +342,7 @@ class TestInstallDispatchLinux:
 
 
 class TestInstallOrchestration:
-    def test_local_override_skips_release_fetch(self, tmp_path: Path) -> None:
+    def test_local_override_skips_embedded_payload(self, tmp_path: Path) -> None:
         bundle = tmp_path / "Nexus_2.1.0_x64-setup.exe"
         bundle.write_bytes(b"local-bundle")
         state = InstallerState(desktop_bundle_override=str(bundle))
@@ -423,7 +350,7 @@ class TestInstallOrchestration:
         provisioner = DesktopProvisioner()
 
         with (
-            patch(f"{_MOD}.httpx") as mock_httpx,
+            patch(f"{_MOD}.embedded_payload_dir") as mock_payload,
             patch.object(provisioner, "_dispatch_install", return_value=True),
             patch(f"{_MOD}.first_run_health_check", return_value=True),
         ):
@@ -431,8 +358,7 @@ class TestInstallOrchestration:
 
         assert ok is True
         assert state.desktop_installed is True
-        mock_httpx.get.assert_not_called()
-        mock_httpx.stream.assert_not_called()
+        mock_payload.assert_not_called()  # the dev seam bypasses the payload
 
     def test_missing_override_fails(self, tmp_path: Path) -> None:
         state = InstallerState(
@@ -442,11 +368,11 @@ class TestInstallOrchestration:
         assert ok is False
         assert state.desktop_installed is False
 
-    def test_failed_download_never_dispatches_install(self) -> None:
+    def test_failed_verification_never_dispatches_install(self) -> None:
         state = InstallerState()
         provisioner = DesktopProvisioner()
         with (
-            patch.object(provisioner, "_download_and_verify", return_value=None),
+            patch.object(provisioner, "_resolve_embedded", return_value=None),
             patch.object(provisioner, "_dispatch_install") as mock_dispatch,
         ):
             ok = provisioner.install(state, MagicMock())

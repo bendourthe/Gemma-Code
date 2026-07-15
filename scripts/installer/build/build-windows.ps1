@@ -49,6 +49,33 @@ if ($Vsix) {
     Write-Host "  WARNING: No VSIX found. Installer will not bundle the extension." -ForegroundColor Yellow
 }
 
+# v1.11.0 Phase 4 (T401): stage the desktop-app bundle for embedding. The
+# installer no longer fetches the desktop app from GitHub releases at install
+# time (that 404'd whenever a release shipped without binary assets); the NSIS
+# bundle is embedded in the onefile instead. FAIL CLOSED: the bundle version
+# must equal the product version (COORD.2), and a missing bundle stops the
+# build -- a NexusSetup.exe without the desktop app is not shippable.
+$DesktopBundle = Join-Path $RepoRoot "desktop\src-tauri\target\release\bundle\nsis\Nexus AI Studio_${Version}_x64-setup.exe"
+if (-not (Test-Path $DesktopBundle)) {
+    Write-Host "ERROR: desktop bundle not found for product version ${Version}:" -ForegroundColor Red
+    Write-Host "  $DesktopBundle" -ForegroundColor Red
+    Write-Host "  Build it first: cd desktop; npm run build:shell" -ForegroundColor Red
+    exit 1
+}
+$PayloadDir = Join-Path $InstallerRoot "build\desktop-payload"
+New-Item -ItemType Directory -Force -Path $PayloadDir | Out-Null
+$StagedBundle = Join-Path $PayloadDir "Nexus-Desktop-Setup.exe"
+Copy-Item $DesktopBundle $StagedBundle -Force
+$BundleHash = (Get-FileHash $StagedBundle -Algorithm SHA256).Hash.ToLower()
+@{
+    filename      = "Nexus-Desktop-Setup.exe"
+    original_name = (Split-Path $DesktopBundle -Leaf)
+    version       = $Version
+    sha256        = $BundleHash
+    platform      = "win32"
+} | ConvertTo-Json | Set-Content (Join-Path $PayloadDir "manifest.json") -Encoding ascii
+Write-Host "  Desktop bundle staged: $(Split-Path $DesktopBundle -Leaf) (sha256 $($BundleHash.Substring(0,12))...)"
+
 # The onefile is written straight to the repo-root dist/ (gitignored) so the
 # canonical local output is easy to find -- no deep pyqt/dist + hand-copy.
 Write-Host "[3/4] Running PyInstaller (single onefile -> dist/NexusSetup.exe)..." -ForegroundColor Cyan

@@ -57,6 +57,12 @@ Write-Host "==> Bundled registry probe (--check-registry)"
 $proc = Start-Process -FilePath $ExePath -ArgumentList "--check-registry" -Wait -PassThru
 Assert-True ($proc.ExitCode -eq 0) "NexusSetup.exe --check-registry exit code 0 (got $($proc.ExitCode))"
 
+# v1.11.0 Phase 4 (T404): the embedded desktop payload must be present,
+# manifest-valid, and hash-intact inside the frozen bundle.
+Write-Host "==> Embedded desktop payload probe (--check-desktop-payload)"
+$proc = Start-Process -FilePath $ExePath -ArgumentList "--check-desktop-payload" -Wait -PassThru
+Assert-True ($proc.ExitCode -eq 0) "NexusSetup.exe --check-desktop-payload exit code 0 (got $($proc.ExitCode))"
+
 if ($failures.Count -gt 0) {
     Write-Host "`nSmoke FAILED: $($failures.Count) assertion(s)." -ForegroundColor Red
     exit 1

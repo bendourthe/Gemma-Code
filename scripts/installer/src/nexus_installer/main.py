@@ -126,6 +126,15 @@ def _build_arg_parser() -> argparse.ArgumentParser:
             "packaging smoke against the frozen exe)."
         ),
     )
+    parser.add_argument(
+        "--check-desktop-payload",
+        action="store_true",
+        help=(
+            "Diagnostic: verify the embedded desktop-app payload (manifest + "
+            "hash) and exit 0 when intact (v1.11.0 Phase 4; used by the "
+            "packaging smoke against the frozen exe)."
+        ),
+    )
     return parser
 
 
@@ -283,6 +292,15 @@ def main() -> None:
         from nexus_installer.registry_paths import check_registry
 
         sys.exit(check_registry())
+
+    if args.check_desktop_payload:
+        # Qt-free diagnostic (v1.11.0 Phase 4, T404): asserts the frozen
+        # bundle carries an intact embedded desktop-app payload.
+        from nexus_installer.engine.desktop_provisioner import (
+            check_desktop_payload,
+        )
+
+        sys.exit(check_desktop_payload())
 
     if args.headless or args.headless_smoke:
         sys.exit(_run_headless(args))

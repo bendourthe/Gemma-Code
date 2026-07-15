@@ -85,6 +85,25 @@ for asset_name in ("icon.ico", "icon.png", "nexus-ai-primary_no-background.png")
     if asset_path.exists():
         datas.append((str(asset_path), "assets"))
 
+# v1.11.0 Phase 4 (T401): the embedded desktop-app bundle + its build-time
+# manifest (name, version, sha256), staged by build-windows.ps1 into
+# build/desktop-payload/. The provisioner installs from this payload instead
+# of fetching a GitHub release. FAIL CLOSED on Windows: an installer without
+# the desktop app is not shippable (macOS/Linux staging lands with their
+# build-script rework; the provisioner fail-softs there).
+desktop_payload = INSTALLER_ROOT / "build" / "desktop-payload"
+if sys.platform == "win32":
+    _bundle = desktop_payload / "Nexus-Desktop-Setup.exe"
+    _manifest = desktop_payload / "manifest.json"
+    if not (_bundle.is_file() and _manifest.is_file()):
+        raise SystemExit(
+            "desktop payload missing: run scripts/installer/build/"
+            "build-windows.ps1 (it stages build/desktop-payload/ from the "
+            "Tauri NSIS bundle) instead of invoking pyinstaller directly."
+        )
+    datas.append((str(_bundle), "desktop-bundle"))
+    datas.append((str(_manifest), "desktop-bundle"))
+
 a = Analysis(
     [str(INSTALLER_ROOT / "src" / "nexus_installer" / "main.py")],
     pathex=[str(INSTALLER_ROOT / "src")],

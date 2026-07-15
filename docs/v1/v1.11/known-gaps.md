@@ -46,6 +46,14 @@ Tracks unfinished work, deferrals, and coordination for the v1.11.0 installer ov
 | IO.P3.B | P2 | QG | **T304's "default-profile sandbox run completes end-to-end" gate is pending**: Windows Sandbox is still an operator action (IO.P2.A), and end-to-end completion is structurally impossible before P4 lands the embedded desktop step. The phase's unit gates all ran (full suite, live headless-smoke regression green). | Run `testing/run-sandbox-test.ps1 -ProfileName sandbox-default` after enabling Sandbox; re-run after P4 for the full-completion assertion. |
 | IO.P3.C | P3 | NI | The Ollama pin (v0.32.0) means a ~1.4 GB dependency download on both platforms at install time (upstream's size, not ours); the pinned tag will drift behind upstream over time. | `build/check-ollama-pin.py` (advisory; `--strict` for CI) prints the current digests for one-command rotation. |
 
+## 1d. Phase 4 -- embed the desktop app (landed 2026-07-14)
+
+| ID | Sev | Cat | Gap | Disposition |
+|----|-----|-----|-----|-------------|
+| IO.P4.A | P2 | NI | **Only the Windows build embeds a desktop payload.** build-windows.ps1 stages the NSIS bundle fail-closed; build-macos.sh / build-linux.sh do not stage their DMG/AppImage yet, so frozen mac/linux installers fail the desktop step with the structured "missing from this installer build" reason (the override seam still works). | Extend the mac/linux build scripts with the same staging stage when those platforms get their packaging pass (macOS checklist covers the manual path meanwhile). |
+| IO.P4.B | P3 | NI | The Tauri NSIS bundle is only ~1.7 MB (a web-bootstrapping stub) -- RISK.2's feared +100-160 MB growth did not materialize, but it means the desktop app's own installer may fetch WebView2/runtime pieces from the network at ITS install time (Tauri's default bootstrapper behavior). | Verify in the operator sandbox run what the NSIS stub downloads on a clean machine; if it breaks the offline-from-GitHub goal, switch the Tauri bundler to the embedBootstrapper/offline installer option in the desktop workspace. |
+| IO.P4.C | P3 | NI | The engine's desktop-step progress is now coarse (verify 0.3 -> install 0.9 -> health 1.0); the old download-driven progress curve is gone with the fetch path. | P5's per-step UI renders step status + reasons; a finer NSIS-install progress signal is not available from a silent /S run. |
+
 ## 2. Cross-cutting
 
 | ID | Sev | Cat | Gap | Disposition |

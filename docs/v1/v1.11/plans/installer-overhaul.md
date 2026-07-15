@@ -133,12 +133,12 @@ Prove and harden every prerequisite step on the clean machine - the "no browser,
 
 ---
 
-## Phase 4 - Embed the desktop app in the installer (D2)
+## Phase 4 - Embed the desktop app in the installer (D2) (landed 2026-07-14)
 
-- [ ] **T401** Build pipeline: `build-windows.ps1` gains a desktop-bundle stage - locate (or build via `npm run build:shell`) the NSIS `Nexus AI Studio_<ver>_x64-setup.exe`, verify its version equals the product version (COORD.2, fail closed), hash it, and embed it in the PyInstaller payload alongside a build-time manifest (name, version, sha256).
-- [ ] **T402** Rework `desktop_provisioner.py`: install from the embedded payload (extract to temp, verify the build-time hash, run the NSIS bundle silently, health-check first launch) - delete the GitHub-release fetch path (and its `SHA256SUMS.txt` contract); keep `desktop_bundle_override` for dev. Fail-soft with the T303 structured error if the embedded payload is missing/corrupt.
-- [ ] **T403** Opportunistic while the pipeline is open: rename the VSIX artifact to `nexus-coding-<ver>.vsix` (`build-vsix.ps1` + the installer's already-preferring glob + docs) - closes the `NAME.P1.A` remnant for this artifact.
-- [ ] **T404** [tests] Pipeline tests (version-mismatch fails the build; missing bundle fails the build), provisioner tests (hash verify, silent-install invocation, override seam), packaging smoke updated for the new size (~320-380 MB, RISK.2). Gate: sandbox run installs the desktop app fully offline-from-GitHub.
+- [x] **T401** Build pipeline: `build-windows.ps1` gains a desktop-bundle stage - locate (or build via `npm run build:shell`) the NSIS `Nexus AI Studio_<ver>_x64-setup.exe`, verify its version equals the product version (COORD.2, fail closed), hash it, and embed it in the PyInstaller payload alongside a build-time manifest (name, version, sha256).
+- [x] **T402** Rework `desktop_provisioner.py`: install from the embedded payload (extract to temp, verify the build-time hash, run the NSIS bundle silently, health-check first launch) - delete the GitHub-release fetch path (and its `SHA256SUMS.txt` contract); keep `desktop_bundle_override` for dev. Fail-soft with the T303 structured error if the embedded payload is missing/corrupt.
+- [x] **T403** Opportunistic while the pipeline is open: rename the VSIX artifact to `nexus-coding-<ver>.vsix` (`build-vsix.ps1` + the installer's already-preferring glob + docs) - closes the `NAME.P1.A` remnant for this artifact.
+- [x] **T404** [tests] Pipeline tests (version-mismatch fails the build; missing bundle fails the build), provisioner tests (hash verify, silent-install invocation, override seam), packaging smoke updated for the new size (~320-380 MB, RISK.2). Gate: sandbox run installs the desktop app fully offline-from-GitHub.
 
 **Acceptance:** the desktop step succeeds on the sandbox with networking to GitHub blocked; `NexusSetup.exe` is the single artifact a user needs.
 

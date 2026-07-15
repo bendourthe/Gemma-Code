@@ -4,6 +4,33 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-14] v1.11.0 installer overhaul -- Phase 4: embed the desktop app (T401-T404)
+
+### Goal
+
+Kill the desktop step's GitHub-release 404 for good (D2): the desktop app ships INSIDE `NexusSetup.exe`, making the installer the single artifact a user needs -- zero network for the desktop step.
+
+### What changed
+
+- **T401 build stage** ([build-windows.ps1](../scripts/installer/build/build-windows.ps1) + [nexus-installer.spec](../scripts/installer/build/nexus-installer.spec)): the build locates the Tauri NSIS bundle for the EXACT product version (COORD.2 -- globbing by `package.json`'s version IS the coupling check), fails closed when absent, and stages it as `build/desktop-payload/Nexus-Desktop-Setup.exe` + a `manifest.json` (name, version, sha256). The spec embeds both under `desktop-bundle/` and itself fails closed on Windows if the staging is missing (no accidental bare-`pyinstaller` builds without the app).
+- **T402 provisioner rework** ([desktop_provisioner.py](../scripts/installer/src/nexus_installer/engine/desktop_provisioner.py)): installs from the embedded payload -- `_MEIPASS`-first resolution (mirroring `registry_paths`), manifest validation (BOM-tolerant), sha256 verification fail-closed, then the existing silent-NSIS/DMG/AppImage dispatch + first-launch health check. The ENTIRE release-fetch path is deleted (pinned-tag URLs, `SHA256SUMS.txt` contract, resume downloader, httpx dependency); `desktop_bundle_override` stays as the dev seam. Every failure mode records a T303 structured reason.
+- **T404 diagnostic**: `NexusSetup.exe --check-desktop-payload` (Qt-free) asserts the embedded payload is present, manifest-valid, and hash-intact; wired into the packaging smoke (now 5 probes).
+- **T403**: the VSIX artifact is `nexus-coding-<ver>.vsix` (build script + the existing artifact renamed; the spec/installer globs already preferred it) -- the `NAME.P1.A` remnant for this artifact is closed.
+
+### The size surprise
+
+RISK.2 budgeted +100-160 MB; the Tauri NSIS bundle is actually **~1.7 MB** (a web-bootstrapping stub), so the installer barely grew (220.7 MB, SHA `827ADEF8`). Recorded `IO.P4.B`: the stub may fetch WebView2/runtime pieces at ITS install time -- sandbox-verify, and switch Tauri to the offline bootstrapper if it breaks the goal.
+
+### Verification
+
+Full installer suite green (rewritten provisioner tests: payload manifest validation incl. BOM, hash-mismatch/missing/malformed fail-closed with structured reasons, install-from-embedded dispatch, diagnostic exit codes; the dead fetch/sums/resume test classes deleted with their code); ruff/mypy clean; rebuild green with the fail-closed staging stage; **packaging smoke 5/5** incl. the embedded-payload probe against the frozen exe. mac/linux payload staging deferred (`IO.P4.A`).
+
+### Branch
+
+`feat/v1.11.0-installer-overhaul`
+
+---
+
 ## [2026-07-14] v1.11.0 installer overhaul -- Phase 3: dependency self-sufficiency (T301-T304)
 
 ### Goal
