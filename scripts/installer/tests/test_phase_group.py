@@ -105,6 +105,171 @@ class TestPhaseGroupDetails:
         assert group.state == STATE_FAILED
 
 
+class TestConditionalSubBars:
+    """T501: per-step overview rows exist ONLY for multi-step phases."""
+
+    def test_multi_step_phase_has_step_rows(self, qt_app: object) -> None:
+        group = PhaseGroup("Dependencies", ["ollama", "venv"])
+        assert set(group._step_rows) == {"ollama", "venv"}
+
+    def test_single_step_phase_has_no_step_rows(self, qt_app: object) -> None:
+        group = PhaseGroup("VS Code Extension", ["extension"])
+        assert group._step_rows == {}
+
+
+class TestFormattingHelpers:
+    def test_size_progress_with_totals(self) -> None:
+        from nexus_installer.widgets.phase_group import format_size_progress
+
+        text = format_size_progress(5 * 2**30, int(6.9 * 2**30), 0.72)
+        assert text == "5.0 GB / 6.9 GB (72%)"
+
+    def test_size_progress_without_totals_is_bare_percent(self) -> None:
+        from nexus_installer.widgets.phase_group import format_size_progress
+
+        assert format_size_progress(0, 0, 0.45) == "45%"
+
+    def test_speed(self) -> None:
+        from nexus_installer.widgets.phase_group import format_speed
+
+        assert format_speed(18.4 * 2**20) == "18.4 MB/s"
+        assert format_speed(0) == ""
+
+    def test_eta(self) -> None:
+        from nexus_installer.widgets.phase_group import format_eta
+
+        assert format_eta(12) == "00:12 remaining"
+        assert format_eta(3723) == "1:02:03 remaining"
+        assert format_eta(0) == ""
+
+
+class TestModelRows:
+    """T502: dynamic per-model rows driven by the engine telemetry."""
+
+    def test_rows_precreate_in_waiting_state(self, qt_app: object) -> None:
+        group = PhaseGroup("Models", ["model"])
+        group.ensure_model_row("realvisxl-v5")
+        group.ensure_model_row("nomic-embed-text")
+        assert group.model_row_ids() == ["realvisxl-v5", "nomic-embed-text"]
+        assert group._model_rows["realvisxl-v5"].status.text() == "Waiting to start"
+
+    def test_progress_updates_detail_text(self, qt_app: object) -> None:
+        group = PhaseGroup("Models", ["model"])
+        group.set_model_progress(
+            "realvisxl-v5",
+            0.72,
+            bytes_done=5 * 2**30,
+            bytes_total=int(6.9 * 2**30),
+            speed_bps=18.4 * 2**20,
+            eta_s=12,
+        )
+        detail = group._model_rows["realvisxl-v5"].detail.text()
+        assert "5.0 GB / 6.9 GB (72%)" in detail
+        assert "18.4 MB/s" in detail
+        assert "00:12 remaining" in detail
+        assert group._model_rows["realvisxl-v5"].status.text() == "Downloading..."
+
+    def test_done_and_failed_states(self, qt_app: object) -> None:
+        group = PhaseGroup("Models", ["model"])
+        group.set_model_done("a")
+        assert group._model_rows["a"].status.text() == "Done"
+        group.set_model_failed("b", "401 Unauthorized")
+        assert "Failed: 401 Unauthorized" in group._model_rows["b"].status.text()
+        # A failing model auto-expands the details (T505).
+        assert group.details_visible is True
+
+
+class TestLogResize:
+    """T503: the log area resizes by dragging, clamped to sane bounds."""
+
+    def test_resize_grows_and_clamps(self, qt_app: object) -> None:
+        from nexus_installer.widgets.phase_group import (
+            LOG_MAX_HEIGHT,
+            LOG_MIN_HEIGHT,
+        )
+
+        group = PhaseGroup("Models", ["model"])
+        start = group.log_height
+        group._resize_log(60)
+        assert group.log_height == start + 60
+        group._resize_log(10000)
+        assert group.log_height == LOG_MAX_HEIGHT
+        group._resize_log(-10000)
+        assert group.log_height == LOG_MIN_HEIGHT
+
+
+class TestCopyFeedback:
+    """T504: copy flips to a checkmark + 'Copied', then reverts."""
+
+    def test_copy_shows_transient_feedback(self, qt_app: object) -> None:
+        group = PhaseGroup("Models", ["model"])
+        group.append_log("hello", "info")
+        group._on_copy_logs()
+        assert "Copied" in group._copy_btn.text()
+        assert group._copy_timer.isActive()
+        group._reset_copy_button()
+        assert "Copied" not in group._copy_btn.text()
+
+
+class TestFailureBlock:
+    """T505: the plain-language failure reason renders inside the details."""
+
+    def test_show_failure_reason_expands_and_renders(self, qt_app: object) -> None:
+        group = PhaseGroup("Dependencies", ["ollama", "venv"])
+        assert group.failure_visible is False
+        group.show_failure_reason(
+            "Ollama could not be downloaded.", "Check the connection."
+        )
+        assert group.failure_visible is True
+        assert group.details_visible is True
+        assert group._failure_summary.text() == "Ollama could not be downloaded."
+        assert group._failure_suggestion.text() == "Check the connection."
+
+
+class TestInstallingPageModelEvents:
+    """T502/T505 page wiring: engine model events route into the Models group."""
+
+    def _page(self, qt_app: object):
+        from nexus_installer.pages.installing import InstallingPage
+
+        state = InstallerState(selected_model_ids=["m1", "m2"])
+        return InstallingPage(state), state
+
+    def test_model_progress_routes_to_row(self, qt_app: object) -> None:
+        from nexus_installer.engine.model_router import ModelProgress
+
+        page, _state = self._page(qt_app)
+        sample = ModelProgress(
+            model_id="m1",
+            fraction=0.5,
+            bytes_done=2**30,
+            bytes_total=2 * 2**30,
+            speed_bps=10 * 2**20,
+            eta_s=100,
+        )
+        page._on_model_progress(sample)
+        group = page._models_group()
+        assert group is not None
+        assert "50%" in group._model_rows["m1"].detail.text()
+
+    def test_model_failed_routes_with_reason(self, qt_app: object) -> None:
+        page, _state = self._page(qt_app)
+        page._on_model_failed("m2", "Ollama server unavailable")
+        group = page._models_group()
+        assert group is not None
+        assert "Failed" in group._model_rows["m2"].status.text()
+
+    def test_step_failure_reason_surfaces_in_group(self, qt_app: object) -> None:
+        page, state = self._page(qt_app)
+        state.record_step_failure(
+            "ollama", "Ollama could not be downloaded.", "Check the connection."
+        )
+        page._on_step_failed("ollama")
+        deps_group = page._group_for("ollama")
+        assert deps_group is not None
+        assert deps_group.failure_visible is True
+
+
 class TestInstallingPageGroups:
     def test_default_components_build_four_groups(self, qt_app: object) -> None:
         from nexus_installer.pages.installing import InstallingPage

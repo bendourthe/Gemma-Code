@@ -1,23 +1,32 @@
-"""v1.8.0 Phase 5 -- one labeled phase group on the installing page.
+"""One labeled phase group on the installing page.
 
-A group covers one or more engine steps (e.g. "Dependencies" = ollama + venv)
-and renders a status header, an aggregate progress bar, and a collapsible
-"View Details" pane. The detail pane shows a per-step overview (one small
-progress bar + status per covered step) and a "View Logs" section holding that
-group's raw technical log with Copy / Save-to-file actions -- so a failed step
-tells the user what happened and hands them a log for troubleshooting instead
-of dumping raw output inline. The detail pane is a vertical splitter, so the
-overview / log split is user-resizable.
+v1.11.0 Phase 5 (T501-T505) -- the progress UX v2, per operator feedback on
+the v1.10 interim design:
 
-v2.x redesign: the old inline raw-log-behind-"Details" is replaced by the
-overview + on-demand "View Logs"; the public API (covers / mark_* /
-set_step_progress / append_log / log_text / state / progress) is unchanged so
-the installing page and engine routing are untouched.
+* The phase keeps ONE main accent bar. Per-step overview rows (name + a
+  visually distinct thin translucent sub-bar + status) render ONLY when the
+  phase covers more than one engine step -- a single-step phase shows no
+  redundant sub-bar (T501).
+* The Models phase gets dynamic PER-MODEL rows driven by the engine's
+  `model_*` telemetry: name, sub-bar, "X GB / Y GB (Z%) - S MB/s - ETA" and a
+  state text (Waiting to start / Downloading... / Done / Failed: reason)
+  (T502). The header shows a live percent indicator.
+* The log area is user-resizable via a visible drag grip on its bottom edge
+  (T503); rendering is monospace via the app QSS.
+* The Copy button flips to a checkmark + "Copied" for ~1.5s (T504).
+* A failed step auto-expands its details and shows the T303 plain-language
+  summary + suggested action right above the log actions (T505).
+
+The widget holds no engine knowledge beyond ordered step names and plain
+telemetry values; the installing page routes engine signals into it.
 """
 
 from __future__ import annotations
 
-from PyQt5.QtCore import Qt
+from collections.abc import Callable
+
+from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtGui import QMouseEvent
 from PyQt5.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -26,7 +35,6 @@ from PyQt5.QtWidgets import (
     QLabel,
     QProgressBar,
     QPushButton,
-    QSplitter,
     QVBoxLayout,
     QWidget,
 )
@@ -67,20 +75,157 @@ _STEP_LABELS: dict[str, str] = {
     "desktop": "Nexus Desktop app",
 }
 
-# Per-step overview status text + color by lifecycle.
-_STEP_STATUS: dict[str, tuple[str, str]] = {
-    STATE_PENDING: ("Waiting", TEXT_MUTED),
+_ROW_STATUS: dict[str, tuple[str, str]] = {
+    STATE_PENDING: ("Waiting to start", TEXT_MUTED),
     STATE_ACTIVE: ("Downloading...", ACCENT),
     STATE_DONE: ("Done", SUCCESS),
     STATE_FAILED: ("Failed", ERROR),
 }
 
-_CHEVRON_DOWN = "\u25be"  # small down triangle (collapsed)
-_CHEVRON_UP = "\u25b4"  # small up triangle (expanded)
+_CHEVRON_DOWN = "\u25be"
+_CHEVRON_UP = "\u25b4"
+_ICON_COPY = "\u29c9"
+_ICON_CHECK = "\u2713"
+_ICON_SAVE = "\u2913"
+
+COPY_FEEDBACK_MS = 1500
+LOG_MIN_HEIGHT = 80
+LOG_MAX_HEIGHT = 480
+LOG_DEFAULT_HEIGHT = 150
+
+# Sub-bars are deliberately distinct from the phase's main accent bar:
+# thinner (4px vs 8px) with a translucent accent chunk (#AARRGGBB alpha).
+_SUB_BAR_STYLE = (
+    "QProgressBar { background-color: rgba(255, 255, 255, 18); border: none; "
+    "border-radius: 2px; min-height: 4px; max-height: 4px; }"
+    f"QProgressBar::chunk {{ background-color: #7f{ACCENT.lstrip('#')}; "
+    "border-radius: 2px; }"
+)
+
+
+def format_size_progress(bytes_done: int, bytes_total: int, fraction: float) -> str:
+    """`5.0 GB / 6.9 GB (72%)` -- or a bare percent when sizes are unknown."""
+    pct = int(round(min(max(fraction, 0.0), 1.0) * 100))
+    if bytes_total <= 0:
+        return f"{pct}%"
+    return f"{_fmt_bytes(bytes_done)} / {_fmt_bytes(bytes_total)} ({pct}%)"
+
+
+def _fmt_bytes(n: int) -> str:
+    if n >= 2**30:
+        return f"{n / 2**30:.1f} GB"
+    return f"{max(n, 0) / 2**20:.0f} MB"
+
+
+def format_speed(bps: float) -> str:
+    """`18.4 MB/s`, or '' when the speed is not yet measurable."""
+    if bps <= 0:
+        return ""
+    return f"{bps / 2**20:.1f} MB/s"
+
+
+def format_eta(seconds: float) -> str:
+    """`00:12 remaining` (h:mm:ss over an hour), or '' when unknown."""
+    if seconds <= 0:
+        return ""
+    total = int(seconds)
+    hours, rem = divmod(total, 3600)
+    minutes, secs = divmod(rem, 60)
+    if hours:
+        return f"{hours}:{minutes:02d}:{secs:02d} remaining"
+    return f"{minutes:02d}:{secs:02d} remaining"
+
+
+class _ProgressRow:
+    """One overview row: name + thin sub-bar + detail + status text."""
+
+    def __init__(self, label: str) -> None:
+        self.widget = QWidget()
+        layout = QHBoxLayout(self.widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+
+        self.name = QLabel(label)
+        self.name.setStyleSheet(
+            f"color: {TEXT_SECONDARY}; font-size: {FS_CAPTION}px; "
+            f"background: transparent;"
+        )
+        self.name.setMinimumWidth(150)
+
+        self.bar = QProgressBar()
+        self.bar.setMinimum(0)
+        self.bar.setMaximum(1000)
+        self.bar.setValue(0)
+        self.bar.setTextVisible(False)
+        self.bar.setStyleSheet(_SUB_BAR_STYLE)
+
+        self.detail = QLabel("")
+        self.detail.setStyleSheet(
+            f"color: {TEXT_MUTED}; font-size: {FS_CAPTION}px; background: transparent;"
+        )
+
+        self.status = QLabel("")
+        self.status.setMinimumWidth(110)
+        # AlignRight alone: vertical centering is the QLabel default, and the
+        # PyQt5 stubs type flag unions as int, tripping strict mypy.
+        self.status.setAlignment(Qt.AlignmentFlag.AlignRight)
+
+        layout.addWidget(self.name)
+        layout.addWidget(self.bar, stretch=1)
+        layout.addWidget(self.detail)
+        layout.addWidget(self.status)
+        self.set_state(STATE_PENDING)
+
+    def set_state(self, state: str, status_text: str | None = None) -> None:
+        text, color = _ROW_STATUS[state]
+        self.status.setText(status_text if status_text is not None else text)
+        self.status.setStyleSheet(
+            f"color: {color}; font-size: {FS_CAPTION}px; background: transparent;"
+        )
+
+    def set_fraction(self, fraction: float) -> None:
+        self.bar.setValue(int(min(max(fraction, 0.0), 1.0) * 1000))
+
+
+class _LogResizeGrip(QFrame):
+    """Visible drag handle on the log panel's bottom edge (T503)."""
+
+    def __init__(
+        self, on_delta: Callable[[int], None], parent: QWidget | None = None
+    ) -> None:
+        super().__init__(parent)
+        self._on_delta = on_delta
+        self._drag_start_y: int | None = None
+        self.setFixedHeight(10)
+        self.setCursor(Qt.CursorShape.SizeVerCursor)
+        self.setToolTip("Drag to resize the log area")
+        grip_layout = QHBoxLayout(self)
+        grip_layout.setContentsMargins(0, 2, 0, 2)
+        line = QFrame()
+        line.setFixedSize(48, 4)
+        line.setStyleSheet(
+            f"background: {BORDER}; border-radius: 2px;"
+        )
+        grip_layout.addStretch(1)
+        grip_layout.addWidget(line)
+        grip_layout.addStretch(1)
+
+    def mousePressEvent(self, a0: QMouseEvent | None) -> None:  # noqa: N802
+        if a0 is not None:
+            self._drag_start_y = a0.globalY()
+
+    def mouseMoveEvent(self, a0: QMouseEvent | None) -> None:  # noqa: N802
+        if a0 is not None and self._drag_start_y is not None:
+            delta = a0.globalY() - self._drag_start_y
+            self._drag_start_y = a0.globalY()
+            self._on_delta(delta)
+
+    def mouseReleaseEvent(self, a0: QMouseEvent | None) -> None:  # noqa: N802
+        self._drag_start_y = None
 
 
 class PhaseGroup(QFrame):
-    """Card: status header, aggregate bar, collapsible per-step details + logs."""
+    """Card: status header + main bar + collapsible details (rows, logs)."""
 
     def __init__(
         self,
@@ -92,12 +237,11 @@ class PhaseGroup(QFrame):
         self._title_text = title
         self._steps: list[str] = list(steps)
         self._fractions: dict[str, float] = {s: 0.0 for s in self._steps}
-        self._step_states: dict[str, str] = {s: STATE_PENDING for s in self._steps}
-        self._step_bars: dict[str, QProgressBar] = {}
-        self._step_status: dict[str, QLabel] = {}
         self._failed: set[str] = set()
         self._started = False
         self._settled = False
+        self._step_rows: dict[str, _ProgressRow] = {}
+        self._model_rows: dict[str, _ProgressRow] = {}
 
         self.setObjectName("phaseGroup")
 
@@ -105,7 +249,7 @@ class PhaseGroup(QFrame):
         layout.setContentsMargins(12, 8, 12, 8)
         layout.setSpacing(6)
 
-        # -- Header: icon, title, status text, "View Details" toggle ----------
+        # -- Header: icon, title, percent, status, "View Details" toggle -----
         header = QHBoxLayout()
         header.setSpacing(8)
 
@@ -119,6 +263,13 @@ class PhaseGroup(QFrame):
             f"background: transparent;"
         )
         header.addWidget(self._title, stretch=1)
+
+        self._pct = QLabel("")
+        self._pct.setStyleSheet(
+            f"color: {ACCENT}; font-size: {FS_BODY}px; font-weight: bold; "
+            f"background: transparent;"
+        )
+        header.addWidget(self._pct)
 
         self._status = QLabel("Waiting")
         self._status.setStyleSheet(
@@ -134,7 +285,7 @@ class PhaseGroup(QFrame):
         header.addWidget(self._toggle)
         layout.addLayout(header)
 
-        # -- Aggregate progress bar (always visible) --------------------------
+        # -- Main accent bar (always visible; the phase's ONE main bar) ------
         self._bar = QProgressBar()
         self._bar.setMinimum(0)
         self._bar.setMaximum(1000)
@@ -142,35 +293,64 @@ class PhaseGroup(QFrame):
         self._bar.setTextVisible(False)
         layout.addWidget(self._bar)
 
-        # -- Collapsible detail pane (resizable splitter: overview | logs) ----
+        # -- Collapsible details ---------------------------------------------
         self._details = QWidget()
         self._details.setVisible(False)
         details_layout = QVBoxLayout(self._details)
         details_layout.setContentsMargins(0, 4, 0, 0)
         details_layout.setSpacing(6)
 
-        self._split = QSplitter(Qt.Orientation.Vertical)
-        self._split.setChildrenCollapsible(False)
+        # T505: plain-language failure block (hidden until a failure).
+        self._failure_box = QFrame()
+        self._failure_box.setVisible(False)
+        self._failure_box.setStyleSheet(
+            f"QFrame {{ border: 1px solid {ERROR}; border-radius: 6px; "
+            "background: rgba(239, 68, 68, 16); }"
+        )
+        failure_layout = QVBoxLayout(self._failure_box)
+        failure_layout.setContentsMargins(10, 8, 10, 8)
+        failure_layout.setSpacing(2)
+        self._failure_summary = QLabel("")
+        self._failure_summary.setWordWrap(True)
+        self._failure_summary.setStyleSheet(
+            f"color: {ERROR}; font-size: {FS_CAPTION}px; font-weight: bold; "
+            "border: none; background: transparent;"
+        )
+        self._failure_suggestion = QLabel("")
+        self._failure_suggestion.setWordWrap(True)
+        self._failure_suggestion.setStyleSheet(
+            f"color: {TEXT_SECONDARY}; font-size: {FS_CAPTION}px; "
+            "border: none; background: transparent;"
+        )
+        failure_layout.addWidget(self._failure_summary)
+        failure_layout.addWidget(self._failure_suggestion)
+        details_layout.addWidget(self._failure_box)
 
-        # Overview: one row (name + bar + status) per covered step.
-        overview = QWidget()
-        overview_layout = QVBoxLayout(overview)
-        overview_layout.setContentsMargins(0, 0, 0, 0)
-        overview_layout.setSpacing(4)
-        for step in self._steps:
-            overview_layout.addLayout(self._build_step_row(step))
+        # T501: per-step overview rows ONLY when this phase has >1 sub-step.
+        self._rows_layout = QVBoxLayout()
+        self._rows_layout.setSpacing(4)
+        if len(self._steps) > 1:
+            for step in self._steps:
+                row = _ProgressRow(_STEP_LABELS.get(step, step))
+                row.set_state(STATE_PENDING, "Waiting")
+                self._step_rows[step] = row
+                self._rows_layout.addWidget(row.widget)
+        details_layout.addLayout(self._rows_layout)
+
+        # T502: dynamic per-model rows land here (installing page drives them).
+        self._model_rows_layout = QVBoxLayout()
+        self._model_rows_layout.setSpacing(4)
+        details_layout.addLayout(self._model_rows_layout)
 
         self._logs_toggle = QPushButton(f"View Logs {_CHEVRON_DOWN}")
         self._logs_toggle.setCheckable(True)
         self._logs_toggle.setStyleSheet(self._toggle_style())
         self._logs_toggle.toggled.connect(self._on_logs_toggle)
-        overview_layout.addWidget(
+        details_layout.addWidget(
             self._logs_toggle, alignment=Qt.AlignmentFlag.AlignLeft
         )
-        overview_layout.addStretch(1)
-        self._split.addWidget(overview)
 
-        # Logs pane: Copy / Save toolbar + the raw technical log.
+        # Logs pane: Copy / Save toolbar + the raw technical log + grip.
         self._logs_area = QWidget()
         self._logs_area.setVisible(False)
         logs_layout = QVBoxLayout(self._logs_area)
@@ -179,21 +359,28 @@ class PhaseGroup(QFrame):
 
         toolbar = QHBoxLayout()
         toolbar.addStretch(1)
-        self._copy_btn = self._icon_button("\u29c9", "Copy logs to clipboard")
+        self._copy_btn = self._icon_button(_ICON_COPY, "Copy logs to clipboard")
         self._copy_btn.clicked.connect(self._on_copy_logs)
         toolbar.addWidget(self._copy_btn)
-        self._save_btn = self._icon_button("\u2913", "Save logs to a .txt file")
+        self._save_btn = self._icon_button(_ICON_SAVE, "Save logs to a .txt file")
         self._save_btn.clicked.connect(self._on_save_logs)
         toolbar.addWidget(self._save_btn)
         logs_layout.addLayout(toolbar)
 
         self._log = LogPanel()
-        self._log.setMinimumHeight(120)
+        self._log_height = LOG_DEFAULT_HEIGHT
+        self._log.setFixedHeight(self._log_height)
         logs_layout.addWidget(self._log)
-        self._split.addWidget(self._logs_area)
+        logs_layout.addWidget(_LogResizeGrip(self._resize_log))
+        details_layout.addWidget(self._logs_area)
 
-        details_layout.addWidget(self._split)
         layout.addWidget(self._details)
+
+        # T504: transient "Copied" feedback timer.
+        self._copy_timer = QTimer(self)
+        self._copy_timer.setSingleShot(True)
+        self._copy_timer.setInterval(COPY_FEEDBACK_MS)
+        self._copy_timer.timeout.connect(self._reset_copy_button)
 
         self._apply_state(STATE_PENDING)
 
@@ -214,40 +401,15 @@ class PhaseGroup(QFrame):
     def _icon_button(self, glyph: str, tooltip: str) -> QPushButton:
         btn = QPushButton(glyph)
         btn.setToolTip(tooltip)
-        btn.setFixedSize(28, 24)
+        btn.setFixedHeight(24)
+        btn.setMinimumWidth(28)
         btn.setStyleSheet(
             f"QPushButton {{ background: transparent; color: {TEXT_SECONDARY}; "
-            f"border: 1px solid {BORDER}; border-radius: 4px; font-size: 14px; }}"
+            f"border: 1px solid {BORDER}; border-radius: 4px; font-size: 13px; "
+            "padding: 0 6px; }"
             f"QPushButton:hover {{ color: {TEXT_PRIMARY}; border-color: {ACCENT}; }}"
         )
         return btn
-
-    def _build_step_row(self, step: str) -> QHBoxLayout:
-        row = QHBoxLayout()
-        row.setSpacing(8)
-        name = QLabel(_STEP_LABELS.get(step, step))
-        name.setStyleSheet(
-            f"color: {TEXT_SECONDARY}; font-size: {FS_CAPTION}px; "
-            f"background: transparent;"
-        )
-        name.setMinimumWidth(140)
-        bar = QProgressBar()
-        bar.setMinimum(0)
-        bar.setMaximum(1000)
-        bar.setValue(0)
-        bar.setTextVisible(False)
-        bar.setFixedHeight(6)
-        status = QLabel("Waiting")
-        status.setStyleSheet(
-            f"color: {TEXT_MUTED}; font-size: {FS_CAPTION}px; background: transparent;"
-        )
-        status.setMinimumWidth(90)
-        self._step_bars[step] = bar
-        self._step_status[step] = status
-        row.addWidget(name)
-        row.addWidget(bar, stretch=1)
-        row.addWidget(status)
-        return row
 
     # -----------------------------------------------------------------
     # State transitions (driven by the installing page)
@@ -275,7 +437,8 @@ class PhaseGroup(QFrame):
         if not self.covers(step):
             return
         self._started = True
-        self._set_step_state(step, STATE_ACTIVE)
+        if step in self._step_rows:
+            self._step_rows[step].set_state(STATE_ACTIVE, "Installing...")
         if not self._settled:
             self._apply_state(STATE_ACTIVE)
 
@@ -284,15 +447,17 @@ class PhaseGroup(QFrame):
             return
         clamped = max(0.0, min(1.0, fraction))
         self._fractions[step] = clamped
-        self._step_bars[step].setValue(int(clamped * 1000))
+        if step in self._step_rows:
+            self._step_rows[step].set_fraction(clamped)
         self._refresh_bar()
 
     def mark_step_done(self, step: str) -> None:
         if not self.covers(step):
             return
         self._fractions[step] = 1.0
-        self._step_bars[step].setValue(1000)
-        self._set_step_state(step, STATE_DONE)
+        if step in self._step_rows:
+            self._step_rows[step].set_fraction(1.0)
+            self._step_rows[step].set_state(STATE_DONE)
         self._refresh_bar()
         self._maybe_settle()
 
@@ -301,10 +466,83 @@ class PhaseGroup(QFrame):
             return
         self._fractions[step] = 1.0
         self._failed.add(step)
-        self._step_bars[step].setValue(1000)
-        self._set_step_state(step, STATE_FAILED)
+        if step in self._step_rows:
+            self._step_rows[step].set_fraction(1.0)
+            self._step_rows[step].set_state(STATE_FAILED)
         self._refresh_bar()
         self._maybe_settle()
+
+    # -----------------------------------------------------------------
+    # Per-model rows (T502; the installing page drives these)
+    # -----------------------------------------------------------------
+
+    def ensure_model_row(self, model_id: str) -> None:
+        """Create the row for `model_id` in the 'Waiting to start' state."""
+        if model_id in self._model_rows:
+            return
+        row = _ProgressRow(model_id)
+        self._model_rows[model_id] = row
+        self._model_rows_layout.addWidget(row.widget)
+
+    def set_model_progress(
+        self,
+        model_id: str,
+        fraction: float,
+        bytes_done: int = 0,
+        bytes_total: int = 0,
+        speed_bps: float = 0.0,
+        eta_s: float = 0.0,
+    ) -> None:
+        self.ensure_model_row(model_id)
+        row = self._model_rows[model_id]
+        row.set_fraction(fraction)
+        row.set_state(STATE_ACTIVE, "Downloading...")
+        parts = [format_size_progress(bytes_done, bytes_total, fraction)]
+        speed = format_speed(speed_bps)
+        if speed:
+            parts.append(speed)
+        eta = format_eta(eta_s)
+        if eta:
+            parts.append(eta)
+        row.detail.setText(" \u2022 ".join(parts))
+
+    def set_model_done(self, model_id: str) -> None:
+        self.ensure_model_row(model_id)
+        row = self._model_rows[model_id]
+        row.set_fraction(1.0)
+        row.set_state(STATE_DONE)
+
+    def set_model_failed(self, model_id: str, reason: str) -> None:
+        self.ensure_model_row(model_id)
+        row = self._model_rows[model_id]
+        row.set_fraction(1.0)
+        row.set_state(STATE_FAILED, f"Failed: {reason}"[:80])
+        # A failing model must be visible without digging (T505).
+        if not self._toggle.isChecked():
+            self._toggle.setChecked(True)
+
+    def model_row_ids(self) -> list[str]:
+        return list(self._model_rows)
+
+    # -----------------------------------------------------------------
+    # Failure surfacing (T505)
+    # -----------------------------------------------------------------
+
+    def show_failure_reason(self, summary: str, suggestion: str) -> None:
+        """Show the plain-language failure block and expand the details."""
+        self._failure_summary.setText(summary)
+        self._failure_suggestion.setText(suggestion)
+        self._failure_box.setVisible(True)
+        if not self._toggle.isChecked():
+            self._toggle.setChecked(True)
+
+    @property
+    def failure_visible(self) -> bool:
+        return not self._failure_box.isHidden()
+
+    # -----------------------------------------------------------------
+    # Logs
+    # -----------------------------------------------------------------
 
     def append_log(self, text: str, level: str = "info") -> None:
         self._log.append_log(text, level)
@@ -324,6 +562,10 @@ class PhaseGroup(QFrame):
         # window regardless of the toggle state.
         return not self._logs_area.isHidden()
 
+    @property
+    def log_height(self) -> int:
+        return self._log_height
+
     # -----------------------------------------------------------------
     # Internals
     # -----------------------------------------------------------------
@@ -342,10 +584,23 @@ class PhaseGroup(QFrame):
             f"{_CHEVRON_UP if checked else _CHEVRON_DOWN}"
         )
 
+    def _resize_log(self, delta: int) -> None:
+        """Grow/shrink the log panel, clamped to sane bounds (T503)."""
+        self._log_height = max(
+            LOG_MIN_HEIGHT, min(LOG_MAX_HEIGHT, self._log_height + delta)
+        )
+        self._log.setFixedHeight(self._log_height)
+
     def _on_copy_logs(self) -> None:
         clipboard = QApplication.clipboard()
         if clipboard is not None:
             clipboard.setText(self._log.get_full_log())
+        # T504: standard clipboard UX -- checkmark + "Copied", then revert.
+        self._copy_btn.setText(f"{_ICON_CHECK} Copied")
+        self._copy_timer.start()
+
+    def _reset_copy_button(self) -> None:
+        self._copy_btn.setText(_ICON_COPY)
 
     def _on_save_logs(self) -> None:
         slug = self._title_text.lower().replace(" ", "-")
@@ -362,16 +617,12 @@ class PhaseGroup(QFrame):
             self._log.append_log(f"Could not save log to {path}: {exc}", "error")
 
     def _refresh_bar(self) -> None:
-        self._bar.setValue(int(self.progress * 1000))
-
-    def _set_step_state(self, step: str, state: str) -> None:
-        self._step_states[step] = state
-        text, color = _STEP_STATUS[state]
-        label = self._step_status[step]
-        label.setText(text)
-        label.setStyleSheet(
-            f"color: {color}; font-size: {FS_CAPTION}px; background: transparent;"
-        )
+        value = self.progress
+        self._bar.setValue(int(value * 1000))
+        if self._state == STATE_ACTIVE and 0.0 < value < 1.0:
+            self._pct.setText(f"{int(value * 100)}%")
+        else:
+            self._pct.setText("")
 
     def _maybe_settle(self) -> None:
         """Settle to done/failed once every covered step has finished."""
@@ -404,6 +655,7 @@ class PhaseGroup(QFrame):
             f"color: {status_color}; font-size: {FS_CAPTION}px; "
             f"background: transparent;"
         )
+        self._refresh_bar()
         # A failed phase auto-expands its details so the user immediately sees
         # which step failed and can reach its log.
         if state == STATE_FAILED and not self._toggle.isChecked():
@@ -416,4 +668,7 @@ __all__ = [
     "STATE_FAILED",
     "STATE_PENDING",
     "PhaseGroup",
+    "format_eta",
+    "format_size_progress",
+    "format_speed",
 ]

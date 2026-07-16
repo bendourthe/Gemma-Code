@@ -26,11 +26,13 @@ from nexus_installer.constants import (
     TEXT_SECONDARY,
 )
 from nexus_installer.engine.installer import InstallEngine, start_install
+from nexus_installer.engine.model_router import resolve_selected_models
 from nexus_installer.widgets.phase_group import PhaseGroup
 from nexus_installer.widgets.secondary_button import SecondaryButton
 
 if TYPE_CHECKING:
     from nexus_installer.engine.installer import _InstallThread
+    from nexus_installer.engine.model_router import ModelProgress
     from nexus_installer.installer_state import InstallerState
 
 # Phase title -> the engine step names it covers, in engine order.
@@ -146,6 +148,18 @@ class InstallingPage(QWidget):
         self._engine.step_completed.connect(self._on_step_completed)
         self._engine.step_failed.connect(self._on_step_failed)
         self._engine.install_finished.connect(self._on_finished)
+        # v1.11.0 Phase 5 (T502): per-model telemetry rows.
+        self._engine.model_started.connect(self._on_model_started)
+        self._engine.model_progress.connect(self._on_model_progress)
+        self._engine.model_completed.connect(self._on_model_completed)
+        self._engine.model_failed.connect(self._on_model_failed)
+
+        # Pre-create one 'Waiting to start' row per selected model so the
+        # user sees the whole download plan up front (the mockup's layout).
+        models_group = self._group_for("model")
+        if models_group is not None:
+            for model_id in resolve_selected_models(self._state):
+                models_group.ensure_model_row(model_id)
 
         self._thread = start_install(self._engine, self._state)
 
@@ -167,8 +181,49 @@ class InstallingPage(QWidget):
 
     def _on_step_failed(self, name: str) -> None:
         group = self._group_for(name)
+        if group is None:
+            return
+        group.mark_step_failed(name)
+        # T505: surface the T303 plain-language reason + suggested action
+        # right in the group (the installers record it before failing).
+        for failure in reversed(self._state.step_failures):
+            if failure.get("step") == name:
+                group.show_failure_reason(
+                    failure.get("summary", ""), failure.get("suggestion", "")
+                )
+                break
+
+    # -- per-model telemetry (T502) ---------------------------------------
+
+    def _models_group(self) -> PhaseGroup | None:
+        return self._group_for("model")
+
+    def _on_model_started(self, model_id: str) -> None:
+        group = self._models_group()
         if group is not None:
-            group.mark_step_failed(name)
+            group.set_model_progress(model_id, 0.0)
+
+    def _on_model_progress(self, sample: ModelProgress) -> None:
+        group = self._models_group()
+        if group is not None:
+            group.set_model_progress(
+                sample.model_id,
+                sample.fraction,
+                sample.bytes_done,
+                sample.bytes_total,
+                sample.speed_bps,
+                sample.eta_s,
+            )
+
+    def _on_model_completed(self, model_id: str) -> None:
+        group = self._models_group()
+        if group is not None:
+            group.set_model_done(model_id)
+
+    def _on_model_failed(self, model_id: str, reason: str) -> None:
+        group = self._models_group()
+        if group is not None:
+            group.set_model_failed(model_id, reason)
 
     def _on_log(self, message: str, level: str) -> None:
         self._log_lines.append(message)

@@ -146,16 +146,16 @@ Prove and harden every prerequisite step on the clean machine - the "no browser,
 
 ---
 
-## Phase 5 - Installing-page progress UX v2
+## Phase 5 - Installing-page progress UX v2 (landed 2026-07-16)
 
 Correcting the v1.10 interim redesign per operator feedback, wired to the P1 telemetry.
 
-- [ ] **T501** Sub-step progress model: keep the phase's main accent bar; render sub-step bars ONLY when a phase covers >1 sub-step (single-step phases like VS Code Extension show no redundant sub-bar); style sub-bars visually distinct from the main bar (thinner + translucent/desaturated accent).
-- [ ] **T502** Per-model progress rows (the mockup's Models pane): one row per selected model - name, distinct sub-bar, `X GB / Y GB (Z%) - S MB/s - ETA` and state text (`Waiting to start` / `Downloading...` / `Done` / `Failed: <reason>`), driven live by the P1 `model_*` events under parallel downloads; phase-level % indicator.
-- [ ] **T503** Log area modernization: user-resizable via a visible drag handle on the bottom edge (grip affordance, min/max heights) - replacing the splitter that did not read as resizable; monospace rendering, level colors kept.
-- [ ] **T504** Copy-button feedback: on click, swap the copy icon to a checkmark with a transient "Copied" label (~1.5 s) then revert - standard clipboard UX. Save keeps the download icon; both get tooltips.
-- [ ] **T505** Failure surfacing: a failed step/model auto-expands its details, shows the T303 plain-language reason + suggested action inline, with View/Copy/Save log adjacent (operator requirement: failures must never require scrolling raw logs to understand).
-- [ ] **T506** [tests] Widget tests for conditional sub-bars, per-model row updates from synthetic events, resize behavior, copy-feedback state machine, failure auto-expand. Gate: installer suite green + visual pass in the sandbox.
+- [x] **T501** Sub-step progress model: keep the phase's main accent bar; render sub-step bars ONLY when a phase covers >1 sub-step (single-step phases like VS Code Extension show no redundant sub-bar); style sub-bars visually distinct from the main bar (thinner + translucent/desaturated accent).
+- [x] **T502** Per-model progress rows (the mockup's Models pane): one row per selected model - name, distinct sub-bar, `X GB / Y GB (Z%) - S MB/s - ETA` and state text (`Waiting to start` / `Downloading...` / `Done` / `Failed: <reason>`), driven live by the P1 `model_*` events under parallel downloads; phase-level % indicator.
+- [x] **T503** Log area modernization: user-resizable via a visible drag handle on the bottom edge (grip affordance, min/max heights) - replacing the splitter that did not read as resizable; monospace rendering, level colors kept.
+- [x] **T504** Copy-button feedback: on click, swap the copy icon to a checkmark with a transient "Copied" label (~1.5 s) then revert - standard clipboard UX. Save keeps the download icon; both get tooltips.
+- [x] **T505** Failure surfacing: a failed step/model auto-expands its details, shows the T303 plain-language reason + suggested action inline, with View/Copy/Save log adjacent (operator requirement: failures must never require scrolling raw logs to understand).
+- [x] **T506** [tests] Widget tests for conditional sub-bars, per-model row updates from synthetic events, resize behavior, copy-feedback state machine, failure auto-expand. Gate: installer suite green + visual pass in the sandbox.
 
 **Acceptance:** during a real install, each downloading model shows its own live row with speed/ETA; single-step phases show one clean bar; logs resize by dragging; copy shows "Copied"; a failed model reads as one plain sentence with log actions.
 

@@ -4,6 +4,31 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-16] v1.11.0 installer overhaul -- Phase 5: installing-page progress UX v2 (T501-T506)
+
+### Goal
+
+Make the installing page match the mockup's information design: one main bar per phase, distinct sub-bars only where they mean something, a live per-model download table fed by the P1 telemetry, resizable logs, copy feedback, and failures that explain themselves instead of hanging.
+
+### What changed
+
+- **T501 conditional sub-bars** ([phase_group.py](../scripts/installer/src/nexus_installer/widgets/phase_group.py)): each phase keeps its single accent main bar; thin (4px) translucent cyan sub-bars appear ONLY when a phase covers more than one engine step, so single-step phases stay one clean bar (the operator's "different color/transparency" spec). The header now carries a live percent label.
+- **T502 per-model rows** ([installing.py](../scripts/installer/src/nexus_installer/pages/installing.py)): the page subscribes to the P1 `model_started/progress/completed/failed` signals and pre-creates a "Waiting to start" row per selected model (via `resolve_selected_models`) so the whole download plan is visible up front. Each row renders name + sub-bar + "5.0 GB / 6.9 GB (72%) - 18.4 MB/s - 00:12 remaining" from the `ModelProgress` telemetry, then flips to Done or "Failed: reason" (auto-expanding the group).
+- **T503 resizable logs**: a visible drag grip under the log area (`SizeVerCursor`) resizes it live, clamped 80-480px.
+- **T504 copy feedback**: the copy-logs button flips to "check + Copied" for 1.5s via a single-shot QTimer, then restores itself.
+- **T505 failure surfaces**: a failed step auto-expands its group and renders the T303 structured `summary` + `suggestion` in a styled error block above the log actions (View/Copy/Save stay available), wired from `InstallerState.step_failures`.
+- **T506 tests**: +15 widget tests (conditional sub-bars, formatting helpers for size/speed/ETA, model-row lifecycle, resize clamping, copy-feedback timer, failure block, page-level model-event wiring); 35 pass in `test_phase_group.py`.
+
+### Verification
+
+Full installer suite green; ruff/mypy clean (PyQt5 stub quirk: alignment flag unions type as `int`, so `setAlignment` takes a single `Qt.AlignmentFlag`); rebuild green; **packaging smoke 5/5** against the frozen exe (222.8 MB, SHA `F10C98B1`). The pixel-level visual pass against the mockup is the operator's sandbox run (`IO.P5.B`); P6 builds the surrounding shell (sidebar, Models flow, header fix).
+
+### Branch
+
+`feat/v1.11.0-installer-overhaul`
+
+---
+
 ## [2026-07-14] v1.11.0 installer overhaul -- Phase 4: embed the desktop app (T401-T404)
 
 ### Goal

@@ -54,6 +54,14 @@ Tracks unfinished work, deferrals, and coordination for the v1.11.0 installer ov
 | IO.P4.B | P3 | NI | The Tauri NSIS bundle is only ~1.7 MB (a web-bootstrapping stub) -- RISK.2's feared +100-160 MB growth did not materialize, but it means the desktop app's own installer may fetch WebView2/runtime pieces from the network at ITS install time (Tauri's default bootstrapper behavior). | Verify in the operator sandbox run what the NSIS stub downloads on a clean machine; if it breaks the offline-from-GitHub goal, switch the Tauri bundler to the embedBootstrapper/offline installer option in the desktop workspace. |
 | IO.P4.C | P3 | NI | The engine's desktop-step progress is now coarse (verify 0.3 -> install 0.9 -> health 1.0); the old download-driven progress curve is gone with the fetch path. | P5's per-step UI renders step status + reasons; a finer NSIS-install progress signal is not available from a silent /S run. |
 
+## 1e. Phase 5 -- installing-page progress UX v2 (landed 2026-07-16)
+
+| ID | Sev | Cat | Gap | Disposition |
+|----|-----|-----|-----|-------------|
+| IO.P5.A | P3 | NI | Per-model bytes/speed/ETA remain sizeGB-derived estimates (IO.P1.D unchanged); the rows render whatever the telemetry carries, so refining the engine estimates automatically improves the rows. | Engine-side refinement stays tracked as IO.P1.D. |
+| IO.P5.B | P3 | QG | The visual pass (side-by-side with the mockup, real download rows under parallel pulls, grip drag feel) is an operator check on the rebuilt exe; the widget behavior is unit-tested but pixels are not. | Operator: run dist/NexusSetup.exe through an install and compare against docs/v1/v1.11/design/installer-mockup.png; P6 does the surrounding shell. |
+| IO.P5.C | P3 | NI | The IO.P1.A gated-models UI decision (flag-or-remove) was deferred to P6's Models-page work -- the P5 failure rows now at least surface gated 401s per-model with the reason inline. | Decide with T603's category-tab rework. |
+
 ## 2. Cross-cutting
 
 | ID | Sev | Cat | Gap | Disposition |
