@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -47,12 +48,20 @@ PHASE_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
 class InstallingPage(QWidget):
     """Page showing per-phase installation progress with grouped logs."""
 
+    # v1.11.0 Phase 6 (T602): the shell listens for these to lock the choice
+    # pages and free the sidebar for review without disturbing the install.
+    started = pyqtSignal()
+    finished = pyqtSignal(bool)
+
     def __init__(self, state: InstallerState, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._state = state
         self._thread: _InstallThread | None = None
         self._engine: InstallEngine | None = None
         self._is_running = False
+        # Guards against a re-run: revisiting the page via the sidebar after the
+        # install has started (or finished) must not restart the engine.
+        self._has_started = False
         self._groups: list[PhaseGroup] = []
         self._active_group: PhaseGroup | None = None
         self._log_lines: list[str] = []
@@ -129,9 +138,12 @@ class InstallingPage(QWidget):
 
     def start_installation(self) -> None:
         """Begin the installation process. Called when this page becomes active."""
-        if self._is_running:
+        # Idempotent: a re-entry while running -- or any re-entry after the
+        # install has already started (e.g. sidebar review, T602) -- is a no-op.
+        if self._is_running or self._has_started:
             return
 
+        self._has_started = True
         self._is_running = True
         self._title.setText("Installing...")
         self._progress.setMaximum(0)  # Indeterminate
@@ -162,6 +174,7 @@ class InstallingPage(QWidget):
                 models_group.ensure_model_row(model_id)
 
         self._thread = start_install(self._engine, self._state)
+        self.started.emit()
 
     def _on_step_started(self, name: str) -> None:
         group = self._group_for(name)
@@ -249,6 +262,8 @@ class InstallingPage(QWidget):
         else:
             self._title.setText("Installation Completed with Warnings")
 
+        self.finished.emit(success)
+
     def _on_cancel(self) -> None:
         reply = QMessageBox.question(
             self,
@@ -262,6 +277,8 @@ class InstallingPage(QWidget):
             self._is_running = False
             self._title.setText("Installation Cancelled")
             self._cancel_btn.setEnabled(False)
+            # Release the shell lock so navigation is usable again (T602).
+            self.finished.emit(False)
 
     def validate(self) -> tuple[bool, str]:
         """Block navigation forward until installation is complete."""

@@ -245,6 +245,12 @@ FOOTER_HEIGHT = 62
 SIDE_MARGIN = 32
 VERTICAL_MARGIN = 28
 
+# v1.11.0 Phase 6 (T601): the mockup moves brand + navigation into a fixed-width
+# left sidebar. The brand block (Header) sits at the top, the section nav in the
+# middle, and the "Need help?" block at the bottom.
+SIDEBAR_WIDTH = 244
+SIDEBAR_NAV_ROW_HEIGHT = 40
+
 BUTTON_HEIGHT = 38
 BUTTON_RADIUS = 7
 
@@ -252,6 +258,14 @@ WINDOW_DEFAULT_WIDTH = 912
 WINDOW_DEFAULT_HEIGHT = 768
 WINDOW_MIN_WIDTH = 840
 WINDOW_MIN_HEIGHT = 672
+
+# ---------------------------------------------------------------------------
+# External links
+# ---------------------------------------------------------------------------
+# v1.11.0 Phase 6 (T601): the sidebar "Need help?" block links here. The
+# installer never opens a browser as part of the install flow (self-sufficiency
+# goal); this is a user-initiated help affordance only.
+DOCS_URL = "https://github.com/bendourthe/Nexus-AI"
 
 # ---------------------------------------------------------------------------
 # Step names

@@ -62,6 +62,16 @@ Tracks unfinished work, deferrals, and coordination for the v1.11.0 installer ov
 | IO.P5.B | P3 | QG | The visual pass (side-by-side with the mockup, real download rows under parallel pulls, grip drag feel) is an operator check on the rebuilt exe; the widget behavior is unit-tested but pixels are not. | Operator: run dist/NexusSetup.exe through an install and compare against docs/v1/v1.11/design/installer-mockup.png; P6 does the surrounding shell. |
 | IO.P5.C | P3 | NI | The IO.P1.A gated-models UI decision (flag-or-remove) was deferred to P6's Models-page work -- the P5 failure rows now at least surface gated 401s per-model with the reason inline. | Decide with T603's category-tab rework. |
 
+## 1f. Phase 6 -- mockup shell: sidebar + category flow + header fix (landed 2026-07-16)
+
+| ID | Sev | Cat | Gap | Disposition |
+|----|-----|-----|-----|-------------|
+| IO.P6.A | P3 | NI | The T602 read-only lock (`set_interactive`) is implemented on the Models page (the one page with live inputs); the other choice pages show the sidebar lock icon + tooltip and stay viewable, but their inner controls are not individually disabled (they are informational or already-committed). | If a later page grows editable inputs, add `set_interactive` there; the window already calls it by duck-type. |
+| IO.P6.B | P3 | QG | The pixel-level pass against the mockup (sidebar proportions, nav-icon legibility incl. the padlock glyph rendering under Segoe UI, brand hero size, step-counter placement top-right) is an operator sandbox check; the shell behavior is unit-tested but pixels are not. | Operator: run dist/NexusSetup.exe and compare against docs/v1/v1.11/design/installer-mockup.png. |
+| IO.P6.C | P3 | NI | The category flow's "walk every tab" stops only on categories with NO decision -- a category satisfied by a pre-ticked default counts as decided and is not forced to be re-acknowledged. | Matches the "explicit select-or-skip" intent (a default IS a selection); revisit only if the operator wants a hard stop on every tab. |
+| IO.P6.D | P3 | NI | The sidebar "Need help?" block and docs link open the repo URL (`DOCS_URL = github.com/bendourthe/Nexus-AI`) via QDesktopServices; there is no dedicated docs site yet. | Swap `DOCS_URL` in constants.py when a docs site exists. |
+| IO.P6.E | P3 | NI | The IO.P1.A/IO.P5.C gated-models UI decision (flag-or-remove in the picker) was NOT taken in P6 -- the category flow surfaces categories, not per-model auth state. Gated 401s still only surface at install time (the P5 inline failure rows). | Carry to P8 known-gaps reconciliation, or a follow-up Models-page pass. |
+
 ## 2. Cross-cutting
 
 | ID | Sev | Cat | Gap | Disposition |

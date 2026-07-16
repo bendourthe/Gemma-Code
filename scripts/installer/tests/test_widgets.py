@@ -96,11 +96,16 @@ class TestCalloutBox:
 
 
 class TestHeader:
-    def test_set_step_text(self, qt_app: object) -> None:
-        from nexus_installer.widgets.header import Header
+    def test_brand_block_builds(self, qt_app: object) -> None:
+        # v1.11.0 Phase 6 (T604): the header is now the sidebar brand block
+        # (logo + wordmark + "Setup Wizard"), not a full-width band with a step
+        # counter. The step counter moved to the content area (window.py).
+        from nexus_installer.widgets.header import HEADER_STEP_PX, Header
 
         header = Header()
-        header.set_step_text("Step 3 of 9")
+        # The wordmark renders at a hero size, clearly larger than the step
+        # counter -- and is set via QSS, not setFont (the T604 root-cause fix).
+        assert header.wordmark_px > HEADER_STEP_PX
 
 
 class TestFooter:

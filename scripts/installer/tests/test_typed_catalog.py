@@ -364,12 +364,17 @@ class TestTypedCatalogPage:
 
     def test_five_sections(self, qt_app, tmp_path: Path) -> None:
         page = self._page(_gpu_state(), tmp_path)
-        labels = [page._tabs.tabText(i) for i in range(page._tabs.count())]
+        # v1.11.0 Phase 6 (T603): a decided category is prefixed with a check
+        # mark; strip it to assert the section set + order.
+        labels = [
+            page._tabs.tabText(i).replace("\u2713 ", "")
+            for i in range(page._tabs.count())
+        ]
         assert labels == ["Chat", "Agentic", "Image", "Video", "Audio"]
 
     def test_audio_tab_shows_empty_state(self, qt_app, tmp_path: Path) -> None:
         page = self._page(_gpu_state(), tmp_path)
-        assert page._tabs.tabText(4) == "Audio"
+        assert page._tabs.tabText(4).replace("\u2713 ", "") == "Audio"
 
     def test_gpu_tier_defaults_pre_ticked(self, qt_app, tmp_path: Path) -> None:
         page = self._page(_gpu_state(vram_mb=8192), tmp_path)

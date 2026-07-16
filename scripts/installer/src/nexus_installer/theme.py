@@ -74,6 +74,54 @@ QWidget#headerBand {{
     background-color: {BG_HEADER};
 }}
 
+/* -- Navigation sidebar (v1.11.0 Phase 6, T601) ----------------------- */
+QWidget#sidebar {{
+    background-color: {BG_HEADER};
+    border-right: 1px solid {BORDER};
+}}
+/* Keep the sidebar interior transparent so the column fill shows through;
+   id-selector rules below (nav rows, help box) still win over this. */
+QWidget#sidebar QWidget {{
+    background: transparent;
+}}
+QPushButton#sidebarNavRow {{
+    background: transparent;
+    color: {TEXT_SECONDARY};
+    border: none;
+    border-left: 3px solid transparent;
+    border-radius: 0px;
+    text-align: left;
+    padding: 6px 10px;
+    font-size: {FS_BODY}px;
+}}
+QPushButton#sidebarNavRow:hover {{
+    color: {TEXT_PRIMARY};
+}}
+QPushButton#sidebarNavRow[navState="done"] {{
+    color: {TEXT_PRIMARY};
+}}
+QPushButton#sidebarNavRow[navState="current"] {{
+    color: {ACCENT};
+    font-weight: {FW_SEMIBOLD};
+}}
+QPushButton#sidebarNavRow[navState="locked"] {{
+    color: {TEXT_MUTED};
+}}
+QPushButton#sidebarNavRow[selected="true"] {{
+    border-left: 3px solid {ACCENT};
+    background: {BG_CARD};
+    color: {TEXT_PRIMARY};
+}}
+QFrame#helpBox {{
+    background-color: {BG_CARD};
+    border: 1px solid {BORDER_STRONG};
+    border-radius: 8px;
+    margin: 12px;
+}}
+QFrame#helpBox:hover {{
+    border-color: {ACCENT};
+}}
+
 /* -- Constellation body: keep the content band transparent so the
    BackgroundWidget (radial glow + constellation, T302) shows through.
    Chrome bands (title bar, header, footer) keep their solid fills. --- */

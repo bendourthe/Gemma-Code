@@ -35,7 +35,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import (
     QCheckBox,
     QFrame,
@@ -492,6 +492,10 @@ class TypedCatalogPage(QWidget):
         "Would dip below the 10 GB OS reserve. Free up disk or untick another model."
     )
 
+    # v1.11.0 Phase 6 (T603): emits (decided_categories, total_categories) so the
+    # sidebar can show intra-page category progress on the "Models" row.
+    category_progress = pyqtSignal(int, int)
+
     def __init__(
         self,
         state: InstallerState,
@@ -516,6 +520,13 @@ class TypedCatalogPage(QWidget):
         # A pre-seeded selection (CLI --model override or back-navigation)
         # counts as user intent: defaults must not stomp it.
         self._user_touched = False
+        # v1.11.0 Phase 6 (T603): a category is "decided" when it has a
+        # selection OR was explicitly skipped OR has no models; the flow blocks
+        # leaving the page until every category is decided.
+        self._skipped_categories: set[str] = set()
+        self._skip_buttons: dict[str, QPushButton] = {}
+        # T602: choices lock (read-only) once the install begins.
+        self._interactive = True
 
         layout = QVBoxLayout(self)
         layout.setSpacing(12)
@@ -654,6 +665,7 @@ class TypedCatalogPage(QWidget):
     def _rebuild_tabs(self) -> None:
         current = max(0, self._tabs.currentIndex())
         self._cards.clear()
+        self._skip_buttons.clear()
         while self._tabs.count():
             page = self._tabs.widget(0)
             self._tabs.removeTab(0)
@@ -795,6 +807,24 @@ class TypedCatalogPage(QWidget):
         layout.addStretch()
         scroll.setWidget(inner)
         outer.addWidget(scroll)
+
+        # v1.11.0 Phase 6 (T603): an explicit "Skip this category" control. The
+        # category flow requires every category to be decided (a selection or a
+        # skip) before Next may leave the page; this is the skip half.
+        skip_row = QHBoxLayout()
+        skip_row.setContentsMargins(0, 8, 0, 0)
+        skip_row.addStretch()
+        skip_btn = QPushButton("Skip this category")
+        skip_btn.setObjectName("secondaryButton")
+        skip_btn.setToolTip(
+            "Mark this category as intentionally skipped so you can continue."
+        )
+        skip_btn.clicked.connect(
+            lambda _checked=False, k=section_key: self._on_skip_clicked(k)
+        )
+        self._skip_buttons[section_key] = skip_btn
+        skip_row.addWidget(skip_btn)
+        outer.addLayout(skip_row)
         return container
 
     # -----------------------------------------------------------------
@@ -870,6 +900,13 @@ class TypedCatalogPage(QWidget):
                 card.checkbox.setChecked(want)
                 card.checkbox.blockSignals(False)
 
+            # v1.11.0 Phase 6 (T602): while the page is locked (install running),
+            # every checkbox is read-only regardless of the disk/required logic.
+            if not self._interactive:
+                card.checkbox.setEnabled(False)
+                card.disabled_for_disk = False
+                continue
+
             # Required (embed) models are locked on while selected.
             if card.model.is_required and want:
                 card.checkbox.setEnabled(False)
@@ -905,8 +942,95 @@ class TypedCatalogPage(QWidget):
             with contextlib.suppress(Exception):
                 self._on_selection_changed(total)
 
+        self._update_category_flow()
+
     def selection(self) -> TypedSelection:
         return self._selection
+
+    # -----------------------------------------------------------------
+    # Category flow (v1.11.0 Phase 6, T603)
+    # -----------------------------------------------------------------
+
+    def _section_ids(self, section_key: str) -> set[str]:
+        return {m.id for m in self._models_for_section(section_key)}
+
+    def _category_has_selection(self, section_key: str) -> bool:
+        return bool(self._section_ids(section_key) & self._selection.selected)
+
+    def _category_decided(self, section_key: str) -> bool:
+        """A category is decided by a selection, an explicit skip, or emptiness."""
+        if section_key in self._skipped_categories:
+            return True
+        if not self._models_for_section(section_key):
+            return True
+        return self._category_has_selection(section_key)
+
+    def _first_undecided_index(self) -> int | None:
+        """Tab index of the first category still needing a decision, if any."""
+        for i, (key, _label, _icon) in enumerate(TYPE_TABS):
+            if not self._category_decided(key):
+                return i
+        return None
+
+    def _on_skip_clicked(self, section_key: str) -> None:
+        """Toggle the explicit skip for a category."""
+        if not self._interactive:
+            return
+        self._user_touched = True
+        if section_key in self._skipped_categories:
+            self._skipped_categories.discard(section_key)
+        else:
+            self._skipped_categories.add(section_key)
+        self._update_category_flow()
+
+    def _update_category_flow(self) -> None:
+        """Refresh tab decided-marks, skip-button labels, and emit progress."""
+        total = len(TYPE_TABS)
+        done = 0
+        for i, (key, label, _icon) in enumerate(TYPE_TABS):
+            decided = self._category_decided(key)
+            if decided:
+                done += 1
+            if i < self._tabs.count():
+                prefix = "\u2713 " if decided else ""
+                self._tabs.setTabText(i, f"{prefix}{label}")
+            btn = self._skip_buttons.get(key)
+            if btn is not None:
+                has_sel = self._category_has_selection(key)
+                # Skip is only meaningful when nothing is picked in the category.
+                btn.setVisible(not has_sel)
+                skipped = key in self._skipped_categories
+                btn.setText(
+                    "Category skipped -- click to undo"
+                    if skipped
+                    else "Skip this category"
+                )
+        self.category_progress.emit(done, total)
+
+    def validate(self) -> tuple[bool, str]:
+        """Block leaving the page until every category is decided (T603)."""
+        undecided = self._first_undecided_index()
+        if undecided is None:
+            return True, ""
+        self._tabs.setCurrentIndex(undecided)
+        label = TYPE_TABS[undecided][1]
+        return (
+            False,
+            f"Choose at least one {label} model, or click "
+            f"\"Skip this category\" to continue.",
+        )
+
+    def set_interactive(self, enabled: bool) -> None:
+        """Lock (read-only) or unlock the page's controls (T602)."""
+        self._interactive = enabled
+        self._refresh_button.setEnabled(enabled)
+        for btn in self._skip_buttons.values():
+            btn.setEnabled(enabled)
+        if enabled:
+            self._update_selection_state()
+        else:
+            for card in self._cards:
+                card.checkbox.setEnabled(False)
 
 
 # ---------------------------------------------------------------------------

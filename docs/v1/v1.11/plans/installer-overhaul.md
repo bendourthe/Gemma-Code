@@ -163,15 +163,15 @@ Correcting the v1.10 interim redesign per operator feedback, wired to the P1 tel
 
 ---
 
-## Phase 6 - Mockup shell: sidebar navigation + Models category flow + header fix
+## Phase 6 - Mockup shell: sidebar navigation + Models category flow + header fix (landed 2026-07-16)
 
 Adopt the mockup layout (COORD.1: mockup PNG must be in-repo first).
 
-- [ ] **T601** Left sidebar navigation per the mockup: all wizard sections listed with state icons (done/current/pending); the top stepper is retained; "Need help? Visit our documentation" footer block. Sidebar is the primary navigation surface.
-- [ ] **T602** Free navigation during install: while the Installing step runs, the user can click any sidebar section to review it (read-only for already-applied choices; Installing keeps running and its live state is intact on return). Guard rails: sections whose changes can no longer apply are visibly locked with an explanatory tooltip.
-- [ ] **T603** Models page category flow: "Next" walks every model-category tab in order (Chat -> Agentic -> Image -> Video -> Audio -> ...) before leaving the page; each category requires an explicit selection or an explicit "skip this category" acknowledgment; the sidebar/stepper reflects intra-page category progress.
-- [ ] **T604** Header sizing per operator feedback: logo -30% (120 -> 84 px) and the "Nexus AI Studio" wordmark rendered at the SAME effective size as the "Step X of Y" counter. Root-cause why the 44 px `QFont.setPixelSize` renders tiny (expected: the global QSS `QLabel` font-size overrides the widget `QFont` - move the wordmark size into the stylesheet) and normalize both texts through one mechanism.
-- [ ] **T605** [tests] Navigation state-machine tests (during-install navigation, lock rules), category-flow tests (cannot pass Models without visiting every tab), header regression (wordmark px == step-counter px). Gate: side-by-side visual pass against `docs/v1/v1.11/design/installer-mockup.png` in the sandbox.
+- [x] **T601** Left sidebar navigation per the mockup: all wizard sections listed with state icons (done/current/pending); the top stepper is retained; "Need help? Visit our documentation" footer block. Sidebar is the primary navigation surface.
+- [x] **T602** Free navigation during install: while the Installing step runs, the user can click any sidebar section to review it (read-only for already-applied choices; Installing keeps running and its live state is intact on return). Guard rails: sections whose changes can no longer apply are visibly locked with an explanatory tooltip.
+- [x] **T603** Models page category flow: "Next" walks every model-category tab in order (Chat -> Agentic -> Image -> Video -> Audio -> ...) before leaving the page; each category requires an explicit selection or an explicit "skip this category" acknowledgment; the sidebar/stepper reflects intra-page category progress.
+- [x] **T604** Header sizing per operator feedback: logo -30% (120 -> 84 px) and the "Nexus AI Studio" wordmark rendered at the SAME effective size as the "Step X of Y" counter. Root-cause why the 44 px `QFont.setPixelSize` renders tiny (expected: the global QSS `QLabel` font-size overrides the widget `QFont` - move the wordmark size into the stylesheet) and normalize both texts through one mechanism.
+- [x] **T605** [tests] Navigation state-machine tests (during-install navigation, lock rules), category-flow tests (cannot pass Models without visiting every tab), header regression (wordmark px == step-counter px). Gate: side-by-side visual pass against `docs/v1/v1.11/design/installer-mockup.png` in the sandbox.
 
 **Acceptance:** the installer visually matches the mockup; a user mid-install can revisit Prerequisites and return to a still-live Installing view; Models cannot be skipped past without per-category decisions.
 

@@ -14,6 +14,7 @@ import os
 from PyQt5.QtCore import QEvent, Qt
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import (
+    QHBoxLayout,
     QLabel,
     QMainWindow,
     QMessageBox,
@@ -25,9 +26,12 @@ from PyQt5.QtWidgets import (
 )
 
 from nexus_installer.constants import (
+    ACCENT,
     ERROR,
+    FS_CAPTION,
     SIDE_MARGIN,
     STEP_NAMES,
+    TEXT_PRIMARY,
     VERTICAL_MARGIN,
     WINDOW_DEFAULT_HEIGHT,
     WINDOW_DEFAULT_WIDTH,
@@ -40,7 +44,8 @@ from nexus_installer.registry_paths import resolve_window_icon
 from nexus_installer.theme import generate_stylesheet
 from nexus_installer.widgets.background import BackgroundWidget
 from nexus_installer.widgets.footer import Footer
-from nexus_installer.widgets.header import Header
+from nexus_installer.widgets.header import HEADER_STEP_PX, Header
+from nexus_installer.widgets.sidebar import Sidebar
 from nexus_installer.widgets.step_indicator import StepIndicator
 from nexus_installer.widgets.title_bar import TitleBar
 
@@ -112,13 +117,53 @@ class InstallerWindow(QMainWindow):
             self._title_bar.close_requested.connect(self.close)
             main_layout.addWidget(self._title_bar)
 
-        # Header band (height: HEADER_HEIGHT)
-        self._header = Header()
-        main_layout.addWidget(self._header)
+        # v1.11.0 Phase 6 (T601): below the title bar the window splits into a
+        # fixed-width navigation sidebar (brand + section rows + help block) and
+        # the content column (stepper + step counter, scroll content, footer).
+        # This replaces the old full-width header band -- the brand now lives in
+        # the sidebar and the step counter moves to the content top-right.
+        split = QHBoxLayout()
+        split.setContentsMargins(0, 0, 0, 0)
+        split.setSpacing(0)
+        main_layout.addLayout(split, stretch=1)
 
-        # Step indicator (height: STEP_BAR_HEIGHT)
+        self._sidebar = Sidebar(STEP_NAMES)
+        self._sidebar.section_clicked.connect(self._on_sidebar_click)
+        split.addWidget(self._sidebar)
+        # The brand block (logo + wordmark + "Setup Wizard") relocated to the
+        # sidebar (T604). `header` stays a public accessor for it.
+        self._header: Header = self._sidebar.brand
+
+        content_col = QVBoxLayout()
+        content_col.setContentsMargins(0, 0, 0, 0)
+        content_col.setSpacing(0)
+        split.addLayout(content_col, stretch=1)
+
+        # Content top band: the step indicator (stretch) + a right-aligned step
+        # counter ("Step X of Y" over the current step name).
+        top_band = QHBoxLayout()
+        top_band.setContentsMargins(SIDE_MARGIN, 12, SIDE_MARGIN, 0)
+        top_band.setSpacing(16)
         self._step_indicator = StepIndicator(STEP_NAMES)
-        main_layout.addWidget(self._step_indicator)
+        top_band.addWidget(self._step_indicator, stretch=1)
+
+        counter_col = QVBoxLayout()
+        counter_col.setSpacing(0)
+        self._step_counter = QLabel("")
+        self._step_counter.setStyleSheet(
+            f"color: {TEXT_PRIMARY}; font-size: {HEADER_STEP_PX}px; "
+            "font-weight: 600; background: transparent;"
+        )
+        self._step_counter.setAlignment(Qt.AlignmentFlag.AlignRight)
+        counter_col.addWidget(self._step_counter)
+        self._step_name = QLabel("")
+        self._step_name.setStyleSheet(
+            f"color: {ACCENT}; font-size: {FS_CAPTION}px; background: transparent;"
+        )
+        self._step_name.setAlignment(Qt.AlignmentFlag.AlignRight)
+        counter_col.addWidget(self._step_name)
+        top_band.addLayout(counter_col)
+        content_col.addLayout(top_band)
 
         # Scrollable content area
         self._scroll = QScrollArea()
@@ -133,7 +178,7 @@ class InstallerWindow(QMainWindow):
             SIDE_MARGIN, VERTICAL_MARGIN, SIDE_MARGIN, VERTICAL_MARGIN
         )
         self._scroll.setWidget(self._content_wrapper)
-        main_layout.addWidget(self._scroll, stretch=1)
+        content_col.addWidget(self._scroll, stretch=1)
 
         # Error label (hidden by default)
         self._error_label = QLabel("")
@@ -143,13 +188,13 @@ class InstallerWindow(QMainWindow):
         self._error_label.setStyleSheet(
             f"color: {ERROR}; padding: 4px 32px; background: transparent;"
         )
-        main_layout.addWidget(self._error_label)
+        content_col.addWidget(self._error_label)
 
         # Footer band (height: FOOTER_HEIGHT)
         self._footer = Footer()
         self._footer.back_clicked.connect(self._go_back)
         self._footer.next_clicked.connect(self._go_next)
-        main_layout.addWidget(self._footer)
+        content_col.addWidget(self._footer)
 
         # Animated constellation + radial-glow body treatment mounted behind
         # the transparent content band (T302). Created last, then lowered so
@@ -169,6 +214,11 @@ class InstallerWindow(QMainWindow):
         self._pages: list[QWidget] = []
         self._current_index = -1
         self._current_page: QWidget | None = None
+        # v1.11.0 Phase 6 (T602): once the install begins the choice pages are
+        # locked (view-only) and the sidebar becomes a free-review surface that
+        # never stops or restarts the running install.
+        self._install_active = False
+        self._install_finished = False
 
         # Keyboard shortcuts
         QShortcut(Qt.Key.Key_Return, self, self._go_next)
@@ -195,12 +245,35 @@ class InstallerWindow(QMainWindow):
         return self._step_indicator
 
     @property
+    def sidebar(self) -> Sidebar:
+        return self._sidebar
+
+    @property
     def current_index(self) -> int:
         return self._current_index
+
+    @property
+    def installing_page_index(self) -> int:
+        """Index of the Installing page (the step after Review)."""
+        return self.review_page_index + 1
 
     def add_page(self, page: QWidget) -> None:
         """Register a page. Pages are navigated in registration order."""
         self._pages.append(page)
+        # v1.11.0 Phase 6 (T602): the installing page announces its lifecycle so
+        # the shell can lock the choice sections and free up the sidebar for
+        # review. Connected by duck-type -- only the installing page has these.
+        started = getattr(page, "started", None)
+        if started is not None and hasattr(started, "connect"):
+            started.connect(self._on_install_started)
+        finished = getattr(page, "finished", None)
+        if finished is not None and hasattr(finished, "connect"):
+            finished.connect(self._on_install_finished)
+        # v1.11.0 Phase 6 (T603): the Models page reports category-flow progress
+        # so the sidebar can annotate its "Models" row.
+        category_progress = getattr(page, "category_progress", None)
+        if category_progress is not None and hasattr(category_progress, "connect"):
+            category_progress.connect(self.set_category_progress)
 
     def switch_page(self, index: int) -> None:
         """Replace the content area with the page at the given index."""
@@ -219,30 +292,25 @@ class InstallerWindow(QMainWindow):
         self._current_page = page
         self._current_index = index
 
-        # Auto-start installation when switching to the installing page
+        # Auto-start installation when switching to the installing page. The
+        # page guards against a re-run, so revisiting it during install (T602)
+        # never restarts the engine.
         if hasattr(page, "start_installation"):
             page.start_installation()
 
-        # Update header and step indicator
-        self._step_indicator.set_current(index)
-        total = len(self._pages)
-        self._header.set_step_text(f"Step {index + 1} of {total}")
+        # The stepper + step counter track the wizard's real progress. While an
+        # install is running they stay pinned to the Installing step even when
+        # the user is reviewing an earlier (locked) page via the sidebar.
+        progress_index = (
+            self.installing_page_index if self._install_active else index
+        )
+        self._step_indicator.set_current(progress_index)
+        self._set_step_display(progress_index)
 
-        # Update footer buttons
-        self._footer.set_back_enabled(index > 0)
-        is_review = index == self.review_page_index
-        is_last = index == total - 1
-
-        if is_last:
-            self._footer.set_next_text("Finish")
-        elif is_review:
-            self._footer.set_next_text("Install")
-        else:
-            self._footer.set_next_text("Next")
-
-        # Disable back during installation
-        if hasattr(page, "is_running") and page.is_running:
-            self._footer.set_back_enabled(False)
+        # The sidebar highlights the section being viewed and reflects every
+        # section's progression / lock state.
+        self._refresh_navigation()
+        self._refresh_footer()
 
     def show_first_page(self) -> None:
         """Display the first registered page."""
@@ -250,6 +318,10 @@ class InstallerWindow(QMainWindow):
             self.switch_page(0)
 
     def _go_back(self) -> None:
+        # Once the install has begun, sequential Back is retired: the sidebar is
+        # the review surface (T602). Applied choices cannot be walked back.
+        if self._install_active:
+            return
         if self._current_index > 0:
             # Block back during installation
             page = self._pages[self._current_index]
@@ -258,6 +330,11 @@ class InstallerWindow(QMainWindow):
             self.switch_page(self._current_index - 1)
 
     def _go_next(self) -> None:
+        # While the install is mid-flight the footer Next is inert (the sidebar
+        # drives review); it re-enables once the install finishes so the user
+        # can proceed to the Complete page.
+        if self._install_active and not self._install_finished:
+            return
         if self._current_index < len(self._pages) - 1:
             # Run page validation if available
             page = self._pages[self._current_index]
@@ -282,6 +359,112 @@ class InstallerWindow(QMainWindow):
             if hasattr(page, "on_finish"):
                 page.on_finish()
             self.close()
+
+    # -- sidebar navigation + install lifecycle (v1.11.0 Phase 6) -----------
+
+    LOCK_TOOLTIP = (
+        "Locked while installing -- this choice has already been applied. "
+        "You can still review it here."
+    )
+
+    def _on_sidebar_click(self, index: int) -> None:
+        """Handle a sidebar section click with the free-navigation rules (T602)."""
+        if index < 0 or index >= len(self._pages):
+            return
+        if self._install_active:
+            # Free review of any section; Complete stays unreachable until the
+            # install actually finishes.
+            if index == len(self._pages) - 1 and not self._install_finished:
+                return
+            self.switch_page(index)
+            return
+        # Before install, the sidebar only walks BACK to already-visited steps;
+        # moving forward still goes through Next so page validation runs.
+        if index <= self._current_index:
+            self.switch_page(index)
+
+    def _on_install_started(self) -> None:
+        self._install_active = True
+        self._apply_install_lock()
+        # Re-pin the stepper/counter to the install step and refresh the shell.
+        self._step_indicator.set_current(self.installing_page_index)
+        self._set_step_display(self.installing_page_index)
+        self._refresh_navigation()
+        self._refresh_footer()
+
+    def _on_install_finished(self, _success: bool = True) -> None:
+        self._install_finished = True
+        self._refresh_navigation()
+        self._refresh_footer()
+
+    def _apply_install_lock(self) -> None:
+        """Put every choice page into read-only mode (best-effort, T602)."""
+        for i, page in enumerate(self._pages):
+            if i >= self.installing_page_index:
+                continue
+            set_interactive = getattr(page, "set_interactive", None)
+            if callable(set_interactive):
+                set_interactive(False)
+
+    def _nav_state(self, index: int) -> str:
+        """Progression / lock state for a sidebar row's icon."""
+        installing = self.installing_page_index
+        if self._install_active:
+            if index == installing:
+                return "done" if self._install_finished else "current"
+            if index < installing:
+                return "locked"
+            # The Complete row.
+            return "done" if self._install_finished else "pending"
+        if index < self._current_index:
+            return "done"
+        if index == self._current_index:
+            return "current"
+        return "pending"
+
+    def _refresh_navigation(self) -> None:
+        """Sync the sidebar's selected highlight, icon states, and lock tips."""
+        states = [self._nav_state(i) for i in range(len(self._sidebar.rows))]
+        self._sidebar.set_states(states)
+        self._sidebar.set_selected(self._current_index)
+        for i, state in enumerate(states):
+            tip = self.LOCK_TOOLTIP if state == "locked" else ""
+            self._sidebar.set_row_tooltip(i, tip)
+
+    def _refresh_footer(self) -> None:
+        """Footer Back/Next state, aware of the install lifecycle."""
+        index = self._current_index
+        total = len(self._pages)
+        if self._install_active and not self._install_finished:
+            self._footer.set_back_enabled(False)
+            self._footer.set_next_enabled(False)
+            return
+        self._footer.set_back_enabled(index > 0 and not self._install_active)
+        self._footer.set_next_enabled(True)
+        is_review = index == self.review_page_index
+        is_last = index == total - 1
+        if is_last:
+            self._footer.set_next_text("Finish")
+        elif is_review:
+            self._footer.set_next_text("Install")
+        else:
+            self._footer.set_next_text("Next")
+
+    def _set_step_display(self, index: int) -> None:
+        """Update the content-area step counter + current step name."""
+        total = len(self._pages)
+        self._step_counter.setText(f"Step {index + 1} of {total}")
+        name = STEP_NAMES[index] if 0 <= index < len(STEP_NAMES) else ""
+        self._step_name.setText(name)
+
+    def set_category_progress(self, done: int, total: int) -> None:
+        """Reflect Models-page category progress on the sidebar (T603)."""
+        try:
+            models_index = STEP_NAMES.index("Models")
+        except ValueError:
+            return
+        label = "Models" if done >= total else f"Models  ({done}/{total})"
+        self._sidebar.set_row_label(models_index, label)
 
     def _is_install_step(self) -> bool:
         return self._current_index == self.review_page_index

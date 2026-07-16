@@ -4,6 +4,30 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-16] v1.11.0 installer overhaul -- Phase 6: mockup shell (sidebar + category flow + header fix) (T601-T605)
+
+### Goal
+
+Adopt the mockup's shell: a left sidebar as the primary navigation surface, free (read-only) navigation while the install runs, a Models page that forces a per-category decision before leaving, and the long-standing header-sizing bug fixed at the root.
+
+### What changed
+
+- **T604 header root-cause** ([header.py](../scripts/installer/src/nexus_installer/widgets/header.py) + [theme.py](../scripts/installer/src/nexus_installer/theme.py)): the wordmark set its size with `QFont.setPixelSize(44)`, but the global `QMainWindow, QWidget {{ font-size: 16px }}` QSS rule applies to `QLabel` too and, per Qt's cascade, a stylesheet font-size overrides `setFont` -- so it rendered at 16px (tiny). The step counter always looked right because it set its size via an inline stylesheet. Fix: the wordmark now carries its size in its own stylesheet (hero 28px, larger than the 24px step counter) and `setFont` is used only for letter-spacing; the logo is trimmed 30% (120 -> 84). The header became the sidebar brand block (logo + wordmark + "Setup Wizard").
+- **T601 sidebar** (new [sidebar.py](../scripts/installer/src/nexus_installer/widgets/sidebar.py)): a fixed-width column with the brand block, one clickable row per wizard section (state icon done/current/pending/locked + a left accent bar for the section being viewed), and a "Need help? Visit our documentation" block pinned to the bottom. The top stepper is retained; the "Step X of Y" counter + current step name moved to the content top-right ([window.py](../scripts/installer/src/nexus_installer/window.py) restructured into a `[title bar]` over a `[sidebar | content]` split).
+- **T602 free navigation during install** ([window.py](../scripts/installer/src/nexus_installer/window.py) + [installing.py](../scripts/installer/src/nexus_installer/pages/installing.py)): the installing page now emits `started` / `finished`; the shell locks the choice pages (the Models page goes read-only via `set_interactive`), and the sidebar becomes a free-review surface -- clicking any earlier section shows it read-only WITHOUT stopping or restarting the running install (a `_has_started` guard makes `start_installation` idempotent), while the stepper + counter stay pinned to Installing. Complete stays unreachable until the install finishes; the footer is inert mid-install and re-enables on finish.
+- **T603 Models category flow** ([typed_catalog.py](../scripts/installer/src/nexus_installer/pages/typed_catalog.py)): a category is "decided" when it has a selection, an explicit skip, or no models; `validate()` blocks leaving the page and jumps to the first undecided category until all are decided. Each tab gets a per-category "Skip this category" control and a check-mark prefix when decided; a `category_progress` signal annotates the sidebar's Models row (`Models (X/Y)`).
+- **T605 tests** (new [test_phase6_shell.py](../scripts/installer/tests/test_phase6_shell.py), 23 tests): sidebar structure + click routing + state application; header regression (logo 84, wordmark > step counter, size survives the global body rule); the install-nav state machine (back-only pre-install, free review during install, lock, no-restart, pinned stepper, footer lifecycle, Complete gating); and the category flow (block/switch, skip, selection, empty auto-decide, progress signal, check prefix, read-only lock).
+
+### Verification
+
+Full installer suite green; ruff clean on the changed files; `mypy src` at the documented 26-error baseline (my source adds zero); coverage on the changed modules 86% (header 100%, sidebar 98%, typed_catalog 96%, window 86%). Rebuild green + **packaging smoke 5/5** against the frozen exe (222.9 MB, SHA `936677E5`). Pixel-level visual pass against the mockup is the operator's sandbox check (IO.P6.B); the gated-models picker decision was not taken here and carries forward (IO.P6.E).
+
+### Branch
+
+`feat/v1.11.0-installer-overhaul`
+
+---
+
 ## [2026-07-16] v1.11.0 installer overhaul -- Phase 5: installing-page progress UX v2 (T501-T506)
 
 ### Goal
