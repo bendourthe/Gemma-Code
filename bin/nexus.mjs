@@ -37,6 +37,7 @@ Usage:
   nexus skills remove <namespace>/<name>
   nexus skills audit [--context-tokens <N>] [--budget-percent <N>] [--months <N>] [--skills-root <dir>] [--sessions-root <dir>] [--by-root builtin|user|devai-hub] [--deep-logs] [--json]
   nexus skills optimize <id> [--apply] [--yes] [--model <name>] [--max-rounds <N>] [--skills-root <dir>] [--json]
+  nexus skills frontier <id> [--apply] [--yes] [--model <name>] [--max-candidates <N>] [--skills-root <dir>] [--json]
   nexus memory audit [--since <ISO>] [--tier <t>] [--scope <id>] [--session <id>] [--op <op>] [--format table|json]
   nexus memory export --out <file> [--scope <id>] [--tier <list>] [--since <ISO>]
   nexus memory import --in <file>
@@ -682,6 +683,109 @@ export async function runSkillsOptimize(args, stdout = process.stdout, stderr = 
 }
 
 // ---------------------------------------------------------------------------
+// v1.12.0 Phase 2 (adoption-ecosystem-2026-07 L1 / EM.P2.B) -- `nexus skills
+// frontier` surfaces the v1.7.0 GEPA/EvoSkill Pareto-frontier candidate manager.
+//
+// Produces candidates (seeded from failing train tasks), scores each across the
+// diverse task set via the rollout body-override, keeps the non-dominated
+// (Pareto) set under a hard candidate cap, and surfaces the winner for approval
+// -- never auto-merging. Same guardrail model as `skills optimize`: dry-run
+// default (deny gate: ranks but never promotes), `--apply` prompts per winner,
+// `--apply --yes` auto-approves. Local-only.
+// ---------------------------------------------------------------------------
+
+export async function runSkillsFrontier(args, stdout = process.stdout, stderr = process.stderr) {
+  const flags = args.flags;
+  const skillId =
+    (Array.isArray(args.positional) && args.positional[0]) ||
+    (typeof flags.skill === "string" ? flags.skill : null);
+  if (!skillId) {
+    stderr.write("nexus skills frontier: a skill id is required (nexus skills frontier <id> [--apply])\n");
+    return 2;
+  }
+  const apply = flags.apply === true;
+  const autoYes = flags.yes === true;
+  const model = typeof flags.model === "string" ? flags.model : "gemma4:e4b";
+  const maxCandRaw = Number(flags["max-candidates"]);
+  const maxCandidates = Number.isFinite(maxCandRaw) && maxCandRaw >= 1 ? Math.floor(maxCandRaw) : 3;
+
+  const [catalogMod, splitMod, factoryMod, llmMod] = await Promise.all([
+    loadSkillCatalogModule(),
+    loadCompiled(["modules", "coding", "evaluation", "goldenSplit.js"], "goldenSplit"),
+    loadCompiled(["modules", "coding", "skilloptimizer", "HeadlessOptimizerFactory.js"], "HeadlessOptimizerFactory"),
+    loadCompiled(["modules", "coding", "llm", "OllamaClient.js"], "OllamaClient"),
+  ]);
+
+  const catalog = buildLiveCatalog(flags, catalogMod);
+  let target;
+  try {
+    target = await catalog.load(skillId);
+  } catch {
+    stderr.write(`nexus skills frontier: unknown skill id "${skillId}" (run \`nexus skills audit\` to list ids)\n`);
+    return 2;
+  }
+
+  const tasksDir = resolvePath(__dirname, "..", "tests", "golden", "tasks");
+  let visible;
+  try {
+    visible = splitMod.loadOptimizerVisibleTasks(tasksDir);
+  } catch (err) {
+    stderr.write(`nexus skills frontier: failed to load golden tasks: ${err instanceof Error ? err.message : String(err)}\n`);
+    return 1;
+  }
+  const train = visible.filter((t) => t.split === "train");
+  const validation = visible.filter((t) => t.split === "validation");
+  if (train.length === 0 || validation.length === 0) {
+    stderr.write(
+      `nexus skills frontier: need both train and validation golden tasks (found ${train.length} train / ${validation.length} validation)\n`,
+    );
+    return 1;
+  }
+
+  let approvalGate;
+  if (!apply) approvalGate = factoryMod.autoDenyApprovalGate;
+  else if (autoYes) approvalGate = factoryMod.autoApproveApprovalGate;
+  else approvalGate = makeReadlineApprovalGate(process.stdin, stdout);
+
+  const modeLabel = !apply ? "dry-run" : autoYes ? "apply --yes" : "apply (will prompt)";
+  stdout.write(
+    `nexus skills frontier: ${skillId} [${modeLabel}] model=${model} candidates<=${maxCandidates} (${train.length} train / ${validation.length} validation)\n`,
+  );
+
+  let result;
+  try {
+    const frontier = await factoryMod.createHeadlessCandidateFrontier({
+      llm: llmMod.createOllamaClient(),
+      model,
+      snapshotRoot: resolvePath(__dirname, "..", "tests", "golden", "snapshots"),
+      skill: { id: target.id, path: target.path, body: target.body },
+      train,
+      validation,
+      approvalGate,
+      maxCandidates,
+      budget: { maxOps: 3, maxChangedChars: 400 },
+      workspaceRoot: resolvePath(__dirname, ".."),
+    });
+    result = await frontier.evolve();
+  } catch (err) {
+    stderr.write(`nexus skills frontier: run failed: ${err instanceof Error ? err.message : String(err)}\n`);
+    return 1;
+  }
+
+  if (flags.json) {
+    stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    return 0;
+  }
+  stdout.write(
+    `nexus skills frontier: ${result.evaluated.length} evaluated, ${result.population.length} retained, ${result.frontier.length} on the Pareto frontier${result.winnerId ? `, winner ${result.winnerId}` : ""} (approved: ${result.approved}, promoted: ${result.promoted})\n`,
+  );
+  if (!apply && result.winnerId) {
+    stdout.write("  dry-run: nothing promoted; re-run with --apply to review and merge the winner\n");
+  }
+  return 0;
+}
+
+// ---------------------------------------------------------------------------
 // v1.7.0 SO001.P1.B -- `nexus golden run` live golden-task runner.
 //
 // Loads the compiled TS-native GoldenTaskRunner (Phase 1) + the vscode-free
@@ -1203,6 +1307,8 @@ export async function main(argv) {
         return runSkillsAudit(args.flags);
       case "optimize":
         return runSkillsOptimize(args);
+      case "frontier":
+        return runSkillsFrontier(args);
       default:
         process.stderr.write(`nexus skills: unknown subcommand "${args.subcommand}"\n${HELP}`);
         return 2;

@@ -4,6 +4,32 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-16] v1.12.0 ecosystem adoption -- Phase 2 (cont.): `nexus skills frontier` CLI completes the L1 CLI surface (EM.P2.B)
+
+### Goal
+
+Finish the reachable (CLI) half of L1 by surfacing the v1.7.0 GEPA/EvoSkill Pareto-frontier candidate manager, the sibling of the bounded-edit optimizer landed earlier the same day.
+
+### What changed
+
+- **Frontier composition root**: `createHeadlessCandidateFrontier` in [HeadlessOptimizerFactory.ts](../modules/coding/skilloptimizer/HeadlessOptimizerFactory.ts) -- runs an initial train rollout, seeds diverse candidates by diagnosing each failing task (one seed per failing task, capped at the population size), then wires the shipped `HeadlessCandidateProducer` / `HeadlessCandidateScorer` (body-override scoring) / `HeadlessCandidatePromoter` + a `WorktreeCandidateManager` over a fail-closed `nodeGitRunner` (git-branch candidate isolation that degrades to a body-override measurement when git is absent) into a `CandidateFrontier`. Winner promotion is gated on the shared approval gate -- never auto-merged.
+- **CLI**: `nexus skills frontier <id> [--apply] [--yes] [--model] [--max-candidates] [--json]` in [bin/nexus.mjs](../bin), mirroring `nexus skills optimize`: dry-run default (deny gate: ranks but promotes nothing), `--apply` prompts per winner, `--apply --yes` auto-approves.
+- **Tests**: added a frontier factory case (assembles + evolves + promotes nothing on a passing train split) + a `skills frontier` parseArgs case.
+
+### Status
+
+L1's **CLI surface is now complete** (both `optimize` and `frontier`), resolving the v1.7 `RT.P7.C` / `SO003.P3.D` / `SO005.P4.C` gaps. The one remaining Phase-2 item is the **desktop-sidecar approval UI** (`EM.P2.A`): the sidecar transport is one-shot request/response with no server-push channel, so the interactive approval round-trip needs a multi-call protocol + a React dialog + an additive change to the v1.7 approval request to bind approval to the previewed edit -- best built + verified against the running Tauri app, so it stays deferred rather than shipped blind.
+
+### Verification
+
+19 new tests pass; `tsc -b` clean; lint 0 warnings; `check-architecture` 0 errors (10 pre-existing warnings; no new cycle); full root suite green (4619 passed / 6 skipped / 0 failed); `nexus skills frontier` no-id path smoke exits 2.
+
+### Branch
+
+`feat/v1.12.0-ecosystem-adoption`.
+
+---
+
 ## [2026-07-16] v1.12.0 ecosystem adoption -- Phase 2 (partial): surface the v1.7 skill optimizer via a CLI + composition root (L1 / EM005-EM006)
 
 ### Goal
