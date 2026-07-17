@@ -265,6 +265,7 @@ export class SkillOptimizer {
       skillPath: resolvedPath,
       diff: renderEditDiff(proposed),
       classification,
+      newContent,
     });
     if (!approved) {
       return { applied: false, approved: false, reason: "human approval withheld" };

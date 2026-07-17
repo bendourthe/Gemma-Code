@@ -171,6 +171,15 @@ export interface SkillEditApprovalRequest {
   readonly diff: string;
   /** The `ActionClassifier` verdict for the write (always DESTRUCTIVE for a skill overwrite). */
   readonly classification: ActionClassification;
+  /**
+   * The exact write-ready file content this edit would produce (frontmatter +
+   * edited body). Set by the optimizer's write path so a capturing gate can bind
+   * a later (out-of-band) approval to the precise previewed bytes -- e.g. the
+   * desktop two-call preview/apply flow (EM.P2.A). Optional: gates that approve
+   * inline (CLI readline, auto gates) ignore it, and the frontier promotion path
+   * does not set it.
+   */
+  readonly newContent?: string;
 }
 
 /**

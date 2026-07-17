@@ -13,6 +13,7 @@ import type {
   SkillEditApprovalRequest,
 } from "../../../modules/coding/skilloptimizer/types.js";
 import {
+  CapturingApprovalGate,
   autoApproveApprovalGate,
   autoDenyApprovalGate,
   createHeadlessCandidateFrontier,
@@ -156,6 +157,20 @@ describe("createHeadlessSkillOptimizer (L1 / EM005)", () => {
     } as unknown as SkillEditApprovalRequest;
     expect(await autoDenyApprovalGate.requestApproval(req)).toBe(false);
     expect(await autoApproveApprovalGate.requestApproval(req)).toBe(true);
+  });
+
+  it("CapturingApprovalGate records the write-ready request and denies (never writes)", async () => {
+    const gate = new CapturingApprovalGate();
+    const req = {
+      skillId: "s",
+      skillPath: "/p",
+      diff: "d",
+      newContent: "NEW BODY",
+    } as unknown as SkillEditApprovalRequest;
+    expect(await gate.requestApproval(req)).toBe(false);
+    expect(gate.captured).toEqual([
+      { skillId: "s", skillPath: "/p", diff: "d", newContent: "NEW BODY" },
+    ]);
   });
 
   it("wires the optional critic pre-filter without error (withCritic)", () => {

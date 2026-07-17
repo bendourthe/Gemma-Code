@@ -12,6 +12,7 @@ import { ImageStudioPage } from "./modules/image/ImageStudioPage";
 import { VideoLabPage } from "./modules/video/VideoLabPage";
 import { SettingsPage } from "./pages/settings/SettingsPage";
 import { createIpcSkillsClient } from "./pages/settings/ipcSkillsClient";
+import { createIpcSkillOptimizerClient } from "./pages/settings/ipcSkillOptimizerClient";
 import { LocalModelStatusDock } from "./components/LocalModelStatusDock";
 import { createMockTelemetryStream } from "./lib/telemetryMock";
 import type { TelemetryStream } from "./components/LocalModelStatus.types";
@@ -26,6 +27,9 @@ export interface AppProps {
 // one-click resync). Constructed once at module load so SettingsPage's memo
 // does not re-run its load effect on every App render.
 const skillsClient = createIpcSkillsClient();
+// v1.12.0 EM.P2.A: the Settings > Skill Optimizer tab drives preview/apply through
+// the real sidecar `skills.optimize.*` IPC. Constructed once at module load.
+const skillOptimizerClient = createIpcSkillOptimizerClient();
 
 export function App({ telemetryStream }: AppProps = {}): JSX.Element {
   const [stream, setStream] = useState<TelemetryStream | null>(telemetryStream ?? null);
@@ -87,7 +91,12 @@ export function App({ telemetryStream }: AppProps = {}): JSX.Element {
             <Route path="/coding" element={<CodingPage />} />
             <Route path="/images" element={<ImageStudioPage />} />
             <Route path="/videos" element={<VideoLabPage />} />
-            <Route path="/settings" element={<SettingsPage skillsClient={skillsClient} />} />
+            <Route
+              path="/settings"
+              element={
+                <SettingsPage skillsClient={skillsClient} skillOptimizerClient={skillOptimizerClient} />
+              }
+            />
             <Route
               path="/profile"
               element={

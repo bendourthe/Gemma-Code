@@ -45,6 +45,7 @@ import type {
   LearningRateBudget,
   RejectedEditBufferPort,
   SkillEditApprovalGate,
+  SkillEditApprovalRequest,
   SkillOptimizerConfig,
   SkillOptimizerDeps,
 } from "./types.js";
@@ -123,6 +124,37 @@ export const autoDenyApprovalGate: SkillEditApprovalGate = {
 export const autoApproveApprovalGate: SkillEditApprovalGate = {
   requestApproval: async () => true,
 };
+
+/** A captured proposed skill-file overwrite: the write-ready content + how it renders. */
+export interface CapturedSkillEdit {
+  readonly skillId: string;
+  readonly skillPath: string;
+  readonly diff: string;
+  /** The exact write-ready file content (empty only if the engine did not supply it). */
+  readonly newContent: string;
+}
+
+/**
+ * An approval gate that RECORDS each proposed overwrite and DENIES it (returns
+ * false), so the loop proposes + gate-clears edits but writes nothing. Used by
+ * an out-of-band approval flow (the desktop two-call preview/apply, EM.P2.A):
+ * preview runs the loop with this gate and surfaces `captured` for review; apply
+ * later writes the chosen `newContent` via a path-guarded io. It relies on the
+ * optimizer populating `SkillEditApprovalRequest.newContent`.
+ */
+export class CapturingApprovalGate implements SkillEditApprovalGate {
+  readonly captured: CapturedSkillEdit[] = [];
+
+  async requestApproval(request: SkillEditApprovalRequest): Promise<boolean> {
+    this.captured.push({
+      skillId: request.skillId,
+      skillPath: request.skillPath,
+      diff: request.diff,
+      newContent: request.newContent ?? "",
+    });
+    return false;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // CandidateFrontier composition root (EM.P2.B) -- the GEPA/EvoSkill layer.
