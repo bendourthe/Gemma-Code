@@ -14,6 +14,7 @@ import {
 } from "../llm/LocalAdapterRegistry.js";
 import { configureDeniedDestinations } from "../utils/ssrf.js";
 import { getLogger } from "../utils/logger.js";
+import { resolvePatientTimeoutMs } from "../../../core/registry/patientTier.js";
 
 /**
  * Composition root for the extension. Owns the singleton-like cross-cutting
@@ -112,13 +113,20 @@ export class NexusCodingRuntime {
         : backend === OLLAMA_ADAPTER_NAME
           ? s.ollamaUrl
           : undefined;
-    const key = `${backend}|${s.ollamaUrl}|${s.lmStudioBaseUrl}|${s.requestTimeout}|${baseUrl ?? ""}`;
+    // v1.12.0 E1: the patient (disk-offload) tier uses a much larger timeout so a
+    // sub-1-tok/s run is not aborted by the interactive default; off by default.
+    const timeoutMs = resolvePatientTimeoutMs({
+      enabled: s.patientTierEnabled,
+      requestTimeoutMs: s.requestTimeout,
+      patientTimeoutMs: s.patientTierTimeoutMs,
+    });
+    const key = `${backend}|${s.ollamaUrl}|${s.lmStudioBaseUrl}|${timeoutMs}|${baseUrl ?? ""}`;
     if (this._llmClient && this._llmClientKey === key) {
       return this._llmClient;
     }
     this._llmClient = this._adapterRegistry.createClient(backend, {
       baseUrl,
-      timeoutMs: s.requestTimeout,
+      timeoutMs,
     });
     this._llmClientKey = key;
     return this._llmClient;

@@ -4,6 +4,33 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-16] v1.12.0 ecosystem adoption -- Phase 4: disk-offload "patient" tier (E1/E3); warm-KV (E2) deferred as blocked
+
+### Goal
+
+Add the de-hyped Colibri idea -- run a large open MoE (GLM-5.2-class) on a modest/no-GPU host by streaming experts off disk -- as a below-ceiling, off-by-default "patient" tier, without importing Colibri's C engine.
+
+### What changed (E1 + E3)
+
+- **Patient-tier mechanism**: [core/registry/patientTier.ts](../core/registry/patientTier.ts) (vscode-free) -- `resolvePatientTimeoutMs` (patient tier -> a large timeout, default 1h, never shorter than the normal one, so a sub-1-tok/s disk-streamed run is not aborted by the 60s interactive default), `PATIENT_TIER_LATENCY_WARNING` (honest ~0.05-2 tok/s notice), and `isPatientTierModelVisible` (E3 catalog gate on a `patient-tier` tag).
+- **Runtime wiring**: [NexusCodingRuntime.getOllamaClient](../modules/coding/runtime/NexusCodingRuntime.ts) now resolves the patient timeout into the LLM client + cache key; `nexus.llm.patientTier.enabled` / `.timeoutMs` settings (default off / 1h).
+- **Installer gate (E3)**: `load_catalog_models` hides `patient-tier`-tagged entries unless `NEXUS_PATIENT_TIER=1` (mirrors the Phase 3 extreme-low-bit gate).
+- The offload runtime is a **user-registered loopback local adapter** (llama.cpp flash-MoE via the existing OpenAI/Ollama adapter protocol) -- the app ships the tier plumbing, not the runtime. No live GLM-5.2 catalog entry (`EM.P4.A`, gated on the user having a backend); the tier is fail-closed/hidden until enabled.
+
+### E2 deferred -- architecturally blocked (not just unverifiable)
+
+Warm-KV persistence (reopen a conversation with zero re-processing) **cannot function on the current backend**: Nexus drives Ollama via `/api/chat` (message-array), which returns NO persistable `context` tokens -- on resume the messages are re-sent and Ollama re-processes them. It needs the E1 offload backend (which exposes a KV) or an `/api/generate` context path. Deferred as `EM.P4.B` with the exact seam recorded (a `kvCacheRef?` on the session store, dehydrated via `ArtifactStore` + `redactSecrets`).
+
+### Verification
+
+6 TS tests + the `NexusCodingRuntime` test (wired timeout) + 2 installer pytests; tsc + check-architecture 0 errors; root suite 4635 passed / 6 skipped / 0 failed; full installer suite green.
+
+### Branch
+
+`feat/v1.12.0-ecosystem-adoption`.
+
+---
+
 ## [2026-07-16] v1.12.0 ecosystem adoption -- Phase 3: extreme-low-bit (BitNet-class) tier gate (Q1 / EM007-EM009)
 
 ### Goal
