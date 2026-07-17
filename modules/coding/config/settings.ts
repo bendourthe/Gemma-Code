@@ -71,6 +71,8 @@ export interface NexusSettings {
   swarmOrchestrationEnabled: boolean;
   panelRoutingEnabled: boolean;
   harnessSelectorEnabled: boolean;
+  patientTierEnabled: boolean;
+  patientTierTimeoutMs: number;
   memorySnapshotMode: "frozen" | "live";
   /**
    * LLM backend selector. Known values are `ollama` | `lmstudio` | `auto`;
@@ -265,6 +267,11 @@ export function getSettings(): NexusSettings {
     harnessSelectorEnabled: c.get<boolean>(
       "nexus.coding.harnessSelector.enabled",
       false,
+    ),
+    patientTierEnabled: c.get<boolean>("nexus.llm.patientTier.enabled", false),
+    patientTierTimeoutMs: c.get<number>(
+      "nexus.llm.patientTier.timeoutMs",
+      3_600_000,
     ),
     memorySnapshotMode: (() => {
       const raw = c.get<string>("nexus.memory.snapshotMode", "frozen");

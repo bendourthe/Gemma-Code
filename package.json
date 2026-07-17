@@ -298,6 +298,16 @@
           "default": false,
           "description": "v1.12.0 Phase 1 (adoption-ecosystem-2026-07 H1) -- enable the per-model harness selector: it derives a capability tier (weak/mid/strong) for the active local model from its catalog size/tags and applies a scaffold profile (prompt style, thinking mode, system-prompt budget) tuned for that tier, so small/quantized models get more explicit guidance. Off by default: per the no-degradation gate, default-on flips only when the harness A/B (decideHarnessDefault) shows the selected scaffold beats the one-size default for a weak model on the golden split; that live A/B has not been measured here, so the selector ships opt-in. Reverse-engineered from the Open Interpreter / Codex-fork per-model harness thesis; no external code imported."
         },
+        "nexus.llm.patientTier.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "v1.12.0 Phase 4 (adoption-ecosystem-2026-07 E1) -- enable the disk-offload 'patient' inference tier: a large open MoE (e.g. GLM-5.2) streamed off disk via a user-registered local llama.cpp flash-MoE offload adapter on a modest/no-GPU host. Off by default and BELOW the single-GPU ceiling: generation is non-interactive (~0.05-2 tokens/sec), so a much larger per-request timeout (nexus.llm.patientTier.timeoutMs) applies and a latency warning is surfaced. Enable only when you have pointed nexus.llm.backend at a slow disk-offload backend and accept minutes-to-hours responses for async/batch work."
+        },
+        "nexus.llm.patientTier.timeoutMs": {
+          "type": "number",
+          "default": 3600000,
+          "description": "v1.12.0 Phase 4 (E1) -- per-request LLM timeout (ms) applied when nexus.llm.patientTier.enabled is on. Defaults to 1 hour so a sub-1-tok/s disk-offload run is not aborted by the interactive nexus.llm.requestTimeout default. Never shorter than nexus.llm.requestTimeout."
+        },
         "nexus.memory.enabled": {
           "type": "boolean",
           "default": true,

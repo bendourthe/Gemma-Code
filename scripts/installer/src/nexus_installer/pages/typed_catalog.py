@@ -144,6 +144,22 @@ def _extreme_low_bit_allowed(entry: dict) -> bool:
     return not any(vendor in hay for vendor in _BLOCKED_VENDORS)
 
 
+# v1.12.0 Phase 4 (E1/E3) -- the disk-offload "patient" tier gate. A catalog
+# entry tagged "patient-tier" (a large MoE streamed off disk, sub-1-tok/s) is
+# HIDDEN from the picker unless the operator opts in via NEXUS_PATIENT_TIER=1.
+# Below the single-GPU ceiling + non-interactive, so off by default.
+_PATIENT_TIER_TAG = "patient-tier"
+
+
+def _is_patient_tier_entry(entry: dict) -> bool:
+    tags = entry.get("tags")
+    return isinstance(tags, list) and _PATIENT_TIER_TAG in tags
+
+
+def _patient_tier_allowed() -> bool:
+    return os.environ.get("NEXUS_PATIENT_TIER", "") == "1"
+
+
 @dataclass(frozen=True)
 class CatalogModel:
     """A single catalog entry with the metadata the typed UI surfaces."""
@@ -241,6 +257,9 @@ def load_catalog_models(catalog_path: Path) -> list[CatalogModel]:
         if _is_extreme_low_bit_quant(quant) and not _extreme_low_bit_allowed(entry):
             # Extreme-low-bit (BitNet-class) tier stays hidden until opt-in + an
             # independent benchmark (the Q1 gate); default no-op.
+            continue
+        if _is_patient_tier_entry(entry) and not _patient_tier_allowed():
+            # Patient (disk-offload) tier stays hidden unless opted in (E1/E3 gate).
             continue
         strengths = entry.get("strengths")
         if not isinstance(strengths, list):
