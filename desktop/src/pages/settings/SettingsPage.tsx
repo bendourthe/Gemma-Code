@@ -7,17 +7,20 @@ import { useMemo, useState } from "react";
 
 import { ModelsSettings, type ModelsClient } from "./ModelsSettings";
 import { SkillsSettings, type SkillsSettingsClient } from "./SkillsSettings";
+import { SkillOptimizerSettings, type SkillOptimizerClient } from "./SkillOptimizerSettings";
 import { CredentialsSettings } from "./CredentialsSettings";
 import type { CredentialsClient } from "./credentialsTypes";
 import { createMockModelsClient } from "./mockModelsClient";
 import { createMockSkillsClient } from "./mockSkillsClient";
+import { createMockSkillOptimizerClient } from "./mockSkillOptimizerClient";
 import { createMockCredentialsClient } from "./mockCredentialsClient";
 
-type SettingsTab = "models" | "skills" | "credentials";
+type SettingsTab = "models" | "skills" | "optimizer" | "credentials";
 
 export interface SettingsPageProps {
   modelsClient?: ModelsClient;
   skillsClient?: SkillsSettingsClient;
+  skillOptimizerClient?: SkillOptimizerClient;
   credentialsClient?: CredentialsClient;
   initialTab?: SettingsTab;
 }
@@ -25,6 +28,7 @@ export interface SettingsPageProps {
 export function SettingsPage({
   modelsClient,
   skillsClient,
+  skillOptimizerClient,
   credentialsClient,
   initialTab = "models",
 }: SettingsPageProps = {}): JSX.Element {
@@ -36,6 +40,10 @@ export function SettingsPage({
   const skills = useMemo<SkillsSettingsClient>(
     () => skillsClient ?? createMockSkillsClient(),
     [skillsClient],
+  );
+  const skillOptimizer = useMemo<SkillOptimizerClient>(
+    () => skillOptimizerClient ?? createMockSkillOptimizerClient(),
+    [skillOptimizerClient],
   );
   const credentials = useMemo<CredentialsClient>(
     () => credentialsClient ?? createMockCredentialsClient(),
@@ -63,6 +71,14 @@ export function SettingsPage({
         </button>
         <button
           type="button"
+          data-testid="settings-tab-optimizer"
+          onClick={() => setTab("optimizer")}
+          style={tabButtonStyle(tab === "optimizer")}
+        >
+          Skill Optimizer
+        </button>
+        <button
+          type="button"
           data-testid="settings-tab-credentials"
           onClick={() => setTab("credentials")}
           style={tabButtonStyle(tab === "credentials")}
@@ -74,6 +90,8 @@ export function SettingsPage({
         <ModelsSettings client={models} />
       ) : tab === "skills" ? (
         <SkillsSettings client={skills} />
+      ) : tab === "optimizer" ? (
+        <SkillOptimizerSettings client={skillOptimizer} />
       ) : (
         <CredentialsSettings client={credentials} />
       )}

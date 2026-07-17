@@ -41,6 +41,8 @@ export const IPC_METHODS = [
   "skills.sync",
   "skills.status",
   "skills.upstreamLatest",
+  "skills.optimize.preview",
+  "skills.optimize.apply",
   "telemetry.subscribe",
   "diffusion.health",
   "diffusion.version",
@@ -746,6 +748,44 @@ export const SkillsUpstreamLatestResponse = z
   .strict();
 export type SkillsUpstreamLatestResponseT = z.infer<typeof SkillsUpstreamLatestResponse>;
 
+// v1.12.0 Phase 2 (adoption-ecosystem-2026-07 EM.P2.A) -- the two-call skill
+// optimizer preview/apply flow. `preview` runs the optimizer with a capturing
+// deny gate (proposes + gate-clears edits, writes NOTHING) and returns proposed
+// edits + a session token; `apply` writes the exact previewed edit for one
+// proposal id after the human approves it in the app. Approval binds to the
+// precise previewed bytes (the app never re-runs the optimizer to apply).
+export const SkillsOptimizePreviewRequest = z
+  .object({
+    skillId: z.string().min(1),
+    model: z.string().optional(),
+    maxRounds: z.number().int().positive().optional(),
+  })
+  .strict();
+export const SkillsOptimizePreviewResponse = z
+  .object({
+    token: z.string(),
+    proposals: z.array(
+      z
+        .object({
+          id: z.string(),
+          skillId: z.string(),
+          skillPath: z.string(),
+          diff: z.string(),
+        })
+        .strict(),
+    ),
+  })
+  .strict();
+export type SkillsOptimizePreviewResponseT = z.infer<typeof SkillsOptimizePreviewResponse>;
+
+export const SkillsOptimizeApplyRequest = z
+  .object({ token: z.string().min(1), proposalId: z.string().min(1) })
+  .strict();
+export const SkillsOptimizeApplyResponse = z
+  .object({ applied: z.boolean(), skillId: z.string(), skillPath: z.string() })
+  .strict();
+export type SkillsOptimizeApplyResponseT = z.infer<typeof SkillsOptimizeApplyResponse>;
+
 const NotImplementedAny = z.unknown();
 
 interface MethodSchema {
@@ -851,6 +891,16 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
   "skills.upstreamLatest": {
     request: SkillsUpstreamLatestRequest,
     response: SkillsUpstreamLatestResponse,
+    implemented: true,
+  },
+  "skills.optimize.preview": {
+    request: SkillsOptimizePreviewRequest,
+    response: SkillsOptimizePreviewResponse,
+    implemented: true,
+  },
+  "skills.optimize.apply": {
+    request: SkillsOptimizeApplyRequest,
+    response: SkillsOptimizeApplyResponse,
     implemented: true,
   },
   "telemetry.subscribe": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },

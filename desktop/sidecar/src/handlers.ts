@@ -32,9 +32,13 @@ import {
   DiffusionVideoWorkflowExtractRequest,
   DiffusionWorkflowExtractRequest,
   SkillsSyncRequest,
+  SkillsOptimizePreviewRequest,
+  SkillsOptimizeApplyRequest,
   type SkillsStatusResponseT,
   type SkillsSyncResponseT,
   type SkillsUpstreamLatestResponseT,
+  type SkillsOptimizePreviewResponseT,
+  type SkillsOptimizeApplyResponseT,
   IPC_METHODS,
   METHOD_SCHEMAS,
   NotImplementedError,
@@ -56,6 +60,7 @@ import {
   DEFAULT_HUB_SOURCE_REPO,
 } from "../../../core/storage/hubVersionManifest.js";
 import { CodingSessionManager } from "./coding/sessionManager.js";
+import { SkillOptimizerManager } from "./coding/skillOptimizerManager.js";
 import { ChatSessionManager } from "./chat/sessionManager.js";
 import { memorySnapshot, traceSubscribe } from "./coding/panelData.js";
 import {
@@ -93,6 +98,8 @@ export interface HandlerContext {
    * file.
    */
   credentials: CredentialVault;
+  /** v1.12.0 EM.P2.A -- the two-call skill-optimizer preview/apply manager. */
+  skillOptimizer: SkillOptimizerManager;
 }
 
 export type HandlerFn = (params: unknown, ctx: HandlerContext) => Promise<unknown>;
@@ -109,8 +116,9 @@ export function createHandlerContext(
   ffmpeg: FfmpegContext = DEFAULT_FFMPEG_CONTEXT,
   credentials: CredentialVault = createCredentialVault(),
   chat: ChatSessionManager = new ChatSessionManager(),
+  skillOptimizer: SkillOptimizerManager = new SkillOptimizerManager(),
 ): HandlerContext {
-  return { ...base, sessions, chat, diffusion, ffmpeg, credentials };
+  return { ...base, sessions, chat, diffusion, ffmpeg, credentials, skillOptimizer };
 }
 
 export const handlers: Record<Method, HandlerFn> = {
@@ -248,6 +256,15 @@ export const handlers: Record<Method, HandlerFn> = {
       // Offline / rate-limited: report "unknown" rather than throwing.
       return { latestTag: null };
     }
+  },
+  "skills.optimize.preview": async (params, ctx): Promise<SkillsOptimizePreviewResponseT> => {
+    const req = SkillsOptimizePreviewRequest.parse(params ?? {});
+    const res = await ctx.skillOptimizer.preview(req);
+    return { token: res.token, proposals: res.proposals.map((p) => ({ ...p })) };
+  },
+  "skills.optimize.apply": async (params, ctx): Promise<SkillsOptimizeApplyResponseT> => {
+    const req = SkillsOptimizeApplyRequest.parse(params ?? {});
+    return ctx.skillOptimizer.apply(req);
   },
   "telemetry.subscribe": async () => {
     throw new NotImplementedError("telemetry.subscribe");

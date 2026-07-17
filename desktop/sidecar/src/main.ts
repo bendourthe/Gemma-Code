@@ -3,8 +3,14 @@
 // Rust core (desktop/src-tauri/src/sidecar.rs) owns the lifecycle.
 
 import { createInterface } from "node:readline";
+import { join } from "node:path";
 import { CodingSessionManager } from "./coding/sessionManager.js";
 import { createHeadlessAgentRunner } from "./coding/headlessAgentRunner.js";
+import {
+  SkillOptimizerManager,
+  createHeadlessOptimizePreviewRunner,
+} from "./coding/skillOptimizerManager.js";
+import { createHeadlessOllamaClient } from "../../../modules/coding/llm/headlessOllamaClient.js";
 import { ChatSessionManager } from "./chat/sessionManager.js";
 import { createChatMessageHandler } from "./chat/chatMessageHandler.js";
 import { createDiffusionRuntime } from "./diffusion/runtimeFactory.js";
@@ -44,6 +50,25 @@ const sessions = new CodingSessionManager({ agentRunner: createHeadlessAgentRunn
 const diffusion = createDiffusionRuntime(process.env);
 // v1.7.0: drive the Local Chatbot Explorer with a real local-model chat stream.
 const chat = new ChatSessionManager({ runner: createChatMessageHandler() });
+// v1.12.0 EM.P2.A: the skill-optimizer preview/apply manager. The preview runner
+// needs the golden task corpus + a local model, so it is wired only when the
+// golden tasks dir is resolvable (NEXUS_GOLDEN_TASKS_DIR); otherwise the manager
+// is left unconfigured and `skills.optimize.preview` reports "not configured"
+// (never crashes). Skill files resolve under the Nexus-Hub catalog layout. This
+// live path is verified with the running app + a local model, not in CI.
+const goldenTasksDir = process.env.NEXUS_GOLDEN_TASKS_DIR;
+const skillOptimizer = goldenTasksDir
+  ? new SkillOptimizerManager({
+      runner: createHeadlessOptimizePreviewRunner({
+        llm: createHeadlessOllamaClient(),
+        defaultModel: process.env.NEXUS_OPTIMIZER_MODEL ?? "gemma4:e4b",
+        snapshotRoot: process.env.NEXUS_GOLDEN_SNAPSHOT_DIR ?? join(goldenTasksDir, "..", "snapshots"),
+        tasksDir: goldenTasksDir,
+        artifactsDir: join(nexusHome(), "skilloptimizer", "artifacts"),
+        resolveSkillPath: (id) => join(catalogRoot(), "skills", id.split("/").pop() ?? id, "SKILL.md"),
+      }),
+    })
+  : new SkillOptimizerManager();
 const ctx = createHandlerContext(
   { pid: process.pid, platform: process.platform },
   sessions,
@@ -51,6 +76,7 @@ const ctx = createHandlerContext(
   undefined,
   undefined,
   chat,
+  skillOptimizer,
 );
 
 function write(payload: JsonRpcResponseOk | JsonRpcResponseErr): void {

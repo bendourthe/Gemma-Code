@@ -4,6 +4,29 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-16] v1.12.0 ecosystem adoption -- Phase 2 (final): desktop skill-optimizer approval UI (EM.P2.A) -- Phase 2 complete
+
+### Goal
+
+Let the desktop app launch a skill-optimizer run and approve proposed edits, without dropping the human-approval-before-overwrite guardrail -- over a sidecar transport that is one-shot request/response (no server-push channel).
+
+### What changed
+
+- **Two-call approval protocol** (the answer to the no-push transport): `skills.optimize.preview` runs the optimizer with a `CapturingApprovalGate` (proposes + gate-clears edits, writes NOTHING) and returns proposals + a session token; `skills.optimize.apply { token, proposalId }` writes the EXACT previewed bytes for the approved proposal. Approval binds to the precise previewed content -- the load-bearing guardrail. Backed by [SkillOptimizerManager](../desktop/sidecar/src/coding/skillOptimizerManager.ts) (token store + injected preview-runner seam + path-guarded apply), registered in [protocol.ts](../desktop/sidecar/src/protocol.ts) + [handlers.ts](../desktop/sidecar/src/handlers.ts) and wired in [main.ts](../desktop/sidecar/src/main.ts). No Rust change (the generic `ipc_call` forwards any method).
+- **Engine change (additive, safe)**: an optional `newContent` on `SkillEditApprovalRequest`, populated by the optimizer's write path, so the capturing gate can record write-ready bytes. Optional -> the CLI/auto gates and the frontier promotion path are unaffected.
+- **vscode decoupling (root cause)**: making the optimizer engine plain-Node-loadable (required by both the sidecar AND the Phase 2 CLI) meant the pure command blocklist (`isBlocked` etc.) had to stop pulling `vscode`. Extracted it to the vscode-free [src/tools/commandBlocklist.ts](../src/tools/commandBlocklist.ts), re-exported from `terminal.ts` (behavior unchanged), and repointed `ActionClassifier`. This is why v1.7 deferred production wiring -- the engine transitively imported vscode via the guardrail.
+- **React approval panel**: [SkillOptimizerSettings.tsx](../desktop/src/pages/settings/SkillOptimizerSettings.tsx) (Settings > Skill Optimizer) + [ipcSkillOptimizerClient.ts](../desktop/src/pages/settings/ipcSkillOptimizerClient.ts), wired in App.tsx. Preview lists proposed diffs; each writes only on an explicit "Approve & write".
+
+### Verification + honest caveat
+
+541 desktop tests green (incl. the manager + panel + the sidecar-handlers allowlist), desktop tsc + lint 0 warnings; root suite 4620 passed / 6 skipped / 0 failed after the decoupling refactor (884 root tools/guardrails/skilloptimizer tests confirm behavior preserved). Every layer is unit/component-tested with fakes. The ONE thing not verified here: the LIVE end-to-end run (app launches -> preview against Ollama -> approve -> write), which needs the running Tauri app + a local model and cannot be exercised in this headless CI. **Phase 2 is complete** (CLI + desktop); v1.12.0 remaining work is Phases 3-6.
+
+### Branch
+
+`feat/v1.12.0-ecosystem-adoption`.
+
+---
+
 ## [2026-07-16] v1.12.0 ecosystem adoption -- Phase 2 (cont.): `nexus skills frontier` CLI completes the L1 CLI surface (EM.P2.B)
 
 ### Goal

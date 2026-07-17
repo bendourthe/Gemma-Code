@@ -6,7 +6,7 @@ import type {
   RunTerminalParams,
 } from "../types.js";
 import { resolveInsideWorkspace } from "./pathGuard.js";
-import { BLOCKED_PATTERNS } from "../../../modules/coding/guardrails/policy.js";
+import { shellSegments, isBlocked, findBlockedPattern } from "../commandBlocklist.js";
 import {
   introspectShellCommand,
   detectShellDialect,
@@ -50,38 +50,12 @@ export const ALLOWED_COMMANDS: Record<string, RegExp> = {
 
 export { BLOCKED_PATTERNS } from "../../../modules/coding/guardrails/policy.js";
 
-/**
- * Split a shell command string on metacharacters that can chain sub-commands
- * (`;`, `&&`, `||`, `|`, newlines) and return all individual segments.
- */
-function shellSegments(command: string): string[] {
-  return command.split(/;|&&|\|\||[\n|]/).map((s) => s.trim()).filter(Boolean);
-}
-
-export function isBlocked(command: string): boolean {
-  const segments = [command, ...shellSegments(command)];
-  return segments.some((seg) => {
-    // Normalize multiple whitespace into single spaces to catch patterns like `rm  -rf /`.
-    const normalized = seg.toLowerCase().trim().replace(/\s+/g, " ");
-    return BLOCKED_PATTERNS.some((pattern) => normalized.includes(pattern));
-  });
-}
-
-/**
- * Return the first blocked-pattern substring matched by any segment of `command`,
- * or `null` when the command is safe. Used for the dry-run report so the agent
- * knows *which* destructive pattern triggered the match.
- */
-export function findBlockedPattern(command: string): string | null {
-  const segments = [command, ...shellSegments(command)];
-  for (const seg of segments) {
-    const normalized = seg.toLowerCase().trim().replace(/\s+/g, " ");
-    for (const pattern of BLOCKED_PATTERNS) {
-      if (normalized.includes(pattern)) return pattern;
-    }
-  }
-  return null;
-}
+// v1.12.0 EM.P2.A: the pure blocklist policy (`shellSegments` / `isBlocked` /
+// `findBlockedPattern`) moved to the vscode-free `../commandBlocklist.js` so
+// vscode-free code (the skill-optimizer guardrail + its plain-Node composition
+// roots) can use it without importing this vscode-coupled module. Re-exported
+// here so every existing consumer of terminal.ts is unchanged.
+export { isBlocked, findBlockedPattern };
 
 /**
  * Returns true if every chained segment of the command starts with an allowlisted

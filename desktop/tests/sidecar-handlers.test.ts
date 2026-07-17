@@ -77,6 +77,9 @@ describe("sidecar handlers", () => {
           "skills.sync",
           "skills.status",
           "skills.upstreamLatest",
+          // v1.12.0 EM.P2.A wired the skill-optimizer preview/apply surface.
+          "skills.optimize.preview",
+          "skills.optimize.apply",
         ].includes(m),
     );
     for (const m of unimplemented) {

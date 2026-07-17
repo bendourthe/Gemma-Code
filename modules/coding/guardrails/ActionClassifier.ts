@@ -1,5 +1,5 @@
 import type { ToolCall } from "../../../src/tools/types.js";
-import { isBlocked } from "../../../src/tools/handlers/terminal.js";
+import { isBlocked } from "../../../src/tools/commandBlocklist.js";
 
 export enum ActionRisk {
   REVERSIBLE = "reversible",
