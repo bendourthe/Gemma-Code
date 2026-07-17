@@ -129,4 +129,20 @@ describe("nexus CLI parseArgs", () => {
     expect(a.flags.model).toBe("qwen2.5-coder:7b");
     expect(a.flags["max-rounds"]).toBe("5");
   });
+
+  it("captures skills frontier <id> with --apply --max-candidates", () => {
+    const a = parseArgs([
+      "skills",
+      "frontier",
+      "nexus-hub/code-quality",
+      "--apply",
+      "--max-candidates",
+      "4",
+    ]);
+    expect(a.command).toBe("skills");
+    expect(a.subcommand).toBe("frontier");
+    expect(a.positional).toEqual(["nexus-hub/code-quality"]);
+    expect(a.flags.apply).toBe(true);
+    expect(a.flags["max-candidates"]).toBe("4");
+  });
 });

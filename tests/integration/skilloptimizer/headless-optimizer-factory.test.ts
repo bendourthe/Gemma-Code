@@ -15,6 +15,7 @@ import type {
 import {
   autoApproveApprovalGate,
   autoDenyApprovalGate,
+  createHeadlessCandidateFrontier,
   createHeadlessSkillOptimizer,
 } from "../../../modules/coding/skilloptimizer/HeadlessOptimizerFactory.js";
 
@@ -170,5 +171,41 @@ describe("createHeadlessSkillOptimizer (L1 / EM005)", () => {
       withCritic: true,
     });
     expect(typeof optimizer.optimize).toBe("function");
+  });
+});
+
+describe("createHeadlessCandidateFrontier (L1 / EM.P2.B)", () => {
+  it("assembles a runnable frontier and promotes nothing when the train split passes", async () => {
+    const TRAIN_ID = "train-pass";
+    await seedSnapshot(TRAIN_ID);
+    await seedSnapshot("val-1");
+    const skill = await seedSkill();
+    const before = await fsp.readFile(skill.path, "utf8");
+
+    const { client } = scriptedLlm([
+      toolCall("create_file", { path: "greeting.ts", content: "export const hello = () => 'hi';" }),
+      "Done.",
+    ]);
+
+    const frontier = await createHeadlessCandidateFrontier({
+      llm: client,
+      model: "m",
+      snapshotRoot,
+      skill: { id: skill.id, path: skill.path, body: skill.body },
+      train: [split(TRAIN_ID, "train")],
+      validation: [split("val-1", "validation")],
+      approvalGate: autoDenyApprovalGate,
+      maxCandidates: 3,
+      budget: { maxOps: 2, maxChangedChars: 200 },
+      gitRunner: async () => null, // no git => isolation degrades (not exercised: no candidates)
+      now: () => 1000,
+    });
+
+    const result = await frontier.evolve();
+    expect(result.promoted).toBe(false);
+    expect(result.approvalRequested).toBe(false);
+    expect(result.frontier.length).toBe(0);
+    const after = await fsp.readFile(skill.path, "utf8");
+    expect(after).toBe(before); // passing train => no candidates => nothing promoted
   });
 });

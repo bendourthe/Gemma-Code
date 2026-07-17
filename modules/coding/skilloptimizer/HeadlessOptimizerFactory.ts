@@ -20,16 +20,29 @@
 // Boundary: vscode-free; pure assembly over injected seams.
 // ---------------------------------------------------------------------------
 
+import { execFile } from "node:child_process";
+import { dirname, relative } from "node:path";
 import { SkillOptimizer } from "./SkillOptimizer.js";
+import { CandidateFrontier } from "./CandidateFrontier.js";
 import { HeadlessOptimizerRollout } from "./HeadlessOptimizerRollout.js";
+import {
+  HeadlessCandidateProducer,
+  HeadlessCandidatePromoter,
+  HeadlessCandidateScorer,
+} from "./HeadlessCandidateSeams.js";
+import { WorktreeCandidateManager } from "./frontierWorktree.js";
 import { ReflexionDiagnoser } from "./ReflexionDiagnoser.js";
 import { LlmSkillEditProposer } from "./SkillEditProposer.js";
 import { CriticEditReviewer } from "./EditCritic.js";
 import { RootSkillPathResolver, fsSkillFileIO } from "./io.js";
 import { ReflexionEngine } from "../orchestration/ReflexionEngine.js";
 import { CriticAgent } from "../orchestration/CriticAgent.js";
+import type { GitRunner } from "../agents/WorktreeManager.js";
+import type { SplitGoldenTaskSpec } from "../evaluation/goldenSplit.js";
 import type { LLMClient, LLMOptions } from "../llm/types.js";
 import type {
+  FailingTrajectory,
+  LearningRateBudget,
   RejectedEditBufferPort,
   SkillEditApprovalGate,
   SkillOptimizerConfig,
@@ -110,3 +123,113 @@ export const autoDenyApprovalGate: SkillEditApprovalGate = {
 export const autoApproveApprovalGate: SkillEditApprovalGate = {
   requestApproval: async () => true,
 };
+
+// ---------------------------------------------------------------------------
+// CandidateFrontier composition root (EM.P2.B) -- the GEPA/EvoSkill layer.
+// ---------------------------------------------------------------------------
+
+/** A fail-closed git runner over `git` on PATH; returns null on any error (no repo -> no isolation). */
+const nodeGitRunner: GitRunner = (args, cwd) =>
+  new Promise((resolve) => {
+    execFile(
+      "git",
+      [...args],
+      { cwd, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 },
+      (err, stdout) => resolve(err ? null : stdout),
+    );
+  });
+
+/** Options for assembling a runnable {@link CandidateFrontier}. */
+export interface HeadlessCandidateFrontierOptions {
+  readonly llm: LLMClient;
+  readonly model: string;
+  readonly snapshotRoot: string;
+  /** The target skill (id + path + current body); all candidates share this id. */
+  readonly skill: { readonly id: string; readonly path: string; readonly body: string };
+  /** Train split: rolled out to surface failing trajectories that seed candidate diversity. */
+  readonly train: readonly SplitGoldenTaskSpec[];
+  /** Validation split: the held-out aggregate the replacement rule + winner selection use. */
+  readonly validation: readonly SplitGoldenTaskSpec[];
+  /** REQUIRED human-approval gate -- a winning branch is never promoted without an affirmative. */
+  readonly approvalGate: SkillEditApprovalGate;
+  /** Hard population cap; also bounds how many failing-task seeds become candidates. */
+  readonly maxCandidates: number;
+  /** The per-candidate textual learning-rate budget. */
+  readonly budget: LearningRateBudget;
+  /** Git repo root for candidate branch isolation (default: the skill file's directory; degrades if not a repo). */
+  readonly workspaceRoot?: string;
+  /** Git runner (default: `git` on PATH, fail-closed). */
+  readonly gitRunner?: GitRunner;
+  readonly llmOptions?: LLMOptions;
+  readonly initGit?: boolean;
+  readonly now?: () => number;
+}
+
+/**
+ * Assemble a runnable {@link CandidateFrontier} from the shipped v1.7 seams. This
+ * runs an initial train rollout to derive up to `maxCandidates` diverse failure
+ * diagnoses (one per failing task) that seed the producer -- so it is async. A
+ * passing train split yields no diagnoses -> no candidates -> an empty frontier
+ * that promotes nothing. Candidate branch isolation degrades to a body-override
+ * measurement when git is unavailable (fault-tolerant).
+ */
+export async function createHeadlessCandidateFrontier(
+  options: HeadlessCandidateFrontierOptions,
+): Promise<CandidateFrontier> {
+  const { llm, model, snapshotRoot, skill, approvalGate, maxCandidates, budget } = options;
+  const llmOptions = options.llmOptions ?? {};
+  const rollout = new HeadlessOptimizerRollout({
+    llm,
+    model,
+    snapshotRoot,
+    initGit: options.initGit ?? false,
+    ...(options.now ? { now: options.now } : {}),
+  });
+  const diagnoser = new ReflexionDiagnoser(new ReflexionEngine(llm, model, llmOptions, null));
+  const proposer = new LlmSkillEditProposer(llm, model, llmOptions);
+
+  // Seed diversity: diagnose each failing train task (capped at the population size).
+  const specById = new Map(options.train.map((t) => [t.id, t]));
+  const trainResults = await rollout.run(options.train);
+  const failing = trainResults.filter((r) => !r.passed).slice(0, maxCandidates);
+  const diagnoses: string[] = [];
+  for (const result of failing) {
+    const spec = specById.get(result.taskId);
+    const trajectory: FailingTrajectory = {
+      taskId: result.taskId,
+      taskName: spec?.name ?? result.taskId,
+      taskDescription: spec?.description ?? "",
+      failures: result.failures,
+    };
+    const diagnosis = await diagnoser.diagnose([trajectory]);
+    if (diagnosis) diagnoses.push(diagnosis);
+  }
+
+  const producer = new HeadlessCandidateProducer({
+    proposer,
+    skillId: skill.id,
+    baseBody: skill.body,
+    diagnoses,
+    budget,
+  });
+  const scorer = new HeadlessCandidateScorer({
+    rollout,
+    tasks: [...options.train, ...options.validation],
+    heldOutTaskIds: new Set(options.validation.map((t) => t.id)),
+  });
+  const workspaceRoot = options.workspaceRoot ?? dirname(skill.path);
+  const workspaces = new WorktreeCandidateManager(
+    workspaceRoot,
+    relative(workspaceRoot, skill.path),
+    options.gitRunner ?? nodeGitRunner,
+  );
+  const promoter = new HeadlessCandidatePromoter({
+    io: fsSkillFileIO,
+    skillPathFor: () => skill.path,
+  });
+
+  return new CandidateFrontier(
+    { producer, workspaces, scorer, approvalGate, promoter },
+    { maxCandidates, skillId: skill.id, skillPath: skill.path },
+  );
+}
