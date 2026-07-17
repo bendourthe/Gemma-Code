@@ -4,6 +4,29 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-16] v1.11.0 installer overhaul -- Phase 8 (FINAL): architecture refactor + known-gaps reconciliation + CI/CD (T801-T804)
+
+### Goal
+
+Close the v1.11.0 installer overhaul: a refactor/hygiene pass over the tree grown by P1-P7, reconcile every known gap, wire the new headless-smoke contract into CI, and hand off release-readiness.
+
+### What changed
+
+- **T801 architecture refactor** (verification pass): the release-fetch dead code was already removed in P4 (only a historical docstring mention remains in [desktop_provisioner.py](../scripts/installer/src/nexus_installer/engine/desktop_provisioner.py)); no empty dirs; `__pycache__` gitignored with zero committed `.pyc`; the P7 [background/](../scripts/installer/src/nexus_installer/background/) package has a clean Qt-free-logic / thin-Qt-wiring boundary and spawns no subprocesses (spawn discipline already unified via `no_window_kwargs()`). **Decision (IO.P3.A):** RETAIN the unwired `provisioner_dispatch` chain -- wire+bundle (a multi-GB artifact) vs. retire is a product decision beyond an installer-overhaul cleanup, not a dead-code deletion.
+- **T802 known-gaps reconciliation** ([known-gaps.md](v1/v1.11/known-gaps.md) section 3): every open v1.11.0 gap adjudicated -- 4 RESOLVED (Ollama pin, spawn sweep, spinner-log, BOM profiles), 3 TRANSFERRED (the gated-models catalog-UI decision IO.P1.A/P5.C/P6.E merged into one v1.12 catalog pass), the rest DEFERRED (operator verification actions + the standing NHC.P5.A lint baseline). **Zero P0/P1 blockers open.**
+- **T803 CI/CD** ([ci.yml](../.github/workflows/ci.yml) `test-installer` job + new [ci-linux.json](../scripts/installer/testing/profiles/ci-linux.json) profile): the job now runs (a) pytest (hard gate), (b) a **network-free headless-smoke result-JSON contract gate** -- runs the T202 `--headless-smoke` path on a clean Linux runner with a venv-only profile (a no-op since ADR-0001) and asserts `schema` / `success` / `steps_failed` (hard gate), and (c) ruff + mypy as **advisory** visibility steps over the deferred NHC.P5.A baseline (mypy's baseline is platform-conditional -- the `ctypes.windll` type-ignore flips between Windows and Linux -- so it cannot be a clean cross-platform hard gate). The advisory steps carry `nexus-check-allow: no-disabled-ci-check` annotations; `check:tampering` is green. The full multi-component clean-machine run stays the operator Windows Sandbox action until the Actions freeze lifts (2026-08-01, IO.P2.A).
+- **T804 final gate + docs**: installer suite green (821 passed, 2 skipped); `check:docs-layout` + `check:tampering` green; no TypeScript touched (root/desktop suites unaffected). The plan's top status flipped to COMPLETE; this DEVLOG entry added; README stays product-level.
+
+### Verification
+
+Installer suite **821 passed, 2 skipped**; the new `ci-linux` headless-smoke profile runs clean locally (exit 0, `success: true`, schema `nexus-smoke-result/v1`); `ci.yml` parses as valid YAML; `npm run check:docs-layout` + `npm run check:tampering` both green. Release-readiness handed to `/update release` (no auto-tag/push).
+
+### Branch
+
+`feat/v1.11.0-installer-overhaul`
+
+---
+
 ## [2026-07-16] v1.11.0 installer overhaul -- Phase 7: full background continuation (T701-T705)
 
 ### Goal

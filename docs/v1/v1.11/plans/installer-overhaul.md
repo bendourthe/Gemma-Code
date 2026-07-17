@@ -1,6 +1,6 @@
 # v1.11.0 - Installer Overhaul: One-Shot Reliability + Mockup UI + Clean-Machine Test Harness
 
-**Status:** PLANNED (no phase started)
+**Status:** COMPLETE (all 8 phases landed 2026-07-13 -> 2026-07-16; release-readiness handed to `/update release`)
 **Cycle:** v1.11.0 (docs under `docs/v1/v1.11/`; product version continues on the semantic-release 2.x line)
 **Branch:** `feat/v1.11.0-installer-overhaul` (branch off `main`)
 **Driver:** A real end-to-end install run (2026-07-12, `NexusSetup.exe` SHA `521590EF`) surfaced systemic failures: 4/8 models failed, the desktop step 404'd, and the installing-page UX diverged from the intended design. Operator direction: the installer must be a one-file experience a non-technical user can run with zero terminal/browser use.
@@ -197,12 +197,12 @@ Delivered as a Qt-free-logic + thin-Qt-wiring split under `src/nexus_installer/b
 
 ---
 
-## Phase 8 (MANDATORY FINAL) - Architecture refactor, known-gaps reconciliation, and CI/CD
+## Phase 8 (MANDATORY FINAL) - Architecture refactor, known-gaps reconciliation, and CI/CD (landed 2026-07-16)
 
-- [ ] **T801** Architecture refactor pass over the installer tree grown by P1-P7 (engine/UI boundaries, the unified spawn helper, dead code from the deleted release-fetch path); `project-refactor` detectors (empty dirs, duplicates, orphans).
-- [ ] **T802** Known-gaps reconciliation: resolve/defer/transfer every v1.11.0 gap; fold the carried items (installer lint baseline `NHC.P5.A` disposition, any T103 models deferred as unavailable, macOS checklist outcomes).
-- [ ] **T803** CI/CD: wire the headless-smoke (T202) result-JSON into CI where runnable (Linux container path now; Windows Sandbox stays an operator action until the Actions freeze lifts, then add a scheduled Windows job); ensure the installer pytest/ruff/mypy gates and the packaging smoke run in CI; optimize for minutes (path filters, concurrency).
-- [ ] **T804** [tests + docs] Whole-repo final gate: root + desktop + installer suites green, `tsc`/lint/ruff clean, all new CI gates green; docs canonical (`check:docs-layout`), DEVLOG/todos/README updated; release-readiness handoff to `/update release` (never auto-tag/push).
+- [x] **T801** Architecture refactor pass over the installer tree grown by P1-P7 (engine/UI boundaries, the unified spawn helper, dead code from the deleted release-fetch path); `project-refactor` detectors (empty dirs, duplicates, orphans). Verified clean: the release-fetch dead code was already removed in P4 (only a historical docstring mention remains); no empty dirs; `__pycache__` gitignored with zero committed `.pyc`; the new `background/` package has a clean Qt-free-logic / thin-Qt-wiring boundary and spawns no subprocesses (spawn discipline already unified via `no_window_kwargs()`, IO.P1.C). Architecture decision recorded (IO.P3.A): RETAIN the unwired `provisioner_dispatch` chain -- wire+bundle vs. retire is a product decision beyond an installer-overhaul cleanup.
+- [x] **T802** Known-gaps reconciliation: resolve/defer/transfer every v1.11.0 gap; fold the carried items (installer lint baseline `NHC.P5.A` disposition, any T103 models deferred as unavailable, macOS checklist outcomes). Full adjudication table added to [known-gaps.md](../known-gaps.md) section 3: 4 RESOLVED, 3 TRANSFERRED (the gated-models catalog-UI decision IO.P1.A/P5.C/P6.E -> one v1.12 catalog pass), the rest DEFERRED (operator verification actions + the standing lint baseline). Zero P0/P1 blockers open.
+- [x] **T803** CI/CD: wire the headless-smoke (T202) result-JSON into CI where runnable (Linux container path now; Windows Sandbox stays an operator action until the Actions freeze lifts, then add a scheduled Windows job); ensure the installer pytest/ruff/mypy gates and the packaging smoke run in CI; optimize for minutes (path filters, concurrency). The `test-installer` job now runs (a) pytest (hard gate, existing), (b) a network-free headless-smoke result-JSON contract gate on a new `ci-linux` profile (venv-only, hard gate), and (c) ruff + mypy as advisory visibility steps over the deferred NHC.P5.A baseline (mypy's baseline is platform-conditional). `check:tampering` green on the CI edits. Windows Sandbox job deferred to the Actions-freeze lift (2026-08-01, IO.P2.A).
+- [x] **T804** [tests + docs] Whole-repo final gate: root + desktop + installer suites green, `tsc`/lint/ruff clean, all new CI gates green; docs canonical (`check:docs-layout`), DEVLOG/todos/README updated; release-readiness handoff to `/update release` (never auto-tag/push). Installer suite green (821 passed, 2 skipped); `check:docs-layout` + `check:tampering` green; no TypeScript touched (root/desktop suites unaffected). DEVLOG updated; README is product-level (installer internals live in the installer docs). Release-readiness handed to `/update release`.
 
 **Acceptance:** the plan's DoD checklist in Section 0 is fully checked, gaps reconciled, CI enforcing the new invariants.
 

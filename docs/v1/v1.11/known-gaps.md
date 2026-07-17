@@ -87,3 +87,42 @@ Tracks unfinished work, deferrals, and coordination for the v1.11.0 installer ov
 | ID | Sev | Cat | Gap | Disposition |
 |----|-----|-----|-----|-------------|
 | IO.CC.1 | P2 | NI | `catalog.json` is shared app+installer data: the T103 re-points (flux-schnell -> Comfy-Org mirror; sana-sprint/video -> public diffusers repos; 2K/4K/dc-ae file-path fixes) and the T104 pin rotation (26 files pinned) change what the desktop app's registry serves too. Root registry suite green (114 tests). | Note for the app side: the diffusion runtime loads from the same per-model dirs; repo swaps preserved the transformer-file convention. |
+
+## 3. Phase 8 reconciliation (T802, 2026-07-16)
+
+Every open v1.11.0 gap adjudicated at the final phase. **Disposition:** RESOLVED (closed this cycle) / DEFERRED (operator action or refinement, tracked) / TRANSFERRED (moved to a future cycle's plan).
+
+| ID | Disposition | Rationale |
+|----|-------------|-----------|
+| IO.P1.A | TRANSFERRED | The 6 gated models (no public equivalent, non-defaults, fail-fast 401) need a catalog/Models-page "requires a HuggingFace account" treatment (flag-or-remove). Merged with IO.P5.C + IO.P6.E into one v1.12 catalog-UI follow-up. A zero-auth default install is unaffected. |
+| IO.P1.B | RESOLVED | P3/T302 bumped the Ollama pin to v0.32.0 with real GitHub-published digests; the clean-machine install no longer aborts at the all-zero-checksum gate. |
+| IO.P1.C | RESOLVED | The no-console spawn sweep unified every Windows call site through `no_window_kwargs()`; T801 re-verified no per-call-site `Popen` remains in the v1.11-grown tree (the new `background/` package spawns no subprocesses). |
+| IO.P1.D | DEFERRED | Per-model bytes/speed/ETA remain sizeGB-derived; the P5 rows and the P7 recorder both render whatever telemetry carries, so an engine-side refinement improves both. Tracked; not blocking. |
+| IO.P1.E | DEFERRED | Full frozen-`NexusSetup.exe` end-to-end is an operator action; the P2 sandbox harness + the P7 scenario driver (which also persists the run's `state.json` for inspection) make it a one-command check. |
+| IO.P1.F | RESOLVED | P5's log rendering collapses the ollama spinner rewrites. |
+| IO.P2.A | DEFERRED | The first REAL clean-machine runs need Windows Sandbox + Docker enabled on the host (operator). The harnesses, profiles, and the new `ci-linux` network-free contract gate (T803) are ready; a scheduled Windows Sandbox CI job lands once the Actions freeze lifts (2026-08-01). |
+| IO.P2.B | DEFERRED (NI) | No stable `wsb.exe` CLI to auto-close the sandbox window; low value until Win11 22H2+ can be feature-detected. |
+| IO.P2.C | RESOLVED | Smoke profiles are BOM-tolerant (`utf-8-sig`), fixed + regression-tested in P2. |
+| IO.P3.A | TRANSFERRED | **T801 architecture decision:** RETAIN the `provisioner_dispatch` chain (do NOT delete it). It is future scaffolding with zero real callers today, but the desktop app owns its diffusion runtime, so wiring+bundling (a multi-GB artifact) vs. retiring is a product decision beyond an installer-overhaul cleanup. Its spawn discipline was already fixed (IO.P1.C). Recorded for a dedicated future cycle. |
+| IO.P3.B | DEFERRED | The default-profile sandbox end-to-end gate is an operator action, now unblocked by P4's embedded desktop; run after enabling Sandbox. |
+| IO.P3.C | DEFERRED (NI) | The Ollama pin drifts behind upstream over time; `build/check-ollama-pin.py` (advisory, `--strict` for CI) prints current digests for one-command rotation. |
+| IO.P4.A | DEFERRED | Only the Windows build stages a desktop payload; the mac/linux `build-*.sh` staging lands with their packaging pass. The override seam works meanwhile; the provisioner fail-softs elsewhere. |
+| IO.P4.B | DEFERRED | Whether the Tauri NSIS stub fetches WebView2 at its own install time is an operator sandbox check; switch the bundler to the offline installer if it breaks the offline-from-GitHub goal. |
+| IO.P4.C | DEFERRED (NI) | Coarse desktop-step progress is inherent to a silent `/S` NSIS run; P5 renders step status + reasons. Accepted. |
+| IO.P5.A | DEFERRED | Same engine-side refinement as IO.P1.D. |
+| IO.P5.B | DEFERRED | Pixel-level visual pass on the rebuilt exe is an operator check (P6 built the surrounding shell). |
+| IO.P5.C | TRANSFERRED | Merged into the IO.P1.A v1.12 catalog-UI follow-up. |
+| IO.P6.A | DEFERRED (NI) | The read-only lock is implemented on the one page with live inputs (Models); other pages show the lock icon + tooltip. Add `set_interactive` if a later page grows editable inputs. |
+| IO.P6.B | DEFERRED | Pixel-level pass against the mockup is an operator sandbox check; shell behavior is unit-tested. |
+| IO.P6.C | DEFERRED (NI) | The category walk stops only on undecided categories (a pre-ticked default IS a decision); matches the "explicit select-or-skip" intent. |
+| IO.P6.D | DEFERRED (NI) | `DOCS_URL` points at the repo until a docs site exists; swap in `constants.py` then. |
+| IO.P6.E | TRANSFERRED | Merged into the IO.P1.A v1.12 catalog-UI follow-up (per-model gated-auth state in the picker). |
+| IO.P7.A | DEFERRED | Full background-continuation GUI run is an operator action (run the P7 scenario driver on the rebuilt exe); logic + state file are unit-tested (78 tests). |
+| IO.P7.B | DEFERRED | A "Start new installation" affordance / clear-`state.json`-on-Finish is a follow-up; the user can navigate back via the sidebar and a new install overwrites the state. |
+| IO.P7.C | DEFERRED (NI) | Step-level resume idempotency + each installer's idempotent re-run is sufficient; a verify-before-skip pass is a refinement. |
+| IO.P7.D | DEFERRED | Exe rebuild + packaging smoke is an operator action; `PyQt5.QtNetwork` is wired into the spec for the new socket path. |
+| IO.P7.E | DEFERRED (NI) | Tray/single-instance visuals verified on Windows this cycle; the state-dir + decision logic are OS-agnostic and unit-tested. |
+| IO.CC.1 | DEFERRED (NI) | Shared catalog note for the app side; root registry suite green. |
+| NHC.P5.A | DEFERRED | The installer lint/type baseline (29 ruff + ~25 mypy, in v1.1-era legacy provisioners + PyQt5-stub-quirk event handlers) predates v1.11.0 and stays deferred to a dedicated cleanup cycle. mypy's baseline is additionally platform-conditional (the `ctypes.windll` type-ignore flips between Windows and Linux). T803 added ruff + mypy as advisory CI steps for visibility; every v1.11.0-touched file is clean (fix-what-you-touch held throughout). Flip both to gating once the baseline is zeroed. |
+
+**Net for release:** zero P0/P1 blockers open. One genuine product follow-up (the gated-models catalog-UI decision, IO.P1.A/P5.C/P6.E) transferred to a v1.12 catalog pass. The remaining opens are operator verification actions (clean-machine sandbox runs, exe rebuild, pixel/visual passes) gated on enabling Windows Sandbox/Docker and the Actions-freeze lift (2026-08-01), plus the standing deferred lint baseline (NHC.P5.A).
