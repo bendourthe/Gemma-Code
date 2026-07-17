@@ -4,6 +4,32 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-16] v1.12.0 ecosystem adoption -- Phase 3: extreme-low-bit (BitNet-class) tier gate (Q1 / EM007-EM009)
+
+### Goal
+
+Add the on-brand idea from the (dubious) "Bonsai 27B" source -- a model tier BELOW 4-bit (BitNet-class ternary / 1-bit) that fits a larger-capability model into far less VRAM -- WITHOUT trusting the vendor's uncorroborated retention claims. Ship the gate, default hidden.
+
+### What changed
+
+- **Runtime probe (EM007)**: [core/registry/extremeLowBit.ts](../core/registry/extremeLowBit.ts) `runtimeSupportsExtremeLowBit(ollamaVersion)` parses the Ollama `/api/version` string (which the app already fetches but discards) and compares it to a threshold. FAIL-CLOSED: unknown/unparseable -> false. The threshold is a documented placeholder (`999.0.0`) so the tier stays hidden until the real llama.cpp/Ollama support point is confirmed (`EM.P3.A`).
+- **Rejection gate (EM008)**: optional `quant` / `benchmark` fields on `ModelSpec` ([core/registry/catalog.ts](../core/registry/catalog.ts)); `isExtremeLowBitModelVisible(spec, runtimeSupported)` surfaces a sub-4-bit entry ONLY when the runtime supports the format AND the weights carry an INDEPENDENT third-party benchmark, and never surfaces the Bonsai/PrismML vendor. Mirrored in the installer picker's data layer ([typed_catalog.py](../scripts/installer/src/nexus_installer/pages/typed_catalog.py) `load_catalog_models`), gated on `NEXUS_EXTREME_LOW_BIT=1` (the installer cannot runtime-probe Ollama pre-install) + a benchmark.
+- **Tests (EM009)**: 9 TS (quant classification, version parse, fail-closed probe, gate hide/reject cases) + 4 installer pytests (hidden-by-default, hidden-without-benchmark, surfaced-when-opted-in, blocked-vendor-never-surfaced).
+
+### Honest scope
+
+No live catalog entry is added and the TS `loadCatalog()` consumer is not yet wired to the gate (`EM.P3.B`) -- the tier is fail-closed / hidden, so populating it (with a legitimately-benchmarked model like Microsoft BitNet b1.58 2B4T, never Bonsai) + wiring the consumer is the enablement step, gated on confirming the runtime threshold (`EM.P3.A`). The gate mechanism is proven to reject un-benchmarked + Bonsai-sourced entries via fixtures.
+
+### Verification
+
+9 TS tests + 4 installer pytests; tsc + check-architecture 0 errors; root suite 4629 passed / 6 skipped / 0 failed; full installer suite green. (core/ is outside the `eslint src modules` scope, per repo convention.)
+
+### Branch
+
+`feat/v1.12.0-ecosystem-adoption`.
+
+---
+
 ## [2026-07-16] v1.12.0 ecosystem adoption -- Phase 2 (final): desktop skill-optimizer approval UI (EM.P2.A) -- Phase 2 complete
 
 ### Goal

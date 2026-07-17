@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import os
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -114,6 +115,35 @@ TASK_TO_TAB = {
 }
 
 
+# v1.12.0 Phase 3 (Q1) -- extreme-low-bit (BitNet-class) tier gate. Mirrors the
+# TS core/registry/extremeLowBit.ts policy for the installer picker: a sub-4-bit
+# ternary/1-bit entry is HIDDEN unless (a) the operator opts in via
+# NEXUS_EXTREME_LOW_BIT=1 (the installer cannot runtime-probe Ollama before it is
+# installed, so an explicit capability opt-in is the practical gate) AND (b) the
+# entry carries an independent third-party benchmark -- and the uncorroborated
+# Bonsai / PrismML vendor is never surfaced. Default hidden; the tier no-ops.
+_EXTREME_LOW_BIT_QUANTS = frozenset(
+    {"q1_0", "q2_0", "tq1_0", "tq2_0", "i2_s", "1bit", "ternary"}
+)
+_BLOCKED_VENDORS = ("bonsai", "prismml", "prism-ml")
+
+
+def _is_extreme_low_bit_quant(quant: str) -> bool:
+    return quant.strip().lower() in _EXTREME_LOW_BIT_QUANTS
+
+
+def _extreme_low_bit_allowed(entry: dict) -> bool:
+    """True when a sub-4-bit entry may be surfaced: opt-in + benchmarked + not a blocked vendor."""
+    if os.environ.get("NEXUS_EXTREME_LOW_BIT", "") != "1":
+        return False
+    if not str(entry.get("benchmark") or "").strip():
+        return False
+    hay = " ".join(
+        str(entry.get(k) or "") for k in ("id", "family", "provenance", "origin")
+    ).lower()
+    return not any(vendor in hay for vendor in _BLOCKED_VENDORS)
+
+
 @dataclass(frozen=True)
 class CatalogModel:
     """A single catalog entry with the metadata the typed UI surfaces."""
@@ -141,6 +171,8 @@ class CatalogModel:
     guardrails: str = ""
     # v1.9.0 Phase 6 (T022) -- the per-provider card color is keyed to family.
     family: str = ""
+    # v1.12.0 Phase 3 (Q1) -- GGUF quant label; BitNet-class values gate the tier.
+    quant: str = ""
 
     @property
     def is_text_model(self) -> bool:
@@ -205,6 +237,11 @@ def load_catalog_models(catalog_path: Path) -> list[CatalogModel]:
         if tab is None:
             # VAEs, ControlNets, etc. are not user-facing top-level picks.
             continue
+        quant = str(entry.get("quant") or "")
+        if _is_extreme_low_bit_quant(quant) and not _extreme_low_bit_allowed(entry):
+            # Extreme-low-bit (BitNet-class) tier stays hidden until opt-in + an
+            # independent benchmark (the Q1 gate); default no-op.
+            continue
         strengths = entry.get("strengths")
         if not isinstance(strengths, list):
             strengths = []
@@ -235,6 +272,7 @@ def load_catalog_models(catalog_path: Path) -> list[CatalogModel]:
                 agentic=bool(entry.get("agentic")),
                 guardrails=str(entry.get("guardrails") or ""),
                 family=str(entry.get("family") or ""),
+                quant=quant,
             )
         )
     return models
