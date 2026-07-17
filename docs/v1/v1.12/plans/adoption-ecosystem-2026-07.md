@@ -1,0 +1,244 @@
+# Plan -- local model-execution scaling + harness-for-weak-models + surface the shipped skill optimizer (v1.12.0)
+
+**Project**: Nexus
+**Version**: v1.12.0
+**Slug**: adoption-ecosystem-2026-07
+**Plan Type**: Feature / Enhancement (multi-source ecosystem adoption)
+**Created**: 2026-07-16
+**Goal**: Adopt the genuinely net-new, on-brand slivers from a four-source ecosystem scan, all **local-only**, all attacking Nexus's core **single-GPU-ceiling** tension from complementary angles: (1) drive small/quantized local models better with a **per-model agent-harness selector** (H1, reverse-engineered from the Open Interpreter / Codex-fork thesis) + a low-cost-model-optimization skill (H2); (2) **surface the skill self-optimization loop that already shipped at v1.7.0** but is not user-reachable -- wire it to the desktop sidecar and add a `nexus skills optimize` / `nexus skills frontier` CLI (L1); (3) add an **extreme-low-bit (BitNet-class) model tier** to the hardware/disk-aware picker (Q1, the de-hyped Bonsai idea), gated on runtime support + an independent benchmark; and (4) add an optional **disk-tier MoE-offload "patient" inference tier** (E1, the de-bespoke'd Colibri technique via the llama.cpp flash-MoE path) with large-open-MoE catalog entries (E3) and warm-KV persistence (E2), off by default and below the interactive ceiling. Every built item is local-only, zero-outbound, zero-new-data-processor, zero-new-credential, per the [AGENTS.md](../../../../AGENTS.md) MCP Registry Policy. Importing any of the three source repos (Colibri C engine, Open Interpreter Rust framework, Bonsai model + installer), the Bonsai mobile runtime, and any cloud optimizer are **never** adopted (reverse-engineer-first; egress; supply-chain surface).
+
+**Source comparison**: [../comparison-ecosystem-2026-07.md](../comparison-ecosystem-2026-07.md) (four sources: Colibri, Open Interpreter/Codex-fork, Bonsai 27B, and a re-submission of the self-optimizing-skills PDF already adopted at v1.7.0)
+**Companion baseline**: assumes the **v1.11.0 installer-overhaul** cycle complete (the hardware/disk-aware installer picker at [scripts/installer/src/nexus_installer/pages/typed_catalog.py](../../../../scripts/installer/src/nexus_installer/pages/typed_catalog.py) + [engine/model_router.py](../../../../scripts/installer/src/nexus_installer/engine/model_router.py) is the surface Q1/E3 extend) and the **v1.7.0 skill self-optimization loop** shipped ([modules/coding/skilloptimizer/](../../../../modules/coding/skilloptimizer) + [modules/coding/evaluation/](../../../../modules/coding/evaluation) + [core/memory/RejectedEditBuffer.ts](../../../../core/memory/RejectedEditBuffer.ts)) is the engine L1 surfaces.
+
+## Goals (goals-first step)
+
+*No `STRATEGY.md` anchor exists; this goal block is seeded from the [README.md](../../../../README.md) design principles and the source comparison. Assumptions are stated explicitly for confirmation.*
+
+- **Target problem**: Nexus's defining constraint is the **single-GPU ceiling** (README Design Principle 3): every pillar must run on one consumer GPU, so the usable model set is small and quantized. The ecosystem scan surfaces three complementary, entirely-local ways to get *more capability under that ceiling* -- drive the small model better (a per-model harness abstraction), shrink the weights further (BitNet-class extreme quantization), or stream a much larger model off disk for patient/async work (MoE expert offloading) -- plus a "last-mile" gap: the v1.7.0 skill self-optimization loop is fully built and tested but **not exposed** through the desktop app or a CLI (its production seams landed opt-in/off with forward-tier follow-ups `RT.P7.A/B/C`, `SO003.P3.D`, `SO005.P4.C` recorded in the [v1.7.0 known-gaps](../../v1.7/known-gaps.md)). The re-submission of the self-optimizing-skills PDF is the prompt to close that last mile.
+- **Persona**: the single-user, single-machine power developer Nexus is built for -- local models on one consumer GPU, no cloud, no per-token billing. Every item here keeps that promise (a local harness layer, a local CLI over a local engine, a local quant tier, a local offload backend); cost is VRAM + wall-clock + disk, never dollars.
+- **Definition of done (observable)**: (H1) a `HarnessSelector` picks a per-model prompt/tool scaffold for each installed local model and measurably lifts agentic task completion for a weak/quantized model on the golden suite vs the one-size scaffold; (H2) a low-cost-model-optimization skill is available in the catalog and referenced by H1; (L1) the shipped `SkillOptimizer` + `CandidateFrontier` are invokable from the desktop app via the sidecar and from a `nexus skills optimize` / `nexus skills frontier` CLI, carrying the existing held-out gate + rejected-edit buffer + **human-approval-before-overwrite** guardrails to the new surfaces; (Q1) an "extreme-low-bit" tier exists in [ModelCatalog](../../../../core/registry/ModelCatalog.ts) + the installer picker, **visible only** when the bundled runtime exposes ternary/1-bit GGUF quant types AND the weights carry an independent benchmark, sourced from a legitimately-benchmarked BitNet-class model (never the Bonsai vendor); (E1) an optional "patient" inference tier runs a large open MoE (e.g. GLM-5.2, E3) via a disk-offload backend, off by default, behind an explicit sub-1-tok/s latency warning + per-request timeout; (E2) a conversation reopens with zero KV re-processing; testing across unit / static (`nexus-check`) / integration / e2e / CI passes at the 80/75/80 coverage gate with a 100% pass rate.
+- **Non-goals (carried from the comparison's drops + demand-gated items, never implemented this cycle)**: importing Colibri's C engine (D1), the Bonsai model + its `curl|sh`/custom-MLX-fork installer (D2), Open Interpreter as a dependency (D3), the Bonsai MLX/Swift/Android runtime + a phone tier (D4), and DSPy/EvoSkill/SkillOpt frameworks + any cloud optimizer (D5); the background autonomous self-optimization routine (L2 = the v1.7 **S5**, still demand-gated / off by default); and Open Interpreter's computer-use / desktop-vision QA (C1, out of the Coding pillar's scope). See the Out-of-Scope appendix.
+
+## Overview
+
+This plan is derived from a single four-source comparison. Two of the four sources are **validation, not work**: the self-optimizing-skills PDF is already adopted (its loop shipped at v1.7.0), and Open Interpreter's core agentic-coding loop is already covered by Nexus's Coding pillar. The adoptable material is the **local model-execution scaling** axis (confirmed green field -- no prior comparison touches MoE streaming, weight offloading, BitNet, or the current Open Interpreter), plus the one differentiated Open Interpreter idea (the per-model harness abstraction) and the one "last-mile" surfacing gap (L1).
+
+Phase sequencing follows the comparison's Section 6.4 reverse-engineer-first ordering, by value/effort: **H1 first** (highest value, most ceiling-aligned, Med effort, no new surface); **L1 second** (highest leverage for the least code -- the engine already exists and is tested; only wiring + CLI + guardrail-carry remain); **Q1 third** (a real new picker rung, but hard-gated on a runtime-capability audit and an independent benchmark, so it can cleanly no-op if the runtime lacks ternary/1-bit support); **E1+E3+E2 fourth** (the largest build -- a new below-ceiling inference backend path -- adopted via the llama.cpp flash-MoE lineage Ollama already wraps, not Colibri's C engine, and shipped off by default with a latency warning); and **H3 fifth** as a self-contained conditional security audit (harden the code-exec sandbox only if it proves weaker than the Codex-lineage OS sandbox). There is **no `vendor-intrinsic` work** this cycle (every cloud/framework/model-import configuration is dropped), so all built phases are local `re-partial` / `re-full` / `local-only` work. The mandatory final phase reconciles architecture, known-gaps, and CI/CD.
+
+**Definition of pass (whole-plan acceptance gate, verified in the final phase):**
+1. **[DELIVERED 2026-07-16]** A per-model `HarnessSelector` (H1) selects a prompt/tool scaffold per installed local model; local-only, no new outbound; pairs with the H2 guidance. Built as [HarnessSelector.ts](../../../../modules/coding/orchestration/HarnessSelector.ts) (pure `modelCapabilityTier` weak/mid/strong + per-tier `HarnessProfile` + safe fallback + a decoupled `PromptContext` overlay) and its golden A/B [HarnessSelectorAb.ts](../../../../modules/coding/orchestration/HarnessSelectorAb.ts) (`runHarnessAb`, `decideHarnessDefault`). The A/B *mechanism* ships; the article's "demonstrably improves a weak model" claim requires a LIVE Ollama-backed A/B not runnable in CI, so the feature ships opt-in (`nexus.coding.harnessSelector.enabled` default off; `HARNESS_SELECTOR_SHIPPED_DEFAULT = false`) until that A/B shows a net win -- the SO003.P3.A discipline (`EM.P1.B`). Composition-root wiring of the overlay into the live prompt is deferred (`EM.P1.A`, the SO001.P1.A precedent).
+2. **[DELIVERED 2026-07-16]** The low-cost-model-optimization guidance (H2) is present as [docs/reference/low-cost-model-optimization.md](../../../../docs/reference/low-cost-model-optimization.md) and is the guidance H1's selector references. Authoring the portable Nexus-Hub `low-cost-model-optimization` skill (or folding into `model-routing`) is a demand-gated Hub touchpoint (`EM.P1.D`, the SO009 precedent).
+3. **[Planned]** The v1.7.0 `SkillOptimizer` + `CandidateFrontier` (L1) are reachable from the desktop sidecar (JSON-RPC method) and from `nexus skills optimize` / `nexus skills frontier`, with the held-out gate + rejected-edit buffer + **human approval before any skill file is overwritten** carried intact to both surfaces (the loop still proposes; the human accepts).
+4. **[Planned]** An "extreme-low-bit" tier (Q1) exists in the model catalog + installer picker, gated so it is visible only when (a) a runtime-capability check confirms the bundled llama.cpp/Ollama exposes the ternary/1-bit GGUF quant types AND (b) the candidate weights carry an independent third-party benchmark; the tier sources a legitimately-benchmarked BitNet-class model, never the Bonsai vendor.
+5. **[Planned]** An optional disk-offload "patient" inference tier (E1) runs a large open MoE (E3, e.g. GLM-5.2 with verified weight hashes) off default, behind an explicit sub-1-tok/s latency warning + per-request timeout, adopted via the llama.cpp flash-MoE path (no Colibri C engine imported); a conversation reopens with zero KV re-processing (E2), with the KV cache routed through `redactSecrets` + the secret-path denylist.
+6. **[Planned]** The code-exec sandbox audit (H3) is complete; hardening landed if the audit showed Nexus's isolation weaker than the Codex-lineage OS sandbox, else recorded not-warranted.
+7. **[Planned]** Testing across unit / static / integration / e2e / CI passes at the 80/75/80 coverage gate with a 100% pass rate; README/ARCHITECTURE/CHANGELOG/known-gaps updated; the architecture-refactor + known-gaps reconciliation done; the Nexus-Hub touchpoint (H2 skill + harness-selector pattern) assessed.
+
+## Constitution Check
+
+*GATE: Must pass before design.* No constitution file found (`docs/**/constitution.md` absent) -- skipping the formal check. The cycle is governed by the [AGENTS.md](../../../../AGENTS.md) MCP Registry Policy and the [README.md](../../../../README.md) design principles (local-first, no outbound by default, single-GPU ceiling, originality over wrappers, installer-carries-the-burden, privacy by construction). The highest-risk principle interactions are explicit gates: **the single-GPU ceiling is a principle, not a bug** (E1/E3 must ship as an explicit *below-ceiling, off-by-default, patient* tier with a hard latency warning, never as a raised hardware floor); **no outbound / no new processor** (every item is local; the only egress configuration -- a cloud optimizer -- stays dropped; large weight *downloads* are inbound, user-initiated, and hash-verified); **autonomous self-modification of skill files** (L1 exposes an already-gated engine -- the held-out gate + rejected-edit buffer + human-approval-before-overwrite MUST be carried to the sidecar + CLI surfaces; L2's background routine stays demand-gated / off); **unproven vendor claims** (Q1's retention is `future`-tier and contradicts published research -- it is hard-gated on an independent benchmark before shipping as a default, and never sourced from the Bonsai vendor); **supply chain** (never run the Bonsai installer or import the Colibri/OI engines; pull only trusted GGUF via the existing Ollama path, hash-verified); and **fail-closed security** (H3 must only ever tighten the exec surface).
+
+## Complexity Tracking
+
+| Item | Complexity driver | Mitigation |
+|---|---|---|
+| H1 harness selector (Phase 1) | Med-High: a per-model scaffold-selection layer that must lift weak-model performance without regressing strong models | Reuse the existing tool registry + [model-routing] Hub skill; measure on the golden suite via the shipped [GoldenTaskRunner](../../../../modules/coding/evaluation/GoldenTaskRunner.ts); ship selection as data (per-model scaffold profiles), not forked code paths |
+| H2 low-cost-model skill (Phase 1) | Low: catalog content | Author as a Nexus-Hub skill / memory; fold into `model-routing`; no runtime surface |
+| L1 surface the optimizer (Phase 2) | Med: sidecar JSON-RPC wiring + CLI over existing headless seams; the risk is dropping a guardrail at the new surface | Reuse [HeadlessOptimizerRollout.ts](../../../../modules/coding/skilloptimizer/HeadlessOptimizerRollout.ts) / [HeadlessCandidateSeams.ts](../../../../modules/coding/skilloptimizer/HeadlessCandidateSeams.ts); assert the held-out gate + `RejectedEditBuffer` + human-approval-before-overwrite fire on BOTH new surfaces; no new engine logic |
+| Q1 extreme-low-bit tier (Phase 3) | Med: runtime-capability audit + catalog tier + a benchmark gate | Make the tier visibility a pure gate on a runtime-support probe + a benchmark-present flag; source only independently-benchmarked BitNet-class weights (never Bonsai); no new runtime dependency |
+| E1+E3+E2 patient tier (Phase 4) | High: a new below-ceiling inference backend path (disk offload), catalog entries for huge models, and KV persistence | Adopt the llama.cpp flash-MoE offload path (the lineage Ollama already wraps) -- do NOT port Colibri's C engine; off by default; per-request timeout + explicit latency-warning tier; hash-verify weights; route the persisted KV through `redactSecrets` + the secret-path denylist |
+| H3 sandbox hardening (Phase 5) | Med: audit an existing exec sandbox against a Codex-lineage OS sandbox, harden only if weaker | Audit first (deliverable is the audit); reuse the v1.7 shell-introspection guardrail precedent; only ever tighten; test on all three OSes |
+
+## Phases at a Glance
+
+| Phase | Title | Outcome | Recommended model |
+|-------|-------|---------|-------------------|
+| 1 | Per-model agent-harness selector (H1) + low-cost-model-optimization skill (H2) -- **complete** | A `HarnessSelector` picks a per-model scaffold (shipped opt-in/off pending a live weak-model A/B) and the H2 guidance supplies the technique catalog; closed 2026-07-16 | Strong reasoning tier, high effort -- `claude-opus-4-8`, high (implemented on `claude-opus-4-8`, high -- matched) |
+| 2 | Surface the v1.7.0 skill optimizer (L1) -- sidecar wiring + `nexus skills optimize` / `nexus skills frontier` CLI | The shipped `SkillOptimizer` + `CandidateFrontier` are reachable from the app + CLI with all v1.7 guardrails carried intact | Mid reasoning tier, medium effort -- `claude-sonnet-5`, medium (integration over a tested engine; guardrail-carry is the care point) |
+| 3 | Extreme-low-bit (BitNet-class) model tier (Q1) -- runtime audit + gated picker rung | A runtime-capability audit + a benchmark-gated "extreme-low-bit" tier in the catalog + installer picker, sourced from independently-benchmarked BitNet-class weights | Mid reasoning tier, high effort -- `claude-sonnet-5`, high (subtle gating; mis-scoping ships broken models) |
+| 4 | Disk-tier MoE-offload "patient" tier (E1) + large-open-MoE catalog (E3) + warm-KV persistence (E2) | An optional off-by-default disk-offload inference tier runs GLM-5.2-class MoE below the ceiling with a latency warning; conversations reopen with zero KV re-processing | Strong reasoning tier, high effort -- `claude-opus-4-8`, high (new backend path; disk-thrash / OOM / runaway risk) |
+| 5 | Code-exec sandbox-hardening audit + conditional hardening (H3) | The exec sandbox is audited against the Codex-lineage OS sandbox; hardened if weaker, else recorded not-warranted | Strong reasoning tier, high effort -- `claude-opus-4-8`, high (security-sensitive; fail-closed) |
+| 6 | FINAL: architecture refactor, known-gaps reconciliation, CI/CD, docs, Hub sync | Definition-of-pass verified; full test matrix green at the coverage gate; architecture + known-gaps reconciled; CI/CD consolidated; Hub touchpoint assessed | Mid reasoning tier, medium effort -- `claude-sonnet-5`, medium |
+
+*Model recommendations are platform-agnostic tier intents plus the concrete id enumerated at planning time; [/implement](../../../../AGENTS.md) re-confirms each against the then-current model set. The recommendation defaults to the stronger tier on any high-risk or uncertain signal (H1 design novelty, E1 new-backend risk, H3 security sensitivity).*
+
+---
+
+## Phase 1: Per-model agent-harness selector (H1) + low-cost-model-optimization skill (H2)
+
+**Goal**: Reverse-engineer the Open Interpreter / Codex-fork thesis (get the best agentic performance out of low-cost models) into a lean internal layer that selects a per-model prompt/tool scaffold, so Nexus's small/quantized local models -- the ones the single-GPU ceiling forces -- are driven as well as they can be.
+**Prerequisites**: None (builds on the existing tool registry + `model-routing` Hub skill + the shipped golden runner).
+**Stability Gate**: Selection is data-driven (per-model scaffold profiles), not forked code; no new outbound call or dependency; a measured golden-suite lift for at least one weak/quantized model with **no regression** for a strong model; falls back to the current default scaffold for any unprofiled model.
+**Status**: COMPLETE 2026-07-16. Built two vscode-free `modules/coding/orchestration/` modules: [HarnessSelector.ts](../../../../modules/coding/orchestration/HarnessSelector.ts) (pure `modelCapabilityTier` deriving weak/mid/strong from catalog `vramGb`/`tags`, per-tier `HarnessProfile` data, `HarnessSelector` wrapper with a safe fallback to `DEFAULT_HARNESS_PROFILE` for any unprofiled model, and a decoupled `toPromptOverlay` that avoids a chat-subtree import so no dependency cycle is introduced) and [HarnessSelectorAb.ts](../../../../modules/coding/orchestration/HarnessSelectorAb.ts) (the golden-suite A/B reusing the v1.6 Fusion F4 `PanelAbHarness`, `decideHarnessDefault`, `HARNESS_SELECTOR_SHIPPED_DEFAULT = false`). The opt-in flag `nexus.coding.harnessSelector.enabled` (default off) is wired the fully-plumbed `panelRoutingEnabled` way (package.json manifest + `NexusSettings` field + `getSettings()` read). H2 guidance at [docs/reference/low-cost-model-optimization.md](../../../../docs/reference/low-cost-model-optimization.md). Verified: 24 new unit tests pass ([HarnessSelector.test.ts](../../../../tests/unit/orchestration/HarnessSelector.test.ts) 15 + [HarnessSelectorAb.test.ts](../../../../tests/unit/orchestration/HarnessSelectorAb.test.ts) 9); `tsc -b` clean; lint 0 warnings; `check-architecture` 0 errors (10 pre-existing warnings, no new cycle, `no-llm-outside-llm-folder` satisfied). The **live weak-model A/B** (Ollama-backed) and the **composition-root overlay wiring** are recorded as forward-tier follow-ups `EM.P1.B` / `EM.P1.A`. The [full suite](../known-gaps.md) green run required a `better-sqlite3` native-module rebuild for the Node 24 ABI (pre-existing environment drift, unrelated to this phase).
+
+### Sub-tasks
+
+#### 1.1 -- H1: per-model harness selector
+
+- [x] EM001 Build a `HarnessSelector` that maps an installed local model to the best prompt/tool scaffold profile -- **done 2026-07-16**: [HarnessSelector.ts](../../../../modules/coding/orchestration/HarnessSelector.ts) (`modelCapabilityTier`/`harnessProfileForTier`/`toPromptOverlay`/`HarnessSelector`/`defaultHarnessSelector`); tests [HarnessSelector.test.ts](../../../../tests/unit/orchestration/HarnessSelector.test.ts) (15).
+
+**Objective**: Pick the agent scaffold per model rather than one-size-fits-all, to lift weak/quantized models.
+
+**Prompt**:
+> Implement comparison item H1. Add a `HarnessSelector` under [modules/coding/orchestration/](../../../../modules/coding/orchestration) that, given a resident model descriptor from [core/registry/ModelRegistry.ts](../../../../core/registry/ModelRegistry.ts), selects a **prompt/tool scaffold profile** (system-message shape, tool-exposure verbosity, plan/step granularity, retry discipline) tuned for that model's capability class. Model the profiles as **data** (a small set of named scaffolds keyed by capability tier -- strong / mid / weak-quantized), never as forked agent code paths, so the selection is auditable and reversible. Default to the current scaffold for any unprofiled model (fail-safe). Pair with the Nexus-Hub `model-routing` skill (the selector consumes the routing tier; it does not duplicate it). Reverse-engineer the concept only -- do NOT import Open Interpreter or any of its harness code. Local-only; no outbound; no new dependency. Acceptance: a golden-suite A/B (reuse [GoldenTaskRunner.ts](../../../../modules/coding/evaluation/GoldenTaskRunner.ts) + the v1.6 Fusion A/B harness) shows a measurable completion lift for at least one weak/quantized local model under its selected scaffold vs the default, with no regression for a strong model; unit tests prove the selector returns the profiled scaffold per tier and falls back safely for an unknown model. Effort: Med-High. Risk: Med (must not regress strong models -- gate on the A/B).
+
+#### 1.2 -- H2: low-cost-model-optimization skill
+
+- [x] EM002 Author a `low-cost-model-optimization` skill (or fold into `model-routing`) capturing the weak-model prompt/tool-shaping techniques H1's profiles encode -- **done 2026-07-16**: shipped as the in-repo guidance [docs/reference/low-cost-model-optimization.md](../../../../docs/reference/low-cost-model-optimization.md) (cross-linked from `HarnessSelector`'s header); the portable Hub skill is a demand-gated touchpoint (`EM.P1.D`).
+
+**Prompt**:
+> Implement comparison item H2. Capture the low-cost-model optimization techniques (prompt/tool shaping, step granularity, retry discipline that let weak models complete agentic tasks) as **catalog content** -- a Nexus-Hub skill, or a section folded into the existing `model-routing` skill -- not as code. This is the guidance H1's scaffold profiles operationalize. Skill-native per the MCP Registry Policy. Acceptance: the skill is present and discoverable in the catalog and is cross-linked from the H1 selector's doc comment. Effort: Low. Risk: Low.
+
+#### 1.3 -- Phase 1 testing + CI/CD
+
+- [x] EM003 Unit tests for `HarnessSelector` (per-tier selection, safe fallback, real-catalog tiers) and the A/B (`runHarnessAb` net-win report, all `decideHarnessDefault` branches, shipped-default off) -- **done 2026-07-16**: 24 tests across the two files; they run in the existing `tests/unit/orchestration/` suite (already on CI). Recording the *live* weak-model A/B result as a CI artifact is deferred with `EM.P1.B` (needs an Ollama-backed runner).
+
+---
+
+## Phase 2: Surface the v1.7.0 skill optimizer (L1) -- sidecar wiring + CLI
+
+**Goal**: Make the skill self-optimization loop that already shipped at v1.7.0 (but is not user-reachable) invokable from the desktop app and a CLI, carrying every v1.7 guardrail intact. This is the highest-leverage-per-line item in the plan: the engine exists and is tested; only the surface is missing.
+**Prerequisites**: None (the engine + headless seams are shipped: [SkillOptimizer.ts](../../../../modules/coding/skilloptimizer/SkillOptimizer.ts), [CandidateFrontier.ts](../../../../modules/coding/skilloptimizer/CandidateFrontier.ts), [HeadlessOptimizerRollout.ts](../../../../modules/coding/skilloptimizer/HeadlessOptimizerRollout.ts), [HeadlessCandidateSeams.ts](../../../../modules/coding/skilloptimizer/HeadlessCandidateSeams.ts)).
+**Stability Gate**: The held-out gate ([validationGate.ts](../../../../modules/coding/evaluation/validationGate.ts)), the rejected-edit buffer ([core/memory/RejectedEditBuffer.ts](../../../../core/memory/RejectedEditBuffer.ts)), and **human approval before any skill file is overwritten** all fire on the new sidecar AND CLI surfaces; the loop proposes, the human accepts; the optimizer stays opt-in (default off) until a live local A/B shows a net win (the unchanged `SO003.P3.A` disposition); no skill file is ever written without the approval signal.
+**Status**: Planned. Resolves the v1.7 forward-tier follow-ups `RT.P7.A/B/C` (desktop sidecar not wired to the headless runtime), `SO003.P3.D` (no `nexus skills optimize` CLI), `SO005.P4.C` (no `nexus skills frontier` CLI) recorded in the [v1.7.0 known-gaps](../../v1.7/known-gaps.md).
+
+### Sub-tasks
+
+#### 2.1 -- L1a: desktop-sidecar wiring
+
+- [ ] EM004 Expose the `SkillOptimizer` + `CandidateFrontier` through a JSON-RPC method on the Node sidecar so the desktop app can launch an optimization run and review/approve proposed skill edits
+
+**Prompt**:
+> Wire the shipped skill self-optimization engine to the desktop sidecar (the JSON-RPC 2.0 Node sidecar in [desktop/sidecar/](../../../../desktop)). Add a sidecar method that drives an optimization run over the headless seams ([HeadlessOptimizerRollout.ts](../../../../modules/coding/skilloptimizer/HeadlessOptimizerRollout.ts) / [HeadlessCandidateSeams.ts](../../../../modules/coding/skilloptimizer/HeadlessCandidateSeams.ts)), streams progress via the existing `tauri::Channel` notification path, and returns proposed skill edits (diffs) for review. The write step MUST route through the existing approval gate -- no skill file is overwritten without an explicit user-approval signal from the app. Do not modify the engine's loop logic; this is surfacing only. Local-only. Acceptance: an integration test proves the sidecar method runs a (mock-driver) optimization round, surfaces a proposed edit, and applies it only after an approval signal; a test proves rejection routes to the `RejectedEditBuffer`. Effort: Med. Risk: Med (new autonomous-edit surface -- guardrails must be carried, not re-implemented).
+
+#### 2.2 -- L1b: CLI commands
+
+- [ ] EM005 Add `nexus skills optimize` and `nexus skills frontier` CLI commands over the headless seams, with the same approval + held-out + buffer guardrails
+
+**Prompt**:
+> Add two CLI commands to [bin/nexus.mjs](../../../../bin) (mirroring the existing `nexus skills audit` / `nexus golden run` command style): `nexus skills optimize [--skill <id>] [--dry-run]` (runs the bounded-edit `SkillOptimizer` over the optimizer-visible split and prints proposed diffs; applies only with `--apply` + an interactive confirm) and `nexus skills frontier [--skill <id>]` (runs the `CandidateFrontier` and prints the non-dominated candidate set; never auto-merges). Both reuse the headless seams and MUST carry the held-out gate + rejected-edit buffer + human-approval-before-overwrite. Local-only. Acceptance: unit/integration tests prove both commands run against a mock driver, print proposals, and never write a skill file without confirmation; `--dry-run` never mutates. Effort: Med. Risk: Med.
+
+#### 2.3 -- Phase 2 testing + CI/CD
+
+- [ ] EM006 Integration + e2e tests for the sidecar method and both CLI commands (guardrail-carry assertions on both surfaces); update CI to run the new surface tests; confirm the optimizer default-off flag is unchanged.
+
+---
+
+## Phase 3: Extreme-low-bit (BitNet-class) model tier (Q1) -- runtime audit + gated picker rung
+
+**Goal**: Add a genuine new rung below 4-bit to the hardware/disk-aware model picker -- BitNet-class ternary/1-bit quantization -- the de-hyped Bonsai idea, sourced from independently-benchmarked weights and hard-gated so it cleanly no-ops when unsupported or unproven.
+**Prerequisites**: The v1.11.0 installer picker + `ModelCatalog` (baseline).
+**Stability Gate**: The tier is **visible only** when (a) a runtime-capability probe confirms the bundled llama.cpp/Ollama exposes the ternary/1-bit GGUF quant types (e.g. `Q1_0`/`Q2_0`) AND (b) the candidate weights carry an independent third-party benchmark; the weights are sourced from a legitimately-benchmarked BitNet-class model (e.g. a train-from-scratch BitNet b1.58 release), **never** the Bonsai vendor; no new runtime dependency; the Bonsai `curl|sh`/custom-MLX installer is never run.
+**Status**: Planned.
+
+### Sub-tasks
+
+#### 3.1 -- Q1a: runtime-capability audit (gate)
+
+- [ ] EM007 Probe whether the bundled Ollama/llama.cpp exposes ternary/1-bit GGUF quant types; record the finding as the gate for the tier
+
+**Prompt**:
+> Determine whether Nexus's bundled inference runtime (Ollama, wrapping llama.cpp) can load ternary / 1-bit BitNet-class GGUF quant types (`Q1_0` / `Q2_0` / equivalents). Write a small runtime-capability probe (queried once, cached) and record the finding. This is the GATE for the rest of Q1: if the runtime cannot load these formats, the extreme-low-bit tier ships hidden and the phase closes as a recorded no-op (a forward-tier follow-up to revisit when the bundled runtime gains support). Local-only. Acceptance: the probe returns a definite supported/unsupported verdict on all three OSes; the tier's visibility keys off it. Effort: Low-Med. Risk: Low.
+
+#### 3.2 -- Q1b: gated catalog + picker tier
+
+- [ ] EM008 Add an "extreme-low-bit / ultra-low-VRAM" tier to `ModelCatalog` + the installer picker, benchmark-gated and vendor-neutral
+
+**Prompt**:
+> If EM007 confirms runtime support, add an "extreme-low-bit / ultra-low-VRAM" tier to [core/registry/ModelCatalog.ts](../../../../core/registry/ModelCatalog.ts) and the installer picker ([scripts/installer/src/nexus_installer/pages/typed_catalog.py](../../../../scripts/installer/src/nexus_installer/pages/typed_catalog.py), [engine/model_router.py](../../../../scripts/installer/src/nexus_installer/engine/model_router.py)). Populate it ONLY with BitNet-class models that carry an **independent third-party benchmark** (e.g. a train-from-scratch BitNet b1.58 release) -- never the Bonsai 27B vendor, whose retention claims are unverified and whose installer is a supply-chain risk (comparison D2/D4). Surface the tier with an honest quality-vs-size note (extreme quantization trades accuracy for footprint; retention is model-specific and must be benchmarked). Pull weights only as plain GGUF through the existing Ollama path, hash-verified. Local-only; no new dependency; no vendor installer. Acceptance: the tier appears in the picker only when EM007's probe is positive AND the model has a benchmark flag; a test proves an un-benchmarked or Bonsai-sourced entry is rejected. Effort: Med. Risk: Low-Med.
+
+#### 3.3 -- Phase 3 testing + CI/CD
+
+- [ ] EM009 Unit tests for the runtime probe + the visibility gate + the benchmark/vendor rejection; installer tests for the new picker rung; update CI.
+
+---
+
+## Phase 4: Disk-tier MoE-offload "patient" tier (E1) + large-open-MoE catalog (E3) + warm-KV persistence (E2)
+
+**Goal**: Add an optional, off-by-default, **below-ceiling** inference tier that runs a large open MoE (GLM-5.2-class) on modest / no-GPU hosts by streaming experts off disk -- the de-bespoke'd Colibri technique, adopted via the llama.cpp flash-MoE offload path rather than Colibri's C engine -- plus warm-KV persistence so conversations reopen with zero re-processing.
+**Prerequisites**: The v1.11.0 installer picker + `ModelCatalog`; ideally H1 (a weak-model harness helps drive a slow large model).
+**Stability Gate**: The tier is **off by default**, gated behind an explicit sub-1-tok/s latency warning + a per-request timeout, and framed as a deliberately below-ceiling patient/async tier (it raises no hardware floor and adds no interactive-latency expectation to any pillar); weights are hash-verified on download; the persisted KV cache is routed through [redactSecrets](../../../../core/observability/redactSecrets.ts) + the secret-path denylist; no Colibri C engine is imported; runaway is capped by the v0.3.0 budget.
+**Status**: Planned.
+
+### Sub-tasks
+
+#### 4.1 -- E1: disk-offload "patient" inference backend
+
+- [ ] EM010 Add an optional disk-tier MoE-offload inference backend (via the llama.cpp flash-MoE path) as an off-by-default "patient" tier
+
+**Prompt**:
+> Implement comparison item E1. Add an optional inference-backend path that runs a large MoE model with **disk-tier expert offloading** (VRAM -> RAM -> disk), adopting the flash-MoE offload capability from the llama.cpp lineage that Ollama already wraps (`mmap` paging + expert streaming). Do NOT port Colibri's bespoke C engine (comparison D1). Register it as a distinct **"patient" tier** in [core/registry/](../../../../core/registry): off by default, selectable only via the hardware/disk-aware picker, and surfaced with an explicit warning that throughput is sub-1-to-~2 tok/s (non-interactive; for async/batch/overnight work only). Enforce a per-request timeout and cap the run with the v0.3.0 runaway-prevention budget. This EXTENDS the single-GPU ceiling as a deliberately below-ceiling, no-GPU-required path -- it must never be presented as raising the hardware floor. Local-only; no outbound. Acceptance: an integration test (guarded behind a capability flag) runs one generation through the offload path against a small MoE fixture; a test proves the tier is hidden by default and carries the latency warning; the timeout + budget cap are exercised. Effort: High. Risk: Med (disk-thrash / OOM / runaway -- timeout + budget + off-by-default).
+
+#### 4.2 -- E3: large-open-MoE catalog entries
+
+- [ ] EM011 Add GLM-5.2 and peer large open-MoE catalog entries, visibility-gated on the E1 patient tier + the disk-aware picker, with verified weight provenance
+
+**Prompt**:
+> Implement comparison item E3. Add catalog entries for large open MoE models (GLM-5.2 -- a real Zhipu AI open-weights release -- and peers) to [core/registry/ModelCatalog.ts](../../../../core/registry/ModelCatalog.ts). These are just catalog data, not an MCP concern, but they are usable only through E1's patient tier on target hardware, so gate their visibility on E1 + the disk-space check in the picker (GLM-5.2 int4 is ~370 GB). Verify weight hashes/provenance on download (the comparison flags third-party int4 weights as a trust point). Local-only. Acceptance: the entries appear only when E1 is available and the disk check passes; a test proves an entry with an unverified hash is rejected. Effort: Low (data) but gated. Risk: Low.
+
+#### 4.3 -- E2: warm-KV persistence
+
+- [ ] EM012 Persist the KV cache across restarts so a conversation reopens with zero re-processing, with secret redaction on the persisted cache
+
+**Prompt**:
+> Implement comparison item E2. Persist the inference KV cache to local disk keyed by conversation so reopening a session skips prompt re-processing (Colibri's warm-KV idea; Ollama re-processes context on reload today). Route the persisted cache through [redactSecrets](../../../../core/observability/redactSecrets.ts) and the existing secret-path denylist so secret-bearing context never lands on disk unredacted. Nice on its own even without huge models. Local-only. Acceptance: a test proves a reopened conversation reuses the persisted KV (no re-processing) and that the persisted cache is redacted; cache eviction respects a size cap. Effort: Med. Risk: Low.
+
+#### 4.4 -- Phase 4 testing + CI/CD
+
+- [ ] EM013 Integration tests for the patient tier (capability-gated), catalog visibility gating, and KV persistence/redaction; update CI (mark the offload integration test env-gated so it never blocks the fast suite).
+
+---
+
+## Phase 5: Code-exec sandbox-hardening audit + conditional hardening (H3)
+
+**Goal**: Audit Nexus's isolated code-execution against the Codex-lineage OS sandbox (Seatbelt / Landlock / seccomp) surfaced by Open Interpreter, and harden only if Nexus's isolation proves weaker. The deliverable is the audit; hardening is conditional.
+**Prerequisites**: None (independent of the model-execution track).
+**Stability Gate**: Any change only ever **tightens** the exec surface (fail-closed); no new outbound surface; tested on Windows, macOS, and Linux.
+**Status**: Planned.
+
+### Sub-tasks
+
+#### 5.1 -- H3: audit + conditional hardening
+
+- [ ] EM014 Audit the current isolated-exec sandbox vs the Codex-lineage OS sandbox; harden if weaker, else record not-warranted
+
+**Prompt**:
+> Implement comparison item H3. Audit Nexus's current isolated code-execution + verification-gate model (the [src/tools/](../../../../src/tools) execution surface + the v1.7 [shellIntrospection.ts](../../../../modules/coding/guardrails/shellIntrospection.ts) guardrail) against the OS-level sandbox the Codex-lineage Open Interpreter uses (macOS Seatbelt, Linux Landlock/seccomp, Windows equivalents). If the audit shows Nexus's isolation is materially weaker for a concrete threat, add OS-native sandboxing to the exec path; if it is equivalent or stronger, record the assessment as not-warranted and close the phase. Any hardening must only tighten (fail-closed) and be tested on all three OSes. Reverse-engineer the technique only; import nothing. Local-only. Acceptance: a written audit with a concrete verdict; if hardening lands, tests prove the exec surface is tightened (a previously-allowed escape is now blocked) with no legitimate workflow broken on any OS. Effort: Med. Risk: Med (security-sensitive).
+
+#### 5.2 -- Phase 5 testing + CI/CD
+
+- [ ] EM015 If hardening lands, add cross-OS exec-sandbox tests to CI; else record the audit verdict in the known-gaps ledger.
+
+---
+
+## Phase 6: FINAL -- architecture refactor, known-gaps reconciliation, CI/CD, docs, Hub sync
+
+**Goal**: Verify the definition-of-pass, run the full test matrix, reconcile architecture + known-gaps, consolidate CI/CD, update docs, and assess the Nexus-Hub touchpoint.
+**Prerequisites**: Phases 1-5.
+**Stability Gate**: `npm run test`, `npm run lint`, `npm run check-architecture`, `npm run security:check`, `npm run check:tampering` clean; the whole-plan acceptance gate passes at the 80/75/80 coverage gate with a 100% pass rate; docs updated.
+**Status**: Planned.
+
+### Sub-tasks
+
+- [ ] EM016 Run the whole-plan acceptance gate (Definition-of-pass items 1-7) and record results.
+- [ ] EM017 Architecture-refactor pass over the new modules (`HarnessSelector`, the offload backend adapter, the extreme-low-bit tier) -- check module boundaries, the `no-llm-outside-llm-folder` rule, and dependency-cruiser cleanliness; remove any orphan/cycle introduced this cycle.
+- [ ] EM018 Reconcile [docs/v1/v1.12/known-gaps.md](../known-gaps.md): record forward-tier follow-ups (e.g. a hidden Q1 tier if the runtime lacks support; the still-demand-gated L2 = S5; the deferred C1 computer-use item) and confirm the v1.7 `RT.P7.*` / `SO003.P3.D` / `SO005.P4.C` follow-ups L1 resolves are marked resolved.
+- [ ] EM019 Consolidate CI/CD for the cycle's changes (env-gate the offload integration test; ensure the new suites run in `.github/workflows/shell-build.yml`); update README/ARCHITECTURE/CHANGELOG.
+- [ ] EM020 Assess the Nexus-Hub touchpoint: the H2 `low-cost-model-optimization` skill and a possible cross-link from `model-routing` / `loop-engineering` to the now-surfaced local skill optimizer (do not duplicate logic into the Hub).
+
+**Prompt (EM020 framing)**:
+> The Hub ships `model-routing`, `skill-eval-loop`, `loop-engineering`, and `continuous-learning` as method-level guidance. This cycle adds a per-model harness selector (H1) and surfaces the runtime skill optimizer (L1). Assess whether the H2 low-cost-model-optimization skill is a net-new catalog contribution and whether a one-line cross-link from `model-routing` / `loop-engineering` to Nexus's now-reachable local skill optimizer documents a reusable local-first pattern the catalog lacks; propose the touchpoint, do not duplicate logic into the Hub. Record the decision in the known-gaps ledger.
+
+---
+
+## Out-of-Scope appendix (dropped or deferred, not implemented this cycle)
+
+| ID | Item | Disposition | Grounds (MCP Registry Policy / product shape) |
+|---|---|---|---|
+| L2 (=v1.7 S5) | Background autonomous self-optimization routine + live-trajectory failure flagging | **Demand-gated, off by default** (not a phase) | The one item where autonomy meets self-modification of skill files; preserves "the loop proposes, the human accepts". Unchanged from v1.7.0. If ever built: explicit opt-in, local-compute budget cap, human approval before any write, proposals queued for review. |
+| C1 | Open Interpreter computer-use / desktop-vision QA (browser + native-app driving) | **Deferred (future / other-pillar)** | Genuinely differentiated but a large surface with GPU-vision cost on a single GPU; out of the Coding pillar's scope. Revisit as a possible cross-pillar capability, not a v1.12.0 item. |
+| D1 | Import Colibri's bespoke C engine as a dependency | **Drop** | Reverse-engineer-first: adopt the llama.cpp flash-MoE offload path (E1) instead; a 2,400-line C engine is a heavy dependency for a narrow net-new slice. |
+| D2 | Adopt the Bonsai 27B model + its `curl\|sh` / custom-MLX-fork installer | **Drop / watch** | Unverified retention claims + supply-chain risk + agent-directed `AGENTS.md`. Watch: revisit only if independent benchmarks confirm retention, then pull the plain GGUF via Ollama. |
+| D3 | Import Open Interpreter (Codex-forked Rust framework) as a dependency | **Drop** (Apache-2.0 -- policy, not legal) | Heavy framework for an idea (the harness abstraction, H1) Nexus builds leanly. |
+| D4 | Bonsai MLX/Swift/Android runtime + a phone tier | **Drop** | Below the laptop-single-GPU floor; irrelevant to an Ollama/GGUF product. |
+| D5 | DSPy / GEPA / EvoSkill / SkillOpt frameworks + any cloud optimizer | **Drop** (`future`-watch on the cloud escape hatch) | Already reverse-engineered locally at v1.7.0; a cloud optimizer ships trajectories off-machine (egress + API key + per-token billing) -- conflicts with local-first / Zero Tokens Billed. |

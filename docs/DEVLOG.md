@@ -4,6 +4,33 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-16] v1.12.0 ecosystem adoption -- Phase 1: per-model harness selector (H1) + low-cost-model guidance (H2) (EM001-EM003)
+
+### Goal
+
+Open the v1.12.0 ecosystem-adoption cycle (from the four-source comparison [comparison-ecosystem-2026-07.md](v1/v1.12/comparison-ecosystem-2026-07.md)) with its highest-value net-new item: reverse-engineer the Open Interpreter / Codex-fork "get the best out of low-cost models" thesis into a lean, local-only per-model harness selector, so the small / quantized models the single-GPU ceiling forces are driven with a scaffold tuned to their capability tier.
+
+### What changed
+
+- **EM001 (H1) harness selector**: two vscode-free `modules/coding/orchestration/` modules. [HarnessSelector.ts](../modules/coding/orchestration/HarnessSelector.ts) derives a capability tier (weak/mid/strong) from the model catalog's `vramGb`/`tags` (there is no first-class capability field), maps it to a data-driven `HarnessProfile` (the real `PromptContext` knobs: `promptStyle`, `thinkingMode`, `systemPromptBudgetPercent`), falls back to `DEFAULT_HARNESS_PROFILE` for any unprofiled model, and emits a decoupled overlay (`toPromptOverlay`) that avoids importing the chat subtree so no dependency cycle is introduced. [HarnessSelectorAb.ts](../modules/coding/orchestration/HarnessSelectorAb.ts) is the golden-suite A/B (reusing the v1.6 Fusion F4 `PanelAbHarness`; single arm = the one-size default scaffold, panel arm = the selected scaffold) plus `decideHarnessDefault` and `HARNESS_SELECTOR_SHIPPED_DEFAULT = false`. No Open Interpreter code imported (reverse-engineer-first).
+- **Opt-in flag** `nexus.coding.harnessSelector.enabled` (default off), wired the fully-plumbed `panelRoutingEnabled` way ([package.json](../package.json) manifest + `NexusSettings` field + `getSettings()` read in [settings.ts](../modules/coding/config/settings.ts)).
+- **EM002 (H2) guidance**: [docs/reference/low-cost-model-optimization.md](reference/low-cost-model-optimization.md) captures the weak-model prompt/tool-shaping techniques the profiles encode; cross-linked from the selector. The portable Nexus-Hub skill is a demand-gated touchpoint (`EM.P1.D`, the SO009 precedent).
+- **EM003 tests**: 24 unit tests ([HarnessSelector.test.ts](../tests/unit/orchestration/HarnessSelector.test.ts) 15 + [HarnessSelectorAb.test.ts](../tests/unit/orchestration/HarnessSelectorAb.test.ts) 9).
+
+### Honest scope
+
+The feature ships **opt-in / off**: the per-tier profile values are heuristic and the article's "demonstrably lifts a weak model" claim needs a LIVE Ollama-backed golden A/B not runnable in CI, so `decideHarnessDefault` gates default-on until that measurement shows a net win (`EM.P1.B`, the SO003.P3.A discipline). Wiring the overlay into the live prompt at the composition root is deferred (`EM.P1.A`, the SO001.P1.A precedent). Both are in [v1.12 known-gaps](v1/v1.12/known-gaps.md).
+
+### Verification
+
+24 new tests pass; `tsc -b` clean; lint 0 warnings; `check-architecture` 0 errors (10 pre-existing warnings, no new cycle, `no-llm-outside-llm-folder` satisfied). The full root suite is green **after** a `better-sqlite3` native-module rebuild for the Node 24 ABI (pre-existing environment drift: the installed binary targeted NODE_MODULE_VERSION 135, Node 24.13 needs 137 -- unrelated to this phase's pure-TS changes).
+
+### Branch
+
+`feat/v1.12.0-ecosystem-adoption` (off `develop`, which was reconciled up to `main` at the v1.11.0 tip first).
+
+---
+
 ## [2026-07-16] v1.11.0 installer overhaul -- Phase 8 (FINAL): architecture refactor + known-gaps reconciliation + CI/CD (T801-T804)
 
 ### Goal
