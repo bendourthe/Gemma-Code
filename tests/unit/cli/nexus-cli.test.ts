@@ -103,4 +103,30 @@ describe("nexus CLI parseArgs", () => {
     expect(a.flags.out).toBe("guides/trace.html");
     expect(a.flags.db).toBe("/tmp/traces.db");
   });
+
+  // v1.12.0 Phase 2 (adoption-ecosystem-2026-07 L1 / EM005) -- skills optimize parsing.
+  it("captures skills optimize <id> as a positional", () => {
+    const a = parseArgs(["skills", "optimize", "nexus-hub/code-quality"]);
+    expect(a.command).toBe("skills");
+    expect(a.subcommand).toBe("optimize");
+    expect(a.positional).toEqual(["nexus-hub/code-quality"]);
+  });
+
+  it("captures skills optimize with --apply --yes --model --max-rounds", () => {
+    const a = parseArgs([
+      "skills",
+      "optimize",
+      "nexus-hub/code-quality",
+      "--apply",
+      "--yes",
+      "--model",
+      "qwen2.5-coder:7b",
+      "--max-rounds",
+      "5",
+    ]);
+    expect(a.flags.apply).toBe(true);
+    expect(a.flags.yes).toBe(true);
+    expect(a.flags.model).toBe("qwen2.5-coder:7b");
+    expect(a.flags["max-rounds"]).toBe("5");
+  });
 });

@@ -23,6 +23,7 @@ import { dirname, resolve as resolvePath, join as joinPath, isAbsolute } from "n
 import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { createHash } from "node:crypto";
+import { createInterface } from "node:readline";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -35,6 +36,7 @@ Usage:
   nexus skills install <namespace>/<name> [--from <url>]
   nexus skills remove <namespace>/<name>
   nexus skills audit [--context-tokens <N>] [--budget-percent <N>] [--months <N>] [--skills-root <dir>] [--sessions-root <dir>] [--by-root builtin|user|devai-hub] [--deep-logs] [--json]
+  nexus skills optimize <id> [--apply] [--yes] [--model <name>] [--max-rounds <N>] [--skills-root <dir>] [--json]
   nexus memory audit [--since <ISO>] [--tier <t>] [--scope <id>] [--session <id>] [--op <op>] [--format table|json]
   nexus memory export --out <file> [--scope <id>] [--tier <list>] [--since <ISO>]
   nexus memory import --in <file>
@@ -542,6 +544,141 @@ async function loadCompiled(relParts, label) {
     );
   }
   return import(pathToFileURL(compiled).href);
+}
+
+// ---------------------------------------------------------------------------
+// v1.12.0 Phase 2 (adoption-ecosystem-2026-07 L1 / EM005) -- `nexus skills
+// optimize` surfaces the v1.7.0 bounded-edit skill optimizer through the CLI.
+//
+// It loads the compiled composition root (HeadlessOptimizerFactory), builds a
+// live skill catalog off disk, loads the target skill, splits the golden corpus
+// into the optimizer-visible train/validation splits (the test split is never
+// reachable), and runs the loop against the local Ollama backend. The
+// human-approval-before-overwrite gate is carried intact: the default (no
+// `--apply`) uses the deny-all gate (proposes but never writes); `--apply`
+// prompts per accepted edit via readline; `--apply --yes` auto-approves for
+// automation. Local-only; no outbound call beyond the local Ollama backend.
+// ---------------------------------------------------------------------------
+
+/** An interactive readline approval gate: prints the proposed edit and asks y/N per overwrite. */
+function makeReadlineApprovalGate(input, output) {
+  return {
+    async requestApproval(request) {
+      output.write(`\n--- proposed edit to ${request.skillId} ---\n`);
+      output.write(`file: ${request.skillPath}\n`);
+      output.write(`${request.diff}\n`);
+      const rl = createInterface({ input, output });
+      try {
+        const answer = await new Promise((resolve) => {
+          rl.question("Apply this edit? [y/N] ", resolve);
+        });
+        return /^y(es)?$/i.test(String(answer).trim());
+      } finally {
+        rl.close();
+      }
+    },
+  };
+}
+
+export async function runSkillsOptimize(args, stdout = process.stdout, stderr = process.stderr) {
+  const flags = args.flags;
+  const skillId =
+    (Array.isArray(args.positional) && args.positional[0]) ||
+    (typeof flags.skill === "string" ? flags.skill : null);
+  if (!skillId) {
+    stderr.write("nexus skills optimize: a skill id is required (nexus skills optimize <id> [--apply])\n");
+    return 2;
+  }
+  const apply = flags.apply === true;
+  const autoYes = flags.yes === true;
+  const model = typeof flags.model === "string" ? flags.model : "gemma4:e4b";
+  const maxRoundsRaw = Number(flags["max-rounds"]);
+  const maxRounds = Number.isFinite(maxRoundsRaw) && maxRoundsRaw >= 1 ? Math.floor(maxRoundsRaw) : 3;
+
+  const [catalogMod, splitMod, factoryMod, bufferMod, storeMod, llmMod] = await Promise.all([
+    loadSkillCatalogModule(),
+    loadCompiled(["modules", "coding", "evaluation", "goldenSplit.js"], "goldenSplit"),
+    loadCompiled(["modules", "coding", "skilloptimizer", "HeadlessOptimizerFactory.js"], "HeadlessOptimizerFactory"),
+    loadCompiled(["core", "memory", "RejectedEditBuffer.js"], "RejectedEditBuffer"),
+    loadCompiled(["core", "memory", "ArtifactStore.js"], "ArtifactStore"),
+    loadCompiled(["modules", "coding", "llm", "OllamaClient.js"], "OllamaClient"),
+  ]);
+
+  const catalog = buildLiveCatalog(flags, catalogMod);
+  let target;
+  try {
+    target = await catalog.load(skillId);
+  } catch {
+    stderr.write(`nexus skills optimize: unknown skill id "${skillId}" (run \`nexus skills audit\` to list ids)\n`);
+    return 2;
+  }
+
+  const tasksDir = resolvePath(__dirname, "..", "tests", "golden", "tasks");
+  let visible;
+  try {
+    visible = splitMod.loadOptimizerVisibleTasks(tasksDir);
+  } catch (err) {
+    stderr.write(`nexus skills optimize: failed to load golden tasks: ${err instanceof Error ? err.message : String(err)}\n`);
+    return 1;
+  }
+  const train = visible.filter((t) => t.split === "train");
+  const validation = visible.filter((t) => t.split === "validation");
+  if (train.length === 0 || validation.length === 0) {
+    stderr.write(
+      `nexus skills optimize: need both train and validation golden tasks (found ${train.length} train / ${validation.length} validation)\n`,
+    );
+    return 1;
+  }
+
+  const snapshotRoot = resolvePath(__dirname, "..", "tests", "golden", "snapshots");
+  const catalogRoot = dirname(target.path);
+  const optDir = joinPath(nexusHomeDir(), "skilloptimizer");
+  mkdirSync(optDir, { recursive: true });
+  const store = new storeMod.ArtifactStore(joinPath(optDir, "artifacts"));
+  const buffer = new bufferMod.RejectedEditBuffer(store, joinPath(optDir, "rejected-index.json"));
+
+  let approvalGate;
+  if (!apply) approvalGate = factoryMod.autoDenyApprovalGate;
+  else if (autoYes) approvalGate = factoryMod.autoApproveApprovalGate;
+  else approvalGate = makeReadlineApprovalGate(process.stdin, stdout);
+
+  const optimizer = factoryMod.createHeadlessSkillOptimizer({
+    llm: llmMod.createOllamaClient(),
+    model,
+    snapshotRoot,
+    catalogRoot,
+    buffer,
+    approvalGate,
+    config: { maxRounds, learningRate: { maxOps: 3, maxChangedChars: 400 } },
+  });
+
+  const modeLabel = !apply ? "dry-run" : autoYes ? "apply --yes" : "apply (will prompt)";
+  stdout.write(
+    `nexus skills optimize: ${skillId} [${modeLabel}] model=${model} rounds<=${maxRounds} (${train.length} train / ${validation.length} validation)\n`,
+  );
+
+  let result;
+  try {
+    result = await optimizer.optimize({ target, train, validation });
+  } catch (err) {
+    stderr.write(`nexus skills optimize: run failed: ${err instanceof Error ? err.message : String(err)}\n`);
+    return 1;
+  }
+
+  if (flags.json) {
+    stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    return 0;
+  }
+  for (const r of result.rounds) {
+    stdout.write(`  round ${r.round}: ${r.outcome} - ${r.reason}\n`);
+  }
+  stdout.write(
+    `nexus skills optimize: ${result.appliedCount} applied, ${result.acceptedCount} accepted, ${result.rejectedCount} rejected (stop: ${result.stopReason})\n`,
+  );
+  if (!apply && result.acceptedCount > 0) {
+    stdout.write("  dry-run: no files written; re-run with --apply to review and apply each edit\n");
+  }
+  return 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -1064,6 +1201,8 @@ export async function main(argv) {
         return runSkillsRemove(args);
       case "audit":
         return runSkillsAudit(args.flags);
+      case "optimize":
+        return runSkillsOptimize(args);
       default:
         process.stderr.write(`nexus skills: unknown subcommand "${args.subcommand}"\n${HELP}`);
         return 2;
