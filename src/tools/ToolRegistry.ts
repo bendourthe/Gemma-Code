@@ -12,6 +12,7 @@ import {
 } from "../../modules/coding/guardrails/shellIntrospection.js";
 import { formatForUser } from "../../modules/coding/utils/errors.js";
 import { getLogger } from "../../modules/coding/utils/logger.js";
+import { matchesSecretPath } from "../../modules/coding/utils/secretPaths.js";
 import { evaluateDeny, parsePermissionsDeny, type DenyList, type DenyRule } from "../../core/storage/PermissionsDeny.js";
 
 // Tools that fire their own diff-bearing confirmation in `ask` mode and a
@@ -59,6 +60,7 @@ export class ToolRegistry {
   private _permissionOverrides?: Record<string, number>;
   private _editMode: EditMode = "auto";
   private _denyList: DenyList = parsePermissionsDeny(null);
+  private _secretPathDenyExtra: readonly string[] = [];
 
   register(name: ToolName, handler: ToolHandler): void {
     this._handlers.set(name, handler);
@@ -179,6 +181,16 @@ export class ToolRegistry {
   }
 
   /**
+   * v1.12.0 Phase 5 (H3): install the operator's extra secret-path patterns so
+   * the built-in secret-path denylist that gates `run_terminal` (see
+   * {@link _denyBySecretPath}) honors `nexus.secretPathDenyExtra`, matching the
+   * file-read tools. The built-in patterns apply regardless; this only extends them.
+   */
+  setSecretPathDenyExtra(patterns: readonly string[]): void {
+    this._secretPathDenyExtra = patterns;
+  }
+
+  /**
    * v1.7.0 Phase 5 (O-A): introspect a shell command and match each enumerated
    * touched path against the file-tool deny rules. A write path is matched as if
    * it were a `write_file` subject, a delete path as `delete_file`, a read path
@@ -223,6 +235,34 @@ export class ToolRegistry {
           path: touched.raw,
           operation: touched.operation,
         };
+      }
+    }
+    return { denied: false };
+  }
+
+  /**
+   * v1.12.0 Phase 5 (H3): apply the BUILT-IN secret-path denylist to a
+   * `run_terminal` command's statically-enumerated touched paths, so `cat .env`
+   * (or `~/.ssh/id_rsa`, `*.pem`, `.aws/**`, ...) is refused the same way
+   * `read_file(".env")` already is -- closing the tool/terminal parity gap the H3
+   * exec-sandbox audit found. Unlike {@link _denyByTouchedPath} (operator
+   * `.nexus/permissions.deny`, dormant by default) this uses the always-on
+   * `matchesSecretPath` policy. Fail-closed: a dynamic / unparseable command
+   * enumerates no paths and falls through to the DANGEROUS-tier confirmation --
+   * this filters the command string, it does NOT confine the process (the
+   * OS-sandbox gap is recorded as EM.P5.A).
+   */
+  private _denyBySecretPath(command: string): {
+    denied: boolean;
+    path?: string;
+    operation?: PathOperation;
+  } {
+    const introspection = introspectShellCommand(command, detectShellDialect());
+    if (!introspection.parsed) return { denied: false };
+    for (const touched of introspection.paths) {
+      if (touched.operation === "cwd") continue;
+      if (matchesSecretPath(normalizeTouchedPath(touched.raw), this._secretPathDenyExtra)) {
+        return { denied: true, path: touched.raw, operation: touched.operation };
       }
     }
     return { denied: false };
@@ -305,6 +345,34 @@ export class ToolRegistry {
                 `or run a command that does not touch that path.`,
             };
           }
+        }
+      }
+    }
+
+    // v1.12.0 Phase 5 (H3): the BUILT-IN secret-path denylist applies to
+    // run_terminal too, not only the file-read tools -- closing the parity gap
+    // the exec-sandbox audit found (`read_file(".env")` was blocked; `cat .env`
+    // / `echo x > .env` was not). Runs AFTER the operator denylist (so an
+    // operator rule keeps precedence + its specific error) and is always-on
+    // (independent of any .nexus/permissions.deny). Fail-closed: a dynamic /
+    // unparseable command enumerates no paths and relies on the DANGEROUS-tier
+    // confirmation below. This filters the command STRING; it does NOT confine
+    // the process -- the OS-sandbox gap is recorded as EM.P5.A.
+    if (call.tool === "run_terminal") {
+      const cmd = call.parameters["command"];
+      if (typeof cmd === "string") {
+        const secretDeny = this._denyBySecretPath(cmd);
+        if (secretDeny.denied) {
+          return {
+            id: call.id,
+            success: false,
+            output: "",
+            error:
+              `Tool "run_terminal" touches secret path "${secretDeny.path}" (${secretDeny.operation}), ` +
+              `which is protected by the built-in secret-path denylist (same policy as read_file). ` +
+              `Usage: read the file via read_file with allow_secrets:true if you genuinely need it, ` +
+              `or run a command that does not touch that path.`,
+          };
         }
       }
     }

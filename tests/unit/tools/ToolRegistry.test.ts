@@ -238,6 +238,75 @@ describe("ToolRegistry", () => {
     });
   });
 
+  describe("run_terminal built-in secret-path gate (H3)", () => {
+    function makeGate(approve = true) {
+      const request = vi.fn().mockResolvedValue(approve);
+      return {
+        gate: mockOf<ConfirmationGate>({ request, requestDiffPreview: vi.fn(), resolve: vi.fn() }),
+        request,
+      };
+    }
+
+    // Redirection writes are enumerated in both the bash and cmd dialects, so
+    // these assert the same way regardless of the host shell.
+    it("refuses a command that writes a secret path, before the confirmation gate", async () => {
+      const registry = new ToolRegistry();
+      const handler = makeHandler({ id: "x", success: true, output: "" });
+      registry.register("run_terminal", handler);
+
+      const result = await registry.execute(
+        makeCall({ tool: "run_terminal", parameters: { command: "echo secret > .env" } }),
+      );
+      expect(result.success).toBe(false);
+      expect(result.error).toMatch(/secret path/i);
+      expect(handler.execute).not.toHaveBeenCalled();
+    });
+
+    it("allows a command that touches only non-secret paths (reaches the handler)", async () => {
+      const registry = new ToolRegistry();
+      const handler = makeHandler({ id: "x", success: true, output: "" });
+      registry.register("run_terminal", handler);
+      const { gate } = makeGate(true);
+      registry.setConfirmationGate(gate, undefined, "auto");
+
+      const result = await registry.execute(
+        makeCall({ tool: "run_terminal", parameters: { command: "echo out > build-output.txt" } }),
+      );
+      expect(result.success).toBe(true);
+      expect(handler.execute).toHaveBeenCalledTimes(1);
+    });
+
+    it("is fail-closed: a dynamic command is not secret-path-blocked (falls through to the gate)", async () => {
+      const registry = new ToolRegistry();
+      const handler = makeHandler({ id: "x", success: true, output: "" });
+      registry.register("run_terminal", handler);
+      const { gate } = makeGate(true);
+      registry.setConfirmationGate(gate, undefined, "auto");
+
+      const result = await registry.execute(
+        makeCall({ tool: "run_terminal", parameters: { command: "echo x > $(echo .env)" } }),
+      );
+      // The secret-path gate does not fire on an unparseable command; the
+      // DANGEROUS-tier confirmation is the fallback (approved here).
+      expect(result.error ?? "").not.toMatch(/secret path/i);
+      expect(handler.execute).toHaveBeenCalledTimes(1);
+    });
+
+    it("honors operator extra secret-path patterns via setSecretPathDenyExtra", async () => {
+      const registry = new ToolRegistry();
+      const handler = makeHandler({ id: "x", success: true, output: "" });
+      registry.register("run_terminal", handler);
+      registry.setSecretPathDenyExtra(["**/custom-secret.txt"]);
+
+      const result = await registry.execute(
+        makeCall({ tool: "run_terminal", parameters: { command: "echo x > custom-secret.txt" } }),
+      );
+      expect(result.success).toBe(false);
+      expect(result.error).toMatch(/secret path/i);
+      expect(handler.execute).not.toHaveBeenCalled();
+    });
+  });
+
   describe("lazy registration (Phase 6.6)", () => {
     it("reports has() / isEnabled() true for a lazy-registered tool before first use", () => {
       const registry = new ToolRegistry();

@@ -4,6 +4,34 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-16] v1.12.0 ecosystem adoption -- Phase 5: code-exec sandbox audit (H3) + a secret-path gate for run_terminal
+
+### Goal
+
+Audit Nexus's isolation for agent-run commands against the OS-level process sandbox the Codex-lineage Open Interpreter uses, and harden if weaker (H3 is assessment-primary; hardening conditional + only-ever-tighten).
+
+### The audit (primary deliverable)
+
+[docs/v1/v1.12/exec-sandbox-audit.md](v1/v1.12/exec-sandbox-audit.md). Verdict: Nexus has **NO OS process sandbox** -- `run_terminal` uses `spawn(shell:true)` at the app user's full privilege; isolation is tool-layer command-string filtering (a ~14-entry literal blocklist, an advisory allowlist, an operator-authored touched-path denylist that is dormant by default) + a DANGEROUS-tier confirmation gate + env-var scrubbing + a cwd/worktree re-root. None of it confines the process. For the "confine an approved-but-harmful command" threat (incl. `python -c "..."`, unrestricted `curl`, reading `~/.ssh`), Nexus is **materially weaker** than an OS sandbox.
+
+### What changed (bounded hardening)
+
+The audit found a concrete, safe-to-close gap: the built-in secret-path denylist gated the file-read tools (`read_file(".env")` was refused) but NOT `run_terminal` (`echo x > .env` / `cat .env` slipped). Added an **always-on, fail-closed** secret-path gate to `run_terminal` -- [ToolRegistry._denyBySecretPath](../src/tools/ToolRegistry.ts) + `setSecretPathDenyExtra` (wired in ToolRegistryBuilder), reusing the v1.7 O-A shell introspection. It runs AFTER the operator `.nexus/permissions.deny` gate (operator rules keep precedence + their error) and honors `nexus.secretPathDenyExtra` (parity with the file tools). Only ever tightens; a dynamic/unparseable command falls through to the confirmation gate.
+
+### What is NOT landed (recorded, with rationale)
+
+Full OS-native process sandboxing (Seatbelt / Landlock+seccomp / job object) is the correct remediation but a multi-cycle native, cross-OS feature that cannot be verified in headless CI -- recorded as `EM.P5.A` with a concrete per-OS approach (off-by-default `nexus.coding.execSandbox` + a capability probe, tested on all three OSes before default-on). This filters the command string; it does not confine the process.
+
+### Verification
+
+4 cross-OS-robust unit tests (secret write refused; non-secret allowed; dynamic falls through; operator extra patterns) using redirection enumeration so they assert identically on bash + cmd; the O-A operator-denylist test still passes (my gate runs after it). tsc + lint + check-architecture 0 errors; root suite 4639 passed / 6 skipped / 0 failed.
+
+### Branch
+
+`feat/v1.12.0-ecosystem-adoption`.
+
+---
+
 ## [2026-07-16] v1.12.0 ecosystem adoption -- Phase 4: disk-offload "patient" tier (E1/E3); warm-KV (E2) deferred as blocked
 
 ### Goal

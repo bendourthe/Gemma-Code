@@ -92,6 +92,9 @@ export interface ToolRegistryBuildOptions {
 export function buildToolRegistry(opts: ToolRegistryBuildOptions): ToolRegistry {
   const { gate, editMode, secretPathDenyExtra, permissionOverrides } = opts;
   const registry = new ToolRegistry();
+  // v1.12.0 Phase 5 (H3): the built-in secret-path denylist gates run_terminal
+  // too; extend it with the operator's extra patterns, matching the file tools.
+  registry.setSecretPathDenyExtra(secretPathDenyExtra);
 
   // Tier `auto-approve` -- eager. The prompt builder filters the catalog
   // against these on every turn so deferring would force a synchronous
