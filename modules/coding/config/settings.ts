@@ -70,6 +70,7 @@ export interface NexusSettings {
   inboundClassifierDeepScan: boolean;
   swarmOrchestrationEnabled: boolean;
   panelRoutingEnabled: boolean;
+  harnessSelectorEnabled: boolean;
   memorySnapshotMode: "frozen" | "live";
   /**
    * LLM backend selector. Known values are `ollama` | `lmstudio` | `auto`;
@@ -261,6 +262,10 @@ export function getSettings(): NexusSettings {
       false,
     ),
     panelRoutingEnabled: c.get<boolean>("nexus.llm.panelRouting", false),
+    harnessSelectorEnabled: c.get<boolean>(
+      "nexus.coding.harnessSelector.enabled",
+      false,
+    ),
     memorySnapshotMode: (() => {
       const raw = c.get<string>("nexus.memory.snapshotMode", "frozen");
       return raw === "live" ? "live" : "frozen";
