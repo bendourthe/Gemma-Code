@@ -53,6 +53,12 @@ class InstallerState:
     skipped_steps: list[str] = field(default_factory=list)
     step_failures: list[dict[str, str]] = field(default_factory=list)
 
+    # v1.11.0 Phase 7 (T704) -- resume support. Steps a resumed run treats as
+    # already satisfied: the engine marks them done up front and does not
+    # re-execute them (the resume plan is derived from the persisted state file
+    # by nexus_installer.background.resume). Empty for a normal fresh install.
+    completed_steps: list[str] = field(default_factory=list)
+
     # v1.1.0 Phase 14 -- cross-OS additions.
     free_disk_gb: int = 0
     selected_models_gb: float = 0.0

@@ -179,15 +179,17 @@ Adopt the mockup layout (COORD.1: mockup PNG must be in-repo first).
 
 ---
 
-## Phase 7 - Full background continuation (D4)
+## Phase 7 - Full background continuation (D4) (landed 2026-07-16)
 
 The largest new capability; lands after the UI shell so it composes with it.
 
-- [ ] **T701** Engine/UI separation: the install engine's progress state (per-step, per-model, logs) is continuously persisted to a state file (`%LOCALAPPDATA%/NexusInstaller/state.json` + rolling log) via the existing signal surface, making the UI a reattachable view.
-- [ ] **T702** Tray mode: closing the window during an active install offers "Continue in background" (alongside Cancel install / Keep open); choosing it hides the window to a system-tray icon showing live progress (tooltip + percent), with a menu (Open installer, Cancel install). Install completion raises a tray notification.
-- [ ] **T703** Reattach: relaunching `NexusSetup.exe` while an install is running (single-instance detection) reopens the wizard attached to the live engine at the Installing view, fully populated from T701 state. A completed background install relaunch shows the Complete page.
-- [ ] **T704** Crash/exit safety: killed mid-install -> the state file records the interruption; next launch offers resume-or-restart per step idempotency (already-completed steps are detected and skipped where safe: extension present, model files verified).
-- [ ] **T705** [tests] State-persistence round-trip, single-instance/reattach handshake, tray state machine, resume-detection logic; sandbox scenario scripts (close-to-tray mid-model-download, reattach, complete). Gate: sandbox run where the window is closed mid-download and the install completes from the tray, then reattaches.
+Delivered as a Qt-free-logic + thin-Qt-wiring split under `src/nexus_installer/background/` (`paths`, `state_store`, `recorder`, `process`, `single_instance`, `resume`, `startup`, `tray`, `controller`), so the whole decision surface is unit-testable without a display.
+
+- [x] **T701** Engine/UI separation: the install engine's progress state (per-step, per-model, logs) is continuously persisted to a state file (`%LOCALAPPDATA%/NexusInstaller/state.json` + rolling log) via the existing signal surface, making the UI a reattachable view. `StateRecorder` subscribes to the engine's 10 signals; atomic writes (temp + `os.replace`), progress ticks throttled but every discrete transition forced.
+- [x] **T702** Tray mode: closing the window during an active install offers "Continue in background" (alongside Cancel install / Keep open); choosing it hides the window to a system-tray icon showing live progress (tooltip + percent), with a menu (Open installer, Cancel install). Install completion raises a tray notification. 3-way close choice via a swappable provider so the decision handling is testable; `TrayController` takes an injected icon.
+- [x] **T703** Reattach: relaunching `NexusSetup.exe` while an install is running (single-instance detection) reopens the wizard attached to the live engine at the Installing view, fully populated from T701 state. A completed background install relaunch shows the Complete page. `QLocalServer`/`QLocalSocket` handshake; a live primary is signaled to surface and the second launch exits; a background-completed run re-hydrates the Complete view from the persisted `results` snapshot + rolling log.
+- [x] **T704** Crash/exit safety: killed mid-install -> the state file records the interruption; next launch offers resume-or-restart per step idempotency (already-completed steps are detected and skipped where safe: extension present, model files verified). `pid_alive` flips a stale `running` state to `interrupted`; `plan_startup` decides fresh/forward/show-complete/resume; the engine skips `state.completed_steps` (marked done up front) and re-verifies idempotently at execution time.
+- [x] **T705** [tests] State-persistence round-trip, single-instance/reattach handshake, tray state machine, resume-detection logic; sandbox scenario scripts (close-to-tray mid-model-download, reattach, complete). Gate: sandbox run where the window is closed mid-download and the install completes from the tray, then reattaches. 78 new unit tests (state round-trip, resume/startup matrix, recorder persistence, tray, real-socket reattach handshake, controller wiring, window close-choice, engine resume-skip); operator scenario driver at `testing/scenarios/background-continuation.ps1` script-verifies the persisted state file. Full sandbox GUI run is an operator action (`IO.P2.A`).
 
 **Acceptance:** the mockup's "close this window and we'll continue in the background" is literally true, including reattach and completion notification.
 

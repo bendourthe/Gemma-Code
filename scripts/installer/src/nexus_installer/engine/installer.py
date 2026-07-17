@@ -42,6 +42,9 @@ class InstallEngine(QObject):
         steps_done = 0
         steps_failed: list[str] = []
         total_steps = len(state.components_to_install)
+        # v1.11.0 Phase 7 (T704): a resumed run treats these steps as already
+        # satisfied -- they are marked done up front and never re-executed.
+        completed = set(state.completed_steps)
 
         def log(msg: str, level: str = "info") -> None:
             state.install_log.append(f"[{level.upper()}] {msg}")
@@ -59,22 +62,34 @@ class InstallEngine(QObject):
             base = steps_done / max(total_steps, 1)
             self.progress_update.emit(min(base, 1.0))
 
+        # Resume (T704): fold every already-satisfied step to "done" before the
+        # real work, so the reopened Installing view shows them complete and the
+        # progress accounting stays correct, without re-running them.
+        for step in state.components_to_install:
+            if step in completed:
+                self.step_started.emit(step)
+                log(f"{step}: already installed; skipping (resume).", "info")
+                advance(step, True)
+
+        def pending(step: str) -> bool:
+            return step in state.components_to_install and step not in completed
+
         # 1. Ollama
-        if "ollama" in state.components_to_install:
+        if pending("ollama"):
             self.step_started.emit("ollama")
             log("--- Installing Ollama ---", "info")
             ok = OllamaInstaller().install(state, log)
             advance("ollama", ok)
 
         # 2. VS Code extension
-        if "extension" in state.components_to_install:
+        if pending("extension"):
             self.step_started.emit("extension")
             log("--- Installing VS Code Extension ---", "info")
             ok = ExtensionInstaller().install(state, log)
             advance("extension", ok)
 
         # 3. Python venv
-        if "venv" in state.components_to_install:
+        if pending("venv"):
             self.step_started.emit("venv")
             log("--- Creating Python Environment ---", "info")
             ok = VenvInstaller().install(state, log)
@@ -83,7 +98,7 @@ class InstallEngine(QObject):
         # 4. Model downloads (longest step, has its own progress).
         # v1.8.0 Phase 3: routed by catalog protocol (ollama pull vs
         # Hugging Face weights) with per-model failure isolation.
-        if "model" in state.components_to_install:
+        if pending("model"):
             self.step_started.emit("model")
             log("--- Downloading Models ---", "info")
             self._model_router = ModelStepRouter()
@@ -104,7 +119,7 @@ class InstallEngine(QObject):
             advance("model", ok)
 
         # 5. Nexus desktop app (v1.8.0 Phase 2; has its own download progress)
-        if "desktop" in state.components_to_install:
+        if pending("desktop"):
             self.step_started.emit("desktop")
             log("--- Installing Nexus Desktop ---", "info")
             self._desktop_provisioner = DesktopProvisioner()

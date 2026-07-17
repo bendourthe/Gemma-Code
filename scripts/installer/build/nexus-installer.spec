@@ -114,6 +114,10 @@ a = Analysis(
         "PyQt5.QtCore",
         "PyQt5.QtGui",
         "PyQt5.QtSvg",
+        # v1.11.0 Phase 7 (T703): single-instance reattach uses QLocalServer /
+        # QLocalSocket from QtNetwork. Listed explicitly so the Qt5Network DLL is
+        # bundled even though single_instance.py is imported lazily from main().
+        "PyQt5.QtNetwork",
     ],
     hookspath=[str(SPEC_DIR / "hooks")],
     hooksconfig={},

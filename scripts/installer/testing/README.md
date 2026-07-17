@@ -62,6 +62,17 @@ on a physical Mac.
 
 Add a profile = add a JSON file; no code changes.
 
+## Background continuation (Phase 7)
+
+Tray detach / reattach / resume is a GUI flow, so its end-to-end checks are
+operator-driven scenarios that script-verify the persisted state file. See
+[`scenarios/README.md`](scenarios/README.md):
+
+```powershell
+# from scripts/installer/
+./testing/scenarios/background-continuation.ps1 -Scenario close-to-tray
+```
+
 ## Reading a failure
 
 `result.json` is the truth: `steps_failed` names the step, `failed_models`

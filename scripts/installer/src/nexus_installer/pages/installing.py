@@ -10,6 +10,7 @@ step is active.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from PyQt5.QtCore import pyqtSignal
@@ -53,9 +54,19 @@ class InstallingPage(QWidget):
     started = pyqtSignal()
     finished = pyqtSignal(bool)
 
-    def __init__(self, state: InstallerState, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        state: InstallerState,
+        parent: QWidget | None = None,
+        *,
+        on_engine_created: Callable[[InstallEngine], None] | None = None,
+    ) -> None:
         super().__init__(parent)
         self._state = state
+        # v1.11.0 Phase 7 (T701/T702): the GUI entry point passes a hook here to
+        # attach the state recorder + tray to the engine the instant it is
+        # created, so background continuation observes the same signal surface.
+        self._on_engine_created = on_engine_created
         self._thread: _InstallThread | None = None
         self._engine: InstallEngine | None = None
         self._is_running = False
@@ -166,6 +177,11 @@ class InstallingPage(QWidget):
         self._engine.model_completed.connect(self._on_model_completed)
         self._engine.model_failed.connect(self._on_model_failed)
 
+        # v1.11.0 Phase 7: let the entry point attach persistence + tray to the
+        # live engine before the thread starts (so no early events are missed).
+        if self._on_engine_created is not None:
+            self._on_engine_created(self._engine)
+
         # Pre-create one 'Waiting to start' row per selected model so the
         # user sees the whole download plan up front (the mockup's layout).
         models_group = self._group_for("model")
@@ -272,13 +288,25 @@ class InstallingPage(QWidget):
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
-        if reply == QMessageBox.StandardButton.Yes and self._engine:
+        if reply == QMessageBox.StandardButton.Yes:
+            self.cancel_install()
+
+    def cancel_install(self) -> None:
+        """Cancel the running install without prompting (T702).
+
+        The Cancel button confirms first via :meth:`_on_cancel`; the window's
+        close-during-install "Cancel install" choice is itself the confirmation,
+        so it calls this directly.
+        """
+        if not self._is_running:
+            return
+        if self._engine:
             self._engine.cancel()
-            self._is_running = False
-            self._title.setText("Installation Cancelled")
-            self._cancel_btn.setEnabled(False)
-            # Release the shell lock so navigation is usable again (T602).
-            self.finished.emit(False)
+        self._is_running = False
+        self._title.setText("Installation Cancelled")
+        self._cancel_btn.setEnabled(False)
+        # Release the shell lock so navigation is usable again (T602).
+        self.finished.emit(False)
 
     def validate(self) -> tuple[bool, str]:
         """Block navigation forward until installation is complete."""

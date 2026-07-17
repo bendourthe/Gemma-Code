@@ -293,6 +293,66 @@ class TestInstallEngineStepSignals:
         ]
 
 
+class TestInstallEngineResume:
+    """v1.11.0 Phase 7 (T704) -- completed steps are skipped, not re-run."""
+
+    def test_completed_steps_skipped_and_marked_done(self) -> None:
+        state = InstallerState(
+            components_to_install=["ollama", "extension"],
+            completed_steps=["ollama"],
+            vscode_path="/usr/bin/code",
+        )
+        completed: list[str] = []
+        finished: list[tuple[bool, str]] = []
+
+        with (
+            patch("nexus_installer.engine.installer.OllamaInstaller") as MockOllama,
+            patch("nexus_installer.engine.installer.ExtensionInstaller") as MockExt,
+        ):
+            MockExt.return_value.install.return_value = True
+
+            engine = InstallEngine()
+            engine.log_message.connect(lambda *a: None)
+            engine.progress_update.connect(lambda *a: None)
+            engine.step_completed.connect(completed.append)
+            engine.install_finished.connect(
+                lambda ok, msg: finished.append((ok, msg))
+            )
+
+            engine.run(state)
+
+            # The already-done step is never re-executed...
+            MockOllama.return_value.install.assert_not_called()
+            # ...but is reported done so the reopened view shows it complete.
+            assert "ollama" in completed
+            # The remaining step runs normally.
+            MockExt.return_value.install.assert_called_once()
+            assert "extension" in completed
+            # No failures -> a clean finish.
+            assert finished == [(True, "")]
+
+    def test_all_completed_skips_everything(self) -> None:
+        state = InstallerState(
+            components_to_install=["ollama", "extension"],
+            completed_steps=["ollama", "extension"],
+            vscode_path="/usr/bin/code",
+        )
+        with (
+            patch("nexus_installer.engine.installer.OllamaInstaller") as MockOllama,
+            patch("nexus_installer.engine.installer.ExtensionInstaller") as MockExt,
+        ):
+            engine = InstallEngine()
+            engine.log_message.connect(lambda *a: None)
+            engine.progress_update.connect(lambda *a: None)
+            engine.step_completed.connect(lambda *a: None)
+            engine.install_finished.connect(lambda *a: None)
+
+            engine.run(state)
+
+            MockOllama.return_value.install.assert_not_called()
+            MockExt.return_value.install.assert_not_called()
+
+
 class TestInstallEngineCancel:
     def test_cancel_propagates_to_desktop_provisioner(self) -> None:
         with patch(

@@ -4,6 +4,33 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-16] v1.11.0 installer overhaul -- Phase 7: full background continuation (T701-T705)
+
+### Goal
+
+Make the mockup's "close this window and we'll continue in the background" literally true (D4): the install survives the window via a persisted state file, detaches to a system-tray icon, reattaches on relaunch (single-instance), and resumes after a crash -- without ever starting a duplicate install.
+
+### What changed
+
+New Qt-free-logic + thin-Qt-wiring package [background/](../scripts/installer/src/nexus_installer/background/), so the whole decision surface is unit-testable without a display:
+
+- **T701 state persistence** ([state_store.py](../scripts/installer/src/nexus_installer/background/state_store.py) + [recorder.py](../scripts/installer/src/nexus_installer/background/recorder.py)): a Qt-free `InstallState` dataclass (schema `nexus-install-state/v1`) with a lossless round-trip and atomic writes (temp + `os.replace`); `StateRecorder` subscribes to the engine's existing 10-signal surface and persists continuously to `%LOCALAPPDATA%/NexusInstaller/state.json` + a size-capped rolling log (per-OS via `LOCALAPPDATA` / `Application Support` / `XDG_STATE_HOME`; `NEXUS_INSTALLER_STATE_DIR` override). Progress ticks are throttled (>=0.5s) but every discrete transition (step/model start/done/fail, finish, cancel) is forced, so a crash at any moment leaves an at-most-one-window-stale file. The [InstallingPage](../scripts/installer/src/nexus_installer/pages/installing.py) gained an `on_engine_created` hook so the recorder attaches to the live engine before the thread starts.
+- **T702 tray mode** ([tray.py](../scripts/installer/src/nexus_installer/background/tray.py) + [window.py](../scripts/installer/src/nexus_installer/window.py)): closing the window mid-install now offers a 3-way choice (Continue in background / Cancel install / Keep open) via a swappable provider so the decision handling is testable; "background" hides (does not destroy) the window and surfaces a `TrayController` -- an injectable-icon wrapper with a live percent tooltip, an Open installer / Cancel install menu, and a completion notification.
+- **T703 reattach** ([single_instance.py](../scripts/installer/src/nexus_installer/background/single_instance.py) + [startup.py](../scripts/installer/src/nexus_installer/background/startup.py)): a `QLocalServer`/`QLocalSocket` handshake -- a second launch signals the live primary to surface its window and exits (no duplicate). A background-completed run relaunched in a fresh process re-hydrates the Complete view from the persisted `results` snapshot + rolling log.
+- **T704 crash/resume** ([process.py](../scripts/installer/src/nexus_installer/background/process.py) + [resume.py](../scripts/installer/src/nexus_installer/background/resume.py) + [installer.py](../scripts/installer/src/nexus_installer/engine/installer.py)): `pid_alive` flips a stale `running` state (dead owner) to `interrupted`; `plan_startup` returns fresh / forward / show-complete / resume; on resume the engine marks `state.completed_steps` done up front and skips them (idempotent re-run at execution time re-verifies), re-running only what remains.
+- **[controller.py](../scripts/installer/src/nexus_installer/background/controller.py) + [main.py](../scripts/installer/src/nexus_installer/main.py)**: a `BackgroundController` ties window + engine + recorder + tray together (plain class, fully faked in tests); `main()` runs the single-instance check, the startup plan, and the wiring. [The spec](../scripts/installer/build/nexus-installer.spec) adds `PyQt5.QtNetwork` to `hiddenimports` (fail-closed, for the local-socket path).
+- **T705 tests + scenarios** (78 new unit tests across 7 files + engine resume-skip): state round-trip, crash/resume decision matrix, recorder persistence, tray state machine, a REAL local-socket reattach handshake, controller wiring, window close-choice. Operator scenario driver at [testing/scenarios/background-continuation.ps1](../scripts/installer/testing/scenarios/background-continuation.ps1) script-verifies the persisted state file for the close-to-tray / reattach / crash-resume flows.
+
+### Verification
+
+Full installer suite green (**821 passed, 2 skipped**); ruff clean on all new + touched files (`src`+`tests` total unchanged at the 37-finding baseline); `mypy src` at 25 (one below the 26 baseline -- the new package adds zero, and the old 2-button close dialog was removed). The exe was NOT rebuilt this phase (heavy PyInstaller + desktop-payload build); the tray/reattach GUI visuals and the packaging smoke are operator actions on the rebuilt exe (`IO.P7.A` / `IO.P7.D`), consistent with the P2 sandbox posture (`IO.P2.A`).
+
+### Branch
+
+`feat/v1.11.0-installer-overhaul`
+
+---
+
 ## [2026-07-16] v1.11.0 installer overhaul -- Phase 6: mockup shell (sidebar + category flow + header fix) (T601-T605)
 
 ### Goal

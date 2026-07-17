@@ -10,8 +10,9 @@ decorations as the documented fallback (see the plan's Risks table).
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 
-from PyQt5.QtCore import QEvent, Qt
+from PyQt5.QtCore import QEvent, Qt, pyqtSignal
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import (
     QHBoxLayout,
@@ -65,6 +66,18 @@ def _native_titlebar_forced() -> bool:
 
 class InstallerWindow(QMainWindow):
     """Resizable window with title bar, header, step indicator, content, footer."""
+
+    # v1.11.0 Phase 7 (T702): emitted when the user closes the window mid-install
+    # and chooses "Continue in background". The GUI entry point reacts by showing
+    # the tray icon; the window has already hidden itself (the engine keeps
+    # running in the same process, so this is a detach, not a close).
+    background_requested = pyqtSignal()
+
+    # Close-during-install choices (returned by the swappable close-choice
+    # provider so the decision handling is unit-testable without the dialog).
+    CLOSE_BACKGROUND = "background"
+    CLOSE_CANCEL = "cancel"
+    CLOSE_KEEP = "keep"
 
     # v1.1.0 Phase 14.8 -- index of the Review page in the wizard chain. The
     # final disk + hardware guard fires when the user clicks "Install" on
@@ -219,6 +232,11 @@ class InstallerWindow(QMainWindow):
         # never stops or restarts the running install.
         self._install_active = False
         self._install_finished = False
+
+        # v1.11.0 Phase 7 (T702): the close-during-install choice is produced by
+        # a swappable provider (default: the 3-button dialog) so the decision
+        # handling can be unit-tested without a modal dialog.
+        self._close_choice_provider: Callable[[], str] = self._prompt_close_choice
 
         # Keyboard shortcuts
         QShortcut(Qt.Key.Key_Return, self, self._go_next)
@@ -535,24 +553,74 @@ class InstallerWindow(QMainWindow):
             self._title_bar.set_maximized(self.isMaximized())
         super().changeEvent(event)  # type: ignore[arg-type]
 
-    def closeEvent(self, event: QEvent) -> None:  # noqa: N802
-        """Confirm close if installation is in progress."""
-        installing_page = None
+    # -- background continuation (v1.11.0 Phase 7, T702/T703) ---------------
+
+    def show_and_raise(self) -> None:
+        """Reattach: bring the (hidden/minimized) window back to the front.
+
+        Wired to the tray "Open installer" action and the single-instance
+        reattach handshake, so both a tray reopen and a second launch land on
+        the live wizard rather than a duplicate (T703).
+        """
+        self.showNormal()
+        self.raise_()
+        self.activateWindow()
+
+    def _running_install_page(self) -> QWidget | None:
+        """Return the page whose install is currently running, if any."""
         for page in self._pages:
-            if hasattr(page, "is_running") and page.is_running:
-                installing_page = page
-                break
+            if getattr(page, "is_running", False):
+                return page
+        return None
 
-        if installing_page:
-            reply = QMessageBox.question(
-                self,
-                "Close Installer",
-                "Installation is in progress. Are you sure you want to close?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.No,
-            )
-            if reply != QMessageBox.StandardButton.Yes:
-                event.ignore()
-                return
+    def _prompt_close_choice(self) -> str:
+        """Ask the user how to close mid-install (the 3-button dialog, T702)."""
+        box = QMessageBox(self)
+        box.setWindowTitle("Close Installer")
+        box.setText("Installation is still in progress.")
+        box.setInformativeText(
+            "You can keep installing in the background, cancel the install, "
+            "or keep this window open."
+        )
+        bg_btn = box.addButton(
+            "Continue in background", QMessageBox.ButtonRole.AcceptRole
+        )
+        cancel_btn = box.addButton(
+            "Cancel install", QMessageBox.ButtonRole.DestructiveRole
+        )
+        keep_btn = box.addButton("Keep open", QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(keep_btn)
+        box.exec()
+        clicked = box.clickedButton()
+        if clicked is bg_btn:
+            return self.CLOSE_BACKGROUND
+        if clicked is cancel_btn:
+            return self.CLOSE_CANCEL
+        return self.CLOSE_KEEP
 
-        event.accept()
+    def _apply_close_choice(
+        self, choice: str, event: QEvent, page: QWidget
+    ) -> None:
+        """Act on the close-during-install choice (extracted for testability)."""
+        if choice == self.CLOSE_BACKGROUND:
+            # Detach, do not destroy: hide the window and surface the tray. The
+            # engine thread keeps running in this same process.
+            event.ignore()
+            self.hide()
+            self.background_requested.emit()
+        elif choice == self.CLOSE_CANCEL:
+            cancel = getattr(page, "cancel_install", None)
+            if callable(cancel):
+                cancel()
+            event.accept()
+        else:  # CLOSE_KEEP
+            event.ignore()
+
+    def closeEvent(self, event: QEvent) -> None:  # noqa: N802
+        """Offer background / cancel / keep-open when an install is running."""
+        page = self._running_install_page()
+        if page is None:
+            event.accept()
+            return
+        choice = self._close_choice_provider()
+        self._apply_close_choice(choice, event, page)

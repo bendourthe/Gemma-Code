@@ -12,11 +12,34 @@ Supports two modes:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import sys
+from pathlib import Path
 
 from nexus_installer import __version__
 from nexus_installer.registry_paths import resolve_window_icon
+
+
+def _prompt_resume() -> bool:
+    """Ask whether to resume an interrupted run or start over (T704).
+
+    Returns True to resume (skip already-satisfied steps), False to restart.
+    """
+    from PyQt5.QtWidgets import QMessageBox
+
+    box = QMessageBox()
+    box.setWindowTitle("Resume installation?")
+    box.setText("A previous installation did not finish.")
+    box.setInformativeText(
+        "Resume where it left off (already-installed parts are skipped), "
+        "or start over from the beginning?"
+    )
+    resume_btn = box.addButton("Resume", QMessageBox.ButtonRole.AcceptRole)
+    box.addButton("Start over", QMessageBox.ButtonRole.RejectRole)
+    box.setDefaultButton(resume_btn)
+    box.exec()
+    return box.clickedButton() is resume_btn
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
@@ -326,7 +349,6 @@ def main() -> None:
     # so the OS taskbar shows this app's own (transparent, rounded) icon instead
     # of grouping under the generic Python host icon.
     if sys.platform == "win32":
-        import contextlib
         import ctypes
 
         with contextlib.suppress(Exception):
@@ -358,6 +380,33 @@ def main() -> None:
     dark_titlebar_filter = DarkTitleBarFilter(app)
     app.installEventFilter(dark_titlebar_filter)
 
+    # v1.11.0 Phase 7 (T703): single-instance reattach. If an install is already
+    # running in another process, ask that one to surface its window and exit --
+    # never start a duplicate. (QLocalSocket needs the QApplication above.)
+    from nexus_installer.background import paths as bg_paths
+    from nexus_installer.background import recorder as bg_recorder
+    from nexus_installer.background import resume as bg_resume
+    from nexus_installer.background import state_store
+    from nexus_installer.background import tray as bg_tray
+    from nexus_installer.background.controller import BackgroundController
+    from nexus_installer.background.recorder import StateRecorder
+    from nexus_installer.background.single_instance import (
+        SingleInstanceServer,
+        signal_running_instance,
+    )
+    from nexus_installer.background.startup import plan_startup
+
+    if signal_running_instance(bg_paths.SINGLE_INSTANCE_KEY):
+        return
+    single_instance = SingleInstanceServer(bg_paths.SINGLE_INSTANCE_KEY)
+
+    # Decide what this launch should do from any persisted run (T703/T704).
+    bg_paths.ensure_state_dir()
+    state_path = str(bg_paths.state_file())
+    log_path = str(bg_paths.log_file())
+    loaded_state = state_store.load_state(state_path)
+    plan = plan_startup(loaded_state=loaded_state, primary_alive=False)
+
     state = InstallerState()
     if args.install_path:
         state.install_path = args.install_path
@@ -370,7 +419,36 @@ def main() -> None:
     if args.desktop_bundle:
         state.desktop_bundle_override = args.desktop_bundle
 
+    # Apply the launch decision to the fresh state before pages are built.
+    resume_now = False
+    if plan.decision == bg_resume.DECISION_SHOW_COMPLETE and plan.state is not None:
+        bg_recorder.apply_state_to_installer_state(plan.state, state)
+    elif plan.decision == bg_resume.DECISION_RESUME and plan.state is not None:
+        resume_now = _prompt_resume()
+        if resume_now and plan.resume is not None:
+            bg_recorder.apply_resume_to_installer_state(
+                plan.state, plan.resume, state
+            )
+        else:
+            # Start over: discard the interrupted run's state file.
+            with contextlib.suppress(OSError):
+                Path(state_path).unlink()
+
     window = InstallerWindow(state=state)
+
+    # Background continuation wiring (T701/T702): recorder persists the engine's
+    # signal surface; the tray hosts the detached view; the controller ties them
+    # to the window.
+    recorder = StateRecorder(state_path, log_path)
+    tray_controller: bg_tray.TrayController | None = None
+    if bg_tray.is_tray_available():
+        tray_controller = bg_tray.TrayController(bg_tray.create_tray_icon(window))
+    controller = BackgroundController(
+        window=window,
+        installer_state=state,
+        recorder=recorder,
+        tray=tray_controller,
+    )
 
     window.add_page(WelcomePage(state))
     window.add_page(PrerequisitesPage(state))
@@ -382,10 +460,24 @@ def main() -> None:
     window.add_page(TypedCatalogPage(state))
     window.add_page(ConfigurationPage(state))
     window.add_page(ReviewPage(state))
-    window.add_page(InstallingPage(state))
+    installing_page = InstallingPage(
+        state, on_engine_created=controller.on_engine_created
+    )
+    window.add_page(installing_page)
     window.add_page(CompletePage(state))
 
-    if 0 <= args.step < len(window._pages):
+    controller.attach_installing_page(installing_page)
+    window.background_requested.connect(controller.request_background)
+    single_instance.show_requested.connect(controller.open_from_tray)
+    if tray_controller is not None:
+        tray_controller.open_requested.connect(controller.open_from_tray)
+        tray_controller.cancel_requested.connect(controller.cancel_from_tray)
+
+    if plan.decision == bg_resume.DECISION_SHOW_COMPLETE:
+        window.switch_page(len(window._pages) - 1)  # Complete page
+    elif resume_now:
+        window.switch_page(window.installing_page_index)  # auto-starts, skips
+    elif 0 <= args.step < len(window._pages):
         window.switch_page(args.step)
     else:
         window.show_first_page()
