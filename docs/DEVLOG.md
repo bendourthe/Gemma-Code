@@ -4,6 +4,32 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-16] v1.12.0 ecosystem adoption -- Phase 2 (partial): surface the v1.7 skill optimizer via a CLI + composition root (L1 / EM005-EM006)
+
+### Goal
+
+Make the skill self-optimization loop that shipped in v1.7.0 -- but was never reachable outside tests -- runnable, without dropping its human-approval-before-overwrite guardrail. The pre-implementation review found the real blocker: the engine had **no production composition root** (only tests ever constructed a `SkillOptimizer`), which is exactly the v1.7 `RT.P7.C` / `SO003.P3.D` gap.
+
+### What changed
+
+- **Composition root (the missing piece)**: [HeadlessOptimizerFactory.ts](../modules/coding/skilloptimizer/HeadlessOptimizerFactory.ts) -- `createHeadlessSkillOptimizer(options)` assembles a runnable `SkillOptimizer` from the shipped v1.7 seams (`HeadlessOptimizerRollout`, a `ReflexionEngine`-backed diagnoser, the LLM proposer, an optional `CriticAgent` pre-filter, the fs path resolver + I/O) over an **injected LLM port** (no `OllamaClient` import -> stays inside `no-llm-outside-llm-folder`; the CLI creates + injects the concrete client). The approval gate is a required dep; two terminal gates (`autoDenyApprovalGate` for dry-run, `autoApproveApprovalGate` for automation) plus the CLI's interactive readline gate.
+- **CLI**: `nexus skills optimize <id> [--apply] [--yes] [--model] [--max-rounds] [--json]` in [bin/nexus.mjs](../bin) -- loads the compiled composition root, builds a live skill catalog off disk, loads the target skill, splits the golden corpus into the optimizer-visible train/validation splits (the test split is never reachable), and runs the loop against local Ollama. Default is **dry-run** (deny gate: proposes but never writes); `--apply` prompts per accepted edit; `--apply --yes` auto-approves for automation.
+- **Tests**: [headless-optimizer-factory.test.ts](../tests/integration/skilloptimizer/headless-optimizer-factory.test.ts) (assembles + runs + writes nothing under the deny gate on a passing train split; terminal gates; `withCritic` branch) + `skills optimize` parseArgs cases.
+
+### Honest scope (partial phase)
+
+Two Phase-2 items are **deferred with rationale**, not done: **`nexus skills frontier`** (`EM.P2.B` -- needs the `CandidateFrontier` composition root + `WorktreeCandidateManager` git wiring) and the **desktop-sidecar method** (`EM.P2.A` -- the sidecar transport is one-shot request/response with no server-push channel, so the interactive approval round-trip needs a multi-call protocol + a React approval UI; deferred to preserve the guardrail rather than ship a half-built approval path). Both in [v1.12 known-gaps](v1/v1.12/known-gaps.md). The composition root they will both reuse now exists.
+
+### Verification
+
+17 new tests pass; `tsc -b` clean; lint 0 warnings; `check-architecture` 0 errors (10 pre-existing warnings; no new cycle; `no-llm-outside-llm-folder` satisfied); full root suite green (4617 passed / 6 skipped / 0 failed) on the idle machine (the Node-24 `better-sqlite3` ABI rebuild from Phase 1 holds); `nexus skills optimize` no-id path smoke exits 2.
+
+### Branch
+
+`feat/v1.12.0-ecosystem-adoption`.
+
+---
+
 ## [2026-07-16] v1.12.0 ecosystem adoption -- Phase 1: per-model harness selector (H1) + low-cost-model guidance (H2) (EM001-EM003)
 
 ### Goal
