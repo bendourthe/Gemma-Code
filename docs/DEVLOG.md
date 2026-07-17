@@ -4,6 +4,34 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-16] v1.12.0 ecosystem adoption -- Phase 6 (FINAL): acceptance gate, reconciliation, docs -- cycle code-complete
+
+### Goal
+
+Verify the whole-plan definition-of-pass, reconcile architecture + known-gaps (this cycle and the v1.7 follow-ups L1 resolved), refresh the exec threat model, assess the Hub touchpoint, and hand release-readiness to `/update release`.
+
+### What happened (verification + reconciliation only -- no feature code changed)
+
+- **Acceptance gate green**: all 7 Definition-of-pass items verified; `tsc -b` clean, `npm run lint` 0 errors, `npm run check-architecture` 0 errors (10 pre-existing warnings), `npm run check:tampering` 0 findings, `npm run security:check` in sync; root suite 4639 passed / 6 skipped / 0 failed; full installer suite green; 541 desktop tests green.
+- **Architecture pass**: no new orphan/cycle across the cycle's modules; the `no-llm-outside-llm-folder` boundary holds (Phase 2's vscode decoupling made the optimizer engine plain-Node-loadable). No refactor needed.
+- **Known-gaps reconciled**: the v1.12 ledger records every `EM.P*` deferral; the v1.7 `RT.P7.C` / `SO003.P3.D` / `SO005.P4.C` follow-ups L1 resolved are now marked RESOLVED in the v1.7 ledger (RT.P7.A/B remain open, not this cycle's work).
+- **Docs**: refreshed [SECURITY.md](../SECURITY.md)'s code-execution threat model (`EM.P5.C`) -- the honest "no OS process sandbox" boundary + the new `run_terminal` secret-path gate. README/ARCHITECTURE carry no per-version content; the CHANGELOG + npm tag are semantic-release-owned (cut on merge to `main`).
+- **Hub touchpoint** (`EM.P6.A`): assessed not-warranted as an in-repo change (SO009 precedent); a one-line Hub cross-link from `model-routing`/`loop-engineering` to the now-reachable local optimizer + harness selector is a demand-gated future-sync suggestion.
+
+### v1.12.0 summary (6 phases)
+
+H1 per-model harness selector (opt-in) + H2 guidance; L1 the v1.7 skill optimizer surfaced via `nexus skills optimize`/`frontier` CLIs + a desktop preview/apply approval UI (+ the vscode decoupling that unblocked it); Q1 an extreme-low-bit (BitNet-class) tier gate (fail-closed); E1/E3 a disk-offload "patient" tier mechanism (E2 deferred -- Ollama `/api/chat` has no persistable KV); H3 an exec-sandbox audit + a `run_terminal` secret-path gate (OS sandbox recorded as a roadmap item). Every net-new capability is local-only and ships gated/off by default per the reverse-engineer-first, no-degradation discipline; the honest deferrals are all recorded in the [known-gaps ledger](v1/v1.12/known-gaps.md).
+
+### Release
+
+Handed to `/update release` (version bump / changelog / tag / push) with its own confirmation gates -- NOT auto-executed. The branch is unpushed and local `develop` is 35 ahead of `origin/develop` (`EM.P6.B`); those are operator decisions.
+
+### Branch
+
+`feat/v1.12.0-ecosystem-adoption`.
+
+---
+
 ## [2026-07-16] v1.12.0 ecosystem adoption -- Phase 5: code-exec sandbox audit (H3) + a secret-path gate for run_terminal
 
 ### Goal
