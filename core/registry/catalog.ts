@@ -118,6 +118,20 @@ export interface ModelSpec {
   readonly linkedVAE?: string;
   readonly linkedFamily?: string;
   readonly runtimeDeps?: readonly string[];
+  /**
+   * v1.12.0 Phase 3 (Q1) -- GGUF quant label (e.g. `Q4_K_M`, `TQ1_0`). When the
+   * value is a BitNet-class ternary/1-bit type (see `extremeLowBit.ts`), the
+   * entry belongs to the extreme-low-bit tier and is HARD-GATED: surfaced only
+   * when the runtime supports the format AND `benchmark` is present.
+   */
+  readonly quant?: string;
+  /**
+   * v1.12.0 Phase 3 (Q1) -- reference (URL / citation) to an INDEPENDENT
+   * third-party benchmark of this model. Required for an extreme-low-bit entry
+   * to be surfaced (the gate rejects un-benchmarked sub-4-bit weights, whose
+   * quality retention is otherwise a vendor claim).
+   */
+  readonly benchmark?: string;
 }
 
 export interface CatalogFile {
