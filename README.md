@@ -6,7 +6,7 @@
 
 Nexus is a local-first, native desktop AI Studio that bundles four generative AI pillars behind one cohesive UI: agentic coding, organized local chat, image generation and editing, and short-form video synthesis. Everything runs on the host machine against optimized open-source models (Gemma 4, Llama 3, Qwen 2.5 Coder, SDXL / SANA-class diffusion, video-synthesis architectures), with real-time GPU / VRAM telemetry built into the dashboard. No API keys, no data leaving your machine, no per-token billing.
 
-> **Renamed from Gemma Code at v1.0.0** to reflect the four-pillar pivot. The v0.1.0 - v0.22.x line shipped as a single-purpose local agentic coding VS Code extension; v1.0.0 folded that engine into the "Agentic AI Coding" pillar of a wider desktop app. The VS Code surface is preserved as an optional thin adapter that proxies to the desktop daemon. Historical Gemma Code docs remain under `docs/archive/versions/v0/v0.1.0/` - `docs/archive/versions/v0/v0.9.0/`; the v1.0.0 pivot is documented under `docs/versions/v1/v1.0.0/`; the v1.1.0 cycle closed 2026-05-26 under `docs/versions/v1/v1.1.0/`; the active v1.2.0 cycle is at `docs/versions/v1/v1.2.0/`.
+> **Renamed from Gemma Code at v1.0.0** to reflect the four-pillar pivot. The v0.1.0 - v0.22.x line shipped as a single-purpose local agentic coding VS Code extension; v1.0.0 folded that engine into the "Agentic AI Coding" pillar of a wider desktop app. The VS Code surface is preserved as an optional thin adapter that proxies to the desktop daemon. Historical Gemma Code docs remain under `docs/archive/versions/v0/v0.1.0/` - `docs/archive/versions/v0/v0.9.0/`; every product milestone since the pivot is documented under `docs/v1/v1.<MINOR>/`, from the v1.0.0 pivot through the current **v1.12.0** cycle. The published release track is separate from the milestone track - see [Project Status](#project-status-july-2026).
 
 ---
 
@@ -21,7 +21,7 @@ Nexus is a local-first, native desktop AI Studio that bundles four generative AI
 Nexus and [Nexus-Hub](https://github.com/bendourthe/Nexus-Hub) are two halves of the same idea, split along a deliberate seam.
 
 - **Nexus (this repo)** is the runtime: a native desktop AI Studio with four pillars (Coding, Chat, Image, Video), four-layer local memory, hybrid retrieval (BM25 + dense + graph via RRF), session replay, GPU scheduling, hardware-aware model selection, and a cross-OS installer that provisions CUDA / Metal / ROCm tooling on first launch. It runs against local open-source models via Ollama; no outbound runtime calls without explicit user opt-in.
-- **Nexus-Hub** is the catalog: 203 curated skills, 36 commands, 14 hooks, 10 agents, 4 language rule families, plus 3 internal MCP servers. It is content-only, platform-agnostic, and installs into every supported AI assistant's per-platform config locations. Nexus consumes the same catalog as its upstream skill feed via the `nexus skills sync` CLI.
+- **Nexus-Hub** is the catalog: a large curated set of skills, commands, hooks, agents, and language rule families, plus a handful of local-only internal MCP servers (see the [Nexus-Hub repo](https://github.com/bendourthe/Nexus-Hub) for the live counts). It is content-only, platform-agnostic, and installs into every supported AI assistant's per-platform config locations. Nexus consumes the same catalog as its upstream skill feed via the `nexus skills sync` CLI.
 
 The two projects are designed to be useful independently: you can install Nexus-Hub into Claude Code / Codex / Gemini / Cursor without touching Nexus, and Nexus can run with or without the upstream catalog wired in. The combination is what gives a single curated skill set to every agent surface a developer touches: terminal, IDE, and now a dedicated desktop app.
 
@@ -31,7 +31,7 @@ The two projects are designed to be useful independently: you can install Nexus-
 
 ### 1. Agentic AI Coding
 
-Autonomous code-generation and terminal environment. Reads local repositories, executes code in isolated environments, debugs, and implements complex features across files. Inherits everything Gemma Code shipped (tool registry, plan mode, four-layer memory, MCP support, skill catalog, sub-agent dispatch) and extends it to all installed local LLMs - not just Gemma 4. Available as a desktop pillar and as an optional VS Code extension (`nexus-coding`) that proxies to the desktop daemon when available and falls back to a legacy in-process engine when not.
+Autonomous code-generation and terminal environment. Reads local repositories, executes code in isolated environments, debugs, and implements complex features across files. Inherits everything Gemma Code shipped (tool registry, plan mode, four-layer memory, MCP support, skill catalog, sub-agent dispatch) and extends it to all installed local LLMs - not just Gemma 4. Available as a desktop pillar and as an optional VS Code extension (`nexus-coding`) that proxies to the desktop daemon when available and falls back to a legacy in-process engine when not. Later cycles added a local skill self-optimization loop (`nexus skills optimize`, v1.7.0 / v1.12.0) and a per-model harness selector that tunes the agent scaffold profile to each local model (v1.12.0).
 
 ### 2. Local Chatbot Explorer
 
@@ -51,72 +51,41 @@ A persistent `Local Model Status` panel reports the active model architecture, p
 
 ---
 
-## Project Status (May 2026)
+## Project Status (July 2026)
 
-The v1.0.0 cycle (Q4 2025 - Q1 2026) landed all 11 phases, shipping a working four-pillar desktop app with a Windows installer, four-layer memory, GPU scheduler, MCP harness, skill catalog backed by Nexus-Hub (formerly DevAI-Hub), and a Tauri 2.x shell speaking JSON-RPC 2.0 to a Node sidecar.
+Nexus runs on two intentionally decoupled version tracks:
 
-The v1.1.0 cycle (closed 2026-05-26) was the **stabilization-plus-expansion** wave; all 15 phases landed.
+- **Milestone track (`v1.x`)** - the product development cycles, each documented under `docs/v1/v1.<MINOR>/` (plan, known-gaps, benchmarks). This track runs from the v1.0.0 pivot through the current **v1.12.0** cycle.
+- **Release track (git tags / `package.json`)** - the published, semantic-release-cut versions. `v2.0.0` (2026-06-18) was the GA that consolidated the v1.4.0 -> v1.6.0 line; `v2.1.0` (2026-07-02) folded in v1.7.0. Milestones **v1.8.0 -> v1.12.0** have landed on `main` and ship in the next published release. (The desktop app self-reports its `package.json` version, currently `2.1.0`, which is why the in-app version and the milestone label differ.)
 
-The v1.2.0 cycle opened 2026-05-26 with the **2026-05 ecosystem-adoption track**, a seven-phase plan that adopts 18 items from a comparison snapshot covering LEANN, CodeGraph, RTK, Hallmark, and two Anthropic engineering articles. Phases 1-7 of the adoption plan all landed on 2026-05-28; the post-adoption benchmarks are published at [docs/versions/v1/v1.2.0/benchmarks/](docs/v1/v1.2/benchmarks) (token-usage delta -93.76% / -45.45% on the reference Coding-pillar workload; storage delta -81.32% on the dense index alone).
+### Milestone ledger
 
-| Phase | Title | Status |
-|---|---|---|
-| 1 | Shared-core build + carryforward closure | Landed |
-| 2 | Sidecar IPC widening + `tauri::Channel` notifications | Landed (partial; closures tracked under 1.4.P1.B) |
-| 3 | GpuScheduler integration + Hardware Settings + DiffusionTier defaults | Landed (partial) |
-| 4 | Memory provenance + 12-hook lifecycle + secret pre-index filter | Landed |
-| 5 | Hybrid retrieval (BM25 + dense + graph via RRF) + local embedder | Landed |
-| 6 | Memory CLI + Ebbinghaus decay + `/recall` `/remember` `/forget` slash commands | Landed |
-| 7 | Session replay timeline + compare-two-sessions mode | Landed |
-| 8 | DevAI-Hub closures + skill hot-reload + AgentLoop skill provenance | Landed |
-| 9 | Opt-in memory consolidation (contradiction resolver + file compressor) | Planned |
-| 10 | VS Code extension thin-adapter rewrite + Marketplace re-publish | Planned |
-| 11 | Nexus VS Code extension (multi-model agentic add-on) | Planned |
-| 12 | Image Studio upgrade (NVIDIA SANA family) | Landed (2026-05-20) |
-| 13 | Video Lab fast tier (SANA-Video 2B) | Planned |
-| 14 | Cross-OS installer (Windows + macOS + Linux) with hardware + disk-aware model picker | Planned |
-| 15 | Hardening + release gate | Landed |
+| Milestone | Theme | Status | Docs |
+|---|---|---|---|
+| v1.0.0 | Four-pillar pivot: Gemma Code -> Nexus desktop AI Studio (Tauri shell + Node sidecar) | Landed | [docs/v1/v1.0/](docs/v1/v1.0/) |
+| v1.1.0 | Stabilization + expansion: hybrid retrieval, session replay, SANA image / video tiers | Landed | [docs/v1/v1.1/](docs/v1/v1.1/) |
+| v1.2.0 | 2026-05 ecosystem adoption: code-graph MCP, LEANN-derived pruned dense index, command-output compression | Landed | [docs/v1/v1.2/](docs/v1/v1.2/) |
+| v1.3.0 | skill-cleaner adoption: `nexus skills audit` token-budget report | Landed | [docs/v1/v1.3/](docs/v1/v1.3/) |
+| v1.4.0 | claude-code-harness adoption (A1-A12) + `src/` -> `modules/coding/` move + carryforward closure | Landed | [docs/v1/v1.4/](docs/v1/v1.4/) |
+| v1.5.0 | Local Agent Maturity: Gemma 4 quant ladder, credential vault, energy telemetry, planner / critic / worker DAG | Landed | [docs/v1/v1.5/](docs/v1/v1.5/) |
+| v1.6.0 | aisuite harness + the offline Nexus-AI interactive guide + opt-in local panel / judge fusion | Landed | [docs/v1/v1.6/](docs/v1/v1.6/) |
+| v1.7.0 | Local skill self-optimization loop (golden-task runner, bounded-edit optimizer, Pareto frontier) | Landed | [docs/v1/v1.7/](docs/v1/v1.7/) |
+| v1.8.0 | One-shot end-user installer: desktop bundles, Hugging Face weights puller, per-VRAM catalog curation | Landed | [docs/v1/v1.8/](docs/v1/v1.8/) |
+| v1.9.0 | Installer + Nexus AI Studio experience overhaul (single-artifact branded wizard + full UI / UX rework) | Landed | [docs/v1/v1.9/](docs/v1/v1.9/) |
+| v1.10.0 | Nexus-Hub consumption re-architecture: single-home `~/.nexus-ai/catalog/` + live first-launch fetch | Landed | [docs/v1/v1.10/](docs/v1/v1.10/) |
+| v1.11.0 | Installer overhaul: one-shot reliability, clean-machine harness, embedded desktop bundle, background continuation | Landed | [docs/v1/v1.11/](docs/v1/v1.11/) |
+| v1.12.0 | Local model-execution scaling (per-model harness, extreme-low-bit + disk-offload tiers) + surface the skill optimizer + exec-sandbox audit | Landed | [docs/v1/v1.12/](docs/v1/v1.12/) |
 
-The v1.1.0 cycle plan lives at [docs/versions/v1/v1.1.0/plans/v1.1.0-cycle.md](docs/v1/v1.1/plans/v1.1.0-cycle.md). Per-phase plans are siblings under the same directory. The per-version unfinished-work tracker is at [docs/versions/v1/v1.1.0/known-gaps.md](docs/v1/v1.1/known-gaps.md).
-
-### v1.2.0 cycle status
-
-| Phase | Title | Status |
-|---|---|---|
-| 1 | Skill-native foundation (Hallmark + HTML output + hooks-over-prompts policy) | Landed |
-| 2 | Command-output compression ([`core/observability/CommandCompressor.ts`](core/observability/CommandCompressor.ts)) | Landed |
-| 3 | Code-graph MCP module ([`core/codegraph/`](core/codegraph/) -- SQLite + FTS5 store, 8 internal MCP tools) | Landed |
-| 4 | Memory enhancements (AST chunker + LEANN-derived `PrunedDenseIndex`) | Landed |
-| 5 | Agent loop policy (read-only explore sub-agents + path-scoped skills + `.nexusignore` + reflection hook) | Landed |
-| 6 | Re-partial integrations (file-watcher + LSP client + interactive HTML artifact) | Landed |
-| 7 | Stabilization, benchmarks, and documentation refresh | Landed |
-
-The cycle plan lives at [docs/versions/v1/v1.2.0/plans/adoption-ecosystem-2026-05.md](docs/v1/v1.2/plans/adoption-ecosystem-2026-05.md). The per-version unfinished-work tracker is at [docs/versions/v1/v1.2.0/known-gaps.md](docs/v1/v1.2/known-gaps.md). Benchmarks ([docs/versions/v1/v1.2.0/benchmarks/](docs/v1/v1.2/benchmarks)) cover end-to-end Coding-pillar token usage and storage size.
-
-### v1.3.0 cycle status
-
-The v1.3.0 cycle opened 2026-05-28 with the **adoption-skill-cleaner track**, a seven-phase plan that adopts nine items from a single-source comparison of the `skill-cleaner` technique into Nexus, culminating in a `nexus skills audit` CLI command that produces a five-section token-budget report (Budget / Descriptions / Duplicates / Unused / Roots) over the skill catalog. All seven phases landed on 2026-05-29.
-
-| Phase | Title | Status |
-|---|---|---|
-| 1 | Skill-native authoring rule (`skill-description-authoring` Hub skill) | Landed |
-| 2 | Foundational local utilities ([`core/observability/TokenCost.ts`](core/observability/TokenCost.ts), `ModelRegistry.contextWindow`, [`core/skills/SkillRenderLine.ts`](core/skills/SkillRenderLine.ts), realpath dedup) | Landed |
-| 3 | Skills audit command ([`core/skills/SkillAuditor.ts`](core/skills/SkillAuditor.ts) + `bin/nexus.mjs skills audit`) | Landed |
-| 4 | Similarity + usage detection ([`core/skills/SkillSimilarity.ts`](core/skills/SkillSimilarity.ts), [`core/skills/SkillUsageScanner.ts`](core/skills/SkillUsageScanner.ts)) | Landed |
-| 5 | Render-budget enforcement (full -> truncate -> omit fallback ladder) | Landed |
-| 6 | Upstream hygiene + P3 backlog (Nexus-Hub validator rules + `--deep-logs` / `--by-root` flags) | Landed |
-| 7 | Stabilization, benchmark, and documentation refresh | Landed |
-
-The cycle plan lives at [docs/versions/v1/v1.3.0/plans/adoption-skill-cleaner.md](docs/v1/v1.3/plans/adoption-skill-cleaner.md). The per-version unfinished-work tracker is at [docs/versions/v1/v1.3.0/known-gaps.md](docs/v1/v1.3/known-gaps.md). The audit-runtime benchmark is at [docs/versions/v1/v1.3.0/benchmarks/skills-audit-2026-05-28.md](docs/v1/v1.3/benchmarks/skills-audit-2026-05-28.md).
+Each cycle's plan lives under `docs/v1/v1.<MINOR>/plans/`, its deferred work under `docs/v1/v1.<MINOR>/known-gaps.md`, and benchmarks (where run) under `docs/v1/v1.<MINOR>/benchmarks/`.
 
 ---
 
 ## Design Principles
 
 1. **Local-first.** Inference, embeddings, image and video synthesis, and memory storage all live on the host machine. No outbound calls without explicit user opt-in.
-2. **Originality over wrappers.** When an external service or heavy framework can be reverse-engineered into a lean local module, we do that. The codebase follows this rule explicitly (see [AGENTS.md](AGENTS.md) "MCP Registry Policy" and the comparison matrices at [docs/versions/v1/v1.1.0/comparison-agentmemory.md](docs/v1/v1.1/comparison-agentmemory.md) and [docs/versions/v1/v1.1.0/comparison-sana.md](docs/v1/v1.1/comparison-sana.md)). The only external project we deliberately link to is [bendourthe/Nexus-Hub](https://github.com/bendourthe/Nexus-Hub), the author's own skill / hook / command catalog and the upstream feed for Nexus's skill harness.
+2. **Originality over wrappers.** When an external service or heavy framework can be reverse-engineered into a lean local module, we do that. The codebase follows this rule explicitly (see [AGENTS.md](AGENTS.md) "MCP Registry Policy" and the comparison matrices at [docs/v1/v1.1/comparison-agentmemory.md](docs/v1/v1.1/comparison-agentmemory.md) and [docs/v1/v1.1/comparison-sana.md](docs/v1/v1.1/comparison-sana.md)). The only external project we deliberately link to is [bendourthe/Nexus-Hub](https://github.com/bendourthe/Nexus-Hub), the author's own skill / hook / command catalog and the upstream feed for Nexus's skill harness.
 3. **Single-GPU ceiling.** Every pillar must run on a laptop with a single consumer GPU (e.g. RTX 3070 - 4090 class). Hardware tiers are auto-detected at install and context budgets, batch sizes, and pipeline depths adapt accordingly.
-4. **Installer carries the burden.** The cross-OS installer (Phase 14) provisions CUDA / Metal Performance Shaders / ROCm, Python, Node, model runtimes, virtual environments, and the top recommended models so that when the installer finishes, every pillar works on first launch. No post-install scavenger hunt.
+4. **Installer carries the burden.** The cross-OS installer (shipped across the v1.8.0 -> v1.11.0 cycles) provisions CUDA / Metal Performance Shaders / ROCm, Python, Node, model runtimes, virtual environments, and the top recommended models so that when the installer finishes, every pillar works on first launch. No post-install scavenger hunt.
 5. **Privacy by construction.** Memory writes pass through the [`redactSecrets`](core/observability/redactSecrets.ts) pre-index filter (AWS keys, classic + fine-grained GitHub PATs, Slack tokens, JWTs, PEM blocks, env-style assignments). Telemetry, traces, and logs are local-only by default and redact secret patterns before any opt-in export.
 6. **OS parity (new in v1.1.0).** Every claim that works on Windows also works on macOS (Intel + Apple Silicon) and Linux (x86_64), or is explicitly documented in the per-platform notes.
 
@@ -132,7 +101,7 @@ git clone https://github.com/bendourthe/Nexus-AI.git
 cd Nexus-AI
 npm ci                       # install root + desktop workspace dependencies
 npm run build                # compile shared core + Coding module
-npm run test                 # full vitest suite (3,200+ tests)
+npm run test                 # full vitest suite (4,600+ tests)
 
 # Working on the desktop shell:
 npm run dev:shell            # opens the Tauri window in dev mode (Vite HMR + sidecar)
@@ -148,11 +117,17 @@ The cross-platform CI gate is `.github/workflows/shell-build.yml` (windows-lates
 ### CLI tools (already shipped)
 
 ```bash
-# Sync the DevAI-Hub / Nexus-Hub skill baseline:
+# Sync the Nexus-Hub skill catalog (single-home ~/.nexus-ai/catalog/ since v1.10.0):
 nexus skills sync [--tag <tag>] [--apply]
 nexus skills list [--namespace <ns>]
 nexus skills install <namespace>/<name> --from <url>   # v1.1.0 Phase 8.3
 nexus skills remove <namespace>/<name>                 # v1.1.0 Phase 8.3
+nexus skills audit [--deep-logs] [--by-root]           # v1.3.0 five-section token-budget report
+nexus skills optimize                                  # v1.12.0 surface of the v1.7 self-optimizer (held-out gate + approval)
+nexus skills frontier                                  # v1.12.0 Pareto candidate frontier
+
+# Skill / agent evaluation:
+nexus golden run                                       # v1.7.0 golden-task live runner over the headless agent
 
 # Memory introspection + maintenance:
 nexus memory audit [--since <ISO>] [--tier <t>] [--scope <id>] [--session <id>]
@@ -178,7 +153,9 @@ nexus doctor [--migration-report] [--json]             # v1.4.0 Phase 5; never m
 | **Four-layer memory** | Working / episodic / semantic / graph layers with per-tier Ebbinghaus half-lives (24h / 7d / 30d / 365d) and a scope-aware retriever. |
 | **Hybrid retrieval** | BM25 + dense + graph via Reciprocal Rank Fusion (`k=60`); local `all-MiniLM-L6-v2` embedder bundled. |
 | **Session replay** | Timeline scrubber + compare-two-sessions diff view in the Trace dashboard. |
-| **Skill harness** | DevAI-Hub baseline synced via `nexus skills sync`; hot-reload via fs.watch on the ACTIVE pointer; weekly auto-sync worker; allowlist + prompt-injection scanner on every install. |
+| **Skill harness** | Nexus-Hub catalog synced via `nexus skills sync` into a single-home `~/.nexus-ai/catalog/`; hot-reload via fs.watch on the ACTIVE pointer; weekly auto-sync worker; allowlist + prompt-injection scanner on every install. |
+| **Skill self-optimization** | Local golden-task-graded, held-out-validated, human-approved bounded edits to skills (`nexus skills optimize` / `frontier`, plus a desktop approval panel); opt-in and default-off. |
+| **Per-model harness selection** | Auto-tunes the agent scaffold profile per local model with a golden A/B; opt-in (`nexus.coding.harnessSelector.enabled`). |
 | **Slash commands** | `/recall`, `/remember`, `/forget`, `/curate`, `/trace`, `/memory`, `/plan`, plus the full skill-backed catalog with `preferUpstream` ordering. |
 | **GPU scheduler** | Prioritizes Coding token generation over background diffusion work when both compete for the same GPU; tier-aware (`diffusion-low` / `mid` / `high`). |
 | **MCP support** | Stdio MCP servers integrate via the per-project registry; reverse-engineering-first policy bans search / embeddings / scraping / generation as a service. |
@@ -190,15 +167,15 @@ nexus doctor [--migration-report] [--json]             # v1.4.0 Phase 5; never m
 ## Repository Layout
 
 ```
-src/         TypeScript source for the agentic-coding engine (the v0.x line; migrates to modules/coding/ across the v1.1.0 cycle)
-core/        Shared-core packages imported by both src/ and desktop/sidecar/ (memory, skills, lifecycle, observability, storage, registry, telemetry)
-modules/     Per-pillar code; coding/ moved first under v1.1.0 Phase 3 codemod
+src/         VS Code extension host surface: activation, webview panels, tool handlers, storage, and the desktop-daemon adapter
+core/        Shared-core packages imported by both src/ and desktop/sidecar/ (memory, skills, lifecycle, observability, storage, registry, telemetry, codegraph, scheduler, security, image, video)
+modules/     Per-pillar engine code (coding, chat); the agentic-coding engine moved here from src/ in the v1.4.0 cycle
 tests/       Unit, integration, e2e, and benchmark suites
 desktop/     Tauri 2.x desktop shell + Node sidecar (v1.0.0 Phase 1+)
-  src/         Vite + React 19 + TypeScript frontend
+  src/         Vite + React 19 + TypeScript frontend (four-pillar UI)
   src-tauri/   Rust core (sidecar lifecycle, ipc_call command)
   sidecar/     Node sidecar (esbuild-bundled, JSON-RPC 2.0 over stdio)
-docs/        Per-version architecture docs and history (v0.1.0 -> v1.1.0)
+docs/        Per-version architecture docs and history (docs/v1/v1.<MINOR>/; the v0 line archived under docs/archive/versions/v0/)
 configs/     Linter, build, dependency-cruiser, and vitest configs
 scripts/     Build, package, installer, and utility scripts
 assets/      Icons, images, fonts, banners
@@ -206,7 +183,7 @@ assets/      Icons, images, fonts, banners
 bin/         CLI entry points (nexus, nexus-check, nexus-image, nexus-video)
 ```
 
-The cross-OS installer source tree lives at [scripts/installer/](scripts/installer/) (PyQt-based Windows wizard today; macOS + Linux outer shells land in v1.1.0 Phase 14).
+The cross-OS installer source tree lives at [scripts/installer/](scripts/installer/) - a PyQt-based, single-artifact branded wizard. The one-shot installer landed across the v1.8.0 -> v1.11.0 cycles: dependency provisioning, an embedded desktop bundle, per-VRAM model curation, a clean-machine test harness, and full background continuation.
 
 ---
 
@@ -222,7 +199,7 @@ Short version:
 
 What Nexus does NOT do by default: telemetry, analytics, phone-home, third-party data processors, model downloads at runtime, API-key requirements. Memory writes are scrubbed by [`redactSecrets`](core/observability/redactSecrets.ts) before SQLite insert. The `lifecycle.tool.failed` HookBus event redacts the error string at the bus boundary so leaked secrets in tool errors never reach trace consumers.
 
-What is OUT of Nexus's control: your chosen LLM weights, any MCP server you wire in, user-initiated outbound calls (`gh`, `git push`, `curl`), and your own user-authored hooks and rules. See [SECURITY.md](SECURITY.md) for the full caveats.
+What is OUT of Nexus's control: your chosen LLM weights, any MCP server you wire in, user-initiated outbound calls (`gh`, `git push`, `curl`), and your own user-authored hooks and rules. Code the agent runs via `run_terminal` executes at your user privilege with tool-layer guardrails (command blocklist, touched-path / secret-path denylists, confirmation gate, env scrubbing) but no OS-level process sandbox - a documented boundary in [SECURITY.md](SECURITY.md). See [SECURITY.md](SECURITY.md) for the full caveats.
 
 To report a security issue: email [benjamin.dourthe@gmail.com](mailto:benjamin.dourthe@gmail.com) or open a private security advisory at [github.com/bendourthe/Nexus-AI/security](https://github.com/bendourthe/Nexus-AI/security).
 
@@ -230,19 +207,17 @@ To report a security issue: email [benjamin.dourthe@gmail.com](mailto:benjamin.d
 
 ## Roadmap
 
-Nexus evolves in versioned slices. Each upcoming line item below traces to a concrete plan file under `docs/<version>/plans/` (the durable source) and resolves once its `[<version>]` block lands in [CHANGELOG.md](CHANGELOG.md). No star gates, no sponsor tiers, no paid features.
+Nexus evolves in versioned slices. Each item below traces to a concrete plan or known-gaps entry under `docs/v1/v1.<MINOR>/` (the durable source) and resolves once its work lands and the next `[X.Y.Z]` block is cut into [CHANGELOG.md](CHANGELOG.md). No star gates, no sponsor tiers, no paid features.
 
-| Focus | Target | Status | Source |
-|-------|--------|--------|--------|
-| Opt-in memory consolidation (contradiction resolver + `nexus memory compress --file`) via local Ollama | v1.1.0 | Planned | [docs/versions/v1/v1.1.0/plans/phase-09-memory-consolidation-optin.md](docs/v1/v1.1/plans/phase-09-memory-consolidation-optin.md) |
-| VS Code extension thin-adapter rewrite + Marketplace re-publish as `nexus-coding` | v1.1.0 | Planned | [docs/versions/v1/v1.1.0/plans/phase-10-vscode-thin-adapter-and-republish.md](docs/v1/v1.1/plans/phase-10-vscode-thin-adapter-and-republish.md) |
-| Nexus VS Code extension as a full agentic surface inside VS Code, model-selectable across all local LLMs | v1.1.0 | Planned | [docs/versions/v1/v1.1.0/plans/phase-11-nexus-vscode-extension.md](docs/v1/v1.1/plans/phase-11-nexus-vscode-extension.md) |
-| Image Studio: SANA-1.6B default + Sana-Sprint speed tier + SANA 2K / 4K + ControlNet + Flow-DPM-Solver | v1.1.0 | Landed (2026-05-20) | [docs/versions/v1/v1.1.0/plans/phase-12-image-studio-sana.md](docs/v1/v1.1/plans/phase-12-image-studio-sana.md) |
-| Video Lab: SANA-Video 2B "Fast 720p" tier | v1.1.0 | Planned | [docs/versions/v1/v1.1.0/plans/phase-13-video-lab-sana-video.md](docs/v1/v1.1/plans/phase-13-video-lab-sana-video.md) |
-| Cross-OS installer (Windows + macOS + Linux) with hardware-aware typed catalog UI + 10 GB OS reserve | v1.1.0 | Planned | [docs/versions/v1/v1.1.0/plans/phase-14-cross-os-installer.md](docs/v1/v1.1/plans/phase-14-cross-os-installer.md) |
-| Hardening + release gate (deep review, security audit, pen-test, signing, notarization, AppImage) | v1.1.0 | Planned | [docs/versions/v1/v1.1.0/plans/phase-15-hardening-and-release.md](docs/v1/v1.1/plans/phase-15-hardening-and-release.md) |
+| Focus | Status | Source |
+|-------|--------|--------|
+| OS-level process sandbox for agent code execution (Seatbelt / Landlock / seccomp / job object), closing the documented no-sandbox boundary | Tracked | [docs/v1/v1.12/known-gaps.md](docs/v1/v1.12/known-gaps.md) (`EM.P5.A`) |
+| Live extreme-low-bit (BitNet-class) + disk-offload "patient" catalog entries, once runtime support + independent benchmarks are confirmed | Gated | [docs/v1/v1.12/known-gaps.md](docs/v1/v1.12/known-gaps.md) (`EM.P3`, `EM.P4.A`) |
+| Weak-model harness-selector enablement, pending a live A/B net-win on a low-cost model | Gated | [docs/v1/v1.12/known-gaps.md](docs/v1/v1.12/known-gaps.md) (`EM.P1`) |
+| Skill-optimizer live A/B validation (ship the default-on rollout once a net win is measured) | Gated | [docs/v1/v1.7/known-gaps.md](docs/v1/v1.7/known-gaps.md) (`SO003.P3.A`) |
+| Clean-machine installer rehearsals + on-device 3-OS visual QA (blocked by the GitHub Actions budget freeze until 2026-08-01) | Blocked | [docs/v1/v1.11/known-gaps.md](docs/v1/v1.11/known-gaps.md) (`IO.P2.A`) |
 
-For narrative-style updates on what changed and why, see [docs/DEVLOG.md](docs/DEVLOG.md). For the formal Keep-a-Changelog log of every release, see [CHANGELOG.md](CHANGELOG.md). For the per-version unfinished-work tracker that the next plan reads to decide what carries forward, see `docs/<version>/known-gaps.md`.
+For narrative-style updates on what changed and why, see [docs/DEVLOG.md](docs/DEVLOG.md). For the formal Keep-a-Changelog log of every release, see [CHANGELOG.md](CHANGELOG.md). For the per-version unfinished-work tracker that the next plan reads to decide what carries forward, see `docs/v1/v1.<MINOR>/known-gaps.md`.
 
 ---
 
