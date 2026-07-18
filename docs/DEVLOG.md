@@ -4,6 +4,24 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-18] v1.13.0 installer reliability -- Phase 5: Installing-page mockup redesign
+
+### What happened
+
+- **Uniform-width bars (5.1).** `_ProgressRow` refactored from a self-contained HBox (whose content-sized `detail` label made each bar a different width) into cells placed in a SHARED `QGridLayout` per group; the bar column stretches and the others are fixed, so every per-model (and per-step) bar is identical -- the ragged-bar fix.
+- **Auto-expand/collapse (5.2).** `_apply_state` expands the details when a section goes active, collapses them when it finishes, and keeps a failed section open -- the running section is always in focus.
+- **Design system (5.3).** Per-section iconed rounded tiles (`PhaseGroup(icon=...)` from the page's `PHASE_GROUPS`); the run status + glyph moved to the right; `View Logs` / `View Details` / log `Copy` / `Save` restyled to a modern pill (radius 12, subtle fill, hover/pressed/checked). Install (gradient) / Cancel (outlined) already matched the mockup.
+
+### Tests
+
+`TestAutoExpandCollapse` + `TestSectionIconAndGrid` added; all existing phase-group + page tests pass unchanged. Full installer suite green; ruff clean.
+
+### Deferrals
+
+Section icons are font-glyph approximations (not the exact logos), the active spinner is static, and the help-card icon is unadded (IR.P5.A - polish). See [v1/v1.13/known-gaps.md](v1/v1.13/known-gaps.md).
+
+---
+
 ## [2026-07-17] v1.13.0 installer reliability -- Phase 4: Welcome disk-check + Models tab-walk + VRAM sort/disable
 
 ### What happened

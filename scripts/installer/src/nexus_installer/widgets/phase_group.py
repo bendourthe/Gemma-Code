@@ -31,10 +31,12 @@ from PyQt5.QtWidgets import (
     QApplication,
     QFileDialog,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QProgressBar,
     QPushButton,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -136,21 +138,34 @@ def format_eta(seconds: float) -> str:
     return f"{minutes:02d}:{secs:02d} remaining"
 
 
+def _make_row_grid() -> QGridLayout:
+    """A grid whose columns align across rows so every progress bar is the same
+    width (v1.13.0 Phase 5): the bar column stretches, the others are fixed."""
+    grid = QGridLayout()
+    grid.setContentsMargins(0, 0, 0, 0)
+    grid.setHorizontalSpacing(8)
+    grid.setVerticalSpacing(4)
+    grid.setColumnMinimumWidth(0, 150)  # model / step name
+    grid.setColumnStretch(1, 1)  # the bar expands -> identical width across rows
+    grid.setColumnMinimumWidth(2, 200)  # size / speed / ETA metrics
+    grid.setColumnMinimumWidth(3, 96)  # status
+    return grid
+
+
 class _ProgressRow:
-    """One overview row: name + thin sub-bar + detail + status text."""
+    """One overview row's cells: name + thin sub-bar + detail + status text.
+
+    The four cells are placed into a SHARED grid by the PhaseGroup (via
+    `add_to_grid`) so every row's columns align and the bars are all the same
+    width -- the fix for the ragged per-model bars (v1.13.0 Phase 5).
+    """
 
     def __init__(self, label: str) -> None:
-        self.widget = QWidget()
-        layout = QHBoxLayout(self.widget)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(8)
-
         self.name = QLabel(label)
         self.name.setStyleSheet(
             f"color: {TEXT_SECONDARY}; font-size: {FS_CAPTION}px; "
             f"background: transparent;"
         )
-        self.name.setMinimumWidth(150)
 
         self.bar = QProgressBar()
         self.bar.setMinimum(0)
@@ -158,23 +173,28 @@ class _ProgressRow:
         self.bar.setValue(0)
         self.bar.setTextVisible(False)
         self.bar.setStyleSheet(_SUB_BAR_STYLE)
+        self.bar.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
         self.detail = QLabel("")
         self.detail.setStyleSheet(
             f"color: {TEXT_MUTED}; font-size: {FS_CAPTION}px; background: transparent;"
         )
+        # AlignRight: right-align the metrics in their fixed column. Vertical
+        # centering is the QLabel default; the PyQt5 stubs type flag unions as
+        # int, tripping strict mypy, so keep the flag simple.
+        self.detail.setAlignment(Qt.AlignmentFlag.AlignRight)
 
         self.status = QLabel("")
-        self.status.setMinimumWidth(110)
-        # AlignRight alone: vertical centering is the QLabel default, and the
-        # PyQt5 stubs type flag unions as int, tripping strict mypy.
         self.status.setAlignment(Qt.AlignmentFlag.AlignRight)
 
-        layout.addWidget(self.name)
-        layout.addWidget(self.bar, stretch=1)
-        layout.addWidget(self.detail)
-        layout.addWidget(self.status)
         self.set_state(STATE_PENDING)
+
+    def add_to_grid(self, grid: QGridLayout, row: int) -> None:
+        """Place this row's four cells into `grid` at `row` (columns 0-3)."""
+        grid.addWidget(self.name, row, 0)
+        grid.addWidget(self.bar, row, 1)
+        grid.addWidget(self.detail, row, 2)
+        grid.addWidget(self.status, row, 3)
 
     def set_state(self, state: str, status_text: str | None = None) -> None:
         text, color = _ROW_STATUS[state]
@@ -203,9 +223,7 @@ class _LogResizeGrip(QFrame):
         grip_layout.setContentsMargins(0, 2, 0, 2)
         line = QFrame()
         line.setFixedSize(48, 4)
-        line.setStyleSheet(
-            f"background: {BORDER}; border-radius: 2px;"
-        )
+        line.setStyleSheet(f"background: {BORDER}; border-radius: 2px;")
         grip_layout.addStretch(1)
         grip_layout.addWidget(line)
         grip_layout.addStretch(1)
@@ -232,6 +250,8 @@ class PhaseGroup(QFrame):
         title: str,
         steps: list[str],
         parent: QWidget | None = None,
+        *,
+        icon: str = "",
     ) -> None:
         super().__init__(parent)
         self._title_text = title
@@ -242,6 +262,7 @@ class PhaseGroup(QFrame):
         self._settled = False
         self._step_rows: dict[str, _ProgressRow] = {}
         self._model_rows: dict[str, _ProgressRow] = {}
+        self._model_row_count = 0
 
         self.setObjectName("phaseGroup")
 
@@ -253,8 +274,15 @@ class PhaseGroup(QFrame):
         header = QHBoxLayout()
         header.setSpacing(8)
 
-        self._icon = QLabel()
-        self._icon.setFixedWidth(16)
+        # v1.13.0 Phase 5: a per-section icon in a rounded tile (the mockup's
+        # iconed section headers); the run status moves to the right-hand label.
+        self._icon = QLabel(icon)
+        self._icon.setFixedSize(28, 28)
+        self._icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._icon.setStyleSheet(
+            f"background: rgba(255, 255, 255, 14); border: 1px solid {BORDER}; "
+            f"border-radius: 8px; color: {ACCENT}; font-size: {FS_BODY}px;"
+        )
         header.addWidget(self._icon)
 
         self._title = QLabel(title)
@@ -327,19 +355,17 @@ class PhaseGroup(QFrame):
         details_layout.addWidget(self._failure_box)
 
         # T501: per-step overview rows ONLY when this phase has >1 sub-step.
-        self._rows_layout = QVBoxLayout()
-        self._rows_layout.setSpacing(4)
+        self._rows_layout = _make_row_grid()
         if len(self._steps) > 1:
-            for step in self._steps:
+            for i, step in enumerate(self._steps):
                 row = _ProgressRow(_STEP_LABELS.get(step, step))
                 row.set_state(STATE_PENDING, "Waiting")
                 self._step_rows[step] = row
-                self._rows_layout.addWidget(row.widget)
+                row.add_to_grid(self._rows_layout, i)
         details_layout.addLayout(self._rows_layout)
 
         # T502: dynamic per-model rows land here (installing page drives them).
-        self._model_rows_layout = QVBoxLayout()
-        self._model_rows_layout.setSpacing(4)
+        self._model_rows_layout = _make_row_grid()
         details_layout.addLayout(self._model_rows_layout)
 
         self._logs_toggle = QPushButton(f"View Logs {_CHEVRON_DOWN}")
@@ -390,24 +416,33 @@ class PhaseGroup(QFrame):
 
     @staticmethod
     def _toggle_style() -> str:
+        # v1.13.0 Phase 5: a modern pill (rounded, subtle fill) with hover /
+        # pressed / checked states, matching the installing-page mockup.
         return (
-            f"QPushButton {{ background: transparent; color: {TEXT_SECONDARY}; "
-            f"border: 1px solid {BORDER}; border-radius: 4px; "
-            f"font-size: {FS_CAPTION}px; padding: 2px 8px; }}"
+            f"QPushButton {{ background: rgba(255, 255, 255, 10); "
+            f"color: {TEXT_SECONDARY}; border: 1px solid {BORDER}; "
+            f"border-radius: 12px; font-size: {FS_CAPTION}px; padding: 4px 12px; }}"
+            f"QPushButton:hover {{ color: {TEXT_PRIMARY}; border-color: {ACCENT}; "
+            f"background: rgba(255, 255, 255, 20); }}"
+            f"QPushButton:pressed {{ background: rgba(255, 255, 255, 30); }}"
             f"QPushButton:checked {{ color: {TEXT_PRIMARY}; "
             f"border-color: {ACCENT}; }}"
         )
 
     def _icon_button(self, glyph: str, tooltip: str) -> QPushButton:
+        # v1.13.0 Phase 5: the log Copy / Save buttons share the View Logs pill
+        # style (rounded, subtle fill, hover / pressed feedback).
         btn = QPushButton(glyph)
         btn.setToolTip(tooltip)
-        btn.setFixedHeight(24)
-        btn.setMinimumWidth(28)
+        btn.setFixedHeight(28)
+        btn.setMinimumWidth(36)
         btn.setStyleSheet(
-            f"QPushButton {{ background: transparent; color: {TEXT_SECONDARY}; "
-            f"border: 1px solid {BORDER}; border-radius: 4px; font-size: 13px; "
-            "padding: 0 6px; }"
-            f"QPushButton:hover {{ color: {TEXT_PRIMARY}; border-color: {ACCENT}; }}"
+            f"QPushButton {{ background: rgba(255, 255, 255, 10); "
+            f"color: {TEXT_SECONDARY}; border: 1px solid {BORDER}; "
+            f"border-radius: 12px; font-size: 13px; padding: 0 10px; }}"
+            f"QPushButton:hover {{ color: {TEXT_PRIMARY}; border-color: {ACCENT}; "
+            f"background: rgba(255, 255, 255, 20); }}"
+            f"QPushButton:pressed {{ background: rgba(255, 255, 255, 30); }}"
         )
         return btn
 
@@ -482,7 +517,8 @@ class PhaseGroup(QFrame):
             return
         row = _ProgressRow(model_id)
         self._model_rows[model_id] = row
-        self._model_rows_layout.addWidget(row.widget)
+        row.add_to_grid(self._model_rows_layout, self._model_row_count)
+        self._model_row_count += 1
 
     def set_model_progress(
         self,
@@ -633,11 +669,9 @@ class PhaseGroup(QFrame):
 
     def _apply_state(self, state: str) -> None:
         self._state = state
-        glyph, color = _STATE_ICONS[state]
-        self._icon.setText(glyph)
-        self._icon.setStyleSheet(
-            f"color: {color}; font-size: {FS_CAPTION}px; background: transparent;"
-        )
+        # The section-type tile (self._icon) is static; the run status + its
+        # glyph render on the right-hand status label (v1.13.0 Phase 5).
+        glyph, _icon_color = _STATE_ICONS[state]
         status_text = {
             STATE_PENDING: "Waiting",
             STATE_ACTIVE: "Installing...",
@@ -650,15 +684,20 @@ class PhaseGroup(QFrame):
             STATE_DONE: SUCCESS,
             STATE_FAILED: ERROR,
         }[state]
-        self._status.setText(status_text)
+        self._status.setText(f"{glyph}  {status_text}")
         self._status.setStyleSheet(
             f"color: {status_color}; font-size: {FS_CAPTION}px; "
             f"background: transparent;"
         )
         self._refresh_bar()
-        # A failed phase auto-expands its details so the user immediately sees
-        # which step failed and can reach its log.
-        if state == STATE_FAILED and not self._toggle.isChecked():
+        # v1.13.0 Phase 5: the running section auto-expands its details; a
+        # finished section auto-collapses so the next running one is in focus.
+        # A failed section stays expanded so its reason is immediately visible.
+        if state == STATE_ACTIVE and not self._toggle.isChecked():
+            self._toggle.setChecked(True)
+        elif state == STATE_DONE and self._toggle.isChecked():
+            self._toggle.setChecked(False)
+        elif state == STATE_FAILED and not self._toggle.isChecked():
             self._toggle.setChecked(True)
 
 

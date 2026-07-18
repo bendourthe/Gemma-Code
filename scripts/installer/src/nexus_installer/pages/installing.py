@@ -37,12 +37,13 @@ if TYPE_CHECKING:
     from nexus_installer.engine.model_router import ModelProgress
     from nexus_installer.installer_state import InstallerState
 
-# Phase title -> the engine step names it covers, in engine order.
-PHASE_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("Dependencies", ("ollama", "venv")),
-    ("VS Code Extension", ("extension",)),
-    ("Models", ("model",)),
-    ("Nexus Desktop", ("desktop",)),
+# Phase title -> (engine step names it covers, in engine order; section icon
+# glyph for the mockup's iconed header tile). v1.13.0 Phase 5 adds the icon.
+PHASE_GROUPS: tuple[tuple[str, tuple[str, ...], str], ...] = (
+    ("Dependencies", ("ollama", "venv"), "⚙"),  # gear
+    ("VS Code Extension", ("extension",), "</>"),  # code brackets
+    ("Models", ("model",), "◆"),  # diamond
+    ("Nexus Desktop", ("desktop",), "▭"),  # screen / monitor
 )
 
 
@@ -133,11 +134,11 @@ class InstallingPage(QWidget):
         self._active_group = None
 
         components = self._state.components_to_install
-        for title, steps in PHASE_GROUPS:
+        for title, steps, icon in PHASE_GROUPS:
             covered = [s for s in steps if s in components]
             if not covered:
                 continue
-            group = PhaseGroup(title, covered)
+            group = PhaseGroup(title, covered, icon=icon)
             self._groups_layout.addWidget(group)
             self._groups.append(group)
 

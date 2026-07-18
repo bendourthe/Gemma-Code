@@ -105,6 +105,60 @@ class TestPhaseGroupDetails:
         assert group.state == STATE_FAILED
 
 
+class TestAutoExpandCollapse:
+    """v1.13.0 Phase 5: the running section auto-expands its details; a finished
+    one auto-collapses; a failed one stays expanded."""
+
+    def test_active_expands_details(self, qt_app: object) -> None:
+        group = PhaseGroup("Dependencies", ["ollama", "venv"])
+        assert group.details_visible is False
+        group.mark_started("ollama")
+        assert group.details_visible is True
+
+    def test_done_collapses_details(self, qt_app: object) -> None:
+        group = PhaseGroup("Dependencies", ["ollama", "venv"])
+        group.mark_started("ollama")
+        assert group.details_visible is True
+        group.mark_step_done("ollama")
+        group.mark_step_done("venv")
+        assert group.state == STATE_DONE
+        assert group.details_visible is False
+
+    def test_failed_keeps_details_expanded(self, qt_app: object) -> None:
+        group = PhaseGroup("Models", ["model"])
+        group.mark_started("model")
+        group.mark_step_failed("model")
+        assert group.state == STATE_FAILED
+        assert group.details_visible is True
+
+
+class TestSectionIconAndGrid:
+    """v1.13.0 Phase 5: iconed section tile + shared-grid uniform bars."""
+
+    def test_section_icon_rendered_in_tile(self, qt_app: object) -> None:
+        group = PhaseGroup("Models", ["model"], icon="◆")
+        assert group._icon.text() == "◆"
+
+    def test_model_rows_share_one_stretching_grid(self, qt_app: object) -> None:
+        from PyQt5.QtWidgets import QGridLayout
+
+        group = PhaseGroup("Models", ["model"])
+        assert isinstance(group._model_rows_layout, QGridLayout)
+        group.ensure_model_row("a")
+        group.ensure_model_row("b")
+        grid = group._model_rows_layout
+        # Both rows' bars live in the SAME grid, so the stretched bar column
+        # gives every bar the same width (the ragged-bar fix).
+        in_grid = {
+            grid.itemAt(i).widget()
+            for i in range(grid.count())
+            if grid.itemAt(i) is not None
+        }
+        assert group._model_rows["a"].bar in in_grid
+        assert group._model_rows["b"].bar in in_grid
+        assert grid.columnStretch(1) == 1  # only the bar column stretches
+
+
 class TestConditionalSubBars:
     """T501: per-step overview rows exist ONLY for multi-step phases."""
 
