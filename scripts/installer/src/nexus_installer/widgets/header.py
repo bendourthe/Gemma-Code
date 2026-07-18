@@ -19,15 +19,13 @@ one mechanism governs header text.
 from __future__ import annotations
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 from nexus_installer.constants import (
     GLOW_BLUR_MEDIUM,
     TEXT_SECONDARY,
-    WORDMARK_PRIMARY,
-    WORDMARK_SECONDARY,
 )
+from nexus_installer.widgets.gradient_wordmark import GradientWordmark
 from nexus_installer.widgets.static_logo import StaticLogo
 
 # v1.11.0 Phase 6 (T604): the brand mark is trimmed 30% (120 -> 84) to sit in
@@ -57,21 +55,17 @@ class Header(QWidget):
         self._logo = StaticLogo(size=HEADER_LOGO_SIZE, glow_blur=GLOW_BLUR_MEDIUM)
         layout.addWidget(self._logo, alignment=Qt.AlignmentFlag.AlignHCenter)
 
-        # Two-tone wordmark (T015): bright "Nexus" + muted " AI Studio". Size is
-        # set in the stylesheet (see module docstring); letter-spacing stays on
-        # the QFont (QSS cannot express it and does not override it).
-        self._title = QLabel(
-            f'<span style="color: {WORDMARK_PRIMARY}; font-weight: 700;">Nexus</span>'
-            f'<span style="color: {WORDMARK_SECONDARY}; font-weight: 600;">'
-            f" AI Studio</span>"
+        # Wordmark (v1.13.0 Phase 3): bright "Nexus" + brand-gradient
+        # "AI Studio", custom-painted (Qt cannot gradient-fill glyphs via QSS)
+        # and auto-fit to the sidebar width so the full "Nexus AI Studio" never
+        # clips -- the root cause of the truncated "Nexus AI Studi".
+        self._title = GradientWordmark(
+            "Nexus",
+            " AI Studio",
+            HEADER_WORDMARK_PX,
+            align=Qt.AlignmentFlag.AlignHCenter,
         )
-        self._title.setStyleSheet(
-            f"font-size: {HEADER_WORDMARK_PX}px; background: transparent;"
-        )
-        title_font = self._title.font()
-        title_font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 0.3)
-        self._title.setFont(title_font)
-        layout.addWidget(self._title, alignment=Qt.AlignmentFlag.AlignHCenter)
+        layout.addWidget(self._title)
 
         subtitle = QLabel("Setup Wizard")
         subtitle.setStyleSheet(

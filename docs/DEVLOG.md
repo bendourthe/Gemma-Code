@@ -4,6 +4,27 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-17] v1.13.0 installer reliability -- Phase 3: brand wordmark (gradient "AI Studio" + truncation fix)
+
+### Goal
+
+Render "Nexus AI Studio" in full (the sidebar clipped the "o") with the brand blue-cyan gradient on "AI Studio" (matching the banner) on the installer AND the desktop app.
+
+### What happened
+
+- **`widgets/gradient_wordmark.py`.** A reusable custom-painted `GradientWordmark`: solid "Nexus" run + a "AI Studio" run filled with a `QLinearGradient` from `SIGNATURE_GRADIENT_STOPS` (Qt cannot gradient-fill glyphs via QSS). It auto-fits the font so the full wordmark never clips the fixed 244px sidebar, and painting is immune to the global QSS `font-size` rule that shrank the old `setFont` label. Wired into `header.py` (centered) and the `welcome.py` hero (left).
+- **Desktop `Sidebar.tsx`.** Wordmark split: "Nexus " solid (`var(--fg-0)`), only "AI Studio" carries `.nexus-gradient-text`. The `--grad-signature` token (`#3b82f6 -> #38bdf8 -> #22d3ee`) already matches the installer + banner, so no gradient-value change.
+
+### Tests
+
+`test_gradient_wordmark.py` (auto-shrink, min-px floor, offscreen render at wide + narrow widths, Header build); `test_pages_qt.py` + `test_phase6_shell.py` updated to the new custom-paint widget; `Sidebar.test.tsx` gains a gradient-split assertion. Installer suite + desktop Sidebar green; ruff + desktop `tsc` clean.
+
+### Deferrals
+
+On-device visual confirmation of the wordmark (IR.P3.A) is cosmetic and deferred to the next on-device QA pass (offscreen renders are verified). See [v1/v1.13/known-gaps.md](v1/v1.13/known-gaps.md).
+
+---
+
 ## [2026-07-17] v1.13.0 installer reliability -- Phase 2: default-model preflight harness
 
 ### Goal

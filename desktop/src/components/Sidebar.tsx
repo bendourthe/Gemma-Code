@@ -134,15 +134,15 @@ export function Sidebar(): JSX.Element {
           }}
         />
         <span
-          className="nexus-gradient-text"
           style={{
             fontSize: "var(--text-md)",
             fontWeight: 700,
             letterSpacing: "0.01em",
             whiteSpace: "nowrap",
+            color: "var(--fg-0)",
           }}
         >
-          Nexus AI Studio
+          Nexus <span className="nexus-gradient-text">AI Studio</span>
         </span>
       </div>
 

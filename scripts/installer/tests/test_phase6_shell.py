@@ -132,19 +132,22 @@ class TestHeaderSizing:
         # (set via QSS, not the overridden setFont), larger than the counter.
         assert header.HEADER_WORDMARK_PX > header.HEADER_STEP_PX
 
-    def test_wordmark_size_carried_by_stylesheet(self, qt_app: object) -> None:
+    def test_wordmark_size_carried_by_custom_paint(self, qt_app: object) -> None:
         from nexus_installer.theme import generate_stylesheet
+        from nexus_installer.widgets.gradient_wordmark import GradientWordmark
         from nexus_installer.widgets.header import HEADER_WORDMARK_PX, Header
 
         hdr = Header()
-        # The T604 fix routes the size through QSS: the label's own stylesheet
-        # declares the hero px, so the global `QWidget { font-size }` rule (which
-        # used to override setFont down to the body size) can no longer shrink it.
-        assert f"{HEADER_WORDMARK_PX}px" in hdr._title.styleSheet()
-        # Prove the size survives the global body rule (regression guard).
+        # v1.13.0 Phase 3: the wordmark is a custom-painted GradientWordmark, so
+        # its size comes from QPainter, not QSS -- fully immune to the global
+        # `QWidget { font-size }` rule that used to shrink the setFont label
+        # (a stronger form of the T604 "renders tiny" regression guard).
+        assert isinstance(hdr._title, GradientWordmark)
+        assert hdr._title.base_px == HEADER_WORDMARK_PX
         hdr.setStyleSheet(generate_stylesheet())
-        hdr._title.ensurePolished()
-        assert hdr._title.font().pixelSize() == HEADER_WORDMARK_PX
+        # At an ample width the wordmark paints at the full base size; the
+        # global body rule cannot shrink it.
+        assert hdr._title.fitted_px(10_000) == HEADER_WORDMARK_PX
 
 
 # --- T601/T602: shell navigation state machine ------------------------------

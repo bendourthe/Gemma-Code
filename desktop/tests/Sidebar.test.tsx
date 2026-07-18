@@ -29,6 +29,15 @@ describe("Sidebar", () => {
     expect(brand).toHaveTextContent("Nexus AI Studio");
   });
 
+  it("gradients only the 'AI Studio' run of the wordmark (v1.13.0)", () => {
+    const { container } = renderAt("/");
+    const gradient = container.querySelector(".nexus-gradient-text");
+    expect(gradient).not.toBeNull();
+    expect(gradient).toHaveTextContent("AI Studio");
+    // "Nexus" is the solid run and must not be inside the gradient span.
+    expect(gradient?.textContent).not.toContain("Nexus");
+  });
+
   it("marks the coding route as active when the route matches", () => {
     renderAt("/coding");
     const link = screen.getByTestId("nav-coding") as HTMLAnchorElement;

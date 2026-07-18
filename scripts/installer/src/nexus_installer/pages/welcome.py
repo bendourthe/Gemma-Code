@@ -7,7 +7,7 @@ import subprocess
 import sys
 from typing import TYPE_CHECKING
 
-from PyQt5.QtCore import QThread, pyqtSignal
+from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from nexus_installer.constants import (
@@ -25,6 +25,7 @@ from nexus_installer.constants import (
 )
 from nexus_installer.engine.platform_utils import no_window_kwargs
 from nexus_installer.widgets.callout_box import CalloutBox
+from nexus_installer.widgets.gradient_wordmark import GradientWordmark
 
 if TYPE_CHECKING:
     from nexus_installer.installer_state import InstallerState
@@ -137,9 +138,11 @@ class WelcomePage(QWidget):
 
         # Hero title. The floating-logo lockup is retired (T013): no logo beside
         # the title, no bob animation -- just the wordmark-scale hero heading.
-        title = QLabel("Welcome to Nexus AI Studio")
-        title.setStyleSheet(
-            f"font-size: {FS_DISPLAY}px; font-weight: bold; background: transparent;"
+        title = GradientWordmark(
+            "Welcome to Nexus",
+            " AI Studio",
+            FS_DISPLAY,
+            align=Qt.AlignmentFlag.AlignLeft,
         )
         layout.addWidget(title)
 

@@ -42,16 +42,18 @@ class TestWelcomePage:
                 assert pillar in texts
 
     def test_title_is_nexus_ai_studio(self, qt_app: object) -> None:
-        """v1.9.0 Phase 3 (T304) -- welcome title carries the product name."""
+        """v1.13.0 Phase 3 -- the welcome hero is a gradient wordmark carrying
+        the product name (a custom-painted widget, not a plain QLabel)."""
         with patch("nexus_installer.pages.welcome._QuickCheckWorker.start"):
-            from PyQt5.QtWidgets import QLabel
-
             from nexus_installer.pages.welcome import WelcomePage
+            from nexus_installer.widgets.gradient_wordmark import (
+                GradientWordmark,
+            )
 
             state = InstallerState()
             page = WelcomePage(state)
-            texts = [lbl.text() for lbl in page.findChildren(QLabel)]
-            assert "Welcome to Nexus AI Studio" in texts
+            wordmarks = [w.full_text() for w in page.findChildren(GradientWordmark)]
+            assert "Welcome to Nexus AI Studio" in wordmarks
 
     def test_hero_has_no_logo(self, qt_app: object) -> None:
         """v1.9.0 Phase 4 (T013) -- the Welcome logo lockup is retired.
