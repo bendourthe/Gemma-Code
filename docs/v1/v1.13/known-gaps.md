@@ -28,4 +28,11 @@ Plan: [plans/installer-reliability-and-ux.md](plans/installer-reliability-and-ux
 - Resolved so far: the fresh-install half-failure via registry routing (Phase 1, closes v1.11 `D1`); the preflight harness (Phase 2); wordmark truncation + gradient (Phase 3); the amber-disk-dot bug + tab-walk Next + VRAM sort/disable (Phase 4); the installing-page redesign -- uniform-width bars (shared grid), iconed tiles, auto-expand/collapse, and the pill button + log-panel system (Phase 5).
 - No release-blockers: the live-run items (IR.P1.A / IR.P2.A / IR.P1.E) are gated by the Actions freeze + a real Ollama; IR.P3.A / IR.P4.A / IR.P5.A are cosmetic on-device QA + polish -- none block code.
 
-_Last updated: 2026-07-18 (Phase 5)._
+### Phase 6 reconciliation (terminal gate)
+
+- **Architecture**: near-no-op -- the cycle's new files (`engine/model_preflight.py`, `widgets/gradient_wordmark.py`, per-phase tests) sit in the correct trees; no deprecated files, empty dirs, duplicates, or orphans introduced. `docs/v1/v1.13/` is canonical (`plans/`, `known-gaps.md`, `development/history/`). No stray `TODO`/`FIXME`/`# DEVIATION` markers in the changed code.
+- **CI/CD**: the installer pytest CI job (`ci.yml`) auto-covers the new test files; the Phase-2 reachability job is registered on `installer-smoke.yml` (freeze-safe dispatch/cron). No new job required.
+- **Tests**: static gates all green (tsc, lint, check-architecture 0 errors / 10 pre-existing warnings, check:tampering 0, security:check in sync); full installer pytest + desktop Sidebar green; root suite 4637 passed / 6 skipped. The 2 full-suite failures were `tests/integration/golden/golden-runner-end-to-end.test.ts` timeouts that PASS in isolation (load-induced flakiness in the coding-pillar golden runner, unrelated to this cycle -- an ENV flake, not a v1.13 regression).
+- **Release**: handed to `/update release`; NOT auto-tagged/pushed. The actual release cut is blocked by the GitHub Actions budget freeze until ~2026-08-01 (same as v2.2.0 / IR.P1.E).
+
+_Last updated: 2026-07-18 (Phase 6, terminal)._

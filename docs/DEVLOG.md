@@ -4,6 +4,32 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-18] v1.13.0 installer reliability -- Phase 6 (FINAL): refactor + known-gaps + CI/CD -- cycle code-complete
+
+### Goal
+
+Close the v1.13.0 cycle: verify the layout, reconcile known gaps, confirm CI/CD, and hand release-readiness to `/update release` (no auto tag/push).
+
+### What happened (verification + reconciliation; no feature code changed)
+
+- **Architecture**: near-no-op -- the cycle's new modules + tests are in the right trees, no deprecated/empty/duplicate/orphan artifacts, no stray markers; `docs/v1/v1.13/` is canonical.
+- **Known-gaps**: all 11 items triaged/kept with accurate reasons (freeze-blocked live runs, on-device QA, polish); none block code. Phase 6 reconciliation block added.
+- **CI/CD**: installer pytest job auto-covers the new tests; the Phase-2 reachability job is freeze-safe. No new job.
+- **Tests**: static gates green (tsc, lint, check-architecture 0 errors, check:tampering 0, security:check in sync); installer pytest + desktop Sidebar green; root suite 4637 passed / 6 skipped. The 2 full-suite failures are `golden-runner-end-to-end` timeouts that PASS in isolation (load-induced flakiness in the coding pillar, unrelated to this cycle).
+
+### v1.13.0 summary (6 phases)
+
+1. Model catalog + Ollama pin + engine hardening (fixes the fresh-install half-failure).
+2. Default-model preflight harness (pull + load + reachability).
+3. Gradient "AI Studio" wordmark + truncation fix (installer + desktop app).
+4. Welcome disk-check fix + Models tab-walk Next + VRAM sort/disable.
+5. Installing-page mockup redesign (uniform bars, iconed tiles, auto-expand/collapse, pill buttons).
+6. This close-out.
+
+Release (version bump / changelog / tag / GitHub Release) is semantic-release-owned on merge to `main` and handed to `/update release`; the cut is blocked by the GitHub Actions freeze until ~2026-08-01 (same as v2.2.0). The branch is unpushed by operator choice.
+
+---
+
 ## [2026-07-18] v1.13.0 installer reliability -- Phase 5: Installing-page mockup redesign
 
 ### What happened
