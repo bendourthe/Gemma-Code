@@ -2,9 +2,9 @@
 
 Downloads the per-model `weights` manifest of a `core/registry/catalog.json`
 entry whose `source.protocol` is "huggingface": every listed file is fetched
-from `https://huggingface.co/{repo}/resolve/main/{path}` (public models only,
-no API key) with resumable download + retry, verified against its pinned
-SHA-256, and written to `<models_root>/weights/<model-id>/{path}`.
+from `https://huggingface.co/{repo}/resolve/main/{path}` with resumable
+download + retry, verified against its pinned SHA-256, and written to
+`<models_root>/weights/<model-id>/{path}`.
 
 That per-model directory is the diffusion runtime's model-path contract
 (documented in catalog.json `_meta`): the runtime loads the directory via
@@ -17,6 +17,20 @@ all-zero sha256 logs a warning, skips verification, and logs the computed
 digest so the operator can rotate the pin
 (`scripts/installer/build/pin-hf-weights.py`). A real pin that mismatches
 fails closed: the file is deleted and the model is reported failed.
+
+v1.13.0 Phase 1 (installer reliability):
+
+* **Gated repos handled, not blindly retried.** A repo the catalog marks
+  `"gated": true` is skipped fast with its `gatedReason` when no Hugging Face
+  token is configured (it can never succeed unauthenticated). This is the
+  class behind the real 401 failure of `sana-1.6b-int4`.
+* **Optional Hugging Face token.** A token read from the environment
+  (`HF_TOKEN` / `HUGGING_FACE_HUB_TOKEN`) is sent as an `Authorization: Bearer`
+  header; never required for public models, never logged.
+* **Permanent vs transient errors.** A 401/403/404 is permanent for the
+  current credentials, so the puller stops immediately with a clear message
+  instead of burning its 3-attempt retry budget on an un-authable request;
+  5xx / network / timeout errors stay retryable with resume + backoff.
 """
 
 from __future__ import annotations
@@ -29,11 +43,19 @@ import shutil
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path, PurePosixPath
 
 import httpx
 
 from nexus_installer.installer_state import InstallerState
+
+# Bind httpx's exception classes at import time so the `except` clauses below
+# stay valid even when a test patches the module reference `httpx` with a mock:
+# the download path calls the (patchable) `httpx.stream`, but error handling
+# must still match against the real exception types.
+_HTTPError = httpx.HTTPError
+_HTTPStatusError = httpx.HTTPStatusError
 
 LogFn = Callable[[str, str], None]
 ProgressFn = Callable[[float], None]
@@ -46,7 +68,24 @@ MAX_DOWNLOAD_ATTEMPTS = 3
 RETRY_BACKOFF_SECONDS = 2.0
 PIN_SCRIPT = "scripts/installer/build/pin-hf-weights.py"
 
+# Hugging Face token for gated repos, read from the environment only (never
+# persisted). Absent -> gated repos fail fast with a clear message instead of
+# retrying an un-authable 401.
+HF_TOKEN_ENV_VARS = ("HF_TOKEN", "HUGGING_FACE_HUB_TOKEN")
+
+# HTTP statuses that can never succeed on retry for the current credentials, so
+# the puller stops immediately instead of consuming its retry budget.
+PERMANENT_HTTP_STATUSES = frozenset({401, 403, 404})
+
 _SAFE_DIR_CHAR_RE = re.compile(r"[^A-Za-z0-9._-]")
+
+
+class _DownloadOutcome(Enum):
+    """Result of one download attempt; the caller retries only on TRANSIENT."""
+
+    OK = "ok"
+    TRANSIENT = "transient"
+    PERMANENT = "permanent"
 
 
 class ManifestError(ValueError):
@@ -94,6 +133,20 @@ def resolve_models_root(state: InstallerState) -> Path:
     if state.models_root:
         return Path(state.models_root).expanduser()
     return default_models_root()
+
+
+def hf_token_from_env() -> str | None:
+    """Return a Hugging Face token from the environment, if set.
+
+    Enables gated repos without persisting the secret. Checked in order:
+    ``HF_TOKEN`` then ``HUGGING_FACE_HUB_TOKEN``. The token is sent only as an
+    ``Authorization`` header and is never written to the log.
+    """
+    for name in HF_TOKEN_ENV_VARS:
+        value = os.environ.get(name)
+        if value and value.strip():
+            return value.strip()
+    return None
 
 
 def model_weights_dir(models_root: Path, model_id: str) -> Path:
@@ -214,6 +267,23 @@ class HFWeightsPuller:
             log(f"Invalid weights manifest: {exc}", "error")
             return False
 
+        # A gated repo can never be fetched by an unauthenticated client; fail
+        # fast with the catalog's reason instead of three 401 retries.
+        token = hf_token_from_env()
+        if entry.get("gated") and not token:
+            reason = entry.get("gatedReason")
+            hint = (
+                str(reason)
+                if isinstance(reason, str) and reason
+                else "Set the HF_TOKEN environment variable to enable it."
+            )
+            log(
+                f"{manifest.model_id} is a gated Hugging Face model and no "
+                f"Hugging Face token is configured; skipping. {hint}",
+                "error",
+            )
+            return False
+
         models_root = resolve_models_root(state)
         model_dir = model_weights_dir(models_root, manifest.model_id)
         try:
@@ -243,7 +313,7 @@ class HFWeightsPuller:
 
             dest = model_dir.joinpath(*PurePosixPath(weights_file.path).parts)
             if not self._install_file(
-                manifest, weights_file, dest, log, file_progress
+                manifest, weights_file, dest, log, file_progress, token
             ):
                 return False
 
@@ -265,8 +335,7 @@ class HFWeightsPuller:
             free_gb = shutil.disk_usage(models_root).free / 2**30
         except OSError:
             log(
-                "Could not probe free disk space; continuing without the "
-                "pre-check.",
+                "Could not probe free disk space; continuing without the pre-check.",
                 "warn",
             )
             return True
@@ -288,6 +357,7 @@ class HFWeightsPuller:
         dest: Path,
         log: LogFn,
         progress: ProgressFn,
+        token: str | None = None,
     ) -> bool:
         label = f"{manifest.model_id}/{weights_file.path}"
 
@@ -315,9 +385,22 @@ class HFWeightsPuller:
             if self._cancelled:
                 log("Model download cancelled by user.", "warn")
                 return False
-            if self._download_with_resume(url, dest, log, progress):
+            outcome = self._download_with_resume(url, dest, log, progress, token)
+            if outcome is _DownloadOutcome.OK:
                 downloaded = True
                 break
+            if outcome is _DownloadOutcome.PERMANENT:
+                suffix = (
+                    "."
+                    if token
+                    else "; a Hugging Face token may be required (set HF_TOKEN)."
+                )
+                log(
+                    f"Cannot download {label}: the server refused the request "
+                    f"(gated, moved, or not found). Not retrying{suffix}",
+                    "error",
+                )
+                return False
             if attempt < MAX_DOWNLOAD_ATTEMPTS and not self._cancelled:
                 delay = RETRY_BACKOFF_SECONDS * attempt
                 log(
@@ -360,11 +443,19 @@ class HFWeightsPuller:
         dest: Path,
         log: LogFn,
         progress: ProgressFn,
-    ) -> bool:
-        """Download `url` to `dest` via a resumable .partial file."""
+        token: str | None = None,
+    ) -> _DownloadOutcome:
+        """Download `url` to `dest` via a resumable .partial file.
+
+        Returns an outcome the caller retries only when TRANSIENT; a PERMANENT
+        status (401/403/404) is never retried. A token, when provided, is sent
+        as an `Authorization: Bearer` header for gated repos.
+        """
         partial = Path(str(dest) + ".partial")
         existing = partial.stat().st_size if partial.exists() else 0
         headers = {"Range": f"bytes={existing}-"} if existing else {}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
         if existing:
             log(f"Resuming download from byte {existing}...", "info")
 
@@ -376,14 +467,12 @@ class HFWeightsPuller:
                     # The partial file already covers the full asset.
                     os.replace(partial, dest)
                     progress(1.0)
-                    return True
+                    return _DownloadOutcome.OK
                 resp.raise_for_status()
 
                 if resp.status_code == 206:
                     mode = "ab"
-                    total = existing + int(
-                        resp.headers.get("content-length", 0) or 0
-                    )
+                    total = existing + int(resp.headers.get("content-length", 0) or 0)
                 else:
                     # Server ignored the Range header: restart from scratch.
                     mode = "wb"
@@ -395,18 +484,22 @@ class HFWeightsPuller:
                     for chunk in resp.iter_bytes(DOWNLOAD_CHUNK_SIZE):
                         if self._cancelled:
                             log(
-                                "Download cancelled; partial file kept for "
-                                "resume.",
+                                "Download cancelled; partial file kept for resume.",
                                 "warn",
                             )
-                            return False
+                            return _DownloadOutcome.TRANSIENT
                         handle.write(chunk)
                         received += len(chunk)
                         if total > 0:
                             progress(min(received / total, 1.0))
-        except (httpx.HTTPError, OSError) as exc:
+        except _HTTPStatusError as exc:
             log(f"Download error for {url}: {exc}", "error")
-            return False
+            if exc.response.status_code in PERMANENT_HTTP_STATUSES:
+                return _DownloadOutcome.PERMANENT
+            return _DownloadOutcome.TRANSIENT
+        except (_HTTPError, OSError) as exc:
+            log(f"Download error for {url}: {exc}", "error")
+            return _DownloadOutcome.TRANSIENT
 
         os.replace(partial, dest)
-        return True
+        return _DownloadOutcome.OK

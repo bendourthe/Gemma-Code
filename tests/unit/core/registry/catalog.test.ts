@@ -127,7 +127,7 @@ describe("catalog", () => {
     expect(() => getSpec(file, "nope:1")).toThrow();
   });
 
-  it("registers the Gemma 4 12B-IT GGUF entry (v1.5.0 Phase 1 T001)", async () => {
+  it("registers the Gemma 4 12B entry routed to the Ollama registry (v1.13.0 Phase 1)", async () => {
     const file = await loadCatalog();
     const gguf = findSpec(file, "gemma-4-12b-it-gguf");
     expect(gguf).toBeDefined();
@@ -136,9 +136,10 @@ describe("catalog", () => {
     // Item 32 acceptance: 256K context + native multimodal flag for Phase 5.
     expect(gguf?.contextWindow).toBe(262_144);
     expect(gguf?.multimodal).toBe(true);
-    // Runnable via Ollama against the Unsloth HF GGUF repo.
+    // v1.13.0: routed to the Ollama-registry gemma4:12b tag, off the Unsloth
+    // hf.co GGUF path that failed Ollama manifest registration (bug #15447).
     expect(gguf?.source.protocol).toBe("ollama");
-    expect(gguf?.source.url).toBe("ollama://hf.co/unsloth/gemma-4-12b-it-GGUF");
+    expect(gguf?.source.url).toBe("ollama://gemma4:12b");
     expect(gguf?.tags).toContain("recommended");
     expect(gguf?.tags).toContain("multimodal");
   });

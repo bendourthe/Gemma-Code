@@ -6,11 +6,10 @@ The Nexus cross-platform installer (v1.0.0; renamed from Gemma Code in Phase 2.5
 
 | Field | Value | Notes |
 | --- | --- | --- |
-| Pinned tag | `v0.3.6` | Bump by editing `OLLAMA_PINNED_TAG` in `src/nexus_installer/engine/ollama_installer.py`. |
-| Windows binary | `OllamaSetup.exe` | Downloaded from `https://github.com/ollama/ollama/releases/download/<tag>/OllamaSetup.exe`. |
-| Windows SHA-256 | `0000...` (placeholder) | Update `OLLAMA_WINDOWS_SHA256`. Pull the hash from the upstream release page. |
-| Linux install script | `install.sh` | Downloaded from `https://ollama.com/install.sh`. |
-| Linux script SHA-256 | `0000...` (placeholder) | Update `OLLAMA_LINUX_SCRIPT_SHA256`. Re-record whenever upstream changes the script. |
+| Pinned tag | `v0.32.0` | Bump by editing `OLLAMA_PINNED_TAG` in `src/nexus_installer/engine/ollama_installer.py`. The real per-asset SHA-256 digests live beside it (`OLLAMA_WINDOWS_SHA256`, `OLLAMA_LINUX_SHA256`); update all three in lockstep. |
+| Minimum version | `0.22.0` | `MIN_OLLAMA_VERSION` in `ollama_installer.py`. Gemma 4 support landed in Ollama 0.20.0; 0.21.0-0.21.2 had a Flash-Attention bug fixed in 0.22.0. The entire recommended chat/agentic default line is Gemma 4, so a pre-existing Ollama below this floor is upgraded to the pinned tag rather than left unable to load the default model. |
+| Windows binary | `OllamaSetup.exe` | Downloaded from `https://github.com/ollama/ollama/releases/download/<tag>/OllamaSetup.exe`; SHA-256 in `OLLAMA_WINDOWS_SHA256` and Authenticode-verified against `CN=Ollama Inc.` (fail closed). |
+| Linux binary | `ollama-linux-amd64.tar.zst` | Downloaded from `https://github.com/ollama/ollama/releases/download/<tag>/ollama-linux-amd64.tar.zst` and installed user-locally (no sudo); SHA-256 in `OLLAMA_LINUX_SHA256`. Replaced the unpinnable `install.sh` pipe-to-shell flow in v1.11.0 Phase 3 -- the versioned release asset is immutable, so its digest is pinnable. |
 | Trusted Windows signers | `CN=Ollama Inc.` | Update `TRUSTED_WINDOWS_SIGNERS` if the code-signing cert rotates. |
 
 ## Nexus Desktop (v1.8.0 Phase 2)

@@ -20,6 +20,8 @@ from nexus_installer.engine.hf_weights_puller import (
     PLACEHOLDER_SHA256,
     HFWeightsPuller,
     ManifestError,
+    _DownloadOutcome,
+    hf_token_from_env,
     load_weights_manifest,
     model_weights_dir,
     resolve_models_root,
@@ -60,6 +62,20 @@ def _mock_stream_response(
     resp.status_code = status_code
     resp.headers = headers or {"content-length": str(sum(len(c) for c in chunks))}
     resp.iter_bytes.return_value = iter(chunks)
+    resp.__enter__ = lambda s: resp
+    resp.__exit__ = MagicMock(return_value=False)
+    return resp
+
+
+def _mock_error_response(status_code: int) -> MagicMock:
+    """A stream mock whose raise_for_status() raises a real HTTPStatusError."""
+    resp = MagicMock()
+    resp.status_code = status_code
+    request = real_httpx.Request("GET", "https://huggingface.co/x")
+    response = real_httpx.Response(status_code, request=request)
+    resp.raise_for_status.side_effect = real_httpx.HTTPStatusError(
+        f"{status_code}", request=request, response=response
+    )
     resp.__enter__ = lambda s: resp
     resp.__exit__ = MagicMock(return_value=False)
     return resp
@@ -216,9 +232,7 @@ class TestInstallModel:
 
     def _logged(self, log: MagicMock, needle: str) -> bool:
         return any(
-            needle in call.args[0].lower()
-            for call in log.call_args_list
-            if call.args
+            needle in call.args[0].lower() for call in log.call_args_list if call.args
         )
 
     def test_invalid_manifest_fails(self, tmp_path: Path) -> None:
@@ -228,9 +242,7 @@ class TestInstallModel:
         assert ok is False
         assert self._logged(log, "invalid weights manifest")
 
-    def test_placeholder_pin_downloads_and_logs_digest(
-        self, tmp_path: Path
-    ) -> None:
+    def test_placeholder_pin_downloads_and_logs_digest(self, tmp_path: Path) -> None:
         payload = b"weights-bytes"
         digest = hashlib.sha256(payload).hexdigest()
         ok, log, fractions = self._install(
@@ -254,15 +266,11 @@ class TestInstallModel:
         payload = b"pinned-weights"
         digest = hashlib.sha256(payload).hexdigest()
         entry = _entry(files=[{"path": "model.safetensors", "sha256": digest}])
-        ok, log, _ = self._install(
-            tmp_path, entry, [_mock_stream_response([payload])]
-        )
+        ok, log, _ = self._install(tmp_path, entry, [_mock_stream_response([payload])])
         assert ok is True
         assert self._logged(log, "verified")
 
-    def test_real_pin_mismatch_fails_closed_and_deletes(
-        self, tmp_path: Path
-    ) -> None:
+    def test_real_pin_mismatch_fails_closed_and_deletes(self, tmp_path: Path) -> None:
         entry = _entry(files=[{"path": "model.safetensors", "sha256": "b" * 64}])
         ok, log, _ = self._install(
             tmp_path, entry, [_mock_stream_response([b"tampered"])]
@@ -296,16 +304,12 @@ class TestInstallModel:
         dest.parent.mkdir(parents=True)
         dest.write_bytes(b"stale-bytes")
         entry = _entry(files=[{"path": "model.safetensors", "sha256": digest}])
-        ok, log, _ = self._install(
-            tmp_path, entry, [_mock_stream_response([payload])]
-        )
+        ok, log, _ = self._install(tmp_path, entry, [_mock_stream_response([payload])])
         assert ok is True
         assert dest.read_bytes() == payload
         assert self._logged(log, "re-downloading")
 
-    def test_multi_file_progress_is_monotonic_per_file(
-        self, tmp_path: Path
-    ) -> None:
+    def test_multi_file_progress_is_monotonic_per_file(self, tmp_path: Path) -> None:
         files = [
             {"path": "transformer/a.safetensors", "sha256": PLACEHOLDER_SHA256},
             {"path": "vae/b.safetensors", "sha256": PLACEHOLDER_SHA256},
@@ -360,25 +364,28 @@ class TestDownloadResume:
         response: MagicMock,
         partial_content: bytes | None = None,
         puller: HFWeightsPuller | None = None,
-    ) -> tuple[bool, Path]:
+        token: str | None = None,
+    ) -> tuple[_DownloadOutcome, Path]:
         dest = tmp_path / "weights.bin"
         if partial_content is not None:
             (tmp_path / "weights.bin.partial").write_bytes(partial_content)
         puller = puller or HFWeightsPuller()
         with patch(f"{_MOD}.httpx") as mock_httpx:
             mock_httpx.stream.return_value = response
-            mock_httpx.HTTPError = real_httpx.HTTPError
-            ok = puller._download_with_resume(
+            outcome = puller._download_with_resume(
                 "https://huggingface.co/x/resolve/main/weights.bin",
                 dest,
                 MagicMock(),
                 lambda _p: None,
+                token,
             )
-        return ok, dest
+        return outcome, dest
 
     def test_full_download_promotes_partial(self, tmp_path: Path) -> None:
-        ok, dest = self._download(tmp_path, _mock_stream_response([b"abc", b"def"]))
-        assert ok is True
+        outcome, dest = self._download(
+            tmp_path, _mock_stream_response([b"abc", b"def"])
+        )
+        assert outcome is _DownloadOutcome.OK
         assert dest.read_bytes() == b"abcdef"
         assert not (tmp_path / "weights.bin.partial").exists()
 
@@ -386,43 +393,148 @@ class TestDownloadResume:
         resp = _mock_stream_response(
             [b"def"], status_code=206, headers={"content-length": "3"}
         )
-        ok, dest = self._download(tmp_path, resp, partial_content=b"abc")
-        assert ok is True
+        outcome, dest = self._download(tmp_path, resp, partial_content=b"abc")
+        assert outcome is _DownloadOutcome.OK
         assert dest.read_bytes() == b"abcdef"
 
     def test_range_ignored_restarts_from_scratch(self, tmp_path: Path) -> None:
         resp = _mock_stream_response([b"fresh"], status_code=200)
-        ok, dest = self._download(tmp_path, resp, partial_content=b"stale")
-        assert ok is True
+        outcome, dest = self._download(tmp_path, resp, partial_content=b"stale")
+        assert outcome is _DownloadOutcome.OK
         assert dest.read_bytes() == b"fresh"
 
     def test_416_promotes_complete_partial(self, tmp_path: Path) -> None:
         resp = _mock_stream_response([], status_code=416)
-        ok, dest = self._download(tmp_path, resp, partial_content=b"complete")
-        assert ok is True
+        outcome, dest = self._download(tmp_path, resp, partial_content=b"complete")
+        assert outcome is _DownloadOutcome.OK
         assert dest.read_bytes() == b"complete"
 
-    def test_cancel_mid_download_keeps_partial(self, tmp_path: Path) -> None:
+    def test_cancel_mid_download_is_transient_and_keeps_partial(
+        self, tmp_path: Path
+    ) -> None:
         puller = HFWeightsPuller()
         puller.cancel()
-        ok, dest = self._download(
+        outcome, dest = self._download(
             tmp_path, _mock_stream_response([b"chunk"]), puller=puller
         )
-        assert ok is False
+        assert outcome is _DownloadOutcome.TRANSIENT
         assert not dest.exists()
         assert (tmp_path / "weights.bin.partial").exists()
 
-    def test_network_error_returns_false(self, tmp_path: Path) -> None:
+    def test_network_error_is_transient(self, tmp_path: Path) -> None:
         with patch(f"{_MOD}.httpx") as mock_httpx:
             mock_httpx.stream.side_effect = real_httpx.ConnectError("offline")
-            mock_httpx.HTTPError = real_httpx.HTTPError
-            ok = HFWeightsPuller()._download_with_resume(
+            outcome = HFWeightsPuller()._download_with_resume(
                 "https://huggingface.co/x/resolve/main/w.bin",
                 tmp_path / "w.bin",
                 MagicMock(),
                 lambda _p: None,
             )
+        assert outcome is _DownloadOutcome.TRANSIENT
+
+    def test_permanent_status_is_permanent(self, tmp_path: Path) -> None:
+        with patch(f"{_MOD}.httpx") as mock_httpx:
+            mock_httpx.stream.return_value = _mock_error_response(401)
+            outcome = HFWeightsPuller()._download_with_resume(
+                "https://huggingface.co/x/resolve/main/w.bin",
+                tmp_path / "w.bin",
+                MagicMock(),
+                lambda _p: None,
+            )
+        assert outcome is _DownloadOutcome.PERMANENT
+
+    def test_server_error_is_transient(self, tmp_path: Path) -> None:
+        with patch(f"{_MOD}.httpx") as mock_httpx:
+            mock_httpx.stream.return_value = _mock_error_response(503)
+            outcome = HFWeightsPuller()._download_with_resume(
+                "https://huggingface.co/x/resolve/main/w.bin",
+                tmp_path / "w.bin",
+                MagicMock(),
+                lambda _p: None,
+            )
+        assert outcome is _DownloadOutcome.TRANSIENT
+
+    def test_token_sent_as_auth_header(self, tmp_path: Path) -> None:
+        with patch(f"{_MOD}.httpx") as mock_httpx:
+            mock_httpx.stream.return_value = _mock_stream_response([b"x"])
+            HFWeightsPuller()._download_with_resume(
+                "https://huggingface.co/x/resolve/main/weights.bin",
+                tmp_path / "weights.bin",
+                MagicMock(),
+                lambda _p: None,
+                "secret-token",
+            )
+            headers = mock_httpx.stream.call_args.kwargs["headers"]
+        assert headers.get("Authorization") == "Bearer secret-token"
+
+
+class TestGatedModels:
+    def test_gated_without_token_skips_fast(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("HF_TOKEN", raising=False)
+        monkeypatch.delenv("HUGGING_FACE_HUB_TOKEN", raising=False)
+        entry = _entry()
+        entry["gated"] = True
+        entry["gatedReason"] = "the Efficient-Large-Model repo is access-gated"
+        state = InstallerState(models_root=str(tmp_path))
+        log = MagicMock()
+        with patch(f"{_MOD}.httpx") as mock_httpx:
+            ok = HFWeightsPuller().install_model(entry, state, log)
+            mock_httpx.stream.assert_not_called()
         assert ok is False
+        assert any(
+            "gated" in call.args[0].lower() for call in log.call_args_list if call.args
+        )
+
+    def test_gated_with_token_proceeds(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("HF_TOKEN", "tok")
+        entry = _entry()
+        entry["gated"] = True
+        state = InstallerState(models_root=str(tmp_path))
+        with patch(f"{_MOD}.httpx") as mock_httpx:
+            mock_httpx.stream.side_effect = [_mock_stream_response([b"weights"])]
+            ok = HFWeightsPuller().install_model(entry, state, MagicMock())
+            mock_httpx.stream.assert_called_once()
+        assert ok is True
+
+
+class TestHfTokenFromEnv:
+    def test_none_when_unset(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("HF_TOKEN", raising=False)
+        monkeypatch.delenv("HUGGING_FACE_HUB_TOKEN", raising=False)
+        assert hf_token_from_env() is None
+
+    def test_reads_hf_token(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("HUGGING_FACE_HUB_TOKEN", raising=False)
+        monkeypatch.setenv("HF_TOKEN", "  abc  ")
+        assert hf_token_from_env() == "abc"
+
+    def test_falls_back_to_hub_token(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("HF_TOKEN", raising=False)
+        monkeypatch.setenv("HUGGING_FACE_HUB_TOKEN", "xyz")
+        assert hf_token_from_env() == "xyz"
+
+
+class TestPermanentErrorInstall:
+    def test_permanent_error_not_retried(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("HF_TOKEN", raising=False)
+        monkeypatch.delenv("HUGGING_FACE_HUB_TOKEN", raising=False)
+        sleeps: list[float] = []
+        state = InstallerState(models_root=str(tmp_path))
+        log = MagicMock()
+        with patch(f"{_MOD}.httpx") as mock_httpx:
+            mock_httpx.stream.return_value = _mock_error_response(404)
+            ok = HFWeightsPuller(sleep=sleeps.append).install_model(
+                _entry(), state, log, lambda _p: None
+            )
+        assert ok is False
+        assert sleeps == []  # a permanent error consumes no retry/backoff
+        assert mock_httpx.stream.call_count == 1
 
 
 _SMOKE_MODEL = os.environ.get("NEXUS_HF_SMOKE_MODEL", "sana-1.6b-int4")

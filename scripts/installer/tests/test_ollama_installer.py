@@ -1,4 +1,4 @@
-﻿"""Tests for OllamaInstaller with mocked subprocess calls."""
+"""Tests for OllamaInstaller with mocked subprocess calls."""
 
 from __future__ import annotations
 
@@ -11,11 +11,14 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from nexus_installer.engine.ollama_installer import (
+    MIN_OLLAMA_VERSION,
     OLLAMA_LINUX_SHA256,
     OLLAMA_PINNED_TAG,
     OLLAMA_WINDOWS_SHA256,
     OllamaInstaller,
     _extract_tar_zst,
+    _meets_min_version,
+    _version_tuple,
 )
 from nexus_installer.installer_state import InstallerState
 
@@ -66,14 +69,111 @@ class TestExtractTarZst:
         assert not (tmp_path / "evil").exists()
 
 
-class TestOllamaInstallerSkip:
-    def test_skips_when_already_installed(self) -> None:
+class TestOllamaVersionGate:
+    """v1.13.0 Phase 1: a pre-existing Ollama must meet the Gemma 4 floor
+    (MIN_OLLAMA_VERSION) or be upgraded; the whole default chat/agentic line is
+    Gemma 4, which older Ollama builds cannot pull or load."""
+
+    def test_version_tuple_parses(self) -> None:
+        assert _version_tuple("v0.32.0") == (0, 32, 0)
+        assert _version_tuple("0.22.0") == (0, 22, 0)
+
+    def test_meets_min_version(self) -> None:
+        assert _meets_min_version("0.32.0", MIN_OLLAMA_VERSION) is True
+        assert _meets_min_version(MIN_OLLAMA_VERSION, MIN_OLLAMA_VERSION) is True
+        assert _meets_min_version("0.20.4", MIN_OLLAMA_VERSION) is False
+
+    def test_min_version_shape(self) -> None:
+        assert re.fullmatch(r"\d+\.\d+\.\d+", MIN_OLLAMA_VERSION)
+
+    def test_skips_when_existing_meets_floor(self) -> None:
         state = InstallerState(ollama_installed=True)
         log = MagicMock()
-        result = OllamaInstaller().install(state, log)
+        with patch.object(OllamaInstaller, "_ollama_version", return_value="0.32.0"):
+            result = OllamaInstaller().install(state, log)
         assert result is True
-        log.assert_called_once()
-        assert "already installed" in log.call_args[0][0].lower()
+        assert any(
+            "supports gemma 4" in c.args[0].lower()
+            for c in log.call_args_list
+            if c.args
+        )
+
+    def test_skips_when_version_undetermined(self) -> None:
+        state = InstallerState(ollama_installed=True)
+        log = MagicMock()
+        with patch.object(OllamaInstaller, "_ollama_version", return_value=None):
+            result = OllamaInstaller().install(state, log)
+        assert result is True
+        assert any(
+            "undetermined" in c.args[0].lower() for c in log.call_args_list if c.args
+        )
+
+    def test_below_floor_proceeds_to_install(self) -> None:
+        # An older pre-existing Ollama must NOT short-circuit as "already
+        # installed"; install proceeds to lay down the pinned build. With every
+        # platform predicate False, the unsupported-platform path returns False,
+        # which proves the skip was bypassed.
+        state = InstallerState(ollama_installed=True)
+        log = MagicMock()
+        with (
+            patch.object(OllamaInstaller, "_ollama_version", return_value="0.20.4"),
+            patch(
+                "nexus_installer.engine.ollama_installer.is_windows",
+                return_value=False,
+            ),
+            patch(
+                "nexus_installer.engine.ollama_installer.is_macos",
+                return_value=False,
+            ),
+            patch(
+                "nexus_installer.engine.ollama_installer.is_linux",
+                return_value=False,
+            ),
+        ):
+            result = OllamaInstaller().install(state, log)
+        assert result is False
+        assert any(
+            "older than" in c.args[0].lower() for c in log.call_args_list if c.args
+        )
+
+    def test_ollama_version_from_api(self) -> None:
+        resp = MagicMock(status_code=200)
+        resp.json.return_value = {"version": "0.32.0"}
+        with patch(
+            "nexus_installer.engine.ollama_installer.httpx.get", return_value=resp
+        ):
+            assert OllamaInstaller()._ollama_version(InstallerState()) == "0.32.0"
+
+    def test_ollama_version_from_cli_when_api_down(self) -> None:
+        import httpx as _httpx
+
+        cli = MagicMock(stdout="ollama version is 0.31.2\n", stderr="")
+        with (
+            patch(
+                "nexus_installer.engine.ollama_installer.httpx.get",
+                side_effect=_httpx.ConnectError("down"),
+            ),
+            patch(
+                "nexus_installer.engine.ollama_installer.subprocess.run",
+                return_value=cli,
+            ),
+        ):
+            assert OllamaInstaller()._ollama_version(InstallerState()) == "0.31.2"
+
+    def test_ollama_version_none_when_both_fail(self) -> None:
+        import httpx as _httpx
+
+        with (
+            patch(
+                "nexus_installer.engine.ollama_installer.httpx.get",
+                side_effect=_httpx.ConnectError("down"),
+            ),
+            patch(
+                "nexus_installer.engine.ollama_installer.subprocess.run",
+                side_effect=OSError("no ollama"),
+            ),
+        ):
+            assert OllamaInstaller()._ollama_version(InstallerState()) is None
 
 
 class TestOllamaInstallerWindows:
@@ -194,9 +294,7 @@ class TestOllamaInstallerLinux:
         state = InstallerState(ollama_installed=False)
         log = MagicMock()
         with (
-            patch(
-                "nexus_installer.engine.ollama_installer.httpx", _fake_stream()
-            ),
+            patch("nexus_installer.engine.ollama_installer.httpx", _fake_stream()),
             patch(
                 "nexus_installer.engine.ollama_installer._verify_sha256",
                 return_value=False,
@@ -237,9 +335,7 @@ class TestOllamaInstallerLinux:
             (dest / "bin" / "ollama").write_bytes(b"#!fake")
 
         with (
-            patch(
-                "nexus_installer.engine.ollama_installer.httpx", _fake_stream()
-            ),
+            patch("nexus_installer.engine.ollama_installer.httpx", _fake_stream()),
             patch(
                 "nexus_installer.engine.ollama_installer._verify_sha256",
                 return_value=True,
@@ -275,9 +371,7 @@ class TestOllamaInstallerLinux:
         state = InstallerState(ollama_installed=False)
         log = MagicMock()
         with (
-            patch(
-                "nexus_installer.engine.ollama_installer.httpx", _fake_stream()
-            ),
+            patch("nexus_installer.engine.ollama_installer.httpx", _fake_stream()),
             patch(
                 "nexus_installer.engine.ollama_installer._verify_sha256",
                 return_value=True,

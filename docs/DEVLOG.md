@@ -4,6 +4,29 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-17] v1.13.0 installer reliability -- Phase 1: model catalog correctness, Ollama pinning, download-engine hardening
+
+### Goal
+
+Make a fresh one-file install land every default model. A real 2026-07-17 install half-failed: the recommended Gemma 4 12B chat model failed Ollama manifest registration (`Error: 400`, Ollama bug #15447 on the Unsloth hf.co GGUF path) and the gated `sana-1.6b-int4` image opt-in returned HTTP 401.
+
+### What happened
+
+- **Gemma 4 12B routed off the broken path (1.1).** `catalog.json` `gemma-4-12b-it-gguf` now routes to the Ollama-registry `ollama://gemma4:12b` tag (verified to exist) instead of `ollama://hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_XL`. Identity fields updated to the registry model; the id is kept so the 19 files referencing it (and `recommended.json`) stay untouched. This alone fixes the fresh-install half-failure - `sana-1.6b-int4` is an opt-in, not a default.
+- **Ollama version floor (1.2).** `MIN_OLLAMA_VERSION = "0.22.0"` (Gemma 4 support landed in 0.20.0; 0.21.x Flash-Attention bug fixed in 0.22.0) with best-effort version detection (API then CLI); a pre-existing Ollama below the floor is upgraded, not skipped. `VERSIONS.md` reconciled from a stale `v0.3.6`/`install.sh` to the real `v0.32.0`/tar.zst pin.
+- **Gated remediation (1.3).** `sana-1.6b-int4`, `sd1.5`, `svd`, `stable-audio-open-1.0` flagged with additive `gated: true` + `gatedReason` (kept, not deleted - they are woven into the desktop UI + diffusion tests).
+- **Engine hardening (1.4).** `hf_weights_puller.py`: permanent (401/403/404) vs transient error classification (never retries a permanent 401), optional `HF_TOKEN` `Authorization` header for gated repos, and a fast gated-repo skip. Closes the v1.11 `D1` gated-model-audit gap for default models.
+
+### Tests
+
+Installer pytest green (new gated / token / permanent-error / version-gate / catalog-integrity coverage); root vitest catalog + digests + Gemma + model-registry green (the additive `gated` fields are schema-safe); `ruff` + `tsc -b` clean.
+
+### Deferrals
+
+Live pull+load verification (IR.P1.A) is the Phase 2 preflight's job, whose CI leg is freeze-deferred (IR.P1.E, continuing v1.11 `IO.P2.A`); real SHA pins for placeholder-pinned defaults deferred (needs downloads). See [v1/v1.13/known-gaps.md](v1/v1.13/known-gaps.md).
+
+---
+
 ## [2026-07-16] v1.12.0 ecosystem adoption -- Phase 6 (FINAL): acceptance gate, reconciliation, docs -- cycle code-complete
 
 ### Goal

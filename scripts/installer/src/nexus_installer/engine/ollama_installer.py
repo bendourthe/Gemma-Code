@@ -18,6 +18,7 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import os
+import re
 import subprocess
 import tarfile
 import tempfile
@@ -40,19 +41,21 @@ from nexus_installer.installer_state import InstallerState
 # (`gh api /repos/ollama/ollama/releases` -> assets[].digest). Update all
 # three together; `check-ollama-pin.py` warns when the pin falls behind.
 OLLAMA_PINNED_TAG = "v0.32.0"
-OLLAMA_WINDOWS_URL = (
-    f"https://github.com/ollama/ollama/releases/download/{OLLAMA_PINNED_TAG}/OllamaSetup.exe"
-)
+OLLAMA_WINDOWS_URL = f"https://github.com/ollama/ollama/releases/download/{OLLAMA_PINNED_TAG}/OllamaSetup.exe"
 OLLAMA_WINDOWS_SHA256 = (
     "07846c9074875e4d47518d41636880a9d9a40a7e1483659ac00be7aec082de06"
 )
 OLLAMA_LINUX_ASSET = "ollama-linux-amd64.tar.zst"
-OLLAMA_LINUX_URL = (
-    f"https://github.com/ollama/ollama/releases/download/{OLLAMA_PINNED_TAG}/{OLLAMA_LINUX_ASSET}"
-)
-OLLAMA_LINUX_SHA256 = (
-    "56362d7609dfa9e35aaebb7c9cab25605d8f0528ec3d5d585dc83d6642002bab"
-)
+OLLAMA_LINUX_URL = f"https://github.com/ollama/ollama/releases/download/{OLLAMA_PINNED_TAG}/{OLLAMA_LINUX_ASSET}"
+OLLAMA_LINUX_SHA256 = "56362d7609dfa9e35aaebb7c9cab25605d8f0528ec3d5d585dc83d6642002bab"
+
+# Minimum Ollama version that can both pull AND load the Gemma 4 architecture:
+# support landed in 0.20.0, and 0.21.0-0.21.2 had a Flash-Attention
+# misreporting bug fixed in 0.22.0. The entire recommended chat/agentic default
+# line is Gemma 4, so a too-old pre-existing Ollama would leave a fresh install
+# with no working chat model. The bundled pin (OLLAMA_PINNED_TAG) is newer than
+# this floor; the floor is what a PRE-EXISTING Ollama must meet or be upgraded.
+MIN_OLLAMA_VERSION = "0.22.0"
 
 MANUAL_INSTALL_SUGGESTION = (
     "Re-run the installer to retry; if it keeps failing, install Ollama "
@@ -77,6 +80,20 @@ def _sha256_file(path: str) -> str:
 def _verify_sha256(path: str, expected: str) -> bool:
     """Return True when the file hash matches the expected hex digest."""
     return _sha256_file(path) == expected
+
+
+def _version_tuple(version: str) -> tuple[int, ...]:
+    """Parse a dotted version string into an int tuple for comparison."""
+    parts: list[int] = []
+    for segment in version.strip().lstrip("v").split("."):
+        match = re.match(r"\d+", segment)
+        parts.append(int(match.group()) if match else 0)
+    return tuple(parts)
+
+
+def _meets_min_version(current: str, minimum: str) -> bool:
+    """True when `current` >= `minimum` by dotted-version ordering."""
+    return _version_tuple(current) >= _version_tuple(minimum)
 
 
 def linux_install_root() -> Path:
@@ -145,8 +162,7 @@ class OllamaInstaller:
         log: Callable[[str, str], None],
     ) -> bool:
         """Install Ollama. Returns True on success."""
-        if state.ollama_installed:
-            log("Ollama is already installed, skipping.", "info")
+        if state.ollama_installed and self._existing_meets_min_version(state, log):
             return True
 
         if is_windows():
@@ -158,8 +174,7 @@ class OllamaInstaller:
 
         state.record_step_failure(
             "ollama",
-            "This operating system is not supported for automatic Ollama "
-            "installation.",
+            "This operating system is not supported for automatic Ollama installation.",
             "Install Ollama manually from ollama.com/download, then re-run "
             "the installer.",
         )
@@ -382,3 +397,62 @@ class OllamaInstaller:
         )
         log("Ollama did not respond within 30 seconds.", "error")
         return False
+
+    def _existing_meets_min_version(
+        self,
+        state: InstallerState,
+        log: Callable[[str, str], None],
+    ) -> bool:
+        """True when a pre-existing Ollama already satisfies the Gemma 4 floor.
+
+        Returns False (so `install` proceeds to lay down the pinned build) when
+        the installed Ollama is older than `MIN_OLLAMA_VERSION`. When the
+        version cannot be determined, treat it as acceptable -- best-effort, do
+        not block a working install on an unknowable version.
+        """
+        current = self._ollama_version(state)
+        if current is None:
+            log(
+                "Ollama is already installed (version undetermined); skipping install.",
+                "info",
+            )
+            return True
+        if _meets_min_version(current, MIN_OLLAMA_VERSION):
+            log(
+                f"Ollama {current} is already installed and supports Gemma 4; "
+                "skipping install.",
+                "info",
+            )
+            return True
+        log(
+            f"Installed Ollama {current} is older than {MIN_OLLAMA_VERSION}, "
+            f"which the Gemma 4 default models require; installing the pinned "
+            f"{OLLAMA_PINNED_TAG}.",
+            "warn",
+        )
+        return False
+
+    def _ollama_version(self, state: InstallerState) -> str | None:
+        """Best-effort detection of the installed Ollama version (API, then CLI)."""
+        try:
+            resp = httpx.get(f"{state.ollama_url}/api/version", timeout=3)
+            if resp.status_code == 200:
+                version = resp.json().get("version")
+                if isinstance(version, str) and version.strip():
+                    return version.strip()
+        except (httpx.HTTPError, ValueError):
+            pass
+        try:
+            result = subprocess.run(
+                ["ollama", "--version"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+                **no_window_kwargs(),
+            )
+        except (OSError, subprocess.SubprocessError):
+            return None
+        combined = f"{result.stdout or ''}{result.stderr or ''}"
+        match = re.search(r"\d+\.\d+\.\d+", combined)
+        return match.group() if match else None

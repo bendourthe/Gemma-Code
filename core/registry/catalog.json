@@ -100,22 +100,22 @@
     {
       "id": "gemma-4-12b-it-gguf",
       "family": "gemma4",
-      "name": "gemma-4-12b-it-GGUF",
-      "tag": "Q4_K_XL",
+      "name": "gemma4",
+      "tag": "12b",
       "type": "llm",
       "task": "chat",
-      "displayName": "Gemma 4 12B-IT (Unsloth GGUF)",
+      "displayName": "Gemma 4 12B",
       "origin": "USA",
       "agentic": true,
-      "description": "Google's Gemma 4 12B is a mid-size chat model from the USA that also understands images and audio. It reads book-length material in one go and runs on 8 GB VRAM and up.",
+      "description": "Google's Gemma 4 12B is a mid-size chat model from the USA that also understands images. It reads book-length material in one go and runs on 12 GB VRAM and up.",
       "strengths": [
-        "Multimodal input: text, images, and audio in one chat",
+        "Multimodal input: text and images in one chat",
         "256K context window for whole-project or book-length material",
-        "Quant ladder scales from 8 GB up to workstation cards"
+        "Mid-tier quality that fits a 12 GB GPU"
       ],
       "whyRecommended": "Multimodal input and a 256K context window at a size that fits 12 GB GPUs.",
-      "differentiators": "Native image + audio input with a 256K context; ships as Unsloth Dynamic-2.0 GGUF quants (Q4_K_XL is the default) that stay close to full quality at about half the size.",
-      "sizeGB": 7.37,
+      "differentiators": "Native image input with a 256K context; pulled from the Ollama library so it registers and loads reliably on a Gemma-4-capable Ollama.",
+      "sizeGB": 7.6,
       "vramGB": 11,
       "requiredVramGB": 11,
       "releaseDate": "2026-05-01",
@@ -123,8 +123,8 @@
       "multimodal": true,
       "contextWindow": 262144,
       "license": "Gemma Terms of Use",
-      "source": { "protocol": "ollama", "url": "ollama://hf.co/unsloth/gemma-4-12b-it-GGUF" },
-      "tags": ["recommended", "coding", "chat", "gguf", "multimodal"]
+      "source": { "protocol": "ollama", "url": "ollama://gemma4:12b" },
+      "tags": ["recommended", "coding", "chat", "multimodal"]
     },
     {
       "id": "llama3.1:8b",
@@ -516,6 +516,8 @@
       "sizeGB": 4.0,
       "vramGB": 4,
       "license": "OpenRAIL",
+      "gated": true,
+      "gatedReason": "The runwayml/stable-diffusion-v1-5 repo was withdrawn/gated by the publisher (HTTP 401 for unauthenticated clients); use a public image model such as juggernaut-xl-v9 or realvisxl-v5 unless a Hugging Face token is configured.",
       "source": {
         "protocol": "huggingface",
         "repo": "runwayml/stable-diffusion-v1-5",
@@ -698,6 +700,8 @@
       "sizeGB": 9.5,
       "vramGB": 12,
       "license": "Stability AI Non-Commercial",
+      "gated": true,
+      "gatedReason": "The stabilityai/stable-video-diffusion-img2vid-xt-1-1 repo is access-gated (HTTP 401 for unauthenticated clients); use a public video model such as wan2.1-t2v-1.3b unless a Hugging Face token is configured.",
       "source": {
         "protocol": "huggingface",
         "repo": "stabilityai/stable-video-diffusion-img2vid-xt-1-1",
@@ -909,6 +913,8 @@
       "contextWindow": null,
       "linkedVAE": "dc-ae-f32c32-sana-1.1",
       "license": "Apache-2.0",
+      "gated": true,
+      "gatedReason": "The Efficient-Large-Model INT4 repo is access-gated (HTTP 401) and the real INT4 weights ship in a different single-file SVDQuant layout at mit-han-lab/nunchaku-sana; use the public sana-1.6b-1024 instead unless a Hugging Face token and the nunchaku runtime are configured.",
       "runtimeDeps": ["nunchaku"],
       "source": {
         "protocol": "huggingface",
@@ -1298,6 +1304,8 @@
       "multimodal": false,
       "contextWindow": null,
       "license": "Stability AI Community License",
+      "gated": true,
+      "gatedReason": "The stabilityai/stable-audio-open-1.0 repo is access-gated (HTTP 401 for unauthenticated clients); it becomes available once a Hugging Face token with access is configured.",
       "source": {
         "protocol": "huggingface",
         "repo": "stabilityai/stable-audio-open-1.0",
