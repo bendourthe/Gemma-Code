@@ -4,6 +4,28 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-17] v1.13.0 installer reliability -- Phase 2: default-model preflight harness
+
+### Goal
+
+Prove every default model pulls **and** loads before a user hits it - the live gate for the Phase 1 routing fix.
+
+### What happened
+
+- **`engine/model_preflight.py`.** Two checks: a **reachability probe** (no download) classifying every catalog source OK / GATED / DEAD / UNKNOWN (HF HEAD or Ollama registry manifest; a `gated` flag resolves without a call); and a **pull+load preflight** that pulls each default then load-smoke-tests Ollama models with a one-token `/api/generate` - the step that catches a Gemma 4 model that fetches but cannot load at runtime. `default_model_ids(tier)` reads `recommended.json`.
+- **CLI.** `main.py` gained Qt-free `--reachability` (exit 1 if any default is gated/dead) and `--preflight [TIER]` (pull+load) flags.
+- **CI.** A `preflight-reachability` job added to `installer-smoke.yml` (dispatch + monthly cron, no push trigger -> no minutes under the freeze); the multi-GB pull+load run stays a local `NEXUS_MODEL_PREFLIGHT=1` command.
+
+### Tests
+
+`tests/test_model_preflight.py` covers tier resolution, the reachability classifier (200/401/404/5xx/network + gated short-circuit + Ollama registry URL), the load smoke, and the pull+load runner (incl. pull-ok-but-load-fails); plus an env-gated live smoke. Full installer suite green; ruff clean.
+
+### Deferrals
+
+The live `nexus-installer --preflight` run (IR.P2.A, the gate for IR.P1.A) needs a real Gemma-4-capable Ollama + downloads; its CI leg is freeze-deferred (IR.P1.E). No installer README yet (IR.P2.B). See [v1/v1.13/known-gaps.md](v1/v1.13/known-gaps.md).
+
+---
+
 ## [2026-07-17] v1.13.0 installer reliability -- Phase 1: model catalog correctness, Ollama pinning, download-engine hardening
 
 ### Goal

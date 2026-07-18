@@ -158,6 +158,27 @@ def _build_arg_parser() -> argparse.ArgumentParser:
             "packaging smoke against the frozen exe)."
         ),
     )
+    parser.add_argument(
+        "--reachability",
+        action="store_true",
+        help=(
+            "Preflight: classify every catalog model's source reachability "
+            "(OK/GATED/DEAD/UNKNOWN) without downloading, and exit 1 if any "
+            "DEFAULT model is gated or dead (v1.13.0 Phase 2)."
+        ),
+    )
+    parser.add_argument(
+        "--preflight",
+        nargs="?",
+        const="__ALL__",
+        metavar="TIER",
+        help=(
+            "Preflight: pull AND load each default model (optionally for one "
+            "hardware tier, e.g. --preflight 16); exit 1 if any default fails. "
+            "Downloads multi-GB weights and needs a Gemma-4-capable Ollama "
+            "(v1.13.0 Phase 2)."
+        ),
+    )
     return parser
 
 
@@ -305,9 +326,67 @@ def _run_headless(args: argparse.Namespace) -> int:
     return 0 if success else 1
 
 
+def _run_preflight(args: argparse.Namespace) -> int:
+    """Reachability probe or pull+load preflight of the default models (Qt-free).
+
+    Returns the process exit code: 0 when everything checked passes, 1 when a
+    default model is unreachable (reachability) or fails to pull/load.
+    """
+    from nexus_installer.engine import model_preflight as mp
+    from nexus_installer.engine.model_router import (
+        default_catalog_path,
+        load_catalog_index,
+    )
+    from nexus_installer.installer_state import InstallerState
+
+    def log(msg: str, level: str = "info") -> None:
+        print(f"[{level}] {msg}")
+
+    catalog = load_catalog_index(default_catalog_path())
+
+    if args.reachability:
+        statuses = mp.probe_catalog(catalog)
+        groups: dict[mp.Reachability, list[str]] = {}
+        for mid, status in statuses.items():
+            groups.setdefault(status, []).append(mid)
+        for status in mp.Reachability:
+            ids = sorted(groups.get(status, []))
+            print(f"{status.value.upper()} ({len(ids)}): {', '.join(ids)}")
+        default_ids = set(mp.default_model_ids())
+        broken = sorted(
+            mid
+            for mid in default_ids
+            if statuses.get(mid) in (mp.Reachability.GATED, mp.Reachability.DEAD)
+        )
+        if broken:
+            print(f"FAIL: default models unreachable: {broken}", file=sys.stderr)
+            return 1
+        print("OK: all default models are reachable.")
+        return 0
+
+    tier = None if args.preflight == "__ALL__" else args.preflight
+    model_ids = mp.default_model_ids(tier)
+    results = mp.run_preflight(model_ids, InstallerState(), log, catalog)
+    for result in results:
+        state_label = "OK" if result.ok else f"FAIL ({result.reason})"
+        print(f"  {result.model_id} [{result.protocol}]: {state_label}")
+    failed = [r for r in results if not r.ok]
+    if failed:
+        print(
+            f"FAIL: {len(failed)} of {len(results)} default model(s) failed.",
+            file=sys.stderr,
+        )
+        return 1
+    print(f"OK: all {len(results)} default model(s) pulled and loaded.")
+    return 0
+
+
 def main() -> None:
     """Parse arguments and dispatch to GUI or headless mode."""
     args = _build_arg_parser().parse_args()
+
+    if args.reachability or args.preflight is not None:
+        sys.exit(_run_preflight(args))
 
     if args.check_registry:
         # Qt-free diagnostic for the packaging smoke (v1.8.0 Phase 6, T601):
@@ -426,9 +505,7 @@ def main() -> None:
     elif plan.decision == bg_resume.DECISION_RESUME and plan.state is not None:
         resume_now = _prompt_resume()
         if resume_now and plan.resume is not None:
-            bg_recorder.apply_resume_to_installer_state(
-                plan.state, plan.resume, state
-            )
+            bg_recorder.apply_resume_to_installer_state(plan.state, plan.resume, state)
         else:
             # Start over: discard the interrupted run's state file.
             with contextlib.suppress(OSError):

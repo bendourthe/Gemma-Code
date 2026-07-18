@@ -1,8 +1,12 @@
 name: Installer smoke tests
 
-# Verifies the PyQt5 installer works end-to-end on each platform in
-# headless mode. Conservative trigger: manual dispatch + weekly cron so
-# nightly CI stays stable.
+# Verifies the PyQt5 installer works end-to-end on each platform in headless
+# mode, plus a model-catalog reachability probe (v1.13.0 Phase 2). Conservative
+# trigger: manual dispatch + monthly cron so nightly CI stays stable and the
+# jobs consume no minutes under the Actions budget freeze (they never run on
+# push). The full pull+load preflight (multi-GB, needs a Gemma-4-capable
+# Ollama) is intentionally NOT wired here -- it stays a local
+# `nexus-installer --preflight` / NEXUS_MODEL_PREFLIGHT=1 run (known-gaps IR.P1.E).
 on:
   workflow_dispatch: {}
   schedule:
@@ -91,3 +95,20 @@ jobs:
           name: smoke-linux-results
           path: tests/smoke/results/
           retention-days: 14
+
+  preflight-reachability:
+    name: Model catalog reachability probe
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+      - name: Install the installer package
+        run: pip install ./scripts/installer
+      - name: Probe every catalog model's source reachability (no download)
+        # v1.13.0 Phase 2: exits 1 if any DEFAULT model's source is gated or
+        # dead. Network (Hugging Face HEAD + Ollama registry manifest) but no
+        # weight download, so it is cheap enough for the monthly cron.
+        run: nexus-installer --reachability
