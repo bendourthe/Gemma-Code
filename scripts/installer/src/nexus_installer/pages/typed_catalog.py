@@ -133,7 +133,11 @@ def _is_extreme_low_bit_quant(quant: str) -> bool:
 
 
 def _extreme_low_bit_allowed(entry: dict) -> bool:
-    """True when a sub-4-bit entry may be surfaced: opt-in + benchmarked + not a blocked vendor."""
+    """True when a sub-4-bit entry may be surfaced.
+
+    Requires the operator opt-in + an independent benchmark + a non-blocked
+    vendor.
+    """
     if os.environ.get("NEXUS_EXTREME_LOW_BIT", "") != "1":
         return False
     if not str(entry.get("benchmark") or "").strip():
@@ -297,6 +301,19 @@ def load_catalog_models(catalog_path: Path) -> list[CatalogModel]:
     return models
 
 
+def _is_over_budget(model: CatalogModel, host_vram_gb: int, gpu_vendor: str) -> bool:
+    """True when a model needs more VRAM than the detected GPU provides.
+
+    Over-budget models sort to the bottom of a tab and are disabled (v1.13.0
+    Phase 4). A no-GPU host is over budget for any model that needs VRAM.
+    """
+    if model.required_vram_gb <= 0:
+        return False
+    if gpu_vendor == "none":
+        return True
+    return host_vram_gb < model.required_vram_gb
+
+
 def compatibility_badge(
     model: CatalogModel,
     *,
@@ -374,6 +391,7 @@ class _ModelCardState:
     checkbox: QCheckBox
     base_label: str = ""
     disabled_for_disk: bool = False
+    over_budget: bool = False
 
 
 @dataclass
@@ -447,6 +465,9 @@ class _ModelCard(QWidget):
             host_ram_gb=host_ram_gb,
             gpu_vendor=gpu_vendor,
         )
+        #: False when the model needs more VRAM/RAM than the host has -- the
+        #: page reads this to disable + dim the card (v1.13.0 Phase 4).
+        self.fits = fits
         status = QLabel(badge_text)
         status.setStyleSheet(
             f"color: {badge_color}; font-size: {FS_CAPTION}px; font-weight: bold; "
@@ -472,6 +493,16 @@ class _ModelCard(QWidget):
             )
             warn.setWordWrap(True)
             layout.addWidget(warn)
+            # Over budget: dim the card with a dashed muted border so it reads
+            # as unavailable, while the requirement note above stays readable.
+            self.setStyleSheet(
+                f"QWidget#modelCard {{ background-color: {BG_CARD}; "
+                f"border: 1px dashed {BORDER_STRONG}; border-radius: 8px; }}"
+            )
+            size_label.setStyleSheet(
+                f"color: {TEXT_SECONDARY}; font-weight: bold; "
+                f"font-size: {FS_H3}px; background: transparent;"
+            )
 
         # --- Plain-language description leads the card (Phase 2 copy, T023) ---
         if model.description:
@@ -759,36 +790,22 @@ class TypedCatalogPage(QWidget):
         return [m for m in self._catalog.values() if m.type == section_key]
 
     def _sorted_section_models(
-        self, section_key: str, defaults: set[str]
+        self, section_key: str, host_vram_gb: int, gpu_vendor: str
     ) -> list[CatalogModel]:
-        """Models for a tab in display order.
+        """Models for a tab, sorted by required VRAM ascending.
 
-        v1.9.0 Phase 4 (T404): the Agentic tab ranks the recommended default
-        first, then the agentic-capable Gemma 4 variants (biggest first), then
-        the coding specialists -- "Gemma 4 on top, coders below". Every other
-        tab keeps the tier-default-first / newest / A-Z order.
+        v1.13.0 Phase 4: every tab orders models by the VRAM they need (lightest
+        first), and models needing more VRAM than the detected GPU are forced to
+        the bottom (they are also disabled by `_update_selection_state`).
         """
         models = self._models_for_section(section_key)
-        if section_key == "agentic":
-
-            def agentic_rank(m: CatalogModel) -> tuple[int, float, str]:
-                if m.id in defaults:
-                    group = 0
-                elif m.task != "agentic":  # agentic-capable chat model (Gemma)
-                    group = 1
-                else:  # coding specialist
-                    group = 2
-                return (group, -float(m.required_vram_gb), m.display_name)
-
-            models.sort(key=agentic_rank)
-        else:
-            models.sort(
-                key=lambda m: (
-                    m.id not in defaults,
-                    -float(m.release_date.replace("-", "") or 0),
-                    m.display_name,
-                )
+        models.sort(
+            key=lambda m: (
+                _is_over_budget(m, host_vram_gb, gpu_vendor),
+                float(m.required_vram_gb),
+                m.display_name,
             )
+        )
         return models
 
     def _build_tab(
@@ -819,7 +836,8 @@ class TypedCatalogPage(QWidget):
         layout = QVBoxLayout(inner)
         layout.setSpacing(8)
 
-        models = self._sorted_section_models(section_key, defaults)
+        gpu_vendor = state.gpu_vendor or "none"
+        models = self._sorted_section_models(section_key, host_vram_gb, gpu_vendor)
 
         if not models:
             empty_text = (
@@ -835,7 +853,6 @@ class TypedCatalogPage(QWidget):
             layout.addWidget(empty)
         else:
             host_ram_gb = state.free_disk_gb  # placeholder until HostProfile threaded
-            gpu_vendor = state.gpu_vendor or "none"
             for model in models:
                 card = _ModelCard(
                     model,
@@ -856,7 +873,10 @@ class TypedCatalogPage(QWidget):
                 card.checkbox.setText("")
                 self._cards.append(
                     _ModelCardState(
-                        model=model, checkbox=card.checkbox, base_label=base_label
+                        model=model,
+                        checkbox=card.checkbox,
+                        base_label=base_label,
+                        over_budget=not card.fits,
                     )
                 )
                 layout.addWidget(card)
@@ -964,6 +984,14 @@ class TypedCatalogPage(QWidget):
                 card.disabled_for_disk = False
                 continue
 
+            # v1.13.0 Phase 4: a model needing more VRAM than this GPU has is
+            # not selectable (it is also sorted to the bottom and dimmed).
+            if card.over_budget:
+                card.checkbox.setEnabled(False)
+                card.checkbox.setToolTip("Needs more VRAM than this GPU has.")
+                card.disabled_for_disk = False
+                continue
+
             # Required (embed) models are locked on while selected.
             if card.model.is_required and want:
                 card.checkbox.setEnabled(False)
@@ -1064,6 +1092,21 @@ class TypedCatalogPage(QWidget):
                 )
         self.category_progress.emit(done, total)
 
+    def try_advance_tab(self) -> bool:
+        """Advance to the next category tab; return True if it consumed Next.
+
+        v1.13.0 Phase 4: on the Models page, Next walks the tabs left-to-right
+        (Chat -> Agentic -> Image -> Video -> Audio). Returns False when already
+        on the last tab, so the wizard's Next then validates + leaves the page.
+        """
+        if not self._interactive:
+            return False
+        index = self._tabs.currentIndex()
+        if index < self._tabs.count() - 1:
+            self._tabs.setCurrentIndex(index + 1)
+            return True
+        return False
+
     def validate(self) -> tuple[bool, str]:
         """Block leaving the page until every category is decided (T603)."""
         undecided = self._first_undecided_index()
@@ -1074,7 +1117,7 @@ class TypedCatalogPage(QWidget):
         return (
             False,
             f"Choose at least one {label} model, or click "
-            f"\"Skip this category\" to continue.",
+            f'"Skip this category" to continue.',
         )
 
     def set_interactive(self, enabled: bool) -> None:

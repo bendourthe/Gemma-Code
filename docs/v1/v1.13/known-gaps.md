@@ -19,11 +19,12 @@ Plan: [plans/installer-reliability-and-ux.md](plans/installer-reliability-and-ux
 | IR.P2.B | NI | Phase 2 | No dedicated installer README documenting `--preflight` / `--reachability` | The commands are self-documented via `nexus-installer --help`; a standalone installer-usage doc is out of this phase's scope | Add a short `scripts/installer/README.md` usage section when the installer docs are next touched |
 | IR.P2.C | MT | Phase 2 | The `_run_preflight` CLI handler in `main.py` is a thin print/route adapter not directly unit-tested | Its underlying functions (`default_model_ids`, `probe_catalog`, `run_preflight`) are covered; the handler only formats + routes | Add a CLI-level test if the handler grows logic |
 | IR.P3.A | DF | Phase 3 | On-device visual confirmation of the gradient "AI Studio" wordmark (installer sidebar + welcome hero + desktop app) | Offscreen `.grab()` renders + the auto-fit / gradient-split logic are unit-tested, but the actual on-monitor appearance was not eyeballed; continues the v1.9 `UIR.P*.A` on-device visual-QA pattern | Confirm the wordmark on a real display during the next on-device installer/app QA pass |
+| IR.P4.A | DF | Phase 4 | `BASE_INSTALL_GB = 15` is an unmeasured estimate of the base install footprint (runtime + venvs + desktop app), and the picker's tab-walk / over-budget dimming were not eyeballed on-device | The logic (probe, tab-walk, VRAM sort/disable) is unit-tested; the precise per-selection disk check already runs on the picker footer, so the Welcome floor is advisory | Measure the real base footprint on a clean install and tune `BASE_INSTALL_GB`; eyeball the picker during the on-device QA pass |
 
 ### Summary
 
-- Open: 9 (Phase 1: 1 DF verification, 1 MT pin-rotation, 1 DF gated re-point, 1 NI low-priority, 1 DF freeze-blocked CI; Phase 2: 1 DF live-run, 1 NI docs, 1 MT thin-CLI; Phase 3: 1 DF on-device visual QA).
-- Resolved so far: the fresh-install half-failure (recommended Gemma 4 12B) via registry routing (Phase 1, closes v1.11 `D1`); the pull+load + reachability preflight harness (Phase 2); the truncated/gray "AI Studio" wordmark now renders full + gradient on both surfaces (Phase 3).
-- No release-blockers: every default model routes to a reachable source (proven offline); the live-run items (IR.P1.A / IR.P2.A / IR.P1.E) are gated by the Actions freeze + a real Ollama, and IR.P3.A is cosmetic on-device QA -- none block code.
+- Open: 10 (Phase 1: 1 DF verification, 1 MT pin-rotation, 1 DF gated re-point, 1 NI low-priority, 1 DF freeze-blocked CI; Phase 2: 1 DF live-run, 1 NI docs, 1 MT thin-CLI; Phase 3: 1 DF on-device visual QA; Phase 4: 1 DF base-size estimate + picker QA).
+- Resolved so far: the fresh-install half-failure via registry routing (Phase 1, closes v1.11 `D1`); the preflight harness (Phase 2); the wordmark truncation + gradient on both surfaces (Phase 3); the amber-disk-dot bug + tab-walk Next + VRAM-ascending sort with over-budget disable (Phase 4).
+- No release-blockers: the live-run items (IR.P1.A / IR.P2.A / IR.P1.E) are gated by the Actions freeze + a real Ollama; IR.P3.A / IR.P4.A are cosmetic on-device QA + an advisory estimate -- none block code.
 
-_Last updated: 2026-07-17 (Phase 3)._
+_Last updated: 2026-07-17 (Phase 4)._

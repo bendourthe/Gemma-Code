@@ -69,6 +69,45 @@ class TestWelcomePage:
             assert not hasattr(page, "_logo")
 
 
+class TestWelcomeDiskCheck:
+    """v1.13.0 Phase 4: the disk check probes an existing anchor (the install
+    directory does not exist yet) against the base-install requirement."""
+
+    def test_existing_anchor_walks_up_to_existing_dir(self) -> None:
+        import os
+
+        from nexus_installer.pages.welcome import _existing_anchor
+
+        deep = os.path.join(os.path.expanduser("~"), "definitely", "missing", "x")
+        assert os.path.isdir(_existing_anchor(deep))
+
+    def test_worker_reports_sufficient_for_ample_free_space(
+        self, qt_app: object
+    ) -> None:
+        from unittest.mock import MagicMock
+
+        from nexus_installer.pages.welcome import _QuickCheckWorker
+
+        worker = _QuickCheckWorker(r"C:\Program Files\NexusAI", required_gb=15.0)
+        results: list[tuple[bool, float]] = []
+        worker.disk_ok.connect(lambda ok, gb: results.append((ok, gb)))
+        usage = MagicMock()
+        usage.free = 484 * 1024**3  # 484 GB, like the reported machine
+        with (
+            patch.object(_QuickCheckWorker, "_find_python", return_value=("", False)),
+            patch("nexus_installer.pages.welcome.shutil.which", return_value=None),
+            patch(
+                "nexus_installer.pages.welcome.shutil.disk_usage", return_value=usage
+            ),
+        ):
+            worker.run()
+        assert results
+        ok, gb = results[0]
+        # 484 GB >= 15 GB base install: no more amber-dot-with-ample-space bug.
+        assert ok is True
+        assert gb > 400
+
+
 class TestPrerequisitesPage:
     def test_creates_and_has_validate(self, qt_app: object) -> None:
         with patch("nexus_installer.pages.prerequisites._DetectionWorker.start"):

@@ -4,6 +4,24 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-17] v1.13.0 installer reliability -- Phase 4: Welcome disk-check + Models tab-walk + VRAM sort/disable
+
+### What happened
+
+- **Disk-check fix (4.1).** `welcome.py` probes an existing anchor (`_existing_anchor`) instead of the not-yet-created install dir -- the `FileNotFoundError` -> 0 GB -> amber-with-484-GB-free bug. The flat 10 GB threshold becomes `BASE_INSTALL_GB` (15) + `state.selected_models_gb`; the precise per-selection check stays on the picker footer.
+- **Tab-walk Next (4.2).** New `TypedCatalogPage.try_advance_tab()` + a branch in `window._go_next`: on the Models page, Next walks Chat -> Agentic -> Image -> Video -> Audio, leaving for Configuration only from the last tab.
+- **VRAM-ascending sort + over-budget disable (4.3).** Every tab now sorts by required VRAM ascending with over-budget models last (replacing the old Gemma-first agentic order); a model needing more VRAM than the GPU is dimmed (dashed border) + its checkbox disabled, with the requirement note still readable.
+
+### Tests
+
+`TestWelcomeDiskCheck` (anchor + ample-space -> sufficient), tab-walk, over-budget disable, and two rewritten VRAM-ascending ordering tests. Full installer suite green; ruff clean.
+
+### Deferrals
+
+`BASE_INSTALL_GB` is an estimate + the picker interactions want on-device QA (IR.P4.A). See [v1/v1.13/known-gaps.md](v1/v1.13/known-gaps.md).
+
+---
+
 ## [2026-07-17] v1.13.0 installer reliability -- Phase 3: brand wordmark (gradient "AI Studio" + truncation fix)
 
 ### Goal

@@ -481,16 +481,26 @@ class TestTypedCatalogPage:
         assert "gemma4:e4b" in chat_ids
         assert "qwen2.5-coder:7b" not in chat_ids
 
-    def test_agentic_ordering_recommended_default_first(
+    def test_agentic_ordering_by_vram_ascending(self, qt_app, tmp_path: Path) -> None:
+        # v1.13.0 Phase 4: every tab sorts by required VRAM ascending, with
+        # over-budget models forced to the bottom (superseding the old
+        # Gemma-first agentic ordering).
+        page = self._page(_gpu_state(vram_mb=8192), tmp_path)
+        models = page._sorted_section_models("agentic", 8, "nvidia")
+        vrams = [m.required_vram_gb for m in models]
+        assert vrams == sorted(vrams)
+
+    def test_try_advance_tab_walks_tabs_then_stops(
         self, qt_app, tmp_path: Path
     ) -> None:
-        # The recommended agentic default (the Gemma pick on this tier) ranks
-        # first; the coding specialist ranks below it.
+        # v1.13.0 Phase 4: Next walks the category tabs, then returns False on
+        # the last tab so the wizard proceeds to Configuration.
         page = self._page(_gpu_state(vram_mb=8192), tmp_path)
-        defaults = set(page.selection().selected)
-        ordered = [m.id for m in page._sorted_section_models("agentic", defaults)]
-        assert ordered[0] == "gemma4:e4b"
-        assert ordered.index("gemma4:e4b") < ordered.index("qwen2.5-coder:7b")
+        page._tabs.setCurrentIndex(0)
+        outcomes = [page.try_advance_tab() for _ in range(len(TYPE_TABS))]
+        assert outcomes[:-1] == [True] * (len(TYPE_TABS) - 1)
+        assert outcomes[-1] is False
+        assert page._tabs.currentIndex() == len(TYPE_TABS) - 1
 
     def test_required_embed_checkbox_locked(self, qt_app, tmp_path: Path) -> None:
         # v1.9.0 Phase 4 (T403): nomic-embed is Required -- checked + locked.
@@ -535,18 +545,28 @@ class TestRealCatalogPage:
         assert "faster-whisper-large-v3" in audio_ids
         assert "kokoro-82m" in audio_ids
 
-    def test_agentic_tab_lists_gemma_first(self, qt_app) -> None:
+    def test_agentic_tab_sorted_by_vram_ascending(self, qt_app) -> None:
+        # v1.13.0 Phase 4: the real-catalog agentic tab is VRAM-ascending, with
+        # over-budget variants (e.g. the 18/22 GB Gemmas on an 8 GB GPU) last.
         state = _gpu_state(vram_mb=8192)
         page = TypedCatalogPage(state)
-        defaults = set(page.selection().selected)
-        ordered = [m.id for m in page._sorted_section_models("agentic", defaults)]
-        # A Gemma 4 variant leads; the coding specialists rank below it.
-        assert ordered[0].startswith("gemma")
-        coder_ranks = [
-            i for i, mid in enumerate(ordered) if "coder" in mid or "deepseek" in mid
-        ]
-        gemma_ranks = [i for i, mid in enumerate(ordered) if mid.startswith("gemma")]
-        assert min(gemma_ranks) < min(coder_ranks)
+        models = page._sorted_section_models("agentic", 8, "nvidia")
+        vrams = [m.required_vram_gb for m in models]
+        assert vrams == sorted(vrams)
+        # The over-budget variants (>8 GB) come after the fitting ones.
+        fits = [m.required_vram_gb <= 8 for m in models]
+        assert fits == sorted(fits, reverse=True)
+
+    def test_over_budget_model_disabled(self, qt_app) -> None:
+        # v1.13.0 Phase 4: a model needing more VRAM than the GPU has is marked
+        # over-budget and its checkbox is disabled (not selectable).
+        state = _gpu_state(vram_mb=8192)  # 8 GB nvidia
+        page = TypedCatalogPage(state)
+        card = page._find_card("gemma4:26b")  # needs 18 GB VRAM
+        assert card is not None
+        assert card.over_budget is True
+        page._update_selection_state()
+        assert card.checkbox.isEnabled() is False
 
     def test_audio_speech_defaults_selected_on_cpu(self, qt_app) -> None:
         # Speech models are CPU-capable and default on every tier.

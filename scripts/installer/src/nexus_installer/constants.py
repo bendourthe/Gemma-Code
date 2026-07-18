@@ -254,6 +254,13 @@ SIDEBAR_NAV_ROW_HEIGHT = 40
 BUTTON_HEIGHT = 38
 BUTTON_RADIUS = 7
 
+# Approximate free space the base install needs BEFORE any model downloads
+# (Ollama runtime + the Python/torch venvs + the desktop app + the VS Code
+# extension). The Welcome disk check uses this as its floor; the per-selection
+# requirement (base + the chosen models) is enforced on the Models picker
+# footer, which knows the actual selection. v1.13.0 Phase 4.
+BASE_INSTALL_GB = 15
+
 WINDOW_DEFAULT_WIDTH = 912
 WINDOW_DEFAULT_HEIGHT = 768
 WINDOW_MIN_WIDTH = 840

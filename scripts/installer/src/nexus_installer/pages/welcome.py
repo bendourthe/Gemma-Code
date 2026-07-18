@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
@@ -15,6 +17,7 @@ from nexus_installer.constants import (
     ACCENT_CODING,
     ACCENT_IMAGE,
     ACCENT_VIDEO,
+    BASE_INSTALL_GB,
     FS_BODY,
     FS_CAPTION,
     FS_DISPLAY,
@@ -41,6 +44,20 @@ _PILLARS: tuple[tuple[str, str], ...] = (
 )
 
 
+def _existing_anchor(path: str) -> str:
+    """Nearest existing directory on the install path's volume.
+
+    The install path (e.g. C:\\Program Files\\NexusAI) does not exist yet on the
+    Welcome page, so probing it directly raised FileNotFoundError and the check
+    wrongly reported 0 GB free (the amber-dot-with-ample-space bug). Walk up to
+    the deepest existing parent, falling back to the home directory.
+    """
+    candidate = Path(path)
+    while not candidate.exists() and candidate != candidate.parent:
+        candidate = candidate.parent
+    return str(candidate) if candidate.exists() else os.path.expanduser("~")
+
+
 class _QuickCheckWorker(QThread):
     """Runs lightweight checks in the background."""
 
@@ -48,9 +65,10 @@ class _QuickCheckWorker(QThread):
     python_found = pyqtSignal(bool, str)  # (found, version)
     disk_ok = pyqtSignal(bool, float)  # (sufficient, gb_free)
 
-    def __init__(self, install_path: str) -> None:
+    def __init__(self, install_path: str, required_gb: float) -> None:
         super().__init__()
         self._install_path = install_path
+        self._required_gb = required_gb
 
     def run(self) -> None:
         # VS Code
@@ -63,11 +81,12 @@ class _QuickCheckWorker(QThread):
         py_path, py_ok = self._find_python()
         self.python_found.emit(py_ok, py_path)
 
-        # Disk space
+        # Disk space: probe an existing anchor on the target volume (the install
+        # dir does not exist yet) against the base-install requirement.
         try:
-            usage = shutil.disk_usage(self._install_path)
+            usage = shutil.disk_usage(_existing_anchor(self._install_path))
             gb_free = usage.free / (1024**3)
-            self.disk_ok.emit(gb_free >= 10.0, round(gb_free, 1))
+            self.disk_ok.emit(gb_free >= self._required_gb, round(gb_free, 1))
         except OSError:
             self.disk_ok.emit(False, 0.0)
 
@@ -175,11 +194,17 @@ class WelcomePage(QWidget):
         chips.addStretch()
         layout.addLayout(chips)
 
-        # Before-you-begin callout
+        # Before-you-begin callout. The disk requirement is the base install
+        # (plus any already-selected models); the precise per-selection check
+        # lives on the Models picker footer.
+        required_gb = BASE_INSTALL_GB + getattr(state, "selected_models_gb", 0.0)
         self._callout = CalloutBox(title="Before you begin")
         self._vscode_dot = _StatusDot("Visual Studio Code installed")
         self._python_dot = _StatusDot("Python 3.11 or newer")
-        self._disk_dot = _StatusDot("At least 10 GB free disk space")
+        self._disk_dot = _StatusDot(
+            f"At least {int(required_gb)} GB free for the base install "
+            "(model downloads need more)"
+        )
         self._inet_dot = _StatusDot("Internet connection for downloading components")
         self._inet_dot.set_ok(True)  # Assumed OK
 
@@ -192,7 +217,7 @@ class WelcomePage(QWidget):
         layout.addStretch()
 
         # Run detection in background
-        self._worker = _QuickCheckWorker(state.install_path)
+        self._worker = _QuickCheckWorker(state.install_path, required_gb)
         self._worker.vscode_found.connect(self._on_vscode)
         self._worker.python_found.connect(self._on_python)
         self._worker.disk_ok.connect(self._on_disk)

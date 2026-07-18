@@ -319,9 +319,7 @@ class InstallerWindow(QMainWindow):
         # The stepper + step counter track the wizard's real progress. While an
         # install is running they stay pinned to the Installing step even when
         # the user is reviewing an earlier (locked) page via the sidebar.
-        progress_index = (
-            self.installing_page_index if self._install_active else index
-        )
+        progress_index = self.installing_page_index if self._install_active else index
         self._step_indicator.set_current(progress_index)
         self._set_step_display(progress_index)
 
@@ -354,8 +352,15 @@ class InstallerWindow(QMainWindow):
         if self._install_active and not self._install_finished:
             return
         if self._current_index < len(self._pages) - 1:
-            # Run page validation if available
             page = self._pages[self._current_index]
+            # v1.13.0 Phase 4: on the Models page, Next walks the category tabs
+            # left-to-right (Chat -> Agentic -> ... -> Audio); only from the last
+            # tab does Next leave the page for Configuration.
+            advance = getattr(page, "try_advance_tab", None)
+            if callable(advance) and advance():
+                self._error_label.setVisible(False)
+                return
+            # Run page validation if available
             if hasattr(page, "validate"):
                 ok, msg = page.validate()
                 if not ok:
@@ -598,9 +603,7 @@ class InstallerWindow(QMainWindow):
             return self.CLOSE_CANCEL
         return self.CLOSE_KEEP
 
-    def _apply_close_choice(
-        self, choice: str, event: QEvent, page: QWidget
-    ) -> None:
+    def _apply_close_choice(self, choice: str, event: QEvent, page: QWidget) -> None:
         """Act on the close-during-install choice (extracted for testability)."""
         if choice == self.CLOSE_BACKGROUND:
             # Detach, do not destroy: hide the window and surface the tray. The
