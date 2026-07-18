@@ -1,3 +1,14 @@
+# [2.3.0](https://github.com/bendourthe/Nexus-AI/compare/v2.2.0...v2.3.0) (2026-07-18)
+
+
+### Features
+
+* **v1.13.0:** installer reliability Phase 1 - model catalog + Ollama pin + engine hardening ([e8b500c](https://github.com/bendourthe/Nexus-AI/commit/e8b500caba10b3689ba430c3e3fb3a7a89539cb1)), closes [#15447](https://github.com/bendourthe/Nexus-AI/issues/15447)
+* **v1.13.0:** installer reliability Phase 2 - default-model preflight harness ([30bc2f0](https://github.com/bendourthe/Nexus-AI/commit/30bc2f023a2b279480a423fcd340a6695fdfdc36))
+* **v1.13.0:** installer reliability Phase 3 - gradient AI Studio wordmark + truncation fix ([8c0a1c5](https://github.com/bendourthe/Nexus-AI/commit/8c0a1c55d07c59da6f37111297d270b5307cbfcd)), closes [#3b82f6](https://github.com/bendourthe/Nexus-AI/issues/3b82f6) [#38bdf8](https://github.com/bendourthe/Nexus-AI/issues/38bdf8) [#22d3ee](https://github.com/bendourthe/Nexus-AI/issues/22d3ee)
+* **v1.13.0:** installer reliability Phase 4 - disk check + models tab-walk + VRAM sort/disable ([4ea25ac](https://github.com/bendourthe/Nexus-AI/commit/4ea25ac3fd853fa1119f867041e067283ddfdf79))
+* **v1.13.0:** installer reliability Phase 5 - installing-page mockup redesign ([9af71d6](https://github.com/bendourthe/Nexus-AI/commit/9af71d621accdccb337d52b5a51e8b5585aad0f0))
+
 # [2.2.0](https://github.com/bendourthe/Nexus-AI/compare/v2.1.0...v2.2.0) (2026-07-18)
 
 
