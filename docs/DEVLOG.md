@@ -4,6 +4,32 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-19] v1.14.0 installer catalog curation -- Phase 5 (FINAL): refactor + known-gaps + CI/CD + release readiness
+
+### Goal
+
+Close the v1.14.0 cycle: verify the layout, reconcile known gaps, confirm CI/CD, run the full release-gate suites, and hand release-readiness to `/update release` (no auto tag/push).
+
+### What happened (verification + reconciliation; no feature code changed)
+
+- **Architecture**: no-op -- the cycle's new modules (`engine/hf_auth.py`, `engine/gated_auth.py`, `widgets/gated_auth_dialog.py`) + `scripts/installer/README.md` + tests are correctly placed; no empty/duplicate/orphan artifacts, no stray markers; `docs/v1/v1.14/` canonical.
+- **Known-gaps**: v1.13 carry-forwards reconciled (`IR.P1.C` + `IR.P2.B` resolved; `IR.P1.A`/`IR.P2.A` partial via the live reachability leg; the rest freeze-deferred / QA); the v1.14 terminal reconciliation block added.
+- **CI/CD**: the installer pytest job (`ci.yml`) auto-covers the new tests; the reachability job (`installer-smoke.yml`) is freeze-safe; concurrency + caching present. No new job.
+- **Tests**: static gates green (tsc, eslint, check-architecture 0 errors / 10 pre-existing warnings, check:tampering 0, security:check in sync); installer pytest green; root vitest 4637 passed / 6 skipped / 2 load-flakes (`memory-auto-archive`, `memory-consolidator-large`) that PASS in isolation -- the v1.13 baseline, not v1.14 regressions.
+- **Environment repair**: the first full-suite run surfaced 419 failures from a `better-sqlite3` NODE_MODULE_VERSION mismatch (135 vs 137) left in local `node_modules` by the prior installer-rebuild `npm ci`; `npm rebuild better-sqlite3` fixed it (re-run returned to the 4637-passed baseline). A local dev-env repair, not a project defect.
+
+### v1.14.0 summary (5 phases)
+
+1. Catalog curation: best-of-family data set + release dates + gated remediation.
+2. Install-reliability closure: HF auth flow (discovery + guided step) + live reachability + installer README.
+3. Models-page best-of-family collapse, sort, disable, release-date pill.
+4. Installing-page polish: uniform dependency bars, View Logs margin, footer Cancel.
+5. This close-out.
+
+Release (version bump / changelog / tag) is handed to `/update release`; the tag-triggered binary build stays freeze-blocked until ~2026-08-01 (same as v2.2.0 / v2.3.0).
+
+---
+
 ## [2026-07-19] v1.14.0 installer catalog curation -- Phase 4: Installing-page polish (dependency bars, View Logs margin, footer Cancel)
 
 ### Goal
