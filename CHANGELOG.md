@@ -1,3 +1,13 @@
+# [2.4.0](https://github.com/bendourthe/Nexus-AI/compare/v2.3.0...v2.4.0) (2026-07-20)
+
+
+### Features
+
+* **v1.14.0:** installer catalog curation Phase 1 - release dates + gated remediation ([ae3172d](https://github.com/bendourthe/Nexus-AI/commit/ae3172da58ca3c0e9d06b1237923eaabc044af78))
+* **v1.14.0:** installer install-reliability closure Phase 2 - HF auth flow + live reachability ([5e15ba3](https://github.com/bendourthe/Nexus-AI/commit/5e15ba3cf86289c01994c80c4d6e7acf5bafe254))
+* **v1.14.0:** installer installing-page polish Phase 4 - uniform dependency bars, View Logs margin, footer Cancel ([91c5d56](https://github.com/bendourthe/Nexus-AI/commit/91c5d5692c70e9538ffe2b677ca94f9cc630643a))
+* **v1.14.0:** installer Models-page best-of-family collapse Phase 3 - sort, disable, release-date pill ([41cb0eb](https://github.com/bendourthe/Nexus-AI/commit/41cb0eb5ffb7f103d7b0bcff271943ac6d53558c))
+
 # [2.3.0](https://github.com/bendourthe/Nexus-AI/compare/v2.2.0...v2.3.0) (2026-07-18)
 
 
