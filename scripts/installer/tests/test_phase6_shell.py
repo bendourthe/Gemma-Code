@@ -223,6 +223,18 @@ class TestShellNavigation:
         pages[win.installing_page_index].finish(True)
         assert win.footer.next_button.isEnabled()
 
+    def test_footer_cancel_shown_during_install_removed_on_finish(
+        self, qt_app: object
+    ) -> None:
+        # v1.14.0 Phase 4: Cancel lives on the footer row only while the install
+        # runs; it is removed (not left grayed) the moment it finishes.
+        win, pages = _build_window(qt_app)
+        assert win.footer.cancel_button.isHidden()  # hidden before install
+        win.switch_page(win.installing_page_index)
+        assert not win.footer.cancel_button.isHidden()  # shown during install
+        pages[win.installing_page_index].finish(True)
+        assert win.footer.cancel_button.isHidden()  # removed on completion
+
 
 # --- T603: Models category flow ---------------------------------------------
 

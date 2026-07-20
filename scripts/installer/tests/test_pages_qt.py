@@ -265,6 +265,30 @@ class TestInstallingPage:
         ok, _ = page.validate()
         assert ok is True
 
+    def test_request_cancel_confirms_then_aborts(
+        self, qt_app: object, monkeypatch: object
+    ) -> None:
+        # v1.14.0 Phase 4: the footer Cancel routes here; a confirmed cancel
+        # aborts the engine and releases the shell (emits finished(False)).
+        from unittest.mock import MagicMock
+
+        from PyQt5.QtWidgets import QMessageBox
+
+        from nexus_installer.pages.installing import InstallingPage
+
+        page = InstallingPage(InstallerState())
+        page._is_running = True
+        page._engine = MagicMock()
+        monkeypatch.setattr(
+            QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.Yes
+        )
+        finished: list[bool] = []
+        page.finished.connect(finished.append)
+        page.request_cancel()
+        assert page._is_running is False
+        assert finished == [False]
+        page._engine.cancel.assert_called_once()
+
 
 class TestCompletePage:
     def test_creates_with_state(self, qt_app: object) -> None:

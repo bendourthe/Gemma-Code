@@ -189,11 +189,22 @@ class _ProgressRow:
 
         self.set_state(STATE_PENDING)
 
-    def add_to_grid(self, grid: QGridLayout, row: int) -> None:
-        """Place this row's four cells into `grid` at `row` (columns 0-3)."""
+    def add_to_grid(
+        self, grid: QGridLayout, row: int, *, bar_spans_metric: bool = False
+    ) -> None:
+        """Place this row's cells into `grid` at `row`.
+
+        v1.14.0 Phase 4: rows with no size/speed metric (e.g. the Dependencies
+        step rows) span the bar across the metric column so it does not leave a
+        wide empty gap before the status; metric rows (per-model) keep the bar
+        in its own column with the metric alongside.
+        """
         grid.addWidget(self.name, row, 0)
-        grid.addWidget(self.bar, row, 1)
-        grid.addWidget(self.detail, row, 2)
+        if bar_spans_metric:
+            grid.addWidget(self.bar, row, 1, 1, 2)
+        else:
+            grid.addWidget(self.bar, row, 1)
+            grid.addWidget(self.detail, row, 2)
         grid.addWidget(self.status, row, 3)
 
     def set_state(self, state: str, status_text: str | None = None) -> None:
@@ -361,7 +372,9 @@ class PhaseGroup(QFrame):
                 row = _ProgressRow(_STEP_LABELS.get(step, step))
                 row.set_state(STATE_PENDING, "Waiting")
                 self._step_rows[step] = row
-                row.add_to_grid(self._rows_layout, i)
+                # Step rows carry no size/speed metric; span the bar across the
+                # metric column so there is no dead space before the status.
+                row.add_to_grid(self._rows_layout, i, bar_spans_metric=True)
         details_layout.addLayout(self._rows_layout)
 
         # T502: dynamic per-model rows land here (installing page drives them).
@@ -372,9 +385,13 @@ class PhaseGroup(QFrame):
         self._logs_toggle.setCheckable(True)
         self._logs_toggle.setStyleSheet(self._toggle_style())
         self._logs_toggle.toggled.connect(self._on_logs_toggle)
-        details_layout.addWidget(
-            self._logs_toggle, alignment=Qt.AlignmentFlag.AlignLeft
-        )
+        # v1.14.0 Phase 4: inset the View Logs button so its left + bottom edges
+        # do not touch the section outline.
+        logs_toggle_row = QHBoxLayout()
+        logs_toggle_row.setContentsMargins(4, 2, 0, 6)
+        logs_toggle_row.addWidget(self._logs_toggle)
+        logs_toggle_row.addStretch(1)
+        details_layout.addLayout(logs_toggle_row)
 
         # Logs pane: Copy / Save toolbar + the raw technical log + grip.
         self._logs_area = QWidget()

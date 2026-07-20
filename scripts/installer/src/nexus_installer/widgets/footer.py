@@ -15,6 +15,7 @@ class Footer(QWidget):
 
     back_clicked = pyqtSignal()
     next_clicked = pyqtSignal()
+    cancel_clicked = pyqtSignal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -35,6 +36,14 @@ class Footer(QWidget):
         self._back_btn.clicked.connect(self.back_clicked.emit)
         layout.addWidget(self._back_btn, alignment=Qt.AlignmentFlag.AlignVCenter)
 
+        # v1.14.0 Phase 4: a Cancel button that lives on the footer row only
+        # while an install is running, then is removed on completion (never a
+        # lingering grayed button on the page).
+        self._cancel_btn = SecondaryButton("Cancel")
+        self._cancel_btn.clicked.connect(self.cancel_clicked.emit)
+        self._cancel_btn.setVisible(False)
+        layout.addWidget(self._cancel_btn, alignment=Qt.AlignmentFlag.AlignVCenter)
+
         self._next_btn = PrimaryButton("Next")
         self._next_btn.clicked.connect(self.next_clicked.emit)
         layout.addWidget(self._next_btn, alignment=Qt.AlignmentFlag.AlignVCenter)
@@ -46,6 +55,15 @@ class Footer(QWidget):
     @property
     def next_button(self) -> PrimaryButton:
         return self._next_btn
+
+    @property
+    def cancel_button(self) -> SecondaryButton:
+        return self._cancel_btn
+
+    def set_cancel_visible(self, visible: bool) -> None:
+        """Show/remove the footer Cancel button (v1.14.0 Phase 4)."""
+        self._cancel_btn.setVisible(visible)
+        self._cancel_btn.setEnabled(visible)
 
     def set_hint(self, text: str) -> None:
         self._hint.setText(text)

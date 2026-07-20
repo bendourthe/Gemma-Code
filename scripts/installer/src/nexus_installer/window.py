@@ -207,6 +207,7 @@ class InstallerWindow(QMainWindow):
         self._footer = Footer()
         self._footer.back_clicked.connect(self._go_back)
         self._footer.next_clicked.connect(self._go_next)
+        self._footer.cancel_clicked.connect(self._on_footer_cancel)
         content_col.addWidget(self._footer)
 
         # Animated constellation + radial-glow body treatment mounted behind
@@ -461,7 +462,11 @@ class InstallerWindow(QMainWindow):
         if self._install_active and not self._install_finished:
             self._footer.set_back_enabled(False)
             self._footer.set_next_enabled(False)
+            # v1.14.0 Phase 4: Cancel shares the footer row only while the
+            # install runs; it is removed the moment it finishes.
+            self._footer.set_cancel_visible(True)
             return
+        self._footer.set_cancel_visible(False)
         self._footer.set_back_enabled(index > 0 and not self._install_active)
         self._footer.set_next_enabled(True)
         is_review = index == self.review_page_index
@@ -472,6 +477,14 @@ class InstallerWindow(QMainWindow):
             self._footer.set_next_text("Install")
         else:
             self._footer.set_next_text("Next")
+
+    def _on_footer_cancel(self) -> None:
+        """Footer Cancel during install -> ask the installing page to abort."""
+        idx = self.installing_page_index
+        page = self._pages[idx] if 0 <= idx < len(self._pages) else None
+        request_cancel = getattr(page, "request_cancel", None)
+        if callable(request_cancel):
+            request_cancel()
 
     def _set_step_display(self, index: int) -> None:
         """Update the content-area step counter + current step name."""

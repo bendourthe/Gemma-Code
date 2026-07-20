@@ -1,4 +1,4 @@
-"""Installing page: overall progress, per-phase groups, and cancel button.
+"""Installing page: overall progress and per-phase groups.
 
 v1.8.0 Phase 5 (T502): the single progress bar + one big log becomes a
 grouped view -- an overall bar on top, then one labeled `PhaseGroup` per
@@ -15,7 +15,6 @@ from typing import TYPE_CHECKING
 
 from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import (
-    QHBoxLayout,
     QLabel,
     QMessageBox,
     QProgressBar,
@@ -36,7 +35,6 @@ from nexus_installer.engine.model_router import (
 )
 from nexus_installer.widgets.gated_auth_dialog import run_gated_prompt
 from nexus_installer.widgets.phase_group import PhaseGroup
-from nexus_installer.widgets.secondary_button import SecondaryButton
 
 if TYPE_CHECKING:
     from nexus_installer.engine.installer import _InstallThread
@@ -112,14 +110,8 @@ class InstallingPage(QWidget):
         self._build_groups()
 
         layout.addStretch(1)
-
-        # Cancel button
-        btn_row = QHBoxLayout()
-        btn_row.addStretch()
-        self._cancel_btn = SecondaryButton("Cancel")
-        self._cancel_btn.clicked.connect(self._on_cancel)
-        btn_row.addWidget(self._cancel_btn)
-        layout.addLayout(btn_row)
+        # v1.14.0 Phase 4: Cancel now lives on the wizard footer (shown only
+        # while installing, removed on completion), not as a page-level button.
 
     @property
     def is_running(self) -> bool:
@@ -165,7 +157,6 @@ class InstallingPage(QWidget):
         self._is_running = True
         self._title.setText("Installing...")
         self._progress.setMaximum(0)  # Indeterminate
-        self._cancel_btn.setEnabled(True)
         self._log_lines = []
         # v1.14.0 Phase 2: resolve auth for any gated model BEFORE the engine
         # reads the selection, so a declined one leaves the queue (never fails
@@ -296,7 +287,6 @@ class InstallingPage(QWidget):
 
     def _on_finished(self, success: bool, error_message: str) -> None:
         self._is_running = False
-        self._cancel_btn.setEnabled(False)
         self._progress.setMaximum(1000)
         self._progress.setValue(1000)
 
@@ -307,7 +297,12 @@ class InstallingPage(QWidget):
 
         self.finished.emit(success)
 
-    def _on_cancel(self) -> None:
+    def request_cancel(self) -> None:
+        """Confirm, then cancel the running install (v1.14.0 Phase 4).
+
+        Wired to the footer Cancel button, which is shown only during an active
+        install and removed on completion.
+        """
         reply = QMessageBox.question(
             self,
             "Cancel Installation",
@@ -321,9 +316,9 @@ class InstallingPage(QWidget):
     def cancel_install(self) -> None:
         """Cancel the running install without prompting (T702).
 
-        The Cancel button confirms first via :meth:`_on_cancel`; the window's
-        close-during-install "Cancel install" choice is itself the confirmation,
-        so it calls this directly.
+        The footer Cancel button confirms first via :meth:`request_cancel`; the
+        window's close-during-install "Cancel install" choice is itself the
+        confirmation, so it calls this directly.
         """
         if not self._is_running:
             return
@@ -331,7 +326,6 @@ class InstallingPage(QWidget):
             self._engine.cancel()
         self._is_running = False
         self._title.setText("Installation Cancelled")
-        self._cancel_btn.setEnabled(False)
         # Release the shell lock so navigation is usable again (T602).
         self.finished.emit(False)
 

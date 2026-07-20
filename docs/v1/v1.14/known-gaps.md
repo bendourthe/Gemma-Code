@@ -31,6 +31,12 @@ Plan: [plans/installer-catalog-curation-and-reliability.md](plans/installer-cata
 | ICR.P3.A | DF | Phase 3 | On-device visual QA of the best-of-family collapse, recommended-first sort, grayed disabled cards, release-date pill, and the "Needs more VRAM" divider | The collapse/sort/pill logic is unit-tested (97% on `typed_catalog.py`) with offscreen renders, but the on-monitor appearance was not eyeballed; continues the IR.P3.A / IR.P4.A visual-QA pattern | Confirm the picker on a real display during the next on-device installer QA pass |
 | ICR.P3.B | NI | Phase 3 | The collapse hides fitting variants that are not the family best-fit, with no in-installer "show all variants" escape hatch | Deliberate, per the user's "best fit + bigger disabled" choice: a user wanting a smaller/faster tier than the best-fit on their GPU cannot pick it in the installer | The desktop model manager can install any catalog model post-install; add a picker "show all variants" toggle only if requested |
 
+### Open Items (Phase 4)
+
+| ID | Class | Source phase | Item | Reason | Suggested next step |
+|----|-------|--------------|------|--------|---------------------|
+| ICR.P4.A | DF | Phase 4 | On-device visual QA of the installing-page polish (uniform dependency bars, View Logs button inset, footer Cancel appearing during install and gone on completion) | The layout invariants (bar column span, button-row margins, footer-cancel visibility across the install lifecycle) are unit-tested with offscreen renders, but the on-monitor appearance was not eyeballed; continues the IR.P3.A / ICR.P3.A visual-QA pattern | Confirm the installing page on a real display during the next on-device installer QA pass |
+
 ### Phase 1 reconciliation
 
 - **ICR.P1.B (guided-auth flow) -> RESOLVED** this cycle: `engine/hf_auth.py` (token discovery + validation), `engine/gated_auth.py` (queue coordinator), and `widgets/gated_auth_dialog.py` (the guided step), wired into the installing page and unit-tested.
@@ -48,8 +54,8 @@ Plan: [plans/installer-catalog-curation-and-reliability.md](plans/installer-cata
 
 ### Summary
 
-- Open: Phase 1 = 3 (ICR.P1.A, ICR.P1.C, ICR.P1.D; ICR.P1.B resolved); Phase 2 = 4 (ICR.P2.A live pull+load, ICR.P2.B on-device dialog QA, ICR.P2.C pin-rotation, ICR.P2.D auxiliary ControlNet gating); Phase 3 = 2 (ICR.P3.A on-device picker QA, ICR.P3.B no show-all-variants toggle).
-- Resolved so far: Phase 1 -- `sd1.5` re-pointed + de-gated, gated opt-ins flagged, `releaseDate` on every selectable model, auxiliary exclusion regression-tested. Phase 2 -- HF token discovery, the guided license/token dialog + coordinator, a LIVE reachability probe (0 dead refs), the installer README. Phase 3 -- the Models page now collapses each family to one best-fitting pick (recommended first, larger tiers grayed at the bottom under a divider), dims incompatible cards, and shows the release date as a pill instead of inline in the title.
+- Open: Phase 1 = 3 (ICR.P1.A, ICR.P1.C, ICR.P1.D; ICR.P1.B resolved); Phase 2 = 4 (ICR.P2.A live pull+load, ICR.P2.B on-device dialog QA, ICR.P2.C pin-rotation, ICR.P2.D auxiliary ControlNet gating); Phase 3 = 2 (ICR.P3.A on-device picker QA, ICR.P3.B no show-all-variants toggle); Phase 4 = 1 (ICR.P4.A on-device installing-page QA).
+- Resolved so far: Phase 1 -- `sd1.5` re-pointed + de-gated, gated opt-ins flagged, `releaseDate` on every selectable model, auxiliary exclusion regression-tested. Phase 2 -- HF token discovery, the guided license/token dialog + coordinator, a LIVE reachability probe (0 dead refs), the installer README. Phase 3 -- the Models page collapses each family to one best-fitting pick (recommended first, larger tiers grayed under a divider), dims incompatible cards, and shows the release date as a pill. Phase 4 -- the installing page's Dependencies bars fill the row (no dead space), the View Logs button is inset off the outline, and Cancel lives on the footer row during install and is removed on completion.
 - No release-blockers: the remaining items are operator/live-run (multi-GB downloads under the Actions freeze), on-device QA, or deliberate design choices.
 
-_Last updated: 2026-07-19 (Phase 3)._
+_Last updated: 2026-07-19 (Phase 4)._

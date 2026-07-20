@@ -4,6 +4,29 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-19] v1.14.0 installer catalog curation -- Phase 4: Installing-page polish (dependency bars, View Logs margin, footer Cancel)
+
+### Goal
+
+Fix the three installing-page defects from the v2.3.0 test screenshots: the dependency bars' wide right-side dead space, the View Logs button touching the section outline, and the stray grayed Cancel button lingering bottom-right after completion.
+
+### What happened
+
+- **Uniform dependency rows** (`phase_group.py`): step rows carry no size/speed metric, so their progress bar now spans the metric column (`add_to_grid(bar_spans_metric=True)`) instead of leaving a ~200px empty gap before the status. Per-model rows are unchanged (bar in its own column, metric alongside).
+- **View Logs inset** (`phase_group.py`): the View Logs toggle now sits in a row with left + bottom margins so its edges no longer touch the section outline.
+- **Footer Cancel** (`footer.py` + `window.py` + `installing.py`): Cancel moved off the installing page and onto the wizard footer row. It is shown only while the install is running (`_refresh_footer` -> `set_cancel_visible`) and removed on completion -- no more lingering grayed button. The page-level cancel button was deleted; `_on_cancel` became the public `request_cancel` the footer routes to; `cancel_install` (still used by the background controller + close-during-install path) is unchanged apart from dropping the button reference.
+
+### Tests
+
+- New: footer cancel visibility + signal (`TestFooter`), dependency-bar column span + View Logs margin (`TestPhase4Layout`), footer-cancel-across-install-lifecycle (`test_phase6_shell`), and `request_cancel` confirm-then-abort (`test_pages_qt`).
+- Full installer pytest green; footer 98%, phase_group 94%, window 84% covered (installing.py 79% -- the phase delta is covered; the remainder is pre-existing untested `start_installation` + model-telemetry handlers).
+
+### Known gaps
+
+`docs/v1/v1.14/known-gaps.md`: ICR.P4.A (on-device visual QA of the installing-page polish).
+
+---
+
 ## [2026-07-19] v1.14.0 installer catalog curation -- Phase 3: Models-page best-of-family collapse, sort, disable, release-date pill
 
 ### Goal

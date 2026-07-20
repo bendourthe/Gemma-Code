@@ -1,4 +1,4 @@
-﻿"""Tests for UI widgets using QApplication."""
+"""Tests for UI widgets using QApplication."""
 
 from __future__ import annotations
 
@@ -129,3 +129,24 @@ class TestFooter:
         footer = Footer()
         footer.set_back_enabled(False)
         assert not footer.back_button.isVisible()
+
+    def test_cancel_hidden_by_default_and_toggles(self, qt_app: object) -> None:
+        # v1.14.0 Phase 4: the footer Cancel is hidden until an install runs.
+        from nexus_installer.widgets.footer import Footer
+
+        footer = Footer()
+        assert footer.cancel_button.isHidden()
+        footer.set_cancel_visible(True)
+        assert not footer.cancel_button.isHidden()
+        assert footer.cancel_button.isEnabled()
+        footer.set_cancel_visible(False)
+        assert footer.cancel_button.isHidden()
+
+    def test_cancel_button_emits_signal(self, qt_app: object) -> None:
+        from nexus_installer.widgets.footer import Footer
+
+        footer = Footer()
+        seen: list[bool] = []
+        footer.cancel_clicked.connect(lambda: seen.append(True))
+        footer.cancel_button.click()
+        assert seen == [True]

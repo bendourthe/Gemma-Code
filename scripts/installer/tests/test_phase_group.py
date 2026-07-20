@@ -417,3 +417,57 @@ class TestInstallingPageGroups:
         page._build_groups()
         titles = [g._title.text() for g in page.phase_groups]
         assert titles == ["Models"]
+
+
+class TestPhase4Layout:
+    """v1.14.0 Phase 4: uniform dependency rows + View Logs button inset."""
+
+    def test_step_rows_span_metric_column(self, qt_app: object) -> None:
+        # Dependency (step) rows carry no metric, so their bar spans the metric
+        # column -- no wide dead space before the status.
+        from PyQt5.QtWidgets import QProgressBar
+
+        from nexus_installer.widgets.phase_group import PhaseGroup
+
+        group = PhaseGroup("Dependencies", ["ollama", "venv"])
+        grid = group._rows_layout
+        spans = [
+            grid.getItemPosition(i)[3]
+            for i in range(grid.count())
+            if isinstance(grid.itemAt(i).widget(), QProgressBar)
+        ]
+        assert spans and all(cs == 2 for cs in spans)
+
+    def test_model_rows_keep_metric_column(self, qt_app: object) -> None:
+        # Per-model rows keep the bar in its own column (metric alongside).
+        from PyQt5.QtWidgets import QProgressBar
+
+        from nexus_installer.widgets.phase_group import PhaseGroup
+
+        group = PhaseGroup("Models", ["model"])
+        group.ensure_model_row("m1")
+        grid = group._model_rows_layout
+        spans = [
+            grid.getItemPosition(i)[3]
+            for i in range(grid.count())
+            if isinstance(grid.itemAt(i).widget(), QProgressBar)
+        ]
+        assert spans and all(cs == 1 for cs in spans)
+
+    def test_view_logs_button_has_inset_margins(self, qt_app: object) -> None:
+        # The View Logs button sits in a row with left + bottom margins so it
+        # does not touch the section outline.
+        from nexus_installer.widgets.phase_group import PhaseGroup
+
+        group = PhaseGroup("Dependencies", ["ollama", "venv"])
+        details_layout = group._details.layout()
+        margins = None
+        for i in range(details_layout.count()):
+            lay = details_layout.itemAt(i).layout()
+            if lay is None:
+                continue
+            for j in range(lay.count()):
+                if lay.itemAt(j).widget() is group._logs_toggle:
+                    margins = lay.contentsMargins()
+        assert margins is not None
+        assert margins.left() > 0 and margins.bottom() > 0
