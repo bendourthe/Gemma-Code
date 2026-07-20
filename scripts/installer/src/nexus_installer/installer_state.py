@@ -74,6 +74,13 @@ class InstallerState:
     failed_models: list[str] = field(default_factory=list)
     models_root: str = ""
 
+    # v1.14.0 Phase 2 -- Hugging Face token for gated open-weight opt-ins,
+    # captured by the guided auth step (widgets.gated_auth_dialog) or resolved
+    # from the environment / HF CLI cache (engine.hf_auth.discover_hf_token).
+    # Runtime-only: sent as an Authorization header, never logged or persisted
+    # by the installer itself.
+    hf_token: str = ""
+
     # v1.8.0 Phase 2 -- Nexus desktop app provisioning.
     desktop_install_dir: str = ""  # empty = platform installer default
     desktop_bundle_override: str = ""  # local bundle path; skips release fetch

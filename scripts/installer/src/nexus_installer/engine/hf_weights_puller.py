@@ -48,7 +48,14 @@ from pathlib import Path, PurePosixPath
 
 import httpx
 
+from nexus_installer.engine.hf_auth import (
+    HF_TOKEN_ENV_VARS,
+    discover_hf_token,
+    hf_token_from_env,
+)
 from nexus_installer.installer_state import InstallerState
+
+__all__ = ["HF_TOKEN_ENV_VARS", "discover_hf_token", "hf_token_from_env"]
 
 # Bind httpx's exception classes at import time so the `except` clauses below
 # stay valid even when a test patches the module reference `httpx` with a mock:
@@ -67,11 +74,6 @@ DOWNLOAD_CHUNK_SIZE = 65536
 MAX_DOWNLOAD_ATTEMPTS = 3
 RETRY_BACKOFF_SECONDS = 2.0
 PIN_SCRIPT = "scripts/installer/build/pin-hf-weights.py"
-
-# Hugging Face token for gated repos, read from the environment only (never
-# persisted). Absent -> gated repos fail fast with a clear message instead of
-# retrying an un-authable 401.
-HF_TOKEN_ENV_VARS = ("HF_TOKEN", "HUGGING_FACE_HUB_TOKEN")
 
 # HTTP statuses that can never succeed on retry for the current credentials, so
 # the puller stops immediately instead of consuming its retry budget.
@@ -133,20 +135,6 @@ def resolve_models_root(state: InstallerState) -> Path:
     if state.models_root:
         return Path(state.models_root).expanduser()
     return default_models_root()
-
-
-def hf_token_from_env() -> str | None:
-    """Return a Hugging Face token from the environment, if set.
-
-    Enables gated repos without persisting the secret. Checked in order:
-    ``HF_TOKEN`` then ``HUGGING_FACE_HUB_TOKEN``. The token is sent only as an
-    ``Authorization`` header and is never written to the log.
-    """
-    for name in HF_TOKEN_ENV_VARS:
-        value = os.environ.get(name)
-        if value and value.strip():
-            return value.strip()
-    return None
 
 
 def model_weights_dir(models_root: Path, model_id: str) -> Path:
@@ -268,8 +256,9 @@ class HFWeightsPuller:
             return False
 
         # A gated repo can never be fetched by an unauthenticated client; fail
-        # fast with the catalog's reason instead of three 401 retries.
-        token = hf_token_from_env()
+        # fast with the catalog's reason instead of three 401 retries. The token
+        # is resolved from state (guided step) / env / HF CLI cache.
+        token = discover_hf_token(state)
         if entry.get("gated") and not token:
             reason = entry.get("gatedReason")
             hint = (

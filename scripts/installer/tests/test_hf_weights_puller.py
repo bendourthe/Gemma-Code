@@ -474,6 +474,9 @@ class TestGatedModels:
     ) -> None:
         monkeypatch.delenv("HF_TOKEN", raising=False)
         monkeypatch.delenv("HUGGING_FACE_HUB_TOKEN", raising=False)
+        monkeypatch.delenv("HF_TOKEN_PATH", raising=False)
+        # Isolate the HF CLI cache so discovery cannot pick up a real login.
+        monkeypatch.setenv("HF_HOME", str(tmp_path))
         entry = _entry()
         entry["gated"] = True
         entry["gatedReason"] = "the Efficient-Large-Model repo is access-gated"

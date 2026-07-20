@@ -27,8 +27,14 @@ from nexus_installer.constants import (
     FS_CAPTION,
     TEXT_SECONDARY,
 )
+from nexus_installer.engine.gated_auth import ensure_gated_auth
 from nexus_installer.engine.installer import InstallEngine, start_install
-from nexus_installer.engine.model_router import resolve_selected_models
+from nexus_installer.engine.model_router import (
+    default_catalog_path,
+    load_catalog_index,
+    resolve_selected_models,
+)
+from nexus_installer.widgets.gated_auth_dialog import run_gated_prompt
 from nexus_installer.widgets.phase_group import PhaseGroup
 from nexus_installer.widgets.secondary_button import SecondaryButton
 
@@ -161,6 +167,10 @@ class InstallingPage(QWidget):
         self._progress.setMaximum(0)  # Indeterminate
         self._cancel_btn.setEnabled(True)
         self._log_lines = []
+        # v1.14.0 Phase 2: resolve auth for any gated model BEFORE the engine
+        # reads the selection, so a declined one leaves the queue (never fails
+        # mid-download) and a discovered token covers the rest with no prompt.
+        self._resolve_gated_auth()
         # The configuration page may have toggled components since __init__.
         self._build_groups()
 
@@ -192,6 +202,22 @@ class InstallingPage(QWidget):
 
         self._thread = start_install(self._engine, self._state)
         self.started.emit()
+
+    def _resolve_gated_auth(self) -> None:
+        """Guided HF-auth pass for selected gated models (v1.14.0 Phase 2).
+
+        No-op when nothing gated is selected or a token is already available;
+        otherwise shows the guided dialog once per gated model, unlocking the
+        queue with a valid token or removing declined models from it.
+        """
+        catalog = load_catalog_index(default_catalog_path())
+        if not catalog:
+            return
+        ensure_gated_auth(
+            self._state,
+            catalog,
+            lambda entry: run_gated_prompt(entry, self),
+        )
 
     def _on_step_started(self, name: str) -> None:
         group = self._group_for(name)

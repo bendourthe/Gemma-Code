@@ -4,6 +4,33 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-19] v1.14.0 installer catalog curation -- Phase 2: HF auth flow + live reachability + install-reliability closure
+
+### Goal
+
+Deliver the "every offered model installs, never silently fails" guarantee for the gated opt-ins: auto-use a token the user already has, guide them through a one-time license/token step otherwise, and prove the offered set is reachable.
+
+### What happened
+
+- **Token discovery** (`engine/hf_auth.py`, new): `discover_hf_token(state)` resolves a Hugging Face token in precedence order -- `InstallerState.hf_token` (guided step) -> env (`HF_TOKEN` / `HUGGING_FACE_HUB_TOKEN`) -> the `huggingface-cli login` cache (`$HF_TOKEN_PATH` / `$HF_HOME/token` / `~/.cache/huggingface/token`). Plus `mask_token` (log/UI-safe) and `validate_token_for_repo` (authenticated model-info check). The puller now uses `discover_hf_token(state)` (env-only `hf_token_from_env` kept + re-exported for back-compat); `InstallerState` gained an `hf_token` field.
+- **Guided step** (`widgets/gated_auth_dialog.py` + `engine/gated_auth.py`, new): when a gated model is selected and no token is found, a one-time dialog opens the model's license page, takes a free read token, validates it against the repo, and proceeds; declining removes the model from the install queue (never a silent mid-download failure). The coordinator (`ensure_gated_auth`) is UI-independent and fully unit-tested; it is wired into the installing page BEFORE the engine reads the selection, and a discovered token covers every gated selection with no prompt.
+- **Live reachability** (2.3): ran the probe LIVE against HF + the Ollama registry -- **0 dead references**; `sd1.5` now resolves OK via the Phase 1 mirror re-point; the 3 offered gated opt-ins are correctly flagged and unlockable. Evidence in `docs/v1/v1.14/development/reachability-2026-07-19.md`. Added `scripts/installer/README.md` documenting `--preflight` / `--reachability` and the gated-model flow (closes IR.P2.B).
+
+### Deferred (honest, operator/freeze-bound)
+
+- The live pull+load preflight for the 12/16-tier defaults (~43 GB) and real `sha256` pin rotation are operator actions on a target box (ICR.P2.A / ICR.P2.C), same freeze/hardware deferral as IR.P2.A.
+
+### Tests
+
+- New: `test_hf_auth.py` (discovery precedence, cache, masking, validation), `test_gated_auth.py` (pending/ensure/deselect/one-token-covers-rest), `test_gated_auth_dialog.py` (validate/accept/error/skip), plus an installing-page wiring test. Made the puller gated-skip test hermetic against the HF cache.
+- Full installer pytest green; new modules 93-100% covered.
+
+### Known gaps
+
+`docs/v1/v1.14/known-gaps.md`: ICR.P1.B resolved; ICR.P2.A-D opened (live run, on-device QA, pin rotation, auxiliary ControlNet gating).
+
+---
+
 ## [2026-07-19] v1.14.0 installer catalog curation -- Phase 1: best-of-family data set + release dates + gated remediation
 
 ### Goal

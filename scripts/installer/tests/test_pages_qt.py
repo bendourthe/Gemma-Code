@@ -285,3 +285,45 @@ class TestCompletePage:
         all_text = " ".join(lbl.text() for lbl in page.findChildren(QLabel))
         assert "Managing Nexus" in all_text
         assert "Gemma Code" not in all_text
+
+
+class TestInstallingGatedAuthWiring:
+    """v1.14.0 Phase 2 -- the installing page resolves gated auth before the
+    engine reads the selection, so a declined gated model leaves the queue."""
+
+    def test_declined_gated_model_is_deselected(
+        self, qt_app: object, tmp_path: object, monkeypatch: object
+    ) -> None:
+        # Isolate HF env so no ambient token short-circuits the pass.
+        monkeypatch.delenv("HF_TOKEN", raising=False)
+        monkeypatch.delenv("HUGGING_FACE_HUB_TOKEN", raising=False)
+        monkeypatch.delenv("HF_TOKEN_PATH", raising=False)
+        monkeypatch.setenv("HF_HOME", str(tmp_path))
+
+        from nexus_installer.pages.installing import InstallingPage
+
+        state = InstallerState(selected_model_ids=["gated-x", "pub-y"])
+        catalog = {
+            "gated-x": {"gated": True, "source": {"repo": "org/x"}},
+            "pub-y": {"gated": False},
+        }
+        page = InstallingPage(state)
+        with (
+            patch(
+                "nexus_installer.pages.installing.load_catalog_index",
+                return_value=catalog,
+            ),
+            patch(
+                "nexus_installer.pages.installing.default_catalog_path",
+                return_value=tmp_path,
+            ),
+            patch(
+                "nexus_installer.pages.installing.run_gated_prompt",
+                return_value=None,
+            ),
+        ):
+            page._resolve_gated_auth()
+
+        # Declined -> removed from the queue; the public model is untouched.
+        assert state.selected_model_ids == ["pub-y"]
+        assert "gated-x" in state.skipped_steps
