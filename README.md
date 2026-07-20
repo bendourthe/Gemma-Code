@@ -55,8 +55,8 @@ A persistent `Local Model Status` panel reports the active model architecture, p
 
 Nexus runs on two intentionally decoupled version tracks:
 
-- **Milestone track (`v1.x`)** - the product development cycles, each documented under `docs/v1/v1.<MINOR>/` (plan, known-gaps, benchmarks). This track runs from the v1.0.0 pivot through the current **v1.13.0** cycle.
-- **Release track (git tags / `package.json`)** - the published, semantic-release-cut versions. `v2.0.0` (2026-06-18) was the GA that consolidated the v1.4.0 -> v1.6.0 line; `v2.1.0` (2026-07-02) folded in v1.7.0; `v2.2.0` (2026-07-18) consolidated the v1.8.0 -> v1.12.0 line. Milestone **v1.13.0** ships in the next published release. (The desktop app self-reports its `package.json` version, which semantic-release bumps on each release, so the in-app version and the milestone label differ.)
+- **Milestone track (`v1.x`)** - the product development cycles, each documented under `docs/v1/v1.<MINOR>/` (plan, known-gaps, benchmarks). This track runs from the v1.0.0 pivot through the current **v1.14.0** cycle.
+- **Release track (git tags / `package.json`)** - the published, semantic-release-cut versions. `v2.0.0` (2026-06-18) was the GA that consolidated the v1.4.0 -> v1.6.0 line; `v2.1.0` (2026-07-02) folded in v1.7.0; `v2.2.0` (2026-07-18) consolidated the v1.8.0 -> v1.12.0 line; `v2.3.0` (2026-07-18) shipped v1.13.0. Milestone **v1.14.0** ships in the next published release. (The desktop app self-reports its `package.json` version, which semantic-release bumps on each release, so the in-app version and the milestone label differ.)
 
 ### Milestone ledger
 
@@ -76,6 +76,7 @@ Nexus runs on two intentionally decoupled version tracks:
 | v1.11.0 | Installer overhaul: one-shot reliability, clean-machine harness, embedded desktop bundle, background continuation | Landed | [docs/v1/v1.11/](docs/v1/v1.11/) |
 | v1.12.0 | Local model-execution scaling (per-model harness, extreme-low-bit + disk-offload tiers) + surface the skill optimizer + exec-sandbox audit | Landed | [docs/v1/v1.12/](docs/v1/v1.12/) |
 | v1.13.0 | Installer reliability + UX polish: fix the fresh-install model failures (registry routing + Ollama pin + pull/load preflight), gradient "AI Studio" wordmark, and the mockup-matched installing UI | Landed | [docs/v1/v1.13/](docs/v1/v1.13/) |
+| v1.14.0 | Installer catalog curation + install reliability: best-of-family model collapse with release-date pills, gated-model auth flow (token discovery + guided license step), live reachability, and installing-page polish (uniform dependency bars, footer Cancel) | Landed | [docs/v1/v1.14/](docs/v1/v1.14/) |
 
 Each cycle's plan lives under `docs/v1/v1.<MINOR>/plans/`, its deferred work under `docs/v1/v1.<MINOR>/known-gaps.md`, and benchmarks (where run) under `docs/v1/v1.<MINOR>/benchmarks/`.
 
