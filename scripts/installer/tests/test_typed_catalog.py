@@ -519,14 +519,19 @@ class TestTypedCatalogPage:
         assert "gemma4:e4b" in chat_ids
         assert "qwen2.5-coder:7b" not in chat_ids
 
-    def test_agentic_ordering_by_vram_ascending(self, qt_app, tmp_path: Path) -> None:
-        # v1.13.0 Phase 4: every tab sorts by required VRAM ascending, with
-        # over-budget models forced to the bottom (superseding the old
-        # Gemma-first agentic ordering).
+    def test_agentic_collapse_fitting_before_over_budget(
+        self, qt_app, tmp_path: Path
+    ) -> None:
+        # v1.14.0 Phase 3: the tab collapses to one best-fitting model per
+        # family, with over-budget tiers grayed at the bottom (superseding the
+        # v1.13 flat VRAM-ascending sort).
+        # The temp catalog carries no `family`, so per-family uniqueness is
+        # covered on the real catalog in TestRealCatalogPage; here we assert the
+        # ordering invariant (fitting rows before grayed over-budget rows).
         page = self._page(_gpu_state(vram_mb=8192), tmp_path)
-        models = page._sorted_section_models("agentic", 8, "nvidia")
-        vrams = [m.required_vram_gb for m in models]
-        assert vrams == sorted(vrams)
+        models = page._sorted_section_models("agentic", 8, "nvidia", set())
+        over = [m.required_vram_gb > 8 for m in models]
+        assert over == sorted(over)  # every fitting row precedes every gray row
 
     def test_try_advance_tab_walks_tabs_then_stops(
         self, qt_app, tmp_path: Path
@@ -583,17 +588,23 @@ class TestRealCatalogPage:
         assert "faster-whisper-large-v3" in audio_ids
         assert "kokoro-82m" in audio_ids
 
-    def test_agentic_tab_sorted_by_vram_ascending(self, qt_app) -> None:
-        # v1.13.0 Phase 4: the real-catalog agentic tab is VRAM-ascending, with
-        # over-budget variants (e.g. the 18/22 GB Gemmas on an 8 GB GPU) last.
+    def test_agentic_tab_collapses_to_best_fit_per_family(self, qt_app) -> None:
+        # v1.14.0 Phase 3: the real-catalog agentic tab shows one best-fitting
+        # model per family; the over-budget Gemma tiers (18/22 GB) are grayed at
+        # the bottom on an 8 GB GPU.
         state = _gpu_state(vram_mb=8192)
         page = TypedCatalogPage(state)
         models = page._sorted_section_models("agentic", 8, "nvidia")
-        vrams = [m.required_vram_gb for m in models]
-        assert vrams == sorted(vrams)
-        # The over-budget variants (>8 GB) come after the fitting ones.
-        fits = [m.required_vram_gb <= 8 for m in models]
-        assert fits == sorted(fits, reverse=True)
+        over = [m.required_vram_gb > 8 for m in models]
+        assert over == sorted(over)  # fitting first, over-budget last
+        fitting = [m for m in models if m.required_vram_gb <= 8]
+        fams = [m.family for m in fitting]
+        assert len(fams) == len(set(fams))  # one best-fit per family
+        gemma_fit = [m for m in fitting if m.family == "gemma4"]
+        assert gemma_fit and gemma_fit[0].required_vram_gb <= 8
+        # The smaller Gemma tier is hidden (collapsed away), not shown alongside.
+        fitting_ids = {m.id for m in fitting}
+        assert not ({"gemma4:e2b", "gemma4:e4b"} <= fitting_ids)
 
     def test_over_budget_model_disabled(self, qt_app) -> None:
         # v1.13.0 Phase 4: a model needing more VRAM than the GPU has is marked
@@ -633,9 +644,10 @@ class TestRealCatalogPage:
             accents[card.model.id].add(card.checkbox.accent)
         multi = {mid: cols for mid, cols in accents.items() if len(cols) > 1}
         assert not multi, f"models colored inconsistently across tabs: {multi}"
-        # gemma4:e4b renders in both Chat and Agentic with one Google color.
-        assert sum(1 for c in page._cards if c.model.id == "gemma4:e4b") == 2
-        assert accents["gemma4:e4b"] == {provider_color("gemma4")}
+        # v1.14.0 Phase 3: on a 24 GB GPU the gemma4 best-fit (31b) renders in
+        # both Chat and Agentic with one consistent Google color.
+        assert sum(1 for c in page._cards if c.model.id == "gemma4:31b") == 2
+        assert accents["gemma4:31b"] == {provider_color("gemma4")}
 
     def test_provider_legend_lists_multiple_providers(self, qt_app) -> None:
         # v1.9.0 Phase 6 (T025): the color legend names each provider present.
@@ -673,6 +685,79 @@ class TestCatalogTabMapping:
     )
     def test_task_mapping(self, task: str, tab: str) -> None:
         assert TASK_TO_TAB[task] == tab
+
+
+class TestPhase3Collapse:
+    """v1.14.0 Phase 3 -- best-of-family collapse, release-date pill, divider."""
+
+    def _card(self, tmp_path: Path):
+        from nexus_installer.pages.typed_catalog import (
+            _ModelCard,
+            load_catalog_models,
+        )
+
+        entry = {
+            "id": "img-x",
+            "displayName": "Test Image Model",
+            "type": "image",
+            "task": "image",
+            "sizeGB": 3.2,
+            "requiredVramGB": 6,
+            "releaseDate": "2026-05-01",
+            "license": "Apache-2.0",
+            "family": "testfam",
+            "description": "A test model.",
+        }
+        path = tmp_path / "catalog.json"
+        path.write_text(json.dumps({"models": [entry]}), encoding="utf-8")
+        model = load_catalog_models(path)[0]
+        return _ModelCard(
+            model,
+            recommended=False,
+            checked=False,
+            host_vram_gb=16,
+            host_ram_gb=16,
+            gpu_vendor="nvidia",
+        )
+
+    def test_release_date_is_a_pill_not_in_title(self, qt_app, tmp_path: Path) -> None:
+        from PyQt5.QtWidgets import QLabel
+
+        card = self._card(tmp_path)
+        texts = [lbl.text() for lbl in card.findChildren(QLabel)]
+        # A "Released 2026-05" pill exists...
+        assert any("Released 2026-05" in t for t in texts)
+        # ...and the plain title carries the name only (no inline date suffix).
+        assert "Test Image Model" in texts
+        assert not any("Test Image Model" in t and "2026" in t for t in texts)
+
+    def test_low_vram_collapses_chat_to_small_tier(self, qt_app) -> None:
+        # On a 4 GB GPU the gemma4 chat best-fit is the small e2b tier; the
+        # larger tiers are grayed (over-budget), not shown enabled.
+        state = _gpu_state(vram_mb=4096)
+        page = TypedCatalogPage(state)
+        models = page._sorted_section_models("chat", 4, "nvidia")
+        fitting = [m for m in models if m.required_vram_gb <= 4]
+        gemma_fit = [m.id for m in fitting if m.family == "gemma4"]
+        assert gemma_fit == ["gemma4:e2b"]
+
+    def test_family_with_no_fitting_variant_shows_one_smallest(self, qt_app) -> None:
+        # A no-GPU host: every VRAM-needing model is over budget; each family
+        # still appears exactly once (its smallest variant, grayed).
+        state = InstallerState()
+        state.gpu_vendor = "none"
+        page = TypedCatalogPage(state)
+        models = page._sorted_section_models("image", 0, "none")
+        sana_imgs = [m for m in models if m.family == "sana" and m.type == "image"]
+        assert len(sana_imgs) == 1
+
+    def test_divider_rendered_when_over_budget(self, qt_app) -> None:
+        from PyQt5.QtWidgets import QLabel
+
+        page = TypedCatalogPage(_gpu_state(vram_mb=8192))
+        page.refresh_from_state()
+        texts = [lbl.text() for lbl in page.findChildren(QLabel)]
+        assert any("Needs more VRAM than this GPU" in t for t in texts)
 
     def test_vae_excluded(self) -> None:
         assert "vae" not in CATALOG_TYPE_TO_TAB

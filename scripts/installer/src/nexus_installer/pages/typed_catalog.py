@@ -434,29 +434,9 @@ class _ModelCard(QWidget):
         layout.setContentsMargins(14, 10, 14, 10)
         layout.setSpacing(6)
 
-        # --- Title row: [checkbox] name (release)  [status badge]  [disk] ---
-        title_row = QHBoxLayout()
-        title_row.setSpacing(8)
-        # v1.9.0 Phase 5 (T021) -- the custom-painted ModelCheckBox: a rounded
-        # box with a crisp glyph and full state coverage. `accent` is the
-        # per-provider color (Phase 6); the required (embed) model is locked on.
-        self.checkbox = ModelCheckBox(accent=accent)
-        self.checkbox.setChecked(checked)
-        # The required (embed) lock is applied by the page in
-        # `_update_selection_state` so a seeded / CLI-override selection is
-        # never silently forced on.
-        title_row.addWidget(self.checkbox)
-
-        release_suffix = (
-            f"   released {model.release_date}" if model.release_date else ""
-        )
-        title = QLabel(f"{model.display_name}{release_suffix}")
-        title.setStyleSheet(
-            f"color: {TEXT_PRIMARY}; font-weight: bold; background: transparent;"
-        )
-        title.setWordWrap(True)
-        title_row.addWidget(title, stretch=1)
-
+        # v1.14.0 Phase 3: compute compatibility up front so the whole card can
+        # dim (title + description, not just the size) when the model does not
+        # fit the detected GPU -- a clearer "not selectable on your hardware".
         badge_text, badge_color, fits = _card_status(
             model,
             recommended=recommended,
@@ -468,6 +448,25 @@ class _ModelCard(QWidget):
         #: False when the model needs more VRAM/RAM than the host has -- the
         #: page reads this to disable + dim the card (v1.13.0 Phase 4).
         self.fits = fits
+        title_color = TEXT_PRIMARY if fits else TEXT_MUTED
+
+        # --- Title row: [checkbox] name  [status badge]  [disk] ---
+        title_row = QHBoxLayout()
+        title_row.setSpacing(8)
+        # v1.9.0 Phase 5 (T021) -- the custom-painted ModelCheckBox. `accent` is
+        # the per-provider color; the required (embed) model is locked on by the
+        # page in `_update_selection_state`, never silently forced here.
+        self.checkbox = ModelCheckBox(accent=accent)
+        self.checkbox.setChecked(checked)
+        title_row.addWidget(self.checkbox)
+
+        title = QLabel(model.display_name)
+        title.setStyleSheet(
+            f"color: {title_color}; font-weight: bold; background: transparent;"
+        )
+        title.setWordWrap(True)
+        title_row.addWidget(title, stretch=1)
+
         status = QLabel(badge_text)
         status.setStyleSheet(
             f"color: {badge_color}; font-size: {FS_CAPTION}px; font-weight: bold; "
@@ -507,8 +506,9 @@ class _ModelCard(QWidget):
         # --- Plain-language description leads the card (Phase 2 copy, T023) ---
         if model.description:
             desc = QLabel(model.description)
+            desc_color = TEXT_BODY if fits else TEXT_MUTED
             desc.setStyleSheet(
-                f"color: {TEXT_BODY}; font-size: {FS_BODY}px; background: transparent;"
+                f"color: {desc_color}; font-size: {FS_BODY}px; background: transparent;"
             )
             desc.setWordWrap(True)
             layout.addWidget(desc)
@@ -560,6 +560,10 @@ class _ModelCard(QWidget):
             chip_row.addWidget(_pill("Uncensored", color=WARNING, border=WARNING))
         if model.license_name:
             chip_row.addWidget(_pill(model.license_name))
+        # v1.14.0 Phase 3: release date as a first-class pill (was inline in the
+        # title); year-month keeps the chip compact.
+        if model.release_date:
+            chip_row.addWidget(_pill(f"Released {model.release_date[:7]}"))
         chip_row.addStretch()
         layout.addLayout(chip_row)
 
@@ -790,23 +794,53 @@ class TypedCatalogPage(QWidget):
         return [m for m in self._catalog.values() if m.type == section_key]
 
     def _sorted_section_models(
-        self, section_key: str, host_vram_gb: int, gpu_vendor: str
+        self,
+        section_key: str,
+        host_vram_gb: int,
+        gpu_vendor: str,
+        defaults: set[str] | None = None,
     ) -> list[CatalogModel]:
-        """Models for a tab, sorted by required VRAM ascending.
+        """Collapse a tab to one best-fitting model per family.
 
-        v1.13.0 Phase 4: every tab orders models by the VRAM they need (lightest
-        first), and models needing more VRAM than the detected GPU are forced to
-        the bottom (they are also disabled by `_update_selection_state`).
+        v1.14.0 Phase 3 (supersedes the v1.13 flat VRAM-ascending sort): for
+        each model family show the single best variant that fits the detected
+        GPU -- the family's tier default when it fits, else the most capable
+        (highest-VRAM) fitting variant. Other fitting variants are hidden; every
+        variant that needs more VRAM than the GPU has is shown disabled/grayed;
+        a family with no fitting variant shows its smallest one, grayed. Enabled
+        rows come first (recommended before the rest, most-capable first), then
+        the over-budget rows.
         """
-        models = self._models_for_section(section_key)
-        models.sort(
-            key=lambda m: (
-                _is_over_budget(m, host_vram_gb, gpu_vendor),
-                float(m.required_vram_gb),
-                m.display_name,
-            )
-        )
-        return models
+        defaults = defaults or set()
+
+        def vram(m: CatalogModel) -> float:
+            return float(m.required_vram_gb)
+
+        by_family: dict[str, list[CatalogModel]] = {}
+        for model in self._models_for_section(section_key):
+            by_family.setdefault(model.family or model.id, []).append(model)
+
+        enabled: list[CatalogModel] = []
+        disabled: list[CatalogModel] = []
+        for members in by_family.values():
+            fitting = [
+                m for m in members if not _is_over_budget(m, host_vram_gb, gpu_vendor)
+            ]
+            over = [m for m in members if _is_over_budget(m, host_vram_gb, gpu_vendor)]
+            if fitting:
+                # Prefer the family's tier default so the recommended pick stays
+                # pre-selected; otherwise the most capable variant that fits.
+                pool = [m for m in fitting if m.id in defaults] or fitting
+                best = min(pool, key=lambda m: (-vram(m), m.display_name))
+                enabled.append(best)
+                disabled.extend(over)  # larger tiers, shown grayed at the bottom
+            else:
+                # No variant fits: show the smallest so the family still appears.
+                disabled.append(min(members, key=lambda m: (vram(m), m.display_name)))
+
+        enabled.sort(key=lambda m: (m.id not in defaults, -vram(m), m.display_name))
+        disabled.sort(key=lambda m: (vram(m), m.display_name))
+        return enabled + disabled
 
     def _build_tab(
         self,
@@ -837,7 +871,9 @@ class TypedCatalogPage(QWidget):
         layout.setSpacing(8)
 
         gpu_vendor = state.gpu_vendor or "none"
-        models = self._sorted_section_models(section_key, host_vram_gb, gpu_vendor)
+        models = self._sorted_section_models(
+            section_key, host_vram_gb, gpu_vendor, defaults
+        )
 
         if not models:
             empty_text = (
@@ -853,6 +889,9 @@ class TypedCatalogPage(QWidget):
             layout.addWidget(empty)
         else:
             host_ram_gb = state.free_disk_gb  # placeholder until HostProfile threaded
+            # v1.14.0 Phase 3: a labeled divider separates the compatible best-
+            # of-family picks from the grayed, over-budget tiers below.
+            divider_added = False
             for model in models:
                 card = _ModelCard(
                     model,
@@ -863,6 +902,14 @@ class TypedCatalogPage(QWidget):
                     gpu_vendor=gpu_vendor,
                     accent=provider_color(model.family),
                 )
+                if not card.fits and not divider_added:
+                    divider = QLabel("Needs more VRAM than this GPU")
+                    divider.setStyleSheet(
+                        f"color: {TEXT_MUTED}; font-size: {FS_CAPTION}px; "
+                        f"background: transparent; padding-top: 6px;"
+                    )
+                    layout.addWidget(divider)
+                    divider_added = True
                 card.setSizePolicy(
                     QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
                 )

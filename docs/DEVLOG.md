@@ -4,6 +4,30 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-19] v1.14.0 installer catalog curation -- Phase 3: Models-page best-of-family collapse, sort, disable, release-date pill
+
+### Goal
+
+Fix the "too many models, unclear which to pick" clutter on the Models page: show one best-fitting model per family, recommended first, hardware-incompatible tiers grayed at the bottom, with each card's release date as a pill.
+
+### What happened (all in `pages/typed_catalog.py`)
+
+- **Best-of-family collapse** (`_sorted_section_models` rewritten, supersedes the v1.13 flat VRAM-ascending sort): for each model family, show the single best variant that fits the detected GPU -- the family's tier default when it fits, else the most capable (highest-VRAM) fitting variant. Other fitting variants are hidden; every variant that needs more VRAM than the GPU has is shown disabled/grayed; a family with no fitting variant shows its smallest one, grayed. So on a 16 GB GPU the Gemma family shows one enabled 12B row with 26B/31B grayed below and e2b/e4b hidden.
+- **Sort + divider**: enabled best-fits first (recommended before the rest, most-capable first), then a "Needs more VRAM than this GPU" divider, then the grayed over-budget rows.
+- **Clearer disabled cards**: an over-budget card now dims its title + description (not just the size), keeping the dashed border and the "Requires N GB VRAM (you have M)" reason note readable.
+- **Release-date pill**: the release date moved out of the card title into a compact "Released YYYY-MM" pill in the fact-pill row.
+
+### Tests
+
+- Updated the 3 v1.13 tests that assumed the flat VRAM-ascending order / that e4b renders in both tabs, to the collapse model. Added `TestPhase3Collapse` (release pill not in title, low-VRAM collapse to the small tier, no-fit family shows one smallest, divider rendered when over budget).
+- Full installer pytest green; `typed_catalog.py` at 97% coverage.
+
+### Known gaps
+
+`docs/v1/v1.14/known-gaps.md`: ICR.P3.A (on-device picker QA), ICR.P3.B (no in-installer show-all-variants toggle -- deliberate).
+
+---
+
 ## [2026-07-19] v1.14.0 installer catalog curation -- Phase 2: HF auth flow + live reachability + install-reliability closure
 
 ### Goal
