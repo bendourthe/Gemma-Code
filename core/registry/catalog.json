@@ -1,8 +1,8 @@
 {
   "_meta": {
     "version": 1,
-    "phase": "v1.9.0 Phase 4",
-    "comment": "Curated installable model catalog used by the Settings UI and the installer wizard. LLMs ship in Phase 5; image models are flagged for Phase 6 (Image Studio); video models for Phase 7 (Video Lab); NVIDIA SANA family landed in v1.1.0 Phase 12. Ollama-sourced entries delegate digest verification to `ollama pull` and carry no sha256. Hugging Face entries carry a per-model `weights` manifest (v1.8.0 Phase 3): an explicit file list, each downloaded from https://huggingface.co/{repo}/resolve/main/{path} into <models_root>/weights/<model-id>/{path} (models_root defaults to ~/.nexus/models) -- the per-model directory the diffusion runtime loads at startup (diffusers from_pretrained on the model directory; repo-relative subpaths like transformer/ are preserved). Each file pins a SHA-256 (versions.lock.json discipline): all-zero digests are placeholders -- the installer's weights puller warns, skips verification, and logs the computed digest; rotate pins with scripts/installer/build/pin-hf-weights.py. source.sha256 remains the primary-blob digest for older consumers and is superseded by weights.files[].sha256. v1.8.0 Phase 4 adds the selection-UX fields: `task` (chat | agentic | image | video | audio | embed) drives the installer's catalog sections; `strengths` / `whyRecommended` / `differentiators` carry the per-model copy the wizard cards render; `provenance` records publisher + lineage for curated entries (required on uncensored ones). Uncensored entries (uncensored: true) were curated 2026-07-03 with license + provenance verified per entry; per-VRAM-tier defaults live in recommended.json. v1.9.0 Phase 4 adds the scannable-catalog metadata: `origin` (publisher country, or Community) and `agentic` (agentic-coding capability flag -- set on the Gemma 4 family + the coding specialists so both surface in the installer's Agentic tab); an optional `guardrails` string overrides the installer's derived Uncensored/Safety-tuned/N/A label. The audio pillar (type/task `audio`) is curated: speech (faster-whisper STT MIT, Kokoro + Piper TTS) and generation (MusicGen CC-BY-NC-4.0, Stable Audio Open community-license) -- STT/TTS are permissive + CPU-capable and default on every tier; the non-commercial generation models are listed opt-in (never defaults)."
+    "phase": "v1.14.0 Phase 1",
+    "comment": "Curated installable model catalog used by the Settings UI and the installer wizard. LLMs ship in Phase 5; image models are flagged for Phase 6 (Image Studio); video models for Phase 7 (Video Lab); NVIDIA SANA family landed in v1.1.0 Phase 12. Ollama-sourced entries delegate digest verification to `ollama pull` and carry no sha256. Hugging Face entries carry a per-model `weights` manifest (v1.8.0 Phase 3): an explicit file list, each downloaded from https://huggingface.co/{repo}/resolve/main/{path} into <models_root>/weights/<model-id>/{path} (models_root defaults to ~/.nexus/models) -- the per-model directory the diffusion runtime loads at startup (diffusers from_pretrained on the model directory; repo-relative subpaths like transformer/ are preserved). Each file pins a SHA-256 (versions.lock.json discipline): all-zero digests are placeholders -- the installer's weights puller warns, skips verification, and logs the computed digest; rotate pins with scripts/installer/build/pin-hf-weights.py. source.sha256 remains the primary-blob digest for older consumers and is superseded by weights.files[].sha256. v1.8.0 Phase 4 adds the selection-UX fields: `task` (chat | agentic | image | video | audio | embed) drives the installer's catalog sections; `strengths` / `whyRecommended` / `differentiators` carry the per-model copy the wizard cards render; `provenance` records publisher + lineage for curated entries (required on uncensored ones). Uncensored entries (uncensored: true) were curated 2026-07-03 with license + provenance verified per entry; per-VRAM-tier defaults live in recommended.json. v1.9.0 Phase 4 adds the scannable-catalog metadata: `origin` (publisher country, or Community) and `agentic` (agentic-coding capability flag -- set on the Gemma 4 family + the coding specialists so both surface in the installer's Agentic tab); an optional `guardrails` string overrides the installer's derived Uncensored/Safety-tuned/N/A label. The audio pillar (type/task `audio`) is curated: speech (faster-whisper STT MIT, Kokoro + Piper TTS) and generation (MusicGen CC-BY-NC-4.0, Stable Audio Open community-license) -- STT/TTS are permissive + CPU-capable and default on every tier; the non-commercial generation models are listed opt-in (never defaults). v1.14.0 Phase 1 curation: releaseDate (ISO YYYY-MM-DD) is now a first-class field on every selectable model, rendered as a card pill by the installer picker; gated open-weight opt-ins (svd, stable-audio-open-1.0, sana-1.6b-int4) carry requiresLicense=true + licenseUrl so the installer guided Hugging Face step (accept license + free token) can unlock them, and sd1.5 was re-pointed from the withdrawn runwayml repo to the public stable-diffusion-v1-5 mirror; auxiliary types (vae, controlnet) stay excluded from the picker by the loader; the per-family best-fit collapse (show the single best variant that fits the detected hardware, larger tiers grayed) happens in the installer picker at render time, so the catalog stays a complete data source for the desktop app and diffusion runtime."
   },
   "models": [
     {
@@ -13,6 +13,7 @@
       "type": "llm",
       "task": "chat",
       "displayName": "Gemma 4 E2B",
+      "releaseDate": "2026-05-01",
       "origin": "USA",
       "agentic": true,
       "description": "Google's Gemma 4 E2B is a compact 2B-parameter chat model from the USA. The smallest chat tier: it stays responsive on a 4 GB GPU, or even with no dedicated GPU at all.",
@@ -36,6 +37,7 @@
       "type": "llm",
       "task": "chat",
       "displayName": "Gemma 4 E4B",
+      "releaseDate": "2026-05-01",
       "origin": "USA",
       "agentic": true,
       "description": "Google's Gemma 4 E4B is a balanced 4B-parameter chat model from the USA. The default pick: strong general chat quality on mainstream 6-8 GB gaming GPUs.",
@@ -60,6 +62,7 @@
       "type": "llm",
       "task": "chat",
       "displayName": "Gemma 4 26B",
+      "releaseDate": "2026-05-01",
       "origin": "USA",
       "agentic": true,
       "description": "Google's Gemma 4 26B is a larger chat model from the USA for 18 GB+ GPUs. Upper-mid tier: deeper reasoning and longer documents than the E-series.",
@@ -82,6 +85,7 @@
       "type": "llm",
       "task": "chat",
       "displayName": "Gemma 4 31B",
+      "releaseDate": "2026-05-01",
       "origin": "USA",
       "agentic": true,
       "description": "Google's Gemma 4 31B is the flagship local chat model from the USA. The strongest answer quality in the catalog, on a single 24 GB GPU.",
@@ -134,6 +138,7 @@
       "type": "llm",
       "task": "chat",
       "displayName": "Llama 3.1 8B Instruct",
+      "releaseDate": "2024-07-23",
       "origin": "USA",
       "description": "Meta's Llama 3.1 8B is a well-rounded chat model from the USA. A dependable alternative with the broadest fine-tune and tooling ecosystem of any open model its size.",
       "strengths": [
@@ -155,6 +160,7 @@
       "type": "llm",
       "task": "chat",
       "displayName": "Llama 3.1 70B Instruct",
+      "releaseDate": "2024-07-23",
       "origin": "USA",
       "description": "Meta's Llama 3.1 70B is a workstation-class chat model from the USA. Near-frontier reasoning fully offline, but it needs 40 GB+ of VRAM or aggressive CPU offload.",
       "strengths": [
@@ -176,6 +182,7 @@
       "type": "llm",
       "task": "chat",
       "displayName": "Qwen 2.5 7B Instruct",
+      "releaseDate": "2024-09-19",
       "origin": "China",
       "description": "Alibaba's Qwen 2.5 7B is a multilingual chat model from China. A strong non-English alternative with good math and structured-output skills on a 7-8 GB GPU.",
       "strengths": [
@@ -197,6 +204,7 @@
       "type": "llm",
       "task": "chat",
       "displayName": "Qwen 2.5 14B Instruct",
+      "releaseDate": "2024-09-19",
       "origin": "China",
       "description": "Alibaba's Qwen 2.5 14B is a mid-size multilingual chat model from China for 12 GB GPUs. Deeper reasoning than the 7B, with the same multilingual strengths.",
       "strengths": [
@@ -218,6 +226,7 @@
       "type": "llm",
       "task": "agentic",
       "displayName": "Qwen 2.5 Coder 7B",
+      "releaseDate": "2024-11-12",
       "origin": "China",
       "agentic": true,
       "description": "Alibaba's Qwen 2.5 Coder 7B is a code-specialized model from China. Built for the Coding pillar: generation, repair, and editor completions across 40+ languages.",
@@ -242,6 +251,7 @@
       "type": "llm",
       "task": "agentic",
       "displayName": "Qwen 2.5 Coder 14B",
+      "releaseDate": "2024-11-12",
       "origin": "China",
       "agentic": true,
       "description": "Alibaba's Qwen 2.5 Coder 14B is a mid-tier coding model from China that still fits 12 GB GPUs. Stronger multi-file reasoning and refactoring than the 7B.",
@@ -265,6 +275,7 @@
       "type": "llm",
       "task": "agentic",
       "displayName": "DeepSeek Coder V2 16B",
+      "releaseDate": "2024-06-17",
       "origin": "China",
       "agentic": true,
       "description": "DeepSeek's Coder V2 16B is an advanced coding model from China with fast inference on 14 GB+ GPUs. Near-flagship coding skill for the Agentic tier.",
@@ -288,6 +299,7 @@
       "type": "embed",
       "task": "embed",
       "displayName": "Nomic Embed Text",
+      "releaseDate": "2024-02-14",
       "origin": "USA",
       "description": "Nomic AI's Nomic Embed Text is a small embedding model from the USA, not a chat model. It powers the semantic memory layer: search, recall, and retrieval across your conversations and files.",
       "strengths": [
@@ -311,6 +323,7 @@
       "type": "image",
       "task": "image",
       "displayName": "SDXL Turbo",
+      "releaseDate": "2023-11-28",
       "origin": "UK",
       "description": "Stability AI's SDXL Turbo is a speed-tuned image model from the UK that draws in 1-4 steps. The fast-draft pick of the SDXL lineage, ideal for rapid prompt iteration.",
       "strengths": [
@@ -347,6 +360,7 @@
       "type": "image",
       "task": "image",
       "displayName": "Stable Diffusion XL 1.0 Base",
+      "releaseDate": "2023-07-26",
       "origin": "UK",
       "description": "Stability AI's Stable Diffusion XL 1.0 is the reference image model from the UK. The compatibility baseline for the SDXL LoRA and ControlNet ecosystem.",
       "strengths": [
@@ -469,6 +483,7 @@
       "type": "image",
       "task": "image",
       "displayName": "FLUX.1 Schnell",
+      "releaseDate": "2024-08-01",
       "origin": "Germany",
       "description": "Black Forest Labs' FLUX.1 Schnell is a large image model from Germany that generates in just 4 steps. The prompt-adherence flagship for 24 GB GPUs, with the best text rendering in the catalog.",
       "strengths": [
@@ -505,6 +520,7 @@
       "type": "image",
       "task": "image",
       "displayName": "Stable Diffusion 1.5",
+      "releaseDate": "2022-10-20",
       "origin": "UK",
       "description": "Stable Diffusion 1.5 is the classic lightweight image model from the UK. The lightest in the catalog: 512px generation on 4 GB VRAM, with a vast legacy fine-tune ecosystem.",
       "strengths": [
@@ -516,12 +532,10 @@
       "sizeGB": 4.0,
       "vramGB": 4,
       "license": "OpenRAIL",
-      "gated": true,
-      "gatedReason": "The runwayml/stable-diffusion-v1-5 repo was withdrawn/gated by the publisher (HTTP 401 for unauthenticated clients); use a public image model such as juggernaut-xl-v9 or realvisxl-v5 unless a Hugging Face token is configured.",
       "source": {
         "protocol": "huggingface",
-        "repo": "runwayml/stable-diffusion-v1-5",
-        "url": "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.safetensors",
+        "repo": "stable-diffusion-v1-5/stable-diffusion-v1-5",
+        "url": "https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.safetensors",
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
       "weights": {
@@ -543,6 +557,7 @@
       "type": "video",
       "task": "video",
       "displayName": "LTX-Video 0.9",
+      "releaseDate": "2024-11-21",
       "origin": "Israel",
       "description": "Lightricks' LTX-Video is a speed-focused text-to-video model from Israel for 12 GB+ GPUs. The fastest clip generation in the catalog, with good motion on short clips.",
       "strengths": [
@@ -689,6 +704,7 @@
       "type": "video",
       "task": "video",
       "displayName": "Stable Video Diffusion 1.1",
+      "releaseDate": "2024-02-02",
       "origin": "UK",
       "description": "Stability AI's Stable Video Diffusion 1.1 is an image-to-video model from the UK. It animates a still image into a short clip with coherent camera motion.",
       "strengths": [
@@ -701,7 +717,9 @@
       "vramGB": 12,
       "license": "Stability AI Non-Commercial",
       "gated": true,
-      "gatedReason": "The stabilityai/stable-video-diffusion-img2vid-xt-1-1 repo is access-gated (HTTP 401 for unauthenticated clients); use a public video model such as wan2.1-t2v-1.3b unless a Hugging Face token is configured.",
+      "requiresLicense": true,
+      "licenseUrl": "https://huggingface.co/stabilityai/stable-video-diffusion-img2vid-xt-1-1",
+      "gatedReason": "Access-gated open-weight model (HTTP 401 for unauthenticated clients): the installer guided Hugging Face step (accept the model license on its page, then sign in with a free read token) unlocks it. Public alternatives (ltx-video, wan2.2-ti2v-5b) also cover image-to-video.",
       "source": {
         "protocol": "huggingface",
         "repo": "stabilityai/stable-video-diffusion-img2vid-xt-1-1",
@@ -914,7 +932,9 @@
       "linkedVAE": "dc-ae-f32c32-sana-1.1",
       "license": "Apache-2.0",
       "gated": true,
-      "gatedReason": "The Efficient-Large-Model INT4 repo is access-gated (HTTP 401) and the real INT4 weights ship in a different single-file SVDQuant layout at mit-han-lab/nunchaku-sana; use the public sana-1.6b-1024 instead unless a Hugging Face token and the nunchaku runtime are configured.",
+      "requiresLicense": true,
+      "licenseUrl": "https://huggingface.co/Efficient-Large-Model/SANA1.5_1.6B_1024px_int4",
+      "gatedReason": "Access-gated open-weight model (HTTP 401) that also needs the nunchaku runtime dependency: the installer guided Hugging Face step unlocks the download and the diffusion runtime provides nunchaku. The public sana-1.6b-1024 covers 1024px generation without either requirement.",
       "runtimeDeps": ["nunchaku"],
       "source": {
         "protocol": "huggingface",
@@ -1305,7 +1325,9 @@
       "contextWindow": null,
       "license": "Stability AI Community License",
       "gated": true,
-      "gatedReason": "The stabilityai/stable-audio-open-1.0 repo is access-gated (HTTP 401 for unauthenticated clients); it becomes available once a Hugging Face token with access is configured.",
+      "requiresLicense": true,
+      "licenseUrl": "https://huggingface.co/stabilityai/stable-audio-open-1.0",
+      "gatedReason": "Access-gated open-weight model (HTTP 401 for unauthenticated clients): the installer guided Hugging Face step (accept the model license on its page, then sign in with a free read token) unlocks it. MusicGen Medium is a public alternative for music generation.",
       "source": {
         "protocol": "huggingface",
         "repo": "stabilityai/stable-audio-open-1.0",

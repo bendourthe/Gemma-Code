@@ -22,6 +22,44 @@ from nexus_installer.pages.typed_catalog import (
 )
 
 
+def test_load_catalog_models_excludes_auxiliary_types(tmp_path: Path) -> None:
+    """v1.14.0 Phase 1: vae + controlnet are runtime add-ons, never picker rows."""
+    catalog = {
+        "models": [
+            {
+                "id": "img-model",
+                "displayName": "Img",
+                "type": "image",
+                "task": "image",
+                "sizeGB": 3.2,
+                "requiredVramGB": 6,
+                "releaseDate": "2025-08-01",
+                "description": "d",
+            },
+            {
+                "id": "some-vae",
+                "displayName": "VAE",
+                "type": "vae",
+                "sizeGB": 0.3,
+                "requiredVramGB": 1,
+                "description": "d",
+            },
+            {
+                "id": "some-controlnet",
+                "displayName": "CN",
+                "type": "controlnet",
+                "sizeGB": 0.7,
+                "requiredVramGB": 2,
+                "description": "d",
+            },
+        ]
+    }
+    path = tmp_path / "catalog.json"
+    path.write_text(json.dumps(catalog), encoding="utf-8")
+    ids = {m.id for m in load_catalog_models(path)}
+    assert ids == {"img-model"}
+
+
 def _write_catalog(tmp_path: Path) -> Path:
     catalog = {
         "models": [

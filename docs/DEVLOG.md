@@ -4,6 +4,30 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-19] v1.14.0 installer catalog curation -- Phase 1: best-of-family data set + release dates + gated remediation
+
+### Goal
+
+Clean the model catalog and set up the "every offered model installs" guarantee: give every selectable model a release date, remediate the gated opt-ins so they can be made to work rather than silently skipped, and confirm auxiliary types stay out of the picker. (Test-driven from the rebuilt v2.3.0 installer feedback.)
+
+### What happened
+
+- **Release dates**: added a first-class `releaseDate` to the 18 selectable models that lacked one (public release dates; the Gemma 4 tiers share the 12B's 2026-05-01 launch). All 34 selectable models now carry an ISO `releaseDate` for the Phase 3 card pill.
+- **Gated remediation** (grounded in live HF probes): `sd1.5` was re-pointed from the withdrawn `runwayml/stable-diffusion-v1-5` repo to the public `stable-diffusion-v1-5/stable-diffusion-v1-5` mirror and de-gated (installs automatically, no token). The three genuinely license-gated open-weight opt-ins (`svd`, `stable-audio-open-1.0`, `sana-1.6b-int4`) keep `gated: true` and now carry `requiresLicense: true` + a `licenseUrl`, so the Phase 2 guided Hugging Face step can unlock them instead of skipping.
+- **No deletions (deviation from plan)**: the plan's default was to drop `sana-1.6b-int4`, but a live grep showed it is wired across the desktop Image Studio, the diffusion runtime, and tests. Dropping it is out-of-scope cross-stack breakage, and the user's directive is to make gated models work, not drop them. It was retained + flagged instead (tracked as ICR.P1.A). The "show only best-of-family" clutter reduction is a render-time concern (Phase 3), so the catalog stays a complete data source.
+- **Auxiliary exclusion**: confirmed the picker loader already excludes `vae`/`controlnet` (unmapped type + no `task`); added a regression test.
+
+### Tests
+
+- New: `test_sd15_repointed_to_public_mirror`, `test_gated_opt_ins_carry_license_metadata`, `test_every_selectable_model_has_release_date` (updated the obsolete v1.13 `test_known_gated_repos_are_flagged`), and `test_load_catalog_models_excludes_auxiliary_types`.
+- Full installer pytest green; root registry vitest 129/129 green. No new source (data + tests only), so no coverage delta.
+
+### Known gaps
+
+See `docs/v1/v1.14/known-gaps.md` (ICR.P1.A-D): the guided-auth flow + pin rotation are sequenced into Phase 2 by design.
+
+---
+
 ## [2026-07-18] v1.13.0 installer reliability -- Phase 6 (FINAL): refactor + known-gaps + CI/CD -- cycle code-complete
 
 ### Goal
