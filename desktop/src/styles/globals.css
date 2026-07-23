@@ -94,8 +94,14 @@ button {
   backdrop-filter: blur(12px);
 }
 
-/* Frameless custom title bar (T501). */
+/* Frameless custom title bar (T501).
+ * position + z-index give the bar its own stacking context so it renders above
+ * the fixed .nexus-app-backdrop (z-index: 0) and the constellation layer; without
+ * this the opaque backdrop paints over the whole bar and hides the window controls
+ * (v1.15.0 Phase 1 / Issue 4). */
 .nexus-titlebar {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;

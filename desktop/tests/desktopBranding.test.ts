@@ -9,10 +9,28 @@ const tauriConf = JSON.parse(
 ) as {
   productName: string;
   identifier: string;
-  app: { windows: Array<{ title: string; decorations: boolean }> };
+  app: {
+    windows: Array<{
+      title: string;
+      decorations: boolean;
+      maximized?: boolean;
+      resizable?: boolean;
+    }>;
+  };
 };
 
 const indexHtml = readFileSync(path.resolve(root, "index.html"), "utf-8");
+
+const globalsCss = readFileSync(path.resolve(root, "src/styles/globals.css"), "utf-8");
+
+/** Extract a single top-level CSS rule body by its selector (exact `<selector> {`). */
+function cssRuleBody(css: string, selector: string): string {
+  const start = css.indexOf(`${selector} {`);
+  if (start === -1) return "";
+  const open = css.indexOf("{", start);
+  const close = css.indexOf("}", open);
+  return css.slice(open + 1, close);
+}
 
 const capability = JSON.parse(
   readFileSync(path.resolve(root, "src-tauri/capabilities/default.json"), "utf-8"),
@@ -53,5 +71,27 @@ describe("v1.9.0 Phase 5 window-control capability", () => {
     ]) {
       expect(capability.permissions).toContain(perm);
     }
+  });
+});
+
+describe("v1.15.0 Phase 1 window shell (Issue 4)", () => {
+  it("opens maximized while remaining resizable", () => {
+    const win = tauriConf.app.windows[0];
+    expect(win).toBeDefined();
+    expect(win?.maximized).toBe(true);
+    // Still resizable so the user can restore the window from maximized.
+    expect(win?.resizable).toBe(true);
+  });
+
+  it("gives the custom title bar a stacking context above the backdrop", () => {
+    // The frameless title bar carries the window controls; without its own
+    // stacking context the opaque .nexus-app-backdrop (z-index: 0) paints over
+    // it and hides minimize/maximize/close. Assert the bar sits above the backdrop.
+    const titlebar = cssRuleBody(globalsCss, ".nexus-titlebar");
+    expect(titlebar).toMatch(/position:\s*relative/);
+    expect(titlebar).toMatch(/z-index:\s*1\b/);
+
+    const backdrop = cssRuleBody(globalsCss, ".nexus-app-backdrop");
+    expect(backdrop).toMatch(/z-index:\s*0\b/);
   });
 });

@@ -4,6 +4,27 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-22] v1.15.0 installer + registry + studio-chat -- Phase 1: Desktop shell (window controls + open maximized)
+
+### Goal
+
+Fix Issue 4 from the v2.4.0 reinstall report: the app was missing its minimize / maximize / close controls and did not open maximized.
+
+### What happened
+
+- **Window controls un-buried** (`desktop/src/styles/globals.css`): the custom frameless `TitleBar` (already wired to the Tauri window API via `windowControls` and granted the needed capabilities) was invisible because the opaque `.nexus-app-backdrop` (`position: fixed; z-index: 0`) painted over it -- `.nexus-titlebar` had no stacking context. Added `position: relative; z-index: 1;` so the bar and its controls render above the backdrop, matching the stylesheet's own "foreground chrome sits above both via position + z-index" note. No change to `TitleBar.tsx` / `windowControls.ts` / capabilities.
+- **Open maximized** (`desktop/src-tauri/tauri.conf.json`): added `"maximized": true` to the main window; kept `resizable: true` so the window restores normally. `decorations: false` unchanged (the custom title bar stays).
+
+### Tests
+
+- Extended `desktop/tests/desktopBranding.test.ts`: asserts the window opens maximized + resizable, and that `.nexus-titlebar` carries `position: relative; z-index: 1` above the `z-index: 0` backdrop. Full desktop suite 68 files / 544 tests green; lint 0; typecheck clean.
+
+### CI/CD
+
+- No change: `shell-build.yml` already covers desktop changes and is optimized (path filters, concurrency cancel-in-progress, npm+cargo caching, gated matrix).
+
+---
+
 ## [2026-07-19] v1.14.0 installer catalog curation -- Phase 5 (FINAL): refactor + known-gaps + CI/CD + release readiness
 
 ### Goal
