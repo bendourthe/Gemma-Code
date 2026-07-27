@@ -4,6 +4,32 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-22] v1.15.0 installer + registry + studio-chat -- Phase 2: Installer relaunch state machine (Issue 1)
+
+### Goal
+
+Fix Issue 1 from the v2.4.0 reinstall report: a fresh double-click of the installer opened on the "Installation Complete" page (even after uninstalling) instead of Welcome.
+
+### Root cause
+
+A completed install left `%LOCALAPPDATA%\NexusInstaller\state.json` at `status: completed`, and `interpret_startup` mapped any cold-launch terminal state to `DECISION_SHOW_COMPLETE`, so every later launch jumped to the Complete page. Nothing ever deleted the file -- not Finish, not the uninstaller.
+
+### What happened
+
+- **Cold terminal -> Welcome** (`background/resume.py`): `interpret_startup` now returns `DECISION_FRESH` for a cold-launch `completed`/`failed` state. The in-session tray reattach is a separate path (`signal_running_instance` -> `DECISION_FORWARD` / tray reopen), so it is unaffected; `plan_startup`'s "interrupted-but-all-done -> show-complete" crash-recovery promotion is preserved.
+- **Acknowledge clears state** (`background/state_store.py`, `pages/complete.py`, `main.py`): added a best-effort `clear_state(path)` helper; `CompletePage.on_finish()` calls it (Finish drops the state), and `main.py` clears it right after a one-time SHOW_COMPLETE view applies, so no outcome view lingers.
+- **Uninstaller** (`legacy/nexus-setup.nsi`, `legacy/setup.nsi`): both now `RMDir /r "$LOCALAPPDATA\NexusInstaller"`, so a reinstall after uninstall starts fresh.
+
+### Tests
+
+- `tests/test_background_resume.py`: the terminal-state decisions now expect `DECISION_FRESH`; kept the interrupted-all-done -> SHOW_COMPLETE promotion; added `TestClearState` (existing-file delete, absent-file no-op, and clear -> reload None -> FRESH). Full installer pytest green; ruff clean; changed logic mypy-clean (1 pre-existing `complete.py` deleteLater error left untouched, tracked as IRSC.P2.A).
+
+### CI/CD
+
+- No change: the installer pytest job auto-covers the new tests; the one-line NSIS additions do not affect the build/smoke jobs.
+
+---
+
 ## [2026-07-22] v1.15.0 installer + registry + studio-chat -- Phase 1: Desktop shell (window controls + open maximized)
 
 ### Goal

@@ -176,6 +176,19 @@ def load_state(path: str | Path) -> InstallState | None:
     return InstallState.from_dict(data)
 
 
+def clear_state(path: str | Path) -> None:
+    """Delete the persisted state file if present (best-effort, never raises).
+
+    Acknowledging a terminal run: once the user has seen the Complete (outcome)
+    view, the state file must not survive to redirect future *cold* launches
+    back to it. Leaving a ``completed`` file on disk is exactly what made every
+    later launch reopen the Complete page (v1.11.0 Phase 7 defect fixed in
+    v1.15.0 Phase 2 / Issue 1).
+    """
+    with contextlib.suppress(OSError):
+        Path(path).unlink(missing_ok=True)
+
+
 def append_log(path: str | Path, line: str) -> None:
     """Append one leveled log line to the rolling log file (size-capped)."""
     target = Path(path)

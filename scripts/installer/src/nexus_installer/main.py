@@ -502,6 +502,10 @@ def main() -> None:
     resume_now = False
     if plan.decision == bg_resume.DECISION_SHOW_COMPLETE and plan.state is not None:
         bg_recorder.apply_state_to_installer_state(plan.state, state)
+        # One-time outcome view: now that the results are copied into
+        # InstallerState, drop the persisted state so the next cold launch
+        # starts at Welcome rather than reopening Complete (Issue 1).
+        state_store.clear_state(state_path)
     elif plan.decision == bg_resume.DECISION_RESUME and plan.state is not None:
         resume_now = _prompt_resume()
         if resume_now and plan.resume is not None:

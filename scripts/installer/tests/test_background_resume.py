@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 from nexus_installer.background import resume as bg_resume
 from nexus_installer.background.process import pid_alive
@@ -26,6 +27,9 @@ from nexus_installer.background.state_store import (
     STEP_PENDING,
     STEP_SKIPPED,
     InstallState,
+    clear_state,
+    load_state,
+    save_state,
 )
 
 
@@ -67,15 +71,17 @@ class TestInterpretStartup:
     def test_no_state_is_fresh(self) -> None:
         assert interpret_startup(None, primary_alive=False) == DECISION_FRESH
 
-    def test_completed_shows_complete(self) -> None:
+    def test_completed_is_fresh_on_cold_launch(self) -> None:
+        # v1.15.0 Phase 2 (Issue 1): a normally-completed run must NOT redirect
+        # a later cold launch to the Complete page; it starts at Welcome.
         state = InstallState(status=STATUS_COMPLETED)
         got = interpret_startup(state, primary_alive=False)
-        assert got == DECISION_SHOW_COMPLETE
+        assert got == DECISION_FRESH
 
-    def test_failed_shows_complete(self) -> None:
+    def test_failed_is_fresh_on_cold_launch(self) -> None:
         state = InstallState(status=STATUS_FAILED)
         got = interpret_startup(state, primary_alive=False)
-        assert got == DECISION_SHOW_COMPLETE
+        assert got == DECISION_FRESH
 
     def test_cancelled_is_fresh(self) -> None:
         state = InstallState(status=STATUS_CANCELLED)
@@ -144,11 +150,41 @@ class TestPlanStartup:
         plan = plan_startup(loaded_state=state, primary_alive=False)
         assert plan.decision == DECISION_SHOW_COMPLETE
 
-    def test_completed_shows_complete(self) -> None:
+    def test_completed_is_fresh_on_cold_launch(self) -> None:
+        # v1.15.0 Phase 2 (Issue 1): a cold relaunch after a completed run
+        # starts fresh at Welcome, not the Complete page.
         state = InstallState(status=STATUS_COMPLETED)
         plan = plan_startup(loaded_state=state, primary_alive=False)
-        assert plan.decision == DECISION_SHOW_COMPLETE
+        assert plan.decision == DECISION_FRESH
         assert plan.state is state
+
+
+class TestClearState:
+    """v1.15.0 Phase 2 (Issue 1): acknowledging a run drops its state file."""
+
+    def test_removes_an_existing_state_file(self, tmp_path: Path) -> None:
+        path = tmp_path / "state.json"
+        save_state(path, InstallState(status=STATUS_COMPLETED))
+        assert path.is_file()
+        clear_state(path)
+        assert not path.exists()
+        assert load_state(path) is None
+
+    def test_absent_file_is_a_noop(self, tmp_path: Path) -> None:
+        # Must never raise when there is nothing to delete.
+        clear_state(tmp_path / "missing.json")
+        assert not (tmp_path / "missing.json").exists()
+
+    def test_cold_relaunch_after_acknowledge_is_fresh(self, tmp_path: Path) -> None:
+        # End-to-end at the pure-logic level: a completed run is acknowledged
+        # (CompletePage.on_finish / uninstaller clears state), so the next cold
+        # launch loads no state and the decision is FRESH (Welcome).
+        path = tmp_path / "state.json"
+        save_state(path, InstallState(status=STATUS_COMPLETED))
+        clear_state(path)
+        reloaded = load_state(path)
+        assert reloaded is None
+        assert interpret_startup(reloaded, primary_alive=False) == DECISION_FRESH
 
 
 def test_decisions_are_distinct() -> None:

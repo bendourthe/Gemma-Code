@@ -52,8 +52,16 @@ def interpret_startup(state: InstallState | None, *, primary_alive: bool) -> str
     if state is None:
         return DECISION_FRESH
     if state.status in (STATUS_COMPLETED, STATUS_FAILED):
-        # The engine reached its end normally; reopen the outcome view.
-        return DECISION_SHOW_COMPLETE
+        # A normally-finished run, seen on a *cold* relaunch, must start fresh
+        # at Welcome -- NOT reopen the outcome view forever (v1.15.0 Phase 2 /
+        # Issue 1). A leftover terminal state.json used to route every future
+        # launch to the Complete page. The in-session "show me the result"
+        # reattach is a different path (a live primary is signalled ->
+        # DECISION_FORWARD, or the tray reopens the window), and a crash whose
+        # steps all finished is still surfaced via plan_startup's
+        # resume->show-complete promotion. CompletePage.on_finish() and the
+        # uninstaller also clear the file, so it never lingers.
+        return DECISION_FRESH
     if state.status == STATUS_CANCELLED:
         # The user aborted; start clean rather than resurrecting the run.
         return DECISION_FRESH

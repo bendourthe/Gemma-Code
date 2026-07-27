@@ -17,6 +17,8 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
+from nexus_installer.background import paths as bg_paths
+from nexus_installer.background import state_store
 from nexus_installer.constants import (
     ACCENT,
     BG_CARD,
@@ -253,6 +255,10 @@ class CompletePage(QWidget):
 
     def on_finish(self) -> None:
         """Called by the window when Finish is clicked on this page."""
+        # Acknowledge the run: drop the persisted install-state so a later cold
+        # launch starts at Welcome instead of reopening this outcome view
+        # (v1.15.0 Phase 2 / Issue 1).
+        state_store.clear_state(bg_paths.state_file())
         state = self._state
         if not (
             state.launch_desktop_on_finish

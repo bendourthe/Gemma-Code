@@ -147,6 +147,12 @@ Section "Uninstall"
   Delete "$INSTDIR\Uninstall.exe"
   RMDir "$INSTDIR"
 
+  ; v1.15.0 Phase 2 (Issue 1): the installer's background-continuation state
+  ; dir (%LOCALAPPDATA%\NexusInstaller\state.json) is separate from $INSTDIR and
+  ; from ~\.nexus; remove it so a reinstall starts fresh at Welcome instead of
+  ; reopening the previous run's Complete page.
+  RMDir /r "$LOCALAPPDATA\NexusInstaller"
+
   Delete "$SMPROGRAMS\Nexus\Nexus Setup.lnk"
   RMDir "$SMPROGRAMS\Nexus"   ; removed only when empty (desktop app may own it)
 

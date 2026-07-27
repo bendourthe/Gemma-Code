@@ -236,6 +236,11 @@ Section "Uninstall"
     Delete "$INSTDIR\uninstall.exe"
     RMDir  "$INSTDIR"
 
+    ; v1.15.0 Phase 2 (Issue 1): remove the installer's background-state dir
+    ; (%LOCALAPPDATA%\NexusInstaller) so a reinstall starts at Welcome instead
+    ; of reopening the previous run's Complete page.
+    RMDir /r "$LOCALAPPDATA\NexusInstaller"
+
     ; Remove Start Menu shortcuts
     Delete "$SMPROGRAMS\${PRODUCT_NAME}\Open in VS Code.lnk"
     Delete "$SMPROGRAMS\${PRODUCT_NAME}\Uninstall ${PRODUCT_NAME}.lnk"
