@@ -28,7 +28,17 @@ A few offered models are open-weight but sit behind a Hugging Face license click
 1. **Automatic** - it resolves a Hugging Face token from `HF_TOKEN` / `HUGGING_FACE_HUB_TOKEN` or the `huggingface-cli login` cache (`engine.hf_auth.discover_hf_token`) and uses it silently.
 2. **Guided (last resort)** - if no token is found and you selected a gated model, a one-time dialog (`widgets.gated_auth_dialog`) opens the model's license page, lets you paste a free read token, validates it against the repo, and proceeds. Declining removes that model from the install queue so nothing fails mid-download.
 
-The default (recommended) model set is 100% public, so a normal install never needs a token.
+The default (recommended) model set is 100% public, so a normal install never needs a token. The guided dialog explains what a gated model is, links directly to the Hugging Face token settings, and makes clear that Skip omits only that one model and continues.
+
+## Model catalog
+
+The models the wizard offers come from `core/registry/catalog.json` (shared with the desktop app). The PyInstaller spec bundles this file straight from the repo, so a fresh build always ships the current catalog. To stop a *stale* catalog from shipping (an older build was the root of the v1.13/v1.14 install-reliability defects - a broken Gemma Ollama pull target and an unflagged gated model), the catalog is guarded by content invariants (`nexus_installer.catalog_invariants`):
+
+- The build FAILS CLOSED (`build/nexus-installer.spec`) if `catalog.json` is missing or violates an invariant.
+- `test_catalog_invariants.py` runs the same checks in CI (the installer pytest job) - the always-on gate.
+- `python build/check-catalog.py` runs them ad hoc against `core/registry/catalog.json`.
+
+The invariants encode the fixes: no model may use the known-broken `unsloth/gemma-4-12b-it-GGUF` Ollama reference, and known access-gated models (e.g. `sana-1.6b-int4`) must stay flagged `gated` with a reason / license URL so the guided token step can explain it and offer a clean skip.
 
 ## Build
 

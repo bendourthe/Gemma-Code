@@ -44,6 +44,9 @@ from nexus_installer.engine.hf_auth import validate_token_for_repo
 # validate(repo, token) -> True when the token can reach the repo.
 ValidateFn = Callable[[str, str], bool]
 
+#: Where a user creates a free Hugging Face read token (v1.15.0 Phase 3).
+HF_TOKENS_URL = "https://huggingface.co/settings/tokens"
+
 
 class GatedAuthDialog(QDialog):
     """Collect + validate a Hugging Face token for one gated model."""
@@ -78,12 +81,18 @@ class GatedAuthDialog(QDialog):
         layout.addWidget(heading)
 
         body = QLabel(
-            "This model is free and open-weight, but its publisher requires you "
-            "to accept a license on Hugging Face before downloading. The "
-            "installer cannot accept it for you. One-time steps:\n"
+            "A few high-end models are \"gated\": they are free and open-weight, "
+            "but the publisher asks you to accept their license on Hugging Face "
+            "first, so the download needs a free account and a personal access "
+            "token. The installer cannot accept the license for you.\n\n"
+            "One-time steps (about a minute):\n"
             "  1. Open the license page and click 'Agree and access repository'.\n"
-            "  2. Sign in (or create a free account) and make a read token.\n"
-            "  3. Paste the token below."
+            "  2. Open your Hugging Face token settings and create a free 'read' "
+            "token.\n"
+            "  3. Paste the token below and click Unlock.\n\n"
+            "Prefer to skip? Click 'Skip this model' - the rest of the install "
+            "continues normally and only this one model is left out. You can add "
+            "it later from the app's Models settings."
         )
         body.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: {FS_BODY}px;")
         body.setWordWrap(True)
@@ -94,6 +103,11 @@ class GatedAuthDialog(QDialog):
         open_btn.clicked.connect(self._open_license)
         open_btn.setEnabled(bool(self._license_url))
         layout.addWidget(open_btn)
+
+        tokens_btn = QPushButton("Open Hugging Face token settings")
+        tokens_btn.setObjectName("openTokensButton")
+        tokens_btn.clicked.connect(self._open_tokens)
+        layout.addWidget(tokens_btn)
 
         self._token_input = QLineEdit()
         self._token_input.setEchoMode(QLineEdit.Password)
@@ -134,6 +148,9 @@ class GatedAuthDialog(QDialog):
     def _open_license(self) -> None:
         if self._license_url:
             QDesktopServices.openUrl(QUrl(self._license_url))
+
+    def _open_tokens(self) -> None:
+        QDesktopServices.openUrl(QUrl(HF_TOKENS_URL))
 
     def _show_error(self, message: str) -> None:
         self._status.setText(message)

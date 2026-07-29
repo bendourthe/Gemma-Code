@@ -310,6 +310,46 @@ class TestCompletePage:
         assert "Managing Nexus" in all_text
         assert "Gemma Code" not in all_text
 
+    # v1.15.0 Phase 3 (Issue 2) -- post-install summary + retry surface.
+
+    def _refreshed_page(self, **state_kw: object) -> object:
+        from nexus_installer.pages.complete import CompletePage
+
+        state = InstallerState()
+        for key, value in state_kw.items():
+            setattr(state, key, value)
+        page = CompletePage(state)
+        page._refresh()
+        return page
+
+    def test_retry_button_visible_for_failed_downloads(self, qt_app: object) -> None:
+        page = self._refreshed_page(
+            selected_model_ids=["a"],
+            failed_models=["a"],
+            model_failures={"a": "Error: 400:"},
+        )
+        assert not page._retry_btn.isHidden()
+
+    def test_retry_button_hidden_on_clean_run(self, qt_app: object) -> None:
+        page = self._refreshed_page(selected_model_ids=["a"])
+        assert page._retry_btn.isHidden()
+
+    def test_gated_skip_does_not_offer_retry(self, qt_app: object) -> None:
+        # A gated skip needs a token, not another download attempt.
+        page = self._refreshed_page(selected_model_ids=[], gated_skipped=["g"])
+        assert page._retry_btn.isHidden()
+
+    def test_retry_button_emits_signal(self, qt_app: object) -> None:
+        page = self._refreshed_page(
+            selected_model_ids=["a"],
+            failed_models=["a"],
+            model_failures={"a": "boom"},
+        )
+        fired: list[bool] = []
+        page.retry_requested.connect(lambda: fired.append(True))
+        page._retry_btn.click()
+        assert fired == [True]
+
 
 class TestInstallingGatedAuthWiring:
     """v1.14.0 Phase 2 -- the installing page resolves gated auth before the

@@ -4,6 +4,24 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-28] v1.15.0 installer + registry + studio-chat -- Phase 3: Installer download reliability + gated-token UX (Issue 2)
+
+### Goal
+
+Fix Issue 2 at its roots. The two failures in the user's log (Gemma HTTP 400 from a broken Unsloth GGUF Ollama pull target; SANA int4 HTTP 401 from an unflagged gated repo) were already fixed in the current `core/registry/catalog.json` - the user ran a build predating the fix. So: guarantee the shipped catalog can never regress, smooth the gated-token UX, and add a plain-language post-install summary + retry.
+
+### What happened
+
+- **Catalog guard** (`catalog_invariants.py`, `build/check-catalog.py`, `build/nexus-installer.spec`, `test_catalog_invariants.py`): content invariants encode the v1.13/v1.14 fixes (no known-broken `unsloth/gemma-4-12b-it-GGUF` Ollama ref; known-gated ids stay flagged with a reason/URL). The build now FAILS CLOSED on a missing/regressed catalog, and the same checks run in the installer pytest CI job. (The plan's "hash compare" is a no-op since the spec bundles the catalog straight from the repo, so it is implemented as the higher-value regression guard.)
+- **Gated-token UX** (`widgets/gated_auth_dialog.py`): plainer copy (what "gated" means, that Skip omits only that one model and continues) + a direct "Open Hugging Face token settings" link. The validate-before-queue / decline-removes-from-queue logic (v1.14) is unchanged.
+- **Post-install summary + retry** (`engine/install_summary.py`, `installer_state.py`, `pages/installing.py`, `pages/complete.py`, `main.py`): `humanize_reason` maps raw 400/401/404/network errors to one plain sentence; the Complete page shows succeeded / skipped-needs-token / failed-with-reason and a "Retry failed downloads" button that re-runs only the failed model ids via the engine's resume path (mark non-model steps done, narrow the selection). A gated skip is not offered a retry (it needs a token).
+
+### Tests
+
+- Full installer pytest green (0 failures, 3 pre-existing skips); +29 tests (catalog invariants, install summary, gated token button, Complete-page retry surface). ruff clean; new modules mypy-strict clean; a HEAD-baseline stash confirmed the edited files' remaining mypy errors are all pre-existing (0 new). CI: no new job - the invariant test runs in the existing installer pytest job and the spec assertion gates the build.
+
+---
+
 ## [2026-07-22] v1.15.0 installer + registry + studio-chat -- Phase 2: Installer relaunch state machine (Issue 1)
 
 ### Goal

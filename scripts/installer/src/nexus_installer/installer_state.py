@@ -74,6 +74,14 @@ class InstallerState:
     failed_models: list[str] = field(default_factory=list)
     models_root: str = ""
 
+    # v1.15.0 Phase 3 (Issue 2) -- post-install summary + retry surfaces.
+    # `model_failures` maps a failed model id to its raw engine reason (mapped to
+    # plain language by engine.install_summary); `gated_skipped` collects models
+    # the user declined at the guided Hugging Face step so the summary can show
+    # them as "skipped - needs token", distinct from a failure.
+    model_failures: dict[str, str] = field(default_factory=dict)
+    gated_skipped: list[str] = field(default_factory=list)
+
     # v1.14.0 Phase 2 -- Hugging Face token for gated open-weight opt-ins,
     # captured by the guided auth step (widgets.gated_auth_dialog) or resolved
     # from the environment / HF CLI cache (engine.hf_auth.discover_hf_token).

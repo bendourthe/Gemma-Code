@@ -7,6 +7,7 @@ import subprocess
 import sys
 from typing import TYPE_CHECKING
 
+from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtWidgets import (
     QCheckBox,
@@ -31,6 +32,11 @@ from nexus_installer.constants import (
     TEXT_BODY,
     TEXT_SECONDARY,
     WARNING,
+)
+from nexus_installer.engine.install_summary import summarize_install
+from nexus_installer.engine.model_router import (
+    default_catalog_path,
+    load_catalog_index,
 )
 from nexus_installer.engine.platform_utils import no_window_kwargs
 from nexus_installer.widgets.callout_box import CalloutBox
@@ -81,6 +87,9 @@ class _CommandRow(QWidget):
 
 class CompletePage(QWidget):
     """Final wizard page showing results and next steps."""
+
+    #: Emitted when the user clicks "Retry failed downloads" (v1.15.0 Phase 3).
+    retry_requested = pyqtSignal()
 
     def __init__(self, state: InstallerState, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -162,6 +171,15 @@ class CompletePage(QWidget):
         self._save_log_btn.clicked.connect(self._save_log)
         btn_row.addWidget(self._save_log_btn)
 
+        # v1.15.0 Phase 3 (Issue 2): retry just the failed downloads. Hidden
+        # unless the summary reports retryable failures (a gated skip is not
+        # retryable -- it needs a token, not another attempt).
+        self._retry_btn = SecondaryButton("Retry failed downloads")
+        self._retry_btn.setObjectName("retryFailedButton")
+        self._retry_btn.clicked.connect(self.retry_requested.emit)
+        self._retry_btn.setVisible(False)
+        btn_row.addWidget(self._retry_btn)
+
         btn_row.addStretch()
         layout.addLayout(btn_row)
 
@@ -174,8 +192,27 @@ class CompletePage(QWidget):
     def _refresh(self) -> None:
         state = self._state
 
-        # Update title based on failures
-        if state.failed_steps or state.failed_models:
+        # v1.15.0 Phase 3 (Issue 2): plain-language per-model outcome summary.
+        # Failed downloads get a human reason (not a raw "Error: 400"); gated
+        # declines read as "skipped - needs token", distinct from a failure.
+        catalog = load_catalog_index(default_catalog_path())
+        summary = summarize_install(state, catalog)
+        non_model_failures = [s for s in state.failed_steps if s != "model"]
+
+        callout_lines = [
+            f"\u2022 {outcome.display_name}: {outcome.reason}"
+            for outcome in summary.failed
+        ]
+        callout_lines += [
+            f"\u2022 {outcome.display_name}: {outcome.reason}"
+            for outcome in summary.skipped
+        ]
+        callout_lines += [
+            f"\u2022 The {step} step did not complete." for step in non_model_failures
+        ]
+
+        has_failure = bool(summary.failed or non_model_failures)
+        if has_failure:
             self._title.setText("Installation Completed with Warnings")
             self._subtitle.setStyleSheet(
                 f"color: {WARNING}; font-size: {FS_BODY}px; background: transparent;"
@@ -183,18 +220,15 @@ class CompletePage(QWidget):
             self._subtitle.setText(
                 "Some components could not be installed. See details below."
             )
-            # v1.8.0 Phase 3 -- per-model failure isolation: name each model
-            # that failed so the user knows what to re-run, not just "model".
-            failures = [f"\u2022 {step}" for step in state.failed_steps]
-            failures.extend(
-                f"\u2022 model download failed: {model_id}"
-                for model_id in state.failed_models
-            )
-            self._warning_callout.set_body("<br>".join(failures))
-            self._warning_callout.setVisible(True)
         else:
             self._title.setText("Installation Complete")
-            self._warning_callout.setVisible(False)
+
+        self._warning_callout.setVisible(bool(callout_lines))
+        if callout_lines:
+            self._warning_callout.set_body("<br>".join(callout_lines))
+
+        # Only failed downloads are retryable; a gated skip needs a token.
+        self._retry_btn.setVisible(bool(summary.retryable_ids))
 
         # Rebuild services list
         while self._services_layout.count():

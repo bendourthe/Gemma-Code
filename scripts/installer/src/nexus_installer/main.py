@@ -545,7 +545,17 @@ def main() -> None:
         state, on_engine_created=controller.on_engine_created
     )
     window.add_page(installing_page)
-    window.add_page(CompletePage(state))
+    complete_page = CompletePage(state)
+    window.add_page(complete_page)
+
+    # v1.15.0 Phase 3 (Issue 2): "Retry failed downloads" on the Complete page
+    # re-runs just the failed model ids (via the engine's resume path), then
+    # reveals the installing page so the user watches the retry live.
+    def _retry_failed_models() -> None:
+        if installing_page.retry_models():
+            window.switch_page(window.installing_page_index)
+
+    complete_page.retry_requested.connect(_retry_failed_models)
 
     controller.attach_installing_page(installing_page)
     window.background_requested.connect(controller.request_background)

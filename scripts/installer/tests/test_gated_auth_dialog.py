@@ -55,3 +55,13 @@ class TestGatedAuthDialog:
         )
         open_btn = dlg.findChild(QPushButton, "openLicenseButton")
         assert open_btn is not None and not open_btn.isEnabled()
+
+    def test_token_settings_button_always_available(self, qt_app: object) -> None:
+        # v1.15.0 Phase 3 (Issue 2): a direct "where to get a token" link,
+        # enabled even for a model that carries no license URL.
+        dlg = GatedAuthDialog(
+            {"displayName": "X", "source": {"repo": "org/x"}},
+            validate=lambda repo, tok: True,
+        )
+        tokens_btn = dlg.findChild(QPushButton, "openTokensButton")
+        assert tokens_btn is not None and tokens_btn.isEnabled()

@@ -58,10 +58,35 @@ if vsix_candidates:
 # `nexus_installer.registry_paths`, which checks the bundle (sys._MEIPASS)
 # first. Without them a packaged wizard renders an empty catalog and routes
 # every model id to ollama.
-for registry_name in ("catalog.json", "recommended.json"):
-    registry_path = REPO_ROOT / "core" / "registry" / registry_name
-    if registry_path.exists():
-        datas.append((str(registry_path), "core/registry"))
+#
+# v1.15.0 Phase 3 (Issue 2): FAIL CLOSED on catalog.json. A missing catalog was
+# previously skipped silently, and a *stale* catalog is exactly what shipped the
+# v1.13/v1.14 install-reliability defects (Gemma Ollama-400, unflagged gated
+# SANA 401). Validate the content invariants at build time so a missing or
+# regressed catalog can never be bundled. (Mirror-checked by the pytest
+# `test_catalog_invariants.py` gate that runs in CI.)
+catalog_path = REPO_ROOT / "core" / "registry" / "catalog.json"
+if not catalog_path.is_file():
+    raise SystemExit(f"catalog.json missing: expected {catalog_path}")
+sys.path.insert(0, str(INSTALLER_ROOT / "src"))
+import json as _json  # noqa: E402
+
+from nexus_installer.catalog_invariants import validate_catalog  # noqa: E402
+
+catalog_problems = validate_catalog(
+    _json.loads(catalog_path.read_text(encoding="utf-8"))
+)
+if catalog_problems:
+    raise SystemExit(
+        "catalog.json failed invariant checks (run "
+        "scripts/installer/build/check-catalog.py):\n  - "
+        + "\n  - ".join(catalog_problems)
+    )
+datas.append((str(catalog_path), "core/registry"))
+
+recommended_path = REPO_ROOT / "core" / "registry" / "recommended.json"
+if recommended_path.exists():
+    datas.append((str(recommended_path), "core/registry"))
 
 # Backend requirements
 req_candidates = [

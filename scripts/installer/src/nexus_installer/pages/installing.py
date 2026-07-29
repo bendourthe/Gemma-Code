@@ -27,6 +27,7 @@ from nexus_installer.constants import (
     TEXT_SECONDARY,
 )
 from nexus_installer.engine.gated_auth import ensure_gated_auth
+from nexus_installer.engine.install_summary import prepare_model_retry
 from nexus_installer.engine.installer import InstallEngine, start_install
 from nexus_installer.engine.model_router import (
     default_catalog_path,
@@ -194,6 +195,29 @@ class InstallingPage(QWidget):
         self._thread = start_install(self._engine, self._state)
         self.started.emit()
 
+    def retry_models(self) -> bool:
+        """Re-run only the failed model downloads (v1.15.0 Phase 3 / Issue 2).
+
+        Narrows the install to the failed model ids and re-runs the engine; the
+        resume mechanism folds every already-done non-model step to complete so
+        only the model step executes, for just the failed ids. Returns True when
+        a retry was started, False when nothing is retryable or a run is already
+        in flight.
+        """
+        if self._is_running:
+            return False
+        retry_ids = prepare_model_retry(self._state)
+        if not retry_ids:
+            return False
+        # Reset the run guards so start_installation executes again against the
+        # narrowed selection.
+        self._has_started = False
+        self._is_running = False
+        self._engine = None
+        self._thread = None
+        self.start_installation()
+        return True
+
     def _resolve_gated_auth(self) -> None:
         """Guided HF-auth pass for selected gated models (v1.14.0 Phase 2).
 
@@ -204,11 +228,17 @@ class InstallingPage(QWidget):
         catalog = load_catalog_index(default_catalog_path())
         if not catalog:
             return
-        ensure_gated_auth(
+        outcome = ensure_gated_auth(
             self._state,
             catalog,
             lambda entry: run_gated_prompt(entry, self),
         )
+        # v1.15.0 Phase 3: remember which models were declined for lack of a
+        # token so the Complete page shows them as "skipped - needs token"
+        # (distinct from a download failure).
+        for mid in outcome.skipped:
+            if mid not in self._state.gated_skipped:
+                self._state.gated_skipped.append(mid)
 
     def _on_step_started(self, name: str) -> None:
         group = self._group_for(name)
@@ -268,6 +298,9 @@ class InstallingPage(QWidget):
             group.set_model_done(model_id)
 
     def _on_model_failed(self, model_id: str, reason: str) -> None:
+        # v1.15.0 Phase 3: keep the raw reason so the Complete-page summary can
+        # map it to plain language (engine.install_summary.humanize_reason).
+        self._state.model_failures[model_id] = reason
         group = self._models_group()
         if group is not None:
             group.set_model_failed(model_id, reason)
