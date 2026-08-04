@@ -5,11 +5,13 @@ on:
     branches: [main]
     paths:
       - "desktop/**"
+      - "core/**"
       - ".github/workflows/shell-build.yml"
   pull_request:
     branches: [main]
     paths:
       - "desktop/**"
+      - "core/**"
       - ".github/workflows/shell-build.yml"
   workflow_dispatch: {}
 

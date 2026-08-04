@@ -31,6 +31,10 @@ import {
   DiffusionVideoText2VideoRequest,
   DiffusionVideoWorkflowExtractRequest,
   DiffusionWorkflowExtractRequest,
+  ModelsInstallRequest,
+  ModelsRemoveRequest,
+  ModelsInstallDrainRequest,
+  ModelsInstallCancelRequest,
   SkillsSyncRequest,
   SkillsOptimizePreviewRequest,
   SkillsOptimizeApplyRequest,
@@ -80,6 +84,7 @@ import {
   type CredentialVault,
   createCredentialVault,
 } from "../../../core/security/CredentialVault.js";
+import { createModelsRuntime, type ModelsRuntime } from "./models/modelsService.js";
 
 export const SIDECAR_VERSION = "1.0.0-alpha.0";
 
@@ -100,6 +105,24 @@ export interface HandlerContext {
   credentials: CredentialVault;
   /** v1.12.0 EM.P2.A -- the two-call skill-optimizer preview/apply manager. */
   skillOptimizer: SkillOptimizerManager;
+  /**
+   * v1.15.0 Phase 4 (Issue 3) -- Settings > Models registry runtime (reflect +
+   * install). Optional so tests inject a fake; production lazily builds the
+   * real disk-backed runtime on first `models.*` call.
+   */
+  models?: ModelsRuntime;
+}
+
+/**
+ * Lazily resolve the models runtime: the test-injected `ctx.models` when
+ * present, else a memoized real runtime (built once per process on first use so
+ * activation stays cheap and a missing Ollama / catalog never blocks startup).
+ */
+let _modelsRuntime: Promise<ModelsRuntime> | null = null;
+async function resolveModelsRuntime(ctx: HandlerContext): Promise<ModelsRuntime> {
+  if (ctx.models) return ctx.models;
+  if (!_modelsRuntime) _modelsRuntime = createModelsRuntime();
+  return _modelsRuntime;
 }
 
 export type HandlerFn = (params: unknown, ctx: HandlerContext) => Promise<unknown>;
@@ -132,11 +155,35 @@ export const handlers: Record<Method, HandlerFn> = {
     PingResponse.parse(response);
     return response;
   },
-  "models.list": async () => {
-    throw new NotImplementedError("models.list");
+  "models.list": async (_params, ctx) => {
+    const { service } = await resolveModelsRuntime(ctx);
+    return { models: await service.list() };
   },
-  "models.install": async () => {
-    throw new NotImplementedError("models.install");
+  "models.install": async (params, ctx) => {
+    const req = ModelsInstallRequest.parse(params ?? {});
+    const { installer } = await resolveModelsRuntime(ctx);
+    return { jobId: installer.start(req.id) };
+  },
+  "models.remove": async (params, ctx) => {
+    const req = ModelsRemoveRequest.parse(params ?? {});
+    const { service } = await resolveModelsRuntime(ctx);
+    await service.remove(req.id);
+    return { ok: true as const };
+  },
+  "models.diskUsage": async (_params, ctx) => {
+    const { service } = await resolveModelsRuntime(ctx);
+    return service.diskUsage();
+  },
+  "models.install.drainEvents": async (params, ctx) => {
+    const req = ModelsInstallDrainRequest.parse(params ?? {});
+    const { installer } = await resolveModelsRuntime(ctx);
+    return installer.drain(req.jobId);
+  },
+  "models.install.cancel": async (params, ctx) => {
+    const req = ModelsInstallCancelRequest.parse(params ?? {});
+    const { installer } = await resolveModelsRuntime(ctx);
+    installer.cancel(req.jobId);
+    return { ok: true as const };
   },
   "coding.startTask": async () => {
     throw new NotImplementedError("coding.startTask");

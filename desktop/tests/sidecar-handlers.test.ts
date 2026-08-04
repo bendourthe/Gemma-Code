@@ -44,6 +44,13 @@ describe("sidecar handlers", () => {
       (m) =>
         ![
           "ping",
+          // v1.15.0 Phase 4 wired the Settings > Models registry surface.
+          "models.list",
+          "models.install",
+          "models.remove",
+          "models.diskUsage",
+          "models.install.drainEvents",
+          "models.install.cancel",
           "coding.session.start",
           "coding.session.sendMessage",
           "coding.session.cancel",
@@ -94,6 +101,45 @@ describe("sidecar handlers", () => {
 
   it("handlers covers every declared method", () => {
     for (const m of IPC_METHODS) expect(typeof handlers[m]).toBe("function");
+  });
+
+  it("models.* route to the injected runtime (v1.15.0 Phase 4)", async () => {
+    const removed: string[] = [];
+    const ctx = makeCtx();
+    ctx.models = {
+      service: {
+        list: async () => [
+          { id: "a", displayName: "A", installed: true, source: "registry" },
+        ],
+        remove: async (id: string) => {
+          removed.push(id);
+        },
+        diskUsage: async () => ({ usedBytes: 5, freeBytes: null }),
+      },
+      installer: {
+        start: (id: string) => `job:${id}`,
+        drain: () => ({ events: [{ kind: "complete", id: "a" }], done: true }),
+        cancel: () => {},
+      },
+    } as unknown as HandlerContext["models"];
+
+    expect(await dispatch("models.list", {}, ctx)).toEqual({
+      models: [{ id: "a", displayName: "A", installed: true, source: "registry" }],
+    });
+    expect(await dispatch("models.diskUsage", {}, ctx)).toEqual({
+      usedBytes: 5,
+      freeBytes: null,
+    });
+    expect(await dispatch("models.install", { id: "a" }, ctx)).toEqual({ jobId: "job:a" });
+    expect(await dispatch("models.install.drainEvents", { jobId: "job:a" }, ctx)).toEqual({
+      events: [{ kind: "complete", id: "a" }],
+      done: true,
+    });
+    expect(await dispatch("models.remove", { id: "a" }, ctx)).toEqual({ ok: true });
+    expect(removed).toEqual(["a"]);
+    expect(await dispatch("models.install.cancel", { jobId: "job:a" }, ctx)).toEqual({
+      ok: true,
+    });
   });
 
   describe("coding session lifecycle", () => {

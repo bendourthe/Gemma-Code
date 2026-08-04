@@ -13,6 +13,11 @@ export const IPC_METHODS = [
   "ping",
   "models.list",
   "models.install",
+  // v1.15.0 Phase 4 (Issue 3) -- Settings > Models registry management.
+  "models.remove",
+  "models.diskUsage",
+  "models.install.drainEvents",
+  "models.install.cancel",
   "coding.startTask",
   "coding.session.start",
   "coding.session.sendMessage",
@@ -598,6 +603,78 @@ export const ModelsListResponse = z
   .strict();
 export type ModelsListResponseT = z.infer<typeof ModelsListResponse>;
 
+// v1.15.0 Phase 4 (Issue 3) -- Settings > Models registry surface. Returns the
+// rich `ListedModelDto` shape (installed / source / sizeBytes / ...), NOT the
+// chat-picker `ModelDropdownEntry`. `models.list` reflects the real installed
+// set (registry manifests reconciled with Ollama's store + the installer's
+// weights tree); install is a streaming job (accept -> drain -> cancel).
+export const ModelsEmptyRequest = z.object({}).strict();
+export type ModelsEmptyRequestT = z.infer<typeof ModelsEmptyRequest>;
+
+export const ModelListedEntry = z
+  .object({
+    id: z.string().min(1),
+    displayName: z.string().min(1),
+    family: z.string().optional(),
+    tag: z.string().optional(),
+    type: z
+      .enum(["llm", "embed", "image", "video", "audio", "controlnet", "vae"])
+      .optional(),
+    installed: z.boolean(),
+    source: z.enum(["registry", "catalog-only", "external"]),
+    sizeBytes: z.number().optional(),
+    vramGB: z.number().optional(),
+    license: z.string().optional(),
+    tags: z.array(z.string()).optional(),
+    absPath: z.string().optional(),
+  })
+  .strict();
+export type ModelListedEntryT = z.infer<typeof ModelListedEntry>;
+
+export const ModelsRegistryListResponse = z
+  .object({ models: z.array(ModelListedEntry) })
+  .strict();
+export type ModelsRegistryListResponseT = z.infer<typeof ModelsRegistryListResponse>;
+
+export const ModelsRemoveRequest = z.object({ id: z.string().min(1) }).strict();
+export type ModelsRemoveRequestT = z.infer<typeof ModelsRemoveRequest>;
+
+export const ModelsOkResponse = z.object({ ok: z.literal(true) }).strict();
+export type ModelsOkResponseT = z.infer<typeof ModelsOkResponse>;
+
+export const ModelsDiskUsageResponse = z
+  .object({ usedBytes: z.number(), freeBytes: z.number().nullable() })
+  .strict();
+export type ModelsDiskUsageResponseT = z.infer<typeof ModelsDiskUsageResponse>;
+
+export const ModelsInstallRequest = z.object({ id: z.string().min(1) }).strict();
+export type ModelsInstallRequestT = z.infer<typeof ModelsInstallRequest>;
+
+export const ModelsInstallAccepted = z.object({ jobId: z.string().min(1) }).strict();
+export type ModelsInstallAcceptedT = z.infer<typeof ModelsInstallAccepted>;
+
+export const ModelsInstallEvent = z
+  .object({
+    kind: z.enum(["progress", "complete", "error"]),
+    id: z.string(),
+    bytes: z.number().optional(),
+    total: z.number().nullable().optional(),
+    message: z.string().optional(),
+  })
+  .strict();
+export type ModelsInstallEventT = z.infer<typeof ModelsInstallEvent>;
+
+export const ModelsInstallDrainRequest = z.object({ jobId: z.string().min(1) }).strict();
+export type ModelsInstallDrainRequestT = z.infer<typeof ModelsInstallDrainRequest>;
+
+export const ModelsInstallDrainResponse = z
+  .object({ events: z.array(ModelsInstallEvent), done: z.boolean() })
+  .strict();
+export type ModelsInstallDrainResponseT = z.infer<typeof ModelsInstallDrainResponse>;
+
+export const ModelsInstallCancelRequest = z.object({ jobId: z.string().min(1) }).strict();
+export type ModelsInstallCancelRequestT = z.infer<typeof ModelsInstallCancelRequest>;
+
 export const SlashSuggestion = z
   .object({
     name: z.string().min(1),
@@ -798,10 +875,34 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
   ping: { request: PingRequest, response: PingResponse, implemented: true },
   "models.list": {
     request: ModelsListRequest,
-    response: ModelsListResponse,
+    response: ModelsRegistryListResponse,
     implemented: true,
   },
-  "models.install": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
+  "models.install": {
+    request: ModelsInstallRequest,
+    response: ModelsInstallAccepted,
+    implemented: true,
+  },
+  "models.remove": {
+    request: ModelsRemoveRequest,
+    response: ModelsOkResponse,
+    implemented: true,
+  },
+  "models.diskUsage": {
+    request: ModelsEmptyRequest,
+    response: ModelsDiskUsageResponse,
+    implemented: true,
+  },
+  "models.install.drainEvents": {
+    request: ModelsInstallDrainRequest,
+    response: ModelsInstallDrainResponse,
+    implemented: true,
+  },
+  "models.install.cancel": {
+    request: ModelsInstallCancelRequest,
+    response: ModelsOkResponse,
+    implemented: true,
+  },
   "coding.startTask": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
   "coding.session.start": {
     request: CodingSessionStartRequest,

@@ -4,6 +4,29 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-07-31] v1.15.0 installer + registry + studio-chat -- Phase 4: Real model registry (Issue 3)
+
+### Goal
+
+Fix Issue 3 ("the app shows only 1 model"). The Settings > Models page was hard-wired to a mock client, `models.list` was a stub, and the installer's on-disk weights + Ollama store were never enumerated.
+
+### What happened (full scope, incl. in-app streaming install)
+
+- **Reconciliation core** (`core/registry/installedProbe.ts`): `markInstalledFromProbe` flips a catalog-only entry to installed when it is present in Ollama's store (matched via `ollamaTagForSpec`) or the installer's `~/.nexus/models/weights/<id>/` tree.
+- **Sidecar** (`models/modelsService.ts`, `models/installManager.ts`): `ModelsService` composes `NexusModelRegistry.list()` with the two probes (`/api/tags` + weights scan) so `list()` returns reconciled `ListedModelDto`s; `remove`/`diskUsage` pass through. `InstallManager` (start/drain/cancel) mirrors the diffusion job pattern so a long download never blocks IPC; `HttpOllamaPullClient` streams `/api/pull` progress.
+- **Protocol/handlers**: repointed `models.list` to the `ListedModelDto` shape and `models.install` to a job-accept; added `models.remove` / `models.diskUsage` / `models.install.drainEvents` / `models.install.cancel`; implemented all six handlers behind a lazily-built, test-injectable `ModelsRuntime`.
+- **Frontend**: real `createIpcModelsClient` (list/remove/diskUsage + polling streaming install) wired into `App.tsx` (mock retired to tests); `shared/models/installedFeed.ts` (`installedModelsForType` + `SETTINGS_MODELS_PATH`) for the Phase 5-6 studio selectors. Resolves the long-tracked gap 5.P1.BB.
+
+### Tests
+
+- Full desktop suite 73 files / 566 tests, 0 failures (+22 across 5 new files + a handler-routing test). ruff + eslint clean; tsc clean; coverage 92.23% lines / 84.69% branch (gate 80/70). CI: added `core/**` to `shell-build.yml` triggers (desktop now depends on `core/registry`).
+
+### Known gaps
+
+- IRSC.P4.A (composition-root MT), IRSC.P4.B (in-app HF install fails on placeholder `sha256`; Ollama install works), IRSC.P4.C (packaged-sidecar catalog staging). All non-blocking for the reflect/manage fix.
+
+---
+
 ## [2026-07-28] v1.15.0 installer + registry + studio-chat -- Phase 3: Installer download reliability + gated-token UX (Issue 2)
 
 ### Goal

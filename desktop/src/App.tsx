@@ -13,6 +13,7 @@ import { VideoLabPage } from "./modules/video/VideoLabPage";
 import { SettingsPage } from "./pages/settings/SettingsPage";
 import { createIpcSkillsClient } from "./pages/settings/ipcSkillsClient";
 import { createIpcSkillOptimizerClient } from "./pages/settings/ipcSkillOptimizerClient";
+import { createIpcModelsClient } from "./pages/settings/ipcModelsClient";
 import { LocalModelStatusDock } from "./components/LocalModelStatusDock";
 import { createMockTelemetryStream } from "./lib/telemetryMock";
 import type { TelemetryStream } from "./components/LocalModelStatus.types";
@@ -30,6 +31,10 @@ const skillsClient = createIpcSkillsClient();
 // v1.12.0 EM.P2.A: the Settings > Skill Optimizer tab drives preview/apply through
 // the real sidecar `skills.optimize.*` IPC. Constructed once at module load.
 const skillOptimizerClient = createIpcSkillOptimizerClient();
+// v1.15.0 Phase 4 (Issue 3): the Settings > Models tab now drives the real
+// sidecar `models.*` IPC (reflect installed set + install/remove), replacing the
+// hardcoded mock. Constructed once at module load.
+const modelsClient = createIpcModelsClient();
 
 export function App({ telemetryStream }: AppProps = {}): JSX.Element {
   const [stream, setStream] = useState<TelemetryStream | null>(telemetryStream ?? null);
@@ -94,7 +99,11 @@ export function App({ telemetryStream }: AppProps = {}): JSX.Element {
             <Route
               path="/settings"
               element={
-                <SettingsPage skillsClient={skillsClient} skillOptimizerClient={skillOptimizerClient} />
+                <SettingsPage
+                  modelsClient={modelsClient}
+                  skillsClient={skillsClient}
+                  skillOptimizerClient={skillOptimizerClient}
+                />
               }
             />
             <Route
