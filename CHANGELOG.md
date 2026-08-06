@@ -1,4 +1,4 @@
-# [2.4.0](https://github.com/bendourthe/Nexus-AI/compare/v2.3.0...v2.4.0) (2026-07-20)
+# [1.14.0](https://github.com/bendourthe/Nexus-AI/compare/v1.13.0...v1.14.0) (2026-07-20)
 
 
 ### Features
@@ -8,7 +8,7 @@
 * **v1.14.0:** installer installing-page polish Phase 4 - uniform dependency bars, View Logs margin, footer Cancel ([91c5d56](https://github.com/bendourthe/Nexus-AI/commit/91c5d5692c70e9538ffe2b677ca94f9cc630643a))
 * **v1.14.0:** installer Models-page best-of-family collapse Phase 3 - sort, disable, release-date pill ([41cb0eb](https://github.com/bendourthe/Nexus-AI/commit/41cb0eb5ffb7f103d7b0bcff271943ac6d53558c))
 
-# [2.3.0](https://github.com/bendourthe/Nexus-AI/compare/v2.2.0...v2.3.0) (2026-07-18)
+# [1.13.0](https://github.com/bendourthe/Nexus-AI/compare/v1.12.0...v1.13.0) (2026-07-18)
 
 
 ### Features
@@ -19,7 +19,7 @@
 * **v1.13.0:** installer reliability Phase 4 - disk check + models tab-walk + VRAM sort/disable ([4ea25ac](https://github.com/bendourthe/Nexus-AI/commit/4ea25ac3fd853fa1119f867041e067283ddfdf79))
 * **v1.13.0:** installer reliability Phase 5 - installing-page mockup redesign ([9af71d6](https://github.com/bendourthe/Nexus-AI/commit/9af71d621accdccb337d52b5a51e8b5585aad0f0))
 
-# [2.2.0](https://github.com/bendourthe/Nexus-AI/compare/v2.1.0...v2.2.0) (2026-07-18)
+# [1.12.0](https://github.com/bendourthe/Nexus-AI/compare/v1.7.0...v1.12.0) (2026-07-18)
 
 
 ### Bug Fixes
@@ -81,7 +81,7 @@
 * **v1.9.0:** UI-rework Phase 8 - app aurora generation animation (T029-T032) ([74c6410](https://github.com/bendourthe/Nexus-AI/commit/74c6410a14e5db91e33609c30ed9d25f6d8b4aab))
 * **v1.9.0:** UI-rework Phase 9 FINAL - app chat disclaimer + logo/icon parity + cycle close (T033-T036) ([d291c2a](https://github.com/bendourthe/Nexus-AI/commit/d291c2a06ae704c67c4f63f830528dc518f40a33))
 
-# [2.1.0](https://github.com/bendourthe/Nexus-AI/compare/v2.0.0...v2.1.0) (2026-07-02)
+# [1.7.0](https://github.com/bendourthe/Nexus-AI/compare/v1.6.0...v1.7.0) (2026-07-02)
 
 
 ### Bug Fixes
@@ -108,7 +108,7 @@
 * **skills:** Hub v3.10.0 supply-chain verify + HTTPS-only + hash-on-import (adoption P1) ([c6ef123](https://github.com/bendourthe/Nexus-AI/commit/c6ef1235ccb053f445730f2e0a407abdae69ba6b))
 * **skills:** scanner allowlist for trusted Hub source; complete v3.10.0 adoption ([f80be0e](https://github.com/bendourthe/Nexus-AI/commit/f80be0e2611f9ac727fd68e40f68727303ccaad2))
 
-## [2.0.0] - 2026-06-18
+## [1.6.0] - 2026-06-18
 
 Major GA milestone consolidating the v1.4.0 -> v1.6.0 development line into the published release. Local-first, zero-outbound throughout (MCP Registry Policy clean).
 

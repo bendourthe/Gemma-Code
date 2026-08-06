@@ -6,7 +6,7 @@
 
 Nexus is a local-first, native desktop AI Studio that bundles four generative AI pillars behind one cohesive UI: agentic coding, organized local chat, image generation and editing, and short-form video synthesis. Everything runs on the host machine against optimized open-source models (Gemma 4, Llama 3, Qwen 2.5 Coder, SDXL / SANA-class diffusion, video-synthesis architectures), with real-time GPU / VRAM telemetry built into the dashboard. No API keys, no data leaving your machine, no per-token billing.
 
-> **Renamed from Gemma Code at v1.0.0** to reflect the four-pillar pivot. The v0.1.0 - v0.22.x line shipped as a single-purpose local agentic coding VS Code extension; v1.0.0 folded that engine into the "Agentic AI Coding" pillar of a wider desktop app. The VS Code surface is preserved as an optional thin adapter that proxies to the desktop daemon. Historical Gemma Code docs remain under `docs/archive/versions/v0/v0.1.0/` - `docs/archive/versions/v0/v0.9.0/`; every product milestone since the pivot is documented under `docs/v1/v1.<MINOR>/`, from the v1.0.0 pivot through the current **v1.12.0** cycle. The published release track is separate from the milestone track - see [Project Status](#project-status-july-2026).
+> **Renamed from Gemma Code at v1.0.0** to reflect the four-pillar pivot. The v0.1.0 - v0.22.x line shipped as a single-purpose local agentic coding VS Code extension; v1.0.0 folded that engine into the "Agentic AI Coding" pillar of a wider desktop app. The VS Code surface is preserved as an optional thin adapter that proxies to the desktop daemon. Historical Gemma Code docs remain under `docs/archive/versions/v0/v0.1.0/` - `docs/archive/versions/v0/v0.9.0/`; every product milestone since the pivot is documented under `docs/v1/v1.<MINOR>/`, from the v1.0.0 pivot through the current **v1.15.0** cycle. Releases are cut on the same milestone version line - see [Project Status](#project-status-august-2026).
 
 ---
 
@@ -51,12 +51,11 @@ A persistent `Local Model Status` panel reports the active model architecture, p
 
 ---
 
-## Project Status (July 2026)
+## Project Status (August 2026)
 
-Nexus runs on two intentionally decoupled version tracks:
+Nexus uses a single, convergent version line: git tags and `package.json` carry the same `v1.<MINOR>.<PATCH>` numbers as the milestone docs under `docs/v1/v1.<MINOR>/`. This track runs from the v1.0.0 pivot through the current **v1.15.0** cycle.
 
-- **Milestone track (`v1.x`)** - the product development cycles, each documented under `docs/v1/v1.<MINOR>/` (plan, known-gaps, benchmarks). This track runs from the v1.0.0 pivot through the current **v1.14.0** cycle.
-- **Release track (git tags / `package.json`)** - the published, semantic-release-cut versions. `v2.0.0` (2026-06-18) was the GA that consolidated the v1.4.0 -> v1.6.0 line; `v2.1.0` (2026-07-02) folded in v1.7.0; `v2.2.0` (2026-07-18) consolidated the v1.8.0 -> v1.12.0 line; `v2.3.0` (2026-07-18) shipped v1.13.0. Milestone **v1.14.0** ships in the next published release. (The desktop app self-reports its `package.json` version, which semantic-release bumps on each release, so the in-app version and the milestone label differ.)
+Historical note: between 2026-06-18 and 2026-07-20 a decoupled "release track" cut five semantic-release versions numbered ahead of the milestones. Those tags were renumbered onto the milestone line on 2026-08-05: `v2.0.0` -> `v1.6.0` (GA consolidating v1.4.0 -> v1.6.0), `v2.1.0` -> `v1.7.0`, `v2.2.0` -> `v1.12.0` (consolidating v1.8.0 -> v1.12.0), `v2.3.0` -> `v1.13.0`, and `v2.4.0` -> `v1.14.0`. The version **v2.0.0 is reserved for the convergence release** that ships once the v1.18 plan, the v1.19.x subplans, and the v2.0 adoption plan are all complete (see `docs/v2/v2.0/plans/`).
 
 ### Milestone ledger
 
