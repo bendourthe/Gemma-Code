@@ -12,11 +12,20 @@
 
 .PARAMETER OutputDir
     Directory where the final .vsix file is written. Defaults to the repo root.
+
+.PARAMETER ElectronVersion
+    Electron version that `better-sqlite3` is rebuilt against (v1.15.0 Phase 7).
+    MUST match the Electron shipped by the target VS Code build, or the packaged
+    native module fails to load at runtime with a NODE_MODULE_VERSION mismatch,
+    which aborts extension activation. Defaults to $DefaultElectronVersion below;
+    override when packaging for a different VS Code baseline, or set the
+    NEXUS_ELECTRON_VERSION environment variable.
 #>
 [CmdletBinding()]
 param(
     [switch]$SkipTests,
-    [string]$OutputDir
+    [string]$OutputDir,
+    [string]$ElectronVersion
 )
 
 Set-StrictMode -Version Latest
@@ -61,6 +70,16 @@ $OutWebview = Join-Path $OutDir 'webview'
 $OutBackend = Join-Path $OutDir 'backend'
 $OutSkills  = Join-Path $OutDir 'skills'
 
+# v1.15.0 Phase 7 (Issue 6): the Electron ABI that better-sqlite3 is rebuilt for.
+# Precedence: -ElectronVersion parameter > NEXUS_ELECTRON_VERSION env var >
+# the default baseline. Keep the default in step with the Electron shipped by
+# the minimum supported VS Code (see engines.vscode in package.json); a mismatch
+# ships a native module that cannot load, which kills extension activation.
+$DefaultElectronVersion = '36.4.0'
+$ResolvedElectronVersion = $DefaultElectronVersion
+if ($env:NEXUS_ELECTRON_VERSION) { $ResolvedElectronVersion = $env:NEXUS_ELECTRON_VERSION }
+if ($ElectronVersion) { $ResolvedElectronVersion = $ElectronVersion }
+
 Push-Location $RepoRoot
 
 try {
@@ -95,14 +114,18 @@ try {
 
     # ── Step 4b: Rebuild native modules for VS Code Electron ─────────────────
 
-    Invoke-Step 'Rebuild better-sqlite3 for VS Code Electron' {
+    Invoke-Step "Rebuild better-sqlite3 for VS Code Electron $ResolvedElectronVersion" {
         # @electron/rebuild streams progress to stderr; under Windows PowerShell
         # 5.1 with ErrorActionPreference=Stop the first stderr line is promoted to
         # a terminating NativeCommandError and aborts the build before it can
         # finish. Drop to Continue inside this step so only a non-zero exit code
         # (checked by Invoke-Step via $LASTEXITCODE) fails it.
+        #
+        # v1.15.0 Phase 7 (Issue 6): the version is no longer hardcoded. Shipping
+        # a module built for the wrong Electron ABI is what makes the extension
+        # fail to activate ("command not found" + forever-loading views).
         $ErrorActionPreference = 'Continue'
-        npx @electron/rebuild --version 36.4.0 --only better-sqlite3 --force
+        npx @electron/rebuild --version $ResolvedElectronVersion --only better-sqlite3 --force
     }
 
     # ── Step 5: Bundle webview assets ────────────────────────────────────────

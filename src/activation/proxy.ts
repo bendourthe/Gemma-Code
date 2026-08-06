@@ -57,7 +57,7 @@ export const PHASE_11_VIEW_IDS: ReadonlyArray<string> = Object.freeze([
 
 const PROXY_PLACEHOLDER_HTML =
   "<!doctype html><html><body style=\"font-family:sans-serif;padding:12px;color:var(--vscode-foreground)\">" +
-  "<h3>Nexus Coding</h3>" +
+  "<h3>Nexus Code</h3>" +
   "<p>Connected to the Nexus desktop daemon. Open the Nexus desktop window for the full agentic surface.</p>" +
   "<p style=\"font-size:0.85em;opacity:0.75\">The daemon IPC client is wired by the upstream Phase 2 sidecar widening (v1.1.0 known-gap 10.1.P1.Z); this panel will switch to the live Phase 11 surfaces once that client lands.</p>" +
   "</body></html>";
@@ -100,7 +100,7 @@ export function registerPhase11Panels(
     context.subscriptions.push(disposable);
   }
   channel.appendLine(
-    `[Nexus Coding] Phase 11 proxy panels registered: ${PHASE_11_VIEW_IDS.length} views.`,
+    `[Nexus Code] Phase 11 proxy panels registered: ${PHASE_11_VIEW_IDS.length} views.`,
   );
 }
 
@@ -114,7 +114,7 @@ export function activateProxy(
   discovery: DaemonDiscoveryResult,
 ): void {
   channel.appendLine(
-    `[Nexus Coding] Proxy mode: forwarding to daemon at ${discovery.probedPath}.`,
+    `[Nexus Code] Proxy mode: forwarding to daemon at ${discovery.probedPath}.`,
   );
 
   const ipcClient = installNexusIpcClient();
@@ -137,11 +137,11 @@ export function activateProxy(
   for (const commandId of PROXIED_COMMAND_IDS) {
     const disposable = vscode.commands.registerCommand(commandId, async () => {
       channel.appendLine(
-        `[Nexus Coding] Proxy: '${commandId}' would forward through the daemon. ` +
+        `[Nexus Code] Proxy: '${commandId}' would forward through the daemon. ` +
           "The desktop IPC client lands as part of the Phase 2 sidecar widening.",
       );
       void vscode.window.showInformationMessage(
-        "Nexus Coding is proxying to the desktop app. Open the Nexus desktop window to interact with this command.",
+        "Nexus Code is proxying to the desktop app. Open the Nexus desktop window to interact with this command.",
       );
     });
     context.subscriptions.push(disposable);
@@ -150,6 +150,6 @@ export function activateProxy(
   registerPhase11Panels(context, channel);
 
   channel.appendLine(
-    `[Nexus Coding] Proxy mode ready. ${PROXIED_COMMAND_IDS.length} commands forwarded; ${PHASE_11_VIEW_IDS.length} Phase 11 panels registered.`,
+    `[Nexus Code] Proxy mode ready. ${PROXIED_COMMAND_IDS.length} commands forwarded; ${PHASE_11_VIEW_IDS.length} Phase 11 panels registered.`,
   );
 }

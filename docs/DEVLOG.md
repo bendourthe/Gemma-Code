@@ -4,6 +4,32 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-05] v1.15.0 installer + registry + studio-chat -- Phase 7: VS Code extension "Nexus Code" activation fix (Issue 6)
+
+### Goal
+
+Fix the reported extension failure -- `command 'nexus.coding.newChat' not found` plus Chat/Memory/Traces views loading forever -- and rename the extension to "Nexus Code".
+
+### Root cause
+
+One upstream failure caused both symptoms. `activate()` had no error containment, and the engine branch registers its commands + webview providers only AFTER constructing `NexusCodingPanel`. That construction reaches `buildMemorySubsystem` -- the only subsystem helper without a try/catch, and memory is on by default, so it opens a better-sqlite3 DB every activation. An unloadable native module (Electron ABI mismatch, very reachable since `package:quick` skips the rebuild and the full script hardcoded Electron 36.4.0) threw out of `activate()`, so `newChat` and the three providers never registered (a declared view with no provider spins forever).
+
+### What happened
+
+- **Activation resilience**: `buildMemorySubsystem` now degrades to `MemorySubsystem.disabled()` instead of throwing; `activate()` wraps both branches in try/catch; new `src/activation/safeMode.ts` registers explanatory handlers for any declared command/view that failed to register, so the surface always exists.
+- **Packaging**: the Electron rebuild version is a parameter (`-ElectronVersion` / `NEXUS_ELECTRON_VERSION`), and `package:quick` now warns and **fails** for release builds so an ABI-mismatched VSIX cannot ship. `daemonDiscovery` no longer claims a live pipe ping it never performed.
+- **Rename**: every user-facing string reads "Nexus Code" (display name, view container, command titles, config title, output channel, log prefixes, panel titles, and the leftover "Gemma Code" webview titles); `nexus.code.*` command aliases forward to the canonical `nexus.coding.*` ids, which stay put so existing keybindings and settings keep working.
+
+### Tests
+
+- New `activation-resilience.test.ts` proves that with the engine forced to throw a NODE_MODULE_VERSION error, `activate()` does not throw and all six commands + all three views still register. Full root suite 424 files / 4646 tests, 0 failures (v1.14 baseline was 4637 + 2 flakes); tsc + eslint clean. (First run hit the same local better-sqlite3 ABI mismatch documented in v1.14; `npm rebuild better-sqlite3` restored it.)
+
+### Deferred
+
+- Sub-task 7.4 (Claude Code-style UX rework: single chat panel, inline diff accept/reject, plan mode, @-mentions, slash commands, session resume) is deferred to its own plan by explicit decision -- it is a feature effort comparable to Phases 4-6 combined, and Issue 6's defects are fixed without it (IRSC.P7.A).
+
+---
+
 ## [2026-08-05] v1.15.0 installer + registry + studio-chat -- Phase 6: Video Lab chat redesign (Issue 5)
 
 ### Goal

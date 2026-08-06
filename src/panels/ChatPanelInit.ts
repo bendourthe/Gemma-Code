@@ -95,20 +95,35 @@ export function buildMemorySubsystem(
   if (!settings.memoryEnabled || !globalStorageUri) {
     return MemorySubsystem.disabled();
   }
-  const dbPath = path.join(globalStorageUri.fsPath, "memory.db");
-  return new MemorySubsystem({
-    dbPath,
-    llmClient,
-    embeddingModel: settings.embeddingModel ?? null,
-    toolOutputCache,
-    corroborationThreshold: settings.memoryCorroborationThreshold,
-    hnsw: settings.memoryHnswThreshold > 0
-      ? {
-          indexPath: path.join(globalStorageUri.fsPath, "memory.hnsw"),
-          threshold: settings.memoryHnswThreshold,
-        }
-      : undefined,
-  });
+  // v1.15.0 Phase 7 (Issue 6): fall back to a disabled subsystem instead of
+  // throwing, matching every sibling helper above. Memory is ON by default and
+  // opens a better-sqlite3 database; an unusable native module (an Electron ABI
+  // mismatch) or an unwritable storage dir used to throw straight through
+  // NexusCodingPanel -> activateExtensionOnly -> activate(), which aborted
+  // activation BEFORE `nexus.coding.newChat` and the three webview providers
+  // were registered -- the reported "command not found" + forever-loading views.
+  try {
+    const dbPath = path.join(globalStorageUri.fsPath, "memory.db");
+    return new MemorySubsystem({
+      dbPath,
+      llmClient,
+      embeddingModel: settings.embeddingModel ?? null,
+      toolOutputCache,
+      corroborationThreshold: settings.memoryCorroborationThreshold,
+      hnsw: settings.memoryHnswThreshold > 0
+        ? {
+            indexPath: path.join(globalStorageUri.fsPath, "memory.hnsw"),
+            threshold: settings.memoryHnswThreshold,
+          }
+        : undefined,
+    });
+  } catch (err) {
+    getLogger().warn(
+      `[ChatPanelInit] Memory subsystem init failed; continuing with memory disabled:`,
+      formatForUser(err),
+    );
+    return MemorySubsystem.disabled();
+  }
 }
 
 /**

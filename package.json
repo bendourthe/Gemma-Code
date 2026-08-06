@@ -1,6 +1,6 @@
 {
   "name": "nexus-coding",
-  "displayName": "Nexus - Agentic AI Coding",
+  "displayName": "Nexus Code",
   "description": "Nexus Agentic AI Coding module. Local agentic coding assistant powered by Gemma 4 / Llama 3 and other open-source LLMs via Ollama. (Formerly Gemma Code. The package name, publisher, command IDs, and view container were renamed to `nexus-coding` / `nexus.coding.*` in v1.1.0; the legacy `gemma-code.*` command IDs continue to fire via the runtime compat shim until v1.2.0, and legacy settings keys remain resolvable via the v1.0.0 SettingsCompat shim.)",
   "version": "1.14.0",
   "publisher": "nexus-coding",
@@ -28,7 +28,7 @@
       "activitybar": [
         {
           "id": "nexus-coding-sidebar",
-          "title": "Nexus Coding",
+          "title": "Nexus Code",
           "icon": "assets/sidebar-icon.svg"
         }
       ]
@@ -55,11 +55,11 @@
     "commands": [
       {
         "command": "nexus.coding.ping",
-        "title": "Nexus Coding: Ping Ollama"
+        "title": "Nexus Code: Ping Ollama"
       },
       {
         "command": "nexus.coding.newChat",
-        "title": "Nexus Coding: New Session",
+        "title": "Nexus Code: New Session",
         "icon": {
           "light": "assets/icon.png",
           "dark": "assets/icon.png"
@@ -67,19 +67,19 @@
       },
       {
         "command": "nexus.coding.focusSidebar",
-        "title": "Nexus Coding: Show Sessions"
+        "title": "Nexus Code: Show Sessions"
       },
       {
         "command": "nexus.coding.openSession",
-        "title": "Nexus Coding: Open Session"
+        "title": "Nexus Code: Open Session"
       },
       {
         "command": "nexus.coding.detectGpu",
-        "title": "Nexus Coding: Detect GPU"
+        "title": "Nexus Code: Detect GPU"
       },
       {
         "command": "nexus.coding.hooks.editPlanModeHook",
-        "title": "Nexus Coding: Edit Plan-Mode Improvement Hook"
+        "title": "Nexus Code: Edit Plan-Mode Improvement Hook"
       }
     ],
     "menus": {
@@ -91,7 +91,7 @@
       ]
     },
     "configuration": {
-      "title": "Nexus Coding (Gemma Code engine)",
+      "title": "Nexus Code",
       "properties": {
         "nexus.llm.ollamaUrl": {
           "type": "string",
@@ -944,7 +944,7 @@
     "test:integration": "vitest run --config configs/vitest.config.ts --reporter=verbose tests/integration",
     "lint": "eslint src modules",
     "package": "powershell -NonInteractive -ExecutionPolicy Bypass -File scripts/build-vsix.ps1",
-    "package:quick": "vsce package",
+    "package:quick": "node scripts/warn-package-quick.mjs && vsce package",
     "check": "node bin/nexus-check.mjs",
     "check:prompts": "node bin/nexus-check.mjs --rule prompt-no-ascii-violation --rule prompt-oversized --rule prompt-trailing-whitespace --rule prompt-bom --rule skill-duplicate-name modules/coding/chat/prompts modules/coding/skills/catalog",
     "check:tampering": "node bin/nexus-check.mjs --rule no-focused-tests --rule no-skipped-tests-without-reason --rule no-tautological-assertion --rule no-commented-out-assertion --rule no-disabled-ci-check tests .github/workflows",

@@ -79,7 +79,7 @@ export class SessionListPanel implements vscode.WebviewViewProvider {
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy"
     content="default-src 'none'; style-src ${cspSource} 'nonce-${nonce}'; script-src 'nonce-${nonce}';" />
-  <title>Gemma Code Sessions</title>
+  <title>Nexus Code Sessions</title>
   <style nonce="${nonce}">
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {

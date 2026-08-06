@@ -230,7 +230,7 @@ export class NexusCodingPanel implements vscode.WebviewViewProvider {
 
   private _getOutputChannel(): vscode.OutputChannel {
     if (!this._outputChannel) {
-      this._outputChannel = vscode.window.createOutputChannel("Gemma Code");
+      this._outputChannel = vscode.window.createOutputChannel("Nexus Code");
     }
     return this._outputChannel;
   }

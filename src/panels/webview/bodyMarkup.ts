@@ -35,7 +35,7 @@ export function getBodyMarkup(modelName: string, displayName: string): string {
     <div id="history-list"></div>
   </div>
 
-  <div id="thinking" aria-label="Gemma Code is thinking" role="status">
+  <div id="thinking" aria-label="Nexus Code is thinking" role="status">
     <span></span><span></span><span></span>
   </div>
 
@@ -50,7 +50,7 @@ export function getBodyMarkup(modelName: string, displayName: string): string {
       <textarea
         id="input"
         rows="1"
-        placeholder="Ask Gemma Code..."
+        placeholder="Ask Nexus Code..."
         aria-label="Chat input"
       ></textarea>
       <button id="cancel-btn" class="secondary" hidden aria-label="Cancel stream">Cancel</button>

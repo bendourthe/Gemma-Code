@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import * as vscode from "vscode";
 import {
   COMPAT_COMMAND_MAP,
+  NEXUS_CODE_ALIAS_MAP,
   installCompatShim,
 } from "../../../src/activation/compatShim.js";
 
@@ -103,7 +104,51 @@ describe("installCompatShim", () => {
       channel as unknown as vscode.OutputChannel,
     );
 
-    expect(context.subscriptions.length).toBe(COMPAT_COMMAND_MAP.length);
+    // v1.15.0 Phase 7: the legacy gemma-code.* forwarders plus the new
+    // nexus.code.* rename aliases.
+    expect(context.subscriptions.length).toBe(
+      COMPAT_COMMAND_MAP.length + NEXUS_CODE_ALIAS_MAP.length,
+    );
+  });
+
+  it("registers a nexus.code.* alias for every canonical command (rename)", () => {
+    installCompatShim(
+      context as unknown as vscode.ExtensionContext,
+      channel as unknown as vscode.OutputChannel,
+    );
+
+    const registered = (
+      vscode.commands.registerCommand as ReturnType<typeof vi.fn>
+    ).mock.calls.map((call: unknown[]) => call[0] as string);
+
+    for (const [aliasId] of NEXUS_CODE_ALIAS_MAP) {
+      expect(registered).toContain(aliasId);
+    }
+  });
+
+  it("a nexus.code.* alias forwards to its nexus.coding.* canonical command", () => {
+    const execMock = vi.fn().mockResolvedValue(undefined);
+    (vscode.commands as unknown as { executeCommand: typeof execMock }).executeCommand =
+      execMock;
+
+    installCompatShim(
+      context as unknown as vscode.ExtensionContext,
+      channel as unknown as vscode.OutputChannel,
+    );
+
+    const calls = (vscode.commands.registerCommand as ReturnType<typeof vi.fn>).mock
+      .calls as ReadonlyArray<[string, (...args: unknown[]) => unknown]>;
+    const aliasHandler = calls.find(([id]) => id === "nexus.code.newChat")?.[1];
+    expect(aliasHandler).toBeDefined();
+
+    aliasHandler!();
+
+    expect(execMock).toHaveBeenCalledWith("nexus.coding.newChat");
+    // The new namespace is supported, not deprecated -- it must not log.
+    const aliasLines = channel.appendLine.mock.calls.filter((c) =>
+      (c[0] as string).includes("nexus.code."),
+    );
+    expect(aliasLines).toHaveLength(0);
   });
 
   it("forwards positional args to executeCommand", () => {

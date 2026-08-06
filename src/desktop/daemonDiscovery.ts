@@ -85,11 +85,14 @@ export function discoverDesktopDaemon(
 
   let detected: boolean;
   try {
-    // Named pipes on Windows do not respond to `existsSync` reliably; the test
-    // override path side-steps that. For real activation, the extension layer
-    // performs a live `ping` over the pipe and downgrades to the
-    // pipe-not-present branch on a connect error. The helper still calls
-    // `existsFn` for the UNIX-socket path which IS visible to `fs`.
+    // v1.15.0 Phase 7 (Issue 6): this used to claim the extension layer performs
+    // a live pipe `ping`. It does not -- `activate()` trusts this result
+    // directly. On Windows a named pipe is NOT visible to `fs.existsSync`, so
+    // the probe reliably returns false and the launch honestly resolves to
+    // extension-only. That is the correct default (the in-process engine is the
+    // supported Windows path today); the `existsFn` seam remains so a real
+    // liveness probe can be injected when the pipe transport ships, and the
+    // UNIX-socket path IS visible to `fs` and still detects a running daemon.
     detected = existsFn(path);
   } catch {
     detected = false;

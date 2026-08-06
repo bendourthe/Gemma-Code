@@ -135,7 +135,7 @@ export const STYLES = String.raw`
       gap: 16px;
     }
     #messages:empty::after {
-      content: "Ask Gemma Code anything about your code.";
+      content: "Ask Nexus Code anything about your code.";
       display: flex;
       align-items: center;
       justify-content: center;

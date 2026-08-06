@@ -133,6 +133,9 @@ vi.mock("vscode", () => ({
   },
   commands: {
     registerCommand: vi.fn((_id: string, _handler: () => void) => mockDisposable),
+    // v1.15.0 Phase 7: the safe-mode activation fallback queries the live
+    // command list to decide which declared ids still need a placeholder.
+    getCommands: vi.fn(async (_filterInternal?: boolean) => [] as string[]),
   },
   workspace: {
     getConfiguration: mockGetConfiguration,

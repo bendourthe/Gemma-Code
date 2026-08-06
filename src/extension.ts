@@ -27,6 +27,7 @@ import {
   stopOllamaPoller,
 } from "./activation/extensionOnly.js";
 import { installCompatShim } from "./activation/compatShim.js";
+import { registerFallbacks } from "./activation/safeMode.js";
 import { disposeEncoder as disposeTokenEncoder } from "../modules/coding/config/PromptBudget.js";
 import { initTreeSitter } from "../core/codegraph/scanner/index.js";
 
@@ -35,26 +36,65 @@ let outputChannel: vscode.OutputChannel | undefined;
 process.on("unhandledRejection", (reason: unknown) => {
   const message =
     reason instanceof Error ? (reason.stack ?? reason.message) : String(reason);
-  outputChannel?.appendLine(`[Nexus Coding] Unhandled promise rejection: ${message}`);
+  outputChannel?.appendLine(`[Nexus Code] Unhandled promise rejection: ${message}`);
 });
 
 export function activate(context: vscode.ExtensionContext): void {
-  outputChannel = vscode.window.createOutputChannel("Nexus Coding");
+  outputChannel = vscode.window.createOutputChannel("Nexus Code");
   context.subscriptions.push(outputChannel);
 
   const discovery = discoverDesktopDaemon();
   outputChannel.appendLine(
-    `[Nexus Coding] Daemon discovery: mode=${discovery.mode}, path=${discovery.probedPath}. ` +
+    `[Nexus Code] Daemon discovery: mode=${discovery.mode}, path=${discovery.probedPath}. ` +
       discovery.reason,
   );
 
-  if (discovery.mode === "proxy") {
-    activateProxy(context, outputChannel, discovery);
-  } else {
-    activateExtensionOnly(context, outputChannel);
+  // v1.15.0 Phase 7 (Issue 6): contain activation failures. The engine branch
+  // constructs heavy subsystems (an Ollama client, a chat panel, SQLite-backed
+  // memory + trace stores); before this guard a single throw aborted activate()
+  // BEFORE `nexus.coding.newChat` and the three webview providers registered,
+  // producing "command 'nexus.coding.newChat' not found" plus sidebar views that
+  // load forever. Now a failure is logged and safe-mode handlers fill in every
+  // declared command / view so the UI always responds and explains itself.
+  let activationError: unknown = null;
+  try {
+    if (discovery.mode === "proxy") {
+      activateProxy(context, outputChannel, discovery);
+    } else {
+      activateExtensionOnly(context, outputChannel);
+    }
+  } catch (err) {
+    activationError = err;
+    const message = err instanceof Error ? (err.stack ?? err.message) : String(err);
+    outputChannel.appendLine(
+      `[Nexus Code] Activation failed; starting in safe mode. ${message}`,
+    );
   }
 
-  installCompatShim(context, outputChannel);
+  void registerFallbacks(
+    context,
+    outputChannel,
+    activationError instanceof Error
+      ? activationError.message
+      : activationError
+        ? String(activationError)
+        : "The local engine did not finish starting.",
+  ).then(({ commands, views }) => {
+    if (commands.length > 0 || views.length > 0) {
+      outputChannel?.appendLine(
+        `[Nexus Code] Safe-mode fallbacks registered -- commands: ` +
+          `${commands.join(", ") || "none"}; views: ${views.join(", ") || "none"}.`,
+      );
+    }
+  });
+
+  try {
+    installCompatShim(context, outputChannel);
+  } catch (err) {
+    outputChannel.appendLine(
+      `[Nexus Code] Compat shim install failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
 
   // v1.4.0 Phase 7 (T022 / gap 3.3.P2.G): warm up the Tree-sitter codegraph
   // scanner so extractSymbols() uses the WASM parse path instead of the regex
@@ -64,7 +104,7 @@ export function activate(context: vscode.ExtensionContext): void {
   // case extractSymbols transparently falls back to the regex extractor.
   void initTreeSitter().then((ready) => {
     outputChannel?.appendLine(
-      `[Nexus Coding] Tree-sitter codegraph scanner: ${ready ? "ready" : "unavailable (regex fallback)"}.`,
+      `[Nexus Code] Tree-sitter codegraph scanner: ${ready ? "ready" : "unavailable (regex fallback)"}.`,
     );
   });
 }

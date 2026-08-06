@@ -53,11 +53,11 @@ function startOllamaPoller(
 
     if (healthy && !ollamaWasReachable) {
       ollamaWasReachable = true;
-      channel.appendLine("[Nexus Coding] Ollama is now reachable -- resuming normal operation.");
+      channel.appendLine("[Nexus Code] Ollama is now reachable -- resuming normal operation.");
       panel.postStatus("idle");
     } else if (!healthy && ollamaWasReachable) {
       ollamaWasReachable = false;
-      channel.appendLine("[Nexus Coding] Ollama became unreachable.");
+      channel.appendLine("[Nexus Code] Ollama became unreachable.");
       panel.postError(
         "Ollama is not reachable. Make sure `ollama serve` is running, then it will reconnect automatically."
       );
@@ -91,17 +91,17 @@ export function activateExtensionOnly(
     "nexus.coding.ping",
     async () => {
       channel.show(true);
-      channel.appendLine("[Nexus Coding] Pinging Ollama...");
+      channel.appendLine("[Nexus Code] Pinging Ollama...");
 
       const client = runtime.getOllamaClient();
 
       const healthy = await client.checkHealth().catch(() => false);
       if (!healthy) {
         channel.appendLine(
-          "[Nexus Coding] ERROR: Ollama is not reachable. Make sure `ollama serve` is running."
+          "[Nexus Code] ERROR: Ollama is not reachable. Make sure `ollama serve` is running."
         );
         void vscode.window.showErrorMessage(
-          "Nexus Coding: Ollama is not reachable. Run `ollama serve` and try again.",
+          "Nexus Code: Ollama is not reachable. Run `ollama serve` and try again.",
           "Open Ollama docs"
         ).then((choice) => {
           if (choice === "Open Ollama docs") {
@@ -111,7 +111,7 @@ export function activateExtensionOnly(
         return;
       }
 
-      channel.appendLine("[Nexus Coding] Ollama is healthy. Streaming test message...\n");
+      channel.appendLine("[Nexus Code] Ollama is healthy. Streaming test message...\n");
 
       try {
         const stream = client.streamChat({
@@ -126,18 +126,18 @@ export function activateExtensionOnly(
             channel.append(chunk.message.content);
           }
         }
-        channel.appendLine("\n\n[Nexus Coding] Stream complete.");
+        channel.appendLine("\n\n[Nexus Code] Stream complete.");
       } catch (err) {
         const msg = formatForUser(err);
-        channel.appendLine(`[Nexus Coding] ERROR: ${msg}`);
+        channel.appendLine(`[Nexus Code] ERROR: ${msg}`);
 
         if (msg.includes("not found") || msg.includes("model")) {
           void vscode.window.showErrorMessage(
-            `Nexus Coding: Model "${settings.modelName}" not found. Run: ollama pull ${settings.modelName}`,
+            `Nexus Code: Model "${settings.modelName}" not found. Run: ollama pull ${settings.modelName}`,
             "Pull model"
           ).then((choice) => {
             if (choice === "Pull model") {
-              const terminal = vscode.window.createTerminal("Nexus Coding -- Model Pull");
+              const terminal = vscode.window.createTerminal("Nexus Code -- Model Pull");
               terminal.sendText(`ollama pull ${settings.modelName}`);
               terminal.show();
             }
@@ -173,7 +173,7 @@ export function activateExtensionOnly(
         const tierConfig = getTierConfig(tierId);
 
         channel.appendLine(
-          `[Nexus Coding] GPU detected: ${result.primaryGpu?.name ?? "none"}, ` +
+          `[Nexus Code] GPU detected: ${result.primaryGpu?.name ?? "none"}, ` +
           `VRAM: ${vramMb} MB, Tier: ${tierId} (${tierConfig.name})`
         );
 
@@ -182,7 +182,7 @@ export function activateExtensionOnly(
         statusBarItem.tooltip = `GPU: ${result.primaryGpu?.name ?? "none"} | VRAM: ${vramMb} MB`;
       } catch (err) {
         const msg = formatForUser(err);
-        channel.appendLine(`[Nexus Coding] GPU detection failed: ${msg}`);
+        channel.appendLine(`[Nexus Code] GPU detection failed: ${msg}`);
         statusBarItem.text = "$(circuit-board) Tier 2 (default)";
       }
     })();
@@ -210,7 +210,7 @@ export function activateExtensionOnly(
       statusBarItem.tooltip = `GPU: ${result.primaryGpu?.name ?? "none"} | VRAM: ${vramMb} MB`;
 
       void vscode.window.showInformationMessage(
-        `Nexus Coding: ${result.primaryGpu?.name ?? "No GPU"}, ${vramMb} MB VRAM -- Tier ${tierId} (${tierConfig.name})`
+        `Nexus Code: ${result.primaryGpu?.name ?? "No GPU"}, ${vramMb} MB VRAM -- Tier ${tierId} (${tierConfig.name})`
       );
     }
   );
@@ -225,7 +225,7 @@ export function activateExtensionOnly(
 
     const panel = vscode.window.createWebviewPanel(
       "nexus.coding.chatEditor",
-      "Nexus Coding",
+      "Nexus Code",
       targetColumn,
       {
         enableScripts: true,
@@ -281,14 +281,14 @@ export function activateExtensionOnly(
       });
       tracer.setExporter(otlpExporter);
       context.subscriptions.push({ dispose: () => otlpExporter.dispose() });
-      channel.appendLine(`[Nexus Coding] OTLP export enabled -> ${settings.otlpEndpoint}`);
+      channel.appendLine(`[Nexus Code] OTLP export enabled -> ${settings.otlpEndpoint}`);
     }
 
-    channel.appendLine("[Nexus Coding] Trace store initialized.");
+    channel.appendLine("[Nexus Code] Trace store initialized.");
     context.subscriptions.push({ dispose: () => { traceStore?.close(); } });
   } catch (err) {
     const msg = formatForUser(err);
-    channel.appendLine(`[Nexus Coding] Trace store init failed: ${msg}`);
+    channel.appendLine(`[Nexus Code] Trace store init failed: ${msg}`);
   }
 
   const traceDashboardPanel = new TraceDashboardPanel(
@@ -362,7 +362,7 @@ export function activateExtensionOnly(
       } catch (err) {
         const message = formatForUser(err);
         channel.appendLine(
-          `[Nexus Coding] Failed to open plan-mode hook ${filePath}: ${message}`,
+          `[Nexus Code] Failed to open plan-mode hook ${filePath}: ${message}`,
         );
         void vscode.window.showErrorMessage(
           `Failed to open plan-mode improvement-hook file: ${message}`,
@@ -388,16 +388,16 @@ export function activateExtensionOnly(
       void chatPanel.setOllamaReachable(healthy);
       if (!healthy) {
         channel.appendLine(
-          "[Nexus Coding] Ollama is not reachable at startup. Polling for availability..."
+          "[Nexus Code] Ollama is not reachable at startup. Polling for availability..."
         );
         chatPanel.postError(
-          "Ollama is not reachable. Start it with `ollama serve`. Nexus Coding will reconnect automatically."
+          "Ollama is not reachable. Start it with `ollama serve`. Nexus Code will reconnect automatically."
         );
       } else {
-        channel.appendLine("[Nexus Coding] Ollama is reachable. Extension ready.");
+        channel.appendLine("[Nexus Code] Ollama is reachable. Extension ready.");
       }
     })
     .catch(() => {
-      channel.appendLine("[Nexus Coding] Ollama health check failed at startup.");
+      channel.appendLine("[Nexus Code] Ollama health check failed at startup.");
     });
 }
