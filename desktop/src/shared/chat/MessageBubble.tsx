@@ -52,7 +52,50 @@ export function MessageBubble({
       <header style={{ marginBottom: "var(--space-1)", color: "var(--fg-muted)", fontSize: "var(--text-xs)" }}>
         {labelForRole(message.role)}
       </header>
-      <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{message.content}</p>
+      {message.content && <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{message.content}</p>}
+      {message.attachments && message.attachments.length > 0 && (
+        <div
+          data-testid={`message-attachments-${message.id}`}
+          style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-1)", marginTop: "var(--space-2)" }}
+        >
+          {message.attachments.map((src, i) => (
+            <img
+              key={i}
+              src={src}
+              alt="Attachment"
+              data-testid={`message-attachment-${message.id}-${i}`}
+              style={{ maxWidth: 96, maxHeight: 96, borderRadius: "var(--radius-sm)", objectFit: "cover" }}
+            />
+          ))}
+        </div>
+      )}
+      {message.pending && (
+        <div
+          data-testid={`message-pending-${message.id}`}
+          style={{ marginTop: "var(--space-2)", color: "var(--fg-muted)", display: "flex", alignItems: "center", gap: "var(--space-2)" }}
+        >
+          <span>Generating...</span>
+          {message.progress && message.progress.total > 0 && (
+            <progress value={message.progress.step} max={message.progress.total} />
+          )}
+        </div>
+      )}
+      {message.media &&
+        (message.media.kind === "image" ? (
+          <img
+            data-testid={`message-media-${message.id}`}
+            src={message.media.src}
+            alt={message.content || "Generated image"}
+            style={{ maxWidth: "100%", borderRadius: "var(--radius-md)", marginTop: "var(--space-2)" }}
+          />
+        ) : (
+          <video
+            data-testid={`message-media-${message.id}`}
+            src={message.media.src}
+            controls
+            style={{ maxWidth: "100%", borderRadius: "var(--radius-md)", marginTop: "var(--space-2)" }}
+          />
+        ))}
       {enableTools && message.toolCards && message.toolCards.length > 0 && (
         <ul
           data-testid={`message-bubble-tools-${message.id}`}

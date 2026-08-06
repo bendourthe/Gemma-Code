@@ -4,6 +4,28 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-05] v1.15.0 installer + registry + studio-chat -- Phase 5: Image Studio chat redesign (Issue 5)
+
+### Goal
+
+Replace the parameter-heavy four-tab Image Studio with an intuitive chat interface: a model selector, history, and an attachment-capable composer where intent (txt2img / img2img / inpaint / outpaint) is inferred from the attachments + prompt instead of a tab.
+
+### What happened
+
+- **Shared media-chat scaffold** (reused by Phase 6): `ChatMessage` + `MessageBubble` gained optional `attachments` / `media` / `pending` / `progress` (text-only Chat / Coding unchanged); new `MediaComposer` (+ button, drag-drop, clipboard paste, removable thumbnail chips) emitting `(text, base64 attachments)`.
+- **Intent** (`modules/image/intent.ts`): `inferImageIntent` maps prompt + attachments + optional mask to one of the four modes, with a mode-specific default prompt for image-only requests (protocol needs a non-empty prompt).
+- **Image Studio rebuilt** (`ImageStudioPage.tsx`): model selector (installed image models from the Phase 4 `installedModelsForType` feed + "Get more models" -> Settings Models tab), inline generated images in a chat history, `MediaComposer`, an "Advanced settings" panel hiding all parameters (reusing `ImagePromptForm`), and per-message Download / Copy Workflow / Use as Source. The four mode tabs are gone; `App.tsx` wires the "Get more models" navigation.
+
+### Tests
+
+- Full desktop suite 76 files / 580 tests, 0 failures (+14 across intent / MediaComposer / media-bubble / rewritten page tests). eslint + tsc clean; coverage 92.28% lines / 84.55% branch. CI unchanged (all desktop frontend).
+
+### Known gaps
+
+- IRSC.P5.A (inline inpaint mask UI not wired -- txt2img/img2img/outpaint reachable from chat), P5.B (benign act() warnings), P5.C (selector falls back to the SANA default when no image model is installed).
+
+---
+
 ## [2026-07-31] v1.15.0 installer + registry + studio-chat -- Phase 4: Real model registry (Issue 3)
 
 ### Goal

@@ -1,495 +1,394 @@
 /**
- * v1.0.0 Phase 6.5 -- Image Studio top-level page.
+ * v1.15.0 Phase 5 (Issue 5) -- Image Studio, redesigned as a chat.
  *
- * Forms-driven UX per the ComfyUI comparison (Section 4):
- *
- *   - left: `<ImagePromptForm>` (prompt, dims, steps, sampler, ...)
- *   - center: canvas / source-image / mask editor depending on mode
- *   - bottom: gallery of generated outputs
- *
- * Mode tabs at the top switch between txt2img / img2img / inpaint /
- * outpaint. The "Generate" button fires the matching IPC call, then
- * polls `diffusion.job.drainEvents` until a `complete` or `error`
- * arrives. The gallery records every completed output and exposes
- * "Copy Workflow" (extracts embedded PNG metadata).
+ * Replaces the four mode tabs + parameter sidebar with a conversational surface
+ * that mirrors the Local Chatbot: a model selector at the top (installed image
+ * models only, plus "Get more models"), a message history, and an
+ * attachment-capable composer at the bottom. The user drops / pastes / uploads
+ * image(s) (or none) and types a request; `inferImageIntent` maps that to
+ * txt2img / img2img / inpaint / outpaint and the matching diffusion call. Every
+ * technical parameter lives behind a collapsed "Advanced settings" panel with
+ * smart per-GPU-tier defaults.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { GenerationCanvas } from "../../components/GenerationCanvas";
+
+import { MediaComposer, MessageBubble, type ChatMessage } from "../../shared/chat";
+import { ModelSelector } from "../../shared/chat/ModelSelector";
+import {
+  SETTINGS_MODELS_PATH,
+  installedModelsForType,
+} from "../../shared/models/installedFeed";
+import { createIpcModelsClient } from "../../pages/settings/ipcModelsClient";
+import type { ListedModelDto } from "../../pages/settings/modelsTypes";
+import type { DiffusionTierId } from "../../../../core/config/DiffusionTier";
 import {
   DEFAULT_FORM_VALUES,
   ImagePromptForm,
   type PromptFormValues,
   valuesToBaseRequest,
 } from "./ImagePromptForm";
-import { MaskEditor } from "./MaskEditor";
+import { inferImageIntent } from "./intent";
 import {
   type DiffusionClient,
-  type ImageMode,
   type ProgressEvent,
   createIpcDiffusionClient,
 } from "./diffusionClient";
 
-const DEFAULT_MODELS = [
-  // v1.1.0 Phase 12 -- SANA family is the new default.
-  { id: "sana-1.6b-1024", displayName: "SANA 1.5 1.6B 1024px" },
-  { id: "sana-sprint-1024", displayName: "SANA Sprint 1024px (Fast)" },
-  { id: "sana-1.6b-2k", displayName: "SANA 1.6B 2K" },
-  { id: "sana-1.6b-4k", displayName: "SANA 1.6B 4K" },
-  { id: "sana-1.6b-int4", displayName: "SANA INT4 (low-VRAM)" },
-  { id: "sdxl-turbo", displayName: "SDXL Turbo" },
-  { id: "sdxl-base-1.0", displayName: "SDXL 1.0 Base" },
-  { id: "sd1.5", displayName: "SD 1.5" },
-  { id: "flux-schnell", displayName: "FLUX.1 Schnell" },
-];
+const FALLBACK_MODEL: ListedModelDto = {
+  id: DEFAULT_FORM_VALUES.modelId,
+  displayName: "SANA 1.5 1.6B 1024px",
+  type: "image",
+  installed: true,
+  source: "registry",
+};
 
 const DEFAULT_LORAS = [
   { id: "lora:detail-tweaker", displayName: "Detail Tweaker" },
   { id: "lora:cinematic", displayName: "Cinematic" },
 ];
-
 const DEFAULT_CONTROLNETS = [
   { id: "controlnet:sdxl-canny", displayName: "SDXL Canny" },
   { id: "controlnet:sdxl-pose", displayName: "SDXL OpenPose" },
-  { id: "controlnet:sdxl-depth", displayName: "SDXL MiDaS Depth" },
-  // v1.1.0 Phase 12 -- SANA-ControlNet weights surface here for the form's dropdown.
-  { id: "sana-controlnet-pose", displayName: "SANA-ControlNet Pose" },
-  { id: "sana-controlnet-depth", displayName: "SANA-ControlNet Depth" },
-  { id: "sana-controlnet-canny", displayName: "SANA-ControlNet Canny" },
 ];
 
-const MODE_LABELS: Record<ImageMode, string> = {
-  txt2img: "Text -> Image",
-  img2img: "Image -> Image",
-  inpaint: "Inpaint",
-  outpaint: "Outpaint",
-};
-
-const OUTPAINT_DIRECTIONS: Array<"left" | "right" | "top" | "bottom"> = [
-  "left",
-  "right",
-  "top",
-  "bottom",
-];
-
-export interface GalleryItem {
-  readonly jobId: string;
-  readonly mode: ImageMode;
-  readonly png: string;
-  readonly summary: string;
-  readonly seed: number;
-}
+const GET_MORE_MODELS_ID = "__get_more_models__";
 
 export interface ImageStudioPageProps {
   readonly client?: DiffusionClient;
+  /** Models client for the installed image-model selector. */
+  readonly modelsClient?: { list(): Promise<readonly ListedModelDto[]> };
   /** Test seam: drain interval (ms). Defaults to 100ms. */
   readonly drainIntervalMs?: number;
   /** Test seam: clipboard adapter. Defaults to navigator.clipboard. */
   readonly clipboard?: { writeText: (value: string) => Promise<void> };
-  readonly initialMode?: ImageMode;
-  /** v1.1.0 Phase 12 -- resolved DiffusionTier so the prompt form can gate 2K/4K. */
-  readonly diffusionTier?: import("../../../../core/config/DiffusionTier").DiffusionTierId;
+  /** Invoked by the selector's "Get more models" entry (App wires navigation). */
+  readonly onGetMoreModels?: () => void;
+  /** Resolved DiffusionTier so the Advanced panel can gate 2K/4K. */
+  readonly diffusionTier?: DiffusionTierId;
+}
+
+let messageSeq = 0;
+function nextId(prefix: string): string {
+  messageSeq += 1;
+  return `${prefix}-${messageSeq}`;
 }
 
 export function ImageStudioPage({
   client: clientOverride,
+  modelsClient,
   drainIntervalMs = 100,
   clipboard,
-  initialMode = "txt2img",
+  onGetMoreModels,
   diffusionTier = "diffusion-low",
 }: ImageStudioPageProps = {}): JSX.Element {
   const [client] = useState<DiffusionClient>(() => clientOverride ?? createIpcDiffusionClient());
-  const [mode, setMode] = useState<ImageMode>(initialMode);
+  const [models, setModels] = useState<readonly ListedModelDto[]>([FALLBACK_MODEL]);
+  const [noneInstalled, setNoneInstalled] = useState(false);
+  const [selectedModelId, setSelectedModelId] = useState<string>(FALLBACK_MODEL.id);
   const [values, setValues] = useState<PromptFormValues>(DEFAULT_FORM_VALUES);
-  const [sourceImage, setSourceImage] = useState<string | null>(null);
-  const [maskImage, setMaskImage] = useState<string | null>(null);
-  const [outpaintDirection, setOutpaintDirection] = useState<"left" | "right" | "top" | "bottom">("right");
-  const [outpaintPixels, setOutpaintPixels] = useState(128);
-  const [jobId, setJobId] = useState<string | null>(null);
-  const [progressStep, setProgressStep] = useState(0);
-  const [progressTotal, setProgressTotal] = useState(0);
-  const [livePreview, setLivePreview] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [gallery, setGallery] = useState<GalleryItem[]>([]);
-  const cancelRef = useRef(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [activeJob, setActiveJob] = useState<{ jobId: string; messageId: string } | null>(null);
+  const [seededAttachment, setSeededAttachment] = useState<string | null>(null);
+  const outputs = useRef<Map<string, string>>(new Map()); // messageId -> raw png
 
-  const isGenerating = jobId !== null;
+  const isGenerating = activeJob !== null;
+
+  // Load the installed image models for the selector (Phase 4 feed). Falls back
+  // to a single default model when the sidecar is unavailable (dev/tests) so
+  // generation still works and the selector always has a valid value.
+  useEffect(() => {
+    let cancelled = false;
+    const source = modelsClient ?? createIpcModelsClient();
+    void (async () => {
+      try {
+        const all = await source.list();
+        const image = installedModelsForType(all, "image");
+        if (cancelled) return;
+        const first = image[0];
+        if (first) {
+          setModels(image);
+          setSelectedModelId(first.id);
+          setNoneInstalled(false);
+        } else {
+          setModels([FALLBACK_MODEL]);
+          setNoneInstalled(true);
+        }
+      } catch {
+        if (!cancelled) {
+          setModels([FALLBACK_MODEL]);
+          setNoneInstalled(true);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [modelsClient]);
+
+  const patchMessage = useCallback((id: string, patch: Partial<ChatMessage>): void => {
+    setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)));
+  }, []);
 
   const advanceFromEvents = useCallback(
-    (events: readonly ProgressEvent[]): { done: boolean } => {
+    (events: readonly ProgressEvent[], messageId: string): { done: boolean } => {
       let done = false;
       for (const event of events) {
         if (event.kind === "progress") {
-          if (typeof event.step === "number") setProgressStep(event.step);
-          if (typeof event.totalSteps === "number") setProgressTotal(event.totalSteps);
-          if (event.preview) setLivePreview(event.preview);
+          const step = event.step ?? 0;
+          const total = event.totalSteps ?? 0;
+          patchMessage(messageId, { progress: { step, total } });
         } else if (event.kind === "complete") {
           done = true;
           const png = event.png ?? "";
-          setGallery((prev) => [
-            {
-              jobId: event.jobId,
-              mode,
-              png,
-              summary: values.prompt.slice(0, 80) || "(empty prompt)",
-              seed: values.seed,
-            },
-            ...prev,
-          ]);
+          outputs.current.set(messageId, png);
+          patchMessage(messageId, {
+            pending: false,
+            progress: undefined,
+            media: png ? { kind: "image", src: `data:image/png;base64,${png}` } : undefined,
+          });
         } else if (event.kind === "error") {
           done = true;
-          setErrorMessage(event.message ?? "diffusion failed");
+          patchMessage(messageId, {
+            pending: false,
+            progress: undefined,
+            content: `Generation failed: ${event.message ?? "unknown error"}`,
+          });
         }
       }
       return { done };
     },
-    [mode, values.prompt, values.seed],
+    [patchMessage],
   );
 
   useEffect(() => {
-    if (!jobId) return;
+    if (!activeJob) return;
     let cancelled = false;
-    const timer = setInterval(async () => {
-      if (cancelled) return;
-      try {
-        const events = await client.drainEvents(jobId);
-        if (cancelRef.current) {
+    const timer = setInterval(() => {
+      void (async () => {
+        if (cancelled) return;
+        try {
+          const events = await client.drainEvents(activeJob.jobId);
+          if (cancelled) return;
+          const { done } = advanceFromEvents(events, activeJob.messageId);
+          if (done) {
+            cancelled = true;
+            clearInterval(timer);
+            setActiveJob(null);
+          }
+        } catch (err) {
           cancelled = true;
           clearInterval(timer);
-          setJobId(null);
-          return;
+          patchMessage(activeJob.messageId, {
+            pending: false,
+            content: `Generation failed: ${err instanceof Error ? err.message : String(err)}`,
+          });
+          setActiveJob(null);
         }
-        const result = advanceFromEvents(events);
-        if (result.done) {
-          cancelled = true;
-          clearInterval(timer);
-          setJobId(null);
-        }
-      } catch (err) {
-        cancelled = true;
-        clearInterval(timer);
-        setJobId(null);
-        setErrorMessage(err instanceof Error ? err.message : String(err));
-      }
+      })();
     }, drainIntervalMs);
     return () => {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [jobId, client, advanceFromEvents, drainIntervalMs]);
+  }, [activeJob, client, advanceFromEvents, drainIntervalMs, patchMessage]);
 
-  async function handleGenerate(): Promise<void> {
-    setErrorMessage(null);
-    setProgressStep(0);
-    setProgressTotal(0);
-    setLivePreview(null);
-    cancelRef.current = false;
-    const base = valuesToBaseRequest(values) as unknown as Parameters<DiffusionClient["txt2img"]>[0];
-    try {
-      let accepted;
-      if (mode === "txt2img") {
-        accepted = await client.txt2img(base);
-      } else if (mode === "img2img") {
-        if (!sourceImage) {
-          setErrorMessage("Source image required for img2img");
-          return;
+  const handleSubmit = useCallback(
+    async (text: string, attachments: readonly string[]): Promise<void> => {
+      if (isGenerating) return;
+      const intent = inferImageIntent({ text, attachments, mask: null });
+      const userMsg: ChatMessage = {
+        id: nextId("user"),
+        role: "user",
+        content: text,
+        ...(attachments.length > 0 ? { attachments: [...attachments] } : {}),
+      };
+      const assistantId = nextId("assistant");
+      const assistantMsg: ChatMessage = {
+        id: assistantId,
+        role: "assistant",
+        content: "",
+        pending: true,
+      };
+      setMessages((prev) => [...prev, userMsg, assistantMsg]);
+
+      const base = valuesToBaseRequest(values, {
+        prompt: intent.prompt,
+        modelId: selectedModelId,
+      }) as unknown as Parameters<DiffusionClient["txt2img"]>[0];
+
+      try {
+        let accepted;
+        if (intent.mode === "txt2img") {
+          accepted = await client.txt2img(base);
+        } else if (intent.mode === "img2img") {
+          accepted = await client.img2img({ ...base, sourceImage: intent.sourceImage ?? "" });
+        } else if (intent.mode === "inpaint") {
+          accepted = await client.inpaint({
+            ...base,
+            sourceImage: intent.sourceImage ?? "",
+            mask: intent.mask ?? "",
+          });
+        } else {
+          accepted = await client.outpaint({
+            ...base,
+            sourceImage: intent.sourceImage ?? "",
+            direction: intent.direction ?? "right",
+            pixels: intent.pixels ?? 128,
+          });
         }
-        accepted = await client.img2img({ ...base, sourceImage });
-      } else if (mode === "inpaint") {
-        if (!sourceImage || !maskImage) {
-          setErrorMessage("Source image and mask required for inpaint");
-          return;
-        }
-        accepted = await client.inpaint({ ...base, sourceImage, mask: maskImage });
-      } else {
-        if (!sourceImage) {
-          setErrorMessage("Source image required for outpaint");
-          return;
-        }
-        accepted = await client.outpaint({
-          ...base,
-          sourceImage,
-          direction: outpaintDirection,
-          pixels: outpaintPixels,
+        setActiveJob({ jobId: accepted.jobId, messageId: assistantId });
+      } catch (err) {
+        patchMessage(assistantId, {
+          pending: false,
+          content: `Generation failed: ${err instanceof Error ? err.message : String(err)}`,
         });
       }
-      setJobId(accepted.jobId);
-    } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : String(err));
-    }
-  }
+    },
+    [isGenerating, values, selectedModelId, client, patchMessage],
+  );
 
-  function handleCancel(): void {
-    cancelRef.current = true;
-    setJobId(null);
-  }
-
-  async function copyWorkflow(item: GalleryItem): Promise<void> {
-    try {
-      const workflow = await client.extractWorkflow(item.png);
-      if (!workflow) {
-        setErrorMessage("Workflow metadata not found in this PNG");
+  const onSelectModel = useCallback(
+    (id: string): void => {
+      if (id === GET_MORE_MODELS_ID) {
+        onGetMoreModels?.();
         return;
       }
+      setSelectedModelId(id);
+    },
+    [onGetMoreModels],
+  );
+
+  async function copyWorkflow(messageId: string): Promise<void> {
+    const png = outputs.current.get(messageId);
+    if (!png) return;
+    try {
+      const workflow = await client.extractWorkflow(png);
+      if (!workflow) return;
       const adapter = clipboard ?? (typeof navigator !== "undefined" ? navigator.clipboard : null);
       if (adapter && typeof adapter.writeText === "function") {
         await adapter.writeText(JSON.stringify(workflow, null, 2));
       }
-    } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : String(err));
+    } catch {
+      // best-effort; failures are non-fatal for the copy action.
     }
   }
 
-  function useAsSource(item: GalleryItem): void {
-    setSourceImage(`data:image/png;base64,${item.png}`);
-    setMode("img2img");
+  function downloadImage(messageId: string): void {
+    const png = outputs.current.get(messageId);
+    if (!png || typeof document === "undefined") return;
+    const a = document.createElement("a");
+    a.href = `data:image/png;base64,${png}`;
+    a.download = `nexus-image-${messageId}.png`;
+    a.click();
   }
 
-  const advancedModels = useMemo(() => DEFAULT_MODELS, []);
-  const advancedLoras = useMemo(() => DEFAULT_LORAS, []);
-  const advancedControlNets = useMemo(() => DEFAULT_CONTROLNETS, []);
+  function useAsSource(messageId: string): void {
+    const png = outputs.current.get(messageId);
+    if (png) setSeededAttachment(`data:image/png;base64,${png}`);
+  }
+
+  const selectorModels = useMemo(
+    () => [
+      ...models.map((m) => ({ id: m.id, displayName: m.displayName })),
+      { id: GET_MORE_MODELS_ID, displayName: "+ Get more models..." },
+    ],
+    [models],
+  );
 
   return (
     <section
       data-testid="image-studio-page"
-      style={{
-        flex: 1,
-        display: "flex",
-        flexDirection: "column",
-        padding: "var(--space-4)",
-        gap: "var(--space-4)",
-        color: "var(--fg-0)",
-      }}
+      style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, color: "var(--fg-0)" }}
     >
-      <header style={{ display: "flex", gap: "var(--space-2)" }}>
-        {(Object.keys(MODE_LABELS) as ImageMode[]).map((m) => (
+      <header
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "var(--space-3)",
+          padding: "var(--space-3) var(--space-4)",
+          borderBottom: "1px solid var(--border-1)",
+        }}
+      >
+        <ModelSelector
+          models={selectorModels}
+          value={selectedModelId}
+          onChange={onSelectModel}
+          disabled={isGenerating}
+          testId="image-model-select"
+        />
+        {noneInstalled && (
           <button
-            key={m}
-            data-testid={`mode-tab-${m}`}
-            data-active={m === mode}
             type="button"
-            onClick={() => setMode(m)}
-            disabled={isGenerating}
-            style={{
-              padding: "var(--space-2) var(--space-3)",
-              border: `1px solid ${m === mode ? "var(--accent-image)" : "var(--border-1)"}`,
-              borderRadius: "var(--radius-md)",
-              background: m === mode ? "var(--accent-image)" : "transparent",
-              color: m === mode ? "var(--bg-0)" : "var(--fg-1)",
-            }}
+            data-testid="image-get-more-models"
+            onClick={() => onGetMoreModels?.()}
+            style={{ background: "transparent", color: "var(--accent-image)", border: "none", cursor: "pointer" }}
           >
-            {MODE_LABELS[m]}
+            No image models installed - get more models
           </button>
-        ))}
+        )}
+        <a data-testid="image-settings-link" href={SETTINGS_MODELS_PATH} style={{ display: "none" }}>
+          models settings
+        </a>
       </header>
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(280px, 360px) 1fr", gap: "var(--space-4)" }}>
-        <aside style={{ borderRight: "1px solid var(--border-1)", paddingRight: "var(--space-3)" }}>
-          <ImagePromptForm
-            initial={values}
-            availableModels={advancedModels}
-            availableLoras={advancedLoras}
-            availableControlNets={advancedControlNets}
-            onChange={setValues}
-            disabled={isGenerating}
-            diffusionTier={diffusionTier}
-          />
-          <div style={{ marginTop: "var(--space-3)", display: "flex", gap: "var(--space-2)" }}>
-            <button
-              data-testid="image-generate"
-              type="button"
-              onClick={handleGenerate}
-              disabled={isGenerating}
-            >
-              {isGenerating ? "Generating..." : "Generate"}
-            </button>
-            {isGenerating && (
-              <button data-testid="image-cancel" type="button" onClick={handleCancel}>
-                Cancel
-              </button>
-            )}
-          </div>
-          {isGenerating && (
-            <div data-testid="image-progress" style={{ marginTop: "var(--space-2)" }}>
-              <progress value={progressStep} max={progressTotal || 1} />
-              <span data-testid="image-progress-text">
-                {progressStep}/{progressTotal || "?"}
-              </span>
-            </div>
-          )}
-          {errorMessage && (
-            <p data-testid="image-error" style={{ color: "var(--status-err)" }}>
-              {errorMessage}
-            </p>
-          )}
-        </aside>
-
-        <div data-testid="image-canvas" style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
-          {mode === "txt2img" && (
-            <div
-              data-testid="image-canvas-preview"
-              style={{ aspectRatio: `${values.width} / ${values.height}` }}
-            >
-              {isGenerating ? (
-                // v1.9.0 Phase 8 (T031): the aurora "generating" mark, with the
-                // live latent overlaid and materializing with progress; hands
-                // off to the final output (in the gallery) when the job ends.
-                <GenerationCanvas
-                  tint="image"
-                  progress={progressTotal ? progressStep / progressTotal : undefined}
-                  previewSrc={
-                    livePreview ? `data:image/png;base64,${livePreview}` : undefined
-                  }
-                  previewAlt="Latent preview"
-                  ariaLabel="Generating image"
-                  data-testid="image-generation-canvas"
-                  style={{ width: "100%", height: "100%" }}
-                />
-              ) : livePreview ? (
-                <img
-                  alt="Latent preview"
-                  src={`data:image/png;base64,${livePreview}`}
-                  data-testid="image-live-preview"
-                  style={{ maxWidth: "100%", maxHeight: "100%" }}
-                />
-              ) : (
-                <div
-                  style={{
-                    height: "100%",
-                    background: "var(--bg-1)",
-                    borderRadius: "var(--radius-lg)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "var(--fg-muted)",
-                  }}
-                >
-                  Your generated image will appear here.
-                </div>
-              )}
-            </div>
-          )}
-
-          {(mode === "img2img" || mode === "outpaint") && (
-            <div data-testid="image-source-zone">
-              <input
-                type="file"
-                accept="image/png,image/jpeg"
-                data-testid="image-source-upload"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  const reader = new FileReader();
-                  reader.onload = () => {
-                    if (typeof reader.result === "string") setSourceImage(reader.result);
-                  };
-                  reader.readAsDataURL(file);
-                }}
-              />
-              {sourceImage && (
-                <img
-                  alt="Source"
-                  src={sourceImage}
-                  data-testid="image-source-preview"
-                  style={{ maxWidth: "100%", marginTop: "var(--space-2)" }}
-                />
-              )}
-              {mode === "outpaint" && (
-                <div data-testid="image-outpaint-controls" style={{ marginTop: "var(--space-2)", display: "flex", gap: "var(--space-2)" }}>
-                  {OUTPAINT_DIRECTIONS.map((d) => (
-                    <button
-                      key={d}
-                      data-testid={`outpaint-direction-${d}`}
-                      data-active={d === outpaintDirection}
-                      type="button"
-                      onClick={() => setOutpaintDirection(d)}
-                    >
-                      {d}
+      <div
+        data-testid="image-history"
+        style={{ flex: 1, overflowY: "auto", padding: "var(--space-4)", display: "flex", flexDirection: "column", gap: "var(--space-3)" }}
+      >
+        {messages.length === 0 ? (
+          <p data-testid="image-empty" style={{ color: "var(--fg-muted)" }}>
+            Describe an image to generate it, or drop an image and ask to edit, extend, or vary it.
+          </p>
+        ) : (
+          <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+            {messages.map((m) => (
+              <li key={m.id}>
+                <MessageBubble message={m} enableTools={false} />
+                {m.role === "assistant" && m.media && (
+                  <div
+                    data-testid={`image-actions-${m.id}`}
+                    style={{ display: "flex", gap: "var(--space-2)", marginTop: "var(--space-1)" }}
+                  >
+                    <button type="button" data-testid={`image-download-${m.id}`} onClick={() => downloadImage(m.id)}>
+                      Download
                     </button>
-                  ))}
-                  <input
-                    data-testid="outpaint-pixels"
-                    type="number"
-                    min={8}
-                    max={1024}
-                    value={outpaintPixels}
-                    onChange={(e) => setOutpaintPixels(Number(e.target.value))}
-                  />
-                </div>
-              )}
-            </div>
-          )}
-
-          {mode === "inpaint" && (
-            <div data-testid="image-inpaint-zone">
-              <input
-                type="file"
-                accept="image/png,image/jpeg"
-                data-testid="image-inpaint-upload"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  const reader = new FileReader();
-                  reader.onload = () => {
-                    if (typeof reader.result === "string") setSourceImage(reader.result);
-                  };
-                  reader.readAsDataURL(file);
-                }}
-              />
-              {sourceImage && (
-                <MaskEditor
-                  sourceImage={sourceImage}
-                  width={values.width}
-                  height={values.height}
-                  onMaskChange={setMaskImage}
-                />
-              )}
-            </div>
-          )}
-        </div>
+                    <button type="button" data-testid={`image-copyworkflow-${m.id}`} onClick={() => void copyWorkflow(m.id)}>
+                      Copy Workflow
+                    </button>
+                    <button type="button" data-testid={`image-usesource-${m.id}`} onClick={() => useAsSource(m.id)}>
+                      Use as Source
+                    </button>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
-      <section data-testid="image-gallery" style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-        <h2 style={{ margin: 0, fontSize: "var(--text-md)" }}>Outputs</h2>
-        {gallery.length === 0 && (
-          <p data-testid="image-gallery-empty" style={{ color: "var(--fg-muted)" }}>
-            Generated images will land here.
-          </p>
-        )}
-        <ul
-          style={{
-            listStyle: "none",
-            padding: 0,
-            margin: 0,
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-            gap: "var(--space-2)",
-          }}
-        >
-          {gallery.map((item) => (
-            <li key={item.jobId} data-testid={`gallery-item-${item.jobId}`} className="nx-card" style={{ padding: "var(--space-2)" }}>
-              {item.png && (
-                <img
-                  alt={item.summary}
-                  src={`data:image/png;base64,${item.png}`}
-                  style={{ width: "100%", height: "auto", borderRadius: "var(--radius-sm)" }}
-                />
-              )}
-              <p style={{ fontSize: "var(--text-xs)", color: "var(--fg-muted)", margin: "var(--space-1) 0 0 0" }}>
-                {item.summary}
-              </p>
-              <div style={{ display: "flex", gap: "var(--space-1)", marginTop: "var(--space-1)" }}>
-                <button data-testid={`gallery-copy-${item.jobId}`} type="button" onClick={() => copyWorkflow(item)}>
-                  Copy Workflow
-                </button>
-                <button data-testid={`gallery-source-${item.jobId}`} type="button" onClick={() => useAsSource(item)}>
-                  Use as Source
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </section>
+      <div style={{ padding: "var(--space-3) var(--space-4)", borderTop: "1px solid var(--border-1)", display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+        <details data-testid="image-advanced-settings">
+          <summary style={{ cursor: "pointer", color: "var(--fg-muted)" }}>Advanced settings</summary>
+          <div style={{ marginTop: "var(--space-2)" }}>
+            <ImagePromptForm
+              initial={values}
+              availableModels={models.map((m) => ({ id: m.id, displayName: m.displayName }))}
+              availableLoras={DEFAULT_LORAS}
+              availableControlNets={DEFAULT_CONTROLNETS}
+              onChange={setValues}
+              disabled={isGenerating}
+              diffusionTier={diffusionTier}
+            />
+          </div>
+        </details>
+        <MediaComposer
+          disabled={isGenerating}
+          onSubmit={(text, attachments) => void handleSubmit(text, attachments)}
+          submitAccentVar="--accent-image"
+          seededAttachment={seededAttachment}
+        />
+      </div>
     </section>
   );
 }

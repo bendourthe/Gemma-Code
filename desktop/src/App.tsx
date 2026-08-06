@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Route, Routes, useLocation } from "react-router-dom";
+import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { Sidebar } from "./components/Sidebar";
 import { TitleBar } from "./components/TitleBar";
 import { ConstellationBackground } from "./components/ConstellationBackground";
@@ -14,6 +14,7 @@ import { SettingsPage } from "./pages/settings/SettingsPage";
 import { createIpcSkillsClient } from "./pages/settings/ipcSkillsClient";
 import { createIpcSkillOptimizerClient } from "./pages/settings/ipcSkillOptimizerClient";
 import { createIpcModelsClient } from "./pages/settings/ipcModelsClient";
+import { SETTINGS_MODELS_PATH } from "./shared/models/installedFeed";
 import { LocalModelStatusDock } from "./components/LocalModelStatusDock";
 import { createMockTelemetryStream } from "./lib/telemetryMock";
 import type { TelemetryStream } from "./components/LocalModelStatus.types";
@@ -38,6 +39,7 @@ const modelsClient = createIpcModelsClient();
 
 export function App({ telemetryStream }: AppProps = {}): JSX.Element {
   const [stream, setStream] = useState<TelemetryStream | null>(telemetryStream ?? null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (telemetryStream !== undefined) {
@@ -94,7 +96,10 @@ export function App({ telemetryStream }: AppProps = {}): JSX.Element {
             <Route path="/" element={<Dashboard telemetryStream={stream} />} />
             <Route path="/chatbot" element={<ChatPage />} />
             <Route path="/coding" element={<CodingPage />} />
-            <Route path="/images" element={<ImageStudioPage />} />
+            <Route
+              path="/images"
+              element={<ImageStudioPage onGetMoreModels={() => navigate(SETTINGS_MODELS_PATH)} />}
+            />
             <Route path="/videos" element={<VideoLabPage />} />
             <Route
               path="/settings"
