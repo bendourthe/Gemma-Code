@@ -100,7 +100,10 @@ export function App({ telemetryStream }: AppProps = {}): JSX.Element {
               path="/images"
               element={<ImageStudioPage onGetMoreModels={() => navigate(SETTINGS_MODELS_PATH)} />}
             />
-            <Route path="/videos" element={<VideoLabPage />} />
+            <Route
+              path="/videos"
+              element={<VideoLabPage onGetMoreModels={() => navigate(SETTINGS_MODELS_PATH)} />}
+            />
             <Route
               path="/settings"
               element={

@@ -31,6 +31,13 @@ export interface VideoPromptFormProps {
   readonly availableModels: readonly { id: string; displayName: string; mode: VideoMode }[];
   readonly disabled?: boolean;
   readonly onChange?: (values: VideoFormValues) => void;
+  /**
+   * v1.15.0 Phase 6 -- hide the Mode select. In the chat Video Lab the mode is
+   * inferred from whether the user attached an image (`inferVideoIntent`), so a
+   * manual control would be vestigial and misleading. Defaults to false so any
+   * other consumer keeps the original form.
+   */
+  readonly hideMode?: boolean;
 }
 
 const SAMPLERS = ["euler", "euler_a", "dpmpp_2m", "dpmpp_sde", "ddim", "lms", "flow-dpm-solver"];
@@ -102,6 +109,7 @@ export function VideoPromptForm({
   availableModels,
   disabled,
   onChange,
+  hideMode = false,
 }: VideoPromptFormProps): JSX.Element {
   const [values, setValues] = useState<VideoFormValues>({
     ...DEFAULT_VIDEO_FORM_VALUES,
@@ -168,18 +176,20 @@ export function VideoPromptForm({
         </select>
       </label>
 
-      <label>
-        Mode
-        <select
-          data-testid="video-mode"
-          value={values.mode}
-          disabled={disabled}
-          onChange={(e) => updateMode(e.target.value as VideoMode)}
-        >
-          <option value="text2video">Text -&gt; Video</option>
-          <option value="image2video">Image -&gt; Video</option>
-        </select>
-      </label>
+      {!hideMode && (
+        <label>
+          Mode
+          <select
+            data-testid="video-mode"
+            value={values.mode}
+            disabled={disabled}
+            onChange={(e) => updateMode(e.target.value as VideoMode)}
+          >
+            <option value="text2video">Text -&gt; Video</option>
+            <option value="image2video">Image -&gt; Video</option>
+          </select>
+        </label>
+      )}
 
       <label>
         Prompt

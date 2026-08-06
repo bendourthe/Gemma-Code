@@ -4,6 +4,28 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-05] v1.15.0 installer + registry + studio-chat -- Phase 6: Video Lab chat redesign (Issue 5)
+
+### Goal
+
+Apply the Phase 5 chat treatment to the Video Lab: no mode select, no parameter sidebar - drop an image (or nothing), type a request, get a clip.
+
+### What happened
+
+- **Video intent** (`modules/video/intent.ts`): `inferVideoIntent` -> text2video (no attachment) or image2video (first attachment animates), with a default prompt for image-only requests.
+- **Video Lab rebuilt** (`VideoLabPage.tsx`): reuses the Phase 5 scaffold - installed video models via `installedModelsForType` + "Get more models", a chat history whose assistant bubbles play the finished clip inline (`ChatMedia kind: "video"` through `resolveMp4Url`), the shared `MediaComposer`, an "Advanced settings" panel for every parameter, and per-message Copy Workflow / Use as Source. `VideoPromptForm` gained a `hideMode` prop (default false) so the chat page hides the now-vestigial Mode select.
+- `App.tsx` wires the video "Get more models" navigation.
+
+### Tests
+
+- Desktop suite 77 files / 581 tests, 0 failures. `VideoLabPage.test.tsx` rewritten for the chat flow (7) + new `videoIntent.test.ts` (5); the existing VideoPromptForm test passes unchanged. eslint + tsc clean; coverage 92.29% lines / 84.49% branch.
+
+### Known gaps
+
+- IRSC.P6.A (thumbnail strip + TimelinePreviewer not rendered in the chat surface; component retained), P6.B (`resolveMp4Url` identity default pending the Tauri fs allow-list), P6.C (benign act() warnings).
+
+---
+
 ## [2026-08-05] v1.15.0 installer + registry + studio-chat -- Phase 5: Image Studio chat redesign (Issue 5)
 
 ### Goal
