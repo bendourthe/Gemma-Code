@@ -80,4 +80,29 @@ Note (Phase 4): the studios' Settings deep-link (`SETTINGS_MODELS_PATH = /settin
   - Phase 5 (Issue 5, image) -- Image Studio is now a chat: the four mode tabs + parameter sidebar are gone, replaced by a model selector (installed image models from Phase 4 + "Get more models"), a message history with inline generated images, and an attachment-capable composer (`MediaComposer`: + button, drag-drop, paste, removable thumbnails). `inferImageIntent` maps (prompt + attachments + mask) to txt2img / img2img / outpaint / inpaint; parameters live behind an "Advanced settings" panel; per-message Download / Copy Workflow / Use as Source. `ChatMessage` + `MessageBubble` gained optional media/attachment fields (text-only Chat / Coding paths unchanged).
 - Note: on-device confirmation of the maximized window/controls (Phase 1), the uninstaller state-dir removal (Phase 2, IRSC.P2.C), a live retry (Phase 3, IRSC.P3.A), the fail-closed build (Phase 3, IRSC.P3.C), and the packaged-sidecar catalog resolution + a live in-app install (Phase 4, IRSC.P4.B/C) fold into the standard on-device QA pass; the pure logic is unit-tested (`desktopBranding.test.ts`, `test_background_resume.py`, `test_catalog_invariants.py`, `test_install_summary.py`, `test_gated_auth_dialog.py`, `test_pages_qt.py`, `installedProbe.test.ts`, `modelsService.test.ts`, `installManager.test.ts`, `ipcModelsClient.test.ts`, `installedFeed.test.ts`).
 
-_Last updated: 2026-08-05 (Phase 6)._
+### Carried forward from v1.14.0 / v1.13.0 (still open)
+
+| ID | Class | Item | Status this cycle |
+|----|-------|------|-------------------|
+| ICR.P2.A / IR.P1.A | DF | Live pull+load preflight for the tier defaults (multi-GB) | Unchanged -- operator action on a target box; not attempted this cycle (v1.15 touched the installer's relaunch/summary paths, not the download engine's live behaviour) |
+| ICR.P1.C / ICR.P2.C | MT | HF-weight `sha256` pins are all-zero placeholders | Unchanged, and now ALSO the cause of the new IRSC.P4.B (in-app HF install fails digest verification in the core `Downloader`). Rotating the pins closes both |
+| ICR.P2.B / ICR.P3.A / ICR.P4.A / IR.P3.A / IR.P4.A | DF | On-device visual QA (gated dialog, picker, installing page, wordmark) | Unchanged, and joined by v1.15's own on-device items (maximized window + controls, uninstaller state-dir removal, live retry, packaged-sidecar catalog, a real in-app install). All fold into one on-device QA pass |
+| ICR.P2.D | WN | 3 SANA ControlNet repos probe GATED (auxiliary, excluded from the picker) | Unchanged; no offered-set impact |
+| ICR.P1.A / ICR.P1.D / ICR.P3.B | DF/NI | `sana-1.6b-int4` retained+flagged, per-tier release dates, no show-all-variants toggle | Unchanged deliberate design choices. Phase 3's gated-token UX work directly improves the ICR.P1.A experience (clearer copy + a direct token link + explicit skip) |
+| IR.P1.E | DF | Live pull+load preflight CI job | Still freeze-deferred (GitHub Actions budget) |
+| IR.P1.D / IR.P2.C / IR.P5.A | DF/NI | Ollama 400 hint, thin CLI test, section-header polish | Unchanged, low priority. Note: the v1.13 Ollama-400 class of failure is now guarded at the catalog level by Phase 3's `catalog_invariants` |
+
+### Resolved from earlier versions
+
+- **5.P1.BB** (v1.0.0, "Settings UI is wired to a mock client") -- **RESOLVED** by v1.15.0 Phase 4: real `models.*` IPC backed by `NexusModelRegistry`, a real `ipcModelsClient` injected in `App.tsx`, and Ollama/weights reconciliation so installer-downloaded models appear. Marked resolved in `docs/v1/v1.0/known-gaps.md`.
+
+### Phase 8 reconciliation (terminal gate)
+
+- **Architecture**: clean. No stray `TODO`/`FIXME`/`XXX`/`HACK`/`DEVIATION` markers, no empty directories, and no non-version orphans in any v1.15-touched tree. `check:docs-layout` reports the canonical layout; `check:naming` clean. Triage of the three components orphaned by the Phase 5/6 chat redesigns (`MaskEditor`, `TimelinePreviewer`, `GenerationCanvas`) resolved as **retain, not delete** -- each is still unit-tested and is the exact asset a documented deferred gap needs (IRSC.P5.A / IRSC.P6.A / richer in-bubble progress); each now carries a "RETAINED, NOT DEAD" header stating why and when to delete it. Benchmark-fixture timing noise from the test runs was discarded, not committed.
+- **Known gaps**: 19 open across Phases 2-7 (0 in Phase 1), all non-blocking; carry-forwards from v1.13/v1.14 reconciled above; 5.P1.BB closed.
+- **CI/CD**: see the Phase 8 session history -- `shell-build.yml` already gained `core/**` in Phase 4; the installer pytest job auto-covers the new Phase 3 test files; the extension suite covers the Phase 7 activation tests. Path filters, `concurrency` cancel-in-progress, and dependency caching are in place across the workflows.
+- **Tests**: root 4646 passed / 6 skipped / **0 failed** (424 files) -- better than the v1.14 baseline (4637 + 2 load flakes); desktop 581 passed (77 files); installer pytest green (3 pre-existing skips). tsc + eslint + ruff clean.
+- **Environment note**: the local `better-sqlite3` `NODE_MODULE_VERSION` mismatch (135 vs 137) recurred once in this cycle exactly as documented in v1.14; `npm rebuild better-sqlite3` repaired it. It is a local dev-env artifact, not a project defect -- and v1.15 Phase 7 now hardens the *extension* against precisely this failure class.
+- **Release**: handed to `/update release`; NOT auto-tagged or pushed.
+
+_Last updated: 2026-08-06 (Phase 8, terminal)._

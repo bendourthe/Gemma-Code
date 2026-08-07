@@ -1,3 +1,14 @@
+/**
+ * v1.9.0 Phase 8 -- the aurora "generating" canvas with a materializing latent
+ * preview.
+ *
+ * RETAINED, NOT DEAD (v1.15.0 Phase 8 refactor triage): the Phase 5/6 chat
+ * redesigns show a lightweight "Generating..." indicator inside the assistant
+ * bubble instead of a full-bleed canvas, so nothing mounts this today. It stays
+ * (with its unit test and `.nexus-generation-*` styles) as the richer in-bubble
+ * progress visual to reinstate if the plain indicator proves too sparse.
+ */
+
 import type { CSSProperties, ReactNode } from "react";
 
 export type GenerationTint = "image" | "video";

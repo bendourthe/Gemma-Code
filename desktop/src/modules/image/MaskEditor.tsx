@@ -1,7 +1,14 @@
 /**
  * v1.0.0 Phase 6.5 -- HTML5 canvas mask editor.
  *
- * Used by the Inpaint mode in `ImageStudioPage`. Renders the source
+ * RETAINED, NOT DEAD (v1.15.0 Phase 8 refactor triage): the Phase 5 chat
+ * redesign retired the Inpaint mode tab that used to mount this, so nothing in
+ * the app renders it today -- but it stays (and stays unit-tested) because it is
+ * exactly the component the deferred inline "paint a mask on an attachment"
+ * affordance needs. See known gap IRSC.P5.A. Delete only if that gap is closed
+ * as won't-do.
+ *
+ * Renders the source
  * image and lets the user paint a binary mask on top of it; the
  * alpha channel of the overlay becomes the mask passed to the
  * `diffusion.inpaint` IPC method.

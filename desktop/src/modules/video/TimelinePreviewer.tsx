@@ -1,6 +1,11 @@
 /**
  * v1.0.0 Phase 7.2 -- Timeline previewer for completed clips.
  *
+ * RETAINED, NOT DEAD (v1.15.0 Phase 8 refactor triage): the Phase 6 chat
+ * redesign plays finished clips with native controls inside the message bubble,
+ * so nothing mounts this today -- but it stays (and stays unit-tested) for the
+ * deferred frame-accurate review affordance. See known gap IRSC.P6.A.
+ *
  * Wraps an HTML5 `<video>` element with frame-accurate stepping
  * controls. The scrubber is a `<input type="range">` bound to
  * `video.currentTime`; the step buttons advance/retreat by 1/fps so

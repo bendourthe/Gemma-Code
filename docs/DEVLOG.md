@@ -4,6 +4,27 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-06] v1.15.0 installer + registry + studio-chat -- Phase 8 (FINAL): refactor + known-gaps + CI/CD + release readiness
+
+### Goal
+
+Close the v1.15.0 cycle: verify the layout, reconcile known gaps, confirm CI/CD, run the full validation suites, and hand release-readiness to `/update release` (no auto tag/push).
+
+### What happened (verification + reconciliation; no feature code changed)
+
+- **Architecture**: detectors clean (no stray markers, empty dirs, or orphans; `check:docs-layout` + `check:naming` clean). The three components the Phase 5/6 chat redesigns left unmounted (`MaskEditor`, `TimelinePreviewer`, `GenerationCanvas`) were triaged as **retain, not delete** -- each is still unit-tested and is exactly what a documented deferred gap needs (IRSC.P5.A / IRSC.P6.A / richer in-bubble progress) -- and each now carries a "RETAINED, NOT DEAD" header saying why and when to delete it. Benchmark-fixture timing noise was discarded, not committed.
+- **Known gaps**: v1.15 file finalized (19 open across Phases 2-7, none blocking) with a carry-forward table reconciling every open v1.13/v1.14 item. **5.P1.BB** (v1.0.0 "Settings UI is wired to a mock client") marked RESOLVED by Phase 4. Noted that the placeholder HF sha256 pins also cause the new IRSC.P4.B, so one pin rotation closes both.
+- **CI/CD**: audited all 16 workflows -- every v1.15 surface is covered (`test-ts` runs the Phase 7 activation tests, `test-installer` auto-covers the Phase 3 test files, `shell-build.yml` covers desktop and gained `core/**` in Phase 4). Concurrency + caching in place; the expensive OS matrix is already gated to push-to-main. No change made: path-filtering the main `ci.yml` gate would risk skipping the full suite on a cross-cutting change.
+- **Tests**: root 424 files / **4646 passed / 0 failed** (better than the v1.14 baseline of 4637 + 2 flakes); desktop 77 files / 581 passed; installer pytest green; `tsc -b`, eslint (root + desktop), `tsc --noEmit`, and the catalog guard all clean; architecture 0 errors / 10 pre-existing warnings. The 41 installer ruff findings are all in files v1.15 never touched (the deferred NHC.P5.A baseline CI already treats as advisory).
+
+### v1.15.0 summary (8 phases -- all 6 reported issues resolved)
+
+1. Window controls + open maximized (Issue 4). 2. Installer relaunch starts at Welcome (Issue 1). 3. Catalog guard + gated-token UX + post-install summary/retry (Issue 2). 4. Real model registry with Ollama/weights reconciliation (Issue 3; closes 5.P1.BB). 5. Image Studio chat redesign (Issue 5). 6. Video Lab chat redesign (Issue 5). 7. Extension activation fix + "Nexus Code" rename (Issue 6; UX rework deferred). 8. This close-out.
+
+Release (version bump / changelog / tag) is handed to `/update release`; nothing auto-tagged or pushed.
+
+---
+
 ## [2026-08-05] v1.15.0 installer + registry + studio-chat -- Phase 7: VS Code extension "Nexus Code" activation fix (Issue 6)
 
 ### Goal
