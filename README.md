@@ -76,8 +76,19 @@ Historical note: between 2026-06-18 and 2026-07-20 a decoupled "release track" c
 | v1.12.0 | Local model-execution scaling (per-model harness, extreme-low-bit + disk-offload tiers) + surface the skill optimizer + exec-sandbox audit | Landed | [docs/v1/v1.12/](docs/v1/v1.12/) |
 | v1.13.0 | Installer reliability + UX polish: fix the fresh-install model failures (registry routing + Ollama pin + pull/load preflight), gradient "AI Studio" wordmark, and the mockup-matched installing UI | Landed | [docs/v1/v1.13/](docs/v1/v1.13/) |
 | v1.14.0 | Installer catalog curation + install reliability: best-of-family model collapse with release-date pills, gated-model auth flow (token discovery + guided license step), live reachability, and installing-page polish (uniform dependency bars, footer Cancel) | Landed | [docs/v1/v1.14/](docs/v1/v1.14/) |
+| v1.15.0 | Post-reinstall fixes + chat-style studios: window controls / open maximized, installer relaunch starts at Welcome, catalog invariant guard + gated-token UX + post-install retry, real `models.*` registry reconciled with Ollama and the installer's weights tree, Image Studio and Video Lab rebuilt as chat, and a crash-proof "Nexus Code" VS Code extension | Landed | [docs/v1/v1.15/](docs/v1/v1.15/) |
 
 Each cycle's plan lives under `docs/v1/v1.<MINOR>/plans/`, its deferred work under `docs/v1/v1.<MINOR>/known-gaps.md`, and benchmarks (where run) under `docs/v1/v1.<MINOR>/benchmarks/`.
+
+### What's new in v1.15.0
+
+Driven by six defects reported from a real reinstall, all resolved:
+
+- **Desktop shell** - the frameless title bar's minimize / maximize / close controls are visible again (they were painted over by the opaque backdrop), and the window opens maximized.
+- **Installer** - a finished run no longer sends every later launch to the "Installation Complete" page; the terminal state is cleared on Finish and by the uninstaller. A content-invariant guard now fails the build if the model catalog regresses to a shape that cannot install (the class of defect behind the reported download failures), the gated-model step explains itself and is cleanly skippable, and the final page reports each model in plain language with a "Retry failed downloads" action.
+- **Models** - Settings > Models reflects what is *actually* installed: the sidecar reconciles its registry with Ollama's tag list and the installer's on-disk weights tree, so installer-downloaded models stop showing as "available". Install / remove / disk-usage are live, and installing streams progress.
+- **Image Studio and Video Lab** - both are now chat interfaces instead of parameter forms. Paste, drag, or attach image(s) (or none) and describe what you want; the mode (text-to-image, image-to-image, inpaint, outpaint; text-to-video, image-to-video) is inferred from the attachments and the prompt. Generated media appears inline, model pickers list only installed models plus "Get more models", and every technical parameter moved behind an optional "Advanced settings" panel.
+- **VS Code extension** - renamed **Nexus Code**, and it now activates reliably: a failing local engine can no longer abort activation before the commands and views register (the cause of `command 'nexus.coding.newChat' not found` and the forever-loading panels), and packaging can no longer ship a native module built for the wrong Electron ABI. Legacy `nexus.coding.*` ids keep working, and `nexus.code.*` aliases are accepted.
 
 ---
 
