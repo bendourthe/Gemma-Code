@@ -1,0 +1,252 @@
+/**
+ * v1.16.0 Phase 1.5 (adoption item A1) -- "Local API server" settings surface.
+ *
+ * One toggle plus the two things a user must copy into another tool (Claude Code,
+ * Codex, Cursor): the base URL and the local token. Everything else is read-only
+ * state so the section explains itself without documentation.
+ *
+ * The token is masked by default behind an explicit reveal, following the
+ * `CredentialsSettings` precedent -- it is a credential, and a Settings pane is
+ * often on screen while screen-sharing. It is copyable without being revealed.
+ */
+
+import { useCallback, useEffect, useState } from "react";
+import type { ServingClient, ServingStatusDto } from "./servingTypes";
+
+export interface ServingSettingsProps {
+  client: ServingClient;
+  /** Injected in tests; defaults to the browser clipboard. */
+  writeClipboard?: (text: string) => Promise<void>;
+}
+
+const OPENAI_PATHS = ["GET /v1/models", "POST /v1/chat/completions"];
+const ANTHROPIC_PATHS = ["POST /v1/messages"];
+
+export function ServingSettings({ client, writeClipboard }: ServingSettingsProps): JSX.Element {
+  const [status, setStatus] = useState<ServingStatusDto | null>(null);
+  const [revealed, setRevealed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void client.status().then(
+      (s) => {
+        if (active) setStatus(s);
+      },
+      (err: unknown) => {
+        if (active) setError(err instanceof Error ? err.message : String(err));
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [client]);
+
+  const handleToggle = useCallback(
+    async (next: boolean) => {
+      setBusy(true);
+      setError(null);
+      setNotice(null);
+      try {
+        setStatus(await client.setEnabled(next));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [client],
+  );
+
+  const copy = useCallback(
+    async (label: string, value: string) => {
+      const write = writeClipboard ?? ((text: string) => navigator.clipboard.writeText(text));
+      try {
+        await write(value);
+        setNotice(`${label} copied to the clipboard.`);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [writeClipboard],
+  );
+
+  return (
+    <section data-testid="serving-settings" style={sectionStyle}>
+      <header>
+        <h2 style={{ margin: 0, fontSize: "var(--text-lg)" }}>Local API server</h2>
+        <p
+          style={{
+            color: "var(--fg-muted)",
+            fontSize: "var(--text-sm)",
+            margin: "var(--space-1) 0 0",
+          }}
+        >
+          Serves your installed local models to other tools on this machine only.
+          The server binds a loopback address, requires the token below, and
+          exposes model inference only -- never your files, terminal, or tools.
+        </p>
+      </header>
+
+      {error ? (
+        <p data-testid="serving-error" role="alert" style={alertStyle}>
+          {error}
+        </p>
+      ) : null}
+      {notice ? (
+        <p
+          data-testid="serving-notice"
+          role="status"
+          aria-live="polite"
+          style={{ color: "var(--fg-muted)", fontSize: "var(--text-sm)", margin: 0 }}
+        >
+          {notice}
+        </p>
+      ) : null}
+
+      {status === null ? (
+        <p data-testid="serving-loading" style={mutedStyle}>
+          Checking the local API server...
+        </p>
+      ) : (
+        <>
+          <label style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+            <input
+              data-testid="serving-toggle"
+              type="checkbox"
+              checked={status.enabled}
+              disabled={busy}
+              onChange={(e) => void handleToggle(e.target.checked)}
+            />
+            <span>Enable the local API server</span>
+          </label>
+
+          <p data-testid="serving-state" style={mutedStyle}>
+            {status.running
+              ? `Running on ${status.host}:${status.port}`
+              : status.enabled
+                ? "Enabled but not listening -- check the log for a bind error."
+                : "Stopped. No port is bound while this is off."}
+          </p>
+
+          {status.enabled ? (
+            <>
+              <div style={fieldRowStyle}>
+                <span style={labelStyle}>Base URL</span>
+                <code data-testid="serving-base-url" style={valueStyle}>
+                  {status.baseUrl}
+                </code>
+                <button
+                  type="button"
+                  data-testid="serving-copy-url"
+                  onClick={() => void copy("Base URL", status.baseUrl)}
+                  style={buttonStyle}
+                >
+                  Copy
+                </button>
+              </div>
+
+              <div style={fieldRowStyle}>
+                <span style={labelStyle}>Token</span>
+                <code data-testid="serving-token" style={valueStyle}>
+                  {revealed ? status.token : maskToken(status.token)}
+                </code>
+                <button
+                  type="button"
+                  data-testid="serving-reveal-token"
+                  onClick={() => setRevealed((v) => !v)}
+                  style={buttonStyle}
+                >
+                  {revealed ? "Hide" : "Reveal"}
+                </button>
+                <button
+                  type="button"
+                  data-testid="serving-copy-token"
+                  onClick={() => void copy("Token", status.token)}
+                  style={buttonStyle}
+                >
+                  Copy
+                </button>
+              </div>
+
+              <div data-testid="serving-endpoints">
+                <h3 style={subheadStyle}>Endpoints</h3>
+                <p style={mutedStyle}>
+                  OpenAI-compatible: {OPENAI_PATHS.join(", ")}. Anthropic-compatible:{" "}
+                  {ANTHROPIC_PATHS.join(", ")}. Send the token as{" "}
+                  <code>Authorization: Bearer &lt;token&gt;</code> or <code>x-api-key</code>.
+                </p>
+              </div>
+            </>
+          ) : null}
+        </>
+      )}
+    </section>
+  );
+}
+
+/** Show only the last 4 characters, so a revealed-by-accident token is useless. */
+function maskToken(token: string): string {
+  if (token.length <= 4) return "****";
+  return `${"*".repeat(Math.min(24, token.length - 4))}${token.slice(-4)}`;
+}
+
+const sectionStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "var(--space-3)",
+  padding: "var(--space-4) var(--space-6)",
+  flex: 1,
+  overflowY: "auto",
+};
+
+const alertStyle: React.CSSProperties = {
+  color: "var(--accent-danger, #f87171)",
+  fontSize: "var(--text-sm)",
+  margin: 0,
+};
+
+const mutedStyle: React.CSSProperties = {
+  color: "var(--fg-muted)",
+  fontSize: "var(--text-sm)",
+  margin: 0,
+};
+
+const subheadStyle: React.CSSProperties = {
+  fontSize: "var(--text-sm)",
+  color: "var(--fg-muted)",
+  margin: "0 0 var(--space-1)",
+};
+
+const fieldRowStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "var(--space-2)",
+  flexWrap: "wrap",
+};
+
+const labelStyle: React.CSSProperties = {
+  fontSize: "var(--text-xs)",
+  color: "var(--fg-muted)",
+  minWidth: "72px",
+};
+
+const valueStyle: React.CSSProperties = {
+  padding: "var(--space-1) var(--space-2)",
+  border: "1px solid var(--border-1)",
+  borderRadius: "var(--radius-md)",
+  background: "var(--bg-2)",
+  color: "var(--fg-0)",
+  wordBreak: "break-all",
+};
+
+const buttonStyle: React.CSSProperties = {
+  padding: "var(--space-1) var(--space-3)",
+  border: "1px solid var(--border-1)",
+  borderRadius: "var(--radius-md)",
+  background: "var(--bg-2)",
+  color: "var(--fg-0)",
+  cursor: "pointer",
+};

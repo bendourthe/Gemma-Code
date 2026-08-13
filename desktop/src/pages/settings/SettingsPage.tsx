@@ -10,18 +10,23 @@ import { SkillsSettings, type SkillsSettingsClient } from "./SkillsSettings";
 import { SkillOptimizerSettings, type SkillOptimizerClient } from "./SkillOptimizerSettings";
 import { CredentialsSettings } from "./CredentialsSettings";
 import type { CredentialsClient } from "./credentialsTypes";
+import { ServingSettings } from "./ServingSettings";
+import type { ServingClient } from "./servingTypes";
 import { createMockModelsClient } from "./mockModelsClient";
 import { createMockSkillsClient } from "./mockSkillsClient";
 import { createMockSkillOptimizerClient } from "./mockSkillOptimizerClient";
 import { createMockCredentialsClient } from "./mockCredentialsClient";
+import { createMockServingClient } from "./mockServingClient";
 
-type SettingsTab = "models" | "skills" | "optimizer" | "credentials";
+type SettingsTab = "models" | "skills" | "optimizer" | "credentials" | "serving";
 
 export interface SettingsPageProps {
   modelsClient?: ModelsClient;
   skillsClient?: SkillsSettingsClient;
   skillOptimizerClient?: SkillOptimizerClient;
   credentialsClient?: CredentialsClient;
+  /** v1.16.0 Phase 1.5 -- Local API server (serving gateway) section. */
+  servingClient?: ServingClient;
   initialTab?: SettingsTab;
 }
 
@@ -30,6 +35,7 @@ export function SettingsPage({
   skillsClient,
   skillOptimizerClient,
   credentialsClient,
+  servingClient,
   initialTab = "models",
 }: SettingsPageProps = {}): JSX.Element {
   const [tab, setTab] = useState<SettingsTab>(initialTab);
@@ -48,6 +54,10 @@ export function SettingsPage({
   const credentials = useMemo<CredentialsClient>(
     () => credentialsClient ?? createMockCredentialsClient(),
     [credentialsClient],
+  );
+  const serving = useMemo<ServingClient>(
+    () => servingClient ?? createMockServingClient(),
+    [servingClient],
   );
 
   return (
@@ -85,6 +95,14 @@ export function SettingsPage({
         >
           Credentials
         </button>
+        <button
+          type="button"
+          data-testid="settings-tab-serving"
+          onClick={() => setTab("serving")}
+          style={tabButtonStyle(tab === "serving")}
+        >
+          Local API server
+        </button>
       </nav>
       {tab === "models" ? (
         <ModelsSettings client={models} />
@@ -92,6 +110,8 @@ export function SettingsPage({
         <SkillsSettings client={skills} />
       ) : tab === "optimizer" ? (
         <SkillOptimizerSettings client={skillOptimizer} />
+      ) : tab === "serving" ? (
+        <ServingSettings client={serving} />
       ) : (
         <CredentialsSettings client={credentials} />
       )}

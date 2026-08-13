@@ -14,6 +14,7 @@ import { SettingsPage } from "./pages/settings/SettingsPage";
 import { createIpcSkillsClient } from "./pages/settings/ipcSkillsClient";
 import { createIpcSkillOptimizerClient } from "./pages/settings/ipcSkillOptimizerClient";
 import { createIpcModelsClient } from "./pages/settings/ipcModelsClient";
+import { createIpcServingClient } from "./pages/settings/ipcServingClient";
 import { SETTINGS_MODELS_PATH } from "./shared/models/installedFeed";
 import { LocalModelStatusDock } from "./components/LocalModelStatusDock";
 import { createMockTelemetryStream } from "./lib/telemetryMock";
@@ -36,6 +37,10 @@ const skillOptimizerClient = createIpcSkillOptimizerClient();
 // sidecar `models.*` IPC (reflect installed set + install/remove), replacing the
 // hardcoded mock. Constructed once at module load.
 const modelsClient = createIpcModelsClient();
+// v1.16.0 Phase 1 (adoption item A1): the Settings > Local API server tab drives
+// the real sidecar `serving.*` IPC (status + enable/disable of the loopback
+// OpenAI/Anthropic gateway). Constructed once at module load.
+const servingClient = createIpcServingClient();
 
 export function App({ telemetryStream }: AppProps = {}): JSX.Element {
   const [stream, setStream] = useState<TelemetryStream | null>(telemetryStream ?? null);
@@ -111,6 +116,7 @@ export function App({ telemetryStream }: AppProps = {}): JSX.Element {
                   modelsClient={modelsClient}
                   skillsClient={skillsClient}
                   skillOptimizerClient={skillOptimizerClient}
+                  servingClient={servingClient}
                 />
               }
             />

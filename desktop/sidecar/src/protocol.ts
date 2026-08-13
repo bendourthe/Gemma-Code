@@ -18,6 +18,9 @@ export const IPC_METHODS = [
   "models.diskUsage",
   "models.install.drainEvents",
   "models.install.cancel",
+  // v1.16.0 Phase 1 (adoption item A1) -- local serving gateway control surface.
+  "serving.status",
+  "serving.setEnabled",
   "coding.startTask",
   "coding.session.start",
   "coding.session.sendMessage",
@@ -675,6 +678,30 @@ export type ModelsInstallDrainResponseT = z.infer<typeof ModelsInstallDrainRespo
 export const ModelsInstallCancelRequest = z.object({ jobId: z.string().min(1) }).strict();
 export type ModelsInstallCancelRequestT = z.infer<typeof ModelsInstallCancelRequest>;
 
+// v1.16.0 Phase 1 (adoption item A1) -- local serving gateway. `serving.status`
+// reports whether the loopback OpenAI/Anthropic API is enabled and listening,
+// plus the base URL + local token the Settings section lets the user copy into
+// another tool. `serving.setEnabled` persists the opt-in and reconciles the
+// listener (enable -> bind, disable -> close; with it off NO port is bound).
+export const ServingEmptyRequest = z.object({}).strict();
+export type ServingEmptyRequestT = z.infer<typeof ServingEmptyRequest>;
+
+export const ServingStatusResponse = z
+  .object({
+    enabled: z.boolean(),
+    running: z.boolean(),
+    host: z.string().min(1),
+    port: z.number().int().positive(),
+    baseUrl: z.string().min(1),
+    /** The local bearer token. Masked in the UI by default; never logged. */
+    token: z.string(),
+  })
+  .strict();
+export type ServingStatusResponseT = z.infer<typeof ServingStatusResponse>;
+
+export const ServingSetEnabledRequest = z.object({ enabled: z.boolean() }).strict();
+export type ServingSetEnabledRequestT = z.infer<typeof ServingSetEnabledRequest>;
+
 export const SlashSuggestion = z
   .object({
     name: z.string().min(1),
@@ -901,6 +928,16 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
   "models.install.cancel": {
     request: ModelsInstallCancelRequest,
     response: ModelsOkResponse,
+    implemented: true,
+  },
+  "serving.status": {
+    request: ServingEmptyRequest,
+    response: ServingStatusResponse,
+    implemented: true,
+  },
+  "serving.setEnabled": {
+    request: ServingSetEnabledRequest,
+    response: ServingStatusResponse,
     implemented: true,
   },
   "coding.startTask": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },

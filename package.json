@@ -379,6 +379,26 @@
           "default": "off",
           "description": "MCP server mode (v1.0.0; legacy `gemma-code.mcpServerMode`)."
         },
+        "nexus.serving.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Serve Nexus's installed local models to other tools on this machine over a loopback OpenAI/Anthropic-compatible HTTP API (v1.16.0). Opt-in and off by default: with this disabled no port is bound at all."
+        },
+        "nexus.serving.host": {
+          "type": "string",
+          "default": "127.0.0.1",
+          "description": "Bind address for the local serving gateway (v1.16.0). Loopback only -- the gateway refuses to start on any address outside 127.0.0.0/8, ::1, or a loopback hostname, so local models are never exposed to the network."
+        },
+        "nexus.serving.port": {
+          "type": "number",
+          "default": 11500,
+          "description": "Port for the local serving gateway (v1.16.0). The base URL other tools point at is http://<host>:<port>/v1."
+        },
+        "nexus.serving.token": {
+          "type": "string",
+          "default": "",
+          "description": "Bearer token required on every local serving-gateway request (v1.16.0). Leave empty to have Nexus generate a random token on first use and surface it in Settings > Local API server for copying into another tool."
+        },
         "nexus.autoDetectGpu": {
           "type": "boolean",
           "default": true,

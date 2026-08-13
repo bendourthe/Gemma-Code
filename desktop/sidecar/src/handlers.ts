@@ -35,6 +35,8 @@ import {
   ModelsRemoveRequest,
   ModelsInstallDrainRequest,
   ModelsInstallCancelRequest,
+  ServingSetEnabledRequest,
+  type ServingStatusResponseT,
   SkillsSyncRequest,
   SkillsOptimizePreviewRequest,
   SkillsOptimizeApplyRequest,
@@ -85,6 +87,7 @@ import {
   createCredentialVault,
 } from "../../../core/security/CredentialVault.js";
 import { createModelsRuntime, type ModelsRuntime } from "./models/modelsService.js";
+import { createServingRuntime, type ServingRuntime } from "./serving/servingRuntime.js";
 
 export const SIDECAR_VERSION = "1.0.0-alpha.0";
 
@@ -111,6 +114,12 @@ export interface HandlerContext {
    * real disk-backed runtime on first `models.*` call.
    */
   models?: ModelsRuntime;
+  /**
+   * v1.16.0 Phase 1 (adoption item A1) -- local serving-gateway runtime. Same
+   * seam as `models`: optional so tests inject a fake, production lazily builds
+   * the real settings-backed runtime on first `serving.*` call.
+   */
+  serving?: ServingRuntime;
 }
 
 /**
@@ -123,6 +132,18 @@ async function resolveModelsRuntime(ctx: HandlerContext): Promise<ModelsRuntime>
   if (ctx.models) return ctx.models;
   if (!_modelsRuntime) _modelsRuntime = createModelsRuntime();
   return _modelsRuntime;
+}
+
+/**
+ * Lazily resolve the serving runtime, memoized per process. Unlike the models
+ * runtime this is synchronous to build (no catalog load), but it stays lazy so a
+ * sidecar that never touches `serving.*` opens no settings file.
+ */
+let _servingRuntime: ServingRuntime | null = null;
+function resolveServingRuntime(ctx: HandlerContext): ServingRuntime {
+  if (ctx.serving) return ctx.serving;
+  if (!_servingRuntime) _servingRuntime = createServingRuntime();
+  return _servingRuntime;
 }
 
 export type HandlerFn = (params: unknown, ctx: HandlerContext) => Promise<unknown>;
@@ -140,8 +161,14 @@ export function createHandlerContext(
   credentials: CredentialVault = createCredentialVault(),
   chat: ChatSessionManager = new ChatSessionManager(),
   skillOptimizer: SkillOptimizerManager = new SkillOptimizerManager(),
+  /**
+   * v1.16.0 Phase 1 -- left undefined by default so the serving runtime stays
+   * lazy (a sidecar that never calls `serving.*` binds nothing and touches no
+   * settings file); tests pass a fake.
+   */
+  serving?: ServingRuntime,
 ): HandlerContext {
-  return { ...base, sessions, chat, diffusion, ffmpeg, credentials, skillOptimizer };
+  return { ...base, sessions, chat, diffusion, ffmpeg, credentials, skillOptimizer, serving };
 }
 
 export const handlers: Record<Method, HandlerFn> = {
@@ -184,6 +211,14 @@ export const handlers: Record<Method, HandlerFn> = {
     const { installer } = await resolveModelsRuntime(ctx);
     installer.cancel(req.jobId);
     return { ok: true as const };
+  },
+  // v1.16.0 Phase 1 (adoption item A1) -- local serving gateway control.
+  "serving.status": async (_params, ctx): Promise<ServingStatusResponseT> => {
+    return resolveServingRuntime(ctx).status();
+  },
+  "serving.setEnabled": async (params, ctx): Promise<ServingStatusResponseT> => {
+    const req = ServingSetEnabledRequest.parse(params ?? {});
+    return resolveServingRuntime(ctx).setEnabled(req.enabled);
   },
   "coding.startTask": async () => {
     throw new NotImplementedError("coding.startTask");

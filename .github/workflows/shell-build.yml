@@ -1,17 +1,26 @@
 name: Shell Build (Tauri + Vite)
 
 on:
+  # v1.16.0 Phase 1 (adoption item A1): `modules/**` joined the filter because the
+  # sidecar bundle imports from it (the serving gateway pulls the vscode-free
+  # `modules/coding/llm/loopback.ts` + `headlessOpenAiClient.ts`, and `main.ts`
+  # has long pulled `headlessOllamaClient.ts`). Without it a module-only change
+  # could break `build:sidecar` with no shell build to catch it. Cost stays
+  # bounded: PRs still run ubuntu-only, and the macOS (10x) + Windows (2x) matrix
+  # is still gated to push-to-main.
   push:
     branches: [main]
     paths:
       - "desktop/**"
       - "core/**"
+      - "modules/**"
       - ".github/workflows/shell-build.yml"
   pull_request:
     branches: [main]
     paths:
       - "desktop/**"
       - "core/**"
+      - "modules/**"
       - ".github/workflows/shell-build.yml"
   workflow_dispatch: {}
 

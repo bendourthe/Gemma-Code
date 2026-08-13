@@ -4,6 +4,34 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-12] v1.16.0 local serving + OCR -- Phase 1: local serving gateway (adoption item A1, flagship)
+
+### Goal
+
+Turn Nexus from a local-model *consumer* into a local-model *provider*: expose the registry-backed installed models over a loopback OpenAI- and Anthropic-compatible HTTP API so Claude Code, Codex, and Cursor can drive them, with no code leaving the machine. The exact inverse of the v1.6.0 `localAdapters` client.
+
+### What happened
+
+- **Opt-in, default-off lifecycle**: four `nexus.serving.*` settings (`enabled` false, `host` 127.0.0.1, `port` 11500, `token` ""), resolved settings-over-env-over-default. With `enabled` false **no port is bound at all**. An empty token is replaced by 32 bytes of CSPRNG entropy and persisted, so a token pasted into another tool survives a restart; a read-only settings file degrades to a per-process token rather than failing. Two new IPC methods (`serving.status`, `serving.setEnabled`) drive it, because the sidecar still has no `settings.*` IPC.
+- **Security guard**: the gateway refuses to start (throws before `listen`) on any bind address outside `127.0.0.0/8` / `::1` / a loopback hostname, citing the local-first policy. Every request needs the bearer token, compared in constant time and accepted via either `Authorization: Bearer` or `x-api-key`. A 1 MiB body cap (enforced on both the declared `content-length` and the streamed bytes) and an 8-request concurrency cap that returns a fast 429 instead of stalling. Four routes exist and nothing else: `GET /v1/models`, `POST /v1/chat/completions`, `POST /v1/messages`, and an unauthenticated `GET /health`. No route reaches the filesystem, a process, or a Nexus tool.
+- **Both wire dialects, sharing one core**: `/v1/models` lists only installed, chat-capable registry/external rows. `/v1/chat/completions` and `/v1/messages` each serve buffered and SSE-streamed forms (OpenAI `chat.completion.chunk` + `[DONE]`; the full Anthropic `message_start` -> `content_block_start` -> `content_block_delta` -> `content_block_stop` -> `message_delta` -> `message_stop` sequence). Request parsing, content flattening, role mapping, sampling translation, model resolution, and error mapping all live in one shared `chatCore.ts` + `ModelRouter`, so 1.4 reused 1.3 rather than duplicating it. Every outbound message passes a sanitizer that strips absolute paths, `file://` URLs, and stack frames.
+- **Zero new dependencies**: `node:http`. The repo had no HTTP server anywhere (MCP is stdio-only) and the desktop workspace had no HTTP library.
+- **Desktop surface**: a "Local API server" Settings tab with the toggle, live running/stopped state, the base URL, the endpoint list, and the token - masked by default behind an explicit reveal (following the Credentials precedent) and copyable without being revealed.
+
+### Root cause found mid-phase (and fixed at the root)
+
+The plan called for routing through `LocalAdapterRegistry.createClient`. That module statically imports the concrete `OllamaClient` / `LmStudioClient`, which import `config/settings` + `utils/logger`, which `import * as vscode`. `vscode` is **not** external in `sidecar/esbuild.config.mjs`, so this would have broken `npm run build:sidecar`, not merely the tests - the same constraint that produced `headlessOllamaClient.ts` in v1.7.0. Fixed properly rather than worked around: the loopback predicate was **extracted** into a vscode-free `modules/coding/llm/loopback.ts` that `LocalAdapterRegistry` re-exports (one definition, so the inbound bind rule and the outbound endpoint rule cannot drift), and a vscode-free `headlessOpenAiClient.ts` was added mirroring the existing headless-Ollama precedent. The gateway routes through a new `ServingAdapter` seam that reads the same `nexus.llm.localAdapters` manifests and enforces the same loopback rule - so a user-registered MLX server is servable for free.
+
+### Tests
+
+154 new serving tests (26 of them integration tests that start a real listener on an ephemeral loopback port and drive it with `fetch` against a fake `LLMClient`), plus 39 new root-side tests for the two new `modules/coding/llm/` files. Serving module coverage: **98.01% lines / 90.66% branches / 97.70% functions**, every file at or above 95%. Full suites green: desktop 87 files / 735 passed, root 424 files / 4646 passed. eslint (root + desktop, `--max-warnings=0`), `tsc -b`, `tsc --noEmit`, `build:sidecar`, `check:tampering` (0 findings), and `deps:check` (0 errors) all clean. `shell-build.yml` gained `modules/**` in its path filter because the sidecar bundle now imports from that tree.
+
+### Known issues
+
+5 open items in [v1/v1.16/known-gaps.md](v1/v1.16/known-gaps.md) - the headline one is LSO.P1.A: `usage` token counts are emitted as zeros because the `LLMClient` port carries none, and Phase 2.1 captures exactly those numbers at exactly this boundary.
+
+---
+
 ## [2026-08-06] v1.15.0 installer + registry + studio-chat -- Phase 8 (FINAL): refactor + known-gaps + CI/CD + release readiness
 
 ### Goal

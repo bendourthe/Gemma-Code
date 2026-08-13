@@ -15,6 +15,7 @@ import { ChatSessionManager } from "./chat/sessionManager.js";
 import { createChatMessageHandler } from "./chat/chatMessageHandler.js";
 import { createDiffusionRuntime } from "./diffusion/runtimeFactory.js";
 import { createHandlerContext, dispatch } from "./handlers.js";
+import { createServingRuntime } from "./serving/servingRuntime.js";
 import { warmUpTreeSitter } from "./treeSitterWarmup.js";
 import { existsSync } from "node:fs";
 import { NexusHubSyncer } from "../../../core/skills/NexusHubSyncer.js";
@@ -69,6 +70,11 @@ const skillOptimizer = goldenTasksDir
       }),
     })
   : new SkillOptimizerManager();
+// v1.16.0 Phase 1 (adoption item A1): the loopback serving gateway. Constructed
+// eagerly so the same instance backs both the `serving.*` IPC and the startup
+// reconcile below, but it opens NO listener unless `nexus.serving.enabled` is
+// true -- the opt-in defaults off.
+const serving = createServingRuntime();
 const ctx = createHandlerContext(
   { pid: process.pid, platform: process.platform },
   sessions,
@@ -77,6 +83,7 @@ const ctx = createHandlerContext(
   undefined,
   chat,
   skillOptimizer,
+  serving,
 );
 
 function write(payload: JsonRpcResponseOk | JsonRpcResponseErr): void {
@@ -137,6 +144,23 @@ async function firstLaunchCatalog(): Promise<void> {
   }
 }
 
+/**
+ * v1.16.0 Phase 1: close the serving-gateway listener before exiting. Bounded by
+ * a short timer because the Rust supervisor (`desktop/src-tauri/src/sidecar.rs`)
+ * may hard-kill us anyway -- a hung close must never wedge shutdown.
+ */
+async function shutdown(): Promise<void> {
+  try {
+    await Promise.race([
+      serving.gateway.stop(),
+      new Promise<void>((resolve) => setTimeout(resolve, 2_000).unref()),
+    ]);
+  } catch {
+    // Best-effort: exit regardless.
+  }
+  process.exit(0);
+}
+
 function main(): void {
   // v1.5.0 Phase 6 (T022.P3.A): warm up the Tree-sitter codegraph scanner from
   // the bundled wasm dir so codegraph scans use the parse path, not the regex
@@ -151,16 +175,32 @@ function main(): void {
   // v1.10.0 Phase 6: best-effort Nexus-Hub catalog cleanup + first-launch fetch.
   void firstLaunchCatalog();
 
+  // v1.16.0 Phase 1: reconcile the serving gateway with its persisted opt-in, so
+  // a user who left it enabled gets the listener back on relaunch. Best-effort
+  // and non-fatal -- a bad host or a taken port must not stop the sidecar.
+  void serving.sync().then(
+    (status) => {
+      if (!status.enabled) return;
+      process.stderr.write(
+        `[nexus-sidecar] local serving gateway: ${status.running ? "listening" : "not listening"}\n`,
+      );
+    },
+    (err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      process.stderr.write(`[nexus-sidecar] local serving gateway not started: ${msg}\n`);
+    },
+  );
+
   const rl = createInterface({ input: process.stdin, crlfDelay: Infinity });
   rl.on("line", (line) => {
     if (!line.trim()) return;
     void handleLine(line);
   });
   rl.on("close", () => {
-    process.exit(0);
+    void shutdown();
   });
-  process.on("SIGTERM", () => process.exit(0));
-  process.on("SIGINT", () => process.exit(0));
+  process.on("SIGTERM", () => void shutdown());
+  process.on("SIGINT", () => void shutdown());
 }
 
 main();

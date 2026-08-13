@@ -45,6 +45,10 @@ Text-to-image, image-to-image, inpainting, and outpainting against local diffusi
 
 Short-form video synthesis via text prompts or static reference images, with a timeline previewer and granular generation controls. v1.1.0 Phase 13 adds SANA-Video 2B as the "Fast 720p" tier between LTX-Video and CogVideoX. Targets local video-synthesis architectures sized for a single consumer GPU.
 
+### Local API server (opt-in)
+
+Nexus can also *serve* the local models it has installed. Enable **Settings > Local API server** and Nexus exposes a loopback OpenAI- and Anthropic-compatible HTTP API (`GET /v1/models`, `POST /v1/chat/completions`, `POST /v1/messages`, buffered or streamed), so Claude Code, Codex, Cursor, and any OpenAI/Anthropic SDK client can drive the models you already downloaded - extending "Zero Tokens Billed" to your whole toolchain. Off by default and local by construction: with the setting disabled no port is bound, the server refuses to start on any non-loopback address, and every request needs a locally-generated bearer token. It serves model inference only - never files, terminal, or tools. Added in v1.16.0 Phase 1.
+
 ### Always-on telemetry
 
 A persistent `Local Model Status` panel reports the active model architecture, parameter size, live GPU utilization, and free VRAM - so dense computational passes do not silently OOM. The same telemetry feeds the GPU scheduler (Phase 3) that prioritizes Coding token generation over background diffusion work when both pillars compete for the same GPU.

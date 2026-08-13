@@ -51,6 +51,9 @@ describe("sidecar handlers", () => {
           "models.diskUsage",
           "models.install.drainEvents",
           "models.install.cancel",
+          // v1.16.0 Phase 1 wired the local serving-gateway control surface.
+          "serving.status",
+          "serving.setEnabled",
           "coding.session.start",
           "coding.session.sendMessage",
           "coding.session.cancel",

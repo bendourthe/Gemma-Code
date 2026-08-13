@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { LLMClient } from "./types.js";
+import { isLoopbackEndpoint } from "./loopback.js";
 import { createOllamaClient } from "./OllamaClient.js";
 import { createLmStudioClient } from "./LmStudioClient.js";
 
@@ -80,37 +81,13 @@ export const OLLAMA_ADAPTER_NAME = "ollama";
 export const LMSTUDIO_ADAPTER_NAME = "lmstudio";
 
 /**
- * Loopback hostnames accepted by the local-only guard. These mirror the
- * loopback set in `ssrf.ts`; everything else (LAN / public / non-http) is
- * rejected. Intentionally stricter than `ssrf.isBlockedIp`, which also matches
- * RFC-1918 LAN ranges -- a *local runtime* must be loopback, not a LAN host.
+ * The loopback guard now lives in the vscode-free `./loopback.js` so headless
+ * hosts (the v1.16.0 Phase 1 serving gateway, the `nexus` CLI) can share the
+ * SAME predicate without pulling in this module's concrete-client imports, which
+ * transitively reach `vscode`. Re-exported here so every existing importer keeps
+ * working and there is exactly one definition, not two that can drift.
  */
-const LOOPBACK_HOSTNAMES: ReadonlySet<string> = new Set([
-  "localhost",
-  "ip6-localhost",
-  "ip6-loopback",
-]);
-
-/**
- * Returns true only for an `http(s)` URL whose host is a loopback address
- * (`127.0.0.0/8`, `::1`) or a loopback hostname. No DNS resolution is performed
- * (a manifest endpoint is a literal the user typed, not an attacker-controlled
- * redirect target), so this is a pure, synchronous, fail-fast check.
- */
-export function isLoopbackEndpoint(rawUrl: string): boolean {
-  let parsed: URL;
-  try {
-    parsed = new URL(rawUrl);
-  } catch {
-    return false;
-  }
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
-  const host = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, "");
-  if (LOOPBACK_HOSTNAMES.has(host)) return true;
-  if (/^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host)) return true;
-  if (host === "::1" || host === "0:0:0:0:0:0:0:1") return true;
-  return false;
-}
+export { isLoopbackEndpoint };
 
 /** Discriminated result of validating a raw manifest. */
 export type ManifestValidationResult =
