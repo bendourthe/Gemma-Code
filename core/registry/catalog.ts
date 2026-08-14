@@ -19,7 +19,13 @@ export type ModelType =
   | "video"
   | "audio"
   | "controlnet"
-  | "vae";
+  | "vae"
+  /**
+   * v1.16.0 Phase 3 (adoption item A5) -- document OCR / parsing. A `document`
+   * model turns an image or a PDF into text/markdown; it is served by the
+   * `runtimes/ocr` Python runtime, not by any LLM or diffusion path.
+   */
+  | "document";
 
 /**
  * v1.8.0 Phase 4 -- user-facing catalog section a model belongs to.
@@ -33,7 +39,9 @@ export type ModelTask =
   | "image"
   | "video"
   | "audio"
-  | "embed";
+  | "embed"
+  /** v1.16.0 Phase 3 (adoption item A5) -- document OCR / parsing section. */
+  | "document";
 
 const MODEL_TASKS: readonly ModelTask[] = [
   "chat",
@@ -42,6 +50,7 @@ const MODEL_TASKS: readonly ModelTask[] = [
   "video",
   "audio",
   "embed",
+  "document",
 ];
 
 export interface ModelSpecSource {
@@ -49,6 +58,17 @@ export interface ModelSpecSource {
   readonly url?: string;
   readonly repo?: string;
   readonly sha256?: string;
+  /**
+   * v1.16.0 Phase 3 (adoption item A5) -- HuggingFace commit hash the weights
+   * are pinned to. When present, pullers resolve `resolve/<revision>/` instead
+   * of the floating `resolve/main/`, so a repo whose `main` moves (or is
+   * force-pushed) cannot silently change what a user installs.
+   *
+   * This matters most for a model that ships executable code: the OCR VLM runs
+   * under `trust_remote_code`, and an unpinned `main` would mean arbitrary new
+   * code on every install. A 40-hex commit sha is required when set.
+   */
+  readonly revision?: string;
 }
 
 /**
@@ -113,11 +133,34 @@ export interface ModelSpec {
   readonly tags?: readonly string[];
   readonly releaseDate?: string;
   readonly uncensored?: boolean;
+  /**
+   * The CHAT prompt-assembly may attach images to this model -- it must satisfy
+   * `isVisionCapableModel` (asserted by `tests/unit/config/ModelCapabilities.test.ts`).
+   *
+   * NOT "this model can read images". A `type: "document"` OCR model reads
+   * images but is served by `runtimes/ocr`, never through the LLM path, so it
+   * leaves this false; its image handling is implied by its type.
+   */
   readonly multimodal?: boolean;
   readonly contextWindow?: number | null;
   readonly linkedVAE?: string;
   readonly linkedFamily?: string;
   readonly runtimeDeps?: readonly string[];
+  /**
+   * v1.16.0 Phase 3 (adoption item A5) -- the model ships custom Python that the
+   * loader executes (HuggingFace `trust_remote_code=True`). Declaring it in the
+   * catalog makes the supply-chain surface reviewable rather than buried in a
+   * runtime call, and `validateSpec` REQUIRES a pinned `source.revision`
+   * whenever it is set. The runtime additionally refuses to execute repo code
+   * outside the sandboxed Python process.
+   */
+  readonly trustRemoteCode?: boolean;
+  /**
+   * v1.16.0 Phase 3 (adoption item A5) -- which `runtimes/ocr` engine serves
+   * this model. Lets one runtime host several document backends (a CUDA VLM and
+   * a portable ONNX engine) without the sidecar hard-coding model ids.
+   */
+  readonly ocrEngine?: "unlimited-ocr" | "rapidocr";
   /**
    * v1.12.0 Phase 3 (Q1) -- GGUF quant label (e.g. `Q4_K_M`, `TQ1_0`). When the
    * value is a BitNet-class ternary/1-bit type (see `extremeLowBit.ts`), the
@@ -143,7 +186,10 @@ export function validateSpec(spec: ModelSpec): void {
   if (!spec.id || !spec.family || !spec.name || !spec.tag) {
     throw new Error(`ModelCatalog: entry missing id/family/name/tag: ${JSON.stringify(spec)}`);
   }
-  if (!spec.type || !["llm", "embed", "image", "video", "audio", "controlnet", "vae"].includes(spec.type)) {
+  if (
+    !spec.type ||
+    !["llm", "embed", "image", "video", "audio", "controlnet", "vae", "document"].includes(spec.type)
+  ) {
     throw new Error(`ModelCatalog: invalid type for ${spec.id}: ${spec.type}`);
   }
   if (spec.task !== undefined && !MODEL_TASKS.includes(spec.task)) {
@@ -162,6 +208,21 @@ export function validateSpec(spec: ModelSpec): void {
   }
   if (spec.source.protocol !== "ollama" && spec.source.sha256 && !/^[a-f0-9]{64}$/.test(spec.source.sha256)) {
     throw new Error(`ModelCatalog: ${spec.id} has malformed source.sha256`);
+  }
+  // v1.16.0 Phase 3 (A5): a pinned revision must be a full 40-hex commit sha.
+  // A branch or tag name is rejected on purpose -- both are mutable, which is
+  // exactly the supply-chain hole pinning exists to close.
+  if (spec.source.revision !== undefined && !/^[a-f0-9]{40}$/.test(spec.source.revision)) {
+    throw new Error(
+      `ModelCatalog: ${spec.id} has a malformed source.revision (expected a 40-hex commit sha, got "${spec.source.revision}")`,
+    );
+  }
+  // A model that executes repo-supplied code must be pinned: an unpinned `main`
+  // means every install can fetch different code.
+  if (spec.trustRemoteCode === true && !spec.source.revision) {
+    throw new Error(
+      `ModelCatalog: ${spec.id} sets trustRemoteCode but has no source.revision; a model that runs repo code MUST pin a commit sha`,
+    );
   }
   if (spec.weights) {
     if (!Array.isArray(spec.weights.files) || spec.weights.files.length === 0) {

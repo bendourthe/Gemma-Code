@@ -1344,6 +1344,120 @@
         ]
       },
       "tags": ["audio", "generation", "sound", "phase-4"]
+    },
+    {
+      "id": "rapidocr-ppocrv4",
+      "family": "rapidocr",
+      "name": "rapidocr",
+      "tag": "ppocrv4",
+      "type": "document",
+      "task": "document",
+      "displayName": "RapidOCR PP-OCRv4",
+      "origin": "Community",
+      "description": "RapidOCR PP-OCRv4 is a community-maintained ONNX text-detection and text-recognition pair that reads images and PDFs on any machine. It runs on the CPU through ONNX Runtime, so document parsing works on Windows, macOS (Intel and Apple Silicon), and Linux with no GPU at all.",
+      "strengths": [
+        "Runs on CPU -- no GPU required, works on every supported OS",
+        "Tiny download (about 20 MB) and fast to load",
+        "Apache-2.0 across both the models and the runtime"
+      ],
+      "whyRecommended": "The portable half of the document-OCR pair: every install gets working document parsing regardless of hardware, mirroring how faster-whisper guarantees transcription everywhere.",
+      "differentiators": "Traditional detect-then-recognize OCR rather than a vision-language model: far smaller and CPU-capable, at the cost of layout reasoning on complex documents.",
+      "sizeGB": 0.02,
+      "requiredVramGB": 0,
+      "releaseDate": "2024-08-28",
+      "uncensored": false,
+      "multimodal": false,
+      "contextWindow": null,
+      "license": "Apache-2.0",
+      "ocrEngine": "rapidocr",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "SWHL/RapidOCR",
+        "revision": "1cfba2e90fc938db55889873735088de210cc173",
+        "url": "https://huggingface.co/SWHL/RapidOCR/resolve/1cfba2e90fc938db55889873735088de210cc173/PP-OCRv4/ch_PP-OCRv4_det_infer.onnx",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "PP-OCRv4/ch_PP-OCRv4_det_infer.onnx",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          {
+            "path": "PP-OCRv4/ch_PP-OCRv4_rec_infer.onnx",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
+      },
+      "tags": ["document", "ocr", "cpu", "portable", "phase-3"]
+    },
+    {
+      "id": "unlimited-ocr-3b",
+      "family": "unlimited-ocr",
+      "name": "unlimited-ocr",
+      "tag": "3b",
+      "type": "document",
+      "task": "document",
+      "displayName": "Unlimited-OCR 3B",
+      "origin": "China",
+      "description": "Baidu's Unlimited-OCR is a 3B vision-language model from China that parses a whole multi-page document in one pass, preserving layout and structure as markdown. It is CUDA-first: the publisher documents NVIDIA GPUs only, so Nexus offers it exclusively on capable NVIDIA hosts and falls back to RapidOCR everywhere else.",
+      "strengths": [
+        "One-shot long-horizon parsing of multi-page PDFs (32K context)",
+        "Layout-aware markdown output, not just loose text lines",
+        "MIT-licensed open weights"
+      ],
+      "whyRecommended": "The quality tier for document parsing: a vision-language model reads tables, columns, and headings that a detect-then-recognize engine flattens.",
+      "differentiators": "Understands document structure rather than only locating text, at the cost of a 3B GPU-resident model and NVIDIA-only support.",
+      "sizeGB": 6.7,
+      "vramGB": 12,
+      "requiredVramGB": 12,
+      "releaseDate": "2026-07-29",
+      "uncensored": false,
+      "multimodal": false,
+      "contextWindow": 32768,
+      "license": "MIT",
+      "provenance": "Published by Baidu on Hugging Face as baidu/Unlimited-OCR; open weights under MIT with model-specific inference code in the repository.",
+      "trustRemoteCode": true,
+      "ocrEngine": "unlimited-ocr",
+      "guardrails": "N/A -- document parsing model, no generation guardrails apply",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "baidu/Unlimited-OCR",
+        "revision": "07dea832e22aefee32ad281d4b80551282e1c168",
+        "url": "https://huggingface.co/baidu/Unlimited-OCR/resolve/07dea832e22aefee32ad281d4b80551282e1c168/model-00001-of-000001.safetensors",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "model-00001-of-000001.safetensors",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          {
+            "path": "model.safetensors.index.json",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          {
+            "path": "config.json",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          {
+            "path": "tokenizer_config.json",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          {
+            "path": "modeling_unlimitedocr.py",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          {
+            "path": "modeling_deepseekv2.py",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
+      },
+      "tags": ["document", "ocr", "vlm", "cuda", "phase-3"]
     }
   ]
 }

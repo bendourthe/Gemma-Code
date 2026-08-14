@@ -14,7 +14,9 @@ export type ModelType =
   | "video"
   | "audio"
   | "controlnet"
-  | "vae";
+  | "vae"
+  /** v1.16.0 Phase 3 (adoption item A5) -- document OCR / parsing. */
+  | "document";
 
 export interface ListedModelDto {
   id: string;

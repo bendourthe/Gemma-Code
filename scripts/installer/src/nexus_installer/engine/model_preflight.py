@@ -48,7 +48,10 @@ from nexus_installer.installer_state import InstallerState
 
 LogFn = Callable[[str, str], None]
 
-HF_RESOLVE_URL = "https://huggingface.co/{repo}/resolve/main/{path}"
+# v1.16.0 Phase 3 (A5): preflight probes the SAME pinned revision the puller will
+# download, so a reachability check can never pass against `main` while the
+# actual download targets a pinned commit that is gated or missing.
+HF_RESOLVE_URL = "https://huggingface.co/{repo}/resolve/{revision}/{path}"
 OLLAMA_REGISTRY_MANIFEST = (
     "https://registry.ollama.ai/v2/library/{name}/manifests/{tag}"
 )
@@ -113,7 +116,11 @@ def _hf_probe_url(entry: dict[str, object]) -> str | None:
         return None
     if not manifest.files:
         return None
-    return HF_RESOLVE_URL.format(repo=manifest.repo, path=manifest.files[0].path)
+    return HF_RESOLVE_URL.format(
+        repo=manifest.repo,
+        revision=manifest.revision,
+        path=manifest.files[0].path,
+    )
 
 
 def _ollama_manifest_url(entry: dict[str, object] | None, model_id: str) -> str | None:

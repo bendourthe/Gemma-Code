@@ -12,7 +12,7 @@
  * known-gap 3.P1.N.
  */
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FolderTree, type SelectedNode } from "./FolderTree";
 import { Breadcrumb } from "./Breadcrumb";
 import { InMemoryChatExplorerClient } from "./chatExplorerClient";
@@ -26,13 +26,21 @@ import {
 } from "./chatIpcClient";
 import type { Chat } from "./types";
 import {
-  ChatInput,
+  MediaComposer,
   MessageList,
   ModelSelector,
   type ChatMessage,
 } from "../../shared/chat";
 import { PreviewPane, type PreviewArtifact } from "../../components/PreviewPane";
 import { DEFAULT_MODEL_ID, FRONTEND_MODELS } from "../coding/models";
+import {
+  createIpcDocumentClient,
+  type DocumentClient,
+} from "./documentClient";
+import { SETTINGS_MODELS_PATH } from "../../shared/models/installedFeed";
+
+/** v1.16.0 Phase 3 -- what the composer will take for a parse-document turn. */
+const DOCUMENT_ACCEPT = "application/pdf,image/*";
 
 export interface ChatPageProps {
   /** Optional client override (tests inject an InMemoryChatExplorerClient). */
@@ -41,12 +49,21 @@ export interface ChatPageProps {
   chatSession?: ChatSessionClient;
   /** Default model id used when starting a fresh chat. */
   defaultModelId?: string;
+  /**
+   * v1.16.0 Phase 3 (adoption item A5) -- document-parse client. Tests inject
+   * the in-memory one; production talks to the sidecar's `ocr.*` IPC.
+   */
+  documentClient?: DocumentClient;
+  /** Deep-link out to Settings > Models when no document model is installed. */
+  onGetMoreModels?: () => void;
 }
 
 export function ChatPage({
   client: clientOverride,
   chatSession: chatSessionOverride,
   defaultModelId = DEFAULT_MODEL_ID,
+  documentClient: documentClientOverride,
+  onGetMoreModels,
 }: ChatPageProps = {}): JSX.Element {
   // The client survives re-renders but is recreated per ChatPage instance.
   // Tests can inject one via the prop so they observe state changes.
@@ -70,6 +87,27 @@ export function ChatPage({
   // v1.5.0 Phase 5 (item 24): the artifact currently shown in the side-by-side
   // preview pane, or null when the pane is closed.
   const [preview, setPreview] = useState<PreviewArtifact | null>(null);
+
+  // v1.16.0 Phase 3 (adoption item A5) -- document-parse state.
+  const [documentClient] = useState<DocumentClient>(
+    () => documentClientOverride ?? createIpcDocumentClient(),
+  );
+  const [documentModelInstalled, setDocumentModelInstalled] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void documentClient.installedDocumentModels().then(
+      (models) => {
+        if (active) setDocumentModelInstalled(models.length > 0);
+      },
+      () => {
+        if (active) setDocumentModelInstalled(false);
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [documentClient]);
 
   const breadcrumbAncestors = useMemo(() => {
     if (!activeChat) return [];
@@ -107,19 +145,108 @@ export function ChatPage({
     );
   }, []);
 
+  /** Append one message to a chat's transcript. */
+  const appendMessage = useCallback((chatId: string, message: ChatMessage) => {
+    setMessagesByChat((prev) => {
+      const next = new Map(prev);
+      next.set(chatId, [...(next.get(chatId) ?? []), message]);
+      return next;
+    });
+  }, []);
+
+  /** Replace one message in place (used to stream parse progress into a bubble). */
+  const patchMessage = useCallback(
+    (chatId: string, messageId: string, patch: Partial<ChatMessage>) => {
+      setMessagesByChat((prev) => {
+        const next = new Map(prev);
+        next.set(
+          chatId,
+          (next.get(chatId) ?? []).map((m) => (m.id === messageId ? { ...m, ...patch } : m)),
+        );
+        return next;
+      });
+    },
+    [],
+  );
+
+  /**
+   * v1.16.0 Phase 3 (adoption item A5) -- the parse-document chat action.
+   *
+   * An attachment turns the turn into a document parse rather than a model
+   * chat: the OCR runtime reads it and the extracted text comes back as the
+   * assistant message, so the user can then ask questions about it in the same
+   * thread. Parsed text is NOT auto-sent to the model -- the user decides what
+   * to do with it, which keeps an untrusted document from silently entering a
+   * prompt.
+   */
+  const handleParseDocument = useCallback(
+    async (chatId: string, baseId: string, attachment: string, note: string) => {
+      const messageId = `${baseId}-parse`;
+      appendMessage(chatId, {
+        id: messageId,
+        role: "assistant",
+        content: "Reading document...",
+      });
+      try {
+        const handle = documentClient.parse(attachment, ({ page, totalPages }) => {
+          patchMessage(chatId, messageId, {
+            content:
+              totalPages > 0
+                ? `Reading document... page ${page} of ${totalPages}`
+                : "Reading document...",
+          });
+        });
+        const result = await handle.done;
+        const body = (result.markdown ?? result.text).trim();
+        const header =
+          result.pageCount > 1
+            ? `Parsed ${result.pageCount} pages with ${result.engine}:`
+            : `Parsed with ${result.engine}:`;
+        patchMessage(chatId, messageId, {
+          content: body.length > 0 ? `${header}\n\n${body}` : `${header}\n\n(no text found)`,
+        });
+      } catch (err) {
+        patchMessage(chatId, messageId, {
+          content: `Could not parse the document: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        });
+      }
+      if (note.trim().length > 0) {
+        // The user typed alongside the attachment; keep their note visible.
+        appendMessage(chatId, {
+          id: `${baseId}-note`,
+          role: "assistant",
+          content: "Ask a follow-up question about the parsed text above to send it to the model.",
+        });
+      }
+    },
+    [appendMessage, documentClient, patchMessage],
+  );
+
   const handleSubmit = useCallback(
-    async (text: string) => {
+    async (text: string, attachments: readonly string[] = []) => {
       if (!activeChat) return;
       const chat = activeChat;
       const baseId = `${chat.id}-${Date.now()}`;
       // Render the user's message immediately.
-      setMessagesByChat((prev) => {
-        const next = new Map(prev);
-        const list = next.get(chat.id) ?? [];
-        next.set(chat.id, [...list, { id: `${baseId}-user`, role: "user", content: text }]);
-        return next;
-      });
+      const userContent =
+        attachments.length > 0
+          ? `${text || "(document)"}\n\n[${attachments.length} attachment${
+              attachments.length === 1 ? "" : "s"
+            }]`
+          : text;
+      appendMessage(chat.id, { id: `${baseId}-user`, role: "user", content: userContent });
       client.renameChat(chat.id, chat.title); // touch updatedAt
+
+      // An attachment routes to the OCR runtime, not the chat model.
+      if (attachments.length > 0) {
+        const first = attachments[0];
+        if (first !== undefined) {
+          await handleParseDocument(chat.id, baseId, first, text);
+        }
+        return;
+      }
 
       // Drive a real local-model turn via the sidecar (lazily starting a
       // session per chat). Falls back to an inline notice if IPC is unavailable
@@ -138,14 +265,9 @@ export function ChatPage({
         content = `(chat unavailable) ${err instanceof Error ? err.message : String(err)}`;
       }
 
-      setMessagesByChat((prev) => {
-        const next = new Map(prev);
-        const list = next.get(chat.id) ?? [];
-        next.set(chat.id, [...list, { id: `${baseId}-assistant`, role: "assistant", content }]);
-        return next;
-      });
+      appendMessage(chat.id, { id: `${baseId}-assistant`, role: "assistant", content });
     },
-    [activeChat, client, chatSession],
+    [activeChat, client, chatSession, appendMessage, handleParseDocument],
   );
 
   return (
@@ -220,11 +342,36 @@ export function ChatPage({
         </div>
 
         {activeChat && (
-          <footer>
-            <ChatInput
-              onSubmit={handleSubmit}
+          <footer style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+            {/*
+              v1.16.0 Phase 3 (adoption item A5): with no document model
+              installed, say so and deep-link to Settings > Models rather than
+              letting the user attach a PDF that can only fail.
+            */}
+            {documentModelInstalled === false ? (
+              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+                <button
+                  type="button"
+                  data-testid="chat-get-more-models"
+                  onClick={() => onGetMoreModels?.()}
+                  style={getMoreModelsStyle}
+                >
+                  No document model installed - get more models
+                </button>
+                <a
+                  data-testid="chat-settings-link"
+                  href={SETTINGS_MODELS_PATH}
+                  style={{ display: "none" }}
+                >
+                  Settings
+                </a>
+              </div>
+            ) : null}
+            <MediaComposer
+              onSubmit={(text, attachments) => void handleSubmit(text, attachments)}
               submitAccentVar="--accent-chatbot"
-              placeholder="Type a message and press Enter to send."
+              accept={DOCUMENT_ACCEPT}
+              placeholder="Type a message, or attach a PDF or image to read it."
             />
           </footer>
         )}
@@ -232,3 +379,13 @@ export function ChatPage({
     </section>
   );
 }
+
+const getMoreModelsStyle: React.CSSProperties = {
+  padding: "var(--space-1) var(--space-3)",
+  border: "1px solid var(--border-1)",
+  borderRadius: "var(--radius-md)",
+  background: "var(--bg-2)",
+  color: "var(--fg-muted)",
+  cursor: "pointer",
+  fontSize: "var(--text-sm)",
+};

@@ -33,7 +33,7 @@ describe("<ChatPage>", () => {
     expect(chats?.length).toBe(1);
     const chatId = chats![0]!.id;
     await user.click(screen.getByTestId(`tree-row-chat-${chatId}`));
-    expect(screen.getByTestId("chat-input")).toBeInTheDocument();
+    expect(screen.getByTestId("media-composer")).toBeInTheDocument();
     expect(screen.getByTestId("chat-breadcrumb")).toHaveTextContent("Work");
   });
 
@@ -56,7 +56,7 @@ describe("<ChatPage>", () => {
     render(<ChatPage client={client} chatSession={chatSession} />);
     await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
     await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
-    const textarea = screen.getByTestId("chat-input-textarea");
+    const textarea = screen.getByTestId("media-composer-textarea");
     await user.type(textarea, "hello{Enter}");
     expect(await screen.findByText("hello")).toBeInTheDocument();
     expect(await screen.findByText("Hi there")).toBeInTheDocument();
@@ -76,7 +76,7 @@ describe("<ChatPage>", () => {
     render(<ChatPage client={client} chatSession={chatSession} />);
     await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
     await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
-    await user.type(screen.getByTestId("chat-input-textarea"), "hello{Enter}");
+    await user.type(screen.getByTestId("media-composer-textarea"), "hello{Enter}");
     expect(await screen.findByText(/chat unavailable/)).toBeInTheDocument();
   });
 

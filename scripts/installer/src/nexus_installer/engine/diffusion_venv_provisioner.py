@@ -46,6 +46,15 @@ REQUIRED_WHEEL_PREFIXES: tuple[str, ...] = (
     "opencv_python_headless",
     # v1.1.0 Phase 12.4 -- SVDQuant INT4 runtime (Apache-2.0).
     "nunchaku",
+    # v1.16.0 Phase 3 (adoption item A5) -- document-OCR runtime, portable tier.
+    # Both are pure wheels with no system packages, no GPU, and no compiler, so
+    # they install on every supported host. They are REQUIRED (not optional)
+    # because the portable OCR engine is what guarantees document parsing works
+    # on a machine with no NVIDIA GPU; the CUDA vision-language engine reuses the
+    # torch/transformers wheels already listed above.
+    "pypdfium2",
+    "rapidocr_onnxruntime",
+    "onnxruntime",
 )
 
 

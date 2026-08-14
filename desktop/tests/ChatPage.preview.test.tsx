@@ -34,7 +34,7 @@ async function openChatAndSend(): Promise<void> {
   render(<ChatPage client={client} chatSession={chatSession} />);
   await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
   await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
-  const textarea = screen.getByTestId("chat-input-textarea");
+  const textarea = screen.getByTestId("media-composer-textarea");
   await user.type(textarea, "hello{Enter}");
   await screen.findByText(REPLY); // wait for the async assistant reply to render
 }

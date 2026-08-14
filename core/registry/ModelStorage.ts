@@ -39,7 +39,16 @@ export interface ModelManifest {
   readonly family: string;
   readonly name: string;
   readonly tag: string;
-  readonly type: "llm" | "embed" | "image" | "video" | "audio" | "controlnet" | "vae";
+  readonly type:
+    | "llm"
+    | "embed"
+    | "image"
+    | "video"
+    | "audio"
+    | "controlnet"
+    | "vae"
+    /** v1.16.0 Phase 3 (adoption item A5) -- document OCR / parsing. */
+    | "document";
   readonly runtime?:
     | "ollama"
     | "lmstudio"
@@ -48,7 +57,9 @@ export interface ModelManifest {
     | "audio"
     | "embed"
     | "controlnet"
-    | "vae";
+    | "vae"
+    /** v1.16.0 Phase 3 -- served by the `runtimes/ocr` Python runtime. */
+    | "ocr";
   readonly displayName?: string;
   readonly license?: string;
   readonly sizeBytes?: number;

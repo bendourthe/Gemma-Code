@@ -92,6 +92,10 @@ TYPE_TABS: tuple[tuple[str, str, str], ...] = (
     ("image", "Image", "[I]"),
     ("video", "Video", "[V]"),
     ("audio", "Audio", "[A]"),
+    # v1.16.0 Phase 3 (adoption item A5): document OCR / parsing. Without a tab
+    # here, `load_catalog_models` drops any entry whose tab resolves to None, so
+    # the two document models would be silently invisible in the picker.
+    ("document", "Document", "[D]"),
 )
 
 # Fallback when an entry carries no `task` field: catalog `type` -> tab.
@@ -102,6 +106,7 @@ CATALOG_TYPE_TO_TAB = {
     "image": "image",
     "video": "video",
     "audio": "audio",
+    "document": "document",
 }
 
 # Primary mapping: catalog `task` -> tab.
@@ -112,6 +117,7 @@ TASK_TO_TAB = {
     "image": "image",
     "video": "video",
     "audio": "audio",
+    "document": "document",
 }
 
 

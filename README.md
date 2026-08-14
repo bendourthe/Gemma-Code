@@ -45,6 +45,10 @@ Text-to-image, image-to-image, inpainting, and outpainting against local diffusi
 
 Short-form video synthesis via text prompts or static reference images, with a timeline previewer and granular generation controls. v1.1.0 Phase 13 adds SANA-Video 2B as the "Fast 720p" tier between LTX-Video and CogVideoX. Targets local video-synthesis architectures sized for a single consumer GPU.
 
+### Document parsing (OCR)
+
+Attach a PDF or an image in the Local Chatbot and Nexus reads it into text on your machine. Two models cover the range: **RapidOCR PP-OCRv4** (Apache-2.0, ~20 MB) runs on the CPU, so parsing works on Windows, macOS (Intel and Apple Silicon), and Linux with no GPU at all; **Unlimited-OCR 3B** (MIT) is a vision-language model that preserves layout as markdown on capable NVIDIA GPUs. Both are optional, never auto-installed, and pinned to a specific model revision. Extracted text is never sent to a model on its own - you decide what to do with it. Added in v1.16.0 Phase 3.
+
 ### Local API server (opt-in)
 
 Nexus can also *serve* the local models it has installed. Enable **Settings > Local API server** and Nexus exposes a loopback OpenAI- and Anthropic-compatible HTTP API (`GET /v1/models`, `POST /v1/chat/completions`, `POST /v1/messages`, buffered or streamed), so Claude Code, Codex, Cursor, and any OpenAI/Anthropic SDK client can drive the models you already downloaded - extending "Zero Tokens Billed" to your whole toolchain. Off by default and local by construction: with the setting disabled no port is bound, the server refuses to start on any non-loopback address, and every request needs a locally-generated bearer token. It serves model inference only - never files, terminal, or tools. Added in v1.16.0 Phase 1.

@@ -373,7 +373,9 @@ function makeHttpManifest(spec: ModelSpec, result: DownloadResult, now: Date): M
                 ? "vae"
                 : spec.type === "audio"
                   ? "audio"
-                  : "video",
+                  : spec.type === "document"
+                    ? "ocr"
+                    : "video",
     displayName: spec.displayName,
     license: spec.license,
     vramGb: spec.vramGB,

@@ -39,6 +39,12 @@ import {
   type ServingStatusResponseT,
   MetricsEmptyRequest,
   type MetricsInferenceResponseT,
+  OcrEmptyRequest,
+  OcrParseDocumentRequest,
+  OcrJobDrainRequest,
+  OcrJobCancelRequest,
+  type OcrHealthResponseT,
+  type OcrJobDrainResponseT,
   SkillsSyncRequest,
   SkillsOptimizePreviewRequest,
   SkillsOptimizeApplyRequest,
@@ -94,6 +100,7 @@ import {
   type InferenceMetricsRegistry,
   sharedInferenceMetrics,
 } from "../../../core/observability/InferenceMetrics.js";
+import { createOcrRuntimeBundle, type OcrRuntime } from "./ocr/runtimeFactory.js";
 
 export const SIDECAR_VERSION = "1.0.0-alpha.0";
 
@@ -132,6 +139,13 @@ export interface HandlerContext {
    * the instrumented LLM clients write to.
    */
   metrics?: InferenceMetricsRegistry;
+  /**
+   * v1.16.0 Phase 3 (adoption item A5) -- document-OCR runtime (Python client +
+   * parse-job manager). Optional so tests inject the in-memory pair; production
+   * lazily builds the real one on first `ocr.*` call, so a sidecar that never
+   * parses a document never spawns Python.
+   */
+  ocr?: OcrRuntime;
 }
 
 /** How many individual request records the Traces panel receives per poll. */
@@ -161,6 +175,17 @@ function resolveServingRuntime(ctx: HandlerContext): ServingRuntime {
   return _servingRuntime;
 }
 
+/**
+ * Lazily resolve the OCR runtime, memoized per process. Kept lazy so a session
+ * that never parses a document never spawns the Python child.
+ */
+let _ocrRuntime: OcrRuntime | null = null;
+function resolveOcrRuntime(ctx: HandlerContext): OcrRuntime {
+  if (ctx.ocr) return ctx.ocr;
+  if (!_ocrRuntime) _ocrRuntime = createOcrRuntimeBundle();
+  return _ocrRuntime;
+}
+
 export type HandlerFn = (params: unknown, ctx: HandlerContext) => Promise<unknown>;
 
 export const DEFAULT_FFMPEG_CONTEXT: FfmpegContext = {
@@ -184,6 +209,8 @@ export function createHandlerContext(
   serving?: ServingRuntime,
   /** v1.16.0 Phase 2 -- left undefined so production reads the shared registry. */
   metrics?: InferenceMetricsRegistry,
+  /** v1.16.0 Phase 3 -- left undefined so the Python child stays unspawned. */
+  ocr?: OcrRuntime,
 ): HandlerContext {
   return {
     ...base,
@@ -195,6 +222,7 @@ export function createHandlerContext(
     skillOptimizer,
     serving,
     metrics,
+    ocr,
   };
 }
 
@@ -257,6 +285,54 @@ export const handlers: Record<Method, HandlerFn> = {
       perModel: registry.perModel().map((m) => ({ ...m })),
       recent: registry.recent(RECENT_METRIC_LIMIT).map((r) => ({ ...r })),
     };
+  },
+  // v1.16.0 Phase 3 (adoption item A5) -- document OCR / parsing.
+  "ocr.health": async (params, ctx): Promise<OcrHealthResponseT> => {
+    OcrEmptyRequest.parse(params ?? {});
+    const { client } = resolveOcrRuntime(ctx);
+    try {
+      const raw = (await client.call("health", {})) as Record<string, unknown>;
+      return {
+        ok: raw.ok === true,
+        device: typeof raw.device === "string" ? raw.device : "unknown",
+        platform: typeof raw.platform === "string" ? raw.platform : "unknown",
+        vramTotalGB: typeof raw.vramTotalGB === "number" ? raw.vramTotalGB : null,
+        engines: (raw.engines ?? {}) as OcrHealthResponseT["engines"],
+      };
+    } catch (err) {
+      // A missing Python runtime is an EXPECTED state on a fresh install, not an
+      // IPC failure: report it as unhealthy with a reason so the UI can explain.
+      const message = err instanceof Error ? err.message : String(err);
+      return {
+        ok: false,
+        device: "unknown",
+        platform: "unknown",
+        vramTotalGB: null,
+        engines: {
+          rapidocr: { available: false, reason: `document runtime unavailable: ${message}` },
+        },
+      };
+    }
+  },
+  "ocr.parseDocument": async (params, ctx) => {
+    const req = OcrParseDocumentRequest.parse(params ?? {});
+    const { parser } = resolveOcrRuntime(ctx);
+    return { jobId: parser.start(req) };
+  },
+  "ocr.job.drainEvents": async (params, ctx): Promise<OcrJobDrainResponseT> => {
+    const req = OcrJobDrainRequest.parse(params ?? {});
+    const { parser } = resolveOcrRuntime(ctx);
+    const drained = parser.drain(req.jobId);
+    return {
+      events: drained.events.map((e) => ({ ...e })),
+      done: drained.done,
+      result: drained.result ? { ...drained.result, pages: [...drained.result.pages] } : null,
+    };
+  },
+  "ocr.job.cancel": async (params, ctx) => {
+    const req = OcrJobCancelRequest.parse(params ?? {});
+    resolveOcrRuntime(ctx).parser.cancel(req.jobId);
+    return { ok: true as const };
   },
   "coding.startTask": async () => {
     throw new NotImplementedError("coding.startTask");

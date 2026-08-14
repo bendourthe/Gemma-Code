@@ -1,0 +1,32 @@
+# v1.16.0 Phase 3 (adoption item A5) -- Nexus document-OCR runtime dependencies.
+#
+# Two engines with deliberately disjoint dependency trees, so a host that can
+# only run the portable one never has to install the CUDA stack:
+#
+#   * PORTABLE TIER (always installed) -- pypdfium2 + rapidocr-onnxruntime.
+#     Both are pure-wheel installs with no system packages, no GPU, and no
+#     compiler, on Windows / macOS (Intel + Apple Silicon) / Linux. This is what
+#     makes document parsing work on every supported host.
+#
+#   * CUDA TIER (optional) -- torch + transformers, needed only by the
+#     Unlimited-OCR vision-language model. These are NOT listed here: the
+#     diffusion runtime already provisions torch, and a document-only install
+#     must not be forced to pull a multi-GB CUDA stack it will never use. See
+#     REQUIRED_WHEEL_PREFIXES in
+#     scripts/installer/src/nexus_installer/engine/diffusion_venv_provisioner.py
+#     for how the shared venv is assembled.
+#
+# Pins stay loose (>=) to match runtimes/diffusion/requirements.txt; the shipped
+# venv is built from pre-fetched wheels offline, so the resolved versions are
+# fixed at payload-build time rather than here.
+
+# PDF rasterization. Bundles PDFium in the wheel -- no Poppler, no system deps.
+# Apache-2.0 / BSD-3-Clause (explicitly not strong-copyleft).
+pypdfium2>=4.30.0
+
+# Pillow is pypdfium2's bitmap -> PNG bridge (`bitmap.to_pil()`).
+Pillow>=10.2.0
+
+# Detect-then-recognize OCR over ONNX Runtime. Apache-2.0, CPU-capable,
+# cross-platform. Pulls onnxruntime as its own dependency.
+rapidocr-onnxruntime>=1.3.24

@@ -23,6 +23,11 @@ export const IPC_METHODS = [
   "serving.setEnabled",
   // v1.16.0 Phase 2 (adoption item A2) -- per-model inference analytics.
   "metrics.inference",
+  // v1.16.0 Phase 3 (adoption item A5) -- document OCR / parsing.
+  "ocr.health",
+  "ocr.parseDocument",
+  "ocr.job.drainEvents",
+  "ocr.job.cancel",
   "coding.startTask",
   "coding.session.start",
   "coding.session.sendMessage",
@@ -623,7 +628,17 @@ export const ModelListedEntry = z
     family: z.string().optional(),
     tag: z.string().optional(),
     type: z
-      .enum(["llm", "embed", "image", "video", "audio", "controlnet", "vae"])
+      .enum([
+        "llm",
+        "embed",
+        "image",
+        "video",
+        "audio",
+        "controlnet",
+        "vae",
+        // v1.16.0 Phase 3 (adoption item A5) -- document OCR / parsing.
+        "document",
+      ])
       .optional(),
     installed: z.boolean(),
     source: z.enum(["registry", "catalog-only", "external"]),
@@ -752,6 +767,97 @@ export const MetricsInferenceResponse = z
   })
   .strict();
 export type MetricsInferenceResponseT = z.infer<typeof MetricsInferenceResponse>;
+
+// v1.16.0 Phase 3 (adoption item A5) -- document OCR / parsing. A parse is a
+// long-running job: accept (-> jobId) -> drain (progress + terminal result) ->
+// cancel, following the models-install pattern rather than the diffusion one,
+// so the IPC channel never blocks for the length of a multi-page parse.
+export const OcrEmptyRequest = z.object({}).strict();
+export type OcrEmptyRequestT = z.infer<typeof OcrEmptyRequest>;
+
+/** Which backend serves a request. Absent means "the portable default". */
+export const OcrEngineName = z.enum(["rapidocr", "unlimited-ocr", "stub"]);
+export type OcrEngineNameT = z.infer<typeof OcrEngineName>;
+
+export const OcrEngineAvailability = z
+  .object({ available: z.boolean(), reason: z.string() })
+  .strict();
+
+/**
+ * Per-engine availability with a REASON, so the desktop can explain why a model
+ * is unusable on this host ("needs an NVIDIA GPU", "not installed") instead of
+ * failing opaquely.
+ */
+export const OcrHealthResponse = z
+  .object({
+    ok: z.boolean(),
+    device: z.string(),
+    platform: z.string(),
+    vramTotalGB: z.number().nullable(),
+    engines: z.record(z.string(), OcrEngineAvailability),
+  })
+  .strict();
+export type OcrHealthResponseT = z.infer<typeof OcrHealthResponse>;
+
+export const OcrParseDocumentRequest = z
+  .object({
+    /** Base64 payload; a `data:` URL prefix is accepted and stripped. */
+    documentBase64: z.string().min(1),
+    engine: OcrEngineName.optional(),
+    dpi: z.number().int().positive().optional(),
+    maxPages: z.number().int().positive().optional(),
+  })
+  .strict();
+export type OcrParseDocumentRequestT = z.infer<typeof OcrParseDocumentRequest>;
+
+export const OcrJobAccepted = z.object({ jobId: z.string().min(1) }).strict();
+export type OcrJobAcceptedT = z.infer<typeof OcrJobAccepted>;
+
+export const OcrJobEventEnvelope = z
+  .object({
+    kind: z.enum(["progress", "complete", "error"]),
+    jobId: z.string().min(1),
+    page: z.number().int().nonnegative().optional(),
+    totalPages: z.number().int().nonnegative().optional(),
+    stage: z.string().optional(),
+    message: z.string().optional(),
+  })
+  .strict();
+export type OcrJobEventEnvelopeT = z.infer<typeof OcrJobEventEnvelope>;
+
+export const OcrParsedPage = z
+  .object({ index: z.number().int().nonnegative(), text: z.string() })
+  .strict();
+
+export const OcrParseResult = z
+  .object({
+    engine: z.string(),
+    text: z.string(),
+    /** Layout-preserving markdown when the engine produces it. */
+    markdown: z.string().nullable(),
+    pageCount: z.number().int().nonnegative(),
+    pages: z.array(OcrParsedPage),
+  })
+  .strict();
+export type OcrParseResultT = z.infer<typeof OcrParseResult>;
+
+export const OcrJobDrainRequest = z.object({ jobId: z.string().min(1) }).strict();
+export type OcrJobDrainRequestT = z.infer<typeof OcrJobDrainRequest>;
+
+export const OcrJobDrainResponse = z
+  .object({
+    events: z.array(OcrJobEventEnvelope),
+    done: z.boolean(),
+    result: OcrParseResult.nullable(),
+  })
+  .strict();
+export type OcrJobDrainResponseT = z.infer<typeof OcrJobDrainResponse>;
+
+export const OcrJobCancelRequest = z.object({ jobId: z.string().min(1) }).strict();
+export type OcrJobCancelRequestT = z.infer<typeof OcrJobCancelRequest>;
+
+export const OcrOkResponse = z.object({ ok: z.literal(true) }).strict();
+export type OcrOkResponseT = z.infer<typeof OcrOkResponse>;
 
 export const SlashSuggestion = z
   .object({
@@ -994,6 +1100,26 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
   "metrics.inference": {
     request: MetricsEmptyRequest,
     response: MetricsInferenceResponse,
+    implemented: true,
+  },
+  "ocr.health": {
+    request: OcrEmptyRequest,
+    response: OcrHealthResponse,
+    implemented: true,
+  },
+  "ocr.parseDocument": {
+    request: OcrParseDocumentRequest,
+    response: OcrJobAccepted,
+    implemented: true,
+  },
+  "ocr.job.drainEvents": {
+    request: OcrJobDrainRequest,
+    response: OcrJobDrainResponse,
+    implemented: true,
+  },
+  "ocr.job.cancel": {
+    request: OcrJobCancelRequest,
+    response: OcrOkResponse,
     implemented: true,
   },
   "coding.startTask": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },

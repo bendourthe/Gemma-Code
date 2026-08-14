@@ -32,6 +32,39 @@ export interface MediaComposerProps {
   seededAttachment?: string | null;
 }
 
+/**
+ * v1.16.0 Phase 3 (adoption item A5) -- does this file match the `accept` list?
+ *
+ * Before this phase the composer hard-filtered on `image/`, so a PDF dropped on
+ * it was silently discarded no matter what `accept` said. Honouring `accept`
+ * makes the same composer usable for document parsing while leaving the image
+ * studios (which pass the default `image/*`) behaving exactly as before.
+ *
+ * Supports the three forms an `accept` attribute actually takes: a wildcard
+ * subtype (`image/*`), an exact MIME type (`application/pdf`), and an extension
+ * (`.pdf`) for the browsers/platforms that report an empty `file.type`.
+ */
+export function fileMatchesAccept(file: File, accept: string): boolean {
+  const patterns = accept
+    .split(",")
+    .map((p) => p.trim().toLowerCase())
+    .filter(Boolean);
+  if (patterns.length === 0) return true;
+  const type = (file.type || "").toLowerCase();
+  const name = (file.name || "").toLowerCase();
+  return patterns.some((pattern) => {
+    if (pattern === "*/*" || pattern === "*") return true;
+    if (pattern.startsWith(".")) return name.endsWith(pattern);
+    if (pattern.endsWith("/*")) return type.startsWith(pattern.slice(0, -1));
+    return type === pattern;
+  });
+}
+
+/** True for a data URL the thumbnail strip can render with an `<img>`. */
+export function isImageDataUrl(dataUrl: string): boolean {
+  return dataUrl.startsWith("data:image/");
+}
+
 function readFilesAsDataUrls(files: readonly File[]): Promise<string[]> {
   return Promise.all(
     files.map(
@@ -66,9 +99,11 @@ export function MediaComposer({
 
   const addFiles = async (files: FileList | null): Promise<void> => {
     if (!files || files.length === 0) return;
-    const images = Array.from(files).filter((f) => f.type.startsWith("image/"));
-    if (images.length === 0) return;
-    const urls = await readFilesAsDataUrls(images);
+    // v1.16.0 Phase 3: filter against `accept` rather than a hardcoded `image/`,
+    // so a composer configured for PDFs actually accepts them.
+    const accepted = Array.from(files).filter((f) => fileMatchesAccept(f, accept));
+    if (accepted.length === 0) return;
+    const urls = await readFilesAsDataUrls(accepted);
     setAttachments((prev) => [...prev, ...urls]);
   };
 
@@ -82,10 +117,9 @@ export function MediaComposer({
     if (!items) return;
     const files: File[] = [];
     for (const item of Array.from(items)) {
-      if (item.kind === "file" && item.type.startsWith("image/")) {
-        const file = item.getAsFile();
-        if (file) files.push(file);
-      }
+      if (item.kind !== "file") continue;
+      const file = item.getAsFile();
+      if (file && fileMatchesAccept(file, accept)) files.push(file);
     }
     if (files.length > 0) {
       e.preventDefault();
@@ -140,11 +174,23 @@ export function MediaComposer({
         >
           {attachments.map((src, i) => (
             <div key={i} data-testid={`media-composer-thumb-${i}`} style={{ position: "relative" }}>
-              <img
-                src={src}
-                alt="Pending attachment"
-                style={{ width: 64, height: 64, objectFit: "cover", borderRadius: "var(--radius-sm)" }}
-              />
+              {isImageDataUrl(src) ? (
+                <img
+                  src={src}
+                  alt="Pending attachment"
+                  style={{ width: 64, height: 64, objectFit: "cover", borderRadius: "var(--radius-sm)" }}
+                />
+              ) : (
+                // v1.16.0 Phase 3: a PDF has no renderable preview here, so it
+                // gets a labelled chip rather than a broken <img>.
+                <div
+                  data-testid={`media-composer-doc-${i}`}
+                  title="Attached document"
+                  style={docChipStyle}
+                >
+                  PDF
+                </div>
+              )}
               <button
                 type="button"
                 aria-label="Remove attachment"
@@ -170,7 +216,7 @@ export function MediaComposer({
         />
         <button
           type="button"
-          aria-label="Add images"
+          aria-label="Add attachments"
           data-testid="media-composer-add"
           disabled={disabled}
           onClick={() => fileInputRef.current?.click()}
@@ -226,6 +272,21 @@ const textareaStyle: CSSProperties = {
   fontFamily: "var(--font-sans)",
   fontSize: "var(--text-sm)",
   resize: "vertical",
+};
+
+/** v1.16.0 Phase 3 -- chip for a non-image attachment (a PDF). */
+const docChipStyle: CSSProperties = {
+  width: 64,
+  height: 64,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  borderRadius: "var(--radius-sm)",
+  border: "1px solid var(--border-1)",
+  background: "var(--bg-2)",
+  color: "var(--fg-muted)",
+  fontSize: "var(--text-xs)",
+  fontWeight: 600,
 };
 
 const addBtnStyle: CSSProperties = {

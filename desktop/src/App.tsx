@@ -99,7 +99,10 @@ export function App({ telemetryStream }: AppProps = {}): JSX.Element {
         >
           <Routes>
             <Route path="/" element={<Dashboard telemetryStream={stream} />} />
-            <Route path="/chatbot" element={<ChatPage />} />
+            <Route
+              path="/chatbot"
+              element={<ChatPage onGetMoreModels={() => navigate(SETTINGS_MODELS_PATH)} />}
+            />
             <Route path="/coding" element={<CodingPage />} />
             <Route
               path="/images"

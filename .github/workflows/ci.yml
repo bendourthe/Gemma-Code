@@ -409,6 +409,38 @@ jobs:
           cd scripts/installer
           uv run mypy src
 
+  # -- Python runtime tests --------------------------------------------------
+  #
+  # v1.16.0 Phase 3 (adoption item A5). `tests/python/` had NO CI job at all:
+  # the ~135 diffusion-runtime tests added in v1.0.0 Phase 6 have only ever been
+  # run by hand. Adding the OCR runtime made that gap load-bearing, so this job
+  # covers BOTH runtimes.
+  #
+  # No GPU, no model weights, and no CUDA stack: the runtimes import every heavy
+  # dependency lazily and ship stub engines, so `health`, `version`, the
+  # dispatcher, the error envelopes, and the whole PDF path are exercised on a
+  # bare runner. Only the two portable OCR deps are installed (pypdfium2 +
+  # rapidocr-onnxruntime, both pure wheels); torch/transformers are deliberately
+  # NOT installed, which also keeps the "engine unavailable on this host" path
+  # under test.
+
+  test-python-runtimes:
+    name: pytest (runtimes/)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - name: Install portable runtime deps (no torch, no GPU)
+        run: |
+          python -m pip install --quiet --upgrade pip
+          python -m pip install --quiet pytest
+          python -m pip install --quiet -r runtimes/ocr/requirements.txt
+      - name: Run runtime tests
+        run: python -m pytest tests/python -q
+
   # -- Dependency audits ----------------------------------------------------
   #
   # Gate on known CVEs for both the TypeScript extension and the PyQt5

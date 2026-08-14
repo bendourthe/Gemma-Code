@@ -400,7 +400,7 @@ class TestTypedCatalogPage:
             recommended_path=_write_recommended(tmp_path),
         )
 
-    def test_five_sections(self, qt_app, tmp_path: Path) -> None:
+    def test_all_sections(self, qt_app, tmp_path: Path) -> None:
         page = self._page(_gpu_state(), tmp_path)
         # v1.11.0 Phase 6 (T603): a decided category is prefixed with a check
         # mark; strip it to assert the section set + order.
@@ -408,7 +408,9 @@ class TestTypedCatalogPage:
             page._tabs.tabText(i).replace("\u2713 ", "")
             for i in range(page._tabs.count())
         ]
-        assert labels == ["Chat", "Agentic", "Image", "Video", "Audio"]
+        # v1.16.0 Phase 3 (A5): "Document" joins the section list for the
+        # OCR / parsing models.
+        assert labels == ["Chat", "Agentic", "Image", "Video", "Audio", "Document"]
 
     def test_audio_tab_shows_empty_state(self, qt_app, tmp_path: Path) -> None:
         page = self._page(_gpu_state(), tmp_path)
@@ -764,4 +766,4 @@ class TestPhase3Collapse:
 
     def test_tab_order_matches_dod_sections(self) -> None:
         keys = [key for key, _, _ in TYPE_TABS]
-        assert keys == ["chat", "agentic", "image", "video", "audio"]
+        assert keys == ["chat", "agentic", "image", "video", "audio", "document"]

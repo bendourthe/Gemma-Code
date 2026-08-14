@@ -4,6 +4,47 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-13] v1.16.0 local serving + OCR -- Phase 3: local document-OCR capability (adoption item A5)
+
+### Goal
+
+Give Nexus its first document-OCR capability: an OCR model in the catalog, a Python runtime that runs it, and a parse-document action, wired the way SANA/Whisper/Kokoro are.
+
+### The portability decision (the plan asked for it on the record)
+
+**Both models ship, not one.** The plan sanctioned shipping only the CUDA-first model and deferring portability to a gap; we did the harder thing instead, because Nexus's OS-parity principle is load-bearing and `faster-whisper` already sets the precedent ("MIT-licensed and CPU-capable, so every install gets working transcription regardless of hardware").
+
+- **RapidOCR PP-OCRv4** -- Apache-2.0, ONNX Runtime, ~20 MB, `requiredVramGB: 0`. Detect-then-recognize. Runs on Windows, macOS (Intel + Apple Silicon), and Linux with no GPU. This is what makes document parsing work *everywhere*.
+- **Unlimited-OCR 3B** -- MIT, a vision-language model that parses a whole document with layout as markdown. Its model card documents NVIDIA/CUDA only, so it is tier-gated to capable NVIDIA hosts.
+- **Surya 2** was evaluated (650M, genuinely cross-platform via llama.cpp) and **rejected on licensing**: GPL-3.0 copyleft, against Apache-2.0 + MIT for the pair we shipped.
+
+### Supply chain: pinning is enforced, not advised
+
+Unlimited-OCR requires `trust_remote_code`, so the repo gained a `source.revision` field and three layers around it. `validateSpec` (TypeScript) and `load_weights_manifest` (Python) **both** refuse a `trustRemoteCode` entry with no pin, and both reject a branch or tag name because those are mutable -- the exact hole pinning exists to close. `model_preflight` now probes the same pinned commit the download targets, so a reachability check cannot pass against `main` while the pinned commit is gated. The model loads `local_files_only=True` inside the sandboxed Python child; repo code never executes in the Node sidecar or the renderer. Real commit shas were fetched from the HF API rather than guessed.
+
+### What happened
+
+- **`runtimes/ocr/`** -- the second Python runtime ever, following `runtimes/diffusion`'s line-delimited JSON-RPC over stdio. Two engines behind one runtime, every heavy import deferred so `health` and `version` answer on a bare CI host. It is also the repo's **first real producer of progress notifications**: the diffusion runtime has the plumbing but never emits any, whereas a multi-page parse genuinely reports per page.
+- **PDF rasterization via pypdfium2** -- bundles PDFium in the wheel, so no Poppler and no per-platform system dependency, and it is Apache-2.0/BSD rather than copyleft. Bounded on purpose: a page cap, a 64 MB byte cap, and a DPI clamp, because the input is an untrusted document.
+- **Clean unavailability, with a reason.** `device.py` reports per-engine availability and *why*, and check order is deliberate: an unfixable hardware fact outranks a fixable dependency one. Telling a Mac user "transformers is not installed" would send them to install a package that still leaves the model unusable; "this model is NVIDIA-only, use RapidOCR" is actionable. That ordering bug was caught by the tests and fixed.
+- **Sidecar** -- `ocr.*` IPC following the models-install accept/drain/cancel shape rather than the diffusion fire-and-return shape, because a 200-page parse on a CPU host is minutes and must never block the IPC channel. A finished job is forgotten on its terminal drain so parsed document text does not linger.
+- **Chat attachments** -- `MediaComposer` was accept-aware-ified (it hard-filtered `image/` before, silently dropping PDFs whatever `accept` said) and the Local Chatbot gained attachment support plus the parse action. **Parsed text is not auto-sent to the model**: an untrusted document must not silently enter a prompt, so the user decides what to do with the extracted text.
+- **Installer + CI** -- the Document tab was added to the installer picker (without it, `load_catalog_models` silently drops any entry whose tab resolves to None), the portable wheels were declared in the venv provisioner, and `tests/python/` got **its first CI job ever** -- the ~135 diffusion tests from v1.0.0 had never run in CI.
+
+### Two catalog rules the tests taught us
+
+The suite rejected `multimodal: true` on the OCR VLM, correctly: `multimodal` means *the chat prompt-assembly may attach images to this model*, not "this model can read images". A `type: "document"` model is served by the OCR runtime and never reached through the LLM path, so it stays false; the field's doc comment now says so. The second rule is that a description must name its `origin` verbatim, which both new entries now do.
+
+### Tests
+
+61 new Python runtime tests, 17 new installer revision-pinning tests, and 4 new TypeScript suites. Full sweep green: root 429 files / 4754 tests, desktop 93 files / 808 tests, Python runtimes 196 tests, installer suite (2 pre-existing `zstandard` failures are a missing local dep, verified pre-existing by stashing). Root coverage 88.45% lines / 84.18% branches / 91.47% functions against the 80/75/80 gate. eslint (root + desktop), `tsc -b`, desktop `tsc --noEmit`, `build:sidecar`, `check:tampering` (0), `deps:check` (0 errors), and `security:check` all clean.
+
+### Known issues
+
+6 new deferrals in [v1/v1.16/known-gaps.md](v1/v1.16/known-gaps.md). The headline one, LSO.P3.A, is inherited rather than new: the in-app install path cannot install *any* HuggingFace model because every entry carries a placeholder digest and `Downloader.ts` fails closed. The new revision pins improve integrity meanwhile. LSO.P3.C records that neither engine has been run against real weights -- deliberately, since weights stay out of CI.
+
+---
+
 ## [2026-08-12] v1.16.0 local serving + OCR -- Phase 2: per-model performance analytics (adoption item A2)
 
 ### Goal

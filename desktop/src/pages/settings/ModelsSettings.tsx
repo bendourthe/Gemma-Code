@@ -46,6 +46,8 @@ const TYPE_FILTERS: ReadonlyArray<{ value: "all" | ModelType; label: string }> =
   { value: "video", label: "Video" },
   { value: "audio", label: "Audio" },
   { value: "embed", label: "Embed" },
+  // v1.16.0 Phase 3 (adoption item A5) -- document OCR / parsing models.
+  { value: "document", label: "Document" },
 ];
 
 export function ModelsSettings({ client }: ModelsSettingsProps): JSX.Element {

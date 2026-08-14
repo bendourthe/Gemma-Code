@@ -56,6 +56,11 @@ describe("sidecar handlers", () => {
           "serving.setEnabled",
           // v1.16.0 Phase 2 wired per-model inference analytics.
           "metrics.inference",
+          // v1.16.0 Phase 3 wired the document-OCR surface.
+          "ocr.health",
+          "ocr.parseDocument",
+          "ocr.job.drainEvents",
+          "ocr.job.cancel",
           "coding.session.start",
           "coding.session.sendMessage",
           "coding.session.cancel",

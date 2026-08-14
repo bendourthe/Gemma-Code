@@ -67,8 +67,13 @@ _HTTPStatusError = httpx.HTTPStatusError
 LogFn = Callable[[str, str], None]
 ProgressFn = Callable[[float], None]
 
-HF_RESOLVE_URL = "https://huggingface.co/{repo}/resolve/main/{path}"
+HF_RESOLVE_URL = "https://huggingface.co/{repo}/resolve/{revision}/{path}"
 HF_URL_MARKER = "/resolve/main/"
+# v1.16.0 Phase 3 (adoption item A5): a catalog entry may pin `source.revision`
+# to a commit sha. Entries without one keep resolving the floating `main`, which
+# is what every pre-v1.16 entry does.
+HF_DEFAULT_REVISION = "main"
+_REVISION_RE = re.compile(r"^[a-f0-9]{40}$")
 PLACEHOLDER_SHA256 = "0" * 64
 DOWNLOAD_CHUNK_SIZE = 65536
 MAX_DOWNLOAD_ATTEMPTS = 3
@@ -114,6 +119,15 @@ class WeightsManifest:
     repo: str
     files: tuple[WeightsFile, ...]
     size_gb: float
+    # v1.16.0 Phase 3 (A5): pinned commit sha, or "main" when the entry does not
+    # pin one. Pinning is the real integrity control for entries whose
+    # `sha256` values are still placeholders, and it is mandatory for a model
+    # that ships executable code (trust_remote_code).
+    revision: str = HF_DEFAULT_REVISION
+
+    @property
+    def is_pinned(self) -> bool:
+        return self.revision != HF_DEFAULT_REVISION
 
 
 def safe_dir_name(model_id: str) -> str:
@@ -215,8 +229,31 @@ def load_weights_manifest(entry: dict[str, object]) -> WeightsManifest:
 
     size_gb = entry.get("sizeGB")
     size = float(size_gb) if isinstance(size_gb, (int, float)) else 0.0
+
+    # v1.16.0 Phase 3 (A5): honour a pinned commit sha. A malformed value is a
+    # hard error rather than a silent fall back to `main` -- silently unpinning
+    # is precisely the failure this field exists to prevent.
+    revision_value = source.get("revision")
+    if revision_value is None:
+        revision = HF_DEFAULT_REVISION
+    elif isinstance(revision_value, str) and _REVISION_RE.fullmatch(revision_value):
+        revision = revision_value
+    else:
+        raise ManifestError(
+            f"{model_id}: source.revision must be a 40-hex commit sha, "
+            f"got {revision_value!r}"
+        )
+    if entry.get("trustRemoteCode") is True and revision == HF_DEFAULT_REVISION:
+        raise ManifestError(
+            f"{model_id}: trustRemoteCode requires a pinned source.revision"
+        )
+
     return WeightsManifest(
-        model_id=model_id, repo=repo, files=tuple(files), size_gb=size
+        model_id=model_id,
+        repo=repo,
+        files=tuple(files),
+        size_gb=size,
+        revision=revision,
     )
 
 
@@ -367,7 +404,9 @@ class HFWeightsPuller:
             with contextlib.suppress(OSError):
                 dest.unlink()
 
-        url = HF_RESOLVE_URL.format(repo=manifest.repo, path=weights_file.path)
+        url = HF_RESOLVE_URL.format(
+            repo=manifest.repo, revision=manifest.revision, path=weights_file.path
+        )
         dest.parent.mkdir(parents=True, exist_ok=True)
         downloaded = False
         for attempt in range(1, MAX_DOWNLOAD_ATTEMPTS + 1):
