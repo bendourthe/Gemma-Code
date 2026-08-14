@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import type {
   CodingSessionSummaryT,
+  PerModelMetricSummaryT,
   TraceEventT,
 } from "../../../../sidecar/src/protocol";
 import { TimelineScrubber } from "./TimelineScrubber";
 import { SessionCompareView } from "./SessionCompareView";
+import { ModelAnalyticsSection } from "./ModelAnalyticsSection";
 
 export interface TraceDashboardPanelProps {
   events: readonly TraceEventT[];
@@ -29,6 +31,13 @@ export interface TraceDashboardPanelProps {
   onPickCompareSession?: (sessionId: string) => void;
   /** Called when the user clicks "Close compare". */
   onCloseCompare?: () => void;
+  /**
+   * v1.16.0 Phase 2.2 (adoption item A2) -- per-model inference analytics from
+   * the `metrics.inference` IPC. Optional so existing call sites and tests that
+   * predate this phase keep working; when omitted the analytics section renders
+   * its empty state.
+   */
+  modelMetrics?: readonly PerModelMetricSummaryT[];
   /** Test seam: forwarded to TimelineScrubber instances. */
   now?: () => number;
   raf?: (cb: FrameRequestCallback) => number;
@@ -55,6 +64,7 @@ export function TraceDashboardPanel({
   compareEvents,
   onPickCompareSession,
   onCloseCompare,
+  modelMetrics,
   now,
   raf,
   caf,
@@ -331,6 +341,14 @@ export function TraceDashboardPanel({
                   testIdPrefix="trace-scrubber"
                 />
               )}
+
+              {/*
+                v1.16.0 Phase 2.2: per-model analytics sit above the per-request
+                event list. Rendered outside compare mode only -- a side-by-side
+                session comparison is about two sessions, not about aggregate
+                model throughput.
+              */}
+              <ModelAnalyticsSection perModel={modelMetrics ?? []} />
 
               {renderEventList(filteredEvents)}
             </>

@@ -6,12 +6,14 @@
  * `LLMClient.streamChat` call, and error mapping are identical and live here so
  * 1.4 shares 1.3's logic instead of duplicating it.
  *
- * Token accounting note: the `LLMClient` port's stream chunks carry no usage
- * counts, so the `usage` blocks the two wire shapes require are emitted with
- * zeros. Real prompt/completion counts arrive with the v1.16.0 Phase 2.1
- * per-request inference metrics, which capture exactly these numbers at this
- * same boundary. Zeros (rather than an omitted field) keep the official SDK
- * clients parsing, which is the acceptance criterion for both routes.
+ * Token accounting (v1.16.0 Phase 2.1, closing gap LSO.P1.A): the port's stream
+ * chunks now carry the counters a backend reports on its final chunk, so
+ * `collectUsage` accumulates real prompt/completion counts and both wire shapes
+ * report them. A backend that reports nothing still yields a well-formed `usage`
+ * block of zeros rather than an omitted field, because the official OpenAI and
+ * Anthropic SDKs parse `usage` as required -- but that is now the genuine
+ * "backend told us nothing" case, not the unconditional placeholder it was in
+ * Phase 1.
  */
 
 import { z } from "zod";
@@ -19,6 +21,7 @@ import type {
   LLMChatRequest,
   LLMMessage,
   LLMOptions,
+  LLMStreamChunk,
 } from "../../../../modules/coding/llm/types.js";
 import { badRequest } from "./errors.js";
 
@@ -140,8 +143,49 @@ export function buildChatRequest(args: {
   };
 }
 
-/** Zero-valued usage block. See the token-accounting note in the file header. */
-export const ZERO_USAGE = { prompt: 0, completion: 0 } as const;
+/**
+ * Token counts observed on a stream, in the neutral shape both wire dialects
+ * render from. `reported` distinguishes "the backend told us zero" from "the
+ * backend told us nothing", which the Traces panel needs and a client may want.
+ */
+export interface CollectedUsage {
+  promptTokens: number;
+  completionTokens: number;
+  reported: boolean;
+}
+
+/** A fresh, all-zero usage accumulator. */
+export function newUsage(): CollectedUsage {
+  return { promptTokens: 0, completionTokens: 0, reported: false };
+}
+
+/**
+ * Fold one chunk's counters into the accumulator. Accepts both the Ollama shape
+ * (`prompt_eval_count` / `eval_count`) and the OpenAI-compatible `usage` block,
+ * because the gateway fronts both kinds of local runtime. Later chunks win: a
+ * backend reports cumulative totals on its final chunk.
+ */
+export function collectUsage(chunk: LLMStreamChunk, into: CollectedUsage): void {
+  if (typeof chunk.prompt_eval_count === "number") {
+    into.promptTokens = chunk.prompt_eval_count;
+    into.reported = true;
+  }
+  if (typeof chunk.eval_count === "number") {
+    into.completionTokens = chunk.eval_count;
+    into.reported = true;
+  }
+  const usage = chunk.usage;
+  if (usage) {
+    if (typeof usage.prompt_tokens === "number") {
+      into.promptTokens = usage.prompt_tokens;
+      into.reported = true;
+    }
+    if (typeof usage.completion_tokens === "number") {
+      into.completionTokens = usage.completion_tokens;
+      into.reported = true;
+    }
+  }
+}
 
 /** Monotonic-ish id factory; injectable so tests get deterministic ids. */
 export type IdFactory = (prefix: string) => string;

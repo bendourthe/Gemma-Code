@@ -24,6 +24,10 @@ import { formatForUser } from "../../modules/coding/utils/errors.js";
 import { countTokens } from "../../modules/coding/config/PromptBudget.js";
 import type { HookBus } from "../../core/lifecycle/HookBus.js";
 import { redactSecrets } from "../../core/observability/redactSecrets.js";
+import {
+  metricSpanAttributes,
+  sharedInferenceMetrics,
+} from "../../core/observability/InferenceMetrics.js";
 
 const DEFAULT_MAX_ITERATIONS = 20;
 
@@ -637,7 +641,17 @@ export class AgentLoop {
       tracer.endSpan(iterSpanId, "cancelled");
       return "abort";
     }
-    tracer.endSpan(llmSpanId, "ok", { responseLength: accumulated.length });
+    // v1.16.0 Phase 2.2 (adoption item A2): attach the per-request inference
+    // metrics the instrumented LLM client just recorded (tokens, TTFT,
+    // tokens/sec, resident memory) to this span. The span already carries
+    // `model`, so the trace dashboard and any OTLP consumer get a per-model
+    // breakdown for free. Absent metrics contribute no attributes at all rather
+    // than zeros -- see metricSpanAttributes.
+    const lastMetric = sharedInferenceMetrics().lastFor(this._modelName);
+    tracer.endSpan(llmSpanId, "ok", {
+      responseLength: accumulated.length,
+      ...(lastMetric ? metricSpanAttributes(lastMetric) : {}),
+    });
 
     // Record per-turn token usage so session-level budget gating fires next turn.
     if (this._budgetMiddleware) {

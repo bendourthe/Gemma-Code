@@ -18,12 +18,15 @@
 import { z } from "zod";
 import type { LLMMessage } from "../../../../modules/coding/llm/types.js";
 import {
+  type CollectedUsage,
   type IdFactory,
   type ResponseWriter,
   WireContent,
   buildChatRequest,
+  collectUsage,
   defaultIdFactory,
   flattenContent,
+  newUsage,
   normalizeRole,
   toLlmOptions,
 } from "./chatCore.js";
@@ -114,13 +117,15 @@ export async function handleAnthropicMessages(
   // Echo the client's requested model id, not the runtime's internal name.
   const model = req.model;
 
+  const usage = newUsage();
+
   if (req.stream === true) {
     const sse = writer.sse();
     try {
       sse.write(
         JSON.stringify({
           type: "message_start",
-          message: messageEnvelope(id, model, [], null),
+          message: messageEnvelope(id, model, [], null, newUsage()),
         }),
         "message_start",
       );
@@ -133,6 +138,7 @@ export async function handleAnthropicMessages(
         "content_block_start",
       );
       for await (const chunk of resolved.client.streamChat(portRequest, signal)) {
+        collectUsage(chunk, usage);
         if (chunk.done) break;
         const delta = chunk.message.content;
         if (delta.length === 0) continue;
@@ -150,8 +156,9 @@ export async function handleAnthropicMessages(
         JSON.stringify({
           type: "message_delta",
           delta: { stop_reason: "end_turn", stop_sequence: null },
-          // Zeros until Phase 2.1 wires real token counting; see chatCore.ts.
-          usage: { output_tokens: 0 },
+          // v1.16.0 Phase 2.1 (closes LSO.P1.A): the real completion count when
+          // the backend reported one. Anthropic puts output_tokens here.
+          usage: { output_tokens: usage.completionTokens },
         }),
         "message_delta",
       );
@@ -164,13 +171,14 @@ export async function handleAnthropicMessages(
 
   let content = "";
   for await (const chunk of resolved.client.streamChat(portRequest, signal)) {
+    collectUsage(chunk, usage);
     if (chunk.done) break;
     content += chunk.message.content;
   }
 
   writer.json(
     200,
-    messageEnvelope(id, model, [{ type: "text", text: content }], "end_turn"),
+    messageEnvelope(id, model, [{ type: "text", text: content }], "end_turn", usage),
   );
 }
 
@@ -179,6 +187,7 @@ function messageEnvelope(
   model: string,
   content: readonly unknown[],
   stopReason: string | null,
+  usage: CollectedUsage,
 ): Record<string, unknown> {
   return {
     id,
@@ -188,7 +197,9 @@ function messageEnvelope(
     content,
     stop_reason: stopReason,
     stop_sequence: null,
-    // Zeros until Phase 2.1 wires real token counting; see chatCore.ts.
-    usage: { input_tokens: 0, output_tokens: 0 },
+    // v1.16.0 Phase 2.1 (closes LSO.P1.A): real counts when the backend
+    // reported them. `message_start` intentionally passes a fresh zeroed
+    // accumulator, since nothing has been generated at that point in the stream.
+    usage: { input_tokens: usage.promptTokens, output_tokens: usage.completionTokens },
   };
 }

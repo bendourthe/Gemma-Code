@@ -13,6 +13,8 @@
 // vscode-bound settings/logger) is a recorded follow-up.
 
 import { OllamaHttp } from "./OllamaHttp.js";
+import { instrumentStream } from "./instrumentStream.js";
+import { createOllamaMemoryProbe } from "./ollamaMemory.js";
 import {
   LLMError,
   LLMStreamChunkSchema,
@@ -46,18 +48,13 @@ export function createHeadlessOllamaClient(
 ): LLMClient {
   const baseUrl = options.baseUrl ?? process.env["NEXUS_OLLAMA_URL"] ?? DEFAULT_OLLAMA_URL;
   const http = new OllamaHttp(baseUrl, options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+  // v1.16.0 Phase 2.1: cached, synchronous `/api/ps` resident-size reader.
+  const memoryProbe = createOllamaMemoryProbe(http);
 
-  return {
-    async checkHealth(): Promise<boolean> {
-      return http.isReachable();
-    },
-    async listModels(): Promise<LLMModel[]> {
-      return http.listModels();
-    },
-    async *streamChat(
-      request: LLMChatRequest,
-      signal?: AbortSignal,
-    ): AsyncGenerator<LLMStreamChunk> {
+  async function* streamChatRaw(
+    request: LLMChatRequest,
+    signal?: AbortSignal,
+  ): AsyncGenerator<LLMStreamChunk> {
       const response = await http.postJson(
         "/api/chat",
         JSON.stringify({ ...request, stream: true }),
@@ -96,6 +93,23 @@ export function createHeadlessOllamaClient(
       } finally {
         reader.releaseLock();
       }
+  }
+
+  return {
+    async checkHealth(): Promise<boolean> {
+      return http.isReachable();
+    },
+    async listModels(): Promise<LLMModel[]> {
+      return http.listModels();
+    },
+    // v1.16.0 Phase 2.1 (adoption item A2): transparent per-request metric
+    // capture, matching the vscode-bound OllamaClient.
+    streamChat(request: LLMChatRequest, signal?: AbortSignal): AsyncGenerator<LLMStreamChunk> {
+      return instrumentStream(streamChatRaw(request, signal), {
+        model: request.model,
+        adapter: "ollama",
+        memoryProbe: () => memoryProbe(request.model),
+      });
     },
   };
 }

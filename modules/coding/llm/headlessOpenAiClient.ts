@@ -13,6 +13,7 @@
 // vscode-bound logger) is a recorded follow-up, the same one
 // `headlessOllamaClient.ts` records for the Ollama pair.
 
+import { instrumentStream } from "./instrumentStream.js";
 import {
   LLMError,
   type LLMChatRequest,
@@ -35,6 +36,12 @@ interface OpenAiStreamChunk {
     delta?: { role?: string; content?: string };
     finish_reason?: string | null;
   }>;
+  /**
+   * v1.16.0 Phase 2.1: present when the runtime is asked for usage (and some
+   * runtimes send it unprompted on the final chunk). Forwarded onto the port's
+   * chunk so the metrics layer can report reported-rather-than-estimated counts.
+   */
+  usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
 }
 
 interface OpenAiModelsResponse {
@@ -62,6 +69,93 @@ export function createHeadlessOpenAiClient(
     }
   }
 
+  /**
+   * The uninstrumented SSE stream. A `usage` block, when the runtime sends one,
+   * arrives on a late frame (often after `finish_reason`, sometimes alongside
+   * `[DONE]`), so it is held in `pendingUsage` and attached to the terminal
+   * chunk -- otherwise the early `return` on `finish_reason` would drop it and
+   * the metrics layer would fall back to an estimate.
+   */
+  async function* streamChatRaw(
+    request: LLMChatRequest,
+    signal?: AbortSignal,
+  ): AsyncGenerator<LLMStreamChunk> {
+    const body: Record<string, unknown> = {
+      model: request.model,
+      messages: request.messages,
+      stream: true,
+    };
+    if (request.options) {
+      const { temperature, top_p, top_k, num_ctx } = request.options;
+      if (temperature !== undefined) body.temperature = temperature;
+      if (top_p !== undefined) body.top_p = top_p;
+      if (top_k !== undefined) body.top_k = top_k;
+      if (num_ctx !== undefined) body.max_tokens = num_ctx;
+    }
+    if (request.tools) body.tools = request.tools;
+
+    const response = await fetch(`${baseUrl}/v1/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal,
+    });
+    if (!response.ok) {
+      throw new LLMError(`Chat request failed: ${response.statusText}`, response.status);
+    }
+    if (!response.body) {
+      throw new LLMError("Response body is null", response.status);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let pendingUsage: OpenAiStreamChunk["usage"];
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        let newlineIdx = buffer.indexOf("\n");
+        while (newlineIdx !== -1) {
+          const rawLine = buffer.slice(0, newlineIdx).trim();
+          buffer = buffer.slice(newlineIdx + 1);
+          newlineIdx = buffer.indexOf("\n");
+          if (!rawLine || !rawLine.startsWith("data:")) continue;
+
+          const payload = rawLine.slice(5).trim();
+          if (payload === "[DONE]") {
+            yield {
+              message: { role: "assistant", content: "" },
+              done: true,
+              ...(pendingUsage ? { usage: pendingUsage } : {}),
+            };
+            return;
+          }
+          try {
+            const parsed = JSON.parse(payload) as OpenAiStreamChunk;
+            if (parsed.usage) pendingUsage = parsed.usage;
+            const choice = parsed.choices?.[0];
+            const content = choice?.delta?.content ?? "";
+            const role = choice?.delta?.role ?? "assistant";
+            const isDone = choice?.finish_reason !== null && choice?.finish_reason !== undefined;
+            yield {
+              message: { role, content },
+              done: isDone,
+              ...(isDone && pendingUsage ? { usage: pendingUsage } : {}),
+            };
+            if (isDone) return;
+          } catch {
+            // Ignore a malformed frame rather than aborting the whole stream.
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  }
+
   return {
     async checkHealth(): Promise<boolean> {
       try {
@@ -83,74 +177,15 @@ export function createHeadlessOpenAiClient(
         .map((m) => ({ name: m.id, modified_at: "", size: 0 }));
     },
 
-    async *streamChat(
-      request: LLMChatRequest,
-      signal?: AbortSignal,
-    ): AsyncGenerator<LLMStreamChunk> {
-      const body: Record<string, unknown> = {
+    // v1.16.0 Phase 2.1 (adoption item A2): transparent per-request metric
+    // capture. No memory probe -- an OpenAI-compatible runtime exposes no
+    // equivalent of Ollama's `/api/ps`, so the footprint stays null rather than
+    // being guessed.
+    streamChat(request: LLMChatRequest, signal?: AbortSignal): AsyncGenerator<LLMStreamChunk> {
+      return instrumentStream(streamChatRaw(request, signal), {
         model: request.model,
-        messages: request.messages,
-        stream: true,
-      };
-      if (request.options) {
-        const { temperature, top_p, top_k, num_ctx } = request.options;
-        if (temperature !== undefined) body.temperature = temperature;
-        if (top_p !== undefined) body.top_p = top_p;
-        if (top_k !== undefined) body.top_k = top_k;
-        if (num_ctx !== undefined) body.max_tokens = num_ctx;
-      }
-      if (request.tools) body.tools = request.tools;
-
-      const response = await fetch(`${baseUrl}/v1/chat/completions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        signal,
+        adapter: "openai",
       });
-      if (!response.ok) {
-        throw new LLMError(`Chat request failed: ${response.statusText}`, response.status);
-      }
-      if (!response.body) {
-        throw new LLMError("Response body is null", response.status);
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      try {
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-
-          let newlineIdx = buffer.indexOf("\n");
-          while (newlineIdx !== -1) {
-            const rawLine = buffer.slice(0, newlineIdx).trim();
-            buffer = buffer.slice(newlineIdx + 1);
-            newlineIdx = buffer.indexOf("\n");
-            if (!rawLine || !rawLine.startsWith("data:")) continue;
-
-            const payload = rawLine.slice(5).trim();
-            if (payload === "[DONE]") {
-              yield { message: { role: "assistant", content: "" }, done: true };
-              return;
-            }
-            try {
-              const parsed = JSON.parse(payload) as OpenAiStreamChunk;
-              const choice = parsed.choices?.[0];
-              const content = choice?.delta?.content ?? "";
-              const role = choice?.delta?.role ?? "assistant";
-              const isDone = choice?.finish_reason !== null && choice?.finish_reason !== undefined;
-              yield { message: { role, content }, done: isDone };
-              if (isDone) return;
-            } catch {
-              // Ignore a malformed frame rather than aborting the whole stream.
-            }
-          }
-        }
-      } finally {
-        reader.releaseLock();
-      }
     },
   };
 }

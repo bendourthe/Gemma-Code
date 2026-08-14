@@ -8,6 +8,8 @@ import type {
   CodingMemorySnapshotResponseT,
   CodingTraceSubscribeResponseT,
   MemorySnapshotT,
+  MetricsInferenceResponseT,
+  PerModelMetricSummaryT,
   TraceEventT,
 } from "../../../sidecar/src/protocol";
 import { CodingInput } from "./CodingInput";
@@ -63,6 +65,8 @@ export function CodingPage({
   const [memorySnapshot, setMemorySnapshot] = useState<MemorySnapshotT | null>(null);
   const [traceEvents, setTraceEvents] = useState<readonly TraceEventT[]>([]);
   const [sessions, setSessions] = useState<readonly CodingSessionSummaryT[]>([]);
+  // v1.16.0 Phase 2.2 -- per-model inference analytics for the Trace tab.
+  const [modelMetrics, setModelMetrics] = useState<readonly PerModelMetricSummaryT[]>([]);
   // v1.1.0 Phase 7 -- session-replay state: the active session selected from
   // the trace dashboard's left rail, and the optional second session being
   // compared against it (with its own pre-fetched event list).
@@ -140,6 +144,17 @@ export function CodingPage({
       .then((r) => {
         if (r.ok) setSessions(r.value.sessions);
       });
+  }, [tab]);
+
+  // v1.16.0 Phase 2.2 (adoption item A2) -- the Trace tab also loads per-model
+  // inference analytics (tokens/sec, TTFT, memory). Read on tab activation like
+  // the other trace data; the registry is in-process in the sidecar, so this is
+  // a cheap local read with no disk or network access.
+  useEffect(() => {
+    if (tab !== "trace") return;
+    void ipc.call<MetricsInferenceResponseT>("metrics.inference", {}).then((r) => {
+      if (r.ok) setModelMetrics(r.value.perModel);
+    });
   }, [tab]);
 
   // v1.1.0 Phase 7.1 -- the Trace tab also needs the session list so the
@@ -271,6 +286,7 @@ export function CodingPage({
           <TraceDashboardPanel
             events={traceEvents}
             sessions={sessions}
+            modelMetrics={modelMetrics}
             activeSessionId={replaySessionId}
             onSelectSession={(id) => void handleReplaySelect(id)}
             compareSession={compareSummary}

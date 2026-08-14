@@ -4,6 +4,39 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-12] v1.16.0 local serving + OCR -- Phase 2: per-model performance analytics (adoption item A2)
+
+### Goal
+
+Capture per-request inference metrics (tokens/sec, time-to-first-token, token counts, memory footprint) at the LLM-client boundary and surface a per-model breakdown in the Traces panel.
+
+### The data was being thrown away
+
+`LLMStreamChunkSchema` is a plain `z.object`, so zod's default STRIP behavior applied: every counter Ollama sends on its `done: true` chunk (`total_duration`, `prompt_eval_count`, `eval_count`, `eval_duration`) was silently discarded in `parseChunk` before any Nexus code could see it. Nothing in the repo parsed those fields. Widening that schema with optional numeric fields was step one, and it is what makes everything else possible.
+
+### What happened
+
+- **One capture point, 18 call sites covered.** A transparent `instrumentStream` wrapper sits inside all four client factories (`OllamaClient`, `LmStudioClient`, and the two headless variants) rather than at each `streamChat` call site, so AgentLoop, StreamingPipeline, the panel agents, the chat handler, and the Phase 1 serving gateway are all instrumented at once. The wrapper yields exactly the chunks it receives and re-throws exactly what the inner generator throws; recording happens in a `finally`, so a cancelled or failed stream still reports the partial timing it observed.
+- **Missing is never zero.** `core/observability/InferenceMetrics.ts` records `null` for anything the backend did not report, and a `tokenSource` of `reported` / `estimated` / `unavailable` says which numbers came from where - following the `energyStatus` "sensor missing" convention rather than substituting a zero that would drag a per-model average down. Null rates are excluded from averages, not counted as 0. When a runtime reports nothing, completion tokens are estimated from the accumulated text via the existing `tokenize` heuristic and marked `estimated`; prompt tokens stay null because the stream does not carry the prompt.
+- **TTFT measures the first *visible* token.** Timing runs to the first chunk with non-empty content, not the first chunk of any kind - an opening role-only delta is not something a user sees, and counting it would flatter the number.
+- **Memory footprint from Ollama `/api/ps`**, which nothing in the repo had ever called. The probe is synchronous at read time with a 5s TTL and a background refresh, because the metric is read from a streaming generator's `finally` and awaiting an HTTP round trip there would add latency to every completion. Never throws; a missing reading is `null`.
+- **Two display surfaces.** A new `metrics.inference` IPC feeds a per-model analytics table in the desktop Traces tab (avg tokens/sec, median TTFT, request count, total tokens, last memory, plus an "est" badge when counts were estimated) with a clean empty state. And the four-line addition to `AgentLoop`'s existing `llm_call` `endSpan` means the VS Code trace dashboard and OTLP export get the same numbers for free - the span already carried `model`, so per-model grouping came free too. Absent metrics contribute no span attribute at all rather than a zero.
+- **Closed LSO.P1.A.** Phase 1's gateway reported `usage` as unconditional zeros; it now reports the real counts in both dialects, including the streamed OpenAI finish chunk and the Anthropic `message_delta`. A non-reporting runtime still yields a well-formed zeroed block, but that is now the genuine case rather than a placeholder.
+
+### Bug found and fixed: Phase 1 would have failed CI
+
+`desktop/tests/servingRuntime.test.ts` (written last phase) used `Parameters<typeof createServingRuntime>[0]["models"]`, which does not typecheck because that parameter is optional. The desktop `npm run typecheck` script therefore failed on commit `67257df`, and `shell-build.yml` runs it - Phase 1's CI would have gone red. Phase 1 reported that gate as clean because `tsc --noEmit` had been run *before* the test file existed and only vitest and eslint were re-run afterwards. Fixed; recorded as LSO.P2.X with the process lesson.
+
+### Tests
+
+91 new tests (34 registry, 15 instrumentation, 20 memory probe, 11 analytics rendering, 5 metrics IPC, plus 6 usage-collection and 7 gateway usage assertions). All three new root modules at **100% line coverage** (93-99% branch); `ModelAnalyticsSection.tsx` and `chatCore.ts` at 100/100. Full suites green: root 429 files / 4754 passed, desktop 89 files / 764 passed. Root coverage totals 88.46% lines / 84.22% branches / 91.47% functions against the 80/75/80 gate. eslint (root + desktop), `tsc -b`, desktop `tsc --noEmit`, `build:sidecar`, `check:tampering` (0 findings), and `deps:check` (0 errors) all clean. CI needed no change - verified, not assumed: `shell-build.yml` already watches `core/**` and `modules/**`, and `ci.yml` runs unfiltered.
+
+### Known issues
+
+5 new open items in [v1/v1.16/known-gaps.md](v1/v1.16/known-gaps.md), all deferrals with concrete next steps. The notable one is LSO.P2.A: `traceSubscribe()` still returns hardcoded placeholder events, so the per-request event list below the new analytics section is still fake - the sidecar has no `TraceStore` at all, which makes that a design decision rather than a query change.
+
+---
+
 ## [2026-08-12] v1.16.0 local serving + OCR -- Phase 1: local serving gateway (adoption item A1, flagship)
 
 ### Goal

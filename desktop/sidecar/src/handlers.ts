@@ -37,6 +37,8 @@ import {
   ModelsInstallCancelRequest,
   ServingSetEnabledRequest,
   type ServingStatusResponseT,
+  MetricsEmptyRequest,
+  type MetricsInferenceResponseT,
   SkillsSyncRequest,
   SkillsOptimizePreviewRequest,
   SkillsOptimizeApplyRequest,
@@ -88,6 +90,10 @@ import {
 } from "../../../core/security/CredentialVault.js";
 import { createModelsRuntime, type ModelsRuntime } from "./models/modelsService.js";
 import { createServingRuntime, type ServingRuntime } from "./serving/servingRuntime.js";
+import {
+  type InferenceMetricsRegistry,
+  sharedInferenceMetrics,
+} from "../../../core/observability/InferenceMetrics.js";
 
 export const SIDECAR_VERSION = "1.0.0-alpha.0";
 
@@ -120,7 +126,16 @@ export interface HandlerContext {
    * the real settings-backed runtime on first `serving.*` call.
    */
   serving?: ServingRuntime;
+  /**
+   * v1.16.0 Phase 2 (adoption item A2) -- per-model inference metrics. Optional
+   * so tests inject a populated registry; production reads the process-wide one
+   * the instrumented LLM clients write to.
+   */
+  metrics?: InferenceMetricsRegistry;
 }
+
+/** How many individual request records the Traces panel receives per poll. */
+const RECENT_METRIC_LIMIT = 50;
 
 /**
  * Lazily resolve the models runtime: the test-injected `ctx.models` when
@@ -167,8 +182,20 @@ export function createHandlerContext(
    * settings file); tests pass a fake.
    */
   serving?: ServingRuntime,
+  /** v1.16.0 Phase 2 -- left undefined so production reads the shared registry. */
+  metrics?: InferenceMetricsRegistry,
 ): HandlerContext {
-  return { ...base, sessions, chat, diffusion, ffmpeg, credentials, skillOptimizer, serving };
+  return {
+    ...base,
+    sessions,
+    chat,
+    diffusion,
+    ffmpeg,
+    credentials,
+    skillOptimizer,
+    serving,
+    metrics,
+  };
 }
 
 export const handlers: Record<Method, HandlerFn> = {
@@ -219,6 +246,17 @@ export const handlers: Record<Method, HandlerFn> = {
   "serving.setEnabled": async (params, ctx): Promise<ServingStatusResponseT> => {
     const req = ServingSetEnabledRequest.parse(params ?? {});
     return resolveServingRuntime(ctx).setEnabled(req.enabled);
+  },
+  // v1.16.0 Phase 2 (adoption item A2) -- per-model inference analytics. Reads
+  // the in-process registry the instrumented LLM clients write to; purely local,
+  // no disk and no network.
+  "metrics.inference": async (params, ctx): Promise<MetricsInferenceResponseT> => {
+    MetricsEmptyRequest.parse(params ?? {});
+    const registry = ctx.metrics ?? sharedInferenceMetrics();
+    return {
+      perModel: registry.perModel().map((m) => ({ ...m })),
+      recent: registry.recent(RECENT_METRIC_LIMIT).map((r) => ({ ...r })),
+    };
   },
   "coding.startTask": async () => {
     throw new NotImplementedError("coding.startTask");

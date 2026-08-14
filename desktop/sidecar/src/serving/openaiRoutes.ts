@@ -14,14 +14,17 @@
 import { z } from "zod";
 import type { LLMMessage } from "../../../../modules/coding/llm/types.js";
 import {
+  type CollectedUsage,
   type IdFactory,
   type NowFactory,
   type ResponseWriter,
   WireContent,
   buildChatRequest,
+  collectUsage,
   defaultIdFactory,
   defaultNow,
   flattenContent,
+  newUsage,
   normalizeRole,
   toLlmOptions,
 } from "./chatCore.js";
@@ -123,6 +126,8 @@ export async function handleOpenAiChatCompletion(
   // internal name, so a client comparing request to response sees a match.
   const model = req.model;
 
+  const usage = newUsage();
+
   if (req.stream === true) {
     const sse = writer.sse();
     try {
@@ -131,12 +136,21 @@ export async function handleOpenAiChatCompletion(
         JSON.stringify(chunkEnvelope(id, created, model, { role: "assistant", content: "" }, null)),
       );
       for await (const chunk of resolved.client.streamChat(portRequest, signal)) {
+        collectUsage(chunk, usage);
         if (chunk.done) break;
         const delta = chunk.message.content;
         if (delta.length === 0) continue;
         sse.write(JSON.stringify(chunkEnvelope(id, created, model, { content: delta }, null)));
       }
-      sse.write(JSON.stringify(chunkEnvelope(id, created, model, {}, "stop")));
+      // v1.16.0 Phase 2.1: the finish chunk carries usage, matching OpenAI's
+      // `stream_options.include_usage` behavior. Harmless to a client that
+      // ignores it, and the only place a streamed request can report counts.
+      sse.write(
+        JSON.stringify({
+          ...chunkEnvelope(id, created, model, {}, "stop"),
+          usage: usageEnvelope(usage),
+        }),
+      );
       sse.write("[DONE]");
     } finally {
       sse.end();
@@ -146,6 +160,7 @@ export async function handleOpenAiChatCompletion(
 
   let content = "";
   for await (const chunk of resolved.client.streamChat(portRequest, signal)) {
+    collectUsage(chunk, usage);
     if (chunk.done) break;
     content += chunk.message.content;
   }
@@ -162,9 +177,17 @@ export async function handleOpenAiChatCompletion(
         finish_reason: "stop",
       },
     ],
-    // Zeros until Phase 2.1 wires real token counting; see chatCore.ts.
-    usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+    usage: usageEnvelope(usage),
   });
+}
+
+/** OpenAI usage block. Real counts when the backend reported them (LSO.P1.A). */
+function usageEnvelope(usage: CollectedUsage): Record<string, number> {
+  return {
+    prompt_tokens: usage.promptTokens,
+    completion_tokens: usage.completionTokens,
+    total_tokens: usage.promptTokens + usage.completionTokens,
+  };
 }
 
 function chunkEnvelope(

@@ -1,4 +1,5 @@
 import { getLogger } from "../utils/logger.js";
+import { instrumentStream } from "./instrumentStream.js";
 import type {
   LLMClient,
   LLMChatRequest,
@@ -44,6 +45,12 @@ interface OpenAiStreamChunk {
     readonly delta?: { readonly content?: string; readonly role?: string };
     readonly finish_reason?: string | null;
   }>;
+  /** v1.16.0 Phase 2.1: forwarded to the metrics layer when the runtime sends it. */
+  readonly usage?: {
+    readonly prompt_tokens?: number;
+    readonly completion_tokens?: number;
+    readonly total_tokens?: number;
+  };
 }
 
 interface OpenAiModelsResponse {
@@ -153,7 +160,19 @@ class LmStudioClientImpl implements LLMClient {
     }
   }
 
-  async *streamChat(
+  /**
+   * v1.16.0 Phase 2.1 (adoption item A2): transparent per-request metric
+   * capture, matching the Ollama client. No memory probe -- LM Studio exposes no
+   * `/api/ps` equivalent, so the footprint stays null rather than being guessed.
+   */
+  streamChat(request: LLMChatRequest, signal?: AbortSignal): AsyncGenerator<LLMStreamChunk> {
+    return instrumentStream(this._streamChatRaw(request, signal), {
+      model: request.model,
+      adapter: "lmstudio",
+    });
+  }
+
+  private async *_streamChatRaw(
     request: LLMChatRequest,
     signal?: AbortSignal,
   ): AsyncGenerator<LLMStreamChunk> {
@@ -194,6 +213,7 @@ class LmStudioClientImpl implements LLMClient {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
+    let pendingUsage: OpenAiStreamChunk["usage"];
 
     try {
       while (true) {
@@ -211,17 +231,28 @@ class LmStudioClientImpl implements LLMClient {
 
           const payload = rawLine.slice(5).trim();
           if (payload === "[DONE]") {
-            yield { message: { role: "assistant", content: "" }, done: true };
+            yield {
+              message: { role: "assistant", content: "" },
+              done: true,
+              ...(pendingUsage ? { usage: pendingUsage } : {}),
+            };
             return;
           }
 
           try {
             const parsed = JSON.parse(payload) as OpenAiStreamChunk;
+            // v1.16.0 Phase 2.1: usage lands on a late frame, often after
+            // finish_reason, so hold it and attach it to the terminal chunk.
+            if (parsed.usage) pendingUsage = parsed.usage;
             const choice = parsed.choices?.[0];
             const content = choice?.delta?.content ?? "";
             const role = choice?.delta?.role ?? "assistant";
             const isDone = choice?.finish_reason !== null && choice?.finish_reason !== undefined;
-            yield { message: { role, content }, done: isDone };
+            yield {
+              message: { role, content },
+              done: isDone,
+              ...(isDone && pendingUsage ? { usage: pendingUsage } : {}),
+            };
             if (isDone) return;
           } catch {
             // Ignore malformed lines so a single corrupt frame does not

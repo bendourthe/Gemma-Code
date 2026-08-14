@@ -61,12 +61,46 @@ export interface LLMChatRequest {
   keep_alive?: number | string;
 }
 
-export interface LLMStreamChunk {
+/**
+ * v1.16.0 Phase 2.1 (adoption item A2) -- per-request inference counters a
+ * backend may report on its FINAL stream chunk.
+ *
+ * Ollama puts these on the `done: true` chunk of `/api/chat`; durations are
+ * nanoseconds (its native unit), token counts are absolute. Every field is
+ * optional because no backend guarantees them: LM Studio and other
+ * OpenAI-compatible runtimes report an OpenAI-shaped `usage` block instead (and
+ * only when asked), so the metrics layer treats "absent" as a first-class state
+ * rather than substituting a zero.
+ */
+export interface LLMUsageCounters {
+  /** Ollama: total request wall time, nanoseconds. */
+  total_duration?: number;
+  /** Ollama: model load time, nanoseconds. */
+  load_duration?: number;
+  /** Ollama: prompt tokens evaluated. */
+  prompt_eval_count?: number;
+  /** Ollama: prompt evaluation time, nanoseconds. */
+  prompt_eval_duration?: number;
+  /** Ollama: completion tokens generated. */
+  eval_count?: number;
+  /** Ollama: completion generation time, nanoseconds. */
+  eval_duration?: number;
+  /** OpenAI-compatible runtimes report counts here instead. */
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+  };
+}
+
+export interface LLMStreamChunk extends LLMUsageCounters {
   message: {
     role: string;
     content: string;
   };
   done: boolean;
+  /** Model name echoed by the backend; may differ from the requested alias. */
+  model?: string;
 }
 
 export interface LLMModel {
@@ -135,12 +169,36 @@ export type OllamaError = LLMError;
 // through `LLMStreamChunkSchema.parse`, so we keep the schema lean).
 // ---------------------------------------------------------------------------
 
+/**
+ * v1.16.0 Phase 2.1: the optional per-request counters. Additive and all
+ * `.optional()`, so every existing producer, mock, and test stays valid.
+ *
+ * NOTE the deliberate non-strictness of the parent schema below: it is a plain
+ * `z.object`, so zod STRIPS unknown keys. Before this phase that silently
+ * discarded every counter Ollama sends on its final chunk. Declaring them here
+ * is what lets them survive `parse` and reach the metrics layer -- adding a
+ * counter to `LLMUsageCounters` without adding it here would be a no-op.
+ */
 export const LLMStreamChunkSchema = z.object({
   message: z.object({
     role: z.string(),
     content: z.string(),
   }),
   done: z.boolean(),
+  model: z.string().optional(),
+  total_duration: z.number().optional(),
+  load_duration: z.number().optional(),
+  prompt_eval_count: z.number().optional(),
+  prompt_eval_duration: z.number().optional(),
+  eval_count: z.number().optional(),
+  eval_duration: z.number().optional(),
+  usage: z
+    .object({
+      prompt_tokens: z.number().optional(),
+      completion_tokens: z.number().optional(),
+      total_tokens: z.number().optional(),
+    })
+    .optional(),
 });
 
 export const LLMModelSchema = z.object({

@@ -21,6 +21,8 @@ export const IPC_METHODS = [
   // v1.16.0 Phase 1 (adoption item A1) -- local serving gateway control surface.
   "serving.status",
   "serving.setEnabled",
+  // v1.16.0 Phase 2 (adoption item A2) -- per-model inference analytics.
+  "metrics.inference",
   "coding.startTask",
   "coding.session.start",
   "coding.session.sendMessage",
@@ -702,6 +704,55 @@ export type ServingStatusResponseT = z.infer<typeof ServingStatusResponse>;
 export const ServingSetEnabledRequest = z.object({ enabled: z.boolean() }).strict();
 export type ServingSetEnabledRequestT = z.infer<typeof ServingSetEnabledRequest>;
 
+// v1.16.0 Phase 2 (adoption item A2) -- per-model inference analytics for the
+// Traces panel. Every metric is nullable on purpose: a backend that reports no
+// token counts yields null, never a zero that would silently skew an average.
+// `tokenSource` says whether counts were backend-reported, locally estimated, or
+// unavailable -- the same "sensor missing" discriminator convention as
+// `energyStatus`.
+export const MetricsEmptyRequest = z.object({}).strict();
+export type MetricsEmptyRequestT = z.infer<typeof MetricsEmptyRequest>;
+
+export const TokenSourceSchema = z.enum(["reported", "estimated", "unavailable"]);
+
+export const InferenceMetricEntry = z
+  .object({
+    model: z.string(),
+    adapter: z.string().nullable(),
+    promptTokens: z.number().nullable(),
+    completionTokens: z.number().nullable(),
+    tokenSource: TokenSourceSchema,
+    ttftMs: z.number().nullable(),
+    totalMs: z.number(),
+    tokensPerSec: z.number().nullable(),
+    memoryBytes: z.number().nullable(),
+    at: z.number(),
+  })
+  .strict();
+export type InferenceMetricEntryT = z.infer<typeof InferenceMetricEntry>;
+
+export const PerModelMetricSummary = z
+  .object({
+    model: z.string(),
+    requestCount: z.number(),
+    totalTokens: z.number(),
+    avgTokensPerSec: z.number().nullable(),
+    medianTtftMs: z.number().nullable(),
+    lastMemoryBytes: z.number().nullable(),
+    lastAt: z.number(),
+    allCountsReported: z.boolean(),
+  })
+  .strict();
+export type PerModelMetricSummaryT = z.infer<typeof PerModelMetricSummary>;
+
+export const MetricsInferenceResponse = z
+  .object({
+    perModel: z.array(PerModelMetricSummary),
+    recent: z.array(InferenceMetricEntry),
+  })
+  .strict();
+export type MetricsInferenceResponseT = z.infer<typeof MetricsInferenceResponse>;
+
 export const SlashSuggestion = z
   .object({
     name: z.string().min(1),
@@ -938,6 +989,11 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
   "serving.setEnabled": {
     request: ServingSetEnabledRequest,
     response: ServingStatusResponse,
+    implemented: true,
+  },
+  "metrics.inference": {
+    request: MetricsEmptyRequest,
+    response: MetricsInferenceResponse,
     implemented: true,
   },
   "coding.startTask": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },

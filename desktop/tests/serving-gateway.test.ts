@@ -10,7 +10,12 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { connect } from "node:net";
 
-import type { LLMChatRequest, LLMClient, LLMModel } from "../../modules/coding/llm/types";
+import type {
+  LLMChatRequest,
+  LLMClient,
+  LLMModel,
+  LLMStreamChunk,
+} from "../../modules/coding/llm/types";
 import type { ListedModelDto } from "../sidecar/src/models/modelsService";
 import type { ServingAdapter } from "../sidecar/src/serving/adapters";
 import type { ServingConfig } from "../sidecar/src/serving/config";
@@ -30,10 +35,17 @@ const INSTALLED: readonly ListedModelDto[] = [
   },
 ];
 
-/** Records the request it was given and streams a fixed token sequence. */
-function fakeClient(tokens: readonly string[] = ["Hello", ", ", "world"]): LLMClient & {
-  lastRequest: LLMChatRequest | null;
-} {
+/**
+ * Records the request it was given and streams a fixed token sequence.
+ *
+ * `counters` (v1.16.0 Phase 2.1) are attached to the terminal chunk, mimicking
+ * how Ollama and OpenAI-compatible runtimes report usage, so the gateway's usage
+ * envelopes can be asserted against real numbers.
+ */
+function fakeClient(
+  tokens: readonly string[] = ["Hello", ", ", "world"],
+  counters: Partial<LLMStreamChunk> = {},
+): LLMClient & { lastRequest: LLMChatRequest | null } {
   const state = { lastRequest: null as LLMChatRequest | null };
   return {
     get lastRequest() {
@@ -50,10 +62,17 @@ function fakeClient(tokens: readonly string[] = ["Hello", ", ", "world"]): LLMCl
       for (const t of tokens) {
         yield { message: { role: "assistant", content: t }, done: false };
       }
-      yield { message: { role: "assistant", content: "" }, done: true };
+      yield { message: { role: "assistant", content: "" }, done: true, ...counters };
     },
   };
 }
+
+/** Ollama-shaped counters on the final chunk. */
+const OLLAMA_COUNTERS: Partial<LLMStreamChunk> = {
+  prompt_eval_count: 17,
+  eval_count: 42,
+  eval_duration: 2_100_000_000,
+};
 
 function adaptersFor(client: LLMClient): () => readonly ServingAdapter[] {
   const adapters: ServingAdapter[] = [{ name: "fake", chat: true, createClient: () => client }];
@@ -451,6 +470,101 @@ describe("POST /v1/messages", () => {
     const body = (await res.json()) as { type: string; error: { type: string } };
     expect(body.type).toBe("error");
     expect(body.error.type).toBe("not_found_error");
+  });
+});
+
+// v1.16.0 Phase 2.1 (closes gap LSO.P1.A): before this phase both dialects
+// reported usage as unconditional zeros because the port carried no counters.
+describe("token usage reporting", () => {
+  it("reports real OpenAI usage from the backend's counters", async () => {
+    const { base } = await startGateway({ client: fakeClient(["hi"], OLLAMA_COUNTERS) });
+    const res = await fetch(`${base}/v1/chat/completions`, {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({ model: "gemma-4-12b", messages: [{ role: "user", content: "hi" }] }),
+    });
+    const body = (await res.json()) as { usage: Record<string, number> };
+    expect(body.usage).toEqual({ prompt_tokens: 17, completion_tokens: 42, total_tokens: 59 });
+  });
+
+  it("reports real Anthropic usage from the backend's counters", async () => {
+    const { base } = await startGateway({ client: fakeClient(["hi"], OLLAMA_COUNTERS) });
+    const res = await fetch(`${base}/v1/messages`, {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({ model: "gemma-4-12b", messages: [{ role: "user", content: "hi" }] }),
+    });
+    const body = (await res.json()) as { usage: Record<string, number> };
+    expect(body.usage).toEqual({ input_tokens: 17, output_tokens: 42 });
+  });
+
+  it("accepts an OpenAI-shaped usage block from the runtime", async () => {
+    const { base } = await startGateway({
+      client: fakeClient(["hi"], { usage: { prompt_tokens: 3, completion_tokens: 4 } }),
+    });
+    const res = await fetch(`${base}/v1/chat/completions`, {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({ model: "gemma-4-12b", messages: [{ role: "user", content: "hi" }] }),
+    });
+    const body = (await res.json()) as { usage: Record<string, number> };
+    expect(body.usage).toEqual({ prompt_tokens: 3, completion_tokens: 4, total_tokens: 7 });
+  });
+
+  it("reports usage on the streamed OpenAI finish chunk", async () => {
+    const { base } = await startGateway({ client: fakeClient(["hi"], OLLAMA_COUNTERS) });
+    const res = await fetch(`${base}/v1/chat/completions`, {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({
+        model: "gemma-4-12b",
+        messages: [{ role: "user", content: "hi" }],
+        stream: true,
+      }),
+    });
+    const frames = parseSse(await res.text()).filter((f) => f.data !== "[DONE]");
+    const final = JSON.parse(String(frames.at(-1)?.data)) as {
+      usage?: Record<string, number>;
+      choices: Array<{ finish_reason: string | null }>;
+    };
+    expect(final.choices[0]?.finish_reason).toBe("stop");
+    expect(final.usage).toEqual({ prompt_tokens: 17, completion_tokens: 42, total_tokens: 59 });
+  });
+
+  it("reports output_tokens on the streamed Anthropic message_delta", async () => {
+    const { base } = await startGateway({ client: fakeClient(["hi"], OLLAMA_COUNTERS) });
+    const res = await fetch(`${base}/v1/messages`, {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({
+        model: "gemma-4-12b",
+        messages: [{ role: "user", content: "hi" }],
+        stream: true,
+      }),
+    });
+    const frames = parseSse(await res.text());
+    const delta = frames.find((f) => f.event === "message_delta");
+    expect((JSON.parse(String(delta?.data)) as { usage: { output_tokens: number } }).usage).toEqual({
+      output_tokens: 42,
+    });
+
+    // message_start precedes any generation, so its usage is legitimately zero.
+    const start = frames.find((f) => f.event === "message_start");
+    const startUsage = (
+      JSON.parse(String(start?.data)) as { message: { usage: Record<string, number> } }
+    ).message.usage;
+    expect(startUsage).toEqual({ input_tokens: 0, output_tokens: 0 });
+  });
+
+  it("still emits a well-formed zeroed usage block when the runtime reports nothing", async () => {
+    const { base } = await startGateway({ client: fakeClient(["hi"]) });
+    const res = await fetch(`${base}/v1/chat/completions`, {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({ model: "gemma-4-12b", messages: [{ role: "user", content: "hi" }] }),
+    });
+    const body = (await res.json()) as { usage: Record<string, number> };
+    expect(body.usage).toEqual({ prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 });
   });
 });
 

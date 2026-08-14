@@ -11,11 +11,14 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildChatRequest,
+  collectUsage,
   flattenContent,
+  newUsage,
   normalizeRole,
   toLlmOptions,
 } from "../sidecar/src/serving/chatCore";
 import { ServingHttpError } from "../sidecar/src/serving/errors";
+import type { LLMStreamChunk } from "../../modules/coding/llm/types";
 
 describe("flattenContent", () => {
   it("passes a plain string through", () => {
@@ -144,5 +147,57 @@ describe("buildChatRequest", () => {
       expect(err).toBeInstanceOf(ServingHttpError);
       expect((err as ServingHttpError).status).toBe(400);
     }
+  });
+});
+
+// v1.16.0 Phase 2.1 (closes gap LSO.P1.A).
+describe("collectUsage", () => {
+  const chunk = (over: Partial<LLMStreamChunk> = {}): LLMStreamChunk => ({
+    message: { role: "assistant", content: "" },
+    done: true,
+    ...over,
+  });
+
+  it("starts unreported with zero counts", () => {
+    expect(newUsage()).toEqual({ promptTokens: 0, completionTokens: 0, reported: false });
+  });
+
+  it("reads Ollama-shaped counters", () => {
+    const usage = newUsage();
+    collectUsage(chunk({ prompt_eval_count: 11, eval_count: 22 }), usage);
+    expect(usage).toEqual({ promptTokens: 11, completionTokens: 22, reported: true });
+  });
+
+  it("reads an OpenAI-shaped usage block", () => {
+    const usage = newUsage();
+    collectUsage(chunk({ usage: { prompt_tokens: 3, completion_tokens: 4 } }), usage);
+    expect(usage).toEqual({ promptTokens: 3, completionTokens: 4, reported: true });
+  });
+
+  it("leaves the accumulator unreported when a chunk carries no counters", () => {
+    const usage = newUsage();
+    collectUsage(chunk({ message: { role: "assistant", content: "hi" }, done: false }), usage);
+    expect(usage.reported).toBe(false);
+  });
+
+  it("lets a later chunk's cumulative totals win", () => {
+    const usage = newUsage();
+    collectUsage(chunk({ eval_count: 5 }), usage);
+    collectUsage(chunk({ eval_count: 40 }), usage);
+    expect(usage.completionTokens).toBe(40);
+  });
+
+  it("distinguishes a reported zero from an absent count", () => {
+    const usage = newUsage();
+    collectUsage(chunk({ prompt_eval_count: 0, eval_count: 0 }), usage);
+    expect(usage.reported).toBe(true);
+    expect(usage.completionTokens).toBe(0);
+  });
+
+  it("merges partial counters across chunks", () => {
+    const usage = newUsage();
+    collectUsage(chunk({ prompt_eval_count: 9 }), usage);
+    collectUsage(chunk({ usage: { completion_tokens: 12 } }), usage);
+    expect(usage).toEqual({ promptTokens: 9, completionTokens: 12, reported: true });
   });
 });

@@ -25,7 +25,7 @@ function makeRuntime(settings = new InMemorySettingsStore()): ServingRuntime {
     models: {
       service: { list: async () => [] },
       installer: {},
-    } as unknown as Parameters<typeof createServingRuntime>[0]["models"],
+    } as unknown as NonNullable<Parameters<typeof createServingRuntime>[0]>["models"],
     log: () => {},
   });
   runtimes.push(runtime);
@@ -95,7 +95,7 @@ describe("createServingRuntime", () => {
           },
         },
         installer: {},
-      } as unknown as Parameters<typeof createServingRuntime>[0]["models"],
+      } as unknown as NonNullable<Parameters<typeof createServingRuntime>[0]>["models"],
       log: () => {},
     });
     runtimes.push(runtime);

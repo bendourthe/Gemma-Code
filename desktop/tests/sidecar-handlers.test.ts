@@ -54,6 +54,8 @@ describe("sidecar handlers", () => {
           // v1.16.0 Phase 1 wired the local serving-gateway control surface.
           "serving.status",
           "serving.setEnabled",
+          // v1.16.0 Phase 2 wired per-model inference analytics.
+          "metrics.inference",
           "coding.session.start",
           "coding.session.sendMessage",
           "coding.session.cancel",

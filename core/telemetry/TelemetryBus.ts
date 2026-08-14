@@ -23,7 +23,13 @@ export type TelemetryEventKind =
   // v1.3.0 Phase 2 (adoption-skill-cleaner T006, insight I-07): emitted when
   // two logical skill paths resolve to the same physical path and one is
   // dropped during realpath dedup. Payload carries the kept + dropped paths.
-  | "skills.dedup";
+  | "skills.dedup"
+  // v1.16.0 Phase 2.1 (adoption item A2): emitted once per completed LLM
+  // request. Payload is an `InferenceMetricRecord`
+  // (core/observability/InferenceMetrics.ts): model, token counts, TTFT, wall
+  // time, derived tokens/sec, and memory footprint. Stays on this in-process
+  // bus like every other kind -- it never leaves the host.
+  | "model.inference.complete";
 
 export interface TelemetryEvent<TPayload = unknown> {
   kind: TelemetryEventKind;

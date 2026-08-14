@@ -9,6 +9,8 @@ import type {
 } from "./types.js";
 import { LLMError, LLMStreamChunkSchema } from "./types.js";
 import { OllamaHttp } from "./OllamaHttp.js";
+import { instrumentStream } from "./instrumentStream.js";
+import { createOllamaMemoryProbe } from "./ollamaMemory.js";
 
 /**
  * Options threaded in from the composition root. When omitted, the client
@@ -36,9 +38,12 @@ function parseChunk(line: string): LLMStreamChunk {
 class OllamaClientImpl implements LLMClient {
   private readonly http: OllamaHttp;
   private readonly _embeddingModelAvailability = new Map<string, boolean>();
+  /** v1.16.0 Phase 2.1: cached, synchronous `/api/ps` resident-size reader. */
+  private readonly _memoryProbe: (model: string) => number | null;
 
   constructor(http: OllamaHttp) {
     this.http = http;
+    this._memoryProbe = createOllamaMemoryProbe(http);
   }
 
   async checkHealth(): Promise<boolean> {
@@ -151,7 +156,22 @@ class OllamaClientImpl implements LLMClient {
     }
   }
 
-  async *streamChat(
+  /**
+   * v1.16.0 Phase 2.1 (adoption item A2): the raw stream is wrapped in
+   * `instrumentStream`, which records one per-model inference metric (tokens,
+   * TTFT, wall time, tokens/sec, resident memory) per request. Instrumenting
+   * here rather than at each call site covers every consumer of this client at
+   * once. The wrapper is transparent -- same chunks, same errors.
+   */
+  streamChat(request: LLMChatRequest, signal?: AbortSignal): AsyncGenerator<LLMStreamChunk> {
+    return instrumentStream(this._streamChatRaw(request, signal), {
+      model: request.model,
+      adapter: "ollama",
+      memoryProbe: () => this._memoryProbe(request.model),
+    });
+  }
+
+  private async *_streamChatRaw(
     request: LLMChatRequest,
     signal?: AbortSignal,
   ): AsyncGenerator<LLMStreamChunk> {
