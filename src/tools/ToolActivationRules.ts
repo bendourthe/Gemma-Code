@@ -5,6 +5,14 @@ import type { BuiltinToolName, ToolName } from "./types.js";
 const MAX_TOOL_COUNT = 15;
 
 /**
+ * v1.16.0 Phase 4 (adoption item A6) -- opt-in built-ins that are NOT part of
+ * the default coding path and may be trimmed under the tool-count cap. Adding a
+ * built-in that is neither MCP nor `codegraph_*` would otherwise be untrimmable
+ * and would breach the prompt budget outright.
+ */
+const OPTIONAL_SPECIALTY_TOOLS: ReadonlySet<string> = new Set(["parse_document"]);
+
+/**
  * v0.8.0 Phase 5 sub-task 5.4 (item D3) -- 30 s TTL for expensive availability
  * probes. Used by callers that need to ask "is Docker reachable", "is the
  * Playwright binary on disk", "is Ollama up": instead of hitting the network /
@@ -184,20 +192,28 @@ export function computeToolActivation(
     disable(VERIFICATION_DISABLED, "Verification sub-agent cannot create or delete files");
   }
 
-  // Rule 6: Tool count cap — trim lowest-priority MCP tools, then trim the
-  // specialized `codegraph_*` built-ins (v1.2.0 Phase 3.5) so the prompt
-  // stays around the 15-tool budget. Core built-ins (read_file, write_file,
-  // grep_codebase, etc.) are never trimmed because the agent depends on
-  // them for the default path.
+  // Rule 6: Tool count cap — trim lowest-priority MCP tools, then the opt-in
+  // specialty built-ins (v1.16.0 Phase 4), then the specialized `codegraph_*`
+  // built-ins (v1.2.0 Phase 3.5) so the prompt stays around the 15-tool budget.
+  // Core built-ins (read_file, write_file, grep_codebase, etc.) are never
+  // trimmed because the agent depends on them for the default path.
   const enabledTools = allTools.filter((t) => !disabled.has(t.name));
   if (enabledTools.length > MAX_TOOL_COUNT) {
     const mcpTools = enabledTools
       .filter((t) => t.source === "mcp")
       .sort((a, b) => b.priority - a.priority); // highest priority number = lowest importance
+    // v1.16.0 Phase 4 (A6): `parse_document` is opt-in and off by default, and a
+    // coding turn almost never needs it, so it is trimmed BEFORE codegraph --
+    // losing symbol navigation hurts the default coding path more than losing
+    // document OCR does. Without this it would be untrimmable and would push the
+    // untrimmable core past the cap, breaking the prompt budget for everyone.
+    const specialtyTools = enabledTools.filter(
+      (t) => t.source !== "mcp" && OPTIONAL_SPECIALTY_TOOLS.has(String(t.name)),
+    );
     const codegraphTools = enabledTools.filter(
       (t) => t.source !== "mcp" && String(t.name).startsWith("codegraph_"),
     );
-    const trimCandidates = [...mcpTools, ...codegraphTools];
+    const trimCandidates = [...mcpTools, ...specialtyTools, ...codegraphTools];
 
     let toDisable = enabledTools.length - MAX_TOOL_COUNT;
     for (const tool of trimCandidates) {

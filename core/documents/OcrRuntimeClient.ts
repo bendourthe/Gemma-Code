@@ -2,6 +2,14 @@
  * v1.16.0 Phase 3 (adoption item A5) -- Node-side JSON-RPC client for the Python
  * document-OCR runtime.
  *
+ * v1.16.0 Phase 4 (adoption item A6): promoted from `desktop/sidecar/src/ocr/`
+ * into `core/` so BOTH consumers share one implementation -- the sidecar's
+ * `ocr.*` IPC handlers and the `parse_document` agent tool, which runs in the
+ * VS Code extension host where the sidecar is unreachable. Duplicating the
+ * spawn + JSON-RPC logic per host was the alternative and would have let the two
+ * copies drift. Depends on node builtins only, so it satisfies the
+ * `no-core-from-modules` boundary rule.
+ *
  * Mirrors `diffusion/runtimeClient.ts` (same line-delimited JSON-RPC 2.0 wire
  * format, same lazy child spawn, same id-vs-notification split) with two
  * deliberate differences, both taken from `models/installManager.ts` because a

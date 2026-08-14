@@ -2,46 +2,15 @@ import type { BuiltinToolName, ToolName } from "../../../src/tools/types.js";
 import { isAllowlisted } from "../../../src/tools/handlers/terminal.js";
 import { getLogger } from "../utils/logger.js";
 
-export enum PermissionTier {
-  AUTO_APPROVE = 0,
-  CONFIRM = 1,
-  DANGEROUS = 2,
-}
-
-const TOOL_PERMISSION_MAP: Record<BuiltinToolName, PermissionTier> = {
-  read_file: PermissionTier.AUTO_APPROVE,
-  list_directory: PermissionTier.AUTO_APPROVE,
-  grep_codebase: PermissionTier.AUTO_APPROVE,
-  tail_output: PermissionTier.AUTO_APPROVE,
-  grep_output: PermissionTier.AUTO_APPROVE,
-  write_file: PermissionTier.CONFIRM,
-  edit_file: PermissionTier.CONFIRM,
-  create_file: PermissionTier.CONFIRM,
-  delete_file: PermissionTier.CONFIRM,
-  run_terminal: PermissionTier.DANGEROUS,
-  web_search: PermissionTier.DANGEROUS,
-  fetch_page: PermissionTier.DANGEROUS,
-  compress_range: PermissionTier.AUTO_APPROVE,
-  compress_message: PermissionTier.AUTO_APPROVE,
-  update_todos: PermissionTier.AUTO_APPROVE,
-  // v1.2.0 Phase 3.5: codegraph_* tools are read-only over a local SQLite
-  // file (no network, no working-tree mutation), so they sit at the
-  // AUTO_APPROVE tier alongside read_file and grep_codebase.
-  codegraph_search: PermissionTier.AUTO_APPROVE,
-  codegraph_context: PermissionTier.AUTO_APPROVE,
-  codegraph_trace: PermissionTier.AUTO_APPROVE,
-  codegraph_callers: PermissionTier.AUTO_APPROVE,
-  codegraph_callees: PermissionTier.AUTO_APPROVE,
-  codegraph_impact: PermissionTier.AUTO_APPROVE,
-  codegraph_node: PermissionTier.AUTO_APPROVE,
-  codegraph_explore: PermissionTier.AUTO_APPROVE,
-  codegraph_files: PermissionTier.AUTO_APPROVE,
-  // v1.2.0 Phase 6.2: LSP tools are read-only -- they query the local LSP
-  // child process over stdio for definition / references and never mutate
-  // the working tree. AUTO_APPROVE alongside the codegraph surface.
-  lsp_definition: PermissionTier.AUTO_APPROVE,
-  lsp_references: PermissionTier.AUTO_APPROVE,
-};
+/**
+ * v1.16.0 Phase 4 (A6): the enum + map moved to `permissionTierMap.ts`, which
+ * imports nothing that can pull `vscode` in, so the headless tool surface can
+ * share the SAME tier data instead of keeping a second copy that would drift.
+ * Re-exported here so every existing importer is unchanged, and so this module
+ * remains the behavioral home (overrides, clamping, warnings).
+ */
+export { PermissionTier } from "./permissionTierMap.js";
+import { PermissionTier, TOOL_PERMISSION_MAP } from "./permissionTierMap.js";
 
 /** Baseline tier for any tool, including unknown/MCP tools. */
 function getBaselineTier(toolName: ToolName): PermissionTier {

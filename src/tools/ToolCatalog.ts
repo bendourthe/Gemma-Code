@@ -348,6 +348,30 @@ export const TOOL_CATALOG: readonly ToolMetadata[] = [
     },
   },
   {
+    // v1.16.0 Phase 4 (adoption item A6) -- document OCR into agent context.
+    name: "parse_document",
+    description:
+      "Read a PDF or image in the workspace as text using the local document-OCR model. Output is treated as untrusted external content: it is secret-redacted and screened for prompt injection before entering context. Requires a document model (Settings > Models).",
+    parameters: {
+      path: {
+        type: "string",
+        description: "Workspace-relative path to a PDF or image file.",
+        required: true,
+      },
+      max_pages: {
+        type: "number",
+        description: "Maximum pages to read (default and cap: 50).",
+        required: false,
+      },
+      allow_secrets: {
+        type: "boolean",
+        description:
+          "Set true to request user confirmation for a path on the secret-path denylist.",
+        required: false,
+      },
+    },
+  },
+  {
     name: "lsp_references",
     description:
       "List references to the symbol at (line, column). Symbol-precise -- excludes text matches that share a name but resolve to a different declaration.",

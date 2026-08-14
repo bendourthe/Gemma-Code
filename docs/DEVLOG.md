@@ -4,6 +4,57 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-14] v1.16.0 local serving + OCR -- Phase 4: document-parse agent tool + memory ingestion (adoption item A6)
+
+### Goal
+
+Make the Phase 3 OCR capability usable by the coding agent as a governed `parse_document` tool, and optionally feed parsed text into memory -- with parsed content treated as untrusted throughout.
+
+### The architectural problem, and the fix
+
+The OCR capability lived entirely in `desktop/sidecar/src/ocr/`, and **no agent tool could reach the sidecar** (`src/activation/proxy.ts:141` defers that IPC client). So the phase started with a refactor: the runtime client and parse manager were **promoted into `core/documents/`**, leaving the sidecar's `ocr.*` IPC as one consumer and letting the tool depend on an injected resolver seam, exactly as `lsp.ts` does for its language server. One spawner, no duplication, no dependency inversion -- `src/tools/` never imports `desktop/`.
+
+### Four guards, in order
+
+`parse_document` exists because OCR output is attacker-influenceable text heading for a model's context, so it sits behind:
+
+1. **Secret-path denylist** (+ `allow_secrets` and a confirmation prompt), identical to `read_file` -- a `.env` is not parseable by accident.
+2. **`pathGuard.resolveInsideWorkspace`**, symlink-aware, so a crafted path cannot escape the workspace.
+3. **`redactSecrets`** over the extracted text. This is a **new redaction point**: tool output going into the conversation was not redacted anywhere before.
+4. **The inbound content classifier** -- `parse_document` joins `INBOUND_EXTERNAL_DATA_TOOLS`, the same gate `fetch_page` and `web_search` pass through.
+
+Tier: **CONFIRM**, matching `write_file` / `fetch_page`. It reads a file *and* runs a model in a subprocess, so `AUTO_APPROVE` (reserved for pure local reads) does not fit.
+
+### Both surfaces -- which meant building the missing half
+
+The headless surface (`headlessTools.ts`, used by the sidecar and the CLI) had **no permission tiers, no secret-path denylist, and no classifier routing at all**. Adding the tool there meant adding the guards:
+
+- `headlessGuards.ts` screens **every** headless tool call, not just the new one, so a tool added later cannot forget it.
+- `HeadlessAgentSession` gained inbound-classifier routing, warn-then-allow, mirroring `AgentLoop._screenInboundResult`.
+- The tier map was **extracted** into a vscode-free `permissionTierMap.ts` (`PermissionTiers.ts` reaches `vscode` via `logger` and `terminal`), so both surfaces share ONE map instead of two that drift. Same class of extraction as the Phase 1 loopback predicate, caught the same way -- by checking the transitive import graph *before* wiring.
+
+### Two bugs caught before commit
+
+**The guard design was wrong on the first pass.** Enforcing tiers unconditionally refused every write and terminal call -- 10 existing tests failed, and in production it would have disabled the headless agent outright. Every write/terminal tool there is CONFIRM or DANGEROUS and no host supplies a confirm callback. Redesigned: the secret-path check stays unconditional (refusing `.env` costs nothing legitimate) while tier enforcement waits for a host callback. Recorded as LSO.P4.X with the lesson: when adding a gate to a surface that never had one, check what its default verdict does to existing traffic before assuming fail-closed is safe.
+
+**A hand-transcription error in the extracted tier map** put three tools (`run_terminal`, `web_search`, `fetch_page`) at CONFIRM instead of DANGEROUS. Caught by diffing the two parsed maps programmatically rather than reading them side by side.
+
+**And `parse_document` had to be made trimmable.** `MAX_TOOL_COUNT` is 15 and built-ins were never trimmed, so a 25th catalog entry pushed the untrimmable core to 16 and broke the prompt-budget cap. It now trims after MCP and before `codegraph_*` -- losing symbol navigation hurts the default coding path more than losing document OCR.
+
+### Memory ingestion (4.2)
+
+Off by default, mirroring `nexus.memory.consolidation.enabled`: the flag is a constructor option and the class short-circuits on its first line. Observations carry provenance (source file, OCR engine, tool name) in both the content and the metadata column. Critically, `MemoryStore.save` **throws** when its injection scanner fires, and untrusted OCR text trips that routinely -- so a rejection is reported as a normal "not stored" outcome with a reason, never as a tool failure. A memory failure never fails the parse.
+
+### Tests
+
+57 new tests: 21 for the tool (including path-traversal and secret-path blocks and the redaction), 17 for the headless guards (including the F-003 override clamp), 12 for the ingestor, 7 for the wiring. All four new modules at 99-100% line coverage. Full sweep green: root 433 files / 4811 tests, desktop 93 files / 808, Python 196, installer clean but for 2 pre-existing `zstandard` failures. Root coverage 87.85% / 84.22% / 91.40% against the 80/75/80 gate. `security:check` in sync after regenerating the permission table from its new source; `deps:check` 0 errors; prompt-budget compliance passing.
+
+### Known issues
+
+4 new deferrals. The honest headline: **the tool is not wired into any composition root yet** (LSO.P4.B) -- it, its guards, its tests, and its settings flag all exist, but no host constructs a `DocumentParser`, so `parse_document` is not registered at runtime. Same for memory ingestion (LSO.P4.C). And headless tier enforcement is opt-in with no host opting in (LSO.P4.A).
+
+---
+
 ## [2026-08-13] v1.16.0 local serving + OCR -- Phase 3: local document-OCR capability (adoption item A5)
 
 ### Goal

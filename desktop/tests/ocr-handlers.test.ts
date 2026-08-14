@@ -17,8 +17,8 @@ import {
   type OcrHealthResponseT,
   type OcrJobDrainResponseT,
 } from "../sidecar/src/protocol";
-import { OcrParseManager, resetOcrJobIdFactory, setOcrJobIdFactory } from "../sidecar/src/ocr/parseManager";
-import { InMemoryOcrRuntime } from "../sidecar/src/ocr/runtimeClient";
+import { OcrParseManager, resetOcrJobIdFactory, setOcrJobIdFactory } from "../../core/documents/OcrParseManager";
+import { InMemoryOcrRuntime } from "../../core/documents/OcrRuntimeClient";
 
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
 

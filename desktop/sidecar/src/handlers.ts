@@ -100,7 +100,7 @@ import {
   type InferenceMetricsRegistry,
   sharedInferenceMetrics,
 } from "../../../core/observability/InferenceMetrics.js";
-import { createOcrRuntimeBundle, type OcrRuntime } from "./ocr/runtimeFactory.js";
+import { createOcrRuntimeBundle, type OcrRuntime } from "../../../core/documents/ocrRuntimeFactory.js";
 
 export const SIDECAR_VERSION = "1.0.0-alpha.0";
 

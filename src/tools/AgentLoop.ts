@@ -39,7 +39,10 @@ const EPISODIC_TOOLS = new Set(["write_file", "edit_file", "create_file", "run_t
  * successful output is routed through the inbound prompt-injection classifier
  * before it is folded into the agent context (warn-then-allow annotation).
  */
-const INBOUND_EXTERNAL_DATA_TOOLS = new Set(["fetch_page", "web_search"]);
+// v1.16.0 Phase 4 (A6): `parse_document` joins the set -- OCR text from a
+// workspace document is external, attacker-influenceable content exactly like
+// a fetched web page, so it gets the same untrusted-content annotation.
+const INBOUND_EXTERNAL_DATA_TOOLS = new Set(["fetch_page", "web_search", "parse_document"]);
 
 /**
  * v0.8.0 Phase 2 (item C8) -- tools whose successful invocation counts as

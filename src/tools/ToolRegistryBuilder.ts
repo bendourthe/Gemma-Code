@@ -30,6 +30,7 @@ import type { EditMode } from "./types.js";
 import type { PostMessageFn } from "../../modules/coding/chat/StreamingPipeline.js";
 import type { CodeGraphHandlerDeps } from "./handlers/codegraph.js";
 import type { LspHandlerDeps } from "./handlers/lsp.js";
+import type { ParseDocumentDeps } from "./handlers/parseDocument.js";
 import type { DenyList } from "../../core/storage/PermissionsDeny.js";
 
 export interface ToolRegistryBuildOptions {
@@ -73,6 +74,13 @@ export interface ToolRegistryBuildOptions {
    * language servers installed).
    */
   readonly lsp?: LspHandlerDeps;
+  /**
+   * v1.16.0 Phase 4 (adoption item A6): document-OCR parser seam. Omit to keep
+   * `parse_document` unregistered (the tool simply does not exist), which is
+   * the default on a host with no document runtime. Lazy so the Python child
+   * only spawns on the first parse.
+   */
+  readonly parseDocument?: ParseDocumentDeps;
   /**
    * v1.4.0 Phase 8 (gap 5.3.P2.R): the parsed `.nexus/permissions.deny`
    * denylist. When supplied, the registry refuses write-capable tool calls
@@ -211,6 +219,19 @@ export function buildToolRegistry(opts: ToolRegistryBuildOptions): ToolRegistry 
     registry.registerLazy("lsp_references", async () => {
       const mod = await import("./handlers/lsp.js");
       return new mod.LspReferencesTool(lspDeps);
+    });
+  }
+
+  if (opts.parseDocument) {
+    const parseDeps = opts.parseDocument;
+    // Tier `confirm` (PermissionTiers.ts): unlike the read-only LSP tools this
+    // reads a file AND runs a model in a subprocess, so every call is gated by
+    // the ConfirmationGate. The handler additionally applies the secret-path
+    // denylist, pathGuard, and redactSecrets; AgentLoop screens its output
+    // through the inbound classifier.
+    registry.registerLazy("parse_document", async () => {
+      const mod = await import("./handlers/parseDocument.js");
+      return new mod.ParseDocumentTool(parseDeps, gate, secretPathDenyExtra);
     });
   }
 

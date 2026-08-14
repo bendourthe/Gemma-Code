@@ -25,6 +25,7 @@ import {
 } from "../../../src/tools/Gemma4ToolFormat.js";
 import type { ToolMetadata } from "../../../src/tools/ToolCatalog.js";
 import type { ToolResult } from "../../../src/tools/types.js";
+import type { InboundClassifier } from "../security/InboundClassifier.js";
 import type { HeadlessTool, HeadlessToolResult } from "./headlessTools.js";
 
 export const DEFAULT_HEADLESS_MAX_ITERATIONS = 12;
@@ -97,6 +98,14 @@ function buildSystemPrompt(tools: HeadlessTool[], opts: HeadlessRunOptions): str
   return sections.join("\n\n");
 }
 
+/**
+ * v1.16.0 Phase 4 (adoption item A6) -- headless tools whose output is untrusted
+ * external content. Mirrors `INBOUND_EXTERNAL_DATA_TOOLS` in `src/tools/AgentLoop.ts`;
+ * the headless surface ships no `fetch_page` / `web_search`, so `parse_document`
+ * is currently the only member.
+ */
+const HEADLESS_INBOUND_TOOLS = new Set(["parse_document"]);
+
 /** Adapt a headless tool result to the `ToolResult` shape `formatToolResult` expects. */
 function asToolResult(result: HeadlessToolResult): ToolResult {
   return {
@@ -116,7 +125,33 @@ export class HeadlessAgentSession {
   constructor(
     private readonly _llm: LLMClient,
     private readonly _tools: HeadlessTool[],
+    /**
+     * v1.16.0 Phase 4 (adoption item A6): optional inbound content classifier.
+     * Omitted -> untrusted tool output passes through unannotated, which is the
+     * pre-v1.16.0 behavior. Supplied -> `parse_document` output is screened and
+     * annotated before it reaches the model, matching the VS Code loop.
+     */
+    private readonly _inboundClassifier?: InboundClassifier,
   ) {}
+
+  /**
+   * Annotate untrusted tool output. Never blocks and never throws: a classifier
+   * failure degrades to the raw result rather than losing the tool call.
+   */
+  private async _screenInbound(
+    toolName: string,
+    result: HeadlessToolResult,
+  ): Promise<HeadlessToolResult> {
+    if (!this._inboundClassifier) return result;
+    if (!HEADLESS_INBOUND_TOOLS.has(toolName)) return result;
+    if (!result.success || !result.output) return result;
+    try {
+      const screen = await this._inboundClassifier.screen(result.output, { tool: toolName });
+      return { ...result, output: screen.annotated };
+    } catch {
+      return result;
+    }
+  }
 
   async run(opts: HeadlessRunOptions): Promise<HeadlessRunResult> {
     const maxIterations = opts.maxIterations ?? DEFAULT_HEADLESS_MAX_ITERATIONS;
@@ -201,7 +236,19 @@ export class HeadlessAgentSession {
           success: toolResult.success,
           output: toolResult.output,
         });
-        messages.push({ role: "user", content: formatToolResult(call.tool, asToolResult(toolResult)) });
+
+        // v1.16.0 Phase 4 (adoption item A6): screen untrusted external content
+        // before it enters the model's context. The headless loop had NO inbound
+        // classifier routing at all, so `parse_document` (OCR text from a
+        // workspace document) would otherwise reach the model unannotated here
+        // while the VS Code loop annotated it. Warn-then-allow, exactly like
+        // `AgentLoop._screenInboundResult`: the event above still carries the raw
+        // output, only the context copy is annotated.
+        const contextResult = await this._screenInbound(call.tool, toolResult);
+        messages.push({
+          role: "user",
+          content: formatToolResult(call.tool, asToolResult(contextResult)),
+        });
       }
     }
 

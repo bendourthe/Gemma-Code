@@ -66,6 +66,10 @@ export interface NexusSettings {
   passStateGating: boolean;
   passStateSubAgentCredit: boolean;
   hooksScanInjection: boolean;
+  /** v1.16.0 Phase 4 (A6): register the `parse_document` tool. Default false. */
+  parseDocumentEnabled: boolean;
+  /** v1.16.0 Phase 4 (A6): store parsed-document text in memory. Default false. */
+  parseDocumentMemoryIngestEnabled: boolean;
   inboundClassifierEnabled: boolean;
   inboundClassifierDeepScan: boolean;
   swarmOrchestrationEnabled: boolean;
@@ -251,6 +255,11 @@ export function getSettings(): NexusSettings {
       true,
     ),
     hooksScanInjection: c.get<boolean>("nexus.hooks.scanInjection", true),
+    parseDocumentEnabled: c.get<boolean>("nexus.coding.parseDocument.enabled", false),
+    parseDocumentMemoryIngestEnabled: c.get<boolean>(
+      "nexus.coding.parseDocument.memoryIngest.enabled",
+      false,
+    ),
     inboundClassifierEnabled: c.get<boolean>(
       "nexus.coding.inboundClassifier.enabled",
       true,

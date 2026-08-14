@@ -41,7 +41,10 @@ const GENERATED_TS = path.join(
   REPO_ROOT,
   "modules/coding/utils/generated/safetyConfig.generated.ts",
 );
-const PERM_TIERS = path.join(REPO_ROOT, "modules/coding/guardrails/PermissionTiers.ts");
+// v1.16.0 Phase 4 (A6): the canonical tier map moved to the vscode-free
+// permissionTierMap.ts so the headless surface can share it; the generator
+// parses that file now.
+const PERM_TIERS = path.join(REPO_ROOT, "modules/coding/guardrails/permissionTierMap.ts");
 
 function readLf(p: string): string {
   return fs.readFileSync(p, "utf8").replace(/\r\n/g, "\n");

@@ -24,7 +24,9 @@ export type BuiltinToolName =
   | "codegraph_explore"
   | "codegraph_files"
   | "lsp_definition"
-  | "lsp_references";
+  | "lsp_references"
+  // v1.16.0 Phase 4 (adoption item A6) -- document OCR into agent context.
+  | "parse_document";
 
 /** Namespaced MCP tool name: `mcp:serverName/toolName`. */
 export type McpToolName = `mcp:${string}`;
@@ -59,6 +61,7 @@ export const BUILTIN_TOOL_NAMES: readonly BuiltinToolName[] = [
   "codegraph_files",
   "lsp_definition",
   "lsp_references",
+  "parse_document",
 ];
 
 /** @deprecated Use BUILTIN_TOOL_NAMES instead. */

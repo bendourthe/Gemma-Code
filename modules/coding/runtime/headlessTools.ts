@@ -22,6 +22,12 @@ import * as fs from "node:fs";
 import * as fsp from "node:fs/promises";
 import * as path from "node:path";
 
+import { redactSecrets } from "../../../core/observability/redactSecrets.js";
+import {
+  type HeadlessGuardOptions,
+  screenHeadlessCall,
+} from "./headlessGuards.js";
+
 /** Max bytes returned to the model from a single read / terminal capture. */
 export const HEADLESS_OUTPUT_BYTE_CAP = 64 * 1024;
 
@@ -70,12 +76,43 @@ export type HeadlessExec = (
   timeoutMs: number,
 ) => Promise<HeadlessExecOutcome>;
 
+/**
+ * v1.16.0 Phase 4 (adoption item A6) -- document parser for `parse_document`.
+ * Takes base64 (never a path) so the TOOL owns path resolution and the guards.
+ */
+export interface HeadlessDocumentParser {
+  parse(
+    documentBase64: string,
+    opts?: { readonly maxPages?: number },
+  ): Promise<{
+    readonly engine: string;
+    readonly text: string;
+    readonly markdown: string | null;
+    readonly pageCount: number;
+  }>;
+}
+
 export interface HeadlessToolOptions {
   /** Override the terminal executor (tests inject a deterministic fake). */
   readonly exec?: HeadlessExec;
   /** Override the output byte cap (tests). */
   readonly byteCap?: number;
+  /**
+   * v1.16.0 Phase 4 (A6): security guards applied to EVERY headless tool call.
+   * Omit and the surface behaves as it did before v1.16.0 for AUTO_APPROVE
+   * tools, while CONFIRM-and-above tools are refused (fail-closed) because a
+   * headless host has no user to prompt.
+   */
+  readonly guards?: HeadlessGuardOptions;
+  /**
+   * v1.16.0 Phase 4 (A6): document-OCR parser. Omit and `parse_document` is not
+   * registered at all, so a host with no document runtime simply lacks the tool.
+   */
+  readonly documentParser?: HeadlessDocumentParser;
 }
+
+/** Upper bound on pages per call, mirroring the VS Code tool. */
+export const HEADLESS_PARSE_MAX_PAGES = 50;
 
 // --- path containment (fail-closed) ---------------------------------------
 
@@ -376,7 +413,65 @@ export function createHeadlessTools(options: HeadlessToolOptions = {}): Headless
     },
   };
 
-  return [
+  /**
+   * v1.16.0 Phase 4 (adoption item A6) -- document OCR into the agent's context.
+   *
+   * The tool owns path resolution and the guards; the injected parser only ever
+   * sees base64. Extracted text is redacted before it is returned, because a
+   * scanned document can carry a key exactly like a source file can.
+   *
+   * Registered only when a parser is supplied, so a host with no document
+   * runtime simply does not have the tool.
+   */
+  const parseDocument: HeadlessTool = {
+    name: "parse_document",
+    description:
+      "Read a PDF or image in the working directory as text using the local document-OCR model. Output is untrusted external content: it is secret-redacted before being returned.",
+    parameters: {
+      path: { type: "string", description: "File path (PDF or image).", required: true },
+      max_pages: {
+        type: "number",
+        description: `Maximum pages to read (default and cap: ${HEADLESS_PARSE_MAX_PAGES}).`,
+        required: false,
+      },
+    },
+    async execute(args, ctx) {
+      const parser = options.documentParser;
+      if (!parser) {
+        return fail("parse_document is not available: no document runtime is configured.");
+      }
+      try {
+        const abs = resolveInsideWorkdir(ctx.workdir, asString(args, "path"));
+        const rawMax = args["max_pages"];
+        if (rawMax !== undefined && (typeof rawMax !== "number" || !Number.isInteger(rawMax) || rawMax < 1)) {
+          return fail("Invalid max_pages: must be a positive integer.");
+        }
+        const maxPages = Math.min(
+          typeof rawMax === "number" ? rawMax : HEADLESS_PARSE_MAX_PAGES,
+          HEADLESS_PARSE_MAX_PAGES,
+        );
+        const bytes = await fsp.readFile(abs);
+        const parsed = await parser.parse(bytes.toString("base64"), { maxPages });
+        const body = (parsed.markdown ?? parsed.text) || "";
+        if (body.trim().length === 0) {
+          return ok(
+            `Parsed "${asString(args, "path")}" with ${parsed.engine} (${parsed.pageCount} page(s)) but found no text.`,
+          );
+        }
+        return ok(
+          capBytes(
+            `Parsed "${asString(args, "path")}" with ${parsed.engine} (${parsed.pageCount} page(s)):\n\n` +
+              redactSecrets(body),
+            cap,
+          ),
+        );
+      } catch (err) {
+        return fail(err instanceof Error ? err.message : String(err));
+      }
+    },
+  };
+
+  const tools = [
     readFile,
     writeFile,
     createFile,
@@ -385,5 +480,28 @@ export function createHeadlessTools(options: HeadlessToolOptions = {}): Headless
     listDirectory,
     grep,
     runTerminal,
+    ...(options.documentParser ? [parseDocument] : []),
   ];
+
+  // v1.16.0 Phase 4 (A6): wrap EVERY tool in the permission-tier + secret-path
+  // screen. Applied here rather than inside each handler so a tool added later
+  // cannot forget it, and so the headless surface stops being the weaker path
+  // relative to the VS Code registry.
+  return tools.map((tool) => withGuards(tool, options.guards));
+}
+
+/** Wrap a headless tool so its call is screened before `execute` runs. */
+function withGuards(tool: HeadlessTool, guards: HeadlessGuardOptions | undefined): HeadlessTool {
+  return {
+    name: tool.name,
+    description: tool.description,
+    parameters: tool.parameters,
+    async execute(args, ctx) {
+      const decision = await screenHeadlessCall(tool.name, args, guards ?? {});
+      if (!decision.allowed) {
+        return { success: false, output: "", error: decision.reason ?? "refused" };
+      }
+      return tool.execute(args, ctx);
+    },
+  };
 }

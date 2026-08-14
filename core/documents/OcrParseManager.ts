@@ -18,7 +18,7 @@
  * kill we do not perform would be worse than the real, bounded guarantee.
  */
 
-import type { OcrEvent, OcrRuntimeClient } from "./runtimeClient.js";
+import type { OcrEvent, OcrRuntimeClient } from "./OcrRuntimeClient.js";
 
 /** Terminal + progress events a poller receives. */
 export interface OcrJobEvent {

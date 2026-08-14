@@ -11,7 +11,8 @@
  *   1. The tool-permission-tier table in
  *      docs/archive/v0/v0.5/architecture.md, between the markers
  *        <!-- BEGIN:TOOL-PERMISSION-TABLE --> / <!-- END:TOOL-PERMISSION-TABLE -->
- *      Source: src/guardrails/PermissionTiers.ts (the canonical tier map).
+ *      Source: modules/coding/guardrails/permissionTierMap.ts (the canonical tier map;
+ *      vscode-free so both the VS Code and headless surfaces share it).
  *   2. The [permissions] mirror block in nexus.security.toml, between the markers
  *        # BEGIN:GENERATED-PERMISSIONS / # END:GENERATED-PERMISSIONS
  *      Source: src/guardrails/PermissionTiers.ts. Per Section 13 of the
@@ -42,7 +43,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
 
 const ssotPath = path.join(repoRoot, "nexus.security.toml");
-const permTiersPath = path.join(repoRoot, "modules/coding/guardrails/PermissionTiers.ts");
+const permTiersPath = path.join(repoRoot, "modules/coding/guardrails/permissionTierMap.ts");
 const docPath = path.join(repoRoot, "docs/archive/v0/v0.5/architecture.md");
 const generatedTsPath = path.join(
   repoRoot,
@@ -79,7 +80,7 @@ const tierEnumToNumber = {
 export function parseToolMap(source) {
   const start = source.indexOf("TOOL_PERMISSION_MAP");
   if (start < 0) {
-    throw new Error("TOOL_PERMISSION_MAP not found in PermissionTiers.ts");
+    throw new Error("TOOL_PERMISSION_MAP not found in permissionTierMap.ts");
   }
   const open = source.indexOf("{", start);
   const close = source.indexOf("};", open);

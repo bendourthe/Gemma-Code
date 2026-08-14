@@ -273,6 +273,16 @@
           "default": [],
           "description": "v1.4.0 Phase 2 (A5) -- exact environment-variable names that are allowed to pass through to run_terminal child processes even when they would otherwise be scrubbed by `nexus.coding.terminalEnvScrub`. Use this to opt a specific secret-bearing variable back in for a command that genuinely needs it."
         },
+        "nexus.coding.parseDocument.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "v1.16.0 Phase 4 (adoption item A6) -- expose the `parse_document` agent tool, which reads a workspace PDF or image as text using the local document-OCR model. Off by default; with the toggle off the tool is not registered at all, so it costs no prompt budget and spawns no runtime. Requires a document model (Settings > Models)."
+        },
+        "nexus.coding.parseDocument.memoryIngest.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "v1.16.0 Phase 4 (adoption item A6) -- store text extracted by `parse_document` as a memory observation, tagged with its source file and OCR engine. Off by default; with the toggle off no memory write is attempted. Parsed documents are untrusted content: text is secret-redacted before storage and the memory store still rejects anything carrying prompt-injection markers."
+        },
         "nexus.coding.inboundClassifier.enabled": {
           "type": "boolean",
           "default": true,

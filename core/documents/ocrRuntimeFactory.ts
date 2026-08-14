@@ -16,8 +16,8 @@ import {
   ChildProcessOcrRuntime,
   InMemoryOcrRuntime,
   type OcrRuntimeClient,
-} from "./runtimeClient.js";
-import { OcrParseManager } from "./parseManager.js";
+} from "./OcrRuntimeClient.js";
+import { OcrParseManager } from "./OcrParseManager.js";
 
 export interface OcrRuntimeFactoryOptions {
   /** Injectable spawn (tests). Forwarded to ChildProcessOcrRuntime. */

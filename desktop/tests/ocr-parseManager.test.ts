@@ -13,8 +13,8 @@ import {
   OcrParseManager,
   resetOcrJobIdFactory,
   setOcrJobIdFactory,
-} from "../sidecar/src/ocr/parseManager";
-import { InMemoryOcrRuntime } from "../sidecar/src/ocr/runtimeClient";
+} from "../../core/documents/OcrParseManager";
+import { InMemoryOcrRuntime } from "../../core/documents/OcrRuntimeClient";
 
 const OK_ENVELOPE = {
   ok: true,
