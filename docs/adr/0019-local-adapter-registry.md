@@ -41,3 +41,4 @@ Concrete points:
 - Plan: `docs/versions/v1/v1.6.0/plans/adoption-aisuite-harness.md` Phase 5 (AS007).
 - Comparison: `docs/versions/v1/v1.6.0/comparison-aisuite.md` item A3.
 - Policy: `AGENTS.md` MCP Registry Policy (local-only bucket).
+- User guide (v1.16.0): [MLX via localAdapters](../v1/v1.16/guides/mlx-via-local-adapters.md) -- how to register an mlx-vlm / LM Studio MLX / nativ loopback server as a user manifest. No bundled MLX runtime.

@@ -44,6 +44,7 @@ const servingClient = createIpcServingClient();
 
 export function App({ telemetryStream }: AppProps = {}): JSX.Element {
   const [stream, setStream] = useState<TelemetryStream | null>(telemetryStream ?? null);
+  const [hostVramGB, setHostVramGB] = useState<number | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -55,6 +56,13 @@ export function App({ telemetryStream }: AppProps = {}): JSX.Element {
     setStream(created);
     return () => created.stop();
   }, [telemetryStream]);
+
+  useEffect(() => {
+    if (!stream) return;
+    return stream.subscribe((sample) => {
+      if (typeof sample.vramTotalGB === "number") setHostVramGB(sample.vramTotalGB);
+    });
+  }, [stream]);
 
   // Fixed-viewport shell: the title bar is fixed chrome and the content row
   // scrolls internally. The ambient radial-glow + constellation backdrop sits
@@ -103,7 +111,7 @@ export function App({ telemetryStream }: AppProps = {}): JSX.Element {
               path="/chatbot"
               element={<ChatPage onGetMoreModels={() => navigate(SETTINGS_MODELS_PATH)} />}
             />
-            <Route path="/coding" element={<CodingPage />} />
+            <Route path="/coding" element={<CodingPage onGetMoreModels={() => navigate(SETTINGS_MODELS_PATH)} />} />
             <Route
               path="/images"
               element={<ImageStudioPage onGetMoreModels={() => navigate(SETTINGS_MODELS_PATH)} />}
@@ -120,6 +128,7 @@ export function App({ telemetryStream }: AppProps = {}): JSX.Element {
                   skillsClient={skillsClient}
                   skillOptimizerClient={skillOptimizerClient}
                   servingClient={servingClient}
+                  hostVramGB={hostVramGB}
                 />
               }
             />

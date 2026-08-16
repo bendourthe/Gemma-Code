@@ -61,6 +61,32 @@ function makeFakeInvoke() {
         };
       case "coding.sessions.list":
         return { sessions: fakeSessions };
+      case "models.list":
+        return {
+          models: [
+            {
+              id: "gemma4:e4b",
+              displayName: "Gemma 4 E4B",
+              type: "llm",
+              installed: true,
+              source: "registry",
+            },
+            {
+              id: "qwen2.5-coder:7b",
+              displayName: "Qwen 2.5 Coder 7B",
+              type: "llm",
+              installed: true,
+              source: "registry",
+            },
+            {
+              id: "ltx-video",
+              displayName: "LTX-Video",
+              type: "video",
+              installed: false,
+              source: "catalog-only",
+            },
+          ],
+        };
       default:
         throw new Error(`Unexpected method: ${a.method}`);
     }

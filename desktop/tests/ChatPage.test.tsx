@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ChatPage } from "../src/modules/chat/ChatPage";
 import { InMemoryChatExplorerClient } from "../src/modules/chat/chatExplorerClient";
@@ -120,5 +120,42 @@ describe("<ChatPage>", () => {
     expect(crumb).toHaveTextContent("Projects");
     expect(crumb).toHaveTextContent("Work");
     expect(crumb).toHaveTextContent("Q3");
+  });
+
+  it("the compact switcher lists only installed LLMs from the models client", async () => {
+    const client = new InMemoryChatExplorerClient();
+    const modelsClient = {
+      async list() {
+        return [
+          {
+            id: "gemma4:e4b",
+            displayName: "Gemma 4 E4B",
+            type: "llm" as const,
+            installed: true,
+            source: "registry" as const,
+          },
+          {
+            id: "catalog-llm",
+            displayName: "Not Installed",
+            type: "llm" as const,
+            installed: false,
+            source: "catalog-only" as const,
+          },
+          {
+            id: "sana",
+            displayName: "SANA",
+            type: "image" as const,
+            installed: true,
+            source: "registry" as const,
+          },
+        ];
+      },
+    };
+    render(<ChatPage client={client} modelsClient={modelsClient} />);
+    const select = await screen.findByTestId("chat-model-select") as HTMLSelectElement;
+    await waitFor(() => {
+      const values = [...select.options].map((o) => o.value);
+      expect(values).toEqual(["gemma4:e4b", "__get_more_models__"]);
+    });
   });
 });

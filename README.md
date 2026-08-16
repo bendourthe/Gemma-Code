@@ -53,6 +53,10 @@ Attach a PDF or an image in the Local Chatbot and Nexus reads it into text on yo
 
 Nexus can also *serve* the local models it has installed. Enable **Settings > Local API server** and Nexus exposes a loopback OpenAI- and Anthropic-compatible HTTP API (`GET /v1/models`, `POST /v1/chat/completions`, `POST /v1/messages`, buffered or streamed), so Claude Code, Codex, Cursor, and any OpenAI/Anthropic SDK client can drive the models you already downloaded - extending "Zero Tokens Billed" to your whole toolchain. Off by default and local by construction: with the setting disabled no port is bound, the server refuses to start on any non-loopback address, and every request needs a locally-generated bearer token. It serves model inference only - never files, terminal, or tools. Added in v1.16.0 Phase 1.
 
+### MLX on Apple Silicon (via local adapters)
+
+Nexus does not bundle an MLX runtime. Apple Silicon users who already run an OpenAI-compatible MLX server (mlx-vlm, LM Studio in MLX mode, or nativ) can register it as a loopback `nexus.llm.localAdapters` manifest and select it with `nexus.llm.backend`. The how-to is [docs/v1/v1.16/guides/mlx-via-local-adapters.md](docs/v1/v1.16/guides/mlx-via-local-adapters.md); the on-device smoke checklist is [docs/v1/v1.16/testing/macos-mlx-smoke.md](docs/v1/v1.16/testing/macos-mlx-smoke.md). Added in v1.16.0 Phase 5.
+
 ### Always-on telemetry
 
 A persistent `Local Model Status` panel reports the active model architecture, parameter size, live GPU utilization, and free VRAM - so dense computational passes do not silently OOM. The same telemetry feeds the GPU scheduler (Phase 3) that prioritizes Coding token generation over background diffusion work when both pillars compete for the same GPU.
@@ -176,6 +180,7 @@ nexus doctor [--migration-report] [--json]             # v1.4.0 Phase 5; never m
 | **Skill harness** | Nexus-Hub catalog synced via `nexus skills sync` into a single-home `~/.nexus-ai/catalog/`; hot-reload via fs.watch on the ACTIVE pointer; weekly auto-sync worker; allowlist + prompt-injection scanner on every install. |
 | **Skill self-optimization** | Local golden-task-graded, held-out-validated, human-approved bounded edits to skills (`nexus skills optimize` / `frontier`, plus a desktop approval panel); opt-in and default-off. |
 | **Per-model harness selection** | Auto-tunes the agent scaffold profile per local model with a golden A/B; opt-in (`nexus.coding.harnessSelector.enabled`). |
+| **MLX via local adapters** | Apple Silicon: register an mlx-vlm / LM Studio MLX / nativ loopback server as `nexus.llm.localAdapters` ([how-to](docs/v1/v1.16/guides/mlx-via-local-adapters.md)). No bundled MLX runtime. |
 | **Slash commands** | `/recall`, `/remember`, `/forget`, `/curate`, `/trace`, `/memory`, `/plan`, plus the full skill-backed catalog with `preferUpstream` ordering. |
 | **GPU scheduler** | Prioritizes Coding token generation over background diffusion work when both compete for the same GPU; tier-aware (`diffusion-low` / `mid` / `high`). |
 | **MCP support** | Stdio MCP servers integrate via the per-project registry; reverse-engineering-first policy bans search / embeddings / scraping / generation as a service. |

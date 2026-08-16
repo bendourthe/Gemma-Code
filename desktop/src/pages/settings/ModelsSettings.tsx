@@ -3,8 +3,10 @@
  *
  * Three sections: Installed (registry entries), Available (catalog entries
  * that have not been installed), External (sourced from
- * `~/.nexus/extra_model_paths.yaml`). Filters by type and family, free-text
- * search by name, and a disk-usage summary at the top.
+ * `~/.nexus/extra_model_paths.yaml`). Filters by type, family, install
+ * status, and (when host VRAM is known) tier-fit; free-text search by name
+ * or capability; disk-usage summary at the top. v1.16.0 Phase 5 (A4) added
+ * the status / tier-fit filters and the over-budget install state.
  *
  * The page is provider-driven: callers inject a `ModelsClient` so tests
  * (and the eventual IPC wiring) can swap the real disk-backed
@@ -13,6 +15,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import {
+  filterCatalog,
+  modelFitsHost,
+  sourceLabel,
+  type SourceFilter,
+  type TierFitFilter,
+} from "../../shared/models/modelLibrary";
 import type {
   DiskUsageDto,
   InstallProgressDto,
@@ -37,6 +46,12 @@ export interface ModelsClient {
 
 export interface ModelsSettingsProps {
   client: ModelsClient;
+  /**
+   * v1.16.0 Phase 5 (A4) -- host VRAM in GB, used by the tier-fit filter and
+   * to disable Install on over-budget catalog entries. Omit or pass `null`
+   * when telemetry has not reported a total yet; the filter then hides.
+   */
+  hostVramGB?: number | null;
 }
 
 const TYPE_FILTERS: ReadonlyArray<{ value: "all" | ModelType; label: string }> = [
@@ -50,12 +65,14 @@ const TYPE_FILTERS: ReadonlyArray<{ value: "all" | ModelType; label: string }> =
   { value: "document", label: "Document" },
 ];
 
-export function ModelsSettings({ client }: ModelsSettingsProps): JSX.Element {
+export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProps): JSX.Element {
   const [items, setItems] = useState<readonly ListedModelDto[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<"all" | ModelType>("all");
   const [familyFilter, setFamilyFilter] = useState<string>("all");
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
+  const [tierFitFilter, setTierFitFilter] = useState<TierFitFilter>("all");
   const [query, setQuery] = useState<string>("");
   const [progress, setProgress] = useState<Record<string, InstallProgressDto>>({});
   const [active, setActive] = useState<Record<string, InstallHandle>>({});
@@ -97,18 +114,18 @@ export function ModelsSettings({ client }: ModelsSettingsProps): JSX.Element {
     return ["all", ...Array.from(set).sort()];
   }, [items]);
 
-  const filtered = useMemo(() => {
-    return items.filter((m) => {
-      if (typeFilter !== "all" && m.type !== typeFilter) return false;
-      if (familyFilter !== "all" && m.family !== familyFilter) return false;
-      if (query) {
-        const q = query.toLowerCase();
-        const hay = `${m.id} ${m.displayName} ${m.family ?? ""}`.toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      return true;
-    });
-  }, [items, typeFilter, familyFilter, query]);
+  const filtered = useMemo(
+    () =>
+      filterCatalog(items, {
+        query,
+        type: typeFilter,
+        family: familyFilter,
+        source: sourceFilter,
+        tierFit: tierFitFilter,
+        hostVramGB,
+      }),
+    [items, query, typeFilter, familyFilter, sourceFilter, tierFitFilter, hostVramGB],
+  );
 
   const installed = filtered.filter((m) => m.source === "registry");
   const available = filtered.filter((m) => m.source === "catalog-only");
@@ -204,6 +221,33 @@ export function ModelsSettings({ client }: ModelsSettingsProps): JSX.Element {
             ))}
           </select>
         </label>
+        <label>
+          <span style={labelStyle}>Status</span>
+          <select
+            data-testid="models-filter-source"
+            value={sourceFilter}
+            onChange={(e) => setSourceFilter(e.target.value as SourceFilter)}
+          >
+            <option value="all">All</option>
+            <option value="installed">Installed</option>
+            <option value="available">Available</option>
+            <option value="external">External</option>
+          </select>
+        </label>
+        {typeof hostVramGB === "number" && (
+          <label>
+            <span style={labelStyle}>Tier fit</span>
+            <select
+              data-testid="models-filter-tier"
+              value={tierFitFilter}
+              onChange={(e) => setTierFitFilter(e.target.value as TierFitFilter)}
+            >
+              <option value="all">All</option>
+              <option value="fits">Fits this host</option>
+              <option value="over-budget">Over budget</option>
+            </select>
+          </label>
+        )}
         <label style={{ flex: 1 }}>
           <span style={labelStyle}>Search</span>
           <input
@@ -211,7 +255,7 @@ export function ModelsSettings({ client }: ModelsSettingsProps): JSX.Element {
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by name or id"
+            placeholder="Search by name, type, or id"
             style={{ width: "100%" }}
           />
         </label>
@@ -221,53 +265,65 @@ export function ModelsSettings({ client }: ModelsSettingsProps): JSX.Element {
         <p data-testid="models-loading">Loading installed models...</p>
       ) : (
         <>
-          <Section
-            title="Installed"
-            testId="section-installed"
-            items={installed}
-            renderAction={(m) => (
-              <RowActions
-                item={m}
-                progress={progress[m.id]}
-                onRemove={() => handleRemove(m.id)}
-                onPin={
-                  client.pin
-                    ? () => client.pin?.(m.id, true).catch((e) => setError(messageFor(e)))
-                    : undefined
-                }
-              />
-            )}
-          />
-          <Section
-            title="Available"
-            testId="section-available"
-            items={available}
-            renderAction={(m) => (
-              <RowActions
-                item={m}
-                progress={progress[m.id]}
-                onInstall={() => startInstall(m.id)}
-                onCancel={() => cancelInstall(m.id)}
-                installing={Boolean(active[m.id])}
-              />
-            )}
-          />
-          <Section
-            title="External"
-            testId="section-external"
-            items={external}
-            renderAction={(m) => (
-              <RowActions
-                item={m}
-                progress={progress[m.id]}
-                onReveal={
-                  m.absPath && client.reveal
-                    ? () => client.reveal?.(m.absPath as string)
-                    : undefined
-                }
-              />
-            )}
-          />
+          {(sourceFilter === "all" || sourceFilter === "installed") && (
+            <Section
+              title="Installed"
+              testId="section-installed"
+              items={installed}
+              hostVramGB={hostVramGB}
+              renderAction={(m) => (
+                <RowActions
+                  item={m}
+                  progress={progress[m.id]}
+                  hostVramGB={hostVramGB}
+                  onRemove={() => handleRemove(m.id)}
+                  onPin={
+                    client.pin
+                      ? () => client.pin?.(m.id, true).catch((e) => setError(messageFor(e)))
+                      : undefined
+                  }
+                />
+              )}
+            />
+          )}
+          {(sourceFilter === "all" || sourceFilter === "available") && (
+            <Section
+              title="Available"
+              testId="section-available"
+              items={available}
+              hostVramGB={hostVramGB}
+              renderAction={(m) => (
+                <RowActions
+                  item={m}
+                  progress={progress[m.id]}
+                  hostVramGB={hostVramGB}
+                  onInstall={() => startInstall(m.id)}
+                  onCancel={() => cancelInstall(m.id)}
+                  installing={Boolean(active[m.id])}
+                />
+              )}
+            />
+          )}
+          {(sourceFilter === "all" || sourceFilter === "external") && (
+            <Section
+              title="External"
+              testId="section-external"
+              items={external}
+              hostVramGB={hostVramGB}
+              renderAction={(m) => (
+                <RowActions
+                  item={m}
+                  progress={progress[m.id]}
+                  hostVramGB={hostVramGB}
+                  onReveal={
+                    m.absPath && client.reveal
+                      ? () => client.reveal?.(m.absPath as string)
+                      : undefined
+                  }
+                />
+              )}
+            />
+          )}
         </>
       )}
     </section>
@@ -278,10 +334,11 @@ interface SectionProps {
   title: string;
   testId: string;
   items: readonly ListedModelDto[];
+  hostVramGB?: number | null;
   renderAction: (m: ListedModelDto) => JSX.Element;
 }
 
-function Section({ title, testId, items, renderAction }: SectionProps): JSX.Element {
+function Section({ title, testId, items, hostVramGB, renderAction }: SectionProps): JSX.Element {
   return (
     <section data-testid={testId} style={sectionStyle}>
       <h2 style={{ margin: "0 0 var(--space-2, 8px)" }}>
@@ -295,7 +352,10 @@ function Section({ title, testId, items, renderAction }: SectionProps): JSX.Elem
             <li key={m.id} data-testid={`models-row-${m.id}`} style={rowStyle}>
               <ModelIcon type={m.type} />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600 }}>{m.displayName}</div>
+                <div style={{ fontWeight: 600, display: "flex", alignItems: "center", gap: "var(--space-2, 8px)" }}>
+                  <span>{m.displayName}</span>
+                  <StatusBadge item={m} hostVramGB={hostVramGB} />
+                </div>
                 <div style={{ fontSize: "0.85em", color: "var(--fg-muted)" }}>
                   {m.family ?? "?"}
                   {m.tag ? `:${m.tag}` : ""} - {formatBytes(m.sizeBytes)} - {m.license ?? "license: ?"}
@@ -313,6 +373,7 @@ function Section({ title, testId, items, renderAction }: SectionProps): JSX.Elem
 interface RowActionsProps {
   item: ListedModelDto;
   progress?: InstallProgressDto;
+  hostVramGB?: number | null;
   onInstall?: () => void;
   onCancel?: () => void;
   onRemove?: () => void;
@@ -324,6 +385,7 @@ interface RowActionsProps {
 function RowActions({
   item,
   progress,
+  hostVramGB,
   onInstall,
   onCancel,
   onRemove,
@@ -356,6 +418,18 @@ function RowActions({
     );
   }
   if (onInstall) {
+    const overBudget = modelFitsHost(item, hostVramGB) === false;
+    if (overBudget) {
+      return (
+        <span
+          data-testid={`models-over-budget-${item.id}`}
+          style={{ fontSize: "0.85em", color: "var(--fg-muted)" }}
+          title={`Needs ${item.vramGB} GB VRAM; this host has ${hostVramGB} GB.`}
+        >
+          Needs {item.vramGB} GB VRAM
+        </span>
+      );
+    }
     return (
       <button
         type="button"
@@ -394,6 +468,34 @@ function RowActions({
   return <span />;
 }
 
+function StatusBadge({
+  item,
+  hostVramGB,
+}: {
+  item: ListedModelDto;
+  hostVramGB?: number | null;
+}): JSX.Element {
+  const overBudget = modelFitsHost(item, hostVramGB) === false;
+  const label = overBudget ? "Over budget" : sourceLabel(item.source);
+  return (
+    <span
+      data-testid={`models-status-${item.id}`}
+      style={{
+        fontSize: "0.7em",
+        fontWeight: 600,
+        letterSpacing: "0.02em",
+        textTransform: "uppercase",
+        color: overBudget ? "var(--accent-warning, #d97706)" : "var(--fg-muted)",
+        border: "1px solid var(--border-1, #2a2a2a)",
+        borderRadius: "var(--radius-1, 4px)",
+        padding: "0 0.45em",
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
 function ModelIcon({ type }: { type?: ModelType }): JSX.Element {
   const label =
     type === "image"
@@ -408,7 +510,9 @@ function ModelIcon({ type }: { type?: ModelType }): JSX.Element {
               ? "C"
               : type === "vae"
                 ? "A"
-                : "L";
+                : type === "document"
+                  ? "D"
+                  : "L";
   const color =
     type === "image"
       ? "var(--accent-image, #ec4899)"
@@ -422,7 +526,9 @@ function ModelIcon({ type }: { type?: ModelType }): JSX.Element {
               ? "var(--accent-controlnet, #f59e0b)"
               : type === "vae"
                 ? "var(--accent-vae, #8b5cf6)"
-                : "var(--accent-llm, #10b981)";
+                : type === "document"
+                  ? "var(--accent-document, #0ea5e9)"
+                  : "var(--accent-llm, #10b981)";
   return (
     <span
       aria-hidden
@@ -498,6 +604,7 @@ const filterRowStyle: React.CSSProperties = {
   display: "flex",
   gap: "var(--space-3, 12px)",
   alignItems: "flex-end",
+  flexWrap: "wrap",
 };
 
 const sectionStyle: React.CSSProperties = {

@@ -18,9 +18,20 @@ import { applyEvents, type RenderedTurn } from "./toolCallCard";
 import { MemoryPanel } from "./panels/MemoryPanel";
 import { TraceDashboardPanel } from "./panels/TraceDashboardPanel";
 import { SessionListPanel } from "./panels/SessionListPanel";
-import { MessageList, ModelSelector, type ChatMessage } from "../../shared/chat";
+import { MessageList, type ChatMessage } from "../../shared/chat";
+import { QuickModelSwitcher } from "../../shared/models/QuickModelSwitcher";
+import { createIpcModelsClient } from "../../pages/settings/ipcModelsClient";
+import type { ListedModelDto } from "../../pages/settings/modelsTypes";
 
 type Tab = "chat" | "memory" | "trace" | "sessions";
+
+const FALLBACK_LLMS: readonly ListedModelDto[] = FRONTEND_MODELS.map((m) => ({
+  id: m.id,
+  displayName: m.displayName,
+  type: "llm" as const,
+  installed: true,
+  source: "registry" as const,
+}));
 
 interface Turn {
   id: string;
@@ -50,14 +61,20 @@ function turnsToMessages(turns: readonly Turn[]): readonly ChatMessage[] {
 export interface CodingPageProps {
   initialModelId?: string;
   initialTab?: Tab;
+  /** v1.16.0 Phase 5 (A4) -- installed-model feed; tests inject a fake. */
+  modelsClient?: { list(): Promise<readonly ListedModelDto[]> };
+  onGetMoreModels?: () => void;
 }
 
 export function CodingPage({
   initialModelId,
   initialTab,
+  modelsClient: modelsClientOverride,
+  onGetMoreModels,
 }: CodingPageProps = {}): JSX.Element {
   const [tab, setTab] = useState<Tab>(initialTab ?? "chat");
   const [modelId, setModelId] = useState<string>(initialModelId ?? DEFAULT_MODEL_ID);
+  const [listedModels, setListedModels] = useState<readonly ListedModelDto[]>(FALLBACK_LLMS);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [busy, setBusy] = useState(false);
@@ -73,6 +90,22 @@ export function CodingPage({
   const [replaySessionId, setReplaySessionId] = useState<string | null>(null);
   const [compareSessionId, setCompareSessionId] = useState<string | null>(null);
   const [compareEvents, setCompareEvents] = useState<readonly TraceEventT[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const source = modelsClientOverride ?? createIpcModelsClient();
+    void source.list().then(
+      (all) => {
+        if (!cancelled && all.length > 0) setListedModels(all);
+      },
+      () => {
+        // Keep the catalog fallback.
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [modelsClientOverride]);
 
   const ensureSession = useCallback(async (): Promise<string | null> => {
     if (sessionId) return sessionId;
@@ -238,11 +271,13 @@ export function CodingPage({
         >
           Agentic AI Coding
         </h1>
-        <ModelSelector
+        <QuickModelSwitcher
           testId="coding-model-select"
-          models={FRONTEND_MODELS}
+          models={listedModels}
+          taskType="llm"
           value={modelId}
           onChange={setModelId}
+          onGetMoreModels={onGetMoreModels}
           disabled={Boolean(sessionId)}
         />
       </header>

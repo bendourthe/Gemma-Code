@@ -19,6 +19,7 @@ const DEFAULT: LocalModelTelemetry = {
   paramSize: "7B",
   gpuPct: 38,
   vramFreeGB: 5.0,
+  vramTotalGB: 10,
   deviceName: "RTX 3080",
   lastUpdated: 0,
 };

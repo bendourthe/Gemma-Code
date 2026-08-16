@@ -4,6 +4,36 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-16] v1.16.0 local serving + OCR -- Phase 5: MLX-via-adapters docs + model-library UX (adoption items A3 + A4)
+
+### Goal
+
+Make the existing loopback-adapter path to MLX discoverable without shipping a runtime, and polish Settings > Models plus a compact model switcher on chat and coding so switching does not require a full Settings round-trip.
+
+### 5.1 MLX via localAdapters (A3)
+
+Nexus still does not bundle MLX (v1.12 D4, v1.16 N3). The how-to at [docs/v1/v1.16/guides/mlx-via-local-adapters.md](v1/v1.16/guides/mlx-via-local-adapters.md) shows how to register an mlx-vlm / LM Studio MLX / nativ loopback server as `nexus.llm.localAdapters` with `protocol: "openai"`, then select it with `nexus.llm.backend`. Endpoints must not carry a trailing `/v1` (the OpenAI client appends `/v1/chat/completions`). Linked from README, [docs/install.md](install.md) (macOS), and [docs/adr/0019-local-adapter-registry.md](adr/0019-local-adapter-registry.md).
+
+The on-device smoke note is [docs/v1/v1.16/testing/macos-mlx-smoke.md](v1/v1.16/testing/macos-mlx-smoke.md): a blank checklist, same pattern as the v1.11 macOS install checklist. Windows cannot virtualize macOS, so a live chat against mlx-vlm is `internal-compatible` until an operator fills section D (LSO.P5.A). `tests/unit/docs/mlx-local-adapter-example.test.ts` extracts every JSON fence from the how-to, runs `validateLocalAdapterManifest`, and rejects a trailing `/v1`.
+
+### 5.2 Model-library UX (A4)
+
+Pure helpers in `desktop/src/shared/models/modelLibrary.ts`: search, type, family, source (`all|installed|available|external`), and tier-fit (`all|fits|over-budget`) against host VRAM. Tier-fit uses the existing list DTO `vramGB`, not a new `requiredVramGB` IPC field and not `DiffusionTier.ts`. Over-budget catalog rows show "Needs N GB VRAM" instead of Install. That closes LSO.P3.E (Models page had no VRAM gating).
+
+`QuickModelSwitcher` lists `installedModelsForType` plus a "Get more models" sentinel (`GET_MORE_MODELS_ID` in `installedFeed.ts`). Chat and Coding mount it. Image Studio and Video Lab already had the installed-and-ready selector; they now import the shared sentinel instead of a local duplicate. Host VRAM comes from telemetry `vramTotalGB`. LSO.P1.D (serving host/port editors) was left open: 5.2 was the Models page, not Local API server.
+
+### Tests and gates
+
+Frontend tests cover catalog filters, over-budget install disable, the switcher (installed-and-ready only, Get-more does not call `onChange`), and Chat/Coding wiring. Twelve pre-existing `GrepCodebaseTool` tests failed on this host because `rg` is on PATH (ripgrep exit 1 is "no matches", so the mocked `findFiles` fallback never ran). The three test files now mock `spawn` to `ENOENT`. No production grep change.
+
+**GO.** Root 434 files / 4813 passed (6 skipped); desktop 95 / 824. Root coverage 87.87% / 84.23% / 91.40%; desktop 92.50% / 85.56% / 84.57% with the two new modules at 100% lines. Lint 0; `tsc -b`, desktop `tsc --noEmit`, `build:sidecar` clean; `deps:check` 0. CI: no rewrite (`shell-build.yml` already watches `desktop/**`; `ci.yml` is unfiltered). `.gitignore`: 0 patterns added.
+
+### Next
+
+Phase 6 is the terminal architecture-refactor + known-gaps + CI/CD gate. Do not start it until this phase is committed. On-device: fill the macOS MLX smoke checklist (LSO.P5.A).
+
+---
+
 ## [2026-08-14] v1.16.0 local serving + OCR -- Phase 4: document-parse agent tool + memory ingestion (adoption item A6)
 
 ### Goal

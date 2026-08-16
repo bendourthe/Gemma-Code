@@ -28,6 +28,8 @@ export interface SettingsPageProps {
   /** v1.16.0 Phase 1.5 -- Local API server (serving gateway) section. */
   servingClient?: ServingClient;
   initialTab?: SettingsTab;
+  /** v1.16.0 Phase 5 (A4) -- host VRAM for the Models page tier-fit filter. */
+  hostVramGB?: number | null;
 }
 
 export function SettingsPage({
@@ -37,6 +39,7 @@ export function SettingsPage({
   credentialsClient,
   servingClient,
   initialTab = "models",
+  hostVramGB = null,
 }: SettingsPageProps = {}): JSX.Element {
   const [tab, setTab] = useState<SettingsTab>(initialTab);
   const models = useMemo<ModelsClient>(
@@ -105,7 +108,7 @@ export function SettingsPage({
         </button>
       </nav>
       {tab === "models" ? (
-        <ModelsSettings client={models} />
+        <ModelsSettings client={models} hostVramGB={hostVramGB} />
       ) : tab === "skills" ? (
         <SkillsSettings client={skills} />
       ) : tab === "optimizer" ? (

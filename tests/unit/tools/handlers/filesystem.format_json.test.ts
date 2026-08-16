@@ -1,4 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { EventEmitter } from "events";
+
+// Force the findFiles fallback; a host with `rg` on PATH would search the
+// mock workspace root and return zero matches (see filesystem.test.ts).
+vi.mock("child_process", () => ({
+  spawn: vi.fn(() => {
+    const child = new EventEmitter() as EventEmitter & {
+      stdout: EventEmitter;
+      stderr: EventEmitter;
+    };
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    queueMicrotask(() => child.emit("error", new Error("ENOENT")));
+    return child;
+  }),
+}));
+
 import {
   ListDirectoryTool,
   GrepCodebaseTool,

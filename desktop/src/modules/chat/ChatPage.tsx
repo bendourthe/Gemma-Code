@@ -4,7 +4,7 @@
  * The Chat module's top-level page. Hosts:
  *   - left rail: `<FolderTree>` (drag-drop, context menu, keyboard nav)
  *   - right pane: breadcrumb + shared chat shell (`<MessageList>`, `<ChatInput>`)
- *   - model selector wired to the shared `<ModelSelector>`
+ *   - compact model switcher (installed-and-ready LLMs + Get more models)
  *   - per-folder `enableTools` toggle (default off; power users opt in)
  *
  * The page consumes an `InMemoryChatExplorerClient` for now (Phase 4 stub);
@@ -28,7 +28,6 @@ import type { Chat } from "./types";
 import {
   MediaComposer,
   MessageList,
-  ModelSelector,
   type ChatMessage,
 } from "../../shared/chat";
 import { PreviewPane, type PreviewArtifact } from "../../components/PreviewPane";
@@ -37,10 +36,21 @@ import {
   createIpcDocumentClient,
   type DocumentClient,
 } from "./documentClient";
+import { QuickModelSwitcher } from "../../shared/models/QuickModelSwitcher";
 import { SETTINGS_MODELS_PATH } from "../../shared/models/installedFeed";
+import { createIpcModelsClient } from "../../pages/settings/ipcModelsClient";
+import type { ListedModelDto } from "../../pages/settings/modelsTypes";
 
 /** v1.16.0 Phase 3 -- what the composer will take for a parse-document turn. */
 const DOCUMENT_ACCEPT = "application/pdf,image/*";
+
+const FALLBACK_LLMS: readonly ListedModelDto[] = FRONTEND_MODELS.map((m) => ({
+  id: m.id,
+  displayName: m.displayName,
+  type: "llm" as const,
+  installed: true,
+  source: "registry" as const,
+}));
 
 export interface ChatPageProps {
   /** Optional client override (tests inject an InMemoryChatExplorerClient). */
@@ -56,6 +66,11 @@ export interface ChatPageProps {
   documentClient?: DocumentClient;
   /** Deep-link out to Settings > Models when no document model is installed. */
   onGetMoreModels?: () => void;
+  /**
+   * v1.16.0 Phase 5 (A4) -- installed-model feed for the compact switcher.
+   * Tests inject a fake; production talks to the sidecar `models.list` IPC.
+   */
+  modelsClient?: { list(): Promise<readonly ListedModelDto[]> };
 }
 
 export function ChatPage({
@@ -64,6 +79,7 @@ export function ChatPage({
   defaultModelId = DEFAULT_MODEL_ID,
   documentClient: documentClientOverride,
   onGetMoreModels,
+  modelsClient: modelsClientOverride,
 }: ChatPageProps = {}): JSX.Element {
   // The client survives re-renders but is recreated per ChatPage instance.
   // Tests can inject one via the prop so they observe state changes.
@@ -93,6 +109,9 @@ export function ChatPage({
     () => documentClientOverride ?? createIpcDocumentClient(),
   );
   const [documentModelInstalled, setDocumentModelInstalled] = useState<boolean | null>(null);
+  // v1.16.0 Phase 5 (A4) -- compact switcher feed. Falls back to the catalog
+  // projection when `models.list` is unavailable (tests, sidecar down).
+  const [listedModels, setListedModels] = useState<readonly ListedModelDto[]>(FALLBACK_LLMS);
 
   useEffect(() => {
     let active = true;
@@ -108,6 +127,22 @@ export function ChatPage({
       active = false;
     };
   }, [documentClient]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const source = modelsClientOverride ?? createIpcModelsClient();
+    void source.list().then(
+      (all) => {
+        if (!cancelled && all.length > 0) setListedModels(all);
+      },
+      () => {
+        // Keep the catalog fallback; the switcher still has something to show.
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [modelsClientOverride]);
 
   const breadcrumbAncestors = useMemo(() => {
     if (!activeChat) return [];
@@ -308,11 +343,13 @@ export function ChatPage({
               />
               Enable tools
             </label>
-            <ModelSelector
+            <QuickModelSwitcher
               testId="chat-model-select"
-              models={FRONTEND_MODELS}
+              models={listedModels}
+              taskType="llm"
               value={modelId}
               onChange={setModelId}
+              onGetMoreModels={onGetMoreModels}
               disabled={Boolean(activeChat)}
             />
           </span>

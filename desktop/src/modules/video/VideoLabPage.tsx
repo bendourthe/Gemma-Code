@@ -15,6 +15,7 @@ import { MediaComposer, MessageBubble, type ChatMessage } from "../../shared/cha
 import { ModelSelector } from "../../shared/chat/ModelSelector";
 import {
   SETTINGS_MODELS_PATH,
+  GET_MORE_MODELS_ID,
   installedModelsForType,
 } from "../../shared/models/installedFeed";
 import { createIpcModelsClient } from "../../pages/settings/ipcModelsClient";
@@ -39,8 +40,6 @@ const FALLBACK_MODEL: ListedModelDto = {
   installed: true,
   source: "registry",
 };
-
-const GET_MORE_MODELS_ID = "__get_more_models__";
 
 export interface VideoLabPageProps {
   readonly client?: VideoClient;

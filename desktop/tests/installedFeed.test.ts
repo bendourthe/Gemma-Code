@@ -5,6 +5,7 @@
 import { describe, it, expect } from "vitest";
 
 import {
+  GET_MORE_MODELS_ID,
   installedModelsForType,
   SETTINGS_MODELS_PATH,
 } from "../src/shared/models/installedFeed";
@@ -29,5 +30,6 @@ describe("installedModelsForType", () => {
 
   it("exposes the Settings > Models deep-link path", () => {
     expect(SETTINGS_MODELS_PATH).toBe("/settings?tab=models");
+    expect(GET_MORE_MODELS_ID).toBe("__get_more_models__");
   });
 });

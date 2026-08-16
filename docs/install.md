@@ -34,6 +34,7 @@ NexusSetup.exe --headless --json-output
 2. **Gatekeeper will block the first launch** ("cannot be opened because the developer cannot be verified") because it is not yet notarized. Right-click (Control-click) it and choose **Open**, then **Open** again in the dialog. You only need to do this once.
    - Alternative from a terminal: `xattr -d com.apple.quarantine "/Applications/Nexus AI Studio Setup"`
 3. Follow the wizard. Apple Silicon Macs use the Metal GPU path automatically.
+4. To drive an MLX model you already run (mlx-vlm, LM Studio MLX, or nativ) through Nexus, register it as a loopback adapter. See [MLX via localAdapters](v1/v1.16/guides/mlx-via-local-adapters.md).
 
 ## Linux
 

@@ -15,6 +15,7 @@ function makeItems(): ListedModelDto[] {
       installed: true,
       source: "registry",
       sizeBytes: 2_700_000_000,
+      vramGB: 6,
       license: "Gemma Terms of Use",
     },
     {
@@ -26,6 +27,7 @@ function makeItems(): ListedModelDto[] {
       installed: false,
       source: "catalog-only",
       sizeBytes: 4_400_000_000,
+      vramGB: 7,
       license: "Apache-2.0",
     },
     {
@@ -37,6 +39,7 @@ function makeItems(): ListedModelDto[] {
       installed: false,
       source: "catalog-only",
       sizeBytes: 13_000_000_000,
+      vramGB: 12,
       license: "OpenRAIL-M",
     },
     {
@@ -256,5 +259,38 @@ describe("ModelsSettings", () => {
       expect(screen.getByTestId("section-available-count").textContent).toBe("(1)");
       expect(screen.getByTestId("section-installed-count").textContent).toBe("(0)");
     });
+  });
+
+  it("filters by installed / available / external status", async () => {
+    const ctx = client();
+    render(<ModelsSettings client={ctx.client} />);
+    await waitFor(() => expect(screen.queryByTestId("models-loading")).not.toBeInTheDocument());
+    fireEvent.change(screen.getByTestId("models-filter-source"), { target: { value: "installed" } });
+    expect(screen.getByTestId("section-installed")).toBeInTheDocument();
+    expect(screen.queryByTestId("section-available")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("section-external")).not.toBeInTheDocument();
+    expect(screen.getByTestId("section-installed-count").textContent).toBe("(1)");
+  });
+
+  it("filters by tier-fit and disables Install on over-budget entries", async () => {
+    const ctx = client();
+    render(<ModelsSettings client={ctx.client} hostVramGB={8} />);
+    await waitFor(() => expect(screen.queryByTestId("models-loading")).not.toBeInTheDocument());
+    expect(screen.getByTestId("models-filter-tier")).toBeInTheDocument();
+    fireEvent.change(screen.getByTestId("models-filter-tier"), { target: { value: "over-budget" } });
+    await waitFor(() => {
+      expect(screen.getByTestId("section-available-count").textContent).toBe("(1)");
+      expect(screen.getByTestId("section-installed-count").textContent).toBe("(0)");
+    });
+    expect(screen.getByTestId("models-over-budget-ltx-video")).toBeInTheDocument();
+    expect(screen.queryByTestId("models-install-ltx-video")).not.toBeInTheDocument();
+  });
+
+  it("hides the tier-fit filter when host VRAM is unknown", async () => {
+    const ctx = client();
+    render(<ModelsSettings client={ctx.client} />);
+    await waitFor(() => expect(screen.queryByTestId("models-loading")).not.toBeInTheDocument());
+    expect(screen.queryByTestId("models-filter-tier")).not.toBeInTheDocument();
+    expect(screen.getByTestId("models-install-ltx-video")).toBeInTheDocument();
   });
 });

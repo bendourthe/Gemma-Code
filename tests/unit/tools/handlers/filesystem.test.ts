@@ -1,4 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { EventEmitter } from "events";
+
+// These tests drive GrepCodebaseTool through the vscode.workspace.findFiles
+// fallback. If ripgrep is on PATH, grepWithRipgrep searches MOCK_WORKSPACE_ROOT,
+// finds nothing, and returns [] (exit 1 is "no matches", not "rg missing").
+vi.mock("child_process", () => ({
+  spawn: vi.fn(() => {
+    const child = new EventEmitter() as EventEmitter & {
+      stdout: EventEmitter;
+      stderr: EventEmitter;
+    };
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    queueMicrotask(() => child.emit("error", new Error("ENOENT")));
+    return child;
+  }),
+}));
+
 import {
   ReadFileTool,
   WriteFileTool,
