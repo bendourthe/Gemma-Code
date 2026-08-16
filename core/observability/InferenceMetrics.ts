@@ -129,6 +129,10 @@ export interface MetricPublisher {
  * is what satisfies "metrics accumulate per model across a session". The bus is
  * the live-push path for anything that wants to react to a completion as it
  * happens; the Traces panel polls the registry instead.
+ *
+ * RETAINED, NOT DEAD (v1.16.0 Phase 6 refactor triage): nothing constructs a
+ * bus and attaches this publisher (known gap LSO.P2.B). The registry ring is
+ * the live accumulation path. Delete only if that gap is closed as won't-do.
  */
 export function createTelemetryMetricPublisher(
   bus: TelemetryBus,

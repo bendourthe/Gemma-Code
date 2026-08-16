@@ -4,6 +4,28 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-16] v1.16.0 local serving + OCR -- Phase 6 FINAL: architecture refactor + known-gaps + CI/CD
+
+### Goal
+
+Close the v1.16.0 cycle: verify the layout, reconcile known gaps (including the v1.15 carry-forward), confirm CI/CD covers every change, run the full validation suites, and hand release-readiness to `/update release`.
+
+### What was done (verification + reconciliation; no feature code)
+
+**6.1 Architecture.** Detectors clean: no empty dirs in v1.16-touched trees, `check:docs-layout` and `check:naming` clean. Dual vscode/headless LLM clients and `serving/adapters.ts` vs `LocalAdapterRegistry` stay as LSO.P1.B (sidecar cannot import vscode-bound clients). Unwired-but-tested surfaces got RETAINED-NOT-DEAD headers rather than deletion: `parse_document` / memory ingest (LSO.P4.B/C), `createTelemetryMetricPublisher` (LSO.P2.B), `panelData` PLACEHOLDER_TRACE (LSO.P2.A). `docs/v1/v1.16/` is complete.
+
+**6.2 Known gaps.** 19 open across Phases 1-5, 0 new in Phase 6, all non-blocking. v1.15 IRSC.P4.B is the same HF-placeholder pin that causes LSO.P3.A. Terminal reconciliation block written. File not version-bumped (that is `/update release`).
+
+**6.3 CI/CD.** No rewrite. Every v1.16 surface is already covered: `shell-build.yml` (`desktop/**` + `core/**` + `modules/**`) for serving, OCR sidecar, Models UX; unfiltered `ci.yml` for `parse_document`, MLX docs schema, and `test-python-runtimes`. Per-job `paths:` is not a GitHub Actions feature; splitting the Python job would skip OCR tests on a cross-cutting PR. Same decision as v1.15. Concurrency cancel-in-progress, npm/pip/cargo cache, PR-only ubuntu matrix already in place. GPU/weights stay out of CI.
+
+**6.4 Tests.** Root 4813 passed / 6 skipped / 0 failed (434 files); desktop 824 (95 files); Python runtimes 196. One golden-runner 5s timeout under parallel load was ENV; isolated + solo re-runs green. Lint, `tsc`, sidecar build, architecture (0 errors / 10 pre-existing warnings) clean.
+
+### Next
+
+Handed to `/update release` (version bump, changelog, tag, push behind its own gates). Nothing auto-tagged or pushed.
+
+---
+
 ## [2026-08-16] v1.16.0 local serving + OCR -- Phase 5: MLX-via-adapters docs + model-library UX (adoption items A3 + A4)
 
 ### Goal

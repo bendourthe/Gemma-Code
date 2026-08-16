@@ -1,6 +1,16 @@
 # Nexus - Progress Dashboard
 
-**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (v1.15.0 line).
+**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (v1.16.0 line).
+
+> **v1.16.0 COMPLETE (2026-08-16) -- all 6 phases landed on `develop`; awaiting `/update release`.** Plan: [v1.16.0-adoption-local-serving-and-ocr.md](v1/v1.16/plans/v1.16.0-adoption-local-serving-and-ocr.md) - [known-gaps](v1/v1.16/known-gaps.md). Cycle: local serving gateway + per-model analytics + document OCR + parse_document tool + MLX-via-adapters docs + model-library UX.
+> - **P1** opt-in loopback OpenAI/Anthropic gateway in front of installed models (auth token, bind guard).
+> - **P2** per-model tokens/sec, TTFT, memory on the Traces panel (no outbound calls).
+> - **P3** RapidOCR (portable) + Unlimited-OCR (NVIDIA) in the catalog; sidecar parse via `core/documents`.
+> - **P4** `parse_document` tool + optional memory ingest (tested; composition-root wiring is LSO.P4.B/C).
+> - **P5** MLX how-to via `nexus.llm.localAdapters` (no bundled runtime) + Models page search/tier-fit + Chat/Coding quick switcher.
+> - **P6** close-out: layout clean, gaps reconciled, CI verified. Gates: root **4813 passed / 0 failed** (434 files), desktop **824 passed** (95 files), Python runtimes **196 passed**, tsc + eslint + architecture (0 errors / 10 warnings) + docs-layout + naming clean.
+>
+> **Next:** `/update release` (version bump, changelog, tag, push - behind its own gates; nothing auto-tagged). **Known follow-ups:** on-device gateway/OCR/MLX smokes (LSO.P1.C, LSO.P3.C, LSO.P5.A), wire `parse_document` at the composition root (LSO.P4.B), HF `sha256` pin rotation (LSO.P3.A / IRSC.P4.B).
 
 > **v1.15.0 COMPLETE (2026-08-06) -- all 8 phases landed on `develop`; awaiting `/update release`.** Plan: [v1.15.0-installer-registry-fixes-and-studio-chat.md](v1/v1.15/plans/v1.15.0-installer-registry-fixes-and-studio-chat.md) - [known-gaps](v1/v1.15/known-gaps.md). Cycle driven by six user-reported defects from a v2.4.0 reinstall, **all resolved**:
 > - **P1** (Issue 4) window controls un-buried (`.nexus-titlebar` stacking context above the opaque backdrop) + `maximized: true`.

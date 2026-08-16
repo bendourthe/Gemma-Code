@@ -107,6 +107,8 @@ export interface HeadlessToolOptions {
   /**
    * v1.16.0 Phase 4 (A6): document-OCR parser. Omit and `parse_document` is not
    * registered at all, so a host with no document runtime simply lacks the tool.
+   * RETAINED, NOT DEAD (Phase 6): no host currently supplies this option
+   * (known gap LSO.P4.B). Delete only if that gap is closed as won't-do.
    */
   readonly documentParser?: HeadlessDocumentParser;
 }

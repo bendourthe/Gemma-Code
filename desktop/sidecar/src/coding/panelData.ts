@@ -1,12 +1,16 @@
 // v1.0.0 Phase 3.5 -- panel-data providers for Memory / Trace / Sessions.
 //
+// RETAINED, NOT DEAD (v1.16.0 Phase 6 refactor triage): `traceSubscribe()` still
+// returns two hardcoded PLACEHOLDER trace events (known gap LSO.P2.A). The
+// per-model analytics section above the event list is real (Phase 2); replacing
+// this list needs a sidecar-side TraceStore, which this cycle did not build.
+// Delete the placeholders only when that store exists, or if LSO.P2.A is closed
+// as won't-do.
+//
 // The desktop Coding module's left-rail tabs (`Memory`, `Trace`, `Sessions`)
 // each consume a dedicated IPC method. Phase 3 ships deterministic
 // placeholder data so the frontend, tests, and the trace dashboard's
 // secret-path redaction can be exercised end-to-end without a live session.
-// A follow-on commit wires these to `MemoryHub`, `TelemetryBus`, and the
-// `CodingSessionManager` once the engine has been physically relocated to
-// `modules/coding/`.
 
 import type {
   CodingMemorySnapshotResponseT,

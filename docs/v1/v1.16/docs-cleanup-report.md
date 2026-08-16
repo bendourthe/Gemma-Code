@@ -30,7 +30,7 @@ Inventory via `docs-layout-refactor` `audit-docs.py inventory --root docs/v1/v1.
 | docs/v1/v1.16/development/history/2026-08-13_phase-3-document-ocr.md | Cat 4 | 4 | (keep) | Phase 3 session history |
 | docs/v1/v1.16/development/history/2026-08-14_phase-4-document-parse-tool.md | Cat 4 | 4 | (keep) | Phase 4 session history |
 
-The Phase 5 session history (`development/history/2026-08-16_phase-5-mlx-docs-and-model-library-ux.md`) is written in the same pass as this report and is Cat 4 for the same reasons.
+The Phase 5 session history (`development/history/2026-08-16_phase-5-mlx-docs-and-model-library-ux.md`) and the Phase 6 session history (`development/history/2026-08-16_phase-6-refactor-known-gaps-cicd.md`) are Cat 4 for the same reasons.
 
 ## Cat 3 refresh queue
 
@@ -51,7 +51,8 @@ docs/v1/v1.16/
 │   ├── 2026-08-12_phase-2-per-model-analytics.md
 │   ├── 2026-08-13_phase-3-document-ocr.md
 │   ├── 2026-08-14_phase-4-document-parse-tool.md
-│   └── 2026-08-16_phase-5-mlx-docs-and-model-library-ux.md
+│   ├── 2026-08-16_phase-5-mlx-docs-and-model-library-ux.md
+│   └── 2026-08-16_phase-6-refactor-known-gaps-cicd.md
 ├── guides/
 │   └── mlx-via-local-adapters.md
 ├── plans/

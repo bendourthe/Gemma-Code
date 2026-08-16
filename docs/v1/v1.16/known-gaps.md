@@ -8,7 +8,7 @@ Carry-forward source: [../v1.15/known-gaps.md](../v1.15/known-gaps.md) (reconcil
 
 ## v1.16.0
 
-**Summary**: 19 open items after Phase 5 - 0 NI, 15 DF, 4 MT - plus 2 resolved (LSO.P1.A, LSO.P3.E) and 2 bugs found-and-fixed in-phase (LSO.P2.X, LSO.P4.X). No suppressed warnings, no bypassed gates in any phase. Phase 5 gates: 0 failures across root 434 files / 4813 tests (6 skipped) and desktop 95 files / 824 tests. Root coverage 87.87% lines / 84.23% branches / 91.40% functions; desktop 92.50% lines / 85.56% branches / 84.57% functions, with `modelLibrary.ts` and `QuickModelSwitcher.tsx` at 100% lines. 0 lint errors; `tsc -b`, desktop `tsc --noEmit`, and `build:sidecar` all succeed; `deps:check` 0 errors. The macOS MLX smoke checklist is recorded but not yet run on Apple Silicon hardware (LSO.P5.A).
+**Summary**: 19 open items after Phase 6 - 0 NI, 15 DF, 4 MT - plus 2 resolved (LSO.P1.A, LSO.P3.E) and 2 bugs found-and-fixed in-phase (LSO.P2.X, LSO.P4.X). No suppressed warnings, no bypassed gates in any phase. Phase 6 is verification-only (RETAINED-NOT-DEAD headers, no behaviour change). Gates: 0 failures across root 434 files / 4813 tests (6 skipped), desktop 95 files / 824 tests, and Python runtimes 196 tests. Root coverage 87.87% lines / 84.23% branches / 91.40% functions; desktop 92.50% lines / 85.56% branches / 84.57% functions. 0 lint errors; `tsc -b`, desktop `tsc --noEmit`, and `build:sidecar` all succeed; `deps:check` 0 errors. The macOS MLX smoke checklist is recorded but not yet run on Apple Silicon hardware (LSO.P5.A).
 
 ### Open Items (Phase 1)
 
@@ -87,3 +87,30 @@ Note (Phase 5): CI needed no change. `shell-build.yml` already watches `desktop/
 Note (Phase 3): two pre-existing installer tests (`test_ollama_installer.py::TestExtractTarZst`) fail locally on a missing `zstandard` module. Verified pre-existing by stashing this phase's changes and re-running. CI installs it via `uv sync`, so this is a local-environment artifact, not a regression.
 
 Note (Phase 2): CI needed no change. `shell-build.yml` already watches `desktop/**`, `core/**`, and `modules/**` (the last added in Phase 1), which covers every surface this phase touched on the desktop side, and `ci.yml` runs unfiltered so it covers the `core/`, `modules/`, and `src/` changes. Concurrency cancel-in-progress, npm caching, and the push-to-main gating of the expensive OS matrix were all already in place. Verified rather than assumed.
+
+### Carried forward from v1.15.0 (still open)
+
+v1.15 items stay in [../v1.15/known-gaps.md](../v1.15/known-gaps.md). This cycle only intersects one of them.
+
+| ID | Class | Item | Status this cycle |
+|----|-------|------|-------------------|
+| IRSC.P4.B (and ICR.P1.C / ICR.P2.C) | BG / MT | HF-weight `sha256` pins are all-zero placeholders, so in-app HF install fails digest verification | Unchanged, and now ALSO the cause of LSO.P3.A (neither OCR model can install through `models.install`). Rotating the pins, or teaching `Downloader.ts` the installer's skip-on-placeholder behaviour, closes all three |
+| Remaining IRSC.P2.* / P3.* / P4.A / P4.C / P5.* / P6.* / P7.A | mixed | Installer mypy, on-device QA, MaskEditor/TimelinePreviewer retainers, Claude Code-style extension UX | Unchanged. Out of this cycle's serving/OCR theme. P7.A remains its own follow-up plan |
+
+### Open Items (Phase 6)
+
+_No new product gaps._ The close-out added RETAINED-NOT-DEAD headers on unwired-but-tested surfaces (parse_document, memory ingest, telemetry publisher, Trace placeholder list) rather than deleting them. Dual vscode/headless LLM clients and the serving-adapter twin stay as LSO.P1.B.
+
+| ID | Class | Source phase | Item | Reason | Suggested next step |
+|----|-------|--------------|------|--------|---------------------|
+| (none) | | Phase 6 | | | |
+
+### Phase 6 reconciliation (terminal gate)
+
+- **Architecture**: clean. No empty directories in v1.16-touched trees (`desktop/sidecar/src/serving`, `core/documents`, `desktop/src/shared/models`, `src/tools/handlers/parseDocument.ts`). `check:docs-layout` and `check:naming` clean. Unwired-but-tested surfaces (`parse_document`, memory ingest, `createTelemetryMetricPublisher`, `panelData` PLACEHOLDER_TRACE) resolved as **retain, not delete** -- each is still unit-tested and is the exact asset a documented deferred gap needs (LSO.P4.B/C, LSO.P2.A/B); each now carries a RETAINED-NOT-DEAD header. Dual vscode/headless LLM client pairs and `serving/adapters.ts` vs `LocalAdapterRegistry` stay as LSO.P1.B until the bound clients are decoupled from vscode settings/logger. `docs/v1/v1.16/` is complete (plan, comparison, known-gaps, guides, testing, docs-cleanup, session histories for Phases 1-6).
+- **Known gaps**: 19 open across Phases 1-5 (0 new in Phase 6), all non-blocking; v1.15 carry-forward reconciled above (IRSC.P4.B = LSO.P3.A). No release-blockers. Remaining work is on-device QA (gateway smoke, OCR weights, macOS MLX), composition-root wiring (parse_document), and the vscode-free client consolidation.
+- **CI/CD**: no rewrite. `shell-build.yml` already watches `desktop/**` + `core/**` + `modules/**` (serving, OCR sidecar, Models UX) with concurrency cancel-in-progress, npm + cargo cache, and PR-only ubuntu. `ci.yml` is unfiltered so `parse_document`, MLX docs schema, and `test-python-runtimes` always run. Per-job `paths:` is not a GitHub Actions feature; splitting `test-python-runtimes` into its own workflow would skip OCR/diffusion tests on a cross-cutting PR, which is the wrong trade (same decision as v1.15 not path-filtering `ci.yml`). GPU/model-download work stays out of CI.
+- **Tests**: root 434 files / **4813 passed** / 6 skipped / 0 failed; desktop 95 files / **824 passed**; Python runtimes **196 passed**. One golden-runner timeout (5s) during a parallel desktop+root run reproduced as ENV (CPU contention); isolated re-run 3/3 in 2.3s, then a solo `npm test` 4813/0. `tsc -b`, desktop `tsc --noEmit`, `build:sidecar`, eslint (root + desktop), `deps:check` / `check-architecture` (0 errors / 10 pre-existing warnings), `check:docs-layout`, `check:naming` all clean. Coverage unchanged from Phase 5 (comment-only headers): root 87.87% lines / 84.23% branches / 91.40% functions; desktop 92.50% / 85.56% / 84.57%.
+- **Release**: handed to `/update release`; NOT auto-tagged or pushed.
+
+_Last updated: 2026-08-16 (Phase 6, terminal)._

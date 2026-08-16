@@ -22,6 +22,11 @@
  *   * **Provenance is mandatory.** Every row records that it came from OCR, via
  *     which engine, and from which file, so a later reader can tell a parsed
  *     document apart from something the user actually said.
+ *
+ * RETAINED, NOT DEAD (v1.16.0 Phase 6 refactor triage): no host constructs
+ * `createDocumentMemoryIngestor`, so `nexus.coding.parseDocument.memoryIngest.enabled`
+ * has no effect yet (known gap LSO.P4.C). It hangs off the same composition-root
+ * wiring as LSO.P4.B. Delete only if that gap is closed as won't-do.
  */
 
 import type { LifecycleProvenance } from "../../../core/memory/types.js";
