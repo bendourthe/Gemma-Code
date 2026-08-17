@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AccentBeam } from "./AccentBeam";
 import { AgentStateOrb } from "./agentState/AgentStateOrb";
+import { MotionSurface, dockMotionCandidates } from "../motion";
 import type {
   LocalModelTelemetry,
   TelemetryStream,
@@ -45,6 +46,7 @@ export function LocalModelStatus({ stream }: LocalModelStatusProps): JSX.Element
 
   if (!sample) {
     return (
+      <MotionSurface surfaceId="local-model-status" candidates={dockMotionCandidates({ idle: false, loading: true })}>
       <div
         data-testid="local-model-status"
         data-state="loading"
@@ -64,6 +66,7 @@ export function LocalModelStatus({ stream }: LocalModelStatusProps): JSX.Element
         <AgentStateOrb activity="model-loading" size="inline" surfaceId="local-model-status" />
         Connecting to local model...
       </div>
+      </MotionSurface>
     );
   }
 
@@ -73,6 +76,7 @@ export function LocalModelStatus({ stream }: LocalModelStatusProps): JSX.Element
   const idle = Boolean(sample.idle);
   const headline = idle ? "Idle" : `${sample.modelName} ${sample.paramSize}`;
   const queue = sample.queuedJobs ?? [];
+  const dockCandidates = dockMotionCandidates({ idle });
 
   const tooltipLines: string[] = [
     `Device: ${sample.deviceName}`,
@@ -103,6 +107,10 @@ export function LocalModelStatus({ stream }: LocalModelStatusProps): JSX.Element
 
   return (
     <>
+      <MotionSurface
+        surfaceId="local-model-status"
+        candidates={dockCandidates}
+      >
       <AccentBeam
         mode="breathing"
         playing={idle}
@@ -197,6 +205,7 @@ export function LocalModelStatus({ stream }: LocalModelStatusProps): JSX.Element
         </div>
       </button>
       </AccentBeam>
+      </MotionSurface>
 
       {queueOpen ? (
         <QueueModal

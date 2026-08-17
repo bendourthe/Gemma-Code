@@ -1,6 +1,7 @@
 import { useMemo, useState, type ChangeEvent, type FocusEvent, type KeyboardEvent } from "react";
 import { AccentBeam } from "../../components/AccentBeam";
 import { MetalAccent } from "../../components/MetalAccent";
+import { MotionSurface, composerMotionCandidates } from "../../motion";
 import { filterSlashCommands, SLASH_COMMANDS } from "./slashCommands";
 
 export interface CodingInputProps {
@@ -42,14 +43,23 @@ export function CodingInput({ disabled, onSubmit, streaming = false }: CodingInp
     setValue(cmd.template);
   };
 
+  const candidates = useMemo(
+    () => composerMotionCandidates({ streaming, focused }),
+    [streaming, focused],
+  );
+
   return (
+    <MotionSurface
+      surfaceId="coding-composer"
+      candidates={candidates}
+    >
     <AccentBeam
       mode={streaming ? "traveling" : "breathing"}
       playing={Boolean(streaming || focused)}
       accentToken="--accent-coding"
       radiusToken="--radius-md"
       strength={streaming ? 0.9 : 0.7}
-      surfaceId="coding-composer"
+      surfaceId="coding-composer-beam"
       data-testid="coding-composer-beam"
     >
     <div
@@ -147,5 +157,6 @@ export function CodingInput({ disabled, onSubmit, streaming = false }: CodingInp
       </MetalAccent>
     </div>
     </AccentBeam>
+    </MotionSurface>
   );
 }

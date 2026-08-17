@@ -1,5 +1,8 @@
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { AccentBeam } from "../src/components/AccentBeam";
+import { AgentStateOrb } from "../src/components/agentState/AgentStateOrb";
+import { MetalAccent } from "../src/components/MetalAccent";
 import { useReducedMotion } from "../src/motion/useReducedMotion";
 
 function Probe(): JSX.Element {
@@ -59,5 +62,26 @@ describe("useReducedMotion", () => {
     );
     expect(() => render(<Probe />)).not.toThrow();
     expect(screen.getByTestId("reduced").textContent).toBe("false");
+  });
+
+  it("halts orb, beam, and metal together when reduced-motion is set", () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
+    );
+    render(
+      <>
+        <AgentStateOrb activity="chat-streaming" />
+        <AccentBeam playing surfaceId="beam-rm-all">
+          x
+        </AccentBeam>
+        <MetalAccent surfaceId="metal-rm-all">y</MetalAccent>
+      </>,
+    );
+    expect(screen.getByTestId("agent-state-orb")).toHaveAttribute("data-reduced-motion", "true");
+    expect(screen.getByTestId("agent-state-orb")).toHaveAttribute("data-orb-paused", "true");
+    expect(screen.getByTestId("accent-beam")).toHaveAttribute("data-reduced-motion", "true");
+    expect(screen.getByTestId("metal-accent")).toHaveAttribute("data-reduced-motion", "true");
+    expect(screen.getByTestId("metal-accent")).toHaveAttribute("data-metal-fallback", "true");
   });
 });

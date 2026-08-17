@@ -68,4 +68,17 @@ Hero size is 64px; inline size is 20px. Device-pixel-ratio is capped at 2.
 
 ## 8. Hero-action metal (Phase 4)
 
-`MetalAccent` paints a liquid-metal ring on hero controls only (coding Send, chat Send, Image/Video Generate, Coding New session). Tint is a locked `--accent-*` token (linear RGB fallbacks in `metalGl.ts`). Strength is a shader alpha. A shared registry caps simultaneously animating WebGL instances at 3. Offscreen pause uses IntersectionObserver (missing IO is treated as visible). Reduced-motion and missing WebGL both use a static accent edge (`.nexus-metal-fallback`); they never throw. Recede-when-active registers only while the GPU loop is actually running.
+`MetalAccent` paints a liquid-metal ring on hero controls only (coding Send, chat Send, Image/Video Generate, Coding New session). Tint is a locked `--accent-*` token (linear RGB fallbacks in `metalGl.ts`). Strength is a shader alpha. A shared registry caps simultaneously animating WebGL instances at 3. Offscreen pause uses IntersectionObserver (missing IO is treated as visible). Reduced-motion and missing WebGL both use a static accent edge (`.nexus-metal-fallback`); they never throw. Recede-when-active registers only while the GPU loop is actually running. Grouped composers pause metal while a traveling beam is the winner.
+
+## 9. Motion precedence (Phase 5)
+
+One primary motion per surface. Defined in `desktop/src/motion/precedence.ts` (not re-decided per component): **orb > metal > beam > aurora**.
+
+| Surface | Candidates | Winner |
+|---|---|---|
+| Composer (coding / media) | streaming -> beam; focus -> metal; idle -> none | beam or metal |
+| Model dock | idle -> beam; loading/working -> orb | orb or beam |
+| Generation canvas (retained) | orb, beam, aurora | orb (beam paused, aurora static) |
+| Message pending orb | orb | orb |
+
+`MotionSurface` registers recede once for the group. Nested effects skip their own recede hook. Reduced-motion still halts every kind (static orb frame, static beam border, metal fallback, aurora hidden).

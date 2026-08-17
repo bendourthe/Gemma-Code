@@ -4,6 +4,27 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-16] v1.17.0 ui-motion-identity -- Phase 5: motion coordination + polish (A4-completion)
+
+### Goal
+
+One primary motion per surface, recede-when-active on every adopting surface, and a documented accessibility plus battery/perf pass. No new npm packages.
+
+### What was done
+
+- **Precedence**: `desktop/src/motion/precedence.ts` is the SSOT (`orb > metal > beam > aurora`). `MotionSurface` registers recede once; nested effects skip and honor `useAllowsMotion`.
+- **Surfaces**: composers (streaming beam / focus metal / idle quiet), model dock (working orb / idle beam), generation canvas (orb wins; beam paused; aurora static). Combined reduced-motion test covers orb + beam + metal together. Metal also pauses on `document.hidden`.
+- **Tests**: desktop 916 passed / 0 failed (106 files). Coverage 92.92% lines / 86.2% branches / 85.08% functions. `src/motion` 96.96% lines. Lint and typecheck clean.
+- **CI/CD**: no rewrite. `shell-build.yml` already watches `desktop/**` with cancel-in-progress, npm cache, and PR ubuntu-only matrix.
+- **Docs**: design-tokens section 9, DF-2/DF-4/DF-7 resolved, DF-8 (on-device GPU/battery not proven here), session history, this entry.
+- **Perf/battery**: offscreen pause, cap 3, hidden-tab pause, and one-motion gating are unit-proven. Live Tauri fps/battery is **not proven here**.
+
+### Next
+
+Phase 6: architecture refactor, known-gaps reconciliation, and CI/CD (final). Then `/update release`.
+
+---
+
 ## [2026-08-16] v1.17.0 ui-motion-identity -- Phase 4: hero-action metal (A3)
 
 ### Goal

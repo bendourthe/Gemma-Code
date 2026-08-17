@@ -17,7 +17,7 @@ Carry-forward source: [../v1.16/known-gaps.md](../v1.16/known-gaps.md) (reconcil
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 7 | 0 |
+| Deferred (DF) | 5 | 3 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
@@ -34,26 +34,12 @@ Carry-forward source: [../v1.16/known-gaps.md](../v1.16/known-gaps.md) (reconcil
 - **Reason**: Motion tokens live in `:root` and are aliased in an `@theme inline` block in `desktop/src/styles/tokens.css`, matching the plan's Tailwind mapping. The desktop Vite pipeline still does not run Tailwind (pre-existing v1.0 gap: tokens are consumed as `var(--token)`). Browsers ignore the unknown `@theme` at-rule. The tokens therefore resolve in the shell as CSS custom properties, which is how every other token already works.
 - **Suggested next step**: When a later cycle wires Tailwind v4 into `desktop/`, the existing `@theme inline` motion aliases should emit utilities with no second palette. Do not add `tailwindcss` in this plan (no new frontend dependency).
 
-##### DF-2 - Recede-when-active is not yet complete across every motion kind
-
-- **Source phase**: Phase 1 - Motion Foundation (A4-foundation); updated Phases 2, 3, and 4
-- **Plan reference**: `docs/v1/v1.17/plans/v1.17.0-adoption-ui-motion-identity.md` (sub-task 1.3; Phase 5.1)
-- **Reason**: Orbs register recede when `activity !== "idle"`. Beams register recede while `playing`. Metal registers recede while the WebGL loop is actually animating (not on the static fallback). One-motion-per-element precedence is still Phase 5. The Styleguide toggle remains the non-production reference integration.
-- **Suggested next step**: Phase 5.1 must keep orb/beam/metal registration and enforce one-motion-per-element precedence.
-
 ##### DF-3 - Installer motion is not on the shared desktop hook
 
 - **Source phase**: Phase 1 - Motion Foundation (A4-foundation)
 - **Plan reference**: `docs/v1/v1.17/plans/v1.17.0-adoption-ui-motion-identity.md` (Overview: shell-only cycle)
 - **Reason**: This cycle is desktop-shell-only. The PyQt installer constellation and floating logo still use their own reduced-motion checks. Desktop centralization does not change installer behavior.
 - **Suggested next step**: If a later installer pass wants one reduced-motion story across app and installer, port the same halt-not-slow contract; do not share the React hook.
-
-##### DF-4 - GenerationCanvas stacks aurora, hero orb, and frame beam
-
-- **Source phase**: Phase 2 - Agent-state orbs (A1); updated Phase 3
-- **Plan reference**: `docs/v1/v1.17/plans/v1.17.0-adoption-ui-motion-identity.md` (sub-tasks 2.3 and 3.2; Phase 5 one-motion-per-element)
-- **Reason**: `GenerationCanvas` is retained and not mounted by Image Studio / Video Lab. Phase 2 added a centered hero orb on the aurora; Phase 3 added a traveling beam on the outer frame (a different DOM node than the orb). Three motions occupy the retained canvas until Phase 5 precedence lands. Production chat surfaces do not mount this canvas, so users do not see the stack today.
-- **Suggested next step**: Phase 5 should pick one primary motion on this canvas (orb vs aurora vs beam frame) and recede or drop the others.
 
 ##### DF-5 - ASR listening and web-search activities are typed but unused
 
@@ -69,15 +55,17 @@ Carry-forward source: [../v1.16/known-gaps.md](../v1.16/known-gaps.md) (reconcil
 - **Reason**: `ChatPage` still waits for the full `sendMessage` event batch, then patches the assistant bubble. There is no per-token `isStreaming` flag. Phase 2 treats `pending: true` + `activity: "chat-streaming"` as the streaming signal so the composing orb appears for the whole wait. Phase 3 drives the composer traveling beam from the same `pending` flag.
 - **Suggested next step**: If a later cycle streams tokens into the bubble, keep the same activity until the `done` event and then clear `pending` (the traveling beam follows).
 
-##### DF-7 - Composer beam and submit metal can play together
+##### DF-8 - On-device multi-effect GPU/battery cost is not proven here
 
-- **Source phase**: Phase 4 - Hero-action metal (A3)
-- **Plan reference**: `docs/v1/v1.17/plans/v1.17.0-adoption-ui-motion-identity.md` (sub-task 4.2; Phase 5.1 one-motion-per-element)
-- **Reason**: Metal wraps the submit / Generate / New-session **button**. The Phase 3 beam wraps the **composer**. Those are adjacent DOM nodes, not the same element, so Phase 4 does not stack two motions on one control. A focused or streaming composer can still show a beam on the wrapper while the send button shows metal.
-- **Suggested next step**: Phase 5 precedence should decide whether the traveling beam recedes the metal (or the reverse) when both are in view. Do not metal the composer wrapper.
+- **Source phase**: Phase 5 - Motion coordination + polish (A4-completion)
+- **Plan reference**: `docs/v1/v1.17/plans/v1.17.0-adoption-ui-motion-identity.md` (sub-task 5.2)
+- **Reason**: jsdom cannot create a WebGL context or measure GPU frame time. Unit tests prove offscreen pause, the instance cap of 3, `document.hidden` pause on metal, and one-motion gating. Live Tauri frame cost with a streaming composer, idle dock, and visible hero control is not proven here.
+- **Suggested next step**: Operator visual pass in the Tauri shell (Phase 6 or release QA). Record fps / battery if a regression is visible; do not treat absence of a local GPU trace as a pass.
 
 ### Resolved
 
 | ID | Title | Resolved in | Notes |
 |---|---|---|---|
-| | | | (none yet) |
+| DF-2 | Recede-when-active incomplete across motion kinds | Phase 5 | Grouped surfaces recede once via `MotionSurface`; ungrouped orbs/metal still self-register |
+| DF-4 | GenerationCanvas stacked aurora + orb + beam | Phase 5 | Orb wins; beam paused; aurora halted to a static wash |
+| DF-7 | Composer beam and submit metal could play together | Phase 5 | Streaming -> beam; focus -> metal; idle -> neither |

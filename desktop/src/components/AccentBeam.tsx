@@ -5,7 +5,7 @@
  */
 
 import type { CSSProperties, ReactNode } from "react";
-import { useActiveMotionSurface, useReducedMotion } from "../motion";
+import { useActiveMotionSurface, useAllowsMotion, useReducedMotion } from "../motion";
 
 export type AccentBeamMode = "breathing" | "traveling";
 
@@ -51,7 +51,9 @@ export function AccentBeam({
   ...rest
 }: AccentBeamProps): JSX.Element {
   const reduce = useReducedMotion();
-  useActiveMotionSurface(surfaceId, playing);
+  const allowed = useAllowsMotion("beam");
+  const effectivePlaying = playing && allowed;
+  useActiveMotionSurface(surfaceId, effectivePlaying);
   const clamped = Math.min(1, Math.max(0, strength));
   const testId = rest["data-testid"] ?? "accent-beam";
   const classes = ["nexus-accent-beam", className].filter(Boolean).join(" ");
@@ -61,7 +63,7 @@ export function AccentBeam({
       className={classes}
       data-testid={testId}
       data-beam-mode={mode}
-      data-beam-playing={playing ? "true" : "false"}
+      data-beam-playing={effectivePlaying ? "true" : "false"}
       data-beam-accent={accentToken}
       data-reduced-motion={reduce ? "true" : "false"}
       style={{

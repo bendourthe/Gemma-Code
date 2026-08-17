@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ConstellationBackground } from "../src/components/ConstellationBackground";
 import {
   MotionActivityProvider,
+  MotionSurface,
   useActiveMotionSurface,
   useMotionActivity,
 } from "../src/motion/MotionActivity";
@@ -114,5 +115,26 @@ describe("MotionActivity recede-when-active", () => {
     fireEvent.click(screen.getByTestId("toggle"));
     expect(canvas).toHaveAttribute("data-ambient-receded", "false");
     expect((canvas as HTMLElement).style.opacity).toBe("0.55");
+  });
+
+  it("recedes once for a grouped surface and restores when the winner is gone", () => {
+    function Harness(): JSX.Element {
+      const [streaming, setStreaming] = useState(true);
+      return (
+        <MotionActivityProvider>
+          <RecedeFlag />
+          <MotionSurface surfaceId="composer" candidates={streaming ? ["beam"] : []}>
+            <span>inner</span>
+          </MotionSurface>
+          <button type="button" data-testid="idle" onClick={() => setStreaming(false)}>
+            idle
+          </button>
+        </MotionActivityProvider>
+      );
+    }
+    render(<Harness />);
+    expect(screen.getByTestId("receded").textContent).toBe("true");
+    fireEvent.click(screen.getByTestId("idle"));
+    expect(screen.getByTestId("receded").textContent).toBe("false");
   });
 });

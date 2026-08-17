@@ -23,8 +23,9 @@ describe("GenerationCanvas", () => {
     expect(orb).toHaveAttribute("data-orb-size", "hero");
     const beam = screen.getByTestId("generation-canvas-beam");
     expect(beam).toHaveAttribute("data-beam-mode", "traveling");
-    expect(beam).toHaveAttribute("data-beam-playing", "true");
+    expect(beam).toHaveAttribute("data-beam-playing", "false");
     expect(beam).toHaveAttribute("data-beam-accent", "--accent-image");
+    expect(box).toHaveAttribute("data-motion-winner", "orb");
   });
 
   it("overlays the live preview and materializes it with progress", () => {

@@ -393,6 +393,13 @@ button {
   border-radius: inherit;
 }
 
+/* Phase 5: when orb (or metal/beam) wins on the retained canvas, aurora
+ * becomes a static wash instead of a second looping motion. */
+.nexus-generation-canvas[data-motion-winner]:not([data-motion-winner="aurora"]) .nexus-aurora-layer,
+.nexus-generation-canvas[data-motion-winner]:not([data-motion-winner="aurora"]) .nexus-aurora-shimmer {
+  animation: none;
+}
+
 /* Single reduced-motion gate (v1.17.0 Phase 1). CSS animations halt here;
  * JS-driven loops (constellation) read the matching useReducedMotion hook. */
 @media (prefers-reduced-motion: reduce) {

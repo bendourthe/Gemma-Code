@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { useActiveMotionSurface, useReducedMotion } from "../../motion";
+import { useActiveMotionSurface, useAllowsMotion, useReducedMotion } from "../../motion";
 import type { AgentActivity } from "./mapping";
 import { resolveAgentState } from "./mapping";
 import {
@@ -54,10 +54,11 @@ export function AgentStateOrb({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [visible, setVisible] = useState(true);
   const id = surfaceId ?? `agent-state-orb-${activity}`;
-  const paused = reduce || !visible;
+  const allowed = useAllowsMotion("orb");
+  const paused = reduce || !visible || !allowed;
   const cssSize = orbPixelSize(size);
 
-  useActiveMotionSurface(id, activity !== "idle");
+  useActiveMotionSurface(id, activity !== "idle" && allowed);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -117,7 +118,7 @@ export function AgentStateOrb({
 
     const start = (): void => {
       if (disposed || raf) return;
-      if (reduce || !visible || (typeof document !== "undefined" && document.hidden)) {
+      if (reduce || !visible || !allowed || (typeof document !== "undefined" && document.hidden)) {
         paint(0);
         return;
       }
@@ -141,7 +142,7 @@ export function AgentStateOrb({
         document.removeEventListener("visibilitychange", onVisibility);
       }
     };
-  }, [cssSize, mapping.accentFallback, mapping.accentToken, mapping.state, reduce, size, visible]);
+  }, [allowed, cssSize, mapping.accentFallback, mapping.accentToken, mapping.state, reduce, size, visible]);
 
   return (
     <div

@@ -7,15 +7,20 @@
  * of a full-bleed canvas, so nothing mounts this today. It stays (with its
  * unit test, hero orb overlay, and `.nexus-generation-*` styles) as the richer
  * in-bubble progress visual to reinstate if the inline orb proves too sparse.
- * Aurora plus the hero orb coexist here until Phase 5 one-motion precedence.
- * Phase 3 adds a traveling beam on the outer frame (not the same element as
- * the orb). Production Image/Video pages still do not mount this canvas.
+ * Aurora plus the hero orb coexisted here until Phase 5 one-motion
+ * precedence: the orb wins, the frame beam pauses, and aurora halts to a
+ * static wash. Production Image/Video pages still do not mount this canvas.
  */
 
 import type { CSSProperties, ReactNode } from "react";
 import { AccentBeam } from "./AccentBeam";
 import { AgentStateOrb } from "./agentState/AgentStateOrb";
-import { useReducedMotion } from "../motion";
+import {
+  GENERATION_CANVAS_CANDIDATES,
+  MotionSurface,
+  primaryMotion,
+  useReducedMotion,
+} from "../motion";
 
 export type GenerationTint = "image" | "video";
 
@@ -74,8 +79,10 @@ export function GenerationCanvas({
   const testId = rest["data-testid"] ?? "generation-canvas";
   const classes = ["nexus-generation-canvas", className].filter(Boolean).join(" ");
   const beamAccent = tint === "video" ? "--accent-video" : "--accent-image";
+  const winner = primaryMotion(GENERATION_CANVAS_CANDIDATES);
 
   return (
+    <MotionSurface surfaceId="generation-canvas" candidates={GENERATION_CANVAS_CANDIDATES}>
     <AccentBeam
       mode="traveling"
       playing
@@ -93,6 +100,7 @@ export function GenerationCanvas({
       aria-busy="true"
       data-testid={testId}
       data-reduced-motion={reduce ? "true" : "false"}
+      data-motion-winner={winner ?? ""}
     >
       <div className="nexus-aurora-layer nexus-aurora-layer-1" aria-hidden="true" />
       <div className="nexus-aurora-layer nexus-aurora-layer-2" aria-hidden="true" />
@@ -140,5 +148,6 @@ export function GenerationCanvas({
       </div>
     </div>
     </AccentBeam>
+    </MotionSurface>
   );
 }

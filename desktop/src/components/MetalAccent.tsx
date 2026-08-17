@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { useActiveMotionSurface, useReducedMotion } from "../motion";
+import { useActiveMotionSurface, useAllowsMotion, useReducedMotion } from "../motion";
 import {
   clampMetalDpr,
   createMetalProgram,
@@ -42,16 +42,27 @@ export function MetalAccent({
   ...rest
 }: MetalAccentProps): JSX.Element {
   const reduce = useReducedMotion();
+  const allowed = useAllowsMotion("metal");
   const hostRef = useRef<HTMLSpanElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [visible, setVisible] = useState(true);
+  const [pageHidden, setPageHidden] = useState(
+    () => typeof document !== "undefined" && document.hidden,
+  );
   const [animating, setAnimating] = useState(false);
   const testId = rest["data-testid"] ?? "metal-accent";
   const clamped = Math.min(1, Math.max(0, strength));
-  const wantGpu = !reduce && !paused && visible;
+  const wantGpu = !reduce && !paused && visible && allowed && !pageHidden;
   const fallback = !animating;
 
   useActiveMotionSurface(surfaceId, wantGpu && animating);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const onVisibility = (): void => setPageHidden(document.hidden);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
 
   useEffect(() => {
     const host = hostRef.current;

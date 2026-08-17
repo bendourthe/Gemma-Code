@@ -56,15 +56,16 @@ describe("MediaComposer", () => {
     expect(onSubmit).toHaveBeenCalledWith("hi", []);
   });
 
-  it("plays a breathing beam on focus and a traveling beam while streaming", () => {
+  it("on focus keeps the beam paused so metal wins; streaming plays a traveling beam", () => {
     const { rerender } = render(<MediaComposer onSubmit={vi.fn()} />);
     const beam = screen.getByTestId("media-composer-beam");
     expect(beam).toHaveAttribute("data-beam-playing", "false");
     fireEvent.focus(screen.getByTestId("media-composer-textarea"));
-    expect(beam).toHaveAttribute("data-beam-playing", "true");
-    expect(beam).toHaveAttribute("data-beam-mode", "breathing");
+    expect(beam).toHaveAttribute("data-beam-playing", "false");
+    expect(screen.getByTestId("media-composer-submit-metal")).toBeInTheDocument();
     rerender(<MediaComposer onSubmit={vi.fn()} streaming submitAccentVar="--accent-chatbot" />);
     expect(screen.getByTestId("media-composer-beam")).toHaveAttribute("data-beam-mode", "traveling");
+    expect(screen.getByTestId("media-composer-beam")).toHaveAttribute("data-beam-playing", "true");
     expect(screen.getByTestId("media-composer-beam")).toHaveAttribute("data-beam-accent", "--accent-chatbot");
   });
 

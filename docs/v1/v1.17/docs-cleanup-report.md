@@ -2,7 +2,7 @@
 
 **Active version:** v1.17.0 (in-flight; package.json still 1.16.0 until `/update release`)
 **Mode:** audit
-**Scope:** `docs/v1/v1.17/` (Phase 4 of implement-phase; `--keep-current-version` ON)
+**Scope:** `docs/v1/v1.17/` (Phase 5 of implement-phase; `--keep-current-version` ON)
 
 This phase created no scratch docs. No files were moved or deleted.
 
@@ -13,21 +13,22 @@ This phase created no scratch docs. No files were moved or deleted.
 | Cat 1 (delete) | 0 |
 | Cat 2 (archive) | 0 |
 | Cat 3 (stale-flag) | 0 |
-| Cat 4 (active) | 8 |
-| **Total** | **8** |
+| Cat 4 (active) | 10 |
+| **Total** | **10** |
 
 ## Dispositions
 
 | Path | Category | Heuristics | Destination | Notes |
 |---|---|---|---|---|
-| docs/v1/v1.17/plans/v1.17.0-adoption-ui-motion-identity.md | Cat 4 | active version | (keep) | Phase 4 exit checked |
+| docs/v1/v1.17/plans/v1.17.0-adoption-ui-motion-identity.md | Cat 4 | active version | (keep) | Phase 5 exit checked |
 | docs/v1/v1.17/comparisons/v1.17.0-comparison-ui-motion-identity-and-tokenizer.md | Cat 4 | active version | (keep) | Seed comparison |
-| docs/v1/v1.17/known-gaps.md | Cat 4 | active version | (keep) | DF-1..DF-7 |
-| docs/v1/v1.17/design-tokens.md | Cat 4 | active version | (keep) | Added Phase 4 metal section |
+| docs/v1/v1.17/known-gaps.md | Cat 4 | active version | (keep) | DF-1,3,5,6,8 open; DF-2,4,7 resolved |
+| docs/v1/v1.17/design-tokens.md | Cat 4 | active version | (keep) | Added Phase 5 precedence section |
 | docs/v1/v1.17/development/history/2026-08_phase-1-motion-foundation.md | Cat 4 | active version | (keep) | |
 | docs/v1/v1.17/development/history/2026-08_phase-2-agent-state-orbs.md | Cat 4 | active version | (keep) | |
 | docs/v1/v1.17/development/history/2026-08_phase-3-surface-liveness-beam.md | Cat 4 | active version | (keep) | |
-| docs/v1/v1.17/development/history/2026-08_phase-4-hero-action-metal.md | Cat 4 | active version | (keep) | Created this phase |
+| docs/v1/v1.17/development/history/2026-08_phase-4-hero-action-metal.md | Cat 4 | active version | (keep) | |
+| docs/v1/v1.17/development/history/2026-08_phase-5-motion-coordination.md | Cat 4 | active version | (keep) | Created this phase |
 | docs/v1/v1.17/docs-cleanup-report.md | Cat 4 | self | (keep) | This report |
 
 ## Cat 3 refresh queue
@@ -45,7 +46,8 @@ docs/v1/v1.17/
 │   ├── 2026-08_phase-1-motion-foundation.md
 │   ├── 2026-08_phase-2-agent-state-orbs.md
 │   ├── 2026-08_phase-3-surface-liveness-beam.md
-│   └── 2026-08_phase-4-hero-action-metal.md
+│   ├── 2026-08_phase-4-hero-action-metal.md
+│   └── 2026-08_phase-5-motion-coordination.md
 ├── docs-cleanup-report.md
 ├── known-gaps.md
 └── plans/

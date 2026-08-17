@@ -64,13 +64,13 @@ describe("CodingInput", () => {
     expect(screen.getByTestId("coding-input-submit")).toBeDisabled();
   });
 
-  it("plays a breathing beam on focus and a traveling beam while streaming", async () => {
+  it("on focus keeps the beam paused so metal wins; streaming plays a traveling beam", async () => {
     const { rerender } = render(<CodingInput onSubmit={vi.fn()} />);
     const beam = screen.getByTestId("coding-composer-beam");
     expect(beam).toHaveAttribute("data-beam-playing", "false");
     await userEvent.click(screen.getByTestId("coding-input-textarea"));
-    expect(beam).toHaveAttribute("data-beam-playing", "true");
-    expect(beam).toHaveAttribute("data-beam-mode", "breathing");
+    expect(beam).toHaveAttribute("data-beam-playing", "false");
+    expect(screen.getByTestId("coding-input-submit-metal")).toBeInTheDocument();
     rerender(<CodingInput onSubmit={vi.fn()} streaming />);
     expect(screen.getByTestId("coding-composer-beam")).toHaveAttribute("data-beam-mode", "traveling");
     expect(screen.getByTestId("coding-composer-beam")).toHaveAttribute("data-beam-playing", "true");

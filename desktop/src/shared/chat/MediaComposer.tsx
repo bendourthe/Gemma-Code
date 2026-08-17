@@ -13,6 +13,7 @@
 
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ChangeEvent,
@@ -25,6 +26,7 @@ import {
 import { AccentBeam, type AccentBeamAccentToken } from "../../components/AccentBeam";
 import { MetalAccent } from "../../components/MetalAccent";
 import { metalTokenFromCssVar } from "../../components/metalGl";
+import { MotionSurface, composerMotionCandidates } from "../../motion";
 
 export interface MediaComposerProps {
   disabled?: boolean;
@@ -166,14 +168,23 @@ export function MediaComposer({
     setAttachments((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const candidates = useMemo(
+    () => composerMotionCandidates({ streaming, focused }),
+    [streaming, focused],
+  );
+
   return (
+    <MotionSurface
+      surfaceId="media-composer"
+      candidates={candidates}
+    >
     <AccentBeam
       mode={streaming ? "traveling" : "breathing"}
       playing={Boolean(streaming || focused)}
       accentToken={beamAccentFrom(submitAccentVar)}
       radiusToken="--radius-md"
       strength={streaming ? 0.9 : 0.7}
-      surfaceId="media-composer"
+      surfaceId="media-composer-beam"
       data-testid="media-composer-beam"
     >
     <div
@@ -278,6 +289,7 @@ export function MediaComposer({
       </div>
     </div>
     </AccentBeam>
+    </MotionSurface>
   );
 }
 
