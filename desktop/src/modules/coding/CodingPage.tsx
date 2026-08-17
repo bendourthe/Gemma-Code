@@ -23,6 +23,7 @@ import { MessageList, type ChatMessage } from "../../shared/chat";
 import { QuickModelSwitcher } from "../../shared/models/QuickModelSwitcher";
 import { createIpcModelsClient } from "../../pages/settings/ipcModelsClient";
 import type { ListedModelDto } from "../../pages/settings/modelsTypes";
+import { defaultHarnessSelector } from "../../../../modules/coding/orchestration/HarnessSelector";
 
 type Tab = "chat" | "memory" | "trace" | "sessions";
 
@@ -299,6 +300,7 @@ export function CodingPage({
           onChange={setModelId}
           onGetMoreModels={onGetMoreModels}
           disabled={Boolean(sessionId)}
+          harnessLabel={defaultHarnessSelector.profileForModel(modelId).id}
         />
       </header>
 

@@ -1,8 +1,8 @@
 # Nexus - Progress Dashboard
 
-**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (post v1.17.0; v1.18.0 Phase 1 landed).
+**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (post v1.17.0; v1.18.0 Phase 2 landed).
 
-> **v1.18.0 IN PROGRESS (2026-08-16)** -- Phase 1 of [v1.18.0-adoption-agent-harness-and-governance.md](v1/v1.18/plans/v1.18.0-adoption-agent-harness-and-governance.md) landed: skill-native mappings (OW-B1 morning-brief content via Hub `agent-presets` / `morning-briefing`; OI-A4-web via Hub `browser-testing-with-devtools`) plus a first-class llama.cpp loopback adapter recipe (LG-A5). No new runtime, dependency, or outbound surface. Gates: root **4818 passed / 0 failed** (435 files), coverage 87.87% / 84.25% / 91.4%, lint + `tsc -b` clean. [known-gaps](v1/v1.18/known-gaps.md) (in-progress; DF-1 live llama-server smoke, DF-2 Hub catalog not in CI). Next: Phase 2 live harness activation (OI-A5 / OI-A2).
+> **v1.18.0 IN PROGRESS (2026-08-17)** -- Phase 2 of [v1.18.0-adoption-agent-harness-and-governance.md](v1/v1.18/plans/v1.18.0-adoption-agent-harness-and-governance.md) landed: live harness overlay in `ToolActivationContext.buildPromptContext` (OI-A5, closes EM.P1.A), named family profiles (OI-A2), `/harness` inspect/switch, ModelSelector badge. `HARNESS_SELECTOR_SHIPPED_DEFAULT` stays false. Gates: root **4839 passed / 0 failed** (436 files), coverage 87.92% / 84.25% / 91.31%, lint + `tsc -b` clean. [known-gaps](v1/v1.18/known-gaps.md) (in-progress; DF-1..5). Next: Phase 3 catalog + registry governance.
 >
 > **v1.17.0 RELEASED (2026-08-16)** -- all 6 phases landed on `develop`; package.json / CHANGELOG / README cut as **v1.17.0**. Plan: [v1.17.0-adoption-ui-motion-identity.md](v1/v1.17/plans/v1.17.0-adoption-ui-motion-identity.md) - [known-gaps](v1/v1.17/known-gaps.md) (finalized). Cycle: reverse-engineer thinking-orbs / border-beam / metal-fx into an internal motion system (no new npm deps).
 > - **P1** motion tokens, centralized `prefers-reduced-motion` (halt, not slow), recede-when-active primitive.

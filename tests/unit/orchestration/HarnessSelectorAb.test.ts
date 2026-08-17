@@ -6,6 +6,7 @@ import {
   DEFAULT_HARNESS_SELECTOR_POLICY,
   HARNESS_SELECTOR_SHIPPED_DEFAULT,
   decideHarnessDefault,
+  liveHarnessKnobs,
   runHarnessAb,
   type HarnessRollout,
 } from "../../../modules/coding/orchestration/HarnessSelectorAb.js";
@@ -95,6 +96,21 @@ describe("HarnessSelectorAb -- decideHarnessDefault (H1 gate)", () => {
     const decision = decideHarnessDefault(report({ taskCount: 0 }));
     expect(decision.enableByDefault).toBe(false);
     expect(decision.rationale).toContain("no A/B tasks");
+  });
+});
+
+describe("HarnessSelectorAb -- live prompt path (v1.18 OI-A5)", () => {
+  it("applies the selected overlay when enabled and is byte-identical when disabled", () => {
+    const settingsKnobs = {
+      promptStyle: "concise" as const,
+      thinkingMode: false,
+      systemPromptBudgetPercent: 10,
+    };
+    const off = liveHarnessKnobs(false, settingsKnobs, "tiny", weakSelector);
+    expect(off).toBe(settingsKnobs);
+    const on = liveHarnessKnobs(true, settingsKnobs, "tiny", weakSelector);
+    expect(on).toEqual(weakSelector.overlayForModel("tiny"));
+    expect(on.promptStyle).toBe("detailed");
   });
 });
 

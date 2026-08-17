@@ -18,6 +18,19 @@ Nexus runs local open-source models under a **single-GPU ceiling**, so in practi
 
 Tiers are derived by [`modelCapabilityTier`](../../modules/coding/orchestration/HarnessSelector.ts) from the model catalog's `vramGb` / `tags` (there is no first-class capability field): `advanced` tag or `vramGb >= 20` -> **strong**; `lightweight` tag or `vramGb <= 4` -> **weak**; otherwise **mid**. Unprofiled models fall back to the `mid` (default) profile, so no model is ever worse off than today's one-size scaffold.
 
+## Named family profiles (v1.18.0 Phase 2)
+
+On top of the three tier scaffolds (`constrained-scaffold`, `balanced-scaffold`, `lean-scaffold`), the selector now keys **named profiles** from catalog family (and, for llama, weak-tier) as data, not code branches:
+
+| Profile | Typical key | Overlay shape |
+|---|---|---|
+| `concise-loop` | family / id / tags signalling kimi | concise, thinking on, budget 10% |
+| `plan-first` | `qwen` family | detailed, thinking on, budget 16% |
+| `structured-edit` | `deepseek` family | concise, thinking off, budget 8% |
+| `minimal` | `llama` family at weak tier | concise, thinking off, budget 6% |
+
+Unknown families use the tier scaffold. A session `/harness <profile>` override can pick any named profile; it reverts on model change or `/clear`, and it never applies while `nexus.coding.harnessSelector.enabled` is off. The live prompt path is [`ToolActivationContext.buildPromptContext`](../../src/panels/ToolActivationContext.ts).
+
 ## Trust the measurement, not the defaults
 
 The per-tier profile values are **heuristic defaults**, not yet locally measured. Whether a selected scaffold actually beats the one-size default for a given weak model is decided by the golden-suite A/B ([`HarnessSelectorAb.ts`](../../modules/coding/orchestration/HarnessSelectorAb.ts), `decideHarnessDefault`), which is why the feature ships **opt-in / off** (`nexus.coding.harnessSelector.enabled`) until a live weak-model A/B shows a net win. When extending the profiles, change one knob, re-run the A/B, and keep the change only if it wins on the held-out split. This is the same no-degradation discipline the skill optimizer uses.
@@ -25,4 +38,4 @@ The per-tier profile values are **heuristic defaults**, not yet locally measured
 ## Related
 
 - [`model-routing`](https://github.com/bendourthe/Nexus-Hub) Nexus-Hub skill (picks the tier; this doc shapes the scaffold for it).
-- [`HarnessSelector`](../../modules/coding/orchestration/HarnessSelector.ts) / [`HarnessSelectorAb`](../../modules/coding/orchestration/HarnessSelectorAb.ts) (the runtime).
+- [`HarnessSelector`](../../modules/coding/orchestration/HarnessSelector.ts) / [`HarnessSelectorAb`](../../modules/coding/orchestration/HarnessSelectorAb.ts) (the runtime; `/harness` inspects the live selection).

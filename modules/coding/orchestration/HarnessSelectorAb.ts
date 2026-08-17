@@ -34,6 +34,7 @@ import type { GoldenTaskSpec } from "../evaluation/goldenTaskLoader.js";
 import {
   DEFAULT_HARNESS_PROFILE,
   HarnessSelector,
+  applyHarnessOverlay,
   defaultHarnessSelector,
   toPromptOverlay,
   type HarnessPromptOverlay,
@@ -90,6 +91,21 @@ export async function runHarnessAb(
     comparisons.push(compareArm(task, baseline, selected, options.tieEpsilon));
   }
   return buildAbReport(comparisons);
+}
+
+/**
+ * v1.18.0 Phase 2 -- the same overlay seam `ToolActivationContext.buildPromptContext`
+ * uses. When `enabled` is false the settings knobs are returned by reference
+ * (byte-identical to the pre-wiring path). Golden A/B tests cover this so the
+ * live composition root and the measurement harness stay aligned.
+ */
+export function liveHarnessKnobs(
+  enabled: boolean,
+  settingsKnobs: HarnessPromptOverlay,
+  modelName: string,
+  selector: HarnessSelector = defaultHarnessSelector,
+): HarnessPromptOverlay {
+  return applyHarnessOverlay(enabled, settingsKnobs, selector.overlayForModel(modelName));
 }
 
 // ---------------------------------------------------------------------------

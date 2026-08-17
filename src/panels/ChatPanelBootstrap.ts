@@ -18,6 +18,10 @@ import type { StreamingPipeline } from "../../modules/coding/chat/StreamingPipel
 import { PlanMode } from "../../modules/coding/chat/PlanMode.js";
 import { PromptBuilder } from "../../modules/coding/chat/PromptBuilder.js";
 import { CommandRouter } from "../../modules/coding/commands/CommandRouter.js";
+import {
+  defaultHarnessSelector,
+  HarnessSessionOverride,
+} from "../../modules/coding/orchestration/HarnessSelector.js";
 import { HubCommandCatalogLoader } from "../../modules/coding/commands/HubCommandCatalogLoader.js";
 import { SkillLoader } from "../../modules/coding/skills/SkillLoader.js";
 import { SkillMetrics } from "../../modules/coding/skills/SkillMetrics.js";
@@ -243,6 +247,7 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
       return undefined;
     }
   };
+  const harnessSession = new HarnessSessionOverride();
   const toolActivation = new ToolActivationContext({
     planMode,
     getSettings: () => hooks.getSettings(),
@@ -253,6 +258,8 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
     getWorkingMemory: () => memorySubsystem.workingMemory,
     getUnifiedRetriever: () => memorySubsystem.unifiedRetriever,
     getLanguageRules: resolveHubLanguageRules,
+    getHarnessSelector: () => defaultHarnessSelector,
+    getHarnessSession: () => harnessSession,
   });
 
   const initialPrompt = promptBuilder.buildSync(toolActivation.buildPromptContext());
@@ -550,6 +557,8 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
     getSkillMetrics: () => skillMetrics,
     getCurationLoop: () => curationLoop,
     getHubCommand: (name: string) => hubCommandLoader.get(name),
+    getHarnessSession: () => harnessSession,
+    getHarnessSelector: () => defaultHarnessSelector,
     buildPromptContext: (memoryContext) =>
       toolActivation.buildPromptContext(memoryContext),
     postMessage: input.hostPostMessage,

@@ -13,6 +13,12 @@ import {
 } from "../tools/ToolCatalog.js";
 import { computeToolActivation } from "../tools/ToolActivationRules.js";
 import type { ToolRegistry } from "../tools/ToolRegistry.js";
+import {
+  applyHarnessOverlay,
+  defaultHarnessSelector,
+  type HarnessSelector,
+  type HarnessSessionOverride,
+} from "../../modules/coding/orchestration/HarnessSelector.js";
 
 export interface ToolActivationContextDeps {
   readonly planMode: PlanMode;
@@ -30,6 +36,16 @@ export interface ToolActivationContextDeps {
    * which case PromptBuilder injects no language-rules section.
    */
   getLanguageRules?(): string | undefined;
+  /**
+   * v1.18.0 Phase 2 (OI-A5): optional harness selector. Defaults to
+   * `defaultHarnessSelector`. Injected so tests stay pure.
+   */
+  getHarnessSelector?(): HarnessSelector;
+  /**
+   * v1.18.0 Phase 2: session-scoped `/harness` override. Ignored when
+   * `settings.harnessSelectorEnabled` is off.
+   */
+  getHarnessSession?(): HarnessSessionOverride;
 }
 
 /**
@@ -46,7 +62,7 @@ export class ToolActivationContext {
     const settings = deps.getSettings();
     const tier = deps.getTierConfig();
     const activation = this._computeActivation();
-    return {
+    const base: PromptContext = {
       modelName: settings.modelName,
       maxTokens: tier?.contextWindow ?? settings.maxTokens,
       planModeActive: deps.planMode.active,
@@ -70,6 +86,13 @@ export class ToolActivationContext {
       // when the host wired a resolver (opt-in; undefined -> no section).
       languageRules: deps.getLanguageRules?.(),
     };
+    // v1.18.0 Phase 2 (OI-A5 / EM.P1.A): spread the per-model overlay only when
+    // the selector is enabled. Off returns `base` by reference (byte-identical).
+    if (!settings.harnessSelectorEnabled) return base;
+    const selector = deps.getHarnessSelector?.() ?? defaultHarnessSelector;
+    const override = deps.getHarnessSession?.()?.peek(settings.modelName) ?? null;
+    const overlay = selector.select(settings.modelName, override).overlay;
+    return applyHarnessOverlay(true, base, overlay);
   }
 
   getEnabledToolMetadata(): DynamicToolMetadata[] {

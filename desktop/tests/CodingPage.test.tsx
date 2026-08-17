@@ -192,6 +192,15 @@ describe("CodingPage", () => {
     expect(screen.getByTestId("coding-chat")).toBeInTheDocument();
   });
 
+  it("shows the auto-selected harness badge next to the model switcher", async () => {
+    render(<CodingPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId("coding-model-select-harness")).toHaveTextContent(
+        "balanced-scaffold",
+      );
+    });
+  });
+
   it("shows a metal New session control after a session starts and clears the transcript", async () => {
     render(<CodingPage />);
     expect(screen.queryByTestId("coding-new-session")).toBeNull();

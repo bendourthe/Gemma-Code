@@ -4,6 +4,32 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-17] v1.18.0 agent-harness-and-governance -- Phase 2: live harness activation
+
+### Goal
+
+Turn the dormant per-model harness selector on behind `nexus.coding.harnessSelector.enabled` (closes EM.P1.A), add named per-family profiles as data (OI-A2 / EM.P1.C progress), and ship `/harness` inspect/switch plus a small ModelSelector badge. Do not flip `HARNESS_SELECTOR_SHIPPED_DEFAULT`.
+
+### What was done
+
+- **Live path (OI-A5)**: [`ToolActivationContext.buildPromptContext`](../src/panels/ToolActivationContext.ts) spreads `HarnessSelector.select()` overlay when the setting is on. Off returns the base `PromptContext` by reference (byte-identical). Unknown models fall back to `DEFAULT_HARNESS_PROFILE` and never throw.
+- **Named profiles (OI-A2)**: data tables in [`HarnessSelector.ts`](../modules/coding/orchestration/HarnessSelector.ts): `plan-first` (qwen), `structured-edit` (deepseek), `concise-loop` (kimi id/tag), `minimal` (llama weak), plus the existing tier scaffolds. Generic ids only. Guidance updated in [`docs/reference/low-cost-model-optimization.md`](reference/low-cost-model-optimization.md).
+- **`/harness`**: inspect / list / clear / switch. Session override in `HarnessSessionOverride`, cleared on `/clear` and `/model`. Override is refused while the master setting is off.
+- **Desktop badge**: optional `harnessLabel` on [`ModelSelector`](../desktop/src/shared/chat/ModelSelector.tsx); Coding page shows the auto-selected profile id.
+- **A/B**: `liveHarnessKnobs` in `HarnessSelectorAb.ts` covers the same overlay seam. `HARNESS_SELECTOR_SHIPPED_DEFAULT` remains `false` (no live weak-model A/B; EM.P1.B).
+- **CI/CD**: no rewrite. `ci.yml` `test-ts` is unfiltered. `shell-build.yml` already watches `desktop/**` and `modules/**`.
+- **Known gaps**: EM.P1.A resolved in [docs/v1/v1.18/known-gaps.md](v1/v1.18/known-gaps.md). New DF-3 (sidecar overlay), DF-4 (badge vs setting), DF-5 (EM.P1.C remainder).
+
+### Tests
+
+Root suite **4839 passed / 6 skipped / 0 failed** (436 files). Coverage **87.92% lines / 84.25% branches / 91.31% functions**. Lint 0 errors. `tsc -b` clean. Desktop **920 passed / 0 failed** (106 files). `HarnessSelector.ts` 100% lines.
+
+### Next
+
+Phase 3: catalog + registry governance (OW-A4, LG-A2, LG-A3, OW-A5).
+
+---
+
 ## [2026-08-16] v1.18.0 agent-harness-and-governance -- Phase 1: skill-native adoptions + llama.cpp recipe
 
 ### Goal

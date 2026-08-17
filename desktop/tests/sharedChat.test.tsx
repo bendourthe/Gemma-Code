@@ -179,4 +179,27 @@ describe("<ModelSelector>", () => {
     );
     expect(screen.getByTestId("model-selector")).toBeDisabled();
   });
+
+  it("renders an optional harness badge next to the select", () => {
+    render(
+      <ModelSelector
+        models={[{ id: "a", displayName: "Alpha" }]}
+        value="a"
+        onChange={() => undefined}
+        harnessLabel="plan-first"
+      />,
+    );
+    expect(screen.getByTestId("model-selector-harness")).toHaveTextContent("plan-first");
+  });
+
+  it("omits the harness badge when no label is passed", () => {
+    render(
+      <ModelSelector
+        models={[{ id: "a", displayName: "Alpha" }]}
+        value="a"
+        onChange={() => undefined}
+      />,
+    );
+    expect(screen.queryByTestId("model-selector-harness")).toBeNull();
+  });
 });

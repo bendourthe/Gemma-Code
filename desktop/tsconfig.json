@@ -30,7 +30,8 @@
     "vite.config.ts",
     "vitest.config.ts",
     "../core/image",
-    "../core/registry"
+    "../core/registry",
+    "../modules/coding/orchestration/HarnessSelector.ts"
   ],
   "exclude": ["node_modules", "src-tauri/target", "sidecar/dist"]
 }

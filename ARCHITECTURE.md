@@ -47,6 +47,10 @@ Later cycles added two sidecar-adjacent surfaces that the v1.0.0 layout above do
 
 No third inference engine is bundled. A user-started `llama-server` on loopback is registered the same way as MLX: a `nexus.llm.localAdapters` manifest with `protocol: "openai"`, validated by [`LocalAdapterRegistry`](modules/coding/llm/LocalAdapterRegistry.ts) / [`loopback.ts`](modules/coding/llm/loopback.ts). Recipe: [docs/reference/llamacpp-loopback-adapter.md](docs/reference/llamacpp-loopback-adapter.md). The patient-tier flag in [`patientTier.ts`](core/registry/patientTier.ts) stays closed ([EM.P4.A](docs/v1/v1.12/known-gaps.md)). Skill-native mappings (morning-brief content, browser GUI QA) are documented at [docs/reference/skill-native-adoptions-v1.18.md](docs/reference/skill-native-adoptions-v1.18.md) and do not add builtin skills.
 
+### Per-model harness overlay (v1.18.0 Phase 2)
+
+[`HarnessSelector`](modules/coding/orchestration/HarnessSelector.ts) is now consumed by [`ToolActivationContext.buildPromptContext`](src/panels/ToolActivationContext.ts) when `nexus.coding.harnessSelector.enabled` is on (EM.P1.A). Off leaves prompt knobs byte-identical to settings. Named family profiles (`plan-first`, `structured-edit`, `concise-loop`, `minimal`) are data keyed from the LLM catalog. Inspect or switch with `/harness`. The shipped default stays off until a live weak-model A/B (EM.P1.B). Technique notes: [docs/reference/low-cost-model-optimization.md](docs/reference/low-cost-model-optimization.md).
+
 ### Agent-state motion identity (v1.17.0)
 
 The desktop shell (`desktop/src/`) ships an internal motion system with no new frontend dependency:

@@ -40,6 +40,7 @@ export const SLASH_COMMANDS: readonly SlashCommand[] = Object.freeze([
   { name: "curate", description: "Run the memory curator (use --dry-run to preview).", template: "/curate --dry-run" },
   { name: "trace", description: "Open the trace dashboard (status / clear / start).", template: "/trace status" },
   { name: "thinking-mode", description: "Toggle thinking mode (off / think / think hard / ultrathink).", template: "/thinking-mode think" },
+  { name: "harness", description: "Inspect or switch the session harness scaffold profile.", template: "/harness " },
   { name: "skill-metrics", description: "Print skill activation metrics.", template: "/skill-metrics" },
   { name: "memory", description: "Inspect or mutate the four-layer memory.", template: "/memory status" },
   // v1.1.0 Phase 6.3 - 6.5 -- hybrid retrieval + write + delete surfaces.

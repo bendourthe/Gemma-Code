@@ -13,6 +13,11 @@ export interface ModelSelectorProps {
   onChange: (modelId: string) => void;
   label?: string;
   testId?: string;
+  /**
+   * v1.18.0 Phase 2 -- optional scaffold-profile name shown as a small badge
+   * next to the dropdown. Omit to keep the compact selector unchanged.
+   */
+  harnessLabel?: string;
 }
 
 export function ModelSelector({
@@ -22,6 +27,7 @@ export function ModelSelector({
   onChange,
   label = "Model",
   testId = "model-selector",
+  harnessLabel,
 }: ModelSelectorProps): JSX.Element {
   return (
     <label style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
@@ -45,6 +51,22 @@ export function ModelSelector({
           </option>
         ))}
       </select>
+      {harnessLabel ? (
+        <span
+          data-testid={`${testId}-harness`}
+          title="Scaffold profile selected for this model family and tier"
+          style={{
+            fontSize: "var(--text-xs, 0.75rem)",
+            color: "var(--fg-muted)",
+            border: "1px solid var(--border-1)",
+            borderRadius: "var(--radius-md)",
+            padding: "0 var(--space-2)",
+            lineHeight: 1.6,
+          }}
+        >
+          {harnessLabel}
+        </span>
+      ) : null}
     </label>
   );
 }

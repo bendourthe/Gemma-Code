@@ -105,4 +105,17 @@ describe("QuickModelSwitcher", () => {
     expect(onGetMore).toHaveBeenCalledTimes(1);
     expect(onChange).not.toHaveBeenCalled();
   });
+
+  it("forwards a harnessLabel to the ModelSelector badge", () => {
+    render(
+      <QuickModelSwitcher
+        models={MODELS}
+        taskType="llm"
+        value="gemma4:e4b"
+        onChange={() => undefined}
+        harnessLabel="plan-first"
+      />,
+    );
+    expect(screen.getByTestId("quick-model-switcher-harness")).toHaveTextContent("plan-first");
+  });
 });

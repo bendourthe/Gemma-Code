@@ -2,9 +2,15 @@ import { describe, it, expect } from "vitest";
 import {
   DEFAULT_HARNESS_PROFILE,
   HarnessSelector,
+  HarnessSessionOverride,
+  applyHarnessOverlay,
   defaultHarnessSelector,
+  harnessProfileById,
   harnessProfileForTier,
+  listHarnessProfiles,
   modelCapabilityTier,
+  parseHarnessCommand,
+  parseHarnessProfileId,
   toPromptOverlay,
   type CatalogLookup,
 } from "../../../modules/coding/orchestration/HarnessSelector.js";
@@ -114,5 +120,128 @@ describe("HarnessSelector -- selection (H1)", () => {
     expect(defaultHarnessSelector.profileForModel("llama3.3:70b").tier).toBe("strong");
     expect(defaultHarnessSelector.profileForModel("llama3.2:3b").tier).toBe("weak");
     expect(defaultHarnessSelector.profileForModel("qwen2.5-coder:7b").tier).toBe("mid");
+  });
+});
+
+describe("HarnessSelector -- named family profiles (v1.18 OI-A2)", () => {
+  it("lists every named profile as data with generic ids", () => {
+    const ids = listHarnessProfiles().map((p) => p.id).sort();
+    expect(ids).toEqual([
+      "balanced-scaffold",
+      "concise-loop",
+      "constrained-scaffold",
+      "lean-scaffold",
+      "minimal",
+      "plan-first",
+      "structured-edit",
+    ]);
+  });
+
+  it("profile ids, labels, and rationales contain no external harness names", () => {
+    const banned = /open\s*interpreter|swe-?agent|codex-fork/i;
+    for (const profile of listHarnessProfiles()) {
+      expect(profile.id).not.toMatch(banned);
+      expect(profile.label).not.toMatch(banned);
+      expect(profile.rationale).not.toMatch(banned);
+    }
+  });
+
+  it("keys qwen to plan-first, deepseek to structured-edit, llama-weak to minimal", () => {
+    expect(defaultHarnessSelector.profileForModel("qwen2.5-coder:7b").id).toBe("plan-first");
+    expect(defaultHarnessSelector.profileForModel("qwen2.5-coder:7b").tier).toBe("mid");
+    expect(defaultHarnessSelector.profileForModel("deepseek-coder:6.7b").id).toBe("structured-edit");
+    expect(defaultHarnessSelector.profileForModel("llama3.2:3b").id).toBe("minimal");
+    expect(defaultHarnessSelector.profileForModel("llama3.2:3b").tier).toBe("weak");
+    expect(defaultHarnessSelector.profileForModel("llama3.3:70b").id).toBe("lean-scaffold");
+    expect(defaultHarnessSelector.profileForModel("gemma4:e4b").id).toBe("balanced-scaffold");
+  });
+
+  it("falls back to the tier profile for an unknown family", () => {
+    const lookup: CatalogLookup = (name) =>
+      name === "odd"
+        ? { id: "odd", vramGb: 8, tags: ["coding"], family: "nomic" }
+        : undefined;
+    const selector = new HarnessSelector(lookup);
+    expect(selector.profileForModel("odd").id).toBe("balanced-scaffold");
+    expect(selector.select("odd").reason).toBe("tier");
+  });
+
+  it("maps a kimi id or tag to concise-loop without a catalog family row", () => {
+    const lookup: CatalogLookup = (name) => {
+      if (name === "kimi-k2") return { id: "kimi-k2", vramGb: 8, tags: ["coding"] };
+      if (name === "tagged") return { id: "x", vramGb: 8, tags: ["kimi", "coding"] };
+      return undefined;
+    };
+    const selector = new HarnessSelector(lookup);
+    expect(selector.profileForModel("kimi-k2").id).toBe("concise-loop");
+    expect(selector.profileForModel("tagged").id).toBe("concise-loop");
+  });
+
+  it("honors a session override and reports reason override", () => {
+    const lookup: CatalogLookup = (name) =>
+      name === "tiny" ? { id: "tiny", vramGb: 3, tags: ["lightweight"] } : undefined;
+    const selector = new HarnessSelector(lookup);
+    const selection = selector.select("tiny", "plan-first");
+    expect(selection.reason).toBe("override");
+    expect(selection.profile.id).toBe("plan-first");
+    expect(selection.profile.tier).toBe("weak");
+  });
+});
+
+describe("HarnessSelector -- applyHarnessOverlay (live-path seam)", () => {
+  const knobs = {
+    promptStyle: "concise" as const,
+    thinkingMode: false,
+    systemPromptBudgetPercent: 10,
+  };
+
+  it("returns the base object by reference when disabled (byte-identical)", () => {
+    const overlay = toPromptOverlay(harnessProfileForTier("weak"));
+    const result = applyHarnessOverlay(false, knobs, overlay);
+    expect(result).toBe(knobs);
+  });
+
+  it("spreads the overlay when enabled", () => {
+    const overlay = toPromptOverlay(harnessProfileForTier("weak"));
+    const result = applyHarnessOverlay(true, knobs, overlay);
+    expect(result).toEqual({ ...knobs, ...overlay });
+    expect(result).not.toBe(knobs);
+  });
+});
+
+describe("HarnessSelector -- session override", () => {
+  it("applies until model change or clear", () => {
+    const session = new HarnessSessionOverride();
+    session.set("plan-first", "gemma4:e4b");
+    expect(session.peek("gemma4:e4b")).toBe("plan-first");
+    expect(session.peek("llama3.2:3b")).toBeNull();
+    session.set("minimal", "llama3.2:3b");
+    expect(session.peek("llama3.2:3b")).toBe("minimal");
+    session.clear();
+    expect(session.peek("llama3.2:3b")).toBeNull();
+  });
+});
+
+describe("HarnessSelector -- parseHarnessCommand", () => {
+  it("parses inspect, list, clear, and switch", () => {
+    expect(parseHarnessCommand("")).toEqual({ kind: "inspect" });
+    expect(parseHarnessCommand("status")).toEqual({ kind: "inspect" });
+    expect(parseHarnessCommand("list")).toEqual({ kind: "list" });
+    expect(parseHarnessCommand("clear")).toEqual({ kind: "clear" });
+    expect(parseHarnessCommand("plan-first")).toEqual({
+      kind: "switch",
+      profileId: "plan-first",
+    });
+    expect(parseHarnessCommand("switch minimal")).toEqual({
+      kind: "switch",
+      profileId: "minimal",
+    });
+    expect(parseHarnessCommand("nope").kind).toBe("unknown");
+  });
+
+  it("parses profile ids case-insensitively", () => {
+    expect(parseHarnessProfileId("Plan-First")).toBe("plan-first");
+    expect(harnessProfileById("structured-edit")?.id).toBe("structured-edit");
+    expect(harnessProfileById("missing")).toBeUndefined();
   });
 });
