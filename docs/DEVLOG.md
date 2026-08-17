@@ -4,6 +4,30 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-16] v1.17.0 release cut
+
+### Goal
+
+Ship v1.17.0 on the convergent milestone line (git tag + `package.json` + CHANGELOG + README What's New). `v1.16.0` already exists on origin; this cut is the shell-only motion-identity cycle on top of that.
+
+### What was done
+
+- **docs**: README current-cycle + ledger + What's New rewritten for v1.17.0 (orbs, beam, metal, one-motion-per-surface, halt-not-slow reduced-motion). Featured-capabilities row added. Install guide gained an after-install section. Root ARCHITECTURE.md names `desktop/src/motion/`, `desktop/src/components/agentState/`, `AccentBeam`, and `MetalAccent`. Known-gaps for v1.17 flipped to finalized. Plan header records the cut date.
+- **devlog**: this entry.
+- **gitignore**: no new patterns. `desktop/coverage/` already ignored.
+- **version**: `package.json` and `package-lock.json` 1.16.0 -> 1.17.0. `scripts/sync-tauri-version.mjs` rewrites `desktop/src-tauri/tauri.conf.json`. This repo has no `scripts/check_version_sync.py` (Nexus-Hub catalog guard); the local SSOT is root `package.json`. `desktop/package.json` and `desktop/src-tauri/Cargo.toml` remain at 1.5.0 (not in the sync script; left alone).
+- **changelog**: `[1.17.0]` prepended above the existing `[1.16.0]` block. Opt-in surfaces: this release changes no opt-in capability, installer flag, or host surface (motion is always-on; reduced-motion is OS-level).
+- **refactor**: propose-only, no moves. Phase 6 already audited layout. ChatInput stays RETAINED-NOT-DEAD (DF-10).
+- **CI/CD**: no rewrite (Phase 6 decision). `shell-build.yml` already watches `desktop/**` with cancel-in-progress, npm cache, PR ubuntu-only.
+- **Self-gates (no-ops here)**: no `docs/policy/platform-read-contracts.md`, no `scripts/check_installer_parity.py`, no model-prompting profile layer, no `scripts/generate_manifest.py`. Those are Nexus-Hub catalog release steps.
+- **Unicode**: release artifacts scanned for non-ASCII dashes/quotes after the edit pass.
+
+### Next
+
+Tag `v1.17.0`, push, and GitHub Release stay behind confirmation. Merge to `main` only after the tag exists so semantic-release does not cut a misnamed version from feat commits.
+
+---
+
 ## [2026-08-16] v1.17.0 ui-motion-identity -- Phase 6 (FINAL): refactor + known-gaps + CI/CD
 
 ### Goal

@@ -1,3 +1,18 @@
+# [1.17.0](https://github.com/bendourthe/Nexus-AI/compare/v1.16.0...v1.17.0) (2026-08-16)
+
+
+### Features
+
+* **v1.17.0:** shared motion primitives and agent-state orbs (Phases 1-2) ([6f69324](https://github.com/bendourthe/Nexus-AI/commit/6f69324))
+* **v1.17.0:** surface-liveness beam on composers, dock, and canvas frame (Phase 3) ([05d27f3](https://github.com/bendourthe/Nexus-AI/commit/05d27f3))
+* **v1.17.0:** hero-action metal ring on send, Generate, and New session (Phase 4) ([210b7a6](https://github.com/bendourthe/Nexus-AI/commit/210b7a6))
+* **v1.17.0:** one primary motion per surface (Phase 5) ([b28915a](https://github.com/bendourthe/Nexus-AI/commit/b28915a))
+
+
+### Opt-in surfaces
+
+This release changes no opt-in capability, installer flag, or host surface.
+
 # [1.16.0](https://github.com/bendourthe/Nexus-AI/compare/v1.15.0...v1.16.0) (2026-08-16)
 
 

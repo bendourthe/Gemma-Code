@@ -43,6 +43,17 @@ Later cycles added two sidecar-adjacent surfaces that the v1.0.0 layout above do
 - `desktop/sidecar/src/serving/` -- opt-in loopback OpenAI/Anthropic HTTP gateway in front of the model registry (`nexus.serving.enabled`, default off). Loopback bind only, bearer-token auth, inference routes only.
 - `core/documents/` -- OCR parse manager used by Chat attachments. Catalog entries: RapidOCR PP-OCRv4 (CPU) and Unlimited-OCR 3B (NVIDIA). The governed `parse_document` agent tool lives at `src/tools/handlers/parseDocument.ts`; composition-root wiring is still deferred (`LSO.P4.B` in [docs/v1/v1.16/known-gaps.md](docs/v1/v1.16/known-gaps.md)).
 
+### Agent-state motion identity (v1.17.0)
+
+The desktop shell (`desktop/src/`) ships an internal motion system with no new frontend dependency:
+
+- `desktop/src/motion/` -- tokens, `useReducedMotion` (halt, not slow), recede-when-active, and precedence (`orb > metal > beam > aurora`).
+- `desktop/src/components/agentState/` -- Canvas 2D dotted orbs mapped to Nexus activities.
+- `AccentBeam.tsx` -- CSS traveling / breathing border on composers, the idle model dock, and the retained generation-canvas frame.
+- `MetalAccent.tsx` -- WebGL liquid-metal ring on Send / Generate / New session, instance-capped at 3, static fallback when WebGL is missing.
+
+Design tokens: [docs/v1/v1.17/design-tokens.md](docs/v1/v1.17/design-tokens.md). Known gaps: [docs/v1/v1.17/known-gaps.md](docs/v1/v1.17/known-gaps.md).
+
 ### Code-graph subsystem (v1.2.0 Phase 3)
 
 `core/codegraph/` indexes the working tree into a SQLite + FTS5 graph so the Coding pillar can answer "callers of X", "callees of Y", and "impact radius of Z" via 8 internal MCP tools (`codegraph_search`, `codegraph_context`, `codegraph_trace`, `codegraph_callers`, `codegraph_callees`, `codegraph_impact`, `codegraph_node`, `codegraph_explore`, `codegraph_files`) registered through the in-process `McpHarnessAdapter` defined in [core/coding/McpBridge.ts](core/coding/McpBridge.ts). The data flow is:

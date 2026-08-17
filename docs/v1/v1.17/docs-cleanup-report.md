@@ -1,6 +1,6 @@
 # Docs Cleanup Report - Nexus AI Studio - 2026-08-16
 
-**Active version:** v1.17.0 (in-flight; package.json still 1.16.0 until `/update release`)
+**Active version:** v1.17.0
 **Mode:** audit
 **Scope:** `docs/v1/v1.17/` (Phase 6 of implement-phase; `--keep-current-version` ON)
 
@@ -22,7 +22,7 @@ This phase created no scratch docs. No files were moved or deleted.
 |---|---|---|---|---|
 | docs/v1/v1.17/plans/v1.17.0-adoption-ui-motion-identity.md | Cat 4 | active version | (keep) | Phase 6 exit checked |
 | docs/v1/v1.17/comparisons/v1.17.0-comparison-ui-motion-identity-and-tokenizer.md | Cat 4 | active version | (keep) | Seed comparison |
-| docs/v1/v1.17/known-gaps.md | Cat 4 | active version | (keep) | Terminal reconciliation; 7 open DF |
+| docs/v1/v1.17/known-gaps.md | Cat 4 | active version | (keep) | Finalized for the v1.17.0 release; 7 open DF |
 | docs/v1/v1.17/design-tokens.md | Cat 4 | active version | (keep) | Motion tokens + precedence |
 | docs/v1/v1.17/development/history/2026-08_phase-1-motion-foundation.md | Cat 4 | active version | (keep) | |
 | docs/v1/v1.17/development/history/2026-08_phase-2-agent-state-orbs.md | Cat 4 | active version | (keep) | |

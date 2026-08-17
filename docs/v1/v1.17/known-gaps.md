@@ -1,7 +1,7 @@
 # Known Gaps - v1.17.0 (Agent-State Motion Identity)
 
 **Project**: Nexus AI Studio
-**Status**: in-progress
+**Status**: finalized
 **Last updated**: 2026-08-16
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
@@ -12,7 +12,7 @@ Carry-forward source: [../v1.16/known-gaps.md](../v1.16/known-gaps.md) (reconcil
 
 ## v1.17.0
 
-**Summary**: 7 open items after Phase 6 - 0 NI, 7 DF, 0 MT - plus 3 resolved in Phase 5 (DF-2, DF-4, DF-7). No suppressed warnings, no bypassed gates. Phase 6 is verification-only (stale ChatPage/ChatInput comments, RETAINED-NOT-DEAD header on ChatInput, no behaviour change). Gates: desktop 106 files / 916 passed / 0 failed. Coverage 92.92% lines / 86.2% branches / 85.08% functions. Lint and `tsc --noEmit` clean. Status stays in-progress until `/update release` bumps the version.
+**Summary**: 7 open items after Phase 6 - 0 NI, 7 DF, 0 MT - plus 3 resolved in Phase 5 (DF-2, DF-4, DF-7). No suppressed warnings, no bypassed gates. Phase 6 is verification-only (stale ChatPage/ChatInput comments, RETAINED-NOT-DEAD header on ChatInput, no behaviour change). Gates: desktop 106 files / 916 passed / 0 failed. Coverage 92.92% lines / 86.2% branches / 85.08% functions. Lint and `tsc --noEmit` clean. Finalized at the v1.17.0 version bump.
 
 ### Open Items
 
@@ -103,6 +103,6 @@ _No new product behaviour._ Close-out added a RETAINED-NOT-DEAD header on `ChatI
 - **Known gaps**: 7 open DF (DF-1,3,5,6,8,9,10), 3 resolved in Phase 5. v1.16 carry-forward unchanged (serving/OCR/composition-root). No release-blockers. Remaining work is on-device visual/GPU QA (DF-8) and later-cycle product work (Tailwind compile, installer motion, ASR/web-search, token streaming, gigatoken only if a Python bulk workload appears).
 - **CI/CD**: no rewrite. `shell-build.yml` already watches `desktop/**` (motion foundation, orb/beam/metal, coordination, tests) with concurrency cancel-in-progress, npm + cargo cache, and PR-only ubuntu. Narrowing the filter to `desktop/src` (plan 6.3 suggestion) would skip `desktop/tests` and `desktop/sidecar` and is rejected. The GitHub Actions budget freeze ended 2026-08-01 and does not apply. `ci.yml` stays unfiltered. Cross-installer parity: no new installer surface this cycle. platform-contract-verification and model-prompting-research self-gate to no-ops (not a Nexus-Hub catalog repo).
 - **Tests**: desktop 106 files / **916 passed** / 0 failed. Coverage 92.92% lines / 86.2% branches / 85.08% functions (unchanged; comment-only headers). `npm run lint --workspace @nexus/desktop` and `npm run typecheck --workspace @nexus/desktop` clean.
-- **Release**: hand off to `/update release`. Not auto-tagged or pushed. package.json remains 1.16.0 until that flow.
+- **Release**: cut as git tag `v1.17.0` via `/update release` (2026-08-16). Not auto-pushed.
 
-_Last updated: 2026-08-16 (Phase 6 terminal reconciliation; status in-progress until `/update release`)._
+_Last updated: 2026-08-16 (finalized for the v1.17.0 release)._
