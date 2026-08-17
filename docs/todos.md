@@ -1,6 +1,16 @@
 # Nexus - Progress Dashboard
 
-**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (post v1.16.0).
+**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (post v1.16.0; v1.17.0 code-complete).
+
+> **v1.17.0 COMPLETE (2026-08-16)** -- all 6 phases landed on `develop`; package.json / CHANGELOG / README still **1.16.0** until `/update release`. Plan: [v1.17.0-adoption-ui-motion-identity.md](v1/v1.17/plans/v1.17.0-adoption-ui-motion-identity.md) - [known-gaps](v1/v1.17/known-gaps.md) (in-progress until the version bump). Cycle: reverse-engineer thinking-orbs / border-beam / metal-fx into an internal motion system (no new npm deps).
+> - **P1** motion tokens, centralized `prefers-reduced-motion` (halt, not slow), recede-when-active primitive.
+> - **P2** agent-state Canvas orbs on coding / chat / image / video / model dock / retained generation canvas.
+> - **P3** surface-liveness beam on composers, idle dock, generation-canvas frame.
+> - **P4** hero-action metal ring on send, Generate, and New session (cap 3 WebGL instances).
+> - **P5** one winner per surface (`orb > metal > beam > aurora`); recede once per group.
+> - **P6** close-out: layout clean, gaps reconciled (incl. gigatoken N5 watch), CI verified. Gates: desktop **916 passed / 0 failed** (106 files), coverage 92.92% / 86.2% / 85.08%, lint + typecheck + docs-layout + naming clean.
+>
+> **Known follow-ups:** on-device GPU/visual pass (DF-8), Tailwind `@theme` compile (DF-1), installer motion (DF-3). Tag / push / GitHub Release stay behind `/update release` confirmation gates.
 
 > **v1.16.0 RELEASED (2026-08-16)** -- all 6 phases landed on `develop`; package.json / CHANGELOG / README cut as **v1.16.0**. Plan: [v1.16.0-adoption-local-serving-and-ocr.md](v1/v1.16/plans/v1.16.0-adoption-local-serving-and-ocr.md) - [known-gaps](v1/v1.16/known-gaps.md) (finalized). Cycle: local serving gateway + per-model analytics + document OCR + parse_document tool + MLX-via-adapters docs + model-library UX.
 > - **P1** opt-in loopback OpenAI/Anthropic gateway in front of installed models (auth token, bind guard).

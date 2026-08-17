@@ -4,6 +4,26 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-16] v1.17.0 ui-motion-identity -- Phase 6 (FINAL): refactor + known-gaps + CI/CD
+
+### Goal
+
+Leave the desktop motion cycle well-organized, its known gaps reconciled, and its CI/CD complete, then hand version bump / changelog / tag / push to `/update release`.
+
+### What was done
+
+- **Architecture**: empty-dir / naming / docs-layout clean. No file moves. `ChatInput` marked RETAINED (ChatPage uses MediaComposer). ChatPage header comment corrected.
+- **Known gaps**: v1.16 carry-forward table; DF-9 gigatoken N5 watch; DF-10 ChatInput retain. DF-1/3/5/6/8 stay open. Status in-progress until `/update release`.
+- **CI/CD**: no rewrite. `shell-build.yml` already watches `desktop/**` with cancel-in-progress, npm cache, PR ubuntu-only. Narrowing to `desktop/src` was rejected. Actions freeze does not apply.
+- **Tests**: desktop 916 passed / 0 failed (106 files). Coverage 92.92% lines / 86.2% branches / 85.08% functions. Lint and typecheck clean.
+- **Self-gates**: platform-contract-verification and model-prompting-research are no-ops here (not a Nexus-Hub catalog). No new installer surface.
+
+### Next
+
+`/update release` for v1.17.0. On-device GPU/visual pass remains DF-8.
+
+---
+
 ## [2026-08-16] v1.17.0 ui-motion-identity -- Phase 5: motion coordination + polish (A4-completion)
 
 ### Goal

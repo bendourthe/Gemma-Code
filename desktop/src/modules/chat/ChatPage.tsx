@@ -3,7 +3,7 @@
  *
  * The Chat module's top-level page. Hosts:
  *   - left rail: `<FolderTree>` (drag-drop, context menu, keyboard nav)
- *   - right pane: breadcrumb + shared chat shell (`<MessageList>`, `<ChatInput>`)
+ *   - right pane: breadcrumb + shared chat shell (`<MessageList>`, `<MediaComposer>`)
  *   - compact model switcher (installed-and-ready LLMs + Get more models)
  *   - per-folder `enableTools` toggle (default off; power users opt in)
  *
