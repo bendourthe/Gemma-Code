@@ -13,6 +13,7 @@ import type {
   TraceEventT,
 } from "../../../sidecar/src/protocol";
 import { CodingInput } from "./CodingInput";
+import { MetalAccent } from "../../components/MetalAccent";
 import { DEFAULT_MODEL_ID, FRONTEND_MODELS } from "./models";
 import { applyEvents, type RenderedTurn } from "./toolCallCard";
 import { MemoryPanel } from "./panels/MemoryPanel";
@@ -159,6 +160,16 @@ export function CodingPage({
   const handleCancel = useCallback(async (): Promise<void> => {
     if (!sessionId) return;
     await ipc.call("coding.session.cancel", { sessionId });
+  }, [sessionId]);
+
+  const handleNewSession = useCallback(async (): Promise<void> => {
+    if (sessionId) {
+      await ipc.call("coding.session.cancel", { sessionId });
+    }
+    setSessionId(null);
+    setTurns([]);
+    setBusy(false);
+    setError(null);
   }, [sessionId]);
 
   useEffect(() => {
@@ -352,22 +363,51 @@ export function CodingPage({
         <footer style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
           <CodingInput disabled={busy} streaming={busy} onSubmit={handleSubmit} />
           {sessionId && (
-            <button
-              type="button"
-              data-testid="coding-cancel"
-              onClick={() => void handleCancel()}
+            <div
               style={{
-                alignSelf: "flex-start",
-                padding: "var(--space-1) var(--space-2)",
-                background: "transparent",
-                color: "var(--fg-muted)",
-                border: "1px solid var(--border-1)",
-                borderRadius: "var(--radius-md)",
-                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "var(--space-2)",
               }}
             >
-              Cancel session
-            </button>
+              <MetalAccent
+                accentToken="--accent-coding"
+                surfaceId="coding-new-session"
+                data-testid="coding-new-session-metal"
+              >
+                <button
+                  type="button"
+                  data-testid="coding-new-session"
+                  onClick={() => void handleNewSession()}
+                  style={{
+                    padding: "var(--space-1) var(--space-3)",
+                    backgroundColor: "var(--accent-coding)",
+                    color: "var(--bg-0)",
+                    border: "none",
+                    borderRadius: "var(--radius-md)",
+                    cursor: "pointer",
+                  }}
+                >
+                  New session
+                </button>
+              </MetalAccent>
+              <button
+                type="button"
+                data-testid="coding-cancel"
+                onClick={() => void handleCancel()}
+                style={{
+                  alignSelf: "flex-start",
+                  padding: "var(--space-1) var(--space-2)",
+                  background: "transparent",
+                  color: "var(--fg-muted)",
+                  border: "1px solid var(--border-1)",
+                  borderRadius: "var(--radius-md)",
+                  cursor: "pointer",
+                }}
+              >
+                Cancel session
+              </button>
+            </div>
           )}
         </footer>
       )}

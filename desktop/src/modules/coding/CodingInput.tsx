@@ -1,5 +1,6 @@
 import { useMemo, useState, type ChangeEvent, type FocusEvent, type KeyboardEvent } from "react";
 import { AccentBeam } from "../../components/AccentBeam";
+import { MetalAccent } from "../../components/MetalAccent";
 import { filterSlashCommands, SLASH_COMMANDS } from "./slashCommands";
 
 export interface CodingInputProps {
@@ -121,23 +122,29 @@ export function CodingInput({ disabled, onSubmit, streaming = false }: CodingInp
           resize: "vertical",
         }}
       />
-      <button
-        type="button"
-        data-testid="coding-input-submit"
-        disabled={disabled || value.trim().length === 0}
-        onClick={submit}
-        style={{
-          alignSelf: "flex-end",
-          padding: "var(--space-2) var(--space-4)",
-          backgroundColor: "var(--accent-coding)",
-          color: "var(--bg-0)",
-          border: "none",
-          borderRadius: "var(--radius-md)",
-          cursor: "pointer",
-        }}
+      <MetalAccent
+        accentToken="--accent-coding"
+        surfaceId="coding-send"
+        data-testid="coding-input-submit-metal"
+        style={{ alignSelf: "flex-end" }}
       >
-        Send
-      </button>
+        <button
+          type="button"
+          data-testid="coding-input-submit"
+          disabled={disabled || value.trim().length === 0}
+          onClick={submit}
+          style={{
+            padding: "var(--space-2) var(--space-4)",
+            backgroundColor: "var(--accent-coding)",
+            color: "var(--bg-0)",
+            border: "none",
+            borderRadius: "var(--radius-md)",
+            cursor: "pointer",
+          }}
+        >
+          Send
+        </button>
+      </MetalAccent>
     </div>
     </AccentBeam>
   );

@@ -23,6 +23,8 @@ import {
   type KeyboardEvent,
 } from "react";
 import { AccentBeam, type AccentBeamAccentToken } from "../../components/AccentBeam";
+import { MetalAccent } from "../../components/MetalAccent";
+import { metalTokenFromCssVar } from "../../components/metalGl";
 
 export interface MediaComposerProps {
   disabled?: boolean;
@@ -30,6 +32,8 @@ export interface MediaComposerProps {
   onSubmit: (text: string, attachments: readonly string[]) => void;
   accept?: string;
   submitAccentVar?: string;
+  /** Label on the hero submit control. Image / Video pass "Generate". */
+  submitLabel?: string;
   /** When set (and it changes), appended to the pending attachments ("Use as source"). */
   seededAttachment?: string | null;
   /** Traveling beam while a reply / generation is in flight. */
@@ -90,6 +94,7 @@ export function MediaComposer({
   onSubmit,
   accept = "image/*",
   submitAccentVar = "--accent-image",
+  submitLabel = "Send",
   seededAttachment,
   streaming = false,
 }: MediaComposerProps): JSX.Element {
@@ -255,15 +260,21 @@ export function MediaComposer({
           rows={2}
           style={textareaStyle}
         />
-        <button
-          type="button"
-          data-testid="media-composer-submit"
-          disabled={!canSubmit}
-          onClick={submit}
-          style={submitStyle(submitAccentVar)}
+        <MetalAccent
+          accentToken={metalTokenFromCssVar(submitAccentVar)}
+          surfaceId="media-composer-submit"
+          data-testid="media-composer-submit-metal"
         >
-          Send
-        </button>
+          <button
+            type="button"
+            data-testid="media-composer-submit"
+            disabled={!canSubmit}
+            onClick={submit}
+            style={submitStyle(submitAccentVar)}
+          >
+            {submitLabel}
+          </button>
+        </MetalAccent>
       </div>
     </div>
     </AccentBeam>

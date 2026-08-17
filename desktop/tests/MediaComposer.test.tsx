@@ -67,4 +67,12 @@ describe("MediaComposer", () => {
     expect(screen.getByTestId("media-composer-beam")).toHaveAttribute("data-beam-mode", "traveling");
     expect(screen.getByTestId("media-composer-beam")).toHaveAttribute("data-beam-accent", "--accent-chatbot");
   });
+
+  it("wraps the hero submit in metal and leaves the add-attachment control without it", () => {
+    render(<MediaComposer onSubmit={vi.fn()} submitLabel="Generate" />);
+    const submit = screen.getByTestId("media-composer-submit");
+    expect(submit).toHaveTextContent("Generate");
+    expect(submit.closest("[data-testid='media-composer-submit-metal']")).not.toBeNull();
+    expect(screen.getByTestId("media-composer-add").closest("[data-testid$='-metal']")).toBeNull();
+  });
 });

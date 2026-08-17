@@ -191,4 +191,22 @@ describe("CodingPage", () => {
     await userEvent.click(screen.getByTestId("coding-tab-chat"));
     expect(screen.getByTestId("coding-chat")).toBeInTheDocument();
   });
+
+  it("shows a metal New session control after a session starts and clears the transcript", async () => {
+    render(<CodingPage />);
+    expect(screen.queryByTestId("coding-new-session")).toBeNull();
+    await userEvent.type(screen.getByTestId("coding-input-textarea"), "Hello agent");
+    await userEvent.click(screen.getByTestId("coding-input-submit"));
+    await waitFor(() => {
+      expect(screen.getByTestId("coding-chat")).toHaveTextContent("Hello agent");
+    });
+    const neu = screen.getByTestId("coding-new-session");
+    expect(neu.closest("[data-testid='coding-new-session-metal']")).not.toBeNull();
+    expect(screen.getByTestId("coding-cancel").closest("[data-testid$='-metal']")).toBeNull();
+    await userEvent.click(neu);
+    await waitFor(() => {
+      expect(screen.queryByTestId("coding-new-session")).toBeNull();
+      expect(screen.getByTestId("coding-chat")).toHaveTextContent(/Start by asking/);
+    });
+  });
 });

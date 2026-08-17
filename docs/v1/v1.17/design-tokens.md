@@ -42,7 +42,7 @@ The same file maps durations, easings, and accent aliases under `@theme inline` 
 
 ## 5. Reduced motion
 
-One `@media (prefers-reduced-motion: reduce)` block in `desktop/src/styles/globals.css` halts CSS animations (floating logo, aurora, surface beam). JS-driven loops (constellation, agent-state orbs) read `useReducedMotion` from `desktop/src/motion/`. Outcome is unchanged: motion fully pauses, it is not merely slowed.
+One `@media (prefers-reduced-motion: reduce)` block in `desktop/src/styles/globals.css` halts CSS animations (floating logo, aurora, surface beam, metal canvas overlay). JS-driven loops (constellation, agent-state orbs, metal WebGL) read `useReducedMotion` from `desktop/src/motion/`. Outcome is unchanged: motion fully pauses, it is not merely slowed.
 
 ## 6. Agent-state mapping (Phase 2)
 
@@ -65,3 +65,7 @@ Hero size is 64px; inline size is 20px. Device-pixel-ratio is capped at 2.
 ## 7. Surface-liveness beam (Phase 3)
 
 `AccentBeam` paints a 1px conic accent on a surface's border box. Color is a locked `--accent-*` token. `--nexus-beam-angle` is a CSS `@property` so the traveling mode can animate the gradient origin. Strength is opacity (`--nexus-beam-strength`). Radius comes from `--radius-*`. Play/pause is opacity only (no layout shift). Reduced-motion replaces the animation with a static accent border.
+
+## 8. Hero-action metal (Phase 4)
+
+`MetalAccent` paints a liquid-metal ring on hero controls only (coding Send, chat Send, Image/Video Generate, Coding New session). Tint is a locked `--accent-*` token (linear RGB fallbacks in `metalGl.ts`). Strength is a shader alpha. A shared registry caps simultaneously animating WebGL instances at 3. Offscreen pause uses IntersectionObserver (missing IO is treated as visible). Reduced-motion and missing WebGL both use a static accent edge (`.nexus-metal-fallback`); they never throw. Recede-when-active registers only while the GPU loop is actually running.

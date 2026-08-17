@@ -351,6 +351,7 @@ export function VideoLabPage({
           placeholder="Describe the video you want, or drop an image to animate..."
           onSubmit={(text, attachments) => void handleSubmit(text, attachments)}
           submitAccentVar="--accent-video"
+          submitLabel="Generate"
           seededAttachment={seededAttachment}
           streaming={isGenerating}
         />

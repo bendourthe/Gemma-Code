@@ -386,6 +386,7 @@ export function ImageStudioPage({
           disabled={isGenerating}
           onSubmit={(text, attachments) => void handleSubmit(text, attachments)}
           submitAccentVar="--accent-image"
+          submitLabel="Generate"
           seededAttachment={seededAttachment}
           streaming={isGenerating}
         />

@@ -17,7 +17,7 @@ Carry-forward source: [../v1.16/known-gaps.md](../v1.16/known-gaps.md) (reconcil
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 6 | 0 |
+| Deferred (DF) | 7 | 0 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
@@ -36,10 +36,10 @@ Carry-forward source: [../v1.16/known-gaps.md](../v1.16/known-gaps.md) (reconcil
 
 ##### DF-2 - Recede-when-active is not yet complete across every motion kind
 
-- **Source phase**: Phase 1 - Motion Foundation (A4-foundation); updated Phase 2 and Phase 3
+- **Source phase**: Phase 1 - Motion Foundation (A4-foundation); updated Phases 2, 3, and 4
 - **Plan reference**: `docs/v1/v1.17/plans/v1.17.0-adoption-ui-motion-identity.md` (sub-task 1.3; Phase 5.1)
-- **Reason**: Orbs register recede when `activity !== "idle"`. Beams register recede while `playing`. Metal does not exist yet. One-motion-per-element precedence is still Phase 5. The Styleguide toggle remains the non-orb / non-beam reference integration.
-- **Suggested next step**: Phase 5.1 must register metal surfaces, keep orb/beam registration, and enforce one-motion-per-element precedence.
+- **Reason**: Orbs register recede when `activity !== "idle"`. Beams register recede while `playing`. Metal registers recede while the WebGL loop is actually animating (not on the static fallback). One-motion-per-element precedence is still Phase 5. The Styleguide toggle remains the non-production reference integration.
+- **Suggested next step**: Phase 5.1 must keep orb/beam/metal registration and enforce one-motion-per-element precedence.
 
 ##### DF-3 - Installer motion is not on the shared desktop hook
 
@@ -68,6 +68,13 @@ Carry-forward source: [../v1.16/known-gaps.md](../v1.16/known-gaps.md) (reconcil
 - **Plan reference**: `docs/v1/v1.17/plans/v1.17.0-adoption-ui-motion-identity.md` (sub-task 2.3: "where `isStreaming` is signalled")
 - **Reason**: `ChatPage` still waits for the full `sendMessage` event batch, then patches the assistant bubble. There is no per-token `isStreaming` flag. Phase 2 treats `pending: true` + `activity: "chat-streaming"` as the streaming signal so the composing orb appears for the whole wait. Phase 3 drives the composer traveling beam from the same `pending` flag.
 - **Suggested next step**: If a later cycle streams tokens into the bubble, keep the same activity until the `done` event and then clear `pending` (the traveling beam follows).
+
+##### DF-7 - Composer beam and submit metal can play together
+
+- **Source phase**: Phase 4 - Hero-action metal (A3)
+- **Plan reference**: `docs/v1/v1.17/plans/v1.17.0-adoption-ui-motion-identity.md` (sub-task 4.2; Phase 5.1 one-motion-per-element)
+- **Reason**: Metal wraps the submit / Generate / New-session **button**. The Phase 3 beam wraps the **composer**. Those are adjacent DOM nodes, not the same element, so Phase 4 does not stack two motions on one control. A focused or streaming composer can still show a beam on the wrapper while the send button shows metal.
+- **Suggested next step**: Phase 5 precedence should decide whether the traveling beam recedes the metal (or the reverse) when both are in view. Do not metal the composer wrapper.
 
 ### Resolved
 

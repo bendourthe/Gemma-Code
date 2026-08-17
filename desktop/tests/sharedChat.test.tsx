@@ -136,6 +136,11 @@ describe("<ChatInput>", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
+  it("wraps Send in metal", () => {
+    render(<ChatInput onSubmit={() => undefined} />);
+    expect(screen.getByTestId("chat-input-submit").closest("[data-testid='chat-input-submit-metal']")).not.toBeNull();
+  });
+
   it("shows the accuracy disclaimer under the composer (v1.9.0 T033)", () => {
     render(<ChatInput onSubmit={() => undefined} />);
     const disclaimer = screen.getByTestId("chat-input-disclaimer");

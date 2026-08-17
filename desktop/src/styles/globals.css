@@ -367,6 +367,32 @@ button {
   border: 1px solid var(--nexus-beam-color, var(--accent-coding));
 }
 
+/* v1.17.0 Phase 4 -- hero-action metal ring. The canvas overlay is GPU; the
+ * fallback class is a static accent edge used when WebGL, the instance cap,
+ * reduced-motion, or offscreen pause take the animating path away. */
+.nexus-metal-accent {
+  position: relative;
+  display: inline-flex;
+  isolation: isolate;
+  overflow: visible;
+}
+
+.nexus-metal-accent > * {
+  position: relative;
+  z-index: 1;
+}
+
+.nexus-metal-fallback {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--nexus-metal-color, var(--accent-coding)) 70%, white),
+    0 0 10px color-mix(in srgb, var(--nexus-metal-color, var(--accent-coding)) 28%, transparent);
+}
+
+.nexus-metal-canvas {
+  z-index: 2;
+  border-radius: inherit;
+}
+
 /* Single reduced-motion gate (v1.17.0 Phase 1). CSS animations halt here;
  * JS-driven loops (constellation) read the matching useReducedMotion hook. */
 @media (prefers-reduced-motion: reduce) {
@@ -390,5 +416,8 @@ button {
   .nexus-accent-beam::before {
     animation: none;
     transition: none;
+  }
+  .nexus-metal-canvas {
+    display: none;
   }
 }

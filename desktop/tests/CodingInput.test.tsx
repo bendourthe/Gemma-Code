@@ -75,4 +75,12 @@ describe("CodingInput", () => {
     expect(screen.getByTestId("coding-composer-beam")).toHaveAttribute("data-beam-mode", "traveling");
     expect(screen.getByTestId("coding-composer-beam")).toHaveAttribute("data-beam-playing", "true");
   });
+
+  it("wraps Send in metal and leaves slash suggestions without it", async () => {
+    render(<CodingInput onSubmit={vi.fn()} />);
+    const send = screen.getByTestId("coding-input-submit");
+    expect(send.closest("[data-testid='coding-input-submit-metal']")).not.toBeNull();
+    await userEvent.type(screen.getByTestId("coding-input-textarea"), "/pl");
+    expect(screen.getByTestId("slash-plan").closest("[data-testid$='-metal']")).toBeNull();
+  });
 });

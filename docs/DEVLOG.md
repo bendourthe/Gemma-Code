@@ -4,6 +4,27 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-16] v1.17.0 ui-motion-identity -- Phase 4: hero-action metal (A3)
+
+### Goal
+
+Give send, Generate, and New session a premium tactile liquid-metal ring. No `metal-fx` package. Locked Nexus accents only (no gold / silver / chromatic). Cap GPU instances and fall back statically when WebGL or motion is unavailable.
+
+### What was done
+
+- **Component**: `MetalAccent` + `metalGl` (rounded-rect SDF specular ring) + `metalRegistry` (cap 3). IntersectionObserver pause. Recede-when-active only while the GPU loop runs. Static `.nexus-metal-fallback` edge under reduced-motion, missing WebGL, compile failure, or a full cap.
+- **Placement**: coding Send, shared ChatInput Send, MediaComposer Send/Generate (Image/Video pass `submitLabel="Generate"`), and a new CodingPage **New session** control. Cancel, add-attachment, slash suggestions, and folder-tree icons stay unadorned.
+- **Tests**: desktop 909 passed / 0 failed (105 files). Coverage 92.91% lines / 86.08% branches / 85.19% functions. `MetalAccent.tsx` 99.17% lines. `metalGl.ts` / `metalRegistry.ts` 100%. Lint and typecheck clean. jsdom default path is fallback; animating path uses a stub GL context.
+- **CI/CD**: no rewrite. `shell-build.yml` already watches `desktop/**`.
+- **Docs**: metal section in design-tokens, DF-2 update, DF-7 (composer beam + button metal are adjacent nodes), session history, this entry.
+- **Perf/battery**: offscreen pause and the instance cap are proven in unit tests. Frame cost and battery with all hero controls visible is **not proven here** (jsdom has no GPU; no on-device trace this session).
+
+### Next
+
+Phase 5: motion coordination (recede everywhere, one-motion-per-element, a11y + perf audit).
+
+---
+
 ## [2026-08-16] v1.17.0 ui-motion-identity -- Phase 3: surface-liveness beam (A2)
 
 ### Goal
