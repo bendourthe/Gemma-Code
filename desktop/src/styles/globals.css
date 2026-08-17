@@ -42,7 +42,8 @@ button {
 
 /* Floating-glow logo primitive (v1.9.0 T203). The <FloatingLogo/> mark bobs
  * +/-9px over 7s; the glow is applied inline via the --glow-* tokens. Motion
- * is disabled under prefers-reduced-motion, leaving a static glowing mark. */
+ * is disabled by the shared prefers-reduced-motion block at the bottom of
+ * this file, leaving a static glowing mark. */
 @keyframes nexus-float {
   0%,
   100% {
@@ -55,12 +56,6 @@ button {
 
 .nexus-floating-logo {
   animation: nexus-float 7s ease-in-out infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .nexus-floating-logo {
-    animation: none;
-  }
 }
 
 /* ---------------------------------------------------------------------------
@@ -78,6 +73,18 @@ button {
   z-index: 0;
   background: var(--bg-radial-glow);
   pointer-events: none;
+  opacity: 1;
+  transition: opacity var(--motion-duration-base) var(--motion-ease-standard);
+}
+
+.nexus-app-backdrop.nexus-ambient-recede {
+  opacity: var(--motion-recede-backdrop);
+}
+
+/* Constellation canvas: opacity is set inline; the recede class swaps it
+ * to the shared token. Transition matches the radial-glow backdrop. */
+.nexus-constellation {
+  transition: opacity var(--motion-duration-base) var(--motion-ease-standard);
 }
 
 /* Signature-gradient text (brand wordmark, hero heading). */
@@ -172,7 +179,7 @@ button {
  * Oversized blurred radial-gradient layers drift via transform on staggered
  * loops (mix-blend-mode: screen) inside a rounded, overflow-hidden box, plus a
  * sweeping shimmer bar. Built on the existing glow tokens; all motion is gated
- * behind prefers-reduced-motion (a soft static glow fallback). See
+ * by the shared prefers-reduced-motion block (a soft static glow fallback). See
  * docs/v1/v1.9/ui-rework-design.md Section 3.
  * ------------------------------------------------------------------------- */
 
@@ -282,7 +289,12 @@ button {
   z-index: 2;
 }
 
+/* Single reduced-motion gate (v1.17.0 Phase 1). CSS animations halt here;
+ * JS-driven loops (constellation) read the matching useReducedMotion hook. */
 @media (prefers-reduced-motion: reduce) {
+  .nexus-floating-logo {
+    animation: none;
+  }
   .nexus-aurora-layer,
   .nexus-aurora-shimmer {
     display: none;
@@ -292,5 +304,9 @@ button {
     background:
       radial-gradient(circle at 50% 45%, rgba(56, 189, 248, 0.22), transparent 62%),
       var(--bg-1);
+  }
+  .nexus-app-backdrop,
+  .nexus-constellation {
+    transition: none;
   }
 }

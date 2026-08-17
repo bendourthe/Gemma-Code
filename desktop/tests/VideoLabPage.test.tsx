@@ -169,4 +169,18 @@ describe("VideoLabPage (chat)", () => {
     });
     expect(onGetMoreModels).toHaveBeenCalled();
   });
+
+  it("shows the shaping orb while a clip is pending", async () => {
+    const client = new InMemoryVideoClient();
+    render(
+      <VideoLabPage client={client} modelsClient={videoModels()} drainIntervalMs={20} />,
+    );
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "a fox" } });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+    });
+    const orb = await screen.findByRole("img", { name: /agent shaping/i });
+    expect(orb).toHaveAttribute("data-agent-activity", "video-generation");
+    expect(screen.queryByText("Generating...")).toBeNull();
+  });
 });

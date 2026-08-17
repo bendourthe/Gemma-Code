@@ -1,9 +1,12 @@
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { GenerationCanvas } from "../src/components/GenerationCanvas";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe("GenerationCanvas", () => {
   it("renders a busy aurora region with three drift layers and a shimmer bar", () => {
@@ -14,6 +17,10 @@ describe("GenerationCanvas", () => {
     expect(box.getAttribute("aria-label")).toBe("Generating");
     expect(container.querySelectorAll(".nexus-aurora-layer")).toHaveLength(3);
     expect(container.querySelector(".nexus-aurora-shimmer")).not.toBeNull();
+    expect(box).toHaveAttribute("data-reduced-motion", "false");
+    const orb = screen.getByRole("img", { name: /agent shaping/i });
+    expect(orb).toHaveAttribute("data-agent-activity", "image-generation");
+    expect(orb).toHaveAttribute("data-orb-size", "hero");
   });
 
   it("overlays the live preview and materializes it with progress", () => {
@@ -48,5 +55,22 @@ describe("GenerationCanvas", () => {
     render(<GenerationCanvas previewSrc="x" progress={2} data-testid="gc3" />);
     // clamped to 1.0 -> opacity 1
     expect((screen.getByTestId("gc3-preview") as HTMLElement).style.opacity).toBe("1");
+  });
+
+  it("marks reduced motion through the shared hook", () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
+    );
+    render(<GenerationCanvas />);
+    expect(screen.getByTestId("generation-canvas")).toHaveAttribute("data-reduced-motion", "true");
+  });
+
+  it("uses the video activity when tint is video", () => {
+    render(<GenerationCanvas tint="video" />);
+    expect(screen.getByRole("img", { name: /agent shaping/i })).toHaveAttribute(
+      "data-agent-activity",
+      "video-generation",
+    );
   });
 });

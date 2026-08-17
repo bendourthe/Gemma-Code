@@ -19,6 +19,7 @@ import { SETTINGS_MODELS_PATH } from "./shared/models/installedFeed";
 import { LocalModelStatusDock } from "./components/LocalModelStatusDock";
 import { createMockTelemetryStream } from "./lib/telemetryMock";
 import type { TelemetryStream } from "./components/LocalModelStatus.types";
+import { MotionActivityProvider, useMotionActivity } from "./motion";
 
 export interface AppProps {
   // Test seam: callers may inject a fake telemetry stream.
@@ -43,9 +44,18 @@ const modelsClient = createIpcModelsClient();
 const servingClient = createIpcServingClient();
 
 export function App({ telemetryStream }: AppProps = {}): JSX.Element {
+  return (
+    <MotionActivityProvider>
+      <AppLayout telemetryStream={telemetryStream} />
+    </MotionActivityProvider>
+  );
+}
+
+function AppLayout({ telemetryStream }: AppProps): JSX.Element {
   const [stream, setStream] = useState<TelemetryStream | null>(telemetryStream ?? null);
   const [hostVramGB, setHostVramGB] = useState<number | null>(null);
   const navigate = useNavigate();
+  const { isAmbientReceded } = useMotionActivity();
 
   useEffect(() => {
     if (telemetryStream !== undefined) {
@@ -82,7 +92,14 @@ export function App({ telemetryStream }: AppProps = {}): JSX.Element {
 
   return (
     <div data-testid="app-root" style={layoutStyle}>
-      <div className="nexus-app-backdrop" data-testid="app-backdrop" aria-hidden />
+      <div
+        className={["nexus-app-backdrop", isAmbientReceded ? "nexus-ambient-recede" : ""]
+          .filter(Boolean)
+          .join(" ")}
+        data-testid="app-backdrop"
+        data-ambient-receded={isAmbientReceded ? "true" : "false"}
+        aria-hidden
+      />
       <ConstellationBackground opacity={0.5} zIndex={0} data-testid="app-constellation" />
       <TitleBar />
       <div

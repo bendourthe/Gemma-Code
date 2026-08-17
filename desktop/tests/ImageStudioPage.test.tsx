@@ -135,4 +135,16 @@ describe("ImageStudioPage (chat)", () => {
     });
     expect(onGetMoreModels).toHaveBeenCalled();
   });
+
+  it("shows the shaping orb while a generation is pending", async () => {
+    const client = new InMemoryDiffusionClient();
+    render(<ImageStudioPage client={client} modelsClient={imageModels()} drainIntervalMs={20} />);
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "a fox" } });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+    });
+    const orb = await screen.findByRole("img", { name: /agent shaping/i });
+    expect(orb).toHaveAttribute("data-agent-activity", "image-generation");
+    expect(screen.queryByText("Generating...")).toBeNull();
+  });
 });

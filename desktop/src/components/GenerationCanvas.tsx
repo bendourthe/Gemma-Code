@@ -3,13 +3,16 @@
  * preview.
  *
  * RETAINED, NOT DEAD (v1.15.0 Phase 8 refactor triage): the Phase 5/6 chat
- * redesigns show a lightweight "Generating..." indicator inside the assistant
- * bubble instead of a full-bleed canvas, so nothing mounts this today. It stays
- * (with its unit test and `.nexus-generation-*` styles) as the richer in-bubble
- * progress visual to reinstate if the plain indicator proves too sparse.
+ * redesigns show an inline agent-state orb inside the assistant bubble instead
+ * of a full-bleed canvas, so nothing mounts this today. It stays (with its
+ * unit test, hero orb overlay, and `.nexus-generation-*` styles) as the richer
+ * in-bubble progress visual to reinstate if the inline orb proves too sparse.
+ * Aurora plus the hero orb coexist here until Phase 5 one-motion precedence.
  */
 
 import type { CSSProperties, ReactNode } from "react";
+import { AgentStateOrb } from "./agentState/AgentStateOrb";
+import { useReducedMotion } from "../motion";
 
 export type GenerationTint = "image" | "video";
 
@@ -39,10 +42,11 @@ const TINT_VAR: Record<GenerationTint, string> = {
  * On-brand aurora "generating" mark (v1.9.0 Phase 8, T029/T030). A rounded,
  * overflow-hidden box with three oversized blurred radial-gradient layers that
  * drift via `transform` on staggered loops (`mix-blend-mode: screen`) plus a
- * sweeping shimmer bar -- the keyframes live in globals.css and are disabled
- * under `prefers-reduced-motion` (a soft static glow fallback). An optional
- * live latent preview is overlaid and fades in with `progress` so the result
- * reads as materializing; `children` overlay arbitrary content (the Video Lab
+ * sweeping shimmer bar -- the keyframes live in globals.css. The shared
+ * reduced-motion hook marks the element; the centralized CSS media block
+ * disables the aurora (a soft static glow fallback). An optional live latent
+ * preview is overlaid and fades in with `progress` so the result reads as
+ * materializing; `children` overlay arbitrary content (the Video Lab
  * per-second thumbnail strip). See docs/v1/v1.9/ui-rework-design.md
  * Section 3.
  */
@@ -63,6 +67,7 @@ export function GenerationCanvas({
     typeof progress === "number"
       ? 0.35 + 0.65 * Math.min(1, Math.max(0, progress))
       : 0.6;
+  const reduce = useReducedMotion();
   const testId = rest["data-testid"] ?? "generation-canvas";
   const classes = ["nexus-generation-canvas", className].filter(Boolean).join(" ");
 
@@ -74,6 +79,7 @@ export function GenerationCanvas({
       aria-label={ariaLabel}
       aria-busy="true"
       data-testid={testId}
+      data-reduced-motion={reduce ? "true" : "false"}
     >
       <div className="nexus-aurora-layer nexus-aurora-layer-1" aria-hidden="true" />
       <div className="nexus-aurora-layer nexus-aurora-layer-2" aria-hidden="true" />
@@ -101,6 +107,24 @@ export function GenerationCanvas({
       {children != null ? (
         <div className="nexus-generation-overlay">{children}</div>
       ) : null}
+      <div
+        className="nexus-generation-orb"
+        style={{
+          position: "absolute",
+          inset: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 3,
+          pointerEvents: "none",
+        }}
+      >
+        <AgentStateOrb
+          activity={tint === "video" ? "video-generation" : "image-generation"}
+          size="hero"
+          surfaceId="generation-canvas"
+        />
+      </div>
     </div>
   );
 }

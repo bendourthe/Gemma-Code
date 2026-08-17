@@ -56,3 +56,57 @@ describe("floating-logo keyframes", () => {
     expect(globalsCss).toMatch(/nexus-floating-logo\s*{\s*animation:\s*none;/);
   });
 });
+
+describe("v1.17.0 motion tokens", () => {
+  it("defines durations, easings, and recede opacities", () => {
+    expect(tokensCss).toContain("--motion-duration-fast:");
+    expect(tokensCss).toContain("--motion-duration-base:");
+    expect(tokensCss).toContain("--motion-duration-slow:");
+    expect(tokensCss).toContain("--motion-ease-standard:");
+    expect(tokensCss).toContain("--motion-ease-emphasized:");
+    expect(tokensCss).toContain("--motion-ease-in-out:");
+    expect(tokensCss).toContain("--motion-recede-opacity:");
+    expect(tokensCss).toContain("--motion-recede-backdrop:");
+  });
+
+  it("aliases state accents to the locked palette and signature gradient", () => {
+    expect(tokensCss).toContain("--motion-accent-coding: var(--accent-coding)");
+    expect(tokensCss).toContain("--motion-accent-chatbot: var(--accent-chatbot)");
+    expect(tokensCss).toContain("--motion-accent-image: var(--accent-image)");
+    expect(tokensCss).toContain("--motion-accent-video: var(--accent-video)");
+    expect(tokensCss).toContain("--motion-accent-signature: var(--grad-signature)");
+  });
+
+  it("maps motion tokens through Tailwind v4 @theme inline", () => {
+    expect(tokensCss).toContain("@theme inline");
+    expect(tokensCss).toContain("--duration-motion-fast: var(--motion-duration-fast)");
+    expect(tokensCss).toContain("--duration-motion-base: var(--motion-duration-base)");
+    expect(tokensCss).toContain("--duration-motion-slow: var(--motion-duration-slow)");
+    expect(tokensCss).toContain("--ease-motion-standard: var(--motion-ease-standard)");
+    expect(tokensCss).toContain("--color-motion-coding: var(--motion-accent-coding)");
+    expect(tokensCss).toContain("--color-motion-chatbot: var(--motion-accent-chatbot)");
+    expect(tokensCss).toContain("--color-motion-image: var(--motion-accent-image)");
+    expect(tokensCss).toContain("--color-motion-video: var(--motion-accent-video)");
+  });
+
+  it("does not churn the locked accents or signature gradient", () => {
+    expect(tokensCss).toContain("--accent-coding: #ec4899;");
+    expect(tokensCss).toContain("--accent-chatbot: #22d3ee;");
+    expect(tokensCss).toContain("--accent-image: #f97316;");
+    expect(tokensCss).toContain("--accent-video: #22c55e;");
+    expect(tokensCss).toContain("--grad-signature:");
+  });
+});
+
+describe("v1.17.0 centralized reduced-motion CSS", () => {
+  it("keeps a single prefers-reduced-motion media block", () => {
+    const blocks = globalsCss.match(/@media \(prefers-reduced-motion: reduce\)/g);
+    expect(blocks).toHaveLength(1);
+  });
+
+  it("halts floating-logo and aurora motion in that block", () => {
+    expect(globalsCss).toMatch(/nexus-floating-logo\s*{\s*animation:\s*none;/);
+    expect(globalsCss).toContain(".nexus-aurora-layer");
+    expect(globalsCss).toContain("display: none");
+  });
+});

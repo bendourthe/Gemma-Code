@@ -39,7 +39,7 @@ interface Turn {
   rendered: RenderedTurn;
 }
 
-function turnsToMessages(turns: readonly Turn[]): readonly ChatMessage[] {
+function turnsToMessages(turns: readonly Turn[], busy: boolean): readonly ChatMessage[] {
   const messages: ChatMessage[] = [];
   for (const turn of turns) {
     messages.push({ id: `${turn.id}-user`, role: "user", content: turn.prompt });
@@ -53,6 +53,15 @@ function turnsToMessages(turns: readonly Turn[]): readonly ChatMessage[] {
         args: card.args,
         result: card.result,
       })),
+    });
+  }
+  if (busy) {
+    messages.push({
+      id: "coding-pending",
+      role: "assistant",
+      content: "",
+      pending: true,
+      activity: "coding-tool-use",
     });
   }
   return messages;
@@ -308,7 +317,7 @@ export function CodingPage({
         {tab === "chat" && (
           <div data-testid="coding-chat">
             <MessageList
-              messages={turnsToMessages(turns)}
+              messages={turnsToMessages(turns, busy)}
               enableTools={true}
               emptyMessage={
                 "Start by asking a question or typing / for commands."

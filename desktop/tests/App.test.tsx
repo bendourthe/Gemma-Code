@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { App } from "../src/App";
 import { ModulePlaceholder } from "../src/pages/ModulePlaceholder";
@@ -70,6 +70,29 @@ describe("App shell", () => {
     expect(screen.getByTestId("title-bar")).toBeInTheDocument();
     expect(screen.getByTestId("app-backdrop")).toBeInTheDocument();
     expect(screen.getByTestId("app-constellation")).toBeInTheDocument();
+    expect(screen.getByTestId("app-backdrop")).toHaveAttribute("data-ambient-receded", "false");
+  });
+
+  it("recedes the ambient glow from the styleguide reference surface", () => {
+    render(
+      <MemoryRouter initialEntries={["/_styleguide"]}>
+        <App telemetryStream={null} />
+      </MemoryRouter>,
+    );
+    const backdrop = screen.getByTestId("app-backdrop");
+    const constellation = screen.getByTestId("app-constellation");
+    expect(backdrop).toHaveAttribute("data-ambient-receded", "false");
+    expect(constellation).toHaveAttribute("data-ambient-receded", "false");
+
+    fireEvent.click(screen.getByTestId("recede-reference-toggle"));
+    expect(backdrop).toHaveAttribute("data-ambient-receded", "true");
+    expect(backdrop.className).toContain("nexus-ambient-recede");
+    expect(constellation).toHaveAttribute("data-ambient-receded", "true");
+    expect((constellation as HTMLElement).style.opacity).toBe("var(--motion-recede-opacity)");
+
+    fireEvent.click(screen.getByTestId("recede-reference-toggle"));
+    expect(backdrop).toHaveAttribute("data-ambient-receded", "false");
+    expect(constellation).toHaveAttribute("data-ambient-receded", "false");
   });
 });
 
@@ -93,5 +116,6 @@ describe("Styleguide", () => {
     expect(screen.getByTestId("swatch---accent-coding")).toBeInTheDocument();
     expect(screen.getByTestId("swatch---accent-image")).toBeInTheDocument();
     expect(screen.getByTestId("swatch---accent-video")).toBeInTheDocument();
+    expect(screen.getByTestId("recede-reference")).toBeInTheDocument();
   });
 });

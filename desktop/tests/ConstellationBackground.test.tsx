@@ -62,6 +62,9 @@ describe("ConstellationBackground", () => {
     const canvas = screen.getByTestId("constellation");
     expect(canvas.tagName).toBe("CANVAS");
     expect(canvas).toHaveAttribute("aria-hidden", "true");
+    expect(canvas).toHaveAttribute("data-reduced-motion", "false");
+    expect(canvas).toHaveAttribute("data-ambient-receded", "false");
+    expect(canvas.className).toContain("nexus-constellation");
     expect((canvas as HTMLElement).style.pointerEvents).toBe("none");
     expect((canvas as HTMLElement).style.position).toBe("fixed");
   });
@@ -103,6 +106,7 @@ describe("ConstellationBackground", () => {
     render(<ConstellationBackground />);
     expect(rafSpy).not.toHaveBeenCalled();
     expect(ctx.clearRect).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("constellation")).toHaveAttribute("data-reduced-motion", "true");
     // A resize re-renders the static frame (reduced-motion resize branch).
     window.dispatchEvent(new Event("resize"));
     expect(ctx.clearRect).toHaveBeenCalledTimes(2);

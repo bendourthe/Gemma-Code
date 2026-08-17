@@ -1,3 +1,6 @@
+import { useState } from "react";
+import { useActiveMotionSurface } from "../motion";
+
 // Token inspection page. Used to visually verify the design tokens during
 // dev. Linked from the router as `/_styleguide`.
 
@@ -117,6 +120,45 @@ export function StyleguidePage(): JSX.Element {
           ))}
         </div>
       </section>
+
+      <RecedeReference />
+    </section>
+  );
+}
+
+/**
+ * Phase 1 reference integration for recede-when-active. Production surfaces
+ * adopt the primitive in Phase 5; this toggle proves the ambient glow
+ * recedes and restores without layout shift.
+ */
+function RecedeReference(): JSX.Element {
+  const [active, setActive] = useState(false);
+  useActiveMotionSurface("styleguide-reference", active);
+  return (
+    <section data-testid="recede-reference">
+      <h2 style={{ fontSize: "var(--text-lg)" }}>Motion recede</h2>
+      <p style={{ color: "var(--fg-muted)", fontSize: "var(--text-sm)", marginTop: 0 }}>
+        Reference surface for the recede-when-active primitive. Activating an
+        effect dims the ambient glow; deactivating restores it.
+      </p>
+      <button
+        type="button"
+        data-testid="recede-reference-toggle"
+        aria-pressed={active}
+        onClick={() => setActive((value) => !value)}
+        style={{
+          fontFamily: "inherit",
+          fontSize: "var(--text-sm)",
+          padding: "var(--space-2) var(--space-4)",
+          borderRadius: "var(--radius-md)",
+          border: "1px solid var(--border-strong)",
+          background: active ? "var(--accent-chatbot-soft)" : "var(--bg-2)",
+          color: "var(--fg-0)",
+          cursor: "pointer",
+        }}
+      >
+        {active ? "Active effect on" : "Active effect off"}
+      </button>
     </section>
   );
 }

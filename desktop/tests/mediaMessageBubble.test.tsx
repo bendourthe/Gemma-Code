@@ -45,6 +45,8 @@ describe("MessageBubble media", () => {
     };
     render(<MessageBubble message={msg} />);
     expect(screen.getByTestId("message-pending-a2")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /agent composing/i })).toBeInTheDocument();
+    expect(screen.queryByText("Generating...")).toBeNull();
   });
 
   it("leaves a plain-text message unchanged (no media nodes)", () => {

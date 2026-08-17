@@ -62,6 +62,41 @@ describe("<ChatPage>", () => {
     expect(await screen.findByText("Hi there")).toBeInTheDocument();
   });
 
+  it("shows the composing orb while the assistant reply is in flight", async () => {
+    const client = new InMemoryChatExplorerClient();
+    const folder = client.createFolder({ parentId: null, name: "Work" });
+    const chat = client.createChat({ folderId: folder.id, title: "draft", modelId: "gemma4:e4b" });
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const chatSession: ChatSessionClient = {
+      start: async () => ({ sessionId: "s1", modelId: "gemma4:e4b", createdAt: "t" }),
+      sendMessage: async () => {
+        await gate;
+        return {
+          sessionId: "s1",
+          events: [
+            { kind: "token", text: "Hi " },
+            { kind: "token", text: "there" },
+            { kind: "done", finishReason: "stop" },
+          ],
+        };
+      },
+    };
+    const user = userEvent.setup();
+    render(<ChatPage client={client} chatSession={chatSession} />);
+    await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
+    await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
+    await user.type(screen.getByTestId("media-composer-textarea"), "hello{Enter}");
+    const orb = await screen.findByRole("img", { name: /agent composing/i });
+    expect(orb).toHaveAttribute("data-agent-activity", "chat-streaming");
+    expect(screen.queryByText("Generating...")).toBeNull();
+    release();
+    expect(await screen.findByText("Hi there")).toBeInTheDocument();
+    expect(screen.queryByTestId(/message-pending-/)).toBeNull();
+  });
+
   it("shows an inline notice when the chat backend is unavailable", async () => {
     const client = new InMemoryChatExplorerClient();
     const folder = client.createFolder({ parentId: null, name: "Work" });

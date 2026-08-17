@@ -221,6 +221,8 @@ export function ChatPage({
         id: messageId,
         role: "assistant",
         content: "Reading document...",
+        pending: true,
+        activity: "document-parse",
       });
       try {
         const handle = documentClient.parse(attachment, ({ page, totalPages }) => {
@@ -239,12 +241,14 @@ export function ChatPage({
             : `Parsed with ${result.engine}:`;
         patchMessage(chatId, messageId, {
           content: body.length > 0 ? `${header}\n\n${body}` : `${header}\n\n(no text found)`,
+          pending: false,
         });
       } catch (err) {
         patchMessage(chatId, messageId, {
           content: `Could not parse the document: ${
             err instanceof Error ? err.message : String(err)
           }`,
+          pending: false,
         });
       }
       if (note.trim().length > 0) {
@@ -286,6 +290,14 @@ export function ChatPage({
       // Drive a real local-model turn via the sidecar (lazily starting a
       // session per chat). Falls back to an inline notice if IPC is unavailable
       // (e.g. running the web bundle outside the Tauri shell).
+      const assistantId = `${baseId}-assistant`;
+      appendMessage(chat.id, {
+        id: assistantId,
+        role: "assistant",
+        content: "",
+        pending: true,
+        activity: "chat-streaming",
+      });
       let content: string;
       try {
         let sessionId = sessionIdsRef.current.get(chat.id);
@@ -300,9 +312,9 @@ export function ChatPage({
         content = `(chat unavailable) ${err instanceof Error ? err.message : String(err)}`;
       }
 
-      appendMessage(chat.id, { id: `${baseId}-assistant`, role: "assistant", content });
+      patchMessage(chat.id, assistantId, { content, pending: false });
     },
-    [activeChat, client, chatSession, appendMessage, handleParseDocument],
+    [activeChat, client, chatSession, appendMessage, patchMessage, handleParseDocument],
   );
 
   return (

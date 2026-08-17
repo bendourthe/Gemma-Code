@@ -8,6 +8,7 @@
 
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from "react";
 import type { ChatMessage, ToolCard } from "./types";
+import { AgentStateOrb } from "../../components/agentState/AgentStateOrb";
 
 export interface MessageBubbleProps {
   message: ChatMessage;
@@ -74,7 +75,11 @@ export function MessageBubble({
           data-testid={`message-pending-${message.id}`}
           style={{ marginTop: "var(--space-2)", color: "var(--fg-muted)", display: "flex", alignItems: "center", gap: "var(--space-2)" }}
         >
-          <span>Generating...</span>
+          <AgentStateOrb
+            activity={message.activity ?? "chat-streaming"}
+            size="inline"
+            surfaceId={`message-${message.id}`}
+          />
           {message.progress && message.progress.total > 0 && (
             <progress value={message.progress.step} max={message.progress.total} />
           )}

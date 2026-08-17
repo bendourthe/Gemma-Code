@@ -208,6 +208,7 @@ export function ImageStudioPage({
         role: "assistant",
         content: "",
         pending: true,
+        activity: "image-generation",
       };
       setMessages((prev) => [...prev, userMsg, assistantMsg]);
 

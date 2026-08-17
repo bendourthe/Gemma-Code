@@ -8,6 +8,8 @@
  * input + model-selector contract.
  */
 
+import type { AgentActivity } from "../../components/agentState/mapping";
+
 export type ChatRole = "user" | "assistant" | "system";
 
 export interface ChatMessage {
@@ -38,6 +40,12 @@ export interface ChatMessage {
   pending?: boolean;
   /** Optional step/total progress for a pending generation. */
   progress?: { readonly step: number; readonly total: number };
+  /**
+   * v1.17.0 Phase 2 -- agent activity driving the inline orb while this
+   * message is pending. Surfaces pass a typed activity; the bubble maps it
+   * to state + accent. Defaults to chat-streaming when omitted.
+   */
+  activity?: AgentActivity;
 }
 
 export interface ChatMedia {

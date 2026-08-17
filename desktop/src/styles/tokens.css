@@ -107,7 +107,50 @@
     radial-gradient(1100px 800px at -10% 0%, rgba(56, 189, 248, 0.12), transparent 55%),
     linear-gradient(180deg, var(--bg-0) 0%, var(--bg-1) 65%, var(--bg-deep) 100%);
 
+  /* ---------------------------------------------------------------------
+   * Motion (v1.17.0 Phase 1) -- shared durations, easings, recede opacities,
+   * and state-accent aliases consumed by agent-state orbs, surface beams,
+   * and hero metal. Aliases only: they point at the locked accents and
+   * signature gradient. Additive: nothing above changes.
+   * ------------------------------------------------------------------- */
+
+  --motion-duration-fast: 150ms;
+  --motion-duration-base: 280ms;
+  --motion-duration-slow: 500ms;
+
+  --motion-ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-ease-in-out: cubic-bezier(0.45, 0, 0.55, 1);
+
+  --motion-accent-coding: var(--accent-coding);
+  --motion-accent-chatbot: var(--accent-chatbot);
+  --motion-accent-image: var(--accent-image);
+  --motion-accent-video: var(--accent-video);
+  --motion-accent-signature: var(--grad-signature);
+
+  /* Ambient glow/constellation intensity while a surface runs an effect. */
+  --motion-recede-opacity: 0.18;
+  --motion-recede-backdrop: 0.4;
+
   color-scheme: dark;
+}
+
+/* Tailwind v4 theme bridge. The shell currently consumes tokens as CSS
+ * custom properties (see globals.css); this block maps the motion group
+ * onto `@theme inline` so a future Tailwind pipeline resolves the same
+ * values as utilities without a second palette. Unknown at-rules are
+ * ignored by the browser until that pipeline lands. */
+@theme inline {
+  --duration-motion-fast: var(--motion-duration-fast);
+  --duration-motion-base: var(--motion-duration-base);
+  --duration-motion-slow: var(--motion-duration-slow);
+  --ease-motion-standard: var(--motion-ease-standard);
+  --ease-motion-emphasized: var(--motion-ease-emphasized);
+  --ease-motion-in-out: var(--motion-ease-in-out);
+  --color-motion-coding: var(--motion-accent-coding);
+  --color-motion-chatbot: var(--motion-accent-chatbot);
+  --color-motion-image: var(--motion-accent-image);
+  --color-motion-video: var(--motion-accent-video);
 }
 
 /* Force dark regardless of system preference - the pivot-brief mockup is dark

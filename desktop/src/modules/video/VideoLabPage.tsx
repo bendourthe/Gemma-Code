@@ -198,7 +198,7 @@ export function VideoLabPage({
       setMessages((prev) => [
         ...prev,
         userMsg,
-        { id: assistantId, role: "assistant", content: "", pending: true },
+        { id: assistantId, role: "assistant", content: "", pending: true, activity: "video-generation" },
       ]);
 
       const base = videoFormToRequest({

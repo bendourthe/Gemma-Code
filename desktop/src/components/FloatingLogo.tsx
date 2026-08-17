@@ -1,3 +1,5 @@
+import { useReducedMotion } from "../motion";
+
 export type FloatingLogoGlow = "sm" | "md" | "lg";
 
 export interface FloatingLogoProps {
@@ -21,8 +23,9 @@ const GLOW_TOKEN: Record<FloatingLogoGlow, string> = {
 /**
  * Floating, glowing Nexus mark (v1.9.0 T203). Fed the transparent brand mark,
  * it applies the cyan drop-shadow glow token and a slow vertical bob via the
- * `nexus-float` keyframes in globals.css. The keyframes are disabled under
- * `prefers-reduced-motion`, leaving a static glowing mark.
+ * `nexus-float` keyframes in globals.css. The shared reduced-motion hook
+ * marks the element; the centralized CSS media block disables the keyframes,
+ * leaving a static glowing mark.
  */
 export function FloatingLogo({
   src = "/icons/window-icon.png",
@@ -32,6 +35,7 @@ export function FloatingLogo({
   className,
   ...rest
 }: FloatingLogoProps): JSX.Element {
+  const reduce = useReducedMotion();
   const classes = ["nexus-floating-logo", className].filter(Boolean).join(" ");
   return (
     <img
@@ -41,6 +45,7 @@ export function FloatingLogo({
       height={size}
       className={classes}
       data-testid={rest["data-testid"] ?? "floating-logo"}
+      data-reduced-motion={reduce ? "true" : "false"}
       style={{
         display: "block",
         width: size,

@@ -4,6 +4,48 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-16] v1.17.0 ui-motion-identity -- Phase 2: agent-state orbs (A1)
+
+### Goal
+
+Replace ad-hoc loaders with one internal Canvas orb that expresses agent activity (working / searching / solving / listening / composing / shaping) using only locked Nexus accents. No `thinking-orbs` package.
+
+### What was done
+
+- **Mapping**: `desktop/src/components/agentState/mapping.ts` maps Nexus activities to state + accent token + hex fallback. Includes OCR (`document-parse`) and model-dock (`model-loading`, `model-inference`) rows.
+- **Orb**: Canvas 2D dotted ring (`AgentStateOrb` + `orbEngine`). Hero 64px / inline 20px. DPR cap 2. Static under `useReducedMotion`. Pauses offscreen via IntersectionObserver (missing IO treated as visible). Registers recede-when-active when not idle.
+- **Adoption**: Coding busy row, chat pending composing bubble (then patch), image/video pending shaping, LocalModelStatus loading/active, GenerationCanvas hero overlay (retained canvas; aurora kept, DF-4). "Generating..." text removed from `MessageBubble`.
+- **Tests**: desktop 878 passed / 0 failed (101 files). Coverage 92.73% lines / 85.74% branches / 84.8% functions. Lint and `tsc --noEmit` clean for `@nexus/desktop`.
+- **CI/CD**: no rewrite. `shell-build.yml` already watches `desktop/**` with cancel-in-progress, npm cache, and PR ubuntu-only matrix.
+- **Docs**: mapping table in `docs/v1/v1.17/design-tokens.md`, known-gaps DF-4/5/6 plus DF-2 update, session history, this entry.
+
+### Next
+
+Phase 3: internal surface-liveness beam (A2) on the composer, model dock, and generation-canvas frame.
+
+---
+
+## [2026-08-16] v1.17.0 ui-motion-identity -- Phase 1: motion foundation (A4-foundation)
+
+### Goal
+
+Give every later motion effect (orbs, beam, metal) shared primitives: motion tokens, one `prefers-reduced-motion` source of truth, and a recede-when-active flag so the ambient glow can step back. Shell-only; no new frontend dependency.
+
+### What was done
+
+- **Tokens**: additive `--motion-duration-*` / `--motion-ease-*` / `--motion-accent-*` aliases (locked accents + signature gradient only) plus recede opacities in `desktop/src/styles/tokens.css`. `@theme inline` maps the same values for a future Tailwind pipeline; the shell consumes CSS custom properties today (DF-1).
+- **Reduced motion**: `desktop/src/motion/useReducedMotion` + a single `@media (prefers-reduced-motion: reduce)` block in `globals.css`. Constellation, FloatingLogo, and GenerationCanvas now go through that mechanism. Halt, not slow.
+- **Recede**: `MotionActivityProvider` + `useActiveMotionSurface`. App backdrop and constellation dim via opacity when any surface is active. Styleguide toggle is the Phase 1 reference integration; production surfaces wait for Phase 5 (DF-2).
+- **Tests**: desktop 849 passed / 0 failed (98 files). Coverage 92.57% lines / 85.77% branches / 84.62% functions. Lint and `tsc --noEmit` clean for `@nexus/desktop`.
+- **CI/CD**: no rewrite. `shell-build.yml` already watches `desktop/**` with concurrency cancel-in-progress and npm cache.
+- **Docs**: `docs/v1/v1.17/design-tokens.md`, known-gaps (DF-1/2/3), session history, this entry.
+
+### Next
+
+Phase 2: internal agent-state orbs (A1), mapped across coding / chat / media, on this foundation.
+
+---
+
 ## [2026-08-16] v1.16.0 release cut
 
 ### Goal

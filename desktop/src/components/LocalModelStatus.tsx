@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { AgentStateOrb } from "./agentState/AgentStateOrb";
 import type {
   LocalModelTelemetry,
   TelemetryStream,
@@ -54,8 +55,12 @@ export function LocalModelStatus({ stream }: LocalModelStatusProps): JSX.Element
           color: "var(--fg-muted)",
           borderRadius: "var(--radius-lg)",
           fontSize: "var(--text-sm)",
+          display: "flex",
+          alignItems: "center",
+          gap: "var(--space-2)",
         }}
       >
+        <AgentStateOrb activity="model-loading" size="inline" surfaceId="local-model-status" />
         Connecting to local model...
       </div>
     );
@@ -130,7 +135,12 @@ export function LocalModelStatus({ stream }: LocalModelStatusProps): JSX.Element
             justifyContent: "space-between",
           }}
         >
-          <span style={{ fontWeight: 600 }}>{headline}</span>
+          <span style={{ fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "var(--space-2)" }}>
+            {!idle ? (
+              <AgentStateOrb activity="model-inference" size="inline" surfaceId="local-model-status" />
+            ) : null}
+            {headline}
+          </span>
           <span
             style={{
               color: idle ? "var(--fg-muted)" : "var(--status-ok)",

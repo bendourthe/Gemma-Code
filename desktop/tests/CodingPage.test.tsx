@@ -119,6 +119,32 @@ describe("CodingPage", () => {
     });
   });
 
+  it("shows the working orb while a coding turn is in flight", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const fake = makeFakeInvoke();
+    setInvokeOverride(async (_cmd, args) => {
+      const a = args as unknown as InvokeArgs;
+      if (a.method === "coding.session.sendMessage") {
+        await gate;
+      }
+      return fake.invoke("ipc_call", args ?? {});
+    });
+    render(<CodingPage />);
+    await userEvent.type(screen.getByTestId("coding-input-textarea"), "Hello agent");
+    await userEvent.click(screen.getByTestId("coding-input-submit"));
+    const orb = await screen.findByRole("img", { name: /agent working/i });
+    expect(orb).toHaveAttribute("data-agent-activity", "coding-tool-use");
+    expect(screen.queryByText("Generating...")).toBeNull();
+    release();
+    await waitFor(() => {
+      expect(screen.queryByTestId("message-pending-coding-pending")).toBeNull();
+    });
+    expect(screen.getByTestId("coding-chat")).toHaveTextContent("Hello agent");
+  });
+
   it("renders the Memory panel when the Memory tab is selected", async () => {
     render(<CodingPage initialTab="memory" />);
     await waitFor(() => {
