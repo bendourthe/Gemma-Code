@@ -138,6 +138,7 @@ describe("CodingPage", () => {
     const orb = await screen.findByRole("img", { name: /agent working/i });
     expect(orb).toHaveAttribute("data-agent-activity", "coding-tool-use");
     expect(screen.queryByText("Generating...")).toBeNull();
+    expect(screen.getByTestId("coding-composer-beam")).toHaveAttribute("data-beam-mode", "traveling");
     release();
     await waitFor(() => {
       expect(screen.queryByTestId("message-pending-coding-pending")).toBeNull();

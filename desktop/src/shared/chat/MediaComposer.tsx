@@ -19,8 +19,10 @@ import {
   type ClipboardEvent,
   type CSSProperties,
   type DragEvent,
+  type FocusEvent,
   type KeyboardEvent,
 } from "react";
+import { AccentBeam, type AccentBeamAccentToken } from "../../components/AccentBeam";
 
 export interface MediaComposerProps {
   disabled?: boolean;
@@ -30,6 +32,8 @@ export interface MediaComposerProps {
   submitAccentVar?: string;
   /** When set (and it changes), appended to the pending attachments ("Use as source"). */
   seededAttachment?: string | null;
+  /** Traveling beam while a reply / generation is in flight. */
+  streaming?: boolean;
 }
 
 /**
@@ -87,10 +91,12 @@ export function MediaComposer({
   accept = "image/*",
   submitAccentVar = "--accent-image",
   seededAttachment,
+  streaming = false,
 }: MediaComposerProps): JSX.Element {
   const [text, setText] = useState("");
   const [attachments, setAttachments] = useState<string[]>([]);
   const [dragActive, setDragActive] = useState(false);
+  const [focused, setFocused] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -156,9 +162,22 @@ export function MediaComposer({
   };
 
   return (
+    <AccentBeam
+      mode={streaming ? "traveling" : "breathing"}
+      playing={Boolean(streaming || focused)}
+      accentToken={beamAccentFrom(submitAccentVar)}
+      radiusToken="--radius-md"
+      strength={streaming ? 0.9 : 0.7}
+      surfaceId="media-composer"
+      data-testid="media-composer-beam"
+    >
     <div
       data-testid="media-composer"
       data-drag-active={dragActive}
+      onFocus={() => setFocused(true)}
+      onBlur={(e: FocusEvent<HTMLDivElement>) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false);
+      }}
       onDragOver={(e) => {
         e.preventDefault();
         setDragActive(true);
@@ -247,7 +266,15 @@ export function MediaComposer({
         </button>
       </div>
     </div>
+    </AccentBeam>
   );
+}
+
+function beamAccentFrom(token: string): AccentBeamAccentToken {
+  if (token === "--accent-chatbot") return "--accent-chatbot";
+  if (token === "--accent-video") return "--accent-video";
+  if (token === "--accent-image") return "--accent-image";
+  return "--accent-coding";
 }
 
 function composerStyle(dragActive: boolean): CSSProperties {

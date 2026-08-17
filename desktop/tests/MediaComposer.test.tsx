@@ -55,4 +55,16 @@ describe("MediaComposer", () => {
     fireEvent.keyDown(ta, { key: "Enter" });
     expect(onSubmit).toHaveBeenCalledWith("hi", []);
   });
+
+  it("plays a breathing beam on focus and a traveling beam while streaming", () => {
+    const { rerender } = render(<MediaComposer onSubmit={vi.fn()} />);
+    const beam = screen.getByTestId("media-composer-beam");
+    expect(beam).toHaveAttribute("data-beam-playing", "false");
+    fireEvent.focus(screen.getByTestId("media-composer-textarea"));
+    expect(beam).toHaveAttribute("data-beam-playing", "true");
+    expect(beam).toHaveAttribute("data-beam-mode", "breathing");
+    rerender(<MediaComposer onSubmit={vi.fn()} streaming submitAccentVar="--accent-chatbot" />);
+    expect(screen.getByTestId("media-composer-beam")).toHaveAttribute("data-beam-mode", "traveling");
+    expect(screen.getByTestId("media-composer-beam")).toHaveAttribute("data-beam-accent", "--accent-chatbot");
+  });
 });

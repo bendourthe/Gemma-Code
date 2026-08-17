@@ -352,6 +352,7 @@ export function VideoLabPage({
           onSubmit={(text, attachments) => void handleSubmit(text, attachments)}
           submitAccentVar="--accent-video"
           seededAttachment={seededAttachment}
+          streaming={isGenerating}
         />
       </div>
     </section>

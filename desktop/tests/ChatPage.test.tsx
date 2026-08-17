@@ -92,6 +92,8 @@ describe("<ChatPage>", () => {
     const orb = await screen.findByRole("img", { name: /agent composing/i });
     expect(orb).toHaveAttribute("data-agent-activity", "chat-streaming");
     expect(screen.queryByText("Generating...")).toBeNull();
+    expect(screen.getByTestId("media-composer-beam")).toHaveAttribute("data-beam-mode", "traveling");
+    expect(screen.getByTestId("media-composer-beam")).toHaveAttribute("data-beam-playing", "true");
     release();
     expect(await screen.findByText("Hi there")).toBeInTheDocument();
     expect(screen.queryByTestId(/message-pending-/)).toBeNull();

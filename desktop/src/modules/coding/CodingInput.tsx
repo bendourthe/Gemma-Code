@@ -1,13 +1,17 @@
-import { useMemo, useState, type ChangeEvent, type KeyboardEvent } from "react";
+import { useMemo, useState, type ChangeEvent, type FocusEvent, type KeyboardEvent } from "react";
+import { AccentBeam } from "../../components/AccentBeam";
 import { filterSlashCommands, SLASH_COMMANDS } from "./slashCommands";
 
 export interface CodingInputProps {
   disabled?: boolean;
   onSubmit: (text: string) => void;
+  /** Traveling beam while a coding turn is in flight. */
+  streaming?: boolean;
 }
 
-export function CodingInput({ disabled, onSubmit }: CodingInputProps): JSX.Element {
+export function CodingInput({ disabled, onSubmit, streaming = false }: CodingInputProps): JSX.Element {
   const [value, setValue] = useState("");
+  const [focused, setFocused] = useState(false);
   const suggestions = useMemo(() => {
     if (!value.startsWith("/")) return [];
     return filterSlashCommands(value).slice(0, 8);
@@ -38,7 +42,23 @@ export function CodingInput({ disabled, onSubmit }: CodingInputProps): JSX.Eleme
   };
 
   return (
-    <div data-testid="coding-input" style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+    <AccentBeam
+      mode={streaming ? "traveling" : "breathing"}
+      playing={Boolean(streaming || focused)}
+      accentToken="--accent-coding"
+      radiusToken="--radius-md"
+      strength={streaming ? 0.9 : 0.7}
+      surfaceId="coding-composer"
+      data-testid="coding-composer-beam"
+    >
+    <div
+      data-testid="coding-input"
+      onFocus={() => setFocused(true)}
+      onBlur={(e: FocusEvent<HTMLDivElement>) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false);
+      }}
+      style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}
+    >
       {suggestions.length > 0 && (
         <ul
           data-testid="coding-input-suggestions"
@@ -119,5 +139,6 @@ export function CodingInput({ disabled, onSubmit }: CodingInputProps): JSX.Eleme
         Send
       </button>
     </div>
+    </AccentBeam>
   );
 }

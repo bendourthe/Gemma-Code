@@ -36,10 +36,10 @@ Carry-forward source: [../v1.16/known-gaps.md](../v1.16/known-gaps.md) (reconcil
 
 ##### DF-2 - Recede-when-active is not yet complete across every motion kind
 
-- **Source phase**: Phase 1 - Motion Foundation (A4-foundation); updated Phase 2
+- **Source phase**: Phase 1 - Motion Foundation (A4-foundation); updated Phase 2 and Phase 3
 - **Plan reference**: `docs/v1/v1.17/plans/v1.17.0-adoption-ui-motion-identity.md` (sub-task 1.3; Phase 5.1)
-- **Reason**: Phase 2 orbs call `useActiveMotionSurface` whenever `activity !== "idle"`, so coding / chat / media / model-status loaders now recede the ambient glow while an orb is showing. Beam and metal surfaces do not exist yet. One-motion-per-element precedence is still Phase 5. The Styleguide toggle remains the non-orb reference integration.
-- **Suggested next step**: Phase 5.1 must register beam / metal surfaces, keep orb registration, and enforce one-motion-per-element precedence.
+- **Reason**: Orbs register recede when `activity !== "idle"`. Beams register recede while `playing`. Metal does not exist yet. One-motion-per-element precedence is still Phase 5. The Styleguide toggle remains the non-orb / non-beam reference integration.
+- **Suggested next step**: Phase 5.1 must register metal surfaces, keep orb/beam registration, and enforce one-motion-per-element precedence.
 
 ##### DF-3 - Installer motion is not on the shared desktop hook
 
@@ -48,12 +48,12 @@ Carry-forward source: [../v1.16/known-gaps.md](../v1.16/known-gaps.md) (reconcil
 - **Reason**: This cycle is desktop-shell-only. The PyQt installer constellation and floating logo still use their own reduced-motion checks. Desktop centralization does not change installer behavior.
 - **Suggested next step**: If a later installer pass wants one reduced-motion story across app and installer, port the same halt-not-slow contract; do not share the React hook.
 
-##### DF-4 - GenerationCanvas stacks aurora and the hero orb
+##### DF-4 - GenerationCanvas stacks aurora, hero orb, and frame beam
 
-- **Source phase**: Phase 2 - Agent-state orbs (A1)
-- **Plan reference**: `docs/v1/v1.17/plans/v1.17.0-adoption-ui-motion-identity.md` (sub-task 2.3; Phase 5 one-motion-per-element)
-- **Reason**: `GenerationCanvas` is retained and not mounted by Image Studio / Video Lab (those pages use the inline bubble orb). The plan named this file as the media-generation surface, so Phase 2 added a centered hero orb on top of the existing aurora atmosphere. Two motions occupy the same box until Phase 5 precedence lands. Production chat surfaces do not mount this canvas, so users do not see the stack today.
-- **Suggested next step**: Phase 5 should pick one primary motion on this canvas (orb vs aurora vs upcoming beam frame) and recede or drop the others.
+- **Source phase**: Phase 2 - Agent-state orbs (A1); updated Phase 3
+- **Plan reference**: `docs/v1/v1.17/plans/v1.17.0-adoption-ui-motion-identity.md` (sub-tasks 2.3 and 3.2; Phase 5 one-motion-per-element)
+- **Reason**: `GenerationCanvas` is retained and not mounted by Image Studio / Video Lab. Phase 2 added a centered hero orb on the aurora; Phase 3 added a traveling beam on the outer frame (a different DOM node than the orb). Three motions occupy the retained canvas until Phase 5 precedence lands. Production chat surfaces do not mount this canvas, so users do not see the stack today.
+- **Suggested next step**: Phase 5 should pick one primary motion on this canvas (orb vs aurora vs beam frame) and recede or drop the others.
 
 ##### DF-5 - ASR listening and web-search activities are typed but unused
 
@@ -66,8 +66,8 @@ Carry-forward source: [../v1.16/known-gaps.md](../v1.16/known-gaps.md) (reconcil
 
 - **Source phase**: Phase 2 - Agent-state orbs (A1)
 - **Plan reference**: `docs/v1/v1.17/plans/v1.17.0-adoption-ui-motion-identity.md` (sub-task 2.3: "where `isStreaming` is signalled")
-- **Reason**: `ChatPage` still waits for the full `sendMessage` event batch, then patches the assistant bubble. There is no per-token `isStreaming` flag. Phase 2 treats `pending: true` + `activity: "chat-streaming"` as the streaming signal so the composing orb appears for the whole wait.
-- **Suggested next step**: If a later cycle streams tokens into the bubble, keep the same activity until the `done` event and then clear `pending`.
+- **Reason**: `ChatPage` still waits for the full `sendMessage` event batch, then patches the assistant bubble. There is no per-token `isStreaming` flag. Phase 2 treats `pending: true` + `activity: "chat-streaming"` as the streaming signal so the composing orb appears for the whole wait. Phase 3 drives the composer traveling beam from the same `pending` flag.
+- **Suggested next step**: If a later cycle streams tokens into the bubble, keep the same activity until the `done` event and then clear `pending` (the traveling beam follows).
 
 ### Resolved
 

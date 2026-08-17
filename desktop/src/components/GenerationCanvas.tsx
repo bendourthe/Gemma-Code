@@ -8,9 +8,12 @@
  * unit test, hero orb overlay, and `.nexus-generation-*` styles) as the richer
  * in-bubble progress visual to reinstate if the inline orb proves too sparse.
  * Aurora plus the hero orb coexist here until Phase 5 one-motion precedence.
+ * Phase 3 adds a traveling beam on the outer frame (not the same element as
+ * the orb). Production Image/Video pages still do not mount this canvas.
  */
 
 import type { CSSProperties, ReactNode } from "react";
+import { AccentBeam } from "./AccentBeam";
 import { AgentStateOrb } from "./agentState/AgentStateOrb";
 import { useReducedMotion } from "../motion";
 
@@ -70,8 +73,18 @@ export function GenerationCanvas({
   const reduce = useReducedMotion();
   const testId = rest["data-testid"] ?? "generation-canvas";
   const classes = ["nexus-generation-canvas", className].filter(Boolean).join(" ");
+  const beamAccent = tint === "video" ? "--accent-video" : "--accent-image";
 
   return (
+    <AccentBeam
+      mode="traveling"
+      playing
+      accentToken={beamAccent}
+      radiusToken="--radius-lg"
+      strength={0.55}
+      surfaceId="generation-canvas-beam"
+      data-testid={`${testId}-beam`}
+    >
     <div
       className={classes}
       style={style}
@@ -126,5 +139,6 @@ export function GenerationCanvas({
         />
       </div>
     </div>
+    </AccentBeam>
   );
 }

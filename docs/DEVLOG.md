@@ -4,6 +4,26 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-16] v1.17.0 ui-motion-identity -- Phase 3: surface-liveness beam (A2)
+
+### Goal
+
+Make the input composer, idle model dock, and generation-canvas frame feel alive via an internal traveling / breathing border beam. No `border-beam` package. Locked Nexus accents only.
+
+### What was done
+
+- **Component**: `AccentBeam` (CSS `@property` conic beam, breathing and traveling modes, strength, play/pause fade, `--radius-*` fit). Static accent border under reduced-motion. Recede-when-active while playing.
+- **Placement**: `CodingInput` / `MediaComposer` breathe on focus and travel while `streaming`. Chat / image / video / coding pages pass that flag from pending or busy. `LocalModelStatus` breathes only while idle (orb owns loading and inference). `GenerationCanvas` gets a traveling frame beam outside the overflow-hidden aurora box.
+- **Tests**: desktop 886 passed / 0 failed (102 files). Coverage 92.77% lines. `AccentBeam.tsx` 100% lines. Lint and typecheck clean.
+- **CI/CD**: no rewrite. `shell-build.yml` already watches `desktop/**`.
+- **Docs**: beam section in design-tokens, DF-2/DF-4/DF-6 updates, session history, this entry.
+
+### Next
+
+Phase 4: hero-action metal (A3) on send / Generate / New session only.
+
+---
+
 ## [2026-08-16] v1.17.0 ui-motion-identity -- Phase 2: agent-state orbs (A1)
 
 ### Goal

@@ -43,6 +43,7 @@ describe("LocalModelStatus", () => {
       "data-agent-activity",
       "model-loading",
     );
+    expect(screen.queryByTestId("local-model-status-beam")).toBeNull();
   });
 
   it("renders an active sample and updates on subsequent ticks", () => {
@@ -65,6 +66,7 @@ describe("LocalModelStatus", () => {
       "data-agent-activity",
       "model-inference",
     );
+    expect(screen.getByTestId("local-model-status-beam")).toHaveAttribute("data-beam-playing", "false");
 
     act(() => {
       stream.push({
@@ -150,6 +152,7 @@ describe("LocalModelStatus", () => {
     expect(screen.getByTestId("local-model-status").dataset["idle"]).toBe("true");
     expect(screen.getAllByText(/Idle/i).length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByTestId("agent-state-orb")).toBeNull();
+    expect(screen.getByTestId("local-model-status-beam")).toHaveAttribute("data-beam-playing", "true");
   });
 
   it("includes a tooltip with full breakdown when extended fields are present", () => {

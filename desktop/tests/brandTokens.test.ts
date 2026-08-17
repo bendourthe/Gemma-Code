@@ -108,5 +108,15 @@ describe("v1.17.0 centralized reduced-motion CSS", () => {
     expect(globalsCss).toMatch(/nexus-floating-logo\s*{\s*animation:\s*none;/);
     expect(globalsCss).toContain(".nexus-aurora-layer");
     expect(globalsCss).toContain("display: none");
+    expect(globalsCss).toContain(".nexus-accent-beam::before");
+  });
+});
+
+describe("v1.17.0 surface-liveness beam CSS", () => {
+  it("declares the traveling angle property and both motion grammars", () => {
+    expect(globalsCss).toContain("@property --nexus-beam-angle");
+    expect(globalsCss).toContain("@keyframes nexus-beam-travel");
+    expect(globalsCss).toContain("@keyframes nexus-beam-breathe");
+    expect(globalsCss).toContain(".nexus-accent-beam");
   });
 });

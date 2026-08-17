@@ -146,5 +146,6 @@ describe("ImageStudioPage (chat)", () => {
     const orb = await screen.findByRole("img", { name: /agent shaping/i });
     expect(orb).toHaveAttribute("data-agent-activity", "image-generation");
     expect(screen.queryByText("Generating...")).toBeNull();
+    expect(screen.getByTestId("media-composer-beam")).toHaveAttribute("data-beam-mode", "traveling");
   });
 });

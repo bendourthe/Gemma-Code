@@ -289,6 +289,84 @@ button {
   z-index: 2;
 }
 
+/* ---------------------------------------------------------------------------
+ * v1.17.0 Phase 3 -- surface-liveness beam (A2). Reverse-engineered traveling
+ * conic beam + breathing pulse. Color comes from --nexus-beam-color (a locked
+ * accent). Play/pause is opacity only so the wrapper never layout-shifts.
+ * ------------------------------------------------------------------------- */
+
+@property --nexus-beam-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.nexus-accent-beam {
+  position: relative;
+  border-radius: var(--nexus-beam-radius, var(--radius-md));
+}
+
+.nexus-accent-beam::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1.5px;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity var(--motion-duration-base) var(--motion-ease-standard);
+  background: conic-gradient(
+    from var(--nexus-beam-angle),
+    transparent 0%,
+    var(--nexus-beam-color, var(--accent-coding)) 8%,
+    transparent 22%
+  );
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+}
+
+.nexus-accent-beam[data-beam-playing="true"]::before {
+  opacity: var(--nexus-beam-strength, 0.8);
+}
+
+.nexus-accent-beam[data-beam-playing="true"][data-beam-mode="traveling"]::before {
+  animation: nexus-beam-travel 2.4s linear infinite;
+}
+
+.nexus-accent-beam[data-beam-playing="true"][data-beam-mode="breathing"]::before {
+  animation: nexus-beam-breathe 2.2s var(--motion-ease-in-out) infinite;
+}
+
+@keyframes nexus-beam-travel {
+  to {
+    --nexus-beam-angle: 360deg;
+  }
+}
+
+@keyframes nexus-beam-breathe {
+  0%,
+  100% {
+    opacity: calc(var(--nexus-beam-strength, 0.8) * 0.4);
+    --nexus-beam-angle: 0deg;
+  }
+  50% {
+    opacity: var(--nexus-beam-strength, 0.8);
+    --nexus-beam-angle: 48deg;
+  }
+}
+
+.nexus-accent-beam[data-reduced-motion="true"]::before {
+  animation: none;
+  background: transparent;
+  mask: none;
+  -webkit-mask: none;
+  padding: 0;
+  border: 1px solid var(--nexus-beam-color, var(--accent-coding));
+}
+
 /* Single reduced-motion gate (v1.17.0 Phase 1). CSS animations halt here;
  * JS-driven loops (constellation) read the matching useReducedMotion hook. */
 @media (prefers-reduced-motion: reduce) {
@@ -307,6 +385,10 @@ button {
   }
   .nexus-app-backdrop,
   .nexus-constellation {
+    transition: none;
+  }
+  .nexus-accent-beam::before {
+    animation: none;
     transition: none;
   }
 }

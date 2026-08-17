@@ -350,7 +350,7 @@ export function CodingPage({
 
       {tab === "chat" && (
         <footer style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-          <CodingInput disabled={busy} onSubmit={handleSubmit} />
+          <CodingInput disabled={busy} streaming={busy} onSubmit={handleSubmit} />
           {sessionId && (
             <button
               type="button"

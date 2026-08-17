@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { AccentBeam } from "./AccentBeam";
 import { AgentStateOrb } from "./agentState/AgentStateOrb";
 import type {
   LocalModelTelemetry,
@@ -102,6 +103,15 @@ export function LocalModelStatus({ stream }: LocalModelStatusProps): JSX.Element
 
   return (
     <>
+      <AccentBeam
+        mode="breathing"
+        playing={idle}
+        accentToken="--accent-coding"
+        radiusToken="--radius-lg"
+        strength={0.45}
+        surfaceId="local-model-status-beam"
+        data-testid="local-model-status-beam"
+      >
       <button
         type="button"
         data-testid="local-model-status"
@@ -186,6 +196,7 @@ export function LocalModelStatus({ stream }: LocalModelStatusProps): JSX.Element
           <span>{sample.vramFreeGB.toFixed(1)} GB free</span>
         </div>
       </button>
+      </AccentBeam>
 
       {queueOpen ? (
         <QueueModal

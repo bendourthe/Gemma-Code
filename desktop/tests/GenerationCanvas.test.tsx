@@ -21,6 +21,10 @@ describe("GenerationCanvas", () => {
     const orb = screen.getByRole("img", { name: /agent shaping/i });
     expect(orb).toHaveAttribute("data-agent-activity", "image-generation");
     expect(orb).toHaveAttribute("data-orb-size", "hero");
+    const beam = screen.getByTestId("generation-canvas-beam");
+    expect(beam).toHaveAttribute("data-beam-mode", "traveling");
+    expect(beam).toHaveAttribute("data-beam-playing", "true");
+    expect(beam).toHaveAttribute("data-beam-accent", "--accent-image");
   });
 
   it("overlays the live preview and materializes it with progress", () => {
@@ -71,6 +75,10 @@ describe("GenerationCanvas", () => {
     expect(screen.getByRole("img", { name: /agent shaping/i })).toHaveAttribute(
       "data-agent-activity",
       "video-generation",
+    );
+    expect(screen.getByTestId("generation-canvas-beam")).toHaveAttribute(
+      "data-beam-accent",
+      "--accent-video",
     );
   });
 });

@@ -421,6 +421,7 @@ export function ChatPage({
               submitAccentVar="--accent-chatbot"
               accept={DOCUMENT_ACCEPT}
               placeholder="Type a message, or attach a PDF or image to read it."
+              streaming={messages.some((m) => m.pending)}
             />
           </footer>
         )}

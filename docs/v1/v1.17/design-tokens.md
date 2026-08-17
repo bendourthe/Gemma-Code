@@ -42,7 +42,7 @@ The same file maps durations, easings, and accent aliases under `@theme inline` 
 
 ## 5. Reduced motion
 
-One `@media (prefers-reduced-motion: reduce)` block in `desktop/src/styles/globals.css` halts CSS animations (floating logo, aurora). JS-driven loops (constellation, agent-state orbs) read `useReducedMotion` from `desktop/src/motion/`. Outcome is unchanged: motion fully pauses, it is not merely slowed.
+One `@media (prefers-reduced-motion: reduce)` block in `desktop/src/styles/globals.css` halts CSS animations (floating logo, aurora, surface beam). JS-driven loops (constellation, agent-state orbs) read `useReducedMotion` from `desktop/src/motion/`. Outcome is unchanged: motion fully pauses, it is not merely slowed.
 
 ## 6. Agent-state mapping (Phase 2)
 
@@ -61,3 +61,7 @@ Surfaces pass an `AgentActivity`; `desktop/src/components/agentState/mapping.ts`
 | `video-generation` | shaping | `--accent-video` |
 
 Hero size is 64px; inline size is 20px. Device-pixel-ratio is capped at 2.
+
+## 7. Surface-liveness beam (Phase 3)
+
+`AccentBeam` paints a 1px conic accent on a surface's border box. Color is a locked `--accent-*` token. `--nexus-beam-angle` is a CSS `@property` so the traveling mode can animate the gradient origin. Strength is opacity (`--nexus-beam-strength`). Radius comes from `--radius-*`. Play/pause is opacity only (no layout shift). Reduced-motion replaces the animation with a static accent border.
