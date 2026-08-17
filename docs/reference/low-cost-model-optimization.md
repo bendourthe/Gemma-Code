@@ -18,6 +18,8 @@ Nexus runs local open-source models under a **single-GPU ceiling**, so in practi
 
 Tiers are derived by [`modelCapabilityTier`](../../modules/coding/orchestration/HarnessSelector.ts) from the model catalog's `vramGb` / `tags` (there is no first-class capability field): `advanced` tag or `vramGb >= 20` -> **strong**; `lightweight` tag or `vramGb <= 4` -> **weak**; otherwise **mid**. Unprofiled models fall back to the `mid` (default) profile, so no model is ever worse off than today's one-size scaffold.
 
+When catalog `activeParams` is present (MoE, v1.18.0 Phase 3), tags still win, then compute uses active-parameter billions against the same 20 / 4 cutoffs. Resident footprint uses `vramGb` or `totalParams` via [`conservativeResidentVramGb`](../../core/registry/moeFootprint.ts) and never substitutes `activeParams`. Dense rows (MoE fields absent) keep the previous `vramGb` / tags path.
+
 ## Named family profiles (v1.18.0 Phase 2)
 
 On top of the three tier scaffolds (`constrained-scaffold`, `balanced-scaffold`, `lean-scaffold`), the selector now keys **named profiles** from catalog family (and, for llama, weak-tier) as data, not code branches:

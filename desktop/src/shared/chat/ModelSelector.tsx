@@ -18,6 +18,12 @@ export interface ModelSelectorProps {
    * next to the dropdown. Omit to keep the compact selector unchanged.
    */
   harnessLabel?: string;
+  /**
+   * v1.18.0 Phase 3 (OW-A4) -- when true, show a "tool-calling verified" badge
+   * distinct from models that merely run. Tooltip cites benchmark provenance.
+   */
+  toolCallingVerified?: boolean;
+  toolCallingProvenance?: string;
 }
 
 export function ModelSelector({
@@ -28,7 +34,24 @@ export function ModelSelector({
   label = "Model",
   testId = "model-selector",
   harnessLabel,
+  toolCallingVerified,
+  toolCallingProvenance,
 }: ModelSelectorProps): JSX.Element {
+  const selected = models.find((m) => m.id === value);
+  const verified = toolCallingVerified ?? selected?.toolCallingVerified === true;
+  const provenance =
+    toolCallingProvenance ??
+    (selected?.toolCallingBenchmark
+      ? `${selected.toolCallingBenchmark.suite} (${selected.toolCallingBenchmark.date}): ${selected.toolCallingBenchmark.result}`
+      : "Verified for agentic tool-calling in the Nexus catalog. Models without this badge may still run.");
+  const badgeStyle: React.CSSProperties = {
+    fontSize: "var(--text-xs, 0.75rem)",
+    color: "var(--fg-muted)",
+    border: "1px solid var(--border-1)",
+    borderRadius: "var(--radius-md)",
+    padding: "0 var(--space-2)",
+    lineHeight: 1.6,
+  };
   return (
     <label style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
       <span style={{ color: "var(--fg-muted)" }}>{label}</span>
@@ -55,16 +78,18 @@ export function ModelSelector({
         <span
           data-testid={`${testId}-harness`}
           title="Scaffold profile selected for this model family and tier"
-          style={{
-            fontSize: "var(--text-xs, 0.75rem)",
-            color: "var(--fg-muted)",
-            border: "1px solid var(--border-1)",
-            borderRadius: "var(--radius-md)",
-            padding: "0 var(--space-2)",
-            lineHeight: 1.6,
-          }}
+          style={badgeStyle}
         >
           {harnessLabel}
+        </span>
+      ) : null}
+      {verified ? (
+        <span
+          data-testid={`${testId}-tool-calling`}
+          title={provenance}
+          style={badgeStyle}
+        >
+          tool-calling verified
         </span>
       ) : null}
     </label>

@@ -31,6 +31,15 @@ export interface ListedModelDto {
   license?: string;
   tags?: readonly string[];
   absPath?: string;
+  /** v1.18.0 Phase 3 (OW-A4) -- catalog tool-calling verification flag. */
+  toolCallingVerified?: boolean;
+  toolCallingBenchmark?: {
+    readonly suite: string;
+    readonly date: string;
+    readonly result: string;
+  };
+  activeParams?: number;
+  totalParams?: number;
 }
 
 export interface InstallProgressDto {

@@ -53,6 +53,8 @@ import {
   type SkillsUpstreamLatestResponseT,
   type SkillsOptimizePreviewResponseT,
   type SkillsOptimizeApplyResponseT,
+  McpRegistryListRequest,
+  McpRegistrySetToolDeniedRequest,
   IPC_METHODS,
   METHOD_SCHEMAS,
   NotImplementedError,
@@ -101,6 +103,10 @@ import {
   sharedInferenceMetrics,
 } from "../../../core/observability/InferenceMetrics.js";
 import { createOcrRuntimeBundle, type OcrRuntime } from "../../../core/documents/ocrRuntimeFactory.js";
+import {
+  listMcpRegistrySettings,
+  setMcpRegistryToolDenied,
+} from "../../../modules/coding/mcp/McpRegistrySettings.js";
 
 export const SIDECAR_VERSION = "1.0.0-alpha.0";
 
@@ -146,6 +152,11 @@ export interface HandlerContext {
    * parses a document never spawns Python.
    */
   ocr?: OcrRuntime;
+  /**
+   * v1.18.0 Phase 3 (OW-A5) -- project root for per-project MCP tool deny.
+   * Production uses `NEXUS_WORKSPACE` or `process.cwd()`; tests inject a temp dir.
+   */
+  workspacePath?: string;
 }
 
 /** How many individual request records the Traces panel receives per poll. */
@@ -211,6 +222,7 @@ export function createHandlerContext(
   metrics?: InferenceMetricsRegistry,
   /** v1.16.0 Phase 3 -- left undefined so the Python child stays unspawned. */
   ocr?: OcrRuntime,
+  workspacePath?: string,
 ): HandlerContext {
   return {
     ...base,
@@ -223,6 +235,7 @@ export function createHandlerContext(
     serving,
     metrics,
     ocr,
+    workspacePath,
   };
 }
 
@@ -391,6 +404,22 @@ export const handlers: Record<Method, HandlerFn> = {
   },
   "mcp.invoke": async () => {
     throw new NotImplementedError("mcp.invoke");
+  },
+  "mcp.registry.list": async (_params, ctx) => {
+    McpRegistryListRequest.parse(_params ?? {});
+    const workspacePath = ctx.workspacePath ?? process.env.NEXUS_WORKSPACE ?? process.cwd();
+    return listMcpRegistrySettings({ workspacePath });
+  },
+  "mcp.registry.setToolDenied": async (params, ctx) => {
+    const req = McpRegistrySetToolDeniedRequest.parse(params ?? {});
+    const workspacePath = ctx.workspacePath ?? process.env.NEXUS_WORKSPACE ?? process.cwd();
+    const result = setMcpRegistryToolDenied({
+      workspacePath,
+      serverName: req.serverName,
+      toolName: req.toolName,
+      denied: req.denied,
+    });
+    return { ok: result.ok, reason: result.reason, servers: result.list.servers };
   },
   "settings.get": async () => {
     throw new NotImplementedError("settings.get");

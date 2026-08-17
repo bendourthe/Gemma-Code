@@ -4,6 +4,32 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-17] v1.18.0 agent-harness-and-governance -- Phase 3: catalog + registry governance
+
+### Goal
+
+One additive catalog schema revision (`toolCallingVerified` + MoE fields), UD-style labels in the extreme-low-bit gate without opening EM.P3/EM.P4, and per-tool MCP deny that only tightens Hub policy (OW-A4, LG-A2, LG-A3, OW-A5).
+
+### What was done
+
+- **Catalog (OW-A4 + LG-A3)**: optional `toolCallingVerified` + `toolCallingBenchmark` and paired `activeParams` / `totalParams` (billions) on [`catalog.json`](../core/registry/catalog.json). Nine in-repo `agentic` rows carry provenance (`nexus-catalog-agentic-flag`, 2026-08-17). MoE numbers only on `deepseek-coder-v2:16b` (2.4 / 16). Dense rows omit the new fields.
+- **Consumption**: ModelSelector badge `tool-calling verified` with provenance tooltip. [`modelCapabilityTier`](../modules/coding/orchestration/HarnessSelector.ts) uses active params for compute when present; [`conservativeResidentVramGb`](../core/registry/moeFootprint.ts) never substitutes active for residency. Dense path unchanged (regression tests).
+- **UD labels (LG-A2)**: [`extremeLowBit.ts`](../core/registry/extremeLowBit.ts) recognizes Unsloth UD / MXFP4-style labels. `EXTREME_LOW_BIT_MIN_OLLAMA_VERSION` stays `999.0.0`.
+- **MCP deny (OW-A5)**: [`McpToolDeny.ts`](../modules/coding/mcp/McpToolDeny.ts) tightens-only resolver; persist `.nexus/mcp-tool-deny.json`. Settings > MCP plus sidecar `mcp.registry.list` / `mcp.registry.setToolDenied`. `mcp.list` / `mcp.invoke` stay unimplemented.
+- **Compile fix**: `applyHarnessOverlay` generic loosened to `Partial<HarnessPromptOverlay>` so live `PromptContext` typechecks (`tsc -b`).
+- **CI/CD**: no rewrite. `ci.yml` `test-ts` is unfiltered. `shell-build.yml` already watches `desktop/**`, `core/**`, `modules/**`.
+- **Known gaps**: DF-6 installer badge, DF-7 Gemma 4 26B MoE numbers unused, DF-8 `mcp.list` / `mcp.invoke`. EM.P3/EM.P4 stay closed.
+
+### Tests
+
+Root suite **4857 passed / 6 skipped / 0 failed** (439 files). Coverage **87.81% lines / 84.22% branches / 91.27% functions**. Lint 0 errors. `tsc -b` clean. Desktop **925 passed / 0 failed** (107 files). Dedicated `McpToolDeny` tightens-only tests.
+
+### Next
+
+Phase 4: unattended autonomy (ask inbox + scheduler).
+
+---
+
 ## [2026-08-17] v1.18.0 agent-harness-and-governance -- Phase 2: live harness activation
 
 ### Goal

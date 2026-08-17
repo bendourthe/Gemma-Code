@@ -44,6 +44,8 @@ export const IPC_METHODS = [
   "coding.chat.autocomplete",
   "mcp.list",
   "mcp.invoke",
+  "mcp.registry.list",
+  "mcp.registry.setToolDenied",
   "settings.get",
   "settings.set",
   // v1.5.0 Phase 5 (item 25) -- credential management over the OS-keychain vault.
@@ -647,6 +649,17 @@ export const ModelListedEntry = z
     license: z.string().optional(),
     tags: z.array(z.string()).optional(),
     absPath: z.string().optional(),
+    toolCallingVerified: z.boolean().optional(),
+    toolCallingBenchmark: z
+      .object({
+        suite: z.string(),
+        date: z.string(),
+        result: z.string(),
+      })
+      .strict()
+      .optional(),
+    activeParams: z.number().optional(),
+    totalParams: z.number().optional(),
   })
   .strict();
 export type ModelListedEntryT = z.infer<typeof ModelListedEntry>;
@@ -921,6 +934,51 @@ export const McpInvokeResponse = z
   .strict();
 export type McpInvokeResponseT = z.infer<typeof McpInvokeResponse>;
 
+export const McpRegistryTool = z
+  .object({
+    name: z.string().min(1),
+    exposed: z.boolean(),
+    reason: z.enum(["allowed", "user-denied", "policy-denied"]),
+    toggleable: z.boolean(),
+  })
+  .strict();
+export type McpRegistryToolT = z.infer<typeof McpRegistryTool>;
+
+export const McpRegistryServer = z
+  .object({
+    name: z.string().min(1),
+    source: z.enum(["user", "hub"]),
+    policyVerdict: z.enum(["allow", "drop"]),
+    policyReason: z.string(),
+    tools: z.array(McpRegistryTool),
+  })
+  .strict();
+export type McpRegistryServerT = z.infer<typeof McpRegistryServer>;
+
+export const McpRegistryListRequest = z.object({}).strict();
+export const McpRegistryListResponse = z
+  .object({ servers: z.array(McpRegistryServer) })
+  .strict();
+export type McpRegistryListResponseT = z.infer<typeof McpRegistryListResponse>;
+
+export const McpRegistrySetToolDeniedRequest = z
+  .object({
+    serverName: z.string().min(1),
+    toolName: z.string().min(1),
+    denied: z.boolean(),
+  })
+  .strict();
+export type McpRegistrySetToolDeniedRequestT = z.infer<typeof McpRegistrySetToolDeniedRequest>;
+
+export const McpRegistrySetToolDeniedResponse = z
+  .object({
+    ok: z.boolean(),
+    reason: z.string(),
+    servers: z.array(McpRegistryServer),
+  })
+  .strict();
+export type McpRegistrySetToolDeniedResponseT = z.infer<typeof McpRegistrySetToolDeniedResponse>;
+
 export const SettingsGetRequest = z
   .object({ key: z.string().min(1) })
   .strict();
@@ -1182,6 +1240,16 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
   "coding.chat.autocomplete": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
   "mcp.list": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
   "mcp.invoke": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
+  "mcp.registry.list": {
+    request: McpRegistryListRequest,
+    response: McpRegistryListResponse,
+    implemented: true,
+  },
+  "mcp.registry.setToolDenied": {
+    request: McpRegistrySetToolDeniedRequest,
+    response: McpRegistrySetToolDeniedResponse,
+    implemented: true,
+  },
   "settings.get": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
   "settings.set": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
   "credentials.status": {

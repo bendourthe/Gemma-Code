@@ -48,6 +48,7 @@
  */
 
 import type { TelemetryBus } from "../telemetry/TelemetryBus.js";
+import { conservativeResidentVramGb } from "../registry/moeFootprint.js";
 
 export type GpuModuleId = "coding" | "chat" | "image" | "video";
 
@@ -151,6 +152,13 @@ export class JobCancelledError extends Error {
 
 /** Default hard cap on how many models may ever be co-resident in one panel. */
 export const DEFAULT_PANEL_SIZE_CAP = 3;
+
+/**
+ * v1.18.0 Phase 3 (LG-A3) -- conservative residency GB for panel / job
+ * estimates. Re-exported so scheduler callers thread `totalParams` through the
+ * same path that never substitutes active MoE compute for resident footprint.
+ */
+export { conservativeResidentVramGb };
 
 /** One member of a panel: a model id, its VRAM estimate, and its work. */
 export interface PanelMemberJob {

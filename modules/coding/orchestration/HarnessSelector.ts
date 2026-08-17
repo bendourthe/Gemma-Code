@@ -29,6 +29,7 @@
 // ---------------------------------------------------------------------------
 
 import { ModelCatalog, type LlmCatalogEntry } from "../../../core/registry/ModelCatalog.js";
+import { isMoeResident } from "../../../core/registry/moeFootprint.js";
 
 /** Model capability tier, derived from catalog size / tag signals. */
 export type CapabilityTier = "weak" | "mid" | "strong";
@@ -82,23 +83,40 @@ export interface HarnessSelection {
   readonly tags: readonly string[];
   readonly reason: HarnessSelectionReason;
   readonly overrideId: HarnessProfileId | undefined;
+  /**
+   * v1.18.0 Phase 3 (LG-A3) -- `moe` when totalParams exceeds activeParams so
+   * callers can flag resident footprint separately from compute tier.
+   */
+  readonly residentFootprint: "standard" | "moe";
 }
 
 // A model at or above this VRAM footprint (or tagged "advanced") is treated as
 // strong; at or below the weak threshold (or tagged "lightweight") as weak.
 const STRONG_VRAM_GB = 20;
 const WEAK_VRAM_GB = 4;
+/** v1.18.0 Phase 3 (LG-A3) -- active-parameter thresholds in billions, aligned with the VRAM cutovers. */
+const STRONG_ACTIVE_PARAMS = 20;
+const WEAK_ACTIVE_PARAMS = 4;
 
 /**
  * Derive a capability tier from a catalog entry's size / tag signals. There is
  * no first-class capability field on `LlmCatalogEntry`, so this reads `tags`
- * ("advanced" / "lightweight") first and falls back to a `vramGb` threshold.
- * An entry with no size signal at all resolves to `mid` (the safe middle).
+ * ("advanced" / "lightweight") first, then MoE `activeParams` when present,
+ * then a `vramGb` threshold. An entry with no size signal at all resolves to
+ * `mid` (the safe middle). Dense entries (no MoE fields) keep the pre-v1.18
+ * tag-then-vram path exactly.
  */
 export function modelCapabilityTier(
-  entry: Pick<LlmCatalogEntry, "vramGb" | "tags">,
+  entry: Pick<LlmCatalogEntry, "vramGb" | "tags" | "activeParams" | "totalParams">,
 ): CapabilityTier {
   const tags = entry.tags ?? [];
+  if (typeof entry.activeParams === "number") {
+    if (tags.includes("advanced")) return "strong";
+    if (tags.includes("lightweight")) return "weak";
+    if (entry.activeParams >= STRONG_ACTIVE_PARAMS) return "strong";
+    if (entry.activeParams <= WEAK_ACTIVE_PARAMS) return "weak";
+    return "mid";
+  }
   const vram = entry.vramGb;
   if (tags.includes("advanced") || (typeof vram === "number" && vram >= STRONG_VRAM_GB)) {
     return "strong";
@@ -257,8 +275,11 @@ export function toPromptOverlay(profile: HarnessProfile): HarnessPromptOverlay {
  * Apply a harness overlay to prompt knobs. When `enabled` is false the `base`
  * object is returned by reference (byte-identical to today's path). When true,
  * overlay keys overwrite the matching fields.
+ *
+ * `base` is a Partial overlay so a live `PromptContext` (optional
+ * `systemPromptBudgetPercent`) typechecks without a cast.
  */
-export function applyHarnessOverlay<T extends HarnessPromptOverlay>(
+export function applyHarnessOverlay<T extends Partial<HarnessPromptOverlay>>(
   enabled: boolean,
   base: T,
   overlay: HarnessPromptOverlay,
@@ -271,7 +292,9 @@ export function applyHarnessOverlay<T extends HarnessPromptOverlay>(
 export type CatalogLookup = (
   modelName: string,
 ) =>
-  | (Pick<LlmCatalogEntry, "id" | "vramGb" | "tags"> & { readonly family?: string })
+  | (Pick<LlmCatalogEntry, "id" | "vramGb" | "tags" | "activeParams" | "totalParams"> & {
+      readonly family?: string;
+    })
   | undefined;
 
 const defaultCatalogLookup: CatalogLookup = (modelName) => ModelCatalog.byId(modelName);
@@ -398,12 +421,14 @@ export class HarnessSelector {
         tags: [],
         reason: override ? "override" : "default",
         overrideId: override ? overrideId ?? undefined : undefined,
+        residentFootprint: "standard",
       };
     }
 
     const modelTier = modelCapabilityTier(entry);
     const family = resolveFamilyKey(entry);
     const tags = entry.tags ?? [];
+    const residentFootprint: "standard" | "moe" = isMoeResident(entry) ? "moe" : "standard";
 
     if (overrideId && NAMED_PROFILES[overrideId]) {
       const profile = withModelTier(NAMED_PROFILES[overrideId], modelTier);
@@ -416,6 +441,7 @@ export class HarnessSelector {
         tags,
         reason: "override",
         overrideId,
+        residentFootprint,
       };
     }
 
@@ -431,6 +457,7 @@ export class HarnessSelector {
         tags,
         reason: "family",
         overrideId: undefined,
+        residentFootprint,
       };
     }
 
@@ -444,6 +471,7 @@ export class HarnessSelector {
       tags,
       reason: "tier",
       overrideId: undefined,
+      residentFootprint,
     };
   }
 

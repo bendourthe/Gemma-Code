@@ -46,6 +46,14 @@ export interface ListedModelDto {
   license?: string;
   tags?: readonly string[];
   absPath?: string;
+  toolCallingVerified?: boolean;
+  toolCallingBenchmark?: {
+    readonly suite: string;
+    readonly date: string;
+    readonly result: string;
+  };
+  activeParams?: number;
+  totalParams?: number;
 }
 
 export interface DiskUsageDto {
@@ -174,6 +182,10 @@ function toDto(m: ListedModel): ListedModelDto {
     license: m.license,
     tags: m.tags,
     absPath: m.absPath,
+    toolCallingVerified: m.toolCallingVerified,
+    toolCallingBenchmark: m.toolCallingBenchmark,
+    activeParams: m.activeParams,
+    totalParams: m.totalParams,
   };
 }
 

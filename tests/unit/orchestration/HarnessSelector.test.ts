@@ -46,6 +46,32 @@ describe("HarnessSelector -- modelCapabilityTier (H1)", () => {
   it("lets the 'advanced' tag win over 'lightweight' (strong checked first)", () => {
     expect(modelCapabilityTier({ vramGb: 3, tags: ["lightweight", "advanced"] })).toBe("strong");
   });
+
+  it("dense entries without MoE fields keep the pre-v1.18 tag-then-vram path", () => {
+    expect(modelCapabilityTier({ vramGb: 6, tags: ["advanced"] })).toBe("strong");
+    expect(modelCapabilityTier({ vramGb: 40, tags: ["chat"] })).toBe("strong");
+    expect(modelCapabilityTier({ vramGb: 8, tags: ["lightweight"] })).toBe("weak");
+    expect(modelCapabilityTier({ vramGb: 4, tags: ["chat"] })).toBe("weak");
+    expect(modelCapabilityTier({ vramGb: 7, tags: ["coding", "tool-use"] })).toBe("mid");
+    expect(modelCapabilityTier({ tags: [] })).toBe("mid");
+  });
+
+  it("MoE activeParams drive compute tier while totalParams flag resident footprint", () => {
+    const moe = {
+      vramGb: 14,
+      tags: ["coding"],
+      activeParams: 2.4,
+      totalParams: 16,
+    };
+    expect(modelCapabilityTier(moe)).toBe("weak");
+    const selector = new HarnessSelector((name) =>
+      name === "moe" ? { id: "moe", family: "deepseek", ...moe } : undefined,
+    );
+    const selection = selector.select("moe");
+    expect(selection.modelTier).toBe("weak");
+    expect(selection.residentFootprint).toBe("moe");
+    expect(defaultHarnessSelector.select("qwen2.5-coder:7b").residentFootprint).toBe("standard");
+  });
 });
 
 describe("HarnessSelector -- profiles (H1)", () => {

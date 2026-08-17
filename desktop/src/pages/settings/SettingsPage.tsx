@@ -12,13 +12,16 @@ import { CredentialsSettings } from "./CredentialsSettings";
 import type { CredentialsClient } from "./credentialsTypes";
 import { ServingSettings } from "./ServingSettings";
 import type { ServingClient } from "./servingTypes";
+import { McpRegistrySettings } from "./McpRegistrySettings";
+import type { McpRegistryClient } from "./mcpTypes";
 import { createMockModelsClient } from "./mockModelsClient";
 import { createMockSkillsClient } from "./mockSkillsClient";
 import { createMockSkillOptimizerClient } from "./mockSkillOptimizerClient";
 import { createMockCredentialsClient } from "./mockCredentialsClient";
 import { createMockServingClient } from "./mockServingClient";
+import { createMockMcpRegistryClient } from "./mockMcpRegistryClient";
 
-type SettingsTab = "models" | "skills" | "optimizer" | "credentials" | "serving";
+type SettingsTab = "models" | "skills" | "optimizer" | "credentials" | "serving" | "mcp";
 
 export interface SettingsPageProps {
   modelsClient?: ModelsClient;
@@ -27,6 +30,8 @@ export interface SettingsPageProps {
   credentialsClient?: CredentialsClient;
   /** v1.16.0 Phase 1.5 -- Local API server (serving gateway) section. */
   servingClient?: ServingClient;
+  /** v1.18.0 Phase 3 (OW-A5) -- per-tool MCP deny. */
+  mcpClient?: McpRegistryClient;
   initialTab?: SettingsTab;
   /** v1.16.0 Phase 5 (A4) -- host VRAM for the Models page tier-fit filter. */
   hostVramGB?: number | null;
@@ -38,6 +43,7 @@ export function SettingsPage({
   skillOptimizerClient,
   credentialsClient,
   servingClient,
+  mcpClient,
   initialTab = "models",
   hostVramGB = null,
 }: SettingsPageProps = {}): JSX.Element {
@@ -61,6 +67,10 @@ export function SettingsPage({
   const serving = useMemo<ServingClient>(
     () => servingClient ?? createMockServingClient(),
     [servingClient],
+  );
+  const mcp = useMemo<McpRegistryClient>(
+    () => mcpClient ?? createMockMcpRegistryClient(),
+    [mcpClient],
   );
 
   return (
@@ -106,6 +116,14 @@ export function SettingsPage({
         >
           Local API server
         </button>
+        <button
+          type="button"
+          data-testid="settings-tab-mcp"
+          onClick={() => setTab("mcp")}
+          style={tabButtonStyle(tab === "mcp")}
+        >
+          MCP
+        </button>
       </nav>
       {tab === "models" ? (
         <ModelsSettings client={models} hostVramGB={hostVramGB} />
@@ -115,6 +133,8 @@ export function SettingsPage({
         <SkillOptimizerSettings client={skillOptimizer} />
       ) : tab === "serving" ? (
         <ServingSettings client={serving} />
+      ) : tab === "mcp" ? (
+        <McpRegistrySettings client={mcp} />
       ) : (
         <CredentialsSettings client={credentials} />
       )}

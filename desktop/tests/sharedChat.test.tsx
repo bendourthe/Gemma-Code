@@ -202,4 +202,40 @@ describe("<ModelSelector>", () => {
     );
     expect(screen.queryByTestId("model-selector-harness")).toBeNull();
   });
+
+  it("renders a tool-calling verified badge with provenance tooltip", () => {
+    render(
+      <ModelSelector
+        models={[
+          {
+            id: "a",
+            displayName: "Alpha",
+            toolCallingVerified: true,
+            toolCallingBenchmark: {
+              suite: "nexus-catalog-agentic-flag",
+              date: "2026-08-17",
+              result: "pass",
+            },
+          },
+        ]}
+        value="a"
+        onChange={() => undefined}
+      />,
+    );
+    const badge = screen.getByTestId("model-selector-tool-calling");
+    expect(badge).toHaveTextContent("tool-calling verified");
+    expect(badge.getAttribute("title")).toContain("nexus-catalog-agentic-flag");
+    expect(badge.getAttribute("title")).toContain("pass");
+  });
+
+  it("omits the tool-calling badge when the selected model is unverified", () => {
+    render(
+      <ModelSelector
+        models={[{ id: "a", displayName: "Alpha" }]}
+        value="a"
+        onChange={() => undefined}
+      />,
+    );
+    expect(screen.queryByTestId("model-selector-tool-calling")).toBeNull();
+  });
 });

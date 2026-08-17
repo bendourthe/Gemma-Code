@@ -175,6 +175,38 @@ export interface ModelSpec {
    * quality retention is otherwise a vendor claim).
    */
   readonly benchmark?: string;
+  /**
+   * v1.18.0 Phase 3 (OW-A4) -- Nexus has validated this model for agentic tool
+   * use. Absent or false means unverified (the conservative default). True
+   * requires {@link toolCallingBenchmark} provenance.
+   */
+  readonly toolCallingVerified?: boolean;
+  /**
+   * v1.18.0 Phase 3 (OW-A4) -- what was run, when, and the result that backs
+   * `toolCallingVerified`. Required when the verified flag is true.
+   */
+  readonly toolCallingBenchmark?: ToolCallingBenchmark;
+  /**
+   * v1.18.0 Phase 3 (LG-A3) -- MoE active-parameter count in billions. Dense
+   * entries omit both MoE fields. When present, compute-tier reasoning prefers
+   * this over total size.
+   */
+  readonly activeParams?: number;
+  /**
+   * v1.18.0 Phase 3 (LG-A3) -- MoE total / resident parameter count in
+   * billions. Dense entries omit both MoE fields. When present, residency /
+   * VRAM estimates prefer this (never `activeParams`).
+   */
+  readonly totalParams?: number;
+}
+
+/**
+ * v1.18.0 Phase 3 (OW-A4) -- provenance for a `toolCallingVerified` claim.
+ */
+export interface ToolCallingBenchmark {
+  readonly suite: string;
+  readonly date: string;
+  readonly result: string;
 }
 
 export interface CatalogFile {
@@ -235,6 +267,41 @@ export function validateSpec(spec: ModelSpec): void {
       if (!/^[a-f0-9]{64}$/.test(file.sha256)) {
         throw new Error(`ModelCatalog: ${spec.id} weights file ${file.path} has malformed sha256`);
       }
+    }
+  }
+  // v1.18.0 Phase 3 (OW-A4): a verified claim must cite what was run.
+  if (spec.toolCallingVerified === true) {
+    const bench = spec.toolCallingBenchmark;
+    if (!bench || !bench.suite?.trim() || !bench.date?.trim() || !bench.result?.trim()) {
+      throw new Error(
+        `ModelCatalog: ${spec.id} sets toolCallingVerified but has no toolCallingBenchmark (suite/date/result)`,
+      );
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(bench.date.trim())) {
+      throw new Error(
+        `ModelCatalog: ${spec.id} toolCallingBenchmark.date must be YYYY-MM-DD (got "${bench.date}")`,
+      );
+    }
+  }
+  // v1.18.0 Phase 3 (LG-A3): MoE fields are optional together; mixed or inverted values are rejected.
+  const hasActive = spec.activeParams !== undefined;
+  const hasTotal = spec.totalParams !== undefined;
+  if (hasActive !== hasTotal) {
+    throw new Error(
+      `ModelCatalog: ${spec.id} must set both activeParams and totalParams, or neither`,
+    );
+  }
+  if (hasActive && hasTotal) {
+    if (!Number.isFinite(spec.activeParams) || (spec.activeParams as number) <= 0) {
+      throw new Error(`ModelCatalog: ${spec.id} activeParams must be a positive number`);
+    }
+    if (!Number.isFinite(spec.totalParams) || (spec.totalParams as number) <= 0) {
+      throw new Error(`ModelCatalog: ${spec.id} totalParams must be a positive number`);
+    }
+    if ((spec.activeParams as number) > (spec.totalParams as number)) {
+      throw new Error(
+        `ModelCatalog: ${spec.id} activeParams (${spec.activeParams}) exceeds totalParams (${spec.totalParams})`,
+      );
     }
   }
 }

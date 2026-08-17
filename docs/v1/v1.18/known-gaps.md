@@ -17,7 +17,7 @@ Carry-forward source: [../v1.17/known-gaps.md](../v1.17/known-gaps.md) (reconcil
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 5 | 1 |
+| Deferred (DF) | 8 | 1 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
@@ -46,7 +46,7 @@ Carry-forward source: [../v1.17/known-gaps.md](../v1.17/known-gaps.md) (reconcil
 - **Source phase**: Phase 2 - Live harness activation (OI-A5)
 - **Plan reference**: `docs/v1/v1.18/plans/v1.18.0-adoption-agent-harness-and-governance.md` (sub-task 2.1)
 - **Reason**: EM.P1.A named the composition root as `ToolActivationContext.buildPromptContext` (VS Code / in-process coding engine). That path is wired and gated. The desktop sidecar uses `HeadlessAgentSession`, which builds a fixed system prompt and does not consume `PromptContext` / `HarnessSelector`. Support tier for sidecar overlay application is `not proven here`.
-- **Suggested next step**: Phase 3+ can thread `applyHarnessOverlay` into `HeadlessAgentSession.buildSystemPrompt` behind the same setting, with a regression test that off remains byte-identical.
+- **Suggested next step**: A later coding-sidecar phase can thread `applyHarnessOverlay` into `HeadlessAgentSession.buildSystemPrompt` behind the same setting, with a regression test that off remains byte-identical. Phase 3 did not take this (catalog/registry scope).
 
 ##### DF-4 - Desktop ModelSelector badge does not read `harnessSelectorEnabled`
 
@@ -61,6 +61,27 @@ Carry-forward source: [../v1.17/known-gaps.md](../v1.17/known-gaps.md) (reconcil
 - **Plan reference**: `docs/v1/v1.18/plans/v1.18.0-adoption-agent-harness-and-governance.md` (sub-task 2.2); v1.12 EM.P1.C
 - **Reason**: Named family profiles (`concise-loop`, `plan-first`, `structured-edit`, `minimal`) now exist as data and drive the three existing `PromptContext` knobs. Tool-exposure verbosity and retry / step granularity are still described in `docs/reference/low-cost-model-optimization.md` and are not fields on `HarnessProfile` / `PromptContext`.
 - **Suggested next step**: After a live weak-model A/B (EM.P1.B), extend `PromptContext` only if the A/B shows those knobs move quality. Do not add a fourth prompt style without a `PromptBuilder` change.
+
+##### DF-6 - Installer catalog cards do not render `toolCallingVerified`
+
+- **Source phase**: Phase 3 - Catalog + registry governance (OW-A4)
+- **Plan reference**: `docs/v1/v1.18/plans/v1.18.0-adoption-agent-harness-and-governance.md` (sub-task 3.2)
+- **Reason**: The plan's consumption surface is `desktop/src/shared/chat/ModelSelector.tsx`. The PyQt installer `typed_catalog.py` still ignores the new optional JSON fields (valid extra keys). Support tier for installer badge: not implemented here.
+- **Suggested next step**: If the installer picker should distinguish verified-for-tool-calling from merely-runs, add an Origin-style chip keyed to `toolCallingVerified` without requiring the field.
+
+##### DF-7 - `gemma4:26b` MoE copy has no published active/total counts
+
+- **Source phase**: Phase 3 - Catalog schema (LG-A3)
+- **Plan reference**: `docs/v1/v1.18/plans/v1.18.0-adoption-agent-harness-and-governance.md` (sub-task 3.1)
+- **Reason**: The 26B entry describes MoE routing. No in-repo published active-parameter count was available, so `activeParams` / `totalParams` stay omitted (dense-schema default). MoE numbers are populated only on `deepseek-coder-v2:16b` (2.4B active / 16B total, already in that entry's copy).
+- **Suggested next step**: When Google publishes a stable active-parameter figure for Gemma 4 26B, add both MoE fields together. Do not guess.
+
+##### DF-8 - `mcp.list` / `mcp.invoke` remain unimplemented
+
+- **Source phase**: Phase 3 - Per-tool MCP allow/deny (OW-A5)
+- **Plan reference**: `docs/v1/v1.18/plans/v1.18.0-adoption-agent-harness-and-governance.md` (sub-task 3.4); v1.1.0 Phase 11 IPC
+- **Reason**: Those methods are the VS Code extension MCP bridge (`core/coding/McpBridge.ts`). This phase added `mcp.registry.list` / `mcp.registry.setToolDenied` for Settings governance instead of hijacking the invoke catalog.
+- **Suggested next step**: Phase 11 (or a later coding-IPC phase) can implement `mcp.list` / `mcp.invoke` over `McpManager` without loosening Hub policy. Filter listed tools through `resolveExposedMcpTools`.
 
 ### Resolved
 

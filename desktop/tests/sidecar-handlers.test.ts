@@ -97,6 +97,9 @@ describe("sidecar handlers", () => {
           // v1.12.0 EM.P2.A wired the skill-optimizer preview/apply surface.
           "skills.optimize.preview",
           "skills.optimize.apply",
+          // v1.18.0 Phase 3 wired per-tool MCP registry deny.
+          "mcp.registry.list",
+          "mcp.registry.setToolDenied",
         ].includes(m),
     );
     for (const m of unimplemented) {
@@ -150,6 +153,13 @@ describe("sidecar handlers", () => {
     expect(await dispatch("models.install.cancel", { jobId: "job:a" }, ctx)).toEqual({
       ok: true,
     });
+  });
+
+  it("mcp.registry.list returns a servers array (v1.18.0 Phase 3)", async () => {
+    const listed = (await dispatch("mcp.registry.list", {}, makeCtx())) as {
+      servers: unknown[];
+    };
+    expect(Array.isArray(listed.servers)).toBe(true);
   });
 
   describe("coding session lifecycle", () => {

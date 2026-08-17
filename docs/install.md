@@ -83,6 +83,8 @@ Everything lands under your user account (no admin rights needed for the wizard 
 - **llama.cpp on loopback**: Nexus does not bundle llama.cpp. If you already run `llama-server` on `127.0.0.1`, register it as `nexus.llm.localAdapters` and set `nexus.llm.backend` to the manifest name. Recipe: [llamacpp-loopback-adapter.md](reference/llamacpp-loopback-adapter.md). This does not enable the patient-tier catalog gate.
 - **Skill-native mappings**: morning-brief *content* is the Hub `agent-presets` `morning-briefing` preset; browser GUI QA is Hub `browser-testing-with-devtools`. No new skill ships in this repo. See [skill-native-adoptions-v1.18.md](reference/skill-native-adoptions-v1.18.md).
 - **Harness selector**: off by default. Enable `nexus.coding.harnessSelector.enabled` to apply a per-model scaffold overlay (prompt style, thinking mode, system-prompt budget). Inspect or switch with `/harness`. Named profiles are documented in [low-cost-model-optimization.md](reference/low-cost-model-optimization.md).
+- **Catalog governance**: the desktop model picker badges models with in-repo `toolCallingVerified` provenance. MoE rows may list `activeParams` / `totalParams`; harness compute uses active params when present, residency never substitutes active for total. Unsloth UD / MXFP4-style labels are recognized as extreme-low-bit and stay blocked (`EXTREME_LOW_BIT_MIN_OLLAMA_VERSION` remains `999.0.0`).
+- **MCP per-tool deny**: Settings > MCP lets you deny individual tools on allowed servers. Denies only tighten Hub policy; a toggle cannot enable a dropped server or a policy-denied tool. Persisted at `.nexus/mcp-tool-deny.json`.
 
 ## After you install (v1.17.0)
 

@@ -64,4 +64,11 @@ export interface ToolCard {
 export interface ModelOption {
   id: string;
   displayName: string;
+  /** v1.18.0 Phase 3 (OW-A4) -- verified for agentic tool-calling. */
+  toolCallingVerified?: boolean;
+  toolCallingBenchmark?: {
+    readonly suite: string;
+    readonly date: string;
+    readonly result: string;
+  };
 }

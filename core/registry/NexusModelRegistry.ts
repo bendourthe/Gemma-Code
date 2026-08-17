@@ -83,6 +83,17 @@ export interface ListedModel {
    * models accept native image input without re-reading the catalog.
    */
   readonly multimodal?: boolean;
+  /**
+   * v1.18.0 Phase 3 (OW-A4) -- catalog `toolCallingVerified`. Absent means
+   * unverified (conservative default).
+   */
+  readonly toolCallingVerified?: boolean;
+  /** v1.18.0 Phase 3 (OW-A4) -- provenance tooltip for the verified badge. */
+  readonly toolCallingBenchmark?: ModelSpec["toolCallingBenchmark"];
+  /** v1.18.0 Phase 3 (LG-A3) -- MoE active params in billions, when declared. */
+  readonly activeParams?: number;
+  /** v1.18.0 Phase 3 (LG-A3) -- MoE total / resident params in billions. */
+  readonly totalParams?: number;
 }
 
 export interface ListFilter {
@@ -172,6 +183,10 @@ export class NexusModelRegistry {
         license: manifest.license ?? spec?.license,
         tags: manifest.tags ?? spec?.tags,
         multimodal: spec?.multimodal,
+        toolCallingVerified: spec?.toolCallingVerified,
+        toolCallingBenchmark: spec?.toolCallingBenchmark,
+        activeParams: spec?.activeParams,
+        totalParams: spec?.totalParams,
       });
     }
 
@@ -191,6 +206,10 @@ export class NexusModelRegistry {
         license: spec.license,
         tags: spec.tags,
         multimodal: spec.multimodal,
+        toolCallingVerified: spec.toolCallingVerified,
+        toolCallingBenchmark: spec.toolCallingBenchmark,
+        activeParams: spec.activeParams,
+        totalParams: spec.totalParams,
       });
     }
 

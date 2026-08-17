@@ -42,6 +42,16 @@ export interface LlmCatalogEntry {
   readonly family: ModelFamily;
   readonly runtime: "ollama" | "lmstudio";
   readonly vramGb?: number;
+  /**
+   * v1.18.0 Phase 3 (LG-A3) -- MoE active-parameter count in billions. Omitted
+   * on dense entries so existing tiering is unchanged.
+   */
+  readonly activeParams?: number;
+  /**
+   * v1.18.0 Phase 3 (LG-A3) -- MoE total / resident parameter count in billions.
+   * Omitted on dense entries.
+   */
+  readonly totalParams?: number;
   readonly tags: readonly string[];
   readonly sampling: SamplingDefaults;
   readonly promptFormat: PromptFormatName;

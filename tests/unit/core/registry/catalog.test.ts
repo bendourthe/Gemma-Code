@@ -198,6 +198,75 @@ describe("catalog", () => {
     ).toThrow(/provenance/);
   });
 
+  it("validateSpec accepts optional toolCallingVerified + MoE fields (v1.18.0 Phase 3)", () => {
+    const spec: ModelSpec = {
+      id: "x:1",
+      family: "x",
+      name: "x",
+      tag: "1",
+      type: "llm",
+      displayName: "X 1",
+      source: { protocol: "ollama", url: "ollama://x:1" },
+      toolCallingVerified: true,
+      toolCallingBenchmark: {
+        suite: "nexus-catalog-agentic-flag",
+        date: "2026-08-17",
+        result: "pass",
+      },
+      activeParams: 2.4,
+      totalParams: 16,
+    };
+    expect(() => validateSpec(spec)).not.toThrow();
+  });
+
+  it("validateSpec rejects toolCallingVerified without provenance", () => {
+    expect(() =>
+      validateSpec({
+        id: "x:1",
+        family: "x",
+        name: "x",
+        tag: "1",
+        type: "llm",
+        displayName: "X",
+        source: { protocol: "ollama" },
+        toolCallingVerified: true,
+      } as ModelSpec),
+    ).toThrow(/toolCallingBenchmark/);
+  });
+
+  it("validateSpec rejects inverted MoE params", () => {
+    expect(() =>
+      validateSpec({
+        id: "x:1",
+        family: "x",
+        name: "x",
+        tag: "1",
+        type: "llm",
+        displayName: "X",
+        source: { protocol: "ollama" },
+        activeParams: 20,
+        totalParams: 8,
+      } as ModelSpec),
+    ).toThrow(/exceeds totalParams/);
+  });
+
+  it("bundled catalog remains valid after the additive v1.18 schema and flags agentic defaults", async () => {
+    const file = await loadCatalog();
+    expect(() => validateCatalog(file)).not.toThrow();
+    const verified = file.models.filter((m) => m.toolCallingVerified === true);
+    expect(verified.length).toBeGreaterThanOrEqual(2);
+    for (const spec of verified) {
+      expect(spec.agentic).toBe(true);
+      expect(spec.toolCallingBenchmark?.suite).toBeTruthy();
+    }
+    const denseUnflagged = file.models.find((m) => m.id === "llama3.1:8b");
+    expect(denseUnflagged?.toolCallingVerified).toBeUndefined();
+    expect(denseUnflagged?.activeParams).toBeUndefined();
+    const moe = file.models.find((m) => m.id === "deepseek-coder-v2:16b");
+    expect(moe?.activeParams).toBe(2.4);
+    expect(moe?.totalParams).toBe(16);
+  });
+
   it("bundled catalog carries the Phase 4 curated uncensored image/video entries", async () => {
     const file = await loadCatalog();
     const byId = new Map(file.models.map((m) => [m.id, m]));

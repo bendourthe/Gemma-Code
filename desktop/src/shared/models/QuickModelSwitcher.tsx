@@ -43,7 +43,12 @@ export function QuickModelSwitcher({
 
   const options = useMemo(
     () => [
-      ...ready.map((m) => ({ id: m.id, displayName: m.displayName })),
+      ...ready.map((m) => ({
+        id: m.id,
+        displayName: m.displayName,
+        toolCallingVerified: m.toolCallingVerified,
+        toolCallingBenchmark: m.toolCallingBenchmark,
+      })),
       { id: GET_MORE_MODELS_ID, displayName: "+ Get more models..." },
     ],
     [ready],

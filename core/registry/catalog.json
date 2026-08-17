@@ -2,7 +2,7 @@
   "_meta": {
     "version": 1,
     "phase": "v1.14.0 Phase 1",
-    "comment": "Curated installable model catalog used by the Settings UI and the installer wizard. LLMs ship in Phase 5; image models are flagged for Phase 6 (Image Studio); video models for Phase 7 (Video Lab); NVIDIA SANA family landed in v1.1.0 Phase 12. Ollama-sourced entries delegate digest verification to `ollama pull` and carry no sha256. Hugging Face entries carry a per-model `weights` manifest (v1.8.0 Phase 3): an explicit file list, each downloaded from https://huggingface.co/{repo}/resolve/main/{path} into <models_root>/weights/<model-id>/{path} (models_root defaults to ~/.nexus/models) -- the per-model directory the diffusion runtime loads at startup (diffusers from_pretrained on the model directory; repo-relative subpaths like transformer/ are preserved). Each file pins a SHA-256 (versions.lock.json discipline): all-zero digests are placeholders -- the installer's weights puller warns, skips verification, and logs the computed digest; rotate pins with scripts/installer/build/pin-hf-weights.py. source.sha256 remains the primary-blob digest for older consumers and is superseded by weights.files[].sha256. v1.8.0 Phase 4 adds the selection-UX fields: `task` (chat | agentic | image | video | audio | embed) drives the installer's catalog sections; `strengths` / `whyRecommended` / `differentiators` carry the per-model copy the wizard cards render; `provenance` records publisher + lineage for curated entries (required on uncensored ones). Uncensored entries (uncensored: true) were curated 2026-07-03 with license + provenance verified per entry; per-VRAM-tier defaults live in recommended.json. v1.9.0 Phase 4 adds the scannable-catalog metadata: `origin` (publisher country, or Community) and `agentic` (agentic-coding capability flag -- set on the Gemma 4 family + the coding specialists so both surface in the installer's Agentic tab); an optional `guardrails` string overrides the installer's derived Uncensored/Safety-tuned/N/A label. The audio pillar (type/task `audio`) is curated: speech (faster-whisper STT MIT, Kokoro + Piper TTS) and generation (MusicGen CC-BY-NC-4.0, Stable Audio Open community-license) -- STT/TTS are permissive + CPU-capable and default on every tier; the non-commercial generation models are listed opt-in (never defaults). v1.14.0 Phase 1 curation: releaseDate (ISO YYYY-MM-DD) is now a first-class field on every selectable model, rendered as a card pill by the installer picker; gated open-weight opt-ins (svd, stable-audio-open-1.0, sana-1.6b-int4) carry requiresLicense=true + licenseUrl so the installer guided Hugging Face step (accept license + free token) can unlock them, and sd1.5 was re-pointed from the withdrawn runwayml repo to the public stable-diffusion-v1-5 mirror; auxiliary types (vae, controlnet) stay excluded from the picker by the loader; the per-family best-fit collapse (show the single best variant that fits the detected hardware, larger tiers grayed) happens in the installer picker at render time, so the catalog stays a complete data source for the desktop app and diffusion runtime."
+    "comment": "Curated installable model catalog used by the Settings UI and the installer wizard. LLMs ship in Phase 5; image models are flagged for Phase 6 (Image Studio); video models for Phase 7 (Video Lab); NVIDIA SANA family landed in v1.1.0 Phase 12. Ollama-sourced entries delegate digest verification to `ollama pull` and carry no sha256. Hugging Face entries carry a per-model `weights` manifest (v1.8.0 Phase 3): an explicit file list, each downloaded from https://huggingface.co/{repo}/resolve/main/{path} into <models_root>/weights/<model-id>/{path} (models_root defaults to ~/.nexus/models) -- the per-model directory the diffusion runtime loads at startup (diffusers from_pretrained on the model directory; repo-relative subpaths like transformer/ are preserved). Each file pins a SHA-256 (versions.lock.json discipline): all-zero digests are placeholders -- the installer's weights puller warns, skips verification, and logs the computed digest; rotate pins with scripts/installer/build/pin-hf-weights.py. source.sha256 remains the primary-blob digest for older consumers and is superseded by weights.files[].sha256. v1.8.0 Phase 4 adds the selection-UX fields: `task` (chat | agentic | image | video | audio | embed) drives the installer's catalog sections; `strengths` / `whyRecommended` / `differentiators` carry the per-model copy the wizard cards render; `provenance` records publisher + lineage for curated entries (required on uncensored ones). Uncensored entries (uncensored: true) were curated 2026-07-03 with license + provenance verified per entry; per-VRAM-tier defaults live in recommended.json. v1.9.0 Phase 4 adds the scannable-catalog metadata: `origin` (publisher country, or Community) and `agentic` (agentic-coding capability flag -- set on the Gemma 4 family + the coding specialists so both surface in the installer's Agentic tab); an optional `guardrails` string overrides the installer's derived Uncensored/Safety-tuned/N/A label. The audio pillar (type/task `audio`) is curated: speech (faster-whisper STT MIT, Kokoro + Piper TTS) and generation (MusicGen CC-BY-NC-4.0, Stable Audio Open community-license) -- STT/TTS are permissive + CPU-capable and default on every tier; the non-commercial generation models are listed opt-in (never defaults). v1.14.0 Phase 1 curation: releaseDate (ISO YYYY-MM-DD) is now a first-class field on every selectable model, rendered as a card pill by the installer picker; gated open-weight opt-ins (svd, stable-audio-open-1.0, sana-1.6b-int4) carry requiresLicense=true + licenseUrl so the installer guided Hugging Face step (accept license + free token) can unlock them, and sd1.5 was re-pointed from the withdrawn runwayml repo to the public stable-diffusion-v1-5 mirror; auxiliary types (vae, controlnet) stay excluded from the picker by the loader; the per-family best-fit collapse (show the single best variant that fits the detected hardware, larger tiers grayed) happens in the installer picker at render time, so the catalog stays a complete data source for the desktop app and diffusion runtime. v1.18.0 Phase 3 adds optional toolCallingVerified + toolCallingBenchmark (OW-A4) and MoE activeParams/totalParams in billions (LG-A3); omitted fields stay unverified / dense."
   },
   "models": [
     {
@@ -27,7 +27,13 @@
       "sizeGB": 1.6,
       "vramGB": 4,
       "license": "Gemma Terms of Use",
-      "source": { "protocol": "ollama", "url": "ollama://gemma4:e2b" }
+      "source": { "protocol": "ollama", "url": "ollama://gemma4:e2b" },
+      "toolCallingVerified": true,
+      "toolCallingBenchmark": {
+        "suite": "nexus-catalog-agentic-flag",
+        "date": "2026-08-17",
+        "result": "pass: in-repo agentic=true (coding-engine / installer Agentic tab); not a live golden-task A/B"
+      }
     },
     {
       "id": "gemma4:e4b",
@@ -52,7 +58,13 @@
       "vramGB": 6,
       "license": "Gemma Terms of Use",
       "source": { "protocol": "ollama", "url": "ollama://gemma4:e4b" },
-      "tags": ["recommended"]
+      "tags": ["recommended"],
+      "toolCallingVerified": true,
+      "toolCallingBenchmark": {
+        "suite": "nexus-catalog-agentic-flag",
+        "date": "2026-08-17",
+        "result": "pass: in-repo agentic=true (coding-engine / installer Agentic tab); not a live golden-task A/B"
+      }
     },
     {
       "id": "gemma4:26b",
@@ -75,7 +87,13 @@
       "sizeGB": 14.5,
       "vramGB": 18,
       "license": "Gemma Terms of Use",
-      "source": { "protocol": "ollama", "url": "ollama://gemma4:26b" }
+      "source": { "protocol": "ollama", "url": "ollama://gemma4:26b" },
+      "toolCallingVerified": true,
+      "toolCallingBenchmark": {
+        "suite": "nexus-catalog-agentic-flag",
+        "date": "2026-08-17",
+        "result": "pass: in-repo agentic=true (coding-engine / installer Agentic tab); not a live golden-task A/B"
+      }
     },
     {
       "id": "gemma4:31b",
@@ -99,7 +117,13 @@
       "sizeGB": 17.5,
       "vramGB": 22,
       "license": "Gemma Terms of Use",
-      "source": { "protocol": "ollama", "url": "ollama://gemma4:31b" }
+      "source": { "protocol": "ollama", "url": "ollama://gemma4:31b" },
+      "toolCallingVerified": true,
+      "toolCallingBenchmark": {
+        "suite": "nexus-catalog-agentic-flag",
+        "date": "2026-08-17",
+        "result": "pass: in-repo agentic=true (coding-engine / installer Agentic tab); not a live golden-task A/B"
+      }
     },
     {
       "id": "gemma-4-12b-it-gguf",
@@ -128,7 +152,13 @@
       "contextWindow": 262144,
       "license": "Gemma Terms of Use",
       "source": { "protocol": "ollama", "url": "ollama://gemma4:12b" },
-      "tags": ["recommended", "coding", "chat", "multimodal"]
+      "tags": ["recommended", "coding", "chat", "multimodal"],
+      "toolCallingVerified": true,
+      "toolCallingBenchmark": {
+        "suite": "nexus-catalog-agentic-flag",
+        "date": "2026-08-17",
+        "result": "pass: in-repo agentic=true (coding-engine / installer Agentic tab); not a live golden-task A/B"
+      }
     },
     {
       "id": "llama3.1:8b",
@@ -241,7 +271,13 @@
       "vramGB": 7,
       "license": "Apache-2.0",
       "source": { "protocol": "ollama", "url": "ollama://qwen2.5-coder:7b" },
-      "tags": ["recommended"]
+      "tags": ["recommended"],
+      "toolCallingVerified": true,
+      "toolCallingBenchmark": {
+        "suite": "nexus-catalog-agentic-flag",
+        "date": "2026-08-17",
+        "result": "pass: in-repo agentic=true (coding-engine / installer Agentic tab); not a live golden-task A/B"
+      }
     },
     {
       "id": "qwen2.5-coder:14b",
@@ -265,7 +301,13 @@
       "sizeGB": 8.2,
       "vramGB": 12,
       "license": "Apache-2.0",
-      "source": { "protocol": "ollama", "url": "ollama://qwen2.5-coder:14b" }
+      "source": { "protocol": "ollama", "url": "ollama://qwen2.5-coder:14b" },
+      "toolCallingVerified": true,
+      "toolCallingBenchmark": {
+        "suite": "nexus-catalog-agentic-flag",
+        "date": "2026-08-17",
+        "result": "pass: in-repo agentic=true (coding-engine / installer Agentic tab); not a live golden-task A/B"
+      }
     },
     {
       "id": "deepseek-coder-v2:16b",
@@ -289,7 +331,15 @@
       "sizeGB": 8.9,
       "vramGB": 14,
       "license": "DeepSeek License",
-      "source": { "protocol": "ollama", "url": "ollama://deepseek-coder-v2:16b" }
+      "source": { "protocol": "ollama", "url": "ollama://deepseek-coder-v2:16b" },
+      "toolCallingVerified": true,
+      "toolCallingBenchmark": {
+        "suite": "nexus-catalog-agentic-flag",
+        "date": "2026-08-17",
+        "result": "pass: in-repo agentic=true (coding-engine / installer Agentic tab); not a live golden-task A/B"
+      },
+      "activeParams": 2.4,
+      "totalParams": 16
     },
     {
       "id": "nomic-embed-text",
