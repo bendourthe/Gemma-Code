@@ -8,17 +8,17 @@ For the ADR-level architecture see [../ARCHITECTURE.md](../ARCHITECTURE.md) and 
 
 | Module | Files | LOC | Entry point | Top exports |
 |--------|------:|----:|-------------|-------------|
-| `activation` | 3 | 615 | [src/activation/extensionOnly.ts](../src/activation/extensionOnly.ts) | `activateExtensionOnly`, `activateProxy`, `COMPAT_COMMAND_MAP` |
-| `desktop` | 2 | 296 | [src/desktop/ipcClient.ts](../src/desktop/ipcClient.ts) | `createInProcessIpcClient`, `DaemonDiscoveryOptions`, `DaemonDiscoveryResult` |
-| `panels` | 32 | 10072 | [src/panels/webview/index.ts](../src/panels/webview/index.ts) | `ACTION_TAG_FN_SOURCE`, `ActionClassificationMessage`, `actionLabelFor` |
+| `activation` | 4 | 766 | [src/activation/extensionOnly.ts](../src/activation/extensionOnly.ts) | `activateExtensionOnly`, `activateProxy`, `COMPAT_COMMAND_MAP` |
+| `desktop` | 2 | 299 | [src/desktop/ipcClient.ts](../src/desktop/ipcClient.ts) | `createInProcessIpcClient`, `DaemonDiscoveryOptions`, `DaemonDiscoveryResult` |
+| `panels` | 32 | 10082 | [src/panels/webview/index.ts](../src/panels/webview/index.ts) | `ACTION_TAG_FN_SOURCE`, `ActionClassificationMessage`, `actionLabelFor` |
 | `storage` | 37 | 8902 | [src/storage/eviction/index.ts](../src/storage/eviction/index.ts) | `ARCEvictor`, `ArchiveResult`, `BrokenPathIssue` |
-| `tools` | 22 | 6845 | [src/tools/handlers/filesystem.ts](../src/tools/handlers/filesystem.ts) | `_checkCacheSizeForTests`, `AgentLoop`, `AgentLoopOptions` |
+| `tools` | 25 | 7357 | [src/tools/handlers/filesystem.ts](../src/tools/handlers/filesystem.ts) | `_checkCacheSizeForTests`, `AgentLoop`, `AgentLoopOptions` |
 
 ## Module purposes
 
 ### `activation`
 
-_(missing one-liner; add an entry to `MODULE_DESCRIPTIONS` in [scripts/generate-catalog.mjs](../scripts/generate-catalog.mjs).)_
+VS Code extension activation branches: extension-only in-process engine, desktop-daemon proxy, compat command map, and safe-mode fallback.
 
 ### `desktop`
 

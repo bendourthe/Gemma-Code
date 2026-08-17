@@ -33,6 +33,8 @@ const OUTPUT_PATH = join(REPO_ROOT, "docs", "index.md");
  * module to src/ requires adding a row here.
  */
 const MODULE_DESCRIPTIONS = {
+  activation:
+    "VS Code extension activation branches: extension-only in-process engine, desktop-daemon proxy, compat command map, and safe-mode fallback.",
   agents:
     "Sub-agent orchestration: SubAgentManager spawns scoped verification, research, and planning sub-agents; SpecialistLoader resolves prompts via the workspace -> bundled -> hardcoded priority chain (ADR-0004).",
   chat:

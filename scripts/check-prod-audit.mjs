@@ -25,13 +25,14 @@
  * `protobufjs@^7.2.4`, so the only patch (protobufjs@8.x) is a semver-major
  * move outside that range; it is re-allowlisted below with a reachability
  * note. The co-occurring dompurify advisories WERE fixed in-range via an
- * `overrides` bump to dompurify@^3.4.11 (package.json).
+ * `overrides` bump (package.json; currently ^3.4.13).
  *
- * What remains allowlisted: `brace-expansion` -- a moderate-severity DoS
- * (GHSA-jxxr-4gwj-5jf2) carried as a deep transitive in the production tree
- * (via minimatch and friends); `npm dedupe` only fixes it locally and reverts
- * on the next `npm ci`, and no non-major upstream bump is available; and
- * `protobufjs` (see above).
+ * What remains allowlisted: `brace-expansion` (DoS family on the 5.x line;
+ * a global override to 5.0.9 would force every nested 1.x/2.x copy onto 5.x
+ * and is not a safe in-range move); `protobufjs` (see above); and the
+ * optional `@huggingface/transformers` -> `onnxruntime-node` -> `adm-zip` /
+ * `sharp` chain (no in-range fix: adm-zip 0.6 and sharp 0.35 are semver-major
+ * relative to the copies nested under transformers@4.2.0). Tracked as ENV.CI.A.
  *
  * Behaviour:
  *   1. Run `npm audit --omit=dev --json`.
@@ -66,8 +67,19 @@ const ALLOWLIST = new Set([
   // vulnerable 7.6.2, and onnxruntime-web pins `protobufjs@^7.2.4`, so the
   // only patch (protobufjs@8.x) is a semver-major move outside that range.
   // The co-occurring dompurify advisories WERE fixed in-range via an
-  // `overrides` bump to dompurify@^3.4.11 (package.json). Tracked as ENV.P5.A.
+  // `overrides` bump (package.json; currently ^3.4.13). Tracked as ENV.P5.A.
   "protobufjs",
+  // Optional local-embedder chain. @huggingface/transformers@4.2.0 nests
+  // onnxruntime-node (via adm-zip GHSA-xcpc-8h2w-3j85, no in-range 0.5.x
+  // patch) and sharp (libvips CVEs, fix is sharp@0.35 which is semver-major
+  // vs the nested 0.34.x). npm reports the parent as high because of those
+  // transitives (fixAvailable: false). Reachability: the embedder loads
+  // bundled ONNX weights, never attacker-supplied zip/image archives.
+  // Tracked as ENV.CI.A in docs/v1/v1.16/known-gaps.md.
+  "@huggingface/transformers",
+  "onnxruntime-node",
+  "adm-zip",
+  "sharp",
 ]);
 
 const SEVERITY_RANK = {

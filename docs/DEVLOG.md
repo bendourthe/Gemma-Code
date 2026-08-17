@@ -14,7 +14,7 @@ Ship v1.16.0 on the convergent milestone line (git tag + `package.json` + CHANGE
 
 - **docs**: README current-cycle + ledger + What's New rewritten for v1.16.0 (serving, OCR, analytics, model library, MLX). Featured-capabilities rows added. Install guide gained an after-install section. Root ARCHITECTURE.md names `desktop/sidecar/src/serving/` and `core/documents/`. Known-gaps for v1.16 and v1.15 flipped to finalized. Plan header no longer says "next 2.x semantic-release".
 - **devlog**: this entry.
-- **gitignore**: no new patterns. `.nexus/` already covers `settings.json` (serving token). Python/OCR caches already ignored. `docs/v2/v2.1/` stays untracked (next-cycle comparison, not this release).
+- **gitignore**: no new patterns. `.nexus/` already covers `settings.json` (serving token). Python/OCR caches already ignored. `docs/v2/v2.1/` was left untracked at the release cut (next-cycle comparison) and is committed separately after CI recovery.
 - **version**: `package.json` and `package-lock.json` 1.14.0 -> 1.16.0 (merged with the `main` 1.15.0 bump). `scripts/sync-tauri-version.mjs` rewrites `desktop/src-tauri/tauri.conf.json`. This repo has no `scripts/check_version_sync.py` (Nexus-Hub catalog guard); the local SSOT is root `package.json`. `desktop/package.json` and `desktop/src-tauri/Cargo.toml` remain at 1.5.0 (not in the sync script; left alone).
 - **changelog**: `[1.16.0]` prepended above the existing `[1.15.0]` block, with Activation/Validation/Rollback/Authority/Docs for the Local API server and the OCR catalog entries. `parse_document` settings called out as unwired (LSO.P4.B/C), not as a shipped switch.
 - **refactor**: propose-only, no moves. Phase 6 already audited layout. Dual vscode/headless clients stay as LSO.P1.B.
@@ -25,6 +25,25 @@ Ship v1.16.0 on the convergent milestone line (git tag + `package.json` + CHANGE
 ### Next
 
 Tag `v1.16.0` and the GitHub Release are on origin. Merge to `main` is a merge commit (not a fast-forward) because `main` already carried `v1.15.0`. Do not retag the published `v1.16.0`.
+
+---
+
+## [2026-08-16] post-release CI recovery (catalog + prod audit)
+
+### Goal
+
+Turn merge-commit CI #362 / #363 green without retagging `v1.16.0`. Two jobs failed: `docs/index.md sync check` and `npm run check:audit-prod`.
+
+### What was done
+
+- Regenerated `docs/index.md` (`npm run catalog`) and added the missing `activation` one-liner in `scripts/generate-catalog.mjs`.
+- In-range `overrides` bumps in root `package.json` (`hono`, `dompurify`, `undici`, `@hono/node-server`, `fast-uri`, `ip-address`, `react-router`) plus desktop `react-router-dom` `^7.18.2`. No semver-major moves.
+- Allowlisted the optional `@huggingface/transformers` -> `onnxruntime-node` -> `adm-zip` / `sharp` chain (no in-range fix) in `scripts/check-prod-audit.mjs`; recorded as ENV.CI.A in v1.16 known-gaps.
+- `docs/v2/v2.1/` comparison + adoption plan committed as next-cycle docs (not part of the 1.16.0 tag).
+
+### Next
+
+Push `develop` and fast-forward `main` so both branches pick up the CI fix. Do not retag `v1.16.0`.
 
 ---
 
