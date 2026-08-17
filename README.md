@@ -6,7 +6,7 @@
 
 Nexus is a local-first, native desktop AI Studio that bundles four generative AI pillars behind one cohesive UI: agentic coding, organized local chat, image generation and editing, and short-form video synthesis. Everything runs on the host machine against optimized open-source models (Gemma 4, Llama 3, Qwen 2.5 Coder, SDXL / SANA-class diffusion, video-synthesis architectures), with real-time GPU / VRAM telemetry built into the dashboard. No API keys, no data leaving your machine, no per-token billing.
 
-> **Renamed from Gemma Code at v1.0.0** to reflect the four-pillar pivot. The v0.1.0 - v0.22.x line shipped as a single-purpose local agentic coding VS Code extension; v1.0.0 folded that engine into the "Agentic AI Coding" pillar of a wider desktop app. The VS Code surface is preserved as an optional thin adapter that proxies to the desktop daemon. Historical Gemma Code docs remain under `docs/archive/versions/v0/v0.1.0/` - `docs/archive/versions/v0/v0.9.0/`; every product milestone since the pivot is documented under `docs/v1/v1.<MINOR>/`, from the v1.0.0 pivot through the current **v1.15.0** cycle. Releases are cut on the same milestone version line - see [Project Status](#project-status-august-2026).
+> **Renamed from Gemma Code at v1.0.0** to reflect the four-pillar pivot. The v0.1.0 - v0.22.x line shipped as a single-purpose local agentic coding VS Code extension; v1.0.0 folded that engine into the "Agentic AI Coding" pillar of a wider desktop app. The VS Code surface is preserved as an optional thin adapter that proxies to the desktop daemon. Historical Gemma Code docs remain under `docs/archive/versions/v0/v0.1.0/` - `docs/archive/versions/v0/v0.9.0/`; every product milestone since the pivot is documented under `docs/v1/v1.<MINOR>/`, from the v1.0.0 pivot through the current **v1.16.0** cycle. Releases are cut on the same milestone version line - see [Project Status](#project-status-august-2026).
 
 ---
 
@@ -65,7 +65,7 @@ A persistent `Local Model Status` panel reports the active model architecture, p
 
 ## Project Status (August 2026)
 
-Nexus uses a single, convergent version line: git tags and `package.json` carry the same `v1.<MINOR>.<PATCH>` numbers as the milestone docs under `docs/v1/v1.<MINOR>/`. This track runs from the v1.0.0 pivot through the current **v1.15.0** cycle.
+Nexus uses a single, convergent version line: git tags and `package.json` carry the same `v1.<MINOR>.<PATCH>` numbers as the milestone docs under `docs/v1/v1.<MINOR>/`. This track runs from the v1.0.0 pivot through the current **v1.16.0** cycle.
 
 Historical note: between 2026-06-18 and 2026-07-20 a decoupled "release track" cut five semantic-release versions numbered ahead of the milestones. Those tags were renumbered onto the milestone line on 2026-08-05: `v2.0.0` -> `v1.6.0` (GA consolidating v1.4.0 -> v1.6.0), `v2.1.0` -> `v1.7.0`, `v2.2.0` -> `v1.12.0` (consolidating v1.8.0 -> v1.12.0), `v2.3.0` -> `v1.13.0`, and `v2.4.0` -> `v1.14.0`. The version **v2.0.0 is reserved for the convergence release** that ships once the v1.18 plan, the v1.19.x subplans, and the v2.0 adoption plan are all complete (see `docs/v2/v2.0/plans/`).
 
@@ -88,19 +88,22 @@ Historical note: between 2026-06-18 and 2026-07-20 a decoupled "release track" c
 | v1.12.0 | Local model-execution scaling (per-model harness, extreme-low-bit + disk-offload tiers) + surface the skill optimizer + exec-sandbox audit | Landed | [docs/v1/v1.12/](docs/v1/v1.12/) |
 | v1.13.0 | Installer reliability + UX polish: fix the fresh-install model failures (registry routing + Ollama pin + pull/load preflight), gradient "AI Studio" wordmark, and the mockup-matched installing UI | Landed | [docs/v1/v1.13/](docs/v1/v1.13/) |
 | v1.14.0 | Installer catalog curation + install reliability: best-of-family model collapse with release-date pills, gated-model auth flow (token discovery + guided license step), live reachability, and installing-page polish (uniform dependency bars, footer Cancel) | Landed | [docs/v1/v1.14/](docs/v1/v1.14/) |
-| v1.15.0 | Post-reinstall fixes + chat-style studios: window controls / open maximized, installer relaunch starts at Welcome, catalog invariant guard + gated-token UX + post-install retry, real `models.*` registry reconciled with Ollama and the installer's weights tree, Image Studio and Video Lab rebuilt as chat, and a crash-proof "Nexus Code" VS Code extension | Landed | [docs/v1/v1.15/](docs/v1/v1.15/) |
+| v1.15.0 | Post-reinstall fixes + chat-style studios: window controls / open maximized, installer relaunch starts at Welcome, catalog invariant guard + gated-token UX + post-install retry, real `models.*` registry reconciled with Ollama and the installer's weights tree, Image Studio and Video Lab rebuilt as chat, and a crash-proof "Nexus Code" VS Code extension | Landed (ships in the v1.16.0 tag) | [docs/v1/v1.15/](docs/v1/v1.15/) |
+| v1.16.0 | Local serving gateway + document OCR: opt-in loopback OpenAI/Anthropic API in front of installed models, per-model tokens/sec and TTFT on Traces, RapidOCR (CPU) + Unlimited-OCR (NVIDIA) in the catalog, a governed `parse_document` tool, MLX-via-adapters how-to, and a searchable Models page with Chat/Coding quick switcher | Landed | [docs/v1/v1.16/](docs/v1/v1.16/) |
 
 Each cycle's plan lives under `docs/v1/v1.<MINOR>/plans/`, its deferred work under `docs/v1/v1.<MINOR>/known-gaps.md`, and benchmarks (where run) under `docs/v1/v1.<MINOR>/benchmarks/`.
 
-### What's new in v1.15.0
+### What's new in v1.16.0
 
-Driven by six defects reported from a real reinstall, all resolved:
+Nexus can now *serve* the models it already has, and it can read PDFs and images on the machine:
 
-- **Desktop shell** - the frameless title bar's minimize / maximize / close controls are visible again (they were painted over by the opaque backdrop), and the window opens maximized.
-- **Installer** - a finished run no longer sends every later launch to the "Installation Complete" page; the terminal state is cleared on Finish and by the uninstaller. A content-invariant guard now fails the build if the model catalog regresses to a shape that cannot install (the class of defect behind the reported download failures), the gated-model step explains itself and is cleanly skippable, and the final page reports each model in plain language with a "Retry failed downloads" action.
-- **Models** - Settings > Models reflects what is *actually* installed: the sidecar reconciles its registry with Ollama's tag list and the installer's on-disk weights tree, so installer-downloaded models stop showing as "available". Install / remove / disk-usage are live, and installing streams progress.
-- **Image Studio and Video Lab** - both are now chat interfaces instead of parameter forms. Paste, drag, or attach image(s) (or none) and describe what you want; the mode (text-to-image, image-to-image, inpaint, outpaint; text-to-video, image-to-video) is inferred from the attachments and the prompt. Generated media appears inline, model pickers list only installed models plus "Get more models", and every technical parameter moved behind an optional "Advanced settings" panel.
-- **VS Code extension** - renamed **Nexus Code**, and it now activates reliably: a failing local engine can no longer abort activation before the commands and views register (the cause of `command 'nexus.coding.newChat' not found` and the forever-loading panels), and packaging can no longer ship a native module built for the wrong Electron ABI. Legacy `nexus.coding.*` ids keep working, and `nexus.code.*` aliases are accepted.
+- **Local API server** - Settings > Local API server (off by default) exposes a loopback OpenAI- and Anthropic-compatible HTTP API so Claude Code, Codex, Cursor, and any matching SDK client can drive your installed models. No port is bound until you turn it on; non-loopback binds are refused; every request needs a locally-generated bearer token; the server never proxies files, terminal, or tools.
+- **Document parsing** - attach a PDF or image in Local Chatbot and Nexus extracts text locally. **RapidOCR PP-OCRv4** (Apache-2.0, ~20 MB, CPU) works on every supported OS with no GPU; **Unlimited-OCR 3B** (MIT) preserves layout as markdown on capable NVIDIA GPUs. Neither is auto-installed.
+- **Per-model analytics** - the Traces panel reports tokens/sec, time-to-first-token, and (on Ollama) memory per model. Nothing leaves the machine.
+- **Model library** - Settings > Models searches and filters by type, family, source, and VRAM fit. Chat and Coding get a compact switcher (installed-and-ready models plus "Get more models").
+- **MLX on Apple Silicon** - Nexus still does not bundle an MLX runtime. Register an existing mlx-vlm / LM Studio MLX / nativ loopback server as `nexus.llm.localAdapters`. How-to: [docs/v1/v1.16/guides/mlx-via-local-adapters.md](docs/v1/v1.16/guides/mlx-via-local-adapters.md).
+
+This tag also carries the previously untagged **v1.15.0** cycle: visible window controls and open-maximized, installer relaunch starting at Welcome, a catalog invariant guard, a live `models.*` registry, Image Studio and Video Lab rebuilt as chat, and the crash-proof **Nexus Code** VS Code extension.
 
 ---
 
@@ -125,7 +128,7 @@ git clone https://github.com/bendourthe/Nexus-AI.git
 cd Nexus-AI
 npm ci                       # install root + desktop workspace dependencies
 npm run build                # compile shared core + Coding module
-npm run test                 # full vitest suite (4,600+ tests)
+npm run test                 # full vitest suite (4,800+ tests)
 
 # Working on the desktop shell:
 npm run dev:shell            # opens the Tauri window in dev mode (Vite HMR + sidecar)
@@ -181,6 +184,8 @@ nexus doctor [--migration-report] [--json]             # v1.4.0 Phase 5; never m
 | **Skill self-optimization** | Local golden-task-graded, held-out-validated, human-approved bounded edits to skills (`nexus skills optimize` / `frontier`, plus a desktop approval panel); opt-in and default-off. |
 | **Per-model harness selection** | Auto-tunes the agent scaffold profile per local model with a golden A/B; opt-in (`nexus.coding.harnessSelector.enabled`). |
 | **MLX via local adapters** | Apple Silicon: register an mlx-vlm / LM Studio MLX / nativ loopback server as `nexus.llm.localAdapters` ([how-to](docs/v1/v1.16/guides/mlx-via-local-adapters.md)). No bundled MLX runtime. |
+| **Local API server** | Opt-in loopback OpenAI/Anthropic gateway (`nexus.serving.enabled`, default off) so other tools on this machine reuse installed models. |
+| **Document OCR** | Optional RapidOCR (CPU, every OS) and Unlimited-OCR (NVIDIA) catalog entries; Chat attachments parse locally. |
 | **Slash commands** | `/recall`, `/remember`, `/forget`, `/curate`, `/trace`, `/memory`, `/plan`, plus the full skill-backed catalog with `preferUpstream` ordering. |
 | **GPU scheduler** | Prioritizes Coding token generation over background diffusion work when both compete for the same GPU; tier-aware (`diffusion-low` / `mid` / `high`). |
 | **MCP support** | Stdio MCP servers integrate via the per-project registry; reverse-engineering-first policy bans search / embeddings / scraping / generation as a service. |
@@ -240,7 +245,7 @@ Nexus evolves in versioned slices. Each item below traces to a concrete plan or 
 | Live extreme-low-bit (BitNet-class) + disk-offload "patient" catalog entries, once runtime support + independent benchmarks are confirmed | Gated | [docs/v1/v1.12/known-gaps.md](docs/v1/v1.12/known-gaps.md) (`EM.P3`, `EM.P4.A`) |
 | Weak-model harness-selector enablement, pending a live A/B net-win on a low-cost model | Gated | [docs/v1/v1.12/known-gaps.md](docs/v1/v1.12/known-gaps.md) (`EM.P1`) |
 | Skill-optimizer live A/B validation (ship the default-on rollout once a net win is measured) | Gated | [docs/v1/v1.7/known-gaps.md](docs/v1/v1.7/known-gaps.md) (`SO003.P3.A`) |
-| Clean-machine installer rehearsals + on-device 3-OS visual QA (blocked by the GitHub Actions budget freeze until 2026-08-01) | Blocked | [docs/v1/v1.11/known-gaps.md](docs/v1/v1.11/known-gaps.md) (`IO.P2.A`) |
+| Clean-machine installer rehearsals + on-device 3-OS visual QA (Actions freeze lifted 2026-08-01; remaining work is operator hardware) | Tracked | [docs/v1/v1.11/known-gaps.md](docs/v1/v1.11/known-gaps.md) (`IO.P2.A`) |
 
 For narrative-style updates on what changed and why, see [docs/DEVLOG.md](docs/DEVLOG.md). For the formal Keep-a-Changelog log of every release, see [CHANGELOG.md](CHANGELOG.md). For the per-version unfinished-work tracker that the next plan reads to decide what carries forward, see `docs/v1/v1.<MINOR>/known-gaps.md`.
 

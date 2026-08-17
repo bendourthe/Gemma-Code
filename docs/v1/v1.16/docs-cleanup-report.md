@@ -20,9 +20,9 @@ Inventory via `docs-layout-refactor` `audit-docs.py inventory --root docs/v1/v1.
 
 | Path | Category | Heuristics | Destination | Notes |
 |---|---|---|---|---|
-| docs/v1/v1.16/plans/v1.16.0-adoption-local-serving-and-ocr.md | Cat 4 | 3, 4 | (keep) | In-flight plan; Phase 5 of 6 |
+| docs/v1/v1.16/plans/v1.16.0-adoption-local-serving-and-ocr.md | Cat 4 | 3, 4 | (keep) | Plan; all 6 phases complete |
 | docs/v1/v1.16/comparisons/v1.16.0-comparison-local-serving-and-ocr.md | Cat 4 | 3, 4 | (keep) | Source comparison for the plan |
-| docs/v1/v1.16/known-gaps.md | Cat 4 | 3, 4 | (keep) | Append-only tracker; Status in-progress |
+| docs/v1/v1.16/known-gaps.md | Cat 4 | 3, 4 | (keep) | Append-only tracker; Status finalized for the v1.16.0 release |
 | docs/v1/v1.16/guides/mlx-via-local-adapters.md | Cat 4 | 2, 4 | (keep) | New in Phase 5.1; inbound refs from README, install.md, ADR-0019 |
 | docs/v1/v1.16/testing/macos-mlx-smoke.md | Cat 4 | 4 | (keep) | New in Phase 5.1; blank checklist until hardware run (LSO.P5.A) |
 | docs/v1/v1.16/development/history/2026-08-12_phase-1-local-serving-gateway.md | Cat 4 | 4 | (keep) | Phase 1 session history |
@@ -34,7 +34,7 @@ The Phase 5 session history (`development/history/2026-08-16_phase-5-mlx-docs-an
 
 ## Cat 3 refresh queue
 
-None in this version directory. `docs/DEVLOG.md` remains at the docs root (cross-cutting, never archived) and received a Phase 5 prepend; a by-version split is still a later hygiene follow-up, not this phase.
+None in this version directory. `docs/DEVLOG.md` remains at the docs root (cross-cutting, never archived) and received a v1.16.0 release-cut prepend; a by-version split is still a later hygiene follow-up, not this release.
 
 ## Target tree preview
 

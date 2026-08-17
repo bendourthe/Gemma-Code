@@ -1,5 +1,9 @@
 # Known Gaps - v1.16.0 (Local Model Serving Gateway and Document-OCR Capability)
 
+**Project**: Nexus
+**Status**: finalized
+**Last updated**: 2026-08-16
+
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
 Plan: [plans/v1.16.0-adoption-local-serving-and-ocr.md](plans/v1.16.0-adoption-local-serving-and-ocr.md)
@@ -111,6 +115,6 @@ _No new product gaps._ The close-out added RETAINED-NOT-DEAD headers on unwired-
 - **Known gaps**: 19 open across Phases 1-5 (0 new in Phase 6), all non-blocking; v1.15 carry-forward reconciled above (IRSC.P4.B = LSO.P3.A). No release-blockers. Remaining work is on-device QA (gateway smoke, OCR weights, macOS MLX), composition-root wiring (parse_document), and the vscode-free client consolidation.
 - **CI/CD**: no rewrite. `shell-build.yml` already watches `desktop/**` + `core/**` + `modules/**` (serving, OCR sidecar, Models UX) with concurrency cancel-in-progress, npm + cargo cache, and PR-only ubuntu. `ci.yml` is unfiltered so `parse_document`, MLX docs schema, and `test-python-runtimes` always run. Per-job `paths:` is not a GitHub Actions feature; splitting `test-python-runtimes` into its own workflow would skip OCR/diffusion tests on a cross-cutting PR, which is the wrong trade (same decision as v1.15 not path-filtering `ci.yml`). GPU/model-download work stays out of CI.
 - **Tests**: root 434 files / **4813 passed** / 6 skipped / 0 failed; desktop 95 files / **824 passed**; Python runtimes **196 passed**. One golden-runner timeout (5s) during a parallel desktop+root run reproduced as ENV (CPU contention); isolated re-run 3/3 in 2.3s, then a solo `npm test` 4813/0. `tsc -b`, desktop `tsc --noEmit`, `build:sidecar`, eslint (root + desktop), `deps:check` / `check-architecture` (0 errors / 10 pre-existing warnings), `check:docs-layout`, `check:naming` all clean. Coverage unchanged from Phase 5 (comment-only headers): root 87.87% lines / 84.23% branches / 91.40% functions; desktop 92.50% / 85.56% / 84.57%.
-- **Release**: handed to `/update release`; NOT auto-tagged or pushed.
+- **Release**: cut as git tag `v1.16.0` via `/update release` (2026-08-16). Not auto-pushed.
 
-_Last updated: 2026-08-16 (Phase 6, terminal)._
+_Last updated: 2026-08-16 (finalized for the v1.16.0 release)._

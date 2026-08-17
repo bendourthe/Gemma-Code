@@ -1,5 +1,9 @@
 # Known Gaps - v1.15.0 (Installer, Registry, Window, and Studio-Chat Fixes)
 
+**Project**: Nexus
+**Status**: finalized
+**Last updated**: 2026-08-16
+
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
 Plan: [plans/v1.15.0-installer-registry-fixes-and-studio-chat.md](plans/v1.15.0-installer-registry-fixes-and-studio-chat.md)
@@ -103,6 +107,6 @@ Note (Phase 4): the studios' Settings deep-link (`SETTINGS_MODELS_PATH = /settin
 - **CI/CD**: see the Phase 8 session history -- `shell-build.yml` already gained `core/**` in Phase 4; the installer pytest job auto-covers the new Phase 3 test files; the extension suite covers the Phase 7 activation tests. Path filters, `concurrency` cancel-in-progress, and dependency caching are in place across the workflows.
 - **Tests**: root 4646 passed / 6 skipped / **0 failed** (424 files) -- better than the v1.14 baseline (4637 + 2 load flakes); desktop 581 passed (77 files); installer pytest green (3 pre-existing skips). tsc + eslint + ruff clean.
 - **Environment note**: the local `better-sqlite3` `NODE_MODULE_VERSION` mismatch (135 vs 137) recurred once in this cycle exactly as documented in v1.14; `npm rebuild better-sqlite3` repaired it. It is a local dev-env artifact, not a project defect -- and v1.15 Phase 7 now hardens the *extension* against precisely this failure class.
-- **Release**: handed to `/update release`; NOT auto-tagged or pushed.
+- **Release**: shipped in the v1.16.0 tag (v1.15.0 never received its own git tag). Finalized 2026-08-16.
 
-_Last updated: 2026-08-06 (Phase 8, terminal)._
+_Last updated: 2026-08-16 (finalized with the v1.16.0 release)._

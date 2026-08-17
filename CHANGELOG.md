@@ -1,3 +1,48 @@
+# [1.16.0](https://github.com/bendourthe/Nexus-AI/compare/v1.14.0...v1.16.0) (2026-08-16)
+
+
+This tag also carries the previously untagged v1.15.0 cycle (window controls, installer relaunch, live `models.*` registry, Image Studio / Video Lab chat, Nexus Code activation). There is no separate `v1.15.0` git tag.
+
+### Features
+
+* **v1.16.0:** local serving gateway (Phase 1) ([67257df](https://github.com/bendourthe/Nexus-AI/commit/67257df))
+* **v1.16.0:** per-model performance analytics (Phase 2) ([bfaeb86](https://github.com/bendourthe/Nexus-AI/commit/bfaeb86))
+* **v1.16.0:** local document-OCR capability (Phase 3) ([c6b63a9](https://github.com/bendourthe/Nexus-AI/commit/c6b63a9))
+* **v1.16.0:** document-parse agent tool + memory ingestion (Phase 4) ([e622cde](https://github.com/bendourthe/Nexus-AI/commit/e622cde))
+* **v1.16.0:** MLX-via-adapters docs + model-library UX (Phase 5) ([605a0a7](https://github.com/bendourthe/Nexus-AI/commit/605a0a7))
+* **v1.15.0:** real model registry - models.* IPC + disk/Ollama reconciliation (Phase 4) ([f240432](https://github.com/bendourthe/Nexus-AI/commit/f240432))
+* **v1.15.0:** installer download reliability + gated-token UX + retry (Phase 3) ([d0a5eac](https://github.com/bendourthe/Nexus-AI/commit/d0a5eac))
+* **v1.15.0:** Image Studio chat redesign (Phase 5) ([811a33d](https://github.com/bendourthe/Nexus-AI/commit/811a33d))
+* **v1.15.0:** Video Lab chat redesign (Phase 6) ([705cc7c](https://github.com/bendourthe/Nexus-AI/commit/705cc7c))
+
+
+### Bug Fixes
+
+* **v1.15.0:** desktop shell - window controls visible + open maximized (Phase 1) ([3fca57a](https://github.com/bendourthe/Nexus-AI/commit/3fca57a))
+* **v1.15.0:** installer relaunch starts at Welcome; uninstall clears state (Phase 2) ([0b0247c](https://github.com/bendourthe/Nexus-AI/commit/0b0247c))
+* **v1.15.0:** Nexus Code extension activates reliably + rename (Phase 7) ([6701f72](https://github.com/bendourthe/Nexus-AI/commit/6701f72))
+
+
+### Opt-in surfaces
+
+#### Local API server (`nexus.serving.enabled`)
+
+- Activation: Settings > Local API server, or set `"nexus.serving.enabled": true` in `~/.nexus/settings.json`, or `NEXUS_SERVING_ENABLED=1`. Optional: `NEXUS_SERVING_HOST` (loopback only, default `127.0.0.1`), `NEXUS_SERVING_PORT` (default `11500`), `NEXUS_SERVING_TOKEN` (empty generates a persisted CSPRNG token).
+- Validation: with the toggle on, Settings shows Running and a copyable `http://127.0.0.1:11500/v1`. `curl -i http://127.0.0.1:11500/v1/models` without a bearer token returns 401; with `Authorization: Bearer <token>` it lists installed models. With the toggle off, nothing listens on that port.
+- Rollback: turn the Settings toggle off, or set `"nexus.serving.enabled": false`. The listener stops; the generated token remains in `~/.nexus/settings.json` until you delete `nexus.serving.token`. Turning the server off does not uninstall models.
+- Authority: this serves model inference on loopback only. It does not expose files, terminal, tools, or memory, and it refuses to bind any non-loopback address.
+- Docs: [README](README.md#local-api-server-opt-in), [docs/install.md](docs/install.md#after-you-install-v1160).
+
+#### Document OCR models (`rapidocr-ppocrv4`, `unlimited-ocr-3b`)
+
+- Activation: Settings > Models, install RapidOCR PP-OCRv4 (CPU, every OS) and/or Unlimited-OCR 3B (NVIDIA). Neither is auto-installed by the installer or by first launch.
+- Validation: attach a PDF or image in Local Chatbot and confirm extracted text appears. RapidOCR needs no GPU; Unlimited-OCR needs a capable NVIDIA host.
+- Rollback: Remove on Settings > Models. Uninstalling the model does not delete other catalog entries or Chat history.
+- Authority: installing an OCR model does not send documents off the machine. Extracted text is not automatically forwarded to a chat/coding model; you choose what happens next. In-app HF install of these entries still fails digest verification until the all-zero `sha256` placeholders are rotated (LSO.P3.A); the Python installer puller is the working install path today.
+- Docs: [README](README.md#document-parsing-ocr), [docs/v1/v1.16/known-gaps.md](docs/v1/v1.16/known-gaps.md).
+
+`nexus.coding.parseDocument.enabled` and `nexus.coding.parseDocument.memoryIngest.enabled` exist and default off, but no host wires `parse_document` yet (LSO.P4.B/C), so they are not a shipped user-facing switch in this release.
+
 # [1.14.0](https://github.com/bendourthe/Nexus-AI/compare/v1.13.0...v1.14.0) (2026-07-20)
 
 

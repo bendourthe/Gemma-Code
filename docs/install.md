@@ -2,7 +2,7 @@
 
 Nexus ships as a **one-file installer** per platform. Download it, run it, answer a few questions, and you end up with the Nexus desktop app, the VS Code extension (optional), and local AI models matched to your hardware. No terminal, no manual dependency setup.
 
-The installers are attached to each [GitHub release](https://github.com/bendourthe/Nexus-AI/releases), alongside a `SHA256SUMS.txt` you can use to verify your download. The single-window branded installer described here is the v1.9.0 build; the first releases carrying the full asset set for every OS follow the post-freeze release rehearsal (the GitHub Actions build freeze lifts 2026-08-01).
+The installers are attached to each [GitHub release](https://github.com/bendourthe/Nexus-AI/releases), alongside a `SHA256SUMS.txt` you can use to verify your download. Tag-triggered `release.yml` builds the desktop bundles; the GitHub Actions budget freeze that delayed those jobs lifted 2026-08-01.
 
 | Platform | Download | Size class |
 |---|---|---|
@@ -77,6 +77,12 @@ sha256sum -c --ignore-missing SHA256SUMS.txt
 4. **Nexus desktop app**: fetched from the matching GitHub release, checksum-verified against `SHA256SUMS.txt`, installed and health-checked, then launched from the finish page.
 
 Everything lands under your user account (no admin rights needed for the wizard itself); user data lives in `~/.nexus`.
+
+## After you install (v1.16.0)
+
+- **Local API server**: off by default. In Nexus, open Settings > Local API server, turn it on, and copy the base URL plus token into Claude Code / Codex / Cursor. The server binds loopback only and serves model inference, never files or tools. See [README](../README.md#local-api-server-opt-in).
+- **Document parsing**: Settings > Models, install **RapidOCR PP-OCRv4** (CPU, every OS) and optionally **Unlimited-OCR 3B** (NVIDIA). Then attach a PDF or image in Local Chatbot. Neither model is auto-installed.
+- **MLX on Apple Silicon**: Nexus does not bundle MLX. Register an existing loopback server as described in [MLX via localAdapters](v1/v1.16/guides/mlx-via-local-adapters.md).
 
 ## Uninstalling
 
