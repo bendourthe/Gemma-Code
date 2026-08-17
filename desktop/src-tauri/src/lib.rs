@@ -44,7 +44,7 @@ fn force_dark_app_mode() {
     // older builds, where GetProcAddress returns None and this no-ops.
     // PreferredAppMode::ForceDark = 2.
     unsafe {
-        let module = LoadLibraryA(b"uxtheme.dll\0".as_ptr());
+        let module = LoadLibraryA(c"uxtheme.dll".as_ptr().cast());
         if module.is_null() {
             return;
         }
