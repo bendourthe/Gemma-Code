@@ -88,7 +88,7 @@ Historical note: between 2026-06-18 and 2026-07-20 a decoupled "release track" c
 | v1.12.0 | Local model-execution scaling (per-model harness, extreme-low-bit + disk-offload tiers) + surface the skill optimizer + exec-sandbox audit | Landed | [docs/v1/v1.12/](docs/v1/v1.12/) |
 | v1.13.0 | Installer reliability + UX polish: fix the fresh-install model failures (registry routing + Ollama pin + pull/load preflight), gradient "AI Studio" wordmark, and the mockup-matched installing UI | Landed | [docs/v1/v1.13/](docs/v1/v1.13/) |
 | v1.14.0 | Installer catalog curation + install reliability: best-of-family model collapse with release-date pills, gated-model auth flow (token discovery + guided license step), live reachability, and installing-page polish (uniform dependency bars, footer Cancel) | Landed | [docs/v1/v1.14/](docs/v1/v1.14/) |
-| v1.15.0 | Post-reinstall fixes + chat-style studios: window controls / open maximized, installer relaunch starts at Welcome, catalog invariant guard + gated-token UX + post-install retry, real `models.*` registry reconciled with Ollama and the installer's weights tree, Image Studio and Video Lab rebuilt as chat, and a crash-proof "Nexus Code" VS Code extension | Landed (ships in the v1.16.0 tag) | [docs/v1/v1.15/](docs/v1/v1.15/) |
+| v1.15.0 | Post-reinstall fixes + chat-style studios: window controls / open maximized, installer relaunch starts at Welcome, catalog invariant guard + gated-token UX + post-install retry, real `models.*` registry reconciled with Ollama and the installer's weights tree, Image Studio and Video Lab rebuilt as chat, and a crash-proof "Nexus Code" VS Code extension | Landed | [docs/v1/v1.15/](docs/v1/v1.15/) |
 | v1.16.0 | Local serving gateway + document OCR: opt-in loopback OpenAI/Anthropic API in front of installed models, per-model tokens/sec and TTFT on Traces, RapidOCR (CPU) + Unlimited-OCR (NVIDIA) in the catalog, a governed `parse_document` tool, MLX-via-adapters how-to, and a searchable Models page with Chat/Coding quick switcher | Landed | [docs/v1/v1.16/](docs/v1/v1.16/) |
 
 Each cycle's plan lives under `docs/v1/v1.<MINOR>/plans/`, its deferred work under `docs/v1/v1.<MINOR>/known-gaps.md`, and benchmarks (where run) under `docs/v1/v1.<MINOR>/benchmarks/`.
@@ -103,7 +103,7 @@ Nexus can now *serve* the models it already has, and it can read PDFs and images
 - **Model library** - Settings > Models searches and filters by type, family, source, and VRAM fit. Chat and Coding get a compact switcher (installed-and-ready models plus "Get more models").
 - **MLX on Apple Silicon** - Nexus still does not bundle an MLX runtime. Register an existing mlx-vlm / LM Studio MLX / nativ loopback server as `nexus.llm.localAdapters`. How-to: [docs/v1/v1.16/guides/mlx-via-local-adapters.md](docs/v1/v1.16/guides/mlx-via-local-adapters.md).
 
-This tag also carries the previously untagged **v1.15.0** cycle: visible window controls and open-maximized, installer relaunch starting at Welcome, a catalog invariant guard, a live `models.*` registry, Image Studio and Video Lab rebuilt as chat, and the crash-proof **Nexus Code** VS Code extension.
+v1.15.0 (tag 2026-08-11) already shipped the window-controls, installer-relaunch, live `models.*` registry, studio-chat, and Nexus Code activation work.
 
 ---
 

@@ -1,7 +1,5 @@
-# [1.16.0](https://github.com/bendourthe/Nexus-AI/compare/v1.14.0...v1.16.0) (2026-08-16)
+# [1.16.0](https://github.com/bendourthe/Nexus-AI/compare/v1.15.0...v1.16.0) (2026-08-16)
 
-
-This tag also carries the previously untagged v1.15.0 cycle (window controls, installer relaunch, live `models.*` registry, Image Studio / Video Lab chat, Nexus Code activation). There is no separate `v1.15.0` git tag.
 
 ### Features
 
@@ -10,17 +8,6 @@ This tag also carries the previously untagged v1.15.0 cycle (window controls, in
 * **v1.16.0:** local document-OCR capability (Phase 3) ([c6b63a9](https://github.com/bendourthe/Nexus-AI/commit/c6b63a9))
 * **v1.16.0:** document-parse agent tool + memory ingestion (Phase 4) ([e622cde](https://github.com/bendourthe/Nexus-AI/commit/e622cde))
 * **v1.16.0:** MLX-via-adapters docs + model-library UX (Phase 5) ([605a0a7](https://github.com/bendourthe/Nexus-AI/commit/605a0a7))
-* **v1.15.0:** real model registry - models.* IPC + disk/Ollama reconciliation (Phase 4) ([f240432](https://github.com/bendourthe/Nexus-AI/commit/f240432))
-* **v1.15.0:** installer download reliability + gated-token UX + retry (Phase 3) ([d0a5eac](https://github.com/bendourthe/Nexus-AI/commit/d0a5eac))
-* **v1.15.0:** Image Studio chat redesign (Phase 5) ([811a33d](https://github.com/bendourthe/Nexus-AI/commit/811a33d))
-* **v1.15.0:** Video Lab chat redesign (Phase 6) ([705cc7c](https://github.com/bendourthe/Nexus-AI/commit/705cc7c))
-
-
-### Bug Fixes
-
-* **v1.15.0:** desktop shell - window controls visible + open maximized (Phase 1) ([3fca57a](https://github.com/bendourthe/Nexus-AI/commit/3fca57a))
-* **v1.15.0:** installer relaunch starts at Welcome; uninstall clears state (Phase 2) ([0b0247c](https://github.com/bendourthe/Nexus-AI/commit/0b0247c))
-* **v1.15.0:** Nexus Code extension activates reliably + rename (Phase 7) ([6701f72](https://github.com/bendourthe/Nexus-AI/commit/6701f72))
 
 
 ### Opt-in surfaces
@@ -42,6 +29,23 @@ This tag also carries the previously untagged v1.15.0 cycle (window controls, in
 - Docs: [README](README.md#document-parsing-ocr), [docs/v1/v1.16/known-gaps.md](docs/v1/v1.16/known-gaps.md).
 
 `nexus.coding.parseDocument.enabled` and `nexus.coding.parseDocument.memoryIngest.enabled` exist and default off, but no host wires `parse_document` yet (LSO.P4.B/C), so they are not a shipped user-facing switch in this release.
+
+# [1.15.0](https://github.com/bendourthe/Nexus-AI/compare/v1.14.0...v1.15.0) (2026-08-11)
+
+
+### Bug Fixes
+
+* **v1.15.0:** desktop shell - window controls visible + open maximized (Phase 1) ([3fca57a](https://github.com/bendourthe/Nexus-AI/commit/3fca57a341be77140fd0d626ccbd62c82f9a8ff5))
+* **v1.15.0:** installer relaunch starts at Welcome; uninstall clears state (Phase 2) ([0b0247c](https://github.com/bendourthe/Nexus-AI/commit/0b0247c846a700bef7686e22ba1889731be24b38))
+* **v1.15.0:** Nexus Code extension activates reliably + rename (Phase 7) ([6701f72](https://github.com/bendourthe/Nexus-AI/commit/6701f7245290565b9b029fa58ee2ab3d11334ebe))
+
+
+### Features
+
+* **v1.15.0:** Image Studio chat redesign (Phase 5) ([811a33d](https://github.com/bendourthe/Nexus-AI/commit/811a33dc56401a2b3410a7b220764604a778a17f))
+* **v1.15.0:** installer download reliability + gated-token UX + retry (Phase 3) ([d0a5eac](https://github.com/bendourthe/Nexus-AI/commit/d0a5eacbace2a4145a426ab58d1e6845aed0b419))
+* **v1.15.0:** real model registry - models.* IPC + disk/Ollama reconciliation (Phase 4) ([f240432](https://github.com/bendourthe/Nexus-AI/commit/f2404322505a9be56ea05da296bb273f107cfe7d))
+* **v1.15.0:** Video Lab chat redesign (Phase 6) ([705cc7c](https://github.com/bendourthe/Nexus-AI/commit/705cc7c2fc37ca05fe17e3f2af512229fc8115f9))
 
 # [1.14.0](https://github.com/bendourthe/Nexus-AI/compare/v1.13.0...v1.14.0) (2026-07-20)
 

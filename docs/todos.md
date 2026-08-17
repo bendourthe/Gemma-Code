@@ -12,7 +12,7 @@
 >
 > **Known follow-ups:** on-device gateway/OCR/MLX smokes (LSO.P1.C, LSO.P3.C, LSO.P5.A), wire `parse_document` at the composition root (LSO.P4.B), HF `sha256` pin rotation (LSO.P3.A / IRSC.P4.B). Tag / push / GitHub Release stay behind `/update release` confirmation gates.
 
-> **v1.15.0 COMPLETE (2026-08-06) -- shipped in the v1.16.0 tag (no separate v1.15.0 git tag).** Plan: [v1.15.0-installer-registry-fixes-and-studio-chat.md](v1/v1.15/plans/v1.15.0-installer-registry-fixes-and-studio-chat.md) - [known-gaps](v1/v1.15/known-gaps.md) (finalized). Cycle driven by six user-reported defects from a v2.4.0 reinstall, **all resolved**:
+> **v1.15.0 COMPLETE (2026-08-06) -- tagged `v1.15.0` on main 2026-08-11.** Plan: [v1.15.0-installer-registry-fixes-and-studio-chat.md](v1/v1.15/plans/v1.15.0-installer-registry-fixes-and-studio-chat.md) - [known-gaps](v1/v1.15/known-gaps.md) (finalized). Cycle driven by six user-reported defects from a v2.4.0 reinstall, **all resolved**:
 > - **P1** (Issue 4) window controls un-buried (`.nexus-titlebar` stacking context above the opaque backdrop) + `maximized: true`.
 > - **P2** (Issue 1) installer relaunch starts at Welcome: a terminal `state.json` no longer redirects cold launches (`interpret_startup` -> `DECISION_FRESH`), `CompletePage.on_finish` + both NSIS uninstallers clear it.
 > - **P3** (Issue 2) the log's two failures were already fixed in-catalog, so the cycle added a content-invariant guard (`catalog_invariants` + `check-catalog.py` + FAIL-CLOSED spec + CI test) so a stale/regressed catalog cannot ship; plus clearer gated-token UX and a plain-language post-install summary + retry-failed-downloads.
