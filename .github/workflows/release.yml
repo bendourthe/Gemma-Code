@@ -4,6 +4,15 @@ on:
   push:
     tags:
       - "v*.*.*"
+  # Rebuild and attach assets to an already-published tag (the tagged
+  # commit cannot pick up a later workflow fix). Builds HEAD of the ref
+  # this workflow is dispatched against.
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Existing tag to attach assets to (e.g. v1.17.0)"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -56,7 +65,10 @@ jobs:
   build-installer-windows:
     name: Build Windows installer
     runs-on: windows-latest
-    needs: build-vsix
+    # The wizard embeds the Tauri NSIS bundle (v1.11.0 T401, fail-closed).
+    # That file is produced by desktop-bundle, not by this job, so wait
+    # for the Windows matrix leg's artifact rather than racing it.
+    needs: [build-vsix, desktop-bundle]
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
 
@@ -73,6 +85,12 @@ jobs:
         with:
           name: vsix
           path: .
+
+      - name: Download Windows desktop bundle
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: desktop-bundle-windows
+          path: desktop-bundle-windows
 
       - name: Build installer
         run: pwsh -NonInteractive -File scripts/installer/build/build-windows.ps1 -SkipSign
@@ -134,6 +152,8 @@ jobs:
           path: .
 
       - name: Build installer
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
         run: bash scripts/installer/build/build-linux.sh
 
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
@@ -316,7 +336,7 @@ jobs:
         id: changelog
         run: |
           VERSION="${{ needs.build-vsix.outputs.version }}"
-          NOTES=$(awk "/^## \[?${VERSION}\]?/{flag=1; next} /^## /{flag=0} flag" CHANGELOG.md)
+          NOTES=$(awk "/^#+ \\[?${VERSION}\\]?/{flag=1; next} /^#+ /{flag=0} flag" CHANGELOG.md)
           echo "notes<<EOF" >> "$GITHUB_OUTPUT"
           echo "$NOTES" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
@@ -324,10 +344,12 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
         with:
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag_name || github.ref_name }}
           name: "Nexus v${{ needs.build-vsix.outputs.version }}"
           body: ${{ steps.changelog.outputs.notes }}
           draft: false
-          prerelease: ${{ contains(github.ref, '-') }}
+          prerelease: ${{ contains(github.ref, '-') || contains(github.event.inputs.tag_name, '-') }}
+          fail_on_unmatched_files: true
           files: |
             artifacts/${{ needs.build-vsix.outputs.vsix_name }}
             artifacts/NexusSetup.exe

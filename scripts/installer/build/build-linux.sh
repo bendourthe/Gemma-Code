@@ -76,10 +76,31 @@ chmod +x "$APPDIR/AppRun"
 mkdir -p "$DIST_DIR"
 APPIMAGE_OUT="$DIST_DIR/NexusSetup-x86_64.AppImage"
 rm -f "$APPIMAGE_OUT"
-"$APPIMAGE_TOOL" "$APPDIR" "$APPIMAGE_OUT" 2>/dev/null || {
+
+# GitHub-hosted Linux runners have no usable /dev/fuse, so a raw
+# appimagetool AppImage dies with a silent FUSE error when stderr is
+# discarded. Prefer extract-and-run; fall back to unpacking the tool.
+run_appimagetool() {
+    local appdir="$1"
+    local out="$2"
+    export ARCH="${ARCH:-x86_64}"
+    export APPIMAGE_EXTRACT_AND_RUN="${APPIMAGE_EXTRACT_AND_RUN:-1}"
+    if "$APPIMAGE_TOOL" --appimage-extract-and-run "$appdir" "$out"; then
+        return 0
+    fi
+    log_info "appimagetool extract-and-run failed; unpacking the AppImage runtime..."
+    local work
+    work="$(mktemp -d)"
+    cp "$APPIMAGE_TOOL" "$work/appimagetool.AppImage"
+    chmod +x "$work/appimagetool.AppImage"
+    (cd "$work" && ./appimagetool.AppImage --appimage-extract)
+    "$work/squashfs-root/AppRun" "$appdir" "$out"
+}
+
+if ! run_appimagetool "$APPDIR" "$APPIMAGE_OUT"; then
     log_error "AppImage creation failed."
     exit 1
-}
+fi
 
 if [ -f "$APPIMAGE_OUT" ]; then
     log_info "AppImage: $APPIMAGE_OUT"

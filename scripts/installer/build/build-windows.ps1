@@ -55,11 +55,25 @@ if ($Vsix) {
 # bundle is embedded in the onefile instead. FAIL CLOSED: the bundle version
 # must equal the product version (COORD.2), and a missing bundle stops the
 # build -- a NexusSetup.exe without the desktop app is not shippable.
-$DesktopBundle = Join-Path $RepoRoot "desktop\src-tauri\target\release\bundle\nsis\Nexus AI Studio_${Version}_x64-setup.exe"
-if (-not (Test-Path $DesktopBundle)) {
+#
+# Search order:
+#   1. Local `tauri build` output (productName + version).
+#   2. Canonical release artifact name next to the repo root (release.yml
+#      downloads desktop-bundle-windows here).
+#   3. A desktop-bundle-windows/ folder from actions/download-artifact.
+$BundleCandidates = @(
+    (Join-Path $RepoRoot "desktop\src-tauri\target\release\bundle\nsis\Nexus AI Studio_${Version}_x64-setup.exe"),
+    (Join-Path $RepoRoot "Nexus-Desktop_${Version}_x64-setup.exe"),
+    (Join-Path $RepoRoot "desktop-bundle-windows\Nexus-Desktop_${Version}_x64-setup.exe")
+)
+$DesktopBundle = $BundleCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $DesktopBundle) {
     Write-Host "ERROR: desktop bundle not found for product version ${Version}:" -ForegroundColor Red
-    Write-Host "  $DesktopBundle" -ForegroundColor Red
+    foreach ($candidate in $BundleCandidates) {
+        Write-Host "  $candidate" -ForegroundColor Red
+    }
     Write-Host "  Build it first: cd desktop; npm run build:shell" -ForegroundColor Red
+    Write-Host "  Or download the desktop-bundle-windows artifact next to package.json." -ForegroundColor Red
     exit 1
 }
 $PayloadDir = Join-Path $InstallerRoot "build\desktop-payload"

@@ -12,9 +12,10 @@ name: Installer build (Windows)
 # downloads dependencies, models, and the desktop app at install time, all
 # SHA-256-verified.
 #
-# Trigger: workflow_dispatch only while the Actions freeze holds (until
-# 2026-08-01, $0 budget). The Phase 6 post-freeze rehearsal expands this to
-# `push: tags: v*` once the artifact builds cleanly on a Windows runner.
+# Trigger: workflow_dispatch only. Tag-triggered Windows publishing lives
+# in release.yml, which waits for the desktop-bundle artifact the wizard
+# embeds. This rehearsal workflow does not build Tauri, so a tag trigger
+# here would fail closed on the missing NSIS payload.
 
 on:
   workflow_dispatch:
