@@ -42,3 +42,4 @@ Concrete points:
 - Comparison: `docs/versions/v1/v1.6.0/comparison-aisuite.md` item A3.
 - Policy: `AGENTS.md` MCP Registry Policy (local-only bucket).
 - User guide (v1.16.0): [MLX via localAdapters](../v1/v1.16/guides/mlx-via-local-adapters.md) -- how to register an mlx-vlm / LM Studio MLX / nativ loopback server as a user manifest. No bundled MLX runtime.
+- User guide (v1.18.0): [llama.cpp loopback adapter](../reference/llamacpp-loopback-adapter.md) -- how to register a user-started llama-server (large-MoE CPU-expert / mmap offload) as a loopback manifest. No bundled llama.cpp. Does not open the EM.P4 patient-tier gate.

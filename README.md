@@ -57,6 +57,10 @@ Nexus can also *serve* the local models it has installed. Enable **Settings > Lo
 
 Nexus does not bundle an MLX runtime. Apple Silicon users who already run an OpenAI-compatible MLX server (mlx-vlm, LM Studio in MLX mode, or nativ) can register it as a loopback `nexus.llm.localAdapters` manifest and select it with `nexus.llm.backend`. The how-to is [docs/v1/v1.16/guides/mlx-via-local-adapters.md](docs/v1/v1.16/guides/mlx-via-local-adapters.md); the on-device smoke checklist is [docs/v1/v1.16/testing/macos-mlx-smoke.md](docs/v1/v1.16/testing/macos-mlx-smoke.md). Added in v1.16.0 Phase 5.
 
+### llama.cpp on loopback (via local adapters)
+
+Nexus does not bundle llama.cpp. If you already run `llama-server` on loopback (including large-MoE CPU-expert or mmap offload), register it as a `nexus.llm.localAdapters` manifest with `protocol: "openai"` and select it with `nexus.llm.backend`. The recipe is [docs/reference/llamacpp-loopback-adapter.md](docs/reference/llamacpp-loopback-adapter.md). This does not open the patient-tier gate ([EM.P4.A](docs/v1/v1.12/known-gaps.md)). Added in v1.18.0 Phase 1.
+
 ### Always-on telemetry
 
 A persistent `Local Model Status` panel reports the active model architecture, parameter size, live GPU utilization, and free VRAM - so dense computational passes do not silently OOM. The same telemetry feeds the GPU scheduler (Phase 3) that prioritizes Coding token generation over background diffusion work when both pillars compete for the same GPU.
@@ -65,7 +69,7 @@ A persistent `Local Model Status` panel reports the active model architecture, p
 
 ## Project Status (August 2026)
 
-Nexus uses a single, convergent version line: git tags and `package.json` carry the same `v1.<MINOR>.<PATCH>` numbers as the milestone docs under `docs/v1/v1.<MINOR>/`. This track runs from the v1.0.0 pivot through the current **v1.17.0** cycle.
+Nexus uses a single, convergent version line: git tags and `package.json` carry the same `v1.<MINOR>.<PATCH>` numbers as the milestone docs under `docs/v1/v1.<MINOR>/`. This track runs from the v1.0.0 pivot through the current **v1.17.0** release; **v1.18.0** (agent harness and governance) is in progress.
 
 Historical note: between 2026-06-18 and 2026-07-20 a decoupled "release track" cut five semantic-release versions numbered ahead of the milestones. Those tags were renumbered onto the milestone line on 2026-08-05: `v2.0.0` -> `v1.6.0` (GA consolidating v1.4.0 -> v1.6.0), `v2.1.0` -> `v1.7.0`, `v2.2.0` -> `v1.12.0` (consolidating v1.8.0 -> v1.12.0), `v2.3.0` -> `v1.13.0`, and `v2.4.0` -> `v1.14.0`. The version **v2.0.0 is reserved for the convergence release** that ships once the v1.18 plan, the v1.19.x subplans, and the v2.0 adoption plan are all complete (see `docs/v2/v2.0/plans/`).
 
@@ -91,6 +95,7 @@ Historical note: between 2026-06-18 and 2026-07-20 a decoupled "release track" c
 | v1.15.0 | Post-reinstall fixes + chat-style studios: window controls / open maximized, installer relaunch starts at Welcome, catalog invariant guard + gated-token UX + post-install retry, real `models.*` registry reconciled with Ollama and the installer's weights tree, Image Studio and Video Lab rebuilt as chat, and a crash-proof "Nexus Code" VS Code extension | Landed | [docs/v1/v1.15/](docs/v1/v1.15/) |
 | v1.16.0 | Local serving gateway + document OCR: opt-in loopback OpenAI/Anthropic API in front of installed models, per-model tokens/sec and TTFT on Traces, RapidOCR (CPU) + Unlimited-OCR (NVIDIA) in the catalog, a governed `parse_document` tool, MLX-via-adapters how-to, and a searchable Models page with Chat/Coding quick switcher | Landed | [docs/v1/v1.16/](docs/v1/v1.16/) |
 | v1.17.0 | Agent-state motion identity: internal orbs, surface-liveness beam, and hero-action metal ring (no new npm packages), one primary motion per surface, recede-when-active ambient glow, halt-not-slow reduced-motion | Landed | [docs/v1/v1.17/](docs/v1/v1.17/) |
+| v1.18.0 | Agent harness and governance: skill-native mappings, llama.cpp loopback recipe, live harness selector, catalog/registry governance, ask inbox + scheduler, ACP surface, OS process sandbox | In progress (Phase 1 landed) | [docs/v1/v1.18/](docs/v1/v1.18/) |
 
 Each cycle's plan lives under `docs/v1/v1.<MINOR>/plans/`, its deferred work under `docs/v1/v1.<MINOR>/known-gaps.md`, and benchmarks (where run) under `docs/v1/v1.<MINOR>/benchmarks/`.
 
@@ -185,6 +190,7 @@ nexus doctor [--migration-report] [--json]             # v1.4.0 Phase 5; never m
 | **Skill self-optimization** | Local golden-task-graded, held-out-validated, human-approved bounded edits to skills (`nexus skills optimize` / `frontier`, plus a desktop approval panel); opt-in and default-off. |
 | **Per-model harness selection** | Auto-tunes the agent scaffold profile per local model with a golden A/B; opt-in (`nexus.coding.harnessSelector.enabled`). |
 | **MLX via local adapters** | Apple Silicon: register an mlx-vlm / LM Studio MLX / nativ loopback server as `nexus.llm.localAdapters` ([how-to](docs/v1/v1.16/guides/mlx-via-local-adapters.md)). No bundled MLX runtime. |
+| **llama.cpp via local adapters** | User-started `llama-server` on loopback as `nexus.llm.localAdapters` ([recipe](docs/reference/llamacpp-loopback-adapter.md)). No bundled runtime. Does not open the patient-tier gate. |
 | **Local API server** | Opt-in loopback OpenAI/Anthropic gateway (`nexus.serving.enabled`, default off) so other tools on this machine reuse installed models. |
 | **Document OCR** | Optional RapidOCR (CPU, every OS) and Unlimited-OCR (NVIDIA) catalog entries; Chat attachments parse locally. |
 | **Motion identity** | Internal orbs / beam / metal on the desktop shell (v1.17.0). One winner per surface. Honors OS reduced-motion (halt, not slow). |

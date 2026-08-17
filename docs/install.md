@@ -78,6 +78,11 @@ sha256sum -c --ignore-missing SHA256SUMS.txt
 
 Everything lands under your user account (no admin rights needed for the wizard itself); user data lives in `~/.nexus`.
 
+## After you install (v1.18.0)
+
+- **llama.cpp on loopback**: Nexus does not bundle llama.cpp. If you already run `llama-server` on `127.0.0.1`, register it as `nexus.llm.localAdapters` and set `nexus.llm.backend` to the manifest name. Recipe: [llamacpp-loopback-adapter.md](reference/llamacpp-loopback-adapter.md). This does not enable the patient-tier catalog gate.
+- **Skill-native mappings**: morning-brief *content* is the Hub `agent-presets` `morning-briefing` preset; browser GUI QA is Hub `browser-testing-with-devtools`. No new skill ships in this repo. See [skill-native-adoptions-v1.18.md](reference/skill-native-adoptions-v1.18.md).
+
 ## After you install (v1.17.0)
 
 The desktop shell now uses orbs, a surface-liveness beam, and a metal ring on Send / Generate / New session. If your OS has reduced-motion enabled, every effect **halts** (static fallbacks) instead of slowing down. Tokens: [design-tokens.md](v1/v1.17/design-tokens.md).

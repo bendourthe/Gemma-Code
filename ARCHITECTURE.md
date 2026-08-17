@@ -43,6 +43,10 @@ Later cycles added two sidecar-adjacent surfaces that the v1.0.0 layout above do
 - `desktop/sidecar/src/serving/` -- opt-in loopback OpenAI/Anthropic HTTP gateway in front of the model registry (`nexus.serving.enabled`, default off). Loopback bind only, bearer-token auth, inference routes only.
 - `core/documents/` -- OCR parse manager used by Chat attachments. Catalog entries: RapidOCR PP-OCRv4 (CPU) and Unlimited-OCR 3B (NVIDIA). The governed `parse_document` agent tool lives at `src/tools/handlers/parseDocument.ts`; composition-root wiring is still deferred (`LSO.P4.B` in [docs/v1/v1.16/known-gaps.md](docs/v1/v1.16/known-gaps.md)).
 
+### llama.cpp loopback adapter recipe (v1.18.0 Phase 1)
+
+No third inference engine is bundled. A user-started `llama-server` on loopback is registered the same way as MLX: a `nexus.llm.localAdapters` manifest with `protocol: "openai"`, validated by [`LocalAdapterRegistry`](modules/coding/llm/LocalAdapterRegistry.ts) / [`loopback.ts`](modules/coding/llm/loopback.ts). Recipe: [docs/reference/llamacpp-loopback-adapter.md](docs/reference/llamacpp-loopback-adapter.md). The patient-tier flag in [`patientTier.ts`](core/registry/patientTier.ts) stays closed ([EM.P4.A](docs/v1/v1.12/known-gaps.md)). Skill-native mappings (morning-brief content, browser GUI QA) are documented at [docs/reference/skill-native-adoptions-v1.18.md](docs/reference/skill-native-adoptions-v1.18.md) and do not add builtin skills.
+
 ### Agent-state motion identity (v1.17.0)
 
 The desktop shell (`desktop/src/`) ships an internal motion system with no new frontend dependency:

@@ -4,6 +4,31 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-16] v1.18.0 agent-harness-and-governance -- Phase 1: skill-native adoptions + llama.cpp recipe
+
+### Goal
+
+Ship the zero-code wins first: document that OpenWorker's morning-brief *content* and Open Interpreter's browser GUI QA are already covered by Nexus-Hub skills, and promote the user-registered llama.cpp adapter (EM.P4.A) into a first-class loopback recipe. No runtime, dependency, or outbound surface.
+
+### What was done
+
+- **Skill-native note**: [docs/reference/skill-native-adoptions-v1.18.md](reference/skill-native-adoptions-v1.18.md) maps OW-B1 to Hub `agent-presets` / `morning-briefing` (scheduler remains Phase 4 OW-A2) and OI-A4-web to Hub `browser-testing-with-devtools` (OI-A4-native stays deferred). No duplicate builtin skill.
+- **llama.cpp recipe**: [docs/reference/llamacpp-loopback-adapter.md](reference/llamacpp-loopback-adapter.md) plus [examples/llamacpp-loopback-adapter.json](reference/examples/llamacpp-loopback-adapter.json). `protocol: "openai"`, loopback host only, no trailing `/v1`. llama-server flags: `--host 127.0.0.1`, `--n-cpu-moe` / `--cpu-moe`, `--load-mode mmap` for the disk-streamed path. Patient tier stays closed.
+- **Tests**: [tests/unit/docs/v1.18-phase-1-reference.test.ts](../tests/unit/docs/v1.18-phase-1-reference.test.ts) -- example parses against `validateLocalAdapterManifest`; LAN/remote/`0.0.0.0` mutations rejected with MCP Registry Policy citation; guide fences stay valid; internal links resolve; builtin catalog has no duplicate of the two Hub skills.
+- **CI/CD**: no rewrite. `ci.yml` `test-ts` is unfiltered, so the new docs tests run there. There is no dedicated docs-link job; the unit test is the link check. Path-filter proposal: none.
+- **Known gaps**: [docs/v1/v1.18/known-gaps.md](v1/v1.18/known-gaps.md) created (in-progress). DF-1 live llama-server smoke not proven here; DF-2 Hub catalog not present in CI.
+- **User docs**: README, `docs/install.md`, `ARCHITECTURE.md`, ADR-0019, `docs/todos.md`.
+
+### Tests
+
+Root suite **4818 passed / 6 skipped / 0 failed** (435 files). Coverage **87.87% lines / 84.25% branches / 91.4% functions**. Lint 0 errors. `tsc -b` clean.
+
+### Next
+
+Phase 2: live harness activation (OI-A5 flagship, OI-A2 profiles, `/harness` inspect/switch).
+
+---
+
 ## [2026-08-16] v1.17.0 release cut
 
 ### Goal
