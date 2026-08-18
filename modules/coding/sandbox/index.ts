@@ -11,7 +11,7 @@ export type {
   SandboxSpawnRequest,
 } from "./types.js";
 export { SANDBOX_APPLY_FAILURE_EXIT, UNCONFINED_TOKEN } from "./types.js";
-export { deriveDefaultPolicy, DEFAULT_SECRET_DIR_NAMES } from "./policy.js";
+export { deriveDefaultPolicy, DEFAULT_SECRET_DIR_NAMES, pathAliases } from "./policy.js";
 export { formatSandboxSummary, inferSandboxMode, reportFromCapability } from "./report.js";
 export { isExecSandboxEnabled, parseExecSandboxEnv } from "./enabled.js";
 export { selectSandboxBackend } from "./selectBackend.js";

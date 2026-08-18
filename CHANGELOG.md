@@ -15,6 +15,8 @@
 
 * **desktop:** use a c-string literal for LoadLibraryA so Windows clippy is clean ([f27bc65](https://github.com/bendourthe/Nexus-AI/commit/f27bc65))
 * **ci:** attach release assets by waiting for the desktop bundle and running appimagetool without FUSE ([6e601d2](https://github.com/bendourthe/Nexus-AI/commit/6e601d2))
+* **sandbox:** alias macOS `/var` and `/private/var` firmlink twins in writable roots so Seatbelt allows in-scope writes on GitHub runners
+* **ci:** restore the skill-native "no new skill" phrase, probe live sandbox mode in the classifier test, and regenerate `docs/index.md`
 
 
 ### Opt-in surfaces

@@ -30,6 +30,35 @@ function realOrSelf(p: string): string {
   }
 }
 
+const DARWIN_FIRMLINK_PREFIXES = ["/var", "/tmp", "/etc"] as const;
+
+/**
+ * Paths Seatbelt / Landlock should treat as the same root. On macOS, `/var`
+ * is a firmlink to `/private/var` (same for `/tmp` and `/etc`). A profile
+ * that only lists the realpath denies writes whose cwd is the public path
+ * (sandbox-exec exit 65 on GitHub-hosted macOS runners).
+ */
+export function pathAliases(p: string): string[] {
+  const resolved = path.resolve(p);
+  const real = realOrSelf(p);
+  const out = new Set<string>([p, resolved, real]);
+  if (process.platform === "darwin") {
+    for (const current of [...out]) {
+      const posix = current.replace(/\\/g, "/");
+      if (posix.startsWith("/private/")) {
+        out.add(posix.slice("/private".length));
+      } else {
+        for (const prefix of DARWIN_FIRMLINK_PREFIXES) {
+          if (posix === prefix || posix.startsWith(`${prefix}/`)) {
+            out.add(`/private${posix}`);
+          }
+        }
+      }
+    }
+  }
+  return [...out];
+}
+
 function isInside(root: string, candidate: string): boolean {
   const a = realOrSelf(root);
   const b = realOrSelf(candidate);
@@ -57,12 +86,17 @@ export function deriveDefaultPolicy(
   options: DerivePolicyOptions = {},
 ): SandboxPolicy {
   const workspace = realOrSelf(workspaceRoot);
-  const tmpDir = realOrSelf(options.tmpDir ?? os.tmpdir());
   const homeDir = realOrSelf(options.homeDir ?? os.homedir());
-  const extraWritable = (options.extraWritableRoots ?? [])
-    .map(realOrSelf)
-    .filter(isDirectory);
-  const writable = unique([workspace, tmpDir, ...extraWritable]);
+  const extraWritable = (options.extraWritableRoots ?? []).flatMap((root) => {
+    const real = realOrSelf(root);
+    if (!isDirectory(real) && !isDirectory(root)) return [];
+    return pathAliases(root);
+  });
+  const writable = unique([
+    ...pathAliases(workspaceRoot),
+    ...pathAliases(options.tmpDir ?? os.tmpdir()),
+    ...extraWritable,
+  ]);
 
   const denyRead: string[] = [];
   for (const name of DEFAULT_SECRET_DIR_NAMES) {

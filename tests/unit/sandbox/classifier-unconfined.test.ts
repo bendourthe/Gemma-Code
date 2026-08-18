@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { classifyAction, ActionRisk } from "../../../modules/coding/guardrails/ActionClassifier.js";
+import {
+  describeSandbox,
+  sandboxRequiresEnhancedConfirmation,
+} from "../../../modules/coding/sandbox/spawnSandboxed.js";
 import type { ToolCall } from "../../../src/tools/types.js";
 
 function makeCall(command: string): ToolCall {
@@ -15,11 +19,12 @@ describe("ActionClassifier sandbox boost", () => {
   });
 
   it("raises enhanced confirmation when sandbox is on but not confined", () => {
+    const report = describeSandbox({ enabled: true });
     const c = classifyAction(makeCall("echo hello"), { execSandboxEnabled: true });
-    if (c.reason.includes("confined (") && !c.reason.includes("partial")) {
-      expect(c.enhancedConfirmation).toBe(false);
-    } else {
-      expect(c.enhancedConfirmation).toBe(true);
+    // Linux/macOS GitHub runners are confined, so applySandboxBoost is a
+    // no-op. Probe the same helper the classifier uses, not the reason text.
+    expect(c.enhancedConfirmation).toBe(sandboxRequiresEnhancedConfirmation(report));
+    if (sandboxRequiresEnhancedConfirmation(report)) {
       expect(c.reason).toMatch(/unconfined|partial/);
     }
   });

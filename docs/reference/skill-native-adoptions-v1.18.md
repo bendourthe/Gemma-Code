@@ -2,7 +2,7 @@
 
 v1.18.0 Phase 1 (OW-B1, OI-A4-web): a written mapping, not a new Hub skill. Neither item needs a duplicate catalog entry in this repository. The scheduling mechanism for the morning brief landed in Phase 4 (OW-A2) as `AgentRunScheduler`; it still consumes this Hub preset for content. The native-app half of computer-use remains deferred ([OI-A4-native](../v1/v1.18/plans/v1.18.0-adoption-agent-harness-and-governance.md#deferred-and-gated-items-tracked-not-built-this-cycle)).
 
-This note exists so later phases do not rebuild what the Nexus-Hub catalog already provides. Do not add a second morning-brief or browser-QA skill. Verify each coverage against the synced Hub catalog (`nexus skills sync` into `~/.nexus-ai/catalog/`), not against a duplicate skill in `modules/coding/skills/catalog/`.
+This note exists so later phases do not rebuild what the Nexus-Hub catalog already provides. There is no new skill in the builtin catalog: do not add a second morning-brief or browser-QA skill. Verify each coverage against the synced Hub catalog (`nexus skills sync` into `~/.nexus-ai/catalog/`), not against a duplicate skill in `modules/coding/skills/catalog/`.
 
 ## OW-B1 -- morning-brief *content*
 
