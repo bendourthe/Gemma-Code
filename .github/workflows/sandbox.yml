@@ -1,0 +1,42 @@
+# v1.18.0 Phase 7: three-OS sandbox matrix, path-gated so unrelated
+# pushes do not pay macOS/Windows npm ci. PRs stay on ci.yml test-ts
+# (ubuntu, already includes these files).
+name: OS sandbox
+
+on:
+  push:
+    branches-ignore: ["dependabot/**"]
+    paths:
+      - "modules/coding/sandbox/**"
+      - "modules/coding/runtime/headlessTools.ts"
+      - "modules/coding/guardrails/ActionClassifier.ts"
+      - "src/tools/handlers/terminal.ts"
+      - "tests/unit/sandbox/**"
+      - "tests/integration/sandbox/**"
+      - "tests/unit/tools/handlers/terminal.sandbox.test.ts"
+      - ".github/workflows/sandbox.yml"
+  workflow_dispatch: {}
+
+concurrency:
+  group: sandbox-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-sandbox:
+    name: "OS sandbox (${{ matrix.os }})"
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci --prefer-offline --no-audit
+      - name: Run sandbox unit + integration tests
+        run: npx vitest run tests/unit/sandbox tests/integration/sandbox tests/unit/tools/handlers/terminal.sandbox.test.ts --config configs/vitest.config.ts --reporter=dot
+        env:
+          CI: "true"

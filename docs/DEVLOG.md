@@ -4,6 +4,29 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-17] v1.18.0 agent-harness-and-governance -- Phase 7: architecture, known-gaps, CI/CD
+
+### Goal
+
+Close-out of landed v1.18 work: layout, known-gaps reconciliation, CI optimization. Phase 4 is still open, so this is not a version cut.
+
+### What was done
+
+- **Layout**: no file moves. Empty/duplicate/orphan detectors clean on v1.18 trees. `docs/v1/v1.18/` complete except Phase 4 history (phase not built). `check:docs-layout` and `check:naming` clean.
+- **Known gaps**: DF-12..15 recorded (LG-A1, LG-A4, OI-A4-native, harness default-off). EM.P1.A / EM.P5.A remain resolved; EM.P3 / EM.P4 stay closed. Shared transport recorded as resolved. Status stays in-progress (DF-9).
+- **CI/CD**: three-OS sandbox matrix moved to [`.github/workflows/sandbox.yml`](../.github/workflows/sandbox.yml) with path filters. `ci.yml` `test-ts` still covers those files on PRs. Actions freeze does not apply.
+- **Release**: `/update release` not handed off (`is_final_phase` false).
+
+### Tests
+
+Root suite **4909 passed / 11 skipped / 0 failed** (454 files). Coverage **87.73% lines / 84.17% branches / 91.39% functions**. Desktop **956 passed / 0 failed** (110 files). Lint 0 errors. `tsc -b` and desktop typecheck clean.
+
+### Next
+
+`/implement phase 4`, then `/update release`. Or skip Phase 4 explicitly and accept DF-9 in the release.
+
+---
+
 ## [2026-08-17] v1.18.0 agent-harness-and-governance -- Phase 6: OS process sandbox
 
 ### Goal

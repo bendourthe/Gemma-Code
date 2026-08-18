@@ -8,7 +8,7 @@ Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/pl
 
 Plan: [plans/v1.18.0-adoption-agent-harness-and-governance.md](plans/v1.18.0-adoption-agent-harness-and-governance.md)
 
-Carry-forward source: [../v1.17/known-gaps.md](../v1.17/known-gaps.md) (reconcile in Phase 7, not this phase).
+Carry-forward source: [../v1.17/known-gaps.md](../v1.17/known-gaps.md) (reconciled in Phase 7; items stay in that file).
 
 ## v1.18.0
 
@@ -17,7 +17,7 @@ Carry-forward source: [../v1.17/known-gaps.md](../v1.17/known-gaps.md) (reconcil
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 11 | 2 |
+| Deferred (DF) | 15 | 3 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
@@ -104,11 +104,44 @@ Carry-forward source: [../v1.17/known-gaps.md](../v1.17/known-gaps.md) (reconcil
 - **Reason**: Job objects plus a best-effort restricted token do confine process lifetime and resource caps. They do not implement a filesystem or network allow-list comparable to Seatbelt or Landlock. AppContainer was not applied (capability SIDs break typical coding CLIs). Mode on Windows is therefore `partial`, never `confined`. Writable-root and network-deny policy stay tool-layer (denylists, confirmation) on this OS. Matrix: `modules/coding/sandbox/windowsMatrix.ts`.
 - **Suggested next step**: Revisit AppContainer or an equivalent FS/network restriction only if a coding-CLI-compatible capability set is proven. Do not report Windows as confined until filesystem and network are actually enforced.
 
+##### DF-12 - Laguna-S-2.1 catalog entry stays gated (LG-A1)
+
+- **Source phase**: Phase 7 - Known-gaps reconciliation (gated this cycle)
+- **Plan reference**: `docs/v1/v1.18/plans/v1.18.0-adoption-agent-harness-and-governance.md` (Deferred and Gated Items)
+- **Reason**: EM.P3 (`extremeLowBit.ts` fail-closed at `999.0.0`) and EM.P4 (`patientTier.ts` disabled) stay closed. Phase 3 prepared schema and UD-label recognition only. No Laguna catalog row, and no independent benchmark.
+- **Suggested next step**: After those gates open and a benchmark exists, add the entry in a serving-oriented cycle. Do not guess quant or VRAM numbers.
+
+##### DF-13 - 1M-context budget policy is not built (LG-A4)
+
+- **Source phase**: Phase 7 - Known-gaps reconciliation (gated this cycle)
+- **Plan reference**: `docs/v1/v1.18/plans/v1.18.0-adoption-agent-harness-and-governance.md` (Deferred and Gated Items)
+- **Reason**: Depends on LG-A1. No context-window budget policy landed.
+- **Suggested next step**: After LG-A1 ships, add a 1M-context budget policy in the same serving/catalog cycle. Do not add a dummy window size.
+
+##### DF-14 - Native-app computer-use driver is not built (OI-A4-native)
+
+- **Source phase**: Phase 7 - Known-gaps reconciliation (gated this cycle)
+- **Plan reference**: `docs/v1/v1.18/plans/v1.18.0-adoption-agent-harness-and-governance.md` (Deferred and Gated Items)
+- **Reason**: High effort, new local capability. Browser-half is skill-native (`browser-testing-with-devtools`). Native driver must be internal (no `trycua`), permission-tiered, and confirmation-gated.
+- **Suggested next step**: A later cycle after the Hub browser-QA skill has proven the workflow. Do not vendor Open Interpreter or CUA runtimes.
+
+##### DF-15 - Harness selector shipped default stays off (EM.P1.B)
+
+- **Source phase**: Phase 2 - Live harness activation; recorded in Phase 7
+- **Plan reference**: `docs/v1/v1.18/plans/v1.18.0-adoption-agent-harness-and-governance.md` (sub-task 2.1); v1.12 EM.P1.B
+- **Reason**: `HARNESS_SELECTOR_SHIPPED_DEFAULT` remains `false`. No live weak-model A/B was run, so the no-degradation gate does not flip `nexus.coding.harnessSelector.enabled`.
+- **Suggested next step**: Run `runHarnessAb` on a weak local model with the live driver; flip the default only on a measured net win.
+
 ### Resolved
 
 | ID | Title | Resolved in | Notes |
 |---|---|---|---|
 | EM.P1.A (v1.12) | Selector not wired into the live prompt path | Phase 2 | `buildPromptContext` spreads `overlayForModel` / session override when `settings.harnessSelectorEnabled` is on; off returns the base context by reference. `HARNESS_SELECTOR_SHIPPED_DEFAULT` stays false (EM.P1.B). Do not treat the v1.12 file as finalized. |
 | EM.P5.A (v1.12) | No OS-level process sandbox for agent-run commands | Phase 6 | Abstraction + three backends shipped behind `nexus.coding.execSandbox` (off by default). **macOS**: `confined` when `/usr/bin/sandbox-exec` is present (Seatbelt FS+network). **Linux**: `confined` when Landlock is in the LSM list and python3 can apply the ctypes helper (FS+seccomp network deny). **Windows**: `partial` (job object + best-effort restricted token; filesystem and network NOT kernel-enforced). Off or missing backend is loud `unconfined`. Windows remainder is DF-11. EM.P3 / EM.P4 stay closed. |
+| OI-A3 shared transport | Serving gateway and ACP share one loopback listener | Phase 5 | [`LoopbackHttpServer`](../../../desktop/sidecar/src/controlSurface/loopbackServer.ts) + [`contract.ts`](../../../desktop/sidecar/src/controlSurface/contract.ts). `ServingGateway` no longer owns `createServer`. HTTP JSON-RPC vs stdio remains DF-10. |
 
-v1.17 items stay in [../v1.17/known-gaps.md](../v1.17/known-gaps.md). This phase does not close motion, serving, or OCR carry-forwards.
+### Phase 7 reconciliation
+
+v1.17 motion items (DF-1, DF-3, DF-5, DF-6, DF-8, DF-9, DF-10) stay in [../v1.17/known-gaps.md](../v1.17/known-gaps.md). v1.16 serving/OCR items stay in [../v1.16/known-gaps.md](../v1.16/known-gaps.md). This cycle does not close them.
+
+Status stays **in-progress**: Phase 4 (ask inbox + scheduler) is still unchecked (DF-9), so this file is not finalized and `/update release` is not handed off.
