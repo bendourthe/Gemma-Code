@@ -97,7 +97,7 @@ Historical note: between 2026-06-18 and 2026-07-20 a decoupled "release track" c
 | v1.15.0 | Post-reinstall fixes + chat-style studios: window controls / open maximized, installer relaunch starts at Welcome, catalog invariant guard + gated-token UX + post-install retry, real `models.*` registry reconciled with Ollama and the installer's weights tree, Image Studio and Video Lab rebuilt as chat, and a crash-proof "Nexus Code" VS Code extension | Landed | [docs/v1/v1.15/](docs/v1/v1.15/) |
 | v1.16.0 | Local serving gateway + document OCR: opt-in loopback OpenAI/Anthropic API in front of installed models, per-model tokens/sec and TTFT on Traces, RapidOCR (CPU) + Unlimited-OCR (NVIDIA) in the catalog, a governed `parse_document` tool, MLX-via-adapters how-to, and a searchable Models page with Chat/Coding quick switcher | Landed | [docs/v1/v1.16/](docs/v1/v1.16/) |
 | v1.17.0 | Agent-state motion identity: internal orbs, surface-liveness beam, and hero-action metal ring (no new npm packages), one primary motion per surface, recede-when-active ambient glow, halt-not-slow reduced-motion | Landed | [docs/v1/v1.17/](docs/v1/v1.17/) |
-| v1.18.0 | Agent harness and governance: skill-native mappings, llama.cpp loopback recipe, live harness selector, catalog/registry governance, ask inbox + scheduler, ACP surface, OS process sandbox | In progress (Phase 5 landed; Phase 4 skipped) | [docs/v1/v1.18/](docs/v1/v1.18/) |
+| v1.18.0 | Agent harness and governance: skill-native mappings, llama.cpp loopback recipe, live harness selector, catalog/registry governance, ask inbox + scheduler, ACP surface, OS process sandbox | In progress (Phase 6 landed; Phase 4 skipped) | [docs/v1/v1.18/](docs/v1/v1.18/) |
 
 Each cycle's plan lives under `docs/v1/v1.<MINOR>/plans/`, its deferred work under `docs/v1/v1.<MINOR>/known-gaps.md`, and benchmarks (where run) under `docs/v1/v1.<MINOR>/benchmarks/`.
 
@@ -239,7 +239,7 @@ Short version:
 
 What Nexus does NOT do by default: telemetry, analytics, phone-home, third-party data processors, model downloads at runtime, API-key requirements. Memory writes are scrubbed by [`redactSecrets`](core/observability/redactSecrets.ts) before SQLite insert. The `lifecycle.tool.failed` HookBus event redacts the error string at the bus boundary so leaked secrets in tool errors never reach trace consumers.
 
-What is OUT of Nexus's control: your chosen LLM weights, any MCP server you wire in, user-initiated outbound calls (`gh`, `git push`, `curl`), and your own user-authored hooks and rules. Code the agent runs via `run_terminal` executes at your user privilege with tool-layer guardrails (command blocklist, touched-path / secret-path denylists, confirmation gate, env scrubbing) but no OS-level process sandbox - a documented boundary in [SECURITY.md](SECURITY.md). See [SECURITY.md](SECURITY.md) for the full caveats.
+What is OUT of Nexus's control: your chosen LLM weights, any MCP server you wire in, user-initiated outbound calls (`gh`, `git push`, `curl`), and your own user-authored hooks and rules. Code the agent runs via `run_terminal` executes at your user privilege with tool-layer guardrails (command blocklist, touched-path / secret-path denylists, confirmation gate, env scrubbing). An optional OS process sandbox (`nexus.coding.execSandbox`, off by default) adds Seatbelt / Landlock+seccomp / Windows job-object confinement on top; when the setting is off or the host cannot apply a backend, the UI and logs state **unconfined**. Windows does not kernel-enforce filesystem or network (partial). See [SECURITY.md](SECURITY.md) for the full caveats.
 
 To report a security issue: email [benjamin.dourthe@gmail.com](mailto:benjamin.dourthe@gmail.com) or open a private security advisory at [github.com/bendourthe/Nexus-AI/security](https://github.com/bendourthe/Nexus-AI/security).
 
@@ -251,7 +251,7 @@ Nexus evolves in versioned slices. Each item below traces to a concrete plan or 
 
 | Focus | Status | Source |
 |-------|--------|--------|
-| OS-level process sandbox for agent code execution (Seatbelt / Landlock / seccomp / job object), closing the documented no-sandbox boundary | Tracked | [docs/v1/v1.12/known-gaps.md](docs/v1/v1.12/known-gaps.md) (`EM.P5.A`) |
+| OS-level process sandbox for agent code execution (Seatbelt / Landlock / seccomp / job object). Off by default; loud unconfined when off or the backend is missing. Windows is partial (job + token; filesystem and network not kernel-enforced) | Landed (v1.18.0 Phase 6; Windows remainder in DF-11) | [docs/v1/v1.18/known-gaps.md](docs/v1/v1.18/known-gaps.md) (`EM.P5.A`, `DF-11`) |
 | Live extreme-low-bit (BitNet-class) + disk-offload "patient" catalog entries, once runtime support + independent benchmarks are confirmed | Gated | [docs/v1/v1.12/known-gaps.md](docs/v1/v1.12/known-gaps.md) (`EM.P3`, `EM.P4.A`) |
 | Weak-model harness-selector enablement, pending a live A/B net-win on a low-cost model | Gated | [docs/v1/v1.12/known-gaps.md](docs/v1/v1.12/known-gaps.md) (`EM.P1`) |
 | Skill-optimizer live A/B validation (ship the default-on rollout once a net win is measured) | Gated | [docs/v1/v1.7/known-gaps.md](docs/v1/v1.7/known-gaps.md) (`SO003.P3.A`) |

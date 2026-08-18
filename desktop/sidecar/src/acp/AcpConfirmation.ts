@@ -19,6 +19,7 @@ import { ActionRisk, classifyAction } from "../../../../modules/coding/guardrail
 import type { HeadlessConfirmFn } from "../../../../modules/coding/runtime/headlessGuards.js";
 import { PermissionTier, resolveTier } from "../../../../modules/coding/runtime/headlessGuards.js";
 import type { ToolCall } from "../../../../src/tools/types.js";
+import { isExecSandboxEnabled } from "../../../../modules/coding/sandbox/index.js";
 
 export const ACP_FAIL_CLOSED_REASON =
   "Unattended ACP confirmation fail-closed: the driving editor is not available to approve, and the ask inbox is not landed (v1.18 Phase 4). Refusing rather than auto-approving or waiting 60s.";
@@ -53,7 +54,9 @@ export function classifyAcpCall(toolName: string, args: Readonly<Record<string, 
     parameters: { ...args },
     source: "local-agent",
   };
-  const classification = classifyAction(call);
+  const classification = classifyAction(call, {
+    execSandboxEnabled: isExecSandboxEnabled(),
+  });
   return {
     risk: classification.risk,
     reason: classification.reason,

@@ -17,7 +17,7 @@ Carry-forward source: [../v1.17/known-gaps.md](../v1.17/known-gaps.md) (reconcil
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 10 | 1 |
+| Deferred (DF) | 11 | 2 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
@@ -97,10 +97,18 @@ Carry-forward source: [../v1.17/known-gaps.md](../v1.17/known-gaps.md) (reconcil
 - **Reason**: The open ACP spec commonly uses stdio. This cycle mounts JSON-RPC 2.0 at `POST /acp` on the v1.16 serving `LoopbackHttpServer` so there is one loopback bind and one bearer token (`nexus.serving.token`). `session/update` notifications are returned on `session/prompt` as `updates[]`, and also flushed as SSE when the client sends `Accept: text/event-stream`.
 - **Suggested next step**: If an editor requires stdio ACP, add a thin stdio bridge that forwards to `POST /acp` rather than a second agent engine. Do not vendor Open Interpreter.
 
+##### DF-11 - Windows sandbox does not kernel-enforce filesystem or network
+
+- **Source phase**: Phase 6 - OS process sandbox (OI-A1)
+- **Plan reference**: `docs/v1/v1.18/plans/v1.18.0-adoption-agent-harness-and-governance.md` (sub-task 6.4)
+- **Reason**: Job objects plus a best-effort restricted token do confine process lifetime and resource caps. They do not implement a filesystem or network allow-list comparable to Seatbelt or Landlock. AppContainer was not applied (capability SIDs break typical coding CLIs). Mode on Windows is therefore `partial`, never `confined`. Writable-root and network-deny policy stay tool-layer (denylists, confirmation) on this OS. Matrix: `modules/coding/sandbox/windowsMatrix.ts`.
+- **Suggested next step**: Revisit AppContainer or an equivalent FS/network restriction only if a coding-CLI-compatible capability set is proven. Do not report Windows as confined until filesystem and network are actually enforced.
+
 ### Resolved
 
 | ID | Title | Resolved in | Notes |
 |---|---|---|---|
 | EM.P1.A (v1.12) | Selector not wired into the live prompt path | Phase 2 | `buildPromptContext` spreads `overlayForModel` / session override when `settings.harnessSelectorEnabled` is on; off returns the base context by reference. `HARNESS_SELECTOR_SHIPPED_DEFAULT` stays false (EM.P1.B). Do not treat the v1.12 file as finalized. |
+| EM.P5.A (v1.12) | No OS-level process sandbox for agent-run commands | Phase 6 | Abstraction + three backends shipped behind `nexus.coding.execSandbox` (off by default). **macOS**: `confined` when `/usr/bin/sandbox-exec` is present (Seatbelt FS+network). **Linux**: `confined` when Landlock is in the LSM list and python3 can apply the ctypes helper (FS+seccomp network deny). **Windows**: `partial` (job object + best-effort restricted token; filesystem and network NOT kernel-enforced). Off or missing backend is loud `unconfined`. Windows remainder is DF-11. EM.P3 / EM.P4 stay closed. |
 
 v1.17 items stay in [../v1.17/known-gaps.md](../v1.17/known-gaps.md). This phase does not close motion, serving, or OCR carry-forwards.

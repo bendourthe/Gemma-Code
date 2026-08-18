@@ -63,6 +63,9 @@ core/                       v1.0.0 shared-core surfaces (Phase 2.3 + 2.6)
 modules/                    per-pillar code (one folder per pillar)
   coding/                    Agentic AI Coding (engine still in src/ during the
                               one-cycle compat window)
+  coding/sandbox/            OS process sandbox for run_terminal (v1.18.0
+                              Phase 6): Seatbelt / Landlock+seccomp / Windows
+                              job object. vscode-free. Off by default.
 
 src/                        VS Code extension TypeScript source (Coding engine
                               host during v1.0.0 compat window)
@@ -173,7 +176,7 @@ This contract documents which module owns which kind of write. It is the spirit 
 
 - **`src/llm/`** is the **only module that may import or call Ollama directly.** Every other module consumes the vendor-neutral port at [src/llm/types.ts](src/llm/types.ts). Baseline exceptions (`EmbeddingClient`, `GemmaCodePanel`, `extension.ts`) are grandfathered with a v0.6.0 ratchet and listed in `configs/dependency-cruiser.cjs`.
 - **`src/storage/`** is the **only module that may open SQLite databases.** Tool handlers, panels, sub-agents, and the agent loop consume `MemoryStore`, `ChatHistoryStore`, `ToolOutputCache`, and `UnifiedMemoryRetriever` as their public APIs.
-- **`src/tools/handlers/`** are the **only modules that perform side-effecting operations** (filesystem mutations, terminal commands, network requests through `web_search` / `fetch_page`). Every handler routes through `pathGuard.ts`, `secretPaths.ts`, and `ConfirmationGate.ts`.
+- **`src/tools/handlers/`** are the **only modules that perform side-effecting operations** (filesystem mutations, terminal commands, network requests through `web_search` / `fetch_page`). Every handler routes through `pathGuard.ts`, `secretPaths.ts`, and `ConfirmationGate.ts`. OS-level confinement for `run_terminal` lives in [`modules/coding/sandbox/`](modules/coding/sandbox/) and is invoked by the terminal handler and the headless sidecar; it never replaces those guardrails.
 - **`src/panels/`** never imports `src/storage/` directly; communication goes through [src/panels/messages.ts](src/panels/messages.ts) so the webview sandbox cannot bypass guardrails. Pre-baseline panels (`GemmaCodePanel`, `SessionListPanel`, `TraceDashboardPanel`) are grandfathered.
 - **Memory writes** are owned by `MemoryStore` and `MemoryConsolidator`; tool handlers must not insert memory rows themselves.
 - **Confirmation prompts** are owned by `ConfirmationGate.ts`; individual tool handlers do not raise prompts of their own.

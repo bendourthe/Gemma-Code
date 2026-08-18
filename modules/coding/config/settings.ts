@@ -70,6 +70,13 @@ export interface NexusSettings {
   parseDocumentEnabled: boolean;
   /** v1.16.0 Phase 4 (A6): store parsed-document text in memory. Default false. */
   parseDocumentMemoryIngestEnabled: boolean;
+  /**
+   * v1.18.0 Phase 6 (OI-A1): wrap `run_terminal` in an OS process sandbox.
+   * Off by default (rollout). When off, or when the OS backend is missing,
+   * execution stays on the pre-existing guardrails and the UI/logs state
+   * "unconfined".
+   */
+  execSandbox: boolean;
   inboundClassifierEnabled: boolean;
   inboundClassifierDeepScan: boolean;
   swarmOrchestrationEnabled: boolean;
@@ -264,6 +271,7 @@ export function getSettings(): NexusSettings {
       "nexus.coding.inboundClassifier.enabled",
       true,
     ),
+    execSandbox: c.get<boolean>("nexus.coding.execSandbox", false),
     inboundClassifierDeepScan: c.get<boolean>(
       "nexus.coding.inboundClassifier.deepScan",
       false,

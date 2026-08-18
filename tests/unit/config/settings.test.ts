@@ -40,6 +40,7 @@ describe("getSettings()", () => {
     expect(settings.mcpEnabled).toBe(false);
     expect(settings.mcpServerMode).toBe("off");
     expect(settings.autoDetectGpu).toBe(true);
+    expect(settings.execSandbox).toBe(false);
     expect(settings.gpuTierOverride).toBeNull();
   });
 

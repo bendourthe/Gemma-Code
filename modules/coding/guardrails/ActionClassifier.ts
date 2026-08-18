@@ -1,5 +1,9 @@
 import type { ToolCall } from "../../../src/tools/types.js";
 import { isBlocked } from "../../../src/tools/commandBlocklist.js";
+import {
+  describeSandbox,
+  sandboxRequiresEnhancedConfirmation,
+} from "../sandbox/index.js";
 
 export enum ActionRisk {
   REVERSIBLE = "reversible",
@@ -12,6 +16,16 @@ export interface ActionClassification {
   readonly reason: string;
   readonly requiresCheckpoint: boolean;
   readonly enhancedConfirmation: boolean;
+}
+
+/**
+ * v1.18.0 Phase 6: when the OS sandbox was requested but is unconfined or
+ * only partial, the classifier raises enhanced confirmation.
+ * `# DEVIATION:` BLOCKED is not boosted; the boost applies only when
+ * `execSandboxEnabled` is true and the live mode is not confined.
+ */
+export interface ClassifyActionOptions {
+  readonly execSandboxEnabled?: boolean;
 }
 
 /** Read-only shell commands that have no side effects. */
@@ -49,7 +63,10 @@ const SAFE_TOOLS = new Set<string>([
  * - DESTRUCTIVE: modifies state, may need a git checkpoint
  * - BLOCKED: unconditionally prevented (dangerous shell patterns)
  */
-export function classifyAction(call: ToolCall): ActionClassification {
+export function classifyAction(
+  call: ToolCall,
+  options: ClassifyActionOptions = {},
+): ActionClassification {
   if (SAFE_TOOLS.has(call.tool)) {
     return {
       risk: ActionRisk.REVERSIBLE,
@@ -78,7 +95,7 @@ export function classifyAction(call: ToolCall): ActionClassification {
   }
 
   if (call.tool === "run_terminal") {
-    return _classifyShellCommand(call);
+    return _classifyShellCommand(call, options);
   }
 
   // MCP tools and unknowns default to DESTRUCTIVE.
@@ -99,7 +116,10 @@ export function classifyAction(call: ToolCall): ActionClassification {
   };
 }
 
-function _classifyShellCommand(call: ToolCall): ActionClassification {
+function _classifyShellCommand(
+  call: ToolCall,
+  options: ClassifyActionOptions,
+): ActionClassification {
   const command = String(call.parameters["command"] ?? "");
 
   // Check the hard blocklist first.
@@ -112,36 +132,58 @@ function _classifyShellCommand(call: ToolCall): ActionClassification {
     };
   }
 
+  let result: ActionClassification | null = null;
+
   // Check if the command is read-only.
   const normalized = command.trim().toLowerCase();
   for (const safe of READ_ONLY_COMMANDS) {
     if (normalized === safe || normalized.startsWith(safe + " ") || normalized.startsWith(safe + "\t")) {
-      return {
+      result = {
         risk: ActionRisk.REVERSIBLE,
         reason: `Read-only command: ${safe}`,
         requiresCheckpoint: false,
         enhancedConfirmation: false,
       };
+      break;
     }
   }
 
-  // Check for known destructive patterns.
-  for (const pattern of DESTRUCTIVE_COMMAND_PATTERNS) {
-    if (normalized.includes(pattern.toLowerCase())) {
-      return {
-        risk: ActionRisk.DESTRUCTIVE,
-        reason: `Command contains destructive pattern: "${pattern.trim()}"`,
-        requiresCheckpoint: true,
-        enhancedConfirmation: true,
-      };
+  if (!result) {
+    for (const pattern of DESTRUCTIVE_COMMAND_PATTERNS) {
+      if (normalized.includes(pattern.toLowerCase())) {
+        result = {
+          risk: ActionRisk.DESTRUCTIVE,
+          reason: `Command contains destructive pattern: "${pattern.trim()}"`,
+          requiresCheckpoint: true,
+          enhancedConfirmation: true,
+        };
+        break;
+      }
     }
   }
 
-  // Default-deny for all other shell commands.
+  if (!result) {
+    result = {
+      risk: ActionRisk.DESTRUCTIVE,
+      reason: "Unrecognized shell command defaults to destructive",
+      requiresCheckpoint: false,
+      enhancedConfirmation: false,
+    };
+  }
+
+  return applySandboxBoost(result, options);
+}
+
+function applySandboxBoost(
+  result: ActionClassification,
+  options: ClassifyActionOptions,
+): ActionClassification {
+  if (options.execSandboxEnabled !== true) return result;
+  const report = describeSandbox({ enabled: true });
+  if (!sandboxRequiresEnhancedConfirmation(report)) return result;
   return {
-    risk: ActionRisk.DESTRUCTIVE,
-    reason: "Unrecognized shell command defaults to destructive",
-    requiresCheckpoint: false,
-    enhancedConfirmation: false,
+    ...result,
+    enhancedConfirmation: true,
+    reason: `${result.reason}; ${report.summary}`,
   };
 }

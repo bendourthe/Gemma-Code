@@ -4,6 +4,32 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-17] v1.18.0 agent-harness-and-governance -- Phase 6: OS process sandbox
+
+### Goal
+
+Wrap `run_terminal` in OS-level confinement (OI-A1, closes EM.P5.A). Open Interpreter is a design reference only. No Rust / OI code. Existing guardrails stay in addition. Degraded mode is loud **unconfined**.
+
+### What was done
+
+- **Abstraction**: [`modules/coding/sandbox/`](../modules/coding/sandbox/) (vscode-free). Policy: writable roots = workspace + `os.tmpdir()`; network deny; deny-read of `~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.netrc`, `~/.pki` unless inside the workspace. Mode is `confined` only when filesystem **and** network are enforced.
+- **macOS**: Seatbelt via `sandbox-exec`. Confined when the binary is present.
+- **Linux**: Landlock FS + seccomp inet-socket block via an in-repo Python ctypes helper. Confined when Landlock is in the LSM list and python3 is present. Apply failure is fail-closed (exit 125).
+- **Windows**: job object + best-effort restricted token. Mode is **partial**. Filesystem and network are not kernel-enforced. AppContainer not applied (DF-11). Matrix in [`windowsMatrix.ts`](../modules/coding/sandbox/windowsMatrix.ts).
+- **Wiring**: `run_terminal` and headless sidecar share `spawnSandboxed`. Setting `nexus.coding.execSandbox` default **off**; sidecar `NEXUS_EXEC_SANDBOX`. Additive JSON `sandbox` key. Classifier raises enhanced confirmation when the setting is on but mode is not confined.
+- **CI/CD**: added push-only `test-sandbox` job (ubuntu / macos / windows, path-scoped vitest includes). `test-ts` already runs these files on PRs. Proposed (not applied): add a `paths:` filter on the job so it does not run on unrelated pushes.
+- **Known gaps**: EM.P5.A resolved per OS in [docs/v1/v1.18/known-gaps.md](v1/v1.18/known-gaps.md). New DF-11 (Windows FS/network). EM.P3 / EM.P4 stay closed.
+
+### Tests
+
+Root suite **4904 passed / 11 skipped / 0 failed** (454 files passed, 3 skipped). Coverage **87.71% lines / 84.18% branches / 91.36% functions**. `modules/coding/sandbox` **96.47% lines**. Linux/macOS backend bodies are thinner on this Windows host (CI matrix covers them). Lint 0 errors. `tsc -b` clean. `check-architecture` 0 errors. Four extra unit tests landed after the coverage pass (`which` miss/read, empty-unenforced summary, Windows spawn fallback).
+
+### Next
+
+Phase 7: architecture refactor, known-gaps reconciliation, CI/CD. Phase 4 ask inbox remains `/implement phase 4`.
+
+---
+
 ## [2026-08-17] v1.18.0 agent-harness-and-governance -- Phase 5: ACP agent surface
 
 ### Goal

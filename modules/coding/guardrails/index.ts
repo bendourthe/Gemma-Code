@@ -8,7 +8,7 @@
  * detail stays visible to readers and imports remain tree-shakeable.
  */
 export { classifyAction, ActionRisk } from "./ActionClassifier.js";
-export type { ActionClassification } from "./ActionClassifier.js";
+export type { ActionClassification, ClassifyActionOptions } from "./ActionClassifier.js";
 export { GitSafetyNet } from "./GitSafetyNet.js";
 export type { GitCheckpoint } from "./GitSafetyNet.js";
 export { LoopDetector } from "./LoopDetector.js";

@@ -85,6 +85,29 @@ jobs:
           path: out/
           retention-days: 7
 
+  # v1.18.0 Phase 6 (OI-A1): three-OS sandbox suite. PRs stay ubuntu-only
+  # (test-ts already runs these files). Push runs macOS + Windows + Ubuntu with
+  # path-scoped vitest includes so the extra OS minutes stay bounded.
+  test-sandbox:
+    name: "OS sandbox (${{ matrix.os }})"
+    if: github.event_name == 'push'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci --prefer-offline --no-audit
+      - name: Run sandbox unit + integration tests
+        run: npx vitest run tests/unit/sandbox tests/integration/sandbox tests/unit/tools/handlers/terminal.sandbox.test.ts --config configs/vitest.config.ts --reporter=dot
+        env:
+          CI: "true"
+
   # ── Module catalog sync check ─────────────────────────────────────────────
 
   catalog-sync:

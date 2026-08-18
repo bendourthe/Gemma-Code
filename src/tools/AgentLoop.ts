@@ -22,6 +22,8 @@ import { Tracer, type SkillSpanContext } from "../../modules/coding/observabilit
 import type { OperationLog } from "../../modules/coding/observability/OperationLog.js";
 import { formatForUser } from "../../modules/coding/utils/errors.js";
 import { countTokens } from "../../modules/coding/config/PromptBudget.js";
+import { getSettings } from "../../modules/coding/config/settings.js";
+import { isExecSandboxEnabled } from "../../modules/coding/sandbox/index.js";
 import type { HookBus } from "../../core/lifecycle/HookBus.js";
 import { redactSecrets } from "../../core/observability/redactSecrets.js";
 import {
@@ -808,7 +810,9 @@ export class AgentLoop {
     postMessage: PostMessageFn,
   ): Promise<"continue" | "abort"> {
     // Action classification: check risk level before execution.
-    const classification = classifyAction(call);
+    const classification = classifyAction(call, {
+      execSandboxEnabled: isExecSandboxEnabled(getSettings().execSandbox),
+    });
     postMessage({
       type: "actionClassification",
       callId: call.id,

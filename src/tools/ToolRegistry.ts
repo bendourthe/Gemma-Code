@@ -14,6 +14,11 @@ import { formatForUser } from "../../modules/coding/utils/errors.js";
 import { getLogger } from "../../modules/coding/utils/logger.js";
 import { matchesSecretPath } from "../../modules/coding/utils/secretPaths.js";
 import { evaluateDeny, parsePermissionsDeny, type DenyList, type DenyRule } from "../../core/storage/PermissionsDeny.js";
+import {
+  describeSandbox,
+  isExecSandboxEnabled,
+} from "../../modules/coding/sandbox/index.js";
+import { getSettings } from "../../modules/coding/config/settings.js";
 
 // Tools that fire their own diff-bearing confirmation in `ask` mode and a
 // diff-preview in `plan` mode. The centralized gate is skipped for these
@@ -391,7 +396,15 @@ export class ToolRegistry {
     ) {
       const tier = getPermissionTier(call.tool, this._permissionOverrides);
       const warning = tier === PermissionTier.DANGEROUS
-        ? getDangerousWarning(call.tool, call.parameters)
+        ? getDangerousWarning(
+            call.tool,
+            call.parameters,
+            call.tool === "run_terminal"
+              ? describeSandbox({
+                  enabled: isExecSandboxEnabled(getSettings().execSandbox),
+                }).summary
+              : undefined,
+          )
         : `Tool "${call.tool}" requires confirmation.`;
       const approved = await this._confirmationGate.request(
         call.id,

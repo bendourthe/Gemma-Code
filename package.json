@@ -273,6 +273,11 @@
           "default": [],
           "description": "v1.4.0 Phase 2 (A5) -- exact environment-variable names that are allowed to pass through to run_terminal child processes even when they would otherwise be scrubbed by `nexus.coding.terminalEnvScrub`. Use this to opt a specific secret-bearing variable back in for a command that genuinely needs it."
         },
+        "nexus.coding.execSandbox": {
+          "type": "boolean",
+          "default": false,
+          "description": "v1.18.0 Phase 6 (OI-A1) -- wrap run_terminal in an OS process sandbox (macOS Seatbelt, Linux Landlock+seccomp, Windows job object + restricted token). Off by default. When off, or when the host cannot apply the OS backend, the command still runs under the existing confirmation/denylist/env-scrub guardrails and the UI and logs state unconfined (never silently unconfined). Headless/sidecar hosts honor NEXUS_EXEC_SANDBOX=1 as the same switch. Network is denied inside the sandbox when confinement applies; Windows does not kernel-enforce filesystem or network (partial, documented)."
+        },
         "nexus.coding.parseDocument.enabled": {
           "type": "boolean",
           "default": false,

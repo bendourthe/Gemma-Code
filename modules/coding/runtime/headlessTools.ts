@@ -17,7 +17,6 @@
 // `Gemma4ToolFormat.parseToolCalls` accepts the model's calls unchanged.
 // ---------------------------------------------------------------------------
 
-import { spawn } from "node:child_process";
 import * as fs from "node:fs";
 import * as fsp from "node:fs/promises";
 import * as path from "node:path";
@@ -27,6 +26,11 @@ import {
   type HeadlessGuardOptions,
   screenHeadlessCall,
 } from "./headlessGuards.js";
+import {
+  deriveDefaultPolicy,
+  isExecSandboxEnabled,
+  spawnSandboxed,
+} from "../sandbox/index.js";
 
 /** Max bytes returned to the model from a single read / terminal capture. */
 export const HEADLESS_OUTPUT_BYTE_CAP = 64 * 1024;
@@ -111,6 +115,12 @@ export interface HeadlessToolOptions {
    * (known gap LSO.P4.B). Delete only if that gap is closed as won't-do.
    */
   readonly documentParser?: HeadlessDocumentParser;
+  /**
+   * v1.18.0 Phase 6 (OI-A1): wrap the default `run_terminal` exec in the OS
+   * sandbox. `NEXUS_EXEC_SANDBOX` still overrides. Injected `exec` is unchanged
+   * so tests keep a fake process.
+   */
+  readonly execSandbox?: boolean;
 }
 
 /** Upper bound on pages per call, mirroring the VS Code tool. */
@@ -188,37 +198,59 @@ function fail(error: string): HeadlessToolResult {
   return { success: false, output: "", error };
 }
 
-/** Default terminal executor: spawn through the platform shell, scoped to cwd. */
-const defaultExec: HeadlessExec = (command, cwd, signal, timeoutMs) =>
-  new Promise<HeadlessExecOutcome>((resolve) => {
-    let stdout = "";
-    let stderr = "";
-    let settled = false;
-    const child = spawn(command, [], { cwd, shell: true, signal });
-    const timer = setTimeout(() => {
-      if (!settled) {
-        settled = true;
-        child.kill();
-        resolve({ code: null, stdout, stderr: `${stderr}\n[timed out after ${timeoutMs}ms]` });
-      }
-    }, timeoutMs);
-    child.stdout?.on("data", (d: Buffer) => (stdout += d.toString("utf8")));
-    child.stderr?.on("data", (d: Buffer) => (stderr += d.toString("utf8")));
-    child.on("error", (err: Error) => {
-      if (!settled) {
-        settled = true;
-        clearTimeout(timer);
-        resolve({ code: null, stdout, stderr: `${stderr}${err.message}` });
-      }
+/** Default terminal executor: spawn through the OS sandbox abstraction. */
+function createDefaultExec(enabled: boolean): HeadlessExec {
+  return (command, cwd, signal, timeoutMs) =>
+    new Promise<HeadlessExecOutcome>((resolve) => {
+      let stdout = "";
+      let stderr = "";
+      let settled = false;
+      const { child, report } = spawnSandboxed({
+        command,
+        cwd,
+        env: process.env,
+        signal,
+        enabled,
+        policy: deriveDefaultPolicy(cwd),
+      });
+      const timer = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          child.kill();
+          resolve({
+            code: null,
+            stdout,
+            stderr: `${stderr}\n[timed out after ${timeoutMs}ms]\n[${report.summary}]`,
+          });
+        }
+      }, timeoutMs);
+      child.stdout?.on("data", (d: Buffer) => (stdout += d.toString("utf8")));
+      child.stderr?.on("data", (d: Buffer) => (stderr += d.toString("utf8")));
+      child.on("error", (err: Error) => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          resolve({
+            code: null,
+            stdout,
+            stderr: `${stderr}${err.message}\n[${report.summary}]`,
+          });
+        }
+      });
+      child.on("close", (code: number | null) => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          const banner = `\n[${report.summary}]`;
+          resolve({
+            code,
+            stdout,
+            stderr: `${stderr}${banner}`,
+          });
+        }
+      });
     });
-    child.on("close", (code: number | null) => {
-      if (!settled) {
-        settled = true;
-        clearTimeout(timer);
-        resolve({ code, stdout, stderr });
-      }
-    });
-  });
+}
 
 // --- the tool set ----------------------------------------------------------
 
@@ -228,7 +260,7 @@ const defaultExec: HeadlessExec = (command, cwd, signal, timeoutMs) =>
  * through the injected `exec` (default: a real shell scoped to `cwd`).
  */
 export function createHeadlessTools(options: HeadlessToolOptions = {}): HeadlessTool[] {
-  const exec = options.exec ?? defaultExec;
+  const exec = options.exec ?? createDefaultExec(isExecSandboxEnabled(options.execSandbox));
   const cap = options.byteCap ?? HEADLESS_OUTPUT_BYTE_CAP;
 
   const readFile: HeadlessTool = {

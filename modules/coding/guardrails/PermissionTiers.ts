@@ -87,6 +87,7 @@ export function shouldRequireConfirmation(
 export function getDangerousWarning(
   toolName: ToolName,
   parameters: Record<string, unknown>,
+  sandboxSummary?: string,
 ): string {
   const tier = getPermissionTier(toolName);
   if (tier !== PermissionTier.DANGEROUS) return "";
@@ -97,7 +98,8 @@ export function getDangerousWarning(
       const prefix = isAllowlisted(cmd)
         ? "This will execute a shell command"
         : "This will execute a shell command OUTSIDE the allowlist";
-      return `${prefix}: ${cmd}`;
+      const base = `${prefix}: ${cmd}`;
+      return sandboxSummary ? `${base}\n${sandboxSummary}` : base;
     }
     case "web_search":
       return `This will perform a web search: ${String(parameters["query"] ?? "(unknown)")}`;
