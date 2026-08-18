@@ -53,7 +53,11 @@ No third inference engine is bundled. A user-started `llama-server` on loopback 
 
 ### ACP agent surface (v1.18.0 Phase 5)
 
-The v1.16 serving gateway no longer owns a private `node:http` listener. [`LoopbackHttpServer`](desktop/sidecar/src/controlSurface/loopbackServer.ts) is the shared loopback bind + bearer-auth layer. Contract: [`contract.ts`](desktop/sidecar/src/controlSurface/contract.ts). Serving mounts `/v1/*`; ACP mounts `POST /acp`. `/health` stays unauthenticated. The listener opens if serving **or** ACP is enabled; both off means no port. Enabling one does not silently enable the other. Token reuse: `nexus.serving.token`. ACP is native JSON-RPC 2.0 (no Open Interpreter code). Unattended confirmation fail-closes until Phase 4 lands ([DF-9](docs/v1/v1.18/known-gaps.md)).
+The v1.16 serving gateway no longer owns a private `node:http` listener. [`LoopbackHttpServer`](desktop/sidecar/src/controlSurface/loopbackServer.ts) is the shared loopback bind + bearer-auth layer. Contract: [`contract.ts`](desktop/sidecar/src/controlSurface/contract.ts). Serving mounts `/v1/*`; ACP mounts `POST /acp`. `/health` stays unauthenticated. The listener opens if serving **or** ACP is enabled; both off means no port. Enabling one does not silently enable the other. Token reuse: `nexus.serving.token`. ACP is native JSON-RPC 2.0 (no Open Interpreter code). Unattended CONFIRM and DANGEROUS calls park in the ask inbox when one is configured; without an inbox they fail-closed (never auto-approve, never wait 60s on the webview gate).
+
+### Ask inbox and agent-run scheduler (v1.18.0 Phase 4)
+
+[`modules/coding/autonomy/`](modules/coding/autonomy/) is vscode-free. [`AskInbox`](modules/coding/autonomy/AskInbox.ts) persists parked asks at `~/.nexus/ask-inbox.json` (states `pending | approved | denied | expired`, default TTL 24h). Approve **replays** `classifyAction` plus `resolveTier` at approval time (floor-clamp intact); a missing waiter fails safe and does not re-execute the tool. Interactive VS Code confirmation stays the 60s webview. [`AgentRunScheduler`](modules/coding/autonomy/AgentRunScheduler.ts) is local cron-style (`daily` / `interval`); the built-in morning-brief schedule is **off by default**; `autoApprove: true` throws (`NO_AUTO_APPROVE`). Every fire takes a Git checkpoint then uses a parking confirm. Desktop route `/inbox`, sidebar Admin **Ask inbox**, dashboard bell badge. IPC: `ask.inbox.list|approve|deny|pendingCount`, `ask.scheduler.list|setEnabled`.
 
 ### OS process sandbox (v1.18.0 Phase 6)
 

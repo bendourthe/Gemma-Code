@@ -4,6 +4,30 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-17] v1.18.0 agent-harness-and-governance -- Phase 4: ask inbox + scheduler
+
+### Goal
+
+Park unattended CONFIRM and DANGEROUS approvals in a persistent inbox instead of the 60s webview timeout or a fail-closed refuse, and add a local scheduler whose every wake re-enters the permission stack. No auto-approve. Interactive confirmation unchanged.
+
+### What was done
+
+- **AskInbox** ([`modules/coding/autonomy/`](../modules/coding/autonomy/)): vscode-free queue (`pending | approved | denied | expired`, TTL 24h). File store `~/.nexus/ask-inbox.json`. Approve replays `classifyAction` + `resolveTier` (floor-clamp). No live waiter: fail-safe deny, never re-execute the tool.
+- **ConfirmationGate**: optional park host. Interactive 60s webview unchanged.
+- **ACP**: parks when an inbox is supplied; fail-closed remains the fallback. DF-9 closed.
+- **Desktop**: `/inbox` panel, Admin sidebar, dashboard bell badge. IPC `ask.inbox.*` and `ask.scheduler.*`.
+- **Scheduler**: local `daily` / `interval`. Built-in morning brief **off by default**. `autoApprove: true` throws `NO_AUTO_APPROVE`. Every fire: Git checkpoint, then parking confirm. Persist `~/.nexus/agent-schedules.json`. Morning-brief *content* stays Hub `agent-presets` / `morning-briefing`.
+
+### Tests
+
+Root suite **4926 passed / 11 skipped / 0 failed** (459 files). Coverage **87.61% lines / 84.09% branches / 91.14% functions**. Desktop **967 passed / 0 failed** (112 files). Lint 0 errors. `tsc -b` and desktop typecheck clean. Extra scheduler persist/tick tests: 5/5.
+
+### Next
+
+`/update release` (all 7 plan phases landed).
+
+---
+
 ## [2026-08-17] v1.18.0 agent-harness-and-governance -- Phase 7: architecture, known-gaps, CI/CD
 
 ### Goal

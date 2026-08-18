@@ -17,7 +17,7 @@ Carry-forward source: [../v1.17/known-gaps.md](../v1.17/known-gaps.md) (reconcil
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 15 | 3 |
+| Deferred (DF) | 14 | 4 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
@@ -83,13 +83,6 @@ Carry-forward source: [../v1.17/known-gaps.md](../v1.17/known-gaps.md) (reconcil
 - **Reason**: Those methods are the VS Code extension MCP bridge (`core/coding/McpBridge.ts`). This phase added `mcp.registry.list` / `mcp.registry.setToolDenied` for Settings governance instead of hijacking the invoke catalog.
 - **Suggested next step**: Phase 11 (or a later coding-IPC phase) can implement `mcp.list` / `mcp.invoke` over `McpManager` without loosening Hub policy. Filter listed tools through `resolveExposedMcpTools`.
 
-##### DF-9 - Unattended ACP confirmation fail-closes (Phase 4 ask inbox not landed)
-
-- **Source phase**: Phase 5 - ACP agent surface (OI-A3); Phase 4 skipped by operator choice
-- **Plan reference**: `docs/v1/v1.18/plans/v1.18.0-adoption-agent-harness-and-governance.md` (Phase 5 prerequisite; sub-task 5.2)
-- **Reason**: Phase 4 (ask inbox + scheduler) is still unchecked. ACP cannot park a confirmation. Unattended CONFIRM/DANGEROUS tool calls refuse immediately (`AcpConfirmation.ts`). They do not auto-approve, wait on `ConfirmationGate`'s 60s webview timeout, or open an inbox. `ConfirmationGate` itself is vscode-bound; ACP uses the same `classifyAction` + `resolveTier` map through a headless adapter.
-- **Suggested next step**: `/implement phase 4`, then change the ACP confirm adapter to park instead of returning false. Keep fail-closed as the fallback if the inbox is unavailable.
-
 ##### DF-10 - ACP is HTTP JSON-RPC on the shared listener, not a stdio subprocess
 
 - **Source phase**: Phase 5 - ACP agent surface (OI-A3)
@@ -139,9 +132,10 @@ Carry-forward source: [../v1.17/known-gaps.md](../v1.17/known-gaps.md) (reconcil
 | EM.P1.A (v1.12) | Selector not wired into the live prompt path | Phase 2 | `buildPromptContext` spreads `overlayForModel` / session override when `settings.harnessSelectorEnabled` is on; off returns the base context by reference. `HARNESS_SELECTOR_SHIPPED_DEFAULT` stays false (EM.P1.B). Do not treat the v1.12 file as finalized. |
 | EM.P5.A (v1.12) | No OS-level process sandbox for agent-run commands | Phase 6 | Abstraction + three backends shipped behind `nexus.coding.execSandbox` (off by default). **macOS**: `confined` when `/usr/bin/sandbox-exec` is present (Seatbelt FS+network). **Linux**: `confined` when Landlock is in the LSM list and python3 can apply the ctypes helper (FS+seccomp network deny). **Windows**: `partial` (job object + best-effort restricted token; filesystem and network NOT kernel-enforced). Off or missing backend is loud `unconfined`. Windows remainder is DF-11. EM.P3 / EM.P4 stay closed. |
 | OI-A3 shared transport | Serving gateway and ACP share one loopback listener | Phase 5 | [`LoopbackHttpServer`](../../../desktop/sidecar/src/controlSurface/loopbackServer.ts) + [`contract.ts`](../../../desktop/sidecar/src/controlSurface/contract.ts). `ServingGateway` no longer owns `createServer`. HTTP JSON-RPC vs stdio remains DF-10. |
+| DF-9 (OW-A1/OW-A2) | Unattended ACP confirmation fail-closes | Phase 4 | Ask inbox + scheduler landed. ACP parks when an inbox is configured; fail-closed remains the fallback when it is not. Approve replays `classifyAction` + `resolveTier`. Interactive 60s webview unchanged. |
 
 ### Phase 7 reconciliation
 
 v1.17 motion items (DF-1, DF-3, DF-5, DF-6, DF-8, DF-9, DF-10) stay in [../v1.17/known-gaps.md](../v1.17/known-gaps.md). v1.16 serving/OCR items stay in [../v1.16/known-gaps.md](../v1.16/known-gaps.md). This cycle does not close them.
 
-Status stays **in-progress**: Phase 4 (ask inbox + scheduler) is still unchecked (DF-9), so this file is not finalized and `/update release` is not handed off.
+Phase 4 (ask inbox + scheduler) landed on 2026-08-17 and closed DF-9. Status stays **in-progress** until `/update release` cuts the version. Open DF items remaining: DF-1..8, DF-10..15.

@@ -1,8 +1,8 @@
 # Skill-native adoptions (v1.18.0)
 
-*v1.18.0 Phase 1 (OW-B1, OI-A4-web). A written mapping, not a new capability. Neither item needs a new skill, MCP server, or code path in this repository. Scheduling for the morning brief is a later Nexus build ([Phase 4, OW-A2](../v1/v1.18/plans/v1.18.0-adoption-agent-harness-and-governance.md)); the native-app half of computer-use is deferred ([OI-A4-native](../v1/v1.18/plans/v1.18.0-adoption-agent-harness-and-governance.md#deferred-and-gated-items-tracked-not-built-this-cycle)).*
+v1.18.0 Phase 1 (OW-B1, OI-A4-web): a written mapping, not a new Hub skill. Neither item needs a duplicate catalog entry in this repository. The scheduling mechanism for the morning brief landed in Phase 4 (OW-A2) as `AgentRunScheduler`; it still consumes this Hub preset for content. The native-app half of computer-use remains deferred ([OI-A4-native](../v1/v1.18/plans/v1.18.0-adoption-agent-harness-and-governance.md#deferred-and-gated-items-tracked-not-built-this-cycle)).
 
-This note exists so later phases do not rebuild what the Nexus-Hub catalog already provides. No new skill, MCP, or code is created. Verify each coverage against the synced Hub catalog (`nexus skills sync` into `~/.nexus-ai/catalog/`), not against a duplicate skill in `modules/coding/skills/catalog/`.
+This note exists so later phases do not rebuild what the Nexus-Hub catalog already provides. Do not add a second morning-brief or browser-QA skill. Verify each coverage against the synced Hub catalog (`nexus skills sync` into `~/.nexus-ai/catalog/`), not against a duplicate skill in `modules/coding/skills/catalog/`.
 
 ## OW-B1 -- morning-brief *content*
 
@@ -11,8 +11,8 @@ This note exists so later phases do not rebuild what the Nexus-Hub catalog alrea
 | **Source** | OpenWorker comparison, [Section 4a A2](../v1/v1.18/comparisons/v1.18.0-comparison-openworker.md) and [Section 7 Bucket 1](../v1/v1.18/comparisons/v1.18.0-comparison-openworker.md) |
 | **Covered by** | Nexus-Hub skill `agent-presets`, preset `morning-briefing` |
 | **What is covered** | Recurring start-of-day orientation *content*: resume last session, read the progress tracker, scan recent commits / session logs, emit a short brief with prioritized next actions. No code is written in this preset. |
-| **What is not covered** | The *scheduling mechanism* that would fire that content unattended. That is OW-A2 (Phase 4): a local cron-style scheduler that must re-enter `PermissionTiers` / `ConfirmationGate` on every wake. |
-| **New skill / MCP / code this cycle** | None. Do not scaffold a second morning-brief skill. |
+| **What is not covered** | The *scheduling mechanism* that fires that content unattended. That is OW-A2, built in Phase 4 as [`AgentRunScheduler`](../../modules/coding/autonomy/AgentRunScheduler.ts) (off by default; no auto-approve). Do not vendor a second morning-brief skill. |
+| **New skill / MCP / code this cycle** | None for content. Phase 4 added the scheduler mechanism only. |
 
 Authored in v1.5.0 as a Hub catalog skill ([session history](../v1/v1.5/development/history/2026-06_phase-2-skill-native.md)); consumed here via `nexus skills sync`. Catalog id after namespacing: `nexus-hub/agent-presets`. Upstream: [Nexus-Hub](https://github.com/bendourthe/Nexus-Hub).
 

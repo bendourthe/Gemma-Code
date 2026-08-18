@@ -49,6 +49,13 @@ export const IPC_METHODS = [
   "mcp.invoke",
   "mcp.registry.list",
   "mcp.registry.setToolDenied",
+  // v1.18.0 Phase 4 (OW-A1, OW-A2) -- ask inbox + local agent-run scheduler.
+  "ask.inbox.list",
+  "ask.inbox.approve",
+  "ask.inbox.deny",
+  "ask.inbox.pendingCount",
+  "ask.scheduler.list",
+  "ask.scheduler.setEnabled",
   "settings.get",
   "settings.set",
   // v1.5.0 Phase 5 (item 25) -- credential management over the OS-keychain vault.
@@ -1002,6 +1009,110 @@ export const McpRegistrySetToolDeniedResponse = z
   .strict();
 export type McpRegistrySetToolDeniedResponseT = z.infer<typeof McpRegistrySetToolDeniedResponse>;
 
+export const AskInboxState = z.enum(["pending", "approved", "denied", "expired"]);
+export const AskInboxRunMode = z.enum(["headless", "scheduled"]);
+
+export const ParkedAskDto = z
+  .object({
+    id: z.string().min(1),
+    state: AskInboxState,
+    runMode: AskInboxRunMode,
+    createdAt: z.number(),
+    expiresAt: z.number(),
+    decidedAt: z.number().optional(),
+    decisionReason: z.string().optional(),
+    toolName: z.string().min(1),
+    summary: z.string(),
+    detail: z.string(),
+    args: z.record(z.unknown()),
+    risk: z.string().min(1),
+    classificationReason: z.string(),
+    parkedTier: z.number().int(),
+    sessionId: z.string().optional(),
+    runId: z.string().min(1),
+  })
+  .strict();
+export type ParkedAskDtoT = z.infer<typeof ParkedAskDto>;
+
+export const AskInboxListRequest = z
+  .object({
+    state: AskInboxState.optional(),
+  })
+  .strict();
+export const AskInboxListResponse = z
+  .object({
+    asks: z.array(ParkedAskDto),
+  })
+  .strict();
+export type AskInboxListResponseT = z.infer<typeof AskInboxListResponse>;
+
+export const AskInboxIdRequest = z.object({ id: z.string().min(1) }).strict();
+export const AskInboxApproveResponse = z
+  .object({
+    ok: z.boolean(),
+    reason: z.string(),
+    replay: z
+      .object({
+        allowed: z.boolean(),
+        reason: z.string(),
+        currentTier: z.number().int(),
+        floorClamped: z.boolean(),
+      })
+      .optional(),
+    executed: z.literal(false),
+  })
+  .strict();
+export type AskInboxApproveResponseT = z.infer<typeof AskInboxApproveResponse>;
+
+export const AskInboxDenyResponse = z
+  .object({
+    ok: z.boolean(),
+    reason: z.string(),
+  })
+  .strict();
+export const AskInboxPendingCountRequest = z.object({}).strict();
+export const AskInboxPendingCountResponse = z
+  .object({
+    pending: z.number().int().nonnegative(),
+  })
+  .strict();
+export type AskInboxPendingCountResponseT = z.infer<typeof AskInboxPendingCountResponse>;
+
+export const AskSchedulerListRequest = z.object({}).strict();
+export const ScheduledRunDto = z
+  .object({
+    id: z.string().min(1),
+    name: z.string().min(1),
+    enabled: z.boolean(),
+    kind: z.enum(["daily", "interval"]),
+    hour: z.number().int().optional(),
+    minute: z.number().int().optional(),
+    intervalMs: z.number().int().optional(),
+    prompt: z.string(),
+    promptSource: z.string().optional(),
+    workspacePath: z.string().optional(),
+  })
+  .strict();
+export const AskSchedulerListResponse = z
+  .object({
+    schedules: z.array(ScheduledRunDto),
+  })
+  .strict();
+export type AskSchedulerListResponseT = z.infer<typeof AskSchedulerListResponse>;
+
+export const AskSchedulerSetEnabledRequest = z
+  .object({
+    id: z.string().min(1),
+    enabled: z.boolean(),
+  })
+  .strict();
+export const AskSchedulerSetEnabledResponse = z
+  .object({
+    ok: z.boolean(),
+    schedule: ScheduledRunDto.optional(),
+  })
+  .strict();
+
 export const SettingsGetRequest = z
   .object({ key: z.string().min(1) })
   .strict();
@@ -1281,6 +1392,36 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
   "mcp.registry.setToolDenied": {
     request: McpRegistrySetToolDeniedRequest,
     response: McpRegistrySetToolDeniedResponse,
+    implemented: true,
+  },
+  "ask.inbox.list": {
+    request: AskInboxListRequest,
+    response: AskInboxListResponse,
+    implemented: true,
+  },
+  "ask.inbox.approve": {
+    request: AskInboxIdRequest,
+    response: AskInboxApproveResponse,
+    implemented: true,
+  },
+  "ask.inbox.deny": {
+    request: AskInboxIdRequest,
+    response: AskInboxDenyResponse,
+    implemented: true,
+  },
+  "ask.inbox.pendingCount": {
+    request: AskInboxPendingCountRequest,
+    response: AskInboxPendingCountResponse,
+    implemented: true,
+  },
+  "ask.scheduler.list": {
+    request: AskSchedulerListRequest,
+    response: AskSchedulerListResponse,
+    implemented: true,
+  },
+  "ask.scheduler.setEnabled": {
+    request: AskSchedulerSetEnabledRequest,
+    response: AskSchedulerSetEnabledResponse,
     implemented: true,
   },
   "settings.get": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },

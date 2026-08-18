@@ -16,6 +16,8 @@ import { createIpcSkillOptimizerClient } from "./pages/settings/ipcSkillOptimize
 import { createIpcModelsClient } from "./pages/settings/ipcModelsClient";
 import { createIpcServingClient } from "./pages/settings/ipcServingClient";
 import { createIpcMcpRegistryClient } from "./pages/settings/ipcMcpRegistryClient";
+import { createIpcAskInboxClient } from "./pages/inbox/ipcAskInboxClient";
+import { AskInboxPanel } from "./pages/inbox/AskInboxPanel";
 import { SETTINGS_MODELS_PATH } from "./shared/models/installedFeed";
 import { LocalModelStatusDock } from "./components/LocalModelStatusDock";
 import { createMockTelemetryStream } from "./lib/telemetryMock";
@@ -44,6 +46,7 @@ const modelsClient = createIpcModelsClient();
 // OpenAI/Anthropic gateway). Constructed once at module load.
 const servingClient = createIpcServingClient();
 const mcpClient = createIpcMcpRegistryClient();
+const askInboxClient = createIpcAskInboxClient();
 
 export function App({ telemetryStream }: AppProps = {}): JSX.Element {
   return (
@@ -114,7 +117,7 @@ function AppLayout({ telemetryStream }: AppProps): JSX.Element {
           zIndex: 1,
         }}
       >
-        <Sidebar />
+        <Sidebar askInboxClient={askInboxClient} />
         <main
           style={{
             display: "flex",
@@ -125,7 +128,7 @@ function AppLayout({ telemetryStream }: AppProps): JSX.Element {
           }}
         >
           <Routes>
-            <Route path="/" element={<Dashboard telemetryStream={stream} />} />
+            <Route path="/" element={<Dashboard telemetryStream={stream} askInboxClient={askInboxClient} />} />
             <Route
               path="/chatbot"
               element={<ChatPage onGetMoreModels={() => navigate(SETTINGS_MODELS_PATH)} />}
@@ -138,6 +141,10 @@ function AppLayout({ telemetryStream }: AppProps): JSX.Element {
             <Route
               path="/videos"
               element={<VideoLabPage onGetMoreModels={() => navigate(SETTINGS_MODELS_PATH)} />}
+            />
+            <Route
+              path="/inbox"
+              element={<AskInboxPanel client={askInboxClient} />}
             />
             <Route
               path="/settings"

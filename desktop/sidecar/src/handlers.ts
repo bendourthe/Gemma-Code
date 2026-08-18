@@ -57,6 +57,11 @@ import {
   type SkillsOptimizeApplyResponseT,
   McpRegistryListRequest,
   McpRegistrySetToolDeniedRequest,
+  AskInboxListRequest,
+  AskInboxIdRequest,
+  AskInboxPendingCountRequest,
+  AskSchedulerListRequest,
+  AskSchedulerSetEnabledRequest,
   IPC_METHODS,
   METHOD_SCHEMAS,
   NotImplementedError,
@@ -109,6 +114,9 @@ import {
   listMcpRegistrySettings,
   setMcpRegistryToolDenied,
 } from "../../../modules/coding/mcp/McpRegistrySettings.js";
+import type { AskInbox } from "../../../modules/coding/autonomy/AskInbox.js";
+import type { AgentRunScheduler } from "../../../modules/coding/autonomy/AgentRunScheduler.js";
+import type { ParkedAsk } from "../../../modules/coding/autonomy/types.js";
 
 export const SIDECAR_VERSION = "1.0.0-alpha.0";
 
@@ -159,6 +167,10 @@ export interface HandlerContext {
    * Production uses `NEXUS_WORKSPACE` or `process.cwd()`; tests inject a temp dir.
    */
   workspacePath?: string;
+  /** v1.18.0 Phase 4 -- persistent approval queue. Tests inject a memory inbox. */
+  askInbox?: AskInbox;
+  /** v1.18.0 Phase 4 -- local cron-style agent-run scheduler. */
+  scheduler?: AgentRunScheduler;
 }
 
 /** How many individual request records the Traces panel receives per poll. */
@@ -239,6 +251,37 @@ export function createHandlerContext(
     ocr,
     workspacePath,
   };
+}
+
+function parkedAskDto(ask: ParkedAsk) {
+  return {
+    id: ask.id,
+    state: ask.state,
+    runMode: ask.runMode,
+    createdAt: ask.createdAt,
+    expiresAt: ask.expiresAt,
+    decidedAt: ask.decidedAt,
+    decisionReason: ask.decisionReason,
+    toolName: ask.toolName,
+    summary: ask.summary,
+    detail: ask.detail,
+    args: ask.args,
+    risk: ask.risk,
+    classificationReason: ask.classificationReason,
+    parkedTier: ask.parkedTier,
+    sessionId: ask.sessionId,
+    runId: ask.runId,
+  };
+}
+
+function requireAskInbox(ctx: HandlerContext): AskInbox {
+  if (!ctx.askInbox) throw new Error("Ask inbox is not configured");
+  return ctx.askInbox;
+}
+
+function requireScheduler(ctx: HandlerContext): AgentRunScheduler {
+  if (!ctx.scheduler) throw new Error("Agent-run scheduler is not configured");
+  return ctx.scheduler;
 }
 
 export const handlers: Record<Method, HandlerFn> = {
@@ -430,6 +473,32 @@ export const handlers: Record<Method, HandlerFn> = {
       denied: req.denied,
     });
     return { ok: result.ok, reason: result.reason, servers: result.list.servers };
+  },
+  "ask.inbox.list": async (params, ctx) => {
+    const req = AskInboxListRequest.parse(params ?? {});
+    const asks = await requireAskInbox(ctx).list(req.state);
+    return { asks: asks.map(parkedAskDto) };
+  },
+  "ask.inbox.approve": async (params, ctx) => {
+    const req = AskInboxIdRequest.parse(params ?? {});
+    return requireAskInbox(ctx).approve(req.id);
+  },
+  "ask.inbox.deny": async (params, ctx) => {
+    const req = AskInboxIdRequest.parse(params ?? {});
+    return requireAskInbox(ctx).deny(req.id);
+  },
+  "ask.inbox.pendingCount": async (params, ctx) => {
+    AskInboxPendingCountRequest.parse(params ?? {});
+    return { pending: await requireAskInbox(ctx).pendingCount() };
+  },
+  "ask.scheduler.list": async (params, ctx) => {
+    AskSchedulerListRequest.parse(params ?? {});
+    return { schedules: requireScheduler(ctx).list() };
+  },
+  "ask.scheduler.setEnabled": async (params, ctx) => {
+    const req = AskSchedulerSetEnabledRequest.parse(params ?? {});
+    const schedule = await requireScheduler(ctx).setEnabled(req.id, req.enabled);
+    return { ok: Boolean(schedule), schedule };
   },
   "settings.get": async () => {
     throw new NotImplementedError("settings.get");

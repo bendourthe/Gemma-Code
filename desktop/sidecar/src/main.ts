@@ -11,6 +11,10 @@ import {
   createHeadlessOptimizePreviewRunner,
 } from "./coding/skillOptimizerManager.js";
 import { createHeadlessOllamaClient } from "../../../modules/coding/llm/headlessOllamaClient.js";
+import { AskInbox } from "../../../modules/coding/autonomy/AskInbox.js";
+import { AgentRunScheduler } from "../../../modules/coding/autonomy/AgentRunScheduler.js";
+import { HeadlessAgentSession } from "../../../modules/coding/runtime/HeadlessAgentSession.js";
+import { createHeadlessTools } from "../../../modules/coding/runtime/headlessTools.js";
 import { ChatSessionManager } from "./chat/sessionManager.js";
 import { createChatMessageHandler } from "./chat/chatMessageHandler.js";
 import { createDiffusionRuntime } from "./diffusion/runtimeFactory.js";
@@ -74,7 +78,23 @@ const skillOptimizer = goldenTasksDir
 // eagerly so the same instance backs both the `serving.*` IPC and the startup
 // reconcile below, but it opens NO listener unless `nexus.serving.enabled` is
 // true -- the opt-in defaults off.
-const serving = createServingRuntime();
+const askInbox = new AskInbox({ filePath: join(nexusHome(), "ask-inbox.json") });
+const serving = createServingRuntime({ askInbox });
+const scheduler = new AgentRunScheduler({
+  inbox: askInbox,
+  workspacePath: process.env.NEXUS_WORKSPACE ?? process.cwd(),
+  filePath: join(nexusHome(), "agent-schedules.json"),
+  runHeadless: async (run) => {
+    const tools = createHeadlessTools({ guards: { confirm: run.confirm } });
+    const session = new HeadlessAgentSession(createHeadlessOllamaClient(), tools);
+    await session.run({
+      task: run.prompt,
+      workdir: run.workspacePath,
+      model: process.env.NEXUS_SCHEDULER_MODEL ?? process.env.NEXUS_ACP_MODEL ?? "gemma4:e4b",
+    });
+  },
+});
+scheduler.start();
 const ctx = createHandlerContext(
   { pid: process.pid, platform: process.platform },
   sessions,
@@ -85,6 +105,8 @@ const ctx = createHandlerContext(
   skillOptimizer,
   serving,
 );
+ctx.askInbox = askInbox;
+ctx.scheduler = scheduler;
 
 function write(payload: JsonRpcResponseOk | JsonRpcResponseErr): void {
   process.stdout.write(`${JSON.stringify(payload)}\n`);
@@ -150,6 +172,7 @@ async function firstLaunchCatalog(): Promise<void> {
  * may hard-kill us anyway -- a hung close must never wedge shutdown.
  */
 async function shutdown(): Promise<void> {
+  scheduler.stop();
   try {
     await Promise.race([
       serving.gateway.stop(),

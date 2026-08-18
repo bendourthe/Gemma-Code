@@ -63,6 +63,11 @@ core/                       v1.0.0 shared-core surfaces (Phase 2.3 + 2.6)
 modules/                    per-pillar code (one folder per pillar)
   coding/                    Agentic AI Coding (engine still in src/ during the
                               one-cycle compat window)
+  coding/autonomy/           AskInbox + AgentRunScheduler (v1.18.0 Phase 4).
+                              Headless/scheduled CONFIRM and DANGEROUS asks
+                              park; approve replays classifyAction +
+                              resolveTier. vscode-free. Morning-brief schedule
+                              is off by default.
   coding/sandbox/            OS process sandbox for run_terminal (v1.18.0
                               Phase 6): Seatbelt / Landlock+seccomp / Windows
                               job object. vscode-free. Off by default.

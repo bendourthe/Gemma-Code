@@ -28,6 +28,7 @@ function renderDashboard(stream: TelemetryStream | null = null) {
     <MemoryRouter initialEntries={["/"]}>
       <Routes>
         <Route path="/" element={<Dashboard telemetryStream={stream} />} />
+        <Route path="/inbox" element={<div data-testid="inbox-page">inbox</div>} />
         <Route path="/coding" element={<div data-testid="coding-page">coding</div>} />
         <Route path="/settings" element={<div data-testid="settings-page">settings</div>} />
       </Routes>
@@ -101,6 +102,12 @@ describe("Dashboard", () => {
     renderDashboard();
     expect(screen.getByTestId("dashboard-bell")).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-bell-badge")).toBeInTheDocument();
+  });
+
+  it("navigates to the ask inbox from the bell", () => {
+    renderDashboard();
+    fireEvent.click(screen.getByTestId("dashboard-bell"));
+    expect(screen.getByTestId("inbox-page")).toBeInTheDocument();
   });
 
   it("renders the recent projects list and the two FABs", () => {

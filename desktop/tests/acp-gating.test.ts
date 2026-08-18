@@ -1,9 +1,9 @@
 /**
- * v1.18.0 Phase 5 (OI-A3) -- ACP gating parity.
+ * v1.18.0 Phase 5 (OI-A3) + Phase 4 (OW-A1) -- ACP gating parity.
  *
  * CONFIRM/DANGEROUS tools invoke the same classifier + tier map as the UI.
- * Unattended confirmation fail-closes (no auto-approve, no 60s wait). Phase 4
- * ask-inbox parking is not landed.
+ * Unattended confirmation parks in the ask inbox when one is configured, and
+ * fail-closes when it is not. Never auto-approve, never wait 60s on a webview.
  */
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -11,6 +11,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { AskInbox } from "../../modules/coding/autonomy/AskInbox.js";
 import type { LLMChatRequest, LLMClient, LLMModel, LLMStreamChunk } from "../../modules/coding/llm/types";
 import { ActionRisk } from "../../modules/coding/guardrails/ActionClassifier";
 import { PermissionTier } from "../../modules/coding/runtime/headlessGuards";
@@ -99,7 +100,7 @@ describe("classifyAcpCall", () => {
     expect(c.tier).toBe(PermissionTier.DANGEROUS);
   });
 
-  it("createAcpConfirm fail-closes by default", async () => {
+  it("createAcpConfirm fail-closes when no inbox is configured", async () => {
     const records: AcpConfirmationRecord[] = [];
     const confirm = createAcpConfirm({ onRecord: (r) => records.push(r) });
     expect(await confirm("write_file", "Run write_file?", "tier CONFIRM")).toBe(false);
@@ -118,6 +119,25 @@ describe("classifyAcpCall", () => {
 
     const denied = createAcpConfirm({ decide: async () => false });
     expect(await denied("write_file", "Run write_file?", "tier CONFIRM")).toBe(false);
+  });
+
+  it("createAcpConfirm parks when an inbox is supplied", async () => {
+    const inbox = new AskInbox({ idFactory: () => "acp-park" });
+    const records: AcpConfirmationRecord[] = [];
+    const confirm = createAcpConfirm({
+      inbox,
+      onRecord: (r) => records.push(r),
+    });
+    const waiting = confirm("write_file", "Run write_file?", "tier CONFIRM", {
+      path: "a.ts",
+      content: "x",
+    });
+    const pending = await inbox.list("pending");
+    expect(pending).toHaveLength(1);
+    expect(records.some((r) => r.decided === "parked")).toBe(true);
+    await inbox.approve("acp-park");
+    expect(await waiting).toBe(true);
+    expect(records.some((r) => r.decided === "approved")).toBe(true);
   });
 });
 
@@ -145,6 +165,78 @@ describe("ACP unattended confirmation", () => {
         true,
       );
       await expect(readFile(join(cwd, "secret.txt"), "utf8")).rejects.toThrow();
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("parks write_file until denied and does not create the file", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "nexus-acp-park-deny-"));
+    const inbox = new AskInbox();
+    const records: AcpConfirmationRecord[] = [];
+    try {
+      const llm = scriptedLlm(toolCallText("write_file", { path: "secret.txt", content: "nope" }));
+      const acp = new AcpAgent({
+        llm,
+        inbox,
+        confirmation: { onRecord: (r) => records.push(r) },
+      });
+      const base = await start(acp);
+      await rpc(base, { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: 1 } });
+      const created = await rpc(base, { jsonrpc: "2.0", id: 2, method: "session/new", params: { cwd } });
+      const sessionId = (created.result as { sessionId: string }).sessionId;
+      const promptP = rpc(base, {
+        jsonrpc: "2.0",
+        id: 3,
+        method: "session/prompt",
+        params: { sessionId, prompt: [{ type: "text", text: "write a file" }] },
+      });
+      const startedAt = Date.now();
+      while ((await inbox.pendingCount()) === 0) {
+        if (Date.now() - startedAt > 4000) throw new Error("ask did not park");
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      const pending = await inbox.list("pending");
+      const first = pending[0];
+      if (!first) throw new Error("parked ask missing");
+      await inbox.deny(first.id);
+      await promptP;
+      expect(records.some((r) => r.toolName === "write_file" && r.decided === "parked")).toBe(true);
+      await expect(readFile(join(cwd, "secret.txt"), "utf8")).rejects.toThrow();
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("replays an approved parked write_file and creates the file", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "nexus-acp-park-ok-"));
+    const inbox = new AskInbox();
+    try {
+      const llm = scriptedLlm(toolCallText("write_file", { path: "secret.txt", content: "nope" }));
+      const acp = new AcpAgent({ llm, inbox });
+      const base = await start(acp);
+      await rpc(base, { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: 1 } });
+      const created = await rpc(base, { jsonrpc: "2.0", id: 2, method: "session/new", params: { cwd } });
+      const sessionId = (created.result as { sessionId: string }).sessionId;
+      const promptP = rpc(base, {
+        jsonrpc: "2.0",
+        id: 3,
+        method: "session/prompt",
+        params: { sessionId, prompt: [{ type: "text", text: "write a file" }] },
+      });
+      const startedAt = Date.now();
+      while ((await inbox.pendingCount()) === 0) {
+        if (Date.now() - startedAt > 4000) throw new Error("ask did not park");
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      const pending = await inbox.list("pending");
+      const first = pending[0];
+      if (!first) throw new Error("parked ask missing");
+      const replay = await inbox.approve(first.id);
+      expect(replay.ok).toBe(true);
+      expect(replay.replay?.floorClamped).toBe(false);
+      await promptP;
+      expect(await readFile(join(cwd, "secret.txt"), "utf8")).toBe("nope");
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }

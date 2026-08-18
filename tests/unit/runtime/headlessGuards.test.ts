@@ -92,6 +92,7 @@ describe("tier enforcement (opt-in via confirm)", () => {
       "write_file",
       expect.stringContaining("write_file"),
       expect.stringContaining("CONFIRM"),
+      { path: "a.ts" },
     );
   });
 

@@ -20,6 +20,7 @@ describe("Sidebar", () => {
     expect(screen.getByTestId("nav-image")).toBeInTheDocument();
     expect(screen.getByTestId("nav-video")).toBeInTheDocument();
     expect(screen.getByTestId("nav-admin-settings")).toBeInTheDocument();
+    expect(screen.getByTestId("nav-admin-inbox")).toBeInTheDocument();
     expect(screen.getByTestId("nav-admin-profile")).toBeInTheDocument();
   });
 

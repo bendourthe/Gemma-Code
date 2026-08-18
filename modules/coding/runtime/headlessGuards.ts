@@ -31,6 +31,7 @@ export type HeadlessConfirmFn = (
   toolName: string,
   summary: string,
   detail: string,
+  args?: Readonly<Record<string, unknown>>,
 ) => Promise<boolean>;
 
 export interface HeadlessGuardOptions {
@@ -128,6 +129,7 @@ export async function screenHeadlessCall(
       toolName,
       `Allow ${toolName} on secret-path file "${value}"?`,
       "The path matches the secret-path denylist (env/keys/credentials).",
+      args,
     );
     if (!approved) {
       return { allowed: false, reason: `${toolName} on "${value}" was rejected.` };
@@ -156,6 +158,7 @@ export async function screenHeadlessCall(
       toolName,
       `Run ${toolName}?`,
       `This tool is tier ${PermissionTier[tier]}.`,
+      args,
     );
     if (!approved) {
       return { allowed: false, reason: `Tool "${toolName}" was rejected.` };

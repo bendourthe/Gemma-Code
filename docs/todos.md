@@ -1,8 +1,8 @@
 # Nexus - Progress Dashboard
 
-**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (post v1.17.0; v1.18.0 Phase 7 close-out, Phase 4 still open).
+**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (post v1.17.0; v1.18.0 all 7 phases landed, `/update release` next).
 
-> **v1.18.0 IN PROGRESS (2026-08-17)** -- Phase 7 of [v1.18.0-adoption-agent-harness-and-governance.md](v1/v1.18/plans/v1.18.0-adoption-agent-harness-and-governance.md) closed landed work (layout, known-gaps DF-1..15, path-filtered `sandbox.yml`). **Not a release**: Phase 4 ask inbox is still open (DF-9); `/update release` was not handed off. Gates: root **4909 passed / 0 failed** (454 files), coverage 87.73% / 84.17% / 91.39%, lint + `tsc -b` clean. Desktop **956 passed / 0 failed** (110 files). Next: `/implement phase 4`, then `/update release`.
+> **v1.18.0 IN PROGRESS (2026-08-17)** -- all 7 phases of [v1.18.0-adoption-agent-harness-and-governance.md](v1/v1.18/plans/v1.18.0-adoption-agent-harness-and-governance.md) landed, including Phase 4 ask inbox + scheduler (DF-9 closed). Gates: root **4926 passed / 11 skipped / 0 failed** (459 files), coverage 87.61% / 84.09% / 91.14%, lint + `tsc -b` clean. Desktop **967 passed / 0 failed** (112 files). Next: `/update release`.
 >
 > **v1.17.0 RELEASED (2026-08-16)** -- all 6 phases landed on `develop`; package.json / CHANGELOG / README cut as **v1.17.0**. Plan: [v1.17.0-adoption-ui-motion-identity.md](v1/v1.17/plans/v1.17.0-adoption-ui-motion-identity.md) - [known-gaps](v1/v1.17/known-gaps.md) (finalized). Cycle: reverse-engineer thinking-orbs / border-beam / metal-fx into an internal motion system (no new npm deps).
 > - **P1** motion tokens, centralized `prefers-reduced-motion` (halt, not slow), recede-when-active primitive.

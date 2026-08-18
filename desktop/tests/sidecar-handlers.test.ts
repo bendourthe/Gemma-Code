@@ -103,6 +103,13 @@ describe("sidecar handlers", () => {
           // v1.18.0 Phase 3 wired per-tool MCP registry deny.
           "mcp.registry.list",
           "mcp.registry.setToolDenied",
+          // v1.18.0 Phase 4 wired the ask inbox + local scheduler.
+          "ask.inbox.list",
+          "ask.inbox.approve",
+          "ask.inbox.deny",
+          "ask.inbox.pendingCount",
+          "ask.scheduler.list",
+          "ask.scheduler.setEnabled",
         ].includes(m),
     );
     for (const m of unimplemented) {

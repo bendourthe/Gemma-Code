@@ -15,6 +15,7 @@
 import * as path from "node:path";
 import { JsonFileSettingsStore, type SettingsStore } from "../../../../core/storage/SettingsStore.js";
 import { nexusHome } from "../../../../core/storage/paths.js";
+import type { AskInbox } from "../../../../modules/coding/autonomy/AskInbox.js";
 import { createHeadlessOllamaClient } from "../../../../modules/coding/llm/headlessOllamaClient.js";
 import type { LLMClient } from "../../../../modules/coding/llm/types.js";
 import { createModelsRuntime, type ModelsRuntime } from "../models/modelsService.js";
@@ -59,6 +60,8 @@ export interface CreateServingRuntimeOptions {
   readonly log?: (message: string) => void;
   /** Override the ACP LLM (tests inject a scripted client). */
   readonly acpLlm?: LLMClient;
+  /** Phase 4 ask inbox shared with `ask.inbox.*` IPC. */
+  readonly askInbox?: AskInbox;
 }
 
 function envFlag(raw: string | undefined): boolean | undefined {
@@ -107,6 +110,7 @@ export function createServingRuntime(opts: CreateServingRuntimeOptions = {}): Se
 
   const acp = new AcpAgent({
     llm: opts.acpLlm ?? createHeadlessOllamaClient(),
+    inbox: opts.askInbox,
   });
   gateway.surface.mount(acp.asRoute());
 

@@ -7,9 +7,12 @@ import {
   Film,
   Settings as SettingsIcon,
   UserCircle2,
+  Inbox,
 } from "lucide-react";
 import { moduleList, MODULES, type ModuleId } from "../types/modules";
 import { writeActiveRoute } from "../lib/persistence";
+import type { AskInboxClient } from "../pages/inbox/askInboxTypes";
+import { useAskInboxPendingCount } from "../pages/inbox/useAskInboxPendingCount";
 
 interface NavEntry {
   id: ModuleId;
@@ -56,6 +59,7 @@ const NAV_ENTRIES: readonly NavEntry[] = [
 ];
 
 const ADMIN_ENTRIES = [
+  { label: "Ask inbox", to: "/inbox", icon: Inbox, shortcut: null },
   { label: "Settings", to: "/settings", icon: SettingsIcon, shortcut: "Ctrl+," },
   { label: "User Profile", to: "/profile", icon: UserCircle2, shortcut: null },
 ] as const;
@@ -65,9 +69,10 @@ function activeAccent(activePath: string): string | undefined {
   return match?.accentVar;
 }
 
-export function Sidebar(): JSX.Element {
+export function Sidebar({ askInboxClient }: { askInboxClient?: AskInboxClient } = {}): JSX.Element {
   const navigate = useNavigate();
   const location = useLocation();
+  const pendingCount = useAskInboxPendingCount(askInboxClient);
 
   useEffect(() => {
     writeActiveRoute(location.pathname);
@@ -205,6 +210,26 @@ export function Sidebar(): JSX.Element {
           >
             <entry.icon size={18} aria-hidden />
             <span>{entry.label}</span>
+            {entry.to === "/inbox" && pendingCount > 0 ? (
+              <span
+                data-testid="ask-inbox-nav-badge"
+                style={{
+                  marginLeft: "auto",
+                  minWidth: 18,
+                  height: 18,
+                  borderRadius: 9,
+                  backgroundColor: "var(--status-err)",
+                  color: "var(--fg-0)",
+                  fontSize: 11,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "0 4px",
+                }}
+              >
+                {pendingCount}
+              </span>
+            ) : null}
           </NavLink>
         ))}
       </nav>

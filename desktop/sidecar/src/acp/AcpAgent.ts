@@ -3,7 +3,8 @@
  *
  * JSON-RPC 2.0 at `POST /acp`. Every consequential tool call is classified and
  * gated the same way as the headless UI path. Unattended confirmation
- * fail-closes (see `AcpConfirmation.ts`). No Open Interpreter code is vendored.
+ * parks in the Phase 4 ask inbox (fail-closed if no inbox is configured).
+ * No Open Interpreter code is vendored.
  * `# DEVIATION:` ACP is JSON-RPC 2.0 over HTTP `POST /acp` on the shared
  * loopback listener (not a stdio subprocess). `session/update` notifications
  * are collected on `session/prompt` as `updates[]`, and flushed as SSE when
@@ -12,9 +13,11 @@
 
 import { randomUUID } from "node:crypto";
 
+import type { AskInbox } from "../../../../modules/coding/autonomy/AskInbox.js";
 import type { LLMClient } from "../../../../modules/coding/llm/types.js";
 import { ActionRisk } from "../../../../modules/coding/guardrails/ActionClassifier.js";
 import { HeadlessAgentSession } from "../../../../modules/coding/runtime/HeadlessAgentSession.js";
+import type { HeadlessConfirmFn } from "../../../../modules/coding/runtime/headlessGuards.js";
 import {
   createHeadlessTools,
   type HeadlessTool,
@@ -51,6 +54,8 @@ export interface AcpAgentOptions {
   readonly tools?: HeadlessTool[];
   readonly defaultModel?: string;
   readonly confirmation?: AcpConfirmationOptions;
+  /** Phase 4 ask inbox. When omitted, unattended confirms fail-close. */
+  readonly inbox?: AskInbox;
 }
 
 interface AcpSession {
@@ -127,6 +132,9 @@ export class AcpAgent {
   private readonly _llm: LLMClient;
   private readonly _tools: HeadlessTool[];
   private readonly _defaultModel: string;
+  private readonly _inbox?: AskInbox;
+  private readonly _confirmation: AcpConfirmationOptions;
+  private _activeSessionId: string | undefined;
   private _enabled = false;
   private _initialized = false;
   private readonly _sessions = new Map<string, AcpSession>();
@@ -134,7 +142,15 @@ export class AcpAgent {
   constructor(opts: AcpAgentOptions) {
     this._llm = opts.llm;
     this._defaultModel = opts.defaultModel ?? process.env.NEXUS_ACP_MODEL ?? "gemma4:e4b";
-    const confirm = createAcpConfirm(opts.confirmation);
+    this._inbox = opts.inbox ?? opts.confirmation?.inbox;
+    this._confirmation = opts.confirmation ?? {};
+    const confirm: HeadlessConfirmFn = (toolName, summary, detail, args) =>
+      createAcpConfirm({
+        ...this._confirmation,
+        inbox: this._inbox,
+        runId: this._activeSessionId ? `acp:${this._activeSessionId}` : "acp",
+        sessionId: this._activeSessionId,
+      })(toolName, summary, detail, args);
     const guarded = opts.tools ?? createHeadlessTools({ guards: { confirm } });
     this._tools = wrapBlocked(guarded);
   }
@@ -317,6 +333,7 @@ export class AcpAgent {
     if (!session) throw jsonRpcError(ACP_SESSION_NOT_FOUND, "Unknown sessionId");
 
     const task = promptToText(params.prompt);
+    this._activeSessionId = session.id;
     session.abort = new AbortController();
     const signal = abortAny(ctx.signal, session.abort.signal);
     const updates: AcpSessionUpdate[] = [];
