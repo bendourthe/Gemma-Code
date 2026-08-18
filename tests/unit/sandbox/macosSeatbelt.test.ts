@@ -22,7 +22,10 @@ describe("renderSeatbeltProfile", () => {
     expect(profile).toContain("(deny default)");
     expect(profile).toContain('(subpath "/tmp/ws")');
     expect(profile).toContain('(subpath "/tmp")');
+    expect(profile).toContain("(allow process-exec)");
+    expect(profile).toContain("(allow process-fork)");
     expect(profile).toContain("(deny network*)");
+    expect(profile).not.toMatch(/network-outbound\*|network-inbound\*/);
     expect(profile).toContain('(deny file-read* (subpath "/Users/dev/.ssh"))');
   });
 

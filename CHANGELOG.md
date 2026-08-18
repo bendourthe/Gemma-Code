@@ -17,6 +17,8 @@
 * **ci:** attach release assets by waiting for the desktop bundle and running appimagetool without FUSE ([6e601d2](https://github.com/bendourthe/Nexus-AI/commit/6e601d2))
 * **sandbox:** alias macOS `/var` and `/private/var` firmlink twins in writable roots so Seatbelt allows in-scope writes on GitHub runners
 * **ci:** restore the skill-native "no new skill" phrase, probe live sandbox mode in the classifier test, and regenerate `docs/index.md`
+* **sandbox:** drop invalid `network-outbound*` / `mach-register` Seatbelt ops that made sandbox-exec exit 65 before the child ran
+* **ci:** stage one Linux `.deb` / AppImage when the cargo cache leaves multiple bundle versions
 
 
 ### Opt-in surfaces

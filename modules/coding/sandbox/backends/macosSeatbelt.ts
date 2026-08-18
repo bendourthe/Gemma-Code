@@ -79,28 +79,30 @@ export function renderSeatbeltProfile(policy: SandboxPolicy): string {
         `(deny file-read* (subpath "${sbPath(root)}"))\n(deny file-write* (subpath "${sbPath(root)}"))`,
     )
     .join("\n");
+  // SBPL network ops are `network*`, `network-outbound`, `network-inbound`
+  // (no trailing star on the latter two). `network-outbound*` is a parse
+  // error: sandbox-exec exits 65 before the child runs.
   const network =
-    policy.network === "allow"
-      ? "(allow network*)"
-      : "(deny network*)\n(deny network-outbound*)\n(deny network-inbound*)";
+    policy.network === "allow" ? "(allow network*)" : "(deny network*)";
 
   return `(version 1)
 (deny default)
-(allow process*)
+(allow process-exec)
+(allow process-fork)
 (allow signal)
 (allow sysctl-read)
 (allow mach-lookup)
-(allow mach-register)
 (allow ipc-posix-shm)
 (allow ipc-posix-sem)
 (allow system-socket)
 (allow file-ioctl)
 (allow file-read-metadata)
 (allow file-read*)
-(allow file-write-data (literal "/dev/null"))
-(allow file-write-data (literal "/dev/zero"))
-(allow file-write-data (literal "/dev/dtracehelper"))
 (allow file-write*
+  (literal "/dev/null")
+  (literal "/dev/zero")
+  (literal "/dev/dtracehelper")
+  (literal "/dev/tty")
 ${writeClauses}
 )
 ${denyRead}

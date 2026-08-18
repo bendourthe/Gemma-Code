@@ -257,8 +257,35 @@ jobs:
         run: |
           V="${{ needs.build-vsix.outputs.version }}"
           mkdir -p bundle-out
-          cp desktop/src-tauri/target/release/bundle/appimage/*.AppImage "bundle-out/Nexus-Desktop_${V}_amd64.AppImage"
-          cp desktop/src-tauri/target/release/bundle/deb/*.deb "bundle-out/Nexus-Desktop_${V}_amd64.deb"
+          # Cargo cache restores prior-version bundles. A multi-file glob
+          # makes `cp a b destfile` treat destfile as a directory and fail.
+          stage_one() {
+            local dir="$1"
+            local pattern="$2"
+            local dest="$3"
+            shopt -s nullglob
+            local matches=( "$dir"/$pattern )
+            shopt -u nullglob
+            if [ ${#matches[@]} -eq 0 ]; then
+              echo "No files matched $dir/$pattern"
+              ls -la "$dir" || true
+              exit 1
+            fi
+            local pick=""
+            local f
+            for f in "${matches[@]}"; do
+              case "$(basename "$f")" in
+                *"$V"*) pick="$f"; break ;;
+              esac
+            done
+            if [ -z "$pick" ]; then
+              pick=$(ls -t "${matches[@]}" | head -1)
+            fi
+            echo "Staging $pick -> $dest"
+            cp "$pick" "$dest"
+          }
+          stage_one desktop/src-tauri/target/release/bundle/appimage "*.AppImage" "bundle-out/Nexus-Desktop_${V}_amd64.AppImage"
+          stage_one desktop/src-tauri/target/release/bundle/deb "*.deb" "bundle-out/Nexus-Desktop_${V}_amd64.deb"
 
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:

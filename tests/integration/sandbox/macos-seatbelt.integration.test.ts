@@ -44,7 +44,7 @@ describe.skipIf(!capable)("macOS Seatbelt integration", () => {
     });
     const result = await wait(child);
     expect(report.mode).toBe("confined");
-    expect(result.code).toBe(0);
+    expect(result.code, result.stderr).toBe(0);
     expect(readFileSync(path.join(workspace, "inside.txt"), "utf8")).toMatch(/ok/);
   });
 
@@ -65,7 +65,10 @@ describe.skipIf(!capable)("macOS Seatbelt integration", () => {
     });
     const result = await wait(child);
     expect(report.mode).toBe("confined");
-    expect(result.code).not.toBe(0);
+    expect(result.code, result.stderr).not.toBe(0);
+    // 65 is sandbox-exec's profile parse error; a real FS deny is 134 or a
+    // shell EPERM. Treat 65 as a broken profile, not a passing deny.
+    expect(result.code, result.stderr).not.toBe(65);
     expect(() => readFileSync(target, "utf8")).toThrow();
   });
 });
