@@ -4,6 +4,32 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-17] v1.18.0 release cut
+
+### Goal
+
+Ship v1.18.0 on the convergent milestone line (package.json + CHANGELOG + README What's New). Tag, push, and GitHub Release stay behind confirmation.
+
+### What was done
+
+- **docs**: README current-cycle + ledger + What's New rewritten for v1.18.0 (skill-native mappings, live harness selector, catalog/MCP governance, ask inbox + scheduler, ACP, OS sandbox). Install guide after-install section gained ACP park + scheduler. ARCHITECTURE.md already named `modules/coding/autonomy/`. Known-gaps for v1.18 flipped to finalized (14 open DF). Plan header records the cut date.
+- **devlog**: this entry.
+- **gitignore**: no change. `coverage/` already ignored. Ask-inbox and schedule JSON live under `~/.nexus/` (outside the repo). No LFS candidates.
+- **version**: `package.json` and `package-lock.json` 1.17.0 -> 1.18.0. `scripts/sync-tauri-version.mjs` rewrites `desktop/src-tauri/tauri.conf.json`. This repo has no `scripts/check_version_sync.py` (Nexus-Hub catalog guard); the local SSOT is root `package.json`. `desktop/package.json` and `desktop/src-tauri/Cargo.toml` remain at 1.5.0 (not in the sync script; left alone).
+- **changelog**: `[1.18.0]` prepended above `[1.17.0]`. Opt-in surfaces: harness selector, ACP agent, exec sandbox, scheduled agent runs (each with Activation / Validation / Rollback / Authority / Docs).
+- **refactor**: `docs/v1/v1.18/` already has `plans/` and `comparisons/`. No file moves. `check:docs-layout` and `check:naming` re-run. docs-cleanup-report updated for Phase 4 history.
+- **Hub self-gates**: `platform-read-contracts`, installer-parity checker, model-prompting freshness, and `generate_manifest.py` are no-ops (this is not a Nexus-Hub catalog repo).
+
+### Tests
+
+No feature-code change in this cut. Phase 4 gates stand: root **4926 passed / 11 skipped / 0 failed**, coverage 87.61% / 84.09% / 91.14%. Desktop **967 passed**.
+
+### Next
+
+Tag `v1.18.0`, push, and GitHub Release stay behind confirmation. Merge to `main` only after the tag exists so semantic-release does not cut a misnamed version from feat commits.
+
+---
+
 ## [2026-08-17] v1.18.0 agent-harness-and-governance -- Phase 4: ask inbox + scheduler
 
 ### Goal

@@ -1,3 +1,56 @@
+# [1.18.0](https://github.com/bendourthe/Nexus-AI/compare/v1.17.0...v1.18.0) (2026-08-17)
+
+
+### Features
+
+* **v1.18.0:** Hub skill-native mappings and llama.cpp loopback recipe (Phase 1) ([147cc39](https://github.com/bendourthe/Nexus-AI/commit/147cc39))
+* **v1.18.0:** live harness selector with named family profiles (Phase 2) ([6666a74](https://github.com/bendourthe/Nexus-AI/commit/6666a74))
+* **v1.18.0:** catalog tool-calling flags, MoE schema, and MCP tool deny (Phase 3) ([12fe79f](https://github.com/bendourthe/Nexus-AI/commit/12fe79f))
+* **v1.18.0:** persistent ask inbox and local agent-run scheduler (Phase 4) ([ca02605](https://github.com/bendourthe/Nexus-AI/commit/ca02605))
+* **v1.18.0:** loopback ACP agent on the shared serving control surface (Phase 5) ([9d88233](https://github.com/bendourthe/Nexus-AI/commit/9d88233))
+* **v1.18.0:** OS process sandbox around `run_terminal` (Phase 6) ([8ac11ee](https://github.com/bendourthe/Nexus-AI/commit/8ac11ee))
+
+
+### Bug Fixes
+
+* **desktop:** use a c-string literal for LoadLibraryA so Windows clippy is clean ([f27bc65](https://github.com/bendourthe/Nexus-AI/commit/f27bc65))
+* **ci:** attach release assets by waiting for the desktop bundle and running appimagetool without FUSE ([6e601d2](https://github.com/bendourthe/Nexus-AI/commit/6e601d2))
+
+
+### Opt-in surfaces
+
+#### Per-model harness selector (`nexus.coding.harnessSelector.enabled`)
+
+- Activation: set `"nexus.coding.harnessSelector.enabled": true` in settings, or the matching VS Code setting. Default is false (`HARNESS_SELECTOR_SHIPPED_DEFAULT`).
+- Validation: with the toggle on, send `/harness` in a coding session and confirm a named profile (plan-first, structured-edit, concise-loop, or minimal) is reported for the active model. With the toggle off, `/harness` reports the selector is disabled and prompt knobs match settings.
+- Rollback: set the setting to false. Overlays stop applying; no files outside settings are written.
+- Authority: this only changes prompt-scaffold knobs (style, thinking mode, system-prompt budget). It does not download models, raise permission tiers, auto-approve tools, or open a network port.
+- Docs: [README](README.md#whats-new-in-v1180), [docs/reference/low-cost-model-optimization.md](docs/reference/low-cost-model-optimization.md).
+
+#### ACP agent (`nexus.acp.enabled`)
+
+- Activation: Settings > Local API server, enable the ACP toggle, or set `"nexus.acp.enabled": true`, or `NEXUS_ACP_ENABLED=1`. Reuses `nexus.serving.token`. Default off.
+- Validation: with ACP on, Settings shows the shared loopback listener and `POST /acp`. `curl -i http://127.0.0.1:11500/acp` without a bearer token returns 401. With the toggle off and serving off, nothing listens on that port.
+- Rollback: turn the ACP toggle off, or set `"nexus.acp.enabled": false`. The ACP mount goes away. If serving is also off, the listener stops. The token remains in `~/.nexus/settings.json` until you delete `nexus.serving.token`.
+- Authority: ACP is loopback JSON-RPC only. Enabling it does not turn on OpenAI/Anthropic inference routes, does not auto-approve tools, and does not expose the filesystem. Unattended CONFIRM/DANGEROUS calls park in the ask inbox (or fail-closed if no inbox is configured).
+- Docs: [README](README.md#local-api-server-opt-in), [docs/install.md](docs/install.md#after-you-install-v1180).
+
+#### Exec sandbox (`nexus.coding.execSandbox`)
+
+- Activation: set `"nexus.coding.execSandbox": true`, or `NEXUS_EXEC_SANDBOX=1` for the sidecar. Default off.
+- Validation: run a `run_terminal` command and confirm the UI or logs say `confined` (macOS with sandbox-exec, Linux with Landlock+python3) or `partial` (Windows). With the setting off, they say `unconfined`.
+- Rollback: set the setting to false or `NEXUS_EXEC_SANDBOX=0`. The next command is unconfined under the existing confirmation, denylist, and env-scrub guards. No extra artifacts to delete.
+- Authority: this confines `run_terminal` spawn only. It does not skip confirmation, denylists, or the ask inbox. Windows does not kernel-enforce filesystem or network. Off or a missing backend is loud unconfined, never silent.
+- Docs: [README](README.md#whats-new-in-v1180), [docs/v1/v1.18/known-gaps.md](docs/v1/v1.18/known-gaps.md) (DF-11).
+
+#### Scheduled agent runs (`ask.scheduler.setEnabled`)
+
+- Activation: desktop Admin > Ask inbox, enable a listed schedule (the built-in morning brief starts off). Equivalent IPC: `ask.scheduler.setEnabled`. Persist file: `~/.nexus/agent-schedules.json`.
+- Validation: the Ask inbox panel shows the schedule as enabled. After a fire, consequential tools appear as pending asks in the same panel (they do not run silently).
+- Rollback: disable the schedule in the panel, or set `enabled` to false in `~/.nexus/agent-schedules.json`. Disabling does not delete parked asks or `~/.nexus/ask-inbox.json`.
+- Authority: enabling a schedule does not auto-approve CONFIRM or DANGEROUS tools, does not raise permission tiers, and does not bind a network port. Every wake checkpoints git and parks asks. Morning-brief content stays the Hub `agent-presets` / `morning-briefing` preset.
+- Docs: [README](README.md#ask-inbox-and-scheduled-runs-opt-in), [docs/reference/skill-native-adoptions-v1.18.md](docs/reference/skill-native-adoptions-v1.18.md).
+
 # [1.17.0](https://github.com/bendourthe/Nexus-AI/compare/v1.16.0...v1.17.0) (2026-08-16)
 
 

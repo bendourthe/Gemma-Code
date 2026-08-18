@@ -86,6 +86,8 @@ Everything lands under your user account (no admin rights needed for the wizard 
 - **Catalog governance**: the desktop model picker badges models with in-repo `toolCallingVerified` provenance. MoE rows may list `activeParams` / `totalParams`; harness compute uses active params when present, residency never substitutes active for total. Unsloth UD / MXFP4-style labels are recognized as extreme-low-bit and stay blocked (`EXTREME_LOW_BIT_MIN_OLLAMA_VERSION` remains `999.0.0`).
 - **MCP per-tool deny**: Settings > MCP lets you deny individual tools on allowed servers. Denies only tighten Hub policy; a toggle cannot enable a dropped server or a policy-denied tool. Persisted at `.nexus/mcp-tool-deny.json`.
 - **Exec sandbox**: off by default (`nexus.coding.execSandbox`; sidecar `NEXUS_EXEC_SANDBOX=1`). When on, `run_terminal` is wrapped in Seatbelt (macOS), Landlock+seccomp (Linux, needs python3), or a Windows job object. Off or missing backend prints **unconfined**. Windows does not kernel-enforce filesystem or network.
+- **ACP agent**: same Settings > Local API server section, separate toggle (`nexus.acp.enabled` or `NEXUS_ACP_ENABLED=1`). Uses the shared loopback listener and token at `POST /acp`. Off by default. Unattended CONFIRM/DANGEROUS calls park in Ask inbox.
+- **Ask inbox and scheduler**: Admin > Ask inbox lists parked approvals. Approve replays the permission gate. The built-in morning-brief schedule is off until you enable it in that panel. There is no auto-approve path.
 
 ## After you install (v1.17.0)
 
@@ -94,7 +96,7 @@ The desktop shell now uses orbs, a surface-liveness beam, and a metal ring on Se
 ## After you install (v1.16.0)
 
 - **Local API server**: off by default. In Nexus, open Settings > Local API server, turn it on, and copy the base URL plus token into Claude Code / Codex / Cursor. The server binds loopback only and serves model inference, never files or tools. See [README](../README.md#local-api-server-opt-in).
-- **ACP agent** (v1.18.0 Phase 5): same Settings section, separate toggle. Uses the same loopback listener and token at `POST /acp`. Off by default. Unattended confirmations refuse until the ask inbox lands.
+- **ACP agent** (v1.18.0): same Settings section, separate toggle. Uses the same loopback listener and token at `POST /acp`. Off by default. Unattended confirmations park in the ask inbox (or fail-closed if no inbox is configured).
 - **Document parsing**: Settings > Models, install **RapidOCR PP-OCRv4** (CPU, every OS) and optionally **Unlimited-OCR 3B** (NVIDIA). Then attach a PDF or image in Local Chatbot. Neither model is auto-installed.
 - **MLX on Apple Silicon**: Nexus does not bundle MLX. Register an existing loopback server as described in [MLX via localAdapters](v1/v1.16/guides/mlx-via-local-adapters.md).
 

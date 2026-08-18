@@ -1,8 +1,17 @@
 # Nexus - Progress Dashboard
 
-**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (post v1.17.0; v1.18.0 all 7 phases landed, `/update release` next).
+**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (v1.18.0 cut on `develop`; tag / push / GitHub Release behind confirmation).
 
-> **v1.18.0 IN PROGRESS (2026-08-17)** -- all 7 phases of [v1.18.0-adoption-agent-harness-and-governance.md](v1/v1.18/plans/v1.18.0-adoption-agent-harness-and-governance.md) landed, including Phase 4 ask inbox + scheduler (DF-9 closed). Gates: root **4926 passed / 11 skipped / 0 failed** (459 files), coverage 87.61% / 84.09% / 91.14%, lint + `tsc -b` clean. Desktop **967 passed / 0 failed** (112 files). Next: `/update release`.
+> **v1.18.0 RELEASED (2026-08-17)** -- all 7 phases of [v1.18.0-adoption-agent-harness-and-governance.md](v1/v1.18/plans/v1.18.0-adoption-agent-harness-and-governance.md) landed on `develop`; package.json / CHANGELOG / README cut as **v1.18.0**. Known-gaps [finalized](v1/v1.18/known-gaps.md) (14 open DF). Cycle: skill-native Hub mappings + llama.cpp recipe, live harness selector, catalog/MCP governance, ask inbox + scheduler, loopback ACP, OS process sandbox.
+> - **P1** Hub `agent-presets` / `browser-testing-with-devtools` coverage notes + llama.cpp loopback recipe.
+> - **P2** live `HarnessSelector` overlay behind `nexus.coding.harnessSelector.enabled` (default off) + `/harness`.
+> - **P3** `toolCallingVerified`, MoE active/total params, tightens-only MCP tool deny.
+> - **P4** persistent ask inbox + local scheduler (no auto-approve; DF-9 closed).
+> - **P5** ACP JSON-RPC on the shared serving loopback listener (`nexus.acp.enabled`).
+> - **P6** `run_terminal` OS sandbox (`nexus.coding.execSandbox`; Windows `partial` = DF-11).
+> - **P7** layout/known-gaps/CI path-filter; then `/update release`.
+>
+> Gates: root **4926 passed / 11 skipped / 0 failed** (459 files), coverage 87.61% / 84.09% / 91.14%, lint + `tsc -b` clean. Desktop **967 passed / 0 failed** (112 files). Tag / push / GitHub Release stay behind confirmation.
 >
 > **v1.17.0 RELEASED (2026-08-16)** -- all 6 phases landed on `develop`; package.json / CHANGELOG / README cut as **v1.17.0**. Plan: [v1.17.0-adoption-ui-motion-identity.md](v1/v1.17/plans/v1.17.0-adoption-ui-motion-identity.md) - [known-gaps](v1/v1.17/known-gaps.md) (finalized). Cycle: reverse-engineer thinking-orbs / border-beam / metal-fx into an internal motion system (no new npm deps).
 > - **P1** motion tokens, centralized `prefers-reduced-motion` (halt, not slow), recede-when-active primitive.

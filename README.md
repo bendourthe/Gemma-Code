@@ -6,7 +6,7 @@
 
 Nexus is a local-first, native desktop AI Studio that bundles four generative AI pillars behind one cohesive UI: agentic coding, organized local chat, image generation and editing, and short-form video synthesis. Everything runs on the host machine against optimized open-source models (Gemma 4, Llama 3, Qwen 2.5 Coder, SDXL / SANA-class diffusion, video-synthesis architectures), with real-time GPU / VRAM telemetry built into the dashboard. No API keys, no data leaving your machine, no per-token billing.
 
-> **Renamed from Gemma Code at v1.0.0** to reflect the four-pillar pivot. The v0.1.0 - v0.22.x line shipped as a single-purpose local agentic coding VS Code extension; v1.0.0 folded that engine into the "Agentic AI Coding" pillar of a wider desktop app. The VS Code surface is preserved as an optional thin adapter that proxies to the desktop daemon. Historical Gemma Code docs remain under `docs/archive/versions/v0/v0.1.0/` - `docs/archive/versions/v0/v0.9.0/`; every product milestone since the pivot is documented under `docs/v1/v1.<MINOR>/`, from the v1.0.0 pivot through the current **v1.17.0** cycle. Releases are cut on the same milestone version line - see [Project Status](#project-status-august-2026).
+> **Renamed from Gemma Code at v1.0.0** to reflect the four-pillar pivot. The v0.1.0 - v0.22.x line shipped as a single-purpose local agentic coding VS Code extension; v1.0.0 folded that engine into the "Agentic AI Coding" pillar of a wider desktop app. The VS Code surface is preserved as an optional thin adapter that proxies to the desktop daemon. Historical Gemma Code docs remain under `docs/archive/versions/v0/v0.1.0/` - `docs/archive/versions/v0/v0.9.0/`; every product milestone since the pivot is documented under `docs/v1/v1.<MINOR>/`, from the v1.0.0 pivot through the current **v1.18.0** cycle. Releases are cut on the same milestone version line - see [Project Status](#project-status-august-2026).
 
 ---
 
@@ -75,7 +75,7 @@ A persistent `Local Model Status` panel reports the active model architecture, p
 
 ## Project Status (August 2026)
 
-Nexus uses a single, convergent version line: git tags and `package.json` carry the same `v1.<MINOR>.<PATCH>` numbers as the milestone docs under `docs/v1/v1.<MINOR>/`. This track runs from the v1.0.0 pivot through the current **v1.17.0** release; **v1.18.0** (agent harness and governance) is in progress.
+Nexus uses a single, convergent version line: git tags and `package.json` carry the same `v1.<MINOR>.<PATCH>` numbers as the milestone docs under `docs/v1/v1.<MINOR>/`. This track runs from the v1.0.0 pivot through the current **v1.18.0** release.
 
 Historical note: between 2026-06-18 and 2026-07-20 a decoupled "release track" cut five semantic-release versions numbered ahead of the milestones. Those tags were renumbered onto the milestone line on 2026-08-05: `v2.0.0` -> `v1.6.0` (GA consolidating v1.4.0 -> v1.6.0), `v2.1.0` -> `v1.7.0`, `v2.2.0` -> `v1.12.0` (consolidating v1.8.0 -> v1.12.0), `v2.3.0` -> `v1.13.0`, and `v2.4.0` -> `v1.14.0`. The version **v2.0.0 is reserved for the convergence release** that ships once the v1.18 plan, the v1.19.x subplans, and the v2.0 adoption plan are all complete (see `docs/v2/v2.0/plans/`).
 
@@ -101,21 +101,22 @@ Historical note: between 2026-06-18 and 2026-07-20 a decoupled "release track" c
 | v1.15.0 | Post-reinstall fixes + chat-style studios: window controls / open maximized, installer relaunch starts at Welcome, catalog invariant guard + gated-token UX + post-install retry, real `models.*` registry reconciled with Ollama and the installer's weights tree, Image Studio and Video Lab rebuilt as chat, and a crash-proof "Nexus Code" VS Code extension | Landed | [docs/v1/v1.15/](docs/v1/v1.15/) |
 | v1.16.0 | Local serving gateway + document OCR: opt-in loopback OpenAI/Anthropic API in front of installed models, per-model tokens/sec and TTFT on Traces, RapidOCR (CPU) + Unlimited-OCR (NVIDIA) in the catalog, a governed `parse_document` tool, MLX-via-adapters how-to, and a searchable Models page with Chat/Coding quick switcher | Landed | [docs/v1/v1.16/](docs/v1/v1.16/) |
 | v1.17.0 | Agent-state motion identity: internal orbs, surface-liveness beam, and hero-action metal ring (no new npm packages), one primary motion per surface, recede-when-active ambient glow, halt-not-slow reduced-motion | Landed | [docs/v1/v1.17/](docs/v1/v1.17/) |
-| v1.18.0 | Agent harness and governance: skill-native mappings, llama.cpp loopback recipe, live harness selector, catalog/registry governance, ask inbox + scheduler, ACP surface, OS process sandbox | All 7 phases landed; `/update release` next | [docs/v1/v1.18/](docs/v1/v1.18/) |
+| v1.18.0 | Agent harness and governance: skill-native mappings, llama.cpp loopback recipe, live harness selector, catalog/registry governance, ask inbox + scheduler, ACP surface, OS process sandbox | Landed | [docs/v1/v1.18/](docs/v1/v1.18/) |
 
 Each cycle's plan lives under `docs/v1/v1.<MINOR>/plans/`, its deferred work under `docs/v1/v1.<MINOR>/known-gaps.md`, and benchmarks (where run) under `docs/v1/v1.<MINOR>/benchmarks/`.
 
-### What's new in v1.17.0
+### What's new in v1.18.0
 
-The desktop shell now uses one internal motion vocabulary instead of ad-hoc loaders. No `thinking-orbs`, `border-beam`, or `metal-fx` packages. Locked Nexus accents only.
+Agent harness, governance, and confinement. Local-only. No new outbound surfaces. OpenWorker, Open Interpreter, and Laguna are design references only (no vendored code).
 
-- **Orbs = agent state** - a Canvas dotted ring on coding, chat, image, and video pending turns, plus the model dock while a model is loading or working.
-- **Beam = surface liveness** - a traveling beam on the composer while a reply streams; a breathing beam on the idle model dock.
-- **Metal = hero action** - a liquid-metal ring on Send, Generate, and New session only (capped at 3 WebGL instances; static edge if WebGL is missing).
-- **One motion per surface** - orb beats metal beats beam beats aurora. Composer focus is metal-only; streaming keeps the traveling beam. The ambient constellation recedes while a surface is active.
-- **Reduced motion** - OS `prefers-reduced-motion` **halts** every effect (it does not slow them). Tokens: [docs/v1/v1.17/design-tokens.md](docs/v1/v1.17/design-tokens.md).
+- **Skill-native mappings** - morning-brief *content* is Hub `agent-presets` / `morning-briefing`; browser GUI QA is Hub `browser-testing-with-devtools`. llama.cpp is a documented loopback-adapter recipe, not a bundled runtime.
+- **Live harness selector** - opt-in (`nexus.coding.harnessSelector.enabled`). Named family profiles (`plan-first`, `structured-edit`, `concise-loop`, `minimal`). Inspect or switch with `/harness`. Shipped default stays off until a live weak-model A/B.
+- **Catalog and MCP governance** - additive `toolCallingVerified` plus MoE `activeParams` / `totalParams`. Per-tool MCP deny tightens Hub policy only. Extreme-low-bit and patient-tier gates stay closed.
+- **Ask inbox + scheduler** - headless and scheduled CONFIRM/DANGEROUS tools park in `~/.nexus/ask-inbox.json`. Desktop `/inbox` panel, pending badge. Approve replays the permission gate. Local scheduler; morning brief off by default; no auto-approve.
+- **ACP agent** - opt-in (`nexus.acp.enabled`) on the same loopback listener and token as the local API server (`POST /acp`). Unattended confirms park; without an inbox they fail-closed.
+- **OS process sandbox** - opt-in (`nexus.coding.execSandbox`). Seatbelt / Landlock+seccomp / Windows job object around `run_terminal`. Off or missing backend is loud **unconfined**. Windows is `partial` (no kernel FS/network).
 
-v1.16.0 already shipped the local API server, document OCR, per-model analytics, model library, and MLX-via-adapters how-to.
+v1.17.0 already shipped the internal motion identity (orbs, beam, metal, halt-not-slow reduced-motion). v1.16.0 already shipped the local API server, document OCR, per-model analytics, model library, and MLX-via-adapters how-to.
 
 ---
 

@@ -1,7 +1,7 @@
 # Known Gaps - v1.18.0 (Agent Harness Activation, Autonomy Governance, and Sandbox)
 
 **Project**: Nexus AI Studio
-**Status**: in-progress
+**Status**: finalized
 **Last updated**: 2026-08-17
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
@@ -11,6 +11,8 @@ Plan: [plans/v1.18.0-adoption-agent-harness-and-governance.md](plans/v1.18.0-ado
 Carry-forward source: [../v1.17/known-gaps.md](../v1.17/known-gaps.md) (reconciled in Phase 7; items stay in that file).
 
 ## v1.18.0
+
+**Summary**: 14 open items after Phase 4 close-out and the version bump - 0 NI, 14 DF (DF-1..8, DF-10..15), 0 MT - plus 4 resolved this cycle (EM.P1.A, EM.P5.A, OI-A3 shared transport, DF-9). No suppressed warnings, no bypassed gates. Finalized at the v1.18.0 version bump.
 
 ### Summary
 
@@ -138,4 +140,6 @@ Carry-forward source: [../v1.17/known-gaps.md](../v1.17/known-gaps.md) (reconcil
 
 v1.17 motion items (DF-1, DF-3, DF-5, DF-6, DF-8, DF-9, DF-10) stay in [../v1.17/known-gaps.md](../v1.17/known-gaps.md). v1.16 serving/OCR items stay in [../v1.16/known-gaps.md](../v1.16/known-gaps.md). This cycle does not close them.
 
-Phase 4 (ask inbox + scheduler) landed on 2026-08-17 and closed DF-9. Status stays **in-progress** until `/update release` cuts the version. Open DF items remaining: DF-1..8, DF-10..15.
+Phase 4 (ask inbox + scheduler) landed on 2026-08-17 and closed DF-9. Status is **finalized** at the v1.18.0 version bump. Open DF items remaining: DF-1..8, DF-10..15.
+
+_Last updated: 2026-08-17 (finalized for the v1.18.0 release)._

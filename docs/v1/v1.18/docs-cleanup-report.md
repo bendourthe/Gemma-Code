@@ -13,22 +13,23 @@ This phase created no scratch docs. No files were moved or deleted. Session hist
 | Cat 1 (delete) | 0 |
 | Cat 2 (archive) | 0 |
 | Cat 3 (stale-flag) | 0 |
-| Cat 4 (active) | 15 |
-| **Total** | **15** |
+| Cat 4 (active) | 16 |
+| **Total** | **16** |
 
 ## Dispositions
 
 | Path | Category | Heuristics | Destination | Notes |
 |---|---|---|---|---|
-| docs/v1/v1.18/plans/v1.18.0-adoption-agent-harness-and-governance.md | Cat 4 | active version | (keep) | Cycle plan; Phase 7 close-out; Phase 4 still open; Ready-to-release unchecked |
+| docs/v1/v1.18/plans/v1.18.0-adoption-agent-harness-and-governance.md | Cat 4 | active version | (keep) | Cycle plan; all 7 phases complete; Ready-to-release checked |
 | docs/v1/v1.18/comparisons/v1.18.0-comparison-openworker.md | Cat 4 | active version | (keep) | Seed comparison |
 | docs/v1/v1.18/comparisons/v1.18.1-comparison-openinterpreter.md | Cat 4 | active version | (keep) | Seed comparison |
 | docs/v1/v1.18/comparisons/v1.18.2-comparison-laguna-s-2-1.md | Cat 4 | active version | (keep) | Seed comparison |
-| docs/v1/v1.18/known-gaps.md | Cat 4 | active version | (keep) | Reconciled; DF-1..15; Status in-progress |
+| docs/v1/v1.18/known-gaps.md | Cat 4 | active version | (keep) | Finalized for the v1.18.0 release; 14 open DF |
 | docs/v1/v1.18/docs-cleanup-report.md | Cat 4 | self | (keep) | This report (rewritten per phase) |
 | docs/v1/v1.18/development/history/2026-08-16_phase-1-skill-native-and-llamacpp-recipe.md | Cat 4 | active version | (keep) | Phase 1 |
 | docs/v1/v1.18/development/history/2026-08-17_phase-2-live-harness-activation.md | Cat 4 | active version | (keep) | Phase 2 |
 | docs/v1/v1.18/development/history/2026-08-17_phase-3-catalog-registry-governance.md | Cat 4 | active version | (keep) | Phase 3 |
+| docs/v1/v1.18/development/history/2026-08-17_phase-4-ask-inbox-and-scheduler.md | Cat 4 | active version | (keep) | Phase 4 |
 | docs/v1/v1.18/development/history/2026-08-17_phase-5-acp-agent-surface.md | Cat 4 | active version | (keep) | Phase 5 |
 | docs/v1/v1.18/development/history/2026-08-17_phase-6-os-process-sandbox.md | Cat 4 | active version | (keep) | Phase 6 |
 | docs/v1/v1.18/development/history/2026-08-17_phase-7-refactor-known-gaps-cicd.md | Cat 4 | active version | (keep) | Phase 7 session history |
@@ -38,7 +39,7 @@ This phase created no scratch docs. No files were moved or deleted. Session hist
 
 ## Cat 3 refresh queue
 
-None in `docs/v1/v1.18/`. No Phase 4 history file (phase not implemented).
+None in `docs/v1/v1.18/`.
 
 ## Target tree preview
 
