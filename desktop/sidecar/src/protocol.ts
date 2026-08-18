@@ -21,6 +21,9 @@ export const IPC_METHODS = [
   // v1.16.0 Phase 1 (adoption item A1) -- local serving gateway control surface.
   "serving.status",
   "serving.setEnabled",
+  // v1.18.0 Phase 5 (OI-A3) -- ACP mount on the shared control surface.
+  "acp.status",
+  "acp.setEnabled",
   // v1.16.0 Phase 2 (adoption item A2) -- per-model inference analytics.
   "metrics.inference",
   // v1.16.0 Phase 3 (adoption item A5) -- document OCR / parsing.
@@ -732,6 +735,26 @@ export type ServingStatusResponseT = z.infer<typeof ServingStatusResponse>;
 export const ServingSetEnabledRequest = z.object({ enabled: z.boolean() }).strict();
 export type ServingSetEnabledRequestT = z.infer<typeof ServingSetEnabledRequest>;
 
+// v1.18.0 Phase 5 (OI-A3) -- ACP agent on the shared loopback listener.
+export const AcpEmptyRequest = z.object({}).strict();
+export type AcpEmptyRequestT = z.infer<typeof AcpEmptyRequest>;
+
+export const AcpStatusResponse = z
+  .object({
+    enabled: z.boolean(),
+    running: z.boolean(),
+    host: z.string().min(1),
+    port: z.number().int().positive(),
+    /** `http://<host>:<port>/acp` -- JSON-RPC endpoint. */
+    endpoint: z.string().min(1),
+    token: z.string(),
+  })
+  .strict();
+export type AcpStatusResponseT = z.infer<typeof AcpStatusResponse>;
+
+export const AcpSetEnabledRequest = z.object({ enabled: z.boolean() }).strict();
+export type AcpSetEnabledRequestT = z.infer<typeof AcpSetEnabledRequest>;
+
 // v1.16.0 Phase 2 (adoption item A2) -- per-model inference analytics for the
 // Traces panel. Every metric is nullable on purpose: a backend that reports no
 // token counts yields null, never a zero that would silently skew an average.
@@ -1153,6 +1176,16 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
   "serving.setEnabled": {
     request: ServingSetEnabledRequest,
     response: ServingStatusResponse,
+    implemented: true,
+  },
+  "acp.status": {
+    request: AcpEmptyRequest,
+    response: AcpStatusResponse,
+    implemented: true,
+  },
+  "acp.setEnabled": {
+    request: AcpSetEnabledRequest,
+    response: AcpStatusResponse,
     implemented: true,
   },
   "metrics.inference": {

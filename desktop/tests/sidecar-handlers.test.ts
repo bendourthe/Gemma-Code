@@ -54,6 +54,9 @@ describe("sidecar handlers", () => {
           // v1.16.0 Phase 1 wired the local serving-gateway control surface.
           "serving.status",
           "serving.setEnabled",
+          // v1.18.0 Phase 5 wired ACP on the shared control surface.
+          "acp.status",
+          "acp.setEnabled",
           // v1.16.0 Phase 2 wired per-model inference analytics.
           "metrics.inference",
           // v1.16.0 Phase 3 wired the document-OCR surface.

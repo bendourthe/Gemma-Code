@@ -39,6 +39,11 @@ export interface ServingConfig {
   readonly port: number;
   /** Bearer token every request must present. Never empty after resolution. */
   readonly token: string;
+  /**
+   * v1.18.0 Phase 5 -- ACP mount on the same loopback listener. When true the
+   * control surface binds even if `enabled` (serving routes) is false.
+   */
+  readonly acpEnabled?: boolean;
 }
 
 export interface ResolveServingConfigOptions {

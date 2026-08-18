@@ -151,4 +151,66 @@ describe("serving.* IPC handlers", () => {
       dispatch("serving.setEnabled", { enabled: "yes" }, ctxWith(makeRuntime())),
     ).rejects.toThrow();
   });
+
+  it("acp.setEnabled binds the shared listener and serves POST /acp", async () => {
+    const runtime = createServingRuntime({
+      settings: new InMemorySettingsStore(),
+      env: { NEXUS_SERVING_PORT: "0" },
+      models: {
+        service: { list: async () => [] },
+        installer: {},
+      } as unknown as NonNullable<Parameters<typeof createServingRuntime>[0]>["models"],
+      log: () => {},
+      acpLlm: {
+        async checkHealth() {
+          return true;
+        },
+        async listModels() {
+          return [];
+        },
+        async *streamChat() {
+          yield { message: { role: "assistant", content: "ok" }, done: true };
+        },
+      },
+    });
+    runtimes.push(runtime);
+    const on = (await dispatch("acp.setEnabled", { enabled: true }, ctxWith(runtime))) as {
+      enabled: boolean;
+      running: boolean;
+      endpoint: string;
+      token: string;
+    };
+    expect(on.enabled).toBe(true);
+    expect(on.running).toBe(true);
+    const res = await fetch(on.endpoint, {
+      method: "POST",
+      headers: { authorization: `Bearer ${on.token}`, "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: { protocolVersion: 1 },
+      }),
+    });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { result: { protocolVersion: number } }).result.protocolVersion).toBe(1);
+
+    const models = await fetch(`http://127.0.0.1:${runtime.gateway.boundPort}/v1/models`, {
+      headers: { authorization: `Bearer ${on.token}` },
+    });
+    expect(models.status).toBe(404);
+
+    const servingStatus = await runtime.status();
+    expect(servingStatus.enabled).toBe(false);
+    expect(servingStatus.running).toBe(true);
+
+    const status = (await dispatch("acp.status", {}, ctxWith(runtime))) as {
+      enabled: boolean;
+      running: boolean;
+      endpoint: string;
+    };
+    expect(status.enabled).toBe(true);
+    expect(status.running).toBe(true);
+    expect(status.endpoint).toBe(on.endpoint);
+  });
 });

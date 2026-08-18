@@ -19,7 +19,20 @@ export interface ServingStatusDto {
   token: string;
 }
 
+/** v1.18.0 Phase 5 -- ACP mount on the same loopback listener and token. */
+export interface AcpStatusDto {
+  enabled: boolean;
+  running: boolean;
+  host: string;
+  port: number;
+  /** `http://<host>:<port>/acp` -- JSON-RPC endpoint. */
+  endpoint: string;
+  token: string;
+}
+
 export interface ServingClient {
   status(): Promise<ServingStatusDto>;
   setEnabled(enabled: boolean): Promise<ServingStatusDto>;
+  acpStatus(): Promise<AcpStatusDto>;
+  setAcpEnabled(enabled: boolean): Promise<AcpStatusDto>;
 }

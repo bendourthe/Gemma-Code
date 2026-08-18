@@ -37,6 +37,8 @@ import {
   ModelsInstallCancelRequest,
   ServingSetEnabledRequest,
   type ServingStatusResponseT,
+  AcpSetEnabledRequest,
+  type AcpStatusResponseT,
   MetricsEmptyRequest,
   type MetricsInferenceResponseT,
   OcrEmptyRequest,
@@ -287,6 +289,14 @@ export const handlers: Record<Method, HandlerFn> = {
   "serving.setEnabled": async (params, ctx): Promise<ServingStatusResponseT> => {
     const req = ServingSetEnabledRequest.parse(params ?? {});
     return resolveServingRuntime(ctx).setEnabled(req.enabled);
+  },
+  // v1.18.0 Phase 5 (OI-A3) -- ACP mount on the shared control surface.
+  "acp.status": async (_params, ctx): Promise<AcpStatusResponseT> => {
+    return resolveServingRuntime(ctx).acpStatus();
+  },
+  "acp.setEnabled": async (params, ctx): Promise<AcpStatusResponseT> => {
+    const req = AcpSetEnabledRequest.parse(params ?? {});
+    return resolveServingRuntime(ctx).setAcpEnabled(req.enabled);
   },
   // v1.16.0 Phase 2 (adoption item A2) -- per-model inference analytics. Reads
   // the in-process registry the instrumented LLM clients write to; purely local,

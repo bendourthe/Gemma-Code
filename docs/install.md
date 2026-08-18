@@ -93,6 +93,7 @@ The desktop shell now uses orbs, a surface-liveness beam, and a metal ring on Se
 ## After you install (v1.16.0)
 
 - **Local API server**: off by default. In Nexus, open Settings > Local API server, turn it on, and copy the base URL plus token into Claude Code / Codex / Cursor. The server binds loopback only and serves model inference, never files or tools. See [README](../README.md#local-api-server-opt-in).
+- **ACP agent** (v1.18.0 Phase 5): same Settings section, separate toggle. Uses the same loopback listener and token at `POST /acp`. Off by default. Unattended confirmations refuse until the ask inbox lands.
 - **Document parsing**: Settings > Models, install **RapidOCR PP-OCRv4** (CPU, every OS) and optionally **Unlimited-OCR 3B** (NVIDIA). Then attach a PDF or image in Local Chatbot. Neither model is auto-installed.
 - **MLX on Apple Silicon**: Nexus does not bundle MLX. Register an existing loopback server as described in [MLX via localAdapters](v1/v1.16/guides/mlx-via-local-adapters.md).
 

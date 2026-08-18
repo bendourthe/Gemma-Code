@@ -11,7 +11,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import type { ServingClient, ServingStatusDto } from "./servingTypes";
+import type { AcpStatusDto, ServingClient, ServingStatusDto } from "./servingTypes";
 
 export interface ServingSettingsProps {
   client: ServingClient;
@@ -24,6 +24,7 @@ const ANTHROPIC_PATHS = ["POST /v1/messages"];
 
 export function ServingSettings({ client, writeClipboard }: ServingSettingsProps): JSX.Element {
   const [status, setStatus] = useState<ServingStatusDto | null>(null);
+  const [acp, setAcp] = useState<AcpStatusDto | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,9 +32,12 @@ export function ServingSettings({ client, writeClipboard }: ServingSettingsProps
 
   useEffect(() => {
     let active = true;
-    void client.status().then(
-      (s) => {
-        if (active) setStatus(s);
+    void Promise.all([client.status(), client.acpStatus()]).then(
+      ([s, a]) => {
+        if (active) {
+          setStatus(s);
+          setAcp(a);
+        }
       },
       (err: unknown) => {
         if (active) setError(err instanceof Error ? err.message : String(err));
@@ -51,6 +55,23 @@ export function ServingSettings({ client, writeClipboard }: ServingSettingsProps
       setNotice(null);
       try {
         setStatus(await client.setEnabled(next));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [client],
+  );
+
+  const handleAcpToggle = useCallback(
+    async (next: boolean) => {
+      setBusy(true);
+      setError(null);
+      setNotice(null);
+      try {
+        setAcp(await client.setAcpEnabled(next));
+        setStatus(await client.status());
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
       } finally {
@@ -126,27 +147,57 @@ export function ServingSettings({ client, writeClipboard }: ServingSettingsProps
           <p data-testid="serving-state" style={mutedStyle}>
             {status.running
               ? `Running on ${status.host}:${status.port}`
-              : status.enabled
+              : status.enabled || acp?.enabled
                 ? "Enabled but not listening -- check the log for a bind error."
-                : "Stopped. No port is bound while this is off."}
+                : "Stopped. No port is bound while both the API server and ACP are off."}
           </p>
 
-          {status.enabled ? (
+          <label style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+            <input
+              data-testid="acp-toggle"
+              type="checkbox"
+              checked={acp?.enabled ?? false}
+              disabled={busy}
+              onChange={(e) => void handleAcpToggle(e.target.checked)}
+            />
+            <span>Enable the ACP agent (same loopback listener and token)</span>
+          </label>
+
+          {acp?.enabled ? (
+            <div style={fieldRowStyle}>
+              <span style={labelStyle}>ACP</span>
+              <code data-testid="acp-endpoint" style={valueStyle}>
+                {acp.endpoint}
+              </code>
+              <button
+                type="button"
+                data-testid="acp-copy-endpoint"
+                onClick={() => void copy("ACP endpoint", acp.endpoint)}
+                style={buttonStyle}
+              >
+                Copy
+              </button>
+            </div>
+          ) : null}
+
+          {status.enabled || acp?.enabled ? (
             <>
-              <div style={fieldRowStyle}>
-                <span style={labelStyle}>Base URL</span>
-                <code data-testid="serving-base-url" style={valueStyle}>
-                  {status.baseUrl}
-                </code>
-                <button
-                  type="button"
-                  data-testid="serving-copy-url"
-                  onClick={() => void copy("Base URL", status.baseUrl)}
-                  style={buttonStyle}
-                >
-                  Copy
-                </button>
-              </div>
+              {status.enabled ? (
+                <div style={fieldRowStyle}>
+                  <span style={labelStyle}>Base URL</span>
+                  <code data-testid="serving-base-url" style={valueStyle}>
+                    {status.baseUrl}
+                  </code>
+                  <button
+                    type="button"
+                    data-testid="serving-copy-url"
+                    onClick={() => void copy("Base URL", status.baseUrl)}
+                    style={buttonStyle}
+                  >
+                    Copy
+                  </button>
+                </div>
+              ) : null}
 
               <div style={fieldRowStyle}>
                 <span style={labelStyle}>Token</span>
@@ -171,14 +222,22 @@ export function ServingSettings({ client, writeClipboard }: ServingSettingsProps
                 </button>
               </div>
 
-              <div data-testid="serving-endpoints">
-                <h3 style={subheadStyle}>Endpoints</h3>
-                <p style={mutedStyle}>
-                  OpenAI-compatible: {OPENAI_PATHS.join(", ")}. Anthropic-compatible:{" "}
-                  {ANTHROPIC_PATHS.join(", ")}. Send the token as{" "}
-                  <code>Authorization: Bearer &lt;token&gt;</code> or <code>x-api-key</code>.
+              {status.enabled ? (
+                <div data-testid="serving-endpoints">
+                  <h3 style={subheadStyle}>Endpoints</h3>
+                  <p style={mutedStyle}>
+                    OpenAI-compatible: {OPENAI_PATHS.join(", ")}. Anthropic-compatible:{" "}
+                    {ANTHROPIC_PATHS.join(", ")}. Send the token as{" "}
+                    <code>Authorization: Bearer &lt;token&gt;</code> or <code>x-api-key</code>.
+                  </p>
+                </div>
+              ) : (
+                <p data-testid="acp-token-hint" style={mutedStyle}>
+                  ACP uses the same token as{" "}
+                  <code>Authorization: Bearer &lt;token&gt;</code>. The OpenAI-compatible
+                  paths stay off until the local API server is enabled.
                 </p>
-              </div>
+              )}
             </>
           ) : null}
         </>

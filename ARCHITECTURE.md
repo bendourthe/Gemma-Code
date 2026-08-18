@@ -40,7 +40,7 @@ bin/nexus-check.mjs          deterministic-checks CLI (renamed from gemma-check)
 
 Later cycles added two sidecar-adjacent surfaces that the v1.0.0 layout above does not name:
 
-- `desktop/sidecar/src/serving/` -- opt-in loopback OpenAI/Anthropic HTTP gateway in front of the model registry (`nexus.serving.enabled`, default off). Loopback bind only, bearer-token auth, inference routes only.
+- `desktop/sidecar/src/serving/` -- opt-in loopback OpenAI/Anthropic HTTP gateway in front of the model registry (`nexus.serving.enabled`, default off). Loopback bind only, bearer-token auth, inference routes only. As of v1.18.0 Phase 5 the listener is [`LoopbackHttpServer`](desktop/sidecar/src/controlSurface/loopbackServer.ts), shared with ACP.
 - `core/documents/` -- OCR parse manager used by Chat attachments. Catalog entries: RapidOCR PP-OCRv4 (CPU) and Unlimited-OCR 3B (NVIDIA). The governed `parse_document` agent tool lives at `src/tools/handlers/parseDocument.ts`; composition-root wiring is still deferred (`LSO.P4.B` in [docs/v1/v1.16/known-gaps.md](docs/v1/v1.16/known-gaps.md)).
 
 ### llama.cpp loopback adapter recipe (v1.18.0 Phase 1)
@@ -50,6 +50,10 @@ No third inference engine is bundled. A user-started `llama-server` on loopback 
 ### Catalog and MCP registry governance (v1.18.0 Phase 3)
 
 [`catalog.json`](core/registry/catalog.json) gained additive `toolCallingVerified` + `toolCallingBenchmark` (OW-A4) and optional MoE `activeParams` / `totalParams` in billions (LG-A3). Dense rows omit MoE fields. [`HarnessSelector.modelCapabilityTier`](modules/coding/orchestration/HarnessSelector.ts) uses `activeParams` for compute when present; [`conservativeResidentVramGb`](core/registry/moeFootprint.ts) never substitutes active compute for residency. [`extremeLowBit.ts`](core/registry/extremeLowBit.ts) recognizes Unsloth UD / MXFP4-style labels so the gate can block them; `EXTREME_LOW_BIT_MIN_OLLAMA_VERSION` stays `999.0.0` (EM.P3 closed). Per-tool MCP deny lives in `.nexus/mcp-tool-deny.json`, layered on [`HubRegistryPolicyFilter`](modules/coding/mcp/HubRegistryPolicyFilter.ts) (tightens-only). Settings > MCP and sidecar `mcp.registry.list` / `mcp.registry.setToolDenied` surface the toggles. `mcp.list` / `mcp.invoke` stay unimplemented (Phase 11 VS Code bridge).
+
+### ACP agent surface (v1.18.0 Phase 5)
+
+The v1.16 serving gateway no longer owns a private `node:http` listener. [`LoopbackHttpServer`](desktop/sidecar/src/controlSurface/loopbackServer.ts) is the shared loopback bind + bearer-auth layer. Contract: [`contract.ts`](desktop/sidecar/src/controlSurface/contract.ts). Serving mounts `/v1/*`; ACP mounts `POST /acp`. `/health` stays unauthenticated. The listener opens if serving **or** ACP is enabled; both off means no port. Enabling one does not silently enable the other. Token reuse: `nexus.serving.token`. ACP is native JSON-RPC 2.0 (no Open Interpreter code). Unattended confirmation fail-closes until Phase 4 lands ([DF-9](docs/v1/v1.18/known-gaps.md)).
 
 ### Per-model harness overlay (v1.18.0 Phase 2)
 

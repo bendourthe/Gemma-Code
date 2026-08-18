@@ -4,6 +4,30 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-17] v1.18.0 agent-harness-and-governance -- Phase 5: ACP agent surface
+
+### Goal
+
+Expose the coding engine as ACP over a single shared loopback + local-auth layer with the v1.16 serving gateway (OI-A3). Native protocol. No Open Interpreter code. Unattended confirm fail-closes because Phase 4 is not landed.
+
+### What was done
+
+- **Shared control surface**: [`LoopbackHttpServer`](../desktop/sidecar/src/controlSurface/loopbackServer.ts) extracted from the serving gateway. Contract in [`contract.ts`](../desktop/sidecar/src/controlSurface/contract.ts): loopback-only, bearer before any mount, `/health` unauthenticated, listen if serving OR ACP, enabling one does not enable the other, token is `nexus.serving.token`.
+- **ACP**: [`AcpAgent`](../desktop/sidecar/src/acp/AcpAgent.ts) at `POST /acp` (JSON-RPC 2.0). `initialize`, `authenticate` (no-op after HTTP bearer), `session/new`, `session/prompt`, `session/cancel`. Updates collected on the prompt result; SSE when `Accept: text/event-stream`.
+- **Gating**: [`AcpConfirmation.ts`](../desktop/sidecar/src/acp/AcpConfirmation.ts) uses `classifyAction` + `resolveTier`. BLOCKED never executes. CONFIRM/DANGEROUS fail-close. Settings toggle `nexus.acp.enabled` / `NEXUS_ACP_ENABLED` on the existing Local API server section. IPC `acp.status` / `acp.setEnabled`.
+- **CI/CD**: no rewrite. `ci.yml` `test-ts` is unfiltered (root suite). `shell-build.yml` already watches `desktop/**`. Optional follow-up (not applied): run desktop Vitest inside `ci.yml` so ACP tests are not only on the shell-build path filter.
+- **Known gaps**: DF-9 (Phase 4 skip / fail-closed confirm), DF-10 (HTTP JSON-RPC rather than stdio ACP).
+
+### Tests
+
+Root suite **4857 passed / 6 skipped / 0 failed** (439 files). Coverage **87.81% lines / 84.2% branches / 91.27% functions**. Lint 0 errors. `tsc -b` clean. Desktop **956 passed / 0 failed** (110 files), coverage **92.75% lines**. First root run under parallel desktop coverage hit two ENV timeouts (`HybridRetriever` p99, golden-runner 5s); isolated and a second full root run were green.
+
+### Next
+
+Phase 6: OS process sandbox. Phase 4 ask inbox remains `/implement phase 4`.
+
+---
+
 ## [2026-08-17] v1.18.0 agent-harness-and-governance -- Phase 3: catalog + registry governance
 
 ### Goal

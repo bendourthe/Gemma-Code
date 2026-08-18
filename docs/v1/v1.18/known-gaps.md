@@ -17,7 +17,7 @@ Carry-forward source: [../v1.17/known-gaps.md](../v1.17/known-gaps.md) (reconcil
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 8 | 1 |
+| Deferred (DF) | 10 | 1 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
@@ -82,6 +82,20 @@ Carry-forward source: [../v1.17/known-gaps.md](../v1.17/known-gaps.md) (reconcil
 - **Plan reference**: `docs/v1/v1.18/plans/v1.18.0-adoption-agent-harness-and-governance.md` (sub-task 3.4); v1.1.0 Phase 11 IPC
 - **Reason**: Those methods are the VS Code extension MCP bridge (`core/coding/McpBridge.ts`). This phase added `mcp.registry.list` / `mcp.registry.setToolDenied` for Settings governance instead of hijacking the invoke catalog.
 - **Suggested next step**: Phase 11 (or a later coding-IPC phase) can implement `mcp.list` / `mcp.invoke` over `McpManager` without loosening Hub policy. Filter listed tools through `resolveExposedMcpTools`.
+
+##### DF-9 - Unattended ACP confirmation fail-closes (Phase 4 ask inbox not landed)
+
+- **Source phase**: Phase 5 - ACP agent surface (OI-A3); Phase 4 skipped by operator choice
+- **Plan reference**: `docs/v1/v1.18/plans/v1.18.0-adoption-agent-harness-and-governance.md` (Phase 5 prerequisite; sub-task 5.2)
+- **Reason**: Phase 4 (ask inbox + scheduler) is still unchecked. ACP cannot park a confirmation. Unattended CONFIRM/DANGEROUS tool calls refuse immediately (`AcpConfirmation.ts`). They do not auto-approve, wait on `ConfirmationGate`'s 60s webview timeout, or open an inbox. `ConfirmationGate` itself is vscode-bound; ACP uses the same `classifyAction` + `resolveTier` map through a headless adapter.
+- **Suggested next step**: `/implement phase 4`, then change the ACP confirm adapter to park instead of returning false. Keep fail-closed as the fallback if the inbox is unavailable.
+
+##### DF-10 - ACP is HTTP JSON-RPC on the shared listener, not a stdio subprocess
+
+- **Source phase**: Phase 5 - ACP agent surface (OI-A3)
+- **Plan reference**: `docs/v1/v1.18/plans/v1.18.0-adoption-agent-harness-and-governance.md` (sub-task 5.1 / 5.2)
+- **Reason**: The open ACP spec commonly uses stdio. This cycle mounts JSON-RPC 2.0 at `POST /acp` on the v1.16 serving `LoopbackHttpServer` so there is one loopback bind and one bearer token (`nexus.serving.token`). `session/update` notifications are returned on `session/prompt` as `updates[]`, and also flushed as SSE when the client sends `Accept: text/event-stream`.
+- **Suggested next step**: If an editor requires stdio ACP, add a thin stdio bridge that forwards to `POST /acp` rather than a second agent engine. Do not vendor Open Interpreter.
 
 ### Resolved
 

@@ -1,8 +1,8 @@
 # Nexus - Progress Dashboard
 
-**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (post v1.17.0; v1.18.0 Phase 3 landed).
+**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (post v1.17.0; v1.18.0 Phase 5 landed, Phase 4 still open).
 
-> **v1.18.0 IN PROGRESS (2026-08-17)** -- Phase 3 of [v1.18.0-adoption-agent-harness-and-governance.md](v1/v1.18/plans/v1.18.0-adoption-agent-harness-and-governance.md) landed: catalog `toolCallingVerified` + MoE fields, UD quant labels in the extreme-low-bit gate (EM.P3 still closed), per-tool MCP deny (tightens-only), Settings > MCP. Gates: root **4857 passed / 0 failed** (439 files), coverage 87.81% / 84.22% / 91.27%, lint + `tsc -b` clean. Desktop **925 passed / 0 failed** (107 files). [known-gaps](v1/v1.18/known-gaps.md) (in-progress; DF-1..8). Next: Phase 4 ask inbox + scheduler.
+> **v1.18.0 IN PROGRESS (2026-08-17)** -- Phase 5 of [v1.18.0-adoption-agent-harness-and-governance.md](v1/v1.18/plans/v1.18.0-adoption-agent-harness-and-governance.md) landed: shared `LoopbackHttpServer`, native ACP at `POST /acp`, fail-closed unattended confirm (Phase 4 skipped). Gates: root **4857 passed / 0 failed** (439 files), coverage 87.81% / 84.2% / 91.27%, lint + `tsc -b` clean. Desktop **956 passed / 0 failed** (110 files), coverage 92.75% lines. [known-gaps](v1/v1.18/known-gaps.md) (in-progress; DF-1..10). Next: Phase 6 OS process sandbox. Phase 4 ask inbox remains a follow-up (`/implement phase 4`).
 >
 > **v1.17.0 RELEASED (2026-08-16)** -- all 6 phases landed on `develop`; package.json / CHANGELOG / README cut as **v1.17.0**. Plan: [v1.17.0-adoption-ui-motion-identity.md](v1/v1.17/plans/v1.17.0-adoption-ui-motion-identity.md) - [known-gaps](v1/v1.17/known-gaps.md) (finalized). Cycle: reverse-engineer thinking-orbs / border-beam / metal-fx into an internal motion system (no new npm deps).
 > - **P1** motion tokens, centralized `prefers-reduced-motion` (halt, not slow), recede-when-active primitive.
