@@ -56,6 +56,15 @@ jobs:
       - run: npm run test -- --reporter=verbose --coverage
         env:
           CI: "true"
+      # v1.19.0 Phase 4: desktop picker/settings tests (FRONTEND_MODELS, LFM
+      # license chip) live in the desktop workspace. shell-build.yml only
+      # runs them on main; develop pushes need this step. Node 22 only so
+      # the 24.x matrix does not double the minutes.
+      - name: Desktop vitest (Node 22)
+        if: matrix.node == '22.x'
+        run: npm run test:shell
+        env:
+          CI: "true"
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         if: always() && matrix.node == '22.x'
         with:
@@ -88,6 +97,10 @@ jobs:
   # v1.18.0 Phase 7: the three-OS sandbox matrix lives in
   # .github/workflows/sandbox.yml (path-filtered). PRs still cover those
   # files via this workflow's ubuntu test-ts job.
+  #
+  # v1.19.0 Phase 4: installer pytest + headless-smoke moved to
+  # .github/workflows/installer-tests.yml (path-filtered to
+  # scripts/installer + core/registry). Unrelated pushes skip PyQt/uv.
 
   # ── Module catalog sync check ─────────────────────────────────────────────
 
@@ -340,78 +353,6 @@ jobs:
           cache: "npm"
       - run: pwsh -File scripts/init.ps1
         shell: pwsh
-
-  # -- Installer unit tests --------------------------------------------------
-
-  test-installer:
-    name: Installer tests + lint + smoke
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
-
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: "3.12"
-
-      - uses: astral-sh/setup-uv@e4db8464a088ece1b920f60402e813ea4de65b8f # v4
-        with:
-          version: "latest"
-
-      - name: Install system deps for PyQt5
-        run: sudo apt-get update && sudo apt-get install -y libxcb-xinerama0 libxkbcommon-x11-0
-
-      - name: Sync installer deps
-        run: |
-          cd scripts/installer
-          uv sync --quiet
-
-      - name: Run installer tests
-        env:
-          QT_QPA_PLATFORM: offscreen
-        run: |
-          cd scripts/installer
-          uv run pytest tests/ -v --tb=short
-
-      # v1.11.0 Phase 8 (T803): the headless-smoke (T202) result-JSON contract,
-      # run end-to-end on a clean Linux runner with a network-free profile
-      # (venv-only, a no-op since ADR-0001). This is the "Linux path now" gate;
-      # the full multi-component clean-machine run stays the operator Windows
-      # Sandbox action until the Actions freeze lifts (IO.P2.A). Hard gate.
-      - name: Headless-smoke result-JSON contract (network-free)
-        run: |
-          set -euo pipefail
-          cd scripts/installer
-          uv run python -m nexus_installer.main \
-            --headless-smoke testing/profiles/ci-linux.json \
-            --smoke-output "$RUNNER_TEMP/ci-smoke-result.json"
-          python3 - "$RUNNER_TEMP/ci-smoke-result.json" <<'PY'
-          import json, sys
-          r = json.load(open(sys.argv[1], encoding="utf-8"))
-          assert r["schema"] == "nexus-smoke-result/v1", r.get("schema")
-          assert r["success"] is True, r
-          assert r["steps_failed"] == [], r
-          print("headless-smoke contract OK:", r["steps_done"])
-          PY
-
-      # ruff runs in CI for visibility but is NOT a hard gate yet: the pre-existing
-      # installer lint baseline (NHC.P5.A) is deferred to a dedicated cleanup cycle,
-      # and every v1.11.0-touched file is already clean (fix-what-you-touch). Flip
-      # to gating once the baseline is zeroed.
-      - name: Ruff (advisory -- deferred NHC.P5.A baseline)
-        continue-on-error: true # nexus-check-allow: no-disabled-ci-check -- advisory visibility over the deferred NHC.P5.A installer lint baseline; pytest + the smoke contract are the hard gates
-        run: |
-          cd scripts/installer
-          uv run ruff check src tests
-
-      # mypy is advisory for the same reason, plus its installer baseline is
-      # platform-conditional (PyQt5 stub quirks; the ctypes.windll type:ignore
-      # flips between Windows and Linux), so it cannot be a clean cross-platform
-      # hard gate without restructuring.
-      - name: mypy (advisory -- deferred NHC.P5.A baseline + PyQt5 stubs)
-        continue-on-error: true # nexus-check-allow: no-disabled-ci-check -- advisory visibility over the deferred, platform-conditional NHC.P5.A mypy baseline
-        run: |
-          cd scripts/installer
-          uv run mypy src
 
   # -- Python runtime tests --------------------------------------------------
   #

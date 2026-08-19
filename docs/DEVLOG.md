@@ -4,6 +4,28 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-18] v1.19.0 adoption-liquid-lfm-agentic -- Phase 4: refactor, known-gaps, CI
+
+### Goal
+
+Leave the layout clean, reconcile v1.19 known gaps (including the 8B-A1B decline and P3 watchlist), and cover catalog / installer / harness / desktop picker changes in CI without extra OS matrices.
+
+### What was done
+
+- **Layout**: propose-then-apply found nothing to move. Dual `catalog.json` / `models.json` stay. LFM fixtures already under `tests/unit/orchestration/fixtures/`. Skill-catalog `__none__` / `__nonexistent_user__` dirs are test placeholders.
+- **Known gaps**: 8 open DF (2, 3, 6-11). Watchlist recorded as DF-8 / DF-9. Context full-fill caveat DF-10. Vendor-benchmark standing rule DF-11. DF-12 closed (desktop vitest on develop CI). v1.18 items stay in that file. Status remains in-progress for v1.19.1 / v1.19.2.
+- **CI**: installer pytest + headless-smoke moved to path-filtered `.github/workflows/installer-tests.yml` (`scripts/installer/**` + catalog/registry files, uv cache on). `ci.yml` `test-ts` Node 22 now runs `npm run test:shell`. Actions freeze ended 2026-08-01; no new Windows/macOS job. Cross-installer parity and platform-contract / prompting-freshness self-gate to no-ops (not a Nexus-Hub catalog repo).
+
+### Tests
+
+Root **4947 passed / 11 skipped / 0 failed** (459 files). Desktop **971 passed** (112 files). Installer pytest green. Lint + `tsc -b` + `check:tampering` + `check:docs-layout` clean. One ENV flake (`SqliteGraphStore` FTS `< 50ms` hit exactly 50ms under parallel load) passed on retry and on the solo full suite.
+
+### Next
+
+`/update release` (docs, version, changelog, tag, GitHub Release; confirmation gates).
+
+---
+
 ## [2026-08-18] v1.19.0 adoption-liquid-lfm-agentic -- Phase 3: 8B-A1B bake-off declined
 
 ### Goal
