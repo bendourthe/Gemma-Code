@@ -64,6 +64,10 @@ export interface ToolCard {
 export interface ModelOption {
   id: string;
   displayName: string;
+  /** v1.19.0 Phase 1 -- catalog task, when the option is catalog-backed. */
+  task?: string;
+  /** v1.19.0 Phase 1 -- ungated commercial-use restriction, shown as option title. */
+  licenseNote?: string;
   /** v1.18.0 Phase 3 (OW-A4) -- verified for agentic tool-calling. */
   toolCallingVerified?: boolean;
   toolCallingBenchmark?: {

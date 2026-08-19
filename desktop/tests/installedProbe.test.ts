@@ -13,6 +13,10 @@ const CATALOG = {
     { id: "gemma-4-12b-it-gguf", source: { protocol: "ollama", url: "ollama://gemma4:12b" } },
     { id: "realvisxl-v5", source: { protocol: "huggingface", url: "https://hf/x" } },
     { id: "nomic-embed-text", source: { protocol: "ollama", url: "ollama://nomic-embed-text:latest" } },
+    {
+      id: "lfm2.5:2.6b",
+      source: { protocol: "ollama", url: "ollama://hf.co/LiquidAI/LFM2.5-2.6B-GGUF:Q4_K_M" },
+    },
   ],
 } as unknown as CatalogFile;
 
@@ -32,6 +36,14 @@ describe("ollamaTagForSpec", () => {
     expect(ollamaTagForSpec(undefined)).toBeNull();
     expect(ollamaTagForSpec({ source: { protocol: "ollama", url: "gemma4:12b" } })).toBeNull();
   });
+
+  it("extracts an hf.co GGUF pull target (v1.19.0 Phase 1)", () => {
+    expect(
+      ollamaTagForSpec({
+        source: { protocol: "ollama", url: "ollama://hf.co/LiquidAI/LFM2.5-2.6B-GGUF:Q4_K_M" },
+      }),
+    ).toBe("hf.co/LiquidAI/LFM2.5-2.6B-GGUF:Q4_K_M");
+  });
 });
 
 describe("markInstalledFromProbe", () => {
@@ -49,6 +61,14 @@ describe("markInstalledFromProbe", () => {
     expect(byId["gemma-4-12b-it-gguf"]).toMatchObject({ installed: true, source: "registry" });
     expect(byId["realvisxl-v5"]).toMatchObject({ installed: true, source: "registry" });
     expect(byId["nomic-embed-text"]).toMatchObject({ installed: false, source: "catalog-only" });
+  });
+
+  it("flips LFM when Ollama reports the official GGUF tag (v1.19.0 Phase 1)", () => {
+    const out = markInstalledFromProbe([catalogOnly("lfm2.5:2.6b")], CATALOG, {
+      ollamaTags: new Set(["hf.co/LiquidAI/LFM2.5-2.6B-GGUF:Q4_K_M"]),
+      weightsIds: new Set(),
+    });
+    expect(out[0]).toMatchObject({ installed: true, source: "registry" });
   });
 
   it("leaves already-installed registry / external entries untouched", () => {

@@ -143,6 +143,9 @@ class TestRealMatrixDefaults:
         )
         assert "chat" in tasks
         assert agentic_covered
+        assert "lfm2.5:2.6b" in ids, (
+            "cpu tier must default the dedicated sub-4 GB agentic pick"
+        )
         assert "embed" in tasks
         assert "audio" in tasks, "cpu tier still gets the CPU-capable speech models"
         assert "image" not in tasks, "cpu tier must not select image models"
@@ -206,6 +209,36 @@ class TestRealMatrixDefaults:
         )
         coders = [mid for mid in ids if models[mid].task == "agentic"]
         assert not coders, f"tier {tier_vram}: unexpected coder default {coders}"
+
+    def test_sub_6gb_gpu_selects_lfm_agentic_fallback(self) -> None:
+        # A 4 GB GPU uses the 8 GB matrix: gemma4:e4b (6 GB) does not fit, so
+        # chat falls back to gemma4:e2b and agentic takes LFM2.5-2.6B (3 GB)
+        # instead of the 7B coder.
+        models = _models()
+        ids = default_selection(
+            models,
+            _matrix(),
+            "8",
+            vram_gb=4,
+            free_disk_gb=SIMULATED_FREE_DISK_GB,
+            reserve_gb=RESERVE_GB,
+        )
+        assert "lfm2.5:2.6b" in ids
+        assert "qwen2.5-coder:7b" not in ids
+        assert "gemma4:e4b" not in ids
+
+    def test_higher_tiers_do_not_default_lfm(self) -> None:
+        models = _models()
+        for tier, vram in [("8", 8), ("12", 12), ("16", 16), ("24", 24)]:
+            ids = default_selection(
+                models,
+                _matrix(),
+                tier,
+                vram_gb=vram,
+                free_disk_gb=SIMULATED_FREE_DISK_GB,
+                reserve_gb=RESERVE_GB,
+            )
+            assert "lfm2.5:2.6b" not in ids, f"tier {tier}: LFM must stay opt-in"
 
     def test_audio_speech_defaults_on_every_tier(self) -> None:
         # STT + TTS default on every tier (permissive + CPU-capable); the

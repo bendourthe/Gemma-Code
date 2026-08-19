@@ -29,6 +29,7 @@ the protocol-routed model step consumes, keeps the legacy single
 from __future__ import annotations
 
 import contextlib
+import html
 import json
 import os
 from collections.abc import Callable
@@ -199,6 +200,10 @@ class CatalogModel:
     family: str = ""
     # v1.12.0 Phase 3 (Q1) -- GGUF quant label; BitNet-class values gate the tier.
     quant: str = ""
+    # v1.19.0 Phase 1 -- ungated use-restriction copy + first-party license URL.
+    license_note: str = ""
+    license_url: str = ""
+    requires_license: bool = False
 
     @property
     def is_text_model(self) -> bool:
@@ -302,6 +307,9 @@ def load_catalog_models(catalog_path: Path) -> list[CatalogModel]:
                 guardrails=str(entry.get("guardrails") or ""),
                 family=str(entry.get("family") or ""),
                 quant=quant,
+                license_note=str(entry.get("licenseNote") or ""),
+                license_url=str(entry.get("licenseUrl") or ""),
+                requires_license=bool(entry.get("requiresLicense")),
             )
         )
     return models
@@ -572,6 +580,30 @@ class _ModelCard(QWidget):
             chip_row.addWidget(_pill(f"Released {model.release_date[:7]}"))
         chip_row.addStretch()
         layout.addLayout(chip_row)
+
+        # v1.19.0 Phase 1: ungated commercial-use restriction (not a download
+        # gate). Rendered on the card so the cap cannot be silently dropped.
+        if model.license_note:
+            escaped = html.escape(model.license_note)
+            if model.license_url:
+                href = html.escape(model.license_url, quote=True)
+                escaped = (
+                    f'{escaped} <a href="{href}" style="color: {accent};">'
+                    "License text</a>"
+                )
+            note = QLabel(
+                f'<span style="color: {accent}; font-weight: 600;">'
+                f"Use restriction:</span> {escaped}"
+            )
+            note.setObjectName("licenseNote")
+            note.setTextFormat(Qt.TextFormat.RichText)
+            note.setOpenExternalLinks(True)
+            note.setWordWrap(True)
+            note.setStyleSheet(
+                f"color: {TEXT_BODY}; font-size: {FS_CAPTION}px; "
+                f"background: transparent;"
+            )
+            layout.addWidget(note)
 
         # --- Why this one (recommended picks only) ---
         if recommended and model.why_recommended:

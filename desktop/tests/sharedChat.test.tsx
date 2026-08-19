@@ -238,4 +238,28 @@ describe("<ModelSelector>", () => {
     );
     expect(screen.queryByTestId("model-selector-tool-calling")).toBeNull();
   });
+
+  it("surfaces the LFM2.5-2.6B agentic catalog entry in the picker (v1.19.0 Phase 1)", () => {
+    render(
+      <ModelSelector
+        models={[
+          {
+            id: "lfm2.5:2.6b",
+            displayName: "LFM2.5 2.6B",
+            task: "agentic",
+            licenseNote:
+              "Free commercial use is limited to entities under USD 10M annual revenue. This is a use restriction, not a download gate.",
+          },
+        ]}
+        value="lfm2.5:2.6b"
+        onChange={() => undefined}
+      />,
+    );
+    const select = screen.getByTestId("model-selector") as HTMLSelectElement;
+    const option = select.options[0];
+    expect(option?.value).toBe("lfm2.5:2.6b");
+    expect(option?.text).toBe("LFM2.5 2.6B");
+    expect(option?.getAttribute("data-task")).toBe("agentic");
+    expect(option?.title).toMatch(/use restriction/i);
+  });
 });

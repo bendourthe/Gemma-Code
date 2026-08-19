@@ -69,7 +69,12 @@ export function ModelSelector({
         }}
       >
         {models.map((m) => (
-          <option key={m.id} value={m.id}>
+          <option
+            key={m.id}
+            value={m.id}
+            data-task={m.task ?? ""}
+            title={m.licenseNote}
+          >
             {m.displayName}
           </option>
         ))}

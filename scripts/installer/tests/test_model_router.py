@@ -144,6 +144,15 @@ class TestCatalogIntegrity:
         gated = sorted(mid for mid in default_ids if catalog.get(mid, {}).get("gated"))
         assert gated == [], f"gated default models must not ship: {gated}"
 
+    def test_lfm_pulls_official_gguf_and_is_ungated(self) -> None:
+        entry = self._catalog()["lfm2.5:2.6b"]
+        assert entry.get("gated") is not True
+        assert entry.get("requiresLicense") is not True
+        assert (
+            ollama_target_for(entry, "lfm2.5:2.6b")
+            == "hf.co/LiquidAI/LFM2.5-2.6B-GGUF:Q4_K_M"
+        )
+
     def test_sd15_repointed_to_public_mirror(self) -> None:
         # v1.14.0 Phase 1: the withdrawn runwayml repo is re-pointed to the
         # public stable-diffusion-v1-5 mirror and is no longer gated.

@@ -358,8 +358,25 @@ function Section({ title, testId, items, hostVramGB, renderAction }: SectionProp
                 </div>
                 <div style={{ fontSize: "0.85em", color: "var(--fg-muted)" }}>
                   {m.family ?? "?"}
-                  {m.tag ? `:${m.tag}` : ""} - {formatBytes(m.sizeBytes)} - {m.license ?? "license: ?"}
+                  {m.tag ? `:${m.tag}` : ""}
+                  {m.task ? ` - ${m.task}` : ""} - {formatBytes(m.sizeBytes)} - {m.license ?? "license: ?"}
                 </div>
+                {m.licenseNote ? (
+                  <div
+                    data-testid={`models-row-${m.id}-license-note`}
+                    style={{ fontSize: "0.8em", color: "var(--fg-muted)", marginTop: 2 }}
+                  >
+                    Use restriction: {m.licenseNote}
+                    {m.licenseUrl ? (
+                      <>
+                        {" "}
+                        <a href={m.licenseUrl} target="_blank" rel="noreferrer">
+                          License text
+                        </a>
+                      </>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
               {renderAction(m)}
             </li>

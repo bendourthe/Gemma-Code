@@ -93,6 +93,12 @@ def _write_catalog(tmp_path: Path) -> Path:
                 "requiredVramGB": 7,
                 "releaseDate": "2025-06-01",
                 "license": "Apache-2.0",
+                "licenseUrl": "https://www.liquid.ai/lfm-license",
+                "licenseNote": (
+                    "Free commercial use is limited to entities under USD 10M "
+                    "annual revenue. This is a use restriction, not a download gate."
+                ),
+                "requiresLicense": False,
                 "description": "Test agentic model",
                 "strengths": ["code generation"],
                 "differentiators": "Coding specialist",
@@ -240,6 +246,13 @@ class TestLoadCatalog:
         assert gemma.strengths == ("general chat", "drafting")
         assert gemma.why_recommended == "Best chat per GB"
         assert gemma.differentiators == "The balanced default"
+
+    def test_license_note_parsed(self, tmp_path: Path) -> None:
+        models = {m.id: m for m in load_catalog_models(_write_catalog(tmp_path))}
+        coder = models["qwen2.5-coder:7b"]
+        assert "USD 10M" in coder.license_note
+        assert coder.license_url.startswith("https://")
+        assert coder.requires_license is False
 
     def test_origin_and_agentic_parsed(self, tmp_path: Path) -> None:
         # v1.9.0 Phase 4 (T401/T402): origin + agentic capability flag.
@@ -428,6 +441,15 @@ class TestTypedCatalogPage:
             "wan2.1-t2v-1.3b",
         }
         assert "qwen2.5-coder:7b" not in selected
+
+    def test_license_note_renders_on_card(self, qt_app, tmp_path: Path) -> None:
+        from PyQt5.QtWidgets import QLabel
+
+        page = self._page(_gpu_state(), tmp_path)
+        notes = page.findChildren(QLabel, "licenseNote")
+        assert notes, "expected a licenseNote widget on a card with licenseNote"
+        assert any("USD 10M" in n.text() for n in notes)
+        assert any("use restriction" in n.text().lower() for n in notes)
 
     def test_cpu_tier_skips_image_and_video(self, qt_app, tmp_path: Path) -> None:
         state = InstallerState()
@@ -629,6 +651,15 @@ class TestRealCatalogPage:
         selected = page.selection().selected
         assert "faster-whisper-large-v3" in selected
         assert "kokoro-82m" in selected
+        assert "lfm2.5:2.6b" in selected
+        assert "gemma4:e2b" in selected
+        assert "qwen2.5-coder:7b" not in selected
+
+    def test_8gb_defaults_keep_lfm_opt_in(self, qt_app) -> None:
+        page = TypedCatalogPage(_gpu_state(vram_mb=8192))
+        selected = page.selection().selected
+        assert "lfm2.5:2.6b" not in selected
+        assert "gemma4:e4b" in selected
 
     def test_cards_colored_by_provider_not_tab(self, qt_app) -> None:
         # v1.9.0 Phase 6 (T022, DoD #7): cards are colored by the model's
@@ -657,6 +688,7 @@ class TestRealCatalogPage:
         html = page._provider_legend_html()
         assert html  # the bundled catalog spans several providers
         assert "Google" in html and "Alibaba" in html
+        assert "Liquid AI" in html
         assert not page._legend.isHidden()
 
 

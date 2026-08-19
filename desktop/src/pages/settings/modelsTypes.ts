@@ -29,6 +29,10 @@ export interface ListedModelDto {
   sizeBytes?: number;
   vramGB?: number;
   license?: string;
+  /** v1.19.0 Phase 1 -- catalog task (chat | agentic | ...). */
+  task?: string;
+  licenseUrl?: string;
+  licenseNote?: string;
   tags?: readonly string[];
   absPath?: string;
   /** v1.18.0 Phase 3 (OW-A4) -- catalog tool-calling verification flag. */

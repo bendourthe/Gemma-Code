@@ -385,6 +385,7 @@ describe("catalog", () => {
       "qwen2.5-coder:7b",
       "qwen2.5-coder:14b",
       "deepseek-coder-v2:16b",
+      "lfm2.5:2.6b",
     ];
     for (const id of agentic) {
       expect(byId.get(id)?.agentic, `${id} should be agentic-capable`).toBe(true);
@@ -393,6 +394,52 @@ describe("catalog", () => {
     expect(byId.get("llama3.1:8b")?.agentic ?? false).toBe(false);
     // The Gemma 4 family keeps its primary task as chat (surfaced in both tabs).
     expect(byId.get("gemma4:e4b")?.task).toBe("chat");
+  });
+
+  it("curates LFM2.5-2.6B as the low-VRAM agentic entry (v1.19.0 Phase 1)", async () => {
+    const file = await loadCatalog();
+    const lfm = findSpec(file, "lfm2.5:2.6b");
+    expect(lfm).toBeDefined();
+    expect(lfm?.type).toBe("llm");
+    expect(lfm?.task).toBe("agentic");
+    expect(lfm?.agentic).toBe(true);
+    expect(lfm?.origin).toBe("USA");
+    expect(lfm?.sizeGB).toBe(1.67);
+    expect(lfm?.vramGB).toBe(3);
+    expect(lfm?.contextWindow).toBe(32_768);
+    expect(lfm?.license).toBe("LFM Open License v1.0");
+    expect(lfm?.licenseUrl).toMatch(/^https:\/\//);
+    expect(lfm?.licenseNote).toMatch(/10M/i);
+    expect(lfm?.licenseNote).toMatch(/use restriction/i);
+    expect(lfm?.requiresLicense).toBe(false);
+    expect(lfm?.source.protocol).toBe("ollama");
+    expect(lfm?.source.url).toBe("ollama://hf.co/LiquidAI/LFM2.5-2.6B-GGUF:Q4_K_M");
+    const pin = lfm?.weights?.files[0]?.sha256;
+    expect(pin).toMatch(/^[a-f0-9]{64}$/);
+    expect(pin).not.toBe("0".repeat(64));
+    const copy = [
+      lfm?.description,
+      lfm?.whyRecommended,
+      lfm?.differentiators,
+      ...(lfm?.strengths ?? []),
+    ].join(" ");
+    expect(copy).not.toMatch(/ToolSandbox|BFCLv4|77\.83|56\.88|220 tok/i);
+  });
+
+  it("places LFM2.5-2.6B on cpu and 8 GB agentic lists (v1.19.0 Phase 1)", async () => {
+    const recommendedPath = path.resolve("core/registry/recommended.json");
+    const recommended = JSON.parse(await fs.readFile(recommendedPath, "utf8")) as {
+      tiers: Record<string, { agentic: string[] }>;
+    };
+    expect(recommended.tiers.cpu.agentic[0]).toBe("lfm2.5:2.6b");
+    expect(recommended.tiers["8"].agentic).toEqual([
+      "gemma4:e4b",
+      "lfm2.5:2.6b",
+      "qwen2.5-coder:7b",
+    ]);
+    for (const tier of ["12", "16", "24"]) {
+      expect(recommended.tiers[tier].agentic).not.toContain("lfm2.5:2.6b");
+    }
   });
 
   it("every user-facing description is non-empty and names its origin (v1.9.0 Phase 2)", async () => {

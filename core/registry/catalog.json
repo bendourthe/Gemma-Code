@@ -2,7 +2,7 @@
   "_meta": {
     "version": 1,
     "phase": "v1.14.0 Phase 1",
-    "comment": "Curated installable model catalog used by the Settings UI and the installer wizard. LLMs ship in Phase 5; image models are flagged for Phase 6 (Image Studio); video models for Phase 7 (Video Lab); NVIDIA SANA family landed in v1.1.0 Phase 12. Ollama-sourced entries delegate digest verification to `ollama pull` and carry no sha256. Hugging Face entries carry a per-model `weights` manifest (v1.8.0 Phase 3): an explicit file list, each downloaded from https://huggingface.co/{repo}/resolve/main/{path} into <models_root>/weights/<model-id>/{path} (models_root defaults to ~/.nexus/models) -- the per-model directory the diffusion runtime loads at startup (diffusers from_pretrained on the model directory; repo-relative subpaths like transformer/ are preserved). Each file pins a SHA-256 (versions.lock.json discipline): all-zero digests are placeholders -- the installer's weights puller warns, skips verification, and logs the computed digest; rotate pins with scripts/installer/build/pin-hf-weights.py. source.sha256 remains the primary-blob digest for older consumers and is superseded by weights.files[].sha256. v1.8.0 Phase 4 adds the selection-UX fields: `task` (chat | agentic | image | video | audio | embed) drives the installer's catalog sections; `strengths` / `whyRecommended` / `differentiators` carry the per-model copy the wizard cards render; `provenance` records publisher + lineage for curated entries (required on uncensored ones). Uncensored entries (uncensored: true) were curated 2026-07-03 with license + provenance verified per entry; per-VRAM-tier defaults live in recommended.json. v1.9.0 Phase 4 adds the scannable-catalog metadata: `origin` (publisher country, or Community) and `agentic` (agentic-coding capability flag -- set on the Gemma 4 family + the coding specialists so both surface in the installer's Agentic tab); an optional `guardrails` string overrides the installer's derived Uncensored/Safety-tuned/N/A label. The audio pillar (type/task `audio`) is curated: speech (faster-whisper STT MIT, Kokoro + Piper TTS) and generation (MusicGen CC-BY-NC-4.0, Stable Audio Open community-license) -- STT/TTS are permissive + CPU-capable and default on every tier; the non-commercial generation models are listed opt-in (never defaults). v1.14.0 Phase 1 curation: releaseDate (ISO YYYY-MM-DD) is now a first-class field on every selectable model, rendered as a card pill by the installer picker; gated open-weight opt-ins (svd, stable-audio-open-1.0, sana-1.6b-int4) carry requiresLicense=true + licenseUrl so the installer guided Hugging Face step (accept license + free token) can unlock them, and sd1.5 was re-pointed from the withdrawn runwayml repo to the public stable-diffusion-v1-5 mirror; auxiliary types (vae, controlnet) stay excluded from the picker by the loader; the per-family best-fit collapse (show the single best variant that fits the detected hardware, larger tiers grayed) happens in the installer picker at render time, so the catalog stays a complete data source for the desktop app and diffusion runtime. v1.18.0 Phase 3 adds optional toolCallingVerified + toolCallingBenchmark (OW-A4) and MoE activeParams/totalParams in billions (LG-A3); omitted fields stay unverified / dense."
+    "comment": "Curated installable model catalog used by the Settings UI and the installer wizard. LLMs ship in Phase 5; image models are flagged for Phase 6 (Image Studio); video models for Phase 7 (Video Lab); NVIDIA SANA family landed in v1.1.0 Phase 12. Ollama-sourced entries delegate digest verification to `ollama pull` and carry no sha256. Hugging Face entries carry a per-model `weights` manifest (v1.8.0 Phase 3): an explicit file list, each downloaded from https://huggingface.co/{repo}/resolve/main/{path} into <models_root>/weights/<model-id>/{path} (models_root defaults to ~/.nexus/models) -- the per-model directory the diffusion runtime loads at startup (diffusers from_pretrained on the model directory; repo-relative subpaths like transformer/ are preserved). Each file pins a SHA-256 (versions.lock.json discipline): all-zero digests are placeholders -- the installer's weights puller warns, skips verification, and logs the computed digest; rotate pins with scripts/installer/build/pin-hf-weights.py. source.sha256 remains the primary-blob digest for older consumers and is superseded by weights.files[].sha256. v1.8.0 Phase 4 adds the selection-UX fields: `task` (chat | agentic | image | video | audio | embed) drives the installer's catalog sections; `strengths` / `whyRecommended` / `differentiators` carry the per-model copy the wizard cards render; `provenance` records publisher + lineage for curated entries (required on uncensored ones). Uncensored entries (uncensored: true) were curated 2026-07-03 with license + provenance verified per entry; per-VRAM-tier defaults live in recommended.json. v1.9.0 Phase 4 adds the scannable-catalog metadata: `origin` (publisher country, or Community) and `agentic` (agentic-coding capability flag -- set on the Gemma 4 family + the coding specialists so both surface in the installer's Agentic tab); an optional `guardrails` string overrides the installer's derived Uncensored/Safety-tuned/N/A label. The audio pillar (type/task `audio`) is curated: speech (faster-whisper STT MIT, Kokoro + Piper TTS) and generation (MusicGen CC-BY-NC-4.0, Stable Audio Open community-license) -- STT/TTS are permissive + CPU-capable and default on every tier; the non-commercial generation models are listed opt-in (never defaults). v1.14.0 Phase 1 curation: releaseDate (ISO YYYY-MM-DD) is now a first-class field on every selectable model, rendered as a card pill by the installer picker; gated open-weight opt-ins (svd, stable-audio-open-1.0, sana-1.6b-int4) carry requiresLicense=true + licenseUrl so the installer guided Hugging Face step (accept license + free token) can unlock them, and sd1.5 was re-pointed from the withdrawn runwayml repo to the public stable-diffusion-v1-5 mirror; auxiliary types (vae, controlnet) stay excluded from the picker by the loader; the per-family best-fit collapse (show the single best variant that fits the detected hardware, larger tiers grayed) happens in the installer picker at render time, so the catalog stays a complete data source for the desktop app and diffusion runtime. v1.18.0 Phase 3 adds optional toolCallingVerified + toolCallingBenchmark (OW-A4) and MoE activeParams/totalParams in billions (LG-A3); omitted fields stay unverified / dense. v1.19.0 Phase 1 adds LFM2.5-2.6B as the low-VRAM Agentic entry (official Liquid GGUF via the Ollama hf.co bridge -- the official Ollama library does not carry it at curation time -- plus a real SHA-256 pin on weights.files) and an optional licenseNote use-restriction string so ungated licenses with a commercial-use cap stay visible without triggering requiresLicense gated-auth. Record contextWindow conservatively at 32K until Phase 2 verifies the 128K claim."
   },
   "models": [
     {
@@ -340,6 +340,50 @@
       },
       "activeParams": 2.4,
       "totalParams": 16
+    },
+    {
+      "id": "lfm2.5:2.6b",
+      "family": "lfm2.5",
+      "name": "lfm2.5",
+      "tag": "2.6b",
+      "quant": "Q4_K_M",
+      "type": "llm",
+      "task": "agentic",
+      "displayName": "LFM2.5 2.6B",
+      "releaseDate": "2026-08-04",
+      "origin": "USA",
+      "agentic": true,
+      "description": "Liquid AI's LFM2.5-2.6B is a 2.6B-parameter agentic model from the USA. It is designed for on-device planning, tool calling, and multi-step tasks. The Q4_K_M GGUF is 1.67 GB and stays responsive on a 3 GB GPU, or even with no dedicated GPU at all. Context is recorded as 32K pending Phase 2 empirical verification of the 128K claim.",
+      "strengths": [
+        "Tool-calling agentic workflows on CPU-only or sub-4 GB machines",
+        "Multi-step planning at a 1.67 GB download",
+        "Dedicated Agentic-tab pick below the 7B coder floor"
+      ],
+      "whyRecommended": "The only dedicated agentic (tool-calling) catalog entry that fits CPU-only hosts and sub-4 GB GPUs.",
+      "differentiators": "Fills the sub-4 GB agentic gap: Q4_K_M GGUF at 1.67 GB, CPU-capable, with an LFM Open License v1.0 commercial-use cap (see the license note). Context length is recorded conservatively at 32K until Phase 2 verifies the 128K claim.",
+      "sizeGB": 1.67,
+      "vramGB": 3,
+      "contextWindow": 32768,
+      "license": "LFM Open License v1.0",
+      "licenseUrl": "https://www.liquid.ai/lfm-license",
+      "licenseNote": "Apache-2.0-based, royalty-free. Fine-tunes may stay proprietary. Free commercial use is limited to entities under USD 10M annual revenue; a commercial license is required above that. Qualified non-profits are exempt. This is a use restriction, not a download gate.",
+      "requiresLicense": false,
+      "source": {
+        "protocol": "ollama",
+        "url": "ollama://hf.co/LiquidAI/LFM2.5-2.6B-GGUF:Q4_K_M",
+        "repo": "LiquidAI/LFM2.5-2.6B-GGUF"
+      },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "LFM2.5-2.6B-Q4_K_M.gguf",
+            "sha256": "79fdf00351b46cf26f020aead28d01889886be87c55fa0eb907e6f9b00bfee14"
+          }
+        ]
+      },
+      "tags": ["recommended"],
+      "provenance": "Official Liquid AI GGUF, Q4_K_M, ungated Hugging Face repo LiquidAI/LFM2.5-2.6B-GGUF. Pulled at install time from the official repo via Ollama's hf.co bridge; Nexus does not redistribute weights."
     },
     {
       "id": "nomic-embed-text",

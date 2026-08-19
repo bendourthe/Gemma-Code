@@ -44,6 +44,10 @@ export interface ListedModelDto {
   sizeBytes?: number;
   vramGB?: number;
   license?: string;
+  /** v1.19.0 Phase 1 -- catalog task (chat | agentic | ...). */
+  task?: string;
+  licenseUrl?: string;
+  licenseNote?: string;
   tags?: readonly string[];
   absPath?: string;
   toolCallingVerified?: boolean;
@@ -180,6 +184,9 @@ function toDto(m: ListedModel): ListedModelDto {
     sizeBytes: m.sizeBytes,
     vramGB: m.vramGB,
     license: m.license,
+    task: m.task,
+    licenseUrl: m.licenseUrl,
+    licenseNote: m.licenseNote,
     tags: m.tags,
     absPath: m.absPath,
     toolCallingVerified: m.toolCallingVerified,

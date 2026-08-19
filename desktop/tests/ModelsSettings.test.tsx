@@ -293,4 +293,42 @@ describe("ModelsSettings", () => {
     expect(screen.queryByTestId("models-filter-tier")).not.toBeInTheDocument();
     expect(screen.getByTestId("models-install-ltx-video")).toBeInTheDocument();
   });
+
+  it("renders the LFM use-restriction note on a catalog-only row (v1.19.0 Phase 1)", async () => {
+    const lfmClient: ModelsClient = {
+      async list() {
+        return [
+          {
+            id: "lfm2.5:2.6b",
+            displayName: "LFM2.5 2.6B",
+            family: "lfm2.5",
+            tag: "2.6b",
+            type: "llm",
+            task: "agentic",
+            installed: false,
+            source: "catalog-only",
+            sizeBytes: 1_670_000_000,
+            vramGB: 3,
+            license: "LFM Open License v1.0",
+            licenseUrl: "https://www.liquid.ai/lfm-license",
+            licenseNote:
+              "Free commercial use is limited to entities under USD 10M annual revenue. This is a use restriction, not a download gate.",
+          },
+        ];
+      },
+      install() {
+        return Object.assign({ cancel() {} }, { done: Promise.resolve() });
+      },
+      async remove() {},
+      async diskUsage() {
+        return { usedBytes: 0, freeBytes: null };
+      },
+    };
+    render(<ModelsSettings client={lfmClient} />);
+    await waitFor(() => expect(screen.queryByTestId("models-loading")).not.toBeInTheDocument());
+    const note = screen.getByTestId("models-row-lfm2.5:2.6b-license-note");
+    expect(note.textContent).toMatch(/USD 10M/i);
+    expect(note.textContent).toMatch(/use restriction/i);
+    expect(note.querySelector("a")?.getAttribute("href")).toBe("https://www.liquid.ai/lfm-license");
+  });
 });

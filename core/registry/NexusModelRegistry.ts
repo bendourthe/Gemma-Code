@@ -75,6 +75,18 @@ export interface ListedModel {
   readonly sizeBytes?: number;
   readonly vramGB?: number;
   readonly license?: string;
+  /**
+   * v1.19.0 Phase 1 -- catalog `task` (chat | agentic | image | ...). Surfaced
+   * so pickers can show the Agentic-tab entry without re-reading the catalog.
+   */
+  readonly task?: ModelSpec["task"];
+  /** v1.19.0 Phase 1 -- first-party license page linked from the use-restriction. */
+  readonly licenseUrl?: string;
+  /**
+   * v1.19.0 Phase 1 -- ungated commercial-use restriction copy. Absent on
+   * entries that have no extra restriction beyond `license`.
+   */
+  readonly licenseNote?: string;
   readonly tags?: readonly string[];
   readonly absPath?: string;
   /**
@@ -181,6 +193,9 @@ export class NexusModelRegistry {
         sizeBytes: manifest.sizeBytes,
         vramGB: manifest.vramGb ?? spec?.vramGB,
         license: manifest.license ?? spec?.license,
+        task: spec?.task,
+        licenseUrl: spec?.licenseUrl,
+        licenseNote: spec?.licenseNote,
         tags: manifest.tags ?? spec?.tags,
         multimodal: spec?.multimodal,
         toolCallingVerified: spec?.toolCallingVerified,
@@ -204,6 +219,9 @@ export class NexusModelRegistry {
         sizeBytes: spec.sizeGB !== undefined ? Math.round(spec.sizeGB * 1024 * 1024 * 1024) : undefined,
         vramGB: spec.vramGB,
         license: spec.license,
+        task: spec.task,
+        licenseUrl: spec.licenseUrl,
+        licenseNote: spec.licenseNote,
         tags: spec.tags,
         multimodal: spec.multimodal,
         toolCallingVerified: spec.toolCallingVerified,

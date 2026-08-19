@@ -130,6 +130,28 @@ describe("NexusModelRegistry (integration)", () => {
     expect(textOnly?.multimodal).toBeFalsy();
   });
 
+  it("surfaces the LFM2.5-2.6B use-restriction on list() (v1.19.0 Phase 1)", async () => {
+    const pulled: string[] = [];
+    const ollama: OllamaPullClient = {
+      async pull(tag) {
+        pulled.push(tag);
+      },
+    };
+    const reg = await NexusModelRegistry.create({ root, ollama });
+    const list = await reg.list();
+    const lfm = list.find((m) => m.id === "lfm2.5:2.6b");
+    expect(lfm).toBeDefined();
+    expect(lfm?.task).toBe("agentic");
+    expect(lfm?.license).toBe("LFM Open License v1.0");
+    expect(lfm?.licenseUrl).toMatch(/^https:\/\//);
+    expect(lfm?.licenseNote).toMatch(/use restriction/i);
+    expect(lfm?.installed).toBe(false);
+    const spec = reg.catalog.models.find((m) => m.id === "lfm2.5:2.6b");
+    expect(spec).toBeDefined();
+    await reg.install(spec!);
+    expect(pulled).toEqual(["hf.co/LiquidAI/LFM2.5-2.6B-GGUF:Q4_K_M"]);
+  });
+
   it("external models surface via the wired ExternalModelIndex", async () => {
     const external: ExternalModelIndex = {
       async list() {

@@ -81,3 +81,20 @@ class TestEnsureGatedAuth:
             state, _CATALOG, lambda _e: pytest.fail("no prompt for public models")
         )
         assert outcome.unlocked == [] and outcome.skipped == []
+
+    def test_lfm_use_restriction_does_not_prompt(self) -> None:
+        catalog = {
+            **_CATALOG,
+            "lfm2.5:2.6b": {
+                "gated": False,
+                "requiresLicense": False,
+                "license": "LFM Open License v1.0",
+            },
+        }
+        state = InstallerState(selected_model_ids=["lfm2.5:2.6b"])
+        assert pending_gated_ids(state, catalog) == []
+        outcome = ensure_gated_auth(
+            state, catalog, lambda _e: pytest.fail("LFM must not fire gated-auth")
+        )
+        assert outcome.unlocked == [] and outcome.skipped == []
+        assert state.selected_model_ids == ["lfm2.5:2.6b"]

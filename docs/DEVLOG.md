@@ -4,6 +4,30 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-18] v1.19.0 adoption-liquid-lfm-agentic -- Phase 1: catalog entry + license label
+
+### Goal
+
+Give CPU-only and sub-4 GB hosts a dedicated Agentic (tool-calling) catalog pick by curating LFM2.5-2.6B, with the LFM Open License v1.0 USD 10M cap labeled as a use restriction, not a download gate.
+
+### What was done
+
+- **Catalog**: `lfm2.5:2.6b` in [`core/registry/catalog.json`](../core/registry/catalog.json) (`task: "agentic"`, Q4_K_M 1.67 GB, vram 3 GB, context 32K pending Phase 2). Official GGUF via Ollama `hf.co/LiquidAI/LFM2.5-2.6B-GGUF:Q4_K_M`; real SHA-256 pin on `weights.files`. `licenseNote` / `licenseUrl` / `requiresLicense: false`. No ToolSandbox / BFCLv4 / tok/s copy.
+- **Defaults**: [`recommended.json`](../core/registry/recommended.json) cpu agentic prefers LFM (chat stays `gemma4:e2b`); 8 GB inserts LFM after `gemma4:e4b` so a 4 GB card falls through; 12/16/24 unchanged.
+- **Installer**: invariants, Liquid AI provider color, card `licenseNote` widget. Gated-auth does not fire.
+- **Desktop**: Settings use-restriction row + ModelSelector `data-task` / title. Sidecar DTO + strict IPC fields. Coding dropdown not updated (DF-1).
+- **Docs**: known-gaps created (DF-1..5), session history, this entry, README in-flight row, ARCHITECTURE subsection.
+
+### Tests
+
+Installer pytest green (full suite). Root **4932 passed / 11 skipped / 0 failed** (459 files). Desktop **971 passed** (112 files). Lint + `tsc -b` clean. `check-catalog.py` 41 models. Targeted installer coverage 91% on changed modules.
+
+### Next
+
+Phase 2: characterize local tool-call format, HarnessSelector profile, empirical context length. `is_final_phase` false.
+
+---
+
 ## [2026-08-17] v1.18.0 release cut
 
 ### Goal

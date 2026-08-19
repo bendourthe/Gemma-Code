@@ -128,6 +128,24 @@ export interface ModelSpec {
   readonly vramGB?: number;
   readonly requiredVramGB?: number;
   readonly license?: string;
+  /**
+   * v1.14.0 -- first-party license page. On gated opt-ins this is the Hugging
+   * Face click-through the installer opens; on ungated entries it is still the
+   * license text the card should link.
+   */
+  readonly licenseUrl?: string;
+  /**
+   * v1.19.0 Phase 1 -- visible use-restriction copy for ungated licenses that
+   * still bind the user's commercial use (e.g. LFM Open License v1.0 USD 10M
+   * revenue cap). Distinct from `requiresLicense`: a note never trips the
+   * guided token/acceptance flow.
+   */
+  readonly licenseNote?: string;
+  /**
+   * v1.14.0 -- when true, the installer guided Hugging Face step must run
+   * before download. Ungated entries (including LFM) leave this false/omitted.
+   */
+  readonly requiresLicense?: boolean;
   readonly source: ModelSpecSource;
   readonly weights?: ModelWeightsManifest;
   readonly tags?: readonly string[];
