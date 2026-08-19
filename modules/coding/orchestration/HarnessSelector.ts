@@ -61,6 +61,13 @@ export interface HarnessProfile {
    * Omitted on tier defaults so the overlay stays the three PromptContext knobs.
    */
   readonly toolCallFormat?: ToolFormatName;
+  /**
+   * v1.19.1 Phase 2.4 -- optional per-model compaction knobs. Omitted on
+   * existing profiles so they keep HardwareTier defaults via
+   * {@link toCompressionOverlay}.
+   */
+  readonly compactionThreshold?: number;
+  readonly userMessageTail?: number;
   readonly rationale: string;
 }
 
@@ -284,6 +291,26 @@ export function parseHarnessProfileId(raw: string): HarnessProfileId | undefined
 }
 
 /** Project a profile down to the `PromptContext` overlay the composition root spreads. */
+export interface HarnessCompressionOverlay {
+  readonly compactionThreshold: number;
+  readonly userMessageTail: number;
+}
+
+const COMPRESSION_BY_TIER: Readonly<Record<CapabilityTier, HarnessCompressionOverlay>> = {
+  weak: { compactionThreshold: 0.7, userMessageTail: 3 },
+  mid: { compactionThreshold: 0.8, userMessageTail: 3 },
+  strong: { compactionThreshold: 0.85, userMessageTail: 5 },
+};
+
+/** Resolve per-model compression knobs from a harness profile. */
+export function toCompressionOverlay(profile: HarnessProfile): HarnessCompressionOverlay {
+  const fallback = COMPRESSION_BY_TIER[profile.tier];
+  return {
+    compactionThreshold: profile.compactionThreshold ?? fallback.compactionThreshold,
+    userMessageTail: profile.userMessageTail ?? fallback.userMessageTail,
+  };
+}
+
 export function toPromptOverlay(profile: HarnessProfile): HarnessPromptOverlay {
   return {
     promptStyle: profile.promptStyle,

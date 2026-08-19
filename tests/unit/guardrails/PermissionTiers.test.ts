@@ -13,6 +13,8 @@ describe("PermissionTiers", () => {
       expect(getPermissionTier("read_file")).toBe(PermissionTier.AUTO_APPROVE);
       expect(getPermissionTier("list_directory")).toBe(PermissionTier.AUTO_APPROVE);
       expect(getPermissionTier("grep_codebase")).toBe(PermissionTier.AUTO_APPROVE);
+      expect(getPermissionTier("watch_path")).toBe(PermissionTier.AUTO_APPROVE);
+      expect(getPermissionTier("hash_file")).toBe(PermissionTier.AUTO_APPROVE);
       expect(getPermissionTier("tail_output")).toBe(PermissionTier.AUTO_APPROVE);
       expect(getPermissionTier("grep_output")).toBe(PermissionTier.AUTO_APPROVE);
     });

@@ -18,6 +18,7 @@ import {
   describeSandbox,
   isExecSandboxEnabled,
 } from "../../modules/coding/sandbox/index.js";
+import { originForTool } from "../../modules/coding/guardrails/toolResultOrigin.js";
 import { getSettings } from "../../modules/coding/config/settings.js";
 
 // Tools that fire their own diff-bearing confirmation in `ask` mode and a
@@ -391,7 +392,11 @@ export class ToolRegistry {
 
     if (
       this._confirmationGate &&
-      shouldRequireConfirmation(call.tool, this._permissionOverrides) &&
+      shouldRequireConfirmation(
+        call.tool,
+        this._permissionOverrides,
+        getSettings().securityPosture,
+      ) &&
       !handlesOwnConfirmation
     ) {
       const tier = getPermissionTier(call.tool, this._permissionOverrides);
@@ -440,15 +445,16 @@ export class ToolRegistry {
 
     try {
       const result = await handler.execute(call.parameters);
+      const stamped = { ...result, origin: result.origin ?? originForTool(call.tool) };
 
       // Apply universal byte-cap to successful outputs so the conversation
       // transcript can never receive an oversized payload, even if downstream
       // compression or redirection is disabled.
-      let bounded = result;
+      let bounded = stamped;
       if (result.success && result.output.length > 0) {
         const capped = applyByteCap(result.output, call.tool, maxBytes);
         if (capped.truncated) {
-          bounded = { ...result, output: capped.output };
+          bounded = { ...stamped, output: capped.output };
         }
       }
 

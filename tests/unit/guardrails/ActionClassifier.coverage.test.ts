@@ -23,6 +23,8 @@ const SAFE_TOOLS = [
   "fetch_page",
   "tail_output",
   "grep_output",
+  "watch_path",
+  "hash_file",
 ];
 
 const READ_ONLY_COMMANDS = [

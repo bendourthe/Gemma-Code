@@ -26,7 +26,10 @@ export type BuiltinToolName =
   | "lsp_definition"
   | "lsp_references"
   // v1.16.0 Phase 4 (adoption item A6) -- document OCR into agent context.
-  | "parse_document";
+  | "parse_document"
+  // v1.19.1 Phase 2.8 -- read-only fs observation / integrity.
+  | "watch_path"
+  | "hash_file";
 
 /** Namespaced MCP tool name: `mcp:serverName/toolName`. */
 export type McpToolName = `mcp:${string}`;
@@ -62,6 +65,8 @@ export const BUILTIN_TOOL_NAMES: readonly BuiltinToolName[] = [
   "lsp_definition",
   "lsp_references",
   "parse_document",
+  "watch_path",
+  "hash_file",
 ];
 
 /** @deprecated Use BUILTIN_TOOL_NAMES instead. */
@@ -81,11 +86,24 @@ export interface ToolCall {
   readonly source?: ToolCallSource;
 }
 
+/**
+ * Provenance class for a tool result (v1.19.1 Phase 2.6). `browser_snapshot`
+ * is reserved for the v2.0.0 browser tool surface and is not assigned here.
+ */
+export type ToolResultOrigin =
+  | "user"
+  | "workspace_file"
+  | "terminal"
+  | "web_fetch"
+  | "mcp_tool"
+  | "browser_snapshot";
+
 export interface ToolResult {
   readonly id: string;
   readonly success: boolean;
   readonly output: string;
   readonly error?: string;
+  readonly origin?: ToolResultOrigin;
 }
 
 export interface ToolHandler {

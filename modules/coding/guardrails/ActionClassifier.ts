@@ -54,6 +54,7 @@ const SAFE_TOOLS = new Set<string>([
   "read_file", "list_directory", "grep_codebase",
   "web_search", "fetch_page",
   "tail_output", "grep_output",
+  "watch_path", "hash_file",
 ]);
 
 /**

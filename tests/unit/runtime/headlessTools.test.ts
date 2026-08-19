@@ -57,9 +57,11 @@ describe("createHeadlessTools -- file tools", () => {
         "delete_file",
         "edit_file",
         "grep_codebase",
+        "hash_file",
         "list_directory",
         "read_file",
         "run_terminal",
+        "watch_path",
         "write_file",
       ].sort(),
     );

@@ -11,6 +11,11 @@ import { getLogger } from "../utils/logger.js";
  */
 export { PermissionTier } from "./permissionTierMap.js";
 import { PermissionTier, TOOL_PERMISSION_MAP } from "./permissionTierMap.js";
+import {
+  confirmationRequiredForPosture,
+  parseSecurityPosture,
+  type SecurityPostureId,
+} from "./SecurityPosture.js";
 
 /** Baseline tier for any tool, including unknown/MCP tools. */
 function getBaselineTier(toolName: ToolName): PermissionTier {
@@ -70,14 +75,22 @@ export function _resetPermissionOverrideWarnings(): void {
 
 /**
  * Determine whether a tool call should require user confirmation.
- * AUTO_APPROVE tools never require confirmation; CONFIRM and DANGEROUS do.
+ * AUTO_APPROVE tools never require confirmation. DANGEROUS always does (the
+ * floor clamp). CONFIRM follows the security-posture dial: Unattended skips
+ * CONFIRM prompts; Strict and Standard keep them. Hard denials are a separate
+ * path and are not consulted here.
  */
 export function shouldRequireConfirmation(
   toolName: ToolName,
   userOverrides?: Record<string, number>,
+  posture: SecurityPostureId | string = "standard",
 ): boolean {
+  // Baseline DANGEROUS tools (terminal, web) always confirm. An override may
+  // lower the mapped tier to CONFIRM, but Unattended must not treat that as a
+  // skippable prompt -- that would be a no-floor path.
+  if (getBaselineTier(toolName) === PermissionTier.DANGEROUS) return true;
   const tier = getPermissionTier(toolName, userOverrides);
-  return tier >= PermissionTier.CONFIRM;
+  return confirmationRequiredForPosture(tier, parseSecurityPosture(posture));
 }
 
 /**

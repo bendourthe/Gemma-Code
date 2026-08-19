@@ -111,4 +111,6 @@ codegraph_files = 0
 lsp_definition = 0
 lsp_references = 0
 parse_document = 1
+watch_path = 0
+hash_file = 0
 # END:GENERATED-PERMISSIONS

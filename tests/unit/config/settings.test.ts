@@ -42,6 +42,8 @@ describe("getSettings()", () => {
     expect(settings.autoDetectGpu).toBe(true);
     expect(settings.execSandbox).toBe(false);
     expect(settings.gpuTierOverride).toBeNull();
+    expect(settings.securityPosture).toBe("standard");
+    expect(settings.compactionUserMessageTail).toBe(3);
   });
 
   it("returns user-configured nexus.* values when they are set", () => {

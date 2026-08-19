@@ -61,4 +61,6 @@ export const TOOL_PERMISSION_MAP: Record<BuiltinToolName, PermissionTier> = {
   // subprocess (one engine executes pinned repo code), so it is not a pure
   // local read like read_file. CONFIRM, matching write_file / fetch_page.
   parse_document: PermissionTier.CONFIRM,
+  watch_path: PermissionTier.AUTO_APPROVE,
+  hash_file: PermissionTier.AUTO_APPROVE,
 };

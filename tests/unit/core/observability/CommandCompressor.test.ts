@@ -289,6 +289,17 @@ describe("CommandCompressor.tee", () => {
     home.cleanup();
   });
 
+  it("scrubs secrets before writing a tee file", () => {
+    const home = makeTempHome();
+    const cc = new CommandCompressor({ nexusHomeFn: home.homeFn });
+    const secret = "ghp_0123456789abcdefghijklmnopqrstuvwxyz";
+    const teePath = cc.tee("curl example", `Authorization: ${secret}`);
+    const body = fs.readFileSync(teePath, "utf8");
+    expect(body).not.toContain(secret);
+    expect(body).toContain("<redacted>");
+    home.cleanup();
+  });
+
   it("filename is ISO-stamp-safe on Windows (no `:` characters)", () => {
     const home = makeTempHome();
     const cc = new CommandCompressor({

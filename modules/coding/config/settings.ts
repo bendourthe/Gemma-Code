@@ -79,6 +79,14 @@ export interface NexusSettings {
   execSandbox: boolean;
   inboundClassifierEnabled: boolean;
   inboundClassifierDeepScan: boolean;
+  /**
+   * v1.19.1 Phase 2.5 -- named security-posture dial. Composes confirmation
+   * frequency and inbound screening over the existing permission-tier floor.
+   * Default `standard`. Unattended never auto-approves DANGEROUS tools.
+   */
+  securityPosture: "strict" | "standard" | "unattended";
+  /** v1.19.1 Phase 2.4 -- last N human user messages EmergencyTrim must keep. */
+  compactionUserMessageTail: number;
   swarmOrchestrationEnabled: boolean;
   panelRoutingEnabled: boolean;
   harnessSelectorEnabled: boolean;
@@ -275,6 +283,15 @@ export function getSettings(): NexusSettings {
     inboundClassifierDeepScan: c.get<boolean>(
       "nexus.coding.inboundClassifier.deepScan",
       false,
+    ),
+    securityPosture: (() => {
+      const raw = c.get<string>("nexus.coding.securityPosture", "standard");
+      return raw === "strict" || raw === "unattended" ? raw : "standard";
+    })(),
+    compactionUserMessageTail: clamp(
+      c.get<number>("nexus.coding.compactionUserMessageTail", 3),
+      1,
+      20,
     ),
     swarmOrchestrationEnabled: c.get<boolean>(
       "nexus.coding.swarmOrchestration.enabled",

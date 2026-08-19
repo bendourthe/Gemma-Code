@@ -10,7 +10,11 @@ const MAX_TOOL_COUNT = 15;
  * built-in that is neither MCP nor `codegraph_*` would otherwise be untrimmable
  * and would breach the prompt budget outright.
  */
-const OPTIONAL_SPECIALTY_TOOLS: ReadonlySet<string> = new Set(["parse_document"]);
+const OPTIONAL_SPECIALTY_TOOLS: ReadonlySet<string> = new Set([
+  "parse_document",
+  "watch_path",
+  "hash_file",
+]);
 
 /**
  * v0.8.0 Phase 5 sub-task 5.4 (item D3) -- 30 s TTL for expensive availability

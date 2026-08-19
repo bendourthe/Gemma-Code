@@ -14,6 +14,7 @@ import { ServingSettings } from "./ServingSettings";
 import type { ServingClient } from "./servingTypes";
 import { McpRegistrySettings } from "./McpRegistrySettings";
 import type { McpRegistryClient } from "./mcpTypes";
+import { SecuritySettings, type SecuritySettingsClient } from "./SecuritySettings";
 import { createMockModelsClient } from "./mockModelsClient";
 import { createMockSkillsClient } from "./mockSkillsClient";
 import { createMockSkillOptimizerClient } from "./mockSkillOptimizerClient";
@@ -21,7 +22,7 @@ import { createMockCredentialsClient } from "./mockCredentialsClient";
 import { createMockServingClient } from "./mockServingClient";
 import { createMockMcpRegistryClient } from "./mockMcpRegistryClient";
 
-type SettingsTab = "models" | "skills" | "optimizer" | "credentials" | "serving" | "mcp";
+type SettingsTab = "models" | "skills" | "optimizer" | "credentials" | "serving" | "mcp" | "security";
 
 export interface SettingsPageProps {
   modelsClient?: ModelsClient;
@@ -32,6 +33,7 @@ export interface SettingsPageProps {
   servingClient?: ServingClient;
   /** v1.18.0 Phase 3 (OW-A5) -- per-tool MCP deny. */
   mcpClient?: McpRegistryClient;
+  securityClient?: SecuritySettingsClient;
   initialTab?: SettingsTab;
   /** v1.16.0 Phase 5 (A4) -- host VRAM for the Models page tier-fit filter. */
   hostVramGB?: number | null;
@@ -44,6 +46,7 @@ export function SettingsPage({
   credentialsClient,
   servingClient,
   mcpClient,
+  securityClient,
   initialTab = "models",
   hostVramGB = null,
 }: SettingsPageProps = {}): JSX.Element {
@@ -124,6 +127,14 @@ export function SettingsPage({
         >
           MCP
         </button>
+        <button
+          type="button"
+          data-testid="settings-tab-security"
+          onClick={() => setTab("security")}
+          style={tabButtonStyle(tab === "security")}
+        >
+          Security
+        </button>
       </nav>
       {tab === "models" ? (
         <ModelsSettings client={models} hostVramGB={hostVramGB} />
@@ -135,6 +146,8 @@ export function SettingsPage({
         <ServingSettings client={serving} />
       ) : tab === "mcp" ? (
         <McpRegistrySettings client={mcp} />
+      ) : tab === "security" ? (
+        <SecuritySettings client={securityClient} />
       ) : (
         <CredentialsSettings client={credentials} />
       )}

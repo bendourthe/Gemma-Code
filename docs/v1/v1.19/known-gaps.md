@@ -6,7 +6,7 @@
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
-Plans: [v1.19.0](plans/v1.19.0-adoption-liquid-lfm-agentic.md) (cut), [v1.19.1](plans/v1.19.1-adoption-agent-loop-and-guardrail-hardening.md) (Phase 1 complete), [v1.19.2](plans/v1.19.2-adoption-catalog-and-model-expansion.md).
+Plans: [v1.19.0](plans/v1.19.0-adoption-liquid-lfm-agentic.md) (cut), [v1.19.1](plans/v1.19.1-adoption-agent-loop-and-guardrail-hardening.md) (Phase 2 complete, awaiting `/update release`), [v1.19.2](plans/v1.19.2-adoption-catalog-and-model-expansion.md).
 
 Carry-forward source: [../v1.18/known-gaps.md](../v1.18/known-gaps.md) (v1.18.0 cycle items stay in that file; this cycle does not close them). Sibling subplans [v1.19.1](plans/v1.19.1-adoption-agent-loop-and-guardrail-hardening.md) and [v1.19.2](plans/v1.19.2-adoption-catalog-and-model-expansion.md) keep this file in-progress after the v1.19.0 plan's Phase 4 reconciliation.
 
@@ -117,14 +117,14 @@ _Last updated: 2026-08-19 (v1.19.0 tagged)._
 
 ## v1.19.1
 
-**Summary**: 2 open items after Phase 1 (skill-native wins) - 0 NI, 2 DF, 0 MT. No suppressed warnings, no bypassed gates. Engine code unchanged this phase.
+**Summary**: 5 open items after Phase 2 (agent-loop + guardrail hardening) - 0 NI, 5 DF, 0 MT. No suppressed warnings, no bypassed gates. Engine hardening landed; Hub skill merge and Chat persona UI remain later-cycle.
 
 ### Summary
 
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 2 | 0 |
+| Deferred (DF) | 5 | 0 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
@@ -148,4 +148,29 @@ _Last updated: 2026-08-19 (v1.19.0 tagged)._
 - **Reason**: Grounded-citation, persona-card, avatar-prep, and transcript-reasoning prose landed on Nexus-Hub branch `feat/v1.19.1-skill-native-wins` (commit `451e508f`) and passed `validate_skills.py --quality`. They are not on Hub `develop` / `main` and are not yet in a `nexus skills sync` catalog. CI in this repository cannot see Hub skill bodies; it asserts the Nexus-AI mapping note and the no-duplicate builtin check.
 - **Suggested next step**: Merge the Hub branch, then `nexus skills sync --apply` so `~/.nexus-ai/catalog/skills/` carries the new sections. Do not vendor copies under `modules/coding/skills/catalog/`.
 
-_Last updated: 2026-08-19 (v1.19.1 Phase 1)._
+##### DF-3 - HeadlessAgentSession does not construct LoopGuards
+
+- **Source phase**: Phase 2 - Unified loop guards (2.2)
+- **Plan reference**: `docs/v1/v1.19/plans/v1.19.1-adoption-agent-loop-and-guardrail-hardening.md` (sub-task 2.2)
+- **Reason**: `LoopGuards` is wired in `src/tools/AgentLoop.ts` and `ChatController.buildAgentLoop`. The sidecar `HeadlessAgentSession` still relies on its own iteration cap and does not construct `LoopGuards`. Identical-call, no-action, error-burst, and bounded-queue therefore do not trip on the headless path. Wiring it is a composition-root change, not a LoopGuards bug.
+- **Suggested next step**: Construct `LoopGuards` (and pass `securityPosture`) from `HeadlessAgentSession` the same way ChatController does. Keep the session recoverable on halt.
+
+##### DF-4 - Pass-state one-shot nudge means the no-action budget rarely trips in production
+
+- **Source phase**: Phase 2 - Unified loop guards (2.2)
+- **Plan reference**: `docs/v1/v1.19/plans/v1.19.1-adoption-agent-loop-and-guardrail-hardening.md` (sub-task 2.2)
+- **Reason**: AgentLoop records a no-action on the pass-state gate continue path. `_gateNudgeIssued` still fires only once, so a live run typically gets one nudge and then proceeds rather than three consecutive no-action turns. Unit tests trip the guard by setting `noActionBudget: 1`. Production default remains 3.
+- **Suggested next step**: If live auto-mode "thinking loops" still burn iterations, count every no-tool turn (not only the gated continue) toward the budget, or lower the default after a dated measurement.
+
+##### DF-5 - getPermissionTier still maps DANGEROUS plus override 0 to CONFIRM
+
+- **Source phase**: Phase 2 - Security-posture dial (2.5)
+- **Plan reference**: `docs/v1/v1.19/plans/v1.19.1-adoption-agent-loop-and-guardrail-hardening.md` (sub-task 2.5)
+- **Reason**: Pre-existing F-003: `getPermissionTier("run_terminal", { run_terminal: 0 })` returns CONFIRM, not AUTO_APPROVE. Unattended used to skip that CONFIRM. `shouldRequireConfirmation` now returns true whenever the baseline is DANGEROUS, regardless of override, and `screenHeadlessCall` matches. The floor is therefore enforced at the confirmation gate, not inside `getPermissionTier`.
+- **Suggested next step**: Optionally make `getPermissionTier` itself refuse to drop DANGEROUS below CONFIRM so both APIs agree. Not required for the posture invariant.
+
+### Phase 2 reconciliation
+
+Hard denials, LoopGuards, self-recovery, compression tail, posture dial, provenance screening, DNS pin, watch/hash, and prompt assembler all shipped. No NI, BG, WN, MT, or QG this phase. File stays in-progress for v1.19.2.
+
+_Last updated: 2026-08-19 (v1.19.1 Phase 2)._

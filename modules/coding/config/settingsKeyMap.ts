@@ -22,6 +22,8 @@ export const SETTINGS_KEY_MAP: Readonly<Record<string, string>> = Object.freeze(
   // -- Coding engine (runs inside the Coding module) ------------------------
   "nexus.coding.editMode": "gemma-code.editMode",
   "nexus.coding.toolConfirmationMode": "gemma-code.toolConfirmationMode",
+  "nexus.coding.securityPosture": "gemma-code.securityPosture",
+  "nexus.coding.compactionUserMessageTail": "gemma-code.compactionUserMessageTail",
   "nexus.coding.maxAgentIterations": "gemma-code.maxAgentIterations",
   "nexus.coding.systemPromptBudgetPercent": "gemma-code.systemPromptBudgetPercent",
   "nexus.coding.compactionKeepRecent": "gemma-code.compactionKeepRecent",

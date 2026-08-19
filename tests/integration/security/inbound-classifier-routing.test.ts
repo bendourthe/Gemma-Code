@@ -96,7 +96,7 @@ describe("inbound classifier routing through AgentLoop", () => {
     expect(injected).toContain(benign);
   });
 
-  it("does not screen when the classifier is disabled (legacy behavior)", async () => {
+  it("still screens web origins when the inbound classifier flag is off", async () => {
     const manager = makeConversationManager();
     const registry = registryReturning(JSON.stringify({ text: INJECTION, truncated: false }));
     const client = makeMultiResponseOllamaClient([fetchPageCall(), "Done."]);
@@ -111,7 +111,8 @@ describe("inbound classifier routing through AgentLoop", () => {
 
     const injected = toolResultMessage(manager);
     expect(injected).toBeDefined();
-    expect(injected).not.toContain("UNTRUSTED CONTENT");
+    expect(injected).toContain("UNTRUSTED CONTENT");
+    expect(injected).toContain("origin=web_fetch");
     expect(injected).toContain(INJECTION);
   });
 
@@ -161,7 +162,7 @@ describe("inbound classifier routing through AgentLoop", () => {
     expect(tr?.success).toBe(true);
   });
 
-  it("is a no-op when no classifier is wired at all", async () => {
+  it("heuristically screens web origins when no classifier is wired", async () => {
     const manager = makeConversationManager();
     const registry = registryReturning(JSON.stringify({ text: INJECTION, truncated: false }));
     const client = makeMultiResponseOllamaClient([fetchPageCall(), "Done."]);
@@ -174,6 +175,7 @@ describe("inbound classifier routing through AgentLoop", () => {
 
     const injected = toolResultMessage(manager);
     expect(injected).toBeDefined();
-    expect(injected).not.toContain("UNTRUSTED CONTENT");
+    expect(injected).toContain("UNTRUSTED CONTENT");
+    expect(injected).toContain("origin=web_fetch");
   });
 });

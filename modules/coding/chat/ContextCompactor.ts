@@ -35,6 +35,7 @@ export interface CompactionSettingsProvider {
     compactionProtectedTools?: readonly string[];
     compactionProtectedFilePatterns?: readonly string[];
     compactionErrorPurgeTurns?: number;
+    compactionUserMessageTail?: number;
   };
 }
 
@@ -232,7 +233,7 @@ export class ContextCompactor {
         settings.compactionKeepRecent,
         this._ollamaOptions,
       ),
-      new EmergencyTrim(),
+      new EmergencyTrim(settings.compactionUserMessageTail ?? 3),
     ]);
 
     let compacted;
@@ -331,5 +332,25 @@ export class ContextCompactor {
       state: "ok",
       summary: `compacted ${tokensBefore} -> ${tokensAfter} tokens`,
     };
+  }
+
+  /**
+   * v1.19.1 Phase 2.4 -- per-turn micro-compaction: prune stale tool results
+   * without touching the user-message tail. No-op when already under the
+   * compaction threshold. Does not duplicate compress_range / compress_message
+   * (those stay in the protected-tools set of the full pipeline).
+   */
+  async microCompact(): Promise<void> {
+    if (!this.shouldCompact()) return;
+    const settings = this._settingsProvider();
+    const pipeline = new CompactionPipeline([
+      new ToolResultClearing(settings.compactionToolResultsKeep),
+    ]);
+    const budget = calculateBudget(this._maxTokens);
+    const compacted = await pipeline.run(
+      this._manager.replayForCompaction(),
+      budget.conversationBudget,
+    );
+    this._manager.replaceMessages(compacted);
   }
 }

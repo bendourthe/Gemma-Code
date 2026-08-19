@@ -21,6 +21,10 @@
 // reaches `vscode` transitively (utils/logger, src/tools/handlers/terminal), and
 // pulling that into the headless surface would break the esbuild sidecar bundle.
 import { PermissionTier, TOOL_PERMISSION_MAP } from "../guardrails/permissionTierMap.js";
+import {
+  confirmationRequiredForPosture,
+  parseSecurityPosture,
+} from "../guardrails/SecurityPosture.js";
 /** Re-exported so a headless caller needs only this module. */
 export { PermissionTier };
 import { matchesSecretPath } from "../utils/secretPaths.js";
@@ -44,6 +48,8 @@ export interface HeadlessGuardOptions {
   readonly secretPathDenyExtra?: readonly string[];
   /** Per-tool tier overrides, clamped by `getPermissionTier` exactly as in VS Code. */
   readonly permissionOverrides?: Record<string, number>;
+  /** v1.19.1 Phase 2.5 -- posture dial; Unattended skips CONFIRM, never DANGEROUS. */
+  readonly securityPosture?: string;
 }
 
 export interface GuardDecision {
@@ -65,6 +71,8 @@ const PATH_PARAMS: Readonly<Record<string, readonly string[]>> = {
   delete_file: ["path"],
   list_directory: ["path"],
   parse_document: ["path"],
+  hash_file: ["path"],
+  watch_path: ["path"],
 };
 
 /**
@@ -152,8 +160,14 @@ export async function screenHeadlessCall(
   //    clamp) -- so once a host opts in, the rules match the VS Code registry.
   if (!opts.confirm) return { allowed: true };
 
+  const baseline =
+    TOOL_PERMISSION_MAP[toolName as BuiltinToolName] ?? PermissionTier.DANGEROUS;
   const tier = resolveTier(toolName, opts.permissionOverrides);
-  if (tier >= PermissionTier.CONFIRM) {
+  const posture = parseSecurityPosture(opts.securityPosture);
+  if (
+    baseline === PermissionTier.DANGEROUS ||
+    confirmationRequiredForPosture(tier, posture)
+  ) {
     const approved = await opts.confirm(
       toolName,
       `Run ${toolName}?`,

@@ -13,6 +13,7 @@ import {
   ListDirectoryTool,
   GrepCodebaseTool,
 } from "./handlers/filesystem.js";
+import { WatchPathTool, HashFileTool } from "./handlers/observe.js";
 // v0.9.0 Phase 6.6 (from v0.8.0 known-gaps 10.O.Q) -- the tier `confirm` /
 // `dangerous` handler modules below are loaded lazily via `await import()`
 // inside the factories passed to `registerLazy()`. They are only resolved
@@ -113,6 +114,8 @@ export function buildToolRegistry(opts: ToolRegistryBuildOptions): ToolRegistry 
   );
   registry.register("list_directory", new ListDirectoryTool(gate, secretPathDenyExtra));
   registry.register("grep_codebase", new GrepCodebaseTool(gate, secretPathDenyExtra));
+  registry.register("watch_path", new WatchPathTool());
+  registry.register("hash_file", new HashFileTool());
 
   // Tier `confirm` -- lazy. write/edit/create/delete tools only fire on a
   // user-confirmed edit, so importing them at boot is wasted work for the
@@ -273,6 +276,8 @@ export function listEagerToolNames(): readonly string[] {
     "read_file",
     "list_directory",
     "grep_codebase",
+    "watch_path",
+    "hash_file",
     // compress_range / compress_message / update_todos are wired only when
     // the optional `compress` / `todos` options are passed; they are still
     // imported eagerly when present because the prompt builder needs them.

@@ -67,6 +67,10 @@ The v1.16 serving gateway no longer owns a private `node:http` listener. [`Loopb
 
 [`modules/coding/sandbox/`](modules/coding/sandbox/) wraps `run_terminal` spawn (VS Code handler and headless sidecar) behind `nexus.coding.execSandbox` (default off; sidecar `NEXUS_EXEC_SANDBOX`). Policy: writable roots = workspace + `os.tmpdir()`; network deny; deny-read of well-known secret dirs. Backends: macOS Seatbelt (`sandbox-exec`), Linux Landlock + seccomp (Python ctypes helper), Windows job object + restricted token. Mode is `confined` only when filesystem **and** network are kernel-enforced. Windows is `partial` (job + token; FS/network unenforced; [WINDOWS_ENFORCEMENT_MATRIX](modules/coding/sandbox/windowsMatrix.ts)). Off or missing backend is loudly `unconfined` (UI + logs), never silent. Existing confirmation, denylists, env scrub, and GitSafetyNet stay in force. No Open Interpreter / Rust code is vendored. Per-OS status: [docs/v1/v1.18/known-gaps.md](docs/v1/v1.18/known-gaps.md) (EM.P5.A).
 
+### Agent-loop and guardrail hardening (v1.19.1 Phase 2)
+
+Coding auto-mode now has a strictly subtractive deny-list (`HARD_DENIALS` in [`modules/coding/guardrails/policy.ts`](modules/coding/guardrails/policy.ts)) that blocks recursive deletes, git history rewrites, and destructive SQL before any posture or confirmation logic. [`LoopGuards`](modules/coding/guardrails/LoopGuards.ts) wraps [`LoopDetector`](modules/coding/guardrails/LoopDetector.ts) with identical-call, no-action, error-burst, bounded-queue, and a 60-iteration ceiling. Named postures (`strict` / `standard` / `unattended` via `nexus.coding.securityPosture`) only change confirmation frequency and screening strictness; DANGEROUS tools and hard denials stay blocked in every posture (Unattended is not a no-floor mode). Tool results carry an origin label; web / MCP / reserved-browser origins are always screened. [`ssrf.ts`](modules/coding/utils/ssrf.ts) pins the first public DNS answer for the fetch. `watch_path` and `hash_file` are read-only workspace tools. [`ToolPromptAssembler`](modules/coding/chat/ToolPromptAssembler.ts) generates the tool-doc block from the live registry. Known gaps: [docs/v1/v1.19/known-gaps.md](docs/v1/v1.19/known-gaps.md) (v1.19.1).
+
 ### Per-model harness overlay (v1.18.0 Phase 2)
 
 [`HarnessSelector`](modules/coding/orchestration/HarnessSelector.ts) is now consumed by [`ToolActivationContext.buildPromptContext`](src/panels/ToolActivationContext.ts) when `nexus.coding.harnessSelector.enabled` is on (EM.P1.A). Off leaves prompt knobs byte-identical to settings. Named family profiles (`plan-first`, `structured-edit`, `concise-loop`, `minimal`) are data keyed from the LLM catalog. Inspect or switch with `/harness`. The shipped default stays off until a live weak-model A/B (EM.P1.B). Technique notes: [docs/reference/low-cost-model-optimization.md](docs/reference/low-cost-model-optimization.md).
@@ -385,8 +389,11 @@ flowchart TD
     ac[ActionClassifier]
     gsn[GitSafetyNet]
     ld[LoopDetector]
+    lg[LoopGuards]
     be[BudgetEnforcer]
     pt[PermissionTiers]
+    sp[SecurityPosture]
+    hd[HARD_DENIALS]
   end
 
   subgraph Observability["Observability"]

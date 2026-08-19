@@ -23,7 +23,7 @@ describe("ToolRegistry", () => {
     registry.register("read_file", handler);
     const result = await registry.execute(makeCall());
 
-    expect(result).toEqual(expected);
+    expect(result).toEqual({ ...expected, origin: "workspace_file" });
     expect(handler.execute).toHaveBeenCalledWith({});
   });
 

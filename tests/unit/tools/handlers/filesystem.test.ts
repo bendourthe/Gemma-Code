@@ -265,6 +265,18 @@ describe("EditFileTool", () => {
     expect(result.error).toMatch(/rejected/i);
     expect(mockFs.writeFile).not.toHaveBeenCalled();
   });
+
+  it("reports success-noop when the edit is already applied", async () => {
+    mockFs.readFile.mockResolvedValueOnce(textToUint8("const x = 2;\n"));
+
+    const tool = new EditFileTool(makeGate(), "ask");
+    const result = await tool.execute(
+      params({ path: "src/x.ts", old_string: "const x = 1;", new_string: "const x = 2;" }),
+    );
+    expect(result.success).toBe(true);
+    expect(result.output).toMatch(/already present/i);
+    expect(mockFs.writeFile).not.toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -417,6 +429,24 @@ describe("GrepCodebaseTool", () => {
     const parsed = JSON.parse(result.output);
     expect(parsed.count).toBe(1);
     expect(parsed.matches[0].file).toContain("a.ts");
+  });
+
+  it("returns near-miss probes when the exact pattern misses", async () => {
+    await mockFindFiles([`${ROOT}/src/foo.ts`]);
+    mockFs.readFile.mockResolvedValueOnce(textToUint8("function fooBar() {}\n"));
+    await mockFindFiles([`${ROOT}/src/foo.ts`]);
+    mockFs.readFile.mockResolvedValueOnce(textToUint8("function fooBar() {}\n"));
+
+    const tool = new GrepCodebaseTool();
+    const result = await tool.execute(params({ pattern: "fooBar\\d+" }));
+    expect(result.success).toBe(true);
+    const parsed = JSON.parse(result.output) as {
+      count: number;
+      near_misses?: Array<{ content: string }>;
+    };
+    expect(parsed.count).toBe(0);
+    expect(parsed.near_misses?.length).toBeGreaterThan(0);
+    expect(parsed.near_misses?.[0]?.content).toContain("fooBar");
   });
 
   it("rejects unsafe glob targeting a secret path without allow_secrets", async () => {

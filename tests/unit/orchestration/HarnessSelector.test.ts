@@ -11,6 +11,7 @@ import {
   modelCapabilityTier,
   parseHarnessCommand,
   parseHarnessProfileId,
+  toCompressionOverlay,
   toPromptOverlay,
   type CatalogLookup,
 } from "../../../modules/coding/orchestration/HarnessSelector.js";
@@ -110,6 +111,21 @@ describe("HarnessSelector -- profiles (H1)", () => {
       "systemPromptBudgetPercent",
       "thinkingMode",
     ]);
+  });
+
+  it("resolves per-tier compression thresholds and user-message tails", () => {
+    expect(toCompressionOverlay(harnessProfileForTier("weak"))).toEqual({
+      compactionThreshold: 0.7,
+      userMessageTail: 3,
+    });
+    expect(toCompressionOverlay(harnessProfileForTier("mid"))).toEqual({
+      compactionThreshold: 0.8,
+      userMessageTail: 3,
+    });
+    expect(toCompressionOverlay(harnessProfileForTier("strong"))).toEqual({
+      compactionThreshold: 0.85,
+      userMessageTail: 5,
+    });
   });
 });
 

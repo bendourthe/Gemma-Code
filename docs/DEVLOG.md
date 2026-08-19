@@ -4,7 +4,44 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-19] v1.19.1 agent-loop-and-guardrail-hardening -- Phase 2: loop + guardrails
+
+### Goal
+
+Make long-horizon autonomous runs trustworthy: hard denials in every posture, unified LoopGuards, tool self-recovery, compression reliability, a named security-posture dial, provenance screening, DNS-pinned fetches, watch/hash tools, and generated tool prompt docs.
+
+### What was done
+
+- **Hard denials**: `HARD_DENIALS` in `modules/coding/guardrails/policy.ts` (recursive delete, git history rewrite, DROP/TRUNCATE). `BLOCKED_PATTERNS` is derived. Matcher searches `${normalized} ` so trailing-space patterns match `rm -rf ./tmp`. `DELETE FROM` stays DESTRUCTIVE, not hard-denied. `git reset` without `--hard` stays unblocked.
+- **LoopGuards**: identical-call N=5, no-action 3, error-burst 4, queue 1+4, ceiling 60 (2x old strong 30, not Hermes 500). Wired in AgentLoop; ChatController shares one LoopDetector with LoopGuards. Identical-call recorded after execute so five calls run then halt. BLOCKED commands count as errors. Queue admit drops extra calls with a SYSTEM message.
+- **Self-recovery**: edit noop via `classifyEditApply`; grep empty-result near-miss probes (`grepViaVscode` extracted so probes work without ripgrep); spill files pass `redactSecrets` on write and on read.
+- **Compression**: last N human user turns retained (`nexus.coding.compactionUserMessageTail`, default 3). EmergencyTrim never drops those ids. `microCompact()` is ToolResultClearing only. HarnessSelector compression overlay (weak 0.7/3, mid 0.8/3, strong 0.85/5). `compress_range` / `compress_message` stay.
+- **Posture**: Strict / Standard / Unattended. DANGEROUS always confirms, including Unattended. Unattended skips CONFIRM only. Setting `nexus.coding.securityPosture` plus desktop Security tab.
+- **Provenance**: `ToolResult.origin` stamped in ToolRegistry.execute. Web/MCP/browser origins always screened. Strict screens all. Taxonomy reserved `browser_snapshot` for v2.0.0.
+- **DNS pin**: `fetchWithSsrfGuard` uses one lookup, connects to the first public IP, sets Host. Rebinding test: second private lookup is never used.
+- **Tools**: `watch_path` / `hash_file` AUTO_APPROVE, OPTIONAL_SPECIALTY (do not blow the 15-tool cap), workspace-scoped.
+- **Assembler**: `ToolPromptAssembler` from the live registry; PromptContext.registeredToolNames so a test tool surfaces. Token budget 8000.
+- **Tests**: unit suites per subtask plus `tests/integration/guardrails/v1.19.1-hardening.test.ts`. CI already runs full Vitest (`test-ts`); no workflow rewrite.
+
+### Decisions
+
+- Unattended is not QM "Dangerous". Floor clamp stays at shouldRequireConfirmation (DANGEROUS baseline always confirms).
+- Do not merge the two PromptInjectionScanner modules.
+- HeadlessAgentSession LoopGuards wiring deferred (DF-3).
+- Version bump waits for `/update release`.
+
+### Tests
+
+Root Vitest with coverage: 466 files passed / 3 skipped; 5054 tests passed / 11 skipped / 0 failed. Lines 87.71% / branches 84.02% / functions 91.27% (thresholds 80 / 75 / 80). Lint 0. `tsc -b` clean. Desktop lint + typecheck + `SecuritySettings.test.tsx` pass. Observe tests 7/7 after removing a duplicate describe.
+
+### Next
+
+`/update release` for v1.19.1 (docs, version, changelog, tag, GitHub Release; confirmation gates). v1.19.2 remains open.
+
+---
+
 ## [2026-08-19] v1.19.1 agent-loop-and-guardrail-hardening -- Phase 1: skill-native wins
+
 
 ### Goal
 

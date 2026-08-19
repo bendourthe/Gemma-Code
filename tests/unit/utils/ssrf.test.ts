@@ -4,6 +4,7 @@ import {
   isSsrfBlockedSync,
   isSsrfBlocked,
   fetchWithSsrfGuard,
+  pinValidatedUrl,
   isDeniedDestination,
   configureDeniedDestinations,
   resetDeniedDestinations,
@@ -105,11 +106,33 @@ describe("isSsrfBlocked (async with DNS)", () => {
 describe("fetchWithSsrfGuard", () => {
   const publicLookup = async () => ["93.184.216.34"] as readonly string[];
 
-  it("rejects the initial URL when SSRF check fails", async () => {
-    const lookup = async () => ["127.0.0.1"] as readonly string[];
-    await expect(
-      fetchWithSsrfGuard("http://rebind.example.com/", { lookup }),
-    ).rejects.toThrow(/SSRF/);
+  it("pins the first DNS answer so a rebinding resolver never reaches the private IP", async () => {
+    let lookups = 0;
+    const lookup = vi.fn(async () => {
+      lookups += 1;
+      return lookups === 1 ? (["8.8.8.8"] as string[]) : (["127.0.0.1"] as string[]);
+    });
+    const contacted: string[] = [];
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      contacted.push(String(input));
+      return { status: 200, headers: new Map() } as Response;
+    });
+
+    const res = await fetchWithSsrfGuard("https://rebind.example.com/x", {
+      lookup,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    expect(res.status).toBe(200);
+    expect(lookup).toHaveBeenCalledTimes(1);
+    expect(contacted).toHaveLength(1);
+    expect(contacted[0]).toContain("8.8.8.8");
+    expect(contacted[0]).not.toContain("127.0.0.1");
+    expect(contacted[0]).not.toContain("rebind.example.com");
+  });
+
+  it("pinValidatedUrl returns null for a private resolution", async () => {
+    const lookup = async () => ["10.0.0.1"] as const;
+    expect(await pinValidatedUrl("https://internal.example.com/", { lookup })).toBeNull();
   });
 
   it("follows a safe redirect", async () => {

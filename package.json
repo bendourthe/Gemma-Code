@@ -222,6 +222,23 @@
           "default": "ask",
           "description": "When to prompt for confirmation before running terminal commands or editing files (v1.0.0; legacy `gemma-code.toolConfirmationMode`)."
         },
+        "nexus.coding.securityPosture": {
+          "type": "string",
+          "enum": [
+            "strict",
+            "standard",
+            "unattended"
+          ],
+          "default": "standard",
+          "description": "v1.19.1 Phase 2.5 -- named security-posture dial. Strict confirms more and screens all tool output. Standard is the existing default. Unattended skips CONFIRM-tier prompts so long-running jobs can proceed; DANGEROUS tools still confirm and hard-denied commands never run. This is not a no-floor mode."
+        },
+        "nexus.coding.compactionUserMessageTail": {
+          "type": "number",
+          "default": 3,
+          "minimum": 1,
+          "maximum": 20,
+          "description": "v1.19.1 Phase 2.4 -- number of recent human user messages EmergencyTrim must keep even under aggressive compaction."
+        },
         "nexus.coding.maxAgentIterations": {
           "type": "number",
           "default": 20,

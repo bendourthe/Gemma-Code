@@ -372,6 +372,26 @@ export const TOOL_CATALOG: readonly ToolMetadata[] = [
     },
   },
   {
+    name: "watch_path",
+    description:
+      "Watch a workspace path for filesystem events for a bounded interval (default 8s). Read-only. Rejects paths outside the workspace root. Example: watch_path(path='src', timeout_ms=5000).",
+    parameters: {
+      path: { type: "string", description: "Workspace-relative path to watch.", required: true },
+      timeout_ms: {
+        type: "number",
+        description: "How long to wait for events (50..30000 ms, default 8000).",
+      },
+    },
+  },
+  {
+    name: "hash_file",
+    description:
+      "SHA-256 of a workspace file for integrity or change detection. Read-only. Example: hash_file(path='src/extension.ts').",
+    parameters: {
+      path: { type: "string", description: "Workspace-relative file path.", required: true },
+    },
+  },
+  {
     name: "lsp_references",
     description:
       "List references to the symbol at (line, column). Symbol-precise -- excludes text matches that share a name but resolve to a different declaration.",
