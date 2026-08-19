@@ -102,7 +102,7 @@ Historical note: between 2026-06-18 and 2026-07-20 a decoupled "release track" c
 | v1.16.0 | Local serving gateway + document OCR: opt-in loopback OpenAI/Anthropic API in front of installed models, per-model tokens/sec and TTFT on Traces, RapidOCR (CPU) + Unlimited-OCR (NVIDIA) in the catalog, a governed `parse_document` tool, MLX-via-adapters how-to, and a searchable Models page with Chat/Coding quick switcher | Landed | [docs/v1/v1.16/](docs/v1/v1.16/) |
 | v1.17.0 | Agent-state motion identity: internal orbs, surface-liveness beam, and hero-action metal ring (no new npm packages), one primary motion per surface, recede-when-active ambient glow, halt-not-slow reduced-motion | Landed | [docs/v1/v1.17/](docs/v1/v1.17/) |
 | v1.18.0 | Agent harness and governance: skill-native mappings, llama.cpp loopback recipe, live harness selector, catalog/registry governance, ask inbox + scheduler, ACP surface, OS process sandbox | Landed | [docs/v1/v1.18/](docs/v1/v1.18/) |
-| v1.19.0 | Low-VRAM Agentic catalog: LFM2.5-2.6B CPU / sub-4 GB tool-calling pick, LFM Open License v1.0 use-restriction label, harness profile, 8B-A1B bake-off | In flight (Phase 1 landed) | [docs/v1/v1.19/](docs/v1/v1.19/) |
+| v1.19.0 | Low-VRAM Agentic catalog: LFM2.5-2.6B CPU / sub-4 GB tool-calling pick, LFM Open License v1.0 use-restriction label, harness profile, 8B-A1B bake-off | In flight (Phases 1-2 landed) | [docs/v1/v1.19/](docs/v1/v1.19/) |
 
 Each cycle's plan lives under `docs/v1/v1.<MINOR>/plans/`, its deferred work under `docs/v1/v1.<MINOR>/known-gaps.md`, and benchmarks (where run) under `docs/v1/v1.<MINOR>/benchmarks/`.
 

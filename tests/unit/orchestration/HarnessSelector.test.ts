@@ -146,6 +146,8 @@ describe("HarnessSelector -- selection (H1)", () => {
     expect(defaultHarnessSelector.profileForModel("llama3.3:70b").tier).toBe("strong");
     expect(defaultHarnessSelector.profileForModel("llama3.2:3b").tier).toBe("weak");
     expect(defaultHarnessSelector.profileForModel("qwen2.5-coder:7b").tier).toBe("mid");
+    expect(defaultHarnessSelector.profileForModel("lfm2.5:2.6b").tier).toBe("weak");
+    expect(defaultHarnessSelector.profileForModel("lfm2.5:2.6b").id).toBe("lfm-agentic");
   });
 });
 
@@ -157,6 +159,7 @@ describe("HarnessSelector -- named family profiles (v1.18 OI-A2)", () => {
       "concise-loop",
       "constrained-scaffold",
       "lean-scaffold",
+      "lfm-agentic",
       "minimal",
       "plan-first",
       "structured-edit",
@@ -180,6 +183,26 @@ describe("HarnessSelector -- named family profiles (v1.18 OI-A2)", () => {
     expect(defaultHarnessSelector.profileForModel("llama3.2:3b").tier).toBe("weak");
     expect(defaultHarnessSelector.profileForModel("llama3.3:70b").id).toBe("lean-scaffold");
     expect(defaultHarnessSelector.profileForModel("gemma4:e4b").id).toBe("balanced-scaffold");
+  });
+
+  it("keys lfm2.5:2.6b to lfm-agentic and leaves non-LFM profiles unchanged", () => {
+    const selection = defaultHarnessSelector.select("lfm2.5:2.6b");
+    expect(selection.reason).toBe("family");
+    expect(selection.family).toBe("lfm2.5");
+    expect(selection.profile.id).toBe("lfm-agentic");
+    expect(selection.overlay.toolCallFormat).toBe("lfm-pythonic");
+    expect(selection.modelTier).toBe("weak");
+    expect(defaultHarnessSelector.profileForModel("qwen2.5-coder:7b").id).toBe("plan-first");
+    expect(defaultHarnessSelector.profileForModel("does-not-exist")).toBe(DEFAULT_HARNESS_PROFILE);
+    expect(defaultHarnessSelector.overlayForModel("does-not-exist").toolCallFormat).toBeUndefined();
+  });
+
+  it("maps an lfm2.5 id without a catalog family row to lfm-agentic", () => {
+    const lookup: CatalogLookup = (name) =>
+      name === "lfm2.5:8b-a1b" ? { id: "lfm2.5:8b-a1b", vramGb: 8, tags: ["coding"] } : undefined;
+    const selector = new HarnessSelector(lookup);
+    expect(selector.profileForModel("lfm2.5:8b-a1b").id).toBe("lfm-agentic");
+    expect(selector.select("lfm2.5:8b-a1b").reason).toBe("family");
   });
 
   it("falls back to the tier profile for an unknown family", () => {

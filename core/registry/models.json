@@ -81,6 +81,17 @@
       "sampling": { "temperature": 0.3, "topP": 0.95, "topK": 40, "contextLength": 16384 },
       "promptFormat": "deepseek",
       "toolFormat": "deepseek-json"
+    },
+    {
+      "id": "lfm2.5:2.6b",
+      "displayName": "LFM2.5 2.6B",
+      "family": "lfm2.5",
+      "runtime": "ollama",
+      "vramGb": 3,
+      "tags": ["recommended", "coding", "tool-use", "lightweight"],
+      "sampling": { "temperature": 0.3, "topP": 0.9, "topK": 50, "contextLength": 128000 },
+      "promptFormat": "lfm",
+      "toolFormat": "lfm-pythonic"
     }
   ]
 }

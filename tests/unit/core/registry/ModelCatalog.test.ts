@@ -23,9 +23,15 @@ describe("ModelCatalog", () => {
     );
   });
 
-  it("listFamilies covers gemma/llama/qwen/deepseek", () => {
+  it("listFamilies covers gemma/llama/qwen/deepseek/lfm2.5", () => {
     const families = ModelCatalog.listFamilies().sort();
-    expect(families).toEqual(["deepseek", "gemma", "llama", "qwen"] as ModelFamily[]);
+    expect(families).toEqual([
+      "deepseek",
+      "gemma",
+      "lfm2.5",
+      "llama",
+      "qwen",
+    ] as ModelFamily[]);
   });
 
   it("byId / get / byFamily expose the right slices", () => {
@@ -42,12 +48,13 @@ describe("ModelCatalog", () => {
     for (const entry of ModelCatalog.listLlm()) {
       expect(entry.sampling.temperature).toBeGreaterThanOrEqual(0);
       expect(entry.sampling.contextLength).toBeGreaterThanOrEqual(1024);
-      expect(["gemma4", "llama3", "qwen", "deepseek"]).toContain(entry.promptFormat);
+      expect(["gemma4", "llama3", "qwen", "deepseek", "lfm"]).toContain(entry.promptFormat);
       expect([
         "gemma4-xml",
         "llama3-json",
         "qwen-json",
         "deepseek-json",
+        "lfm-pythonic",
       ]).toContain(entry.toolFormat);
     }
   });

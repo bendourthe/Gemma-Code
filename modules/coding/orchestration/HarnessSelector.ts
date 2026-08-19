@@ -28,7 +28,7 @@
 // Boundary: vscode-free; pure (catalog + tier + named profiles).
 // ---------------------------------------------------------------------------
 
-import { ModelCatalog, type LlmCatalogEntry } from "../../../core/registry/ModelCatalog.js";
+import { ModelCatalog, type LlmCatalogEntry, type ToolFormatName } from "../../../core/registry/ModelCatalog.js";
 import { isMoeResident } from "../../../core/registry/moeFootprint.js";
 
 /** Model capability tier, derived from catalog size / tag signals. */
@@ -42,7 +42,8 @@ export type HarnessProfileId =
   | "concise-loop"
   | "plan-first"
   | "structured-edit"
-  | "minimal";
+  | "minimal"
+  | "lfm-agentic";
 
 /** The scaffold-profile prompt-style vocabulary (mirrors PromptContext.promptStyle). */
 export type HarnessPromptStyle = "concise" | "detailed" | "beginner";
@@ -55,6 +56,11 @@ export interface HarnessProfile {
   readonly promptStyle: HarnessPromptStyle;
   readonly thinkingMode: boolean;
   readonly systemPromptBudgetPercent: number;
+  /**
+   * v1.19.0 Phase 2 -- optional native tool-call grammar for this profile.
+   * Omitted on tier defaults so the overlay stays the three PromptContext knobs.
+   */
+  readonly toolCallFormat?: ToolFormatName;
   readonly rationale: string;
 }
 
@@ -68,6 +74,8 @@ export interface HarnessPromptOverlay {
   readonly promptStyle: HarnessPromptStyle;
   readonly thinkingMode: boolean;
   readonly systemPromptBudgetPercent: number;
+  /** Present only on profiles that pin a native tool-call grammar (LFM). */
+  readonly toolCallFormat?: ToolFormatName;
 }
 
 /** Why a profile was chosen for the current model (shown by `/harness` inspect). */
@@ -211,6 +219,18 @@ const NAMED_PROFILES: Readonly<Record<HarnessProfileId, HarnessProfile>> = Objec
     rationale:
       "smallest overlay: concise prompts, thinking off, tiny guidance budget for the weakest models",
   }),
+  "lfm-agentic": Object.freeze({
+    id: "lfm-agentic",
+    tier: "weak",
+    label: "lfm-agentic",
+    promptStyle: "concise",
+    thinkingMode: true,
+    systemPromptBudgetPercent: 12,
+    toolCallFormat: "lfm-pythonic" as ToolFormatName,
+    rationale:
+      "LFM2.5 agentic loop: concise ChatML scaffold, thinking on, parse pythonic " +
+      "tool calls between tool_call_start / tool_call_end tokens",
+  }),
 });
 
 /**
@@ -222,6 +242,7 @@ const FAMILY_PROFILE_IDS: Readonly<Record<string, HarnessProfileId>> = Object.fr
   qwen: "plan-first",
   deepseek: "structured-edit",
   kimi: "concise-loop",
+  "lfm2.5": "lfm-agentic",
 });
 
 /** Family + tier -> named profile, taking precedence over FAMILY_PROFILE_IDS. */
@@ -268,6 +289,7 @@ export function toPromptOverlay(profile: HarnessProfile): HarnessPromptOverlay {
     promptStyle: profile.promptStyle,
     thinkingMode: profile.thinkingMode,
     systemPromptBudgetPercent: profile.systemPromptBudgetPercent,
+    ...(profile.toolCallFormat ? { toolCallFormat: profile.toolCallFormat } : {}),
   };
 }
 
@@ -305,8 +327,10 @@ function resolveFamilyKey(
   if (entry.family && entry.family.length > 0) return entry.family;
   const id = entry.id.toLowerCase();
   if (id.includes("kimi")) return "kimi";
+  if (id.includes("lfm2.5") || id.startsWith("lfm2")) return "lfm2.5";
   const tags = entry.tags ?? [];
   if (tags.some((t) => t.toLowerCase().includes("kimi"))) return "kimi";
+  if (tags.some((t) => t.toLowerCase().includes("lfm"))) return "lfm2.5";
   return undefined;
 }
 

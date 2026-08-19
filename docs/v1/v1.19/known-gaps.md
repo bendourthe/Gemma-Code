@@ -10,14 +10,14 @@ Plan: [plans/v1.19.0-adoption-liquid-lfm-agentic.md](plans/v1.19.0-adoption-liqu
 
 ## v1.19.0
 
-**Summary**: 5 open items after Phase 1 (catalog entry + license label) - 0 NI, 5 DF, 0 MT. No suppressed warnings, no bypassed gates.
+**Summary**: 3 open items after Phase 2 (LFM harness profile) - 0 NI, 3 DF, 0 MT. No suppressed warnings, no bypassed gates.
 
 ### Summary
 
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 5 | 0 |
+| Deferred (DF) | 3 | 3 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
@@ -26,13 +26,6 @@ Plan: [plans/v1.19.0-adoption-liquid-lfm-agentic.md](plans/v1.19.0-adoption-liqu
 ### Open Items
 
 #### Deferred
-
-##### DF-1 - Coding-engine ModelCatalog / FRONTEND_MODELS does not list LFM2.5-2.6B
-
-- **Source phase**: Phase 1 - Catalog entry + license label (A1)
-- **Plan reference**: `docs/v1/v1.19/plans/v1.19.0-adoption-liquid-lfm-agentic.md` (sub-task 1.1)
-- **Reason**: `core/registry/ModelCatalog.ts` and the VS Code `FRONTEND_MODELS` dropdown require `promptFormat` / `toolFormat` / `ModelFamily`. Those fields are the Phase 2 HarnessSelector work. Phase 1 surfaces the entry on the installer Agentic tab and desktop Settings > Models (catalog.json via NexusModelRegistry). The Coding chat dropdown will not offer LFM until Phase 2.
-- **Suggested next step**: When Phase 2 adds the LFM harness profile, register the family in ModelCatalog / FRONTEND_MODELS so Coding can select `lfm2.5:2.6b`.
 
 ##### DF-2 - LFM is pulled through Ollama's hf.co bridge, not the Hugging Face weights puller
 
@@ -48,20 +41,26 @@ Plan: [plans/v1.19.0-adoption-liquid-lfm-agentic.md](plans/v1.19.0-adoption-liqu
 - **Reason**: `origin` is a country (or "Community") chip. Publisher color comes from `family` `lfm2.5` -> `Liquid AI` in the installer constants map. Display name and description name Liquid AI.
 - **Suggested next step**: Leave the schema as country. Do not overload `origin` with a vendor name.
 
-##### DF-4 - Context window is recorded conservatively at 32K
+##### DF-6 - Coding AgentLoop still parses Gemma XML, not LFM pythonic spans
 
-- **Source phase**: Phase 1 - Catalog entry metadata
-- **Plan reference**: `docs/v1/v1.19/plans/v1.19.0-adoption-liquid-lfm-agentic.md` (sub-task 1.1); Phase 2 sub-task 2.1
-- **Reason**: Docs-library value is 32K; the release blog claims 128K. Phase 1 records `contextWindow: 32768` and says so in card copy. Phase 2 verifies empirically and corrects the catalog.
-- **Suggested next step**: Probe beyond 32K on a local GGUF run in Phase 2.1 and update the entry to the verified figure.
-
-##### DF-5 - `toolCallingVerified` is omitted on the LFM row
-
-- **Source phase**: Phase 1 - Catalog entry (A1)
-- **Plan reference**: `docs/v1/v1.19/plans/v1.19.0-adoption-liquid-lfm-agentic.md` (sub-task 1.1); Phase 2 A/B
-- **Reason**: `agentic: true` puts the row on the Agentic tab. `toolCallingVerified` requires a `toolCallingBenchmark` citation. Phase 2's harness A/B is the real verification; asserting verified in Phase 1 would overclaim.
-- **Suggested next step**: Set `toolCallingVerified` only if Phase 2 golden-task A/B wins or ties, with a dated provenance note.
+- **Source phase**: Phase 2 - LFM harness profile (A3)
+- **Plan reference**: `docs/v1/v1.19/plans/v1.19.0-adoption-liquid-lfm-agentic.md` (sub-task 2.2)
+- **Reason**: [`ToolCallFormat.ts`](../../../modules/coding/llm/ToolCallFormat.ts) now has `lfm-pythonic`, and `HarnessSelector` pins it on the LFM overlay. [`AgentLoop`](../../../src/tools/AgentLoop.ts) and [`HeadlessAgentSession`](../../../modules/coding/runtime/HeadlessAgentSession.ts) still call `Gemma4ToolFormat.parseToolCalls`. That is pre-existing for Llama/Qwen/DeepSeek as well. Listing LFM in Coding `ModelCatalog` does not yet make the live agent execute LFM tool calls.
+- **Suggested next step**: Dispatch `getToolCallFormat(entry.toolFormat).parse` from the composition root (or a model-aware `ToolCallParser`) without changing Gemma's path when `toolFormat` is `gemma4-xml`.
 
 ### Resolved
 
-None yet.
+##### DF-1 - Coding-engine ModelCatalog / FRONTEND_MODELS does not list LFM2.5-2.6B
+
+- **Source phase**: Phase 1; closed Phase 2
+- **Resolution**: `core/registry/ModelCatalog.ts` and `core/registry/models.json` gained `lfm2.5:2.6b` (`family: lfm2.5`, `promptFormat: lfm`, `toolFormat: lfm-pythonic`). Desktop `FRONTEND_MODELS` is derived from that list. Sidecar `ModelFamily` enum includes `lfm2.5`.
+
+##### DF-4 - Context window is recorded conservatively at 32K
+
+- **Source phase**: Phase 1; closed Phase 2
+- **Resolution**: Local Ollama `api/show` reports `lfm2.context_length: 128000`. Generates with `num_ctx=40960` and `num_ctx=131072` succeeded on a short prompt (full-length fill not run). `catalog.json` `contextWindow` is 128000. Copy no longer says pending.
+
+##### DF-5 - `toolCallingVerified` is omitted on the LFM row
+
+- **Source phase**: Phase 1; closed Phase 2
+- **Resolution**: Local GGUF emitted `<|tool_call_start|>[get_candidate_status(candidate_id='12345')]<|tool_call_end|>`. Fixture A/B: LFM profile net win vs default gemma4-xml. Flag set with suite `nexus-harness-ab-lfm-local` dated 2026-08-18. Not a hosted eval.

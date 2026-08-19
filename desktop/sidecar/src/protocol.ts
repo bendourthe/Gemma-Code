@@ -97,7 +97,7 @@ export type PingResponseT = z.infer<typeof PingResponse>;
 
 // ---- Coding session lifecycle ------------------------------------------------
 
-export const ModelFamily = z.enum(["gemma", "llama", "qwen", "deepseek"]);
+export const ModelFamily = z.enum(["gemma", "llama", "qwen", "deepseek", "lfm2.5"]);
 export type ModelFamilyT = z.infer<typeof ModelFamily>;
 
 export const CodingSessionStartRequest = z

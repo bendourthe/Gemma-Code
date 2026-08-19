@@ -19,15 +19,16 @@
  *    content-addressed registry; the public type surface stays stable).
  */
 
-export type ModelFamily = "gemma" | "llama" | "qwen" | "deepseek";
+export type ModelFamily = "gemma" | "llama" | "qwen" | "deepseek" | "lfm2.5";
 
-export type PromptFormatName = "gemma4" | "llama3" | "qwen" | "deepseek";
+export type PromptFormatName = "gemma4" | "llama3" | "qwen" | "deepseek" | "lfm";
 
 export type ToolFormatName =
   | "gemma4-xml"
   | "llama3-json"
   | "qwen-json"
-  | "deepseek-json";
+  | "deepseek-json"
+  | "lfm-pythonic";
 
 export interface SamplingDefaults {
   readonly temperature: number;
@@ -135,6 +136,17 @@ const ENTRIES: readonly LlmCatalogEntry[] = Object.freeze([
     sampling: { temperature: 0.3, topP: 0.95, topK: 40, contextLength: 16384 },
     promptFormat: "deepseek",
     toolFormat: "deepseek-json",
+  },
+  {
+    id: "lfm2.5:2.6b",
+    displayName: "LFM2.5 2.6B",
+    family: "lfm2.5",
+    runtime: "ollama",
+    vramGb: 3,
+    tags: Object.freeze(["recommended", "coding", "tool-use", "lightweight"]),
+    sampling: { temperature: 0.3, topP: 0.9, topK: 50, contextLength: 128000 },
+    promptFormat: "lfm",
+    toolFormat: "lfm-pythonic",
   },
 ]);
 

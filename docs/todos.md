@@ -1,14 +1,14 @@
 # Nexus - Progress Dashboard
 
-**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (v1.19.0 Phase 1 in flight on `develop`; v1.18.0 cut; tag / push / GitHub Release behind confirmation).
+**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (v1.19.0 Phase 2 in flight on `develop`; v1.18.0 cut; tag / push / GitHub Release behind confirmation).
 
-> **v1.19.0 IN FLIGHT (2026-08-18)** -- Phase 1 of [v1.19.0-adoption-liquid-lfm-agentic.md](v1/v1.19/plans/v1.19.0-adoption-liquid-lfm-agentic.md) landed on `develop`. Known-gaps [in-progress](v1/v1.19/known-gaps.md) (5 DF). Cycle: LFM2.5-2.6B low-VRAM Agentic catalog + license label, then harness profile, then 8B-A1B bake-off.
-> - **P1** `lfm2.5:2.6b` catalog entry, cpu/8 agentic defaults, LFM Open License v1.0 use-restriction label (ungated). Coding dropdown deferred to P2 (DF-1).
-> - **P2** LFM harness profile + empirical context length (next).
-> - **P3** 8B-A1B bake-off.
+> **v1.19.0 IN FLIGHT (2026-08-18)** -- Phases 1-2 of [v1.19.0-adoption-liquid-lfm-agentic.md](v1/v1.19/plans/v1.19.0-adoption-liquid-lfm-agentic.md) landed on `develop`. Known-gaps [in-progress](v1/v1.19/known-gaps.md) (3 open DF). Cycle: LFM2.5-2.6B low-VRAM Agentic catalog + license label, then harness profile, then 8B-A1B bake-off.
+> - **P1** `lfm2.5:2.6b` catalog entry, cpu/8 agentic defaults, LFM Open License v1.0 use-restriction label (ungated).
+> - **P2** `lfm-agentic` harness profile, pythonic parser, 128K context, Coding ModelCatalog row (DF-1/4/5 closed; DF-6 AgentLoop Gemma XML).
+> - **P3** 8B-A1B bake-off (next).
 > - **P4** architecture / known-gaps / CI.
 >
-> Gates: root **4932 passed / 11 skipped / 0 failed** (459 files), desktop **971 passed** (112 files), installer pytest green, lint + `tsc -b` clean.
+> Gates: root **4944 passed / 11 skipped / 0 failed** (459 files), desktop **971 passed** (112 files), installer pytest green, lint + `tsc -b` clean.
 
 > **v1.18.0 RELEASED (2026-08-17)** -- all 7 phases of [v1.18.0-adoption-agent-harness-and-governance.md](v1/v1.18/plans/v1.18.0-adoption-agent-harness-and-governance.md) landed on `develop`; package.json / CHANGELOG / README cut as **v1.18.0**. Known-gaps [finalized](v1/v1.18/known-gaps.md) (14 open DF). Cycle: skill-native Hub mappings + llama.cpp recipe, live harness selector, catalog/MCP governance, ask inbox + scheduler, loopback ACP, OS process sandbox.
 > - **P1** Hub `agent-presets` / `browser-testing-with-devtools` coverage notes + llama.cpp loopback recipe.

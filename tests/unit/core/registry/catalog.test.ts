@@ -406,7 +406,9 @@ describe("catalog", () => {
     expect(lfm?.origin).toBe("USA");
     expect(lfm?.sizeGB).toBe(1.67);
     expect(lfm?.vramGB).toBe(3);
-    expect(lfm?.contextWindow).toBe(32_768);
+    expect(lfm?.contextWindow).toBe(128_000);
+    expect(lfm?.toolCallingVerified).toBe(true);
+    expect(lfm?.toolCallingBenchmark?.suite).toBe("nexus-harness-ab-lfm-local");
     expect(lfm?.license).toBe("LFM Open License v1.0");
     expect(lfm?.licenseUrl).toMatch(/^https:\/\//);
     expect(lfm?.licenseNote).toMatch(/10M/i);

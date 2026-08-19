@@ -353,17 +353,17 @@
       "releaseDate": "2026-08-04",
       "origin": "USA",
       "agentic": true,
-      "description": "Liquid AI's LFM2.5-2.6B is a 2.6B-parameter agentic model from the USA. It is designed for on-device planning, tool calling, and multi-step tasks. The Q4_K_M GGUF is 1.67 GB and stays responsive on a 3 GB GPU, or even with no dedicated GPU at all. Context is recorded as 32K pending Phase 2 empirical verification of the 128K claim.",
+      "description": "Liquid AI's LFM2.5-2.6B is a 2.6B-parameter agentic model from the USA. It is designed for on-device planning, tool calling, and multi-step tasks. The Q4_K_M GGUF is 1.67 GB and stays responsive on a 3 GB GPU, or even with no dedicated GPU at all. Context is 128K (GGUF native window, confirmed by a local Ollama generate with num_ctx=131072 on a short prompt).",
       "strengths": [
         "Tool-calling agentic workflows on CPU-only or sub-4 GB machines",
         "Multi-step planning at a 1.67 GB download",
         "Dedicated Agentic-tab pick below the 7B coder floor"
       ],
       "whyRecommended": "The only dedicated agentic (tool-calling) catalog entry that fits CPU-only hosts and sub-4 GB GPUs.",
-      "differentiators": "Fills the sub-4 GB agentic gap: Q4_K_M GGUF at 1.67 GB, CPU-capable, with an LFM Open License v1.0 commercial-use cap (see the license note). Context length is recorded conservatively at 32K until Phase 2 verifies the 128K claim.",
+      "differentiators": "Fills the sub-4 GB agentic gap: Q4_K_M GGUF at 1.67 GB, CPU-capable, with an LFM Open License v1.0 commercial-use cap (see the license note). Context is 128K.",
       "sizeGB": 1.67,
       "vramGB": 3,
-      "contextWindow": 32768,
+      "contextWindow": 128000,
       "license": "LFM Open License v1.0",
       "licenseUrl": "https://www.liquid.ai/lfm-license",
       "licenseNote": "Apache-2.0-based, royalty-free. Fine-tunes may stay proprietary. Free commercial use is limited to entities under USD 10M annual revenue; a commercial license is required above that. Qualified non-profits are exempt. This is a use restriction, not a download gate.",
@@ -383,6 +383,12 @@
         ]
       },
       "tags": ["recommended"],
+      "toolCallingVerified": true,
+      "toolCallingBenchmark": {
+        "suite": "nexus-harness-ab-lfm-local",
+        "date": "2026-08-18",
+        "result": "pass: local Ollama GGUF emitted a pythonic tool_call_start span; lfm-pythonic parser A/B net win vs gemma4-xml on captured fixtures (not a hosted eval)"
+      },
       "provenance": "Official Liquid AI GGUF, Q4_K_M, ungated Hugging Face repo LiquidAI/LFM2.5-2.6B-GGUF. Pulled at install time from the official repo via Ollama's hf.co bridge; Nexus does not redistribute weights."
     },
     {

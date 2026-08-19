@@ -4,6 +4,30 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-18] v1.19.0 adoption-liquid-lfm-agentic -- Phase 2: LFM harness profile
+
+### Goal
+
+Give the coding orchestrator an LFM-aware harness profile, A/B-validated on captured tool-call fixtures, and correct the catalog context length from the conservative 32K placeholder.
+
+### What was done
+
+- **Characterization (local Ollama, N1)**: Pulled `hf.co/LiquidAI/LFM2.5-2.6B-GGUF:Q4_K_M`. Live emission: think tags, then `<|tool_call_start|>[get_candidate_status(candidate_id='12345')]<|tool_call_end|>`. GGUF `lfm2.context_length` is 128000; short-prompt generate accepted `num_ctx=131072`.
+- **Parser / prompt**: `lfm-pythonic` in [`ToolCallFormat.ts`](../modules/coding/llm/ToolCallFormat.ts); `lfm` ChatML + `startoftext` in [`PromptFormat.ts`](../modules/coding/llm/PromptFormat.ts).
+- **Selector**: additive `lfm-agentic` profile keyed on family `lfm2.5` / id `lfm2.5:2.6b`. Fixture A/B net win vs default gemma4-xml; profile kept. Global `HARNESS_SELECTOR_SHIPPED_DEFAULT` stays false.
+- **Catalog**: Coding `ModelCatalog` + `models.json` list LFM. `catalog.json` context 128000; `toolCallingVerified` with suite `nexus-harness-ab-lfm-local`. Sidecar `ModelFamily` includes `lfm2.5`.
+- **Gaps**: DF-1, DF-4, DF-5 closed. DF-6 opened (AgentLoop still Gemma XML).
+
+### Tests
+
+Root **4944 passed / 11 skipped / 0 failed**. Desktop **971 passed**. Installer catalog pytest green. Lint + `tsc -b` clean. `check-catalog.py` 41 models.
+
+### Next
+
+Phase 3: 8B-A1B bake-off vs qwen2.5-coder:14b and deepseek-coder-v2:16b. `is_final_phase` false.
+
+---
+
 ## [2026-08-18] v1.19.0 adoption-liquid-lfm-agentic -- Phase 1: catalog entry + license label
 
 ### Goal
