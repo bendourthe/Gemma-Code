@@ -444,6 +444,20 @@ describe("catalog", () => {
     }
   });
 
+  it("does not catalog LFM2.5-8B-A1B after the Phase 3 decline", async () => {
+    const file = await loadCatalog();
+    expect(findSpec(file, "lfm2.5:8b-a1b")).toBeUndefined();
+    expect(file.models.some((m) => /8b-a1b/i.test(m.id))).toBe(false);
+    const recommendedPath = path.resolve("core/registry/recommended.json");
+    const recommended = JSON.parse(await fs.readFile(recommendedPath, "utf8")) as {
+      tiers: Record<string, { agentic?: string[]; chat?: string[] }>;
+    };
+    for (const tier of Object.values(recommended.tiers)) {
+      const ids = [...(tier.agentic ?? []), ...(tier.chat ?? [])];
+      expect(ids.some((id) => /8b-a1b/i.test(id))).toBe(false);
+    }
+  });
+
   it("every user-facing description is non-empty and names its origin (v1.9.0 Phase 2)", async () => {
     const file = await loadCatalog();
     const userFacing = file.models.filter(

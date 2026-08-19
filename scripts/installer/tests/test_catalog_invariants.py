@@ -111,6 +111,12 @@ class TestLfmLowVramAgentic:
         )
         assert any("official" in p for p in validate_catalog({"models": [source]}))
 
+    def test_phase3_decline_keeps_8b_a1b_out_of_the_repo_catalog(self) -> None:
+        catalog = _load_repo_catalog()
+        ids = [str(m.get("id")) for m in catalog["models"] if isinstance(m, dict)]
+        assert "lfm2.5:8b-a1b" not in ids
+        assert not any("8b-a1b" in i.lower() for i in ids)
+
 
 class TestValidateCatalog:
     def test_empty_models_is_flagged(self) -> None:

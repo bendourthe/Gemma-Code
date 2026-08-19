@@ -73,6 +73,11 @@ describe("ModelCatalog", () => {
     }
   });
 
+  it("does not list LFM2.5-8B-A1B after the Phase 3 decline", () => {
+    expect(ModelCatalog.byId("lfm2.5:8b-a1b")).toBeUndefined();
+    expect(ModelCatalog.listLlm().some((e) => /8b-a1b/i.test(e.id))).toBe(false);
+  });
+
   it("stays in sync with the canonical core/registry/models.json", () => {
     const jsonPath = resolve(__dirname, "../../../../core/registry/models.json");
     const raw = JSON.parse(readFileSync(jsonPath, "utf8")) as {

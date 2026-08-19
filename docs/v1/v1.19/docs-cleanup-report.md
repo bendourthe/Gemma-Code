@@ -13,8 +13,8 @@ This phase created no scratch docs. No files were moved or deleted. Session hist
 | Cat 1 (delete) | 0 |
 | Cat 2 (archive) | 0 |
 | Cat 3 (stale-flag) | 0 |
-| Cat 4 (active) | 8 |
-| **Total** | **8** |
+| Cat 4 (active) | 10 |
+| **Total** | **10** |
 
 ## Dispositions
 
@@ -28,6 +28,8 @@ This phase created no scratch docs. No files were moved or deleted. Session hist
 | docs/v1/v1.19/docs-cleanup-report.md | Cat 4 | self | (keep) | This report |
 | docs/v1/v1.19/development/history/2026-08-18_phase-1-catalog-entry-and-license-label.md | Cat 4 | active version | (keep) | Phase 1 session history |
 | docs/v1/v1.19/development/history/2026-08-18_phase-2-lfm-harness-profile.md | Cat 4 | active version | (keep) | Phase 2 session history |
+| docs/v1/v1.19/development/history/2026-08-18_phase-3-8b-a1b-bake-off.md | Cat 4 | active version | (keep) | Phase 3 session history |
+| docs/v1/v1.19/development/2026-08-18_lfm25-8b-a1b-bake-off.md | Cat 4 | active version | (keep) | Phase 3 bake-off record (DECLINE) |
 
 ## Cat 3 refresh queue
 

@@ -1,12 +1,12 @@
 # Nexus - Progress Dashboard
 
-**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (v1.19.0 Phase 2 in flight on `develop`; v1.18.0 cut; tag / push / GitHub Release behind confirmation).
+**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (v1.19.0 Phase 3 landed on `develop`; Phase 4 next; v1.18.0 cut; tag / push / GitHub Release behind confirmation).
 
-> **v1.19.0 IN FLIGHT (2026-08-18)** -- Phases 1-2 of [v1.19.0-adoption-liquid-lfm-agentic.md](v1/v1.19/plans/v1.19.0-adoption-liquid-lfm-agentic.md) landed on `develop`. Known-gaps [in-progress](v1/v1.19/known-gaps.md) (3 open DF). Cycle: LFM2.5-2.6B low-VRAM Agentic catalog + license label, then harness profile, then 8B-A1B bake-off.
+> **v1.19.0 IN FLIGHT (2026-08-18)** -- Phases 1-3 of [v1.19.0-adoption-liquid-lfm-agentic.md](v1/v1.19/plans/v1.19.0-adoption-liquid-lfm-agentic.md) landed on `develop`. Known-gaps [in-progress](v1/v1.19/known-gaps.md) (4 open DF). Cycle: LFM2.5-2.6B low-VRAM Agentic catalog + license label, harness profile, 8B-A1B bake-off declined.
 > - **P1** `lfm2.5:2.6b` catalog entry, cpu/8 agentic defaults, LFM Open License v1.0 use-restriction label (ungated).
 > - **P2** `lfm-agentic` harness profile, pythonic parser, 128K context, Coding ModelCatalog row (DF-1/4/5 closed; DF-6 AgentLoop Gemma XML).
-> - **P3** 8B-A1B bake-off (next).
-> - **P4** architecture / known-gaps / CI.
+> - **P3** 8B-A1B **DECLINE** (win not demonstrated). Watchlist: VL variants, PII-extract Nano. DF-7.
+> - **P4** architecture / known-gaps / CI (next).
 >
 > Gates: root **4944 passed / 11 skipped / 0 failed** (459 files), desktop **971 passed** (112 files), installer pytest green, lint + `tsc -b` clean.
 

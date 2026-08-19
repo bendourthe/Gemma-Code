@@ -10,14 +10,14 @@ Plan: [plans/v1.19.0-adoption-liquid-lfm-agentic.md](plans/v1.19.0-adoption-liqu
 
 ## v1.19.0
 
-**Summary**: 3 open items after Phase 2 (LFM harness profile) - 0 NI, 3 DF, 0 MT. No suppressed warnings, no bypassed gates.
+**Summary**: 4 open items after Phase 3 (8B-A1B bake-off declined) - 0 NI, 4 DF, 0 MT. No suppressed warnings, no bypassed gates.
 
 ### Summary
 
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 3 | 3 |
+| Deferred (DF) | 4 | 3 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
@@ -47,6 +47,13 @@ Plan: [plans/v1.19.0-adoption-liquid-lfm-agentic.md](plans/v1.19.0-adoption-liqu
 - **Plan reference**: `docs/v1/v1.19/plans/v1.19.0-adoption-liquid-lfm-agentic.md` (sub-task 2.2)
 - **Reason**: [`ToolCallFormat.ts`](../../../modules/coding/llm/ToolCallFormat.ts) now has `lfm-pythonic`, and `HarnessSelector` pins it on the LFM overlay. [`AgentLoop`](../../../src/tools/AgentLoop.ts) and [`HeadlessAgentSession`](../../../modules/coding/runtime/HeadlessAgentSession.ts) still call `Gemma4ToolFormat.parseToolCalls`. That is pre-existing for Llama/Qwen/DeepSeek as well. Listing LFM in Coding `ModelCatalog` does not yet make the live agent execute LFM tool calls.
 - **Suggested next step**: Dispatch `getToolCallFormat(entry.toolFormat).parse` from the composition root (or a model-aware `ToolCallParser`) without changing Gemma's path when `toolFormat` is `gemma4-xml`.
+
+##### DF-7 - LFM2.5-8B-A1B catalog row declined this cycle (win not demonstrated)
+
+- **Source phase**: Phase 3 - 8B-A1B bake-off (A2)
+- **Plan reference**: `docs/v1/v1.19/plans/v1.19.0-adoption-liquid-lfm-agentic.md` (sub-task 3.1)
+- **Reason**: Pre-committed rule requires a measured golden-task quality/GB win against `qwen2.5-coder:14b` and `deepseek-coder-v2:16b`. That three-model local run was not completed (8B-A1B GGUF not pulled; DeepSeek 16B not installed). `not_observed != absent`. No catalog row. Record: [development/2026-08-18_lfm25-8b-a1b-bake-off.md](development/2026-08-18_lfm25-8b-a1b-bake-off.md).
+- **Suggested next step**: Re-open only with a dated pass_rate/vramGB table for all three local GGUFs on the same golden split. Do not add the row on vendor blog numbers.
 
 ### Resolved
 

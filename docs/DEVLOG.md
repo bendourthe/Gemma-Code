@@ -4,6 +4,29 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-18] v1.19.0 adoption-liquid-lfm-agentic -- Phase 3: 8B-A1B bake-off declined
+
+### Goal
+
+Close LFM2.5-8B-A1B with a pre-committed rule: catalog row only on a golden-task quality-per-GB win vs `qwen2.5-coder:14b` and `deepseek-coder-v2:16b`.
+
+### What was done
+
+- **Rule**: `pass_rate / vramGB` on the same local golden split. Tie is not a win. Vendor tok/s / ToolSandbox / BFCL are not evidence.
+- **Run**: not completed. This host had Qwen 14B installed; DeepSeek 16B and the official 8B-A1B Q4_K_M GGUF (5.16 GB) were not local. No pass_rate table. `not_observed != absent`.
+- **Verdict**: **DECLINE**. No catalog / recommended / ModelCatalog row. Absence guards in catalog tests + installer invariants.
+- **Watchlist**: LFM2.5-VL deferred (existing multimodal coverage); PII-extract Nano deferred (possible future `redactSecrets` aid). Note: [`docs/v1/v1.19/development/2026-08-18_lfm25-8b-a1b-bake-off.md`](v1/v1.19/development/2026-08-18_lfm25-8b-a1b-bake-off.md).
+
+### Tests
+
+Root **4947 passed / 11 skipped / 0 failed**. Desktop **971 passed**. Installer catalog pytest green. Lint + `tsc -b` clean. `check-catalog.py` 41 models.
+
+### Next
+
+Phase 4: architecture / known-gaps / CI. Then `/update release`.
+
+---
+
 ## [2026-08-18] v1.19.0 adoption-liquid-lfm-agentic -- Phase 2: LFM harness profile
 
 ### Goal
