@@ -78,6 +78,13 @@ sha256sum -c --ignore-missing SHA256SUMS.txt
 
 Everything lands under your user account (no admin rights needed for the wizard itself); user data lives in `~/.nexus`.
 
+## After you install (v1.19.1)
+
+- **Security posture**: Settings > Security, or `"nexus.coding.securityPosture"`. Default `standard`. `unattended` skips CONFIRM-tier prompts only; `run_terminal` still confirms; hard-denied commands (`rm -rf`, `git push --force`, `DROP TABLE`) never run. This is not a no-floor mode.
+- **LoopGuards**: auto-mode stops after five identical consecutive tool calls, an error burst, a bounded extra-call queue, or 60 iterations. Headless sidecar does not yet construct LoopGuards (DF-3).
+- **watch_path / hash_file**: read-only workspace tools. Paths outside the project root are rejected.
+- **Hub skills**: grounded-citation, persona-card, and avatar-prep prose live on Nexus-Hub branch `feat/v1.19.1-skill-native-wins`. Merge that branch, then `nexus skills sync --apply` (DF-2). Mapping: [skill-native-adoptions-v1.19.1.md](reference/skill-native-adoptions-v1.19.1.md).
+
 ## After you install (v1.19.0)
 
 - **LFM2.5-2.6B**: on CPU and 8 GB agentic recommended lists as `lfm2.5:2.6b`. The installer pulls it through Ollama from `hf.co/LiquidAI/LFM2.5-2.6B-GGUF:Q4_K_M`. The card shows LFM Open License v1.0 (USD 10M commercial cap) as a use restriction, not a download gate.

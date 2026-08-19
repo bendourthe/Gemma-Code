@@ -4,6 +4,26 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-19] v1.19.1 cut
+
+### Goal
+
+Ship v1.19.1: version bump, changelog, README What's new, tag, GitHub Release.
+
+### What was done
+
+- Bumped `package.json` / lockfile / `desktop/src-tauri/tauri.conf.json` to **1.19.1**.
+- CHANGELOG `[1.19.1]` covers Phase 1 (Hub skill-native wins) and Phase 2 (loop + guardrail hardening).
+- README What's new documents hard denials, LoopGuards, the Strict/Standard/Unattended dial, provenance, DNS pin, and watch/hash.
+- Opt-in gate: `nexus.coding.securityPosture` (default `standard`). Unattended skips CONFIRM only; DANGEROUS still confirms; hard denials still apply.
+- Known-gaps file stays in-progress for v1.19.2 (v1.19.1 DF-1..DF-5 remain).
+
+### Next
+
+v1.19.2 catalog and model expansion.
+
+---
+
 ## [2026-08-19] v1.19.1 agent-loop-and-guardrail-hardening -- Phase 2: loop + guardrails
 
 ### Goal

@@ -6,7 +6,7 @@
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
-Plans: [v1.19.0](plans/v1.19.0-adoption-liquid-lfm-agentic.md) (cut), [v1.19.1](plans/v1.19.1-adoption-agent-loop-and-guardrail-hardening.md) (Phase 2 complete, awaiting `/update release`), [v1.19.2](plans/v1.19.2-adoption-catalog-and-model-expansion.md).
+Plans: [v1.19.0](plans/v1.19.0-adoption-liquid-lfm-agentic.md) (cut), [v1.19.1](plans/v1.19.1-adoption-agent-loop-and-guardrail-hardening.md) (cut), [v1.19.2](plans/v1.19.2-adoption-catalog-and-model-expansion.md).
 
 Carry-forward source: [../v1.18/known-gaps.md](../v1.18/known-gaps.md) (v1.18.0 cycle items stay in that file; this cycle does not close them). Sibling subplans [v1.19.1](plans/v1.19.1-adoption-agent-loop-and-guardrail-hardening.md) and [v1.19.2](plans/v1.19.2-adoption-catalog-and-model-expansion.md) keep this file in-progress after the v1.19.0 plan's Phase 4 reconciliation.
 
@@ -173,4 +173,4 @@ _Last updated: 2026-08-19 (v1.19.0 tagged)._
 
 Hard denials, LoopGuards, self-recovery, compression tail, posture dial, provenance screening, DNS pin, watch/hash, and prompt assembler all shipped. No NI, BG, WN, MT, or QG this phase. File stays in-progress for v1.19.2.
 
-_Last updated: 2026-08-19 (v1.19.1 Phase 2)._
+_Last updated: 2026-08-19 (v1.19.1 tagged)._

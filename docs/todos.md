@@ -1,7 +1,13 @@
 # Nexus - Progress Dashboard
 
-**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (v1.19.0 cut on `develop`; tag / GitHub Release in this `/update release` pass; v1.19.1 / v1.19.2 remain).
+**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (v1.19.1 cut on `develop`; v1.19.2 remains).
 
+> **v1.19.1 RELEASED (2026-08-19)** -- both phases of [v1.19.1-adoption-agent-loop-and-guardrail-hardening.md](v1/v1.19/plans/v1.19.1-adoption-agent-loop-and-guardrail-hardening.md) landed on `develop`; package.json / CHANGELOG / README cut as **v1.19.1**. Known-gaps [in-progress](v1/v1.19/known-gaps.md) (v1.19.1: 5 DF; file stays open for v1.19.2). Cycle: Hub skill-native wins + agent-loop / guardrail hardening.
+> - **P1** Hub grounded-citation, persona-card, avatar-prep / transcript-reasoning. Chat persona field is DF-1. Hub merge/sync is DF-2.
+> - **P2** HARD_DENIALS, LoopGuards, edit noop / near-miss / spill scrub, user-message compaction tail, Strict/Standard/Unattended posture, origin screening, DNS pin, watch_path/hash_file, ToolPromptAssembler.
+>
+> Gates: root **5054 passed / 11 skipped / 0 failed** (466 files), coverage 87.71% / 84.02% / 91.27%, lint + `tsc -b` clean. Opt-in: `nexus.coding.securityPosture` (default `standard`; Unattended is not no-floor).
+>
 > **v1.19.0 RELEASED (2026-08-19)** -- all 4 phases of [v1.19.0-adoption-liquid-lfm-agentic.md](v1/v1.19/plans/v1.19.0-adoption-liquid-lfm-agentic.md) landed on `develop`; package.json / CHANGELOG / README cut as **v1.19.0**. Known-gaps [reconciled, in-progress](v1/v1.19/known-gaps.md) (8 open DF; file stays open for v1.19.1 / v1.19.2). Cycle: LFM2.5-2.6B low-VRAM Agentic catalog + license label, harness profile, 8B-A1B bake-off declined.
 > - **P1** `lfm2.5:2.6b` catalog entry, cpu/8 agentic defaults, LFM Open License v1.0 use-restriction label (ungated).
 > - **P2** `lfm-agentic` harness profile, pythonic parser, 128K context, Coding ModelCatalog row (DF-1/4/5 closed; DF-6 AgentLoop Gemma XML).

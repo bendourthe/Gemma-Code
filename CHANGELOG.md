@@ -1,3 +1,22 @@
+# [1.19.1](https://github.com/bendourthe/Nexus-AI/compare/v1.19.0...v1.19.1) (2026-08-19)
+
+
+### Features
+
+* **v1.19.1:** Hub skill-native wins: grounded citations, persona cards, avatar-prep and transcript-reasoning (Phase 1) ([3f68051](https://github.com/bendourthe/Nexus-AI/commit/3f68051))
+* **v1.19.1:** harden agent loop, denials, posture, and provenance (Phase 2) ([ddbb258](https://github.com/bendourthe/Nexus-AI/commit/ddbb258))
+
+
+### Opt-in surfaces
+
+#### Security posture dial (`nexus.coding.securityPosture`)
+
+- Activation: set `"nexus.coding.securityPosture": "strict" | "standard" | "unattended"` in settings, or the matching VS Code / desktop Security tab control. Default is `standard`.
+- Validation: with Standard, CONFIRM-tier tools still prompt. With Unattended, a CONFIRM-tier tool proceeds without that prompt, but `run_terminal` (DANGEROUS) still prompts and `rm -rf /` is still blocked. With Strict, more prompts and all tool output is screened.
+- Rollback: set the setting back to `"standard"`. No files outside settings are written.
+- Authority: this only changes confirmation frequency and screening strictness. It does not drop the PermissionTiers floor, does not allow hard-denied commands, does not auto-approve DANGEROUS tools, and does not open a network port. Unattended is not a no-floor mode.
+- Docs: [README](README.md#whats-new-in-v1191), [ARCHITECTURE.md](ARCHITECTURE.md#agent-loop-and-guardrail-hardening-v1191-phase-2).
+
 # [1.19.0](https://github.com/bendourthe/Nexus-AI/compare/v1.18.0...v1.19.0) (2026-08-19)
 
 
