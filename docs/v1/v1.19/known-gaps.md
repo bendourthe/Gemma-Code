@@ -6,7 +6,7 @@
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
-Plan: [plans/v1.19.0-adoption-liquid-lfm-agentic.md](plans/v1.19.0-adoption-liquid-lfm-agentic.md)
+Plans: [v1.19.0](plans/v1.19.0-adoption-liquid-lfm-agentic.md) (cut), [v1.19.1](plans/v1.19.1-adoption-agent-loop-and-guardrail-hardening.md) (Phase 1 complete), [v1.19.2](plans/v1.19.2-adoption-catalog-and-model-expansion.md).
 
 Carry-forward source: [../v1.18/known-gaps.md](../v1.18/known-gaps.md) (v1.18.0 cycle items stay in that file; this cycle does not close them). Sibling subplans [v1.19.1](plans/v1.19.1-adoption-agent-loop-and-guardrail-hardening.md) and [v1.19.2](plans/v1.19.2-adoption-catalog-and-model-expansion.md) keep this file in-progress after the v1.19.0 plan's Phase 4 reconciliation.
 
@@ -113,4 +113,39 @@ v1.18 items (DF-1..8, DF-10..15) stay in [../v1.18/known-gaps.md](../v1.18/known
 
 No release-blockers. Remaining v1.19.0 work is later-cycle (parser dispatch, 8B-A1B re-run, VL/PII watchlist).
 
-_Last updated: 2026-08-19 (v1.19.0 tagged; file in-progress for v1.19.1 / v1.19.2)._
+_Last updated: 2026-08-19 (v1.19.0 tagged)._
+
+## v1.19.1
+
+**Summary**: 2 open items after Phase 1 (skill-native wins) - 0 NI, 2 DF, 0 MT. No suppressed warnings, no bypassed gates. Engine code unchanged this phase.
+
+### Summary
+
+| Category | Open | Resolved |
+|---|---|---|
+| Not implemented (NI) | 0 | 0 |
+| Deferred (DF) | 2 | 0 |
+| Bugs / regressions (BG) | 0 | 0 |
+| Warnings (WN) | 0 | 0 |
+| Missing tests / coverage gaps (MT) | 0 | 0 |
+| Quality-gate gaps (QG) | 0 | 0 |
+
+### Open Items
+
+#### Deferred
+
+##### DF-1 - Per-chat persona field is not in Chat settings
+
+- **Source phase**: Phase 1 - Persona-card prompting (1.2)
+- **Plan reference**: `docs/v1/v1.19/plans/v1.19.1-adoption-agent-loop-and-guardrail-hardening.md` (sub-task 1.2)
+- **Reason**: Chat `Chat` records expose title, modelId, folderId, and contextScopeId only. There is no system-prompt field to map a persona card onto. The Hub `prompt-engineering` / `creative-generation` skills document the workaround (paste the card as the first user message and keep it in the thread). Building the field here would have been a UI build, which the plan forbids.
+- **Suggested next step**: Add a per-chat persona / system-prompt field in the v2.0.0 Chat phases (Airi comparison stretch), then point the Hub skill mapping at that field.
+
+##### DF-2 - Hub skill edits are authored but not yet merged or synced
+
+- **Source phase**: Phase 1 - Skill-native wins (1.1-1.3)
+- **Plan reference**: `docs/v1/v1.19/plans/v1.19.1-adoption-agent-loop-and-guardrail-hardening.md` (sub-tasks 1.1-1.3, 1.5)
+- **Reason**: Grounded-citation, persona-card, avatar-prep, and transcript-reasoning prose landed on Nexus-Hub branch `feat/v1.19.1-skill-native-wins` (commit `451e508f`) and passed `validate_skills.py --quality`. They are not on Hub `develop` / `main` and are not yet in a `nexus skills sync` catalog. CI in this repository cannot see Hub skill bodies; it asserts the Nexus-AI mapping note and the no-duplicate builtin check.
+- **Suggested next step**: Merge the Hub branch, then `nexus skills sync --apply` so `~/.nexus-ai/catalog/skills/` carries the new sections. Do not vendor copies under `modules/coding/skills/catalog/`.
+
+_Last updated: 2026-08-19 (v1.19.1 Phase 1)._

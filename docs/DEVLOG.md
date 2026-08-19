@@ -4,6 +4,34 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-19] v1.19.1 agent-loop-and-guardrail-hardening -- Phase 1: skill-native wins
+
+### Goal
+
+Land every zero-code adoption first: grounded citations, persona cards, avatar-prep and transcript prompting, plus four verify-only dedups. No engine code.
+
+### What was done
+
+- **Hub skills** (Nexus-Hub branch `feat/v1.19.1-skill-native-wins`): `deep-research-compilation` gained quote-verification plus a fact-check pass (flag `[UNVERIFIED QUOTE]` / `[UNSUPPORTED]`, do not fabricate). `prompt-engineering` and `creative-generation` gained persona-card prompting. `creative-generation` also gained talking-head avatar prep and transcript-reasoning, both labelled "when available" for the v2.0.0 avatar mode and audio bridge. Hub `validate_skills.py --quality` PASS on all three (0 errors, 0 warnings).
+- **Nexus-AI docs**: [docs/reference/skill-native-adoptions-v1.19.1.md](reference/skill-native-adoptions-v1.19.1.md) records the three edits and the four verify-only evidence lines. Chat has no per-chat system-prompt field; the skill maps a persona card onto the first kept user message.
+- **Verify-only**: (a) `nexus skills sync` + SkillCatalog roots; (b) `AgentRunScheduler` already shipped in v1.18.0; (c) Hub `continuous-learning`; (d) Hub catalog 271 skills, no Atomic playbook import.
+- **Tests**: `tests/unit/docs/v1.19.1-phase-1-reference.test.ts` (links, mapping claims, no duplicate builtin skills).
+
+### Decisions
+
+- Deliverable split matches v1.5.0 / v1.18.0: Hub owns skill bodies; this repo owns the mapping note and does not vendor duplicates.
+- Per-chat persona UI is DF-1 for v2.0.0 Chat phases, not a Phase 1 build.
+
+### Tests
+
+Root Vitest with coverage: 460 files passed / 3 skipped; 4950 tests passed / 11 skipped / 0 failed. Lines 87.8% / branches 83.9% / functions 91.5% (thresholds 80 / 75 / 80). Lint 0. `tsc -b` clean. `check:prompts` 0 errors (two pre-existing oversized warnings on `review-pr` / `council`). Benchmark fixtures rewritten by an unrelated suite were restored (`git checkout -- tests/fixtures`).
+
+### Next
+
+Phase 2: agent-loop and guardrail hardening (hard denials, LoopGuards, self-recovery, compression, posture dial, provenance, DNS pin, watch/hash, introspected prompts).
+
+---
+
 ## [2026-08-19] v1.19.0 cut
 
 ### Goal
