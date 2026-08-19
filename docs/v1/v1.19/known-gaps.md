@@ -2,7 +2,7 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-18
+**Last updated**: 2026-08-19
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
@@ -113,4 +113,4 @@ v1.18 items (DF-1..8, DF-10..15) stay in [../v1.18/known-gaps.md](../v1.18/known
 
 No release-blockers. Remaining v1.19.0 work is later-cycle (parser dispatch, 8B-A1B re-run, VL/PII watchlist).
 
-_Last updated: 2026-08-18 (v1.19.0 plan Phase 4 reconciled; file in-progress for v1.19.1 / v1.19.2)._
+_Last updated: 2026-08-19 (v1.19.0 tagged; file in-progress for v1.19.1 / v1.19.2)._

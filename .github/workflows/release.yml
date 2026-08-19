@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: "Existing tag to attach assets to (e.g. v1.18.0)"
+        description: "Existing tag to attach assets to (e.g. v1.19.0)"
         required: true
         type: string
 

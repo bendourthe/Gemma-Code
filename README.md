@@ -6,7 +6,7 @@
 
 Nexus is a local-first, native desktop AI Studio that bundles four generative AI pillars behind one cohesive UI: agentic coding, organized local chat, image generation and editing, and short-form video synthesis. Everything runs on the host machine against optimized open-source models (Gemma 4, Llama 3, Qwen 2.5 Coder, SDXL / SANA-class diffusion, video-synthesis architectures), with real-time GPU / VRAM telemetry built into the dashboard. No API keys, no data leaving your machine, no per-token billing.
 
-> **Renamed from Gemma Code at v1.0.0** to reflect the four-pillar pivot. The v0.1.0 - v0.22.x line shipped as a single-purpose local agentic coding VS Code extension; v1.0.0 folded that engine into the "Agentic AI Coding" pillar of a wider desktop app. The VS Code surface is preserved as an optional thin adapter that proxies to the desktop daemon. Historical Gemma Code docs remain under `docs/archive/versions/v0/v0.1.0/` - `docs/archive/versions/v0/v0.9.0/`; every product milestone since the pivot is documented under `docs/v1/v1.<MINOR>/`, from the v1.0.0 pivot through the current **v1.18.0** cycle. Releases are cut on the same milestone version line - see [Project Status](#project-status-august-2026).
+> **Renamed from Gemma Code at v1.0.0** to reflect the four-pillar pivot. The v0.1.0 - v0.22.x line shipped as a single-purpose local agentic coding VS Code extension; v1.0.0 folded that engine into the "Agentic AI Coding" pillar of a wider desktop app. The VS Code surface is preserved as an optional thin adapter that proxies to the desktop daemon. Historical Gemma Code docs remain under `docs/archive/versions/v0/v0.1.0/` - `docs/archive/versions/v0/v0.9.0/`; every product milestone since the pivot is documented under `docs/v1/v1.<MINOR>/`, from the v1.0.0 pivot through the current **v1.19.0** cycle. Releases are cut on the same milestone version line - see [Project Status](#project-status-august-2026).
 
 ---
 
@@ -75,7 +75,7 @@ A persistent `Local Model Status` panel reports the active model architecture, p
 
 ## Project Status (August 2026)
 
-Nexus uses a single, convergent version line: git tags and `package.json` carry the same `v1.<MINOR>.<PATCH>` numbers as the milestone docs under `docs/v1/v1.<MINOR>/`. This track runs from the v1.0.0 pivot through the current **v1.18.0** release.
+Nexus uses a single, convergent version line: git tags and `package.json` carry the same `v1.<MINOR>.<PATCH>` numbers as the milestone docs under `docs/v1/v1.<MINOR>/`. This track runs from the v1.0.0 pivot through the current **v1.19.0** release.
 
 Historical note: between 2026-06-18 and 2026-07-20 a decoupled "release track" cut five semantic-release versions numbered ahead of the milestones. Those tags were renumbered onto the milestone line on 2026-08-05: `v2.0.0` -> `v1.6.0` (GA consolidating v1.4.0 -> v1.6.0), `v2.1.0` -> `v1.7.0`, `v2.2.0` -> `v1.12.0` (consolidating v1.8.0 -> v1.12.0), `v2.3.0` -> `v1.13.0`, and `v2.4.0` -> `v1.14.0`. The version **v2.0.0 is reserved for the convergence release** that ships once the v1.18 plan, the v1.19.x subplans, and the v2.0 adoption plan are all complete (see `docs/v2/v2.0/plans/`).
 
@@ -102,22 +102,20 @@ Historical note: between 2026-06-18 and 2026-07-20 a decoupled "release track" c
 | v1.16.0 | Local serving gateway + document OCR: opt-in loopback OpenAI/Anthropic API in front of installed models, per-model tokens/sec and TTFT on Traces, RapidOCR (CPU) + Unlimited-OCR (NVIDIA) in the catalog, a governed `parse_document` tool, MLX-via-adapters how-to, and a searchable Models page with Chat/Coding quick switcher | Landed | [docs/v1/v1.16/](docs/v1/v1.16/) |
 | v1.17.0 | Agent-state motion identity: internal orbs, surface-liveness beam, and hero-action metal ring (no new npm packages), one primary motion per surface, recede-when-active ambient glow, halt-not-slow reduced-motion | Landed | [docs/v1/v1.17/](docs/v1/v1.17/) |
 | v1.18.0 | Agent harness and governance: skill-native mappings, llama.cpp loopback recipe, live harness selector, catalog/registry governance, ask inbox + scheduler, ACP surface, OS process sandbox | Landed | [docs/v1/v1.18/](docs/v1/v1.18/) |
-| v1.19.0 | Low-VRAM Agentic catalog: LFM2.5-2.6B CPU / sub-4 GB tool-calling pick, LFM Open License v1.0 use-restriction label, harness profile, 8B-A1B bake-off declined | Phases 1-4 landed (release next) | [docs/v1/v1.19/](docs/v1/v1.19/) |
+| v1.19.0 | Low-VRAM Agentic catalog: LFM2.5-2.6B CPU / sub-4 GB tool-calling pick, LFM Open License v1.0 use-restriction label, harness profile, 8B-A1B bake-off declined | Landed | [docs/v1/v1.19/](docs/v1/v1.19/) |
 
 Each cycle's plan lives under `docs/v1/v1.<MINOR>/plans/`, its deferred work under `docs/v1/v1.<MINOR>/known-gaps.md`, and benchmarks (where run) under `docs/v1/v1.<MINOR>/benchmarks/`.
 
-### What's new in v1.18.0
+### What's new in v1.19.0
 
-Agent harness, governance, and confinement. Local-only. No new outbound surfaces. OpenWorker, Open Interpreter, and Laguna are design references only (no vendored code).
+Low-VRAM Agentic catalog. Local-only. No new outbound surfaces. Liquid AI LFM is a model-library adoption (catalog + harness), not a vendor SDK.
 
-- **Skill-native mappings** - morning-brief *content* is Hub `agent-presets` / `morning-briefing`; browser GUI QA is Hub `browser-testing-with-devtools`. llama.cpp is a documented loopback-adapter recipe, not a bundled runtime.
-- **Live harness selector** - opt-in (`nexus.coding.harnessSelector.enabled`). Named family profiles (`plan-first`, `structured-edit`, `concise-loop`, `minimal`). Inspect or switch with `/harness`. Shipped default stays off until a live weak-model A/B.
-- **Catalog and MCP governance** - additive `toolCallingVerified` plus MoE `activeParams` / `totalParams`. Per-tool MCP deny tightens Hub policy only. Extreme-low-bit and patient-tier gates stay closed.
-- **Ask inbox + scheduler** - headless and scheduled CONFIRM/DANGEROUS tools park in `~/.nexus/ask-inbox.json`. Desktop `/inbox` panel, pending badge. Approve replays the permission gate. Local scheduler; morning brief off by default; no auto-approve.
-- **ACP agent** - opt-in (`nexus.acp.enabled`) on the same loopback listener and token as the local API server (`POST /acp`). Unattended confirms park; without an inbox they fail-closed.
-- **OS process sandbox** - opt-in (`nexus.coding.execSandbox`). Seatbelt / Landlock+seccomp / Windows job object around `run_terminal`. Off or missing backend is loud **unconfined**. Windows is `partial` (no kernel FS/network).
+- **LFM2.5-2.6B** - CPU / sub-4 GB Agentic pick (`lfm2.5:2.6b`). Installer pulls `hf.co/LiquidAI/LFM2.5-2.6B-GGUF:Q4_K_M` (SHA-256 pinned). First on the cpu agentic recommended list, second on 8 GB. 12/16/24 GB tiers stay Gemma-preferred.
+- **LFM Open License v1.0** - visible use-restriction label (USD 10M commercial cap). Ungated download (`requiresLicense: false`). Not a Hugging Face gate.
+- **`lfm-agentic` harness** - family profile (concise, thinking on, pythonic tool spans). Coding `ModelCatalog` lists the row. Context 128K from GGUF metadata. Live `AgentLoop` still parses Gemma XML until a later dispatch cycle (DF-6).
+- **8B-A1B declined** - no catalog row. Quality-per-GB win vs Qwen 14B and DeepSeek 16B was not demonstrated. VL variants and PII-extract Nano stay on the watchlist.
 
-v1.17.0 already shipped the internal motion identity (orbs, beam, metal, halt-not-slow reduced-motion). v1.16.0 already shipped the local API server, document OCR, per-model analytics, model library, and MLX-via-adapters how-to.
+v1.18.0 already shipped the live harness selector (opt-in), ask inbox, ACP, and OS process sandbox. This release changes no opt-in capability, installer flag, or host surface.
 
 ---
 

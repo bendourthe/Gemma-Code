@@ -4,6 +4,26 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-19] v1.19.0 cut
+
+### Goal
+
+Ship v1.19.0: version bump, changelog, README What's new, tag, GitHub Release.
+
+### What was done
+
+- Bumped `package.json` / lockfile / `desktop/src-tauri/tauri.conf.json` to **1.19.0**.
+- CHANGELOG `[1.19.0]` covers Phases 1-4 plus the two v1.18 sandbox/CI fixes that landed after `v1.18.0`.
+- README What's new documents LFM2.5-2.6B, the license label, the harness profile, and the 8B-A1B decline.
+- Opt-in gate: this release changes no opt-in capability, installer flag, or host surface.
+- Known-gaps file stays in-progress for v1.19.1 / v1.19.2.
+
+### Next
+
+v1.19.1 agent-loop and guardrail hardening.
+
+---
+
 ## [2026-08-18] v1.19.0 adoption-liquid-lfm-agentic -- Phase 4: refactor, known-gaps, CI
 
 ### Goal

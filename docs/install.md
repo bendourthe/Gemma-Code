@@ -78,6 +78,12 @@ sha256sum -c --ignore-missing SHA256SUMS.txt
 
 Everything lands under your user account (no admin rights needed for the wizard itself); user data lives in `~/.nexus`.
 
+## After you install (v1.19.0)
+
+- **LFM2.5-2.6B**: on CPU and 8 GB agentic recommended lists as `lfm2.5:2.6b`. The installer pulls it through Ollama from `hf.co/LiquidAI/LFM2.5-2.6B-GGUF:Q4_K_M`. The card shows LFM Open License v1.0 (USD 10M commercial cap) as a use restriction, not a download gate.
+- **8B-A1B is not in the catalog.** A quality-per-GB bake-off vs Qwen 14B and DeepSeek 16B was not completed; the row stays out until a dated local table shows a win.
+- **Harness**: if you enable the existing `nexus.coding.harnessSelector.enabled` toggle, LFM uses the `lfm-agentic` profile. The live coding loop still parses Gemma XML (DF-6); listing the model does not by itself execute pythonic tool calls.
+
 ## After you install (v1.18.0)
 
 - **llama.cpp on loopback**: Nexus does not bundle llama.cpp. If you already run `llama-server` on `127.0.0.1`, register it as `nexus.llm.localAdapters` and set `nexus.llm.backend` to the manifest name. Recipe: [llamacpp-loopback-adapter.md](reference/llamacpp-loopback-adapter.md). This does not enable the patient-tier catalog gate.

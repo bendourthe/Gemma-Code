@@ -1,3 +1,32 @@
+# [1.19.0](https://github.com/bendourthe/Nexus-AI/compare/v1.18.0...v1.19.0) (2026-08-19)
+
+
+### Features
+
+* **v1.19.0:** LFM2.5-2.6B as the low-VRAM Agentic catalog pick (Phase 1) ([58e2293](https://github.com/bendourthe/Nexus-AI/commit/58e2293))
+* **v1.19.0:** LFM-aware harness profile and pythonic tool parser (Phase 2) ([6a8e3f0](https://github.com/bendourthe/Nexus-AI/commit/6a8e3f0))
+
+
+### Bug Fixes
+
+* **sandbox:** parse Seatbelt profiles and stage one Linux bundle ([f8c619e](https://github.com/bendourthe/Nexus-AI/commit/f8c619e))
+* **ci:** unblock CI sandbox tests and catalog sync ([afcb0b8](https://github.com/bendourthe/Nexus-AI/commit/afcb0b8))
+
+
+### Documentation
+
+* **v1.19.0:** decline LFM2.5-8B-A1B until a local quality-per-GB win ([9f89f6d](https://github.com/bendourthe/Nexus-AI/commit/9f89f6d))
+
+
+### Continuous Integration
+
+* **v1.19.0:** path-filter installer tests and run desktop vitest on develop ([976cee5](https://github.com/bendourthe/Nexus-AI/commit/976cee5))
+
+
+### Opt-in surfaces
+
+This release changes no opt-in capability, installer flag, or host surface.
+
 # [1.18.0](https://github.com/bendourthe/Nexus-AI/compare/v1.17.0...v1.18.0) (2026-08-17)
 
 
