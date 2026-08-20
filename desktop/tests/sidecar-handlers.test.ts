@@ -104,6 +104,15 @@ describe("sidecar handlers", () => {
           "generation.queue.cancel",
           "generation.queue.reorder",
           "generation.queue.pendingCount",
+          // v2.1.0 Phase 5 wired the Unsloth Core fine-tuning pillar.
+          "tuning.status",
+          "tuning.provision",
+          "tuning.preflight",
+          "tuning.dataset.build",
+          "tuning.job.start",
+          "tuning.job.list",
+          "tuning.job.cancel",
+          "tuning.models.list",
           // v1.10.0 Phase 6 wired the Nexus-Hub catalog sync + update detection.
           "skills.sync",
           "skills.status",

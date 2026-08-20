@@ -93,6 +93,15 @@ export const IPC_METHODS = [
   "generation.queue.cancel",
   "generation.queue.reorder",
   "generation.queue.pendingCount",
+  // v2.1.0 Phase 5 -- local Unsloth Core fine-tuning pillar.
+  "tuning.status",
+  "tuning.provision",
+  "tuning.preflight",
+  "tuning.dataset.build",
+  "tuning.job.start",
+  "tuning.job.list",
+  "tuning.job.cancel",
+  "tuning.models.list",
 ] as const;
 
 export type Method = (typeof IPC_METHODS)[number];
@@ -759,6 +768,140 @@ export const GenerationQueueReorderResponse = z.object({ ok: z.literal(true) }).
 export const GenerationQueuePendingCountRequest = z.object({}).strict();
 export const GenerationQueuePendingCountResponse = z
   .object({ count: z.number().int().nonnegative() })
+  .strict();
+
+// ---- v2.1.0 Phase 5 -- local fine-tuning pillar -----------------------------
+
+export const TuningProvisionStatus = z.enum(["pending", "ready", "failed", "unsupported"]);
+export const TuningJobState = z.enum([
+  "queued",
+  "running",
+  "interrupted",
+  "done",
+  "failed",
+  "quarantined",
+  "export-failed",
+]);
+
+export const TuningJobDto = z
+  .object({
+    id: z.string(),
+    baseModelId: z.string(),
+    datasetId: z.string(),
+    datasetPath: z.string(),
+    state: TuningJobState,
+    error: z.string().nullable(),
+    checkpointPath: z.string().nullable(),
+    exportPath: z.string().nullable(),
+    evalDelta: z.number().nullable(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .strict();
+
+export const TuningEmptyRequest = z.object({}).strict();
+
+export const TuningPinDto = z
+  .object({
+    name: z.string(),
+    version: z.string().optional(),
+    license: z.string(),
+  })
+  .strict();
+
+export const TuningStatusResponse = z
+  .object({
+    supported: z.boolean(),
+    reason: z.string(),
+    provisionStatus: TuningProvisionStatus,
+    provisionError: z.string().nullable(),
+    vramGB: z.number(),
+    gpuVendor: z.string(),
+    osFamily: z.string(),
+    pins: z.array(TuningPinDto),
+  })
+  .strict();
+
+export const TuningProvisionResponse = TuningStatusResponse.extend({
+  ok: z.boolean(),
+});
+
+export const TuningPreflightResponse = z
+  .object({
+    ok: z.boolean(),
+    message: z.string(),
+  })
+  .strict();
+
+export const TuningDatasetBuildRequest = z
+  .object({
+    sources: z.array(z.string().min(1)).min(1),
+    id: z.string().min(1).optional(),
+  })
+  .strict();
+
+export const TuningSkipReport = z
+  .object({
+    path: z.string(),
+    reason: z.string(),
+  })
+  .strict();
+
+export const TuningChatTurn = z
+  .object({
+    role: z.enum(["system", "user", "assistant"]),
+    content: z.string(),
+  })
+  .strict();
+
+export const TuningDatasetBuildResponse = z
+  .object({
+    id: z.string(),
+    outputPath: z.string(),
+    written: z.number().int().nonnegative(),
+    redacted: z.number().int().nonnegative(),
+    skipped: z.array(TuningSkipReport),
+    preview: z.array(z.object({ messages: z.array(TuningChatTurn) }).strict()),
+  })
+  .strict();
+
+export const TuningJobStartRequest = z
+  .object({
+    id: z.string().min(1).optional(),
+    baseModelId: z.string().min(1),
+    datasetId: z.string().min(1),
+    datasetPath: z.string().min(1),
+  })
+  .strict();
+
+export const TuningJobStartResponse = z.object({ job: TuningJobDto }).strict();
+
+export const TuningJobListRequest = z
+  .object({ states: z.array(TuningJobState).optional() })
+  .strict();
+export const TuningJobListResponse = z.object({ jobs: z.array(TuningJobDto) }).strict();
+
+export const TuningJobCancelRequest = z.object({ id: z.string().min(1) }).strict();
+export const TuningJobCancelResponse = z
+  .object({ job: TuningJobDto.nullable() })
+  .strict();
+
+export const TuningModelsListRequest = z
+  .object({ hostVramGB: z.number().nonnegative().optional() })
+  .strict();
+
+export const TuningBaseModelDto = z
+  .object({
+    id: z.string(),
+    displayName: z.string(),
+    codingEligible: z.boolean(),
+    vision: z.boolean(),
+    requiredVramGB: z.number().nullable(),
+  })
+  .strict();
+
+export const TuningModelsListResponse = z
+  .object({ models: z.array(TuningBaseModelDto) })
   .strict();
 
 // ---- v1.1.0 Phase 11 -- VS Code extension surface ---------------------------
@@ -1794,6 +1937,46 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
   "generation.queue.pendingCount": {
     request: GenerationQueuePendingCountRequest,
     response: GenerationQueuePendingCountResponse,
+    implemented: true,
+  },
+  "tuning.status": {
+    request: TuningEmptyRequest,
+    response: TuningStatusResponse,
+    implemented: true,
+  },
+  "tuning.provision": {
+    request: TuningEmptyRequest,
+    response: TuningProvisionResponse,
+    implemented: true,
+  },
+  "tuning.preflight": {
+    request: TuningEmptyRequest,
+    response: TuningPreflightResponse,
+    implemented: true,
+  },
+  "tuning.dataset.build": {
+    request: TuningDatasetBuildRequest,
+    response: TuningDatasetBuildResponse,
+    implemented: true,
+  },
+  "tuning.job.start": {
+    request: TuningJobStartRequest,
+    response: TuningJobStartResponse,
+    implemented: true,
+  },
+  "tuning.job.list": {
+    request: TuningJobListRequest,
+    response: TuningJobListResponse,
+    implemented: true,
+  },
+  "tuning.job.cancel": {
+    request: TuningJobCancelRequest,
+    response: TuningJobCancelResponse,
+    implemented: true,
+  },
+  "tuning.models.list": {
+    request: TuningModelsListRequest,
+    response: TuningModelsListResponse,
     implemented: true,
   },
 };

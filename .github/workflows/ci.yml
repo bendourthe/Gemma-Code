@@ -366,7 +366,8 @@ jobs:
   # v1.16.0 Phase 3 (adoption item A5). `tests/python/` had NO CI job at all:
   # the ~135 diffusion-runtime tests added in v1.0.0 Phase 6 have only ever been
   # run by hand. Adding the OCR runtime made that gap load-bearing, so this job
-  # covers diffusion, OCR, and (v2.0.0 Phase 1) the audio STT/TTS stub.
+  # covers diffusion, OCR, (v2.0.0 Phase 1) the audio STT/TTS stub, and
+  # (v2.1.0 Phase 5) the Unsloth train.py --stub path.
   #
   # No GPU, no model weights, and no CUDA stack: the runtimes import every heavy
   # dependency lazily and ship stub engines, so `health`, `version`, the

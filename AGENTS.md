@@ -68,6 +68,8 @@ core/                       v1.0.0 shared-core surfaces (Phase 2.3 + 2.6)
                               validation (v2.1.0 Phase 4)
   image/                     PNG workflow metadata + replace-the-X intent
                               parser (v2.1.0 Phase 3-4)
+  tuning/                    Unsloth Core pins, dataset builder, QLoRA job
+                              store, eval gate (v2.1.0 Phase 5)
 
 modules/                    per-pillar code (one folder per pillar)
   coding/                    Agentic AI Coding (engine still in src/ during the

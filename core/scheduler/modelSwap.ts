@@ -22,7 +22,7 @@ export interface ModelSwapInput {
    */
   readonly freeVramGB: number | null;
   /** Module of the currently running GPU job, if any. */
-  readonly activeModule?: "coding" | "chat" | "image" | "video" | null;
+  readonly activeModule?: "coding" | "chat" | "image" | "video" | "tuning" | null;
   /** True when an image/video generation job is occupying the GPU. */
   readonly diffusionActive?: boolean;
   /** True when the cheap worker is believed still resident. */
@@ -68,6 +68,15 @@ export function evaluateModelSwap(input: ModelSwapInput): ModelSwapDecision {
     input.diffusionActive === true ||
     input.activeModule === "image" ||
     input.activeModule === "video";
+  const tuningActive = input.activeModule === "tuning";
+
+  if (tuningActive && free < toVram) {
+    return {
+      outcome: "deferred",
+      keepWorkerResident: Boolean(input.workerResident),
+      reason: "tuning-occupying-vram",
+    };
+  }
 
   if (diffusionActive && free < toVram) {
     return {

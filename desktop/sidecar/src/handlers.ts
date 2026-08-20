@@ -38,6 +38,12 @@ import {
   GenerationQueueListRequest,
   GenerationQueuePendingCountRequest,
   GenerationQueueReorderRequest,
+  TuningEmptyRequest,
+  TuningDatasetBuildRequest,
+  TuningJobStartRequest,
+  TuningJobListRequest,
+  TuningJobCancelRequest,
+  TuningModelsListRequest,
   ModelsInstallRequest,
   ModelsRemoveRequest,
   ModelsInstallDrainRequest,
@@ -123,6 +129,7 @@ import {
   takeCompletions,
   type StudioRuntime,
 } from "./generations/studioRuntime.js";
+import { createTuningRuntime, type TuningRuntime } from "./tuning/runtime.js";
 import {
   type CredentialVault,
   createCredentialVault,
@@ -205,6 +212,8 @@ export interface HandlerContext {
   scheduler?: AgentRunScheduler;
   /** v2.1.0 Phase 3 -- generation index + persistent queue. */
   studio?: StudioRuntime;
+  /** v2.1.0 Phase 5 -- Unsloth Core fine-tuning. */
+  tuning?: TuningRuntime;
 }
 
 /** How many individual request records the Traces panel receives per poll. */
@@ -297,6 +306,13 @@ function resolveStudio(ctx: HandlerContext): StudioRuntime {
     ctx.studio = createStudioRuntime({ dbPath: ":memory:" });
   }
   return ctx.studio;
+}
+
+function resolveTuning(ctx: HandlerContext): TuningRuntime {
+  if (!ctx.tuning) {
+    ctx.tuning = createTuningRuntime();
+  }
+  return ctx.tuning;
 }
 
 function jobDto(job: {
@@ -951,6 +967,41 @@ export const handlers: Record<Method, HandlerFn> = {
   "generation.queue.pendingCount": async (params, ctx) => {
     GenerationQueuePendingCountRequest.parse(params ?? {});
     return { count: resolveStudio(ctx).queue.pendingCount() };
+  },
+  "tuning.status": async (params, ctx) => {
+    TuningEmptyRequest.parse(params ?? {});
+    return resolveTuning(ctx).status();
+  },
+  "tuning.provision": async (params, ctx) => {
+    TuningEmptyRequest.parse(params ?? {});
+    return resolveTuning(ctx).provision();
+  },
+  "tuning.preflight": async (params, ctx) => {
+    TuningEmptyRequest.parse(params ?? {});
+    return resolveTuning(ctx).preflight();
+  },
+  "tuning.dataset.build": async (params, ctx) => {
+    const req = TuningDatasetBuildRequest.parse(params ?? {});
+    return resolveTuning(ctx).buildDataset(req);
+  },
+  "tuning.job.start": async (params, ctx) => {
+    const req = TuningJobStartRequest.parse(params ?? {});
+    const job = await resolveTuning(ctx).startJob(req);
+    return { job };
+  },
+  "tuning.job.list": async (params, ctx) => {
+    const req = TuningJobListRequest.parse(params ?? {});
+    return { jobs: resolveTuning(ctx).listJobs(req.states) };
+  },
+  "tuning.job.cancel": async (params, ctx) => {
+    const req = TuningJobCancelRequest.parse(params ?? {});
+    const job = resolveTuning(ctx).cancelJob(req.id);
+    return { job: job ?? null };
+  },
+  "tuning.models.list": async (params, ctx) => {
+    const req = TuningModelsListRequest.parse(params ?? {});
+    const models = await resolveTuning(ctx).listBaseModels(req.hostVramGB);
+    return { models };
   },
 };
 

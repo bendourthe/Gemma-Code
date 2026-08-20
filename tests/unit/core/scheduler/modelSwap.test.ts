@@ -43,6 +43,18 @@ describe("evaluateModelSwap", () => {
     expect(d.reason).toBe("diffusion-occupying-vram");
   });
 
+  it("defers when a QLoRA job occupies VRAM that would OOM the swap", () => {
+    const d = evaluateModelSwap({
+      fromVramGB: 8,
+      toVramGB: 20,
+      freeVramGB: 4,
+      activeModule: "tuning",
+      workerResident: true,
+    });
+    expect(d.outcome).toBe("deferred");
+    expect(d.reason).toBe("tuning-occupying-vram");
+  });
+
   it("defers when VRAM telemetry is unavailable", () => {
     const d = evaluateModelSwap({
       fromVramGB: 8,

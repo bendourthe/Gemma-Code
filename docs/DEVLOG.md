@@ -4,6 +4,33 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-20] v2.1.0 Phase 5: local fine-tuning (Unsloth Core)
+
+### Goal
+
+License-gated QLoRA on user data: installer/Settings provision Apache Unsloth Core (plus required LGPL zoo), dataset builder through `redactSecrets`, job orchestration with eval quarantine, GGUF export.
+
+### What was done
+
+- License record: `unsloth` 2026.8.18 Apache-2.0; `unsloth-zoo` 2026.8.13 LGPL-3.0-or-later; Studio/CLI extras AGPL and excluded. STOP did not fire.
+- `core/tuning/`: pins, hardware gate, dataset builder, job store, eval gate, orchestrator, base-model picker, Node provisioner.
+- Installer `UnslothVenvProvisioner` (opt-in, not in `chain_for`). Sidecar IPC `tuning.status|provision|preflight|dataset.build|job.start|list|cancel|models.list`. Settings > Fine-tuning tab.
+- GpuScheduler `moduleId: "tuning"`. CI trainer is `--stub`. Live GPU is documented, not proven.
+
+### Tests
+
+Root `core/tuning` units green. Desktop Fine-tuning UI + IPC green. Installer provisioner pytest green. Python stub trainer 2 passed. `tsc -b` clean.
+
+### Deviations
+
+LGPL zoo (DF-12). No live GPU train (DF-13). PDF skip (DF-14). Provision not on default installer chain (DF-15). EvalPort stub (DF-16). Ollama import opt-in (DF-17).
+
+### Next
+
+Phase 6 hardening. Local commit only.
+
+---
+
 ## [2026-08-20] v2.1.0 Phase 4: multimodal chat + SAM2 replace-the-X
 
 ### Goal

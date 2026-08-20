@@ -1,6 +1,6 @@
 # Docs cleanup audit - v2.1.0
 
-**Last audit**: 2026-08-20 (Phase 4)
+**Last audit**: 2026-08-20 (Phase 5)
 **Mode**: audit (no files moved)
 
 ## Layout
@@ -23,7 +23,10 @@ Added `development/history/2026-08-20_phase-3-studio-provenance-queue.md`. Updat
 
 Added `development/history/2026-08-20_phase-4-multimodal-chat-sam2.md`. Updated plan checklist, known-gaps (DF-8 through DF-11), DEVLOG, README What's new, ARCHITECTURE Chat + SAM2 sections, AGENTS.md `core/chat/` and `core/image/` layout lines.
 
+## Phase 5
+
+Added `development/unsloth-license-boundary.md`, `development/history/2026-08-20_phase-5-local-fine-tuning.md`, `ci-hardware-gates.md`. Updated plan checklist, known-gaps (DF-12 through DF-17), DEVLOG, README What's new, ARCHITECTURE fine-tuning section, AGENTS.md `core/tuning/` layout line.
+
 ## Recommendation
 
 Leave as-is. No archive or rename.
-

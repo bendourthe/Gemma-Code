@@ -2,10 +2,11 @@
  * v1.0.0 Phase 8.1 -- GpuScheduler.
  *
  * Cross-module FIFO GPU job queue. The four Nexus pillars (Coding, Chat,
- * Image, Video) all contend for a single consumer-class GPU; this scheduler
- * serializes their requests so two pipelines never race for VRAM. The
- * scheduler is a shared-core service: any pillar that needs GPU time
- * `enqueue()`s a `GpuJob` and receives a `JobHandle`.
+ * Image, Video) plus the Fine-tuning trainer all contend for a single
+ * consumer-class GPU; this scheduler serializes their requests so two
+ * pipelines never race for VRAM. The scheduler is a shared-core service:
+ * any pillar that needs GPU time `enqueue()`s a `GpuJob` and receives a
+ * `JobHandle`.
  *
  * Foreground-module-wins: callers tell the scheduler which module the user
  * is currently looking at via `setForegroundModule(id)`. Pending jobs whose
@@ -54,7 +55,7 @@ import {
   type ModelSwapDecision,
 } from "./modelSwap.js";
 
-export type GpuModuleId = "coding" | "chat" | "image" | "video";
+export type GpuModuleId = "coding" | "chat" | "image" | "video" | "tuning";
 
 export type JobPriority = "foreground" | "background";
 

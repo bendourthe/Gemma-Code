@@ -15,7 +15,7 @@ Plan: [plans/v2.1.0-adoption-open-local-ai-wave.md](plans/v2.1.0-adoption-open-l
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 10 | 1 |
+| Deferred (DF) | 17 | 1 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
@@ -98,6 +98,48 @@ Plan: [plans/v2.1.0-adoption-open-local-ai-wave.md](plans/v2.1.0-adoption-open-l
 - **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 4.1)
 - **Reason**: `recordMultimodalTurn` and the optional `ChatPage.memoryHub` prop are tested. `App.tsx` does not pass a hub, so production turns are not indexed.
 - **Suggested next step**: Pass the sidecar-backed MemoryHub (or a Chat-scoped episodic store) into `ChatPage` so retrieve matches the redacted caption.
+
+##### DF-12 - Required Unsloth zoo is LGPL, not Apache-only
+
+- **Source phase**: Phase 5 - License-boundary verification (5.1)
+- **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 5.1)
+- **Reason**: `unsloth` 2026.8.18 is Apache-2.0 but requires `unsloth-zoo` 2026.8.13 (LGPL-3.0-or-later). The plan STOP condition is AGPL on a required component; zoo is not AGPL. Studio/CLI extras stay excluded. Decision record: `docs/v2/v2.1/development/unsloth-license-boundary.md`.
+- **Suggested next step**: Revisit if Unsloth publishes an Apache-licensed zoo, or document the LGPL dynamic-link posture in the installer EULA copy.
+
+##### DF-13 - Live Unsloth QLoRA was not run on GPU
+
+- **Source phase**: Phase 5 - QLoRA orchestration (5.4 / 5.5)
+- **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 5.4)
+- **Reason**: CI uses `stubTrainer` and `runtimes/tuning/train.py --stub`. `NEXUS_TUNING_LIVE=1` is documented. No 16 GB NVIDIA host ran a real `import unsloth` train this cycle. not_run != pass.
+- **Suggested next step**: On a supported host, provision from Settings, run a tiny JSONL job with `NEXUS_TUNING_LIVE=1`, and record the wall-clock plus peak VRAM.
+
+##### DF-14 - Dataset builder skips PDF files
+
+- **Source phase**: Phase 5 - Dataset builder (5.3)
+- **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 5.3)
+- **Reason**: PDF extraction is not wired. Files ending in `.pdf` are skipped with a per-file report so the rest of the dataset continues.
+- **Suggested next step**: Route PDFs through the existing OCR/`parse_document` spine, then `redactSecrets`, instead of adding a second PDF stack.
+
+##### DF-15 - Training runtime is not on the default installer chain
+
+- **Source phase**: Phase 5 - Installer provisioning (5.2)
+- **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 5.2)
+- **Reason**: `UnslothVenvProvisioner` is opt-in (`opt_in=False` by default) and is not listed in `chain_for`. Settings > Fine-tuning can provision post-install. A clean-machine NVIDIA harness run was not executed this cycle.
+- **Suggested next step**: Add an installer checkbox that sets `opt_in=True` and appends the provisioner to `chain_for` when the host passes `training_supported`.
+
+##### DF-16 - Eval gate uses an injected stub, not GoldenTaskRunner
+
+- **Source phase**: Phase 5 - QLoRA eval gate (5.4)
+- **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 5.4)
+- **Reason**: `core/tuning` must not import `modules/coding`. The sidecar injects `EvalPort` with equal stub scores (or `NEXUS_TUNING_EVAL_*`). Regression quarantine is unit-tested; live golden-task comparison is not.
+- **Suggested next step**: Sidecar-only adapter that calls `GoldenTaskRunner` on base vs adapter tags after GGUF import.
+
+##### DF-17 - GGUF-to-Ollama import is opt-in
+
+- **Source phase**: Phase 5 - QLoRA re-import (5.4)
+- **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 5.4)
+- **Reason**: Default sidecar runtime does not spawn `ollama create`. Jobs can reach `done` with an export path and no registry row. An injected `OllamaImportPort` covers the export-failed path in tests.
+- **Suggested next step**: After a passing eval, write a Modelfile and run `ollama create`, then reuse v1.15.0 registry reconciliation.
 
 ### Resolved
 

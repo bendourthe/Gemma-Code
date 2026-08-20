@@ -16,6 +16,7 @@ import { createIpcSkillsClient } from "./pages/settings/ipcSkillsClient";
 import { createIpcSkillOptimizerClient } from "./pages/settings/ipcSkillOptimizerClient";
 import { createIpcModelsClient } from "./pages/settings/ipcModelsClient";
 import { createIpcServingClient } from "./pages/settings/ipcServingClient";
+import { createIpcFineTuningClient } from "./pages/settings/ipcFineTuningClient";
 import { createIpcMcpRegistryClient } from "./pages/settings/ipcMcpRegistryClient";
 import { createIpcAskInboxClient } from "./pages/inbox/ipcAskInboxClient";
 import { AskInboxPanel } from "./pages/inbox/AskInboxPanel";
@@ -46,6 +47,7 @@ const modelsClient = createIpcModelsClient();
 // the real sidecar `serving.*` IPC (status + enable/disable of the loopback
 // OpenAI/Anthropic gateway). Constructed once at module load.
 const servingClient = createIpcServingClient();
+const fineTuningClient = createIpcFineTuningClient();
 const mcpClient = createIpcMcpRegistryClient();
 const askInboxClient = createIpcAskInboxClient();
 
@@ -161,6 +163,7 @@ function AppLayout({ telemetryStream }: AppProps): JSX.Element {
                   skillsClient={skillsClient}
                   skillOptimizerClient={skillOptimizerClient}
                   servingClient={servingClient}
+                  fineTuningClient={fineTuningClient}
                   mcpClient={mcpClient}
                   hostVramGB={hostVramGB}
                 />

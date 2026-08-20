@@ -12,6 +12,8 @@ import { CredentialsSettings } from "./CredentialsSettings";
 import type { CredentialsClient } from "./credentialsTypes";
 import { ServingSettings } from "./ServingSettings";
 import type { ServingClient } from "./servingTypes";
+import { FineTuningSettings } from "./FineTuningSettings";
+import type { FineTuningClient } from "./fineTuningTypes";
 import { McpRegistrySettings } from "./McpRegistrySettings";
 import type { McpRegistryClient } from "./mcpTypes";
 import { SecuritySettings, type SecuritySettingsClient } from "./SecuritySettings";
@@ -20,9 +22,10 @@ import { createMockSkillsClient } from "./mockSkillsClient";
 import { createMockSkillOptimizerClient } from "./mockSkillOptimizerClient";
 import { createMockCredentialsClient } from "./mockCredentialsClient";
 import { createMockServingClient } from "./mockServingClient";
+import { createMockFineTuningClient } from "./mockFineTuningClient";
 import { createMockMcpRegistryClient } from "./mockMcpRegistryClient";
 
-type SettingsTab = "models" | "skills" | "optimizer" | "credentials" | "serving" | "mcp" | "security";
+type SettingsTab = "models" | "skills" | "optimizer" | "credentials" | "serving" | "tuning" | "mcp" | "security";
 
 export interface SettingsPageProps {
   modelsClient?: ModelsClient;
@@ -31,6 +34,8 @@ export interface SettingsPageProps {
   credentialsClient?: CredentialsClient;
   /** v1.16.0 Phase 1.5 -- Local API server (serving gateway) section. */
   servingClient?: ServingClient;
+  /** v2.1.0 Phase 5 -- local Unsloth Core fine-tuning. */
+  fineTuningClient?: FineTuningClient;
   /** v1.18.0 Phase 3 (OW-A5) -- per-tool MCP deny. */
   mcpClient?: McpRegistryClient;
   securityClient?: SecuritySettingsClient;
@@ -45,6 +50,7 @@ export function SettingsPage({
   skillOptimizerClient,
   credentialsClient,
   servingClient,
+  fineTuningClient,
   mcpClient,
   securityClient,
   initialTab = "models",
@@ -70,6 +76,10 @@ export function SettingsPage({
   const serving = useMemo<ServingClient>(
     () => servingClient ?? createMockServingClient(),
     [servingClient],
+  );
+  const fineTuning = useMemo<FineTuningClient>(
+    () => fineTuningClient ?? createMockFineTuningClient(),
+    [fineTuningClient],
   );
   const mcp = useMemo<McpRegistryClient>(
     () => mcpClient ?? createMockMcpRegistryClient(),
@@ -121,6 +131,14 @@ export function SettingsPage({
         </button>
         <button
           type="button"
+          data-testid="settings-tab-tuning"
+          onClick={() => setTab("tuning")}
+          style={tabButtonStyle(tab === "tuning")}
+        >
+          Fine-tuning
+        </button>
+        <button
+          type="button"
           data-testid="settings-tab-mcp"
           onClick={() => setTab("mcp")}
           style={tabButtonStyle(tab === "mcp")}
@@ -144,6 +162,8 @@ export function SettingsPage({
         <SkillOptimizerSettings client={skillOptimizer} />
       ) : tab === "serving" ? (
         <ServingSettings client={serving} />
+      ) : tab === "tuning" ? (
+        <FineTuningSettings client={fineTuning} />
       ) : tab === "mcp" ? (
         <McpRegistrySettings client={mcp} />
       ) : tab === "security" ? (
