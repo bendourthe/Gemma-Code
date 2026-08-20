@@ -1,0 +1,119 @@
+/**
+ * v2.0.0 Phase 1 -- Chat voice loop (PTT / VAD / barge-in) with mocked audio.
+ */
+
+import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+
+import { ChatPage } from "../src/modules/chat/ChatPage";
+import { InMemoryChatExplorerClient } from "../src/modules/chat/chatExplorerClient";
+import { createInMemoryAudioClient } from "../src/modules/chat/audioClient";
+import type { ChatSessionClient } from "../src/modules/chat/chatIpcClient";
+import type { MicRecorder } from "../src/shared/chat/micRecorder";
+
+function fakeMic(): MicRecorder {
+  return {
+    async start() {
+      return;
+    },
+    async stop() {
+      return "data:audio/webm;base64,AAA";
+    },
+  };
+}
+
+describe("ChatPage voice loop", () => {
+  it("push-to-talk captures, transcribes, chats, and speaks offline", async () => {
+    const client = new InMemoryChatExplorerClient();
+    const folder = client.createFolder({ parentId: null, name: "Work" });
+    const chat = client.createChat({
+      folderId: folder.id,
+      title: "draft",
+      modelId: "gemma4:e4b",
+    });
+    const audio = createInMemoryAudioClient({
+      transcript: "[origin:stt_transcript]\nhello voice",
+    });
+    const played: string[] = [];
+    const chatSession: ChatSessionClient = {
+      start: async () => ({ sessionId: "s1", modelId: "gemma4:e4b", createdAt: "t" }),
+      sendMessage: async () => ({
+        sessionId: "s1",
+        events: [
+          { kind: "token", text: "spoken reply" },
+          { kind: "done", finishReason: "stop" },
+        ],
+      }),
+    };
+    const user = userEvent.setup();
+    render(
+      <ChatPage
+        client={client}
+        chatSession={chatSession}
+        audioClient={audio}
+        voiceMicRecorder={fakeMic()}
+        playAudio={async (url) => {
+          played.push(url);
+        }}
+      />,
+    );
+    await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
+    await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
+    fireEvent.click(screen.getByTestId("chat-voice-enabled"));
+    expect(screen.getByTestId("chat-voice-capture-indicator")).toHaveAttribute(
+      "data-visible",
+      "false",
+    );
+    fireEvent.mouseDown(screen.getByTestId("chat-voice-ptt"));
+    await waitFor(() =>
+      expect(screen.getByTestId("chat-voice-capture-indicator")).toHaveAttribute(
+        "data-visible",
+        "true",
+      ),
+    );
+    fireEvent.mouseUp(screen.getByTestId("chat-voice-ptt"));
+    expect(await screen.findByText("spoken reply")).toBeInTheDocument();
+    await waitFor(() => expect(played.length).toBeGreaterThan(0));
+    expect(audio.speakCalls.some((t) => t.includes("spoken reply"))).toBe(true);
+  });
+
+  it("VAD start shows the capture indicator until stop", async () => {
+    const client = new InMemoryChatExplorerClient();
+    const folder = client.createFolder({ parentId: null, name: "Work" });
+    const chat = client.createChat({
+      folderId: folder.id,
+      title: "draft",
+      modelId: "gemma4:e4b",
+    });
+    const user = userEvent.setup();
+    render(
+      <ChatPage
+        client={client}
+        chatSession={{
+          start: async () => ({ sessionId: "s1", modelId: "gemma4:e4b", createdAt: "t" }),
+          sendMessage: async () => ({
+            sessionId: "s1",
+            events: [{ kind: "token", text: "ok" }, { kind: "done", finishReason: "stop" }],
+          }),
+        }}
+        audioClient={createInMemoryAudioClient()}
+        voiceMicRecorder={fakeMic()}
+        playAudio={async () => undefined}
+      />,
+    );
+    await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
+    await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
+    fireEvent.click(screen.getByTestId("chat-voice-enabled"));
+    fireEvent.click(screen.getByTestId("chat-voice-mode-vad"));
+    fireEvent.click(screen.getByTestId("chat-voice-vad-toggle"));
+    await waitFor(() =>
+      expect(screen.getByTestId("chat-voice-capture-indicator")).toHaveAttribute(
+        "data-visible",
+        "true",
+      ),
+    );
+    fireEvent.click(screen.getByTestId("chat-voice-vad-toggle"));
+    expect(await screen.findByText("ok")).toBeInTheDocument();
+  });
+});

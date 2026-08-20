@@ -57,6 +57,7 @@ describe("nearMiss", () => {
 describe("tool result origin", () => {
   it("covers the closed taxonomy including reserved browser_snapshot", () => {
     expect(TOOL_RESULT_ORIGINS).toContain("browser_snapshot");
+    expect(TOOL_RESULT_ORIGINS).toContain("stt_transcript");
     expect(originForTool("fetch_page")).toBe("web_fetch");
     expect(originForTool("run_terminal")).toBe("terminal");
     expect(originForTool("mcp:server/tool")).toBe("mcp_tool");

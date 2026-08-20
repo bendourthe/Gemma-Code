@@ -25,7 +25,11 @@ export interface ChatSendResult {
 
 export interface ChatSessionClient {
   start(input: { modelId: string; title?: string }): Promise<ChatStartResult>;
-  sendMessage(input: { sessionId: string; message: string }): Promise<ChatSendResult>;
+  sendMessage(input: {
+    sessionId: string;
+    message: string;
+    images?: readonly string[];
+  }): Promise<ChatSendResult>;
 }
 
 /** Collapse the streamed token events into the assistant reply text. */
@@ -50,6 +54,7 @@ export function createChatIpcClient(): ChatSessionClient {
       const reply = await ipcCall<ChatSendResult>("chat.session.sendMessage", {
         sessionId: input.sessionId,
         message: input.message,
+        ...(input.images && input.images.length > 0 ? { images: input.images } : {}),
       });
       if (!reply.ok) throw new Error(reply.message);
       return reply.value;

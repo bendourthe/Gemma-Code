@@ -47,6 +47,12 @@ import {
   OcrJobCancelRequest,
   type OcrHealthResponseT,
   type OcrJobDrainResponseT,
+  AudioEmptyRequest,
+  AudioTranscribeRequest,
+  AudioSpeakRequest,
+  type AudioHealthResponseT,
+  type AudioTranscribeResponseT,
+  type AudioSpeakResponseT,
   SkillsSyncRequest,
   SkillsOptimizePreviewRequest,
   SkillsOptimizeApplyRequest,
@@ -111,6 +117,8 @@ import {
 } from "../../../core/observability/InferenceMetrics.js";
 import type { OcrRuntime } from "../../../core/documents/ocrRuntimeFactory.js";
 import { getSharedOcrRuntime } from "./ocr/sharedRuntime.js";
+import type { AudioRuntime } from "../../../core/audio/audioRuntimeFactory.js";
+import { getSharedAudioRuntime } from "./audio/sharedRuntime.js";
 import {
   listMcpRegistrySettings,
   setMcpRegistryToolDenied,
@@ -164,6 +172,11 @@ export interface HandlerContext {
    */
   ocr?: OcrRuntime;
   /**
+   * v2.0.0 Phase 1 -- local STT/TTS runtime. Optional so tests inject the
+   * in-memory client; production lazily builds on first `audio.*` call.
+   */
+  audio?: AudioRuntime;
+  /**
    * v1.18.0 Phase 3 (OW-A5) -- project root for per-project MCP tool deny.
    * Production uses `NEXUS_WORKSPACE` or `process.cwd()`; tests inject a temp dir.
    */
@@ -210,6 +223,10 @@ function resolveOcrRuntime(ctx: HandlerContext): OcrRuntime {
   return getSharedOcrRuntime(ctx.ocr);
 }
 
+function resolveAudioRuntime(ctx: HandlerContext): AudioRuntime {
+  return getSharedAudioRuntime(ctx.audio);
+}
+
 export type HandlerFn = (params: unknown, ctx: HandlerContext) => Promise<unknown>;
 
 export const DEFAULT_FFMPEG_CONTEXT: FfmpegContext = {
@@ -236,6 +253,8 @@ export function createHandlerContext(
   /** v1.16.0 Phase 3 -- left undefined so the Python child stays unspawned. */
   ocr?: OcrRuntime,
   workspacePath?: string,
+  /** v2.0.0 Phase 1 -- left undefined so the STT/TTS child stays unspawned. */
+  audio?: AudioRuntime,
 ): HandlerContext {
   return {
     ...base,
@@ -249,6 +268,7 @@ export function createHandlerContext(
     metrics,
     ocr,
     workspacePath,
+    audio,
   };
 }
 
@@ -399,6 +419,24 @@ export const handlers: Record<Method, HandlerFn> = {
     resolveOcrRuntime(ctx).parser.cancel(req.jobId);
     return { ok: true as const };
   },
+  "audio.health": async (params, ctx): Promise<AudioHealthResponseT> => {
+    AudioEmptyRequest.parse(params ?? {});
+    const client = resolveAudioRuntime(ctx);
+    return client.health();
+  },
+  "audio.transcribe": async (params, ctx): Promise<AudioTranscribeResponseT> => {
+    const req = AudioTranscribeRequest.parse(params ?? {});
+    const client = resolveAudioRuntime(ctx);
+    return client.transcribe({
+      audioBase64: req.audioBase64,
+      ...(req.mimeType ? { mimeType: req.mimeType } : {}),
+    });
+  },
+  "audio.speak": async (params, ctx): Promise<AudioSpeakResponseT> => {
+    const req = AudioSpeakRequest.parse(params ?? {});
+    const client = resolveAudioRuntime(ctx);
+    return client.speak({ text: req.text });
+  },
   "coding.startTask": async () => {
     throw new NotImplementedError("coding.startTask");
   },
@@ -445,7 +483,7 @@ export const handlers: Record<Method, HandlerFn> = {
   },
   "chat.session.sendMessage": async (params, ctx) => {
     const req = ChatSessionSendMessageRequest.parse(params ?? {});
-    const events = await ctx.chat.sendMessage(req.sessionId, req.message);
+    const events = await ctx.chat.sendMessage(req.sessionId, req.message, req.images);
     return { sessionId: req.sessionId, events };
   },
   "coding.chat.autocomplete": async () => {

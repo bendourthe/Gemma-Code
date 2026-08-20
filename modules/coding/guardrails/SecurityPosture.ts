@@ -133,7 +133,7 @@ export function mustScreenOrigin(
   origin: string,
   posture: SecurityPostureId,
 ): boolean {
-  if (origin === "web_fetch" || origin === "mcp_tool" || origin === "browser_snapshot") {
+  if (origin === "web_fetch" || origin === "mcp_tool" || origin === "browser_snapshot" || origin === "stt_transcript") {
     return true;
   }
   return SECURITY_POSTURE_POLICIES[posture].screenAllToolResults;

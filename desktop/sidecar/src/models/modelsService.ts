@@ -51,14 +51,16 @@ export interface ListedModelDto {
   tags?: readonly string[];
   absPath?: string;
   toolCallingVerified?: boolean;
-  toolCallingBenchmark?: {
-    readonly suite: string;
-    readonly date: string;
-    readonly result: string;
-  };
-  activeParams?: number;
-  totalParams?: number;
-}
+    toolCallingBenchmark?: {
+      readonly suite: string;
+      readonly date: string;
+      readonly result: string;
+    };
+    activeParams?: number;
+    totalParams?: number;
+    /** v2.0.0 Phase 1 -- catalog input modalities for Chat gating. */
+    modalities?: readonly ("text" | "image" | "audio")[];
+  }
 
 export interface DiskUsageDto {
   usedBytes: number;
@@ -193,6 +195,7 @@ function toDto(m: ListedModel): ListedModelDto {
     toolCallingBenchmark: m.toolCallingBenchmark,
     activeParams: m.activeParams,
     totalParams: m.totalParams,
+    modalities: m.modalities,
   };
 }
 

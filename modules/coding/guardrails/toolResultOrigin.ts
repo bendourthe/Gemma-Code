@@ -6,8 +6,8 @@
  * and must not be assigned by any v1.19 handler -- ARIA snapshots plug in
  * without a schema change.
  *
- * Screening: web_fetch, mcp_tool, and browser_snapshot are always screened
- * (never off). Other origins follow the security-posture dial.
+ * Screening: web_fetch, mcp_tool, browser_snapshot, and stt_transcript are
+ * always screened (never off). Other origins follow the security-posture dial.
  *
  * Boundary: vscode-free.
  */
@@ -19,6 +19,7 @@ export const TOOL_RESULT_ORIGINS = [
   "web_fetch",
   "mcp_tool",
   "browser_snapshot",
+  "stt_transcript",
 ] as const;
 
 export type ToolResultOrigin = (typeof TOOL_RESULT_ORIGINS)[number];

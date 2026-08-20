@@ -27,6 +27,9 @@ import { AccentBeam, type AccentBeamAccentToken } from "../../components/AccentB
 import { MetalAccent } from "../../components/MetalAccent";
 import { metalTokenFromCssVar } from "../../components/metalGl";
 import { MotionSurface, composerMotionCandidates } from "../../motion";
+import { isAudioDataUrl } from "./classifyAttachment";
+import type { MicRecorder } from "./micRecorder";
+import { createBrowserMicRecorder } from "./micRecorder";
 
 export interface MediaComposerProps {
   disabled?: boolean;
@@ -40,6 +43,21 @@ export interface MediaComposerProps {
   seededAttachment?: string | null;
   /** Traveling beam while a reply / generation is in flight. */
   streaming?: boolean;
+  /**
+   * v2.0.0 Phase 1 -- vision-chat image attach. Default true so Image Studio /
+   * Video Lab are unchanged. Chat passes false for text-only models.
+   */
+  imageEnabled?: boolean;
+  /** Tooltip when `imageEnabled` is false. */
+  imageDisabledReason?: string;
+  /**
+   * v2.0.0 Phase 1 -- audio file + mic capture. Off by default so studios do
+   * not grow a microphone control.
+   */
+  audioEnabled?: boolean;
+  audioHint?: string;
+  /** Tests inject a fake; production uses getUserMedia + MediaRecorder. */
+  micRecorder?: MicRecorder;
 }
 
 /**
@@ -99,12 +117,20 @@ export function MediaComposer({
   submitLabel = "Send",
   seededAttachment,
   streaming = false,
+  imageEnabled = true,
+  imageDisabledReason,
+  audioEnabled = false,
+  audioHint,
+  micRecorder: micRecorderOverride,
 }: MediaComposerProps): JSX.Element {
   const [text, setText] = useState("");
   const [attachments, setAttachments] = useState<string[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const [focused, setFocused] = useState(false);
+  const [recording, setRecording] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const micRecorderRef = useRef<MicRecorder | null>(micRecorderOverride ?? null);
+  if (micRecorderOverride) micRecorderRef.current = micRecorderOverride;
 
   useEffect(() => {
     if (seededAttachment) setAttachments((prev) => [...prev, seededAttachment]);
@@ -114,7 +140,12 @@ export function MediaComposer({
     if (!files || files.length === 0) return;
     // v1.16.0 Phase 3: filter against `accept` rather than a hardcoded `image/`,
     // so a composer configured for PDFs actually accepts them.
-    const accepted = Array.from(files).filter((f) => fileMatchesAccept(f, accept));
+    const accepted = Array.from(files).filter((f) => {
+      if (!fileMatchesAccept(f, accept)) return false;
+      if (!imageEnabled && f.type.startsWith("image/")) return false;
+      if (!audioEnabled && f.type.startsWith("audio/")) return false;
+      return true;
+    });
     if (accepted.length === 0) return;
     const urls = await readFilesAsDataUrls(accepted);
     setAttachments((prev) => [...prev, ...urls]);
@@ -132,7 +163,11 @@ export function MediaComposer({
     for (const item of Array.from(items)) {
       if (item.kind !== "file") continue;
       const file = item.getAsFile();
-      if (file && fileMatchesAccept(file, accept)) files.push(file);
+      if (file && fileMatchesAccept(file, accept)) {
+        if (!imageEnabled && file.type.startsWith("image/")) continue;
+        if (!audioEnabled && file.type.startsWith("audio/")) continue;
+        files.push(file);
+      }
     }
     if (files.length > 0) {
       e.preventDefault();
@@ -146,6 +181,26 @@ export function MediaComposer({
     e.preventDefault();
     setDragActive(false);
     void addFiles(e.dataTransfer?.files ?? null);
+  };
+
+  const toggleMic = async (): Promise<void> => {
+    if (!audioEnabled || disabled) return;
+    if (!micRecorderRef.current) {
+      micRecorderRef.current = createBrowserMicRecorder();
+    }
+    const recorder = micRecorderRef.current;
+    try {
+      if (recording) {
+        const url = await recorder.stop();
+        setRecording(false);
+        if (url) setAttachments((prev) => [...prev, url]);
+        return;
+      }
+      await recorder.start();
+      setRecording(true);
+    } catch {
+      setRecording(false);
+    }
   };
 
   const canSubmit = !disabled && (text.trim().length > 0 || attachments.length > 0);
@@ -216,14 +271,12 @@ export function MediaComposer({
                   style={{ width: 64, height: 64, objectFit: "cover", borderRadius: "var(--radius-sm)" }}
                 />
               ) : (
-                // v1.16.0 Phase 3: a PDF has no renderable preview here, so it
-                // gets a labelled chip rather than a broken <img>.
                 <div
                   data-testid={`media-composer-doc-${i}`}
-                  title="Attached document"
+                  title={isAudioDataUrl(src) ? "Attached audio" : "Attached document"}
                   style={docChipStyle}
                 >
-                  PDF
+                  {chipLabel(src)}
                 </div>
               )}
               <button
@@ -239,6 +292,16 @@ export function MediaComposer({
           ))}
         </div>
       )}
+      {recording ? (
+        <div
+          data-testid="media-composer-recording"
+          role="status"
+          aria-live="polite"
+          style={{ color: "var(--accent-chatbot)", fontSize: "var(--text-xs)" }}
+        >
+          Recording -- microphone is open
+        </div>
+      ) : null}
       <div style={{ display: "flex", alignItems: "flex-end", gap: "var(--space-2)" }}>
         <input
           ref={fileInputRef}
@@ -252,13 +315,28 @@ export function MediaComposer({
         <button
           type="button"
           aria-label="Add attachments"
+          title={!imageEnabled ? imageDisabledReason : undefined}
           data-testid="media-composer-add"
+          data-image-enabled={imageEnabled ? "true" : "false"}
           disabled={disabled}
           onClick={() => fileInputRef.current?.click()}
           style={addBtnStyle}
         >
           +
         </button>
+        {audioEnabled ? (
+          <button
+            type="button"
+            aria-label={recording ? "Stop recording" : "Record audio"}
+            title={audioHint}
+            data-testid="media-composer-mic"
+            disabled={disabled}
+            onClick={() => void toggleMic()}
+            style={recording ? micBtnRecordingStyle : addBtnStyle}
+          >
+            {recording ? "Stop" : "Mic"}
+          </button>
+        ) : null}
         <textarea
           data-testid="media-composer-textarea"
           aria-label="Generation prompt"
@@ -291,6 +369,12 @@ export function MediaComposer({
     </AccentBeam>
     </MotionSurface>
   );
+}
+
+function chipLabel(src: string): string {
+  if (src.startsWith("data:audio/")) return "AUD";
+  if (src.startsWith("data:application/pdf")) return "PDF";
+  return "DOC";
 }
 
 function beamAccentFrom(token: string): AccentBeamAccentToken {
@@ -349,6 +433,12 @@ const addBtnStyle: CSSProperties = {
   background: "var(--bg-0)",
   color: "var(--fg-0)",
   cursor: "pointer",
+};
+
+const micBtnRecordingStyle: CSSProperties = {
+  ...addBtnStyle,
+  border: "1px solid var(--accent-chatbot)",
+  color: "var(--accent-chatbot)",
 };
 
 const removeBtnStyle: CSSProperties = {

@@ -88,7 +88,8 @@ export interface ToolCall {
 
 /**
  * Provenance class for a tool result (v1.19.1 Phase 2.6). `browser_snapshot`
- * is reserved for the v2.0.0 browser tool surface and is not assigned here.
+ * is reserved for the v2.0.0 browser tool surface. `stt_transcript` labels
+ * Chat STT output (v2.0.0 Phase 1).
  */
 export type ToolResultOrigin =
   | "user"
@@ -96,7 +97,8 @@ export type ToolResultOrigin =
   | "terminal"
   | "web_fetch"
   | "mcp_tool"
-  | "browser_snapshot";
+  | "browser_snapshot"
+  | "stt_transcript";
 
 export interface ToolResult {
   readonly id: string;

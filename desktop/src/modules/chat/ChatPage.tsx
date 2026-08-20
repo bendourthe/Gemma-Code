@@ -29,14 +29,33 @@ import {
   MediaComposer,
   MessageList,
   type ChatMessage,
-  DOCUMENT_ACCEPT,
 } from "../../shared/chat";
+import {
+  chatComposerAccept,
+  imageAttachmentAffordance,
+  audioAttachmentCopy,
+} from "../../shared/chat/modalityGating";
+import { partitionAttachments } from "../../shared/chat/classifyAttachment";
+import { stripDataUrlPrefix, mimeFromDataUrl } from "../../shared/chat/dataUrl";
 import { PreviewPane, type PreviewArtifact } from "../../components/PreviewPane";
 import { DEFAULT_MODEL_ID, FRONTEND_MODELS } from "../coding/models";
 import {
   createIpcDocumentClient,
   type DocumentClient,
 } from "./documentClient";
+import {
+  createIpcAudioClient,
+  type AudioClient,
+} from "./audioClient";
+import { createBrowserMicRecorder, type MicRecorder } from "../../shared/chat/micRecorder";
+import { labelSttTranscript, STT_TRANSCRIPT_ORIGIN } from "./transcriptProvenance";
+import {
+  INITIAL_VOICE_LOOP,
+  reduceVoiceLoop,
+  shouldStopTts,
+  type VoiceCaptureMode,
+  type VoiceLoopState,
+} from "./voiceLoop";
 import { QuickModelSwitcher } from "../../shared/models/QuickModelSwitcher";
 import { SETTINGS_MODELS_PATH } from "../../shared/models/installedFeed";
 import { createIpcModelsClient } from "../../pages/settings/ipcModelsClient";
@@ -48,6 +67,7 @@ const FALLBACK_LLMS: readonly ListedModelDto[] = FRONTEND_MODELS.map((m) => ({
   type: "llm" as const,
   installed: true,
   source: "registry" as const,
+  modalities: ["text"] as const,
 }));
 
 export interface ChatPageProps {
@@ -69,6 +89,15 @@ export interface ChatPageProps {
    * Tests inject a fake; production talks to the sidecar `models.list` IPC.
    */
   modelsClient?: { list(): Promise<readonly ListedModelDto[]> };
+  /**
+   * v2.0.0 Phase 1 -- local STT/TTS client. Tests inject an in-memory fake;
+   * production talks to sidecar `audio.*` IPC.
+   */
+  audioClient?: AudioClient;
+  /** Optional TTS playback (tests inject a no-op). */
+  playAudio?: (dataUrl: string, signal: AbortSignal) => Promise<void>;
+  /** Tests inject a fake mic; production uses getUserMedia. */
+  voiceMicRecorder?: import("../../shared/chat/micRecorder").MicRecorder;
 }
 
 export function ChatPage({
@@ -78,6 +107,9 @@ export function ChatPage({
   documentClient: documentClientOverride,
   onGetMoreModels,
   modelsClient: modelsClientOverride,
+  audioClient: audioClientOverride,
+  playAudio: playAudioOverride,
+  voiceMicRecorder,
 }: ChatPageProps = {}): JSX.Element {
   // The client survives re-renders but is recreated per ChatPage instance.
   // Tests can inject one via the prop so they observe state changes.
@@ -106,6 +138,13 @@ export function ChatPage({
   const [documentClient] = useState<DocumentClient>(
     () => documentClientOverride ?? createIpcDocumentClient(),
   );
+  const [audioClient] = useState<AudioClient>(
+    () => audioClientOverride ?? createIpcAudioClient(),
+  );
+  const [voiceLoop, setVoiceLoop] = useState<VoiceLoopState>(INITIAL_VOICE_LOOP);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const ttsAbortRef = useRef<AbortController | null>(null);
+  const voiceMicRef = useRef<MicRecorder | null>(voiceMicRecorder ?? null);
   const [documentModelInstalled, setDocumentModelInstalled] = useState<boolean | null>(null);
   // v1.16.0 Phase 5 (A4) -- compact switcher feed. Falls back to the catalog
   // projection when `models.list` is unavailable (tests, sidecar down).
@@ -151,6 +190,64 @@ export function ChatPage({
     if (!activeChat) return [];
     return messagesByChat.get(activeChat.id) ?? [];
   }, [activeChat, messagesByChat]);
+
+  const selectedListedModel = useMemo(() => {
+    const id = activeChat?.modelId ?? modelId;
+    return listedModels.find((m) => m.id === id);
+  }, [activeChat, listedModels, modelId]);
+
+  const imageGate = imageAttachmentAffordance(selectedListedModel);
+  const audioHint = audioAttachmentCopy(selectedListedModel);
+
+  const dispatchVoice = useCallback((event: Parameters<typeof reduceVoiceLoop>[1]) => {
+    setVoiceLoop((prev) => {
+      const next = reduceVoiceLoop(prev, event);
+      if (shouldStopTts(prev, next)) {
+        ttsAbortRef.current?.abort();
+        ttsAbortRef.current = null;
+      }
+      return next;
+    });
+  }, []);
+
+  const playReply = useCallback(
+    async (text: string) => {
+      if (!voiceEnabled || !text.trim()) return;
+      dispatchVoice({ type: "tts-started" });
+      const abort = new AbortController();
+      ttsAbortRef.current = abort;
+      try {
+        const spoken = await audioClient.speak(text);
+        if (abort.signal.aborted) return;
+        const dataUrl = `data:${spoken.mimeType};base64,${spoken.audioBase64}`;
+        const play =
+          playAudioOverride ??
+          (async (url: string, signal: AbortSignal) => {
+            const audio = new Audio(url);
+            await new Promise<void>((resolve, reject) => {
+              const stop = () => {
+                audio.pause();
+                resolve();
+              };
+              signal.addEventListener("abort", stop, { once: true });
+              audio.onended = () => resolve();
+              audio.onerror = () => reject(new Error("tts playback failed"));
+              void audio.play();
+            });
+          });
+        await play(dataUrl, abort.signal);
+        if (!abort.signal.aborted) dispatchVoice({ type: "tts-ended" });
+      } catch (err) {
+        if (!abort.signal.aborted) {
+          dispatchVoice({
+            type: "error",
+            message: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+    },
+    [audioClient, dispatchVoice, playAudioOverride, voiceEnabled],
+  );
 
   const handleSelect = useCallback((node: SelectedNode) => {
     setSelected(node);
@@ -200,6 +297,48 @@ export function ChatPage({
       });
     },
     [],
+  );
+
+  const sendChatTurn = useCallback(
+    async (
+      chatId: string,
+      baseId: string,
+      message: string,
+      images: readonly string[] = [],
+    ): Promise<string> => {
+      const assistantId = `${baseId}-assistant`;
+      appendMessage(chatId, {
+        id: assistantId,
+        role: "assistant",
+        content: "",
+        pending: true,
+        activity: "chat-streaming",
+      });
+      let content: string;
+      try {
+        const chat = activeChat;
+        let sessionId = sessionIdsRef.current.get(chatId);
+        if (!sessionId) {
+          const started = await chatSession.start({
+            modelId: chat?.modelId ?? modelId,
+            title: chat?.title,
+          });
+          sessionId = started.sessionId;
+          sessionIdsRef.current.set(chatId, sessionId);
+        }
+        const reply = await chatSession.sendMessage({
+          sessionId,
+          message: message.trim().length > 0 ? message : images.length > 0 ? "(image)" : message,
+          ...(images.length > 0 ? { images: images.map(stripDataUrlPrefix) } : {}),
+        });
+        content = joinChatReply(reply.events) || "(no reply)";
+      } catch (err) {
+        content = `(chat unavailable) ${err instanceof Error ? err.message : String(err)}`;
+      }
+      patchMessage(chatId, assistantId, { content, pending: false });
+      return content;
+    },
+    [activeChat, appendMessage, chatSession, modelId, patchMessage],
   );
 
   /**
@@ -266,54 +405,124 @@ export function ChatPage({
       if (!activeChat) return;
       const chat = activeChat;
       const baseId = `${chat.id}-${Date.now()}`;
-      // Render the user's message immediately.
+      const groups = partitionAttachments(attachments);
+      let prompt = text;
+      let origin: ChatMessage["origin"];
+      const displayAttachments = groups.images;
+
+      if (groups.audio.length > 0) {
+        const parts: string[] = [];
+        for (const clip of groups.audio) {
+          const mime = mimeFromDataUrl(clip) ?? "audio/webm";
+          const result = await audioClient.transcribe(clip, mime);
+          parts.push(result.transcript);
+        }
+        const labelled = labelSttTranscript(parts.join("\n"));
+        origin = STT_TRANSCRIPT_ORIGIN;
+        prompt = [text, labelled].filter((part) => part.trim().length > 0).join("\n\n");
+      }
+
       const userContent =
         attachments.length > 0
-          ? `${text || "(document)"}\n\n[${attachments.length} attachment${
+          ? `${prompt || (groups.images.length > 0 ? "(image)" : "(attachment)")}\n\n[${attachments.length} attachment${
               attachments.length === 1 ? "" : "s"
             }]`
-          : text;
-      appendMessage(chat.id, { id: `${baseId}-user`, role: "user", content: userContent });
-      client.renameChat(chat.id, chat.title); // touch updatedAt
+          : prompt;
+      appendMessage(chat.id, {
+        id: `${baseId}-user`,
+        role: "user",
+        content: userContent,
+        ...(displayAttachments.length > 0 ? { attachments: displayAttachments } : {}),
+        ...(origin ? { origin } : {}),
+      });
+      client.renameChat(chat.id, chat.title);
 
-      // An attachment routes to the OCR runtime, not the chat model.
-      if (attachments.length > 0) {
-        const first = attachments[0];
+      if (groups.documents.length > 0) {
+        const first = groups.documents[0];
         if (first !== undefined) {
-          await handleParseDocument(chat.id, baseId, first, text);
+          await handleParseDocument(chat.id, baseId, first, prompt);
         }
         return;
       }
 
-      // Drive a real local-model turn via the sidecar (lazily starting a
-      // session per chat). Falls back to an inline notice if IPC is unavailable
-      // (e.g. running the web bundle outside the Tauri shell).
-      const assistantId = `${baseId}-assistant`;
-      appendMessage(chat.id, {
-        id: assistantId,
-        role: "assistant",
-        content: "",
-        pending: true,
-        activity: "chat-streaming",
-      });
-      let content: string;
-      try {
-        let sessionId = sessionIdsRef.current.get(chat.id);
-        if (!sessionId) {
-          const started = await chatSession.start({ modelId: chat.modelId, title: chat.title });
-          sessionId = started.sessionId;
-          sessionIdsRef.current.set(chat.id, sessionId);
+      if (groups.images.length > 0 && !imageGate.enabled) {
+        const first = groups.images[0];
+        if (first !== undefined) {
+          await handleParseDocument(chat.id, baseId, first, prompt);
         }
-        const reply = await chatSession.sendMessage({ sessionId, message: text });
-        content = joinChatReply(reply.events) || "(no reply)";
-      } catch (err) {
-        content = `(chat unavailable) ${err instanceof Error ? err.message : String(err)}`;
+        return;
       }
 
-      patchMessage(chat.id, assistantId, { content, pending: false });
+      const reply = await sendChatTurn(
+        chat.id,
+        baseId,
+        prompt,
+        imageGate.enabled ? groups.images : [],
+      );
+      if (voiceEnabled) void playReply(reply);
     },
-    [activeChat, client, chatSession, appendMessage, patchMessage, handleParseDocument],
+    [
+      activeChat,
+      appendMessage,
+      audioClient,
+      client,
+      handleParseDocument,
+      imageGate.enabled,
+      playReply,
+      sendChatTurn,
+      voiceEnabled,
+    ],
   );
+
+  const ensureVoiceMic = useCallback((): MicRecorder => {
+    if (!voiceMicRef.current) {
+      voiceMicRef.current = voiceMicRecorder ?? createBrowserMicRecorder();
+    }
+    return voiceMicRef.current;
+  }, [voiceMicRecorder]);
+
+  const finishVoiceCapture = useCallback(async () => {
+    const recorder = voiceMicRef.current;
+    if (!recorder) return;
+    const url = await recorder.stop();
+    dispatchVoice({ type: "ptt-up" });
+    if (!url) {
+      dispatchVoice({ type: "error", message: "no audio captured" });
+      return;
+    }
+    dispatchVoice({ type: "transcript-ready" });
+    await handleSubmit("", [url]);
+    dispatchVoice({ type: "reply-ready" });
+  }, [dispatchVoice, handleSubmit]);
+
+  const onPttDown = useCallback(() => {
+    if (!voiceEnabled || voiceLoop.mode !== "ptt") return;
+    dispatchVoice({ type: "ptt-down" });
+    void ensureVoiceMic().start();
+  }, [dispatchVoice, ensureVoiceMic, voiceEnabled, voiceLoop.mode]);
+
+  const onPttUp = useCallback(() => {
+    if (!voiceEnabled || voiceLoop.mode !== "ptt") return;
+    void finishVoiceCapture();
+  }, [finishVoiceCapture, voiceEnabled, voiceLoop.mode]);
+
+  const onVadToggle = useCallback(() => {
+    if (!voiceEnabled || voiceLoop.mode !== "vad") return;
+    if (voiceLoop.phase === "recording") {
+      dispatchVoice({ type: "vad-stop" });
+      void finishVoiceCapture();
+      return;
+    }
+    dispatchVoice({ type: "vad-start" });
+    void ensureVoiceMic().start();
+  }, [
+    dispatchVoice,
+    ensureVoiceMic,
+    finishVoiceCapture,
+    voiceEnabled,
+    voiceLoop.mode,
+    voiceLoop.phase,
+  ]);
 
   return (
     <section
@@ -414,12 +623,84 @@ export function ChatPage({
                 </a>
               </div>
             ) : null}
+            <div
+              data-testid="chat-voice-bar"
+              style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)", alignItems: "center" }}
+            >
+              <label style={{ display: "flex", gap: "var(--space-2)", fontSize: "var(--text-sm)", color: "var(--fg-muted)" }}>
+                <input
+                  type="checkbox"
+                  data-testid="chat-voice-enabled"
+                  checked={voiceEnabled}
+                  onChange={(e) => {
+                    setVoiceEnabled(e.target.checked);
+                    if (!e.target.checked) dispatchVoice({ type: "reset" });
+                  }}
+                />
+                Voice loop
+              </label>
+              <button
+                type="button"
+                data-testid="chat-voice-mode-ptt"
+                disabled={!voiceEnabled}
+                onClick={() => dispatchVoice({ type: "set-mode", mode: "ptt" })}
+                style={getMoreModelsStyle}
+              >
+                Push to talk
+              </button>
+              <button
+                type="button"
+                data-testid="chat-voice-mode-vad"
+                disabled={!voiceEnabled}
+                onClick={() => dispatchVoice({ type: "set-mode", mode: "vad" as VoiceCaptureMode })}
+                style={getMoreModelsStyle}
+              >
+                VAD
+              </button>
+              <button
+                type="button"
+                data-testid="chat-voice-ptt"
+                disabled={!voiceEnabled || voiceLoop.mode !== "ptt"}
+                onMouseDown={onPttDown}
+                onMouseUp={onPttUp}
+                onTouchStart={onPttDown}
+                onTouchEnd={onPttUp}
+                style={getMoreModelsStyle}
+              >
+                Hold to talk
+              </button>
+              <button
+                type="button"
+                data-testid="chat-voice-vad-toggle"
+                disabled={!voiceEnabled || voiceLoop.mode !== "vad"}
+                onClick={onVadToggle}
+                style={getMoreModelsStyle}
+              >
+                {voiceLoop.mode === "vad" && voiceLoop.phase === "recording" ? "Stop VAD" : "Start VAD"}
+              </button>
+              <span
+                data-testid="chat-voice-capture-indicator"
+                data-visible={voiceLoop.captureVisible ? "true" : "false"}
+                role="status"
+                aria-live="polite"
+                style={{
+                  fontSize: "var(--text-xs)",
+                  color: voiceLoop.captureVisible ? "var(--accent-chatbot)" : "var(--fg-muted)",
+                }}
+              >
+                {voiceLoop.captureVisible ? "Recording -- microphone is open" : "Mic closed"}
+              </span>
+            </div>
             <MediaComposer
               onSubmit={(text, attachments) => void handleSubmit(text, attachments)}
               submitAccentVar="--accent-chatbot"
-              accept={DOCUMENT_ACCEPT}
-              placeholder="Type a message, or attach a PDF, image, or Office document to read it."
+              accept={chatComposerAccept({ allowImages: imageGate.enabled, allowAudio: true })}
+              placeholder="Type a message, attach a document, or record audio to transcribe locally."
               streaming={messages.some((m) => m.pending)}
+              imageEnabled={imageGate.enabled}
+              imageDisabledReason={imageGate.tooltip}
+              audioEnabled
+              audioHint={audioHint}
             />
           </footer>
         )}

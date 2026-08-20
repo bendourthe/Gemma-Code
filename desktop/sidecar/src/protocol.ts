@@ -31,6 +31,10 @@ export const IPC_METHODS = [
   "ocr.parseDocument",
   "ocr.job.drainEvents",
   "ocr.job.cancel",
+  // v2.0.0 Phase 1 -- local STT / TTS for Chat.
+  "audio.health",
+  "audio.transcribe",
+  "audio.speak",
   "coding.startTask",
   "coding.session.start",
   "coding.session.sendMessage",
@@ -193,9 +197,15 @@ export type ChatSessionStartResponseT = z.infer<typeof ChatSessionStartResponse>
 export const ChatSessionSendMessageRequest = z
   .object({
     sessionId: z.string().min(1),
-    message: z.string().min(1),
+    message: z.string(),
+    /** v2.0.0 Phase 1 -- raw base64 images for a vision-capable local model. */
+    images: z.array(z.string().min(1)).max(16).optional(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (value) => value.message.trim().length > 0 || (value.images !== undefined && value.images.length > 0),
+    { message: "message or images required" },
+  );
 export type ChatSessionSendMessageRequestT = z.infer<typeof ChatSessionSendMessageRequest>;
 
 export const ChatSessionEvent = z.discriminatedUnion("kind", [
@@ -673,6 +683,8 @@ export const ModelListedEntry = z
       .optional(),
     activeParams: z.number().optional(),
     totalParams: z.number().optional(),
+    /** v2.0.0 Phase 1 -- catalog modalities for Chat image/audio gating. */
+    modalities: z.array(z.enum(["text", "image", "audio"])).optional(),
   })
   .strict();
 export type ModelListedEntryT = z.infer<typeof ModelListedEntry>;
@@ -844,6 +856,51 @@ export const OcrHealthResponse = z
   })
   .strict();
 export type OcrHealthResponseT = z.infer<typeof OcrHealthResponse>;
+
+// v2.0.0 Phase 1 -- local STT / TTS. Request/response; no job polling.
+export const AudioEmptyRequest = z.object({}).strict();
+export type AudioEmptyRequestT = z.infer<typeof AudioEmptyRequest>;
+
+export const AudioEngineAvailability = z
+  .object({ available: z.boolean(), reason: z.string() })
+  .strict();
+
+export const AudioHealthResponse = z
+  .object({
+    ok: z.boolean(),
+    stt: AudioEngineAvailability,
+    tts: AudioEngineAvailability,
+    platform: z.string(),
+  })
+  .strict();
+export type AudioHealthResponseT = z.infer<typeof AudioHealthResponse>;
+
+export const AudioTranscribeRequest = z
+  .object({
+    audioBase64: z.string().min(1),
+    mimeType: z.string().optional(),
+  })
+  .strict();
+export type AudioTranscribeRequestT = z.infer<typeof AudioTranscribeRequest>;
+
+export const AudioTranscribeResponse = z
+  .object({
+    transcript: z.string(),
+    origin: z.literal("stt_transcript"),
+  })
+  .strict();
+export type AudioTranscribeResponseT = z.infer<typeof AudioTranscribeResponse>;
+
+export const AudioSpeakRequest = z.object({ text: z.string().min(1) }).strict();
+export type AudioSpeakRequestT = z.infer<typeof AudioSpeakRequest>;
+
+export const AudioSpeakResponse = z
+  .object({
+    audioBase64: z.string().min(1),
+    mimeType: z.string().min(1),
+  })
+  .strict();
+export type AudioSpeakResponseT = z.infer<typeof AudioSpeakResponse>;
 
 export const OcrParseDocumentRequest = z
   .object({
@@ -1325,6 +1382,21 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
   "ocr.job.cancel": {
     request: OcrJobCancelRequest,
     response: OcrOkResponse,
+    implemented: true,
+  },
+  "audio.health": {
+    request: AudioEmptyRequest,
+    response: AudioHealthResponse,
+    implemented: true,
+  },
+  "audio.transcribe": {
+    request: AudioTranscribeRequest,
+    response: AudioTranscribeResponse,
+    implemented: true,
+  },
+  "audio.speak": {
+    request: AudioSpeakRequest,
+    response: AudioSpeakResponse,
     implemented: true,
   },
   "coding.startTask": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },

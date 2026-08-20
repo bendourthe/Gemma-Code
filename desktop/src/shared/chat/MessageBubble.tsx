@@ -52,6 +52,11 @@ export function MessageBubble({
     >
       <header style={{ marginBottom: "var(--space-1)", color: "var(--fg-muted)", fontSize: "var(--text-xs)" }}>
         {labelForRole(message.role)}
+        {message.origin === "stt_transcript" ? (
+          <span data-testid={`message-origin-${message.id}`} style={{ marginLeft: "var(--space-2)" }}>
+            origin:stt_transcript
+          </span>
+        ) : null}
       </header>
       {message.content && <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{message.content}</p>}
       {message.attachments && message.attachments.length > 0 && (

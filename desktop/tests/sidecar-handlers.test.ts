@@ -64,6 +64,10 @@ describe("sidecar handlers", () => {
           "ocr.parseDocument",
           "ocr.job.drainEvents",
           "ocr.job.cancel",
+          // v2.0.0 Phase 1 wired local STT/TTS.
+          "audio.health",
+          "audio.transcribe",
+          "audio.speak",
           "coding.session.start",
           "coding.session.sendMessage",
           "coding.session.cancel",

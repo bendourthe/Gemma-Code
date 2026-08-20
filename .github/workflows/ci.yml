@@ -359,15 +359,17 @@ jobs:
   # v1.16.0 Phase 3 (adoption item A5). `tests/python/` had NO CI job at all:
   # the ~135 diffusion-runtime tests added in v1.0.0 Phase 6 have only ever been
   # run by hand. Adding the OCR runtime made that gap load-bearing, so this job
-  # covers BOTH runtimes.
+  # covers diffusion, OCR, and (v2.0.0 Phase 1) the audio STT/TTS stub.
   #
   # No GPU, no model weights, and no CUDA stack: the runtimes import every heavy
   # dependency lazily and ship stub engines, so `health`, `version`, the
-  # dispatcher, the error envelopes, the PDF path, and native Office ingest are
-  # exercised on a bare runner. Portable OCR + Office wheels come from
-  # `runtimes/ocr/requirements.txt` (pypdfium2, rapidocr-onnxruntime,
-  # python-docx, python-pptx, openpyxl). torch/transformers and docling are
-  # deliberately NOT installed.
+  # dispatcher, the error envelopes, the PDF path, native Office ingest, and
+  # audio STT/TTS stubs are exercised on a bare runner. Portable OCR + Office
+  # wheels come from `runtimes/ocr/requirements.txt` (pypdfium2,
+  # rapidocr-onnxruntime, python-docx, python-pptx, openpyxl). Audio tests do
+  # not install faster-whisper or Kokoro (`NEXUS_AUDIO_STUB=1` plus health
+  # without engines). torch/transformers and docling are deliberately NOT
+  # installed.
 
   test-python-runtimes:
     name: pytest (runtimes/)

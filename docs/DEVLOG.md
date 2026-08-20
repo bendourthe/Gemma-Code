@@ -4,6 +4,29 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-19] v2.0.0 multimodal chat -- Phase 1: vision, STT, voice loop
+
+### Goal
+
+Chat accepts images against vision-capable local models, transcribes audio on-device, and can run an opt-in offline voice loop.
+
+### What was done
+
+- **Vision**: image attach gated on catalog `modalities` including `image`. Bytes go to `chat.session.sendMessage` as raw base64. Image Studio unchanged.
+- **STT**: `audio.transcribe` sidecar + `runtimes/audio` (faster-whisper catalog id). Transcripts labelled `stt_transcript` and scrubbed with `redactSecrets`. CI uses `NEXUS_AUDIO_STUB=1`.
+- **Voice loop**: off by default. PTT + button VAD, capture indicator, barge-in stops TTS, Kokoro `audio.speak`.
+- **Gaps**: DF-1..DF-5 and MT-1 in `docs/v2/v2.0/known-gaps.md`.
+
+### Tests
+
+Desktop coverage ~91.9% lines. Root 471 passed, 88.2% lines. Python 221 including audio stubs.
+
+### Next
+
+Phase 2: browser tool surface. Local commit only.
+
+---
+
 ## [2026-08-19] v1.20.0 cut
 
 ### Goal

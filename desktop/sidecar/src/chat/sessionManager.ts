@@ -59,9 +59,14 @@ export class ChatSessionManager {
   async sendMessage(
     sessionId: string,
     message: string,
+    images?: readonly string[],
   ): Promise<readonly ChatSessionEventT[]> {
     const rec = this._requireSession(sessionId);
-    rec.history.push({ role: "user", content: message });
+    rec.history.push({
+      role: "user",
+      content: message,
+      ...(images && images.length > 0 ? { images } : {}),
+    });
 
     if (this._runner) {
       const events = await this._runner({

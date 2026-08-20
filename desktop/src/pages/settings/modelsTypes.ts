@@ -44,6 +44,8 @@ export interface ListedModelDto {
   };
   activeParams?: number;
   totalParams?: number;
+  /** v2.0.0 Phase 1 -- catalog input modalities for Chat gating. */
+  modalities?: readonly ("text" | "image" | "audio")[];
 }
 
 export interface InstallProgressDto {

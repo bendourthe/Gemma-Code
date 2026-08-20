@@ -52,6 +52,7 @@ describe("SecurityPosture", () => {
       expect(mustScreenOrigin("web_fetch", id)).toBe(true);
       expect(mustScreenOrigin("mcp_tool", id)).toBe(true);
       expect(mustScreenOrigin("browser_snapshot", id)).toBe(true);
+      expect(mustScreenOrigin("stt_transcript", id)).toBe(true);
     }
     expect(mustScreenOrigin("terminal", "standard")).toBe(false);
     expect(mustScreenOrigin("terminal", "strict")).toBe(true);

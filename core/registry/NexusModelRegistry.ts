@@ -106,6 +106,11 @@ export interface ListedModel {
   readonly activeParams?: number;
   /** v1.18.0 Phase 3 (LG-A3) -- MoE total / resident params in billions. */
   readonly totalParams?: number;
+  /**
+   * v2.0.0 Phase 1 -- catalog `modalities` so Chat can gate image/audio
+   * attachments without a second catalog round-trip.
+   */
+  readonly modalities?: ModelSpec["modalities"];
 }
 
 export interface ListFilter {
@@ -202,6 +207,7 @@ export class NexusModelRegistry {
         toolCallingBenchmark: spec?.toolCallingBenchmark,
         activeParams: spec?.activeParams,
         totalParams: spec?.totalParams,
+        modalities: spec?.modalities,
       });
     }
 
@@ -228,6 +234,7 @@ export class NexusModelRegistry {
         toolCallingBenchmark: spec.toolCallingBenchmark,
         activeParams: spec.activeParams,
         totalParams: spec.totalParams,
+        modalities: spec.modalities,
       });
     }
 

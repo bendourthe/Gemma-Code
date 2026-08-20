@@ -46,6 +46,10 @@ export interface ChatMessage {
    * to state + accent. Defaults to chat-streaming when omitted.
    */
   activity?: AgentActivity;
+  /**
+   * v2.0.0 Phase 1 -- provenance class for labelled content (STT transcripts).
+   */
+  origin?: "stt_transcript" | "user";
 }
 
 export interface ChatMedia {

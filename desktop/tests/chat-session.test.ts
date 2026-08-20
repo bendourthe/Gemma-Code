@@ -114,4 +114,21 @@ describe("ChatSessionManager", () => {
     const mgr = new ChatSessionManager();
     await expect(mgr.sendMessage("nope", "m")).rejects.toThrow(/unknown sessionId/);
   });
+
+  it("forwards image bytes on the user turn for vision chat", async () => {
+    const seen: Array<{ images?: readonly string[] }> = [];
+    const mgr = new ChatSessionManager({
+      runner: async (input) => {
+        const last = input.messages.at(-1);
+        seen.push({ images: last && "images" in last ? last.images : undefined });
+        return [
+          { kind: "token", text: "cat" },
+          { kind: "done", finishReason: "stop" },
+        ];
+      },
+    });
+    const started = mgr.start({ modelId: "gemma4:e4b" });
+    await mgr.sendMessage(started.sessionId, "what is this?", ["QUJD"]);
+    expect(seen[0]?.images).toEqual(["QUJD"]);
+  });
 });
