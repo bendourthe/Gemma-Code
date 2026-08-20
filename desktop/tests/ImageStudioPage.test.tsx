@@ -7,6 +7,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 
 import { ImageStudioPage } from "../src/modules/image/ImageStudioPage";
 import { InMemoryDiffusionClient } from "../src/modules/image/diffusionClient";
+import { InMemoryGenerationQueueClient } from "../src/shared/studio/generationQueueClient";
 import type { ListedModelDto } from "../src/pages/settings/modelsTypes";
 
 const NO_MODELS = { list: async (): Promise<ListedModelDto[]> => [] };
@@ -147,5 +148,64 @@ describe("ImageStudioPage (chat)", () => {
     expect(orb).toHaveAttribute("data-agent-activity", "image-generation");
     expect(screen.queryByText("Generating...")).toBeNull();
     expect(screen.getByTestId("media-composer-beam")).toHaveAttribute("data-beam-mode", "traveling");
+  });
+
+  it("hides recall actions when extract returns no workflow", async () => {
+    const client = new InMemoryDiffusionClient();
+    client.extractResult = null;
+    render(<ImageStudioPage client={client} modelsClient={imageModels()} drainIntervalMs={20} />);
+    client.scriptEvents("mem-job-1", [{ kind: "complete", jobId: "mem-job-1", png: "PNG==" }]);
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "fox" } });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(40);
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(screen.getByAltText("Generated image")).toBeInTheDocument());
+    expect(screen.queryByText("Use Prompt")).toBeNull();
+  });
+
+  it("Use Prompt prefills the advanced prompt from extracted workflow", async () => {
+    const client = new InMemoryDiffusionClient();
+    client.extractResult = { prompt: "watercolor fox", seed: 42 };
+    render(<ImageStudioPage client={client} modelsClient={imageModels()} drainIntervalMs={20} />);
+    client.scriptEvents("mem-job-1", [{ kind: "complete", jobId: "mem-job-1", png: "PNG==" }]);
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "fox" } });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(40);
+      await Promise.resolve();
+    });
+    const usePrompt = await screen.findByText("Use Prompt");
+    fireEvent.click(screen.getByTestId("image-advanced-settings"));
+    await act(async () => {
+      fireEvent.click(usePrompt);
+    });
+    await waitFor(() => {
+      expect((screen.getByTestId("image-prompt") as HTMLTextAreaElement | HTMLInputElement).value).toBe(
+        "watercolor fox",
+      );
+    });
+  });
+
+  it("shows queue pending count for a seed sweep", async () => {
+    const queue = new InMemoryGenerationQueueClient();
+    render(
+      <ImageStudioPage
+        client={new InMemoryDiffusionClient()}
+        modelsClient={imageModels()}
+        drainIntervalMs={20}
+        queueClient={queue}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("image-advanced-settings"));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("image-seed-sweep"));
+    });
+    await waitFor(() => expect(screen.getByTestId("generation-queue-count")).toHaveTextContent("1"));
   });
 });

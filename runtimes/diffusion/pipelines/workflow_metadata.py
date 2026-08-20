@@ -99,6 +99,7 @@ def build_workflow(
         "sampler": params_obj.sampler,
         "seed": params_obj.seed,
         "timestamp": timestamp,
+        "schemaVersion": 1,
         "loras": [
             {"id": lora.id, "weight": lora.weight} for lora in params_obj.loras
         ],

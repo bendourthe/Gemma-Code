@@ -35,6 +35,7 @@ def test_build_workflow_carries_request_fields():
     assert workflow["prompt"] == "a watercolor fox"
     assert workflow["loras"][0]["id"] == "lora:cinematic"
     assert workflow["tool"] == workflow_metadata.RUNTIME_TOOL_NAME
+    assert workflow["schemaVersion"] == 1
 
 
 def test_embed_and_extract_round_trip():

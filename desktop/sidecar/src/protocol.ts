@@ -87,6 +87,11 @@ export const IPC_METHODS = [
   "diffusion.video.image2video",
   "diffusion.video.audio2video",
   "diffusion.video.workflow.extract",
+  "generation.queue.list",
+  "generation.queue.enqueue",
+  "generation.queue.cancel",
+  "generation.queue.reorder",
+  "generation.queue.pendingCount",
 ] as const;
 
 export type Method = (typeof IPC_METHODS)[number];
@@ -509,6 +514,8 @@ export const DiffusionWorkflowExtractResponse = z
         sampler: z.string(),
         seed: z.number(),
         timestamp: z.string(),
+        schemaVersion: z.number().optional(),
+        diffusionTier: z.string().optional(),
         loras: z.array(DiffusionLoRA).optional(),
         controlNet: DiffusionControlNet.optional(),
       })
@@ -633,6 +640,87 @@ export const DiffusionVideoWorkflowExtractResponse = z
 export type DiffusionVideoWorkflowExtractResponseT = z.infer<
   typeof DiffusionVideoWorkflowExtractResponse
 >;
+
+// ---- v2.1.0 Phase 3 -- generation queue ------------------------------------
+
+export const GenerationJobState = z.enum([
+  "queued",
+  "running",
+  "interrupted",
+  "done",
+  "failed",
+]);
+export const GenerationJobPriority = z.enum(["interactive", "batch"]);
+export const GenerationPillar = z.enum(["image", "video"]);
+
+export const GenerationBatchSpec = z.union([
+  z.object({ kind: z.literal("seed-range"), start: z.number(), end: z.number() }).strict(),
+  z
+    .object({
+      kind: z.literal("prompt-matrix"),
+      prompts: z.array(z.string()),
+      negatives: z.array(z.string()).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("combined"),
+      seedStart: z.number().optional(),
+      seedEnd: z.number().optional(),
+      prompts: z.array(z.string()).optional(),
+      negatives: z.array(z.string()).optional(),
+    })
+    .strict(),
+]);
+
+export const GenerationJobDto = z
+  .object({
+    id: z.string(),
+    pillar: GenerationPillar,
+    jobType: z.string(),
+    parameters: z.record(z.string(), z.unknown()),
+    state: GenerationJobState,
+    priority: GenerationJobPriority,
+    sortOrder: z.number(),
+    error: z.string().nullable(),
+    threadId: z.string().nullable(),
+  })
+  .strict();
+
+export const GenerationQueueListRequest = z
+  .object({ states: z.array(GenerationJobState).optional() })
+  .strict();
+export const GenerationQueueListResponse = z.object({ jobs: z.array(GenerationJobDto) }).strict();
+
+export const GenerationQueueEnqueueRequest = z
+  .object({
+    id: z.string().min(1).optional(),
+    pillar: GenerationPillar,
+    jobType: z.string().min(1),
+    parameters: z.record(z.string(), z.unknown()),
+    priority: GenerationJobPriority.optional(),
+    threadId: z.string().optional(),
+    batchSpec: GenerationBatchSpec.optional(),
+  })
+  .strict();
+export const GenerationQueueEnqueueResponse = z
+  .object({ jobs: z.array(GenerationJobDto) })
+  .strict();
+
+export const GenerationQueueCancelRequest = z.object({ id: z.string().min(1) }).strict();
+export const GenerationQueueCancelResponse = z
+  .object({ job: GenerationJobDto.nullable() })
+  .strict();
+
+export const GenerationQueueReorderRequest = z
+  .object({ ids: z.array(z.string().min(1)).min(1) })
+  .strict();
+export const GenerationQueueReorderResponse = z.object({ ok: z.literal(true) }).strict();
+
+export const GenerationQueuePendingCountRequest = z.object({}).strict();
+export const GenerationQueuePendingCountResponse = z
+  .object({ count: z.number().int().nonnegative() })
+  .strict();
 
 // ---- v1.1.0 Phase 11 -- VS Code extension surface ---------------------------
 
@@ -1627,6 +1715,31 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
   "diffusion.video.workflow.extract": {
     request: DiffusionVideoWorkflowExtractRequest,
     response: DiffusionVideoWorkflowExtractResponse,
+    implemented: true,
+  },
+  "generation.queue.list": {
+    request: GenerationQueueListRequest,
+    response: GenerationQueueListResponse,
+    implemented: true,
+  },
+  "generation.queue.enqueue": {
+    request: GenerationQueueEnqueueRequest,
+    response: GenerationQueueEnqueueResponse,
+    implemented: true,
+  },
+  "generation.queue.cancel": {
+    request: GenerationQueueCancelRequest,
+    response: GenerationQueueCancelResponse,
+    implemented: true,
+  },
+  "generation.queue.reorder": {
+    request: GenerationQueueReorderRequest,
+    response: GenerationQueueReorderResponse,
+    implemented: true,
+  },
+  "generation.queue.pendingCount": {
+    request: GenerationQueuePendingCountRequest,
+    response: GenerationQueuePendingCountResponse,
     implemented: true,
   },
 };

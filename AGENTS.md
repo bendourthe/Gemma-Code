@@ -61,6 +61,9 @@ core/                       v1.0.0 shared-core surfaces (Phase 2.3 + 2.6)
                               Rust over JSON-RPC stdio (v1.2.0 Phase 6)
   coding/lsp/LspMcpServer.ts  MCP adapter exposing `lsp_definition` and
                               `lsp_references` tools (v1.2.0 Phase 6)
+  generations/               Image Studio / Video Lab provenance index +
+                              SQLite job queue (`~/.nexus/generations/studio.db`)
+                              (v2.1.0 Phase 3)
 
 modules/                    per-pillar code (one folder per pillar)
   coding/                    Agentic AI Coding (engine still in src/ during the

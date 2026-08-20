@@ -98,6 +98,11 @@ describe("sidecar handlers", () => {
           "diffusion.video.image2video",
           "diffusion.video.audio2video",
           "diffusion.video.workflow.extract",
+          "generation.queue.list",
+          "generation.queue.enqueue",
+          "generation.queue.cancel",
+          "generation.queue.reorder",
+          "generation.queue.pendingCount",
           // v1.10.0 Phase 6 wired the Nexus-Hub catalog sync + update detection.
           "skills.sync",
           "skills.status",

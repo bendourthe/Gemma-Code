@@ -15,7 +15,7 @@ Plan: [plans/v2.1.0-adoption-open-local-ai-wave.md](plans/v2.1.0-adoption-open-l
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 4 | 1 |
+| Deferred (DF) | 6 | 1 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
@@ -56,6 +56,20 @@ Plan: [plans/v2.1.0-adoption-open-local-ai-wave.md](plans/v2.1.0-adoption-open-l
 - **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 2.2)
 - **Reason**: Routing is wired through `DAGExecutor` / `Orchestrator` when a `DAGRoutingContext` is supplied. `src/tools/AgentLoop.ts` still uses the session's single model. Importing AgentLoop from `modules/coding/orchestration` would cross the vscode host boundary.
 - **Suggested next step**: Project AgentLoop tool results into `RoutingTurnEvent` inside the VS Code host and call `routeTurn` per iteration, or route VS Code coding through the same DAG host the desktop sidecar uses.
+
+##### DF-6 - Python PNG writer still emits tEXt only
+
+- **Source phase**: Phase 3 - Embedded generation metadata (3.1)
+- **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 3.1)
+- **Reason**: `core/image/WorkflowMetadata.ts` writes uncompressed iTXt plus tEXt. `runtimes/diffusion/pipelines/workflow_metadata.py` still writes Latin-1 tEXt chunks with UTF-8 payloads. TS extract reads both, so Python outputs still recall, but a strict PNG decoder that ignores invalid tEXt UTF-8 would miss them.
+- **Suggested next step**: Mirror `makeITxtChunk` in the Python embedder and keep tEXt as a ComfyUI compat alias.
+
+##### DF-7 - Live 20-job GPU restart and interactive pump path are unproven
+
+- **Source phase**: Phase 3 - Persistent generation job queue (3.2)
+- **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 3.2)
+- **Reason**: Restart recovery is unit-tested (`running` -> `interrupted` -> `queued`, id-stable). Interactive Image Studio / Video Lab clicks still go through the existing dispatcher and then record into the queue; only `generation.queue.enqueue` batches drain via `pumpOnce` + `GpuScheduler`. A 20-job batch surviving a real app restart on a GPU host was not run this cycle.
+- **Suggested next step**: Route interactive jobs through `pumpOnce` as well, then soak a 20-job seed sweep across a sidecar restart on a diffusion-capable machine.
 
 ### Resolved
 

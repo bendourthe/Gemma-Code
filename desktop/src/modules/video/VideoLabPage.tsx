@@ -38,6 +38,13 @@ import {
   type VideoMode,
   type VideoProgressEvent,
 } from "./videoClient";
+import { RecallActions, applyImageRecall, type RecallMode } from "../../shared/studio/RecallActions";
+import { GenerationQueueBar } from "../../shared/studio/GenerationQueueBar";
+import {
+  createIpcGenerationQueueClient,
+  type GenerationQueueClient,
+} from "../../shared/studio/generationQueueClient";
+import type { GenerationJob } from "../../../../core/generations/GenerationQueue";
 
 const FALLBACK_MODEL: ListedModelDto = {
   id: DEFAULT_VIDEO_FORM_VALUES.modelId,
@@ -62,6 +69,7 @@ export interface VideoLabPageProps {
   readonly initialValues?: Partial<VideoFormValues>;
   readonly diffusionTier?: DiffusionTierId;
   readonly vramGB?: number;
+  readonly queueClient?: GenerationQueueClient;
 }
 
 let messageSeq = 0;
@@ -80,10 +88,14 @@ export function VideoLabPage({
   initialValues,
   diffusionTier = "diffusion-mid",
   vramGB = 0,
+  queueClient: queueOverride,
 }: VideoLabPageProps = {}): JSX.Element {
   const tierClip = getDiffusionTierConfig(diffusionTier).video.clipSeconds || 4;
   const canAvatar = avatarAvailable(diffusionTier, vramGB);
   const [client] = useState<VideoClient>(() => clientOverride ?? createIpcVideoClient());
+  const [queueClient] = useState<GenerationQueueClient>(
+    () => queueOverride ?? createIpcGenerationQueueClient(),
+  );
   const [models, setModels] = useState<readonly ListedModelDto[]>([FALLBACK_MODEL]);
   const [noneInstalled, setNoneInstalled] = useState(false);
   const [selectedModelId, setSelectedModelId] = useState<string>(FALLBACK_MODEL.id);
@@ -99,6 +111,9 @@ export function VideoLabPage({
     () => new Map(),
   );
   const outputs = useRef<Map<string, string>>(new Map()); // messageId -> mp4Path
+  const [formEpoch, setFormEpoch] = useState(0);
+  const [queueJobs, setQueueJobs] = useState<readonly GenerationJob[]>([]);
+  const [workflowByMessage, setWorkflowByMessage] = useState<Record<string, Record<string, unknown>>>({});
   const chainRef = useRef<{
     messageId: string;
     current: ContinuationSegmentPlan;
@@ -237,6 +252,16 @@ export function VideoLabPage({
             progress: undefined,
             media: firstSrc ? { kind: "video", src: firstSrc } : undefined,
           });
+          if (mp4Path) {
+            void client.extractWorkflow(mp4Path).then((wf) => {
+              if (wf && typeof wf === "object") {
+                setWorkflowByMessage((prev) => ({
+                  ...prev,
+                  [messageId]: wf as Record<string, unknown>,
+                }));
+              }
+            });
+          }
           chainRef.current = null;
           return { done: true };
         } else if (event.kind === "error") {
@@ -251,7 +276,7 @@ export function VideoLabPage({
       }
       return { done: false };
     },
-    [patchMessage, resolveMp4Url, dispatchSegment],
+    [patchMessage, resolveMp4Url, dispatchSegment, client],
   );
 
   useEffect(() => {
@@ -290,6 +315,19 @@ export function VideoLabPage({
       clearInterval(timer);
     };
   }, [activeJob, client, advanceFromEvents, drainIntervalMs, patchMessage]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const timer = setInterval(() => {
+      void queueClient.list().then((jobs) => {
+        if (!cancelled) setQueueJobs(jobs);
+      }).catch(() => undefined);
+    }, Math.max(drainIntervalMs, 200));
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [queueClient, drainIntervalMs]);
 
   const handleSubmit = useCallback(
     async (text: string, attachments: readonly string[]): Promise<void> => {
@@ -407,6 +445,37 @@ export function VideoLabPage({
     }
   }
 
+  function recall(messageId: string, mode: RecallMode): void {
+    const wf = workflowByMessage[messageId];
+    if (!wf) return;
+    const patched = applyImageRecall(
+      {
+        prompt: values.prompt,
+        negativePrompt: values.negativePrompt,
+        modelId: values.modelId,
+        width: values.width,
+        height: values.height,
+        steps: values.steps,
+        cfgScale: values.cfgScale,
+        sampler: values.sampler,
+        seed: values.seed,
+      },
+      wf,
+      mode,
+    );
+    setValues((prev) => ({
+      ...prev,
+      prompt: patched.prompt,
+      negativePrompt: patched.negativePrompt,
+      modelId: patched.modelId,
+      steps: patched.steps,
+      cfgScale: patched.cfgScale,
+      sampler: patched.sampler,
+      seed: patched.seed,
+    }));
+    setFormEpoch((n) => n + 1);
+  }
+
   const selectorModels = useMemo(
     () => [
       ...models.map((m) => ({ id: m.id, displayName: m.displayName })),
@@ -483,6 +552,12 @@ export function VideoLabPage({
                     <button type="button" data-testid={`video-copyworkflow-${m.id}`} onClick={() => void copyWorkflow(m.id)}>
                       Copy Workflow
                     </button>
+                    <RecallActions
+                      messageId={m.id}
+                      testIdPrefix="video"
+                      hasWorkflow={Boolean(workflowByMessage[m.id])}
+                      onRecall={(mode) => recall(m.id, mode)}
+                    />
                     <button
                       type="button"
                       data-testid={`video-useframe-${m.id}`}
@@ -503,6 +578,7 @@ export function VideoLabPage({
           <summary style={{ cursor: "pointer", color: "var(--fg-muted)" }}>Advanced settings</summary>
           <div style={{ marginTop: "var(--space-2)" }}>
             <VideoPromptForm
+              key={formEpoch}
               initial={values}
               availableModels={models.map((m) => ({
                 id: m.id,
@@ -513,6 +589,15 @@ export function VideoLabPage({
               disabled={isGenerating}
               hideMode
               avatarAvailable={canAvatar}
+            />
+            <GenerationQueueBar
+              jobs={queueJobs}
+              onCancel={(id) => {
+                void queueClient.cancel(id).then(() => queueClient.list().then(setQueueJobs));
+              }}
+              onReorder={(ids) => {
+                void queueClient.reorder(ids).then(() => queueClient.list().then(setQueueJobs));
+              }}
             />
           </div>
         </details>

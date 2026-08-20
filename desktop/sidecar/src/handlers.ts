@@ -32,6 +32,11 @@ import {
   DiffusionVideoText2VideoRequest,
   DiffusionVideoWorkflowExtractRequest,
   DiffusionWorkflowExtractRequest,
+  GenerationQueueCancelRequest,
+  GenerationQueueEnqueueRequest,
+  GenerationQueueListRequest,
+  GenerationQueuePendingCountRequest,
+  GenerationQueueReorderRequest,
   ModelsInstallRequest,
   ModelsRemoveRequest,
   ModelsInstallDrainRequest,
@@ -77,7 +82,8 @@ import {
   isMethod,
   type Method,
 } from "./protocol.js";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { Buffer } from "node:buffer";
 import {
   NexusHubSyncer,
   defaultDependencies,
@@ -105,7 +111,17 @@ import { buildVideoJobRequest } from "./diffusion/videoDispatcher.js";
 import {
   type FfmpegContext,
   extractWorkflow as extractVideoWorkflow,
+  embedWorkflow as embedVideoWorkflow,
+  type VideoWorkflowMetadata,
 } from "../../../core/video/WorkflowMetadata.js";
+import { extractWorkflow as extractImageWorkflow } from "../../../core/image/WorkflowMetadata.js";
+import { pumpOnce } from "../../../core/generations/queuePump.js";
+import {
+  createStudioRuntime,
+  recordCompletion,
+  takeCompletions,
+  type StudioRuntime,
+} from "./generations/studioRuntime.js";
 import {
   type CredentialVault,
   createCredentialVault,
@@ -186,6 +202,8 @@ export interface HandlerContext {
   askInbox?: AskInbox;
   /** v1.18.0 Phase 4 -- local cron-style agent-run scheduler. */
   scheduler?: AgentRunScheduler;
+  /** v2.1.0 Phase 3 -- generation index + persistent queue. */
+  studio?: StudioRuntime;
 }
 
 /** How many individual request records the Traces panel receives per poll. */
@@ -271,6 +289,188 @@ export function createHandlerContext(
     workspacePath,
     audio,
   };
+}
+
+function resolveStudio(ctx: HandlerContext): StudioRuntime {
+  if (!ctx.studio) {
+    ctx.studio = createStudioRuntime({ dbPath: ":memory:" });
+  }
+  return ctx.studio;
+}
+
+function jobDto(job: {
+  id: string;
+  pillar: "image" | "video";
+  jobType: string;
+  parameters: Record<string, unknown>;
+  state: string;
+  priority: string;
+  sortOrder: number;
+  error: string | null;
+  threadId: string | null;
+}) {
+  return {
+    id: job.id,
+    pillar: job.pillar,
+    jobType: job.jobType,
+    parameters: job.parameters,
+    state: job.state,
+    priority: job.priority,
+    sortOrder: job.sortOrder,
+    error: job.error,
+    threadId: job.threadId,
+  };
+}
+
+function publicJobResult<T extends { pngBase64?: string; workflow?: unknown; mp4Path?: string }>(
+  result: T,
+): Omit<T, "pngBase64" | "workflow" | "mp4Path"> & { jobId: string } {
+  const { pngBase64: _p, workflow: _w, mp4Path: _m, ...rest } = result;
+  return rest as Omit<T, "pngBase64" | "workflow" | "mp4Path"> & { jobId: string };
+}
+
+function afterImageJob(ctx: HandlerContext, result: {
+  jobId: string;
+  mode: string;
+  pngBase64?: string;
+  workflow?: Record<string, unknown>;
+}): void {
+  const studio = resolveStudio(ctx);
+  if (result.pngBase64) {
+    recordCompletion(studio, {
+      kind: "complete",
+      jobId: result.jobId,
+      png: result.pngBase64,
+    });
+    const bytes = Buffer.from(result.pngBase64, "base64");
+    const wf =
+      result.workflow ??
+      (extractImageWorkflow(bytes) as Record<string, unknown> | null) ??
+      undefined;
+    if (wf) studio.index.put(bytes, "image", wf);
+  }
+  const existing = studio.queue.get(result.jobId);
+  if (!existing) {
+    studio.queue.enqueue({
+      id: result.jobId,
+      pillar: "image",
+      jobType: result.mode,
+      parameters: result.workflow ?? {},
+      priority: "interactive",
+    });
+  }
+  const current = studio.queue.get(result.jobId);
+  if (current?.state === "done" || current?.state === "failed") return;
+  if (result.pngBase64) studio.queue.markDone(result.jobId);
+  else studio.queue.markRunning(result.jobId);
+}
+
+async function afterVideoJob(
+  ctx: HandlerContext,
+  result: {
+    jobId: string;
+    mode: string;
+    mp4Path?: string;
+    workflow?: Record<string, unknown>;
+  },
+): Promise<void> {
+  const studio = resolveStudio(ctx);
+  if (result.mp4Path && result.workflow) {
+    try {
+      await embedVideoWorkflow(
+        result.mp4Path,
+        result.workflow as unknown as VideoWorkflowMetadata,
+        ctx.ffmpeg,
+      );
+    } catch {
+      /* index still records even if ffmpeg embed fails */
+    }
+    try {
+      const bytes = readFileSync(result.mp4Path);
+      studio.index.put(bytes, "video", result.workflow);
+    } catch {
+      studio.index.put(result.mp4Path, "video", result.workflow);
+    }
+    recordCompletion(studio, {
+      kind: "complete",
+      jobId: result.jobId,
+      outputPath: result.mp4Path,
+    });
+  }
+  if (!studio.queue.get(result.jobId)) {
+    studio.queue.enqueue({
+      id: result.jobId,
+      pillar: "video",
+      jobType: result.mode,
+      parameters: result.workflow ?? {},
+      priority: "interactive",
+    });
+  }
+  const current = studio.queue.get(result.jobId);
+  if (current?.state === "done" || current?.state === "failed") return;
+  if (result.mp4Path) studio.queue.markDone(result.jobId);
+  else studio.queue.markRunning(result.jobId);
+}
+
+let _studioPumping = false;
+async function pumpStudio(ctx: HandlerContext): Promise<void> {
+  if (_studioPumping) return;
+  _studioPumping = true;
+  const studio = resolveStudio(ctx);
+  try {
+    for (;;) {
+      const ran = await pumpOnce(studio.queue, {
+        scheduler: studio.scheduler,
+        index: studio.index,
+        run: async (job) => {
+          if (job.pillar === "video") {
+            const result = await buildVideoJobRequest(
+              job.jobType as "text2video" | "image2video" | "audio2video",
+              job.parameters,
+              ctx.diffusion,
+            );
+            if (result.mp4Path && result.workflow) {
+              try {
+                await embedVideoWorkflow(
+                  result.mp4Path,
+                  result.workflow as unknown as VideoWorkflowMetadata,
+                  ctx.ffmpeg,
+                );
+              } catch {
+                /* index still records */
+              }
+              recordCompletion(studio, {
+                kind: "complete",
+                jobId: result.jobId,
+                outputPath: result.mp4Path,
+              });
+              return { outputPath: result.mp4Path, workflow: result.workflow };
+            }
+            return {};
+          }
+          const result = await buildJobRequest(
+            job.jobType as "txt2img" | "img2img" | "inpaint" | "outpaint",
+            job.parameters,
+            ctx.diffusion,
+          );
+          if (result.pngBase64) {
+            recordCompletion(studio, {
+              kind: "complete",
+              jobId: result.jobId,
+              png: result.pngBase64,
+            });
+          }
+          return {
+            pngBase64: result.pngBase64,
+            workflow: result.workflow as Record<string, unknown> | undefined,
+          };
+        },
+      });
+      if (!ran) break;
+    }
+  } finally {
+    _studioPumping = false;
+  }
 }
 
 function parkedAskDto(ask: ParkedAsk) {
@@ -621,45 +821,119 @@ export const handlers: Record<Method, HandlerFn> = {
   },
   "diffusion.txt2img": async (params, ctx) => {
     const req = DiffusionTxt2ImgRequest.parse(params ?? {});
-    return buildJobRequest("txt2img", req, ctx.diffusion);
+    const result = await buildJobRequest("txt2img", req, ctx.diffusion);
+    afterImageJob(ctx, result);
+    return publicJobResult(result);
   },
   "diffusion.img2img": async (params, ctx) => {
     const req = DiffusionImg2ImgRequest.parse(params ?? {});
-    return buildJobRequest("img2img", req, ctx.diffusion);
+    const result = await buildJobRequest("img2img", req, ctx.diffusion);
+    afterImageJob(ctx, result);
+    return publicJobResult(result);
   },
   "diffusion.inpaint": async (params, ctx) => {
     const req = DiffusionInpaintRequest.parse(params ?? {});
-    return buildJobRequest("inpaint", req, ctx.diffusion);
+    const result = await buildJobRequest("inpaint", req, ctx.diffusion);
+    afterImageJob(ctx, result);
+    return publicJobResult(result);
   },
   "diffusion.outpaint": async (params, ctx) => {
     const req = DiffusionOutpaintRequest.parse(params ?? {});
-    return buildJobRequest("outpaint", req, ctx.diffusion);
+    const result = await buildJobRequest("outpaint", req, ctx.diffusion);
+    afterImageJob(ctx, result);
+    return publicJobResult(result);
   },
   "diffusion.job.drainEvents": async (params, ctx) => {
     const req = DiffusionDrainEventsRequest.parse(params ?? {});
-    return { events: ctx.diffusion.drainEvents(req.jobId) };
+    const runtimeEvents = ctx.diffusion.drainEvents(req.jobId);
+    const extras = ctx.studio ? takeCompletions(ctx.studio, req.jobId) : [];
+    return { events: [...runtimeEvents, ...extras] };
   },
-  "diffusion.workflow.extract": async (params) => {
+  "diffusion.workflow.extract": async (params, ctx) => {
     const req = DiffusionWorkflowExtractRequest.parse(params ?? {});
-    const workflow = extractWorkflowFromBase64Png(req.pngBase64);
+    let workflow = extractWorkflowFromBase64Png(req.pngBase64);
+    if (!workflow) {
+      const hit = resolveStudio(ctx).index.getByBytes(Buffer.from(req.pngBase64, "base64"));
+      workflow = (hit?.workflow as typeof workflow) ?? null;
+    }
     return { workflow };
   },
   "diffusion.video.text2video": async (params, ctx) => {
     const req = DiffusionVideoText2VideoRequest.parse(params ?? {});
-    return buildVideoJobRequest("text2video", req, ctx.diffusion);
+    const result = await buildVideoJobRequest("text2video", req, ctx.diffusion);
+    await afterVideoJob(ctx, result);
+    return publicJobResult(result);
   },
   "diffusion.video.image2video": async (params, ctx) => {
     const req = DiffusionVideoImage2VideoRequest.parse(params ?? {});
-    return buildVideoJobRequest("image2video", req, ctx.diffusion);
+    const result = await buildVideoJobRequest("image2video", req, ctx.diffusion);
+    await afterVideoJob(ctx, result);
+    return publicJobResult(result);
   },
   "diffusion.video.audio2video": async (params, ctx) => {
     const req = DiffusionVideoAudio2VideoRequest.parse(params ?? {});
-    return buildVideoJobRequest("audio2video", req, ctx.diffusion);
+    const result = await buildVideoJobRequest("audio2video", req, ctx.diffusion);
+    await afterVideoJob(ctx, result);
+    return publicJobResult(result);
   },
   "diffusion.video.workflow.extract": async (params, ctx) => {
     const req = DiffusionVideoWorkflowExtractRequest.parse(params ?? {});
-    const workflow = await extractVideoWorkflow(req.mp4Path, ctx.ffmpeg);
+    let workflow = await extractVideoWorkflow(req.mp4Path, ctx.ffmpeg);
+    if (!workflow) {
+      try {
+        const bytes = readFileSync(req.mp4Path);
+        const hit = resolveStudio(ctx).index.getByBytes(bytes);
+        workflow = (hit?.workflow as typeof workflow) ?? null;
+      } catch {
+        const hit = resolveStudio(ctx).index.getByBytes(req.mp4Path);
+        workflow = (hit?.workflow as typeof workflow) ?? null;
+      }
+    }
     return { workflow };
+  },
+  "generation.queue.list": async (params, ctx) => {
+    const req = GenerationQueueListRequest.parse(params ?? {});
+    const jobs = resolveStudio(ctx).queue.list(req.states);
+    return { jobs: jobs.map(jobDto) };
+  },
+  "generation.queue.enqueue": async (params, ctx) => {
+    const req = GenerationQueueEnqueueRequest.parse(params ?? {});
+    const studio = resolveStudio(ctx);
+    const id = req.id ?? `gen-${Date.now().toString(36)}`;
+    const jobs = req.batchSpec
+      ? studio.queue.enqueueBatch({
+          id,
+          pillar: req.pillar,
+          jobType: req.jobType,
+          parameters: req.parameters,
+          priority: req.priority ?? "batch",
+          threadId: req.threadId,
+          batchSpec: req.batchSpec,
+        })
+      : [studio.queue.enqueue({
+          id,
+          pillar: req.pillar,
+          jobType: req.jobType,
+          parameters: req.parameters,
+          priority: req.priority ?? "interactive",
+          threadId: req.threadId,
+        })];
+    void pumpStudio(ctx);
+    return { jobs: jobs.map(jobDto) };
+  },
+  "generation.queue.cancel": async (params, ctx) => {
+    const req = GenerationQueueCancelRequest.parse(params ?? {});
+    const job = resolveStudio(ctx).queue.cancel(req.id);
+    return { job: job ? jobDto(job) : null };
+  },
+  "generation.queue.reorder": async (params, ctx) => {
+    const req = GenerationQueueReorderRequest.parse(params ?? {});
+    resolveStudio(ctx).queue.reorder(req.ids);
+    return { ok: true as const };
+  },
+  "generation.queue.pendingCount": async (params, ctx) => {
+    GenerationQueuePendingCountRequest.parse(params ?? {});
+    return { count: resolveStudio(ctx).queue.pendingCount() };
   },
 };
 

@@ -35,6 +35,13 @@ import {
   type ProgressEvent,
   createIpcDiffusionClient,
 } from "./diffusionClient";
+import { RecallActions, applyImageRecall, type RecallMode } from "../../shared/studio/RecallActions";
+import { GenerationQueueBar } from "../../shared/studio/GenerationQueueBar";
+import {
+  createIpcGenerationQueueClient,
+  type GenerationQueueClient,
+} from "../../shared/studio/generationQueueClient";
+import type { GenerationJob } from "../../../../core/generations/GenerationQueue";
 
 const FALLBACK_MODEL: ListedModelDto = {
   id: DEFAULT_FORM_VALUES.modelId,
@@ -61,6 +68,8 @@ export interface ImageStudioPageProps {
   readonly drainIntervalMs?: number;
   /** Test seam: clipboard adapter. Defaults to navigator.clipboard. */
   readonly clipboard?: { writeText: (value: string) => Promise<void> };
+  /** v2.1.0 Phase 3 -- generation queue. Tests inject an in-memory client. */
+  readonly queueClient?: GenerationQueueClient;
   /** Invoked by the selector's "Get more models" entry (App wires navigation). */
   readonly onGetMoreModels?: () => void;
   /** Resolved DiffusionTier so the Advanced panel can gate 2K/4K. */
@@ -80,8 +89,12 @@ export function ImageStudioPage({
   clipboard,
   onGetMoreModels,
   diffusionTier = "diffusion-low",
+  queueClient: queueOverride,
 }: ImageStudioPageProps = {}): JSX.Element {
   const [client] = useState<DiffusionClient>(() => clientOverride ?? createIpcDiffusionClient());
+  const [queueClient] = useState<GenerationQueueClient>(
+    () => queueOverride ?? createIpcGenerationQueueClient(),
+  );
   const [models, setModels] = useState<readonly ListedModelDto[]>([FALLBACK_MODEL]);
   const [noneInstalled, setNoneInstalled] = useState(false);
   const [selectedModelId, setSelectedModelId] = useState<string>(FALLBACK_MODEL.id);
@@ -89,6 +102,9 @@ export function ImageStudioPage({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [activeJob, setActiveJob] = useState<{ jobId: string; messageId: string } | null>(null);
   const [seededAttachment, setSeededAttachment] = useState<string | null>(null);
+  const [formEpoch, setFormEpoch] = useState(0);
+  const [queueJobs, setQueueJobs] = useState<readonly GenerationJob[]>([]);
+  const [workflowByMessage, setWorkflowByMessage] = useState<Record<string, Record<string, unknown>>>({});
   const outputs = useRef<Map<string, string>>(new Map()); // messageId -> raw png
 
   const isGenerating = activeJob !== null;
@@ -146,6 +162,16 @@ export function ImageStudioPage({
             progress: undefined,
             media: png ? { kind: "image", src: `data:image/png;base64,${png}` } : undefined,
           });
+          if (png) {
+            void client.extractWorkflow(png).then((wf) => {
+              if (wf && typeof wf === "object") {
+                setWorkflowByMessage((prev) => ({
+                  ...prev,
+                  [messageId]: wf as Record<string, unknown>,
+                }));
+              }
+            });
+          }
         } else if (event.kind === "error") {
           done = true;
           patchMessage(messageId, {
@@ -157,7 +183,7 @@ export function ImageStudioPage({
       }
       return { done };
     },
-    [patchMessage],
+    [patchMessage, client],
   );
 
   useEffect(() => {
@@ -191,6 +217,19 @@ export function ImageStudioPage({
       clearInterval(timer);
     };
   }, [activeJob, client, advanceFromEvents, drainIntervalMs, patchMessage]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const timer = setInterval(() => {
+      void queueClient.list().then((jobs) => {
+        if (!cancelled) setQueueJobs(jobs);
+      }).catch(() => undefined);
+    }, Math.max(drainIntervalMs, 200));
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [queueClient, drainIntervalMs]);
 
   const handleSubmit = useCallback(
     async (text: string, attachments: readonly string[]): Promise<void> => {
@@ -288,6 +327,13 @@ export function ImageStudioPage({
     if (png) setSeededAttachment(`data:image/png;base64,${png}`);
   }
 
+  function recall(messageId: string, mode: RecallMode): void {
+    const wf = workflowByMessage[messageId];
+    if (!wf) return;
+    setValues((prev) => ({ ...prev, ...applyImageRecall(prev, wf, mode) }));
+    setFormEpoch((n) => n + 1);
+  }
+
   const selectorModels = useMemo(
     () => [
       ...models.map((m) => ({ id: m.id, displayName: m.displayName })),
@@ -356,6 +402,12 @@ export function ImageStudioPage({
                     <button type="button" data-testid={`image-copyworkflow-${m.id}`} onClick={() => void copyWorkflow(m.id)}>
                       Copy Workflow
                     </button>
+                    <RecallActions
+                      messageId={m.id}
+                      testIdPrefix="image"
+                      hasWorkflow={Boolean(workflowByMessage[m.id])}
+                      onRecall={(mode) => recall(m.id, mode)}
+                    />
                     <button type="button" data-testid={`image-usesource-${m.id}`} onClick={() => useAsSource(m.id)}>
                       Use as Source
                     </button>
@@ -372,6 +424,7 @@ export function ImageStudioPage({
           <summary style={{ cursor: "pointer", color: "var(--fg-muted)" }}>Advanced settings</summary>
           <div style={{ marginTop: "var(--space-2)" }}>
             <ImagePromptForm
+              key={formEpoch}
               initial={values}
               availableModels={models.map((m) => ({ id: m.id, displayName: m.displayName }))}
               availableLoras={DEFAULT_LORAS}
@@ -379,6 +432,35 @@ export function ImageStudioPage({
               onChange={setValues}
               disabled={isGenerating}
               diffusionTier={diffusionTier}
+            />
+            <button
+              type="button"
+              data-testid="image-seed-sweep"
+              disabled={isGenerating}
+              onClick={() => {
+                void queueClient.enqueue({
+                  pillar: "image",
+                  jobType: "txt2img",
+                  parameters: { ...values, prompt: values.prompt || "batch" },
+                  priority: "batch",
+                  batchSpec: { kind: "seed-range", start: values.seed, end: values.seed + 2 },
+                }).then((jobs) => setQueueJobs((prev) => [...prev, ...jobs]));
+              }}
+            >
+              Queue seed sweep
+            </button>
+            <GenerationQueueBar
+              jobs={queueJobs}
+              onCancel={(id) => {
+                void queueClient.cancel(id).then(() =>
+                  queueClient.list().then(setQueueJobs),
+                );
+              }}
+              onReorder={(ids) => {
+                void queueClient.reorder(ids).then(() =>
+                  queueClient.list().then(setQueueJobs),
+                );
+              }}
             />
           </div>
         </details>

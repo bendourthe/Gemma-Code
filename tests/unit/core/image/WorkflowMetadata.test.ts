@@ -89,10 +89,23 @@ describe("WorkflowMetadata", () => {
     expect(chunks[NEXUS_WORKFLOW_KEY]).toMatch(/"mode":"txt2img"/);
     const corrupted = embedded
       .toString("binary")
-      .replace('"mode":"txt2img"', '"mode":"weird"');
+      .replace(/"mode":"txt2img"/g, '"mode":"weird"');
     const corruptedBuf = Buffer.from(corrupted, "binary");
     // CRC is now invalid but the reader tolerates that since it does not
     // verify CRC; the validator should still reject the mode.
     expect(extractWorkflow(corruptedBuf)).toBeNull();
+  });
+
+  it("round-trips UTF-8 prompts via iTXt and ignores unknown fields", () => {
+    const wf = {
+      ...sampleWorkflow(),
+      prompt: "renard aquarelle cafe\u00e9",
+      extraVendorField: 42,
+      schemaVersion: 1,
+    };
+    const extracted = extractWorkflow(embedWorkflow(createMinimalPng(), wf));
+    expect(extracted?.prompt).toBe("renard aquarelle cafe\u00e9");
+    expect((extracted as { extraVendorField?: number } | null)?.extraVendorField).toBe(42);
+    expect(extracted?.schemaVersion).toBe(1);
   });
 });

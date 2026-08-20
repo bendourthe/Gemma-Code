@@ -4,6 +4,34 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-20] v2.1.0 Phase 3: Image Studio provenance + generation queue
+
+### Goal
+
+Embed recallable generation parameters in outputs and run Image Studio / Video Lab jobs through a persistent SQLite queue.
+
+### What was done
+
+- PNG: `schemaVersion` (default 1), iTXt + tEXt. Extract prefers iTXt, ignores unknown fields, hides recall when both are missing. Python still writes tEXt only (DF-6).
+- Index: `~/.nexus/generations/studio.db`, content-hash keyed, `redactSecrets` on prompt / negativePrompt.
+- Queue: queued / running / interrupted / done / failed. Restart recovery is id-stable. Seed-range / prompt-matrix / combined expansion, cap 64.
+- Pump: `pumpOnce` + GpuScheduler for enqueued batches. Interactive clicks still use the existing dispatcher (DF-7).
+- UI: Use Prompt / Use Seed / Use All / Remix; pending count, cancel, reorder, seed sweep.
+
+### Tests
+
+Root 30 passed (generations + WorkflowMetadata). Desktop sidecar + Studio pages green. Python workflow_metadata 7 passed. Coverage 93.3% lines on the new store + metadata writer. `tsc -b` clean.
+
+### Deviations
+
+Live 20-job GPU restart not run. Sidecar `generations/` imports to `core/` need four `../`.
+
+### Next
+
+Phase 4 multimodal chat + SAM2. Local commit only.
+
+---
+
 ## [2026-08-20] v2.1.0 Phase 2: Switchyard-derived adaptive routing
 
 ### Goal

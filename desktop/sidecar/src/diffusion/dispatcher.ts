@@ -26,6 +26,8 @@ export interface DispatcherResult {
   readonly mode: DispatcherMode;
   readonly offloadStrategy?: string;
   readonly estimatedSeconds?: number;
+  readonly pngBase64?: string;
+  readonly workflow?: WorkflowMetadata;
 }
 
 let _counter = 0;
@@ -61,6 +63,8 @@ export async function buildJobRequest(
     mode,
     offloadStrategy: accepted?.offloadStrategy,
     estimatedSeconds: accepted?.estimatedSeconds,
+    pngBase64: accepted?.pngBase64,
+    workflow: accepted?.workflow,
   };
 }
 

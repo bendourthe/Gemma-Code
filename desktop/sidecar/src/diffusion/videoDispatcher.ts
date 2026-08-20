@@ -26,6 +26,8 @@ export interface VideoDispatcherResult {
   readonly estimatedSeconds?: number;
   readonly frameCount?: number;
   readonly provenance?: AvatarProvenance;
+  readonly mp4Path?: string;
+  readonly workflow?: Record<string, unknown>;
 }
 
 let _counter = 0;
@@ -84,6 +86,7 @@ export async function buildVideoJobRequest(
     | (Partial<VideoDispatcherResult> & {
         extra?: { frameCount?: number };
         workflow?: { provenance?: Record<string, unknown> };
+        mp4Path?: string;
       })
     | null;
   const provenance =
@@ -103,6 +106,8 @@ export async function buildVideoJobRequest(
     offloadStrategy: accepted?.offloadStrategy,
     estimatedSeconds: accepted?.estimatedSeconds,
     frameCount: accepted?.frameCount ?? accepted?.extra?.frameCount,
+    mp4Path: accepted?.mp4Path,
+    workflow: accepted?.workflow as Record<string, unknown> | undefined,
     ...(provenance ? { provenance } : {}),
   };
 }

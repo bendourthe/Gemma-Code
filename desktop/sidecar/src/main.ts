@@ -19,6 +19,8 @@ import { ChatSessionManager } from "./chat/sessionManager.js";
 import { createChatMessageHandler } from "./chat/chatMessageHandler.js";
 import { createDiffusionRuntime } from "./diffusion/runtimeFactory.js";
 import { createHandlerContext, dispatch } from "./handlers.js";
+import { createStudioRuntime } from "./generations/studioRuntime.js";
+import { resolveStudioDbPath } from "../../../core/generations/paths.js";
 import { createServingRuntime } from "./serving/servingRuntime.js";
 import { warmUpTreeSitter } from "./treeSitterWarmup.js";
 import { existsSync } from "node:fs";
@@ -107,6 +109,7 @@ const ctx = createHandlerContext(
 );
 ctx.askInbox = askInbox;
 ctx.scheduler = scheduler;
+ctx.studio = createStudioRuntime({ dbPath: resolveStudioDbPath() });
 
 function write(payload: JsonRpcResponseOk | JsonRpcResponseErr): void {
   process.stdout.write(`${JSON.stringify(payload)}\n`);
