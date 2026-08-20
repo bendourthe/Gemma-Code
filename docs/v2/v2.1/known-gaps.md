@@ -8,6 +8,8 @@ Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/pl
 
 Plan: [plans/v2.1.0-adoption-open-local-ai-wave.md](plans/v2.1.0-adoption-open-local-ai-wave.md)
 
+Phase 7 reconciliation: hardware and product-backlog items stay deferred with next steps. Comparison backlog A13 (minimal mask canvas) and A14 (frame-anchored video comments) are recorded below. DiffusionGemma remains DF-1 with both flip conditions. Status stays in-progress until `/update release` bumps the version.
+
 ## v2.1.0
 
 ### Summary
@@ -15,7 +17,7 @@ Plan: [plans/v2.1.0-adoption-open-local-ai-wave.md](plans/v2.1.0-adoption-open-l
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 21 | 1 |
+| Deferred (DF) | 23 | 1 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
@@ -175,6 +177,22 @@ Plan: [plans/v2.1.0-adoption-open-local-ai-wave.md](plans/v2.1.0-adoption-open-l
 - **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 6.1)
 - **Reason**: `TelemetryEventKind` includes `tool.call`. Sidecar `coding.session.sendMessage` / `chat.session.sendMessage` publish `chat.turn`. Routing publishes `routing.decision`. Generation and training appear as GpuScheduler `job.*` on the shared bus. VS Code `AgentLoop` does not publish `tool.call`, so per-tool attribution in the audit log is incomplete for that host.
 - **Suggested next step**: Publish `tool.call` from the desktop coding session tool path and, later, from AgentLoop without crossing the vscode host boundary into `core/`.
+
+##### DF-23 - Minimal mask-layer canvas is not in Advanced settings (A13)
+
+- **Source phase**: Phase 7 - Known-gaps reconciliation (7.2)
+- **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 7.2)
+- **Comparison**: `docs/v2/v2.1/comparisons/v2.1.0-comparison-open-local-ai-wave.md` A13 / IV4
+- **Reason**: Paint/erase mask plus bounding-box region was P3, gated on A9 (replace-the-X) proving demand for manual refinement. Phase 4 shipped SAM2 phrase editing; this cycle did not add a second mask canvas behind Advanced.
+- **Suggested next step**: After users hit DF-10 (ambiguous candidates) often enough, add a paint/erase mask layer in Image Studio Advanced, not a four-layer-type node graph.
+
+##### DF-24 - Frame-anchored Video Lab comments are not implemented (A14)
+
+- **Source phase**: Phase 7 - Known-gaps reconciliation (7.2)
+- **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 7.2)
+- **Comparison**: `docs/v2/v2.1/comparisons/v2.1.0-comparison-open-local-ai-wave.md` A14 / BZ6
+- **Reason**: Frame-anchored comments for iterating on generations were comparison backlog (P3). Video Lab still uses chat-style history plus Advanced settings.
+- **Suggested next step**: Add per-frame comment markers on the Video Lab timeline that round-trip into the next generation request, without a networked review surface.
 
 ### Resolved
 

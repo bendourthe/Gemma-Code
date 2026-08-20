@@ -21,7 +21,11 @@ concurrency:
 
 # v2.0.0 Phase 5: hardware-gated suites and skip flags are listed in
 # docs/v2/v2.0/ci-hardware-gates.md (Playwright, GPU video, live STT/TTS,
-# patient-tier adapter). Do not install those stacks in this workflow.
+# patient-tier adapter). v2.1.0 extends that in docs/v2/v2.1/ci-hardware-gates.md
+# (Unsloth live train, diffusion layer-streaming OOM rescue). Do not install
+# those stacks in this workflow. Phase 6 audit/JSON CLI/budget units run in
+# test-ts; desktop vitest (Node 22) covers sidecar IPC; pytest tests/python
+# covers diffusion budget.py.
 
 jobs:
 
@@ -367,7 +371,8 @@ jobs:
   # the ~135 diffusion-runtime tests added in v1.0.0 Phase 6 have only ever been
   # run by hand. Adding the OCR runtime made that gap load-bearing, so this job
   # covers diffusion, OCR, (v2.0.0 Phase 1) the audio STT/TTS stub, and
-  # (v2.1.0 Phase 5) the Unsloth train.py --stub path.
+  # (v2.1.0 Phase 5) the Unsloth train.py --stub path, and (v2.1.0 Phase 6)
+  # diffusion budget + layer-streaming rescue (no GPU weights).
   #
   # No GPU, no model weights, and no CUDA stack: the runtimes import every heavy
   # dependency lazily and ship stub engines, so `health`, `version`, the

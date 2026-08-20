@@ -4,6 +4,28 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-20] v2.1.0 Phase 7: refactor, known-gaps, CI
+
+### Goal
+
+Leave the v2.1 tree organized, gaps reconciled, CI covering the plan without extra GPU minutes.
+
+### What was done
+
+- Layout audit: canonical `docs/v2/v2.1/` already. SkillLoader empty catalog dirs kept. No archive moves.
+- Known-gaps: recorded A13 mask canvas (DF-23) and A14 video comments (DF-24). DiffusionGemma flip conditions already on DF-1. Status still in-progress until the version bump.
+- CI: comments on `ci.yml` for v2.1 hardware gates and Phase 6 surfaces. Existing concurrency, caches, Node 22 desktop vitest, path-filtered installer/sandbox kept. No new OS matrix.
+
+### Tests
+
+`check:docs-layout` green. `tests/unit/docs/v2.1-phase-7-ci-gates.test.ts` pins the hardware-gates doc.
+
+### Next
+
+Commit and push. Then sweep older known-gaps files. Then `/update release`.
+
+---
+
 ## [2026-08-20] v2.1.0 Phase 6: signed audit log, JSON CLI, diffusion VRAM knobs
 
 ### Goal

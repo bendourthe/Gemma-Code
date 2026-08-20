@@ -1,6 +1,6 @@
 # Docs cleanup audit - v2.1.0
 
-**Last audit**: 2026-08-20 (Phase 6)
+**Last audit**: 2026-08-20 (Phase 7)
 **Mode**: audit (no files moved)
 
 ## Layout
@@ -30,6 +30,10 @@ Added `development/unsloth-license-boundary.md`, `development/history/2026-08-20
 ## Phase 6
 
 Added `development/json-cli.md`, `development/history/2026-08-20_phase-6-hardening.md`. Updated plan checklist, known-gaps (DF-18 through DF-22), DEVLOG, README What's new, ARCHITECTURE audit/CLI/budget sections, AGENTS.md `core/audit/` and `core/cli/` layout lines, `ci-hardware-gates.md`.
+
+## Phase 7
+
+Added `development/history/2026-08-20_phase-7-refactor-known-gaps-ci.md`. Updated plan checklist, known-gaps (DF-23 A13, DF-24 A14, reconciliation note), DEVLOG, `ci.yml` comments. `check:docs-layout` already canonical. Empty SkillLoader dirs retained.
 
 ## Recommendation
 
