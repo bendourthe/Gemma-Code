@@ -1,23 +1,13 @@
-# Docs cleanup audit -- v2.0.0 Phase 5
+# Docs cleanup -- v2.0.0 Phase 6
 
-**Date**: 2026-08-20
-**Mode**: audit then apply-none
-**Plan**: [plans/v2.0.0-adoption-governed-autonomy-multimodal.md](plans/v2.0.0-adoption-governed-autonomy-multimodal.md)
+**Date:** 2026-08-20
 
-## Layout
-
-Canonical `docs/v2/v2.0/` has `plans/`, `comparisons/`, `development/history/`, `known-gaps.md`, `browser-surface-security.md`, and `ci-hardware-gates.md`. Seven seeding comparisons are in `comparisons/`. No empty version dirs. Archive stays under `docs/archive/v0/` and `docs/archive/v1/` as already migrated.
-
-## Disposition
-
-| Path | Cat | Action |
-|---|---|---|
-| `docs/v2/v2.0/plans/` | 4 | stay |
-| `docs/v2/v2.0/comparisons/` | 4 | stay |
-| `docs/v2/v2.0/development/history/` | 4 | stay |
-| `docs/v1/**` | 4 / 3 | stay (prior majors; not archived this cycle) |
-| SkillLoader `__none__` / `__nonexistent_user__` | n/a (not docs) | stay as test placeholders |
-
-## Applied
-
-None. No files moved or deleted.
+| Check | Result |
+|---|---|
+| Plan exit checklist | Phase 6 `[x]` |
+| README What's new | v2.0.0 section present; historical "v2.0.0 remains next" lines removed |
+| CHANGELOG | `# [2.0.0]` with opt-in Activation/Validation/Rollback/Authority/Docs |
+| install.md | dedicated After you install (v2.0.0); duplicates removed from v1.16 |
+| known-gaps | v2.0.0 file is cycle + DF-13/14 + carry-forward index; v1.18-v1.20 stay canonical |
+| todos.md | RELEASED banner |
+| Hub version-sync / MANIFEST | not in this repo |

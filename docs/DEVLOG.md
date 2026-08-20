@@ -4,6 +4,26 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-20] v2.0.0 cut
+
+### Goal
+
+Cut the convergence release: version 2.0.0, changelog, README What's new, tag, GitHub Release.
+
+### What was done
+
+- Convergence GO: v1.18.0, v1.19.0/.1/.2 tags plus this plan P1-P5 histories.
+- Bumped `package.json` / lockfile / `desktop/src-tauri/tauri.conf.json` to **2.0.0**.
+- CHANGELOG `[2.0.0]` plus three opt-in surfaces (voice loop, Playwright, LongCat avatar).
+- README ledger and install.md v2.0.0 after-install notes.
+- Gates: root **5160 passed / 12 skipped / 0 failed**, coverage 88.28% / 83.84% / 90.96%, desktop **1036 passed**, python **231 passed**, lint + `tsc -b` clean.
+
+### Next
+
+Push `develop`, tag `v2.0.0`, publish the GitHub Release.
+
+---
+
 ## [2026-08-20] v2.0.0 close-out -- Phase 5: layout audit, known-gaps, CI gates
 
 ### Goal

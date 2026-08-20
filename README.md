@@ -6,7 +6,7 @@
 
 Nexus is a local-first, native desktop AI Studio that bundles four generative AI pillars behind one cohesive UI: agentic coding, organized local chat, image generation and editing, and short-form video synthesis. Everything runs on the host machine against optimized open-source models (Gemma 4, Llama 3, Qwen 2.5 Coder, SDXL / SANA-class diffusion, video-synthesis architectures), with real-time GPU / VRAM telemetry built into the dashboard. No API keys, no data leaving your machine, no per-token billing.
 
-> **Renamed from Gemma Code at v1.0.0** to reflect the four-pillar pivot. The v0.1.0 - v0.22.x line shipped as a single-purpose local agentic coding VS Code extension; v1.0.0 folded that engine into the "Agentic AI Coding" pillar of a wider desktop app. The VS Code surface is preserved as an optional thin adapter that proxies to the desktop daemon. Historical Gemma Code docs remain under `docs/archive/versions/v0/v0.1.0/` - `docs/archive/versions/v0/v0.9.0/`; every product milestone since the pivot is documented under `docs/v1/v1.<MINOR>/`, from the v1.0.0 pivot through the current **v1.20.0** cycle. Releases are cut on the same milestone version line - see [Project Status](#project-status-august-2026).
+> **Renamed from Gemma Code at v1.0.0** to reflect the four-pillar pivot. The v0.1.0 - v0.22.x line shipped as a single-purpose local agentic coding VS Code extension; v1.0.0 folded that engine into the "Agentic AI Coding" pillar of a wider desktop app. The VS Code surface is preserved as an optional thin adapter that proxies to the desktop daemon. Historical Gemma Code docs remain under `docs/archive/versions/v0/v0.1.0/` - `docs/archive/versions/v0/v0.9.0/`; v1 milestones live under `docs/v1/v1.<MINOR>/`, and the current **v2.0.0** convergence release lives under `docs/v2/v2.0/`. See [Project Status](#project-status-august-2026).
 
 ---
 
@@ -75,9 +75,9 @@ A persistent `Local Model Status` panel reports the active model architecture, p
 
 ## Project Status (August 2026)
 
-Nexus uses a single, convergent version line: git tags and `package.json` carry the same `v1.<MINOR>.<PATCH>` numbers as the milestone docs under `docs/v1/v1.<MINOR>/`. This track runs from the v1.0.0 pivot through the current **v1.20.0** release.
+Nexus uses a single, convergent version line: git tags and `package.json` carry the same numbers as the milestone docs (`docs/v1/v1.<MINOR>/` through v1.20.0, then `docs/v2/v2.0/` for **v2.0.0**).
 
-Historical note: between 2026-06-18 and 2026-07-20 a decoupled "release track" cut five semantic-release versions numbered ahead of the milestones. Those tags were renumbered onto the milestone line on 2026-08-05: `v2.0.0` -> `v1.6.0` (GA consolidating v1.4.0 -> v1.6.0), `v2.1.0` -> `v1.7.0`, `v2.2.0` -> `v1.12.0` (consolidating v1.8.0 -> v1.12.0), `v2.3.0` -> `v1.13.0`, and `v2.4.0` -> `v1.14.0`. The version **v2.0.0 is reserved for the convergence release** that ships once the v1.18 plan, the v1.19.x subplans, and the v2.0 adoption plan are all complete (see `docs/v2/v2.0/plans/`).
+Historical note: between 2026-06-18 and 2026-07-20 a decoupled "release track" cut five semantic-release versions numbered ahead of the milestones. Those tags were renumbered onto the milestone line on 2026-08-05: the old `v2.0.0` tag became `v1.6.0`, `v2.1.0` -> `v1.7.0`, `v2.2.0` -> `v1.12.0`, `v2.3.0` -> `v1.13.0`, and `v2.4.0` -> `v1.14.0`. This **v2.0.0** cut is the reserved convergence release (v1.18 plan + v1.19.x subplans + this adoption plan).
 
 ### Milestone ledger
 
@@ -106,8 +106,21 @@ Historical note: between 2026-06-18 and 2026-07-20 a decoupled "release track" c
 | v1.19.1 | Agent-loop and guardrail hardening: Hub skill-native wins, hard denials, LoopGuards, security-posture dial, provenance screening, DNS-pinned fetches | Landed | [docs/v1/v1.19/](docs/v1/v1.19/) |
 | v1.19.2 | Catalog and model expansion: modalities + audioConditioning, official-only weight variants, Hermes 3 family, Inkling-Small patient-tier GGUF, calibrated patient-tier copy | Landed | [docs/v1/v1.19/](docs/v1/v1.19/) |
 | v1.20.0 | Document ingest: wire `parse_document`, magic-byte Office routing, Chat and Coding attach, Docling layout engine deferred | Landed | [docs/v1/v1.20/](docs/v1/v1.20/) |
+| v2.0.0 | Convergence: multimodal Chat + local voice loop, DANGEROUS isolated-profile browser tools, Video Lab continuation + gated avatar, ProjectScope stretch | Landed | [docs/v2/v2.0/](docs/v2/v2.0/) |
 
-Each cycle's plan lives under `docs/v1/v1.<MINOR>/plans/`, its deferred work under `docs/v1/v1.<MINOR>/known-gaps.md`, and benchmarks (where run) under `docs/v1/v1.<MINOR>/benchmarks/`.
+Each v1 cycle's plan lives under `docs/v1/v1.<MINOR>/plans/`. v2.0.0 lives under `docs/v2/v2.0/plans/`. Deferred work is in that version's `known-gaps.md`.
+
+### What's new in v2.0.0
+
+Convergence of the v1.18-v2.0 plan family. Local-only. No new outbound destination. Image, audio, and browser page bytes stay on the machine.
+
+- **Chat vision and STT** - image attach follows catalog `modalities` including `image`. Audio files and the mic transcribe on-device via catalog `faster-whisper-large-v3`. Transcripts are labelled and secret-scrubbed.
+- **Voice loop** - off by default (Local Chatbot **Voice loop** checkbox). Push-to-talk and button VAD. Spoken replies use catalog `kokoro-82m`. See CHANGELOG for activation, validation, rollback, and authority.
+- **Coding browser tools** - `browser_navigate` / `browser_click` / `browser_type` / `browser_aria_snapshot` / `browser_close` at DANGEROUS over an isolated `~/.nexus/browser-profiles/` tree. Playwright is a local install, not a lockfile pin. Snapshots are provenance-labelled and injection-scanned.
+- **Video Lab** - requested length longer than the tier clip chains segments. Talking-head (`audio2video`) is `diffusion-pro` only, official `longcat-video-avatar-1.5` INT8, explicit local-generation confirm. DiT inference is not vendored yet (DF-8).
+- **Stretch** - `ProjectScope` (tightening-only), durable untrusted sandbox root, lesson/procedure memory kinds. Code-as-action, command router, and VRM pane transferred (DF-10-12).
+
+v1.20.0 already shipped document ingest. Known gaps: [docs/v2/v2.0/known-gaps.md](docs/v2/v2.0/known-gaps.md).
 
 ### What's new in v1.20.0
 
@@ -118,7 +131,7 @@ Local document ingest on the existing OCR spine. No Docling. No new outbound des
 - **Chat and Coding attach** - both composers accept PDF, images, and those Office types (`DOCUMENT_ACCEPT`). First attachment only (DF-4). Image Studio stays `image/*`.
 - **Docling stays off the attach path** - Phase 4 bake-off is DEFER. RapidOCR library smoke ran on synthetic fixtures; catalog RapidOCR install and Unlimited-OCR remain DF-5. `runtimes/ocr/requirements.txt` still has no `docling` and no torch.
 
-v1.19.2 already shipped catalog expansion. v2.0.0 remains the convergence release. Known gaps stay in-progress.
+v1.19.2 already shipped catalog expansion. Known gaps stay in-progress.
 
 ### What's new in v1.19.2
 
@@ -130,7 +143,7 @@ Catalog and model plumbing for the v2.0.0 consumers. Local-only. No new outbound
 - **Inkling-Small** - opt-in patient-tier GGUF (74.8 GB, Apache-2.0). Visible only when the patient tier is on. Shipped `modalities: ["text"]` because GGUF multimodal is unverified. Never a `recommended.json` default.
 - **Patient-tier honesty** - warning floor is ~0.03 tok/s (~32 s/token laptop). RAM-budget presets (`laptop` / `workstation` / `max`) are copy only. Nexus does not bundle the offload runtime.
 
-v1.19.1 already shipped loop hardening. v2.0.0 remains the convergence release. Known gaps stay in-progress.
+v1.19.1 already shipped loop hardening. Known gaps stay in-progress.
 
 ### What's new in v1.19.1
 
@@ -144,7 +157,7 @@ Agent-loop and guardrail hardening. Local-only. No new outbound surfaces. The co
 - **DNS pin** - SSRF fetches connect to the first validated public address, not a re-resolved name.
 - **watch_path / hash_file** - read-only workspace tools. Tool prompt docs are generated from the live registry.
 
-v1.19.0 already shipped LFM2.5-2.6B as the low-VRAM Agentic pick. v1.19.2 catalog expansion is now landed. Known gaps stay in-progress.
+v1.19.0 already shipped LFM2.5-2.6B as the low-VRAM Agentic pick. Known gaps stay in-progress.
 
 ---
 

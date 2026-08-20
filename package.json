@@ -2,7 +2,7 @@
   "name": "nexus-coding",
   "displayName": "Nexus Code",
   "description": "Nexus Agentic AI Coding module. Local agentic coding assistant powered by Gemma 4 / Llama 3 and other open-source LLMs via Ollama. (Formerly Gemma Code. The package name, publisher, command IDs, and view container were renamed to `nexus-coding` / `nexus.coding.*` in v1.1.0; the legacy `gemma-code.*` command IDs continue to fire via the runtime compat shim until v1.2.0, and legacy settings keys remain resolvable via the v1.0.0 SettingsCompat shim.)",
-  "version": "1.20.0",
+  "version": "2.0.0",
   "publisher": "nexus-coding",
   "license": "MIT",
   "icon": "assets/icon.png",
@@ -342,7 +342,11 @@
         },
         "nexus.llm.patientTier.ramPreset": {
           "type": "string",
-          "enum": ["laptop", "workstation", "max"],
+          "enum": [
+            "laptop",
+            "workstation",
+            "max"
+          ],
           "default": "laptop",
           "description": "v1.19.2 -- RAM-budget expectation preset for the patient tier. Laptop: ~32 s/token at ~8.24 GB peak RSS. Workstation: ~21 s/token. Max: ~19 s/token at ~224 GB peak RSS. Numbers are independently measured on a trillion-class disk-offload MoE and seeded as honest floors. Activation of this setting does not resize expert caches or grant Nexus an offload runtime -- actual cache sizing lives in the user-registered llama.cpp-lineage adapter. Changing the preset only changes the expectation copy shown in settings."
         },

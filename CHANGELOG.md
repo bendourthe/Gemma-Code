@@ -1,4 +1,49 @@
+# [2.0.0](https://github.com/bendourthe/Nexus-AI/compare/v1.20.0...v2.0.0) (2026-08-20)
+
+
+### Features
+
+* **v2.0.0:** add Chat vision routing, local STT, and an offline voice loop ([4767689](https://github.com/bendourthe/Nexus-AI/commit/4767689))
+* **v2.0.0:** add DANGEROUS isolated-profile browser tools for the coding agent ([30fbcaa](https://github.com/bendourthe/Nexus-AI/commit/30fbcaa))
+* **v2.0.0:** add Video Lab clip continuation and a gated local avatar mode ([59440cb](https://github.com/bendourthe/Nexus-AI/commit/59440cb))
+* **v2.0.0:** add ProjectScope, durable sandbox, and advisory memory kinds ([21089c8](https://github.com/bendourthe/Nexus-AI/commit/21089c8))
+
+
+### Documentation
+
+* **v2.0.0:** reconcile known-gaps and document CI hardware gates ([07ec7be](https://github.com/bendourthe/Nexus-AI/commit/07ec7be))
+
+This is the convergence cut of the v1.18-v2.0 plan family. Earlier changelog sections already record [v1.18.0](#1180) (harness, ask inbox, ACP, OS sandbox), [v1.19.0](#1190) (LFM2.5-2.6B), [v1.19.1](#1191) (loop guards and posture dial), [v1.19.2](#1192) (modalities, Hermes, Inkling), and [v1.20.0](#1200) (document ingest). Plans: [v1.18.0](docs/v1/v1.18/plans/v1.18.0-adoption-agent-harness-and-governance.md), [v1.19.0](docs/v1/v1.19/plans/v1.19.0-adoption-liquid-lfm-agentic.md), [v1.19.1](docs/v1/v1.19/plans/v1.19.1-adoption-agent-loop-and-guardrail-hardening.md), [v1.19.2](docs/v1/v1.19/plans/v1.19.2-adoption-catalog-and-model-expansion.md), [v2.0.0](docs/v2/v2.0/plans/v2.0.0-adoption-governed-autonomy-multimodal.md).
+
+
+### Opt-in surfaces
+
+#### Chat voice loop (Local Chatbot "Voice loop" checkbox)
+
+- Activation: in Local Chatbot Explorer, check **Voice loop**. Default is off. Install catalog models `faster-whisper-large-v3` (STT) and `kokoro-82m` (TTS) through the installer for live engines. CI uses `NEXUS_AUDIO_STUB=1`.
+- Validation: with the box on, the capture indicator reads "Recording -- microphone is open" while PTT or VAD is capturing. With the box off, PTT and VAD controls stay disabled.
+- Rollback: uncheck **Voice loop**. The reducer resets. Installed weights stay on disk until you remove them.
+- Authority: this only opens the local mic-to-STT-to-TTS loop. It does not send audio off-device, does not enable coding tools, does not skip secret redaction on transcripts, and does not register a network port.
+- Docs: [README](README.md#whats-new-in-v200), [docs/v2/v2.0/known-gaps.md](docs/v2/v2.0/known-gaps.md) (DF-1, DF-3, DF-4).
+
+#### Coding browser tools (local Playwright)
+
+- Activation: the five `browser_*` tools are DANGEROUS and always confirm. Live Chromium is a local install: `npx playwright@1.55.0 install chromium`. There is no package.json Playwright dependency. Sidecar headless registers the family when `browserEnabled` is true (sidecar default).
+- Validation: a confirmed `browser_navigate` to a local HTML file plus `browser_aria_snapshot` returns labelled `[origin:browser_snapshot]` text. Without Playwright, CI still passes on `InMemoryBrowser`. Set `NEXUS_BROWSER_PLAYWRIGHT=1` for the live skip-gated tests.
+- Rollback: do not approve the DANGEROUS prompt. Uninstall Playwright/Chromium if you installed them. Isolated profiles live under `~/.nexus/browser-profiles/` and are not your default Chrome/Edge profile.
+- Authority: this does not grant the user's logged-in browser, does not lower PermissionTiers, does not auto-approve, and does not treat page content as instructions (snapshots are screened).
+- Docs: [docs/v2/v2.0/browser-surface-security.md](docs/v2/v2.0/browser-surface-security.md), [docs/v2/v2.0/ci-hardware-gates.md](docs/v2/v2.0/ci-hardware-gates.md).
+
+#### Video Lab local talking-head (`longcat-video-avatar-1.5`)
+
+- Activation: Hardware class `diffusion-pro` (about 20 GB+ VRAM), install catalog id `longcat-video-avatar-1.5` (official `meituan-longcat` INT8, sha256-pinned), attach a photo plus audio, and check **Generate talking-head locally. Photo and audio never leave this device.** IPC field `confirmLocalAvatar` must be true.
+- Validation: below `diffusion-pro` the checkbox is hidden and `diffusion.video.audio2video` is refused. With confirm false the request is rejected. Workflow JSON records `provenance.neverLeftDevice`.
+- Rollback: uncheck the confirm box; do not install the weights. Delete `~/.nexus/models/weights/longcat-video-avatar-1.5/` if already pulled. Continuation (clip chaining) is separate and does not require this catalog id.
+- Authority: this does not upload photo or audio, does not enable community FP8 re-quants, does not vendor LongCat DiT Python (DF-8 stub until a scanned import), and does not skip the VRAM floor.
+- Docs: [README](README.md#whats-new-in-v200), [docs/v2/v2.0/known-gaps.md](docs/v2/v2.0/known-gaps.md) (DF-8, DF-9).
+
 # [1.20.0](https://github.com/bendourthe/Nexus-AI/compare/v1.19.2...v1.20.0) (2026-08-19)
+
 
 
 ### Features

@@ -1,8 +1,8 @@
 # Nexus - Progress Dashboard
 
-**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (v1.20.0 cut on `develop`; v2.0.0 is next).
+**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (**v2.0.0** cut on `develop`).
 
-> **v2.0.0 IN PROGRESS (2026-08-20)** -- [governed-autonomy-multimodal](v2/v2.0/plans/v2.0.0-adoption-governed-autonomy-multimodal.md). P1-P5 on `develop` (P1-P4 committed; P5 this commit). Next: P6 convergence + `/update release`.
+> **v2.0.0 RELEASED (2026-08-20)** -- [governed-autonomy-multimodal](v2/v2.0/plans/v2.0.0-adoption-governed-autonomy-multimodal.md) Phases 1-6. Convergence of v1.18.0 + v1.19.0/.1/.2 + this plan. Package **2.0.0**. Known-gaps [in-progress](v2/v2.0/known-gaps.md). Gates: root **5160 passed / 12 skipped / 0 failed**, coverage 88.28% / 83.84% / 90.96%, desktop **1036 passed**, python runtimes **231 passed**, lint + `tsc -b` + docs-layout clean.
 >
 > **v1.20.0 RELEASED (2026-08-19)** -- all 5 phases of [v1.20.0-adoption-docling.md](v1/v1.20/plans/v1.20.0-adoption-docling.md) landed on `develop`; package.json / CHANGELOG / README cut as **v1.20.0**. Known-gaps [in-progress](v1/v1.20/known-gaps.md) (v1.20.0: 6 DF). Cycle: wire `parse_document`, magic-byte Office ingest, Chat and Coding attach, Docling bake-off deferred.
 > - **P1** sidecar + VS Code composition-root wiring (LSO.P4.B / LSO.P4.C).

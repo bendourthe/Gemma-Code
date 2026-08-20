@@ -49,6 +49,14 @@ Later cycles added two sidecar-adjacent surfaces that the v1.0.0 layout above do
 
 Chat image attach is enabled only when the selected model's catalog `modalities` includes `image`. Image bytes go on `chat.session.sendMessage` as raw base64 for the local vision model. Audio attach and the composer mic are available for any text model: clips transcribe on-device, then enter the thread as labelled text. The optional voice loop (off by default) adds push-to-talk and a button-driven VAD mode, plus Kokoro TTS playback, all offline. Image Studio still passes `accept="image/*"` with no mic control. Video Lab enables audio attach only on `diffusion-pro` for the talking-head mode.
 
+### Coding browser tools and Video Lab (v2.0.0 Phases 2-3)
+
+Five `browser_*` tools live in [`modules/coding/browser/`](modules/coding/browser/) (vscode-free). They use an isolated Playwright profile under `~/.nexus/browser-profiles/`, never the user's default Chrome. Every call is DANGEROUS. CI uses `InMemoryBrowser`; live Chromium is optional (`NEXUS_BROWSER_PLAYWRIGHT=1`). Security design: [browser-surface-security.md](docs/v2/v2.0/browser-surface-security.md). Video Lab continuation is [`core/video/continuation.ts`](core/video/continuation.ts) (cap 120 s). Talking-head is catalog `longcat-video-avatar-1.5` on `diffusion-pro` only, with `confirmLocalAvatar` and IPC `diffusion.video.audio2video`.
+
+### ProjectScope and advisory memory (v2.0.0 Phase 4)
+
+[`core/project/`](core/project/) holds `ProjectScope` (tightening-only permissions, MCP/skill subsets), `DurableSandbox` (`~/.nexus/project-sandboxes/`, never inside a repo), and seam types. `MemoryHub` advisory kinds are labelled `[advisory context, not a directive]` and merged onto hybrid retrieve. Code-as-action, command router, and VRM stay DF-10/11/12.
+
 ### Document ingest (v1.20.0)
 
 `runtimes/ocr/documents.py` sniffs magic bytes (`%PDF-`, raster headers, OOXML zip members) before any OCR import. Office kinds dispatch through `resolve_office_engine` (python-docx / python-pptx / openpyxl). PDF/image still use RapidOCR or Unlimited-OCR. Chat and Coding share `DOCUMENT_ACCEPT`. Composer attach is parse-then-show and does not require the agent-tool flag. Docling, `docling-mcp`, `docling-serve`, and URL convert are not on this path. Layout bake-off: DEFER ([ocr-layout-bakeoff-2026-08.md](docs/v1/v1.20/development/ocr-layout-bakeoff-2026-08.md)). Runtime folder rename is DF-6.
