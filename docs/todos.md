@@ -1,6 +1,11 @@
 # Nexus - Progress Dashboard
 
-**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (v1.19.1 cut on `develop`; v1.19.2 remains).
+**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (v1.19.2 cut on `develop`; v2.0.0 is next).
+
+> **v1.19.2 RELEASED (2026-08-19)** -- Phase 1 of [v1.19.2-adoption-catalog-and-model-expansion.md](v1/v1.19/plans/v1.19.2-adoption-catalog-and-model-expansion.md) landed on `develop`; package.json / CHANGELOG / README cut as **v1.19.2**. Known-gaps [in-progress](v1/v1.19/known-gaps.md) (v1.19.2: 4 DF; file stays open for v2.0.0 ingest). Cycle: modalities + audioConditioning, official-only weight variants, Hermes 3, Inkling-Small patient-tier GGUF, calibrated patient-tier copy.
+> - **P1** schema + puller variants + Hermes family/harness + Inkling GGUF + RAM presets + skip-if-absent determinism. Live Hermes generate is DF-1. GGUF multimodal is DF-2. AgentLoop Gemma XML is DF-3. Offload adapter not bundled is DF-4.
+>
+> Gates: root **5076 passed / 11 skipped / 0 failed** (466 files), coverage 87.77% / 83.95% / 91.35%, lint + `tsc -b` clean. Opt-in: `NEXUS_WEIGHTS_VARIANT` (official variant pick); `nexus.llm.patientTier.ramPreset` (copy only).
 
 > **v1.19.1 RELEASED (2026-08-19)** -- both phases of [v1.19.1-adoption-agent-loop-and-guardrail-hardening.md](v1/v1.19/plans/v1.19.1-adoption-agent-loop-and-guardrail-hardening.md) landed on `develop`; package.json / CHANGELOG / README cut as **v1.19.1**. Known-gaps [in-progress](v1/v1.19/known-gaps.md) (v1.19.1: 5 DF; file stays open for v1.19.2). Cycle: Hub skill-native wins + agent-loop / guardrail hardening.
 > - **P1** Hub grounded-citation, persona-card, avatar-prep / transcript-reasoning. Chat persona field is DF-1. Hub merge/sync is DF-2.

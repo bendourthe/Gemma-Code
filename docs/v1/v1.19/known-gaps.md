@@ -6,7 +6,7 @@
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
-Plans: [v1.19.0](plans/v1.19.0-adoption-liquid-lfm-agentic.md) (cut), [v1.19.1](plans/v1.19.1-adoption-agent-loop-and-guardrail-hardening.md) (cut), [v1.19.2](plans/v1.19.2-adoption-catalog-and-model-expansion.md) (Phase 1 complete; awaiting `/update release`).
+Plans: [v1.19.0](plans/v1.19.0-adoption-liquid-lfm-agentic.md) (cut), [v1.19.1](plans/v1.19.1-adoption-agent-loop-and-guardrail-hardening.md) (cut), [v1.19.2](plans/v1.19.2-adoption-catalog-and-model-expansion.md) (cut; open DF carry into v2.0.0).
 
 Carry-forward source: [../v1.18/known-gaps.md](../v1.18/known-gaps.md) (v1.18.0 cycle items stay in that file; this cycle does not close them). Sibling subplans [v1.19.1](plans/v1.19.1-adoption-agent-loop-and-guardrail-hardening.md) and [v1.19.2](plans/v1.19.2-adoption-catalog-and-model-expansion.md) keep this file in-progress after the v1.19.0 plan's Phase 4 reconciliation.
 
@@ -224,6 +224,6 @@ _Last updated: 2026-08-19 (v1.19.1 tagged)._
 
 ### Phase 1 reconciliation
 
-Modalities, audioConditioning, official-only precision variants, Hermes 3 catalog+harness, Inkling patient-tier GGUF, and calibrated patient-tier copy all shipped. No NI, BG, WN, MT, or QG this phase. File stays in-progress until `/update release` cuts v1.19.2.
+Modalities, audioConditioning, official-only precision variants, Hermes 3 catalog+harness, Inkling patient-tier GGUF, and calibrated patient-tier copy all shipped. No NI, BG, WN, MT, or QG this phase. File stays in-progress so v2.0.0 can ingest DF-1..DF-4.
 
-_Last updated: 2026-08-19 (v1.19.2 Phase 1)._
+_Last updated: 2026-08-19 (v1.19.2 tagged)._

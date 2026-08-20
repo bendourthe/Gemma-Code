@@ -78,6 +78,13 @@ sha256sum -c --ignore-missing SHA256SUMS.txt
 
 Everything lands under your user account (no admin rights needed for the wizard itself); user data lives in `~/.nexus`.
 
+## After you install (v1.19.2)
+
+- **Hermes 3**: `hermes3:8b` is an Agentic catalog pick (Ollama library). Enable `nexus.coding.harnessSelector.enabled` to apply `hermes-agentic` (llama3-json). The live coding loop still parses Gemma XML (DF-3). `hermes3:70b` is listed but is not a recommended default.
+- **Inkling-Small**: hidden unless the patient tier is on (`nexus.llm.patientTier.enabled` or installer `NEXUS_PATIENT_TIER=1`). 74.8 GB GGUF, Apache-2.0, text-only at this quant (DF-2). Never auto-selected.
+- **Weight variants**: models with `weights.variants` install one official line. Override with `NEXUS_WEIGHTS_VARIANT=<variant-id>`. Unofficial quants are rejected. sha256 still required.
+- **Patient-tier copy**: warning floor is ~0.03 tok/s. `nexus.llm.patientTier.ramPreset` (`laptop` / `workstation` / `max`) is expectation copy; Nexus does not bundle the offload runtime.
+
 ## After you install (v1.19.1)
 
 - **Security posture**: Settings > Security, or `"nexus.coding.securityPosture"`. Default `standard`. `unattended` skips CONFIRM-tier prompts only; `run_terminal` still confirms; hard-denied commands (`rm -rf`, `git push --force`, `DROP TABLE`) never run. This is not a no-floor mode.

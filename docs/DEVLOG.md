@@ -4,6 +4,26 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-19] v1.19.2 cut
+
+### Goal
+
+Ship v1.19.2: version bump, changelog, README What's new, tag, GitHub Release.
+
+### What was done
+
+- Bumped `package.json` / lockfile / `desktop/src-tauri/tauri.conf.json` to **1.19.2**.
+- CHANGELOG `[1.19.2]` covers catalog expansion (Hermes, Inkling, modalities, official weight variants, patient-tier copy).
+- README What's new documents modalities, variants, Hermes, Inkling, and the 0.03 tok/s warning floor.
+- Opt-in: `NEXUS_WEIGHTS_VARIANT` (official file-set pick); `nexus.llm.patientTier.ramPreset` (copy only).
+- Known-gaps file stays in-progress for v2.0.0 ingest (v1.19.2 DF-1..DF-4 remain).
+
+### Next
+
+Tag `v1.19.2`, push the tag, publish the GitHub Release. v2.0.0 is the convergence release.
+
+---
+
 ## [2026-08-19] v1.19.2 catalog-and-model-expansion -- Phase 1: catalog, models, patient tier
 
 ### Goal

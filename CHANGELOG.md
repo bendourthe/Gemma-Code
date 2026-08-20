@@ -1,3 +1,29 @@
+# [1.19.2](https://github.com/bendourthe/Nexus-AI/compare/v1.19.1...v1.19.2) (2026-08-19)
+
+
+### Features
+
+* **v1.19.2:** add Hermes, Inkling, modalities, and weight variants ([17a0206](https://github.com/bendourthe/Nexus-AI/commit/17a0206))
+
+
+### Opt-in surfaces
+
+#### Weights variant override (`NEXUS_WEIGHTS_VARIANT`)
+
+- Activation: set env `NEXUS_WEIGHTS_VARIANT` to a catalog variant id (for example `gguf-ud-iq1-s`), or the installer `weights_variant` field. Default is the entry's `defaultVariant` or a VRAM-aware official pick.
+- Validation: install a model that declares `weights.variants` and confirm only that variant's files land under `~/.nexus/models/weights/<id>/`. An unofficial variant is rejected.
+- Rollback: unset `NEXUS_WEIGHTS_VARIANT`. Already-downloaded files stay on disk until you delete them.
+- Authority: this only chooses which official file set the puller verifies. It does not admit community quants, does not skip sha256, does not enable the patient tier, and does not open a network port beyond the existing Hugging Face install channel.
+- Docs: [README](README.md#whats-new-in-v1192), [ARCHITECTURE.md](ARCHITECTURE.md#catalog-expansion-and-patient-tier-calibration-v1192).
+
+#### Patient-tier RAM preset (`nexus.llm.patientTier.ramPreset`)
+
+- Activation: set `"nexus.llm.patientTier.ramPreset": "laptop" | "workstation" | "max"` in settings. Default is `laptop`.
+- Validation: the settings description shows that preset's expected s/token. It does not change adapter config.
+- Rollback: set the setting back to `"laptop"`. No files outside settings are written.
+- Authority: this is expectation copy only. It does not bundle or configure the llama.cpp offload runtime, does not download Inkling, and does not raise permission tiers.
+- Docs: [README](README.md#whats-new-in-v1192), [docs/v1/v1.19/known-gaps.md](docs/v1/v1.19/known-gaps.md) (v1.19.2 DF-4).
+
 # [1.19.1](https://github.com/bendourthe/Nexus-AI/compare/v1.19.0...v1.19.1) (2026-08-19)
 
 

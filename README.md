@@ -6,7 +6,7 @@
 
 Nexus is a local-first, native desktop AI Studio that bundles four generative AI pillars behind one cohesive UI: agentic coding, organized local chat, image generation and editing, and short-form video synthesis. Everything runs on the host machine against optimized open-source models (Gemma 4, Llama 3, Qwen 2.5 Coder, SDXL / SANA-class diffusion, video-synthesis architectures), with real-time GPU / VRAM telemetry built into the dashboard. No API keys, no data leaving your machine, no per-token billing.
 
-> **Renamed from Gemma Code at v1.0.0** to reflect the four-pillar pivot. The v0.1.0 - v0.22.x line shipped as a single-purpose local agentic coding VS Code extension; v1.0.0 folded that engine into the "Agentic AI Coding" pillar of a wider desktop app. The VS Code surface is preserved as an optional thin adapter that proxies to the desktop daemon. Historical Gemma Code docs remain under `docs/archive/versions/v0/v0.1.0/` - `docs/archive/versions/v0/v0.9.0/`; every product milestone since the pivot is documented under `docs/v1/v1.<MINOR>/`, from the v1.0.0 pivot through the current **v1.19.1** cycle. Releases are cut on the same milestone version line - see [Project Status](#project-status-august-2026).
+> **Renamed from Gemma Code at v1.0.0** to reflect the four-pillar pivot. The v0.1.0 - v0.22.x line shipped as a single-purpose local agentic coding VS Code extension; v1.0.0 folded that engine into the "Agentic AI Coding" pillar of a wider desktop app. The VS Code surface is preserved as an optional thin adapter that proxies to the desktop daemon. Historical Gemma Code docs remain under `docs/archive/versions/v0/v0.1.0/` - `docs/archive/versions/v0/v0.9.0/`; every product milestone since the pivot is documented under `docs/v1/v1.<MINOR>/`, from the v1.0.0 pivot through the current **v1.19.2** cycle. Releases are cut on the same milestone version line - see [Project Status](#project-status-august-2026).
 
 ---
 
@@ -75,7 +75,7 @@ A persistent `Local Model Status` panel reports the active model architecture, p
 
 ## Project Status (August 2026)
 
-Nexus uses a single, convergent version line: git tags and `package.json` carry the same `v1.<MINOR>.<PATCH>` numbers as the milestone docs under `docs/v1/v1.<MINOR>/`. This track runs from the v1.0.0 pivot through the current **v1.19.1** release.
+Nexus uses a single, convergent version line: git tags and `package.json` carry the same `v1.<MINOR>.<PATCH>` numbers as the milestone docs under `docs/v1/v1.<MINOR>/`. This track runs from the v1.0.0 pivot through the current **v1.19.2** release.
 
 Historical note: between 2026-06-18 and 2026-07-20 a decoupled "release track" cut five semantic-release versions numbered ahead of the milestones. Those tags were renumbered onto the milestone line on 2026-08-05: `v2.0.0` -> `v1.6.0` (GA consolidating v1.4.0 -> v1.6.0), `v2.1.0` -> `v1.7.0`, `v2.2.0` -> `v1.12.0` (consolidating v1.8.0 -> v1.12.0), `v2.3.0` -> `v1.13.0`, and `v2.4.0` -> `v1.14.0`. The version **v2.0.0 is reserved for the convergence release** that ships once the v1.18 plan, the v1.19.x subplans, and the v2.0 adoption plan are all complete (see `docs/v2/v2.0/plans/`).
 
@@ -104,8 +104,21 @@ Historical note: between 2026-06-18 and 2026-07-20 a decoupled "release track" c
 | v1.18.0 | Agent harness and governance: skill-native mappings, llama.cpp loopback recipe, live harness selector, catalog/registry governance, ask inbox + scheduler, ACP surface, OS process sandbox | Landed | [docs/v1/v1.18/](docs/v1/v1.18/) |
 | v1.19.0 | Low-VRAM Agentic catalog: LFM2.5-2.6B CPU / sub-4 GB tool-calling pick, LFM Open License v1.0 use-restriction label, harness profile, 8B-A1B bake-off declined | Landed | [docs/v1/v1.19/](docs/v1/v1.19/) |
 | v1.19.1 | Agent-loop and guardrail hardening: Hub skill-native wins, hard denials, LoopGuards, security-posture dial, provenance screening, DNS-pinned fetches | Landed | [docs/v1/v1.19/](docs/v1/v1.19/) |
+| v1.19.2 | Catalog and model expansion: modalities + audioConditioning, official-only weight variants, Hermes 3 family, Inkling-Small patient-tier GGUF, calibrated patient-tier copy | Landed | [docs/v1/v1.19/](docs/v1/v1.19/) |
 
 Each cycle's plan lives under `docs/v1/v1.<MINOR>/plans/`, its deferred work under `docs/v1/v1.<MINOR>/known-gaps.md`, and benchmarks (where run) under `docs/v1/v1.<MINOR>/benchmarks/`.
+
+### What's new in v1.19.2
+
+Catalog and model plumbing for the v2.0.0 consumers. Local-only. No new outbound surfaces. sha256 pinning is unchanged. Unofficial community quants are rejected.
+
+- **Modalities** - every catalog row declares input `modalities` (`text` / `image` / `audio`). Chat attachment gating in v2.0.0 reads this field. Video rows also declare `audioConditioning` (disabled until avatar models land).
+- **Weight variants** - a catalog entry can list official fp16 / int8 / fp8 / GGUF lines, each with its own file list and sha256. The installer puller selects one (VRAM default or `NEXUS_WEIGHTS_VARIANT`). Community re-quants fail closed.
+- **Hermes 3** - `hermes3:8b` and `hermes3:70b` in the Agentic catalog (Ollama library, Llama 3.1 Community License). Harness profile `hermes-agentic` uses llama3-json. The live coding loop still parses Gemma XML (v1.19.2 DF-3). `hermes3:70b` is not a recommended default.
+- **Inkling-Small** - opt-in patient-tier GGUF (74.8 GB, Apache-2.0). Visible only when the patient tier is on. Shipped `modalities: ["text"]` because GGUF multimodal is unverified. Never a `recommended.json` default.
+- **Patient-tier honesty** - warning floor is ~0.03 tok/s (~32 s/token laptop). RAM-budget presets (`laptop` / `workstation` / `max`) are copy only. Nexus does not bundle the offload runtime.
+
+v1.19.1 already shipped loop hardening. v2.0.0 remains the convergence release. Known gaps stay in-progress.
 
 ### What's new in v1.19.1
 
@@ -119,7 +132,7 @@ Agent-loop and guardrail hardening. Local-only. No new outbound surfaces. The co
 - **DNS pin** - SSRF fetches connect to the first validated public address, not a re-resolved name.
 - **watch_path / hash_file** - read-only workspace tools. Tool prompt docs are generated from the live registry.
 
-v1.19.0 already shipped LFM2.5-2.6B as the low-VRAM Agentic pick. v1.19.2 (catalog expansion) remains open. Known gaps stay in-progress.
+v1.19.0 already shipped LFM2.5-2.6B as the low-VRAM Agentic pick. v1.19.2 catalog expansion is now landed. Known gaps stay in-progress.
 
 ---
 
