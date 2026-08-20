@@ -1,4 +1,4 @@
-# Docs cleanup audit - v1.20.0 Phase 2
+# Docs cleanup audit - v1.20.0 Phase 3
 
 **Date**: 2026-08-19
 **Mode**: audit (no files moved)
@@ -6,11 +6,11 @@
 
 ## Layout
 
-`docs/v1/v1.20/` already has `plans/` and `comparisons/`. Phase 2 added `development/history/2026-08-19_phase-2-format-router-office-ingest.md`. No stray comparison reports. No empty dirs created.
+`docs/v1/v1.20/` already has `plans/` and `comparisons/`. Phase 3 added `development/history/2026-08-19_phase-3-coding-composer-attach.md`. No stray comparison reports. No empty dirs created.
 
 ## Scratch docs this phase
 
-None. Session history and known-gaps are canonical, not scratch.
+None.
 
 ## Proposed cleanup
 

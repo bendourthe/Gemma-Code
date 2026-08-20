@@ -24,6 +24,11 @@ import { QuickModelSwitcher } from "../../shared/models/QuickModelSwitcher";
 import { createIpcModelsClient } from "../../pages/settings/ipcModelsClient";
 import type { ListedModelDto } from "../../pages/settings/modelsTypes";
 import { defaultHarnessSelector } from "../../../../modules/coding/orchestration/HarnessSelector";
+import {
+  createIpcDocumentClient,
+  type DocumentClient,
+} from "../chat/documentClient";
+import type { AgentActivity } from "../../components/agentState/mapping";
 
 type Tab = "chat" | "memory" | "trace" | "sessions";
 
@@ -39,6 +44,8 @@ interface Turn {
   id: string;
   prompt: string;
   rendered: RenderedTurn;
+  pending?: boolean;
+  activity?: AgentActivity;
 }
 
 function turnsToMessages(turns: readonly Turn[], busy: boolean): readonly ChatMessage[] {
@@ -55,9 +62,11 @@ function turnsToMessages(turns: readonly Turn[], busy: boolean): readonly ChatMe
         args: card.args,
         result: card.result,
       })),
+      pending: turn.pending,
+      activity: turn.activity,
     });
   }
-  if (busy) {
+  if (busy && !turns.some((turn) => turn.pending)) {
     messages.push({
       id: "coding-pending",
       role: "assistant",
@@ -75,6 +84,12 @@ export interface CodingPageProps {
   /** v1.16.0 Phase 5 (A4) -- installed-model feed; tests inject a fake. */
   modelsClient?: { list(): Promise<readonly ListedModelDto[]> };
   onGetMoreModels?: () => void;
+  /**
+   * v1.20.0 Phase 3 -- document-parse client. Tests inject the in-memory one;
+   * production talks to sidecar `ocr.*` IPC. This is the Chat parse action,
+   * not a silent `parse_document` tool call.
+   */
+  documentClient?: DocumentClient;
 }
 
 export function CodingPage({
@@ -82,10 +97,14 @@ export function CodingPage({
   initialTab,
   modelsClient: modelsClientOverride,
   onGetMoreModels,
+  documentClient: documentClientOverride,
 }: CodingPageProps = {}): JSX.Element {
   const [tab, setTab] = useState<Tab>(initialTab ?? "chat");
   const [modelId, setModelId] = useState<string>(initialModelId ?? DEFAULT_MODEL_ID);
   const [listedModels, setListedModels] = useState<readonly ListedModelDto[]>(FALLBACK_LLMS);
+  const [documentClient] = useState<DocumentClient>(
+    () => documentClientOverride ?? createIpcDocumentClient(),
+  );
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [busy, setBusy] = useState(false);
@@ -131,9 +150,81 @@ export function CodingPage({
     return reply.value.sessionId;
   }, [modelId, sessionId]);
 
+  const handleParseDocument = useCallback(
+    async (text: string, attachment: string): Promise<void> => {
+      const turnId = `parse-${Date.now()}`;
+      const userContent =
+        `${text || "(document)"}\n\n[1 attachment]`;
+      setTurns((prev) => [
+        ...prev,
+        {
+          id: turnId,
+          prompt: userContent,
+          rendered: { text: "Reading document...", cards: [], done: false },
+          pending: true,
+          activity: "document-parse",
+        },
+      ]);
+      setBusy(true);
+      const patch = (content: string, pending: boolean): void => {
+        setTurns((prev) =>
+          prev.map((turn) =>
+            turn.id === turnId
+              ? {
+                  ...turn,
+                  rendered: { ...turn.rendered, text: content, done: !pending },
+                  pending,
+                }
+              : turn,
+          ),
+        );
+      };
+      try {
+        const handle = documentClient.parse(attachment, ({ page, totalPages }) => {
+          patch(
+            totalPages > 0
+              ? `Reading document... page ${page} of ${totalPages}`
+              : "Reading document...",
+            true,
+          );
+        });
+        const result = await handle.done;
+        const body = (result.markdown ?? result.text).trim();
+        const header =
+          result.pageCount > 1
+            ? `Parsed ${result.pageCount} pages with ${result.engine}:`
+            : `Parsed with ${result.engine}:`;
+        const parsed =
+          body.length > 0 ? `${header}\n\n${body}` : `${header}\n\n(no text found)`;
+        const followUp =
+          text.trim().length > 0
+            ? `\n\nAsk a follow-up question about the parsed text above to send it to the model.`
+            : "";
+        patch(`${parsed}${followUp}`, false);
+      } catch (err) {
+        patch(
+          `Could not parse the document: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+          false,
+        );
+      } finally {
+        setBusy(false);
+      }
+    },
+    [documentClient],
+  );
+
   const handleSubmit = useCallback(
-    async (text: string): Promise<void> => {
+    async (text: string, attachments: readonly string[] = []): Promise<void> => {
       setError(null);
+      if (attachments.length > 0) {
+        const first = attachments[0];
+        if (first !== undefined) {
+          await handleParseDocument(text, first);
+        }
+        return;
+      }
       setBusy(true);
       try {
         const id = await ensureSession();
@@ -155,7 +246,7 @@ export function CodingPage({
         setBusy(false);
       }
     },
-    [ensureSession],
+    [ensureSession, handleParseDocument],
   );
 
   const handleCancel = useCallback(async (): Promise<void> => {
@@ -333,7 +424,7 @@ export function CodingPage({
               messages={turnsToMessages(turns, busy)}
               enableTools={true}
               emptyMessage={
-                "Start by asking a question or typing / for commands."
+                "Start by asking a question, attaching a document, or typing / for commands."
               }
             />
           </div>

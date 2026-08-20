@@ -47,7 +47,7 @@ Short-form video synthesis via text prompts or static reference images, with a t
 
 ### Document parsing (OCR)
 
-Attach a PDF, image, Word, PowerPoint, or Excel file in the Local Chatbot and Nexus reads it into text on your machine. PDFs and images use **RapidOCR PP-OCRv4** (Apache-2.0, ~20 MB, CPU, every OS) or optionally **Unlimited-OCR 3B** (MIT, NVIDIA, layout-preserving markdown). `.docx` / `.pptx` / `.xlsx` parse with native libraries and do not need those OCR models or Docling. OCR models are optional, never auto-installed, and pinned to a specific revision. Extracted text is never sent to a model on its own - you decide what to do with it. OCR added in v1.16.0 Phase 3; native Office ingest in v1.20.0 Phase 2.
+Attach a PDF, image, Word, PowerPoint, or Excel file in Local Chatbot or Agentic AI Coding and Nexus reads it into text on your machine. PDFs and images use **RapidOCR PP-OCRv4** (Apache-2.0, ~20 MB, CPU, every OS) or optionally **Unlimited-OCR 3B** (MIT, NVIDIA, layout-preserving markdown). `.docx` / `.pptx` / `.xlsx` parse with native libraries and do not need those OCR models or Docling. OCR models are optional, never auto-installed, and pinned to a specific revision. Extracted text is never sent to a model on its own - you decide what to do with it. OCR added in v1.16.0 Phase 3; native Office ingest in v1.20.0 Phase 2; Coding attach in v1.20.0 Phase 3.
 
 ### Local API server (opt-in)
 

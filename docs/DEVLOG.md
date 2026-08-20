@@ -4,6 +4,28 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-19] v1.20.0 document-ingest -- Phase 3: Coding composer attach
+
+### Goal
+
+Let Agentic AI Coding attach the same file kinds as Chat, parse them locally, and keep parsed text out of the coding model until a follow-up.
+
+### What was done
+
+- **Composer**: `CodingInput` gained attach / drop / paste using shared `DOCUMENT_ACCEPT` and `fileMatchesAccept`. Slash-command suggestions remain. Empty text plus an attachment is a valid parse turn.
+- **Thread**: `CodingPage` uses Chat's `DocumentClient` / `ocr.*` path. Activity is `document-parse`. Attachment turns do not call `coding.session.sendMessage`. A typed note becomes a follow-up hint.
+- **CONFIRM**: workspace-path `parse_document` is unchanged (still CONFIRM). The desktop attach action is not that tool.
+
+### Tests
+
+CodingInput 15/15. CodingPage 15/15. `parse-document-wiring` 11/11. Desktop lint + `tsc --noEmit` clean.
+
+### Next
+
+Phase 4: on-device layout bake-off and A4 adopt-or-decline. Do not install Docling.
+
+---
+
 ## [2026-08-19] v1.20.0 document-ingest -- Phase 2: format router + native Office
 
 ### Goal

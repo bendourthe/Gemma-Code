@@ -6,6 +6,7 @@ import {
   clearInvokeOverride,
   setInvokeOverride,
 } from "../src/lib/ipc";
+import { createInMemoryDocumentClient } from "../src/modules/chat/documentClient";
 
 interface InvokeArgs {
   method: string;
@@ -95,8 +96,10 @@ function makeFakeInvoke() {
 }
 
 describe("CodingPage", () => {
+  let fake: ReturnType<typeof makeFakeInvoke>;
+
   beforeEach(() => {
-    const fake = makeFakeInvoke();
+    fake = makeFakeInvoke();
     setInvokeOverride(async (_cmd, args) => fake.invoke("ipc_call", args ?? {}));
   });
 
@@ -217,5 +220,113 @@ describe("CodingPage", () => {
       expect(screen.queryByTestId("coding-new-session")).toBeNull();
       expect(screen.getByTestId("coding-chat")).toHaveTextContent(/Start by asking/);
     });
+  });
+
+  it("parses an attached PDF without invoking the coding model", async () => {
+    const user = userEvent.setup();
+    render(
+      <CodingPage
+        documentClient={createInMemoryDocumentClient({
+          result: {
+            engine: "rapidocr",
+            text: "INVOICE 12345",
+            markdown: null,
+            pageCount: 1,
+            pages: [{ index: 0, text: "INVOICE 12345" }],
+          },
+        })}
+      />,
+    );
+    await user.upload(
+      screen.getByTestId("coding-input-file"),
+      new File(["%PDF-1.7"], "doc.pdf", { type: "application/pdf" }),
+    );
+    await waitFor(() => expect(screen.getByTestId("coding-input-doc-0")).toBeInTheDocument());
+    await user.click(screen.getByTestId("coding-input-submit"));
+    await waitFor(() => expect(screen.getByText(/INVOICE 12345/)).toBeInTheDocument());
+    expect(screen.getByText(/Parsed with rapidocr/)).toBeInTheDocument();
+    expect(fake.calls.filter((c) => c.method === "coding.session.sendMessage")).toHaveLength(0);
+    expect(fake.calls.filter((c) => c.method === "coding.session.start")).toHaveLength(0);
+  });
+
+  it("parses a dropped Word file without invoking the coding model", async () => {
+    const user = userEvent.setup();
+    render(
+      <CodingPage
+        documentClient={createInMemoryDocumentClient({
+          result: {
+            engine: "docx",
+            text: "FROM WORD",
+            markdown: "FROM WORD",
+            pageCount: 1,
+            pages: [{ index: 0, text: "FROM WORD" }],
+          },
+        })}
+      />,
+    );
+    await user.upload(
+      screen.getByTestId("coding-input-file"),
+      new File(["PK"], "notes.docx", {
+        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      }),
+    );
+    await user.click(screen.getByTestId("coding-input-submit"));
+    await waitFor(() => expect(screen.getByText(/FROM WORD/)).toBeInTheDocument());
+    expect(fake.calls.filter((c) => c.method === "coding.session.sendMessage")).toHaveLength(0);
+  });
+
+  it("keeps a typed question as a follow-up hint instead of sending it with the parse", async () => {
+    const user = userEvent.setup();
+    render(
+      <CodingPage
+        documentClient={createInMemoryDocumentClient({
+          result: {
+            engine: "stub",
+            text: "parsed text",
+            markdown: null,
+            pageCount: 1,
+            pages: [{ index: 0, text: "parsed text" }],
+          },
+        })}
+      />,
+    );
+    await user.type(screen.getByTestId("coding-input-textarea"), "summarize this");
+    await user.upload(
+      screen.getByTestId("coding-input-file"),
+      new File(["%PDF-1.7"], "doc.pdf", { type: "application/pdf" }),
+    );
+    await user.click(screen.getByTestId("coding-input-submit"));
+    await waitFor(() =>
+      expect(screen.getByText(/Ask a follow-up question/)).toBeInTheDocument(),
+    );
+    expect(fake.calls.filter((c) => c.method === "coding.session.sendMessage")).toHaveLength(0);
+  });
+
+  it("sends a follow-up text turn to the coding model after a parse", async () => {
+    const user = userEvent.setup();
+    render(
+      <CodingPage
+        documentClient={createInMemoryDocumentClient({
+          result: {
+            engine: "stub",
+            text: "parsed text",
+            markdown: null,
+            pageCount: 1,
+            pages: [{ index: 0, text: "parsed text" }],
+          },
+        })}
+      />,
+    );
+    await user.upload(
+      screen.getByTestId("coding-input-file"),
+      new File(["%PDF-1.7"], "doc.pdf", { type: "application/pdf" }),
+    );
+    await user.click(screen.getByTestId("coding-input-submit"));
+    await waitFor(() => expect(screen.getByText(/parsed text/)).toBeInTheDocument());
+    await user.type(screen.getByTestId("coding-input-textarea"), "what is the total");
+    await user.click(screen.getByTestId("coding-input-submit"));
+    await waitFor(() =>
+      expect(fake.calls.some((c) => c.method === "coding.session.sendMessage")).toBe(true),
+    );
   });
 });

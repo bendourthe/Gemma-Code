@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CodingInput } from "../src/modules/coding/CodingInput";
+
+function file(name: string, type: string): File {
+  return new File(["x"], name, { type });
+}
 
 describe("CodingInput", () => {
   it("submits on Send button click", async () => {
@@ -9,7 +13,7 @@ describe("CodingInput", () => {
     render(<CodingInput onSubmit={onSubmit} />);
     await userEvent.type(screen.getByTestId("coding-input-textarea"), "Hi agent");
     await userEvent.click(screen.getByTestId("coding-input-submit"));
-    expect(onSubmit).toHaveBeenCalledWith("Hi agent");
+    expect(onSubmit).toHaveBeenCalledWith("Hi agent", []);
   });
 
   it("submits on Enter (without Shift) and clears the input", async () => {
@@ -17,7 +21,7 @@ describe("CodingInput", () => {
     render(<CodingInput onSubmit={onSubmit} />);
     const ta = screen.getByTestId("coding-input-textarea") as HTMLTextAreaElement;
     await userEvent.type(ta, "Run /plan{Enter}");
-    expect(onSubmit).toHaveBeenCalledWith("Run /plan");
+    expect(onSubmit).toHaveBeenCalledWith("Run /plan", []);
     expect(ta.value).toBe("");
   });
 
@@ -82,5 +86,68 @@ describe("CodingInput", () => {
     expect(send.closest("[data-testid='coding-input-submit-metal']")).not.toBeNull();
     await userEvent.type(screen.getByTestId("coding-input-textarea"), "/pl");
     expect(screen.getByTestId("slash-plan").closest("[data-testid$='-metal']")).toBeNull();
+  });
+
+  it("accepts a dropped PDF and enables send without typed text", async () => {
+    const onSubmit = vi.fn();
+    render(<CodingInput onSubmit={onSubmit} />);
+    await userEvent.upload(
+      screen.getByTestId("coding-input-file"),
+      file("doc.pdf", "application/pdf"),
+    );
+    await waitFor(() => expect(screen.getByTestId("coding-input-doc-0")).toBeInTheDocument());
+    expect(screen.getByTestId("coding-input-submit")).not.toBeDisabled();
+    await userEvent.click(screen.getByTestId("coding-input-submit"));
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    const [text, attachments] = onSubmit.mock.calls[0] as [string, string[]];
+    expect(text).toBe("");
+    expect(attachments).toHaveLength(1);
+    expect(attachments[0]).toContain("base64,");
+  });
+
+  it("accepts a Word file on the shared document accept list", async () => {
+    render(<CodingInput onSubmit={vi.fn()} />);
+    await userEvent.upload(
+      screen.getByTestId("coding-input-file"),
+      file(
+        "notes.docx",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      ),
+    );
+    await waitFor(() => expect(screen.getByTestId("coding-input-doc-0")).toBeInTheDocument());
+  });
+
+  it("drops a PDF onto the composer", async () => {
+    render(<CodingInput onSubmit={vi.fn()} />);
+    fireEvent.drop(screen.getByTestId("coding-input"), {
+      dataTransfer: {
+        files: [file("scan.pdf", "application/pdf")],
+      },
+    });
+    await waitFor(() => expect(screen.getByTestId("coding-input-doc-0")).toBeInTheDocument());
+  });
+
+  it("pastes a clipboard image as an attachment", async () => {
+    render(<CodingInput onSubmit={vi.fn()} />);
+    const ta = screen.getByTestId("coding-input-textarea");
+    const image = file("clip.png", "image/png");
+    fireEvent.paste(ta, {
+      clipboardData: {
+        items: [
+          {
+            kind: "file",
+            type: "image/png",
+            getAsFile: () => image,
+          },
+        ],
+      },
+    });
+    await waitFor(() => expect(screen.getByTestId("coding-input-thumb-0")).toBeInTheDocument());
+  });
+
+  it("still shows slash suggestions when the value starts with /", async () => {
+    render(<CodingInput onSubmit={vi.fn()} />);
+    await userEvent.type(screen.getByTestId("coding-input-textarea"), "/rec");
+    expect(screen.getByTestId("coding-input-suggestions")).toBeInTheDocument();
   });
 });
