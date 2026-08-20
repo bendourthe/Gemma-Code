@@ -109,7 +109,8 @@ import {
   type InferenceMetricsRegistry,
   sharedInferenceMetrics,
 } from "../../../core/observability/InferenceMetrics.js";
-import { createOcrRuntimeBundle, type OcrRuntime } from "../../../core/documents/ocrRuntimeFactory.js";
+import type { OcrRuntime } from "../../../core/documents/ocrRuntimeFactory.js";
+import { getSharedOcrRuntime } from "./ocr/sharedRuntime.js";
 import {
   listMcpRegistrySettings,
   setMcpRegistryToolDenied,
@@ -202,13 +203,11 @@ function resolveServingRuntime(ctx: HandlerContext): ServingRuntime {
 
 /**
  * Lazily resolve the OCR runtime, memoized per process. Kept lazy so a session
- * that never parses a document never spawns the Python child.
+ * that never parses a document never spawns the Python child. Shared with the
+ * `parse_document` agent tool so Chat IPC and the coding host use one child.
  */
-let _ocrRuntime: OcrRuntime | null = null;
 function resolveOcrRuntime(ctx: HandlerContext): OcrRuntime {
-  if (ctx.ocr) return ctx.ocr;
-  if (!_ocrRuntime) _ocrRuntime = createOcrRuntimeBundle();
-  return _ocrRuntime;
+  return getSharedOcrRuntime(ctx.ocr);
 }
 
 export type HandlerFn = (params: unknown, ctx: HandlerContext) => Promise<unknown>;

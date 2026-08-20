@@ -74,6 +74,7 @@ import { ConfirmationGate } from "../tools/ConfirmationGate.js";
 import { defaultPermissionOptions } from "./webview/render/permissionPrompt.js";
 import type { ToolRegistry } from "../tools/ToolRegistry.js";
 import { buildToolRegistry } from "../tools/ToolRegistryBuilder.js";
+import { buildParseDocumentDeps } from "../tools/parseDocumentWiring.js";
 import { TodoState } from "../tools/handlers/todos.js";
 import { renderMarkdown } from "../../modules/coding/utils/MarkdownRenderer.js";
 import { getLogger } from "../../modules/coding/utils/logger.js";
@@ -324,6 +325,12 @@ export function bootstrapChatPanel(input: ChatPanelBootstrapInput): Bootstrapped
       state: todoState,
       post: input.hostPostMessage,
     },
+    parseDocument: buildParseDocumentDeps({
+      parseDocumentEnabled: settings.parseDocumentEnabled === true,
+      parseDocumentMemoryIngestEnabled: settings.parseDocumentMemoryIngestEnabled === true,
+      memoryStore: memorySubsystem.memoryStore,
+      sessionId: () => manager.sessionId,
+    }),
   });
 
   const ollamaOptions = buildOllamaTuning(settings);

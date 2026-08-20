@@ -18,10 +18,8 @@ import type { LLMClient } from "../../../../modules/coding/llm/types.js";
 import { ActionRisk } from "../../../../modules/coding/guardrails/ActionClassifier.js";
 import { HeadlessAgentSession } from "../../../../modules/coding/runtime/HeadlessAgentSession.js";
 import type { HeadlessConfirmFn } from "../../../../modules/coding/runtime/headlessGuards.js";
-import {
-  createHeadlessTools,
-  type HeadlessTool,
-} from "../../../../modules/coding/runtime/headlessTools.js";
+import type { HeadlessDocumentParser, HeadlessTool } from "../../../../modules/coding/runtime/headlessTools.js";
+import { createSidecarHeadlessTools } from "../coding/sidecarHeadlessTools.js";
 import { CONTROL_SURFACE_ACP_PATH } from "../controlSurface/contract.js";
 import {
   parseJsonBody,
@@ -56,6 +54,14 @@ export interface AcpAgentOptions {
   readonly confirmation?: AcpConfirmationOptions;
   /** Phase 4 ask inbox. When omitted, unattended confirms fail-close. */
   readonly inbox?: AskInbox;
+  /**
+   * v1.20.0 Phase 1 (A1): optional document parser. Ignored when the parse
+   * flag is off. When omitted, the sidecar helper builds one from the shared
+   * OCR bundle if the flag is on.
+   */
+  readonly documentParser?: HeadlessDocumentParser;
+  /** Override `nexus.coding.parseDocument.enabled` / `NEXUS_PARSE_DOCUMENT`. */
+  readonly parseDocumentEnabled?: boolean;
 }
 
 interface AcpSession {
@@ -151,7 +157,13 @@ export class AcpAgent {
         runId: this._activeSessionId ? `acp:${this._activeSessionId}` : "acp",
         sessionId: this._activeSessionId,
       })(toolName, summary, detail, args);
-    const guarded = opts.tools ?? createHeadlessTools({ guards: { confirm } });
+    const guarded =
+      opts.tools ??
+      createSidecarHeadlessTools({
+        confirm,
+        documentParser: opts.documentParser,
+        parseDocumentEnabled: opts.parseDocumentEnabled,
+      });
     this._tools = wrapBlocked(guarded);
   }
 

@@ -143,3 +143,29 @@ describe("ChatPanelBootstrap todos wiring (v0.8.0 Phase 0.5 / closes v0.7.0 10.O
     expect(payload.todos).toHaveLength(2);
   });
 });
+
+describe("ChatPanelBootstrap parse_document wiring (v1.20.0 Phase 1)", () => {
+  it("does not register parse_document when the flag is off", () => {
+    const result = bootstrapChatPanel({
+      extensionUri: mockOf<vscode.Uri>({ fsPath: "/ext", toString: () => "/ext" }),
+      runtime: new NexusCodingRuntime(),
+      hooks: makeHooks(),
+      hostPostMessage: vi.fn(),
+    });
+    expect(result.registry.has("parse_document")).toBe(false);
+  });
+
+  it("registers parse_document when the flag is on", () => {
+    const base = makeHooks();
+    const snapshot = base.getSettings();
+    const result = bootstrapChatPanel({
+      extensionUri: mockOf<vscode.Uri>({ fsPath: "/ext", toString: () => "/ext" }),
+      runtime: new NexusCodingRuntime(),
+      hooks: makeHooks({
+        getSettings: vi.fn(() => ({ ...snapshot, parseDocumentEnabled: true }) as never),
+      }),
+      hostPostMessage: vi.fn(),
+    });
+    expect(result.registry.has("parse_document")).toBe(true);
+  });
+});

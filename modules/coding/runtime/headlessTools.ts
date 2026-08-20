@@ -112,12 +112,17 @@ export interface HeadlessToolOptions {
    */
   readonly guards?: HeadlessGuardOptions;
   /**
-   * v1.16.0 Phase 4 (A6): document-OCR parser. Omit and `parse_document` is not
-   * registered at all, so a host with no document runtime simply lacks the tool.
-   * RETAINED, NOT DEAD (Phase 6): no host currently supplies this option
-   * (known gap LSO.P4.B). Delete only if that gap is closed as won't-do.
+   * v1.16.0 Phase 4 (A6) / v1.20.0 Phase 1 (A1): document-OCR parser. Omit and
+   * `parse_document` is not registered. Sidecar ACP/scheduler/coding hosts
+   * supply this through `createSidecarHeadlessTools` when the flag is on.
    */
   readonly documentParser?: HeadlessDocumentParser;
+  /**
+   * v1.20.0 Phase 1 (A1): when false, `parse_document` is not registered even
+   * if `documentParser` is present. Flag wins over presence. Default is
+   * "register if a parser was supplied" so existing tests keep working.
+   */
+  readonly parseDocumentEnabled?: boolean;
   /**
    * v1.18.0 Phase 6 (OI-A1): wrap the default `run_terminal` exec in the OS
    * sandbox. `NEXUS_EXEC_SANDBOX` still overrides. Injected `exec` is unchanged
@@ -624,7 +629,7 @@ export function createHeadlessTools(options: HeadlessToolOptions = {}): Headless
     runTerminal,
     hashFile,
     watchPath,
-    ...(options.documentParser ? [parseDocument] : []),
+    ...(options.documentParser && options.parseDocumentEnabled !== false ? [parseDocument] : []),
   ];
 
   // v1.16.0 Phase 4 (A6): wrap EVERY tool in the permission-tier + secret-path

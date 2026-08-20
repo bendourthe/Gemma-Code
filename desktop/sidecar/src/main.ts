@@ -14,7 +14,7 @@ import { createHeadlessOllamaClient } from "../../../modules/coding/llm/headless
 import { AskInbox } from "../../../modules/coding/autonomy/AskInbox.js";
 import { AgentRunScheduler } from "../../../modules/coding/autonomy/AgentRunScheduler.js";
 import { HeadlessAgentSession } from "../../../modules/coding/runtime/HeadlessAgentSession.js";
-import { createHeadlessTools } from "../../../modules/coding/runtime/headlessTools.js";
+import { createSidecarHeadlessTools } from "./coding/sidecarHeadlessTools.js";
 import { ChatSessionManager } from "./chat/sessionManager.js";
 import { createChatMessageHandler } from "./chat/chatMessageHandler.js";
 import { createDiffusionRuntime } from "./diffusion/runtimeFactory.js";
@@ -85,7 +85,7 @@ const scheduler = new AgentRunScheduler({
   workspacePath: process.env.NEXUS_WORKSPACE ?? process.cwd(),
   filePath: join(nexusHome(), "agent-schedules.json"),
   runHeadless: async (run) => {
-    const tools = createHeadlessTools({ guards: { confirm: run.confirm } });
+    const tools = createSidecarHeadlessTools({ confirm: run.confirm });
     const session = new HeadlessAgentSession(createHeadlessOllamaClient(), tools);
     await session.run({
       task: run.prompt,

@@ -11,6 +11,7 @@ import { describe, it, expect } from "vitest";
 import { BUILTIN_TOOL_NAMES } from "../../../src/tools/types.js";
 import { TOOL_CATALOG } from "../../../src/tools/ToolCatalog.js";
 import { buildToolRegistry } from "../../../src/tools/ToolRegistryBuilder.js";
+import { buildParseDocumentDeps } from "../../../src/tools/parseDocumentWiring.js";
 import {
   PermissionTier,
   TOOL_PERMISSION_MAP,
@@ -72,6 +73,32 @@ describe("parse_document registration", () => {
     // A host with no document runtime simply lacks the tool, so it costs no
     // prompt budget and can never be called into a missing runtime.
     const registry = buildToolRegistry({ confirmationGate: null } as never);
+    expect(registry.has("parse_document")).toBe(false);
+  });
+
+  it("bootstrap-shaped helper registers when the flag is on", () => {
+    const deps = buildParseDocumentDeps({
+      parseDocumentEnabled: true,
+      parseDocumentMemoryIngestEnabled: false,
+      createParser: () => PARSER.resolveParser(),
+    });
+    const registry = buildToolRegistry({
+      confirmationGate: null,
+      parseDocument: deps,
+    } as never);
+    expect(registry.has("parse_document")).toBe(true);
+  });
+
+  it("bootstrap-shaped helper omits the tool when the flag is off", () => {
+    const deps = buildParseDocumentDeps({
+      parseDocumentEnabled: false,
+      parseDocumentMemoryIngestEnabled: true,
+      createParser: () => PARSER.resolveParser(),
+    });
+    const registry = buildToolRegistry({
+      confirmationGate: null,
+      parseDocument: deps,
+    } as never);
     expect(registry.has("parse_document")).toBe(false);
   });
 });

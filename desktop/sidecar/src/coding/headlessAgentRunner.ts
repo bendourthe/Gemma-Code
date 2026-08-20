@@ -17,10 +17,8 @@
 
 import { createHeadlessOllamaClient } from "../../../../modules/coding/llm/headlessOllamaClient.js";
 import type { LLMClient } from "../../../../modules/coding/llm/types.js";
-import {
-  createHeadlessTools,
-  type HeadlessTool,
-} from "../../../../modules/coding/runtime/headlessTools.js";
+import type { HeadlessDocumentParser, HeadlessTool } from "../../../../modules/coding/runtime/headlessTools.js";
+import { createSidecarHeadlessTools } from "./sidecarHeadlessTools.js";
 import { HeadlessAgentSession } from "../../../../modules/coding/runtime/HeadlessAgentSession.js";
 import type { CodingSessionEventT } from "../protocol.js";
 import type { SidecarModelEntry } from "./models.js";
@@ -40,12 +38,15 @@ export type AgentRunner = (input: AgentRunnerInput) => Promise<readonly CodingSe
 export interface HeadlessAgentRunnerOptions {
   /** Override the LLM port (tests inject a scripted client; default: Ollama). */
   readonly llm?: LLMClient;
-  /** Override the tool set (default: the full headless tool set). */
+  /** Override the tool set (default: the sidecar headless tool set). */
   readonly tools?: HeadlessTool[];
   /** Default working directory when a session supplies none (default: NEXUS_WORKSPACE or cwd). */
   readonly workspace?: string;
   /** Extra base instructions folded into the system prompt. */
   readonly systemInstructions?: string;
+  /** v1.20.0 Phase 1 (A1): forwarded when the default tool set is used. */
+  readonly documentParser?: HeadlessDocumentParser;
+  readonly parseDocumentEnabled?: boolean;
 }
 
 function resolveWorkspace(perSession: string | undefined, explicit: string | undefined): string {
@@ -67,7 +68,12 @@ export function createHeadlessAgentRunner(
   options: HeadlessAgentRunnerOptions = {},
 ): AgentRunner {
   const llm = options.llm ?? createHeadlessOllamaClient();
-  const tools = options.tools ?? createHeadlessTools();
+  const tools =
+    options.tools ??
+    createSidecarHeadlessTools({
+      documentParser: options.documentParser,
+      parseDocumentEnabled: options.parseDocumentEnabled,
+    });
   const session = new HeadlessAgentSession(llm, tools);
 
   return async (input) => {

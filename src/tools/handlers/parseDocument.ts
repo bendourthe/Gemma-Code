@@ -25,11 +25,10 @@
  * lets each host supply its own parser: the sidecar injects its in-process
  * manager, the extension injects one that spawns the Python runtime itself.
  *
- * RETAINED, NOT DEAD (v1.16.0 Phase 6 refactor triage): no host currently
- * passes `parseDocument` into `buildToolRegistry`, so the tool is tested but
- * unwired at runtime (known gap LSO.P4.B). Delete only if that gap is closed
- * as won't-do. The intended next step is to wire the sidecar first, then the
- * extension host, gated on `settings.parseDocumentEnabled`.
+ * Wired in v1.20.0 Phase 1 (A1): `ChatPanelBootstrap` passes `parseDocument`
+ * when `settings.parseDocumentEnabled` is true, and the sidecar registers the
+ * headless twin through `createSidecarHeadlessTools`. The tool stays absent
+ * when the flag is off.
  */
 
 import * as vscode from "vscode";

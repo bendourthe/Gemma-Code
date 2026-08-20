@@ -4,6 +4,29 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-19] v1.20.0 document-ingest -- Phase 1: wire parse_document
+
+### Goal
+
+Register the existing `parse_document` tool on sidecar ACP/scheduler/coding and the VS Code coding panel, gated on the existing flags, without adding Docling.
+
+### What was done
+
+- **Sidecar**: `createSidecarHeadlessTools` injects a bytes-in OCR parser when `NEXUS_PARSE_DOCUMENT` or `nexus.coding.parseDocument.enabled` is on. Flag off omits the tool even if a parser object exists. ACP, scheduler, and `createHeadlessAgentRunner` all go through that helper. Chat `ocr.*` IPC and the agent tool share one OCR child.
+- **VS Code**: `ChatPanelBootstrap` passes `buildParseDocumentDeps` into `buildToolRegistry` when `parseDocumentEnabled` is true. Parser is lazy.
+- **Memory ingest**: constructed only when parse + ingest flags and a MemoryStore are present (VS Code). Sidecar has no store (known-gap DF-1).
+- **Busy rule**: a second overlapping parse is rejected, not queued.
+
+### Tests
+
+Root phase files 58/58. Desktop sidecar-parse-document + ocr-handlers + ACP + serving + runner 40/40. Lint and `tsc -b` clean. Python OCR tests unchanged.
+
+### Next
+
+Phase 2: magic-byte format router and native Office ingest.
+
+---
+
 ## [2026-08-19] v1.19.2 cut
 
 ### Goal

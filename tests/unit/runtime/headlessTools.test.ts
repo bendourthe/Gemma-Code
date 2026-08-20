@@ -179,3 +179,42 @@ describe("createHeadlessTools -- run_terminal", () => {
     expect(res.output).toContain("[truncated");
   });
 });
+
+describe("createHeadlessTools -- parse_document", () => {
+  it("omits parse_document when no parser is supplied", () => {
+    expect(createHeadlessTools().map((t) => t.name)).not.toContain("parse_document");
+  });
+
+  it("omits parse_document when the flag is off even if a parser exists", () => {
+    const tools = createHeadlessTools({
+      parseDocumentEnabled: false,
+      documentParser: {
+        parse: async () => ({ engine: "stub", text: "t", markdown: null, pageCount: 1 }),
+      },
+    });
+    expect(tools.map((t) => t.name)).not.toContain("parse_document");
+  });
+
+  it("hands the parser base64 only and redacts secrets in the output", async () => {
+    const seen: string[] = [];
+    const tools = createHeadlessTools({
+      documentParser: {
+        parse: async (documentBase64) => {
+          seen.push(documentBase64);
+          return {
+            engine: "stub",
+            text: "Key: ghp_0123456789abcdefghijklmnopqrstuvwxyz end",
+            markdown: null,
+            pageCount: 1,
+          };
+        },
+      },
+    });
+    await fsp.writeFile(path.join(workdir, "invoice.pdf"), "%PDF-1.7 fake");
+    const res = await tool(tools, "parse_document").execute({ path: "invoice.pdf" }, { workdir });
+    expect(res.success).toBe(true);
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toBe(Buffer.from("%PDF-1.7 fake").toString("base64"));
+    expect(res.output).not.toContain("ghp_0123456789abcdef");
+  });
+});
