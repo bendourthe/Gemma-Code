@@ -63,4 +63,9 @@ export const TOOL_PERMISSION_MAP: Record<BuiltinToolName, PermissionTier> = {
   parse_document: PermissionTier.CONFIRM,
   watch_path: PermissionTier.AUTO_APPROVE,
   hash_file: PermissionTier.AUTO_APPROVE,
+  browser_navigate: PermissionTier.DANGEROUS,
+  browser_click: PermissionTier.DANGEROUS,
+  browser_type: PermissionTier.DANGEROUS,
+  browser_aria_snapshot: PermissionTier.DANGEROUS,
+  browser_close: PermissionTier.DANGEROUS,
 };

@@ -43,6 +43,7 @@ const DENY_SUBJECT_PARAM: Readonly<Record<string, string>> = {
   edit_file: "path",
   create_file: "path",
   delete_file: "path",
+  browser_navigate: "url",
 };
 
 /**

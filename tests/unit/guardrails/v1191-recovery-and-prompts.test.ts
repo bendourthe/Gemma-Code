@@ -62,6 +62,8 @@ describe("tool result origin", () => {
     expect(originForTool("run_terminal")).toBe("terminal");
     expect(originForTool("mcp:server/tool")).toBe("mcp_tool");
     expect(originForTool("hash_file")).toBe("workspace_file");
+    expect(originForTool("browser_aria_snapshot")).toBe("browser_snapshot");
+    expect(originForTool("browser_navigate")).toBe("browser_snapshot");
   });
 
   it("formatToolResult includes origin end-to-end", () => {

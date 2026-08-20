@@ -15,7 +15,8 @@ describe("TOOL_CATALOG", () => {
     // codegraph surface.
     // v1.16.0 Phase 4 (A6) added parse_document.
     // v1.19.1 Phase 2.8 added watch_path + hash_file.
-    expect(TOOL_CATALOG).toHaveLength(27);
+    // v2.0.0 Phase 2 added five browser_* tools (DANGEROUS, specialty-trimmed).
+    expect(TOOL_CATALOG).toHaveLength(32);
   });
 
   it("every entry name matches a value from TOOL_NAMES", () => {
@@ -36,8 +37,13 @@ describe("TOOL_CATALOG", () => {
     }
   });
 
-  it("every entry has at least one parameter defined", () => {
+  it("every entry has at least one parameter defined, except snapshot/close", () => {
+    const zeroParamOk = new Set(["browser_aria_snapshot", "browser_close"]);
     for (const tool of TOOL_CATALOG) {
+      if (zeroParamOk.has(tool.name)) {
+        expect(Object.keys(tool.parameters).length).toBe(0);
+        continue;
+      }
       expect(Object.keys(tool.parameters).length).toBeGreaterThan(0);
     }
   });

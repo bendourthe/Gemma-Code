@@ -88,6 +88,38 @@ describe("computeToolActivation", () => {
     expect(result.disabledTools.has("grep_codebase")).toBe(false);
   });
 
+  it("disables browser tools when the network is unavailable or the session is read-only", () => {
+    const browser = [
+      makeBuiltin("browser_navigate"),
+      makeBuiltin("browser_click"),
+      makeBuiltin("browser_type"),
+      makeBuiltin("browser_aria_snapshot"),
+      makeBuiltin("browser_close"),
+    ];
+    const tools = [...ALL_BUILTINS, ...browser];
+    const offline = computeToolActivation(tools, defaultContext({ networkAvailable: false }));
+    expect(offline.disabledTools.has("browser_navigate")).toBe(true);
+    expect(offline.disabledTools.has("browser_close")).toBe(false);
+    const ro = computeToolActivation(tools, defaultContext({ readOnlySession: true }));
+    expect(ro.disabledTools.has("browser_navigate")).toBe(true);
+    expect(ro.disabledTools.has("browser_close")).toBe(true);
+  });
+
+  it("trims browser specialty tools before codegraph when over the cap", () => {
+    const tools = [
+      ...ALL_BUILTINS,
+      makeBuiltin("browser_navigate"),
+      makeBuiltin("browser_click"),
+      makeBuiltin("codegraph_search"),
+      makeBuiltin("codegraph_context"),
+      makeBuiltin("codegraph_trace"),
+      makeBuiltin("codegraph_callers"),
+    ];
+    const result = computeToolActivation(tools, defaultContext({ totalToolCount: tools.length }));
+    expect(result.disabledTools.has("browser_navigate")).toBe(true);
+    expect(result.disabledTools.has("read_file")).toBe(false);
+  });
+
   // Rule 4: Research sub-agent
   it("disables write tools for research sub-agent", () => {
     const result = computeToolActivation(

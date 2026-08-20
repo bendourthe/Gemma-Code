@@ -110,11 +110,11 @@ describe("inbound classifier membership", () => {
     const source = await import("node:fs/promises").then((fs) =>
       fs.readFile(new URL("../../../src/tools/AgentLoop.ts", import.meta.url), "utf8"),
     );
-    const line = source
-      .split("\n")
-      .find((l) => l.includes("INBOUND_EXTERNAL_DATA_TOOLS = new Set"));
-    expect(line).toBeDefined();
-    expect(line).toContain("parse_document");
-    expect(line).toContain("fetch_page");
+    const start = source.indexOf("INBOUND_EXTERNAL_DATA_TOOLS = new Set");
+    expect(start).toBeGreaterThan(-1);
+    const block = source.slice(start, start + 400);
+    expect(block).toContain("parse_document");
+    expect(block).toContain("fetch_page");
+    expect(block).toContain("browser_aria_snapshot");
   });
 });

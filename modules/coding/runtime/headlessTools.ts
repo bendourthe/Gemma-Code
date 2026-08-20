@@ -29,6 +29,8 @@ import {
   type HeadlessGuardOptions,
   screenHeadlessCall,
 } from "./headlessGuards.js";
+import { createHeadlessBrowserTools } from "../browser/headless.js";
+import type { BrowserDriver } from "../browser/types.js";
 import {
   deriveDefaultPolicy,
   isExecSandboxEnabled,
@@ -129,6 +131,13 @@ export interface HeadlessToolOptions {
    * so tests keep a fake process.
    */
   readonly execSandbox?: boolean;
+  /**
+   * v2.0.0 Phase 2: isolated-profile browser tools. Off by default so the
+   * canonical file-tool list stays unchanged; the sidecar coding host opts in.
+   */
+  readonly browserEnabled?: boolean;
+  /** Injected driver (tests). Production uses InMemory under Vitest, Playwright otherwise. */
+  readonly browserDriver?: BrowserDriver;
 }
 
 /** Upper bound on pages per call, mirroring the VS Code tool. */
@@ -630,6 +639,11 @@ export function createHeadlessTools(options: HeadlessToolOptions = {}): Headless
     hashFile,
     watchPath,
     ...(options.documentParser && options.parseDocumentEnabled !== false ? [parseDocument] : []),
+    ...(options.browserEnabled
+      ? createHeadlessBrowserTools(
+          options.browserDriver ? { driver: options.browserDriver } : undefined,
+        )
+      : []),
   ];
 
   // v1.16.0 Phase 4 (A6): wrap EVERY tool in the permission-tier + secret-path

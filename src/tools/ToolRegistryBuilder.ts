@@ -151,6 +151,26 @@ export function buildToolRegistry(opts: ToolRegistryBuildOptions): ToolRegistry 
     const mod = await import("./handlers/webSearch.js");
     return new mod.FetchPageTool();
   });
+  registry.registerLazy("browser_navigate", async () => {
+    const mod = await import("./handlers/browser.js");
+    return new mod.BrowserNavigateTool();
+  });
+  registry.registerLazy("browser_click", async () => {
+    const mod = await import("./handlers/browser.js");
+    return new mod.BrowserClickTool();
+  });
+  registry.registerLazy("browser_type", async () => {
+    const mod = await import("./handlers/browser.js");
+    return new mod.BrowserTypeTool();
+  });
+  registry.registerLazy("browser_aria_snapshot", async () => {
+    const mod = await import("./handlers/browser.js");
+    return new mod.BrowserAriaSnapshotTool();
+  });
+  registry.registerLazy("browser_close", async () => {
+    const mod = await import("./handlers/browser.js");
+    return new mod.BrowserCloseTool();
+  });
 
   if (opts.compress) {
     registry.register("compress_range", new CompressRangeTool(opts.compress.deps));
@@ -264,6 +284,11 @@ export function listLazyToolNames(): readonly string[] {
     "run_terminal",
     "web_search",
     "fetch_page",
+    "browser_navigate",
+    "browser_click",
+    "browser_type",
+    "browser_aria_snapshot",
+    "browser_close",
   ];
 }
 

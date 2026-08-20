@@ -17,7 +17,7 @@ v1.20.0 in-progress items stay in [../../v1/v1.20/known-gaps.md](../../v1/v1.20/
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 5 | 0 |
+| Deferred (DF) | 7 | 0 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 1 | 0 |
@@ -61,6 +61,20 @@ v1.20.0 in-progress items stay in [../../v1/v1.20/known-gaps.md](../../v1/v1.20/
 - **Plan reference**: `docs/v2/v2.0/plans/v2.0.0-adoption-governed-autonomy-multimodal.md` (sub-task 1.2)
 - **Reason**: Local Chatbot Explorer has no MemoryStore. Sidecar coding hosts also have no store (v1.20 DF-1). Scrubbing happens on the transcribe path (`prepareSttTranscript` / `redactSecrets`) so a future index cannot ingest raw secrets.
 - **Suggested next step**: When Chat gains a memory index, ingest the already-labelled, already-redacted transcript rather than the audio bytes.
+
+##### DF-6 - Playwright is an optional local install, not a lockfile pin
+
+- **Source phase**: Phase 2 - Browser tool family (2.2)
+- **Plan reference**: `docs/v2/v2.0/plans/v2.0.0-adoption-governed-autonomy-multimodal.md` (sub-task 2.2)
+- **Reason**: Adding Playwright to `package.json` would make `npm ci` in CI download Chromium. Tests use `InMemoryBrowser` and a fake loader. The documented pin is Playwright 1.55.x via `npx playwright@1.55.0 install chromium`.
+- **Suggested next step**: If a nightly job can cache browsers, add `playwright` as an optionalDependency with that pin and keep CI on InMemory.
+
+##### DF-7 - VS Code prompt may trim all five `browser_*` tools under the 15-tool cap
+
+- **Source phase**: Phase 2 - Browser tool family (2.2)
+- **Plan reference**: `docs/v2/v2.0/plans/v2.0.0-adoption-governed-autonomy-multimodal.md` (sub-task 2.2)
+- **Reason**: `MAX_TOOL_COUNT` is 15. The five browser tools are `OPTIONAL_SPECIALTY_TOOLS`, so they trim before `codegraph_*`. A full catalog (core + specialty + codegraph) will often hide them from the VS Code system prompt. The desktop sidecar headless list always registers them when `browserEnabled` is true (sidecar default).
+- **Suggested next step**: If desktop coding users need the tools in-prompt, either raise the cap with a measured Gemma-4 tool-call study or collapse the family to one `browser` tool with an `action` discriminator.
 
 #### Missing Tests / Coverage Gaps
 

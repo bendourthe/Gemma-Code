@@ -29,7 +29,13 @@ export type BuiltinToolName =
   | "parse_document"
   // v1.19.1 Phase 2.8 -- read-only fs observation / integrity.
   | "watch_path"
-  | "hash_file";
+  | "hash_file"
+  // v2.0.0 Phase 2 -- isolated-profile browser tools (Atomic C1).
+  | "browser_navigate"
+  | "browser_click"
+  | "browser_type"
+  | "browser_aria_snapshot"
+  | "browser_close";
 
 /** Namespaced MCP tool name: `mcp:serverName/toolName`. */
 export type McpToolName = `mcp:${string}`;
@@ -67,6 +73,11 @@ export const BUILTIN_TOOL_NAMES: readonly BuiltinToolName[] = [
   "parse_document",
   "watch_path",
   "hash_file",
+  "browser_navigate",
+  "browser_click",
+  "browser_type",
+  "browser_aria_snapshot",
+  "browser_close",
 ];
 
 /** @deprecated Use BUILTIN_TOOL_NAMES instead. */
@@ -88,8 +99,8 @@ export interface ToolCall {
 
 /**
  * Provenance class for a tool result (v1.19.1 Phase 2.6). `browser_snapshot`
- * is reserved for the v2.0.0 browser tool surface. `stt_transcript` labels
- * Chat STT output (v2.0.0 Phase 1).
+ * labels ARIA snapshots from the v2.0.0 `browser_*` tools. `stt_transcript`
+ * labels Chat STT output (v2.0.0 Phase 1).
  */
 export type ToolResultOrigin =
   | "user"

@@ -90,5 +90,6 @@ export function createSidecarHeadlessTools(
     ...(options.execSandbox !== undefined ? { execSandbox: options.execSandbox } : {}),
     documentParser,
     parseDocumentEnabled: enabled,
+    browserEnabled: true,
   });
 }

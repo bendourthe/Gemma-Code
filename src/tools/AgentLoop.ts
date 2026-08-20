@@ -29,6 +29,7 @@ import {
   type SecurityPostureId,
 } from "../../modules/coding/guardrails/SecurityPosture.js";
 import { originForTool } from "../../modules/coding/guardrails/toolResultOrigin.js";
+import { closeSharedBrowserSession } from "../../modules/coding/browser/session.js";
 import type { GitSafetyNet, GitCheckpoint } from "../../modules/coding/guardrails/GitSafetyNet.js";
 import { classifyAction, ActionRisk } from "../../modules/coding/guardrails/ActionClassifier.js";
 import { Tracer, type SkillSpanContext } from "../../modules/coding/observability/Tracer.js";
@@ -57,7 +58,15 @@ const EPISODIC_TOOLS = new Set(["write_file", "edit_file", "create_file", "run_t
 // v1.16.0 Phase 4 (A6): `parse_document` joins the set -- OCR text from a
 // workspace document is external, attacker-influenceable content exactly like
 // a fetched web page, so it gets the same untrusted-content annotation.
-const INBOUND_EXTERNAL_DATA_TOOLS = new Set(["fetch_page", "web_search", "parse_document"]);
+const INBOUND_EXTERNAL_DATA_TOOLS = new Set([
+  "fetch_page",
+  "web_search",
+  "parse_document",
+  "browser_navigate",
+  "browser_click",
+  "browser_type",
+  "browser_aria_snapshot",
+]);
 
 /**
  * v0.8.0 Phase 2 (item C8) -- tools whose successful invocation counts as
@@ -508,6 +517,7 @@ export class AgentLoop {
     // replay) get a typed payload; the underlying TelemetryBus
     // re-publishes for trace-side consumers.
     const sessionStartMs = Date.now();
+    try {
     if (this._hookBus && this._sessionId) {
       this._hookBus.emit({
         kind: "lifecycle.session.start",
@@ -571,6 +581,9 @@ export class AgentLoop {
       text: `Agent loop reached the maximum of ${iterationCap} iterations and stopped.`,
     });
     this._emitSessionStop(sessionStartMs);
+    } finally {
+      await closeSharedBrowserSession();
+    }
   }
 
   /**
@@ -1088,6 +1101,10 @@ export class AgentLoop {
           url,
         });
         if (screen.flagged) return { ...labelled, output: screen.annotated };
+      }
+      // Handlers already labelled ARIA snapshots; skip a second heuristic wrap.
+      if (origin === "browser_snapshot" && result.output.includes("[origin:browser_snapshot]")) {
+        return labelled;
       }
       const heuristic = scan(result.output);
       if (!heuristic.ok) {

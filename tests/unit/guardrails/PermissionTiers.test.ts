@@ -30,6 +30,11 @@ describe("PermissionTiers", () => {
       expect(getPermissionTier("run_terminal")).toBe(PermissionTier.DANGEROUS);
       expect(getPermissionTier("web_search")).toBe(PermissionTier.DANGEROUS);
       expect(getPermissionTier("fetch_page")).toBe(PermissionTier.DANGEROUS);
+      expect(getPermissionTier("browser_navigate")).toBe(PermissionTier.DANGEROUS);
+      expect(getPermissionTier("browser_click")).toBe(PermissionTier.DANGEROUS);
+      expect(getPermissionTier("browser_type")).toBe(PermissionTier.DANGEROUS);
+      expect(getPermissionTier("browser_aria_snapshot")).toBe(PermissionTier.DANGEROUS);
+      expect(getPermissionTier("browser_close")).toBe(PermissionTier.DANGEROUS);
     });
 
     it("defaults MCP tools to DANGEROUS", () => {
@@ -61,6 +66,7 @@ describe("PermissionTiers", () => {
     it("returns true for DANGEROUS tools", () => {
       expect(shouldRequireConfirmation("run_terminal")).toBe(true);
       expect(shouldRequireConfirmation("fetch_page")).toBe(true);
+      expect(shouldRequireConfirmation("browser_navigate")).toBe(true);
     });
 
     it("clamps tier-2 overrides to CONFIRM (cannot drop tier-2 to auto-approve)", () => {
@@ -134,6 +140,12 @@ describe("PermissionTiers", () => {
     it("returns url for fetch_page", () => {
       const warning = getDangerousWarning("fetch_page", { url: "https://example.com" });
       expect(warning).toContain("https://example.com");
+    });
+
+    it("returns isolated-profile copy for browser_navigate", () => {
+      const warning = getDangerousWarning("browser_navigate", { url: "https://example.com" });
+      expect(warning).toContain("https://example.com");
+      expect(warning).toMatch(/isolated/i);
     });
 
     it("returns generic warning for MCP tools", () => {

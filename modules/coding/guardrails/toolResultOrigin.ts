@@ -2,9 +2,8 @@
  * Provenance labels on tool results (v1.19.1 Phase 2.6).
  *
  * Taxonomy is closed: add members only when a new origin class ships. The
- * `browser_snapshot` member is reserved for the v2.0.0 browser tool surface
- * and must not be assigned by any v1.19 handler -- ARIA snapshots plug in
- * without a schema change.
+ * `browser_snapshot` member labels ARIA snapshots from `browser_*` tools
+ * (v2.0.0 Phase 2) and is always screened.
  *
  * Screening: web_fetch, mcp_tool, browser_snapshot, and stt_transcript are
  * always screened (never off). Other origins follow the security-posture dial.
@@ -54,6 +53,11 @@ const BY_TOOL: Readonly<Record<string, ToolResultOrigin>> = {
   codegraph_files: "workspace_file",
   lsp_definition: "workspace_file",
   lsp_references: "workspace_file",
+  browser_navigate: "browser_snapshot",
+  browser_click: "browser_snapshot",
+  browser_type: "browser_snapshot",
+  browser_aria_snapshot: "browser_snapshot",
+  browser_close: "browser_snapshot",
 };
 
 export function originForTool(toolName: string): ToolResultOrigin {

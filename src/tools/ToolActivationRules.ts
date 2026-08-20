@@ -14,6 +14,11 @@ const OPTIONAL_SPECIALTY_TOOLS: ReadonlySet<string> = new Set([
   "parse_document",
   "watch_path",
   "hash_file",
+  "browser_navigate",
+  "browser_click",
+  "browser_type",
+  "browser_aria_snapshot",
+  "browser_close",
 ]);
 
 /**
@@ -123,7 +128,14 @@ export interface ToolActivationResult {
   readonly trimmedCodegraph: boolean;
 }
 
-const NETWORK_TOOLS: readonly BuiltinToolName[] = ["web_search", "fetch_page"];
+const NETWORK_TOOLS: readonly BuiltinToolName[] = [
+  "web_search",
+  "fetch_page",
+  "browser_navigate",
+  "browser_click",
+  "browser_type",
+  "browser_aria_snapshot",
+];
 
 const WRITE_TOOLS: readonly BuiltinToolName[] = [
   "write_file",
@@ -131,6 +143,11 @@ const WRITE_TOOLS: readonly BuiltinToolName[] = [
   "create_file",
   "delete_file",
   "run_terminal",
+  "browser_navigate",
+  "browser_click",
+  "browser_type",
+  "browser_aria_snapshot",
+  "browser_close",
 ];
 
 const RESEARCH_DISABLED: readonly BuiltinToolName[] = [

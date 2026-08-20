@@ -118,6 +118,16 @@ export function getDangerousWarning(
       return `This will perform a web search: ${String(parameters["query"] ?? "(unknown)")}`;
     case "fetch_page":
       return `This will fetch a web page: ${String(parameters["url"] ?? "(unknown)")}`;
+    case "browser_navigate":
+      return `This will open a URL in the isolated Nexus browser profile (not your default Chrome): ${String(parameters["url"] ?? "(unknown)")}`;
+    case "browser_click":
+      return `This will click ${String(parameters["selector"] ?? "(unknown)")} in the isolated Nexus browser profile.`;
+    case "browser_type":
+      return `This will type into ${String(parameters["selector"] ?? "(unknown)")} in the isolated Nexus browser profile.`;
+    case "browser_aria_snapshot":
+      return "This will read an ARIA snapshot from the isolated Nexus browser profile. Page content is untrusted.";
+    case "browser_close":
+      return "This will close the isolated Nexus browser session.";
     default:
       return `Tool "${toolName}" requires elevated permission (DANGEROUS tier).`;
   }

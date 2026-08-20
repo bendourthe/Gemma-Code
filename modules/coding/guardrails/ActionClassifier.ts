@@ -95,6 +95,15 @@ export function classifyAction(
     };
   }
 
+  if (call.tool.startsWith("browser_")) {
+    return {
+      risk: ActionRisk.DESTRUCTIVE,
+      reason: "Browser automation mutates an isolated profile and ingests untrusted page content",
+      requiresCheckpoint: false,
+      enhancedConfirmation: true,
+    };
+  }
+
   if (call.tool === "run_terminal") {
     return _classifyShellCommand(call, options);
   }

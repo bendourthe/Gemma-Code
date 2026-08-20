@@ -46,6 +46,13 @@ describe("createSidecarHeadlessTools", () => {
     const tools = createSidecarHeadlessTools({ env: {}, settingsValue: false });
     expect(names(tools)).not.toContain("parse_document");
   });
+
+  it("registers the isolated-profile browser tools for the coding host", () => {
+    const tools = createSidecarHeadlessTools({ env: {}, settingsValue: false });
+    expect(names(tools)).toContain("browser_navigate");
+    expect(names(tools)).toContain("browser_aria_snapshot");
+    expect(names(tools)).toContain("browser_close");
+  });
 });
 
 describe("ACP construction site", () => {

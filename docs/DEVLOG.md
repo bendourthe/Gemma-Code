@@ -4,6 +4,29 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-19] v2.0.0 coding browser tools -- Phase 2: isolated Playwright profile
+
+### Goal
+
+Give the coding agent navigate / click / type / ARIA-snapshot / close tools at DANGEROUS tier over an isolated local browser profile, with page content treated as hostile input.
+
+### What was done
+
+- **Security design**: `docs/v2/v2.0/browser-surface-security.md` (isolated `~/.nexus/browser-profiles/`, ConfirmationGate, `browser_snapshot` screening, loop-guard budget, no browser-as-a-service).
+- **Tools**: `browser_navigate`, `browser_click`, `browser_type`, `browser_aria_snapshot`, `browser_close`. vscode-free session in `modules/coding/browser/`. VS Code lazy handlers. Sidecar headless always registers the family.
+- **Tests**: InMemory + HTML fixtures in CI. Live Playwright skipped unless `NEXUS_BROWSER_PLAYWRIGHT=1`.
+- **Gaps**: DF-6 (Playwright not in lockfile), DF-7 (15-tool cap may trim the family from the VS Code prompt).
+
+### Tests
+
+Root Vitest + coverage (global thresholds). Desktop lint / tsc / Vitest including sidecar registration of `browser_navigate`.
+
+### Next
+
+Phase 3: Video Lab continuation + avatar. Local commit only.
+
+---
+
 ## [2026-08-19] v2.0.0 multimodal chat -- Phase 1: vision, STT, voice loop
 
 ### Goal
