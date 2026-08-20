@@ -512,6 +512,7 @@ describe("catalog", () => {
     expect(avatar?.license).toBe("MIT");
     expect(avatar?.tags).toContain("opt-in");
     expect(avatar?.tags).not.toContain("recommended");
+    expect(avatar?.multimodal).toBe(false);
     expect(avatar?.audioConditioning?.supported).toBe(true);
     expect(avatar?.audioConditioning?.modes).toEqual(["single"]);
     expect(avatar?.weights?.layoutVersion).toBe(2);

@@ -1529,7 +1529,7 @@
       "requiredVramGB": 20,
       "releaseDate": "2026-05-21",
       "uncensored": false,
-      "multimodal": true,
+      "multimodal": false,
       "contextWindow": null,
       "license": "MIT",
       "source": {

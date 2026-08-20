@@ -61,6 +61,7 @@ export const NEXUS_IGNORE_DEFAULTS: readonly string[] = [
   ".nyc_output",
   "*.tsbuildinfo",
   "*.coverage",
+  "project-sandboxes",
 ];
 
 const EMPTY_PATTERNS: IgnorePatterns = Object.freeze({

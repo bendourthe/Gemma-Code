@@ -2,7 +2,7 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-19
+**Last updated**: 2026-08-20
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
@@ -17,7 +17,7 @@ v1.20.0 in-progress items stay in [../../v1/v1.20/known-gaps.md](../../v1/v1.20/
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 9 | 0 |
+| Deferred (DF) | 12 | 0 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 1 | 0 |
@@ -89,6 +89,27 @@ v1.20.0 in-progress items stay in [../../v1/v1.20/known-gaps.md](../../v1/v1.20/
 - **Plan reference**: `docs/v2/v2.0/plans/v2.0.0-adoption-governed-autonomy-multimodal.md` (sub-task 3.1)
 - **Reason**: Chaining UX and `continueFrom` payloads ship. No Wan 2.2 GPU run measured temporal seams between segments. Extra field `seamQuality` is `prototype-unmeasured`.
 - **Suggested next step**: On a host with Wan 2.2 weights, generate a 3-segment clip and document visible seam artefacts before calling continuation production-quality.
+
+##### DF-10 - Code-as-action sandbox and Query DSL are not built
+
+- **Source phase**: Phase 4 - Code-as-action sandbox + Query DSL (4.3)
+- **Plan reference**: `docs/v2/v2.0/plans/v2.0.0-adoption-governed-autonomy-multimodal.md` (sub-task 4.3)
+- **Reason**: Stretch item. Depends on 4.2's durable root (now shipped as a directory contract) plus PermissionTiers, ConfirmationGate, and GitSafetyNet. A locked-down worker, Query DSL, and opt-in script surface would expand the threat model in the same cycle as browser tools. JSON tool calls remain the default.
+- **Suggested next step**: Opt-in per run, no network, no fs by default, hard timeout. Mutating operations must still pass PermissionTiers and ConfirmationGate. Direct fs/network from the worker must fail closed.
+
+##### DF-11 - Fast small-model command router is not built
+
+- **Source phase**: Phase 4 - Fast small-model command router (4.4)
+- **Plan reference**: `docs/v2/v2.0/plans/v2.0.0-adoption-governed-autonomy-multimodal.md` (sub-task 4.4)
+- **Reason**: Stretch item. Needs a measured latency win versus the full AgentLoop and a Qwen-class local classifier. The router must never drop a permission tier (Atomic comparison Section 9). HarnessSelector already covers per-model profiles.
+- **Suggested next step**: Classify short imperatives, abstain-and-escalate when uncertain, and send every proposed call through ConfirmationGate at its normal tier. Record a before/after latency number.
+
+##### DF-12 - VRM Chat presence pane is not built
+
+- **Source phase**: Phase 4 - VRM avatar presence layer (4.7)
+- **Plan reference**: `docs/v2/v2.0/plans/v2.0.0-adoption-governed-autonomy-multimodal.md` (sub-task 4.7)
+- **Reason**: The plan ships this only if Chat demand justifies it. No Chat demand was observed this cycle. Live2D stays rejected (proprietary Cubism Core). Depends on Phase 1.3 TTS timing for lip-sync.
+- **Suggested next step**: If Chat users ask for a presence pane, add an optional three-vrm renderer, off by default, VRM only, local, with zero cost when disabled.
 
 #### Missing Tests / Coverage Gaps
 

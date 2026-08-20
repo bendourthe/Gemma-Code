@@ -34,9 +34,11 @@ describe("isVisionCapableModel", () => {
 
   // Guard: the runtime name-matcher must agree with the authoritative catalog
   // `multimodal: true` flag so the two sources cannot drift apart.
-  it("agrees with every catalog entry flagged multimodal", async () => {
+  it("agrees with every chat-LLM catalog entry flagged multimodal", async () => {
     const catalog = await loadCatalog();
-    const multimodalSpecs = catalog.models.filter((m) => m.multimodal === true);
+    const multimodalSpecs = catalog.models.filter(
+      (m) => m.multimodal === true && m.task !== "video" && m.type !== "video",
+    );
     expect(multimodalSpecs.length).toBeGreaterThan(0);
     for (const spec of multimodalSpecs) {
       const ref = (spec.source.url ?? "").replace(/^ollama:\/\//, "") || spec.id;

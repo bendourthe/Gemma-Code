@@ -30,6 +30,8 @@ core/                       v1.0.0 shared-core surfaces (Phase 2.3 + 2.6)
   memory/MemoryHub.ts        4-layer memory facade
   memory/chunkers/           AST-aware chunker for memory ingest (v1.2.0 Phase 4)
   memory/PrunedDenseIndex.ts LEANN-derived graph-pruned index (v1.2.0 Phase 4)
+  project/ProjectScope.ts    per-project memory/MCP/skills/permissions (v2.0.0 Phase 4)
+  project/DurableSandbox.ts  project-keyed untrusted exec root (v2.0.0 Phase 4)
   telemetry/TelemetryBus.ts  in-process pub/sub (GPU + module events)
   skills/SkillCatalog.ts     skills: list / load / hot-reload
   storage/                   ~/.nexus/ paths + StorageMigration (Phase 2.2)

@@ -15,6 +15,7 @@ nexus-ai/
   core/                       shared-core surfaces (Phase 2.3 + 2.6)
     registry/ModelRegistry.ts  list / install / remove / inspect models
     memory/MemoryHub.ts        4-layer memory facade
+    project/                   ProjectScope + durable sandbox (v2.0.0 Phase 4)
     telemetry/TelemetryBus.ts  in-process pub/sub for GPU + module events
     skills/SkillCatalog.ts     list / load / hot-reload skills
     storage/                   StorageMigration + canonical ~/.nexus/ paths

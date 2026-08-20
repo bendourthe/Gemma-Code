@@ -14,6 +14,7 @@ core/                        shared-core surfaces consumed by every pillar
   memory/MemoryHub.ts        4-layer memory facade
   memory/chunkers/           AST-aware chunker (v1.2.0 Phase 4)
   memory/PrunedDenseIndex.ts LEANN-derived pruned dense index (v1.2.0 Phase 4)
+  project/                   ProjectScope + durable sandbox + substrate seams (v2.0.0 Phase 4)
   telemetry/TelemetryBus.ts  in-process pub/sub for GPU + module events
   skills/SkillCatalog.ts     list / load / hot-reload skills (realpath dedup, v1.3.0 Phase 2)
   skills/SkillRenderLine.ts  canonical `- name: desc (file: path)` formatter + budget fallback ladder (v1.3.0 Phase 2/5)

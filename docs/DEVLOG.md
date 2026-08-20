@@ -4,6 +4,30 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-20] v2.0.0 stretch -- Phase 4: ProjectScope, durable sandbox, advisory memory
+
+### Goal
+
+Ship independently testable stretch items without weakening v1.19.1 clamps, and transfer the rest with dependency notes.
+
+### What was done
+
+- **ProjectScope**: one core object for memory scope, MCP subset, skill subset, tightening-only permission overrides.
+- **Durable sandbox**: project-keyed `project-sandboxes/` root, untrusted marker, reset, excluded from memory ingest via `.nexusignore` defaults.
+- **Advisory kinds**: `lesson` / `procedure` with votes, `redactSecrets`, labelled as context not directives, merged onto hybrid retrieve.
+- **Seams**: typed memory / session / sandbox facades; current implementations sit behind them.
+- **Transferred**: code-as-action (DF-10), command router (DF-11), VRM pane (DF-12). No Live2D.
+
+### Tests
+
+Root Vitest for `core/project` and advisory kinds. `tsc -b` and ESLint green. LongCat `multimodal` flag corrected so chat vision matching stays Gemma-family only.
+
+### Next
+
+Phase 5 refactor, known-gaps reconcile, CI. Local commit only.
+
+---
+
 ## [2026-08-19] v2.0.0 Video Lab -- Phase 3: continuation + avatar
 
 ### Goal

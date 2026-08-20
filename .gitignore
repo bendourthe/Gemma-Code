@@ -182,6 +182,7 @@ Cargo.lock
 .nexus-output/
 .gemma-code/
 .nexus/
+project-sandboxes/
 
 # ==============================================================================
 # Go (CLI / Tooling)
