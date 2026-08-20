@@ -4,6 +4,25 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-19] v1.20.0 cut
+
+### Goal
+
+Ship v1.20.0: version bump, changelog, README What's new, tag, GitHub Release.
+
+### What was done
+
+- Bumped `package.json` / lockfile / `desktop/src-tauri/tauri.conf.json` to **1.20.0**.
+- CHANGELOG `[1.20.0]` covers parse_document wiring, Office ingest, Coding attach, Docling deferral, and the post-1.19.2 CI hash_file fix.
+- README ledger and What's new; install.md after-you-install; ARCHITECTURE document-ingest section.
+- Known-gaps file stays in-progress (v1.20.0 DF-1..DF-6 remain). v1.19.2 items stay in that minor's file.
+
+### Next
+
+Tag `v1.20.0`, push the tag, publish the GitHub Release. v2.0.0 is the convergence release.
+
+---
+
 ## [2026-08-19] v1.20.0 document-ingest -- Phase 5: refactor, known-gaps, CI
 
 ### Goal

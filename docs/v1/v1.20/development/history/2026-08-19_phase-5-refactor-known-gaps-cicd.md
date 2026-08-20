@@ -49,4 +49,4 @@ Phase 2/3 suites already green. Python OCR 80/80 after Phase 4. This phase is do
 - [x] 5.3 CI comment / coverage confirmation
 - [x] 5.4 Office wheel parity declaration
 - [x] 5.5 Session history
-- [ ] `/update release` for v1.20.0
+- [x] `/update release` for v1.20.0

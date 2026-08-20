@@ -1,3 +1,35 @@
+# [1.20.0](https://github.com/bendourthe/Nexus-AI/compare/v1.19.2...v1.20.0) (2026-08-19)
+
+
+### Features
+
+* **v1.20.0:** wire parse_document on sidecar and VS Code hosts ([318e944](https://github.com/bendourthe/Nexus-AI/commit/318e944))
+* **v1.20.0:** add magic-byte document router and native Office ingest ([374f227](https://github.com/bendourthe/Nexus-AI/commit/374f227))
+* **v1.20.0:** let Coding attach and parse documents like Chat ([a20c21a](https://github.com/bendourthe/Nexus-AI/commit/a20c21a))
+
+
+### Bug Fixes
+
+* **ci:** stop Linux hash_file mkdir on /workspace and key uv cache on pyproject.toml ([756153f](https://github.com/bendourthe/Nexus-AI/commit/756153f))
+
+
+### Documentation
+
+* **v1.20.0:** add Docling comparison and document-ingest plan ([a472acd](https://github.com/bendourthe/Nexus-AI/commit/a472acd))
+* **v1.20.0:** defer Docling layout engine after incomplete OCR bake-off ([c4530f5](https://github.com/bendourthe/Nexus-AI/commit/c4530f5))
+* **v1.20.0:** close document-ingest cycle with known-gaps and CI notes ([b24b319](https://github.com/bendourthe/Nexus-AI/commit/b24b319))
+
+
+### Opt-in surfaces
+
+#### parse_document agent tool (`nexus.coding.parseDocument.enabled`)
+
+- Activation: set `"nexus.coding.parseDocument.enabled": true` in VS Code settings, or `NEXUS_PARSE_DOCUMENT=1` for sidecar/ACP/scheduler, or the same JSON key in `~/.nexus/settings.json`. Default is false. Optional memory ingest is a second flag: `"nexus.coding.parseDocument.memoryIngest.enabled": true` (VS Code + MemoryStore only).
+- Validation: with the tool flag on, a coding agent can call `parse_document` on a workspace PDF, image, or Office file and the tool appears in the catalog. With the flag off, `get_tool_schema` / the tool list omit it. Chat and Coding file attach still work without this flag.
+- Rollback: set the setting to false or `NEXUS_PARSE_DOCUMENT=0`. The tool is unregistered on the next session. No extra files are written. Memory rows already stored stay until you delete them.
+- Authority: this only registers the governed agent tool. It does not install Docling, does not add torch to the portable OCR venv, does not open a network port, does not auto-prompt parsed text into a model, and does not skip CONFIRM / secret redaction / inbound classification. Chat and Coding attach are separate UI paths and are not this flag.
+- Docs: [README](README.md#whats-new-in-v1200), [ARCHITECTURE.md](ARCHITECTURE.md#document-ingest-v1200), [docs/v1/v1.20/known-gaps.md](docs/v1/v1.20/known-gaps.md).
+
 # [1.19.2](https://github.com/bendourthe/Nexus-AI/compare/v1.19.1...v1.19.2) (2026-08-19)
 
 

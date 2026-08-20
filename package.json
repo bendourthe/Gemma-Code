@@ -2,7 +2,7 @@
   "name": "nexus-coding",
   "displayName": "Nexus Code",
   "description": "Nexus Agentic AI Coding module. Local agentic coding assistant powered by Gemma 4 / Llama 3 and other open-source LLMs via Ollama. (Formerly Gemma Code. The package name, publisher, command IDs, and view container were renamed to `nexus-coding` / `nexus.coding.*` in v1.1.0; the legacy `gemma-code.*` command IDs continue to fire via the runtime compat shim until v1.2.0, and legacy settings keys remain resolvable via the v1.0.0 SettingsCompat shim.)",
-  "version": "1.19.2",
+  "version": "1.20.0",
   "publisher": "nexus-coding",
   "license": "MIT",
   "icon": "assets/icon.png",
@@ -298,7 +298,7 @@
         "nexus.coding.parseDocument.enabled": {
           "type": "boolean",
           "default": false,
-          "description": "v1.16.0 Phase 4 (adoption item A6) -- expose the `parse_document` agent tool, which reads a workspace PDF or image as text using the local document-OCR model. Off by default; with the toggle off the tool is not registered at all, so it costs no prompt budget and spawns no runtime. Requires a document model (Settings > Models)."
+          "description": "v1.20.0 -- expose the `parse_document` agent tool, which reads a workspace PDF, image, or Office file as text. Off by default; with the toggle off the tool is not registered. PDF/image still need a document OCR model (Settings > Models). .docx / .pptx / .xlsx parse without those models. Sidecar hosts honor NEXUS_PARSE_DOCUMENT=1 or nexus.coding.parseDocument.enabled in ~/.nexus/settings.json."
         },
         "nexus.coding.parseDocument.memoryIngest.enabled": {
           "type": "boolean",

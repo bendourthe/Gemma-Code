@@ -1,6 +1,15 @@
 # Nexus - Progress Dashboard
 
-**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (v1.19.2 cut on `develop`; v2.0.0 is next).
+**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (v1.20.0 cut on `develop`; v2.0.0 is next).
+
+> **v1.20.0 RELEASED (2026-08-19)** -- all 5 phases of [v1.20.0-adoption-docling.md](v1/v1.20/plans/v1.20.0-adoption-docling.md) landed on `develop`; package.json / CHANGELOG / README cut as **v1.20.0**. Known-gaps [in-progress](v1/v1.20/known-gaps.md) (v1.20.0: 6 DF). Cycle: wire `parse_document`, magic-byte Office ingest, Chat and Coding attach, Docling bake-off deferred.
+> - **P1** sidecar + VS Code composition-root wiring (LSO.P4.B / LSO.P4.C).
+> - **P2** format router + native DOCX/PPTX/XLSX + Chat `DOCUMENT_ACCEPT`.
+> - **P3** Coding composer attach (parse-then-show; agent tool stays CONFIRM).
+> - **P4** RapidOCR library smoke; A4 DEFER (DF-5).
+> - **P5** keep `runtimes/ocr/` (DF-6); CI already covers Office wheels and desktop shell tests.
+>
+> Opt-in: `nexus.coding.parseDocument.enabled` / `NEXUS_PARSE_DOCUMENT` (agent tool only; attach UI is not this flag).
 
 > **v1.19.2 RELEASED (2026-08-19)** -- Phase 1 of [v1.19.2-adoption-catalog-and-model-expansion.md](v1/v1.19/plans/v1.19.2-adoption-catalog-and-model-expansion.md) landed on `develop`; package.json / CHANGELOG / README cut as **v1.19.2**. Known-gaps [in-progress](v1/v1.19/known-gaps.md) (v1.19.2: 4 DF; file stays open for v2.0.0 ingest). Cycle: modalities + audioConditioning, official-only weight variants, Hermes 3, Inkling-Small patient-tier GGUF, calibrated patient-tier copy.
 > - **P1** schema + puller variants + Hermes family/harness + Inkling GGUF + RAM presets + skip-if-absent determinism. Live Hermes generate is DF-1. GGUF multimodal is DF-2. AgentLoop Gemma XML is DF-3. Offload adapter not bundled is DF-4.

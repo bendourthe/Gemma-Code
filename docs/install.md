@@ -78,6 +78,12 @@ sha256sum -c --ignore-missing SHA256SUMS.txt
 
 Everything lands under your user account (no admin rights needed for the wizard itself); user data lives in `~/.nexus`.
 
+## After you install (v1.20.0)
+
+- **Document attach**: Chat and Coding accept PDF, images, Word, PowerPoint, and Excel. Parsed text is shown locally; it does not auto-enter a prompt. First file only this cycle.
+- **`parse_document`**: off until you set `nexus.coding.parseDocument.enabled` (VS Code) or `NEXUS_PARSE_DOCUMENT=1` / `~/.nexus/settings.json` (sidecar). CONFIRM still wraps the tool. Office files do not need RapidOCR or Unlimited-OCR.
+- **No Docling**: layout-aware Docling was deferred (DF-5). Portable OCR requirements still exclude torch.
+
 ## After you install (v1.19.2)
 
 - **Hermes 3**: `hermes3:8b` is an Agentic catalog pick (Ollama library). Enable `nexus.coding.harnessSelector.enabled` to apply `hermes-agentic` (llama3-json). The live coding loop still parses Gemma XML (DF-3). `hermes3:70b` is listed but is not a recommended default.
