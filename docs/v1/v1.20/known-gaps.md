@@ -21,7 +21,7 @@ Carry-forward source: [../v1.16/known-gaps.md](../v1.16/known-gaps.md) (LSO.P4.B
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
-| Quality-gate gaps (QG) | 0 | 0 |
+| Quality-gate gaps (QG) | 0 | 1 |
 
 ### Open Items
 
@@ -76,3 +76,4 @@ Carry-forward source: [../v1.16/known-gaps.md](../v1.16/known-gaps.md) (LSO.P4.B
 | LSO.P4.B | Wire parse_document at composition roots | Phase 1 | Sidecar `createSidecarHeadlessTools` + VS Code `ChatPanelBootstrap` / `buildParseDocumentDeps`. Flag off keeps the tool absent. |
 | LSO.P4.C | Wire optional memory ingest | Phase 1 | VS Code only, both flags required. Injection rejection is stored=false. Sidecar remainder is DF-1. |
 | LSO.P3.C | On-device OCR QA | Phase 4 | Partial. RapidOCR default ONNX models smoked on synthetic fixtures. Catalog RapidOCR install and Unlimited-OCR remain DF-5. |
+| QG-1 | docs/index.md catalog stale on tag v1.20.0 | follow-up | Regenerated on develop after CI failed catalog-sync. No retag. |
