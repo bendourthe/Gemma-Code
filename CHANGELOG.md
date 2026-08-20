@@ -1,3 +1,54 @@
+# [2.1.0](https://github.com/bendourthe/Nexus-AI/compare/v2.0.0...v2.1.0) (2026-08-20)
+
+
+### Features
+
+* **v2.1.0:** add Muse Glimmer and Nemotron Lightning catalog and harness profiles ([d467e88](https://github.com/bendourthe/Nexus-AI/commit/d467e88))
+* **v2.1.0:** add cheap-first worker-to-strong routing with GPU swap gates ([081d222](https://github.com/bendourthe/Nexus-AI/commit/081d222))
+* **v2.1.0:** embed generation provenance and persist the studio queue ([2421139](https://github.com/bendourthe/Nexus-AI/commit/2421139))
+* **v2.1.0:** add catalog vision budgets and SAM2 replace-the-X editing ([c831a54](https://github.com/bendourthe/Nexus-AI/commit/c831a54))
+* **v2.1.0:** add license-gated Unsloth Core fine-tuning pillar ([1797afb](https://github.com/bendourthe/Nexus-AI/commit/1797afb))
+* **v2.1.0:** add signed audit log, JSON CLI, and diffusion VRAM knobs ([33f32b3](https://github.com/bendourthe/Nexus-AI/commit/33f32b3))
+
+
+### Bug Fixes
+
+* **v2.1.0:** close code-completeable known-gaps without claiming live GPU passes ([04900fe](https://github.com/bendourthe/Nexus-AI/commit/04900fe))
+
+
+### Documentation
+
+* **v2.1.0:** reconcile known-gaps and document CI hardware gates ([d22cc48](https://github.com/bendourthe/Nexus-AI/commit/d22cc48))
+
+Open local-AI wave. Local-only after weight download. `localEval.status` is `not_run`; `recommended.json` is unchanged. Plan: [v2.1.0](docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md).
+
+
+### Opt-in surfaces
+
+#### Local fine-tuning (Settings > Fine-tuning)
+
+- Activation: Settings > Fine-tuning, then Provision. Default is off (`opt_in=False`; not on the installer `chain_for`). Live GPU train also needs `NEXUS_TUNING_LIVE=1`.
+- Validation: after provision, Settings shows provision status ready (or unsupported with a reason). A stub job (`--stub`) completes without a GPU. `NEXUS_TUNING_LIVE=1` is required for a real Unsloth train.
+- Rollback: do not provision. If already provisioned, leave the venv unused; jobs are cancelled from the Fine-tuning tab. Unsloth Studio/CLI extras are never installed.
+- Authority: this does not add training to the default installer, does not import GGUF into Ollama unless you opt in, does not skip `redactSecrets` on datasets, and does not make zoo AGPL (zoo is LGPL).
+- Docs: [README](README.md#whats-new-in-v210), [docs/v2/v2.1/development/unsloth-license-boundary.md](docs/v2/v2.1/development/unsloth-license-boundary.md), [docs/v2/v2.1/known-gaps.md](docs/v2/v2.1/known-gaps.md).
+
+#### JSON CLI loopback (`/nexus/*`)
+
+- Activation: start the desktop sidecar. JSON CLI binds `127.0.0.1:11500` (or `NEXUS_SERVING_PORT`) even when Settings > Local API server is off. OpenAI `/v1` stays off until that toggle is on. Auth is `nexus.serving.token`, `--token`, or `NEXUS_SERVING_TOKEN`.
+- Validation: `nexus models list` returns JSON, or `curl -H "Authorization: Bearer <token>" http://127.0.0.1:11500/nexus/models`. Schema errors exit 2 with no HTTP call.
+- Rollback: quit the app (no extra port once the sidecar stops). Local API `/v1` is a separate toggle and can stay off.
+- Authority: loopback only, bearer required. This does not enable `/v1` completions, does not bind a non-loopback host, and does not skip ConfirmationGate on coding tools invoked through `nexus session send`.
+- Docs: [docs/v2/v2.1/development/json-cli.md](docs/v2/v2.1/development/json-cli.md).
+
+#### parse_document Settings checkbox
+
+- Activation: Settings > Security, **Enable parse_document for coding sessions**, which writes `nexus.coding.parseDocument.enabled` in `~/.nexus/settings.json`. Env `NEXUS_PARSE_DOCUMENT=1` still wins. Default is false.
+- Validation: with the box on, `coding.parseDocument.status` returns `{ enabled: true }` and the agent tool is registered. With it off, the tool is absent.
+- Rollback: uncheck the box or set the key to false / `NEXUS_PARSE_DOCUMENT=0`. No extra files are written.
+- Authority: this only registers the governed agent tool. It does not install Docling, does not skip CONFIRM or secret redaction, and does not ingest into a sidecar MemoryStore (VS Code ingest remains a second flag).
+- Docs: [docs/v1/v1.20/known-gaps.md](docs/v1/v1.20/known-gaps.md).
+
 # [2.0.0](https://github.com/bendourthe/Nexus-AI/compare/v1.20.0...v2.0.0) (2026-08-20)
 
 

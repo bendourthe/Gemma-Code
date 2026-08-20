@@ -1,14 +1,14 @@
 # Known Gaps - v2.1
 
 **Project**: Nexus AI Studio
-**Status**: in-progress
+**Status**: finalized
 **Last updated**: 2026-08-20
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
 Plan: [plans/v2.1.0-adoption-open-local-ai-wave.md](plans/v2.1.0-adoption-open-local-ai-wave.md)
 
-Phase 7 reconciliation plus the post-phase known-gaps sweep: hardware and product-backlog items stay deferred with next steps. Code-completeable rows from that sweep (Python iTXt, Chat video sampling, Chat episodic hub, PDF extract port, JSON CLI bind, Video Lab VRAM knobs, vault notice, desktop `tool.call`) are resolved below. Comparison backlog A13 (minimal mask canvas) and A14 (frame-anchored video comments) remain deferred. DiffusionGemma remains DF-1 with both flip conditions. Status stays in-progress until `/update release` bumps the version.
+Phase 7 reconciliation plus the post-phase known-gaps sweep: hardware and product-backlog items stay deferred with next steps. Code-completeable rows from that sweep are resolved below. Status is finalized at the v2.1.0 cut. Remaining open DFs carry into the next `/plan`.
 
 ## v2.1.0
 

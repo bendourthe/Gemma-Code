@@ -4,6 +4,52 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-20] v2.1.0 cut
+
+### Goal
+
+Ship the open local-AI wave: catalog models, routing, studio depth, multimodal chat, local fine-tuning, hardening.
+
+### What Changed
+
+- Bumped `package.json` / lockfile / `desktop/src-tauri/tauri.conf.json` to **2.1.0**.
+- CHANGELOG `[2.1.0]` plus three opt-in surfaces (fine-tuning, JSON CLI loopback, parse_document Settings checkbox).
+- README ledger Landed; What's new in v2.1.0 no longer in-progress.
+- Known-gaps file status finalized. Hardware watches stay open with flip conditions.
+
+### Why It Changed
+
+`/update release` after Phases 1-7 and the known-gaps sweep.
+
+### Next
+
+Push `develop`, tag `v2.1.0`, publish the GitHub Release.
+
+---
+
+## [2026-08-20] v2.1.0 known-gaps sweep
+
+### Goal
+
+Implement code-completeable known-gaps; leave hardware watches deferred.
+
+### What was done
+
+- Python PNG writer emits iTXt plus tEXt (DF-6).
+- Chat `media.sampleVideoFrames` + App wiring (DF-9). Session-scoped Chat memory hub and STT ingest (DF-11, v2.0 DF-5).
+- Dataset builder `extractPdf` through OCR (DF-14). JSON CLI binds without `/v1` (DF-18). Video Lab VRAM knobs (DF-19). Vault notice (DF-20). Desktop `tool.call` (DF-22).
+- Settings parse_document checkbox (v1.20 DF-2). Audio runtime timeout/malformed tests (v2.0 MT-1).
+
+### Tests
+
+Python workflow_metadata 7 passed. Core dataset/sampler/audio units 11 passed. Desktop 7 files / 82 tests plus video/serving follow-ups 40 passed.
+
+### Next
+
+`/update release`.
+
+---
+
 ## [2026-08-20] v2.1.0 Phase 7: refactor, known-gaps, CI
 
 ### Goal

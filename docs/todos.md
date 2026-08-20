@@ -1,6 +1,10 @@
 # Nexus - Progress Dashboard
 
-**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (**v2.0.0** cut on `develop`).
+**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (**v2.1.0** cut on `develop`).
+
+> **v2.1.0 RELEASED (2026-08-20)** -- [open-local-ai-wave](v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md) Phases 1-7 plus known-gaps sweep. Package **2.1.0**. Known-gaps [finalized](v2/v2.1/known-gaps.md) (15 open DF remain hardware/watch). Cycle: Muse Glimmer + Nemotron Lightning catalog/harness, cheap-first routing, studio provenance + queue, vision budgets + SAM2, Unsloth Core fine-tuning, signed audit log + JSON CLI + VRAM knobs.
+>
+> Opt-in: Settings > Fine-tuning Provision (`opt_in=False`); JSON CLI loopback on sidecar `sync()` (`/v1` still off until Local API); Settings > Security parse_document checkbox.
 
 > **v2.0.0 RELEASED (2026-08-20)** -- [governed-autonomy-multimodal](v2/v2.0/plans/v2.0.0-adoption-governed-autonomy-multimodal.md) Phases 1-6. Convergence of v1.18.0 + v1.19.0/.1/.2 + this plan. Package **2.0.0**. Known-gaps [in-progress](v2/v2.0/known-gaps.md). Gates: root **5160 passed / 12 skipped / 0 failed**, coverage 88.28% / 83.84% / 90.96%, desktop **1036 passed**, python runtimes **231 passed**, lint + `tsc -b` + docs-layout clean.
 >

@@ -6,7 +6,7 @@
 
 Nexus is a local-first, native desktop AI Studio that bundles four generative AI pillars behind one cohesive UI: agentic coding, organized local chat, image generation and editing, and short-form video synthesis. Everything runs on the host machine against optimized open-source models (Gemma 4, Llama 3, Qwen 2.5 Coder, SDXL / SANA-class diffusion, video-synthesis architectures), with real-time GPU / VRAM telemetry built into the dashboard. No API keys, no data leaving your machine, no per-token billing.
 
-> **Renamed from Gemma Code at v1.0.0** to reflect the four-pillar pivot. The v0.1.0 - v0.22.x line shipped as a single-purpose local agentic coding VS Code extension; v1.0.0 folded that engine into the "Agentic AI Coding" pillar of a wider desktop app. The VS Code surface is preserved as an optional thin adapter that proxies to the desktop daemon. Historical Gemma Code docs remain under `docs/archive/versions/v0/v0.1.0/` - `docs/archive/versions/v0/v0.9.0/`; v1 milestones live under `docs/v1/v1.<MINOR>/`, and the current **v2.0.0** convergence release lives under `docs/v2/v2.0/`. See [Project Status](#project-status-august-2026).
+> **Renamed from Gemma Code at v1.0.0** to reflect the four-pillar pivot. The v0.1.0 - v0.22.x line shipped as a single-purpose local agentic coding VS Code extension; v1.0.0 folded that engine into the "Agentic AI Coding" pillar of a wider desktop app. The VS Code surface is preserved as an optional thin adapter that proxies to the desktop daemon. Historical Gemma Code docs remain under `docs/archive/versions/v0/v0.1.0/` - `docs/archive/versions/v0/v0.9.0/`; v1 milestones live under `docs/v1/v1.<MINOR>/`, and the current **v2.1.0** open local-AI wave lives under `docs/v2/v2.1/`. See [Project Status](#project-status-august-2026).
 
 ---
 
@@ -75,7 +75,7 @@ A persistent `Local Model Status` panel reports the active model architecture, p
 
 ## Project Status (August 2026)
 
-Nexus uses a single, convergent version line: git tags and `package.json` carry the same numbers as the milestone docs (`docs/v1/v1.<MINOR>/` through v1.20.0, then `docs/v2/v2.0/` for **v2.0.0**).
+Nexus uses a single, convergent version line: git tags and `package.json` carry the same numbers as the milestone docs (`docs/v1/v1.<MINOR>/` through v1.20.0, then `docs/v2/v2.0/` for v2.0.0, `docs/v2/v2.1/` for **v2.1.0**).
 
 Historical note: between 2026-06-18 and 2026-07-20 a decoupled "release track" cut five semantic-release versions numbered ahead of the milestones. Those tags were renumbered onto the milestone line on 2026-08-05: the old `v2.0.0` tag became `v1.6.0`, `v2.1.0` -> `v1.7.0`, `v2.2.0` -> `v1.12.0`, `v2.3.0` -> `v1.13.0`, and `v2.4.0` -> `v1.14.0`. This **v2.0.0** cut is the reserved convergence release (v1.18 plan + v1.19.x subplans + this adoption plan).
 
@@ -107,25 +107,25 @@ Historical note: between 2026-06-18 and 2026-07-20 a decoupled "release track" c
 | v1.19.2 | Catalog and model expansion: modalities + audioConditioning, official-only weight variants, Hermes 3 family, Inkling-Small patient-tier GGUF, calibrated patient-tier copy | Landed | [docs/v1/v1.19/](docs/v1/v1.19/) |
 | v1.20.0 | Document ingest: wire `parse_document`, magic-byte Office routing, Chat and Coding attach, Docling layout engine deferred | Landed | [docs/v1/v1.20/](docs/v1/v1.20/) |
 | v2.0.0 | Convergence: multimodal Chat + local voice loop, DANGEROUS isolated-profile browser tools, Video Lab continuation + gated avatar, ProjectScope stretch | Landed | [docs/v2/v2.0/](docs/v2/v2.0/) |
-| v2.1.0 | Open local-AI wave: Muse Glimmer + Nemotron Lightning catalog/harness, adaptive routing, Image Studio depth, multimodal chat + SAM2, local fine-tuning, hardening | In progress | [docs/v2/v2.1/](docs/v2/v2.1/) |
+| v2.1.0 | Open local-AI wave: Muse Glimmer + Nemotron Lightning catalog/harness, adaptive routing, Image Studio depth, multimodal chat + SAM2, local fine-tuning, hardening | Landed | [docs/v2/v2.1/](docs/v2/v2.1/) |
 
 Each v1 cycle's plan lives under `docs/v1/v1.<MINOR>/plans/`. v2.0.0 lives under `docs/v2/v2.0/plans/`. v2.1.0 lives under `docs/v2/v2.1/plans/`. Deferred work is in that version's `known-gaps.md`.
 
-### What's new in v2.1.0 (in progress)
+### What's new in v2.1.0
 
 Open local-AI wave. Local-only. No new outbound destination. Vendor scores do not become default routes.
 
 - **Muse Glimmer 30B** - Apache-2.0 Meta GGUF via Ollama `hf.co` (`muse-glimmer:30b` at 24 GB, Dynamic at 32 GB). Hidden below 16 GB VRAM and on Ollama older than 0.32.7. Harness profile `muse-glimmer` (detailed, thinking on, llama3-json).
-- **Nemotron 3.5 Lightning 30B-A3B** - OpenMDW-1.1 worker (`nemotron-lightning:30b-a3b` native 24 GB, expert-offload at 16 GB). Hidden below 16 GB and on Ollama older than 0.32.9. Harness profile `lightning-worker` (concise, thinking off, qwen-json). Tagged `role: worker-candidate` for Phase 2 routing.
+- **Nemotron 3.5 Lightning 30B-A3B** - OpenMDW-1.1 worker (`nemotron-lightning:30b-a3b` native 24 GB, expert-offload at 16 GB). Hidden below 16 GB and on Ollama older than 0.32.9. Harness profile `lightning-worker` (concise, thinking off, qwen-json). Tagged `role: worker-candidate` for cheap-first routing.
 - **Catalog flags** - `diffusion` (default false) and `codingEligible` (default true). `localEval` blocks are `not_run` this cycle; `recommended.json` is unchanged.
 - **Adaptive routing** - cheap-first workers on Lightning, escalate to Muse on tool-error / identical-action / progress-free signals, GPU swap deferral when VRAM or diffusion would OOM, routing lane on the Traces tab.
-- **Studio provenance and queue** - PNG `tEXt`/`iTXt` plus a content-hash index; Use Prompt / Use Seed / Use All / Remix; SQLite queue at `~/.nexus/generations/studio.db` with seed/prompt batches, restart recovery, and coding-over-diffusion pump.
-- **Multimodal chat** - catalog `vision` plus a per-model visual-token budget. Gemma 4 12B accepts one image (or sampled video frames). Non-vision models keep attach off and tell you to switch or send text only. Muse Glimmer is gated `vision: false` until its hf.co GGUF is proven to ship a projector.
+- **Studio provenance and queue** - PNG `iTXt` plus `tEXt` alias and a content-hash index; Use Prompt / Use Seed / Use All / Remix; SQLite queue at `~/.nexus/generations/studio.db` with seed/prompt batches, restart recovery, and coding-over-diffusion pump.
+- **Multimodal chat** - catalog `vision` plus a per-model visual-token budget. Gemma 4 12B accepts one image (or ffmpeg-sampled video frames). Chat indexes redacted multimodal surrogates and STT transcripts. Muse Glimmer is gated `vision: false` until its hf.co GGUF is proven to ship a projector.
 - **Replace-the-X** - SAM2 Hiera Tiny (`sam2:hiera-tiny`, Apache-2.0 utility, hidden from the generator picker). "replace the car with a truck" segments then inpaints. Missing weights leave the original and ask you to install or paint a mask.
-- **Fine-tuning** - Settings > Fine-tuning. Opt-in Unsloth Core (`unsloth` Apache-2.0 + `unsloth-zoo` LGPL). Dataset builder redacts secrets. QLoRA jobs queue on the GPU scheduler. Studio/CLI extras are never installed. Live GPU train is local-only (`NEXUS_TUNING_LIVE=1`).
-- **Audit log** - append-only SQLite at `~/.nexus/audit/audit.db`, Ed25519 per actor, Settings > Security viewer. Local-only. Tampered rows stay visible and untrusted.
-- **JSON CLI** - `nexus session|models|generate` over `/nexus/*` on the existing Local API listener, same bearer token. Schema errors exit 2 before any HTTP call. See [docs/v2/v2.1/development/json-cli.md](docs/v2/v2.1/development/json-cli.md).
-- **Diffusion VRAM knobs** - Image Studio Advanced: cache VRAM/RAM caps, working reserve, layer streaming. Caps below the model minimum are rejected unless streaming is on.
+- **Fine-tuning** - Settings > Fine-tuning. Opt-in Unsloth Core (`unsloth` Apache-2.0 + `unsloth-zoo` LGPL). Dataset builder redacts secrets and can extract PDFs through the OCR spine. QLoRA jobs queue on the GPU scheduler. Studio/CLI extras are never installed. Live GPU train is local-only (`NEXUS_TUNING_LIVE=1`).
+- **Audit log** - append-only SQLite at `~/.nexus/audit/audit.db`, Ed25519 per actor, Settings > Security viewer. Local-only. Tampered rows stay visible and untrusted. A notice appears when the OS keychain is unavailable.
+- **JSON CLI** - `nexus session|models|generate` over `/nexus/*` on the sidecar loopback listener, same bearer token. The listener binds for JSON CLI even when Local API `/v1` is off. Schema errors exit 2 before any HTTP call. See [docs/v2/v2.1/development/json-cli.md](docs/v2/v2.1/development/json-cli.md).
+- **Diffusion VRAM knobs** - Image Studio and Video Lab Advanced: cache VRAM/RAM caps, working reserve, layer streaming. Caps below the model minimum are rejected unless streaming is on.
 - **DiffusionGemma** - watch item only (needs llama.cpp PR #24423 in a shipped Ollama release and sub-16 GB quants).
 
 v2.0.0 already shipped the convergence cut. Known gaps: [docs/v2/v2.1/known-gaps.md](docs/v2/v2.1/known-gaps.md).
