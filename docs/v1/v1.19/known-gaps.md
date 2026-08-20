@@ -177,7 +177,7 @@ _Last updated: 2026-08-19 (v1.19.1 tagged)._
 
 ## v1.19.2
 
-**Summary**: 4 open items after Phase 1 (catalog, model, and tier additions) - 0 NI, 4 DF, 0 MT. No suppressed warnings, no bypassed gates. Schema, puller variants, Hermes, Inkling, and patient-tier copy shipped; live Hermes generate and GGUF multimodal remain later-cycle.
+**Summary**: 4 open items after Phase 1 (catalog, model, and tier additions) - 0 NI, 4 DF, 0 MT. Tag-time CI/Release were red (QG-1, closed on develop after the tag). Schema, puller variants, Hermes, Inkling, and patient-tier copy shipped; live Hermes generate and GGUF multimodal remain later-cycle.
 
 ### Summary
 
@@ -188,7 +188,7 @@ _Last updated: 2026-08-19 (v1.19.1 tagged)._
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
-| Quality-gate gaps (QG) | 0 | 0 |
+| Quality-gate gaps (QG) | 0 | 1 |
 
 ### Open Items
 
@@ -222,8 +222,16 @@ _Last updated: 2026-08-19 (v1.19.1 tagged)._
 - **Reason**: `runDeterminismAcrossBudget` is skip-if-absent (`NEXUS_PATIENT_TIER_ADAPTER` unset, or no injected `generate`). Nexus does not bundle the llama.cpp flash-MoE offload runtime; presets are copy only. CI therefore never proves byte-identical output on a real trillion-class MoE.
 - **Suggested next step**: On a host with a registered adapter, run the two default budgets and keep the dated identical/mismatch record. Do not imply Nexus ships the offload runtime.
 
+### Resolved
+
+##### QG-1 - Linux CI/Release failed hash_file mkdir and installer uv.lock cache
+
+- **Source phase**: Post-tag follow-up (v1.19.1 hash_file test; v1.19.0 installer-tests cache)
+- **Reason**: `observe.test.ts` wrote under `MOCK_WORKSPACE_ROOT` (`/workspace` on POSIX). Ubuntu runners return EACCES on `mkdir /workspace/src`, so CI and Release `npm run test` failed while Windows local runs passed. Independently, `installer-tests.yml` set `enable-cache: true` with the default `**/uv.lock` glob; this repo gitignores `uv.lock`, so setup-uv failed closed before pytest.
+- **Resolution**: Point the hash_file happy-path test at a real temp workspace (same pattern as `pathGuard.test.ts`). Key the uv cache on `scripts/installer/pyproject.toml` and set `ignore-nothing-to-cache: true`. The v1.19.2 GitHub Release remains published; this is a develop follow-up, not a retag.
+
 ### Phase 1 reconciliation
 
-Modalities, audioConditioning, official-only precision variants, Hermes 3 catalog+harness, Inkling patient-tier GGUF, and calibrated patient-tier copy all shipped. No NI, BG, WN, MT, or QG this phase. File stays in-progress so v2.0.0 can ingest DF-1..DF-4.
+Modalities, audioConditioning, official-only precision variants, Hermes 3 catalog+harness, Inkling patient-tier GGUF, and calibrated patient-tier copy all shipped. Tag-time CI/Release red is QG-1 (closed on develop; no retag). File stays in-progress so v2.0.0 can ingest DF-1..DF-4.
 
-_Last updated: 2026-08-19 (v1.19.2 tagged)._
+_Last updated: 2026-08-19 (v1.19.2 tagged; QG-1 closed on develop)._

@@ -1,9 +1,10 @@
 import { describe, it, expect } from "vitest";
 import * as fs from "fs";
+import * as os from "os";
 import * as path from "path";
+import * as vscode from "vscode";
 import { createHash } from "crypto";
 import { WatchPathTool, HashFileTool } from "../../../../src/tools/handlers/observe.js";
-import { MOCK_WORKSPACE_ROOT } from "../../../setup.js";
 
 function params(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return { _callId: "call_001", ...overrides };
@@ -53,10 +54,19 @@ describe("watch_path / hash_file", () => {
   });
 
   it("hash_file returns sha256 for an in-workspace file", async () => {
+    // MOCK_WORKSPACE_ROOT is /workspace on POSIX. Linux CI runners refuse mkdir
+    // there (EACCES). Point workspaceFolders at a real temp root, matching
+    // pathGuard.test.ts ancestor-walk pins.
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "observe-hash-"));
+    const realRoot = fs.realpathSync(tmpRoot);
     const rel = path.join("src", "hello-v1191.txt");
-    const abs = path.join(MOCK_WORKSPACE_ROOT, rel);
+    const abs = path.join(realRoot, rel);
     fs.mkdirSync(path.dirname(abs), { recursive: true });
     fs.writeFileSync(abs, "hello");
+    const originalFolders = vscode.workspace.workspaceFolders;
+    (vscode.workspace as { workspaceFolders: typeof originalFolders }).workspaceFolders = [
+      { uri: { fsPath: realRoot }, name: "workspace", index: 0 },
+    ];
     try {
       const result = await new HashFileTool().execute(params({ path: rel.replace(/\\/g, "/") }));
       expect(result.success).toBe(true);
@@ -65,7 +75,9 @@ describe("watch_path / hash_file", () => {
       expect(parsed.hash).toBe(createHash("sha256").update("hello").digest("hex"));
       expect(parsed.bytes).toBe(5);
     } finally {
-      fs.rmSync(abs, { force: true });
+      (vscode.workspace as { workspaceFolders: typeof originalFolders }).workspaceFolders =
+        originalFolders;
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
     }
   });
 });

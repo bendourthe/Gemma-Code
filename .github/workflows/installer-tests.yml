@@ -52,6 +52,9 @@ jobs:
         with:
           version: "latest"
           enable-cache: true
+          # uv.lock is gitignored; key the cache on the tracked pyproject instead.
+          cache-dependency-glob: scripts/installer/pyproject.toml
+          ignore-nothing-to-cache: true
 
       - name: Install system deps for PyQt5
         run: sudo apt-get update && sudo apt-get install -y libxcb-xinerama0 libxkbcommon-x11-0
