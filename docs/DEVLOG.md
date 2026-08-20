@@ -4,6 +4,31 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-20] v2.1.0 Phase 1: catalog + harness + local-eval gate
+
+### Goal
+
+Ship Muse Glimmer 30B and Nemotron 3.5 Lightning 30B-A3B as tier-gated catalog models with harness profiles, add `diffusion` / `codingEligible` flags, and keep vendor scores out of default routes until a recorded local eval.
+
+### What was done
+
+- Catalog schema: `diffusion`, `codingEligible`, `hideBelowVramGB`, `minOllamaVersion`, `role`, `vendorReported`, `localEval`. `localEvalMayPromote` is pass-only.
+- Visibility: installer hides Muse/Lightning below 16 GB VRAM; unknown Ollama version does not hide on the catalog page.
+- Harness: `muse-glimmer` (strong, detailed, llama3-json) and `lightning-worker` (weak, concise, qwen-json). Reasoning-strength drop is logged in HarnessSelector memory.
+- Unsloth Dynamic audit: no artifact swaps (Gemma hf.co GGUF remains a known-broken Ollama ref).
+- Local eval runner with stubbed golden-task driver. Persisted `not_run` blocks. `recommended.json` unchanged.
+- DiffusionGemma recorded as DF-1 watch item.
+
+### Tests
+
+Targeted root Vitest 145 passed (catalog, visibility, ModelCatalog, HarnessSelector, localCatalogEval, SkillLoader, ModelDropdown). Desktop coding-models + coding-protocol 25 passed. Installer catalog pytest green. `tsc -b` clean. ESLint on changed coding modules clean. Coverage on the four new/changed TS files: 96.1% lines.
+
+### Next
+
+Phase 2 adaptive routing (Switchyard-derived). Local commit only.
+
+---
+
 ## [2026-08-20] v2.0.0 cut
 
 ### Goal

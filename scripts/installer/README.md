@@ -40,6 +40,8 @@ The models the wizard offers come from `core/registry/catalog.json` (shared with
 
 The invariants encode the fixes: no model may use the known-broken `unsloth/gemma-4-12b-it-GGUF` Ollama reference, and known access-gated models (e.g. `sana-1.6b-int4`) must stay flagged `gated` with a reason / license URL so the guided token step can explain it and offer a clean skip.
 
+v2.1.0: Muse Glimmer and Nemotron Lightning pair-invariants (both quant tiers must ship together). Entries with `hideBelowVramGB` are omitted from the picker when the host is below that floor, not merely grayed. `minOllamaVersion` shows a "Requires Ollama X+" badge; the catalog page does not hide on unknown Ollama version because that page often runs before Ollama is installed.
+
 ## Build
 
 ```powershell

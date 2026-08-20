@@ -1,0 +1,28 @@
+{
+  "suite": "nexus-golden-task",
+  "date": "2026-08-20",
+  "defaultRouteProposal": "no-change: local eval is not a passing recorded result",
+  "proposal": "Do not promote Muse Glimmer or Nemotron Lightning onto recommended.json default routes until a 24 GB-tier host records a passing local_eval block.",
+  "results": [
+    {
+      "modelId": "muse-glimmer:30b",
+      "localEval": {
+        "suite": "nexus-golden-task",
+        "status": "not_run",
+        "date": "2026-08-20",
+        "hardwareTier": "24GB",
+        "reason": "No 24 GB-tier host with Muse Glimmer loaded in this cycle. Vendor-reported figures must not drive routing."
+      }
+    },
+    {
+      "modelId": "nemotron-lightning:30b-a3b",
+      "localEval": {
+        "suite": "nexus-golden-task",
+        "status": "not_run",
+        "date": "2026-08-20",
+        "hardwareTier": "24GB",
+        "reason": "No 24 GB-tier host with Lightning loaded in this cycle. Vendor-reported figures must not drive routing."
+      }
+    }
+  ]
+}

@@ -46,7 +46,7 @@ describe("coding protocol", () => {
   });
 
   it("ModelFamily covers the v1.0.0 catalog families", () => {
-    expect(ModelFamily.options).toEqual(["gemma", "llama", "qwen", "deepseek", "lfm2.5", "hermes"]);
+    expect(ModelFamily.options).toEqual(["gemma", "llama", "qwen", "deepseek", "lfm2.5", "hermes", "muse-glimmer", "nemotron-lightning"]);
   });
 
   it("isMethod is exhaustive against IPC_METHODS", () => {

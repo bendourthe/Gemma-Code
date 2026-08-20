@@ -101,6 +101,22 @@ export function runtimeSupportsExtremeLowBit(ollamaVersion: string | null | unde
   return gte(v, min);
 }
 
+/**
+ * v2.1.0 Phase 1 -- compare a detected Ollama version against a catalog
+ * `minOllamaVersion`. Returns false when `current` is missing or unparseable
+ * (fail-closed for runtime hide). A malformed `minimum` does not hide.
+ */
+export function ollamaVersionAtLeast(
+  current: string | null | undefined,
+  minimum: string,
+): boolean {
+  const min = parseOllamaVersion(minimum);
+  if (!min) return true;
+  const v = parseOllamaVersion(current);
+  if (!v) return false;
+  return gte(v, min);
+}
+
 // Uncorroborated vendors that must never be surfaced in the tier (the Bonsai /
 // PrismML source whose retention claims lack an independent benchmark).
 const BLOCKED_VENDORS: readonly string[] = ["bonsai", "prismml", "prism-ml"];

@@ -291,6 +291,67 @@ export interface ModelSpec {
    * Copy only: Nexus does not bundle the offload runtime.
    */
   readonly patientRamPresets?: readonly PatientRamPreset[];
+  /**
+   * v2.1.0 Phase 1 -- true when this entry is a diffusion (image/video)
+   * generator. Omitted on older entries; {@link normalizeSpec} defaults to false.
+   */
+  readonly diffusion?: boolean;
+  /**
+   * v2.1.0 Phase 1 -- false when the model must never be a coding-harness
+   * default (chat-drafting / experimental generators). Omitted on older
+   * entries; {@link normalizeSpec} defaults to true.
+   */
+  readonly codingEligible?: boolean;
+  /**
+   * v2.1.0 Phase 1 -- hide the entry entirely when host VRAM is below this
+   * floor (GB). Distinct from `requiredVramGB`, which only grays over-budget
+   * rows. Muse Glimmer / Lightning use 16 so 12 GB hosts never see them.
+   */
+  readonly hideBelowVramGB?: number;
+  /**
+   * v2.1.0 Phase 1 -- minimum Ollama version (semver) required to load this
+   * entry. Runtime hide + "update Ollama" note when the detected version is
+   * older. Installer catalog page (version unknown) keeps the row and shows
+   * the note.
+   */
+  readonly minOllamaVersion?: string;
+  /**
+   * v2.1.0 Phase 1 -- routing role hint. `worker-candidate` marks a fast
+   * routine-step model for Phase 2 adaptive routing.
+   */
+  readonly role?: "worker-candidate" | "strong-candidate";
+  /**
+   * v2.1.0 Phase 1 -- vendor-published benchmark, never used for routing
+   * until {@link localEval} records a local result.
+   */
+  readonly vendorReported?: VendorReportedBenchmark;
+  /**
+   * v2.1.0 Phase 1 -- local golden-task result. Absent or `not_run` /
+   * `incomplete` keeps the model off default routes.
+   */
+  readonly localEval?: LocalEvalBlock;
+}
+
+/** v2.1.0 Phase 1 -- a vendor-published score that is not a local measurement. */
+export interface VendorReportedBenchmark {
+  readonly suite: string;
+  readonly metric?: string;
+  readonly value?: number | string;
+  readonly date?: string;
+  /** Must be true: this block is never treated as a local eval. */
+  readonly vendorReported: true;
+}
+
+export type LocalEvalStatus = "pass" | "fail" | "incomplete" | "not_run";
+
+/** v2.1.0 Phase 1 -- local golden-task evaluation persisted on the catalog entry. */
+export interface LocalEvalBlock {
+  readonly suite: string;
+  readonly status: LocalEvalStatus;
+  readonly date: string;
+  readonly result?: string;
+  readonly hardwareTier?: string;
+  readonly reason?: string;
 }
 
 /**
@@ -504,6 +565,75 @@ export function validateSpec(spec: ModelSpec): void {
       );
     }
   }
+  // v2.1.0 Phase 1 -- capability flags, visibility floors, eval metadata.
+  if (spec.diffusion !== undefined && typeof spec.diffusion !== "boolean") {
+    throw new Error(`ModelCatalog: ${spec.id} diffusion must be a boolean`);
+  }
+  if (spec.codingEligible !== undefined && typeof spec.codingEligible !== "boolean") {
+    throw new Error(`ModelCatalog: ${spec.id} codingEligible must be a boolean`);
+  }
+  if (spec.hideBelowVramGB !== undefined) {
+    if (!Number.isFinite(spec.hideBelowVramGB) || (spec.hideBelowVramGB as number) < 0) {
+      throw new Error(`ModelCatalog: ${spec.id} hideBelowVramGB must be a non-negative number`);
+    }
+  }
+  if (spec.minOllamaVersion !== undefined) {
+    const min = spec.minOllamaVersion.trim();
+    if (!/^\d+\.\d+\.\d+$/.test(min)) {
+      throw new Error(
+        `ModelCatalog: ${spec.id} minOllamaVersion must be MAJOR.MINOR.PATCH (got "${spec.minOllamaVersion}")`,
+      );
+    }
+  }
+  if (spec.role !== undefined && spec.role !== "worker-candidate" && spec.role !== "strong-candidate") {
+    throw new Error(`ModelCatalog: ${spec.id} has invalid role "${String(spec.role)}"`);
+  }
+  if (spec.vendorReported !== undefined) {
+    const vr = spec.vendorReported;
+    if (vr.vendorReported !== true || !vr.suite?.trim()) {
+      throw new Error(
+        `ModelCatalog: ${spec.id} vendorReported must set vendorReported: true and a suite`,
+      );
+    }
+    if (vr.date !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(vr.date.trim())) {
+      throw new Error(
+        `ModelCatalog: ${spec.id} vendorReported.date must be YYYY-MM-DD (got "${vr.date}")`,
+      );
+    }
+  }
+  if (spec.localEval !== undefined) {
+    const ev = spec.localEval;
+    const statuses: readonly LocalEvalStatus[] = ["pass", "fail", "incomplete", "not_run"];
+    if (!ev.suite?.trim() || !statuses.includes(ev.status)) {
+      throw new Error(
+        `ModelCatalog: ${spec.id} localEval requires suite and status pass|fail|incomplete|not_run`,
+      );
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(ev.date.trim())) {
+      throw new Error(
+        `ModelCatalog: ${spec.id} localEval.date must be YYYY-MM-DD (got "${ev.date}")`,
+      );
+    }
+  }
+}
+
+const LOCAL_EVAL_PROMOTABLE: ReadonlySet<LocalEvalStatus> = new Set(["pass"]);
+
+/**
+ * v2.1.0 Phase 1 -- fill omitted capability flags so loaders accept both
+ * schema versions. `diffusion` defaults false; `codingEligible` defaults true.
+ */
+export function normalizeSpec(spec: ModelSpec): ModelSpec {
+  return {
+    ...spec,
+    diffusion: spec.diffusion ?? false,
+    codingEligible: spec.codingEligible ?? true,
+  };
+}
+
+/** True when a local eval block is complete enough to consider a default-route change. */
+export function localEvalMayPromote(spec: Pick<ModelSpec, "localEval">): boolean {
+  return spec.localEval !== undefined && LOCAL_EVAL_PROMOTABLE.has(spec.localEval.status);
 }
 
 export function validateCatalog(file: CatalogFile): void {
@@ -542,7 +672,10 @@ export async function loadCatalog(catalogPath: string = defaultCatalogPath()): P
   const body = await fs.readFile(catalogPath, "utf8");
   const parsed = JSON.parse(body) as CatalogFile;
   validateCatalog(parsed);
-  return parsed;
+  return {
+    ...parsed,
+    models: parsed.models.map(normalizeSpec),
+  };
 }
 
 export function findSpec(catalog: CatalogFile, id: string): ModelSpec | undefined {

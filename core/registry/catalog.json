@@ -1,7 +1,7 @@
 {
   "_meta": {
     "version": 1,
-    "phase": "v1.19.2 Phase 1",
+    "phase": "v2.1.0 Phase 1",
     "comment": "Curated installable model catalog used by the Settings UI and the installer wizard. LLMs ship in Phase 5; image models are flagged for Phase 6 (Image Studio); video models for Phase 7 (Video Lab); NVIDIA SANA family landed in v1.1.0 Phase 12. Ollama-sourced entries delegate digest verification to `ollama pull` and carry no sha256. Hugging Face entries carry a per-model `weights` manifest (v1.8.0 Phase 3): an explicit file list, each downloaded from https://huggingface.co/{repo}/resolve/main/{path} into <models_root>/weights/<model-id>/{path} (models_root defaults to ~/.nexus/models) -- the per-model directory the diffusion runtime loads at startup (diffusers from_pretrained on the model directory; repo-relative subpaths like transformer/ are preserved). Each file pins a SHA-256 (versions.lock.json discipline): all-zero digests are placeholders -- the installer's weights puller warns, skips verification, and logs the computed digest; rotate pins with scripts/installer/build/pin-hf-weights.py. source.sha256 remains the primary-blob digest for older consumers and is superseded by weights.files[].sha256. v1.8.0 Phase 4 adds the selection-UX fields: `task` (chat | agentic | image | video | audio | embed) drives the installer's catalog sections; `strengths` / `whyRecommended` / `differentiators` carry the per-model copy the wizard cards render; `provenance` records publisher + lineage for curated entries (required on uncensored ones). Uncensored entries (uncensored: true) were curated 2026-07-03 with license + provenance verified per entry; per-VRAM-tier defaults live in recommended.json. v1.9.0 Phase 4 adds the scannable-catalog metadata: `origin` (publisher country, or Community) and `agentic` (agentic-coding capability flag -- set on the Gemma 4 family + the coding specialists so both surface in the installer's Agentic tab); an optional `guardrails` string overrides the installer's derived Uncensored/Safety-tuned/N/A label. The audio pillar (type/task `audio`) is curated: speech (faster-whisper STT MIT, Kokoro + Piper TTS) and generation (MusicGen CC-BY-NC-4.0, Stable Audio Open community-license) -- STT/TTS are permissive + CPU-capable and default on every tier; the non-commercial generation models are listed opt-in (never defaults). v1.14.0 Phase 1 curation: releaseDate (ISO YYYY-MM-DD) is now a first-class field on every selectable model, rendered as a card pill by the installer picker; gated open-weight opt-ins (svd, stable-audio-open-1.0, sana-1.6b-int4) carry requiresLicense=true + licenseUrl so the installer guided Hugging Face step (accept license + free token) can unlock them, and sd1.5 was re-pointed from the withdrawn runwayml repo to the public stable-diffusion-v1-5 mirror; auxiliary types (vae, controlnet) stay excluded from the picker by the loader; the per-family best-fit collapse (show the single best variant that fits the detected hardware, larger tiers grayed) happens in the installer picker at render time, so the catalog stays a complete data source for the desktop app and diffusion runtime. v1.18.0 Phase 3 adds optional toolCallingVerified + toolCallingBenchmark (OW-A4) and MoE activeParams/totalParams in billions (LG-A3); omitted fields stay unverified / dense. v1.19.0 Phase 1 adds LFM2.5-2.6B as the low-VRAM Agentic entry (official Liquid GGUF via the Ollama hf.co bridge -- the official Ollama library does not carry it at curation time -- plus a real SHA-256 pin on weights.files) and an optional licenseNote use-restriction string so ungated licenses with a commercial-use cap stay visible without triggering requiresLicense gated-auth. Record contextWindow conservatively at 32K until Phase 2 verifies the 128K claim. v1.19.2 Phase 1 adds `modalities` (backfilled text-only unless documented otherwise), `audioConditioning` on video entries, official precision `weights.variants` for quantized delivery, the Hermes 3 family (hermes3:8b / hermes3:70b) via the Ollama library, and the opt-in Inkling-Small patient-tier GGUF (never a recommended.json default)."
   },
   "models": [
@@ -2055,6 +2055,246 @@
         "agentic",
         "hermes",
         "advanced"
+      ]
+    },
+    {
+      "id": "muse-glimmer:30b",
+      "family": "muse-glimmer",
+      "name": "muse-glimmer",
+      "tag": "30b-k17",
+      "type": "llm",
+      "task": "chat",
+      "displayName": "Muse Glimmer 30B (K-Quant-17GB)",
+      "releaseDate": "2026-08-01",
+      "origin": "USA",
+      "agentic": true,
+      "codingEligible": true,
+      "diffusion": false,
+      "description": "Meta's Muse Glimmer 30B is an Apache-2.0 agentic model from the USA. The 17 GB K-Quant fits a 24 GB GPU. Local golden-task numbers are not recorded yet, so this entry is not a default route.",
+      "strengths": [
+        "Long-horizon agentic coding with adjustable reasoning strength",
+        "Native function calling on the Meta GGUF line",
+        "Fits a single 24 GB GPU at the K-Quant-17GB quant"
+      ],
+      "whyRecommended": "The 24 GB-tier Muse Glimmer pick once a local eval is recorded. Not a default until then.",
+      "differentiators": "Meta-published 30B agentic weights via the Ollama hf.co bridge; hidden below 16 GB VRAM and on Ollama older than 0.32.7.",
+      "provenance": "First-party Meta Muse Glimmer 30B (Apache-2.0) GGUF at huggingface.co/meta-models/Muse-Glimmer-30B-GGUF. Pulled through Ollama's hf.co bridge. Weights are not redistributed by Nexus. License verified 2026-08-20 from the plan's published Apache-2.0 claim.",
+      "sizeGB": 17,
+      "vramGB": 17,
+      "requiredVramGB": 24,
+      "hideBelowVramGB": 16,
+      "minOllamaVersion": "0.32.7",
+      "quant": "K-Quant-17GB",
+      "activeParams": 4,
+      "totalParams": 30,
+      "license": "Apache-2.0",
+      "licenseUrl": "https://huggingface.co/meta-models/Muse-Glimmer-30B-GGUF",
+      "source": {
+        "protocol": "ollama",
+        "url": "ollama://hf.co/meta-models/Muse-Glimmer-30B-GGUF:K-Quant-17GB"
+      },
+      "modalities": [
+        "text"
+      ],
+      "contextWindow": 131072,
+      "role": "strong-candidate",
+      "vendorReported": {
+        "suite": "SWE-Bench Verified",
+        "metric": "resolved",
+        "value": 76.0,
+        "date": "2026-08-13",
+        "vendorReported": true
+      },
+      "localEval": {
+        "suite": "nexus-golden-task",
+        "status": "not_run",
+        "date": "2026-08-20",
+        "hardwareTier": "24GB",
+        "reason": "No 24 GB-tier host with Muse Glimmer loaded in this cycle. Vendor-reported figures must not drive routing."
+      },
+      "tags": [
+        "agentic",
+        "muse-glimmer",
+        "coding",
+        "advanced"
+      ]
+    },
+    {
+      "id": "muse-glimmer:30b-dynamic",
+      "family": "muse-glimmer",
+      "name": "muse-glimmer",
+      "tag": "30b-dynamic",
+      "type": "llm",
+      "task": "chat",
+      "displayName": "Muse Glimmer 30B (K-Quant-Dynamic)",
+      "releaseDate": "2026-08-01",
+      "origin": "USA",
+      "agentic": true,
+      "codingEligible": true,
+      "diffusion": false,
+      "description": "Meta's Muse Glimmer 30B K-Quant-Dynamic is the 32 GB-tier Apache-2.0 pick from the USA. Same model family as the 17 GB quant; hidden below 16 GB VRAM.",
+      "strengths": [
+        "Lower quantization loss than the 17 GB K-Quant on 32 GB cards",
+        "Same Muse Glimmer agentic harness profile as the 24 GB variant",
+        "Still excluded from hosts below 16 GB"
+      ],
+      "whyRecommended": "The 32 GB-tier Muse Glimmer pick. Not a default route until a local eval is recorded.",
+      "differentiators": "Meta-published Dynamic quant for 32 GB VRAM; family-collapsed away on 24 GB hosts in favor of K-Quant-17GB.",
+      "provenance": "First-party Meta Muse Glimmer 30B (Apache-2.0) GGUF at huggingface.co/meta-models/Muse-Glimmer-30B-GGUF. Pulled through Ollama's hf.co bridge. Weights are not redistributed by Nexus.",
+      "sizeGB": 22,
+      "vramGB": 24,
+      "requiredVramGB": 32,
+      "hideBelowVramGB": 16,
+      "minOllamaVersion": "0.32.7",
+      "quant": "K-Quant-Dynamic",
+      "activeParams": 4,
+      "totalParams": 30,
+      "license": "Apache-2.0",
+      "licenseUrl": "https://huggingface.co/meta-models/Muse-Glimmer-30B-GGUF",
+      "source": {
+        "protocol": "ollama",
+        "url": "ollama://hf.co/meta-models/Muse-Glimmer-30B-GGUF:K-Quant-Dynamic"
+      },
+      "modalities": [
+        "text"
+      ],
+      "contextWindow": 131072,
+      "role": "strong-candidate",
+      "vendorReported": {
+        "suite": "SWE-Bench Verified",
+        "metric": "resolved",
+        "value": 76.0,
+        "date": "2026-08-13",
+        "vendorReported": true
+      },
+      "localEval": {
+        "suite": "nexus-golden-task",
+        "status": "not_run",
+        "date": "2026-08-20",
+        "hardwareTier": "32GB",
+        "reason": "No 32 GB-tier host with Muse Glimmer loaded in this cycle. Vendor-reported figures must not drive routing."
+      },
+      "tags": [
+        "agentic",
+        "muse-glimmer",
+        "coding",
+        "advanced"
+      ]
+    },
+    {
+      "id": "nemotron-lightning:30b-a3b",
+      "family": "nemotron-lightning",
+      "name": "nemotron-lightning",
+      "tag": "30b-a3b",
+      "type": "llm",
+      "task": "agentic",
+      "displayName": "Nemotron 3.5 Lightning 30B-A3B",
+      "releaseDate": "2026-08-01",
+      "origin": "USA",
+      "agentic": true,
+      "codingEligible": true,
+      "diffusion": false,
+      "description": "NVIDIA's Nemotron 3.5 Lightning 30B-A3B is an OpenMDW-1.1 MoE from the USA (30B total, 3B active). The Q4_K_M build is 22.5 GB and is the 24 GB-tier native worker. Hidden below 16 GB VRAM and on Ollama older than 0.32.9.",
+      "strengths": [
+        "Fast routine-step worker for the coding DAG",
+        "Qwen3-Coder-style tool calls at 3B active parameters",
+        "1M context window recorded on the card; serving length is runtime-limited"
+      ],
+      "whyRecommended": "The 24 GB native Lightning worker. Phase 2 routing consumes the worker-candidate role. Not a default coding route until a local eval is recorded.",
+      "differentiators": "Official ggml-org GGUF via Ollama's hf.co bridge; dual-tier with an expert-offload sibling at 16 GB.",
+      "provenance": "NVIDIA Nemotron 3.5 Lightning 30B-A3B (OpenMDW-1.1) GGUF at huggingface.co/ggml-org/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-GGUF. Pulled through Ollama's hf.co bridge. Weights are not redistributed by Nexus. License verified 2026-08-20 from the plan's published OpenMDW-1.1 claim.",
+      "sizeGB": 22.5,
+      "vramGB": 22.5,
+      "requiredVramGB": 24,
+      "hideBelowVramGB": 16,
+      "minOllamaVersion": "0.32.9",
+      "quant": "Q4_K_M",
+      "activeParams": 3,
+      "totalParams": 30,
+      "license": "OpenMDW-1.1",
+      "licenseUrl": "https://huggingface.co/ggml-org/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-GGUF",
+      "source": {
+        "protocol": "ollama",
+        "url": "ollama://hf.co/ggml-org/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-GGUF:Q4_K_M"
+      },
+      "modalities": [
+        "text"
+      ],
+      "contextWindow": 1048576,
+      "role": "worker-candidate",
+      "vendorReported": {
+        "suite": "NVIDIA model card",
+        "metric": "context_tokens",
+        "value": 1048576,
+        "date": "2026-08-13",
+        "vendorReported": true
+      },
+      "localEval": {
+        "suite": "nexus-golden-task",
+        "status": "not_run",
+        "date": "2026-08-20",
+        "hardwareTier": "24GB",
+        "reason": "No 24 GB-tier host with Lightning loaded in this cycle. Vendor-reported figures must not drive routing."
+      },
+      "tags": [
+        "agentic",
+        "worker-candidate",
+        "coding"
+      ]
+    },
+    {
+      "id": "nemotron-lightning:30b-a3b-offload",
+      "family": "nemotron-lightning",
+      "name": "nemotron-lightning",
+      "tag": "30b-a3b-offload",
+      "type": "llm",
+      "task": "agentic",
+      "displayName": "Nemotron 3.5 Lightning 30B-A3B (expert offload)",
+      "releaseDate": "2026-08-01",
+      "origin": "USA",
+      "agentic": true,
+      "codingEligible": true,
+      "diffusion": false,
+      "description": "NVIDIA's Nemotron 3.5 Lightning 30B-A3B expert-offload variant from the USA rides the 16 GB quant-ladder rung of the same Q4_K_M GGUF. Hidden below 16 GB VRAM and on Ollama older than 0.32.9.",
+      "strengths": [
+        "Same worker-candidate role as the 24 GB native entry",
+        "Fits 16 GB cards by offloading MoE experts",
+        "Same OpenMDW-1.1 GGUF as the native 24 GB pick"
+      ],
+      "whyRecommended": "The 16 GB Lightning worker when the host cannot keep the full Q4_K_M resident. Disk-offload preflight still applies before download.",
+      "differentiators": "Expert-offload sibling of nemotron-lightning:30b-a3b; family collapse picks this on 16 GB hosts and the native build on 24 GB.",
+      "provenance": "Same ggml-org NVIDIA Nemotron 3.5 Lightning GGUF as the native 24 GB entry, tagged for the existing expert-offload / disk-offload quant-ladder rung. Weights are not redistributed by Nexus.",
+      "sizeGB": 22.5,
+      "vramGB": 16,
+      "requiredVramGB": 16,
+      "hideBelowVramGB": 16,
+      "minOllamaVersion": "0.32.9",
+      "quant": "Q4_K_M",
+      "activeParams": 3,
+      "totalParams": 30,
+      "license": "OpenMDW-1.1",
+      "licenseUrl": "https://huggingface.co/ggml-org/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-GGUF",
+      "source": {
+        "protocol": "ollama",
+        "url": "ollama://hf.co/ggml-org/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-GGUF:Q4_K_M"
+      },
+      "modalities": [
+        "text"
+      ],
+      "contextWindow": 1048576,
+      "role": "worker-candidate",
+      "localEval": {
+        "suite": "nexus-golden-task",
+        "status": "not_run",
+        "date": "2026-08-20",
+        "hardwareTier": "16GB",
+        "reason": "No 16 GB-tier host with Lightning expert-offload loaded in this cycle. Vendor-reported figures must not drive routing."
+      },
+      "tags": [
+        "agentic",
+        "worker-candidate",
+        "expert-offload",
+        "coding"
       ]
     },
     {

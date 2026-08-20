@@ -9,6 +9,8 @@ import {
   validateSpec,
   findSpec,
   getSpec,
+  normalizeSpec,
+  localEvalMayPromote,
   type CatalogFile,
   type ModelSpec,
 } from "../../../../core/registry/catalog.js";
@@ -389,6 +391,10 @@ describe("catalog", () => {
       "lfm2.5:2.6b",
       "hermes3:8b",
       "hermes3:70b",
+      "muse-glimmer:30b",
+      "muse-glimmer:30b-dynamic",
+      "nemotron-lightning:30b-a3b",
+      "nemotron-lightning:30b-a3b-offload",
     ];
     for (const id of agentic) {
       expect(byId.get(id)?.agentic, `${id} should be agentic-capable`).toBe(true);
@@ -819,5 +825,96 @@ describe("catalog", () => {
         },
       }),
     ).not.toThrow();
+  });
+
+  it("normalizes omitted diffusion and codingEligible flags (v2.1.0 Phase 1)", () => {
+    const spec: ModelSpec = {
+      id: "x:1",
+      family: "x",
+      name: "x",
+      tag: "1",
+      type: "llm",
+      displayName: "X",
+      source: { protocol: "ollama", url: "ollama://x:1" },
+    };
+    expect(() => validateSpec(spec)).not.toThrow();
+    const normalized = normalizeSpec(spec);
+    expect(normalized.diffusion).toBe(false);
+    expect(normalized.codingEligible).toBe(true);
+  });
+
+  it("curates Muse Glimmer 30B with tier gates and vendor_reported metadata (v2.1.0)", async () => {
+    const file = await loadCatalog();
+    const k17 = findSpec(file, "muse-glimmer:30b");
+    const dyn = findSpec(file, "muse-glimmer:30b-dynamic");
+    expect(k17).toBeDefined();
+    expect(dyn).toBeDefined();
+    expect(k17?.family).toBe("muse-glimmer");
+    expect(k17?.license).toBe("Apache-2.0");
+    expect(k17?.requiredVramGB).toBe(24);
+    expect(k17?.hideBelowVramGB).toBe(16);
+    expect(k17?.minOllamaVersion).toBe("0.32.7");
+    expect(k17?.source.url).toContain("meta-models/Muse-Glimmer-30B-GGUF");
+    expect(k17?.vendorReported?.vendorReported).toBe(true);
+    expect(k17?.vendorReported?.value).toBe(76);
+    expect(k17?.localEval?.status).toBe("not_run");
+    expect(k17?.codingEligible).toBe(true);
+    expect(k17?.diffusion).toBe(false);
+    expect(dyn?.requiredVramGB).toBe(32);
+    const copy = [k17?.description, k17?.whyRecommended, k17?.differentiators, ...(k17?.strengths ?? [])].join(" ");
+    expect(copy).not.toMatch(/SWE-Bench|76\.0/);
+    expect(localEvalMayPromote(k17!)).toBe(false);
+  });
+
+  it("curates Nemotron Lightning as a dual-tier worker-candidate (v2.1.0)", async () => {
+    const file = await loadCatalog();
+    const native = findSpec(file, "nemotron-lightning:30b-a3b");
+    const offload = findSpec(file, "nemotron-lightning:30b-a3b-offload");
+    expect(native?.role).toBe("worker-candidate");
+    expect(offload?.role).toBe("worker-candidate");
+    expect(native?.license).toBe("OpenMDW-1.1");
+    expect(native?.requiredVramGB).toBe(24);
+    expect(offload?.requiredVramGB).toBe(16);
+    expect(offload?.tags).toContain("expert-offload");
+    expect(native?.minOllamaVersion).toBe("0.32.9");
+    expect(native?.hideBelowVramGB).toBe(16);
+    expect(native?.activeParams).toBe(3);
+    expect(native?.totalParams).toBe(30);
+    expect(native?.localEval?.status).toBe("not_run");
+    expect(native?.source.url).toContain("NVIDIA-Nemotron-3.5-Lightning-30B-A3B-GGUF");
+  });
+
+  it("does not promote Muse or Lightning onto recommended.json defaults (v2.1.0)", async () => {
+    const recommendedPath = path.resolve("core/registry/recommended.json");
+    const recommended = await fs.readFile(recommendedPath, "utf8");
+    expect(recommended).not.toContain("muse-glimmer");
+    expect(recommended).not.toContain("nemotron-lightning");
+  });
+
+  it("validateSpec rejects invalid v2.1.0 visibility and eval fields", () => {
+    const base: ModelSpec = {
+      id: "x",
+      family: "x",
+      name: "x",
+      tag: "1",
+      type: "llm",
+      displayName: "X",
+      source: { protocol: "ollama", url: "ollama://x:1" },
+    };
+    expect(() => validateSpec({ ...base, minOllamaVersion: "0.32" })).toThrow(/minOllamaVersion/);
+    expect(() => validateSpec({ ...base, hideBelowVramGB: -1 })).toThrow(/hideBelowVramGB/);
+    expect(() => validateSpec({ ...base, role: "planner" as "worker-candidate" })).toThrow(/invalid role/);
+    expect(() =>
+      validateSpec({
+        ...base,
+        vendorReported: { suite: "x", vendorReported: false as unknown as true },
+      }),
+    ).toThrow(/vendorReported/);
+    expect(() =>
+      validateSpec({
+        ...base,
+        localEval: { suite: "s", status: "maybe" as "pass", date: "2026-08-20" },
+      }),
+    ).toThrow(/localEval/);
   });
 });

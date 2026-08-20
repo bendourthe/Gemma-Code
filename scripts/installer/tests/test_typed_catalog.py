@@ -799,3 +799,65 @@ class TestPhase3Collapse:
     def test_tab_order_matches_dod_sections(self) -> None:
         keys = [key for key, _, _ in TYPE_TABS]
         assert keys == ["chat", "agentic", "image", "video", "audio", "document"]
+
+
+class TestV21CatalogVisibility:
+    """v2.1.0 Phase 1 -- Muse Glimmer / Lightning hide-below-VRAM gates."""
+
+    def test_muse_hidden_on_12gb(self, qt_app) -> None:
+        page = TypedCatalogPage(_gpu_state(vram_mb=12 * 1024))
+        ids = {
+            m.id
+            for m in page._sorted_section_models("agentic", 12, "nvidia", set())
+        }
+        assert not any(i.startswith("muse-glimmer") for i in ids)
+        assert not any(i.startswith("nemotron-lightning") for i in ids)
+
+    def test_muse_visible_on_24gb(self, qt_app) -> None:
+        page = TypedCatalogPage(_gpu_state(vram_mb=24 * 1024))
+        ids = {
+            m.id
+            for m in page._sorted_section_models("agentic", 24, "nvidia", set())
+        }
+        assert "muse-glimmer:30b" in ids
+        assert "nemotron-lightning:30b-a3b" in ids
+
+    def test_lightning_offload_fits_16gb(self, qt_app) -> None:
+        page = TypedCatalogPage(_gpu_state(vram_mb=16 * 1024))
+        ids = {
+            m.id
+            for m in page._sorted_section_models("agentic", 16, "nvidia", set())
+        }
+        assert "nemotron-lightning:30b-a3b-offload" in ids
+        fitting = [
+            m
+            for m in page._sorted_section_models("agentic", 16, "nvidia", set())
+            if m.family == "nemotron-lightning" and m.required_vram_gb <= 16
+        ]
+        assert fitting and fitting[0].id == "nemotron-lightning:30b-a3b-offload"
+
+    def test_ollama_version_badge(self) -> None:
+        model = CatalogModel(
+            id="m",
+            display_name="m",
+            type="agentic",
+            task="agentic",
+            size_gb=22.5,
+            required_vram_gb=24,
+            required_ram_gb=0,
+            release_date="2026-08-01",
+            license_name="OpenMDW-1.1",
+            context_window_in=0,
+            context_window_out=0,
+            multimodal=False,
+            uncensored=False,
+            description="",
+            min_ollama_version="0.32.9",
+        )
+        text, _color = compatibility_badge(
+            model,
+            total_vram_gb=24,
+            total_ram_gb=32,
+            gpu_vendor="nvidia",
+        )
+        assert "0.32.9" in text

@@ -44,10 +44,14 @@ export type HarnessProfileId =
   | "structured-edit"
   | "minimal"
   | "lfm-agentic"
-  | "hermes-agentic";
+  | "hermes-agentic"
+  | "muse-glimmer"
+  | "lightning-worker";
 
 /** The scaffold-profile prompt-style vocabulary (mirrors PromptContext.promptStyle). */
 export type HarnessPromptStyle = "concise" | "detailed" | "beginner";
+
+export type ReasoningStrength = "low" | "medium" | "high";
 
 /** A named scaffold profile: the prompt/tool shaping tuned for a capability tier. */
 export interface HarnessProfile {
@@ -69,6 +73,12 @@ export interface HarnessProfile {
    */
   readonly compactionThreshold?: number;
   readonly userMessageTail?: number;
+  /**
+   * v2.1.0 Phase 1 -- optional reasoning-strength session option (Muse Glimmer).
+   * Dropped at runtime when the served model rejects it; see
+   * {@link applyReasoningStrength}.
+   */
+  readonly reasoningStrength?: ReasoningStrength;
   readonly rationale: string;
 }
 
@@ -253,6 +263,35 @@ const NAMED_PROFILES: Readonly<Record<HarnessProfileId, HarnessProfile>> = Objec
       "Hermes 3 agentic loop: concise Llama-3 tool JSON, thinking on for tool choice, " +
       "mid-tier compaction (0.8 threshold, keep last 3 user messages)",
   }),
+  "muse-glimmer": Object.freeze({
+    id: "muse-glimmer",
+    tier: "strong",
+    label: "muse-glimmer",
+    promptStyle: "detailed",
+    thinkingMode: true,
+    systemPromptBudgetPercent: 14,
+    toolCallFormat: "llama3-json" as ToolFormatName,
+    compactionThreshold: 0.85,
+    userMessageTail: 5,
+    reasoningStrength: "medium" as ReasoningStrength,
+    rationale:
+      "Muse Glimmer long-horizon loop: detailed plan-then-act scaffold, thinking on, " +
+      "medium reasoning-strength (session-overridable), Llama-3 tool JSON",
+  }),
+  "lightning-worker": Object.freeze({
+    id: "lightning-worker",
+    tier: "weak",
+    label: "lightning-worker",
+    promptStyle: "concise",
+    thinkingMode: false,
+    systemPromptBudgetPercent: 8,
+    toolCallFormat: "qwen-json" as ToolFormatName,
+    compactionThreshold: 0.8,
+    userMessageTail: 3,
+    rationale:
+      "Nemotron Lightning routine-step worker: terse Qwen3-Coder tool calls, thinking off, " +
+      "small guidance budget so the strong model keeps the planner/critic roles",
+  }),
 });
 
 /**
@@ -266,6 +305,8 @@ const FAMILY_PROFILE_IDS: Readonly<Record<string, HarnessProfileId>> = Object.fr
   kimi: "concise-loop",
   "lfm2.5": "lfm-agentic",
   hermes: "hermes-agentic",
+  "muse-glimmer": "muse-glimmer",
+  "nemotron-lightning": "lightning-worker",
 });
 
 /** Family + tier -> named profile, taking precedence over FAMILY_PROFILE_IDS. */
@@ -336,6 +377,57 @@ export function toPromptOverlay(profile: HarnessProfile): HarnessPromptOverlay {
   };
 }
 
+/** Runtime options the LLM client may send (not PromptContext knobs). */
+export interface HarnessRuntimeOptions {
+  readonly reasoningStrength?: ReasoningStrength;
+}
+
+/** Project a profile to runtime options. Empty when the profile has none. */
+export function toRuntimeOptions(profile: HarnessProfile): HarnessRuntimeOptions {
+  return profile.reasoningStrength ? { reasoningStrength: profile.reasoningStrength } : {};
+}
+
+export interface ReasoningStrengthDowngrade {
+  readonly modelName: string;
+  readonly requested: ReasoningStrength;
+  readonly applied: ReasoningStrength | null;
+  readonly reason: string;
+  readonly at: number;
+}
+
+const _downgrades: ReasoningStrengthDowngrade[] = [];
+
+/** Record a reasoning-strength drop when the served model rejects the parameter. */
+export function applyReasoningStrength(input: {
+  readonly modelName: string;
+  readonly requested: ReasoningStrength;
+  readonly accepted: boolean;
+  readonly now?: () => number;
+}): HarnessRuntimeOptions {
+  if (input.accepted) {
+    return { reasoningStrength: input.requested };
+  }
+  const record: ReasoningStrengthDowngrade = {
+    modelName: input.modelName,
+    requested: input.requested,
+    applied: null,
+    reason: "served model rejected reasoning-strength; parameter dropped",
+    at: (input.now ?? Date.now)(),
+  };
+  _downgrades.push(record);
+  return {};
+}
+
+/** Newest-first reasoning-strength downgrades (tests + InferenceMetrics consumers). */
+export function reasoningStrengthDowngrades(): readonly ReasoningStrengthDowngrade[] {
+  return [..._downgrades].reverse();
+}
+
+/** Test helper: wipe the in-memory downgrade log. */
+export function clearReasoningStrengthDowngrades(): void {
+  _downgrades.length = 0;
+}
+
 /**
  * Apply a harness overlay to prompt knobs. When `enabled` is false the `base`
  * object is returned by reference (byte-identical to today's path). When true,
@@ -372,10 +464,18 @@ function resolveFamilyKey(
   if (id.includes("kimi")) return "kimi";
   if (id.includes("lfm2.5") || id.startsWith("lfm2")) return "lfm2.5";
   if (id.includes("hermes")) return "hermes";
+  if (id.includes("muse") || id.includes("glimmer")) return "muse-glimmer";
+  if (id.includes("nemotron") || id.includes("lightning")) return "nemotron-lightning";
   const tags = entry.tags ?? [];
   if (tags.some((t) => t.toLowerCase().includes("kimi"))) return "kimi";
   if (tags.some((t) => t.toLowerCase().includes("lfm"))) return "lfm2.5";
   if (tags.some((t) => t.toLowerCase().includes("hermes"))) return "hermes";
+  if (tags.some((t) => t.toLowerCase().includes("muse") || t.toLowerCase().includes("glimmer"))) {
+    return "muse-glimmer";
+  }
+  if (tags.some((t) => t.toLowerCase().includes("lightning") || t.toLowerCase().includes("nemotron"))) {
+    return "nemotron-lightning";
+  }
   return undefined;
 }
 

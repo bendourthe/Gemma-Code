@@ -23,7 +23,7 @@ describe("ModelCatalog", () => {
     );
   });
 
-  it("listFamilies covers gemma/llama/qwen/deepseek/lfm2.5/hermes", () => {
+  it("listFamilies covers gemma/llama/qwen/deepseek/lfm2.5/hermes/muse-glimmer/nemotron-lightning", () => {
     const families = ModelCatalog.listFamilies().sort();
     expect(families).toEqual([
       "deepseek",
@@ -31,6 +31,8 @@ describe("ModelCatalog", () => {
       "hermes",
       "lfm2.5",
       "llama",
+      "muse-glimmer",
+      "nemotron-lightning",
       "qwen",
     ] as ModelFamily[]);
   });

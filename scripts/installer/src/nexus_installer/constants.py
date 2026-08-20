@@ -113,6 +113,8 @@ FAMILY_TO_PUBLISHER: dict[str, str] = {
     "lfm2.5": "Liquid AI",
     "hermes": "Nous Research",
     "inkling": "Thinking Machines",
+    "muse-glimmer": "Meta",
+    "nemotron-lightning": "NVIDIA",
 }
 
 

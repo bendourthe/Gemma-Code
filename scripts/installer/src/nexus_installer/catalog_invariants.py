@@ -50,6 +50,19 @@ LFM_FORBIDDEN_BENCHMARK_TOKENS: tuple[str, ...] = (
     "tok-per-s",
 )
 
+MUSE_K17_ID = "muse-glimmer:30b"
+MUSE_DYNAMIC_ID = "muse-glimmer:30b-dynamic"
+MUSE_IDS: frozenset[str] = frozenset({MUSE_K17_ID, MUSE_DYNAMIC_ID})
+MUSE_OLLAMA_TARGET = "hf.co/meta-models/Muse-Glimmer-30B-GGUF"
+MUSE_MIN_OLLAMA = "0.32.7"
+MUSE_FORBIDDEN_COPY: tuple[str, ...] = ("SWE-Bench", "76.0", "76.00")
+
+LIGHTNING_NATIVE_ID = "nemotron-lightning:30b-a3b"
+LIGHTNING_OFFLOAD_ID = "nemotron-lightning:30b-a3b-offload"
+LIGHTNING_IDS: frozenset[str] = frozenset({LIGHTNING_NATIVE_ID, LIGHTNING_OFFLOAD_ID})
+LIGHTNING_OLLAMA_TARGET = "ggml-org/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-GGUF"
+LIGHTNING_MIN_OLLAMA = "0.32.9"
+
 
 def validate_catalog(catalog: dict[str, Any]) -> list[str]:
     """Return a list of invariant violations in ``catalog`` (empty == valid)."""
@@ -122,6 +135,30 @@ def validate_catalog(catalog: dict[str, Any]) -> list[str]:
     if isinstance(lfm, dict):
         problems.extend(_check_lfm_entry(lfm))
 
+    for muse_id in MUSE_IDS:
+        muse = by_id.get(muse_id)
+        if isinstance(muse, dict):
+            problems.extend(_check_muse_entry(muse, muse_id))
+    if any(isinstance(by_id.get(i), dict) for i in MUSE_IDS) and not all(
+        isinstance(by_id.get(i), dict) for i in MUSE_IDS
+    ):
+        problems.append(
+            "muse-glimmer: both K-Quant-17GB and K-Quant-Dynamic "
+            "entries must ship together"
+        )
+
+    for lightning_id in LIGHTNING_IDS:
+        lightning = by_id.get(lightning_id)
+        if isinstance(lightning, dict):
+            problems.extend(_check_lightning_entry(lightning, lightning_id))
+    if any(isinstance(by_id.get(i), dict) for i in LIGHTNING_IDS) and not all(
+        isinstance(by_id.get(i), dict) for i in LIGHTNING_IDS
+    ):
+        problems.append(
+            "nemotron-lightning: both native Q4_K_M and expert-offload "
+            "entries must ship together"
+        )
+
     return problems
 
 
@@ -193,9 +230,100 @@ def _check_lfm_entry(model: dict[str, Any]) -> list[str]:
     return problems
 
 
+def _card_copy(model: dict[str, Any]) -> str:
+    strengths = (
+        [str(s) for s in model["strengths"]]
+        if isinstance(model.get("strengths"), list)
+        else []
+    )
+    return " ".join(
+        [
+            str(model.get("description") or ""),
+            str(model.get("whyRecommended") or ""),
+            str(model.get("differentiators") or ""),
+            *strengths,
+        ]
+    )
+
+
+def _check_muse_entry(model: dict[str, Any], where: str) -> list[str]:
+    """Invariants that apply when a Muse Glimmer entry is in the catalog."""
+    problems: list[str] = []
+    if model.get("family") != "muse-glimmer":
+        problems.append(f"{where}: family must be 'muse-glimmer'")
+    if not model.get("agentic"):
+        problems.append(f"{where}: agentic flag must be true")
+    if model.get("license") != "Apache-2.0":
+        problems.append(f"{where}: license must be Apache-2.0")
+    if model.get("minOllamaVersion") != MUSE_MIN_OLLAMA:
+        problems.append(f"{where}: minOllamaVersion must be {MUSE_MIN_OLLAMA}")
+    if model.get("hideBelowVramGB") != 16:
+        problems.append(f"{where}: hideBelowVramGB must be 16")
+    source = model.get("source") if isinstance(model.get("source"), dict) else {}
+    url = str(source.get("url") or "")
+    if MUSE_OLLAMA_TARGET not in url:
+        problems.append(f"{where}: ollama source must pull {MUSE_OLLAMA_TARGET}")
+    raw_vr = model.get("vendorReported")
+    vr = raw_vr if isinstance(raw_vr, dict) else {}
+    if vr.get("vendorReported") is not True:
+        problems.append(f"{where}: vendorReported.vendorReported must be true")
+    local = model.get("localEval") if isinstance(model.get("localEval"), dict) else {}
+    if local.get("status") not in {"pass", "fail", "incomplete", "not_run"}:
+        problems.append(f"{where}: localEval.status must be recorded")
+    if local.get("status") == "pass" and not local.get("result"):
+        problems.append(f"{where}: a passing localEval must record a result")
+    blob = _card_copy(model)
+    for token in MUSE_FORBIDDEN_COPY:
+        if token in blob:
+            problems.append(
+                f"{where}: card copy must not assert unverified "
+                f"vendor benchmark {token!r}"
+            )
+    if where == MUSE_K17_ID and model.get("requiredVramGB") != 24:
+        problems.append(f"{where}: K-Quant-17GB must map to the 24 GB VRAM tier")
+    if where == MUSE_DYNAMIC_ID and model.get("requiredVramGB") != 32:
+        problems.append(f"{where}: K-Quant-Dynamic must map to the 32 GB VRAM tier")
+    return problems
+
+
+def _check_lightning_entry(model: dict[str, Any], where: str) -> list[str]:
+    """Invariants that apply when a Nemotron Lightning entry is in the catalog."""
+    problems: list[str] = []
+    if model.get("family") != "nemotron-lightning":
+        problems.append(f"{where}: family must be 'nemotron-lightning'")
+    if not model.get("agentic"):
+        problems.append(f"{where}: agentic flag must be true")
+    if model.get("role") != "worker-candidate":
+        problems.append(f"{where}: role must be worker-candidate")
+    if model.get("license") != "OpenMDW-1.1":
+        problems.append(f"{where}: license must be OpenMDW-1.1")
+    if model.get("minOllamaVersion") != LIGHTNING_MIN_OLLAMA:
+        problems.append(f"{where}: minOllamaVersion must be {LIGHTNING_MIN_OLLAMA}")
+    if model.get("hideBelowVramGB") != 16:
+        problems.append(f"{where}: hideBelowVramGB must be 16")
+    source = model.get("source") if isinstance(model.get("source"), dict) else {}
+    url = str(source.get("url") or "")
+    if LIGHTNING_OLLAMA_TARGET not in url:
+        problems.append(f"{where}: ollama source must pull {LIGHTNING_OLLAMA_TARGET}")
+    if where == LIGHTNING_NATIVE_ID and model.get("requiredVramGB") != 24:
+        problems.append(f"{where}: native Q4_K_M must map to the 24 GB VRAM tier")
+    if where == LIGHTNING_OFFLOAD_ID:
+        tags = model.get("tags") if isinstance(model.get("tags"), list) else []
+        if "expert-offload" not in tags:
+            problems.append(f"{where}: offload entry must be tagged expert-offload")
+        if model.get("requiredVramGB") != 16:
+            problems.append(f"{where}: expert-offload must map to the 16 GB VRAM tier")
+    local = model.get("localEval") if isinstance(model.get("localEval"), dict) else {}
+    if local.get("status") not in {"pass", "fail", "incomplete", "not_run"}:
+        problems.append(f"{where}: localEval.status must be recorded")
+    return problems
+
+
 __all__ = [
     "KNOWN_BROKEN_OLLAMA_REFS",
     "KNOWN_GATED_IDS",
     "LFM_AGENTIC_ID",
+    "MUSE_IDS",
+    "LIGHTNING_IDS",
     "validate_catalog",
 ]

@@ -204,6 +204,11 @@ class CatalogModel:
     license_note: str = ""
     license_url: str = ""
     requires_license: bool = False
+    # v2.1.0 Phase 1 -- hide-below VRAM floor (GB). 0 means no floor.
+    hide_below_vram_gb: int = 0
+    # v2.1.0 Phase 1 -- minimum Ollama version, empty when ungated.
+    min_ollama_version: str = ""
+    role: str = ""
 
     @property
     def is_text_model(self) -> bool:
@@ -310,6 +315,9 @@ def load_catalog_models(catalog_path: Path) -> list[CatalogModel]:
                 license_note=str(entry.get("licenseNote") or ""),
                 license_url=str(entry.get("licenseUrl") or ""),
                 requires_license=bool(entry.get("requiresLicense")),
+                hide_below_vram_gb=_coerce_int(entry.get("hideBelowVramGB")),
+                min_ollama_version=str(entry.get("minOllamaVersion") or ""),
+                role=str(entry.get("role") or ""),
             )
         )
     return models
@@ -350,6 +358,11 @@ def compatibility_badge(
         return (
             f"Requires {model.required_ram_gb} GB RAM (you have {total_ram_gb})",
             WARNING,
+        )
+    if model.min_ollama_version:
+        return (
+            f"Requires Ollama {model.min_ollama_version}+",
+            SUCCESS,
         )
     return "Compatible", SUCCESS
 
@@ -856,6 +869,8 @@ class TypedCatalogPage(QWidget):
 
         by_family: dict[str, list[CatalogModel]] = {}
         for model in self._models_for_section(section_key):
+            if model.hide_below_vram_gb > 0 and host_vram_gb < model.hide_below_vram_gb:
+                continue
             by_family.setdefault(model.family or model.id, []).append(model)
 
         enabled: list[CatalogModel] = []

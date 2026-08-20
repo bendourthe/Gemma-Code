@@ -7,6 +7,7 @@ import {
   isExtremeLowBitSpec,
   parseOllamaVersion,
   runtimeSupportsExtremeLowBit,
+  ollamaVersionAtLeast,
 } from "../../../../core/registry/extremeLowBit.js";
 
 function spec(overrides: Partial<ModelSpec>): ModelSpec {
@@ -68,6 +69,13 @@ describe("extremeLowBit -- runtime probe (EM007)", () => {
     expect(runtimeSupportsExtremeLowBit(EXTREME_LOW_BIT_MIN_OLLAMA_VERSION)).toBe(true);
     const [maj] = parseOllamaVersion(EXTREME_LOW_BIT_MIN_OLLAMA_VERSION) ?? [0, 0, 0];
     expect(runtimeSupportsExtremeLowBit(`${maj + 1}.0.0`)).toBe(true);
+  });
+  it("ollamaVersionAtLeast compares catalog min versions (v2.1.0)", () => {
+    expect(ollamaVersionAtLeast("0.32.9", "0.32.9")).toBe(true);
+    expect(ollamaVersionAtLeast("0.33.0", "0.32.9")).toBe(true);
+    expect(ollamaVersionAtLeast("0.32.8", "0.32.9")).toBe(false);
+    expect(ollamaVersionAtLeast(null, "0.32.9")).toBe(false);
+    expect(ollamaVersionAtLeast("0.32.7", "nope")).toBe(true);
   });
 });
 

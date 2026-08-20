@@ -118,6 +118,55 @@ class TestLfmLowVramAgentic:
         assert not any("8b-a1b" in i.lower() for i in ids)
 
 
+class TestMuseAndLightning:
+    def test_repo_catalog_includes_muse_and_lightning(self) -> None:
+        catalog = _load_repo_catalog()
+        ids = {str(m.get("id")) for m in catalog["models"] if isinstance(m, dict)}
+        assert "muse-glimmer:30b" in ids
+        assert "muse-glimmer:30b-dynamic" in ids
+        assert "nemotron-lightning:30b-a3b" in ids
+        assert "nemotron-lightning:30b-a3b-offload" in ids
+        assert validate_catalog(catalog) == []
+
+    def test_muse_vendor_score_in_copy_is_flagged(self) -> None:
+        entry = {
+            "id": "muse-glimmer:30b",
+            "family": "muse-glimmer",
+            "agentic": True,
+            "license": "Apache-2.0",
+            "minOllamaVersion": "0.32.7",
+            "hideBelowVramGB": 16,
+            "requiredVramGB": 24,
+            "source": {
+                "protocol": "ollama",
+                "url": "ollama://hf.co/meta-models/Muse-Glimmer-30B-GGUF:K-Quant-17GB",
+            },
+            "vendorReported": {"suite": "SWE-Bench Verified", "vendorReported": True},
+            "localEval": {"status": "not_run"},
+            "whyRecommended": "SWE-Bench 76.0",
+        }
+        problems = validate_catalog({"models": [entry]})
+        assert any("76.0" in p or "SWE-Bench" in p for p in problems)
+
+    def test_lightning_missing_role_is_flagged(self) -> None:
+        entry = {
+            "id": "nemotron-lightning:30b-a3b",
+            "family": "nemotron-lightning",
+            "agentic": True,
+            "license": "OpenMDW-1.1",
+            "minOllamaVersion": "0.32.9",
+            "hideBelowVramGB": 16,
+            "requiredVramGB": 24,
+            "source": {
+                "protocol": "ollama",
+                "url": "ollama://hf.co/ggml-org/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-GGUF:Q4_K_M",
+            },
+            "localEval": {"status": "not_run"},
+        }
+        problems = validate_catalog({"models": [entry]})
+        assert any("worker-candidate" in p for p in problems)
+
+
 class TestValidateCatalog:
     def test_empty_models_is_flagged(self) -> None:
         assert validate_catalog({"models": []})

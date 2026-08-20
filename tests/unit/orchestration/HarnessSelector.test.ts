@@ -13,6 +13,10 @@ import {
   parseHarnessProfileId,
   toCompressionOverlay,
   toPromptOverlay,
+  toRuntimeOptions,
+  applyReasoningStrength,
+  reasoningStrengthDowngrades,
+  clearReasoningStrengthDowngrades,
   type CatalogLookup,
 } from "../../../modules/coding/orchestration/HarnessSelector.js";
 
@@ -166,6 +170,10 @@ describe("HarnessSelector -- selection (H1)", () => {
     expect(defaultHarnessSelector.profileForModel("lfm2.5:2.6b").id).toBe("lfm-agentic");
     expect(defaultHarnessSelector.profileForModel("hermes3:8b").id).toBe("hermes-agentic");
     expect(defaultHarnessSelector.profileForModel("hermes3:70b").id).toBe("hermes-agentic");
+    expect(defaultHarnessSelector.profileForModel("muse-glimmer:30b").id).toBe("muse-glimmer");
+    expect(defaultHarnessSelector.profileForModel("nemotron-lightning:30b-a3b").id).toBe(
+      "lightning-worker",
+    );
   });
 });
 
@@ -179,7 +187,9 @@ describe("HarnessSelector -- named family profiles (v1.18 OI-A2)", () => {
       "hermes-agentic",
       "lean-scaffold",
       "lfm-agentic",
+      "lightning-worker",
       "minimal",
+      "muse-glimmer",
       "plan-first",
       "structured-edit",
     ]);
@@ -327,5 +337,54 @@ describe("HarnessSelector -- parseHarnessCommand", () => {
     expect(parseHarnessProfileId("Plan-First")).toBe("plan-first");
     expect(harnessProfileById("structured-edit")?.id).toBe("structured-edit");
     expect(harnessProfileById("missing")).toBeUndefined();
+  });
+});
+
+describe("HarnessSelector -- Muse Glimmer and Lightning (v2.1.0)", () => {
+  it("selects muse-glimmer with reasoning-strength and llama3-json", () => {
+    const selection = defaultHarnessSelector.select("muse-glimmer:30b");
+    expect(selection.reason).toBe("family");
+    expect(selection.family).toBe("muse-glimmer");
+    expect(selection.profile.id).toBe("muse-glimmer");
+    expect(selection.overlay.toolCallFormat).toBe("llama3-json");
+    expect(selection.profile.reasoningStrength).toBe("medium");
+    expect(selection.modelTier).toBe("strong");
+    expect(toRuntimeOptions(selection.profile)).toEqual({ reasoningStrength: "medium" });
+  });
+
+  it("selects lightning-worker with qwen-json for both Lightning tiers", () => {
+    const native = defaultHarnessSelector.select("nemotron-lightning:30b-a3b");
+    expect(native.profile.id).toBe("lightning-worker");
+    expect(native.overlay.toolCallFormat).toBe("qwen-json");
+    expect(native.residentFootprint).toBe("moe");
+    expect(defaultHarnessSelector.select("nemotron-lightning:30b-a3b-offload").profile.id).toBe(
+      "lightning-worker",
+    );
+  });
+
+  it("falls back to the default profile for an unknown model", () => {
+    expect(defaultHarnessSelector.profileForModel("does-not-exist")).toBe(DEFAULT_HARNESS_PROFILE);
+    expect(toRuntimeOptions(DEFAULT_HARNESS_PROFILE)).toEqual({});
+  });
+
+  it("drops rejected reasoning-strength and records the downgrade", () => {
+    clearReasoningStrengthDowngrades();
+    expect(applyReasoningStrength({ modelName: "muse-glimmer:30b", requested: "high", accepted: true })).toEqual({
+      reasoningStrength: "high",
+    });
+    expect(
+      applyReasoningStrength({
+        modelName: "muse-glimmer:30b",
+        requested: "high",
+        accepted: false,
+        now: () => 1,
+      }),
+    ).toEqual({});
+    expect(reasoningStrengthDowngrades()[0]).toMatchObject({
+      modelName: "muse-glimmer:30b",
+      requested: "high",
+      applied: null,
+    });
+    clearReasoningStrengthDowngrades();
   });
 });

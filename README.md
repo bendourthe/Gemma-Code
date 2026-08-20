@@ -107,8 +107,20 @@ Historical note: between 2026-06-18 and 2026-07-20 a decoupled "release track" c
 | v1.19.2 | Catalog and model expansion: modalities + audioConditioning, official-only weight variants, Hermes 3 family, Inkling-Small patient-tier GGUF, calibrated patient-tier copy | Landed | [docs/v1/v1.19/](docs/v1/v1.19/) |
 | v1.20.0 | Document ingest: wire `parse_document`, magic-byte Office routing, Chat and Coding attach, Docling layout engine deferred | Landed | [docs/v1/v1.20/](docs/v1/v1.20/) |
 | v2.0.0 | Convergence: multimodal Chat + local voice loop, DANGEROUS isolated-profile browser tools, Video Lab continuation + gated avatar, ProjectScope stretch | Landed | [docs/v2/v2.0/](docs/v2/v2.0/) |
+| v2.1.0 | Open local-AI wave: Muse Glimmer + Nemotron Lightning catalog/harness, adaptive routing, Image Studio depth, multimodal chat + SAM2, local fine-tuning, hardening | In progress | [docs/v2/v2.1/](docs/v2/v2.1/) |
 
-Each v1 cycle's plan lives under `docs/v1/v1.<MINOR>/plans/`. v2.0.0 lives under `docs/v2/v2.0/plans/`. Deferred work is in that version's `known-gaps.md`.
+Each v1 cycle's plan lives under `docs/v1/v1.<MINOR>/plans/`. v2.0.0 lives under `docs/v2/v2.0/plans/`. v2.1.0 lives under `docs/v2/v2.1/plans/`. Deferred work is in that version's `known-gaps.md`.
+
+### What's new in v2.1.0 (in progress)
+
+Open local-AI wave. Local-only. No new outbound destination. Vendor scores do not become default routes.
+
+- **Muse Glimmer 30B** - Apache-2.0 Meta GGUF via Ollama `hf.co` (`muse-glimmer:30b` at 24 GB, Dynamic at 32 GB). Hidden below 16 GB VRAM and on Ollama older than 0.32.7. Harness profile `muse-glimmer` (detailed, thinking on, llama3-json).
+- **Nemotron 3.5 Lightning 30B-A3B** - OpenMDW-1.1 worker (`nemotron-lightning:30b-a3b` native 24 GB, expert-offload at 16 GB). Hidden below 16 GB and on Ollama older than 0.32.9. Harness profile `lightning-worker` (concise, thinking off, qwen-json). Tagged `role: worker-candidate` for Phase 2 routing.
+- **Catalog flags** - `diffusion` (default false) and `codingEligible` (default true). `localEval` blocks are `not_run` this cycle; `recommended.json` is unchanged.
+- **DiffusionGemma** - watch item only (needs llama.cpp PR #24423 in a shipped Ollama release and sub-16 GB quants).
+
+v2.0.0 already shipped the convergence cut. Known gaps: [docs/v2/v2.1/known-gaps.md](docs/v2/v2.1/known-gaps.md).
 
 ### What's new in v2.0.0
 

@@ -19,7 +19,7 @@
  *    content-addressed registry; the public type surface stays stable).
  */
 
-export type ModelFamily = "gemma" | "llama" | "qwen" | "deepseek" | "lfm2.5" | "hermes";
+export type ModelFamily = "gemma" | "llama" | "qwen" | "deepseek" | "lfm2.5" | "hermes" | "muse-glimmer" | "nemotron-lightning";
 
 export type PromptFormatName = "gemma4" | "llama3" | "qwen" | "deepseek" | "lfm";
 
@@ -169,6 +169,58 @@ const ENTRIES: readonly LlmCatalogEntry[] = Object.freeze([
     sampling: { temperature: 0.7, topP: 0.9, topK: 50, contextLength: 131072 },
     promptFormat: "llama3",
     toolFormat: "llama3-json",
+  },
+  {
+    id: "muse-glimmer:30b",
+    displayName: "Muse Glimmer 30B (K-Quant-17GB)",
+    family: "muse-glimmer",
+    runtime: "ollama",
+    vramGb: 17,
+    activeParams: 4,
+    totalParams: 30,
+    tags: Object.freeze(["coding", "chat", "tool-use", "advanced"]),
+    sampling: { temperature: 0.6, topP: 0.9, topK: 40, contextLength: 131072 },
+    promptFormat: "llama3",
+    toolFormat: "llama3-json",
+  },
+  {
+    id: "muse-glimmer:30b-dynamic",
+    displayName: "Muse Glimmer 30B (K-Quant-Dynamic)",
+    family: "muse-glimmer",
+    runtime: "ollama",
+    vramGb: 24,
+    activeParams: 4,
+    totalParams: 30,
+    tags: Object.freeze(["coding", "chat", "tool-use", "advanced"]),
+    sampling: { temperature: 0.6, topP: 0.9, topK: 40, contextLength: 131072 },
+    promptFormat: "llama3",
+    toolFormat: "llama3-json",
+  },
+  {
+    id: "nemotron-lightning:30b-a3b",
+    displayName: "Nemotron 3.5 Lightning 30B-A3B",
+    family: "nemotron-lightning",
+    runtime: "ollama",
+    vramGb: 24,
+    activeParams: 3,
+    totalParams: 30,
+    tags: Object.freeze(["coding", "tool-use", "worker-candidate"]),
+    sampling: { temperature: 0.5, topP: 0.9, topK: 20, contextLength: 131072 },
+    promptFormat: "qwen",
+    toolFormat: "qwen-json",
+  },
+  {
+    id: "nemotron-lightning:30b-a3b-offload",
+    displayName: "Nemotron 3.5 Lightning 30B-A3B (expert offload)",
+    family: "nemotron-lightning",
+    runtime: "ollama",
+    vramGb: 16,
+    activeParams: 3,
+    totalParams: 30,
+    tags: Object.freeze(["coding", "tool-use", "worker-candidate"]),
+    sampling: { temperature: 0.5, topP: 0.9, topK: 20, contextLength: 131072 },
+    promptFormat: "qwen",
+    toolFormat: "qwen-json",
   },
 ]);
 
