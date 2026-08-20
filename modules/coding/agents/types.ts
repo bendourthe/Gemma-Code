@@ -51,6 +51,11 @@ export interface SubAgentConfig {
    * Unknown persona / no loader -> ignored (type-based behavior preserved).
    */
   readonly personaName?: string;
+  /**
+   * v2.1.0 Phase 2 -- override the manager's default model for this run
+   * (adaptive routing). Absent keeps the SubAgentManager constructor model.
+   */
+  readonly modelName?: string;
 }
 
 export interface SubAgentResult {

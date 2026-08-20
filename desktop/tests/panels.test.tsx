@@ -123,6 +123,31 @@ describe("TraceDashboardPanel", () => {
     expect(screen.getByTestId("trace-event-b")).toHaveTextContent("load skill");
   });
 
+  it("derives the routing lane from a replayed fixture payload (v2.1.0 Phase 2)", () => {
+    const events: TraceEventT[] = [
+      {
+        id: "t-003",
+        timestamp: "2026-05-17T11:30:08.000Z",
+        kind: "scheduler",
+        summary: "routing.decision escalate lightning -> muse",
+        payload: {
+          kind: "routing.decision",
+          turn: 4,
+          role: "worker",
+          modelId: "muse-glimmer:30b",
+          previousModelId: "nemotron-lightning:30b-a3b",
+          action: "escalate",
+          reason: "tool-error-streak",
+        },
+      },
+    ];
+    render(<TraceDashboardPanel events={events} />);
+    expect(screen.getByTestId("trace-routing-model-4")).toHaveTextContent(
+      "muse-glimmer:30b",
+    );
+    expect(screen.getByTestId("trace-routing-escalation-4")).toBeInTheDocument();
+  });
+
   it("filters events by hookKind via the dropdown (v1.1.0 Phase 4.5)", async () => {
     const events: TraceEventT[] = [
       {

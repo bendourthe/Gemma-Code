@@ -7,6 +7,11 @@ import type {
 import { TimelineScrubber } from "./TimelineScrubber";
 import { SessionCompareView } from "./SessionCompareView";
 import { ModelAnalyticsSection } from "./ModelAnalyticsSection";
+import {
+  RoutingLane,
+  routingDecisionsFromTrace,
+  type RoutingLaneDecision,
+} from "./RoutingLane";
 
 export interface TraceDashboardPanelProps {
   events: readonly TraceEventT[];
@@ -38,6 +43,12 @@ export interface TraceDashboardPanelProps {
    * its empty state.
    */
   modelMetrics?: readonly PerModelMetricSummaryT[];
+  /**
+   * v2.1.0 Phase 2 -- Switchyard routing lane. Optional so sessions that
+   * predate routing render the empty state rather than erroring.
+   */
+  routingDecisions?: readonly RoutingLaneDecision[];
+  routingSwapCount?: number;
   /** Test seam: forwarded to TimelineScrubber instances. */
   now?: () => number;
   raf?: (cb: FrameRequestCallback) => number;
@@ -65,6 +76,8 @@ export function TraceDashboardPanel({
   onPickCompareSession,
   onCloseCompare,
   modelMetrics,
+  routingDecisions,
+  routingSwapCount,
   now,
   raf,
   caf,
@@ -349,6 +362,10 @@ export function TraceDashboardPanel({
                 model throughput.
               */}
               <ModelAnalyticsSection perModel={modelMetrics ?? []} />
+              <RoutingLane
+                decisions={routingDecisions ?? routingDecisionsFromTrace(events)}
+                swapCount={routingSwapCount}
+              />
 
               {renderEventList(filteredEvents)}
             </>

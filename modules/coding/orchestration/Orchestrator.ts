@@ -15,7 +15,7 @@ import type { ExtensionToWebviewMessage } from "../../../src/panels/messages.js"
 import type { MemoryStore } from "../../../src/storage/MemoryStore.js";
 import { Tracer } from "../observability/Tracer.js";
 import { DAGExecutor } from "./DAGExecutor.js";
-import type { DAGExecutionResult, SwarmTraceContext } from "./DAGExecutor.js";
+import type { DAGExecutionResult, DAGRoutingContext, SwarmTraceContext } from "./DAGExecutor.js";
 import { PlannerAgent } from "./PlannerAgent.js";
 import { ReflexionEngine } from "./ReflexionEngine.js";
 import { CriticAgent } from "./CriticAgent.js";
@@ -59,6 +59,11 @@ export interface OrchestratorConfig {
    * omitted (or disabled), a no-op tracer is used and behavior is unchanged.
    */
   readonly tracer?: Tracer;
+  /**
+   * v2.1.0 Phase 2 -- adaptive routing for worker DAG nodes. Planner/critic
+   * stay on `modelName` (the strong model). Absent: workers use the same model.
+   */
+  readonly routing?: DAGRoutingContext;
 }
 
 export interface OrchestratorResult {
@@ -86,6 +91,8 @@ export class Orchestrator {
   private readonly _critic: CriticReviewer | null;
   /** v1.6.0 Phase 4 (A2): shared tracer for swarm-run nesting (no-op when disabled). */
   private readonly _tracer: Tracer;
+  /** v2.1.0 Phase 2: adaptive worker routing (null = manager default model). */
+  private readonly _routing: DAGRoutingContext | null;
   private _maxReplanAttempts = 2;
   private _replanThreshold = 0.3;
 
@@ -117,6 +124,7 @@ export class Orchestrator {
     // v1.6.0 Phase 4 (A2): a disabled no-op Tracer when none is wired keeps the
     // swarm-trace path inert (all startTrace/startSpan calls return "").
     this._tracer = config.tracer ?? new Tracer();
+    this._routing = config.routing ?? null;
   }
 
   /**
@@ -157,11 +165,12 @@ export class Orchestrator {
         this._profile,
         this._postMessage,
         this._reflexionEngine,
-        undefined,
+        this._routing ? "orchestrator" : undefined,
         {
           isolateWrites: this._isolateWrites,
           critic: this._critic ?? undefined,
           ...(swarmTrace ? { swarmTrace } : {}),
+          ...(this._routing ? { routing: this._routing } : {}),
         },
       );
 

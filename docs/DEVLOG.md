@@ -4,6 +4,34 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-20] v2.1.0 Phase 2: Switchyard-derived adaptive routing
+
+### Goal
+
+Cheap-first worker-to-strong routing from existing telemetry signals, GPU swap deferral on a single consumer GPU, and a Traces routing lane.
+
+### What was done
+
+- Signals: consecutive tool errors, identical tool+args repeats, progress-free worker steps. Missing/stale/other-session events are neutral.
+- Policy: planner/critic pin to strong; workers start on `role: worker-candidate`. Thresholds 3 / 2 / 8. Session pin after two turn-escalations. Cooldown wins vs escalate. Strong missing stays on worker with a notice.
+- GPU: honor-and-keep when both fit; honor-and-evict when they do not; defer on missing VRAM telemetry or diffusion occupancy. No Ollama prefetch/unload (DF-4).
+- DAG: optional `DAGRoutingContext`. Absent routing is the old path. AgentLoop not wired (DF-5).
+- UI: `RoutingLane` plus fixture payload on placeholder traces (sidecar still has no TraceStore; LSO.P2.A).
+
+### Tests
+
+Root routing + DAG + modelSwap: 25 passed. Desktop RoutingLane / TraceDashboard / panelData green. `tsc -b` clean after `hashToolCall` record narrowing.
+
+### Deviations
+
+No-scheduler `routeTurn` honors (does not pass Infinity VRAM). Swap cost model is advisory. Planner pin uses orchestrator `modelName`.
+
+### Next
+
+Phase 3 Image Studio provenance + generation queue. Local commit only.
+
+---
+
 ## [2026-08-20] v2.1.0 Phase 1: catalog + harness + local-eval gate
 
 ### Goal

@@ -29,7 +29,12 @@ export type TelemetryEventKind =
   // (core/observability/InferenceMetrics.ts): model, token counts, TTFT, wall
   // time, derived tokens/sec, and memory footprint. Stays on this in-process
   // bus like every other kind -- it never leaves the host.
-  | "model.inference.complete";
+  | "model.inference.complete"
+  // v2.1.0 Phase 2 -- Switchyard-derived routing. Payload is a routing
+  // decision snapshot (session, role, model, reason, signal counts).
+  | "routing.decision"
+  // v2.1.0 Phase 2 -- GPU scheduler honor/defer/degrade of a routing swap.
+  | "scheduler.swap";
 
 export interface TelemetryEvent<TPayload = unknown> {
   kind: TelemetryEventKind;

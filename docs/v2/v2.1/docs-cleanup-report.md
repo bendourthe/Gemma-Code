@@ -1,14 +1,20 @@
-# Docs cleanup -- v2.1.0 Phase 1
+# Docs cleanup audit - v2.1.0
 
-**Date:** 2026-08-20
-**Mode:** audit (no files moved)
+**Last audit**: 2026-08-20 (Phase 2)
+**Mode**: audit (no files moved)
 
-| Check | Result |
-|---|---|
-| Version dir | `docs/v2/v2.1/{plans,comparisons}` already exists |
-| Plan | `plans/v2.1.0-adoption-open-local-ai-wave.md` Phase 1 checklist `[x]` |
-| Comparison | stays in `comparisons/` |
-| Session history | `development/history/2026-08-20_phase-1-catalog-harness-eval.md` |
-| Known-gaps | `known-gaps.md` created this phase (DF-1, DF-2 open; DF-3 resolved) |
-| Scratch docs | none created; no cleanup proposed |
-| README / ARCHITECTURE | Phase 1 catalog notes added; version bump deferred to `/update release` |
+## Layout
+
+`docs/v2/v2.1/{plans,comparisons,benchmarks,development/history}` already matches the two-level minor scheme. No stray comparison reports.
+
+## Phase 1
+
+Added catalog eval JSON under `benchmarks/`, session history, known-gaps. No scratch docs to delete.
+
+## Phase 2
+
+Added `development/history/2026-08-20_phase-2-adaptive-routing.md`. Updated plan checklist, known-gaps, DEVLOG, README What's new, ARCHITECTURE routing section.
+
+## Recommendation
+
+Leave as-is. No archive or rename.

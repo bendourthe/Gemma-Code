@@ -15,7 +15,7 @@ Plan: [plans/v2.1.0-adoption-open-local-ai-wave.md](plans/v2.1.0-adoption-open-l
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 2 | 1 |
+| Deferred (DF) | 4 | 1 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
@@ -42,6 +42,20 @@ Plan: [plans/v2.1.0-adoption-open-local-ai-wave.md](plans/v2.1.0-adoption-open-l
 - **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 1.5)
 - **Reason**: This cycle had no proven 24 GB-tier host with either model loaded. Catalog `localEval.status` is `not_run`. Vendor-reported SWE-Bench Verified 76.0 stays in `vendorReported` only. `recommended.json` was not changed.
 - **Suggested next step**: On a 24 GB-tier machine, run `runCatalogModelEval` against Muse Glimmer K-Quant-17GB and Lightning Q4_K_M, persist the blocks, and only then propose a default-route change.
+
+##### DF-4 - Routing swap does not prefetch or unload Ollama weights
+
+- **Source phase**: Phase 2 - GPU scheduler integration (2.3)
+- **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 2.3)
+- **Reason**: `evaluateModelSwap` / `GpuScheduler.evaluateRoutingSwap` return honor / defer / `keepWorkerResident`. They do not call Ollama load or unload. Prefetch of a predicted swap is not implemented.
+- **Suggested next step**: After an honored swap with `keepWorkerResident: false`, invoke the existing model-unload path so the worker actually leaves VRAM.
+
+##### DF-5 - VS Code AgentLoop is not on the routing path
+
+- **Source phase**: Phase 2 - Escalation policy engine (2.2)
+- **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 2.2)
+- **Reason**: Routing is wired through `DAGExecutor` / `Orchestrator` when a `DAGRoutingContext` is supplied. `src/tools/AgentLoop.ts` still uses the session's single model. Importing AgentLoop from `modules/coding/orchestration` would cross the vscode host boundary.
+- **Suggested next step**: Project AgentLoop tool results into `RoutingTurnEvent` inside the VS Code host and call `routeTurn` per iteration, or route VS Code coding through the same DAG host the desktop sidecar uses.
 
 ### Resolved
 
