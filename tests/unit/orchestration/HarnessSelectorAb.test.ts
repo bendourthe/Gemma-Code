@@ -178,3 +178,24 @@ describe("HarnessSelectorAb -- LFM fixture parse A/B (v1.19 Phase 2)", () => {
     expect(LFM_LIVE_EMISSION_STATUS).toBe("observed");
   });
 });
+
+describe("HarnessSelectorAb -- Hermes profiles (v1.19.2)", () => {
+  it("measures hermes-agentic as the panel arm on a golden split", async () => {
+    const validation = [spec("a"), spec("b")];
+    const hermesWins: HarnessRollout = {
+      run: async (_spec, overlay) => ({
+        passed: overlay.toolCallFormat === "llama3-json",
+        durationMs: 80,
+      }),
+    };
+    const rep = await runHarnessAb(
+      { modelName: "hermes3:8b", validation },
+      hermesWins,
+      defaultHarnessSelector,
+    );
+    expect(rep.taskCount).toBe(2);
+    expect(rep.panelWins).toBe(2);
+    expect(rep.singleWins).toBe(0);
+    expect(defaultHarnessSelector.overlayForModel("hermes3:8b").toolCallFormat).toBe("llama3-json");
+  });
+});

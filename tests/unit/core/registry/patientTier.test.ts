@@ -2,9 +2,11 @@ import { describe, it, expect } from "vitest";
 import {
   PATIENT_TIER_DEFAULT_TIMEOUT_MS,
   PATIENT_TIER_LATENCY_WARNING,
+  PATIENT_TIER_RAM_PRESETS,
   PATIENT_TIER_TAG,
   isPatientTierModelVisible,
   isPatientTierSpec,
+  patientRamPresetById,
   resolvePatientTimeoutMs,
 } from "../../../../core/registry/patientTier.js";
 
@@ -48,8 +50,24 @@ describe("patientTier -- timeout resolver (E1)", () => {
     ).toBe(5_000_000);
   });
 
-  it("exposes a 1-hour default and an honest latency warning", () => {
+  it("exposes a 1-hour default and an honest latency warning covering 0.03 tok/s", () => {
     expect(PATIENT_TIER_DEFAULT_TIMEOUT_MS).toBe(3_600_000);
     expect(PATIENT_TIER_LATENCY_WARNING.toLowerCase()).toContain("tokens/sec");
+    expect(PATIENT_TIER_LATENCY_WARNING).toContain("0.03");
+    expect(PATIENT_TIER_LATENCY_WARNING).toContain("32 seconds/token");
+  });
+});
+
+describe("patientTier -- RAM-budget presets (v1.19.2 K1)", () => {
+  it("ships laptop / workstation / max with measured s/token floors", () => {
+    expect(PATIENT_TIER_RAM_PRESETS.map((p) => p.id)).toEqual(["laptop", "workstation", "max"]);
+    expect(patientRamPresetById("laptop")?.expectedSecondsPerToken).toBe(32);
+    expect(patientRamPresetById("laptop")?.peakRssGB).toBe(8.24);
+    expect(patientRamPresetById("workstation")?.expectedSecondsPerToken).toBe(21);
+    expect(patientRamPresetById("max")?.peakRssGB).toBe(224);
+    expect(patientRamPresetById("max")?.expectedSecondsPerToken).toBe(19);
+    for (const preset of PATIENT_TIER_RAM_PRESETS) {
+      expect(preset.copy.toLowerCase()).toContain("does not bundle");
+    }
   });
 });

@@ -43,7 +43,8 @@ export type HarnessProfileId =
   | "plan-first"
   | "structured-edit"
   | "minimal"
-  | "lfm-agentic";
+  | "lfm-agentic"
+  | "hermes-agentic";
 
 /** The scaffold-profile prompt-style vocabulary (mirrors PromptContext.promptStyle). */
 export type HarnessPromptStyle = "concise" | "detailed" | "beginner";
@@ -238,6 +239,20 @@ const NAMED_PROFILES: Readonly<Record<HarnessProfileId, HarnessProfile>> = Objec
       "LFM2.5 agentic loop: concise ChatML scaffold, thinking on, parse pythonic " +
       "tool calls between tool_call_start / tool_call_end tokens",
   }),
+  "hermes-agentic": Object.freeze({
+    id: "hermes-agentic",
+    tier: "mid",
+    label: "hermes-agentic",
+    promptStyle: "concise",
+    thinkingMode: true,
+    systemPromptBudgetPercent: 10,
+    toolCallFormat: "llama3-json" as ToolFormatName,
+    compactionThreshold: 0.8,
+    userMessageTail: 3,
+    rationale:
+      "Hermes 3 agentic loop: concise Llama-3 tool JSON, thinking on for tool choice, " +
+      "mid-tier compaction (0.8 threshold, keep last 3 user messages)",
+  }),
 });
 
 /**
@@ -250,6 +265,7 @@ const FAMILY_PROFILE_IDS: Readonly<Record<string, HarnessProfileId>> = Object.fr
   deepseek: "structured-edit",
   kimi: "concise-loop",
   "lfm2.5": "lfm-agentic",
+  hermes: "hermes-agentic",
 });
 
 /** Family + tier -> named profile, taking precedence over FAMILY_PROFILE_IDS. */
@@ -355,9 +371,11 @@ function resolveFamilyKey(
   const id = entry.id.toLowerCase();
   if (id.includes("kimi")) return "kimi";
   if (id.includes("lfm2.5") || id.startsWith("lfm2")) return "lfm2.5";
+  if (id.includes("hermes")) return "hermes";
   const tags = entry.tags ?? [];
   if (tags.some((t) => t.toLowerCase().includes("kimi"))) return "kimi";
   if (tags.some((t) => t.toLowerCase().includes("lfm"))) return "lfm2.5";
+  if (tags.some((t) => t.toLowerCase().includes("hermes"))) return "hermes";
   return undefined;
 }
 

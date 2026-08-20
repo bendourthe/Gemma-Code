@@ -23,11 +23,12 @@ describe("ModelCatalog", () => {
     );
   });
 
-  it("listFamilies covers gemma/llama/qwen/deepseek/lfm2.5", () => {
+  it("listFamilies covers gemma/llama/qwen/deepseek/lfm2.5/hermes", () => {
     const families = ModelCatalog.listFamilies().sort();
     expect(families).toEqual([
       "deepseek",
       "gemma",
+      "hermes",
       "lfm2.5",
       "llama",
       "qwen",

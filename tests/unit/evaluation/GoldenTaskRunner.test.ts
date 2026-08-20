@@ -5,6 +5,8 @@ import * as os from "node:os";
 import * as path from "node:path";
 import {
   runGoldenTask,
+  runDeterminismAcrossBudget,
+  isPatientTierAdapterRegistered,
   zeroSessionMetrics,
   type AgentDriver,
   type GoldenRunOptions,
@@ -167,5 +169,51 @@ describe("zeroSessionMetrics", () => {
     expect(m.totalDurationMs).toBe(0);
     expect(m.toolStepCount).toBe(0);
     expect(m.successRate).toBe(0);
+  });
+});
+
+describe("runDeterminismAcrossBudget (v1.19.2 K3)", () => {
+  it("skips when no patient-tier adapter is registered", async () => {
+    expect(isPatientTierAdapterRegistered({})).toBe(false);
+    const result = await runDeterminismAcrossBudget({
+      adapterRegistered: false,
+      generate: async () => "token",
+    });
+    expect(result.skipped).toBe(true);
+    if (result.skipped) {
+      expect(result.reason).toMatch(/no patient-tier adapter/i);
+    }
+  });
+
+  it("asserts byte-identical output across two offload budgets when an adapter is injected", async () => {
+    const result = await runDeterminismAcrossBudget({
+      adapterRegistered: true,
+      generate: async (config) => `same-output:${config.id.length >= 0 ? "ok" : "nope"}`,
+    });
+    expect(result.skipped).toBe(false);
+    if (!result.skipped) {
+      expect(result.identical).toBe(true);
+      expect(result.outputs[0]).toBe(result.outputs[1]);
+    }
+  });
+
+  it("reports a mismatch when the two budgets diverge", async () => {
+    const result = await runDeterminismAcrossBudget({
+      adapterRegistered: true,
+      generate: async (config) => config.id,
+    });
+    expect(result.skipped).toBe(false);
+    if (!result.skipped) {
+      expect(result.identical).toBe(false);
+    }
+  });
+
+  it("skips when an adapter is registered but no generate function is provided", async () => {
+    expect(isPatientTierAdapterRegistered({ NEXUS_PATIENT_TIER_ADAPTER: "llama.cpp" })).toBe(true);
+    const result = await runDeterminismAcrossBudget({ adapterRegistered: true });
+    expect(result.skipped).toBe(true);
+    if (result.skipped) {
+      expect(result.reason).toMatch(/no patient-tier generate function/i);
+    }
   });
 });

@@ -6,7 +6,7 @@
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
-Plans: [v1.19.0](plans/v1.19.0-adoption-liquid-lfm-agentic.md) (cut), [v1.19.1](plans/v1.19.1-adoption-agent-loop-and-guardrail-hardening.md) (cut), [v1.19.2](plans/v1.19.2-adoption-catalog-and-model-expansion.md).
+Plans: [v1.19.0](plans/v1.19.0-adoption-liquid-lfm-agentic.md) (cut), [v1.19.1](plans/v1.19.1-adoption-agent-loop-and-guardrail-hardening.md) (cut), [v1.19.2](plans/v1.19.2-adoption-catalog-and-model-expansion.md) (Phase 1 complete; awaiting `/update release`).
 
 Carry-forward source: [../v1.18/known-gaps.md](../v1.18/known-gaps.md) (v1.18.0 cycle items stay in that file; this cycle does not close them). Sibling subplans [v1.19.1](plans/v1.19.1-adoption-agent-loop-and-guardrail-hardening.md) and [v1.19.2](plans/v1.19.2-adoption-catalog-and-model-expansion.md) keep this file in-progress after the v1.19.0 plan's Phase 4 reconciliation.
 
@@ -174,3 +174,56 @@ _Last updated: 2026-08-19 (v1.19.0 tagged)._
 Hard denials, LoopGuards, self-recovery, compression tail, posture dial, provenance screening, DNS pin, watch/hash, and prompt assembler all shipped. No NI, BG, WN, MT, or QG this phase. File stays in-progress for v1.19.2.
 
 _Last updated: 2026-08-19 (v1.19.1 tagged)._
+
+## v1.19.2
+
+**Summary**: 4 open items after Phase 1 (catalog, model, and tier additions) - 0 NI, 4 DF, 0 MT. No suppressed warnings, no bypassed gates. Schema, puller variants, Hermes, Inkling, and patient-tier copy shipped; live Hermes generate and GGUF multimodal remain later-cycle.
+
+### Summary
+
+| Category | Open | Resolved |
+|---|---|---|
+| Not implemented (NI) | 0 | 0 |
+| Deferred (DF) | 4 | 0 |
+| Bugs / regressions (BG) | 0 | 0 |
+| Warnings (WN) | 0 | 0 |
+| Missing tests / coverage gaps (MT) | 0 | 0 |
+| Quality-gate gaps (QG) | 0 | 0 |
+
+### Open Items
+
+#### Deferred
+
+##### DF-1 - Hermes harness A/B is fixture-only; no live Hermes generate this cycle
+
+- **Source phase**: Phase 1 - Hermes harness profiles (1.5)
+- **Plan reference**: `docs/v1/v1.19/plans/v1.19.2-adoption-catalog-and-model-expansion.md` (sub-task 1.5)
+- **Reason**: `HarnessSelectorAb` measures `hermes-agentic` as the panel arm on a golden split with a fixture rollout that scores `llama3-json` overlays as passes. A live `hermes3:8b` Ollama generate was not run on this host. Same posture as the LFM fixture A/B: `not_observed != absent`.
+- **Suggested next step**: Re-run `runHarnessAb` against a pulled `hermes3:8b` on the same golden split and record pass_rate / duration. Do not claim a hosted eval.
+
+##### DF-2 - Inkling-Small GGUF is catalogued text-only; native multimodal is unverified at this quant
+
+- **Source phase**: Phase 1 - Inkling-Small patient-tier entry (1.6)
+- **Plan reference**: `docs/v1/v1.19/plans/v1.19.2-adoption-catalog-and-model-expansion.md` (sub-task 1.6)
+- **Reason**: The native Inkling-Small checkpoint is text+image+audio. The curated GGUF (`unsloth/Inkling-Small-GGUF`, UD-IQ1_S, three shards) has no verified llama.cpp multimodal projector at implementation time. The row ships `modalities: ["text"]` with copy that names the gap. Adding image/audio would over-claim.
+- **Suggested next step**: If a later llama.cpp / GGUF line grows a working projector, add those modalities only after a dated local load of an image and an audio clip. Keep the row out of `recommended.json`.
+
+##### DF-3 - Coding AgentLoop still parses Gemma XML, not llama3-json, for Hermes
+
+- **Source phase**: Phase 1 - Hermes harness profiles (1.5); same seam as v1.19.0 DF-6
+- **Plan reference**: `docs/v1/v1.19/plans/v1.19.2-adoption-catalog-and-model-expansion.md` (sub-task 1.5)
+- **Reason**: `HarnessSelector` pins `toolCallFormat: "llama3-json"` on `hermes3:8b` / `hermes3:70b`. [`AgentLoop`](../../../src/tools/AgentLoop.ts) still calls `parseToolCalls` from `Gemma4ToolFormat`. Listing Hermes in Coding `ModelCatalog` does not yet make the live agent execute Hermes tool calls. This is the same composition-root remainder as LFM pythonic spans.
+- **Suggested next step**: Dispatch `getToolCallFormat(entry.toolFormat).parse` from the composition root without changing Gemma's path when `toolFormat` is `gemma4-xml`. Closes v1.19.0 DF-6 and this item together.
+
+##### DF-4 - Patient-tier determinism assertion skips when no offload adapter is registered
+
+- **Source phase**: Phase 1 - RAM-budget presets + determinism (1.7)
+- **Plan reference**: `docs/v1/v1.19/plans/v1.19.2-adoption-catalog-and-model-expansion.md` (sub-task 1.7)
+- **Reason**: `runDeterminismAcrossBudget` is skip-if-absent (`NEXUS_PATIENT_TIER_ADAPTER` unset, or no injected `generate`). Nexus does not bundle the llama.cpp flash-MoE offload runtime; presets are copy only. CI therefore never proves byte-identical output on a real trillion-class MoE.
+- **Suggested next step**: On a host with a registered adapter, run the two default budgets and keep the dated identical/mismatch record. Do not imply Nexus ships the offload runtime.
+
+### Phase 1 reconciliation
+
+Modalities, audioConditioning, official-only precision variants, Hermes 3 catalog+harness, Inkling patient-tier GGUF, and calibrated patient-tier copy all shipped. No NI, BG, WN, MT, or QG this phase. File stays in-progress until `/update release` cuts v1.19.2.
+
+_Last updated: 2026-08-19 (v1.19.2 Phase 1)._

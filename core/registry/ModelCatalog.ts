@@ -19,7 +19,7 @@
  *    content-addressed registry; the public type surface stays stable).
  */
 
-export type ModelFamily = "gemma" | "llama" | "qwen" | "deepseek" | "lfm2.5";
+export type ModelFamily = "gemma" | "llama" | "qwen" | "deepseek" | "lfm2.5" | "hermes";
 
 export type PromptFormatName = "gemma4" | "llama3" | "qwen" | "deepseek" | "lfm";
 
@@ -147,6 +147,28 @@ const ENTRIES: readonly LlmCatalogEntry[] = Object.freeze([
     sampling: { temperature: 0.3, topP: 0.9, topK: 50, contextLength: 128000 },
     promptFormat: "lfm",
     toolFormat: "lfm-pythonic",
+  },
+  {
+    id: "hermes3:8b",
+    displayName: "Hermes 3 8B",
+    family: "hermes",
+    runtime: "ollama",
+    vramGb: 8,
+    tags: Object.freeze(["coding", "chat", "tool-use"]),
+    sampling: { temperature: 0.7, topP: 0.9, topK: 50, contextLength: 131072 },
+    promptFormat: "llama3",
+    toolFormat: "llama3-json",
+  },
+  {
+    id: "hermes3:70b",
+    displayName: "Hermes 3 70B",
+    family: "hermes",
+    runtime: "ollama",
+    vramGb: 40,
+    tags: Object.freeze(["coding", "chat", "tool-use", "advanced"]),
+    sampling: { temperature: 0.7, topP: 0.9, topK: 50, contextLength: 131072 },
+    promptFormat: "llama3",
+    toolFormat: "llama3-json",
   },
 ]);
 

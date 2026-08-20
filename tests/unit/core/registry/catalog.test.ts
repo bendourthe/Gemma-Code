@@ -123,6 +123,7 @@ describe("catalog", () => {
   it("findSpec / getSpec resolve by id", async () => {
     const file = await loadCatalog();
     expect(findSpec(file, "gemma4:e4b")?.id).toBe("gemma4:e4b");
+    expect(getSpec(file, "gemma4:e4b").id).toBe("gemma4:e4b");
     expect(findSpec(file, "nope:1")).toBeUndefined();
     expect(() => getSpec(file, "nope:1")).toThrow();
   });
@@ -386,6 +387,8 @@ describe("catalog", () => {
       "qwen2.5-coder:14b",
       "deepseek-coder-v2:16b",
       "lfm2.5:2.6b",
+      "hermes3:8b",
+      "hermes3:70b",
     ];
     for (const id of agentic) {
       expect(byId.get(id)?.agentic, `${id} should be agentic-capable`).toBe(true);
@@ -475,5 +478,320 @@ describe("catalog", () => {
         `${entry.id} description should name its origin (${origin})`,
       ).toBe(true);
     }
+  });
+
+  it("backfills modalities on every bundled entry (v1.19.2)", async () => {
+    const file = await loadCatalog();
+    const allowed = new Set(["text", "image", "audio"]);
+    for (const entry of file.models) {
+      expect(entry.modalities?.length, `${entry.id} missing modalities`).toBeGreaterThan(0);
+      for (const modality of entry.modalities ?? []) {
+        expect(allowed.has(modality), `${entry.id} invalid modality ${modality}`).toBe(true);
+      }
+    }
+    expect(findSpec(file, "gemma-4-12b-it-gguf")?.modalities).toEqual(["text", "image"]);
+    expect(findSpec(file, "faster-whisper-large-v3")?.modalities).toEqual(["audio"]);
+    expect(findSpec(file, "gemma4:e4b")?.modalities).toEqual(["text"]);
+  });
+
+  it("video entries declare audioConditioning (v1.19.2)", async () => {
+    const file = await loadCatalog();
+    const videos = file.models.filter((m) => m.type === "video");
+    expect(videos.length).toBeGreaterThan(0);
+    for (const entry of videos) {
+      expect(entry.audioConditioning, `${entry.id} missing audioConditioning`).toBeDefined();
+      expect(typeof entry.audioConditioning?.supported).toBe("boolean");
+    }
+  });
+
+  it("curates Hermes 3 8B/70B as agentic catalog entries (v1.19.2)", async () => {
+    const file = await loadCatalog();
+    const eight = findSpec(file, "hermes3:8b");
+    expect(eight).toBeDefined();
+    expect(eight?.family).toBe("hermes");
+    expect(eight?.agentic).toBe(true);
+    expect(eight?.origin).toBe("USA");
+    expect(eight?.license).toMatch(/Llama 3\.1/);
+    expect(eight?.source.protocol).toBe("ollama");
+    expect(eight?.source.url).toBe("ollama://hermes3:8b");
+    expect(eight?.modalities).toEqual(["text"]);
+    expect(eight?.contextWindow).toBe(131072);
+    const seventy = findSpec(file, "hermes3:70b");
+    expect(seventy?.agentic).toBe(true);
+    expect(seventy?.source.url).toBe("ollama://hermes3:70b");
+    expect(seventy?.tags).toContain("advanced");
+  });
+
+  it("curates Inkling-Small as an opt-in patient-tier GGUF (v1.19.2)", async () => {
+    const file = await loadCatalog();
+    const inkling = findSpec(file, "inkling-small");
+    expect(inkling).toBeDefined();
+    expect(inkling?.tags).toContain("patient-tier");
+    expect(inkling?.sizeGB).toBe(74.8);
+    expect(inkling?.license).toBe("Apache-2.0");
+    expect(inkling?.modalities).toEqual(["text"]);
+    expect(inkling?.expectedSecondsPerToken).toBe(32);
+    expect(inkling?.measuredPeakRssGB).toBe(8.24);
+    expect(inkling?.patientRamPresets?.map((p) => p.id)).toEqual(["laptop", "workstation", "max"]);
+    expect(inkling?.weights?.layoutVersion).toBe(2);
+    expect(inkling?.weights?.defaultVariant).toBe("gguf-ud-iq1-s");
+    const variant = inkling?.weights?.variants?.[0];
+    expect(variant?.official).toBe(true);
+    expect(variant?.precision).toBe("gguf");
+    expect(variant?.files.length).toBe(3);
+    for (const fileEntry of variant?.files ?? []) {
+      expect(fileEntry.sha256).toMatch(/^[a-f0-9]{64}$/);
+      expect(fileEntry.sha256).not.toBe("0".repeat(64));
+    }
+    const copy = [
+      inkling?.description,
+      inkling?.whyRecommended,
+      inkling?.differentiators,
+    ].join(" ");
+    expect(copy.toLowerCase()).toContain("text-only");
+    expect(copy.toLowerCase()).toContain("unverified");
+  });
+
+  it("does not add Inkling-Small to recommended.json defaults (v1.19.2)", async () => {
+    const recommendedPath = path.resolve("core/registry/recommended.json");
+    const recommended = JSON.parse(await fs.readFile(recommendedPath, "utf8")) as {
+      tiers: Record<string, Record<string, string[]>>;
+    };
+    for (const [tier, sections] of Object.entries(recommended.tiers)) {
+      for (const [section, ids] of Object.entries(sections)) {
+        expect(ids, `${tier}/${section}`).not.toContain("inkling-small");
+        expect(ids, `${tier}/${section}`).not.toContain("hermes3:70b");
+      }
+    }
+  });
+
+  it("validateSpec rejects unofficial weights variants", () => {
+    expect(() =>
+      validateSpec({
+        id: "x",
+        family: "x",
+        name: "x",
+        tag: "1",
+        type: "image",
+        displayName: "X",
+        source: { protocol: "huggingface", url: "https://huggingface.co/x/resolve/main/a.bin" },
+        weights: {
+          layoutVersion: 2,
+          variants: [
+            {
+              id: "community-fp8",
+              precision: "fp8",
+              official: false as unknown as true,
+              files: [{ path: "a.bin", sha256: "a".repeat(64) }],
+            },
+          ],
+        },
+      }),
+    ).toThrow(/not official/);
+  });
+
+  it("validateSpec rejects an unknown patientRamPreset id", () => {
+    expect(() =>
+      validateSpec({
+        id: "x",
+        family: "x",
+        name: "x",
+        tag: "1",
+        type: "llm",
+        displayName: "X",
+        source: { protocol: "ollama", url: "ollama://x:1" },
+        patientRamPresets: [
+          {
+            id: "handheld" as "laptop",
+            label: "Handheld",
+            peakRssGB: 4,
+            expectedSecondsPerToken: 40,
+            copy: "no",
+          },
+        ],
+      }),
+    ).toThrow(/invalid patientRamPreset id/);
+  });
+
+  it("validateSpec rejects unsafe or incomplete weights variants (v1.19.2)", () => {
+    const hf: ModelSpec = {
+      id: "x",
+      family: "x",
+      name: "x",
+      tag: "1",
+      type: "image",
+      displayName: "X",
+      source: { protocol: "huggingface", url: "https://huggingface.co/x/resolve/main/a.bin" },
+    };
+    const pin = "a".repeat(64);
+    expect(() =>
+      validateSpec({
+        ...hf,
+        weights: { layoutVersion: 2, files: [{ path: "../a.bin", sha256: pin }] },
+      }),
+    ).toThrow(/unsafe/);
+    expect(() =>
+      validateSpec({
+        ...hf,
+        weights: { layoutVersion: 2, files: [{ path: "a.bin", sha256: "nope" }] },
+      }),
+    ).toThrow(/malformed sha256/);
+    expect(() => validateSpec({ ...hf, weights: { layoutVersion: 2 } })).toThrow(/no files or variants/);
+    expect(() =>
+      validateSpec({
+        ...hf,
+        weights: {
+          layoutVersion: 2,
+          variants: [{ id: "  ", precision: "int8", official: true, files: [{ path: "a.bin", sha256: pin }] }],
+        },
+      }),
+    ).toThrow(/missing id/);
+    expect(() =>
+      validateSpec({
+        ...hf,
+        weights: {
+          layoutVersion: 2,
+          variants: [
+            { id: "int8", precision: "int8", official: true, files: [{ path: "a.bin", sha256: pin }] },
+            { id: "int8", precision: "int8", official: true, files: [{ path: "b.bin", sha256: pin }] },
+          ],
+        },
+      }),
+    ).toThrow(/duplicate weights variant id/);
+    expect(() =>
+      validateSpec({
+        ...hf,
+        weights: {
+          layoutVersion: 2,
+          variants: [
+            {
+              id: "q",
+              precision: "int4" as "int8",
+              official: true,
+              files: [{ path: "a.bin", sha256: pin }],
+            },
+          ],
+        },
+      }),
+    ).toThrow(/invalid precision/);
+    expect(() =>
+      validateSpec({
+        ...hf,
+        weights: {
+          layoutVersion: 2,
+          variants: [{ id: "int8", precision: "int8", official: true, files: [] }],
+        },
+      }),
+    ).toThrow(/has no files/);
+    expect(() =>
+      validateSpec({
+        ...hf,
+        weights: {
+          layoutVersion: 2,
+          defaultVariant: "missing",
+          variants: [{ id: "int8", precision: "int8", official: true, files: [{ path: "a.bin", sha256: pin }] }],
+        },
+      }),
+    ).toThrow(/defaultVariant/);
+  });
+
+  it("validateSpec rejects invalid modality, audio, throughput, and preset fields (v1.19.2)", () => {
+    const base: ModelSpec = {
+      id: "x",
+      family: "x",
+      name: "x",
+      tag: "1",
+      type: "llm",
+      displayName: "X",
+      source: { protocol: "ollama", url: "ollama://x:1" },
+    };
+    const laptop = {
+      id: "laptop" as const,
+      label: "Laptop",
+      peakRssGB: 8,
+      expectedSecondsPerToken: 32,
+      copy: "copy",
+    };
+    expect(() => validateSpec({ ...base, modalities: [] })).toThrow(/modalities must be a non-empty array/);
+    expect(() => validateSpec({ ...base, modalities: ["smell" as "text"] })).toThrow(/invalid modality/);
+    expect(() =>
+      validateSpec({
+        ...base,
+        audioConditioning: { supported: "yes" as unknown as boolean },
+      }),
+    ).toThrow(/audioConditioning.supported must be a boolean/);
+    expect(() =>
+      validateSpec({
+        ...base,
+        audioConditioning: { supported: true, modes: "single" as unknown as string[] },
+      }),
+    ).toThrow(/audioConditioning.modes must be an array/);
+    expect(() =>
+      validateSpec({
+        ...base,
+        audioConditioning: { supported: true, modes: ["stereo" as "single"] },
+      }),
+    ).toThrow(/invalid audioConditioning mode/);
+    expect(() => validateSpec({ ...base, expectedSecondsPerToken: 0 })).toThrow(/expectedSecondsPerToken/);
+    expect(() => validateSpec({ ...base, measuredPeakRssGB: -1 })).toThrow(/measuredPeakRssGB/);
+    expect(() => validateSpec({ ...base, patientRamPresets: [] })).toThrow(/patientRamPresets must be a non-empty array/);
+    expect(() => validateSpec({ ...base, patientRamPresets: [laptop, laptop] })).toThrow(/duplicate patientRamPreset id/);
+    expect(() =>
+      validateSpec({ ...base, patientRamPresets: [{ ...laptop, peakRssGB: 0 }] }),
+    ).toThrow(/peakRssGB must be positive/);
+    expect(() =>
+      validateSpec({ ...base, patientRamPresets: [{ ...laptop, expectedSecondsPerToken: -2 }] }),
+    ).toThrow(/expectedSecondsPerToken must be positive/);
+  });
+
+  it("validateSpec rejects unpinned trustRemoteCode, bad revision, and inverted MoE fields", () => {
+    const base: ModelSpec = {
+      id: "x",
+      family: "x",
+      name: "x",
+      tag: "1",
+      type: "llm",
+      displayName: "X",
+      source: { protocol: "huggingface", url: "https://huggingface.co/x/resolve/main/a.bin" },
+    };
+    expect(() =>
+      validateSpec({ ...base, source: { ...base.source, revision: "main" } }),
+    ).toThrow(/malformed source.revision/);
+    expect(() => validateSpec({ ...base, trustRemoteCode: true })).toThrow(/trustRemoteCode/);
+    expect(() => validateSpec({ ...base, activeParams: 1 })).toThrow(/both activeParams and totalParams/);
+    expect(() => validateSpec({ ...base, activeParams: 10, totalParams: 3 })).toThrow(/exceeds totalParams/);
+    expect(() =>
+      validateSpec({
+        ...base,
+        toolCallingVerified: true,
+        toolCallingBenchmark: { suite: "s", date: "not-a-date", result: "ok" },
+      }),
+    ).toThrow(/YYYY-MM-DD/);
+  });
+
+  it("validateSpec accepts an official precision-variant manifest", () => {
+    expect(() =>
+      validateSpec({
+        id: "x",
+        family: "x",
+        name: "x",
+        tag: "1",
+        type: "image",
+        displayName: "X",
+        source: { protocol: "huggingface", url: "https://huggingface.co/x/resolve/main/a.bin" },
+        weights: {
+          layoutVersion: 2,
+          defaultVariant: "int8",
+          variants: [
+            {
+              id: "int8",
+              precision: "int8",
+              official: true,
+              files: [{ path: "a.bin", sha256: "a".repeat(64) }],
+            },
+          ],
+        },
+      }),
+    ).not.toThrow();
   });
 });

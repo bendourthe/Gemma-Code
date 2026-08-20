@@ -4,6 +4,39 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-19] v1.19.2 catalog-and-model-expansion -- Phase 1: catalog, models, patient tier
+
+### Goal
+
+Extend the registry and installer so later v2.0.0 phases have model plumbing: calibrated patient-tier copy, merged modality/audio schema, official-only precision-variant weights, Hermes 3 family + harness profiles, Inkling-Small patient-tier GGUF, RAM-budget presets, and a skip-if-absent determinism assertion.
+
+### What was done
+
+- **Patient-tier copy**: `PATIENT_TIER_LATENCY_WARNING` now covers independently measured ~0.03 tok/s (~32 s/token laptop, ~19-21 s/token server). RAM-budget presets (`laptop` / `workstation` / `max`) are catalog and settings copy. Copy states Nexus does not bundle the offload runtime.
+- **Schema**: `modalities` and `audioConditioning` on catalog entries; DiffusionTier video defaults carry disabled audioConditioning. Every bundled entry is backfilled.
+- **Weights variants**: layoutVersion 2 variants with per-file sha256. Puller selects by VRAM or `NEXUS_WEIGHTS_VARIANT`. Unofficial variants fail closed.
+- **Hermes 3**: `hermes3:8b` / `hermes3:70b` in catalog.json and Coding ModelCatalog (`family: hermes`, llama3 / llama3-json). `hermes-agentic` harness profile. Fixture A/B only.
+- **Inkling-Small**: opt-in patient-tier GGUF, 74.8 GB, Apache-2.0, three UD-IQ1_S shards with real LFS sha256. `modalities: ["text"]`. Never in `recommended.json`.
+- **Determinism**: `runDeterminismAcrossBudget` skip-if-absent (`NEXUS_PATIENT_TIER_ADAPTER`).
+- **CI**: installer-tests.yml path filters include `core/registry/patientTier.ts` and `core/config/**`.
+- **Cycle break**: PatientRamPreset types live in catalog.ts so patientTier imports catalog one-way.
+
+### Decisions
+
+- No unofficial/community quants. No Kimi K3 checkpoint. Inkling and hermes3:70b stay off recommended.json.
+- Live Hermes generate and GGUF multimodal are DF, not silent passes.
+- Version bump waits for `/update release`.
+
+### Tests
+
+Root Vitest: 466 files passed / 3 skipped; 5076 tests passed / 11 skipped / 0 failed. Coverage pass: lines 87.77% / branches 83.95% / functions 91.35%. catalog.ts after augmentation 97.04% lines. Lint 0. `tsc -b` clean. Installer pytest green (3 skipped). Desktop coding-models + coding-protocol 25/25. Architecture: catalog/patientTier cycle removed.
+
+### Next
+
+Commit and push this phase, then `/update release` for v1.19.2 (docs, version, changelog, tag, GitHub Release; confirmation gates).
+
+---
+
 ## [2026-08-19] v1.19.1 cut
 
 ### Goal

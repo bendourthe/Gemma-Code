@@ -1,8 +1,8 @@
 {
   "_meta": {
     "version": 1,
-    "phase": "v1.14.0 Phase 1",
-    "comment": "Curated installable model catalog used by the Settings UI and the installer wizard. LLMs ship in Phase 5; image models are flagged for Phase 6 (Image Studio); video models for Phase 7 (Video Lab); NVIDIA SANA family landed in v1.1.0 Phase 12. Ollama-sourced entries delegate digest verification to `ollama pull` and carry no sha256. Hugging Face entries carry a per-model `weights` manifest (v1.8.0 Phase 3): an explicit file list, each downloaded from https://huggingface.co/{repo}/resolve/main/{path} into <models_root>/weights/<model-id>/{path} (models_root defaults to ~/.nexus/models) -- the per-model directory the diffusion runtime loads at startup (diffusers from_pretrained on the model directory; repo-relative subpaths like transformer/ are preserved). Each file pins a SHA-256 (versions.lock.json discipline): all-zero digests are placeholders -- the installer's weights puller warns, skips verification, and logs the computed digest; rotate pins with scripts/installer/build/pin-hf-weights.py. source.sha256 remains the primary-blob digest for older consumers and is superseded by weights.files[].sha256. v1.8.0 Phase 4 adds the selection-UX fields: `task` (chat | agentic | image | video | audio | embed) drives the installer's catalog sections; `strengths` / `whyRecommended` / `differentiators` carry the per-model copy the wizard cards render; `provenance` records publisher + lineage for curated entries (required on uncensored ones). Uncensored entries (uncensored: true) were curated 2026-07-03 with license + provenance verified per entry; per-VRAM-tier defaults live in recommended.json. v1.9.0 Phase 4 adds the scannable-catalog metadata: `origin` (publisher country, or Community) and `agentic` (agentic-coding capability flag -- set on the Gemma 4 family + the coding specialists so both surface in the installer's Agentic tab); an optional `guardrails` string overrides the installer's derived Uncensored/Safety-tuned/N/A label. The audio pillar (type/task `audio`) is curated: speech (faster-whisper STT MIT, Kokoro + Piper TTS) and generation (MusicGen CC-BY-NC-4.0, Stable Audio Open community-license) -- STT/TTS are permissive + CPU-capable and default on every tier; the non-commercial generation models are listed opt-in (never defaults). v1.14.0 Phase 1 curation: releaseDate (ISO YYYY-MM-DD) is now a first-class field on every selectable model, rendered as a card pill by the installer picker; gated open-weight opt-ins (svd, stable-audio-open-1.0, sana-1.6b-int4) carry requiresLicense=true + licenseUrl so the installer guided Hugging Face step (accept license + free token) can unlock them, and sd1.5 was re-pointed from the withdrawn runwayml repo to the public stable-diffusion-v1-5 mirror; auxiliary types (vae, controlnet) stay excluded from the picker by the loader; the per-family best-fit collapse (show the single best variant that fits the detected hardware, larger tiers grayed) happens in the installer picker at render time, so the catalog stays a complete data source for the desktop app and diffusion runtime. v1.18.0 Phase 3 adds optional toolCallingVerified + toolCallingBenchmark (OW-A4) and MoE activeParams/totalParams in billions (LG-A3); omitted fields stay unverified / dense. v1.19.0 Phase 1 adds LFM2.5-2.6B as the low-VRAM Agentic entry (official Liquid GGUF via the Ollama hf.co bridge -- the official Ollama library does not carry it at curation time -- plus a real SHA-256 pin on weights.files) and an optional licenseNote use-restriction string so ungated licenses with a commercial-use cap stay visible without triggering requiresLicense gated-auth. Record contextWindow conservatively at 32K until Phase 2 verifies the 128K claim."
+    "phase": "v1.19.2 Phase 1",
+    "comment": "Curated installable model catalog used by the Settings UI and the installer wizard. LLMs ship in Phase 5; image models are flagged for Phase 6 (Image Studio); video models for Phase 7 (Video Lab); NVIDIA SANA family landed in v1.1.0 Phase 12. Ollama-sourced entries delegate digest verification to `ollama pull` and carry no sha256. Hugging Face entries carry a per-model `weights` manifest (v1.8.0 Phase 3): an explicit file list, each downloaded from https://huggingface.co/{repo}/resolve/main/{path} into <models_root>/weights/<model-id>/{path} (models_root defaults to ~/.nexus/models) -- the per-model directory the diffusion runtime loads at startup (diffusers from_pretrained on the model directory; repo-relative subpaths like transformer/ are preserved). Each file pins a SHA-256 (versions.lock.json discipline): all-zero digests are placeholders -- the installer's weights puller warns, skips verification, and logs the computed digest; rotate pins with scripts/installer/build/pin-hf-weights.py. source.sha256 remains the primary-blob digest for older consumers and is superseded by weights.files[].sha256. v1.8.0 Phase 4 adds the selection-UX fields: `task` (chat | agentic | image | video | audio | embed) drives the installer's catalog sections; `strengths` / `whyRecommended` / `differentiators` carry the per-model copy the wizard cards render; `provenance` records publisher + lineage for curated entries (required on uncensored ones). Uncensored entries (uncensored: true) were curated 2026-07-03 with license + provenance verified per entry; per-VRAM-tier defaults live in recommended.json. v1.9.0 Phase 4 adds the scannable-catalog metadata: `origin` (publisher country, or Community) and `agentic` (agentic-coding capability flag -- set on the Gemma 4 family + the coding specialists so both surface in the installer's Agentic tab); an optional `guardrails` string overrides the installer's derived Uncensored/Safety-tuned/N/A label. The audio pillar (type/task `audio`) is curated: speech (faster-whisper STT MIT, Kokoro + Piper TTS) and generation (MusicGen CC-BY-NC-4.0, Stable Audio Open community-license) -- STT/TTS are permissive + CPU-capable and default on every tier; the non-commercial generation models are listed opt-in (never defaults). v1.14.0 Phase 1 curation: releaseDate (ISO YYYY-MM-DD) is now a first-class field on every selectable model, rendered as a card pill by the installer picker; gated open-weight opt-ins (svd, stable-audio-open-1.0, sana-1.6b-int4) carry requiresLicense=true + licenseUrl so the installer guided Hugging Face step (accept license + free token) can unlock them, and sd1.5 was re-pointed from the withdrawn runwayml repo to the public stable-diffusion-v1-5 mirror; auxiliary types (vae, controlnet) stay excluded from the picker by the loader; the per-family best-fit collapse (show the single best variant that fits the detected hardware, larger tiers grayed) happens in the installer picker at render time, so the catalog stays a complete data source for the desktop app and diffusion runtime. v1.18.0 Phase 3 adds optional toolCallingVerified + toolCallingBenchmark (OW-A4) and MoE activeParams/totalParams in billions (LG-A3); omitted fields stay unverified / dense. v1.19.0 Phase 1 adds LFM2.5-2.6B as the low-VRAM Agentic entry (official Liquid GGUF via the Ollama hf.co bridge -- the official Ollama library does not carry it at curation time -- plus a real SHA-256 pin on weights.files) and an optional licenseNote use-restriction string so ungated licenses with a commercial-use cap stay visible without triggering requiresLicense gated-auth. Record contextWindow conservatively at 32K until Phase 2 verifies the 128K claim. v1.19.2 Phase 1 adds `modalities` (backfilled text-only unless documented otherwise), `audioConditioning` on video entries, official precision `weights.variants` for quantized delivery, the Hermes 3 family (hermes3:8b / hermes3:70b) via the Ollama library, and the opt-in Inkling-Small patient-tier GGUF (never a recommended.json default)."
   },
   "models": [
     {
@@ -27,13 +27,19 @@
       "sizeGB": 1.6,
       "vramGB": 4,
       "license": "Gemma Terms of Use",
-      "source": { "protocol": "ollama", "url": "ollama://gemma4:e2b" },
+      "source": {
+        "protocol": "ollama",
+        "url": "ollama://gemma4:e2b"
+      },
       "toolCallingVerified": true,
       "toolCallingBenchmark": {
         "suite": "nexus-catalog-agentic-flag",
         "date": "2026-08-17",
         "result": "pass: in-repo agentic=true (coding-engine / installer Agentic tab); not a live golden-task A/B"
-      }
+      },
+      "modalities": [
+        "text"
+      ]
     },
     {
       "id": "gemma4:e4b",
@@ -57,14 +63,22 @@
       "sizeGB": 2.7,
       "vramGB": 6,
       "license": "Gemma Terms of Use",
-      "source": { "protocol": "ollama", "url": "ollama://gemma4:e4b" },
-      "tags": ["recommended"],
+      "source": {
+        "protocol": "ollama",
+        "url": "ollama://gemma4:e4b"
+      },
+      "tags": [
+        "recommended"
+      ],
       "toolCallingVerified": true,
       "toolCallingBenchmark": {
         "suite": "nexus-catalog-agentic-flag",
         "date": "2026-08-17",
         "result": "pass: in-repo agentic=true (coding-engine / installer Agentic tab); not a live golden-task A/B"
-      }
+      },
+      "modalities": [
+        "text"
+      ]
     },
     {
       "id": "gemma4:26b",
@@ -87,13 +101,19 @@
       "sizeGB": 14.5,
       "vramGB": 18,
       "license": "Gemma Terms of Use",
-      "source": { "protocol": "ollama", "url": "ollama://gemma4:26b" },
+      "source": {
+        "protocol": "ollama",
+        "url": "ollama://gemma4:26b"
+      },
       "toolCallingVerified": true,
       "toolCallingBenchmark": {
         "suite": "nexus-catalog-agentic-flag",
         "date": "2026-08-17",
         "result": "pass: in-repo agentic=true (coding-engine / installer Agentic tab); not a live golden-task A/B"
-      }
+      },
+      "modalities": [
+        "text"
+      ]
     },
     {
       "id": "gemma4:31b",
@@ -117,13 +137,19 @@
       "sizeGB": 17.5,
       "vramGB": 22,
       "license": "Gemma Terms of Use",
-      "source": { "protocol": "ollama", "url": "ollama://gemma4:31b" },
+      "source": {
+        "protocol": "ollama",
+        "url": "ollama://gemma4:31b"
+      },
       "toolCallingVerified": true,
       "toolCallingBenchmark": {
         "suite": "nexus-catalog-agentic-flag",
         "date": "2026-08-17",
         "result": "pass: in-repo agentic=true (coding-engine / installer Agentic tab); not a live golden-task A/B"
-      }
+      },
+      "modalities": [
+        "text"
+      ]
     },
     {
       "id": "gemma-4-12b-it-gguf",
@@ -151,14 +177,26 @@
       "multimodal": true,
       "contextWindow": 262144,
       "license": "Gemma Terms of Use",
-      "source": { "protocol": "ollama", "url": "ollama://gemma4:12b" },
-      "tags": ["recommended", "coding", "chat", "multimodal"],
+      "source": {
+        "protocol": "ollama",
+        "url": "ollama://gemma4:12b"
+      },
+      "tags": [
+        "recommended",
+        "coding",
+        "chat",
+        "multimodal"
+      ],
       "toolCallingVerified": true,
       "toolCallingBenchmark": {
         "suite": "nexus-catalog-agentic-flag",
         "date": "2026-08-17",
         "result": "pass: in-repo agentic=true (coding-engine / installer Agentic tab); not a live golden-task A/B"
-      }
+      },
+      "modalities": [
+        "text",
+        "image"
+      ]
     },
     {
       "id": "llama3.1:8b",
@@ -180,7 +218,13 @@
       "sizeGB": 4.7,
       "vramGB": 8,
       "license": "Llama 3.1 Community License",
-      "source": { "protocol": "ollama", "url": "ollama://llama3.1:8b" }
+      "source": {
+        "protocol": "ollama",
+        "url": "ollama://llama3.1:8b"
+      },
+      "modalities": [
+        "text"
+      ]
     },
     {
       "id": "llama3.1:70b",
@@ -202,7 +246,13 @@
       "sizeGB": 39.0,
       "vramGB": 40,
       "license": "Llama 3.1 Community License",
-      "source": { "protocol": "ollama", "url": "ollama://llama3.1:70b" }
+      "source": {
+        "protocol": "ollama",
+        "url": "ollama://llama3.1:70b"
+      },
+      "modalities": [
+        "text"
+      ]
     },
     {
       "id": "qwen2.5:7b",
@@ -224,7 +274,13 @@
       "sizeGB": 4.4,
       "vramGB": 7,
       "license": "Apache-2.0",
-      "source": { "protocol": "ollama", "url": "ollama://qwen2.5:7b" }
+      "source": {
+        "protocol": "ollama",
+        "url": "ollama://qwen2.5:7b"
+      },
+      "modalities": [
+        "text"
+      ]
     },
     {
       "id": "qwen2.5:14b",
@@ -246,7 +302,13 @@
       "sizeGB": 8.2,
       "vramGB": 12,
       "license": "Apache-2.0",
-      "source": { "protocol": "ollama", "url": "ollama://qwen2.5:14b" }
+      "source": {
+        "protocol": "ollama",
+        "url": "ollama://qwen2.5:14b"
+      },
+      "modalities": [
+        "text"
+      ]
     },
     {
       "id": "qwen2.5-coder:7b",
@@ -270,14 +332,22 @@
       "sizeGB": 4.4,
       "vramGB": 7,
       "license": "Apache-2.0",
-      "source": { "protocol": "ollama", "url": "ollama://qwen2.5-coder:7b" },
-      "tags": ["recommended"],
+      "source": {
+        "protocol": "ollama",
+        "url": "ollama://qwen2.5-coder:7b"
+      },
+      "tags": [
+        "recommended"
+      ],
       "toolCallingVerified": true,
       "toolCallingBenchmark": {
         "suite": "nexus-catalog-agentic-flag",
         "date": "2026-08-17",
         "result": "pass: in-repo agentic=true (coding-engine / installer Agentic tab); not a live golden-task A/B"
-      }
+      },
+      "modalities": [
+        "text"
+      ]
     },
     {
       "id": "qwen2.5-coder:14b",
@@ -301,13 +371,19 @@
       "sizeGB": 8.2,
       "vramGB": 12,
       "license": "Apache-2.0",
-      "source": { "protocol": "ollama", "url": "ollama://qwen2.5-coder:14b" },
+      "source": {
+        "protocol": "ollama",
+        "url": "ollama://qwen2.5-coder:14b"
+      },
       "toolCallingVerified": true,
       "toolCallingBenchmark": {
         "suite": "nexus-catalog-agentic-flag",
         "date": "2026-08-17",
         "result": "pass: in-repo agentic=true (coding-engine / installer Agentic tab); not a live golden-task A/B"
-      }
+      },
+      "modalities": [
+        "text"
+      ]
     },
     {
       "id": "deepseek-coder-v2:16b",
@@ -331,7 +407,10 @@
       "sizeGB": 8.9,
       "vramGB": 14,
       "license": "DeepSeek License",
-      "source": { "protocol": "ollama", "url": "ollama://deepseek-coder-v2:16b" },
+      "source": {
+        "protocol": "ollama",
+        "url": "ollama://deepseek-coder-v2:16b"
+      },
       "toolCallingVerified": true,
       "toolCallingBenchmark": {
         "suite": "nexus-catalog-agentic-flag",
@@ -339,7 +418,10 @@
         "result": "pass: in-repo agentic=true (coding-engine / installer Agentic tab); not a live golden-task A/B"
       },
       "activeParams": 2.4,
-      "totalParams": 16
+      "totalParams": 16,
+      "modalities": [
+        "text"
+      ]
     },
     {
       "id": "lfm2.5:2.6b",
@@ -382,14 +464,19 @@
           }
         ]
       },
-      "tags": ["recommended"],
+      "tags": [
+        "recommended"
+      ],
       "toolCallingVerified": true,
       "toolCallingBenchmark": {
         "suite": "nexus-harness-ab-lfm-local",
         "date": "2026-08-18",
         "result": "pass: local Ollama GGUF emitted a pythonic tool_call_start span; lfm-pythonic parser A/B net win vs gemma4-xml on captured fixtures (not a hosted eval)"
       },
-      "provenance": "Official Liquid AI GGUF, Q4_K_M, ungated Hugging Face repo LiquidAI/LFM2.5-2.6B-GGUF. Pulled at install time from the official repo via Ollama's hf.co bridge; Nexus does not redistribute weights."
+      "provenance": "Official Liquid AI GGUF, Q4_K_M, ungated Hugging Face repo LiquidAI/LFM2.5-2.6B-GGUF. Pulled at install time from the official repo via Ollama's hf.co bridge; Nexus does not redistribute weights.",
+      "modalities": [
+        "text"
+      ]
     },
     {
       "id": "nomic-embed-text",
@@ -412,8 +499,16 @@
       "sizeGB": 0.27,
       "vramGB": 1,
       "license": "Apache-2.0",
-      "source": { "protocol": "ollama", "url": "ollama://nomic-embed-text" },
-      "tags": ["recommended"]
+      "source": {
+        "protocol": "ollama",
+        "url": "ollama://nomic-embed-text"
+      },
+      "tags": [
+        "recommended"
+      ],
+      "modalities": [
+        "text"
+      ]
     },
     {
       "id": "sdxl-turbo",
@@ -450,7 +545,13 @@
           }
         ]
       },
-      "tags": ["phase-6", "image"]
+      "tags": [
+        "phase-6",
+        "image"
+      ],
+      "modalities": [
+        "text"
+      ]
     },
     {
       "id": "sdxl-base-1.0",
@@ -487,7 +588,13 @@
           }
         ]
       },
-      "tags": ["phase-6", "image"]
+      "tags": [
+        "phase-6",
+        "image"
+      ],
+      "modalities": [
+        "text"
+      ]
     },
     {
       "id": "juggernaut-xl-v9",
@@ -530,7 +637,16 @@
           }
         ]
       },
-      "tags": ["recommended", "image", "uncensored", "sdxl", "phase-4"]
+      "tags": [
+        "recommended",
+        "image",
+        "uncensored",
+        "sdxl",
+        "phase-4"
+      ],
+      "modalities": [
+        "text"
+      ]
     },
     {
       "id": "realvisxl-v5",
@@ -573,7 +689,16 @@
           }
         ]
       },
-      "tags": ["recommended", "image", "uncensored", "sdxl", "phase-4"]
+      "tags": [
+        "recommended",
+        "image",
+        "uncensored",
+        "sdxl",
+        "phase-4"
+      ],
+      "modalities": [
+        "text"
+      ]
     },
     {
       "id": "flux-schnell",
@@ -610,7 +735,13 @@
           }
         ]
       },
-      "tags": ["phase-6", "image"]
+      "tags": [
+        "phase-6",
+        "image"
+      ],
+      "modalities": [
+        "text"
+      ]
     },
     {
       "id": "sd1.5",
@@ -647,7 +778,13 @@
           }
         ]
       },
-      "tags": ["phase-6", "image"]
+      "tags": [
+        "phase-6",
+        "image"
+      ],
+      "modalities": [
+        "text"
+      ]
     },
     {
       "id": "ltx-video",
@@ -684,7 +821,17 @@
           }
         ]
       },
-      "tags": ["phase-7", "video"]
+      "tags": [
+        "phase-7",
+        "video"
+      ],
+      "modalities": [
+        "text"
+      ],
+      "audioConditioning": {
+        "supported": false,
+        "modes": []
+      }
     },
     {
       "id": "wan2.1-t2v-1.3b",
@@ -735,7 +882,20 @@
           }
         ]
       },
-      "tags": ["recommended", "video", "uncensored", "wan", "phase-4"]
+      "tags": [
+        "recommended",
+        "video",
+        "uncensored",
+        "wan",
+        "phase-4"
+      ],
+      "modalities": [
+        "text"
+      ],
+      "audioConditioning": {
+        "supported": false,
+        "modes": []
+      }
     },
     {
       "id": "wan2.2-ti2v-5b",
@@ -794,7 +954,20 @@
           }
         ]
       },
-      "tags": ["recommended", "video", "uncensored", "wan", "phase-4"]
+      "tags": [
+        "recommended",
+        "video",
+        "uncensored",
+        "wan",
+        "phase-4"
+      ],
+      "modalities": [
+        "text"
+      ],
+      "audioConditioning": {
+        "supported": false,
+        "modes": []
+      }
     },
     {
       "id": "svd",
@@ -835,7 +1008,17 @@
           }
         ]
       },
-      "tags": ["phase-7", "video"]
+      "tags": [
+        "phase-7",
+        "video"
+      ],
+      "modalities": [
+        "text"
+      ],
+      "audioConditioning": {
+        "supported": false,
+        "modes": []
+      }
     },
     {
       "id": "sana-1.6b-1024",
@@ -878,7 +1061,15 @@
           }
         ]
       },
-      "tags": ["recommended", "image", "phase-12", "sana"]
+      "tags": [
+        "recommended",
+        "image",
+        "phase-12",
+        "sana"
+      ],
+      "modalities": [
+        "text"
+      ]
     },
     {
       "id": "sana-sprint-1024",
@@ -920,7 +1111,16 @@
           }
         ]
       },
-      "tags": ["recommended", "image", "phase-12", "sana", "sprint"]
+      "tags": [
+        "recommended",
+        "image",
+        "phase-12",
+        "sana",
+        "sprint"
+      ],
+      "modalities": [
+        "text"
+      ]
     },
     {
       "id": "sana-1.6b-2k",
@@ -962,7 +1162,15 @@
           }
         ]
       },
-      "tags": ["image", "phase-12", "sana", "2k"]
+      "tags": [
+        "image",
+        "phase-12",
+        "sana",
+        "2k"
+      ],
+      "modalities": [
+        "text"
+      ]
     },
     {
       "id": "sana-1.6b-4k",
@@ -1004,7 +1212,15 @@
           }
         ]
       },
-      "tags": ["image", "phase-12", "sana", "4k"]
+      "tags": [
+        "image",
+        "phase-12",
+        "sana",
+        "4k"
+      ],
+      "modalities": [
+        "text"
+      ]
     },
     {
       "id": "sana-1.6b-int4",
@@ -1035,7 +1251,9 @@
       "requiresLicense": true,
       "licenseUrl": "https://huggingface.co/Efficient-Large-Model/SANA1.5_1.6B_1024px_int4",
       "gatedReason": "Access-gated open-weight model (HTTP 401) that also needs the nunchaku runtime dependency: the installer guided Hugging Face step unlocks the download and the diffusion runtime provides nunchaku. The public sana-1.6b-1024 covers 1024px generation without either requirement.",
-      "runtimeDeps": ["nunchaku"],
+      "runtimeDeps": [
+        "nunchaku"
+      ],
       "source": {
         "protocol": "huggingface",
         "repo": "Efficient-Large-Model/SANA1.5_1.6B_1024px_int4",
@@ -1051,7 +1269,15 @@
           }
         ]
       },
-      "tags": ["image", "phase-12", "sana", "int4"]
+      "tags": [
+        "image",
+        "phase-12",
+        "sana",
+        "int4"
+      ],
+      "modalities": [
+        "text"
+      ]
     },
     {
       "id": "dc-ae-f32c32-sana-1.1",
@@ -1085,7 +1311,15 @@
           }
         ]
       },
-      "tags": ["vae", "phase-12", "sana", "auto-loaded"]
+      "tags": [
+        "vae",
+        "phase-12",
+        "sana",
+        "auto-loaded"
+      ],
+      "modalities": [
+        "image"
+      ]
     },
     {
       "id": "sana-controlnet-pose",
@@ -1120,7 +1354,15 @@
           }
         ]
       },
-      "tags": ["controlnet", "phase-12", "sana", "pose"]
+      "tags": [
+        "controlnet",
+        "phase-12",
+        "sana",
+        "pose"
+      ],
+      "modalities": [
+        "image"
+      ]
     },
     {
       "id": "sana-controlnet-depth",
@@ -1155,7 +1397,15 @@
           }
         ]
       },
-      "tags": ["controlnet", "phase-12", "sana", "depth"]
+      "tags": [
+        "controlnet",
+        "phase-12",
+        "sana",
+        "depth"
+      ],
+      "modalities": [
+        "image"
+      ]
     },
     {
       "id": "sana-controlnet-canny",
@@ -1190,7 +1440,15 @@
           }
         ]
       },
-      "tags": ["controlnet", "phase-12", "sana", "canny"]
+      "tags": [
+        "controlnet",
+        "phase-12",
+        "sana",
+        "canny"
+      ],
+      "modalities": [
+        "image"
+      ]
     },
     {
       "id": "sana-video-2b-720p",
@@ -1235,7 +1493,18 @@
           }
         ]
       },
-      "tags": ["video", "phase-12", "sana"]
+      "tags": [
+        "video",
+        "phase-12",
+        "sana"
+      ],
+      "modalities": [
+        "text"
+      ],
+      "audioConditioning": {
+        "supported": false,
+        "modes": []
+      }
     },
     {
       "id": "faster-whisper-large-v3",
@@ -1276,7 +1545,16 @@
           }
         ]
       },
-      "tags": ["recommended", "audio", "speech", "stt", "phase-4"]
+      "tags": [
+        "recommended",
+        "audio",
+        "speech",
+        "stt",
+        "phase-4"
+      ],
+      "modalities": [
+        "audio"
+      ]
     },
     {
       "id": "kokoro-82m",
@@ -1317,7 +1595,16 @@
           }
         ]
       },
-      "tags": ["recommended", "audio", "speech", "tts", "phase-4"]
+      "tags": [
+        "recommended",
+        "audio",
+        "speech",
+        "tts",
+        "phase-4"
+      ],
+      "modalities": [
+        "text"
+      ]
     },
     {
       "id": "piper-en-us-lessac",
@@ -1357,7 +1644,15 @@
           }
         ]
       },
-      "tags": ["audio", "speech", "tts", "phase-4"]
+      "tags": [
+        "audio",
+        "speech",
+        "tts",
+        "phase-4"
+      ],
+      "modalities": [
+        "text"
+      ]
     },
     {
       "id": "musicgen-medium",
@@ -1398,7 +1693,15 @@
           }
         ]
       },
-      "tags": ["audio", "generation", "music", "phase-4"]
+      "tags": [
+        "audio",
+        "generation",
+        "music",
+        "phase-4"
+      ],
+      "modalities": [
+        "text"
+      ]
     },
     {
       "id": "stable-audio-open-1.0",
@@ -1443,7 +1746,15 @@
           }
         ]
       },
-      "tags": ["audio", "generation", "sound", "phase-4"]
+      "tags": [
+        "audio",
+        "generation",
+        "sound",
+        "phase-4"
+      ],
+      "modalities": [
+        "text"
+      ]
     },
     {
       "id": "rapidocr-ppocrv4",
@@ -1490,7 +1801,16 @@
           }
         ]
       },
-      "tags": ["document", "ocr", "cpu", "portable", "phase-3"]
+      "tags": [
+        "document",
+        "ocr",
+        "cpu",
+        "portable",
+        "phase-3"
+      ],
+      "modalities": [
+        "image"
+      ]
     },
     {
       "id": "unlimited-ocr-3b",
@@ -1557,7 +1877,187 @@
           }
         ]
       },
-      "tags": ["document", "ocr", "vlm", "cuda", "phase-3"]
+      "tags": [
+        "document",
+        "ocr",
+        "vlm",
+        "cuda",
+        "phase-3"
+      ],
+      "modalities": [
+        "image"
+      ]
+    },
+    {
+      "id": "hermes3:8b",
+      "family": "hermes",
+      "name": "hermes3",
+      "tag": "8b",
+      "type": "llm",
+      "task": "chat",
+      "displayName": "Hermes 3 8B",
+      "releaseDate": "2024-08-15",
+      "origin": "USA",
+      "agentic": true,
+      "description": "Nous Research's Hermes 3 8B is an agentic Llama 3.1 fine-tune from the USA. The consumer Hermes pick: 4.7 GB download, 128K context, and native function calling on an 8 GB GPU.",
+      "strengths": [
+        "Reliable function calling and structured JSON output",
+        "Strong system-prompt steering for agent loops",
+        "Fits mainstream 8 GB gaming GPUs at Q4"
+      ],
+      "whyRecommended": "The Hermes-family representative that fits consumer GPUs while staying on the official Ollama hermes3 library tag.",
+      "differentiators": "Nous Research's user-steerable Hermes 3 line on Llama 3.1 8B: better tool calling than the base Llama chat pick at the same size.",
+      "provenance": "Official Nous Research Hermes 3 (Llama 3.1 8B) distributed as the Ollama library tag hermes3:8b. Weights are not redistributed by Nexus. License verified 2026-08-19 from the NousResearch/Hermes-3-Llama-3.1-8B model card (Llama 3.1 Community License).",
+      "sizeGB": 4.7,
+      "vramGB": 8,
+      "license": "Llama 3.1 Community License",
+      "licenseUrl": "https://huggingface.co/NousResearch/Hermes-3-Llama-3.1-8B",
+      "source": {
+        "protocol": "ollama",
+        "url": "ollama://hermes3:8b"
+      },
+      "modalities": [
+        "text"
+      ],
+      "contextWindow": 131072,
+      "tags": [
+        "agentic",
+        "hermes"
+      ]
+    },
+    {
+      "id": "hermes3:70b",
+      "family": "hermes",
+      "name": "hermes3",
+      "tag": "70b",
+      "type": "llm",
+      "task": "chat",
+      "displayName": "Hermes 3 70B",
+      "releaseDate": "2024-08-15",
+      "origin": "USA",
+      "agentic": true,
+      "description": "Nous Research's Hermes 3 70B is the large agentic Llama 3.1 fine-tune from the USA. Workstation-class: ~40 GB download and 40 GB+ VRAM.",
+      "strengths": [
+        "Deeper multi-step tool use than the 8B Hermes pick",
+        "128K context with stronger long-horizon coherence",
+        "Same official hermes3 library family as the 8B entry"
+      ],
+      "whyRecommended": "The high-VRAM Hermes pick for hosts that already run llama3.3:70b-class models.",
+      "differentiators": "Same Hermes 3 steering and function-calling work as the 8B, at 70B scale. Not a consumer default.",
+      "provenance": "Official Nous Research Hermes 3 (Llama 3.1 70B) distributed as the Ollama library tag hermes3:70b. Weights are not redistributed by Nexus. License verified 2026-08-19 from the NousResearch/Hermes-3-Llama-3.1-70B model card (Llama 3.1 Community License).",
+      "sizeGB": 40.0,
+      "vramGB": 40,
+      "license": "Llama 3.1 Community License",
+      "licenseUrl": "https://huggingface.co/NousResearch/Hermes-3-Llama-3.1-70B",
+      "source": {
+        "protocol": "ollama",
+        "url": "ollama://hermes3:70b"
+      },
+      "modalities": [
+        "text"
+      ],
+      "contextWindow": 131072,
+      "tags": [
+        "agentic",
+        "hermes",
+        "advanced"
+      ]
+    },
+    {
+      "id": "inkling-small",
+      "family": "inkling",
+      "name": "inkling-small",
+      "tag": "ud-iq1-s",
+      "type": "llm",
+      "task": "chat",
+      "displayName": "Inkling-Small (patient tier)",
+      "releaseDate": "2026-07-30",
+      "origin": "USA",
+      "agentic": true,
+      "description": "Thinking Machines Lab's Inkling-Small is a 276B-total / 12B-active MoE from the USA. It is an opt-in patient-tier entry: the established UD-IQ1_S GGUF is 74.8 GB and runs via disk offload, not as an interactive GPU default. The native checkpoint accepts text, image, and audio, but llama.cpp GGUF multimodal projector support is unverified here, so this entry is catalogued as text-only.",
+      "strengths": [
+        "Frontier-class MoE quality on a disk-offload path",
+        "Apache-2.0 weights with an established GGUF line",
+        "Honest sub-interactive latency labelling"
+      ],
+      "whyRecommended": "Only if you have enabled the patient tier and accept minutes-to-hours generation. Never a per-VRAM default.",
+      "differentiators": "The catalog's patient-tier frontier MoE: 74.8 GB GGUF, calibrated latency warning, and no recommended.json default slot.",
+      "provenance": "First-party Thinking Machines Lab Inkling-Small (Apache-2.0) at huggingface.co/thinkingmachines/Inkling-Small. The installable artifact is the established Unsloth GGUF line unsloth/Inkling-Small-GGUF UD-IQ1_S (not an unvetted community re-quant of an unofficial dump). Nexus does not redistribute weights. License verified 2026-08-19 from the first-party card.",
+      "sizeGB": 74.8,
+      "vramGB": 0,
+      "requiredVramGB": 0,
+      "requiredRamGB": 8,
+      "quant": "UD-IQ1_S",
+      "license": "Apache-2.0",
+      "licenseUrl": "https://huggingface.co/thinkingmachines/Inkling-Small",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "unsloth/Inkling-Small-GGUF",
+        "url": "https://huggingface.co/unsloth/Inkling-Small-GGUF/resolve/main/UD-IQ1_S/Inkling-Small-UD-IQ1_S-00001-of-00003.gguf",
+        "sha256": "eb600cf15a361c70fcb31adc14b4bb5d8ebe3056acff252f1aa210e49fe8ad98",
+        "revision": "1a19ef82883cb7b9c581b93c30ea252dabbf658d"
+      },
+      "weights": {
+        "layoutVersion": 2,
+        "defaultVariant": "gguf-ud-iq1-s",
+        "variants": [
+          {
+            "id": "gguf-ud-iq1-s",
+            "precision": "gguf",
+            "quant": "UD-IQ1_S",
+            "official": true,
+            "sizeGB": 74.8,
+            "vramGB": 0,
+            "files": [
+              {
+                "path": "UD-IQ1_S/Inkling-Small-UD-IQ1_S-00001-of-00003.gguf",
+                "sha256": "eb600cf15a361c70fcb31adc14b4bb5d8ebe3056acff252f1aa210e49fe8ad98"
+              },
+              {
+                "path": "UD-IQ1_S/Inkling-Small-UD-IQ1_S-00002-of-00003.gguf",
+                "sha256": "3577440036e65e2209f735cf50d5bcfbb872365ae15f3b86139c296f0a6c42f3"
+              },
+              {
+                "path": "UD-IQ1_S/Inkling-Small-UD-IQ1_S-00003-of-00003.gguf",
+                "sha256": "da1f2395aea71a475623231d42801f3d997d1186e9c728c73ec307ae283d4d6b"
+              }
+            ]
+          }
+        ]
+      },
+      "modalities": [
+        "text"
+      ],
+      "contextWindow": 32768,
+      "tags": [
+        "patient-tier",
+        "opt-in"
+      ],
+      "expectedSecondsPerToken": 32,
+      "measuredPeakRssGB": 8.24,
+      "patientRamPresets": [
+        {
+          "id": "laptop",
+          "label": "Laptop",
+          "peakRssGB": 8.24,
+          "expectedSecondsPerToken": 32,
+          "copy": "Laptop RAM budget: independently measured ~32 s/token (~0.03 tok/s) at 8.24 GB peak RSS for a trillion-class disk-offload MoE. Seeded as the honest floor for this patient-tier entry (Inkling-Small itself is not independently timed here). Expectation copy only -- Nexus does not bundle the offload runtime."
+        },
+        {
+          "id": "workstation",
+          "label": "Workstation",
+          "peakRssGB": 64,
+          "expectedSecondsPerToken": 21,
+          "copy": "Workstation RAM budget: independently measured ~19-21 s/token on a server-class host for a trillion-class disk-offload MoE. Seeded as the honest floor for this patient-tier entry. Expectation copy only -- Nexus does not bundle the offload runtime."
+        },
+        {
+          "id": "max",
+          "label": "Max",
+          "peakRssGB": 224,
+          "expectedSecondsPerToken": 19,
+          "copy": "Max RAM budget: independently measured ~19 s/token at ~224 GB peak RSS for a trillion-class disk-offload MoE. Seeded as the honest floor for this patient-tier entry. Expectation copy only -- Nexus does not bundle the offload runtime."
+        }
+      ]
     }
   ]
 }

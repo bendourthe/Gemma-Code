@@ -53,6 +53,6 @@ describe("model catalog (derived from core/registry/ModelCatalog)", () => {
 
   it("covers each ModelFamily at least once", () => {
     const families = new Set(SIDECAR_MODELS.map((m) => m.family));
-    expect(families).toEqual(new Set(["gemma", "llama", "qwen", "deepseek", "lfm2.5"]));
+    expect(families).toEqual(new Set(["gemma", "llama", "qwen", "deepseek", "lfm2.5", "hermes"]));
   });
 });

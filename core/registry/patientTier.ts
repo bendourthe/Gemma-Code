@@ -17,22 +17,71 @@
 // bundle it); Nexus provides the tier plumbing. Boundary: pure; core/** only.
 // ---------------------------------------------------------------------------
 
-import type { ModelSpec } from "./catalog.js";
+import type { ModelSpec, PatientRamPreset, PatientRamPresetId } from "./catalog.js";
+
+export type { PatientRamPreset, PatientRamPresetId };
 
 /** Catalog tag marking an entry as a patient-tier (disk-offload, sub-1-tok/s) model. */
 export const PATIENT_TIER_TAG = "patient-tier";
 
 /**
  * Default per-request timeout for the patient tier: 1 hour. Disk-streamed MoE
- * generation runs at ~0.05-2 tok/s, so a full response can take minutes to
- * hours; the interactive 60s default would abort it mid-stream.
+ * generation on a trillion-class model has been measured at ~0.03 tok/s
+ * (~32 s/token laptop, ~19-21 s/token server), so a full response can take
+ * minutes to hours; the interactive 60s default would abort it mid-stream.
  */
 export const PATIENT_TIER_DEFAULT_TIMEOUT_MS = 3_600_000;
 
 /** The explicit latency notice surfaced while the patient tier is active. */
 export const PATIENT_TIER_LATENCY_WARNING =
-  "Patient tier active: this model streams weights from disk at roughly 0.05-2 tokens/sec. " +
-  "Generation is non-interactive (minutes to hours) -- use it for async / batch work, not live editing.";
+  "Patient tier active: trillion-class disk-offload models have been measured at " +
+  "roughly 0.03 tokens/sec (~32 seconds/token on a laptop-class RAM budget, " +
+  "~19-21 seconds/token on a server budget). Smaller patient-tier models may be " +
+  "faster, but generation is still non-interactive (minutes to hours) -- use it " +
+  "for async / batch work, not live editing.";
+
+/**
+ * v1.19.2 -- RAM-budget expectation presets (Kimi K1). Catalog and settings
+ * copy only. Nexus does not bundle the disk-offload runtime; expert-cache
+ * sizing lives in the user-registered llama.cpp-lineage adapter. Calibrated
+ * against independent trillion-class MoE measurement (kimi-k3-in-c).
+ */
+export const PATIENT_TIER_RAM_PRESETS: readonly PatientRamPreset[] = Object.freeze([
+  Object.freeze({
+    id: "laptop",
+    label: "Laptop",
+    peakRssGB: 8.24,
+    expectedSecondsPerToken: 32,
+    copy:
+      "Laptop RAM budget: independently measured ~32 s/token (~0.03 tok/s) at 8.24 GB peak RSS " +
+      "for a trillion-class disk-offload MoE. Expectation copy only -- Nexus does not bundle " +
+      "the offload runtime.",
+  }),
+  Object.freeze({
+    id: "workstation",
+    label: "Workstation",
+    peakRssGB: 64,
+    expectedSecondsPerToken: 21,
+    copy:
+      "Workstation RAM budget: independently measured ~19-21 s/token on a server-class host " +
+      "for a trillion-class disk-offload MoE. Expectation copy only -- Nexus does not bundle " +
+      "the offload runtime.",
+  }),
+  Object.freeze({
+    id: "max",
+    label: "Max",
+    peakRssGB: 224,
+    expectedSecondsPerToken: 19,
+    copy:
+      "Max RAM budget: independently measured ~19 s/token at ~224 GB peak RSS for a " +
+      "trillion-class disk-offload MoE (byte-identical output vs the laptop budget in the " +
+      "source measurement). Expectation copy only -- Nexus does not bundle the offload runtime.",
+  }),
+]);
+
+export function patientRamPresetById(id: string): PatientRamPreset | undefined {
+  return PATIENT_TIER_RAM_PRESETS.find((p) => p.id === id);
+}
 
 /** True when a catalog entry is tagged for the patient (disk-offload) tier. */
 export function isPatientTierSpec(spec: Pick<ModelSpec, "tags">): boolean {

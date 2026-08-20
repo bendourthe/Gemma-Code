@@ -26,6 +26,7 @@ from nexus_installer.engine.hf_weights_puller import (
     model_weights_dir,
     resolve_models_root,
     safe_dir_name,
+    select_weights_variant,
 )
 from nexus_installer.installer_state import InstallerState
 
@@ -574,3 +575,129 @@ class TestHfWeightsSmokeIntegration:
             dest = model_dir.joinpath(*weights_file.path.split("/"))
             assert dest.is_file()
             assert dest.stat().st_size > 0
+
+
+def _variant_entry() -> dict[str, object]:
+    pin_a = "a" * 64
+    pin_b = "b" * 64
+    return {
+        "id": "demo-video",
+        "sizeGB": 80.0,
+        "source": {
+            "protocol": "huggingface",
+            "repo": "org/demo",
+            "url": "https://huggingface.co/org/demo/resolve/main/fp16.safetensors",
+        },
+        "weights": {
+            "layoutVersion": 2,
+            "defaultVariant": "int8",
+            "variants": [
+                {
+                    "id": "fp16",
+                    "precision": "fp16",
+                    "official": True,
+                    "sizeGB": 80.0,
+                    "vramGB": 80,
+                    "files": [{"path": "fp16.safetensors", "sha256": pin_a}],
+                },
+                {
+                    "id": "int8",
+                    "precision": "int8",
+                    "official": True,
+                    "sizeGB": 15.0,
+                    "vramGB": 16,
+                    "files": [{"path": "int8.safetensors", "sha256": pin_b}],
+                },
+            ],
+        },
+    }
+
+
+class TestPrecisionVariants:
+    def test_default_variant_selected_when_it_fits(self) -> None:
+        manifest = load_weights_manifest(_variant_entry(), vram_gb=24)
+        assert manifest.variant_id == "int8"
+        assert manifest.files[0].path == "int8.safetensors"
+        assert manifest.size_gb == 15.0
+
+    def test_explicit_override_wins(self) -> None:
+        manifest = load_weights_manifest(
+            _variant_entry(), variant_override="fp16", vram_gb=8
+        )
+        assert manifest.variant_id == "fp16"
+        assert manifest.files[0].path == "fp16.safetensors"
+
+    def test_unknown_override_fails_closed(self) -> None:
+        with pytest.raises(ManifestError, match="not an official"):
+            load_weights_manifest(_variant_entry(), variant_override="community-fp8")
+
+    def test_unofficial_variant_rejected(self) -> None:
+        entry = _variant_entry()
+        variants = entry["weights"]["variants"]  # type: ignore[index]
+        variants.append(
+            {
+                "id": "community-fp8",
+                "precision": "fp8",
+                "official": False,
+                "files": [{"path": "fp8.safetensors", "sha256": "c" * 64}],
+            }
+        )
+        with pytest.raises(ManifestError, match="not official"):
+            load_weights_manifest(entry)
+
+    def test_hardware_aware_picks_highest_quality_that_fits(self) -> None:
+        entry = _variant_entry()
+        entry["weights"]["defaultVariant"] = "missing"  # type: ignore[index]
+        manifest = load_weights_manifest(entry, vram_gb=24)
+        assert manifest.variant_id == "int8"
+
+    def test_state_override_reaches_install_model(self, tmp_path: Path) -> None:
+        body = b"int8-bytes"
+        digest = hashlib.sha256(body).hexdigest()
+        entry = _variant_entry()
+        entry["weights"]["variants"][1]["files"][0]["sha256"] = digest  # type: ignore[index]
+        state = InstallerState(
+            models_root=str(tmp_path),
+            weights_variant="int8",
+            vram_mb=24 * 1024,
+        )
+        logs: list[tuple[str, str]] = []
+
+        def fake_stream(*_args, **_kwargs):
+            return _mock_stream_response([body])
+
+        with patch(f"{_MOD}.httpx.stream", side_effect=fake_stream):
+            ok = HFWeightsPuller().install_model(
+                entry, state, lambda msg, lvl: logs.append((lvl, msg))
+            )
+        assert ok is True, logs
+        dest = model_weights_dir(tmp_path, "demo-video") / "int8.safetensors"
+        assert dest.is_file()
+        assert dest.read_bytes() == body
+        assert any("variant int8" in msg for _lvl, msg in logs)
+
+    def test_select_weights_variant_helper_ranks_precision(self) -> None:
+        from nexus_installer.engine.hf_weights_puller import WeightsFile, WeightsVariant
+
+        variants = (
+            WeightsVariant(
+                id="gguf",
+                precision="gguf",
+                official=True,
+                files=(WeightsFile("a.gguf", PLACEHOLDER_SHA256),),
+                size_gb=10,
+                vram_gb=4,
+            ),
+            WeightsVariant(
+                id="fp16",
+                precision="fp16",
+                official=True,
+                files=(WeightsFile("a.safetensors", PLACEHOLDER_SHA256),),
+                size_gb=40,
+                vram_gb=24,
+            ),
+        )
+        picked = select_weights_variant(variants, vram_gb=24)
+        assert picked.id == "fp16"
+        picked_small = select_weights_variant(variants, vram_gb=8)
+        assert picked_small.id == "gguf"

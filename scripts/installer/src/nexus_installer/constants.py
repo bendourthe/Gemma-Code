@@ -84,6 +84,8 @@ PROVIDER_COLORS: dict[str, str] = {
     "OpenAI": "#34d399",  # emerald
     "Nomic AI": "#2dd4bf",  # teal
     "Liquid AI": "#38bdf8",  # sky
+    "Nous Research": "#c084fc",  # purple
+    "Thinking Machines": "#f97316",  # orange-red
     "Community": PROVIDER_FALLBACK,  # slate (fallback)
 }
 
@@ -109,6 +111,8 @@ FAMILY_TO_PUBLISHER: dict[str, str] = {
     "kokoro": "Community",
     "piper": "Community",
     "lfm2.5": "Liquid AI",
+    "hermes": "Nous Research",
+    "inkling": "Thinking Machines",
 }
 
 

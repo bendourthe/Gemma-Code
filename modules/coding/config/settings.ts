@@ -92,6 +92,11 @@ export interface NexusSettings {
   harnessSelectorEnabled: boolean;
   patientTierEnabled: boolean;
   patientTierTimeoutMs: number;
+  /**
+   * v1.19.2 -- RAM-budget expectation preset for the patient tier. Copy only:
+   * changing this does not reconfigure the user-registered offload adapter.
+   */
+  patientTierRamPreset: "laptop" | "workstation" | "max";
   memorySnapshotMode: "frozen" | "live";
   /**
    * LLM backend selector. Known values are `ollama` | `lmstudio` | `auto`;
@@ -307,6 +312,10 @@ export function getSettings(): NexusSettings {
       "nexus.llm.patientTier.timeoutMs",
       3_600_000,
     ),
+    patientTierRamPreset: (() => {
+      const raw = c.get<string>("nexus.llm.patientTier.ramPreset", "laptop");
+      return raw === "workstation" || raw === "max" ? raw : "laptop";
+    })(),
     memorySnapshotMode: (() => {
       const raw = c.get<string>("nexus.memory.snapshotMode", "frozen");
       return raw === "live" ? "live" : "frozen";

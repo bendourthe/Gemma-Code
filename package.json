@@ -333,12 +333,18 @@
         "nexus.llm.patientTier.enabled": {
           "type": "boolean",
           "default": false,
-          "description": "v1.12.0 Phase 4 (adoption-ecosystem-2026-07 E1) -- enable the disk-offload 'patient' inference tier: a large open MoE (e.g. GLM-5.2) streamed off disk via a user-registered local llama.cpp flash-MoE offload adapter on a modest/no-GPU host. Off by default and BELOW the single-GPU ceiling: generation is non-interactive (~0.05-2 tokens/sec), so a much larger per-request timeout (nexus.llm.patientTier.timeoutMs) applies and a latency warning is surfaced. Enable only when you have pointed nexus.llm.backend at a slow disk-offload backend and accept minutes-to-hours responses for async/batch work."
+          "description": "v1.12.0 Phase 4 (adoption-ecosystem-2026-07 E1) -- enable the disk-offload 'patient' inference tier: a large open MoE streamed off disk via a user-registered local llama.cpp flash-MoE offload adapter on a modest/no-GPU host. Off by default and BELOW the single-GPU ceiling: trillion-class models have been measured at roughly 0.03 tokens/sec (~32 seconds/token laptop, ~19-21 seconds/token server), so a much larger per-request timeout (nexus.llm.patientTier.timeoutMs) applies and a latency warning is surfaced. Enable only when you have pointed nexus.llm.backend at a slow disk-offload backend and accept minutes-to-hours responses for async/batch work. Nexus does not bundle the offload runtime."
         },
         "nexus.llm.patientTier.timeoutMs": {
           "type": "number",
           "default": 3600000,
           "description": "v1.12.0 Phase 4 (E1) -- per-request LLM timeout (ms) applied when nexus.llm.patientTier.enabled is on. Defaults to 1 hour so a sub-1-tok/s disk-offload run is not aborted by the interactive nexus.llm.requestTimeout default. Never shorter than nexus.llm.requestTimeout."
+        },
+        "nexus.llm.patientTier.ramPreset": {
+          "type": "string",
+          "enum": ["laptop", "workstation", "max"],
+          "default": "laptop",
+          "description": "v1.19.2 -- RAM-budget expectation preset for the patient tier. Laptop: ~32 s/token at ~8.24 GB peak RSS. Workstation: ~21 s/token. Max: ~19 s/token at ~224 GB peak RSS. Numbers are independently measured on a trillion-class disk-offload MoE and seeded as honest floors. Activation of this setting does not resize expert caches or grant Nexus an offload runtime -- actual cache sizing lives in the user-registered llama.cpp-lineage adapter. Changing the preset only changes the expectation copy shown in settings."
         },
         "nexus.memory.enabled": {
           "type": "boolean",

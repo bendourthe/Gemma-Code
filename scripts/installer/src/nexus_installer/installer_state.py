@@ -73,6 +73,8 @@ class InstallerState:
     selected_model_ids: list[str] = field(default_factory=list)
     failed_models: list[str] = field(default_factory=list)
     models_root: str = ""
+    # v1.19.2 -- official precision-variant override (empty = hardware-aware default).
+    weights_variant: str = ""
 
     # v1.15.0 Phase 3 (Issue 2) -- post-install summary + retry surfaces.
     # `model_failures` maps a failed model id to its raw engine reason (mapped to

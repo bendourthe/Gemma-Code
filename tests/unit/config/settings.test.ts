@@ -44,6 +44,7 @@ describe("getSettings()", () => {
     expect(settings.gpuTierOverride).toBeNull();
     expect(settings.securityPosture).toBe("standard");
     expect(settings.compactionUserMessageTail).toBe(3);
+    expect(settings.patientTierRamPreset).toBe("laptop");
   });
 
   it("returns user-configured nexus.* values when they are set", () => {

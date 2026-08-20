@@ -82,10 +82,61 @@ export interface ModelWeightsFile {
   readonly sha256: string;
 }
 
-export interface ModelWeightsManifest {
-  readonly layoutVersion: 1;
+/**
+ * v1.19.2 -- one official precision line (fp16 / int8 / fp8 / GGUF quant).
+ * Community re-quantizations are rejected at validateSpec (`official` must be true).
+ */
+export type WeightPrecision = "fp16" | "bf16" | "fp8" | "int8" | "gguf";
+
+export interface ModelWeightsVariant {
+  readonly id: string;
+  readonly precision: WeightPrecision;
+  /** Must be true: only first-party or established official lines are eligible. */
+  readonly official: true;
   readonly files: readonly ModelWeightsFile[];
+  readonly sizeGB?: number;
+  readonly vramGB?: number;
+  readonly quant?: string;
 }
+
+export interface ModelWeightsManifest {
+  readonly layoutVersion: 1 | 2;
+  /** Layout v1 default file list; omitted when `variants` is the sole source. */
+  readonly files?: readonly ModelWeightsFile[];
+  /** v1.19.2 -- precision-variant file sets. */
+  readonly variants?: readonly ModelWeightsVariant[];
+  readonly defaultVariant?: string;
+}
+
+/** v1.19.2 -- input modalities the chat / Video Lab surfaces can gate on. */
+export type ModelModality = "text" | "image" | "audio";
+
+const MODEL_MODALITIES: readonly ModelModality[] = ["text", "image", "audio"];
+
+/** v1.19.2 -- audio-driven video modes consumed by Video Lab. */
+export type AudioConditioningMode = "none" | "single" | "merge" | "concat";
+
+export interface AudioConditioning {
+  readonly supported: boolean;
+  readonly modes?: readonly AudioConditioningMode[];
+  readonly encoder?: string;
+}
+
+/**
+ * v1.19.2 -- RAM-budget expectation presets (Kimi K1). Catalog and settings
+ * copy only. Nexus does not bundle the disk-offload runtime.
+ */
+export type PatientRamPresetId = "laptop" | "workstation" | "max";
+
+export interface PatientRamPreset {
+  readonly id: PatientRamPresetId;
+  readonly label: string;
+  readonly peakRssGB: number;
+  readonly expectedSecondsPerToken: number;
+  readonly copy: string;
+}
+
+const PATIENT_RAM_PRESET_IDS: readonly PatientRamPresetId[] = ["laptop", "workstation", "max"];
 
 export interface ModelSpec {
   readonly id: string;
@@ -216,6 +267,30 @@ export interface ModelSpec {
    * VRAM estimates prefer this (never `activeParams`).
    */
   readonly totalParams?: number;
+  /**
+   * v1.19.2 -- input modalities. Chat surfaces gate image/audio attachments on
+   * this array. Backfilled text-only unless the entry documents otherwise.
+   */
+  readonly modalities?: readonly ModelModality[];
+  /**
+   * v1.19.2 -- audio-driven video modes. Video Lab gates audio-input on this
+   * object. Omitted on non-video entries.
+   */
+  readonly audioConditioning?: AudioConditioning;
+  /**
+   * v1.19.2 -- expected seconds per generated token for a patient-tier entry
+   * when independent measurement exists (Kimi K2 calibration).
+   */
+  readonly expectedSecondsPerToken?: number;
+  /**
+   * v1.19.2 -- independently measured peak RSS in GB for a patient-tier entry.
+   */
+  readonly measuredPeakRssGB?: number;
+  /**
+   * v1.19.2 -- RAM-budget expectation presets (laptop / workstation / max).
+   * Copy only: Nexus does not bundle the offload runtime.
+   */
+  readonly patientRamPresets?: readonly PatientRamPreset[];
 }
 
 /**
@@ -230,6 +305,61 @@ export interface ToolCallingBenchmark {
 export interface CatalogFile {
   readonly _meta?: Record<string, unknown>;
   readonly models: readonly ModelSpec[];
+}
+
+const WEIGHT_PRECISIONS: readonly WeightPrecision[] = ["fp16", "bf16", "fp8", "int8", "gguf"];
+
+function validateWeightsFile(modelId: string, file: ModelWeightsFile): void {
+  if (!file.path || file.path.startsWith("/") || file.path.includes("..") || file.path.includes("\\")) {
+    throw new Error(`ModelCatalog: ${modelId} weights file path is unsafe: ${file.path}`);
+  }
+  if (!/^[a-f0-9]{64}$/.test(file.sha256)) {
+    throw new Error(`ModelCatalog: ${modelId} weights file ${file.path} has malformed sha256`);
+  }
+}
+
+function validateWeightsManifest(modelId: string, weights: ModelWeightsManifest): void {
+  const files = weights.files ?? [];
+  const variants = weights.variants ?? [];
+  if (files.length === 0 && variants.length === 0) {
+    throw new Error(`ModelCatalog: ${modelId} weights manifest has no files or variants`);
+  }
+  for (const file of files) {
+    validateWeightsFile(modelId, file);
+  }
+  const seenVariantIds = new Set<string>();
+  for (const variant of variants) {
+    if (!variant.id || variant.id.trim().length === 0) {
+      throw new Error(`ModelCatalog: ${modelId} weights variant is missing id`);
+    }
+    if (seenVariantIds.has(variant.id)) {
+      throw new Error(`ModelCatalog: ${modelId} has duplicate weights variant id ${variant.id}`);
+    }
+    seenVariantIds.add(variant.id);
+    if (variant.official !== true) {
+      throw new Error(
+        `ModelCatalog: ${modelId} variant ${variant.id} is not official; unvetted community quantizations are not eligible`,
+      );
+    }
+    if (!WEIGHT_PRECISIONS.includes(variant.precision)) {
+      throw new Error(
+        `ModelCatalog: ${modelId} variant ${variant.id} has invalid precision "${String(variant.precision)}"`,
+      );
+    }
+    if (!Array.isArray(variant.files) || variant.files.length === 0) {
+      throw new Error(`ModelCatalog: ${modelId} variant ${variant.id} has no files`);
+    }
+    for (const file of variant.files) {
+      validateWeightsFile(modelId, file);
+    }
+  }
+  if (weights.defaultVariant !== undefined) {
+    if (variants.length === 0 || !seenVariantIds.has(weights.defaultVariant)) {
+      throw new Error(
+        `ModelCatalog: ${modelId} defaultVariant "${weights.defaultVariant}" does not match a declared variant`,
+      );
+    }
+  }
 }
 
 export function validateSpec(spec: ModelSpec): void {
@@ -275,15 +405,67 @@ export function validateSpec(spec: ModelSpec): void {
     );
   }
   if (spec.weights) {
-    if (!Array.isArray(spec.weights.files) || spec.weights.files.length === 0) {
-      throw new Error(`ModelCatalog: ${spec.id} weights manifest has no files`);
+    validateWeightsManifest(spec.id, spec.weights);
+  }
+  if (spec.modalities !== undefined) {
+    if (!Array.isArray(spec.modalities) || spec.modalities.length === 0) {
+      throw new Error(`ModelCatalog: ${spec.id} modalities must be a non-empty array`);
     }
-    for (const file of spec.weights.files) {
-      if (!file.path || file.path.startsWith("/") || file.path.includes("..") || file.path.includes("\\")) {
-        throw new Error(`ModelCatalog: ${spec.id} weights file path is unsafe: ${file.path}`);
+    for (const modality of spec.modalities) {
+      if (!MODEL_MODALITIES.includes(modality)) {
+        throw new Error(`ModelCatalog: ${spec.id} has invalid modality "${String(modality)}"`);
       }
-      if (!/^[a-f0-9]{64}$/.test(file.sha256)) {
-        throw new Error(`ModelCatalog: ${spec.id} weights file ${file.path} has malformed sha256`);
+    }
+  }
+  if (spec.audioConditioning !== undefined) {
+    if (typeof spec.audioConditioning.supported !== "boolean") {
+      throw new Error(`ModelCatalog: ${spec.id} audioConditioning.supported must be a boolean`);
+    }
+    const modes = spec.audioConditioning.modes;
+    if (modes !== undefined) {
+      if (!Array.isArray(modes)) {
+        throw new Error(`ModelCatalog: ${spec.id} audioConditioning.modes must be an array`);
+      }
+      const allowed: readonly AudioConditioningMode[] = ["none", "single", "merge", "concat"];
+      for (const mode of modes) {
+        if (!allowed.includes(mode)) {
+          throw new Error(`ModelCatalog: ${spec.id} has invalid audioConditioning mode "${String(mode)}"`);
+        }
+      }
+    }
+  }
+  if (spec.expectedSecondsPerToken !== undefined) {
+    if (!Number.isFinite(spec.expectedSecondsPerToken) || spec.expectedSecondsPerToken <= 0) {
+      throw new Error(`ModelCatalog: ${spec.id} expectedSecondsPerToken must be a positive number`);
+    }
+  }
+  if (spec.measuredPeakRssGB !== undefined) {
+    if (!Number.isFinite(spec.measuredPeakRssGB) || spec.measuredPeakRssGB <= 0) {
+      throw new Error(`ModelCatalog: ${spec.id} measuredPeakRssGB must be a positive number`);
+    }
+  }
+  if (spec.patientRamPresets !== undefined) {
+    if (!Array.isArray(spec.patientRamPresets) || spec.patientRamPresets.length === 0) {
+      throw new Error(`ModelCatalog: ${spec.id} patientRamPresets must be a non-empty array`);
+    }
+    const seenPresetIds = new Set<string>();
+    for (const preset of spec.patientRamPresets) {
+      if (!PATIENT_RAM_PRESET_IDS.includes(preset.id)) {
+        throw new Error(
+          `ModelCatalog: ${spec.id} has invalid patientRamPreset id "${String(preset.id)}"`,
+        );
+      }
+      if (seenPresetIds.has(preset.id)) {
+        throw new Error(`ModelCatalog: ${spec.id} has duplicate patientRamPreset id ${preset.id}`);
+      }
+      seenPresetIds.add(preset.id);
+      if (!Number.isFinite(preset.peakRssGB) || preset.peakRssGB <= 0) {
+        throw new Error(`ModelCatalog: ${spec.id} patientRamPreset ${preset.id} peakRssGB must be positive`);
+      }
+      if (!Number.isFinite(preset.expectedSecondsPerToken) || preset.expectedSecondsPerToken <= 0) {
+        throw new Error(
+          `ModelCatalog: ${spec.id} patientRamPreset ${preset.id} expectedSecondsPerToken must be positive`,
+        );
       }
     }
   }

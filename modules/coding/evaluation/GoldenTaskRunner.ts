@@ -227,3 +227,68 @@ export async function runGoldenTask(
     if (!options.keepWorkspace) cleanupGoldenSnapshot(workspace);
   }
 }
+
+/**
+ * v1.19.2 -- K3 determinism-across-budget assertion.
+ *
+ * Same model, two RAM-budget / offload configurations, byte-identical output.
+ * Skip-if-absent when no patient-tier adapter is registered on the host (the
+ * offload runtime is user-registered, never bundled).
+ */
+export interface OffloadBudgetConfig {
+  readonly id: string;
+  readonly peakRssGB: number;
+}
+
+export const DEFAULT_DETERMINISM_BUDGETS: readonly [OffloadBudgetConfig, OffloadBudgetConfig] =
+  Object.freeze([
+    Object.freeze({ id: "laptop", peakRssGB: 8.24 }),
+    Object.freeze({ id: "max", peakRssGB: 224 }),
+  ]);
+
+export type DeterminismAcrossBudgetResult =
+  | { readonly skipped: true; readonly reason: string }
+  | {
+      readonly skipped: false;
+      readonly identical: boolean;
+      readonly outputs: readonly [string, string];
+      readonly configs: readonly [OffloadBudgetConfig, OffloadBudgetConfig];
+    };
+
+/** True when a patient-tier adapter is registered for this process. */
+export function isPatientTierAdapterRegistered(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  return Boolean(env.NEXUS_PATIENT_TIER_ADAPTER?.trim());
+}
+
+export async function runDeterminismAcrossBudget(input: {
+  readonly adapterRegistered?: boolean;
+  readonly env?: NodeJS.ProcessEnv;
+  readonly configs?: readonly [OffloadBudgetConfig, OffloadBudgetConfig];
+  readonly generate?: (config: OffloadBudgetConfig) => Promise<string>;
+}): Promise<DeterminismAcrossBudgetResult> {
+  const registered =
+    input.adapterRegistered ?? isPatientTierAdapterRegistered(input.env ?? process.env);
+  if (!registered) {
+    return {
+      skipped: true,
+      reason: "no patient-tier adapter registered on this host",
+    };
+  }
+  if (!input.generate) {
+    return {
+      skipped: true,
+      reason: "no patient-tier generate function provided",
+    };
+  }
+  const configs = input.configs ?? DEFAULT_DETERMINISM_BUDGETS;
+  const first = await input.generate(configs[0]);
+  const second = await input.generate(configs[1]);
+  return {
+    skipped: false,
+    identical: first === second,
+    outputs: [first, second],
+    configs,
+  };
+}

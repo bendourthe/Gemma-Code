@@ -98,6 +98,13 @@ describe("DIFFUSION_TIER_CONFIGS video defaults", () => {
   it("pro tier ships CogVideoX 5B", () => {
     expect(DIFFUSION_TIER_CONFIGS["diffusion-pro"].video.model).toBe("cogvideox_5b");
   });
+
+  it("every tier declares audioConditioning disabled until avatar models land", () => {
+    for (const config of Object.values(DIFFUSION_TIER_CONFIGS)) {
+      expect(config.video.audioConditioning.enabled).toBe(false);
+      expect(config.video.audioConditioning.modes).toEqual([]);
+    }
+  });
 });
 
 describe("resolveDiffusionTier", () => {

@@ -164,6 +164,8 @@ describe("HarnessSelector -- selection (H1)", () => {
     expect(defaultHarnessSelector.profileForModel("qwen2.5-coder:7b").tier).toBe("mid");
     expect(defaultHarnessSelector.profileForModel("lfm2.5:2.6b").tier).toBe("weak");
     expect(defaultHarnessSelector.profileForModel("lfm2.5:2.6b").id).toBe("lfm-agentic");
+    expect(defaultHarnessSelector.profileForModel("hermes3:8b").id).toBe("hermes-agentic");
+    expect(defaultHarnessSelector.profileForModel("hermes3:70b").id).toBe("hermes-agentic");
   });
 });
 
@@ -174,6 +176,7 @@ describe("HarnessSelector -- named family profiles (v1.18 OI-A2)", () => {
       "balanced-scaffold",
       "concise-loop",
       "constrained-scaffold",
+      "hermes-agentic",
       "lean-scaffold",
       "lfm-agentic",
       "minimal",
@@ -211,6 +214,22 @@ describe("HarnessSelector -- named family profiles (v1.18 OI-A2)", () => {
     expect(defaultHarnessSelector.profileForModel("qwen2.5-coder:7b").id).toBe("plan-first");
     expect(defaultHarnessSelector.profileForModel("does-not-exist")).toBe(DEFAULT_HARNESS_PROFILE);
     expect(defaultHarnessSelector.overlayForModel("does-not-exist").toolCallFormat).toBeUndefined();
+  });
+
+  it("keys hermes3 to hermes-agentic with llama3-json and mid-tier compression", () => {
+    const selection = defaultHarnessSelector.select("hermes3:8b");
+    expect(selection.reason).toBe("family");
+    expect(selection.family).toBe("hermes");
+    expect(selection.profile.id).toBe("hermes-agentic");
+    expect(selection.overlay.toolCallFormat).toBe("llama3-json");
+    expect(selection.modelTier).toBe("mid");
+    expect(toCompressionOverlay(selection.profile)).toEqual({
+      compactionThreshold: 0.8,
+      userMessageTail: 3,
+    });
+    const strong = defaultHarnessSelector.select("hermes3:70b");
+    expect(strong.profile.id).toBe("hermes-agentic");
+    expect(strong.modelTier).toBe("strong");
   });
 
   it("maps an lfm2.5 id without a catalog family row to lfm-agentic", () => {
