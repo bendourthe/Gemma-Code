@@ -5,7 +5,7 @@ The second Python runtime in the repo (after `runtimes/diffusion`), speaking the
 same line-delimited JSON-RPC 2.0 protocol over stdin/stdout so the Node sidecar
 drives both through one client shape.
 
-Two engines live behind one runtime:
+Engines live behind one runtime:
 
   * ``rapidocr``       -- ONNX Runtime detect-then-recognize. CPU-only, tiny, and
                           cross-platform (Windows / macOS Intel + Apple Silicon /
@@ -17,6 +17,8 @@ Two engines live behind one runtime:
                           which is why its catalog entry MUST pin a commit sha
                           and why that code only ever runs inside this sandboxed
                           Python process -- never in the Node sidecar.
+  * ``docx`` / ``pptx`` / ``xlsx`` -- native Office Open XML (python-docx,
+                          python-pptx, openpyxl). No OCR weights and no Docling.
 
 Every heavy import (torch, transformers, rapidocr, pypdfium2) is deferred to
 first use so ``health`` and ``version`` answer on a bare CI host with nothing

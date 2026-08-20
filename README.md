@@ -47,7 +47,7 @@ Short-form video synthesis via text prompts or static reference images, with a t
 
 ### Document parsing (OCR)
 
-Attach a PDF or an image in the Local Chatbot and Nexus reads it into text on your machine. Two models cover the range: **RapidOCR PP-OCRv4** (Apache-2.0, ~20 MB) runs on the CPU, so parsing works on Windows, macOS (Intel and Apple Silicon), and Linux with no GPU at all; **Unlimited-OCR 3B** (MIT) is a vision-language model that preserves layout as markdown on capable NVIDIA GPUs. Both are optional, never auto-installed, and pinned to a specific model revision. Extracted text is never sent to a model on its own - you decide what to do with it. Added in v1.16.0 Phase 3.
+Attach a PDF, image, Word, PowerPoint, or Excel file in the Local Chatbot and Nexus reads it into text on your machine. PDFs and images use **RapidOCR PP-OCRv4** (Apache-2.0, ~20 MB, CPU, every OS) or optionally **Unlimited-OCR 3B** (MIT, NVIDIA, layout-preserving markdown). `.docx` / `.pptx` / `.xlsx` parse with native libraries and do not need those OCR models or Docling. OCR models are optional, never auto-installed, and pinned to a specific revision. Extracted text is never sent to a model on its own - you decide what to do with it. OCR added in v1.16.0 Phase 3; native Office ingest in v1.20.0 Phase 2.
 
 ### Local API server (opt-in)
 
@@ -216,7 +216,7 @@ nexus doctor [--migration-report] [--json]             # v1.4.0 Phase 5; never m
 | **llama.cpp via local adapters** | User-started `llama-server` on loopback as `nexus.llm.localAdapters` ([recipe](docs/reference/llamacpp-loopback-adapter.md)). No bundled runtime. Does not open the patient-tier gate. |
 | **Local API server** | Opt-in loopback OpenAI/Anthropic gateway (`nexus.serving.enabled`, default off) so other tools on this machine reuse installed models. ACP (`nexus.acp.enabled`) mounts `POST /acp` on the same listener and token. Unattended ACP confirms park in the ask inbox. |
 | **Ask inbox + scheduler** | Persistent local approval queue for headless/scheduled runs (`~/.nexus/ask-inbox.json`). Desktop `/inbox` panel, pending badge. Local cron-style scheduler; morning brief off by default; no auto-approve. |
-| **Document OCR** | Optional RapidOCR (CPU, every OS) and Unlimited-OCR (NVIDIA) catalog entries; Chat attachments parse locally. |
+| **Document parsing** | Optional RapidOCR (CPU, every OS) and Unlimited-OCR (NVIDIA) for PDF/image; native DOCX/PPTX/XLSX without those models. Chat attachments parse locally. Docling is not required. |
 | **Motion identity** | Internal orbs / beam / metal on the desktop shell (v1.17.0). One winner per surface. Honors OS reduced-motion (halt, not slow). |
 | **Slash commands** | `/recall`, `/remember`, `/forget`, `/curate`, `/trace`, `/memory`, `/plan`, plus the full skill-backed catalog with `preferUpstream` ordering. |
 | **GPU scheduler** | Prioritizes Coding token generation over background diffusion work when both compete for the same GPU; tier-aware (`diffusion-low` / `mid` / `high`). |

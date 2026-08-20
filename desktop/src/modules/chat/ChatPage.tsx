@@ -29,6 +29,7 @@ import {
   MediaComposer,
   MessageList,
   type ChatMessage,
+  DOCUMENT_ACCEPT,
 } from "../../shared/chat";
 import { PreviewPane, type PreviewArtifact } from "../../components/PreviewPane";
 import { DEFAULT_MODEL_ID, FRONTEND_MODELS } from "../coding/models";
@@ -40,9 +41,6 @@ import { QuickModelSwitcher } from "../../shared/models/QuickModelSwitcher";
 import { SETTINGS_MODELS_PATH } from "../../shared/models/installedFeed";
 import { createIpcModelsClient } from "../../pages/settings/ipcModelsClient";
 import type { ListedModelDto } from "../../pages/settings/modelsTypes";
-
-/** v1.16.0 Phase 3 -- what the composer will take for a parse-document turn. */
-const DOCUMENT_ACCEPT = "application/pdf,image/*";
 
 const FALLBACK_LLMS: readonly ListedModelDto[] = FRONTEND_MODELS.map((m) => ({
   id: m.id,
@@ -393,9 +391,9 @@ export function ChatPage({
         {activeChat && (
           <footer style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
             {/*
-              v1.16.0 Phase 3 (adoption item A5): with no document model
-              installed, say so and deep-link to Settings > Models rather than
-              letting the user attach a PDF that can only fail.
+              v1.20.0 Phase 2: RapidOCR remains required for PDF/image. Native
+              Office parse does not, so the composer stays usable when this
+              banner is showing.
             */}
             {documentModelInstalled === false ? (
               <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
@@ -420,7 +418,7 @@ export function ChatPage({
               onSubmit={(text, attachments) => void handleSubmit(text, attachments)}
               submitAccentVar="--accent-chatbot"
               accept={DOCUMENT_ACCEPT}
-              placeholder="Type a message, or attach a PDF or image to read it."
+              placeholder="Type a message, or attach a PDF, image, or Office document to read it."
               streaming={messages.some((m) => m.pending)}
             />
           </footer>

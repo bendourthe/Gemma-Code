@@ -133,3 +133,24 @@ def resolve_engine(name: str, *, model_dir: Optional[str] = None) -> DocumentEng
 
         return build_unlimited_ocr_engine(model_dir=model_dir)
     raise DocumentError("invalid-params", f"unknown OCR engine: {name!r}")
+
+
+def resolve_office_engine(kind: str) -> DocumentEngine:
+    """Native Office Open XML engines. No OCR weights, no torch.
+
+    Imports are deferred so a host without python-docx still answers PDF/image
+    parse, and a host without RapidOCR still parses Word/Excel/PowerPoint.
+    """
+    if kind == "docx":
+        from .docx_engine import DocxEngine
+
+        return DocxEngine()
+    if kind == "pptx":
+        from .pptx_engine import PptxEngine
+
+        return PptxEngine()
+    if kind == "xlsx":
+        from .xlsx_engine import XlsxEngine
+
+        return XlsxEngine()
+    raise DocumentError("invalid-params", f"unknown Office kind: {kind!r}")

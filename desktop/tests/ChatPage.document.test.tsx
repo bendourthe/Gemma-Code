@@ -77,6 +77,12 @@ function pdf(): File {
   return new File(["%PDF-1.7"], "doc.pdf", { type: "application/pdf" });
 }
 
+function docx(): File {
+  return new File(["PK fake-office"], "notes.docx", {
+    type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  });
+}
+
 describe("ChatPage document parsing", () => {
   it("shows the install prompt when no document model is installed", async () => {
     const user = userEvent.setup();
@@ -275,5 +281,36 @@ describe("ChatPage document parsing", () => {
     await user.type(screen.getByTestId("media-composer-textarea"), "hello");
     await user.click(screen.getByTestId("media-composer-submit"));
     await waitFor(() => expect(session.calls).toBeGreaterThan(0));
+  });
+
+  it("parses a dropped Word file even when no document OCR model is installed", async () => {
+    const user = userEvent.setup();
+    const seeded = seedClient();
+    const session = neverCalledSession();
+    render(
+      <ChatPage
+        client={seeded.client}
+        chatSession={session}
+        documentClient={createInMemoryDocumentClient({
+          models: [],
+          result: {
+            engine: "docx",
+            text: "FROM WORD",
+            markdown: "FROM WORD",
+            pageCount: 1,
+            pages: [{ index: 0, text: "FROM WORD" }],
+          },
+        })}
+      />,
+    );
+    await openChat(user, seeded);
+    await waitFor(() => expect(screen.getByTestId("media-composer")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId("chat-get-more-models")).toBeInTheDocument());
+    await user.upload(screen.getByTestId("media-composer-file"), docx());
+    await waitFor(() => expect(screen.getByTestId("media-composer-doc-0")).toBeInTheDocument());
+    await user.click(screen.getByTestId("media-composer-submit"));
+    await waitFor(() => expect(screen.getByText(/FROM WORD/)).toBeInTheDocument());
+    expect(screen.getByText(/Parsed with docx/)).toBeInTheDocument();
+    expect(session.calls).toBe(0);
   });
 });

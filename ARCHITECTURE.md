@@ -41,7 +41,7 @@ bin/nexus-check.mjs          deterministic-checks CLI (renamed from gemma-check)
 Later cycles added two sidecar-adjacent surfaces that the v1.0.0 layout above does not name:
 
 - `desktop/sidecar/src/serving/` -- opt-in loopback OpenAI/Anthropic HTTP gateway in front of the model registry (`nexus.serving.enabled`, default off). Loopback bind only, bearer-token auth, inference routes only. As of v1.18.0 Phase 5 the listener is [`LoopbackHttpServer`](desktop/sidecar/src/controlSurface/loopbackServer.ts), shared with ACP.
-- `core/documents/` -- OCR parse manager used by Chat attachments. Catalog entries: RapidOCR PP-OCRv4 (CPU) and Unlimited-OCR 3B (NVIDIA). The governed `parse_document` agent tool lives at `src/tools/handlers/parseDocument.ts`; composition-root wiring is still deferred (`LSO.P4.B` in [docs/v1/v1.16/known-gaps.md](docs/v1/v1.16/known-gaps.md)).
+- `core/documents/` -- parse manager used by Chat attachments. Catalog entries: RapidOCR PP-OCRv4 (CPU) and Unlimited-OCR 3B (NVIDIA) for PDF/image. Native DOCX/PPTX/XLSX engines (`python-docx` / `python-pptx` / `openpyxl`) do not need those models and are not Docling. The governed `parse_document` agent tool lives at `src/tools/handlers/parseDocument.ts` and is registered at sidecar and VS Code composition roots when `nexus.coding.parseDocument.enabled` is on (v1.20.0).
 
 ### llama.cpp loopback adapter recipe (v1.18.0 Phase 1)
 

@@ -17,7 +17,7 @@ Carry-forward source: [../v1.16/known-gaps.md](../v1.16/known-gaps.md) (LSO.P4.B
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 3 | 2 |
+| Deferred (DF) | 4 | 2 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
@@ -47,6 +47,13 @@ Carry-forward source: [../v1.16/known-gaps.md](../v1.16/known-gaps.md) (LSO.P4.B
 - **Plan reference**: `docs/v1/v1.20/plans/v1.20.0-adoption-docling.md` (sub-task 1.2)
 - **Reason**: The plan allowed queue or reject. Reject is the chosen rule so two Python `parse` RPCs cannot interleave on one synchronous child. Chat `ocr.*` IPC still uses start/drain independently on the shared child (JSON-RPC is sequential on stdin).
 - **Suggested next step**: Keep reject unless a measured product need for a parse queue appears.
+
+##### DF-4 - Chat parse still uses the first attachment only
+
+- **Source phase**: Phase 2 - Chat accept list (2.3)
+- **Plan reference**: `docs/v1/v1.20/plans/v1.20.0-adoption-docling.md` (sub-task 2.3)
+- **Reason**: The plan default is first-only unless N-file parse is explicitly added. Multi-file drops still parse the first accepted file; the rest are ignored for that turn.
+- **Suggested next step**: Add N-file parse only if product wants a multi-document turn. Do not silently concatenate.
 
 ### Resolved
 

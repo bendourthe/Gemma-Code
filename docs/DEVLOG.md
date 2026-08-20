@@ -4,6 +4,29 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-19] v1.20.0 document-ingest -- Phase 2: format router + native Office
+
+### Goal
+
+Classify payloads by magic bytes, parse DOCX/PPTX/XLSX without RapidOCR or Docling, and expand Chat's accept list only after that path exists.
+
+### What was done
+
+- **Router**: `detect_kind` sniffs PDF, raster images, and OOXML zip internals. Unknown bytes and HTML return `unsupported-media` instead of being treated as a page image. Zip member count and uncompressed size are capped. Encrypted zip flags and OLE compound files fail closed.
+- **Office engines**: `docx_engine` / `pptx_engine` / `xlsx_engine` wrap python-docx, python-pptx, and openpyxl. Markdown plus pages (Heading-1 chunks / slides / sheets). No process-global workbook cache. Dispatch never imports RapidOCR.
+- **Chat**: shared `DOCUMENT_ACCEPT` includes Office MIME types and extensions. Image Studio stays `image/*`. Office parse still runs when the RapidOCR empty-state banner is showing.
+- **Install**: `runtimes/ocr/requirements.txt` and installer `REQUIRED_WHEEL_PREFIXES` list the three Office wheels. Still no torch and no Docling.
+
+### Tests
+
+Python OCR 80/80. Desktop Chat + MediaComposer 23/23. Installer provisioner 9/9. Ruff on OCR runtime clean. Desktop lint + `tsc --noEmit` clean.
+
+### Next
+
+Phase 3: Coding composer attach using the shared document accept list.
+
+---
+
 ## [2026-08-19] v1.20.0 document-ingest -- Phase 1: wire parse_document
 
 ### Goal
