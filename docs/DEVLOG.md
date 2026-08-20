@@ -4,6 +4,29 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-19] v1.20.0 document-ingest -- Phase 4: layout bake-off (A4)
+
+### Goal
+
+Record adopt-or-decline for a gated local Docling layout engine without installing Docling.
+
+### What was done
+
+- **Decision: DEFER.** Do not `pip install docling`. Do not add it to attach.
+- **Measured**: RapidOCR default ONNX models on a synthetic invoice raster and a tiny digital PDF. Tokens read in order; tables were a wall of text, not a grid.
+- **Not proven here**: Nexus catalog RapidOCR install (placeholder SHA); Unlimited-OCR (no torch in the probe interpreter despite an RTX 3080 Ti).
+- **Gap**: DF-5. LSO.P3.C only partially closed.
+
+### Tests
+
+Python OCR 80/80. No product-code change.
+
+### Next
+
+Phase 5: refactor, known-gaps, CI, then `/update release`.
+
+---
+
 ## [2026-08-19] v1.20.0 document-ingest -- Phase 3: Coding composer attach
 
 ### Goal

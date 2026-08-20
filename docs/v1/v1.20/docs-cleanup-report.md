@@ -1,4 +1,4 @@
-# Docs cleanup audit - v1.20.0 Phase 3
+# Docs cleanup audit - v1.20.0 Phase 4
 
 **Date**: 2026-08-19
 **Mode**: audit (no files moved)
@@ -6,12 +6,12 @@
 
 ## Layout
 
-`docs/v1/v1.20/` already has `plans/` and `comparisons/`. Phase 3 added `development/history/2026-08-19_phase-3-coding-composer-attach.md`. No stray comparison reports. No empty dirs created.
+Phase 4 added `development/ocr-layout-bakeoff-2026-08.md` and `development/history/2026-08-19_phase-4-layout-bakeoff.md` under `docs/v1/v1.20/`. Both belong in `development/` (not `comparisons/`). No empty dirs. No stray comparison reports.
 
 ## Scratch docs this phase
 
-None.
+None. The bake-off note is the Phase 4 deliverable.
 
 ## Proposed cleanup
 
-None. Leave the tree as-is until Phase 5 refactor.
+None until Phase 5 refactor.

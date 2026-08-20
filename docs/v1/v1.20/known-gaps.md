@@ -17,7 +17,7 @@ Carry-forward source: [../v1.16/known-gaps.md](../v1.16/known-gaps.md) (LSO.P4.B
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 4 | 2 |
+| Deferred (DF) | 5 | 2 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
@@ -54,6 +54,13 @@ Carry-forward source: [../v1.16/known-gaps.md](../v1.16/known-gaps.md) (LSO.P4.B
 - **Plan reference**: `docs/v1/v1.20/plans/v1.20.0-adoption-docling.md` (sub-tasks 2.3 and 3.2)
 - **Reason**: The plan default is first-only unless N-file parse is explicitly added. Multi-file drops still parse the first accepted file; the rest are ignored for that turn.
 - **Suggested next step**: Add N-file parse only if product wants a multi-document turn. Do not silently concatenate.
+
+##### DF-5 - A4 Docling layout engine deferred; OCR on-device QA incomplete
+
+- **Source phase**: Phase 4 - Layout bake-off (4.1 / 4.2)
+- **Plan reference**: `docs/v1/v1.20/plans/v1.20.0-adoption-docling.md` (Phase 4); note `docs/v1/v1.20/development/ocr-layout-bakeoff-2026-08.md`
+- **Reason**: Decision is DEFER, not DECLINE and not DEFER-BUILD. RapidOCR default ONNX models were smoked on synthetic fixtures (wall-of-text tables). Nexus catalog RapidOCR is still blocked by placeholder SHA (LSO.P3.A / IRSC.P4.B). Unlimited-OCR was not run (torch absent in the probe interpreter despite an RTX 3080 Ti). Docling was not installed.
+- **Suggested next step**: After catalog RapidOCR can install, and with torch in the Nexus OCR/diffusion venv, parse a real table PDF and a scan with RapidOCR vs Unlimited-OCR. Only then consider a local-only `docling-slim` extra. Do not merge torch into `runtimes/ocr/requirements.txt`.
 
 ### Resolved
 
