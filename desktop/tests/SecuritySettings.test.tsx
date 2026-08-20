@@ -42,4 +42,28 @@ describe("SecuritySettings", () => {
     await user.click(screen.getByTestId("security-posture-unattended").querySelector("input")!);
     expect(setPosture).toHaveBeenCalledWith("unattended");
   });
+
+  it("renders untrusted audit rows from the injected client", async () => {
+    render(
+      <SecuritySettings
+        client={memoryClient()}
+        auditClient={{
+          list: async () => [
+            {
+              id: 1,
+              ts: "2026-08-20T00:00:00.000Z",
+              actor: "worker",
+              pillar: "coding",
+              kind: "chat.turn",
+              trusted: false,
+            },
+          ],
+          status: async () => ({ eventCount: 1, droppedCount: 3 }),
+        }}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId("audit-row-1")).toBeInTheDocument());
+    expect(screen.getByTestId("audit-dropped-count")).toHaveTextContent("Dropped: 3");
+    expect(screen.getByText("untrusted")).toBeInTheDocument();
+  });
 });

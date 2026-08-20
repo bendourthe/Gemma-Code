@@ -21,7 +21,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Optional
 
-from .. import device
+from .. import budget, device
 from . import params, workflow_metadata
 
 
@@ -66,7 +66,25 @@ class PipelineRunner:
         except params.ParamsError as exc:
             return {"ok": False, "error": "invalid-params", "message": str(exc)}
         info = device.detect()
-        decision = device.choose_offload(info.vram_free_gb, self.model_size_gb)
+        if parsed.max_cache_vram_gb is not None:
+            mem = budget.MemoryBudget(
+                max_cache_vram_gb=parsed.max_cache_vram_gb,
+                max_cache_ram_gb=parsed.max_cache_ram_gb or parsed.max_cache_vram_gb,
+                working_mem_reserve_gb=parsed.working_mem_reserve_gb or 0,
+                layer_streaming=parsed.layer_streaming,
+            )
+            ok, errors, _warnings = budget.validate_budget(mem, self.model_size_gb)
+            if not ok:
+                return {
+                    "ok": False,
+                    "error": "invalid-params",
+                    "message": "; ".join(errors),
+                }
+        decision = device.choose_offload(
+            info.vram_free_gb,
+            self.model_size_gb,
+            layer_streaming=parsed.layer_streaming,
+        )
         if decision.strategy == "insufficient_vram":
             return {
                 "ok": False,

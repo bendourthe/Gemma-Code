@@ -15,7 +15,7 @@ Plan: [plans/v2.1.0-adoption-open-local-ai-wave.md](plans/v2.1.0-adoption-open-l
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 17 | 1 |
+| Deferred (DF) | 21 | 1 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
@@ -140,6 +140,41 @@ Plan: [plans/v2.1.0-adoption-open-local-ai-wave.md](plans/v2.1.0-adoption-open-l
 - **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 5.4)
 - **Reason**: Default sidecar runtime does not spawn `ollama create`. Jobs can reach `done` with an export path and no registry row. An injected `OllamaImportPort` covers the export-failed path in tests.
 - **Suggested next step**: After a passing eval, write a Modelfile and run `ollama create`, then reuse v1.15.0 registry reconciliation.
+
+##### DF-18 - JSON CLI needs the Local API listener bound
+
+- **Source phase**: Phase 6 - Headless JSON CLI (6.2)
+- **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 6.2)
+- **Reason**: Routes mount at `/nexus/*` on the existing loopback control surface. The listener still opens only when Local API server or ACP is enabled, so a sidecar with both off cannot serve the CLI. There is no idle extra port.
+- **Suggested next step**: Optionally bind the control surface whenever JSON CLI is requested, or document a `nexus serving start` helper that enables the listener without OpenAI `/v1` completions.
+
+##### DF-19 - Video Lab Advanced does not surface diffusion VRAM knobs
+
+- **Source phase**: Phase 6 - Diffusion VRAM-budget knobs (6.3)
+- **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 6.3)
+- **Reason**: Image Studio Advanced exposes max cache VRAM/RAM, working reserve, and layer streaming. Video Lab still uses pipeline defaults from DiffusionTier. Python runners honor the fields when present.
+- **Suggested next step**: Mirror the Image Studio Advanced controls on VideoPromptForm and pass the same optional fields through the video IPC payload.
+
+##### DF-20 - Vault-unavailable signing keys stay in process memory
+
+- **Source phase**: Phase 6 - Signed local audit log (6.1)
+- **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 6.1)
+- **Reason**: The plan forbids plaintext key files. When the OS keychain is missing, `VaultActorKeyStore` keeps Ed25519 pairs in memory only. A sidecar restart mints new keys, so older log rows verify as untrusted (shown, not hidden).
+- **Suggested next step**: Surface a Settings notice when the vault is unavailable, and keep verification marking rather than rewriting history.
+
+##### DF-21 - Live GPU layer-streaming OOM rescue is unproven
+
+- **Source phase**: Phase 6 - Diffusion VRAM-budget knobs (6.3)
+- **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 6.3)
+- **Reason**: Unit and Python tests cover validation plus a constrained-VRAM runner path that upgrades `insufficient_vram` to sequential CPU offload when streaming is on. No diffusion-capable host ran a real OOM-then-complete generation this cycle. not_run != pass.
+- **Suggested next step**: On a 8-12 GB GPU, set a VRAM cap below the model minimum with layer streaming enabled and record whether the job completes.
+
+##### DF-22 - Production AgentLoop does not emit tool.call telemetry
+
+- **Source phase**: Phase 6 - Signed local audit log (6.1)
+- **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 6.1)
+- **Reason**: `TelemetryEventKind` includes `tool.call`. Sidecar `coding.session.sendMessage` / `chat.session.sendMessage` publish `chat.turn`. Routing publishes `routing.decision`. Generation and training appear as GpuScheduler `job.*` on the shared bus. VS Code `AgentLoop` does not publish `tool.call`, so per-tool attribution in the audit log is incomplete for that host.
+- **Suggested next step**: Publish `tool.call` from the desktop coding session tool path and, later, from AgentLoop without crossing the vscode host boundary into `core/`.
 
 ### Resolved
 

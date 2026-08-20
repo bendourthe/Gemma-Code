@@ -13,6 +13,7 @@
 import { useMemo, useState } from "react";
 import type { ControlNetRef, LoraRef } from "./diffusionClient";
 import type { DiffusionTierId } from "../../../../core/config/DiffusionTier";
+import { defaultMemoryBudget, validateMemoryBudget } from "../../../../core/config/diffusionBudget";
 
 export interface PromptFormValues {
   readonly prompt: string;
@@ -27,6 +28,10 @@ export interface PromptFormValues {
   readonly fastPreview: boolean;
   readonly loras: readonly LoraRef[];
   readonly controlNet?: ControlNetRef;
+  readonly maxCacheVramGB: number;
+  readonly maxCacheRamGB: number;
+  readonly workingMemReserveGB: number;
+  readonly layerStreaming: boolean;
 }
 
 export interface ImagePromptFormProps {
@@ -108,6 +113,8 @@ export function visibleResolutions(tier: DiffusionTierId): readonly ResolutionOp
   return RESOLUTION_OPTIONS.filter((opt) => !opt.requires || tierMeets(tier, opt.requires));
 }
 
+const LOW_BUDGET = defaultMemoryBudget("diffusion-low");
+
 export const DEFAULT_FORM_VALUES: PromptFormValues = {
   prompt: "",
   negativePrompt: "",
@@ -120,6 +127,10 @@ export const DEFAULT_FORM_VALUES: PromptFormValues = {
   seed: 0,
   fastPreview: false,
   loras: [],
+  maxCacheVramGB: LOW_BUDGET.maxCacheVramGB,
+  maxCacheRamGB: LOW_BUDGET.maxCacheRamGB,
+  workingMemReserveGB: LOW_BUDGET.workingMemReserveGB,
+  layerStreaming: LOW_BUDGET.layerStreaming,
 };
 
 export function ImagePromptForm({
@@ -134,6 +145,7 @@ export function ImagePromptForm({
 }: ImagePromptFormProps): JSX.Element {
   const [values, setValues] = useState<PromptFormValues>({
     ...DEFAULT_FORM_VALUES,
+    ...defaultMemoryBudget(diffusionTier),
     ...initial,
   });
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -141,6 +153,24 @@ export function ImagePromptForm({
   const selectedResolutionValue = `${values.width}x${values.height}`;
   const selectedResolutionTooHigh = !allowedResolutions.some(
     (r) => r.value === selectedResolutionValue,
+  );
+  const budgetCheck = useMemo(
+    () =>
+      validateMemoryBudget({
+        budget: {
+          maxCacheVramGB: values.maxCacheVramGB,
+          maxCacheRamGB: values.maxCacheRamGB,
+          workingMemReserveGB: values.workingMemReserveGB,
+          layerStreaming: values.layerStreaming,
+        },
+        modelMinVramGB: 4,
+      }),
+    [
+      values.maxCacheVramGB,
+      values.maxCacheRamGB,
+      values.workingMemReserveGB,
+      values.layerStreaming,
+    ],
   );
 
   function update<K extends keyof PromptFormValues>(key: K, value: PromptFormValues[K]): void {
@@ -476,6 +506,65 @@ export function ImagePromptForm({
               </select>
             </div>
           )}
+          <div data-testid="image-memory-budget" style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+            <strong>VRAM budget</strong>
+            <label>
+              max cache VRAM (GB)
+              <input
+                data-testid="image-max-cache-vram"
+                type="number"
+                min={0.5}
+                step={0.5}
+                value={values.maxCacheVramGB}
+                disabled={disabled}
+                onChange={(e) => update("maxCacheVramGB", Number(e.target.value))}
+              />
+            </label>
+            <label>
+              max cache RAM (GB)
+              <input
+                data-testid="image-max-cache-ram"
+                type="number"
+                min={1}
+                step={1}
+                value={values.maxCacheRamGB}
+                disabled={disabled}
+                onChange={(e) => update("maxCacheRamGB", Number(e.target.value))}
+              />
+            </label>
+            <label>
+              working reserve (GB)
+              <input
+                data-testid="image-working-reserve"
+                type="number"
+                min={0}
+                step={0.5}
+                value={values.workingMemReserveGB}
+                disabled={disabled}
+                onChange={(e) => update("workingMemReserveGB", Number(e.target.value))}
+              />
+            </label>
+            <label>
+              <input
+                data-testid="image-layer-streaming"
+                type="checkbox"
+                checked={values.layerStreaming}
+                disabled={disabled}
+                onChange={(e) => update("layerStreaming", e.target.checked)}
+              />
+              Layer streaming (complete a previously too-small VRAM load)
+            </label>
+            {!budgetCheck.ok ? (
+              <p data-testid="image-budget-error" style={{ color: "var(--accent-danger, #f87171)", margin: 0 }}>
+                {budgetCheck.errors.join(" ")}
+              </p>
+            ) : null}
+            {budgetCheck.warnings.map((warning) => (
+              <p key={warning} data-testid="image-budget-warning" style={{ color: "var(--fg-muted)", margin: 0 }}>
+                {warning}
+              </p>
+            ))}
+          </div>
         </div>
       </details>
     </form>
@@ -505,6 +594,10 @@ export function valuesToBaseRequest(
     batchSize: 1,
     latentPreview: true,
     loras: [...merged.loras],
+    maxCacheVramGB: merged.maxCacheVramGB,
+    maxCacheRamGB: merged.maxCacheRamGB,
+    workingMemReserveGB: merged.workingMemReserveGB,
+    layerStreaming: merged.layerStreaming,
   };
   if (merged.controlNet) {
     out.controlNet = { ...merged.controlNet };

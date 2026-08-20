@@ -18,8 +18,8 @@ import { ServingBindError, assertLoopbackHost, checkBearerToken } from "../sidec
 import { ServingGateway } from "../sidecar/src/serving/gateway";
 
 describe("control-surface contract", () => {
-  it("names the two mounts the v1.16 gateway and ACP share", () => {
-    expect(CONTROL_SURFACE_MOUNTS).toEqual(["serving", "acp"]);
+  it("names the three mounts the gateway, ACP, and JSON CLI share", () => {
+    expect(CONTROL_SURFACE_MOUNTS).toEqual(["serving", "acp", "json-cli"]);
     expect(CONTROL_SURFACE_ACP_PATH).toBe("/acp");
     expect(CONTROL_SURFACE_OPENAI_PREFIX).toBe("/v1");
   });

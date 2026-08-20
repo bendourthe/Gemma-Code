@@ -34,7 +34,10 @@ export type TelemetryEventKind =
   // decision snapshot (session, role, model, reason, signal counts).
   | "routing.decision"
   // v2.1.0 Phase 2 -- GPU scheduler honor/defer/degrade of a routing swap.
-  | "scheduler.swap";
+  | "scheduler.swap"
+  // v2.1.0 Phase 6 -- signed audit log families (chat turns + tool calls).
+  | "chat.turn"
+  | "tool.call";
 
 export interface TelemetryEvent<TPayload = unknown> {
   kind: TelemetryEventKind;

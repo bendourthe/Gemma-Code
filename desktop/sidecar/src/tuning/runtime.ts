@@ -69,6 +69,7 @@ export interface TuningRuntimeOptions {
   readonly ollama?: OllamaImportPort;
   readonly catalogModels?: readonly ModelSpec[];
   readonly now?: () => Date;
+  readonly telemetry?: import("../../../../core/telemetry/TelemetryBus.js").TelemetryBus;
 }
 
 function defaultEvalPort(): EvalPort {
@@ -102,7 +103,7 @@ export function createTuningRuntime(opts: TuningRuntimeOptions = {}): TuningRunt
   const scheduler =
     opts.scheduler ??
     new GpuScheduler({
-      telemetry: new InProcessTelemetryBus(),
+      telemetry: opts.telemetry ?? new InProcessTelemetryBus(),
       vramProvider: () => host.vramGB || 24,
     });
   const trainer = opts.trainer ?? stubTrainer(path.join(root, "runs"));

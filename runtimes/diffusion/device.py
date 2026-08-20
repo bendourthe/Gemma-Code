@@ -87,6 +87,8 @@ def choose_offload(
     free_vram_gb: Optional[float],
     model_size_gb: float,
     safety_multiplier: float = 1.5,
+    *,
+    layer_streaming: bool = False,
 ) -> OffloadDecision:
     """Decide how aggressively to offload weights given available VRAM.
 
@@ -123,6 +125,11 @@ def choose_offload(
         return OffloadDecision(
             "sequential_cpu_offload",
             f"free {free_vram_gb:.1f} GB < model {model_size_gb:.1f} GB; sequential offload",
+        )
+    if layer_streaming:
+        return OffloadDecision(
+            "sequential_cpu_offload",
+            f"layer-streaming: free {free_vram_gb:.1f} GB << model {model_size_gb:.1f} GB",
         )
     return OffloadDecision(
         "insufficient_vram",

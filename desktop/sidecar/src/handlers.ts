@@ -44,6 +44,8 @@ import {
   TuningJobListRequest,
   TuningJobCancelRequest,
   TuningModelsListRequest,
+  AuditListRequest,
+  AuditStatusRequest,
   ModelsInstallRequest,
   ModelsRemoveRequest,
   ModelsInstallDrainRequest,
@@ -130,6 +132,9 @@ import {
   type StudioRuntime,
 } from "./generations/studioRuntime.js";
 import { createTuningRuntime, type TuningRuntime } from "./tuning/runtime.js";
+import { createAuditRuntime } from "./audit/runtime.js";
+import type { AuditLog } from "../../../core/audit/index.js";
+import type { TelemetryBus } from "../../../core/telemetry/TelemetryBus.js";
 import {
   type CredentialVault,
   createCredentialVault,
@@ -214,6 +219,10 @@ export interface HandlerContext {
   studio?: StudioRuntime;
   /** v2.1.0 Phase 5 -- Unsloth Core fine-tuning. */
   tuning?: TuningRuntime;
+  /** v2.1.0 Phase 6 -- signed local audit log. */
+  audit?: AuditLog;
+  /** v2.1.0 Phase 6 -- shared telemetry bus for audit attribution. */
+  telemetry?: TelemetryBus;
 }
 
 /** How many individual request records the Traces panel receives per poll. */
@@ -303,16 +312,27 @@ export function createHandlerContext(
 
 function resolveStudio(ctx: HandlerContext): StudioRuntime {
   if (!ctx.studio) {
-    ctx.studio = createStudioRuntime({ dbPath: ":memory:" });
+    ctx.studio = createStudioRuntime({ dbPath: ":memory:", telemetry: ctx.telemetry });
   }
   return ctx.studio;
 }
 
 function resolveTuning(ctx: HandlerContext): TuningRuntime {
   if (!ctx.tuning) {
-    ctx.tuning = createTuningRuntime();
+    ctx.tuning = createTuningRuntime({ telemetry: ctx.telemetry });
   }
   return ctx.tuning;
+}
+
+function resolveAudit(ctx: HandlerContext): AuditLog {
+  if (!ctx.audit) {
+    ctx.audit = createAuditRuntime({
+      credentials: ctx.credentials,
+      telemetry: ctx.telemetry,
+      dbPath: ":memory:",
+    }).log;
+  }
+  return ctx.audit;
 }
 
 function jobDto(job: {
@@ -664,6 +684,11 @@ export const handlers: Record<Method, HandlerFn> = {
   },
   "coding.session.sendMessage": async (params, ctx) => {
     const req = CodingSessionSendMessageRequest.parse(params ?? {});
+    ctx.telemetry?.publish({
+      kind: "chat.turn",
+      source: "coding",
+      payload: { role: "worker", sessionId: req.sessionId },
+    });
     const events = await ctx.sessions.sendMessage(req.sessionId, req.message);
     return { sessionId: req.sessionId, events };
   },
@@ -701,6 +726,11 @@ export const handlers: Record<Method, HandlerFn> = {
   },
   "chat.session.sendMessage": async (params, ctx) => {
     const req = ChatSessionSendMessageRequest.parse(params ?? {});
+    ctx.telemetry?.publish({
+      kind: "chat.turn",
+      source: "chat",
+      payload: { role: "app", sessionId: req.sessionId },
+    });
     const events = await ctx.chat.sendMessage(req.sessionId, req.message, req.images);
     return { sessionId: req.sessionId, events };
   },
@@ -1002,6 +1032,15 @@ export const handlers: Record<Method, HandlerFn> = {
     const req = TuningModelsListRequest.parse(params ?? {});
     const models = await resolveTuning(ctx).listBaseModels(req.hostVramGB);
     return { models };
+  },
+  "audit.list": async (params, ctx) => {
+    const req = AuditListRequest.parse(params ?? {});
+    return { events: resolveAudit(ctx).list(req) };
+  },
+  "audit.status": async (params, ctx) => {
+    AuditStatusRequest.parse(params ?? {});
+    const log = resolveAudit(ctx);
+    return { eventCount: log.eventCount(), droppedCount: log.droppedCount() };
   },
 };
 

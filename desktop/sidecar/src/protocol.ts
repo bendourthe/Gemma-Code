@@ -102,6 +102,9 @@ export const IPC_METHODS = [
   "tuning.job.list",
   "tuning.job.cancel",
   "tuning.models.list",
+  // v2.1.0 Phase 6 -- signed local audit log.
+  "audit.list",
+  "audit.status",
 ] as const;
 
 export type Method = (typeof IPC_METHODS)[number];
@@ -416,6 +419,11 @@ const Txt2ImgBase = z.object({
   latentPreview: z.boolean().default(true),
   loras: z.array(DiffusionLoRA).max(8).default([]),
   controlNet: DiffusionControlNet.optional(),
+  // v2.1.0 Phase 6 -- explicit VRAM/RAM budget knobs (tier defaults when omitted).
+  maxCacheVramGB: z.number().positive().optional(),
+  maxCacheRamGB: z.number().positive().optional(),
+  workingMemReserveGB: z.number().nonnegative().optional(),
+  layerStreaming: z.boolean().optional(),
 });
 
 export const DiffusionTxt2ImgRequest = Txt2ImgBase.strict();
@@ -902,6 +910,44 @@ export const TuningBaseModelDto = z
 
 export const TuningModelsListResponse = z
   .object({ models: z.array(TuningBaseModelDto) })
+  .strict();
+
+export const AuditActor = z.enum(["app", "planner", "critic", "worker"]);
+
+export const AuditListRequest = z
+  .object({
+    actor: AuditActor.optional(),
+    pillar: z.string().min(1).optional(),
+    since: z.string().min(1).optional(),
+    until: z.string().min(1).optional(),
+    limit: z.number().int().min(1).max(500).optional(),
+  })
+  .strict();
+
+export const AuditEventDto = z
+  .object({
+    id: z.number().int().nonnegative(),
+    ts: z.string(),
+    actor: AuditActor,
+    pillar: z.string(),
+    kind: z.string(),
+    payload: z.record(z.string(), z.unknown()),
+    signature: z.string(),
+    trusted: z.boolean(),
+  })
+  .strict();
+
+export const AuditListResponse = z
+  .object({ events: z.array(AuditEventDto) })
+  .strict();
+
+export const AuditStatusRequest = z.object({}).strict();
+
+export const AuditStatusResponse = z
+  .object({
+    eventCount: z.number().int().nonnegative(),
+    droppedCount: z.number().int().nonnegative(),
+  })
   .strict();
 
 // ---- v1.1.0 Phase 11 -- VS Code extension surface ---------------------------
@@ -1977,6 +2023,16 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
   "tuning.models.list": {
     request: TuningModelsListRequest,
     response: TuningModelsListResponse,
+    implemented: true,
+  },
+  "audit.list": {
+    request: AuditListRequest,
+    response: AuditListResponse,
+    implemented: true,
+  },
+  "audit.status": {
+    request: AuditStatusRequest,
+    response: AuditStatusResponse,
     implemented: true,
   },
 };

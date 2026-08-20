@@ -114,7 +114,12 @@ class VideoPipelineRunner:
         except video_params.VideoParamsError as exc:
             return {"ok": False, "error": "invalid-params", "message": str(exc)}
         info = device.detect()
-        decision = device.choose_offload(info.vram_free_gb, self.model_size_gb)
+        layer_streaming = bool(request.get("layerStreaming", False))
+        decision = device.choose_offload(
+            info.vram_free_gb,
+            self.model_size_gb,
+            layer_streaming=layer_streaming,
+        )
         decision = _upgrade_for_video(decision)
         if decision.strategy == "insufficient_vram":
             return {

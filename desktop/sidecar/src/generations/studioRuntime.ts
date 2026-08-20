@@ -21,9 +21,10 @@ export interface StudioRuntime {
 export function createStudioRuntime(opts: {
   readonly dbPath?: string;
   readonly vramGB?: number;
+  readonly telemetry?: import("../../../core/telemetry/TelemetryBus.js").TelemetryBus;
 } = {}): StudioRuntime {
   const dbPath = opts.dbPath ?? ":memory:";
-  const bus = new InProcessTelemetryBus();
+  const bus = opts.telemetry ?? new InProcessTelemetryBus();
   return {
     index: new GenerationIndex({ dbPath }),
     queue: new GenerationQueue({ dbPath }),

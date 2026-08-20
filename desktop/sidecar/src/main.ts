@@ -22,6 +22,10 @@ import { createHandlerContext, dispatch } from "./handlers.js";
 import { createStudioRuntime } from "./generations/studioRuntime.js";
 import { resolveStudioDbPath } from "../../../core/generations/paths.js";
 import { createServingRuntime } from "./serving/servingRuntime.js";
+import { createJsonCliRoute } from "./controlSurface/jsonCliRoutes.js";
+import { createAuditRuntime } from "./audit/runtime.js";
+import { InProcessTelemetryBus } from "../../../core/telemetry/TelemetryBus.js";
+import { SIDECAR_MODELS } from "./coding/models.js";
 import { warmUpTreeSitter } from "./treeSitterWarmup.js";
 import { existsSync } from "node:fs";
 import { NexusHubSyncer } from "../../../core/skills/NexusHubSyncer.js";
@@ -97,6 +101,7 @@ const scheduler = new AgentRunScheduler({
   },
 });
 scheduler.start();
+const telemetry = new InProcessTelemetryBus();
 const ctx = createHandlerContext(
   { pid: process.pid, platform: process.platform },
   sessions,
@@ -109,7 +114,16 @@ const ctx = createHandlerContext(
 );
 ctx.askInbox = askInbox;
 ctx.scheduler = scheduler;
-ctx.studio = createStudioRuntime({ dbPath: resolveStudioDbPath() });
+ctx.telemetry = telemetry;
+ctx.studio = createStudioRuntime({ dbPath: resolveStudioDbPath(), telemetry });
+ctx.audit = createAuditRuntime({ credentials: ctx.credentials, telemetry }).log;
+serving.gateway.surface.mount(
+  createJsonCliRoute({
+    sessions,
+    studio: ctx.studio,
+    listModels: async () => SIDECAR_MODELS.map((m) => ({ id: m.id, displayName: m.displayName })),
+  }),
+);
 
 function write(payload: JsonRpcResponseOk | JsonRpcResponseErr): void {
   process.stdout.write(`${JSON.stringify(payload)}\n`);

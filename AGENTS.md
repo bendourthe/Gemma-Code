@@ -70,6 +70,10 @@ core/                       v1.0.0 shared-core surfaces (Phase 2.3 + 2.6)
                               parser (v2.1.0 Phase 3-4)
   tuning/                    Unsloth Core pins, dataset builder, QLoRA job
                               store, eval gate (v2.1.0 Phase 5)
+  audit/                     signed local SQLite audit log + per-actor
+                              Ed25519 keys (v2.1.0 Phase 6)
+  cli/                       headless JSON CLI client over /nexus/*
+                              (v2.1.0 Phase 6)
 
 modules/                    per-pillar code (one folder per pillar)
   coding/                    Agentic AI Coding (engine still in src/ during the

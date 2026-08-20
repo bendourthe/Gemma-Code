@@ -16,7 +16,7 @@ import { FineTuningSettings } from "./FineTuningSettings";
 import type { FineTuningClient } from "./fineTuningTypes";
 import { McpRegistrySettings } from "./McpRegistrySettings";
 import type { McpRegistryClient } from "./mcpTypes";
-import { SecuritySettings, type SecuritySettingsClient } from "./SecuritySettings";
+import { SecuritySettings, type AuditLogClient, type SecuritySettingsClient } from "./SecuritySettings";
 import { createMockModelsClient } from "./mockModelsClient";
 import { createMockSkillsClient } from "./mockSkillsClient";
 import { createMockSkillOptimizerClient } from "./mockSkillOptimizerClient";
@@ -39,6 +39,7 @@ export interface SettingsPageProps {
   /** v1.18.0 Phase 3 (OW-A5) -- per-tool MCP deny. */
   mcpClient?: McpRegistryClient;
   securityClient?: SecuritySettingsClient;
+  auditClient?: AuditLogClient;
   initialTab?: SettingsTab;
   /** v1.16.0 Phase 5 (A4) -- host VRAM for the Models page tier-fit filter. */
   hostVramGB?: number | null;
@@ -53,6 +54,7 @@ export function SettingsPage({
   fineTuningClient,
   mcpClient,
   securityClient,
+  auditClient,
   initialTab = "models",
   hostVramGB = null,
 }: SettingsPageProps = {}): JSX.Element {
@@ -167,7 +169,7 @@ export function SettingsPage({
       ) : tab === "mcp" ? (
         <McpRegistrySettings client={mcp} />
       ) : tab === "security" ? (
-        <SecuritySettings client={securityClient} />
+        <SecuritySettings client={securityClient} auditClient={auditClient} />
       ) : (
         <CredentialsSettings client={credentials} />
       )}

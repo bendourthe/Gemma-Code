@@ -29,6 +29,12 @@ def test_choose_offload_strategy(free, model, strategy):
     assert decision.reason
 
 
+def test_choose_offload_layer_streaming_rescues_insufficient():
+    decision = device.choose_offload(1.0, 8.0, layer_streaming=True)
+    assert decision.strategy == "sequential_cpu_offload"
+    assert "layer-streaming" in decision.reason
+
+
 def test_choose_offload_cpu_when_no_cuda():
     decision = device.choose_offload(None, 8.0)
     assert decision.strategy == "cpu"

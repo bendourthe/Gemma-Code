@@ -4,6 +4,36 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-20] v2.1.0 Phase 6: signed audit log, JSON CLI, diffusion VRAM knobs
+
+### Goal
+
+Local-only hardening: signed audit log with per-actor identity, headless JSON CLI over the sidecar bearer token, explicit diffusion VRAM budget knobs.
+
+### What was done
+
+- `core/audit/`: append-only SQLite, Ed25519 per actor (app/planner/critic/worker), `redactSecrets`, backpressure with dropped-event counter, tamper rows marked untrusted. Settings > Security viewer. Keys prefer the OS keychain.
+- JSON CLI on `/nexus/*` (sibling of `/v1`), reusing `nexus.serving.token`. `nexus session|models|generate`. Schema failures never touch the network.
+- Diffusion memory budget defaults from DiffusionTier. Image Studio Advanced exposes cache VRAM/RAM, working reserve, and layer streaming. Python streaming upgrades insufficient VRAM to sequential CPU offload.
+
+### Tests
+
+Root audit/cli/budget units 97% lines. Desktop 8 files / 72 tests. Python diffusion 33 passed. `tsc -b` clean. Skill catalog assertion updated to 18 built-in (`training-recipe`).
+
+### CI/CD
+
+No new workflow. Existing `test-ts` (coverage + desktop vitest on Node 22) and `test-python-runtimes` cover the new files. Concurrency cancel-in-progress and npm cache already present.
+
+### Deviations
+
+DF-18 listener required. DF-19 Video Lab knobs. DF-20 in-memory keys. DF-21 live GPU unproven. DF-22 no AgentLoop `tool.call`.
+
+### Next
+
+Phase 7 refactor, known-gaps, CI. Commit and push.
+
+---
+
 ## [2026-08-20] v2.1.0 Phase 5: local fine-tuning (Unsloth Core)
 
 ### Goal

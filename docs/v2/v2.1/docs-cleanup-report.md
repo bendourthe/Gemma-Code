@@ -1,6 +1,6 @@
 # Docs cleanup audit - v2.1.0
 
-**Last audit**: 2026-08-20 (Phase 5)
+**Last audit**: 2026-08-20 (Phase 6)
 **Mode**: audit (no files moved)
 
 ## Layout
@@ -26,6 +26,10 @@ Added `development/history/2026-08-20_phase-4-multimodal-chat-sam2.md`. Updated 
 ## Phase 5
 
 Added `development/unsloth-license-boundary.md`, `development/history/2026-08-20_phase-5-local-fine-tuning.md`, `ci-hardware-gates.md`. Updated plan checklist, known-gaps (DF-12 through DF-17), DEVLOG, README What's new, ARCHITECTURE fine-tuning section, AGENTS.md `core/tuning/` layout line.
+
+## Phase 6
+
+Added `development/json-cli.md`, `development/history/2026-08-20_phase-6-hardening.md`. Updated plan checklist, known-gaps (DF-18 through DF-22), DEVLOG, README What's new, ARCHITECTURE audit/CLI/budget sections, AGENTS.md `core/audit/` and `core/cli/` layout lines, `ci-hardware-gates.md`.
 
 ## Recommendation
 

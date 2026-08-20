@@ -227,15 +227,20 @@ export function ServingSettings({ client, writeClipboard }: ServingSettingsProps
                   <h3 style={subheadStyle}>Endpoints</h3>
                   <p style={mutedStyle}>
                     OpenAI-compatible: {OPENAI_PATHS.join(", ")}. Anthropic-compatible:{" "}
-                    {ANTHROPIC_PATHS.join(", ")}. Send the token as{" "}
+                    {ANTHROPIC_PATHS.join(", ")}. JSON CLI: POST /nexus/session/new, POST
+                    /nexus/session/send, GET /nexus/session/list, GET /nexus/models, POST
+                    /nexus/generate/queue. Send the token as{" "}
                     <code>Authorization: Bearer &lt;token&gt;</code> or <code>x-api-key</code>.
                   </p>
                 </div>
               ) : (
                 <p data-testid="acp-token-hint" style={mutedStyle}>
                   ACP uses the same token as{" "}
-                  <code>Authorization: Bearer &lt;token&gt;</code>. The OpenAI-compatible
-                  paths stay off until the local API server is enabled.
+                  <code>Authorization: Bearer &lt;token&gt;</code>. The JSON CLI
+                  (<code>nexus session</code> / <code>nexus models list</code> /{" "}
+                  <code>nexus generate</code>) also uses this token once the local API
+                  server or ACP is enabled. The OpenAI-compatible paths stay off until the
+                  local API server is enabled.
                 </p>
               )}
             </>

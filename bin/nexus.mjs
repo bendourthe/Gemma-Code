@@ -46,14 +46,20 @@ Usage:
   nexus doctor [--migration-report] [--json] [--home <dir>] [--legacy-home <dir>] [--skills-root <dir>] [--stale-days <N>]
   nexus trace export --trace <id> --out <file> --db <path> [--title <t>]
   nexus golden run [--task <id>] [--mode dry|live] [--model <name>]
+  nexus session new --json <body> [--token t] [--host 127.0.0.1] [--port 11500]
+  nexus session send --json <body>
+  nexus session list
+  nexus models list
+  nexus generate queue --json <body>
+  nexus generate status --id <jobId>
   nexus check [...]                     deterministic source-code checks
   nexus image [...]                     image-pipeline helpers
   nexus video [...]                     video-pipeline helpers
 
 Exit codes:
   0  success
-  1  validation error (e.g. injection scan blocked the sync)
-  2  invalid invocation
+  1  validation error (e.g. injection scan blocked the sync) or sidecar/auth error
+  2  invalid invocation / JSON schema error
 `;
 
 export function parseArgs(argv) {
@@ -1282,6 +1288,164 @@ export async function runMemoryCommand(args, stdout = process.stdout, stderr = p
   }
 }
 
+const JSON_CLI_PREFIX = "/nexus";
+
+function readServingDefaults() {
+  const home = process.env.NEXUS_HOME || joinPath(homedir(), ".nexus");
+  let token = process.env.NEXUS_SERVING_TOKEN || "";
+  let host = process.env.NEXUS_SERVING_HOST || "127.0.0.1";
+  let port = process.env.NEXUS_SERVING_PORT || "11500";
+  try {
+    const raw = JSON.parse(readFileSync(joinPath(home, "settings.json"), "utf8"));
+    if (typeof raw["nexus.serving.token"] === "string") token = token || raw["nexus.serving.token"];
+    if (typeof raw["nexus.serving.host"] === "string") host = raw["nexus.serving.host"] || host;
+    if (typeof raw["nexus.serving.port"] === "number") port = String(raw["nexus.serving.port"]);
+  } catch {
+    // settings file is optional
+  }
+  return { token, host, port };
+}
+
+export async function runJsonCli(args, stdout = process.stdout, stderr = process.stderr, deps = {}) {
+  const fetchImpl = deps.fetchImpl ?? globalThis.fetch;
+  const defaults = readServingDefaults();
+  const token = (typeof args.flags.token === "string" && args.flags.token) || defaults.token;
+  const host = (typeof args.flags.host === "string" && args.flags.host) || defaults.host;
+  const port = (typeof args.flags.port === "string" && args.flags.port) || defaults.port;
+  const baseUrl = `http://${host}:${port}`;
+  if (!token) {
+    const body = {
+      error: {
+        code: "auth",
+        message: "Missing bearer token. Set NEXUS_SERVING_TOKEN or --token, or enable Local API server.",
+      },
+    };
+    stdout.write(JSON.stringify(body) + "\n");
+    return 1;
+  }
+
+  const jsonFlag = args.flags.json;
+  const rawJson = typeof jsonFlag === "string" ? jsonFlag : undefined;
+  let method = "GET";
+  let path = "";
+  let body;
+
+  const schemaFail = (message) => {
+    stdout.write(JSON.stringify({ error: { code: "schema", message } }) + "\n");
+    return 2;
+  };
+
+  const parseObject = () => {
+    if (!rawJson) return { ok: true, value: {} };
+    try {
+      const parsed = JSON.parse(rawJson);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        return { ok: false, error: "JSON input must be an object" };
+      }
+      return { ok: true, value: parsed };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  };
+
+  if (args.command === "session" && args.subcommand === "new") {
+    const parsed = parseObject();
+    if (!parsed.ok) return schemaFail(parsed.error);
+    if (!parsed.value.modelId) return schemaFail("missing fields: modelId");
+    method = "POST";
+    path = `${JSON_CLI_PREFIX}/session/new`;
+    body = parsed.value;
+  } else if (args.command === "session" && args.subcommand === "send") {
+    const parsed = parseObject();
+    if (!parsed.ok) return schemaFail(parsed.error);
+    if (!parsed.value.sessionId || !parsed.value.text) return schemaFail("missing fields: sessionId, text");
+    method = "POST";
+    path = `${JSON_CLI_PREFIX}/session/send`;
+    body = parsed.value;
+  } else if (args.command === "session" && args.subcommand === "list") {
+    path = `${JSON_CLI_PREFIX}/session/list`;
+  } else if (args.command === "models" && args.subcommand === "list") {
+    path = `${JSON_CLI_PREFIX}/models`;
+  } else if (args.command === "generate" && args.subcommand === "queue") {
+    const parsed = parseObject();
+    if (!parsed.ok) return schemaFail(parsed.error);
+    if (!parsed.value.pillar || !parsed.value.jobType || !parsed.value.parameters) {
+      return schemaFail("missing fields: pillar, jobType, parameters");
+    }
+    method = "POST";
+    path = `${JSON_CLI_PREFIX}/generate/queue`;
+    body = parsed.value;
+  } else if (args.command === "generate" && args.subcommand === "status") {
+    const id = typeof args.flags.id === "string" ? args.flags.id : "";
+    if (!id) return schemaFail("missing fields: id");
+    path = `${JSON_CLI_PREFIX}/generate/status?id=${encodeURIComponent(id)}`;
+  } else {
+    stderr.write(`nexus: unknown JSON CLI command "${args.command} ${args.subcommand ?? ""}"\n${HELP}`);
+    return 2;
+  }
+
+  try {
+    const res = await fetchImpl(`${baseUrl}${path}`, {
+      method,
+      headers: {
+        authorization: "Bearer " + token,
+        "content-type": "application/json",
+        accept: "application/json",
+      },
+      body: body && method !== "GET" ? JSON.stringify(body) : undefined,
+    });
+    let parsed = null;
+    try {
+      parsed = await res.json();
+    } catch {
+      parsed = null;
+    }
+    if (res.status === 401 || res.status === 403) {
+      stdout.write(
+        JSON.stringify({
+          error: {
+            code: "auth",
+            message: "Bearer token rejected. Check nexus.serving.token.",
+            status: res.status,
+          },
+        }) + "\n",
+      );
+      return 1;
+    }
+    if (!res.ok) {
+      stdout.write(
+        JSON.stringify({
+          error: {
+            code: "sidecar",
+            message: "Sidecar returned HTTP " + res.status,
+            status: res.status,
+            body: parsed,
+          },
+        }) + "\n",
+      );
+      return 1;
+    }
+    stdout.write(JSON.stringify(parsed) + "\n");
+    return 0;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    stdout.write(
+      JSON.stringify({
+        error: {
+          code: "sidecar-down",
+          message:
+            "Sidecar is not reachable at " +
+            baseUrl +
+            path +
+            ". Start Nexus and enable Local API server (Settings > Local API server). " +
+            message,
+        },
+      }) + "\n",
+    );
+    return 1;
+  }
+}
+
 export async function main(argv) {
   const args = parseArgs(argv);
   if (args.help && args.command === null) {
@@ -1357,6 +1521,14 @@ export async function main(argv) {
       `nexus golden: unknown subcommand "${args.subcommand ?? ""}". Expected: run.\n${HELP}`,
     );
     return 2;
+  }
+
+  if (args.command === "session" || args.command === "models" || args.command === "generate") {
+    if (args.help) {
+      process.stdout.write(HELP);
+      return 0;
+    }
+    return runJsonCli(args);
   }
 
   // Pass-through: re-exec the existing sibling CLIs without an extra

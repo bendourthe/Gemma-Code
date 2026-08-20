@@ -16,6 +16,36 @@ export interface SecuritySettingsClient {
   setPosture(id: DesktopSecurityPosture): Promise<void>;
 }
 
+export interface AuditLogClient {
+  list(query?: {
+    actor?: "app" | "planner" | "critic" | "worker";
+    pillar?: string;
+    since?: string;
+    until?: string;
+  }): Promise<
+    readonly {
+      id: number;
+      ts: string;
+      actor: string;
+      pillar: string;
+      kind: string;
+      trusted: boolean;
+    }[]
+  >;
+  status(): Promise<{ eventCount: number; droppedCount: number }>;
+}
+
+function emptyAuditClient(): AuditLogClient {
+  return {
+    async list() {
+      return [];
+    },
+    async status() {
+      return { eventCount: 0, droppedCount: 0 };
+    },
+  };
+}
+
 const STORAGE_KEY = "nexus.coding.securityPosture";
 
 export function createLocalStorageSecurityClient(): SecuritySettingsClient {
@@ -66,12 +96,20 @@ const OPTIONS: readonly {
 
 export interface SecuritySettingsProps {
   client?: SecuritySettingsClient;
+  auditClient?: AuditLogClient;
 }
 
-export function SecuritySettings({ client }: SecuritySettingsProps): JSX.Element {
+export function SecuritySettings({ client, auditClient }: SecuritySettingsProps): JSX.Element {
   const [posture, setPosture] = useState<DesktopSecurityPosture>("standard");
   const [ready, setReady] = useState(false);
+  const [actorFilter, setActorFilter] = useState<string>("");
+  const [pillarFilter, setPillarFilter] = useState("");
+  const [events, setEvents] = useState<
+    readonly { id: number; ts: string; actor: string; pillar: string; kind: string; trusted: boolean }[]
+  >([]);
+  const [dropped, setDropped] = useState(0);
   const resolved = client ?? createLocalStorageSecurityClient();
+  const audit = auditClient ?? emptyAuditClient();
 
   useEffect(() => {
     let active = true;
@@ -85,6 +123,26 @@ export function SecuritySettings({ client }: SecuritySettingsProps): JSX.Element
       active = false;
     };
   }, [resolved]);
+
+  const refreshAudit = useCallback(() => {
+    void Promise.all([
+      audit.list({
+        actor:
+          actorFilter === "app" || actorFilter === "planner" || actorFilter === "critic" || actorFilter === "worker"
+            ? actorFilter
+            : undefined,
+        pillar: pillarFilter.trim() || undefined,
+      }),
+      audit.status(),
+    ]).then(([listed, status]) => {
+      setEvents(listed);
+      setDropped(status.droppedCount);
+    });
+  }, [audit, actorFilter, pillarFilter]);
+
+  useEffect(() => {
+    refreshAudit();
+  }, [refreshAudit]);
 
   const onSelect = useCallback(
     (id: DesktopSecurityPosture) => {
@@ -142,6 +200,65 @@ export function SecuritySettings({ client }: SecuritySettingsProps): JSX.Element
           </label>
         ))}
       </fieldset>
+      <section data-testid="audit-log-viewer" style={{ marginTop: 32 }}>
+        <h2>Local audit log</h2>
+        <p style={{ color: "var(--fg-muted)", maxWidth: 640 }}>
+          Append-only, signed on this machine. Untrusted rows failed signature
+          verification (tamper or corruption). Dropped events are counted, never
+          silent.
+        </p>
+        <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+          <label>
+            Actor
+            <select
+              data-testid="audit-filter-actor"
+              value={actorFilter}
+              onChange={(e) => setActorFilter(e.target.value)}
+            >
+              <option value="">any</option>
+              <option value="app">app</option>
+              <option value="planner">planner</option>
+              <option value="critic">critic</option>
+              <option value="worker">worker</option>
+            </select>
+          </label>
+          <label>
+            Pillar
+            <input
+              data-testid="audit-filter-pillar"
+              value={pillarFilter}
+              onChange={(e) => setPillarFilter(e.target.value)}
+              placeholder="coding"
+            />
+          </label>
+          <button type="button" data-testid="audit-refresh" onClick={refreshAudit}>
+            Refresh
+          </button>
+          <span data-testid="audit-dropped-count">Dropped: {dropped}</span>
+        </div>
+        <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              <th align="left">Time</th>
+              <th align="left">Actor</th>
+              <th align="left">Pillar</th>
+              <th align="left">Kind</th>
+              <th align="left">Trusted</th>
+            </tr>
+          </thead>
+          <tbody>
+            {events.map((event) => (
+              <tr key={event.id} data-testid={`audit-row-${event.id}`}>
+                <td>{event.ts}</td>
+                <td>{event.actor}</td>
+                <td>{event.pillar}</td>
+                <td>{event.kind}</td>
+                <td data-trusted={event.trusted ? "true" : "false"}>{event.trusted ? "yes" : "untrusted"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
     </div>
   );
 }

@@ -17,6 +17,7 @@ import { createIpcSkillOptimizerClient } from "./pages/settings/ipcSkillOptimize
 import { createIpcModelsClient } from "./pages/settings/ipcModelsClient";
 import { createIpcServingClient } from "./pages/settings/ipcServingClient";
 import { createIpcFineTuningClient } from "./pages/settings/ipcFineTuningClient";
+import { createIpcAuditClient } from "./pages/settings/ipcAuditClient";
 import { createIpcMcpRegistryClient } from "./pages/settings/ipcMcpRegistryClient";
 import { createIpcAskInboxClient } from "./pages/inbox/ipcAskInboxClient";
 import { AskInboxPanel } from "./pages/inbox/AskInboxPanel";
@@ -48,6 +49,7 @@ const modelsClient = createIpcModelsClient();
 // OpenAI/Anthropic gateway). Constructed once at module load.
 const servingClient = createIpcServingClient();
 const fineTuningClient = createIpcFineTuningClient();
+const auditClient = createIpcAuditClient();
 const mcpClient = createIpcMcpRegistryClient();
 const askInboxClient = createIpcAskInboxClient();
 
@@ -164,6 +166,7 @@ function AppLayout({ telemetryStream }: AppProps): JSX.Element {
                   skillOptimizerClient={skillOptimizerClient}
                   servingClient={servingClient}
                   fineTuningClient={fineTuningClient}
+                  auditClient={auditClient}
                   mcpClient={mcpClient}
                   hostVramGB={hostVramGB}
                 />

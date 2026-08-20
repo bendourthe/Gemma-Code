@@ -100,3 +100,24 @@ def test_stub_execute_returns_minimal_png():
     )
     assert out_ok["ok"] is True
     assert out_ok["mode"] == "img2img"
+
+
+def test_layer_streaming_completes_previously_insufficient_vram(monkeypatch):
+    from runtimes.diffusion import device as device_mod
+
+    monkeypatch.setattr(
+        device_mod,
+        "detect",
+        lambda: device_mod.DeviceInfo("t", "c", "gpu", 8.0, 1.0),
+    )
+    runner = base.PipelineRunner(
+        mode="txt2img",
+        execute=base.stub_execute("txt2img"),
+        model_size_gb=8.0,
+    )
+    blocked = runner.run(_payload("txt2img"))
+    assert blocked["ok"] is False
+    assert blocked["error"] == "insufficient-vram"
+    streamed = runner.run(_payload("txt2img", layerStreaming=True))
+    assert streamed["ok"] is True
+    assert streamed["offloadStrategy"] == "sequential_cpu_offload"

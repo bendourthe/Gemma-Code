@@ -113,6 +113,9 @@ describe("sidecar handlers", () => {
           "tuning.job.list",
           "tuning.job.cancel",
           "tuning.models.list",
+          // v2.1.0 Phase 6 wired the signed local audit log.
+          "audit.list",
+          "audit.status",
           // v1.10.0 Phase 6 wired the Nexus-Hub catalog sync + update detection.
           "skills.sync",
           "skills.status",
