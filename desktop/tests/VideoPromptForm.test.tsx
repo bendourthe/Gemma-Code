@@ -98,4 +98,17 @@ describe("VideoPromptForm presets", () => {
     const options = Array.from(sampler.options).map((o) => o.value);
     expect(options).toContain("flow-dpm-solver");
   });
+
+  it("exposes VRAM budget knobs in Advanced and maps them onto the request", () => {
+    const onChange = vi.fn();
+    render(<VideoPromptForm availableModels={AVAILABLE_MODELS} onChange={onChange} />);
+    expect(screen.getByTestId("video-memory-budget")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("video-layer-streaming"));
+    expect(onChange).toHaveBeenCalled();
+    const latest = onChange.mock.calls.at(-1)![0] as VideoFormValues;
+    expect(latest.layerStreaming).toBe(false);
+    const request = videoFormToRequest(latest);
+    expect(request.maxCacheVramGB).toBe(latest.maxCacheVramGB);
+    expect(request.layerStreaming).toBe(false);
+  });
 });

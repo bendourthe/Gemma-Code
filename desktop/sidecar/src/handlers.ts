@@ -46,6 +46,9 @@ import {
   TuningModelsListRequest,
   AuditListRequest,
   AuditStatusRequest,
+  MediaSampleVideoFramesRequest,
+  CodingParseDocumentStatusRequest,
+  CodingParseDocumentSetEnabledRequest,
   ModelsInstallRequest,
   ModelsRemoveRequest,
   ModelsInstallDrainRequest,
@@ -92,13 +95,14 @@ import {
   type Method,
 } from "./protocol.js";
 import { existsSync, readFileSync } from "node:fs";
+import * as path from "node:path";
 import { Buffer } from "node:buffer";
 import {
   NexusHubSyncer,
   defaultDependencies,
   summarizeDiff,
 } from "../../../core/skills/NexusHubSyncer.js";
-import { catalogRoot, hubLayoutDir } from "../../../core/storage/paths.js";
+import { catalogRoot, hubLayoutDir, nexusHome } from "../../../core/storage/paths.js";
 import {
   readHubVersionManifest,
   resolveHubLayout,
@@ -124,6 +128,13 @@ import {
   type VideoWorkflowMetadata,
 } from "../../../core/video/WorkflowMetadata.js";
 import { extractWorkflow as extractImageWorkflow } from "../../../core/image/WorkflowMetadata.js";
+import { sampleVideoFramesFromDataUrl } from "../../../core/chat/sampleVideoFrames.js";
+import { createHeadlessOcrParser } from "../../../core/documents/headlessOcrParser.js";
+import {
+  PARSE_DOCUMENT_SETTING_KEY,
+  isParseDocumentEnabled,
+} from "../../../core/documents/parseDocumentEnabled.js";
+import { InMemorySettingsStore, JsonFileSettingsStore, type SettingsStore } from "../../../core/storage/SettingsStore.js";
 import { pumpOnce } from "../../../core/generations/queuePump.js";
 import {
   createStudioRuntime,
@@ -223,6 +234,8 @@ export interface HandlerContext {
   audit?: AuditLog;
   /** v2.1.0 Phase 6 -- shared telemetry bus for audit attribution. */
   telemetry?: TelemetryBus;
+  /** Optional settings store (parse_document toggle, tests). */
+  settings?: SettingsStore;
 }
 
 /** How many individual request records the Traces panel receives per poll. */
@@ -319,9 +332,37 @@ function resolveStudio(ctx: HandlerContext): StudioRuntime {
 
 function resolveTuning(ctx: HandlerContext): TuningRuntime {
   if (!ctx.tuning) {
-    ctx.tuning = createTuningRuntime({ telemetry: ctx.telemetry });
+    ctx.tuning = createTuningRuntime({
+      telemetry: ctx.telemetry,
+      extractPdf: async (file) => {
+        try {
+          const bytes = readFileSync(file);
+          const result = await createHeadlessOcrParser(getSharedOcrRuntime(ctx.ocr).parser).parse(
+            bytes.toString("base64"),
+          );
+          const text = result.text.trim();
+          return text.length > 0 ? text : null;
+        } catch {
+          return null;
+        }
+      },
+    });
   }
   return ctx.tuning;
+}
+
+let _settingsStore: SettingsStore | null = null;
+function resolveSettings(ctx: HandlerContext): SettingsStore {
+  if (ctx.settings) return ctx.settings;
+  if (!_settingsStore) {
+    _settingsStore =
+      process.env.VITEST === "true"
+        ? new InMemorySettingsStore()
+        : new JsonFileSettingsStore({
+            filePath: path.join(nexusHome(), "settings.json"),
+          });
+  }
+  return _settingsStore;
 }
 
 function resolveAudit(ctx: HandlerContext): AuditLog {
@@ -690,6 +731,15 @@ export const handlers: Record<Method, HandlerFn> = {
       payload: { role: "worker", sessionId: req.sessionId },
     });
     const events = await ctx.sessions.sendMessage(req.sessionId, req.message);
+    for (const event of events) {
+      if (event.kind === "toolCallHeader") {
+        ctx.telemetry?.publish({
+          kind: "tool.call",
+          source: "coding",
+          payload: { role: "worker", sessionId: req.sessionId, name: event.name, callId: event.callId },
+        });
+      }
+    }
     return { sessionId: req.sessionId, events };
   },
   "coding.session.cancel": async (params, ctx) => {
@@ -1040,7 +1090,28 @@ export const handlers: Record<Method, HandlerFn> = {
   "audit.status": async (params, ctx) => {
     AuditStatusRequest.parse(params ?? {});
     const log = resolveAudit(ctx);
-    return { eventCount: log.eventCount(), droppedCount: log.droppedCount() };
+    const vaultAvailable = ctx.credentials ? await ctx.credentials.isAvailable() : false;
+    return {
+      eventCount: log.eventCount(),
+      droppedCount: log.droppedCount(),
+      vaultAvailable,
+    };
+  },
+  "media.sampleVideoFrames": async (params, ctx) => {
+    const req = MediaSampleVideoFramesRequest.parse(params ?? {});
+    return sampleVideoFramesFromDataUrl(req.dataUrl, ctx.ffmpeg, {
+      maxFrames: req.maxFrames,
+    });
+  },
+  "coding.parseDocument.status": async (params, ctx) => {
+    CodingParseDocumentStatusRequest.parse(params ?? {});
+    const stored = await resolveSettings(ctx).get<boolean>(PARSE_DOCUMENT_SETTING_KEY);
+    return { enabled: isParseDocumentEnabled({ settingsValue: stored }) };
+  },
+  "coding.parseDocument.setEnabled": async (params, ctx) => {
+    const req = CodingParseDocumentSetEnabledRequest.parse(params ?? {});
+    await resolveSettings(ctx).set(PARSE_DOCUMENT_SETTING_KEY, req.enabled);
+    return { enabled: req.enabled };
   },
 };
 

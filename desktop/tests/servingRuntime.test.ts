@@ -50,11 +50,12 @@ describe("createServingRuntime", () => {
     expect(status.token.length).toBeGreaterThan(0);
   });
 
-  it("sync() opens no listener while the opt-in is off", async () => {
+  it("sync() binds JSON CLI even while the Local API opt-in is off", async () => {
     const runtime = makeRuntime();
     const status = await runtime.sync();
-    expect(status.running).toBe(false);
-    expect(runtime.gateway.boundPort).toBeNull();
+    expect(status.enabled).toBe(false);
+    expect(status.running).toBe(true);
+    expect(runtime.gateway.boundPort).toBeGreaterThan(0);
   });
 
   it("setEnabled(true) persists the opt-in and starts listening", async () => {
@@ -67,13 +68,14 @@ describe("createServingRuntime", () => {
     expect(runtime.gateway.boundPort).toBeGreaterThan(0);
   });
 
-  it("setEnabled(false) stops the listener and persists the opt-out", async () => {
+  it("setEnabled(false) turns off /v1 but keeps the JSON CLI listener", async () => {
     const settings = new InMemorySettingsStore();
     const runtime = makeRuntime(settings);
     await runtime.setEnabled(true);
     const status = await runtime.setEnabled(false);
-    expect(status.running).toBe(false);
-    expect(runtime.gateway.running).toBe(false);
+    expect(status.enabled).toBe(false);
+    expect(status.running).toBe(true);
+    expect(runtime.gateway.running).toBe(true);
     expect(await settings.get<boolean>(SERVING_KEYS.enabled)).toBe(false);
   });
 
@@ -143,7 +145,8 @@ describe("serving.* IPC handlers", () => {
       { enabled: false },
       ctxWith(runtime),
     )) as ServingStatusResponseT;
-    expect(off.running).toBe(false);
+    expect(off.enabled).toBe(false);
+    expect(off.running).toBe(true);
   });
 
   it("serving.setEnabled rejects a non-boolean payload", async () => {

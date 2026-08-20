@@ -11,6 +11,7 @@ import { ChatPage } from "./modules/chat/ChatPage";
 import { ImageStudioPage } from "./modules/image/ImageStudioPage";
 import { VideoLabPage } from "./modules/video/VideoLabPage";
 import { classifyDiffusionTier } from "../../core/config/DiffusionTier";
+import { InMemoryMemoryHub } from "../../core/memory/MemoryHub";
 import { SettingsPage } from "./pages/settings/SettingsPage";
 import { createIpcSkillsClient } from "./pages/settings/ipcSkillsClient";
 import { createIpcSkillOptimizerClient } from "./pages/settings/ipcSkillOptimizerClient";
@@ -25,6 +26,7 @@ import { SETTINGS_MODELS_PATH } from "./shared/models/installedFeed";
 import { LocalModelStatusDock } from "./components/LocalModelStatusDock";
 import { createMockTelemetryStream } from "./lib/telemetryMock";
 import type { TelemetryStream } from "./components/LocalModelStatus.types";
+import { ipcCall } from "./lib/ipc";
 import { MotionActivityProvider, useMotionActivity } from "./motion";
 
 export interface AppProps {
@@ -52,6 +54,15 @@ const fineTuningClient = createIpcFineTuningClient();
 const auditClient = createIpcAuditClient();
 const mcpClient = createIpcMcpRegistryClient();
 const askInboxClient = createIpcAskInboxClient();
+const chatMemoryHub = new InMemoryMemoryHub();
+
+async function sampleChatVideoFrames(dataUrl: string): Promise<{ frames: string[]; notice?: string }> {
+  const reply = await ipcCall<{ frames: string[]; notice?: string }>("media.sampleVideoFrames", { dataUrl });
+  if (!reply.ok) {
+    return { frames: [], notice: "Video was not sent: frame sampling is unavailable. Attach a still image instead." };
+  }
+  return reply.value;
+}
 
 export function App({ telemetryStream }: AppProps = {}): JSX.Element {
   return (
@@ -136,7 +147,13 @@ function AppLayout({ telemetryStream }: AppProps): JSX.Element {
             <Route path="/" element={<Dashboard telemetryStream={stream} askInboxClient={askInboxClient} />} />
             <Route
               path="/chatbot"
-              element={<ChatPage onGetMoreModels={() => navigate(SETTINGS_MODELS_PATH)} />}
+              element={
+                <ChatPage
+                  onGetMoreModels={() => navigate(SETTINGS_MODELS_PATH)}
+                  memoryHub={chatMemoryHub}
+                  sampleVideoFrames={sampleChatVideoFrames}
+                />
+              }
             />
             <Route path="/coding" element={<CodingPage onGetMoreModels={() => navigate(SETTINGS_MODELS_PATH)} />} />
             <Route

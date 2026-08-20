@@ -148,7 +148,7 @@ export function createServingRuntime(opts: CreateServingRuntimeOptions = {}): Se
     const acpEnabled = await readAcpEnabled();
     await refreshAdapters();
     acp.setEnabled(acpEnabled);
-    await gateway.applyConfig({ ...config, acpEnabled });
+    await gateway.applyConfig({ ...config, acpEnabled, jsonCliEnabled: true });
     return gateway.status(config);
   };
 

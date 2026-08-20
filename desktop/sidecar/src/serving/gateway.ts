@@ -75,6 +75,10 @@ export interface ServingStatus {
   readonly token: string;
 }
 
+function listenRequested(config: ServingConfig): boolean {
+  return config.enabled || config.acpEnabled === true || config.jsonCliEnabled === true;
+}
+
 export class ServingGateway {
   private readonly _router: ModelRouter;
   private readonly _log: (message: string) => void;
@@ -119,14 +123,14 @@ export class ServingGateway {
   }
 
   /**
-   * Start listening. No-op when neither serving nor ACP is enabled -- with both
-   * off, NO port is bound. Throws `ServingBindError` for a non-loopback host
-   * before any socket is opened.
+   * Start listening. No-op when serving, ACP, and JSON CLI are all off -- with
+   * all three off, NO port is bound. Throws `ServingBindError` for a non-loopback
+   * host before any socket is opened.
    */
   async start(config: ServingConfig): Promise<void> {
     this._servingRoutesEnabled = config.enabled;
     this._config = config;
-    const listen = config.enabled || config.acpEnabled === true;
+    const listen = listenRequested(config);
     await this.surface.start({
       host: config.host,
       port: config.port,
@@ -152,7 +156,7 @@ export class ServingGateway {
   /** Apply a new config: start, stop, or restart as the delta requires. */
   async applyConfig(next: ServingConfig): Promise<void> {
     const prev = this._config;
-    const listen = next.enabled || next.acpEnabled === true;
+    const listen = listenRequested(next);
     const rebindNeeded =
       this.running && (prev?.host !== next.host || prev?.port !== next.port);
     this._servingRoutesEnabled = next.enabled;

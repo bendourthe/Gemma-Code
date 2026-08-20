@@ -34,9 +34,32 @@ describe("audit IPC", () => {
     const status = (await dispatch("audit.status", {}, ctx)) as {
       eventCount: number;
       droppedCount: number;
+      vaultAvailable: boolean;
     };
     expect(status.eventCount).toBe(1);
     expect(status.droppedCount).toBe(0);
+    expect(typeof status.vaultAvailable).toBe("boolean");
     log.close();
+  });
+
+  it("publishes tool.call when a coding session emits a tool header", async () => {
+    const bus = new InProcessTelemetryBus();
+    const seen: string[] = [];
+    bus.subscribe({ kinds: ["tool.call"] }, (event) => {
+      seen.push(event.kind);
+    });
+    const ctx = createHandlerContext({ pid: 1, platform: process.platform });
+    ctx.telemetry = bus;
+    const started = (await dispatch(
+      "coding.session.start",
+      { modelId: "qwen2.5-coder:7b" },
+      ctx,
+    )) as { sessionId: string };
+    await dispatch(
+      "coding.session.sendMessage",
+      { sessionId: started.sessionId, message: "hi" },
+      ctx,
+    );
+    expect(seen).toContain("tool.call");
   });
 });

@@ -10,6 +10,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { planVideoContinuation } from "../../../../core/video/continuation";
+import type { DiffusionTierId } from "../../../../core/config/DiffusionTier";
+import { defaultMemoryBudget, validateMemoryBudget } from "../../../../core/config/diffusionBudget";
 import type { VideoMode } from "./videoClient";
 
 export interface VideoFormValues {
@@ -29,6 +31,10 @@ export interface VideoFormValues {
   readonly clipSeconds: number;
   /** Explicit local-generation consent for talking-head output. */
   readonly confirmLocalAvatar: boolean;
+  readonly maxCacheVramGB: number;
+  readonly maxCacheRamGB: number;
+  readonly workingMemReserveGB: number;
+  readonly layerStreaming: boolean;
 }
 
 export interface VideoPromptFormProps {
@@ -45,9 +51,11 @@ export interface VideoPromptFormProps {
   readonly hideMode?: boolean;
   /** v2.0.0 Phase 3 -- show the talking-head confirm checkbox and mode. */
   readonly avatarAvailable?: boolean;
+  readonly diffusionTier?: DiffusionTierId;
 }
 
 const SAMPLERS = ["euler", "euler_a", "dpmpp_2m", "dpmpp_sde", "ddim", "lms", "flow-dpm-solver"];
+const LOW_BUDGET = defaultMemoryBudget("diffusion-low");
 const FPS_VALUES: Array<12 | 16 | 24> = [12, 16, 24];
 const RESOLUTIONS: Array<{
   label: string;
@@ -73,6 +81,10 @@ export const DEFAULT_VIDEO_FORM_VALUES: VideoFormValues = {
   seed: 0,
   clipSeconds: 4,
   confirmLocalAvatar: false,
+  maxCacheVramGB: LOW_BUDGET.maxCacheVramGB,
+  maxCacheRamGB: LOW_BUDGET.maxCacheRamGB,
+  workingMemReserveGB: LOW_BUDGET.workingMemReserveGB,
+  layerStreaming: LOW_BUDGET.layerStreaming,
 };
 
 /**
@@ -120,6 +132,7 @@ export function VideoPromptForm({
   onChange,
   hideMode = false,
   avatarAvailable = false,
+  diffusionTier = "diffusion-low",
 }: VideoPromptFormProps): JSX.Element {
   const [values, setValues] = useState<VideoFormValues>({
     ...DEFAULT_VIDEO_FORM_VALUES,
@@ -167,6 +180,25 @@ export function VideoPromptForm({
   const continuation = useMemo(
     () => planVideoContinuation(values.durationSeconds, values.clipSeconds),
     [values.durationSeconds, values.clipSeconds],
+  );
+  const budgetCheck = useMemo(
+    () =>
+      validateMemoryBudget({
+        budget: {
+          maxCacheVramGB: values.maxCacheVramGB,
+          maxCacheRamGB: values.maxCacheRamGB,
+          workingMemReserveGB: values.workingMemReserveGB,
+          layerStreaming: values.layerStreaming,
+        },
+        modelMinVramGB: diffusionTier === "diffusion-low" ? 4 : 6,
+      }),
+    [
+      values.maxCacheVramGB,
+      values.maxCacheRamGB,
+      values.workingMemReserveGB,
+      values.layerStreaming,
+      diffusionTier,
+    ],
   );
 
   return (
@@ -375,6 +407,65 @@ export function VideoPromptForm({
             ))}
           </select>
         </label>
+        <div data-testid="video-memory-budget" style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+          <strong>VRAM budget</strong>
+          <label>
+            max cache VRAM (GB)
+            <input
+              data-testid="video-max-cache-vram"
+              type="number"
+              min={0.5}
+              step={0.5}
+              value={values.maxCacheVramGB}
+              disabled={disabled}
+              onChange={(e) => update("maxCacheVramGB", Number(e.target.value))}
+            />
+          </label>
+          <label>
+            max cache RAM (GB)
+            <input
+              data-testid="video-max-cache-ram"
+              type="number"
+              min={1}
+              step={1}
+              value={values.maxCacheRamGB}
+              disabled={disabled}
+              onChange={(e) => update("maxCacheRamGB", Number(e.target.value))}
+            />
+          </label>
+          <label>
+            working reserve (GB)
+            <input
+              data-testid="video-working-reserve"
+              type="number"
+              min={0}
+              step={0.5}
+              value={values.workingMemReserveGB}
+              disabled={disabled}
+              onChange={(e) => update("workingMemReserveGB", Number(e.target.value))}
+            />
+          </label>
+          <label>
+            <input
+              data-testid="video-layer-streaming"
+              type="checkbox"
+              checked={values.layerStreaming}
+              disabled={disabled}
+              onChange={(e) => update("layerStreaming", e.target.checked)}
+            />
+            Layer streaming (complete a previously too-small VRAM load)
+          </label>
+          {!budgetCheck.ok ? (
+            <p data-testid="video-budget-error" style={{ color: "var(--accent-danger, #f87171)", margin: 0 }}>
+              {budgetCheck.errors.join(" ")}
+            </p>
+          ) : null}
+          {budgetCheck.warnings.map((warning) => (
+            <p key={warning} data-testid="video-budget-warning" style={{ color: "var(--fg-muted)", margin: 0 }}>
+              {warning}
+            </p>
+          ))}
+        </div>
       </details>
     </div>
   );
@@ -396,6 +487,10 @@ export function videoFormToRequest(
     sampler: values.sampler,
     seed: values.seed,
     latentPreview: true,
+    maxCacheVramGB: values.maxCacheVramGB,
+    maxCacheRamGB: values.maxCacheRamGB,
+    workingMemReserveGB: values.workingMemReserveGB,
+    layerStreaming: values.layerStreaming,
   };
 }
 

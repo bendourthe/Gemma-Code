@@ -45,6 +45,7 @@ import {
 import { enforceVisualBudget, capVideoFrames } from "../../../../core/chat/visualBudget";
 import { recordMultimodalTurn } from "../../../../core/memory/multimodalSurrogate";
 import type { MemoryHub } from "../../../../core/memory/MemoryHub";
+import { redactSecrets } from "../../../../core/observability/redactSecrets";
 import { PreviewPane, type PreviewArtifact } from "../../components/PreviewPane";
 import { DEFAULT_MODEL_ID, FRONTEND_MODELS } from "../coding/models";
 import {
@@ -441,6 +442,15 @@ export function ChatPage({
         const labelled = labelSttTranscript(parts.join("\n"));
         origin = STT_TRANSCRIPT_ORIGIN;
         prompt = [text, labelled].filter((part) => part.trim().length > 0).join("\n\n");
+        if (memoryHub) {
+          void memoryHub.episodic
+            .record({
+              id: `${baseId}-stt`,
+              content: redactSecrets(prompt),
+              source: "chat-stt",
+            })
+            .catch(() => undefined);
+        }
       }
 
       const userContent =

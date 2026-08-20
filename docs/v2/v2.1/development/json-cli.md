@@ -2,7 +2,7 @@
 
 The `nexus` CLI talks to the running sidecar over the shared loopback control surface (`127.0.0.1:11500` by default) using the existing `nexus.serving.token`. There is no second HTTP server and no second credential.
 
-Enable Settings > Local API server (or ACP) so the listener is bound. Then:
+The sidecar binds this listener for JSON CLI even when Settings > Local API server is off (`/v1` stays disabled). ACP can share the same port. Then:
 
 ```
 nexus session new --json "{\"modelId\":\"gemma4:e4b\"}"

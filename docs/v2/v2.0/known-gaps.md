@@ -17,10 +17,10 @@ Phase 5 reconciliation: v1.15-v1.18 files are finalized and remain canonical. St
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 14 | 1 |
+| Deferred (DF) | 13 | 2 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
-| Missing tests / coverage gaps (MT) | 1 | 0 |
+| Missing tests / coverage gaps (MT) | 0 | 1 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
 ### Open Items
@@ -54,13 +54,6 @@ Phase 5 reconciliation: v1.15-v1.18 files are finalized and remain canonical. St
 - **Plan reference**: `docs/v2/v2.0/plans/v2.0.0-adoption-governed-autonomy-multimodal.md` (sub-task 1.3)
 - **Reason**: CI never loads Kokoro (`NEXUS_AUDIO_STUB=1`). The live `speak()` path concatenates float32 PCM and wraps it with a 16-bit WAV header. Playback on a host with weights may need an int16 conversion.
 - **Suggested next step**: On a host with `kokoro-82m` installed, record one spoken reply and, if the WAV is noisy, convert float32 to int16 before `_wrap_wav`.
-
-##### DF-5 - Chat STT transcripts are not written to MemoryStore
-
-- **Source phase**: Phase 1 - Audio attachment + transcribe-then-chat (1.2)
-- **Plan reference**: `docs/v2/v2.0/plans/v2.0.0-adoption-governed-autonomy-multimodal.md` (sub-task 1.2)
-- **Reason**: Local Chatbot Explorer has no MemoryStore. Sidecar coding hosts also have no store (v1.20 DF-1). Scrubbing happens on the transcribe path (`prepareSttTranscript` / `redactSecrets`) so a future index cannot ingest raw secrets.
-- **Suggested next step**: When Chat gains a memory index, ingest the already-labelled, already-redacted transcript rather than the audio bytes.
 
 ##### DF-6 - Playwright is an optional local install, not a lockfile pin
 
@@ -125,15 +118,6 @@ Phase 5 reconciliation: v1.15-v1.18 files are finalized and remain canonical. St
 - **Reason**: v1.19.2 calibrated the patient tier. A Kimi K3 row waits on a GGUF in the Ollama-wrapped lineage. The C99 engine from kimi-k3-in-c stays rejected.
 - **Suggested next step**: If an Ollama-served GGUF lands with a pin, add a patient-tier catalog row. Do not vendor the C engine or the 1.56 TB checkpoint.
 
-#### Missing Tests / Coverage Gaps
-
-##### MT-1 - ChildProcessAudioRuntime timeout and malformed-line branches
-
-- **Source phase**: Phase 1 - Testing and Stabilization (1.4)
-- **Plan reference**: `docs/v2/v2.0/plans/v2.0.0-adoption-governed-autonomy-multimodal.md` (sub-task 1.4)
-- **Reason**: Unit tests cover in-memory runtime, factory `NEXUS_AUDIO_INMEMORY`, and one JSON-RPC stdio happy path. Timeout, child-exit, and non-JSON stdout lines remain uncovered. Folder branch coverage for `core/audio` is about 51%; global thresholds still pass.
-- **Suggested next step**: Add a spawn fake that exits mid-request and one that writes a non-JSON line.
-
 ### Carry-forward index (v1.15 through v1.20)
 
 Canonical detail stays in the source file. v2.0 does not close these unless listed under Resolved.
@@ -145,10 +129,12 @@ Canonical detail stays in the source file. v2.0 does not close these unless list
 | [v1.17](../../v1/v1.17/known-gaps.md) | finalized | Motion/Tailwind/installer-motion stay there. `asr-capture` orb mapping exists; Chat voice loop does not yet pass that activity |
 | [v1.18](../../v1/v1.18/known-gaps.md) | finalized | 14 open DF (llama-server smoke, Hub CI, sidecar harness overlay, Windows sandbox partial, ...) stay there |
 | [v1.19](../../v1/v1.19/known-gaps.md) | in-progress | v1.19.0 DF-2,3,6-11; v1.19.1 DF-1-5; v1.19.2 DF-1,3,4 stay there. Inkling multimodal is DF-13 here |
-| [v1.20](../../v1/v1.20/known-gaps.md) | in-progress | DF-1-6 (sidecar MemoryStore, Settings toggle, parse queue, first-attachment, Docling defer, ocr dir name) stay there. Chat STT indexing overlaps DF-5 here |
+| [v1.20](../../v1/v1.20/known-gaps.md) | in-progress | Remaining: sidecar MemoryStore (DF-1), Docling defer (DF-5), ocr dir name (DF-6). Settings toggle and first-attachment/busy rules resolved in the v2.1 sweep. |
 
 ### Resolved
 
 | ID | Title | Resolved in | Notes |
 |---|---|---|---|
 | OW-A2 scheduler | OpenWorker A2 local scheduler | v1.18.0 Phase 4 | `AgentRunScheduler` plus ask inbox. Morning-brief schedule remains off by default. Not re-opened in v2.0 |
+| DF-5 | Chat STT transcripts indexed | v2.1.0 sweep | Chat-scoped `InMemoryMemoryHub` records redacted STT text (`chat-stt`). Sidecar coding MemoryStore remains v1.20 DF-1. |
+| MT-1 | ChildProcessAudioRuntime timeout/malformed lines | v2.1.0 sweep | Spawn fakes cover timeout, child-exit, and a non-JSON stdout line. |

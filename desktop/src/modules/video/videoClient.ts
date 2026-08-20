@@ -33,6 +33,10 @@ export interface VideoBaseRequest {
   readonly seed: number;
   readonly latentPreview?: boolean;
   readonly continueFrom?: VideoContinueFrom;
+  readonly maxCacheVramGB?: number;
+  readonly maxCacheRamGB?: number;
+  readonly workingMemReserveGB?: number;
+  readonly layerStreaming?: boolean;
 }
 
 export interface Text2VideoRequest extends VideoBaseRequest {}

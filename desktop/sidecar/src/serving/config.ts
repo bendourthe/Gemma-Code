@@ -3,8 +3,8 @@
  *
  * Resolves the `nexus.serving.*` settings group that decides whether Nexus
  * exposes its registry-backed local models over a loopback HTTP API. The
- * gateway is opt-in and defaults OFF: with no settings written, `resolve()`
- * returns `enabled: false` and the caller opens no listener at all.
+ * gateway is opt-in and defaults OFF for OpenAI `/v1` routes. JSON CLI still
+ * binds the loopback listener so `nexus session` works without enabling `/v1`.
  *
  * Resolution order, highest precedence first:
  *   1. the `SettingsStore` (`~/.nexus/settings.json`, written by the desktop
@@ -44,6 +44,11 @@ export interface ServingConfig {
    * control surface binds even if `enabled` (serving routes) is false.
    */
   readonly acpEnabled?: boolean;
+  /**
+   * v2.1.0 -- JSON CLI (`/nexus/*`) on the same loopback listener. When true
+   * the control surface binds even if serving and ACP are off.
+   */
+  readonly jsonCliEnabled?: boolean;
 }
 
 export interface ResolveServingConfigOptions {

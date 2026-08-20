@@ -38,6 +38,11 @@ export interface DatasetBuildOptions {
   readonly previewLimit?: number;
   readonly homeDirFn?: () => string;
   readonly now?: () => Date;
+  /**
+   * Optional PDF text extractor (OCR / parse_document spine). When omitted,
+   * `.pdf` files are skipped so the rest of the dataset continues.
+   */
+  readonly extractPdf?: (path: string) => string | null | Promise<string | null>;
 }
 
 const DEFAULT_MAX_BYTES = 2 * 1024 * 1024;
@@ -147,7 +152,7 @@ function collectFiles(source: string, acc: string[]): void {
   }
 }
 
-export function buildDataset(opts: DatasetBuildOptions): DatasetBuildResult {
+export async function buildDataset(opts: DatasetBuildOptions): Promise<DatasetBuildResult> {
   const maxBytes = opts.maxBytes ?? DEFAULT_MAX_BYTES;
   const id = opts.id ?? `ds-${(opts.now ?? (() => new Date()))().toISOString().replace(/[:.]/g, "-")}`;
   const files: string[] = [];
@@ -157,10 +162,6 @@ export function buildDataset(opts: DatasetBuildOptions): DatasetBuildResult {
   let redacted = 0;
   for (const file of files) {
     const lower = file.toLowerCase();
-    if (lower.endsWith(".pdf")) {
-      skipped.push({ path: file, reason: "PDF extractor is not wired in this cycle; skip and continue." });
-      continue;
-    }
     let st;
     try {
       st = statSync(file);
@@ -172,12 +173,29 @@ export function buildDataset(opts: DatasetBuildOptions): DatasetBuildResult {
       skipped.push({ path: file, reason: `oversized (${st.size} bytes > ${maxBytes})` });
       continue;
     }
-    let text: string;
-    try {
-      text = readFileSync(file, "utf8");
-    } catch {
-      skipped.push({ path: file, reason: "unreadable" });
-      continue;
+    let text: string | null = null;
+    if (lower.endsWith(".pdf")) {
+      if (!opts.extractPdf) {
+        skipped.push({ path: file, reason: "PDF extractor is not wired; skip and continue." });
+        continue;
+      }
+      try {
+        text = await opts.extractPdf(file);
+      } catch {
+        skipped.push({ path: file, reason: "PDF extract error" });
+        continue;
+      }
+      if (!text || !text.trim()) {
+        skipped.push({ path: file, reason: "PDF extractor returned no text" });
+        continue;
+      }
+    } else {
+      try {
+        text = readFileSync(file, "utf8");
+      } catch {
+        skipped.push({ path: file, reason: "unreadable" });
+        continue;
+      }
     }
     let records: DatasetRecord[];
     try {

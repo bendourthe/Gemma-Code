@@ -8,6 +8,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import { ipcCall } from "../../lib/ipc";
 
 export type DesktopSecurityPosture = "strict" | "standard" | "unattended";
 
@@ -32,7 +33,7 @@ export interface AuditLogClient {
       trusted: boolean;
     }[]
   >;
-  status(): Promise<{ eventCount: number; droppedCount: number }>;
+  status(): Promise<{ eventCount: number; droppedCount: number; vaultAvailable: boolean }>;
 }
 
 function emptyAuditClient(): AuditLogClient {
@@ -41,7 +42,7 @@ function emptyAuditClient(): AuditLogClient {
       return [];
     },
     async status() {
-      return { eventCount: 0, droppedCount: 0 };
+      return { eventCount: 0, droppedCount: 0, vaultAvailable: true };
     },
   };
 }
@@ -94,12 +95,38 @@ const OPTIONS: readonly {
   },
 ];
 
+export interface ParseDocumentSettingsClient {
+  getEnabled(): Promise<boolean>;
+  setEnabled(enabled: boolean): Promise<void>;
+}
+
+function ipcParseDocumentClient(): ParseDocumentSettingsClient {
+  return {
+    async getEnabled() {
+      const reply = await ipcCall<{ enabled: boolean }>("coding.parseDocument.status", {});
+      if (!reply.ok) return false;
+      return reply.value.enabled;
+    },
+    async setEnabled(enabled) {
+      const reply = await ipcCall<{ enabled: boolean }>("coding.parseDocument.setEnabled", { enabled });
+      if (!reply.ok) throw new Error(reply.message);
+    },
+  };
+}
+
+const DEFAULT_PARSE_DOCUMENT_CLIENT = ipcParseDocumentClient();
+
 export interface SecuritySettingsProps {
   client?: SecuritySettingsClient;
   auditClient?: AuditLogClient;
+  parseDocumentClient?: ParseDocumentSettingsClient;
 }
 
-export function SecuritySettings({ client, auditClient }: SecuritySettingsProps): JSX.Element {
+export function SecuritySettings({
+  client,
+  auditClient,
+  parseDocumentClient,
+}: SecuritySettingsProps): JSX.Element {
   const [posture, setPosture] = useState<DesktopSecurityPosture>("standard");
   const [ready, setReady] = useState(false);
   const [actorFilter, setActorFilter] = useState<string>("");
@@ -108,8 +135,11 @@ export function SecuritySettings({ client, auditClient }: SecuritySettingsProps)
     readonly { id: number; ts: string; actor: string; pillar: string; kind: string; trusted: boolean }[]
   >([]);
   const [dropped, setDropped] = useState(0);
+  const [vaultAvailable, setVaultAvailable] = useState(true);
+  const [parseDocumentEnabled, setParseDocumentEnabled] = useState(false);
   const resolved = client ?? createLocalStorageSecurityClient();
   const audit = auditClient ?? emptyAuditClient();
+  const parseDocument = parseDocumentClient ?? DEFAULT_PARSE_DOCUMENT_CLIENT;
 
   useEffect(() => {
     let active = true;
@@ -137,8 +167,19 @@ export function SecuritySettings({ client, auditClient }: SecuritySettingsProps)
     ]).then(([listed, status]) => {
       setEvents(listed);
       setDropped(status.droppedCount);
+      setVaultAvailable(status.vaultAvailable);
     });
   }, [audit, actorFilter, pillarFilter]);
+
+  useEffect(() => {
+    let active = true;
+    void parseDocument.getEnabled().then((enabled) => {
+      if (active) setParseDocumentEnabled(enabled);
+    });
+    return () => {
+      active = false;
+    };
+  }, [parseDocument]);
 
   useEffect(() => {
     refreshAudit();
@@ -200,6 +241,26 @@ export function SecuritySettings({ client, auditClient }: SecuritySettingsProps)
           </label>
         ))}
       </fieldset>
+      <section data-testid="parse-document-settings" style={{ marginTop: 32 }}>
+        <h2>Document parsing</h2>
+        <p style={{ color: "var(--fg-muted)", maxWidth: 640 }}>
+          Opt-in for the coding agent <code>parse_document</code> tool. Writes
+          <code> nexus.coding.parseDocument.enabled</code> in local settings.
+          Off by default.
+        </p>
+        <label data-testid="parse-document-toggle" style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <input
+            type="checkbox"
+            checked={parseDocumentEnabled}
+            onChange={(e) => {
+              const next = e.target.checked;
+              setParseDocumentEnabled(next);
+              void parseDocument.setEnabled(next);
+            }}
+          />
+          Enable parse_document for coding sessions
+        </label>
+      </section>
       <section data-testid="audit-log-viewer" style={{ marginTop: 32 }}>
         <h2>Local audit log</h2>
         <p style={{ color: "var(--fg-muted)", maxWidth: 640 }}>
@@ -236,6 +297,13 @@ export function SecuritySettings({ client, auditClient }: SecuritySettingsProps)
           </button>
           <span data-testid="audit-dropped-count">Dropped: {dropped}</span>
         </div>
+        {!vaultAvailable ? (
+          <p data-testid="audit-vault-notice" style={{ color: "var(--fg-muted)", maxWidth: 640 }}>
+            OS keychain unavailable. Signing keys stay in process memory and
+            reset on restart; older rows may show as untrusted. No plaintext key
+            files are written.
+          </p>
+        ) : null}
         <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
           <thead>
             <tr>

@@ -65,4 +65,65 @@ describe("ChildProcessAudioRuntime", () => {
     expect(text.transcript).toContain("hello");
     await runtime.shutdown();
   });
+
+  it("times out when the child never replies", async () => {
+    const runtime = new ChildProcessAudioRuntime({
+      spawnFn: (() => {
+        const stdin = new PassThrough();
+        const stdout = new PassThrough();
+        const child = new EventEmitter() as EventEmitter & {
+          stdin: PassThrough;
+          stdout: PassThrough;
+          stderr: PassThrough;
+          kill: () => boolean;
+        };
+        child.stdin = stdin;
+        child.stdout = stdout;
+        child.stderr = new PassThrough();
+        child.kill = () => true;
+        return child;
+      }) as unknown as typeof import("node:child_process").spawn,
+      requestTimeoutMs: 30,
+    });
+    await expect(runtime.health()).rejects.toThrow(/timeout/i);
+    await runtime.shutdown();
+  });
+
+  it("ignores a non-JSON stdout line and still answers the next request", async () => {
+    const runtime = new ChildProcessAudioRuntime({
+      spawnFn: (() => {
+        const child = fakeChild();
+        queueMicrotask(() => child.stdout.write("not-json\n"));
+        return child;
+      }) as unknown as typeof import("node:child_process").spawn,
+      requestTimeoutMs: 2000,
+    });
+    const health = await runtime.health();
+    expect(health.platform).toBe("fake");
+    await runtime.shutdown();
+  });
+
+  it("rejects in-flight calls when the child exits", async () => {
+    const runtime = new ChildProcessAudioRuntime({
+      spawnFn: (() => {
+        const stdin = new PassThrough();
+        const stdout = new PassThrough();
+        const child = new EventEmitter() as EventEmitter & {
+          stdin: PassThrough;
+          stdout: PassThrough;
+          stderr: PassThrough;
+          kill: () => boolean;
+        };
+        child.stdin = stdin;
+        child.stdout = stdout;
+        child.stderr = new PassThrough();
+        child.kill = () => true;
+        queueMicrotask(() => child.emit("exit", 1));
+        return child;
+      }) as unknown as typeof import("node:child_process").spawn,
+      requestTimeoutMs: 2000,
+    });
+    await expect(runtime.health()).rejects.toThrow(/audio-runtime-exited/);
+    await runtime.shutdown();
+  });
 });

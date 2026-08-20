@@ -116,6 +116,9 @@ describe("sidecar handlers", () => {
           // v2.1.0 Phase 6 wired the signed local audit log.
           "audit.list",
           "audit.status",
+          "media.sampleVideoFrames",
+          "coding.parseDocument.status",
+          "coding.parseDocument.setEnabled",
           // v1.10.0 Phase 6 wired the Nexus-Hub catalog sync + update detection.
           "skills.sync",
           "skills.status",

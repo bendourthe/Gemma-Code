@@ -589,6 +589,7 @@ export function VideoLabPage({
               disabled={isGenerating}
               hideMode
               avatarAvailable={canAvatar}
+              diffusionTier={diffusionTier}
             />
             <GenerationQueueBar
               jobs={queueJobs}

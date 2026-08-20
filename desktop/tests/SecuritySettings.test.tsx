@@ -58,12 +58,30 @@ describe("SecuritySettings", () => {
               trusted: false,
             },
           ],
-          status: async () => ({ eventCount: 1, droppedCount: 3 }),
+          status: async () => ({ eventCount: 1, droppedCount: 3, vaultAvailable: false }),
         }}
       />,
     );
     await waitFor(() => expect(screen.getByTestId("audit-row-1")).toBeInTheDocument());
     expect(screen.getByTestId("audit-dropped-count")).toHaveTextContent("Dropped: 3");
     expect(screen.getByText("untrusted")).toBeInTheDocument();
+    expect(screen.getByTestId("audit-vault-notice")).toBeInTheDocument();
+  });
+
+  it("toggles parse_document through the injected client", async () => {
+    const user = userEvent.setup();
+    const setEnabled = vi.fn(async (_enabled: boolean) => undefined);
+    render(
+      <SecuritySettings
+        client={memoryClient()}
+        parseDocumentClient={{
+          getEnabled: async () => false,
+          setEnabled,
+        }}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId("parse-document-toggle")).toBeInTheDocument());
+    await user.click(screen.getByTestId("parse-document-toggle").querySelector("input")!);
+    expect(setEnabled).toHaveBeenCalledWith(true);
   });
 });

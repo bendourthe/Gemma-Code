@@ -18,7 +18,10 @@ export function createIpcAuditClient(): AuditLogClient {
       return reply.value.events;
     },
     async status() {
-      const reply = await ipcCall<{ eventCount: number; droppedCount: number }>("audit.status", {});
+      const reply = await ipcCall<{ eventCount: number; droppedCount: number; vaultAvailable: boolean }>(
+        "audit.status",
+        {},
+      );
       if (!reply.ok) throw new Error(reply.message);
       return reply.value;
     },

@@ -82,8 +82,8 @@ const skillOptimizer = goldenTasksDir
   : new SkillOptimizerManager();
 // v1.16.0 Phase 1 (adoption item A1): the loopback serving gateway. Constructed
 // eagerly so the same instance backs both the `serving.*` IPC and the startup
-// reconcile below, but it opens NO listener unless `nexus.serving.enabled` is
-// true -- the opt-in defaults off.
+// reconcile below. OpenAI `/v1` stays off until `nexus.serving.enabled` is
+// true; JSON CLI still binds the listener.
 const askInbox = new AskInbox({ filePath: join(nexusHome(), "ask-inbox.json") });
 const serving = createServingRuntime({ askInbox });
 const scheduler = new AgentRunScheduler({
@@ -220,9 +220,9 @@ function main(): void {
   // and non-fatal -- a bad host or a taken port must not stop the sidecar.
   void serving.sync().then(
     (status) => {
-      if (!status.enabled) return;
+      if (!status.running) return;
       process.stderr.write(
-        `[nexus-sidecar] local serving gateway: ${status.running ? "listening" : "not listening"}\n`,
+        `[nexus-sidecar] local serving gateway: ${status.enabled ? "routes on" : "JSON CLI on"} ${status.running ? "listening" : "not listening"}\n`,
       );
     },
     (err: unknown) => {

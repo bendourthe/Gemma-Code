@@ -105,6 +105,10 @@ export const IPC_METHODS = [
   // v2.1.0 Phase 6 -- signed local audit log.
   "audit.list",
   "audit.status",
+  // v2.1.0 known-gaps -- Chat video frame sampling + parse_document Settings.
+  "media.sampleVideoFrames",
+  "coding.parseDocument.status",
+  "coding.parseDocument.setEnabled",
 ] as const;
 
 export type Method = (typeof IPC_METHODS)[number];
@@ -620,6 +624,10 @@ const VideoBase = z.object({
   seed: z.number().int().nonnegative(),
   latentPreview: z.boolean().default(true),
   continueFrom: VideoContinueFrom.optional(),
+  maxCacheVramGB: z.number().positive().optional(),
+  maxCacheRamGB: z.number().positive().optional(),
+  workingMemReserveGB: z.number().nonnegative().optional(),
+  layerStreaming: z.boolean().optional(),
 });
 
 export const DiffusionVideoText2VideoRequest = VideoBase.strict();
@@ -947,8 +955,30 @@ export const AuditStatusResponse = z
   .object({
     eventCount: z.number().int().nonnegative(),
     droppedCount: z.number().int().nonnegative(),
+    vaultAvailable: z.boolean(),
   })
   .strict();
+
+export const MediaSampleVideoFramesRequest = z
+  .object({
+    dataUrl: z.string().min(1),
+    maxFrames: z.number().int().min(1).max(24).optional(),
+  })
+  .strict();
+export type MediaSampleVideoFramesRequestT = z.infer<typeof MediaSampleVideoFramesRequest>;
+
+export const MediaSampleVideoFramesResponse = z
+  .object({
+    frames: z.array(z.string()),
+    notice: z.string().optional(),
+  })
+  .strict();
+export type MediaSampleVideoFramesResponseT = z.infer<typeof MediaSampleVideoFramesResponse>;
+
+export const CodingParseDocumentStatusRequest = z.object({}).strict();
+export const CodingParseDocumentStatusResponse = z.object({ enabled: z.boolean() }).strict();
+export const CodingParseDocumentSetEnabledRequest = z.object({ enabled: z.boolean() }).strict();
+export const CodingParseDocumentSetEnabledResponse = z.object({ enabled: z.boolean() }).strict();
 
 // ---- v1.1.0 Phase 11 -- VS Code extension surface ---------------------------
 
@@ -2033,6 +2063,21 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
   "audit.status": {
     request: AuditStatusRequest,
     response: AuditStatusResponse,
+    implemented: true,
+  },
+  "media.sampleVideoFrames": {
+    request: MediaSampleVideoFramesRequest,
+    response: MediaSampleVideoFramesResponse,
+    implemented: true,
+  },
+  "coding.parseDocument.status": {
+    request: CodingParseDocumentStatusRequest,
+    response: CodingParseDocumentStatusResponse,
+    implemented: true,
+  },
+  "coding.parseDocument.setEnabled": {
+    request: CodingParseDocumentSetEnabledRequest,
+    response: CodingParseDocumentSetEnabledResponse,
     implemented: true,
   },
 };

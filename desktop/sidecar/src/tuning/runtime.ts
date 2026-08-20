@@ -9,7 +9,7 @@ import { randomUUID } from "node:crypto";
 import * as path from "node:path";
 import { TuningJobStore, type TuningJob } from "../../../../core/tuning/jobStore.js";
 import { TuningProvisioner, type ProvisionState } from "../../../../core/tuning/provisioner.js";
-import { buildDataset } from "../../../../core/tuning/datasetBuilder.js";
+import { buildDataset, type DatasetBuildResult } from "../../../../core/tuning/datasetBuilder.js";
 import { runTuningJob, stubTrainer, type OllamaImportPort, type Trainer } from "../../../../core/tuning/orchestrator.js";
 import type { EvalPort } from "../../../../core/tuning/evalGate.js";
 import { recipeForVram } from "../../../../core/tuning/recipes.js";
@@ -46,7 +46,7 @@ export interface TuningRuntime {
   }>;
   provision(): Promise<{ ok: boolean } & Awaited<ReturnType<TuningRuntime["status"]>>>;
   preflight(): Promise<{ ok: boolean; message: string }>;
-  buildDataset(params: { sources: readonly string[]; id?: string }): ReturnType<typeof buildDataset>;
+  buildDataset(params: { sources: readonly string[]; id?: string }): Promise<DatasetBuildResult>;
   listJobs(states?: readonly TuningJob["state"][]): readonly TuningJob[];
   startJob(params: {
     id?: string;
@@ -67,6 +67,7 @@ export interface TuningRuntimeOptions {
   readonly trainer?: Trainer;
   readonly evalPort?: EvalPort;
   readonly ollama?: OllamaImportPort;
+  readonly extractPdf?: (path: string) => string | null | Promise<string | null>;
   readonly catalogModels?: readonly ModelSpec[];
   readonly now?: () => Date;
   readonly telemetry?: import("../../../../core/telemetry/TelemetryBus.js").TelemetryBus;
@@ -143,6 +144,7 @@ export function createTuningRuntime(opts: TuningRuntimeOptions = {}): TuningRunt
         id: params.id,
         homeDirFn,
         now: opts.now,
+        extractPdf: opts.extractPdf,
       });
     },
     listJobs(states) {

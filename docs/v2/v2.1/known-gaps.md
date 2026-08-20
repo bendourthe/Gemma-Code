@@ -8,7 +8,7 @@ Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/pl
 
 Plan: [plans/v2.1.0-adoption-open-local-ai-wave.md](plans/v2.1.0-adoption-open-local-ai-wave.md)
 
-Phase 7 reconciliation: hardware and product-backlog items stay deferred with next steps. Comparison backlog A13 (minimal mask canvas) and A14 (frame-anchored video comments) are recorded below. DiffusionGemma remains DF-1 with both flip conditions. Status stays in-progress until `/update release` bumps the version.
+Phase 7 reconciliation plus the post-phase known-gaps sweep: hardware and product-backlog items stay deferred with next steps. Code-completeable rows from that sweep (Python iTXt, Chat video sampling, Chat episodic hub, PDF extract port, JSON CLI bind, Video Lab VRAM knobs, vault notice, desktop `tool.call`) are resolved below. Comparison backlog A13 (minimal mask canvas) and A14 (frame-anchored video comments) remain deferred. DiffusionGemma remains DF-1 with both flip conditions. Status stays in-progress until `/update release` bumps the version.
 
 ## v2.1.0
 
@@ -17,7 +17,7 @@ Phase 7 reconciliation: hardware and product-backlog items stay deferred with ne
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 23 | 1 |
+| Deferred (DF) | 15 | 9 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
@@ -56,15 +56,8 @@ Phase 7 reconciliation: hardware and product-backlog items stay deferred with ne
 
 - **Source phase**: Phase 2 - Escalation policy engine (2.2)
 - **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 2.2)
-- **Reason**: Routing is wired through `DAGExecutor` / `Orchestrator` when a `DAGRoutingContext` is supplied. `src/tools/AgentLoop.ts` still uses the session's single model. Importing AgentLoop from `modules/coding/orchestration` would cross the vscode host boundary.
+- **Reason**: Routing is wired through `DAGExecutor` / `Orchestrator` when a `DAGRoutingContext` is supplied. `src/tools/AgentLoop.ts` still uses the session's single model. Importing AgentLoop from `modules/coding/orchestration` would cross the vscode host boundary. VS Code AgentLoop also still does not publish `tool.call` telemetry.
 - **Suggested next step**: Project AgentLoop tool results into `RoutingTurnEvent` inside the VS Code host and call `routeTurn` per iteration, or route VS Code coding through the same DAG host the desktop sidecar uses.
-
-##### DF-6 - Python PNG writer still emits tEXt only
-
-- **Source phase**: Phase 3 - Embedded generation metadata (3.1)
-- **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 3.1)
-- **Reason**: `core/image/WorkflowMetadata.ts` writes uncompressed iTXt plus tEXt. `runtimes/diffusion/pipelines/workflow_metadata.py` still writes Latin-1 tEXt chunks with UTF-8 payloads. TS extract reads both, so Python outputs still recall, but a strict PNG decoder that ignores invalid tEXt UTF-8 would miss them.
-- **Suggested next step**: Mirror `makeITxtChunk` in the Python embedder and keep tEXt as a ComfyUI compat alias.
 
 ##### DF-7 - Live 20-job GPU restart and interactive pump path are unproven
 
@@ -80,26 +73,12 @@ Phase 7 reconciliation: hardware and product-backlog items stay deferred with ne
 - **Reason**: Native Muse is multimodal. The catalog pull is `ollama://hf.co/meta-models/Muse-Glimmer-30B-GGUF:...`. This cycle did not prove that GGUF ships mmproj. `vision` is false so Chat will not send image bytes to a text-only serving path.
 - **Suggested next step**: After a local Ollama load of the K-Quant-17GB tag, check for a vision projector. If present, set `vision: true` and a visual-token budget. If absent, keep the gate and leave the native library tag as a follow-up.
 
-##### DF-9 - Production Chat has no ffmpeg video-frame sampler
-
-- **Source phase**: Phase 4 - Chat attachment ingestion + visual-token budgeting (4.1)
-- **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 4.1)
-- **Reason**: `ChatPage` accepts `video/*` when vision is on and injects `sampleVideoFrames` in tests. Production `App.tsx` does not pass a sampler. Missing sampler skips the clip with a notice rather than sending container bytes.
-- **Suggested next step**: Add a `media.sampleVideoFrames` sidecar method over the existing `FfmpegContext` and wire it from `App.tsx`.
-
 ##### DF-10 - Ambiguous SAM2 phrases have no one-tap candidate picker
 
 - **Source phase**: Phase 4 - Replace the X chat-native editing (4.3)
 - **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 4.3)
 - **Reason**: Two or more candidates produce a chat message asking the user to paint a mask or rephrase. There is no overlay picker.
 - **Suggested next step**: Render candidate mask overlays in the Studio thread and inpaint the tapped one.
-
-##### DF-11 - Production Chat does not persist multimodal surrogates
-
-- **Source phase**: Phase 4 - Chat attachment ingestion + visual-token budgeting (4.1)
-- **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 4.1)
-- **Reason**: `recordMultimodalTurn` and the optional `ChatPage.memoryHub` prop are tested. `App.tsx` does not pass a hub, so production turns are not indexed.
-- **Suggested next step**: Pass the sidecar-backed MemoryHub (or a Chat-scoped episodic store) into `ChatPage` so retrieve matches the redacted caption.
 
 ##### DF-12 - Required Unsloth zoo is LGPL, not Apache-only
 
@@ -114,13 +93,6 @@ Phase 7 reconciliation: hardware and product-backlog items stay deferred with ne
 - **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 5.4)
 - **Reason**: CI uses `stubTrainer` and `runtimes/tuning/train.py --stub`. `NEXUS_TUNING_LIVE=1` is documented. No 16 GB NVIDIA host ran a real `import unsloth` train this cycle. not_run != pass.
 - **Suggested next step**: On a supported host, provision from Settings, run a tiny JSONL job with `NEXUS_TUNING_LIVE=1`, and record the wall-clock plus peak VRAM.
-
-##### DF-14 - Dataset builder skips PDF files
-
-- **Source phase**: Phase 5 - Dataset builder (5.3)
-- **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 5.3)
-- **Reason**: PDF extraction is not wired. Files ending in `.pdf` are skipped with a per-file report so the rest of the dataset continues.
-- **Suggested next step**: Route PDFs through the existing OCR/`parse_document` spine, then `redactSecrets`, instead of adding a second PDF stack.
 
 ##### DF-15 - Training runtime is not on the default installer chain
 
@@ -143,40 +115,12 @@ Phase 7 reconciliation: hardware and product-backlog items stay deferred with ne
 - **Reason**: Default sidecar runtime does not spawn `ollama create`. Jobs can reach `done` with an export path and no registry row. An injected `OllamaImportPort` covers the export-failed path in tests.
 - **Suggested next step**: After a passing eval, write a Modelfile and run `ollama create`, then reuse v1.15.0 registry reconciliation.
 
-##### DF-18 - JSON CLI needs the Local API listener bound
-
-- **Source phase**: Phase 6 - Headless JSON CLI (6.2)
-- **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 6.2)
-- **Reason**: Routes mount at `/nexus/*` on the existing loopback control surface. The listener still opens only when Local API server or ACP is enabled, so a sidecar with both off cannot serve the CLI. There is no idle extra port.
-- **Suggested next step**: Optionally bind the control surface whenever JSON CLI is requested, or document a `nexus serving start` helper that enables the listener without OpenAI `/v1` completions.
-
-##### DF-19 - Video Lab Advanced does not surface diffusion VRAM knobs
-
-- **Source phase**: Phase 6 - Diffusion VRAM-budget knobs (6.3)
-- **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 6.3)
-- **Reason**: Image Studio Advanced exposes max cache VRAM/RAM, working reserve, and layer streaming. Video Lab still uses pipeline defaults from DiffusionTier. Python runners honor the fields when present.
-- **Suggested next step**: Mirror the Image Studio Advanced controls on VideoPromptForm and pass the same optional fields through the video IPC payload.
-
-##### DF-20 - Vault-unavailable signing keys stay in process memory
-
-- **Source phase**: Phase 6 - Signed local audit log (6.1)
-- **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 6.1)
-- **Reason**: The plan forbids plaintext key files. When the OS keychain is missing, `VaultActorKeyStore` keeps Ed25519 pairs in memory only. A sidecar restart mints new keys, so older log rows verify as untrusted (shown, not hidden).
-- **Suggested next step**: Surface a Settings notice when the vault is unavailable, and keep verification marking rather than rewriting history.
-
 ##### DF-21 - Live GPU layer-streaming OOM rescue is unproven
 
 - **Source phase**: Phase 6 - Diffusion VRAM-budget knobs (6.3)
 - **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 6.3)
 - **Reason**: Unit and Python tests cover validation plus a constrained-VRAM runner path that upgrades `insufficient_vram` to sequential CPU offload when streaming is on. No diffusion-capable host ran a real OOM-then-complete generation this cycle. not_run != pass.
 - **Suggested next step**: On a 8-12 GB GPU, set a VRAM cap below the model minimum with layer streaming enabled and record whether the job completes.
-
-##### DF-22 - Production AgentLoop does not emit tool.call telemetry
-
-- **Source phase**: Phase 6 - Signed local audit log (6.1)
-- **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 6.1)
-- **Reason**: `TelemetryEventKind` includes `tool.call`. Sidecar `coding.session.sendMessage` / `chat.session.sendMessage` publish `chat.turn`. Routing publishes `routing.decision`. Generation and training appear as GpuScheduler `job.*` on the shared bus. VS Code `AgentLoop` does not publish `tool.call`, so per-tool attribution in the audit log is incomplete for that host.
-- **Suggested next step**: Publish `tool.call` from the desktop coding session tool path and, later, from AgentLoop without crossing the vscode host boundary into `core/`.
 
 ##### DF-23 - Minimal mask-layer canvas is not in Advanced settings (A13)
 
@@ -202,3 +146,35 @@ Phase 7 reconciliation: hardware and product-backlog items stay deferred with ne
 - **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 1.4)
 - **Reason**: Ollama-library LLM entries cannot move onto Unsloth `hf.co` GGUF paths (v1.15.0 known-broken Gemma HTTP 400 invariant). Inkling-Small already ships the established Unsloth UD-IQ1_S GGUF. No other bundled GGUF LLM pick was strictly better at its tier without violating `official: true` or the broken-ref guard.
 - **Resolved**: 2026-08-20 (audit recorded; catalog artifact references unchanged)
+
+##### DF-6 - Python PNG writer still emits tEXt only
+
+- **Resolved**: 2026-08-20. `runtimes/diffusion/pipelines/workflow_metadata.py` writes uncompressed iTXt plus tEXt (ComfyUI alias). Extract prefers iTXt.
+
+##### DF-9 - Production Chat has no ffmpeg video-frame sampler
+
+- **Resolved**: 2026-08-20. `media.sampleVideoFrames` IPC plus `core/chat/sampleVideoFrames.ts`. `App.tsx` wires it into `ChatPage`.
+
+##### DF-11 - Production Chat does not persist multimodal surrogates
+
+- **Resolved**: 2026-08-20. `App.tsx` passes a session-scoped `InMemoryMemoryHub`. STT transcripts are also recorded as redacted episodic rows (`chat-stt`).
+
+##### DF-14 - Dataset builder skips PDF files
+
+- **Resolved**: 2026-08-20. Optional `extractPdf` port on `buildDataset`. Sidecar routes PDFs through the shared OCR/`parse_document` spine, then `redactSecrets`.
+
+##### DF-18 - JSON CLI needs the Local API listener bound
+
+- **Resolved**: 2026-08-20. Sidecar `sync()` sets `jsonCliEnabled: true` so `/nexus/*` binds on loopback even when `/v1` is off. No extra port.
+
+##### DF-19 - Video Lab Advanced does not surface diffusion VRAM knobs
+
+- **Resolved**: 2026-08-20. `VideoPromptForm` Advanced mirrors Image Studio VRAM knobs; fields ride the video IPC payload.
+
+##### DF-20 - Vault-unavailable signing keys stay in process memory
+
+- **Resolved**: 2026-08-20. Settings > Security shows a vault-unavailable notice. Keys still never land in plaintext files; untrusted rows stay visible.
+
+##### DF-22 - Production AgentLoop does not emit tool.call telemetry
+
+- **Resolved**: 2026-08-20 for the desktop coding-session path (`toolCallHeader` publishes `tool.call`). VS Code AgentLoop remains a host-boundary follow-up under DF-5.

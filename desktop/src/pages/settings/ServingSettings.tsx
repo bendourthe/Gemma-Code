@@ -180,7 +180,7 @@ export function ServingSettings({ client, writeClipboard }: ServingSettingsProps
             </div>
           ) : null}
 
-          {status.enabled || acp?.enabled ? (
+          {status.running || status.enabled || acp?.enabled ? (
             <>
               {status.enabled ? (
                 <div style={fieldRowStyle}>
@@ -238,9 +238,10 @@ export function ServingSettings({ client, writeClipboard }: ServingSettingsProps
                   ACP uses the same token as{" "}
                   <code>Authorization: Bearer &lt;token&gt;</code>. The JSON CLI
                   (<code>nexus session</code> / <code>nexus models list</code> /{" "}
-                  <code>nexus generate</code>) also uses this token once the local API
-                  server or ACP is enabled. The OpenAI-compatible paths stay off until the
-                  local API server is enabled.
+                  <code>nexus generate</code>) uses this token on the loopback
+                  listener even when the local API server is off. OpenAI-compatible
+                  <code> /v1</code> paths stay off until the local API server is
+                  enabled.
                 </p>
               )}
             </>
