@@ -8,9 +8,11 @@
  * model exists (known-gap).
  */
 
+import { modelAcceptsVision, type VisionSource } from "../../../../core/chat/vision";
+
 export type ChatModality = "text" | "image" | "audio";
 
-export interface ModalitySource {
+export interface ModalitySource extends VisionSource {
   readonly id?: string;
   readonly modalities?: readonly string[];
 }
@@ -27,16 +29,16 @@ export function imageAttachmentAffordance(model: ModalitySource | undefined): {
   readonly enabled: boolean;
   readonly tooltip: string;
 } {
-  if (modelHasModality(model, "image")) {
+  if (modelAcceptsVision(model)) {
     return {
       enabled: true,
-      tooltip: "Attach an image for the selected vision model. Bytes stay on this machine.",
+      tooltip: "Attach an image or short video for the selected vision model. Bytes stay on this machine.",
     };
   }
   return {
     enabled: false,
     tooltip:
-      "This model cannot see images. Choose a vision-capable model from Settings > Models, or attach a PDF / Office document to parse it as text.",
+      "This model cannot see images. Choose a vision-capable model from the picker, or send the text only.",
   };
 }
 
@@ -67,7 +69,9 @@ export function chatComposerAccept(opts: { allowImages: boolean; allowAudio: boo
     ".pptx",
     ".xlsx",
   ];
-  if (opts.allowImages) parts.push("image/*");
+  if (opts.allowImages) {
+    parts.push("image/*", "video/*", ".mp4", ".webm", ".mov");
+  }
   if (opts.allowAudio) parts.push(...AUDIO_ACCEPT.split(","));
   return parts.join(",");
 }

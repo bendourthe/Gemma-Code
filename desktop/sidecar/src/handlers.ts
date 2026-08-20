@@ -26,6 +26,7 @@ import {
   DiffusionImg2ImgRequest,
   DiffusionInpaintRequest,
   DiffusionOutpaintRequest,
+  DiffusionSegmentRequest,
   DiffusionTxt2ImgRequest,
   DiffusionVideoAudio2VideoRequest,
   DiffusionVideoImage2VideoRequest,
@@ -842,6 +843,22 @@ export const handlers: Record<Method, HandlerFn> = {
     const result = await buildJobRequest("outpaint", req, ctx.diffusion);
     afterImageJob(ctx, result);
     return publicJobResult(result);
+  },
+  "diffusion.segment": async (params, ctx) => {
+    const req = DiffusionSegmentRequest.parse(params ?? {});
+    const run = async () => ctx.diffusion.call("segment", req);
+    const studio = ctx.studio;
+    if (studio) {
+      const queued = await studio.scheduler.enqueue({
+        moduleId: "image",
+        jobType: "segment",
+        estimatedVramGB: 2,
+        priority: "foreground",
+        run,
+      });
+      return queued.completion;
+    }
+    return run();
   },
   "diffusion.job.drainEvents": async (params, ctx) => {
     const req = DiffusionDrainEventsRequest.parse(params ?? {});

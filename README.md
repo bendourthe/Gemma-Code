@@ -120,6 +120,8 @@ Open local-AI wave. Local-only. No new outbound destination. Vendor scores do no
 - **Catalog flags** - `diffusion` (default false) and `codingEligible` (default true). `localEval` blocks are `not_run` this cycle; `recommended.json` is unchanged.
 - **Adaptive routing** - cheap-first workers on Lightning, escalate to Muse on tool-error / identical-action / progress-free signals, GPU swap deferral when VRAM or diffusion would OOM, routing lane on the Traces tab.
 - **Studio provenance and queue** - PNG `tEXt`/`iTXt` plus a content-hash index; Use Prompt / Use Seed / Use All / Remix; SQLite queue at `~/.nexus/generations/studio.db` with seed/prompt batches, restart recovery, and coding-over-diffusion pump.
+- **Multimodal chat** - catalog `vision` plus a per-model visual-token budget. Gemma 4 12B accepts one image (or sampled video frames). Non-vision models keep attach off and tell you to switch or send text only. Muse Glimmer is gated `vision: false` until its hf.co GGUF is proven to ship a projector.
+- **Replace-the-X** - SAM2 Hiera Tiny (`sam2:hiera-tiny`, Apache-2.0 utility, hidden from the generator picker). "replace the car with a truck" segments then inpaints. Missing weights leave the original and ask you to install or paint a mask.
 - **DiffusionGemma** - watch item only (needs llama.cpp PR #24423 in a shipped Ollama release and sub-16 GB quants).
 
 v2.0.0 already shipped the convergence cut. Known gaps: [docs/v2/v2.1/known-gaps.md](docs/v2/v2.1/known-gaps.md).

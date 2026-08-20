@@ -14,6 +14,8 @@ describe("classifyAttachment", () => {
     expect(groups.audio).toHaveLength(1);
     expect(groups.documents).toHaveLength(1);
     expect(classifyDataUrl("data:audio/wav;base64,x")).toBe("audio");
+    expect(classifyDataUrl("data:video/mp4;base64,x")).toBe("video");
+    expect(partitionAttachments(["data:video/webm;base64,x"]).video).toHaveLength(1);
   });
 });
 

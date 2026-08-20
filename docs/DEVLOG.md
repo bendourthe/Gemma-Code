@@ -4,6 +4,33 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-20] v2.1.0 Phase 4: multimodal chat + SAM2 replace-the-X
+
+### Goal
+
+Chat accepts image and short-video attachments with a visual-token budget. Image Studio can replace an object from a phrase without painting a mask, using SAM2 as a local utility.
+
+### What was done
+
+- Catalog: `vision` + `visualTokenBudget`. Gemma 4 12B is a chat VLM. Muse Glimmer is `vision: false` (DF-8). `sam2:hiera-tiny` is Apache-2.0, `codingEligible` false, tagged `utility` so it never appears as a generator.
+- Chat: magic-byte validation, budget skip/truncate, non-vision guidance, optional `sampleVideoFrames`, optional `memoryHub` for redacted caption surrogates.
+- SAM2 Python stub: `weights_missing` vs stub/weights-present; ambiguous phrases return two candidates. Sidecar `diffusion.segment` goes through GpuScheduler when studio runtime exists.
+- Image Studio: parse replace/remove/recolor, segment, inpaint. Missing weights leave the original image in the thread.
+
+### Tests
+
+Root chat/vision/budget/replaceIntent/surrogate + catalog: 69 passed. Coverage 100% lines on `core/chat`, `replaceIntent`, `multimodalSurrogate`. Desktop ChatPage vision, ImageStudioPage replace-the-X, segment handler green. Python sam2 94% lines. Installer catalog invariants include SAM2. `tsc -b` clean. Desktop ESLint on changed files clean.
+
+### Deviations
+
+No live ffmpeg sampler (DF-9). No one-tap mask picker (DF-10). Production App does not pass `memoryHub` (DF-11). SAM2 checkpoint SHA-256 is still the all-zero placeholder.
+
+### Next
+
+Phase 5 local fine-tuning pillar (Unsloth license gate first). Local commit only.
+
+---
+
 ## [2026-08-20] v2.1.0 Phase 3: Image Studio provenance + generation queue
 
 ### Goal

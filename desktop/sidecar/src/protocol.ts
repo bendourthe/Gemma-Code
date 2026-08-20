@@ -81,6 +81,7 @@ export const IPC_METHODS = [
   "diffusion.img2img",
   "diffusion.inpaint",
   "diffusion.outpaint",
+  "diffusion.segment",
   "diffusion.job.drainEvents",
   "diffusion.workflow.extract",
   "diffusion.video.text2video",
@@ -444,6 +445,44 @@ export const DiffusionOutpaintRequest = Txt2ImgBase.extend({
 }).strict();
 export type DiffusionOutpaintRequestT = z.infer<typeof DiffusionOutpaintRequest>;
 
+export const DiffusionSegmentHint = z
+  .object({
+    text: z.string().optional(),
+    x: z.number().optional(),
+    y: z.number().optional(),
+  })
+  .strict();
+
+export const DiffusionSegmentRequest = z
+  .object({
+    sourceImage: z.string().min(1),
+    phrase: z.string().min(1),
+    hint: DiffusionSegmentHint.optional(),
+    weightsDir: z.string().optional(),
+    stub: z.boolean().optional(),
+  })
+  .strict();
+export type DiffusionSegmentRequestT = z.infer<typeof DiffusionSegmentRequest>;
+
+export const DiffusionSegmentCandidate = z
+  .object({
+    id: z.string().min(1),
+    maskPngBase64: z.string().min(1),
+    score: z.number(),
+    label: z.string(),
+  })
+  .strict();
+
+export const DiffusionSegmentResponse = z
+  .object({
+    ok: z.boolean(),
+    code: z.string().optional(),
+    message: z.string().optional(),
+    candidates: z.array(DiffusionSegmentCandidate).optional(),
+  })
+  .strict();
+export type DiffusionSegmentResponseT = z.infer<typeof DiffusionSegmentResponse>;
+
 export const DiffusionHealthResponse = z
   .object({
     ok: z.boolean(),
@@ -801,6 +840,16 @@ export const ModelListedEntry = z
     totalParams: z.number().optional(),
     /** v2.0.0 Phase 1 -- catalog modalities for Chat image/audio gating. */
     modalities: z.array(z.enum(["text", "image", "audio"])).optional(),
+    vision: z.boolean().optional(),
+    visualTokenBudget: z
+      .object({
+        maxImages: z.number().optional(),
+        maxPixels: z.number().optional(),
+        maxVideoFrames: z.number().optional(),
+        maxVideoSeconds: z.number().optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 export type ModelListedEntryT = z.infer<typeof ModelListedEntry>;
@@ -1685,6 +1734,11 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
   "diffusion.outpaint": {
     request: DiffusionOutpaintRequest,
     response: DiffusionJobAccepted,
+    implemented: true,
+  },
+  "diffusion.segment": {
+    request: DiffusionSegmentRequest,
+    response: DiffusionSegmentResponse,
     implemented: true,
   },
   "diffusion.job.drainEvents": {

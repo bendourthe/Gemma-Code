@@ -60,6 +60,13 @@ export interface ListedModelDto {
     totalParams?: number;
     /** v2.0.0 Phase 1 -- catalog input modalities for Chat gating. */
     modalities?: readonly ("text" | "image" | "audio")[];
+    vision?: boolean;
+    visualTokenBudget?: {
+      readonly maxImages?: number;
+      readonly maxPixels?: number;
+      readonly maxVideoFrames?: number;
+      readonly maxVideoSeconds?: number;
+    };
   }
 
 export interface DiskUsageDto {
@@ -196,6 +203,8 @@ function toDto(m: ListedModel): ListedModelDto {
     activeParams: m.activeParams,
     totalParams: m.totalParams,
     modalities: m.modalities,
+    vision: m.vision,
+    visualTokenBudget: m.visualTokenBudget,
   };
 }
 

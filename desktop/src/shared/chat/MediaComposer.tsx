@@ -142,7 +142,7 @@ export function MediaComposer({
     // so a composer configured for PDFs actually accepts them.
     const accepted = Array.from(files).filter((f) => {
       if (!fileMatchesAccept(f, accept)) return false;
-      if (!imageEnabled && f.type.startsWith("image/")) return false;
+      if (!imageEnabled && (f.type.startsWith("image/") || f.type.startsWith("video/"))) return false;
       if (!audioEnabled && f.type.startsWith("audio/")) return false;
       return true;
     });
@@ -164,7 +164,7 @@ export function MediaComposer({
       if (item.kind !== "file") continue;
       const file = item.getAsFile();
       if (file && fileMatchesAccept(file, accept)) {
-        if (!imageEnabled && file.type.startsWith("image/")) continue;
+        if (!imageEnabled && (file.type.startsWith("image/") || file.type.startsWith("video/"))) continue;
         if (!audioEnabled && file.type.startsWith("audio/")) continue;
         files.push(file);
       }

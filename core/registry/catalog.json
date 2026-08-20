@@ -196,7 +196,14 @@
       "modalities": [
         "text",
         "image"
-      ]
+      ],
+      "vision": true,
+      "visualTokenBudget": {
+        "maxImages": 1,
+        "maxPixels": 1048576,
+        "maxVideoFrames": 8,
+        "maxVideoSeconds": 8
+      }
     },
     {
       "id": "llama3.1:8b",
@@ -2070,6 +2077,7 @@
       "agentic": true,
       "codingEligible": true,
       "diffusion": false,
+      "vision": false,
       "description": "Meta's Muse Glimmer 30B is an Apache-2.0 agentic model from the USA. The 17 GB K-Quant fits a 24 GB GPU. Local golden-task numbers are not recorded yet, so this entry is not a default route.",
       "strengths": [
         "Long-horizon agentic coding with adjustable reasoning strength",
@@ -2132,6 +2140,7 @@
       "agentic": true,
       "codingEligible": true,
       "diffusion": false,
+      "vision": false,
       "description": "Meta's Muse Glimmer 30B K-Quant-Dynamic is the 32 GB-tier Apache-2.0 pick from the USA. Same model family as the 17 GB quant; hidden below 16 GB VRAM.",
       "strengths": [
         "Lower quantization loss than the 17 GB K-Quant on 32 GB cards",
@@ -2391,6 +2400,58 @@
           "expectedSecondsPerToken": 19,
           "copy": "Max RAM budget: independently measured ~19 s/token at ~224 GB peak RSS for a trillion-class disk-offload MoE. Seeded as the honest floor for this patient-tier entry. Expectation copy only -- Nexus does not bundle the offload runtime."
         }
+      ]
+    },
+    {
+      "id": "sam2:hiera-tiny",
+      "family": "sam2",
+      "name": "sam2",
+      "tag": "hiera-tiny",
+      "type": "image",
+      "task": "image",
+      "displayName": "SAM2 Hiera Tiny",
+      "releaseDate": "2024-08-01",
+      "origin": "USA",
+      "agentic": false,
+      "codingEligible": false,
+      "diffusion": false,
+      "vision": false,
+      "description": "Meta's Segment Anything 2 (Hiera Tiny) is an Apache-2.0 local segmentation utility from the USA. Image Studio uses it for maskless edits such as replace-the-X. It is not a chat or diffusion generator.",
+      "strengths": [
+        "On-device object masks from a point, box, or text-derived hint",
+        "Tiny checkpoint that fits consumer VRAM alongside a diffusion model",
+        "Apache-2.0 weights; nothing leaves the machine"
+      ],
+      "whyRecommended": "The Image Studio segmentation helper. Install it to skip painting masks by hand.",
+      "differentiators": "Utility weights, not a generator: hidden from the Image Studio model picker via the utility tag.",
+      "provenance": "First-party Meta SAM 2 Hiera Tiny checkpoints on Hugging Face (facebook/sam2-hiera-tiny), Apache-2.0. Nexus does not redistribute the weights. Live SHA-256 pins are placeholders until the installer puller records them.",
+      "sizeGB": 0.04,
+      "vramGB": 2,
+      "requiredVramGB": 4,
+      "license": "Apache-2.0",
+      "licenseUrl": "https://github.com/facebookresearch/sam2/blob/main/LICENSE",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "facebook/sam2-hiera-tiny",
+        "url": "https://huggingface.co/facebook/sam2-hiera-tiny",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "sam2_hiera_tiny.pt",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
+      },
+      "tags": [
+        "sam2",
+        "utility",
+        "segmentation"
+      ],
+      "modalities": [
+        "image"
       ]
     }
   ]

@@ -33,6 +33,7 @@ _PIPELINE_MODULES = (
     "runtimes.diffusion.pipelines.sana_sprint",
     "runtimes.diffusion.pipelines.sana_int4",
     "runtimes.diffusion.pipelines.sana_video",
+    "runtimes.diffusion.pipelines.sam2",
 )
 
 

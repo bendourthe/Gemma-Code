@@ -64,6 +64,10 @@ core/                       v1.0.0 shared-core surfaces (Phase 2.3 + 2.6)
   generations/               Image Studio / Video Lab provenance index +
                               SQLite job queue (`~/.nexus/generations/studio.db`)
                               (v2.1.0 Phase 3)
+  chat/                      vision flag, visual-token budget, attachment
+                              validation (v2.1.0 Phase 4)
+  image/                     PNG workflow metadata + replace-the-X intent
+                              parser (v2.1.0 Phase 3-4)
 
 modules/                    per-pillar code (one folder per pillar)
   coding/                    Agentic AI Coding (engine still in src/ during the

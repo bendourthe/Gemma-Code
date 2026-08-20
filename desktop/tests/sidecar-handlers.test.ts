@@ -91,6 +91,7 @@ describe("sidecar handlers", () => {
           "diffusion.img2img",
           "diffusion.inpaint",
           "diffusion.outpaint",
+          "diffusion.segment",
           "diffusion.job.drainEvents",
           "diffusion.workflow.extract",
           // v1.0.0 Phase 7 wired the video surface.

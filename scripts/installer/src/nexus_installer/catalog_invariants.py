@@ -159,6 +159,10 @@ def validate_catalog(catalog: dict[str, Any]) -> list[str]:
             "entries must ship together"
         )
 
+    sam2 = by_id.get("sam2:hiera-tiny")
+    if isinstance(sam2, dict):
+        problems.extend(_check_sam2_entry(sam2))
+
     return problems
 
 
@@ -272,6 +276,10 @@ def _check_muse_entry(model: dict[str, Any], where: str) -> list[str]:
         problems.append(f"{where}: localEval.status must be recorded")
     if local.get("status") == "pass" and not local.get("result"):
         problems.append(f"{where}: a passing localEval must record a result")
+    if model.get("vision") is not False:
+        problems.append(
+            f"{where}: vision must be false until the hf.co GGUF pull is proven to ship mmproj"
+        )
     blob = _card_copy(model)
     for token in MUSE_FORBIDDEN_COPY:
         if token in blob:
@@ -316,6 +324,21 @@ def _check_lightning_entry(model: dict[str, Any], where: str) -> list[str]:
     local = model.get("localEval") if isinstance(model.get("localEval"), dict) else {}
     if local.get("status") not in {"pass", "fail", "incomplete", "not_run"}:
         problems.append(f"{where}: localEval.status must be recorded")
+    return problems
+
+
+def _check_sam2_entry(model: dict[str, Any]) -> list[str]:
+    problems: list[str] = []
+    where = "sam2:hiera-tiny"
+    if model.get("license") != "Apache-2.0":
+        problems.append(f"{where}: license must be Apache-2.0")
+    if model.get("codingEligible") is not False:
+        problems.append(f"{where}: codingEligible must be false")
+    if model.get("diffusion") is not False:
+        problems.append(f"{where}: diffusion must be false")
+    tags = model.get("tags") if isinstance(model.get("tags"), list) else []
+    if "utility" not in tags or "sam2" not in tags:
+        problems.append(f"{where}: must be tagged utility and sam2")
     return problems
 
 

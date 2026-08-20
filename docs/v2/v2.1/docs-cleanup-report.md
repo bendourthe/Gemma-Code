@@ -1,6 +1,6 @@
 # Docs cleanup audit - v2.1.0
 
-**Last audit**: 2026-08-20 (Phase 3)
+**Last audit**: 2026-08-20 (Phase 4)
 **Mode**: audit (no files moved)
 
 ## Layout
@@ -19,6 +19,11 @@ Added `development/history/2026-08-20_phase-2-adaptive-routing.md`. Updated plan
 
 Added `development/history/2026-08-20_phase-3-studio-provenance-queue.md`. Updated plan checklist, known-gaps (DF-6, DF-7), DEVLOG, README What's new, ARCHITECTURE Image Studio section, AGENTS.md `core/generations/` layout line.
 
+## Phase 4
+
+Added `development/history/2026-08-20_phase-4-multimodal-chat-sam2.md`. Updated plan checklist, known-gaps (DF-8 through DF-11), DEVLOG, README What's new, ARCHITECTURE Chat + SAM2 sections, AGENTS.md `core/chat/` and `core/image/` layout lines.
+
 ## Recommendation
 
 Leave as-is. No archive or rename.
+

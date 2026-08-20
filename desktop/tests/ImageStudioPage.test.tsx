@@ -208,4 +208,109 @@ describe("ImageStudioPage (chat)", () => {
     });
     await waitFor(() => expect(screen.getByTestId("generation-queue-count")).toHaveTextContent("1"));
   });
+
+  it("omits SAM2 utility weights from the generator picker", async () => {
+    render(
+      <ImageStudioPage
+        client={new InMemoryDiffusionClient()}
+        modelsClient={{
+          list: async () => [
+            {
+              id: "sana-1.6b-1024",
+              displayName: "SANA 1.5 1.6B",
+              type: "image",
+              installed: true,
+              source: "registry",
+            },
+            {
+              id: "sam2:hiera-tiny",
+              displayName: "SAM2 Hiera Tiny",
+              type: "image",
+              installed: true,
+              source: "registry",
+              tags: ["sam2", "utility"],
+            },
+          ],
+        }}
+      />,
+    );
+    await waitFor(() => {
+      const select = screen.getByTestId("image-model-select") as HTMLSelectElement;
+      const values = [...select.options].map((o) => o.value);
+      expect(values).toContain("sana-1.6b-1024");
+      expect(values).not.toContain("sam2:hiera-tiny");
+    });
+  });
+
+  it("replace the car with a truck segments then inpaints", async () => {
+    const client = new InMemoryDiffusionClient();
+    render(<ImageStudioPage client={client} modelsClient={imageModels()} drainIntervalMs={20} />);
+    client.scriptEvents("mem-job-1", [{ kind: "complete", jobId: "mem-job-1", png: "P==" }]);
+    const file = new File(["x"], "scene.png", { type: "image/png" });
+    await act(async () => {
+      fireEvent.change(screen.getByTestId("media-composer-file"), { target: { files: [file] } });
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(screen.getByTestId("media-composer-thumb-0")).toBeInTheDocument());
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "replace the car with a truck" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+    });
+    await waitFor(() => expect(client.lastRequest?.mode).toBe("inpaint"));
+    expect(client.lastSegment?.phrase).toBe("car");
+    expect((client.lastRequest?.request as { prompt: string }).prompt).toMatch(/Replace the car with truck/i);
+  });
+
+  it("weights_missing leaves the original image and asks to install or paint a mask", async () => {
+    const client = new InMemoryDiffusionClient();
+    client.segmentResult = {
+      ok: false,
+      code: "weights_missing",
+      message: "SAM2 weights are not installed. Install sam2:hiera-tiny from Settings > Models, or paint a mask to continue.",
+    };
+    render(<ImageStudioPage client={client} modelsClient={imageModels()} drainIntervalMs={20} />);
+    const file = new File(["x"], "scene.png", { type: "image/png" });
+    await act(async () => {
+      fireEvent.change(screen.getByTestId("media-composer-file"), { target: { files: [file] } });
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(screen.getByTestId("media-composer-thumb-0")).toBeInTheDocument());
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "replace the car with a truck" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+    });
+    expect(await screen.findByText(/Install sam2:hiera-tiny/i)).toBeInTheDocument();
+    expect(client.lastRequest).toBeNull();
+    expect(screen.getByAltText("Attachment")).toBeInTheDocument();
+  });
+
+  it("does not inpaint when segmentation returns multiple candidates", async () => {
+    const client = new InMemoryDiffusionClient();
+    client.segmentResult = {
+      ok: true,
+      candidates: [
+        { id: "c0", maskPngBase64: "a", score: 0.9, label: "car" },
+        { id: "c1", maskPngBase64: "b", score: 0.8, label: "car" },
+      ],
+    };
+    render(<ImageStudioPage client={client} modelsClient={imageModels()} drainIntervalMs={20} />);
+    const file = new File(["x"], "scene.png", { type: "image/png" });
+    await act(async () => {
+      fireEvent.change(screen.getByTestId("media-composer-file"), { target: { files: [file] } });
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(screen.getByTestId("media-composer-thumb-0")).toBeInTheDocument());
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "replace the cars with trucks" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+    });
+    expect(await screen.findByText(/Several matches/i)).toBeInTheDocument();
+    expect(client.lastRequest).toBeNull();
+  });
 });

@@ -27,6 +27,7 @@ describe("modality gating", () => {
     expect(blocked).not.toContain("image/*");
     const open = chatComposerAccept({ allowImages: true, allowAudio: true });
     expect(open).toContain("image/*");
+    expect(open).toContain("video/*");
   });
 
   it("modelHasModality is false when modalities are omitted", () => {

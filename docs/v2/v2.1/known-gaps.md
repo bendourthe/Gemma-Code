@@ -15,7 +15,7 @@ Plan: [plans/v2.1.0-adoption-open-local-ai-wave.md](plans/v2.1.0-adoption-open-l
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 6 | 1 |
+| Deferred (DF) | 10 | 1 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
@@ -70,6 +70,34 @@ Plan: [plans/v2.1.0-adoption-open-local-ai-wave.md](plans/v2.1.0-adoption-open-l
 - **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 3.2)
 - **Reason**: Restart recovery is unit-tested (`running` -> `interrupted` -> `queued`, id-stable). Interactive Image Studio / Video Lab clicks still go through the existing dispatcher and then record into the queue; only `generation.queue.enqueue` batches drain via `pumpOnce` + `GpuScheduler`. A 20-job batch surviving a real app restart on a GPU host was not run this cycle.
 - **Suggested next step**: Route interactive jobs through `pumpOnce` as well, then soak a 20-job seed sweep across a sidecar restart on a diffusion-capable machine.
+
+##### DF-8 - Muse Glimmer hf.co GGUF is gated vision:false
+
+- **Source phase**: Phase 4 - Chat attachment ingestion + visual-token budgeting (4.1)
+- **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 4.1)
+- **Reason**: Native Muse is multimodal. The catalog pull is `ollama://hf.co/meta-models/Muse-Glimmer-30B-GGUF:...`. This cycle did not prove that GGUF ships mmproj. `vision` is false so Chat will not send image bytes to a text-only serving path.
+- **Suggested next step**: After a local Ollama load of the K-Quant-17GB tag, check for a vision projector. If present, set `vision: true` and a visual-token budget. If absent, keep the gate and leave the native library tag as a follow-up.
+
+##### DF-9 - Production Chat has no ffmpeg video-frame sampler
+
+- **Source phase**: Phase 4 - Chat attachment ingestion + visual-token budgeting (4.1)
+- **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 4.1)
+- **Reason**: `ChatPage` accepts `video/*` when vision is on and injects `sampleVideoFrames` in tests. Production `App.tsx` does not pass a sampler. Missing sampler skips the clip with a notice rather than sending container bytes.
+- **Suggested next step**: Add a `media.sampleVideoFrames` sidecar method over the existing `FfmpegContext` and wire it from `App.tsx`.
+
+##### DF-10 - Ambiguous SAM2 phrases have no one-tap candidate picker
+
+- **Source phase**: Phase 4 - Replace the X chat-native editing (4.3)
+- **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 4.3)
+- **Reason**: Two or more candidates produce a chat message asking the user to paint a mask or rephrase. There is no overlay picker.
+- **Suggested next step**: Render candidate mask overlays in the Studio thread and inpaint the tapped one.
+
+##### DF-11 - Production Chat does not persist multimodal surrogates
+
+- **Source phase**: Phase 4 - Chat attachment ingestion + visual-token budgeting (4.1)
+- **Plan reference**: `docs/v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md` (sub-task 4.1)
+- **Reason**: `recordMultimodalTurn` and the optional `ChatPage.memoryHub` prop are tested. `App.tsx` does not pass a hub, so production turns are not indexed.
+- **Suggested next step**: Pass the sidecar-backed MemoryHub (or a Chat-scoped episodic store) into `ChatPage` so retrieve matches the redacted caption.
 
 ### Resolved
 

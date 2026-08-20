@@ -126,6 +126,7 @@ class TestMuseAndLightning:
         assert "muse-glimmer:30b-dynamic" in ids
         assert "nemotron-lightning:30b-a3b" in ids
         assert "nemotron-lightning:30b-a3b-offload" in ids
+        assert "sam2:hiera-tiny" in ids
         assert validate_catalog(catalog) == []
 
     def test_muse_vendor_score_in_copy_is_flagged(self) -> None:

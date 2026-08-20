@@ -111,6 +111,10 @@ export interface ListedModel {
    * attachments without a second catalog round-trip.
    */
   readonly modalities?: ModelSpec["modalities"];
+  /** v2.1.0 Phase 4 -- chat vision flag from the catalog. */
+  readonly vision?: boolean;
+  /** v2.1.0 Phase 4 -- visual-token budget from the catalog. */
+  readonly visualTokenBudget?: ModelSpec["visualTokenBudget"];
 }
 
 export interface ListFilter {
@@ -208,6 +212,8 @@ export class NexusModelRegistry {
         activeParams: spec?.activeParams,
         totalParams: spec?.totalParams,
         modalities: spec?.modalities,
+        vision: spec?.vision,
+        visualTokenBudget: spec?.visualTokenBudget,
       });
     }
 
@@ -235,6 +241,8 @@ export class NexusModelRegistry {
         activeParams: spec.activeParams,
         totalParams: spec.totalParams,
         modalities: spec.modalities,
+        vision: spec.vision,
+        visualTokenBudget: spec.visualTokenBudget,
       });
     }
 

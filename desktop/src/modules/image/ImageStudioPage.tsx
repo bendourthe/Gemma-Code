@@ -30,6 +30,7 @@ import {
   valuesToBaseRequest,
 } from "./ImagePromptForm";
 import { inferImageIntent } from "./intent";
+import { parseReplaceIntent, inpaintPromptFor } from "../../../../core/image/replaceIntent";
 import {
   type DiffusionClient,
   type ProgressEvent,
@@ -118,7 +119,9 @@ export function ImageStudioPage({
     void (async () => {
       try {
         const all = await source.list();
-        const image = installedModelsForType(all, "image");
+        const image = installedModelsForType(all, "image").filter(
+          (m) => !m.tags?.includes("utility"),
+        );
         if (cancelled) return;
         const first = image[0];
         if (first) {
@@ -234,6 +237,7 @@ export function ImageStudioPage({
   const handleSubmit = useCallback(
     async (text: string, attachments: readonly string[]): Promise<void> => {
       if (isGenerating) return;
+      const replace = attachments.length > 0 ? parseReplaceIntent(text) : null;
       const intent = inferImageIntent({ text, attachments, mask: null });
       const userMsg: ChatMessage = {
         id: nextId("user"),
@@ -252,11 +256,47 @@ export function ImageStudioPage({
       setMessages((prev) => [...prev, userMsg, assistantMsg]);
 
       const base = valuesToBaseRequest(values, {
-        prompt: intent.prompt,
+        prompt: replace ? inpaintPromptFor(replace) : intent.prompt,
         modelId: selectedModelId,
       }) as unknown as Parameters<DiffusionClient["txt2img"]>[0];
 
       try {
+        if (replace && attachments[0]) {
+          const sourceImage = attachments[0].includes(",")
+            ? attachments[0].slice(attachments[0].indexOf(",") + 1)
+            : attachments[0];
+          const seg = await client.segment({
+            sourceImage,
+            phrase: replace.object,
+            hint: { text: replace.object },
+          });
+          if (!seg.ok || !seg.candidates || seg.candidates.length === 0) {
+            patchMessage(assistantId, {
+              pending: false,
+              content:
+                seg.message ??
+                "Could not find a mask for that object. Paint a mask to continue, or install sam2:hiera-tiny.",
+            });
+            return;
+          }
+          if (seg.candidates.length > 1) {
+            const labels = seg.candidates.map((c) => c.label).join(", ");
+            patchMessage(assistantId, {
+              pending: false,
+              content: `Several matches for "${replace.object}" (${labels}). Paint a mask to pick one, or rephrase.`,
+            });
+            return;
+          }
+          const mask = seg.candidates[0]?.maskPngBase64 ?? "";
+          const accepted = await client.inpaint({
+            ...base,
+            sourceImage,
+            mask,
+          });
+          setActiveJob({ jobId: accepted.jobId, messageId: assistantId });
+          return;
+        }
+
         let accepted;
         if (intent.mode === "txt2img") {
           accepted = await client.txt2img(base);

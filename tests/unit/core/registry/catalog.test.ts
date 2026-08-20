@@ -864,6 +864,8 @@ describe("catalog", () => {
     const copy = [k17?.description, k17?.whyRecommended, k17?.differentiators, ...(k17?.strengths ?? [])].join(" ");
     expect(copy).not.toMatch(/SWE-Bench|76\.0/);
     expect(localEvalMayPromote(k17!)).toBe(false);
+    expect(k17?.vision).toBe(false);
+    expect(dyn?.vision).toBe(false);
   });
 
   it("curates Nemotron Lightning as a dual-tier worker-candidate (v2.1.0)", async () => {
@@ -916,5 +918,49 @@ describe("catalog", () => {
         localEval: { suite: "s", status: "maybe" as "pass", date: "2026-08-20" },
       }),
     ).toThrow(/localEval/);
+  });
+
+  it("defaults vision on LLMs with image modality and rejects vision without image", () => {
+    const llm: ModelSpec = {
+      id: "x",
+      family: "x",
+      name: "x",
+      tag: "1",
+      type: "llm",
+      displayName: "X",
+      source: { protocol: "ollama", url: "ollama://x:1" },
+      modalities: ["text", "image"],
+    };
+    expect(normalizeSpec(llm).vision).toBe(true);
+    expect(
+      normalizeSpec({
+        ...llm,
+        type: "image",
+        modalities: ["image"],
+      }).vision,
+    ).toBe(false);
+    expect(() =>
+      validateSpec({ ...llm, vision: true, modalities: ["text"] }),
+    ).toThrow(/vision is true but modalities omit image/);
+  });
+
+  it("marks Gemma 4 12B as a chat VLM with a visual-token budget (v2.1.0 Phase 4)", async () => {
+    const file = await loadCatalog();
+    const gemma = findSpec(file, "gemma-4-12b-it-gguf");
+    expect(gemma?.vision).toBe(true);
+    expect(gemma?.visualTokenBudget?.maxImages).toBe(1);
+    expect(gemma?.visualTokenBudget?.maxVideoFrames).toBe(8);
+  });
+
+  it("ships SAM2 as an Apache-2.0 utility, not a generator (v2.1.0 Phase 4)", async () => {
+    const file = await loadCatalog();
+    const sam2 = findSpec(file, "sam2:hiera-tiny");
+    expect(sam2).toBeDefined();
+    expect(sam2?.license).toBe("Apache-2.0");
+    expect(sam2?.codingEligible).toBe(false);
+    expect(sam2?.diffusion).toBe(false);
+    expect(sam2?.vision).toBe(false);
+    expect(sam2?.tags).toContain("utility");
+    expect(sam2?.tags).toContain("sam2");
   });
 });

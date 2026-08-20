@@ -330,6 +330,25 @@ export interface ModelSpec {
    * `incomplete` keeps the model off default routes.
    */
   readonly localEval?: LocalEvalBlock;
+  /**
+   * v2.1.0 Phase 4 -- chat vision. True only for VLMs that can consume
+   * image/video attachments. Omitted: LLMs with `image` in modalities
+   * default true; every other type defaults false (OCR / diffusion / SAM2).
+   */
+  readonly vision?: boolean;
+  /**
+   * v2.1.0 Phase 4 -- per-model visual-token budget. Applied before bytes
+   * reach Ollama so a pasted screenshot cannot OOM the GPU.
+   */
+  readonly visualTokenBudget?: VisualTokenBudget;
+}
+
+/** v2.1.0 Phase 4 -- caps on visual tokens forwarded to a VLM. */
+export interface VisualTokenBudget {
+  readonly maxImages?: number;
+  readonly maxPixels?: number;
+  readonly maxVideoFrames?: number;
+  readonly maxVideoSeconds?: number;
 }
 
 /** v2.1.0 Phase 1 -- a vendor-published score that is not a local measurement. */
@@ -615,6 +634,21 @@ export function validateSpec(spec: ModelSpec): void {
       );
     }
   }
+  if (spec.vision !== undefined && typeof spec.vision !== "boolean") {
+    throw new Error(`ModelCatalog: ${spec.id} vision must be a boolean`);
+  }
+  if (spec.vision === true && spec.type === "llm" && spec.modalities && !spec.modalities.includes("image")) {
+    throw new Error(`ModelCatalog: ${spec.id} vision is true but modalities omit image`);
+  }
+  if (spec.visualTokenBudget !== undefined) {
+    const b = spec.visualTokenBudget;
+    for (const key of ["maxImages", "maxPixels", "maxVideoFrames", "maxVideoSeconds"] as const) {
+      const n = b[key];
+      if (n !== undefined && (!Number.isFinite(n) || n <= 0)) {
+        throw new Error(`ModelCatalog: ${spec.id} visualTokenBudget.${key} must be a positive number`);
+      }
+    }
+  }
 }
 
 const LOCAL_EVAL_PROMOTABLE: ReadonlySet<LocalEvalStatus> = new Set(["pass"]);
@@ -624,10 +658,13 @@ const LOCAL_EVAL_PROMOTABLE: ReadonlySet<LocalEvalStatus> = new Set(["pass"]);
  * schema versions. `diffusion` defaults false; `codingEligible` defaults true.
  */
 export function normalizeSpec(spec: ModelSpec): ModelSpec {
+  const vision =
+    spec.vision ?? (spec.type === "llm" && Boolean(spec.modalities?.includes("image")));
   return {
     ...spec,
     diffusion: spec.diffusion ?? false,
     codingEligible: spec.codingEligible ?? true,
+    vision,
   };
 }
 

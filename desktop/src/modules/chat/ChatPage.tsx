@@ -37,6 +37,14 @@ import {
 } from "../../shared/chat/modalityGating";
 import { partitionAttachments } from "../../shared/chat/classifyAttachment";
 import { stripDataUrlPrefix, mimeFromDataUrl } from "../../shared/chat/dataUrl";
+import {
+  modelAcceptsVision,
+  nonVisionAttachmentGuidance,
+  resolveVisualTokenBudget,
+} from "../../../../core/chat/vision";
+import { enforceVisualBudget, capVideoFrames } from "../../../../core/chat/visualBudget";
+import { recordMultimodalTurn } from "../../../../core/memory/multimodalSurrogate";
+import type { MemoryHub } from "../../../../core/memory/MemoryHub";
 import { PreviewPane, type PreviewArtifact } from "../../components/PreviewPane";
 import { DEFAULT_MODEL_ID, FRONTEND_MODELS } from "../coding/models";
 import {
@@ -90,6 +98,17 @@ export interface ChatPageProps {
    */
   modelsClient?: { list(): Promise<readonly ListedModelDto[]> };
   /**
+   * v2.1.0 Phase 4 -- turn a video data URL into still frames. Tests inject
+   * a stub; production can wire ffmpeg. Missing sampler skips the video
+   * with a notice rather than sending container bytes to the model.
+   */
+  sampleVideoFrames?: (dataUrl: string) => Promise<{ frames: string[]; notice?: string }>;
+  /**
+   * v2.1.0 Phase 4 -- optional episodic hub so non-text turns are indexed by
+   * a redacted caption surrogate. Tests inject InMemoryMemoryHub.
+   */
+  memoryHub?: Pick<MemoryHub, "episodic">;
+  /**
    * v2.0.0 Phase 1 -- local STT/TTS client. Tests inject an in-memory fake;
    * production talks to sidecar `audio.*` IPC.
    */
@@ -110,6 +129,8 @@ export function ChatPage({
   audioClient: audioClientOverride,
   playAudio: playAudioOverride,
   voiceMicRecorder,
+  sampleVideoFrames,
+  memoryHub,
 }: ChatPageProps = {}): JSX.Element {
   // The client survives re-renders but is recreated per ChatPage instance.
   // Tests can inject one via the prop so they observe state changes.
@@ -437,6 +458,20 @@ export function ChatPage({
       });
       client.renameChat(chat.id, chat.title);
 
+      if (memoryHub && attachments.length > 0) {
+        const kinds = [
+          ...groups.images.map(() => "image"),
+          ...groups.video.map(() => "video"),
+          ...groups.audio.map(() => "audio"),
+          ...groups.documents.map(() => "document"),
+        ];
+        void recordMultimodalTurn(memoryHub.episodic, {
+          id: `${baseId}-mm`,
+          prompt: text,
+          kinds,
+        }).catch(() => undefined);
+      }
+
       if (groups.documents.length > 0) {
         const first = groups.documents[0];
         if (first !== undefined) {
@@ -445,20 +480,56 @@ export function ChatPage({
         return;
       }
 
-      if (groups.images.length > 0 && !imageGate.enabled) {
-        const first = groups.images[0];
-        if (first !== undefined) {
-          await handleParseDocument(chat.id, baseId, first, prompt);
-        }
+      const visual = [...groups.images, ...groups.video];
+      if (visual.length > 0 && !imageGate.enabled) {
+        const alt = listedModels.find((m) => m.installed && modelAcceptsVision(m));
+        appendMessage(chat.id, {
+          id: `${baseId}-assistant`,
+          role: "assistant",
+          content: nonVisionAttachmentGuidance(alt?.displayName),
+        });
         return;
       }
 
-      const reply = await sendChatTurn(
-        chat.id,
-        baseId,
-        prompt,
-        imageGate.enabled ? groups.images : [],
+      const notices: string[] = [];
+      const frameUrls: string[] = [];
+      const budget = resolveVisualTokenBudget(selectedListedModel);
+      for (const clip of groups.video) {
+        if (!sampleVideoFrames) {
+          notices.push("Video was not sent: frame sampling is unavailable. Attach a still image instead.");
+          continue;
+        }
+        const sampled = await sampleVideoFrames(clip);
+        if (sampled.notice) notices.push(sampled.notice);
+        const capped = capVideoFrames(sampled.frames.length, budget);
+        if (capped.notice) notices.push(capped.notice);
+        frameUrls.push(...sampled.frames.slice(0, capped.keep));
+      }
+
+      const rawImages = [...groups.images, ...frameUrls];
+      const budgeted = enforceVisualBudget(
+        rawImages.map((url) => ({
+          bytes: dataUrlToBytes(url),
+          mime: mimeFromDataUrl(url) ?? "image/png",
+        })),
+        budget,
       );
+      notices.push(...budgeted.notices, ...budgeted.rejected);
+      const sendImages = budgeted.images.map((img) => uint8ToBase64(img.bytes));
+
+      if (notices.length > 0) {
+        appendMessage(chat.id, {
+          id: `${baseId}-budget`,
+          role: "assistant",
+          content: notices.join(" "),
+        });
+      }
+
+      if (sendImages.length === 0 && rawImages.length > 0 && prompt.trim().length === 0) {
+        return;
+      }
+
+      const reply = await sendChatTurn(chat.id, baseId, prompt, imageGate.enabled ? sendImages : []);
       if (voiceEnabled) void playReply(reply);
     },
     [
@@ -468,7 +539,11 @@ export function ChatPage({
       client,
       handleParseDocument,
       imageGate.enabled,
+      listedModels,
+      memoryHub,
       playReply,
+      sampleVideoFrames,
+      selectedListedModel,
       sendChatTurn,
       voiceEnabled,
     ],
@@ -707,6 +782,22 @@ export function ChatPage({
       </div>
     </section>
   );
+}
+
+function dataUrlToBytes(dataUrl: string): Uint8Array {
+  const b64 = stripDataUrlPrefix(dataUrl);
+  if (typeof Buffer !== "undefined") return new Uint8Array(Buffer.from(b64, "base64"));
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i += 1) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+function uint8ToBase64(bytes: Uint8Array): string {
+  if (typeof Buffer !== "undefined") return Buffer.from(bytes).toString("base64");
+  let s = "";
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s);
 }
 
 const getMoreModelsStyle: React.CSSProperties = {

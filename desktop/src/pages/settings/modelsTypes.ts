@@ -46,6 +46,14 @@ export interface ListedModelDto {
   totalParams?: number;
   /** v2.0.0 Phase 1 -- catalog input modalities for Chat gating. */
   modalities?: readonly ("text" | "image" | "audio")[];
+  /** v2.1.0 Phase 4 -- chat vision. */
+  vision?: boolean;
+  visualTokenBudget?: {
+    readonly maxImages?: number;
+    readonly maxPixels?: number;
+    readonly maxVideoFrames?: number;
+    readonly maxVideoSeconds?: number;
+  };
 }
 
 export interface InstallProgressDto {

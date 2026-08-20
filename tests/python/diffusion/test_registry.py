@@ -12,7 +12,7 @@ from runtimes.diffusion import registry
 def test_register_pipeline_handlers_loads_all_four_modes():
     handlers: Dict[str, Callable[[Any], Dict[str, Any]]] = {}
     registry.register_pipeline_handlers(handlers)
-    for mode in ("txt2img", "img2img", "inpaint", "outpaint"):
+    for mode in ("txt2img", "img2img", "inpaint", "outpaint", "segment"):
         assert mode in handlers
 
 
