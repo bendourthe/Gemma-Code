@@ -363,11 +363,11 @@ jobs:
   #
   # No GPU, no model weights, and no CUDA stack: the runtimes import every heavy
   # dependency lazily and ship stub engines, so `health`, `version`, the
-  # dispatcher, the error envelopes, and the whole PDF path are exercised on a
-  # bare runner. Only the two portable OCR deps are installed (pypdfium2 +
-  # rapidocr-onnxruntime, both pure wheels); torch/transformers are deliberately
-  # NOT installed, which also keeps the "engine unavailable on this host" path
-  # under test.
+  # dispatcher, the error envelopes, the PDF path, and native Office ingest are
+  # exercised on a bare runner. Portable OCR + Office wheels come from
+  # `runtimes/ocr/requirements.txt` (pypdfium2, rapidocr-onnxruntime,
+  # python-docx, python-pptx, openpyxl). torch/transformers and docling are
+  # deliberately NOT installed.
 
   test-python-runtimes:
     name: pytest (runtimes/)

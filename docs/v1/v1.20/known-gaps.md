@@ -17,7 +17,7 @@ Carry-forward source: [../v1.16/known-gaps.md](../v1.16/known-gaps.md) (LSO.P4.B
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 5 | 2 |
+| Deferred (DF) | 6 | 3 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
@@ -62,9 +62,17 @@ Carry-forward source: [../v1.16/known-gaps.md](../v1.16/known-gaps.md) (LSO.P4.B
 - **Reason**: Decision is DEFER, not DECLINE and not DEFER-BUILD. RapidOCR default ONNX models were smoked on synthetic fixtures (wall-of-text tables). Nexus catalog RapidOCR is still blocked by placeholder SHA (LSO.P3.A / IRSC.P4.B). Unlimited-OCR was not run (torch absent in the probe interpreter despite an RTX 3080 Ti). Docling was not installed.
 - **Suggested next step**: After catalog RapidOCR can install, and with torch in the Nexus OCR/diffusion venv, parse a real table PDF and a scan with RapidOCR vs Unlimited-OCR. Only then consider a local-only `docling-slim` extra. Do not merge torch into `runtimes/ocr/requirements.txt`.
 
+##### DF-6 - `runtimes/ocr/` not renamed to `runtimes/documents/`
+
+- **Source phase**: Phase 5 - Architecture refactor (5.1)
+- **Plan reference**: `docs/v1/v1.20/plans/v1.20.0-adoption-docling.md` (sub-task 5.1)
+- **Reason**: Office engines live under the OCR runtime, but renaming would touch CI, sidecar spawn paths, installer comments, tests, and every import in one change. The seam `core/documents` is already vscode-free and correctly named. A rename without a simultaneous reference sweep would break `test-python-runtimes`.
+- **Suggested next step**: If a later cycle renames, do it as one commit that updates `runtimes/ocr/**`, `tests/python/ocr/**`, `.github/workflows/ci.yml`, sidecar runtime factory paths, and installer comments together.
+
 ### Resolved
 
 | ID | Title | Resolved in | Notes |
 |---|---|---|---|
 | LSO.P4.B | Wire parse_document at composition roots | Phase 1 | Sidecar `createSidecarHeadlessTools` + VS Code `ChatPanelBootstrap` / `buildParseDocumentDeps`. Flag off keeps the tool absent. |
 | LSO.P4.C | Wire optional memory ingest | Phase 1 | VS Code only, both flags required. Injection rejection is stored=false. Sidecar remainder is DF-1. |
+| LSO.P3.C | On-device OCR QA | Phase 4 | Partial. RapidOCR default ONNX models smoked on synthetic fixtures. Catalog RapidOCR install and Unlimited-OCR remain DF-5. |

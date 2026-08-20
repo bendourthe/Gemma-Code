@@ -4,6 +4,25 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-19] v1.20.0 document-ingest -- Phase 5: refactor, known-gaps, CI
+
+### Goal
+
+Reconcile gaps, confirm CI coverage, and avoid a high-blast-radius runtime rename.
+
+### What was done
+
+- **Layout**: left `runtimes/ocr/` in place (DF-6). `core/documents` stays the vscode-free seam.
+- **Gaps**: DF-1..DF-6 open. LSO.P4.B / LSO.P4.C closed. LSO.P3.C partial via Phase 4. v1.19.2 items untouched.
+- **CI**: `test-python-runtimes` comment now names Office wheels; still no GPU/weights job. Desktop Chat/Coding tests already run via `test:shell` on Node 22.
+- **Parity**: Office prefixes sit next to RapidOCR in `REQUIRED_WHEEL_PREFIXES`.
+
+### Next
+
+`/update release` for v1.20.0.
+
+---
+
 ## [2026-08-19] v1.20.0 document-ingest -- Phase 4: layout bake-off (A4)
 
 ### Goal

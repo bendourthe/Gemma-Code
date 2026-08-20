@@ -1,4 +1,4 @@
-# Docs cleanup audit - v1.20.0 Phase 4
+# Docs cleanup audit - v1.20.0 Phase 5
 
 **Date**: 2026-08-19
 **Mode**: audit (no files moved)
@@ -6,12 +6,8 @@
 
 ## Layout
 
-Phase 4 added `development/ocr-layout-bakeoff-2026-08.md` and `development/history/2026-08-19_phase-4-layout-bakeoff.md` under `docs/v1/v1.20/`. Both belong in `development/` (not `comparisons/`). No empty dirs. No stray comparison reports.
-
-## Scratch docs this phase
-
-None. The bake-off note is the Phase 4 deliverable.
+Canonical `docs/v1/v1.20/` with `plans/` and `comparisons/` is already in place. Bake-off note lives under `development/`. No empty dirs. No archive migration this cycle (v1.20 only).
 
 ## Proposed cleanup
 
-None until Phase 5 refactor.
+None applied. `runtimes/ocr/` rename deferred (DF-6).
