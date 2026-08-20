@@ -8,7 +8,7 @@ Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/pl
 
 Plan: [plans/v2.0.0-adoption-governed-autonomy-multimodal.md](plans/v2.0.0-adoption-governed-autonomy-multimodal.md)
 
-v1.20.0 in-progress items stay in [../../v1/v1.20/known-gaps.md](../../v1/v1.20/known-gaps.md). This file starts empty of carry-forward rows; Phase 5 reconciles v1.15+ gaps into v2.0.
+Phase 5 reconciliation: v1.15-v1.18 files are finalized and remain canonical. Still-open v1.19 and v1.20 rows stay in those files and are indexed below. This file owns v2.0.0 cycle gaps plus the named transfers from the Phase 5.2 prompt.
 
 ## v2.0.0
 
@@ -17,7 +17,7 @@ v1.20.0 in-progress items stay in [../../v1/v1.20/known-gaps.md](../../v1/v1.20/
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 12 | 0 |
+| Deferred (DF) | 14 | 1 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 1 | 0 |
@@ -111,6 +111,20 @@ v1.20.0 in-progress items stay in [../../v1/v1.20/known-gaps.md](../../v1/v1.20/
 - **Reason**: The plan ships this only if Chat demand justifies it. No Chat demand was observed this cycle. Live2D stays rejected (proprietary Cubism Core). Depends on Phase 1.3 TTS timing for lip-sync.
 - **Suggested next step**: If Chat users ask for a presence pane, add an optional three-vrm renderer, off by default, VRM only, local, with zero cost when disabled.
 
+##### DF-13 - Inkling-Small GGUF stays text-only (v1.19.2 DF-2)
+
+- **Source phase**: Phase 5 - Known-gaps reconciliation (5.2); origin v1.19.2 task 1.6
+- **Plan reference**: `docs/v1/v1.19/plans/v1.19.2-adoption-catalog-and-model-expansion.md` (sub-task 1.6)
+- **Reason**: Native Inkling-Small accepts text, image, and audio. The curated UD-IQ1_S GGUF has no verified llama.cpp multimodal projector. Catalog `modalities` is `["text"]`.
+- **Suggested next step**: Add image/audio modalities only after a dated local load of an image and an audio clip on that GGUF. Keep the row out of `recommended.json`.
+
+##### DF-14 - Kimi K3 is not a catalog LLM entry
+
+- **Source phase**: Phase 5 - Known-gaps reconciliation (5.2); origin kimi-k3-in-c K4
+- **Plan reference**: `docs/v2/v2.0/comparisons/v2.0.6-comparison-kimi-k3-in-c.md` (K4)
+- **Reason**: v1.19.2 calibrated the patient tier. A Kimi K3 row waits on a GGUF in the Ollama-wrapped lineage. The C99 engine from kimi-k3-in-c stays rejected.
+- **Suggested next step**: If an Ollama-served GGUF lands with a pin, add a patient-tier catalog row. Do not vendor the C engine or the 1.56 TB checkpoint.
+
 #### Missing Tests / Coverage Gaps
 
 ##### MT-1 - ChildProcessAudioRuntime timeout and malformed-line branches
@@ -120,10 +134,21 @@ v1.20.0 in-progress items stay in [../../v1/v1.20/known-gaps.md](../../v1/v1.20/
 - **Reason**: Unit tests cover in-memory runtime, factory `NEXUS_AUDIO_INMEMORY`, and one JSON-RPC stdio happy path. Timeout, child-exit, and non-JSON stdout lines remain uncovered. Folder branch coverage for `core/audio` is about 51%; global thresholds still pass.
 - **Suggested next step**: Add a spawn fake that exits mid-request and one that writes a non-JSON line.
 
+### Carry-forward index (v1.15 through v1.20)
+
+Canonical detail stays in the source file. v2.0 does not close these unless listed under Resolved.
+
+| Source | Status of that file | What v2.0 does |
+|---|---|---|
+| [v1.15](../../v1/v1.15/known-gaps.md) | finalized | Installer mypy/NSIS/on-device QA rows stay there |
+| [v1.16](../../v1/v1.16/known-gaps.md) | finalized | Gateway/OCR/MLX smokes stay there; parse_document composition moved to v1.20 then DF-1 here via v1.20 DF-1 |
+| [v1.17](../../v1/v1.17/known-gaps.md) | finalized | Motion/Tailwind/installer-motion stay there. `asr-capture` orb mapping exists; Chat voice loop does not yet pass that activity |
+| [v1.18](../../v1/v1.18/known-gaps.md) | finalized | 14 open DF (llama-server smoke, Hub CI, sidecar harness overlay, Windows sandbox partial, ...) stay there |
+| [v1.19](../../v1/v1.19/known-gaps.md) | in-progress | v1.19.0 DF-2,3,6-11; v1.19.1 DF-1-5; v1.19.2 DF-1,3,4 stay there. Inkling multimodal is DF-13 here |
+| [v1.20](../../v1/v1.20/known-gaps.md) | in-progress | DF-1-6 (sidecar MemoryStore, Settings toggle, parse queue, first-attachment, Docling defer, ocr dir name) stay there. Chat STT indexing overlaps DF-5 here |
+
 ### Resolved
 
 | ID | Title | Resolved in | Notes |
 |---|---|---|---|
-| | | | |
-
-(none yet)
+| OW-A2 scheduler | OpenWorker A2 local scheduler | v1.18.0 Phase 4 | `AgentRunScheduler` plus ask inbox. Morning-brief schedule remains off by default. Not re-opened in v2.0 |

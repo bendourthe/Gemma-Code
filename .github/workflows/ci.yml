@@ -19,6 +19,10 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
+# v2.0.0 Phase 5: hardware-gated suites and skip flags are listed in
+# docs/v2/v2.0/ci-hardware-gates.md (Playwright, GPU video, live STT/TTS,
+# patient-tier adapter). Do not install those stacks in this workflow.
+
 jobs:
 
   # ── TypeScript ─────────────────────────────────────────────────────────────
@@ -390,6 +394,8 @@ jobs:
           python -m pip install --quiet -r runtimes/ocr/requirements.txt
       - name: Run runtime tests
         run: python -m pytest tests/python -q
+        env:
+          NEXUS_AUDIO_STUB: "1"
 
   # -- Dependency audits ----------------------------------------------------
   #

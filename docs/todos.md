@@ -2,7 +2,7 @@
 
 **Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (v1.20.0 cut on `develop`; v2.0.0 is next).
 
-> **v2.0.0 IN PROGRESS (2026-08-20)** -- [governed-autonomy-multimodal](v2/v2.0/plans/v2.0.0-adoption-governed-autonomy-multimodal.md). P1-P3 committed locally. **P4** ProjectScope + durable sandbox + advisory memory kinds + seams; DF-10/11/12 transferred. Next: P5 refactor/known-gaps/CI, then P6 `/update release`.
+> **v2.0.0 IN PROGRESS (2026-08-20)** -- [governed-autonomy-multimodal](v2/v2.0/plans/v2.0.0-adoption-governed-autonomy-multimodal.md). P1-P5 on `develop` (P1-P4 committed; P5 this commit). Next: P6 convergence + `/update release`.
 >
 > **v1.20.0 RELEASED (2026-08-19)** -- all 5 phases of [v1.20.0-adoption-docling.md](v1/v1.20/plans/v1.20.0-adoption-docling.md) landed on `develop`; package.json / CHANGELOG / README cut as **v1.20.0**. Known-gaps [in-progress](v1/v1.20/known-gaps.md) (v1.20.0: 6 DF). Cycle: wire `parse_document`, magic-byte Office ingest, Chat and Coding attach, Docling bake-off deferred.
 > - **P1** sidecar + VS Code composition-root wiring (LSO.P4.B / LSO.P4.C).

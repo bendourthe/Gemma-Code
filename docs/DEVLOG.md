@@ -4,6 +4,24 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-20] v2.0.0 close-out -- Phase 5: layout audit, known-gaps, CI gates
+
+### Goal
+
+Leave the tree organized, ingest v1.15+ gaps into v2.0, and document hardware-gated CI so the convergence cut is honest.
+
+### What was done
+
+- **Layout**: propose-then-apply found nothing to move. Version docs already use `docs/v2/v2.0/{plans,comparisons}`. Skill-catalog empty dirs stay as test placeholders.
+- **Known-gaps**: carry-forward index for v1.15-v1.20. DF-13 Inkling GGUF multimodal, DF-14 Kimi K3 catalog wait. OpenWorker scheduler marked resolved (v1.18).
+- **CI**: `docs/v2/v2.0/ci-hardware-gates.md`; pytest `NEXUS_AUDIO_STUB=1`; existing caches and concurrency kept.
+
+### Next
+
+Phase 6 convergence, then commit, push, `/update release`.
+
+---
+
 ## [2026-08-20] v2.0.0 stretch -- Phase 4: ProjectScope, durable sandbox, advisory memory
 
 ### Goal
