@@ -504,6 +504,31 @@ describe("catalog", () => {
     }
   });
 
+  it("curates LongCat-Video-Avatar-1.5 INT8 as an official diffusion-pro opt-in (v2.0.0)", async () => {
+    const file = await loadCatalog();
+    const avatar = findSpec(file, "longcat-video-avatar-1.5");
+    expect(avatar).toBeDefined();
+    expect(avatar?.source.repo).toBe("meituan-longcat/LongCat-Video-Avatar-1.5");
+    expect(avatar?.license).toBe("MIT");
+    expect(avatar?.tags).toContain("opt-in");
+    expect(avatar?.tags).not.toContain("recommended");
+    expect(avatar?.audioConditioning?.supported).toBe(true);
+    expect(avatar?.audioConditioning?.modes).toEqual(["single"]);
+    expect(avatar?.weights?.layoutVersion).toBe(2);
+    expect(avatar?.weights?.defaultVariant).toBe("int8");
+    const variant = avatar?.weights?.variants?.[0];
+    expect(variant?.official).toBe(true);
+    expect(variant?.precision).toBe("int8");
+    expect(variant?.files.length).toBe(7);
+    for (const fileEntry of variant?.files ?? []) {
+      expect(fileEntry.sha256).toMatch(/^[a-f0-9]{64}$/);
+      expect(fileEntry.sha256).not.toBe("0".repeat(64));
+    }
+    const recommendedPath = path.resolve("core/registry/recommended.json");
+    const recommended = await fs.readFile(recommendedPath, "utf8");
+    expect(recommended).not.toContain("longcat-video-avatar-1.5");
+  });
+
   it("curates Hermes 3 8B/70B as agentic catalog entries (v1.19.2)", async () => {
     const file = await loadCatalog();
     const eight = findSpec(file, "hermes3:8b");

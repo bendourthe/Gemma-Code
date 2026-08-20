@@ -20,24 +20,43 @@
 
 import { useEffect, useRef, useState } from "react";
 
+export interface TimelineSegment {
+  readonly src: string;
+  readonly durationSeconds?: number;
+}
+
 export interface TimelinePreviewerProps {
   readonly src: string | null;
   readonly fps: number;
   readonly testId?: string;
+  /** v2.0.0 Phase 3 -- chained continuation clips played as one sequence. */
+  readonly segments?: readonly TimelineSegment[];
 }
 
 export function TimelinePreviewer({
   src,
   fps,
   testId = "video-timeline-previewer",
+  segments,
 }: TimelinePreviewerProps): JSX.Element {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
+  const [segmentIndex, setSegmentIndex] = useState(0);
+
+  const playlist = segments && segments.length > 0 ? segments : src ? [{ src }] : [];
+  const active = playlist[segmentIndex] ?? playlist[0];
+  const activeSrc = active?.src ?? null;
+  const segmentCount = playlist.length;
 
   useEffect(() => {
     setCurrentTime(0);
-  }, [src]);
+    setSegmentIndex(0);
+  }, [src, segments]);
+
+  useEffect(() => {
+    setCurrentTime(0);
+  }, [segmentIndex]);
 
   function handleScrub(value: number): void {
     const video = videoRef.current;
@@ -54,7 +73,7 @@ export function TimelinePreviewer({
     handleScrub(next);
   }
 
-  if (!src) {
+  if (!activeSrc) {
     return (
       <div data-testid={testId} style={previewerEmptyStyle}>
         <p data-testid={`${testId}-empty`} style={{ color: "var(--fg-muted)" }}>
@@ -69,8 +88,13 @@ export function TimelinePreviewer({
       <video
         data-testid={`${testId}-video`}
         ref={videoRef}
-        src={src}
+        src={activeSrc}
         controls={false}
+        onEnded={() => {
+          if (segmentIndex + 1 < segmentCount) {
+            setSegmentIndex(segmentIndex + 1);
+          }
+        }}
         onLoadedMetadata={(e) =>
           setDuration((e.currentTarget as HTMLVideoElement).duration || 0)
         }
@@ -132,6 +156,11 @@ export function TimelinePreviewer({
         <span data-testid={`${testId}-timecode`}>
           {currentTime.toFixed(2)}s / {duration.toFixed(2)}s
         </span>
+        {segmentCount > 1 ? (
+          <span data-testid={`${testId}-segment`}>
+            Segment {segmentIndex + 1}/{segmentCount}
+          </span>
+        ) : null}
       </div>
     </div>
   );

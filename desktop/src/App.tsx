@@ -10,6 +10,7 @@ import { CodingPage } from "./modules/coding/CodingPage";
 import { ChatPage } from "./modules/chat/ChatPage";
 import { ImageStudioPage } from "./modules/image/ImageStudioPage";
 import { VideoLabPage } from "./modules/video/VideoLabPage";
+import { classifyDiffusionTier } from "../../core/config/DiffusionTier";
 import { SettingsPage } from "./pages/settings/SettingsPage";
 import { createIpcSkillsClient } from "./pages/settings/ipcSkillsClient";
 import { createIpcSkillOptimizerClient } from "./pages/settings/ipcSkillOptimizerClient";
@@ -140,7 +141,13 @@ function AppLayout({ telemetryStream }: AppProps): JSX.Element {
             />
             <Route
               path="/videos"
-              element={<VideoLabPage onGetMoreModels={() => navigate(SETTINGS_MODELS_PATH)} />}
+              element={
+                <VideoLabPage
+                  onGetMoreModels={() => navigate(SETTINGS_MODELS_PATH)}
+                  vramGB={hostVramGB ?? 0}
+                  diffusionTier={classifyDiffusionTier(hostVramGB ?? 0)}
+                />
+              }
             />
             <Route
               path="/inbox"

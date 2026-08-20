@@ -46,7 +46,7 @@ Later cycles added two sidecar-adjacent surfaces that the v1.0.0 layout above do
 
 ### Multimodal Chat (v2.0.0 Phase 1)
 
-Chat image attach is enabled only when the selected model's catalog `modalities` includes `image`. Image bytes go on `chat.session.sendMessage` as raw base64 for the local vision model. Audio attach and the composer mic are available for any text model: clips transcribe on-device, then enter the thread as labelled text. The optional voice loop (off by default) adds push-to-talk and a button-driven VAD mode, plus Kokoro TTS playback, all offline. Image Studio and Video Lab still pass `accept="image/*"` with no mic control.
+Chat image attach is enabled only when the selected model's catalog `modalities` includes `image`. Image bytes go on `chat.session.sendMessage` as raw base64 for the local vision model. Audio attach and the composer mic are available for any text model: clips transcribe on-device, then enter the thread as labelled text. The optional voice loop (off by default) adds push-to-talk and a button-driven VAD mode, plus Kokoro TTS playback, all offline. Image Studio still passes `accept="image/*"` with no mic control. Video Lab enables audio attach only on `diffusion-pro` for the talking-head mode.
 
 ### Document ingest (v1.20.0)
 
@@ -66,7 +66,7 @@ No third inference engine is bundled. A user-started `llama-server` on loopback 
 
 ### Catalog expansion and patient-tier calibration (v1.19.2)
 
-[`catalog.ts`](core/registry/catalog.ts) now declares input `modalities` (`text` / `image` / `audio`) and optional `audioConditioning` on video entries. Existing rows are backfilled (text-only unless documented otherwise; Gemma 12B is `text`+`image`; faster-whisper is `audio`). Video Lab defaults in [`DiffusionTier.ts`](core/config/DiffusionTier.ts) carry `audioConditioning: { enabled: false, modes: [] }` until avatar models land.
+[`catalog.ts`](core/registry/catalog.ts) now declares input `modalities` (`text` / `image` / `audio`) and optional `audioConditioning` on video entries. Existing rows are backfilled (text-only unless documented otherwise; Gemma 12B is `text`+`image`; faster-whisper is `audio`). `diffusion-pro` enables `audioConditioning` (`single`) for LongCat-Video-Avatar-1.5 INT8. Consumer tiers stay disabled.
 
 Weights manifests may declare official precision `variants` (fp16 / bf16 / fp8 / int8 / gguf) with per-file sha256. [`hf_weights_puller.py`](scripts/installer/src/nexus_installer/engine/hf_weights_puller.py) selects a variant (VRAM-aware default or `NEXUS_WEIGHTS_VARIANT` / installer override). `official` must be true; community re-quants fail closed. sha256 discipline is unchanged.
 

@@ -11,7 +11,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { MediaComposer, MessageBubble, type ChatMessage } from "../../shared/chat";
+import { MediaComposer, MessageBubble, chatComposerAccept, type ChatMessage } from "../../shared/chat";
 import { ModelSelector } from "../../shared/chat/ModelSelector";
 import {
   SETTINGS_MODELS_PATH,
@@ -20,6 +20,10 @@ import {
 } from "../../shared/models/installedFeed";
 import { createIpcModelsClient } from "../../pages/settings/ipcModelsClient";
 import type { ListedModelDto } from "../../pages/settings/modelsTypes";
+import type { DiffusionTierId } from "../../../../core/config/DiffusionTier";
+import { getDiffusionTierConfig } from "../../../../core/config/DiffusionTier";
+import { planVideoContinuation, type ContinuationSegmentPlan } from "../../../../core/video/continuation";
+import { OFFICIAL_AVATAR_MODEL_ID, avatarAvailable, assertAvatarAllowed } from "../../../../core/video/avatarGate";
 import {
   DEFAULT_VIDEO_FORM_VALUES,
   VideoPromptForm,
@@ -27,9 +31,11 @@ import {
   type VideoFormValues,
 } from "./VideoPromptForm";
 import { inferVideoIntent } from "./intent";
+import { TimelinePreviewer, type TimelineSegment } from "./TimelinePreviewer";
 import {
   createIpcVideoClient,
   type VideoClient,
+  type VideoMode,
   type VideoProgressEvent,
 } from "./videoClient";
 
@@ -54,6 +60,8 @@ export interface VideoLabPageProps {
   /** Maps a sidecar mp4Path into a URL the HTML5 video element can play. */
   readonly resolveMp4Url?: (mp4Path: string) => string;
   readonly initialValues?: Partial<VideoFormValues>;
+  readonly diffusionTier?: DiffusionTierId;
+  readonly vramGB?: number;
 }
 
 let messageSeq = 0;
@@ -70,19 +78,37 @@ export function VideoLabPage({
   onGetMoreModels,
   resolveMp4Url = (path) => path,
   initialValues,
+  diffusionTier = "diffusion-mid",
+  vramGB = 0,
 }: VideoLabPageProps = {}): JSX.Element {
+  const tierClip = getDiffusionTierConfig(diffusionTier).video.clipSeconds || 4;
+  const canAvatar = avatarAvailable(diffusionTier, vramGB);
   const [client] = useState<VideoClient>(() => clientOverride ?? createIpcVideoClient());
   const [models, setModels] = useState<readonly ListedModelDto[]>([FALLBACK_MODEL]);
   const [noneInstalled, setNoneInstalled] = useState(false);
   const [selectedModelId, setSelectedModelId] = useState<string>(FALLBACK_MODEL.id);
   const [values, setValues] = useState<VideoFormValues>({
     ...DEFAULT_VIDEO_FORM_VALUES,
+    clipSeconds: tierClip,
     ...initialValues,
   });
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [activeJob, setActiveJob] = useState<{ jobId: string; messageId: string } | null>(null);
   const [seededAttachment, setSeededAttachment] = useState<string | null>(null);
+  const [playlists, setPlaylists] = useState<ReadonlyMap<string, readonly TimelineSegment[]>>(
+    () => new Map(),
+  );
   const outputs = useRef<Map<string, string>>(new Map()); // messageId -> mp4Path
+  const chainRef = useRef<{
+    messageId: string;
+    current: ContinuationSegmentPlan;
+    remaining: ContinuationSegmentPlan[];
+    playlist: TimelineSegment[];
+    mode: VideoMode;
+    base: ReturnType<typeof videoFormToRequest>;
+    sourceImage?: string;
+    sourceAudio?: string;
+  } | null>(null);
 
   const isGenerating = activeJob !== null;
 
@@ -121,35 +147,111 @@ export function VideoLabPage({
     setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)));
   }, []);
 
+  const dispatchSegment = useCallback(
+    async (
+      mode: VideoMode,
+      base: ReturnType<typeof videoFormToRequest>,
+      segment: ContinuationSegmentPlan,
+      extras: {
+        sourceImage?: string;
+        sourceAudio?: string;
+        priorJobId?: string;
+        segmentCount: number;
+      },
+    ) => {
+      const request = {
+        ...base,
+        durationSeconds: segment.durationSeconds,
+        ...(segment.continueFromPrior && extras.priorJobId
+          ? {
+              continueFrom: {
+                priorJobId: extras.priorJobId,
+                segmentIndex: segment.index,
+                segmentCount: extras.segmentCount,
+              },
+            }
+          : {}),
+      };
+      if (mode === "audio2video") {
+        return client.audio2video({
+          ...request,
+          sourceImage: extras.sourceImage ?? "",
+          sourceAudio: extras.sourceAudio ?? "",
+          confirmLocalAvatar: true,
+          diffusionTier,
+          vramGB,
+          weightRepo: "meituan-longcat/LongCat-Video-Avatar-1.5",
+        });
+      }
+      if (mode === "image2video") {
+        return client.image2video({ ...request, sourceImage: extras.sourceImage ?? "" });
+      }
+      return client.text2video(request);
+    },
+    [client, diffusionTier, vramGB],
+  );
+
   const advanceFromEvents = useCallback(
-    (events: readonly VideoProgressEvent[], messageId: string): { done: boolean } => {
-      let done = false;
+    async (
+      events: readonly VideoProgressEvent[],
+      messageId: string,
+    ): Promise<{ done: boolean; nextJobId?: string }> => {
       for (const event of events) {
         if (event.kind === "progress") {
           patchMessage(messageId, {
             progress: { step: event.step ?? 0, total: event.totalSteps ?? 0 },
           });
         } else if (event.kind === "complete") {
-          done = true;
           const mp4Path = event.mp4Path ?? "";
           outputs.current.set(messageId, mp4Path);
+          const chain = chainRef.current;
+          if (chain && mp4Path) {
+            chain.playlist.push({
+              src: resolveMp4Url(mp4Path),
+              durationSeconds: chain.current.durationSeconds,
+            });
+          }
+          const next = chain?.remaining[0];
+          if (chain && next) {
+            chain.current = next;
+            chain.remaining = chain.remaining.slice(1);
+            const accepted = await dispatchSegment(chain.mode, chain.base, next, {
+              sourceImage: chain.sourceImage,
+              sourceAudio: chain.sourceAudio,
+              priorJobId: event.jobId,
+              segmentCount: next.index + 1 + chain.remaining.length,
+            });
+            return { done: false, nextJobId: accepted.jobId };
+          }
+          const playlist = chain?.playlist ?? [];
+          if (playlist.length > 1) {
+            setPlaylists((prev) => {
+              const copy = new Map(prev);
+              copy.set(messageId, playlist);
+              return copy;
+            });
+          }
+          const firstSrc = playlist[0]?.src ?? (mp4Path ? resolveMp4Url(mp4Path) : undefined);
           patchMessage(messageId, {
             pending: false,
             progress: undefined,
-            media: mp4Path ? { kind: "video", src: resolveMp4Url(mp4Path) } : undefined,
+            media: firstSrc ? { kind: "video", src: firstSrc } : undefined,
           });
+          chainRef.current = null;
+          return { done: true };
         } else if (event.kind === "error") {
-          done = true;
+          chainRef.current = null;
           patchMessage(messageId, {
             pending: false,
             progress: undefined,
             content: `Generation failed: ${event.message ?? "unknown error"}`,
           });
+          return { done: true };
         }
       }
-      return { done };
+      return { done: false };
     },
-    [patchMessage, resolveMp4Url],
+    [patchMessage, resolveMp4Url, dispatchSegment],
   );
 
   useEffect(() => {
@@ -161,7 +263,11 @@ export function VideoLabPage({
         try {
           const events = await client.drainEvents(activeJob.jobId);
           if (cancelled) return;
-          const { done } = advanceFromEvents(events, activeJob.messageId);
+          const { done, nextJobId } = await advanceFromEvents(events, activeJob.messageId);
+          if (nextJobId) {
+            setActiveJob({ jobId: nextJobId, messageId: activeJob.messageId });
+            return;
+          }
           if (done) {
             cancelled = true;
             clearInterval(timer);
@@ -170,6 +276,7 @@ export function VideoLabPage({
         } catch (err) {
           cancelled = true;
           clearInterval(timer);
+          chainRef.current = null;
           patchMessage(activeJob.messageId, {
             pending: false,
             content: `Generation failed: ${err instanceof Error ? err.message : String(err)}`,
@@ -187,7 +294,7 @@ export function VideoLabPage({
   const handleSubmit = useCallback(
     async (text: string, attachments: readonly string[]): Promise<void> => {
       if (isGenerating) return;
-      const intent = inferVideoIntent({ text, attachments });
+      const intent = inferVideoIntent({ text, attachments, avatarEnabled: canAvatar });
       const userMsg: ChatMessage = {
         id: nextId("vuser"),
         role: "user",
@@ -201,26 +308,77 @@ export function VideoLabPage({
         { id: assistantId, role: "assistant", content: "", pending: true, activity: "video-generation" },
       ]);
 
+      if (intent.blockedReason) {
+        patchMessage(assistantId, { pending: false, content: intent.blockedReason });
+        return;
+      }
+
+      if (intent.mode === "audio2video") {
+        const gate = assertAvatarAllowed({
+          tierId: diffusionTier,
+          vramGB,
+          confirmed: values.confirmLocalAvatar,
+          modelId: OFFICIAL_AVATAR_MODEL_ID,
+        });
+        if (!gate.ok) {
+          patchMessage(assistantId, { pending: false, content: gate.message });
+          return;
+        }
+      }
+
+      const clipSeconds = values.clipSeconds || tierClip;
+      const segments = planVideoContinuation(values.durationSeconds, clipSeconds);
+      const first = segments[0];
+      if (!first) {
+        patchMessage(assistantId, { pending: false, content: "Generation failed: empty continuation plan" });
+        return;
+      }
+
+      const modelId =
+        intent.mode === "audio2video" ? OFFICIAL_AVATAR_MODEL_ID : selectedModelId;
       const base = videoFormToRequest({
         ...values,
         prompt: intent.prompt,
-        modelId: selectedModelId,
+        modelId,
       });
 
       try {
-        const accepted =
-          intent.mode === "text2video"
-            ? await client.text2video(base)
-            : await client.image2video({ ...base, sourceImage: intent.sourceImage ?? "" });
+        chainRef.current = {
+          messageId: assistantId,
+          current: first,
+          remaining: segments.slice(1).map((s) => s),
+          playlist: [],
+          mode: intent.mode,
+          base,
+          sourceImage: intent.sourceImage,
+          sourceAudio: intent.sourceAudio,
+        };
+        const accepted = await dispatchSegment(intent.mode, base, first, {
+          sourceImage: intent.sourceImage,
+          sourceAudio: intent.sourceAudio,
+          segmentCount: segments.length,
+        });
         setActiveJob({ jobId: accepted.jobId, messageId: assistantId });
       } catch (err) {
+        chainRef.current = null;
         patchMessage(assistantId, {
           pending: false,
           content: `Generation failed: ${err instanceof Error ? err.message : String(err)}`,
         });
       }
     },
-    [isGenerating, values, selectedModelId, client, patchMessage],
+    [
+      isGenerating,
+      values,
+      selectedModelId,
+      client,
+      patchMessage,
+      canAvatar,
+      diffusionTier,
+      vramGB,
+      tierClip,
+      dispatchSegment,
+    ],
   );
 
   const onSelectModel = useCallback(
@@ -300,12 +458,23 @@ export function VideoLabPage({
         {messages.length === 0 ? (
           <p data-testid="video-empty" style={{ color: "var(--fg-muted)" }}>
             Describe a video to generate it, or drop an image and ask to animate it.
+            {canAvatar
+              ? " On this diffusion-pro host, attach a photo and an audio track for a local talking-head."
+              : ""}
           </p>
         ) : (
           <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
             {messages.map((m) => (
               <li key={m.id}>
                 <MessageBubble message={m} enableTools={false} />
+                {m.role === "assistant" && (playlists.get(m.id)?.length ?? 0) > 1 ? (
+                  <TimelinePreviewer
+                    src={playlists.get(m.id)?.[0]?.src ?? null}
+                    fps={values.fps}
+                    segments={playlists.get(m.id)}
+                    testId={`video-timeline-${m.id}`}
+                  />
+                ) : null}
                 {m.role === "assistant" && m.media && (
                   <div
                     data-testid={`video-actions-${m.id}`}
@@ -343,17 +512,29 @@ export function VideoLabPage({
               onChange={setValues}
               disabled={isGenerating}
               hideMode
+              avatarAvailable={canAvatar}
             />
           </div>
         </details>
         <MediaComposer
           disabled={isGenerating}
-          placeholder="Describe the video you want, or drop an image to animate..."
+          placeholder={
+            canAvatar
+              ? "Describe the video, drop an image to animate, or add a photo plus audio for a talking-head..."
+              : "Describe the video you want, or drop an image to animate..."
+          }
           onSubmit={(text, attachments) => void handleSubmit(text, attachments)}
           submitAccentVar="--accent-video"
           submitLabel="Generate"
           seededAttachment={seededAttachment}
           streaming={isGenerating}
+          accept={
+            canAvatar
+              ? chatComposerAccept({ allowImages: true, allowAudio: true })
+              : "image/*"
+          }
+          audioEnabled={canAvatar}
+          audioHint="Photo plus audio stay on this device."
         />
       </div>
     </section>

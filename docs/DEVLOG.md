@@ -4,6 +4,27 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-19] v2.0.0 Video Lab -- Phase 3: continuation + avatar
+
+### Goal
+
+Escape the fixed 4-8 s clip ceiling by chaining segments, and add a local `audio2video` talking-head mode gated to `diffusion-pro`.
+
+### What was done
+
+- **Continuation**: `planVideoContinuation` plus `continueFrom` on each extra segment. TimelinePreviewer plays the playlist. Per-segment tier limits still apply. Seam quality is recorded as prototype-unmeasured (DF-9).
+- **Avatar**: `diffusion.video.audio2video`, official `longcat-video-avatar-1.5` INT8 catalog pins, VRAM/tier/confirm gates, provenance on saved workflow JSON. Byte-level scan note: no LongCat inference tree was imported (DF-8). Photos and audio never leave the device.
+
+### Tests
+
+Root Vitest (continuation, avatar gate, catalog). Desktop protocol / dispatcher / Video Lab. Python diffusion stubs (no GPU).
+
+### Next
+
+Phase 4 stretch items, then local commit only.
+
+---
+
 ## [2026-08-19] v2.0.0 coding browser tools -- Phase 2: isolated Playwright profile
 
 ### Goal

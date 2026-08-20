@@ -85,6 +85,7 @@ export const IPC_METHODS = [
   "diffusion.workflow.extract",
   "diffusion.video.text2video",
   "diffusion.video.image2video",
+  "diffusion.video.audio2video",
   "diffusion.video.workflow.extract",
 ] as const;
 
@@ -521,7 +522,7 @@ export type DiffusionWorkflowExtractResponseT = z.infer<
 
 // ---- Video pipeline (Phase 7) -----------------------------------------------
 
-export const VideoMode = z.enum(["text2video", "image2video"]);
+export const VideoMode = z.enum(["text2video", "image2video", "audio2video"]);
 export type VideoModeT = z.infer<typeof VideoMode>;
 
 export const VideoFps = z.union([z.literal(12), z.literal(16), z.literal(24)]);
@@ -532,6 +533,15 @@ const VideoResolutionTuple = z.union([
   z.tuple([z.literal(1280), z.literal(720)]),
 ]);
 export type VideoResolutionTupleT = z.infer<typeof VideoResolutionTuple>;
+
+const VideoContinueFrom = z
+  .object({
+    priorJobId: z.string().min(1),
+    lastFramePath: z.string().min(1).optional(),
+    segmentIndex: z.number().int().min(0),
+    segmentCount: z.number().int().min(1),
+  })
+  .strict();
 
 const VideoBase = z.object({
   modelId: z.string().min(1),
@@ -546,6 +556,7 @@ const VideoBase = z.object({
   sampler: DiffusionSampler.default("euler_a"),
   seed: z.number().int().nonnegative(),
   latentPreview: z.boolean().default(true),
+  continueFrom: VideoContinueFrom.optional(),
 });
 
 export const DiffusionVideoText2VideoRequest = VideoBase.strict();
@@ -560,6 +571,21 @@ export type DiffusionVideoImage2VideoRequestT = z.infer<
   typeof DiffusionVideoImage2VideoRequest
 >;
 
+export const DiffusionVideoAudio2VideoRequest = VideoBase.extend({
+  durationSeconds: z.number().int().min(1).max(60),
+  sourceImage: z.string().min(1),
+  sourceAudio: z.string().min(1),
+  confirmLocalAvatar: z.literal(true),
+  diffusionTier: z
+    .enum(["diffusion-low", "diffusion-mid", "diffusion-high", "diffusion-pro"])
+    .optional(),
+  vramGB: z.number().nonnegative().optional(),
+  weightRepo: z.string().min(1).optional(),
+}).strict();
+export type DiffusionVideoAudio2VideoRequestT = z.infer<
+  typeof DiffusionVideoAudio2VideoRequest
+>;
+
 export const DiffusionVideoJobAccepted = z
   .object({
     jobId: z.string().min(1),
@@ -567,6 +593,7 @@ export const DiffusionVideoJobAccepted = z
     offloadStrategy: z.string().optional(),
     estimatedSeconds: z.number().nonnegative().optional(),
     frameCount: z.number().int().nonnegative().optional(),
+    provenance: z.record(z.string(), z.unknown()).optional(),
   })
   .strict();
 export type DiffusionVideoJobAcceptedT = z.infer<typeof DiffusionVideoJobAccepted>;
@@ -591,6 +618,7 @@ export const DiffusionVideoWorkflow = z
     seed: z.number(),
     timestamp: z.string(),
     sourceImageHash: z.string().optional(),
+    sourceAudioHash: z.string().optional(),
   })
   .passthrough();
 export type DiffusionVideoWorkflowT = z.infer<typeof DiffusionVideoWorkflow>;
@@ -1588,6 +1616,11 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
   },
   "diffusion.video.image2video": {
     request: DiffusionVideoImage2VideoRequest,
+    response: DiffusionVideoJobAccepted,
+    implemented: true,
+  },
+  "diffusion.video.audio2video": {
+    request: DiffusionVideoAudio2VideoRequest,
     response: DiffusionVideoJobAccepted,
     implemented: true,
   },

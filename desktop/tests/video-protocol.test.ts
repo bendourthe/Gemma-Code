@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  DiffusionVideoAudio2VideoRequest,
   DiffusionVideoImage2VideoRequest,
   DiffusionVideoText2VideoRequest,
   DiffusionVideoWorkflow,
@@ -12,6 +13,7 @@ import {
 const REQUIRED_VIDEO_METHODS = [
   "diffusion.video.text2video",
   "diffusion.video.image2video",
+  "diffusion.video.audio2video",
   "diffusion.video.workflow.extract",
 ] as const;
 
@@ -115,6 +117,29 @@ describe("video IPC protocol", () => {
       sourceImage: "data:image/png;base64,AAAA",
     });
     expect(ok.sourceImage).toMatch(/^data:image\/png/);
+  });
+
+  it("audio2video requires photo, audio, and confirmLocalAvatar", () => {
+    const base = {
+      modelId: "longcat-video-avatar-1.5",
+      prompt: "talk",
+      width: 854,
+      height: 480,
+      durationSeconds: 8,
+      fps: 24,
+      steps: 30,
+      cfgScale: 3.5,
+      seed: 7,
+    };
+    expect(() => DiffusionVideoAudio2VideoRequest.parse(base)).toThrow();
+    const ok = DiffusionVideoAudio2VideoRequest.parse({
+      ...base,
+      sourceImage: "data:image/png;base64,AAAA",
+      sourceAudio: "data:audio/wav;base64,BBBB",
+      confirmLocalAvatar: true,
+    });
+    expect(ok.sourceAudio).toMatch(/^data:audio/);
+    expect(ok.confirmLocalAvatar).toBe(true);
   });
 
   it("workflow.extract request requires an mp4Path", () => {

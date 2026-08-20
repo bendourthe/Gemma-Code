@@ -8,7 +8,8 @@
  * the user clicks Generate.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { planVideoContinuation } from "../../../../core/video/continuation";
 import type { VideoMode } from "./videoClient";
 
 export interface VideoFormValues {
@@ -24,6 +25,10 @@ export interface VideoFormValues {
   readonly cfgScale: number;
   readonly sampler: string;
   readonly seed: number;
+  /** Per-tier clip length used to split continuation chains. */
+  readonly clipSeconds: number;
+  /** Explicit local-generation consent for talking-head output. */
+  readonly confirmLocalAvatar: boolean;
 }
 
 export interface VideoPromptFormProps {
@@ -38,6 +43,8 @@ export interface VideoPromptFormProps {
    * other consumer keeps the original form.
    */
   readonly hideMode?: boolean;
+  /** v2.0.0 Phase 3 -- show the talking-head confirm checkbox and mode. */
+  readonly avatarAvailable?: boolean;
 }
 
 const SAMPLERS = ["euler", "euler_a", "dpmpp_2m", "dpmpp_sde", "ddim", "lms", "flow-dpm-solver"];
@@ -64,6 +71,8 @@ export const DEFAULT_VIDEO_FORM_VALUES: VideoFormValues = {
   cfgScale: 3.5,
   sampler: "euler_a",
   seed: 0,
+  clipSeconds: 4,
+  confirmLocalAvatar: false,
 };
 
 /**
@@ -110,6 +119,7 @@ export function VideoPromptForm({
   disabled,
   onChange,
   hideMode = false,
+  avatarAvailable = false,
 }: VideoPromptFormProps): JSX.Element {
   const [values, setValues] = useState<VideoFormValues>({
     ...DEFAULT_VIDEO_FORM_VALUES,
@@ -154,6 +164,10 @@ export function VideoPromptForm({
   }
 
   const modelsForMode = availableModels.filter((m) => m.mode === values.mode);
+  const continuation = useMemo(
+    () => planVideoContinuation(values.durationSeconds, values.clipSeconds),
+    [values.durationSeconds, values.clipSeconds],
+  );
 
   return (
     <div
@@ -187,6 +201,9 @@ export function VideoPromptForm({
           >
             <option value="text2video">Text -&gt; Video</option>
             <option value="image2video">Image -&gt; Video</option>
+            {avatarAvailable ? (
+              <option value="audio2video">Photo + audio -&gt; Avatar</option>
+            ) : null}
           </select>
         </label>
       )}
@@ -235,13 +252,18 @@ export function VideoPromptForm({
           data-testid="video-duration"
           type="number"
           min={1}
-          max={10}
+          max={120}
           value={values.durationSeconds}
           disabled={disabled}
           onChange={(e) =>
-            update("durationSeconds", clamp(Number(e.target.value), 1, 10))
+            update("durationSeconds", clamp(Number(e.target.value), 1, 120))
           }
         />
+        {continuation.length > 1 ? (
+          <span data-testid="video-continuation-hint">
+            {continuation.length} segments of up to {values.clipSeconds}s (prototype seams)
+          </span>
+        ) : null}
       </label>
 
       <label>
@@ -322,6 +344,19 @@ export function VideoPromptForm({
           onChange={(e) => update("seed", Number(e.target.value))}
         />
       </label>
+
+      {avatarAvailable ? (
+        <label>
+          <input
+            data-testid="video-avatar-confirm"
+            type="checkbox"
+            checked={values.confirmLocalAvatar}
+            disabled={disabled}
+            onChange={(e) => update("confirmLocalAvatar", e.target.checked)}
+          />
+          Generate talking-head locally. Photo and audio never leave this device.
+        </label>
+      ) : null}
 
       <details>
         <summary>Advanced</summary>

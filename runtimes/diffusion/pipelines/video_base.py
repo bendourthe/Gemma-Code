@@ -175,15 +175,20 @@ def stub_execute(method_label: str) -> VideoExecuteFn:
     def execute(ctx: VideoExecutionContext) -> VideoPipelineOutput:
         seconds = ctx.params.duration_seconds
         previews = [_stub_jpeg_b64() for _ in range(seconds)]
+        extra: Dict[str, Any] = {
+            "stubbed": True,
+            "method": method_label,
+            "jobId": ctx.job_id,
+            "frameCount": video_params.frame_count(ctx.params),
+            "conditionedOnPriorEndingFrames": bool(ctx.params.continue_from),
+            "seamQuality": "prototype-unmeasured",
+        }
+        if ctx.params.continue_from:
+            extra["continueFrom"] = ctx.params.continue_from
         return VideoPipelineOutput(
             mp4_path=None,
             frame_previews=previews,
-            extra={
-                "stubbed": True,
-                "method": method_label,
-                "jobId": ctx.job_id,
-                "frameCount": video_params.frame_count(ctx.params),
-            },
+            extra=extra,
         )
 
     return execute

@@ -27,6 +27,7 @@ import {
   DiffusionInpaintRequest,
   DiffusionOutpaintRequest,
   DiffusionTxt2ImgRequest,
+  DiffusionVideoAudio2VideoRequest,
   DiffusionVideoImage2VideoRequest,
   DiffusionVideoText2VideoRequest,
   DiffusionVideoWorkflowExtractRequest,
@@ -650,6 +651,10 @@ export const handlers: Record<Method, HandlerFn> = {
   "diffusion.video.image2video": async (params, ctx) => {
     const req = DiffusionVideoImage2VideoRequest.parse(params ?? {});
     return buildVideoJobRequest("image2video", req, ctx.diffusion);
+  },
+  "diffusion.video.audio2video": async (params, ctx) => {
+    const req = DiffusionVideoAudio2VideoRequest.parse(params ?? {});
+    return buildVideoJobRequest("audio2video", req, ctx.diffusion);
   },
   "diffusion.video.workflow.extract": async (params, ctx) => {
     const req = DiffusionVideoWorkflowExtractRequest.parse(params ?? {});

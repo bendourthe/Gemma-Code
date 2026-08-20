@@ -30,6 +30,8 @@
     "vite.config.ts",
     "vitest.config.ts",
     "../core/image",
+    "../core/video",
+    "../core/config",
     "../core/registry",
     "../modules/coding/orchestration/HarnessSelector.ts"
   ],

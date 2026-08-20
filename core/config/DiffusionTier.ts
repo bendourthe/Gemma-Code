@@ -159,7 +159,7 @@ export const DIFFUSION_TIER_CONFIGS: Record<DiffusionTierId, DiffusionTierConfig
       height: 720,
       width: 1280,
       enabled: true,
-      audioConditioning: { enabled: false, modes: [] },
+      audioConditioning: { enabled: true, modes: ["single"] },
     },
     parallelJobs: true,
   },

@@ -11,8 +11,13 @@
  */
 
 import { type DiffusionRuntimeClient } from "./runtimeClient.js";
+import { assertAvatarAllowed } from "../../../../core/video/avatarGate.js";
+import {
+  buildAvatarProvenance,
+  type AvatarProvenance,
+} from "../../../../core/video/avatarProvenance.js";
 
-export type VideoDispatcherMode = "text2video" | "image2video";
+export type VideoDispatcherMode = "text2video" | "image2video" | "audio2video";
 
 export interface VideoDispatcherResult {
   readonly jobId: string;
@@ -20,6 +25,7 @@ export interface VideoDispatcherResult {
   readonly offloadStrategy?: string;
   readonly estimatedSeconds?: number;
   readonly frameCount?: number;
+  readonly provenance?: AvatarProvenance;
 }
 
 let _counter = 0;
@@ -45,6 +51,7 @@ export function resetVideoJobIdFactory(): void {
 const METHOD_FOR_MODE: Record<VideoDispatcherMode, string> = {
   text2video: "diffusion.video.text2video",
   image2video: "diffusion.video.image2video",
+  audio2video: "diffusion.video.audio2video",
 };
 
 export async function buildVideoJobRequest(
@@ -52,17 +59,50 @@ export async function buildVideoJobRequest(
   request: Record<string, unknown>,
   client: DiffusionRuntimeClient,
 ): Promise<VideoDispatcherResult> {
+  if (mode === "audio2video") {
+    const gate = assertAvatarAllowed({
+      tierId: (typeof request.diffusionTier === "string"
+        ? request.diffusionTier
+        : "diffusion-low") as
+        | "diffusion-low"
+        | "diffusion-mid"
+        | "diffusion-high"
+        | "diffusion-pro",
+      vramGB: typeof request.vramGB === "number" ? request.vramGB : 0,
+      confirmed: request.confirmLocalAvatar === true,
+      weightRepo: typeof request.weightRepo === "string" ? request.weightRepo : undefined,
+      modelId: typeof request.modelId === "string" ? request.modelId : undefined,
+    });
+    if (!gate.ok) {
+      throw new Error(`${gate.code}: ${gate.message}`);
+    }
+  }
   const jobId = _jobIdFactory();
   const payload = { jobId, mode, request };
   const method = METHOD_FOR_MODE[mode];
   const accepted = (await client.call(method, payload)) as
-    | (Partial<VideoDispatcherResult> & { extra?: { frameCount?: number } })
+    | (Partial<VideoDispatcherResult> & {
+        extra?: { frameCount?: number };
+        workflow?: { provenance?: Record<string, unknown> };
+      })
     | null;
+  const provenance =
+    mode === "audio2video" &&
+    typeof request.sourceImage === "string" &&
+    typeof request.sourceAudio === "string"
+      ? buildAvatarProvenance({
+          sourceImage: request.sourceImage,
+          sourceAudio: request.sourceAudio,
+          weightRepo: typeof request.weightRepo === "string" ? request.weightRepo : undefined,
+          modelId: typeof request.modelId === "string" ? request.modelId : undefined,
+        })
+      : undefined;
   return {
     jobId,
     mode,
     offloadStrategy: accepted?.offloadStrategy,
     estimatedSeconds: accepted?.estimatedSeconds,
     frameCount: accepted?.frameCount ?? accepted?.extra?.frameCount,
+    ...(provenance ? { provenance } : {}),
   };
 }

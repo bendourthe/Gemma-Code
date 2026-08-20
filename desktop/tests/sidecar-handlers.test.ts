@@ -96,6 +96,7 @@ describe("sidecar handlers", () => {
           // v1.0.0 Phase 7 wired the video surface.
           "diffusion.video.text2video",
           "diffusion.video.image2video",
+          "diffusion.video.audio2video",
           "diffusion.video.workflow.extract",
           // v1.10.0 Phase 6 wired the Nexus-Hub catalog sync + update detection.
           "skills.sync",
@@ -276,6 +277,12 @@ describe("sidecar handlers", () => {
         ok: true,
         offloadStrategy: "sequential_cpu_offload",
       });
+      (runtime as unknown as {
+        setResponse: (method: string, value: unknown) => void;
+      }).setResponse("diffusion.video.audio2video", {
+        ok: true,
+        offloadStrategy: "sequential_cpu_offload",
+      });
       return createHandlerContext(
         { pid: 1, platform: process.platform },
         new CodingSessionManager(),
@@ -364,6 +371,55 @@ describe("sidecar handlers", () => {
         ctx,
       )) as { mode: string };
       expect(result.mode).toBe("image2video");
+    });
+
+    it("diffusion.video.audio2video requires confirmation and a photo plus audio", async () => {
+      await expect(
+        dispatch(
+          "diffusion.video.audio2video",
+          {
+            modelId: "longcat-video-avatar-1.5",
+            prompt: "talk",
+            width: 854,
+            height: 480,
+            durationSeconds: 4,
+            fps: 24,
+            steps: 30,
+            cfgScale: 3.5,
+            seed: 7,
+            sourceImage: "data:image/png;base64,AAAA",
+            sourceAudio: "data:audio/wav;base64,BBBB",
+          },
+          videoCtx(),
+        ),
+      ).rejects.toThrow();
+    });
+
+    it("diffusion.video.audio2video accepts a confirmed diffusion-pro request", async () => {
+      const ctx = videoCtx();
+      const result = (await dispatch(
+        "diffusion.video.audio2video",
+        {
+          modelId: "longcat-video-avatar-1.5",
+          prompt: "talk",
+          width: 854,
+          height: 480,
+          durationSeconds: 4,
+          fps: 24,
+          steps: 30,
+          cfgScale: 3.5,
+          seed: 7,
+          sourceImage: "data:image/png;base64,AAAA",
+          sourceAudio: "data:audio/wav;base64,BBBB",
+          confirmLocalAvatar: true,
+          diffusionTier: "diffusion-pro",
+          vramGB: 24,
+          weightRepo: "meituan-longcat/LongCat-Video-Avatar-1.5",
+        },
+        ctx,
+      )) as { mode: string; provenance?: { neverLeftDevice?: boolean } };
+      expect(result.mode).toBe("audio2video");
+      expect(result.provenance?.neverLeftDevice).toBe(true);
     });
 
     it("diffusion.video.workflow.extract returns null when ffprobe finds no comment", async () => {

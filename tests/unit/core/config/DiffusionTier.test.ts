@@ -99,11 +99,13 @@ describe("DIFFUSION_TIER_CONFIGS video defaults", () => {
     expect(DIFFUSION_TIER_CONFIGS["diffusion-pro"].video.model).toBe("cogvideox_5b");
   });
 
-  it("every tier declares audioConditioning disabled until avatar models land", () => {
-    for (const config of Object.values(DIFFUSION_TIER_CONFIGS)) {
-      expect(config.video.audioConditioning.enabled).toBe(false);
-      expect(config.video.audioConditioning.modes).toEqual([]);
-    }
+  it("enables audioConditioning on diffusion-pro for the avatar tier", () => {
+    expect(DIFFUSION_TIER_CONFIGS["diffusion-low"].video.audioConditioning.enabled).toBe(false);
+    expect(DIFFUSION_TIER_CONFIGS["diffusion-mid"].video.audioConditioning.enabled).toBe(false);
+    expect(DIFFUSION_TIER_CONFIGS["diffusion-high"].video.audioConditioning.enabled).toBe(false);
+    const pro = DIFFUSION_TIER_CONFIGS["diffusion-pro"].video.audioConditioning;
+    expect(pro.enabled).toBe(true);
+    expect(pro.modes).toEqual(["single"]);
   });
 });
 

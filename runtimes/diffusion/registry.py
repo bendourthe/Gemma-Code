@@ -27,6 +27,7 @@ _PIPELINE_MODULES = (
     "runtimes.diffusion.pipelines.outpaint",
     "runtimes.diffusion.pipelines.video_text2video",
     "runtimes.diffusion.pipelines.video_image2video",
+    "runtimes.diffusion.pipelines.video_audio2video",
     # v1.1.0 Phase 12 -- NVIDIA SANA family.
     "runtimes.diffusion.pipelines.sana",
     "runtimes.diffusion.pipelines.sana_sprint",

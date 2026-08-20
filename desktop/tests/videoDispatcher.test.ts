@@ -50,6 +50,48 @@ describe("video dispatcher", () => {
     expect(result.offloadStrategy).toBe("sequential_cpu_offload");
   });
 
+  it("routes audio2video through the official gate", async () => {
+    setVideoJobIdFactory(() => "video-a2v");
+    const runtime = new InMemoryDiffusionRuntime();
+    runtime.setResponse("diffusion.video.audio2video", { ok: true });
+    const result = await buildVideoJobRequest(
+      "audio2video",
+      {
+        modelId: "longcat-video-avatar-1.5",
+        prompt: "talk",
+        sourceImage: "data:image/png;base64,AAA",
+        sourceAudio: "data:audio/wav;base64,BBB",
+        confirmLocalAvatar: true,
+        diffusionTier: "diffusion-pro",
+        vramGB: 24,
+      },
+      runtime,
+    );
+    expect(result.jobId).toBe("video-a2v");
+    expect(result.mode).toBe("audio2video");
+    expect(result.provenance).toMatchObject({ local: true, neverLeftDevice: true });
+  });
+
+  it("refuses audio2video below diffusion-pro", async () => {
+    const runtime = new InMemoryDiffusionRuntime();
+    runtime.setResponse("diffusion.video.audio2video", { ok: true });
+    await expect(
+      buildVideoJobRequest(
+        "audio2video",
+        {
+          modelId: "longcat-video-avatar-1.5",
+          prompt: "talk",
+          sourceImage: "data:image/png;base64,AAA",
+          sourceAudio: "data:audio/wav;base64,BBB",
+          confirmLocalAvatar: true,
+          diffusionTier: "diffusion-mid",
+          vramGB: 12,
+        },
+        runtime,
+      ),
+    ).rejects.toThrow(/avatar-tier/);
+  });
+
   it("propagates frameCount from the top-level field when present", async () => {
     setVideoJobIdFactory(() => "video-top");
     const runtime = new InMemoryDiffusionRuntime();

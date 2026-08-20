@@ -1507,6 +1507,100 @@
       }
     },
     {
+      "id": "longcat-video-avatar-1.5",
+      "family": "longcat",
+      "name": "longcat-video-avatar",
+      "tag": "1.5-int8",
+      "type": "video",
+      "task": "video",
+      "displayName": "LongCat Video Avatar 1.5 INT8",
+      "origin": "China",
+      "description": "Meituan's LongCat-Video-Avatar 1.5 INT8 is an official audio-driven talking-head model from China. Photo plus audio become a lip-synced clip on a diffusion-pro host. Not a recommended.json default.",
+      "strengths": [
+        "Official meituan-longcat INT8 DiT (not a community re-quant)",
+        "Whisper-Large-v3 audio conditioning for lip-sync",
+        "MIT weights pulled through the existing sha256-pinned installer"
+      ],
+      "whyRecommended": "Only if Hardware classifies as diffusion-pro (about 20 GB+ VRAM) and you want a local talking-head. Never a per-VRAM default.",
+      "differentiators": "The catalog's only audio2video entry: official INT8 shards under meituan-longcat, gated to diffusion-pro, with provenance metadata on saved output.",
+      "provenance": "Published by Meituan (meituan-longcat) at huggingface.co/meituan-longcat/LongCat-Video-Avatar-1.5. INT8 files live under base_model_int8/. Community FP8 re-uploads are rejected. License verified 2026-08-19 from the first-party card (MIT). Nexus does not redistribute weights.",
+      "sizeGB": 15.9,
+      "vramGB": 20,
+      "requiredVramGB": 20,
+      "releaseDate": "2026-05-21",
+      "uncensored": false,
+      "multimodal": true,
+      "contextWindow": null,
+      "license": "MIT",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "meituan-longcat/LongCat-Video-Avatar-1.5",
+        "url": "https://huggingface.co/meituan-longcat/LongCat-Video-Avatar-1.5/resolve/main/base_model_int8/quantized_model-00001-of-00004.safetensors",
+        "sha256": "ccf575d8cdf8e762272e2d4e52ae1a7c0b5d1fa81e26dfa4592867de4dd9a4fd"
+      },
+      "weights": {
+        "layoutVersion": 2,
+        "defaultVariant": "int8",
+        "variants": [
+          {
+            "id": "int8",
+            "precision": "int8",
+            "official": true,
+            "quant": "INT8",
+            "sizeGB": 15.9,
+            "vramGB": 20,
+            "files": [
+              {
+                "path": "base_model_int8/config.json",
+                "sha256": "cc2a21199db9a311b51e42b73f7921ea5d1d58b9fa0273563ab6edd7850adf76"
+              },
+              {
+                "path": "base_model_int8/quantization_config.json",
+                "sha256": "828eab210d88f7e8afdc6910c0467ccf83c9ccd445754f15afc5addd23dc3a5b"
+              },
+              {
+                "path": "base_model_int8/quantized_model-00001-of-00004.safetensors",
+                "sha256": "ccf575d8cdf8e762272e2d4e52ae1a7c0b5d1fa81e26dfa4592867de4dd9a4fd"
+              },
+              {
+                "path": "base_model_int8/quantized_model-00002-of-00004.safetensors",
+                "sha256": "af6ddb737ad66d12fd5892adee568c14314143ebd4388d3ab9cc6065754b3688"
+              },
+              {
+                "path": "base_model_int8/quantized_model-00003-of-00004.safetensors",
+                "sha256": "6a349b76592b4752c2967235af457824d8938e3514bad8e78cfa86009e8a9bf5"
+              },
+              {
+                "path": "base_model_int8/quantized_model-00004-of-00004.safetensors",
+                "sha256": "ab54b648a3f6a53946f07dd0a21441e2a8cb1aa8da17996b5f3f7f2e1370705b"
+              },
+              {
+                "path": "base_model_int8/quantized_model.safetensors.index.json",
+                "sha256": "480ca179ba2d53fa1c28b7c403ce4ba1f159bb708a584499d6645024bf12acff"
+              }
+            ]
+          }
+        ]
+      },
+      "tags": [
+        "video",
+        "avatar",
+        "opt-in",
+        "diffusion-pro"
+      ],
+      "modalities": [
+        "image",
+        "audio"
+      ],
+      "audioConditioning": {
+        "supported": true,
+        "modes": [
+          "single"
+        ],
+        "encoder": "whisper-large-v3"
+      }
+    },
+    {
       "id": "faster-whisper-large-v3",
       "family": "whisper",
       "name": "faster-whisper-large-v3",

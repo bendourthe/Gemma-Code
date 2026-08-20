@@ -17,7 +17,7 @@ v1.20.0 in-progress items stay in [../../v1/v1.20/known-gaps.md](../../v1/v1.20/
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 7 | 0 |
+| Deferred (DF) | 9 | 0 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 1 | 0 |
@@ -75,6 +75,20 @@ v1.20.0 in-progress items stay in [../../v1/v1.20/known-gaps.md](../../v1/v1.20/
 - **Plan reference**: `docs/v2/v2.0/plans/v2.0.0-adoption-governed-autonomy-multimodal.md` (sub-task 2.2)
 - **Reason**: `MAX_TOOL_COUNT` is 15. The five browser tools are `OPTIONAL_SPECIALTY_TOOLS`, so they trim before `codegraph_*`. A full catalog (core + specialty + codegraph) will often hide them from the VS Code system prompt. The desktop sidecar headless list always registers them when `browserEnabled` is true (sidecar default).
 - **Suggested next step**: If desktop coding users need the tools in-prompt, either raise the cap with a measured Gemma-4 tool-call study or collapse the family to one `browser` tool with an `action` discriminator.
+
+##### DF-8 - LongCat Avatar DiT inference is not vendored
+
+- **Source phase**: Phase 3 - audio2video avatar mode (3.2)
+- **Plan reference**: `docs/v2/v2.0/plans/v2.0.0-adoption-governed-autonomy-multimodal.md` (sub-task 3.2)
+- **Reason**: The required byte-level scan of an imported LongCat inference tree found no tree to import. Shipping un-scanned upstream `.py` would violate the precondition. CI and the adapter run the existing stub executor. Official INT8 shards are sha256-pinned in the catalog for a later scanned import.
+- **Suggested next step**: Scan `meituan-longcat/LongCat-Video` (bucket-3 strip), then wire the INT8 loader behind `longcat_avatar.preflight` on a diffusion-pro host. Record GPU evidence; do not treat the stub as a live talking-head.
+
+##### DF-9 - Continuation seam quality is unmeasured
+
+- **Source phase**: Phase 3 - video continuation (3.1)
+- **Plan reference**: `docs/v2/v2.0/plans/v2.0.0-adoption-governed-autonomy-multimodal.md` (sub-task 3.1)
+- **Reason**: Chaining UX and `continueFrom` payloads ship. No Wan 2.2 GPU run measured temporal seams between segments. Extra field `seamQuality` is `prototype-unmeasured`.
+- **Suggested next step**: On a host with Wan 2.2 weights, generate a 3-segment clip and document visible seam artefacts before calling continuation production-quality.
 
 #### Missing Tests / Coverage Gaps
 
