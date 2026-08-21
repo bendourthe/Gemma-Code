@@ -3,6 +3,7 @@
  */
 
 import type { GpuScheduler } from "../../../../core/scheduler/GpuScheduler.js";
+import { unloadOllamaModel } from "../../llm/ollamaUnload.js";
 import { EscalationPolicy, type RoutingDecision, type RoutingModels } from "./EscalationPolicy.js";
 import type { RoutingRole, RoutingTurnEvent } from "./RoutingSignals.js";
 
@@ -14,6 +15,8 @@ export interface RouteTurnInput {
   readonly models: RoutingModels;
   readonly vramFor: (modelId: string) => number;
   readonly workerResident?: boolean;
+  /** Tests inject a spy; production unloads via Ollama `keep_alive: 0`. */
+  readonly onEvictWorker?: (modelId: string) => void;
 }
 
 export function routeTurn(
@@ -39,5 +42,17 @@ export function routeTurn(
         workerResident: input.workerResident,
       })
     : { outcome: "honored" as const, reason: "no-scheduler", keepWorkerResident: true };
-  return policy.applySwapGate(intent, swap);
+  const gated = policy.applySwapGate(intent, swap);
+  if (
+    gated.swapOutcome === "honored" &&
+    swap.keepWorkerResident === false &&
+    gated.modelId !== gated.previousModelId
+  ) {
+    if (input.onEvictWorker) {
+      input.onEvictWorker(gated.previousModelId);
+    } else {
+      void unloadOllamaModel({ model: gated.previousModelId });
+    }
+  }
+  return gated;
 }

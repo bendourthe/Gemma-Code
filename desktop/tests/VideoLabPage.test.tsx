@@ -272,4 +272,41 @@ describe("VideoLabPage (chat)", () => {
       (client.lastRequest?.request as { confirmLocalAvatar?: boolean }).confirmLocalAvatar,
     ).toBe(true);
   });
+
+  it("timeline comments round-trip into the next generation prompt", async () => {
+    const client = new InMemoryVideoClient();
+    render(
+      <VideoLabPage
+        client={client}
+        modelsClient={videoModels()}
+        drainIntervalMs={20}
+        resolveMp4Url={(p) => `mock://${p}`}
+      />,
+    );
+    client.scriptEvents("mem-video-1", [
+      { kind: "complete", jobId: "mem-video-1", mp4Path: "/tmp/clip.mp4" },
+    ]);
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "a fox" } });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(60);
+      await Promise.resolve();
+    });
+    const add = await screen.findByTestId(/-add-comment$/);
+    await act(async () => {
+      fireEvent.click(add);
+    });
+    client.scriptEvents("mem-video-2", [
+      { kind: "complete", jobId: "mem-video-2", mp4Path: "/tmp/clip2.mp4" },
+    ]);
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "again" } });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+    });
+    await waitFor(() =>
+      expect((client.lastRequest?.request as { prompt: string }).prompt).toMatch(/Frame notes:/),
+    );
+  });
 });

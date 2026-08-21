@@ -142,7 +142,15 @@ export function MediaComposer({
     // so a composer configured for PDFs actually accepts them.
     const accepted = Array.from(files).filter((f) => {
       if (!fileMatchesAccept(f, accept)) return false;
-      if (!imageEnabled && (f.type.startsWith("image/") || f.type.startsWith("video/"))) return false;
+      if (!imageEnabled && f.type.startsWith("video/")) return false;
+      if (
+        !imageEnabled &&
+        f.type.startsWith("image/") &&
+        f.type !== "image/png" &&
+        f.type !== "image/jpeg"
+      ) {
+        return false;
+      }
       if (!audioEnabled && f.type.startsWith("audio/")) return false;
       return true;
     });

@@ -79,6 +79,8 @@ import {
   type SkillsUpstreamLatestResponseT,
   type SkillsOptimizePreviewResponseT,
   type SkillsOptimizeApplyResponseT,
+  McpInvokeRequest,
+  McpListRequest,
   McpRegistryListRequest,
   McpRegistrySetToolDeniedRequest,
   AskInboxListRequest,
@@ -119,15 +121,20 @@ import {
 import {
   buildJobRequest,
   extractWorkflowFromBase64Png,
+  nextJobId,
 } from "./diffusion/dispatcher.js";
-import { buildVideoJobRequest } from "./diffusion/videoDispatcher.js";
+import {
+  audio2videoProvenance,
+  buildVideoJobRequest,
+  gateAudio2VideoRequest,
+  nextVideoJobId,
+} from "./diffusion/videoDispatcher.js";
 import {
   type FfmpegContext,
   extractWorkflow as extractVideoWorkflow,
   embedWorkflow as embedVideoWorkflow,
   type VideoWorkflowMetadata,
 } from "../../../core/video/WorkflowMetadata.js";
-import { extractWorkflow as extractImageWorkflow } from "../../../core/image/WorkflowMetadata.js";
 import { sampleVideoFramesFromDataUrl } from "../../../core/chat/sampleVideoFrames.js";
 import { createHeadlessOcrParser } from "../../../core/documents/headlessOcrParser.js";
 import {
@@ -164,6 +171,7 @@ import {
   listMcpRegistrySettings,
   setMcpRegistryToolDenied,
 } from "../../../modules/coding/mcp/McpRegistrySettings.js";
+import { buildMcpHandlers } from "../../../core/coding/McpBridge.js";
 import type { AskInbox } from "../../../modules/coding/autonomy/AskInbox.js";
 import type { AgentRunScheduler } from "../../../modules/coding/autonomy/AgentRunScheduler.js";
 import type { ParkedAsk } from "../../../modules/coding/autonomy/types.js";
@@ -400,99 +408,16 @@ function jobDto(job: {
   };
 }
 
-function publicJobResult<T extends { pngBase64?: string; workflow?: unknown; mp4Path?: string }>(
-  result: T,
-): Omit<T, "pngBase64" | "workflow" | "mp4Path"> & { jobId: string } {
-  const { pngBase64: _p, workflow: _w, mp4Path: _m, ...rest } = result;
-  return rest as Omit<T, "pngBase64" | "workflow" | "mp4Path"> & { jobId: string };
-}
-
-function afterImageJob(ctx: HandlerContext, result: {
-  jobId: string;
-  mode: string;
-  pngBase64?: string;
-  workflow?: Record<string, unknown>;
-}): void {
-  const studio = resolveStudio(ctx);
-  if (result.pngBase64) {
-    recordCompletion(studio, {
-      kind: "complete",
-      jobId: result.jobId,
-      png: result.pngBase64,
-    });
-    const bytes = Buffer.from(result.pngBase64, "base64");
-    const wf =
-      result.workflow ??
-      (extractImageWorkflow(bytes) as Record<string, unknown> | null) ??
-      undefined;
-    if (wf) studio.index.put(bytes, "image", wf);
-  }
-  const existing = studio.queue.get(result.jobId);
-  if (!existing) {
-    studio.queue.enqueue({
-      id: result.jobId,
-      pillar: "image",
-      jobType: result.mode,
-      parameters: result.workflow ?? {},
-      priority: "interactive",
-    });
-  }
-  const current = studio.queue.get(result.jobId);
-  if (current?.state === "done" || current?.state === "failed") return;
-  if (result.pngBase64) studio.queue.markDone(result.jobId);
-  else studio.queue.markRunning(result.jobId);
-}
-
-async function afterVideoJob(
-  ctx: HandlerContext,
-  result: {
-    jobId: string;
-    mode: string;
-    mp4Path?: string;
-    workflow?: Record<string, unknown>;
-  },
-): Promise<void> {
-  const studio = resolveStudio(ctx);
-  if (result.mp4Path && result.workflow) {
-    try {
-      await embedVideoWorkflow(
-        result.mp4Path,
-        result.workflow as unknown as VideoWorkflowMetadata,
-        ctx.ffmpeg,
-      );
-    } catch {
-      /* index still records even if ffmpeg embed fails */
-    }
-    try {
-      const bytes = readFileSync(result.mp4Path);
-      studio.index.put(bytes, "video", result.workflow);
-    } catch {
-      studio.index.put(result.mp4Path, "video", result.workflow);
-    }
-    recordCompletion(studio, {
-      kind: "complete",
-      jobId: result.jobId,
-      outputPath: result.mp4Path,
-    });
-  }
-  if (!studio.queue.get(result.jobId)) {
-    studio.queue.enqueue({
-      id: result.jobId,
-      pillar: "video",
-      jobType: result.mode,
-      parameters: result.workflow ?? {},
-      priority: "interactive",
-    });
-  }
-  const current = studio.queue.get(result.jobId);
-  if (current?.state === "done" || current?.state === "failed") return;
-  if (result.mp4Path) studio.queue.markDone(result.jobId);
-  else studio.queue.markRunning(result.jobId);
-}
-
 let _studioPumping = false;
+let _studioPumpWaiters: Array<() => void> = [];
+
 async function pumpStudio(ctx: HandlerContext): Promise<void> {
-  if (_studioPumping) return;
+  if (_studioPumping) {
+    await new Promise<void>((resolve) => {
+      _studioPumpWaiters.push(resolve);
+    });
+    return;
+  }
   _studioPumping = true;
   const studio = resolveStudio(ctx);
   try {
@@ -506,6 +431,7 @@ async function pumpStudio(ctx: HandlerContext): Promise<void> {
               job.jobType as "text2video" | "image2video" | "audio2video",
               job.parameters,
               ctx.diffusion,
+              job.id,
             );
             if (result.mp4Path && result.workflow) {
               try {
@@ -530,6 +456,7 @@ async function pumpStudio(ctx: HandlerContext): Promise<void> {
             job.jobType as "txt2img" | "img2img" | "inpaint" | "outpaint",
             job.parameters,
             ctx.diffusion,
+            job.id,
           );
           if (result.pngBase64) {
             recordCompletion(studio, {
@@ -548,7 +475,37 @@ async function pumpStudio(ctx: HandlerContext): Promise<void> {
     }
   } finally {
     _studioPumping = false;
+    const waiters = _studioPumpWaiters.splice(0);
+    for (const w of waiters) w();
   }
+}
+
+async function enqueueInteractive(
+  ctx: HandlerContext,
+  pillar: "image" | "video",
+  jobType: string,
+  parameters: Record<string, unknown>,
+): Promise<{ jobId: string; mode: string; provenance?: ReturnType<typeof audio2videoProvenance> }> {
+  if (pillar === "video" && jobType === "audio2video") {
+    gateAudio2VideoRequest(parameters);
+  }
+  const studio = resolveStudio(ctx);
+  const id = pillar === "video" ? nextVideoJobId() : nextJobId();
+  studio.queue.enqueue({
+    id,
+    pillar,
+    jobType,
+    parameters,
+    priority: "interactive",
+  });
+  // Return immediately so the UI can poll drainEvents. pumpOnce still owns
+  // the GPU slot (interactive jobs share the queue with batches).
+  void pumpStudio(ctx).catch(() => undefined);
+  const provenance =
+    pillar === "video" && jobType === "audio2video"
+      ? audio2videoProvenance(parameters)
+      : undefined;
+  return { jobId: id, mode: jobType, ...(provenance ? { provenance } : {}) };
 }
 
 function parkedAskDto(ask: ParkedAsk) {
@@ -580,6 +537,33 @@ function requireAskInbox(ctx: HandlerContext): AskInbox {
 function requireScheduler(ctx: HandlerContext): AgentRunScheduler {
   if (!ctx.scheduler) throw new Error("Agent-run scheduler is not configured");
   return ctx.scheduler;
+}
+
+function mcpHarnessFor(ctx: HandlerContext) {
+  const workspacePath = ctx.workspacePath ?? process.env.NEXUS_WORKSPACE ?? process.cwd();
+  return {
+    async listTools() {
+      const listed = listMcpRegistrySettings({ workspacePath });
+      return listed.servers.flatMap((s) =>
+        s.tools
+          .filter((t) => t.exposed)
+          .map((t) => ({
+            name: `${s.name}/${t.name}`,
+            description: t.reason,
+            inputSchema: "{}",
+            serverId: s.name,
+          })),
+      );
+    },
+    async invokeTool(name: string, _args: Record<string, unknown>) {
+      return {
+        ok: false,
+        toolName: name,
+        error:
+          "mcp.invoke has no stdio harness in the sidecar. Deny tools via mcp.registry.setToolDenied.",
+      };
+    },
+  };
 }
 
 export const handlers: Record<Method, HandlerFn> = {
@@ -787,11 +771,13 @@ export const handlers: Record<Method, HandlerFn> = {
   "coding.chat.autocomplete": async () => {
     throw new NotImplementedError("coding.chat.autocomplete");
   },
-  "mcp.list": async () => {
-    throw new NotImplementedError("mcp.list");
+  "mcp.list": async (params, ctx) => {
+    McpListRequest.parse(params ?? {});
+    return buildMcpHandlers(mcpHarnessFor(ctx)).list();
   },
-  "mcp.invoke": async () => {
-    throw new NotImplementedError("mcp.invoke");
+  "mcp.invoke": async (params, ctx) => {
+    const req = McpInvokeRequest.parse(params ?? {});
+    return buildMcpHandlers(mcpHarnessFor(ctx)).invoke(req);
   },
   "mcp.registry.list": async (_params, ctx) => {
     McpRegistryListRequest.parse(_params ?? {});
@@ -918,27 +904,19 @@ export const handlers: Record<Method, HandlerFn> = {
   },
   "diffusion.txt2img": async (params, ctx) => {
     const req = DiffusionTxt2ImgRequest.parse(params ?? {});
-    const result = await buildJobRequest("txt2img", req, ctx.diffusion);
-    afterImageJob(ctx, result);
-    return publicJobResult(result);
+    return enqueueInteractive(ctx, "image", "txt2img", req as Record<string, unknown>);
   },
   "diffusion.img2img": async (params, ctx) => {
     const req = DiffusionImg2ImgRequest.parse(params ?? {});
-    const result = await buildJobRequest("img2img", req, ctx.diffusion);
-    afterImageJob(ctx, result);
-    return publicJobResult(result);
+    return enqueueInteractive(ctx, "image", "img2img", req as Record<string, unknown>);
   },
   "diffusion.inpaint": async (params, ctx) => {
     const req = DiffusionInpaintRequest.parse(params ?? {});
-    const result = await buildJobRequest("inpaint", req, ctx.diffusion);
-    afterImageJob(ctx, result);
-    return publicJobResult(result);
+    return enqueueInteractive(ctx, "image", "inpaint", req as Record<string, unknown>);
   },
   "diffusion.outpaint": async (params, ctx) => {
     const req = DiffusionOutpaintRequest.parse(params ?? {});
-    const result = await buildJobRequest("outpaint", req, ctx.diffusion);
-    afterImageJob(ctx, result);
-    return publicJobResult(result);
+    return enqueueInteractive(ctx, "image", "outpaint", req as Record<string, unknown>);
   },
   "diffusion.segment": async (params, ctx) => {
     const req = DiffusionSegmentRequest.parse(params ?? {});
@@ -967,27 +945,23 @@ export const handlers: Record<Method, HandlerFn> = {
     let workflow = extractWorkflowFromBase64Png(req.pngBase64);
     if (!workflow) {
       const hit = resolveStudio(ctx).index.getByBytes(Buffer.from(req.pngBase64, "base64"));
-      workflow = (hit?.workflow as typeof workflow) ?? null;
+      workflow = hit?.workflow
+        ? (hit.workflow as NonNullable<typeof workflow>)
+        : null;
     }
     return { workflow };
   },
   "diffusion.video.text2video": async (params, ctx) => {
     const req = DiffusionVideoText2VideoRequest.parse(params ?? {});
-    const result = await buildVideoJobRequest("text2video", req, ctx.diffusion);
-    await afterVideoJob(ctx, result);
-    return publicJobResult(result);
+    return enqueueInteractive(ctx, "video", "text2video", req as Record<string, unknown>);
   },
   "diffusion.video.image2video": async (params, ctx) => {
     const req = DiffusionVideoImage2VideoRequest.parse(params ?? {});
-    const result = await buildVideoJobRequest("image2video", req, ctx.diffusion);
-    await afterVideoJob(ctx, result);
-    return publicJobResult(result);
+    return enqueueInteractive(ctx, "video", "image2video", req as Record<string, unknown>);
   },
   "diffusion.video.audio2video": async (params, ctx) => {
     const req = DiffusionVideoAudio2VideoRequest.parse(params ?? {});
-    const result = await buildVideoJobRequest("audio2video", req, ctx.diffusion);
-    await afterVideoJob(ctx, result);
-    return publicJobResult(result);
+    return enqueueInteractive(ctx, "video", "audio2video", req as Record<string, unknown>);
   },
   "diffusion.video.workflow.extract": async (params, ctx) => {
     const req = DiffusionVideoWorkflowExtractRequest.parse(params ?? {});
@@ -996,10 +970,14 @@ export const handlers: Record<Method, HandlerFn> = {
       try {
         const bytes = readFileSync(req.mp4Path);
         const hit = resolveStudio(ctx).index.getByBytes(bytes);
-        workflow = (hit?.workflow as typeof workflow) ?? null;
+        workflow = hit?.workflow
+          ? (hit.workflow as NonNullable<typeof workflow>)
+          : null;
       } catch {
         const hit = resolveStudio(ctx).index.getByBytes(req.mp4Path);
-        workflow = (hit?.workflow as typeof workflow) ?? null;
+        workflow = hit?.workflow
+          ? (hit.workflow as NonNullable<typeof workflow>)
+          : null;
       }
     }
     return { workflow };

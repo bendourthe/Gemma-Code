@@ -2,7 +2,7 @@
 
 **Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (**v2.1.0** cut on `develop`).
 
-> **v2.1.0 RELEASED (2026-08-20)** -- [open-local-ai-wave](v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md) Phases 1-7 plus known-gaps sweep. Package **2.1.0**. Known-gaps [finalized](v2/v2.1/known-gaps.md) (15 open DF remain hardware/watch). Cycle: Muse Glimmer + Nemotron Lightning catalog/harness, cheap-first routing, studio provenance + queue, vision budgets + SAM2, Unsloth Core fine-tuning, signed audit log + JSON CLI + VRAM knobs.
+> **v2.1.0 RELEASED (2026-08-20)** -- [open-local-ai-wave](v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md) Phases 1-7 plus known-gaps sweeps. Package **2.1.0**. Known-gaps [finalized](v2/v2.1/known-gaps.md) (6 open DF remain hardware/watch/live-GPU). Cycle: Muse Glimmer + Nemotron Lightning catalog/harness, cheap-first routing, studio provenance + queue, vision budgets + SAM2, Unsloth Core fine-tuning, signed audit log + JSON CLI + VRAM knobs. Develop follow-up closed code-completeable rows (unload, AgentLoop routing, SAM picker, MaskEditor, frame comments, installer Unsloth checkbox, golden-eval adapter). No retag.
 >
 > Opt-in: Settings > Fine-tuning Provision (`opt_in=False`); JSON CLI loopback on sidecar `sync()` (`/v1` still off until Local API); Settings > Security parse_document checkbox.
 

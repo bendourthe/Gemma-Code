@@ -55,6 +55,7 @@ export interface RoutingDecision {
   readonly notice?: string;
   readonly swapOutcome?: SwapOutcome;
   readonly deferred?: boolean;
+  readonly keepWorkerResident?: boolean;
 }
 
 export interface RoutingModels {
@@ -348,10 +349,18 @@ export class EscalationPolicy {
   /** Apply a GPU swap gate. Deferred/degraded keeps the incumbent and queues retry. */
   applySwapGate(
     decision: RoutingDecision,
-    swap: { readonly outcome: SwapOutcome; readonly reason: string },
+    swap: {
+      readonly outcome: SwapOutcome;
+      readonly reason: string;
+      readonly keepWorkerResident?: boolean;
+    },
   ): RoutingDecision {
     if (decision.modelId === decision.previousModelId) {
-      return this.acknowledge({ ...decision, swapOutcome: swap.outcome });
+      return this.acknowledge({
+        ...decision,
+        swapOutcome: swap.outcome,
+        keepWorkerResident: swap.keepWorkerResident,
+      });
     }
     if (swap.outcome !== "honored") {
       const gated: RoutingDecision = {
@@ -361,6 +370,7 @@ export class EscalationPolicy {
         reason: `swap-${swap.outcome}:${swap.reason}`,
         swapOutcome: swap.outcome,
         deferred: true,
+        keepWorkerResident: swap.keepWorkerResident,
       };
       const state = this._sessions.get(decision.sessionId);
       if (state) {
@@ -371,7 +381,11 @@ export class EscalationPolicy {
       return gated;
     }
     this.commit(decision);
-    const committed = { ...decision, swapOutcome: swap.outcome as SwapOutcome };
+    const committed = {
+      ...decision,
+      swapOutcome: swap.outcome as SwapOutcome,
+      keepWorkerResident: swap.keepWorkerResident,
+    };
     this._publish(committed);
     return committed;
   }

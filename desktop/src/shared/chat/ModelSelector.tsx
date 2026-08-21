@@ -19,6 +19,11 @@ export interface ModelSelectorProps {
    */
   harnessLabel?: string;
   /**
+   * v1.18 DF-4 -- when false, suffix the badge with "off" so it is not
+   * mistaken for a live overlay.
+   */
+  harnessSelectorEnabled?: boolean;
+  /**
    * v1.18.0 Phase 3 (OW-A4) -- when true, show a "tool-calling verified" badge
    * distinct from models that merely run. Tooltip cites benchmark provenance.
    */
@@ -34,6 +39,7 @@ export function ModelSelector({
   label = "Model",
   testId = "model-selector",
   harnessLabel,
+  harnessSelectorEnabled,
   toolCallingVerified,
   toolCallingProvenance,
 }: ModelSelectorProps): JSX.Element {
@@ -82,10 +88,14 @@ export function ModelSelector({
       {harnessLabel ? (
         <span
           data-testid={`${testId}-harness`}
-          title="Scaffold profile selected for this model family and tier"
+          title={
+            harnessSelectorEnabled === false
+              ? "Scaffold profile for this model (selector off -- overlay not applied)"
+              : "Scaffold profile selected for this model family and tier"
+          }
           style={badgeStyle}
         >
-          {harnessLabel}
+          {harnessSelectorEnabled === false ? `${harnessLabel} (off)` : harnessLabel}
         </span>
       ) : null}
       {verified ? (

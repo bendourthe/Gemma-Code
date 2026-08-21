@@ -48,6 +48,16 @@ export function getPermissionTier(
     const override = userOverrides[toolName];
     if (override === 0 || override === 1 || override === 2) {
       const baseline = getBaselineTier(toolName);
+      if (baseline === PermissionTier.DANGEROUS) {
+        const dedupeKey = `${toolName}=${override}`;
+        if (override < PermissionTier.DANGEROUS && !_warnedOverrides.has(dedupeKey)) {
+          _warnedOverrides.add(dedupeKey);
+          getLogger().warn(
+            `permissionOverride for ${toolName}=${override} clamped to 2; DANGEROUS tools cannot drop below DANGEROUS.`,
+          );
+        }
+        return PermissionTier.DANGEROUS;
+      }
       if (
         baseline >= PermissionTier.CONFIRM &&
         override < PermissionTier.CONFIRM

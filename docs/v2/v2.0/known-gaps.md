@@ -2,7 +2,7 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-20
+**Last updated**: 2026-08-20 (develop follow-up after v2.1.0; no retag)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
@@ -17,7 +17,7 @@ Phase 5 reconciliation: v1.15-v1.18 files are finalized and remain canonical. St
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 13 | 2 |
+| Deferred (DF) | 9 | 6 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 1 |
@@ -34,40 +34,12 @@ Phase 5 reconciliation: v1.15-v1.18 files are finalized and remain canonical. St
 - **Reason**: The plan keeps native audio-token reasoning out of scope until a fitting local model exists. Transcribe-then-chat is the only audio path. Catalog `modalities` including `audio` only changes the composer tooltip.
 - **Suggested next step**: When a local model that accepts audio tokens is catalogued, route clips as native audio instead of (or in addition to) labelled transcripts.
 
-##### DF-2 - Chat RapidOCR of raster images is unreachable on text-only models
-
-- **Source phase**: Phase 1 - Vision-chat routing (1.1)
-- **Plan reference**: `docs/v2/v2.0/plans/v2.0.0-adoption-governed-autonomy-multimodal.md` (sub-task 1.1)
-- **Reason**: Image attach is gated on catalog `modalities` containing `image`. The composer drops `image/*` for text-only models so a PNG cannot reach the still-present OCR fallback path. PDFs and Office files still attach.
-- **Suggested next step**: If product wants "parse this screenshot as text" on a text-only chat model, add an explicit Parse document action that does not reuse the vision attach affordance.
-
-##### DF-3 - Voice-loop VAD is button-driven, not energy-based
-
-- **Source phase**: Phase 1 - Local real-time voice loop (1.3)
-- **Plan reference**: `docs/v2/v2.0/plans/v2.0.0-adoption-governed-autonomy-multimodal.md` (sub-task 1.3)
-- **Reason**: jsdom has no AnalyserNode energy path that is trustworthy in CI. VAD mode starts and stops capture from an explicit button. Silence events exist on the reducer for a later RMS hook.
-- **Suggested next step**: Wire an AnalyserNode RMS threshold in the desktop renderer (not jsdom) and dispatch `silence` / `speech-start` from that measurement.
-
-##### DF-4 - Live Kokoro PCM is wrapped as 16-bit WAV
-
-- **Source phase**: Phase 1 - Local real-time voice loop (1.3)
-- **Plan reference**: `docs/v2/v2.0/plans/v2.0.0-adoption-governed-autonomy-multimodal.md` (sub-task 1.3)
-- **Reason**: CI never loads Kokoro (`NEXUS_AUDIO_STUB=1`). The live `speak()` path concatenates float32 PCM and wraps it with a 16-bit WAV header. Playback on a host with weights may need an int16 conversion.
-- **Suggested next step**: On a host with `kokoro-82m` installed, record one spoken reply and, if the WAV is noisy, convert float32 to int16 before `_wrap_wav`.
-
 ##### DF-6 - Playwright is an optional local install, not a lockfile pin
 
 - **Source phase**: Phase 2 - Browser tool family (2.2)
 - **Plan reference**: `docs/v2/v2.0/plans/v2.0.0-adoption-governed-autonomy-multimodal.md` (sub-task 2.2)
 - **Reason**: Adding Playwright to `package.json` would make `npm ci` in CI download Chromium. Tests use `InMemoryBrowser` and a fake loader. The documented pin is Playwright 1.55.x via `npx playwright@1.55.0 install chromium`.
 - **Suggested next step**: If a nightly job can cache browsers, add `playwright` as an optionalDependency with that pin and keep CI on InMemory.
-
-##### DF-7 - VS Code prompt may trim all five `browser_*` tools under the 15-tool cap
-
-- **Source phase**: Phase 2 - Browser tool family (2.2)
-- **Plan reference**: `docs/v2/v2.0/plans/v2.0.0-adoption-governed-autonomy-multimodal.md` (sub-task 2.2)
-- **Reason**: `MAX_TOOL_COUNT` is 15. The five browser tools are `OPTIONAL_SPECIALTY_TOOLS`, so they trim before `codegraph_*`. A full catalog (core + specialty + codegraph) will often hide them from the VS Code system prompt. The desktop sidecar headless list always registers them when `browserEnabled` is true (sidecar default).
-- **Suggested next step**: If desktop coding users need the tools in-prompt, either raise the cap with a measured Gemma-4 tool-call study or collapse the family to one `browser` tool with an `action` discriminator.
 
 ##### DF-8 - LongCat Avatar DiT inference is not vendored
 
@@ -87,15 +59,15 @@ Phase 5 reconciliation: v1.15-v1.18 files are finalized and remain canonical. St
 
 - **Source phase**: Phase 4 - Code-as-action sandbox + Query DSL (4.3)
 - **Plan reference**: `docs/v2/v2.0/plans/v2.0.0-adoption-governed-autonomy-multimodal.md` (sub-task 4.3)
-- **Reason**: Stretch item. Depends on 4.2's durable root (now shipped as a directory contract) plus PermissionTiers, ConfirmationGate, and GitSafetyNet. A locked-down worker, Query DSL, and opt-in script surface would expand the threat model in the same cycle as browser tools. JSON tool calls remain the default.
-- **Suggested next step**: Opt-in per run, no network, no fs by default, hard timeout. Mutating operations must still pass PermissionTiers and ConfirmationGate. Direct fs/network from the worker must fail closed.
+- **Reason**: `core/project/codeAsAction.ts` is a fail-closed kernel (opt-in, no fs, no network, no interpreter). Query DSL and a hardened isolate are not built. JSON tool calls remain the default.
+- **Suggested next step**: Arm an isolate that evaluates `source` under the same fail-closed contract, then add Query DSL. Mutating operations must still pass PermissionTiers and ConfirmationGate.
 
 ##### DF-11 - Fast small-model command router is not built
 
 - **Source phase**: Phase 4 - Fast small-model command router (4.4)
 - **Plan reference**: `docs/v2/v2.0/plans/v2.0.0-adoption-governed-autonomy-multimodal.md` (sub-task 4.4)
-- **Reason**: Stretch item. Needs a measured latency win versus the full AgentLoop and a Qwen-class local classifier. The router must never drop a permission tier (Atomic comparison Section 9). HarnessSelector already covers per-model profiles.
-- **Suggested next step**: Classify short imperatives, abstain-and-escalate when uncertain, and send every proposed call through ConfirmationGate at its normal tier. Record a before/after latency number.
+- **Reason**: `modules/coding/routing/commandRouter.ts` classifies a few short imperatives when `enabled` is true and abstains otherwise. It is not wired into AgentLoop. No before/after latency number exists. Callers still own ConfirmationGate at the normal tier.
+- **Suggested next step**: Wire the opt-in classifier at a composition root, keep abstain-and-escalate, and record a latency number versus the full AgentLoop. Do not drop permission tiers.
 
 ##### DF-12 - VRM Chat presence pane is not built
 
@@ -126,15 +98,19 @@ Canonical detail stays in the source file. v2.0 does not close these unless list
 |---|---|---|
 | [v1.15](../../v1/v1.15/known-gaps.md) | finalized | Installer mypy/NSIS/on-device QA rows stay there |
 | [v1.16](../../v1/v1.16/known-gaps.md) | finalized | Gateway/OCR/MLX smokes stay there; parse_document composition moved to v1.20 then DF-1 here via v1.20 DF-1 |
-| [v1.17](../../v1/v1.17/known-gaps.md) | finalized | Motion/Tailwind/installer-motion stay there. `asr-capture` orb mapping exists; Chat voice loop does not yet pass that activity |
-| [v1.18](../../v1/v1.18/known-gaps.md) | finalized | 14 open DF (llama-server smoke, Hub CI, sidecar harness overlay, Windows sandbox partial, ...) stay there |
-| [v1.19](../../v1/v1.19/known-gaps.md) | in-progress | v1.19.0 DF-2,3,6-11; v1.19.1 DF-1-5; v1.19.2 DF-1,3,4 stay there. Inkling multimodal is DF-13 here |
-| [v1.20](../../v1/v1.20/known-gaps.md) | in-progress | Remaining: sidecar MemoryStore (DF-1), Docling defer (DF-5), ocr dir name (DF-6). Settings toggle and first-attachment/busy rules resolved in the v2.1 sweep. |
+| [v1.17](../../v1/v1.17/known-gaps.md) | finalized | Motion/Tailwind/installer-motion stay there. `asr-capture` now used on Chat voice capture; web-search activity remains mapping-only |
+| [v1.18](../../v1/v1.18/known-gaps.md) | finalized | Remaining: llama-server smoke, Hub CI, Windows sandbox partial, harness default off, ... Overlay, badge `(off)`, catalog chip, and fail-closed `mcp.invoke` resolved in the v2.1 follow-up |
+| [v1.19](../../v1/v1.19/known-gaps.md) | in-progress | Tool-format dispatch, persona field, Headless LoopGuards, and DANGEROUS clamp resolved in the v2.1 follow-up. Inkling multimodal is DF-13 here |
+| [v1.20](../../v1/v1.20/known-gaps.md) | in-progress | Remaining: Docling defer (DF-5), ocr dir name (DF-6). Sidecar ingest is an in-process array (DF-1 resolved; no second SQLite) |
 
 ### Resolved
 
 | ID | Title | Resolved in | Notes |
 |---|---|---|---|
 | OW-A2 scheduler | OpenWorker A2 local scheduler | v1.18.0 Phase 4 | `AgentRunScheduler` plus ask inbox. Morning-brief schedule remains off by default. Not re-opened in v2.0 |
-| DF-5 | Chat STT transcripts indexed | v2.1.0 sweep | Chat-scoped `InMemoryMemoryHub` records redacted STT text (`chat-stt`). Sidecar coding MemoryStore remains v1.20 DF-1. |
+| DF-2 | Chat RapidOCR of raster images on text-only | v2.1.0 follow-up | PNG/JPEG still attach for RapidOCR when `imageEnabled` is false. GIF still dropped. |
+| DF-3 | Voice-loop RMS VAD | v2.1.0 follow-up | `micRecorder.ts` dispatches speech/silence from an AnalyserNode RMS threshold. jsdom still has no live energy path. |
+| DF-4 | Kokoro float32 clipped to int16 | v2.1.0 follow-up | `float32_pcm_to_int16_le` before `_wrap_wav`. Live Kokoro playback unproven (`NEXUS_AUDIO_STUB=1` in CI). |
+| DF-5 | Chat STT transcripts indexed | v2.1.0 sweep | Chat-scoped `InMemoryMemoryHub` records redacted STT text (`chat-stt`). Sidecar coding ingest is now an in-process array (v1.20 DF-1). |
+| DF-7 | 15-tool cap hid `browser_*` | v2.1.0 follow-up | Cap is 20. Browser family trims after `codegraph_*` so symbol tools win first. |
 | MT-1 | ChildProcessAudioRuntime timeout/malformed lines | v2.1.0 sweep | Spawn fakes cover timeout, child-exit, and a non-JSON stdout line. |

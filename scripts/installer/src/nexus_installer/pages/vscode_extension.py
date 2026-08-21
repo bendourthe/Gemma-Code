@@ -93,6 +93,15 @@ class VsCodeExtensionPage(QWidget):
         self._checkbox.stateChanged.connect(self._on_toggled)
         card_layout.addWidget(self._checkbox)
 
+        self._unsloth = QCheckBox(
+            "Install Fine-tuning (Unsloth Core). NVIDIA 16 GB+ only. "
+            "unsloth-zoo is LGPL-3.0-or-later, dynamically linked."
+        )
+        self._unsloth.setChecked(False)
+        self._unsloth.setStyleSheet(f"color: {TEXT_PRIMARY}; background: transparent;")
+        self._unsloth.stateChanged.connect(self._on_unsloth)
+        card_layout.addWidget(self._unsloth)
+
         detection_text = (
             f"Detected: {detected} CLI on PATH"
             if detected
@@ -120,6 +129,9 @@ class VsCodeExtensionPage(QWidget):
 
     def _on_toggled(self, state_value: int) -> None:
         self._state.install_vscode_extension = self._checkbox.isChecked()
+
+    def _on_unsloth(self, state_value: int) -> None:
+        self._state.install_unsloth = self._unsloth.isChecked()
 
 
 __all__ = ["VsCodeExtensionPage", "detect_vscode_cli", "VSCODE_CLI_CANDIDATES"]

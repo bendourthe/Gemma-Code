@@ -71,6 +71,9 @@ export function chatComposerAccept(opts: { allowImages: boolean; allowAudio: boo
   ];
   if (opts.allowImages) {
     parts.push("image/*", "video/*", ".mp4", ".webm", ".mov");
+  } else {
+    // v2.0 DF-2 -- screenshots can still attach for RapidOCR on text-only models.
+    parts.push("image/png", "image/jpeg", ".png", ".jpg", ".jpeg");
   }
   if (opts.allowAudio) parts.push(...AUDIO_ACCEPT.split(","));
   return parts.join(",");

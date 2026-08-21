@@ -85,6 +85,39 @@ const Gemma4Xml: ToolCallFormat = {
   },
 };
 
+function firstJsonObject(text: string): string | null {
+  const start = text.indexOf("{");
+  if (start < 0) return null;
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let i = start; i < text.length; i++) {
+    const c = text[i]!;
+    if (inString) {
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (c === "\\") {
+        escape = true;
+        continue;
+      }
+      if (c === '"') inString = false;
+      continue;
+    }
+    if (c === '"') {
+      inString = true;
+      continue;
+    }
+    if (c === "{") depth += 1;
+    else if (c === "}") {
+      depth -= 1;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
 const Llama3Json: ToolCallFormat = {
   name: "llama3-json",
   parse(text) {
@@ -92,7 +125,8 @@ const Llama3Json: ToolCallFormat = {
     // Llama 3.1+ tool calls arrive either as the entire assistant turn being
     // a single JSON object, or as a JSON object preceded by a tool tag.
     const trimmed = text.trim();
-    const direct = parseLlamaShape(trimmed, trimmed);
+    const body = firstJsonObject(trimmed) ?? trimmed;
+    const direct = parseLlamaShape(body, body);
     if (direct) out.push(direct);
     const tagged = /<\|python_tag\|>([\s\S]+?)(?:<\|eom_id\|>|<\|eot_id\|>|$)/g;
     for (;;) {

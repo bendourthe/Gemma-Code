@@ -10,15 +10,67 @@ export interface MicRecorder {
   stop(): Promise<string>;
 }
 
-export function createBrowserMicRecorder(
-  deps: {
-    getUserMedia?: (constraints: MediaStreamConstraints) => Promise<MediaStream>;
-    MediaRecorderImpl?: typeof MediaRecorder;
-  } = {},
-): MicRecorder {
+export interface MicRecorderDeps {
+  getUserMedia?: (constraints: MediaStreamConstraints) => Promise<MediaStream>;
+  MediaRecorderImpl?: typeof MediaRecorder;
+  onSpeechStart?: () => void;
+  onSilence?: () => void;
+  rmsThreshold?: number;
+  silenceMs?: number;
+}
+
+export function attachRmsVad(
+  stream: MediaStream,
+  opts: {
+    onSpeechStart?: () => void;
+    onSilence?: () => void;
+    rmsThreshold?: number;
+    silenceMs?: number;
+    AudioContextImpl?: typeof AudioContext;
+  },
+): () => void {
+  const AudioCtx = opts.AudioContextImpl ?? (typeof AudioContext !== "undefined" ? AudioContext : undefined);
+  if (!AudioCtx) return () => undefined;
+  const ctx = new AudioCtx();
+  const source = ctx.createMediaStreamSource(stream);
+  const analyser = ctx.createAnalyser();
+  analyser.fftSize = 512;
+  source.connect(analyser);
+  const data = new Uint8Array(analyser.fftSize);
+  const threshold = opts.rmsThreshold ?? 0.02;
+  const silenceMs = opts.silenceMs ?? 800;
+  let lastSpeech = Date.now();
+  let speaking = false;
+  const timer = setInterval(() => {
+    analyser.getByteTimeDomainData(data);
+    let sum = 0;
+    for (const v of data) {
+      const n = (v - 128) / 128;
+      sum += n * n;
+    }
+    const rms = Math.sqrt(sum / data.length);
+    if (rms >= threshold) {
+      lastSpeech = Date.now();
+      if (!speaking) {
+        speaking = true;
+        opts.onSpeechStart?.();
+      }
+    } else if (speaking && Date.now() - lastSpeech >= silenceMs) {
+      speaking = false;
+      opts.onSilence?.();
+    }
+  }, 80);
+  return () => {
+    clearInterval(timer);
+    void ctx.close();
+  };
+}
+
+export function createBrowserMicRecorder(deps: MicRecorderDeps = {}): MicRecorder {
   let recorder: MediaRecorder | null = null;
   let chunks: Blob[] = [];
   let stream: MediaStream | null = null;
+  let stopVad: (() => void) | null = null;
 
   return {
     async start() {
@@ -26,6 +78,14 @@ export function createBrowserMicRecorder(
         deps.getUserMedia ??
         ((constraints: MediaStreamConstraints) => navigator.mediaDevices.getUserMedia(constraints));
       stream = await gum({ audio: true });
+      if (deps.onSpeechStart || deps.onSilence) {
+        stopVad = attachRmsVad(stream, {
+          onSpeechStart: deps.onSpeechStart,
+          onSilence: deps.onSilence,
+          rmsThreshold: deps.rmsThreshold,
+          silenceMs: deps.silenceMs,
+        });
+      }
       const Ctor = deps.MediaRecorderImpl ?? MediaRecorder;
       chunks = [];
       recorder = new Ctor(stream);
@@ -35,6 +95,8 @@ export function createBrowserMicRecorder(
       recorder.start();
     },
     async stop() {
+      stopVad?.();
+      stopVad = null;
       const rec = recorder;
       const live = stream;
       recorder = null;

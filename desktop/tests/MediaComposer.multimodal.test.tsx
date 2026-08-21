@@ -13,7 +13,7 @@ function wavFile(): File {
 }
 
 describe("MediaComposer multimodal gating", () => {
-  it("disables the image affordance and drops image files when imageEnabled is false", async () => {
+  it("disables the vision affordance and drops non-OCR image types when imageEnabled is false", async () => {
     render(
       <MediaComposer
         onSubmit={vi.fn()}
@@ -25,8 +25,22 @@ describe("MediaComposer multimodal gating", () => {
     const add = screen.getByTestId("media-composer-add");
     expect(add).toHaveAttribute("data-image-enabled", "false");
     expect(add).toHaveAttribute("title", "This model cannot see images.");
-    fireEvent.change(screen.getByTestId("media-composer-file"), { target: { files: [pngFile()] } });
+    fireEvent.change(screen.getByTestId("media-composer-file"), {
+      target: { files: [new File(["x"], "a.gif", { type: "image/gif" })] },
+    });
     await waitFor(() => expect(screen.queryByTestId("media-composer-thumb-0")).toBeNull());
+  });
+
+  it("still accepts a PNG for RapidOCR when imageEnabled is false", async () => {
+    render(
+      <MediaComposer
+        onSubmit={vi.fn()}
+        imageEnabled={false}
+        accept="image/png,image/jpeg,application/pdf"
+      />,
+    );
+    fireEvent.change(screen.getByTestId("media-composer-file"), { target: { files: [pngFile()] } });
+    await waitFor(() => expect(screen.getByTestId("media-composer-thumb-0")).toBeInTheDocument());
   });
 
   it("accepts audio when audioEnabled and shows a recording indicator while the mic is open", async () => {

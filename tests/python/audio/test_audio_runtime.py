@@ -73,6 +73,20 @@ class TestDispatcher:
         assert spoken["result"]["mimeType"] == "audio/wav"
         assert len(spoken["result"]["audioBase64"]) > 8
 
+
+class TestInt16Wav:
+    def test_float32_pcm_clips_to_int16_le(self):
+        from runtimes.audio.engines import float32_pcm_to_int16_le
+
+        raw = float32_pcm_to_int16_le([1.0, -2.0, 0.0, 0.5])
+        import struct
+
+        samples = struct.unpack("<4h", raw)
+        assert samples[0] == 32767
+        assert samples[1] == -32768
+        assert samples[2] == 0
+        assert samples[3] == 16383
+
     def test_transcribe_requires_payload(self, handlers, capsys, monkeypatch):
         monkeypatch.setenv("NEXUS_AUDIO_STUB", "1")
         payload = call(

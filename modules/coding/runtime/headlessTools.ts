@@ -138,6 +138,15 @@ export interface HeadlessToolOptions {
   readonly browserEnabled?: boolean;
   /** Injected driver (tests). Production uses InMemory under Vitest, Playwright otherwise. */
   readonly browserDriver?: BrowserDriver;
+  /**
+   * v1.20 DF-1 -- optional memory writer for parse_document ingest. Sidecar
+   * uses an in-process store (not a second SQLite).
+   */
+  readonly ingestToMemory?: (input: {
+    text: string;
+    sourcePath: string;
+    engine: string;
+  }) => Promise<{ stored: boolean; reason?: string }>;
 }
 
 /** Upper bound on pages per call, mirroring the VS Code tool. */
@@ -545,6 +554,17 @@ export function createHeadlessTools(options: HeadlessToolOptions = {}): Headless
           return ok(
             `Parsed "${asString(args, "path")}" with ${parsed.engine} (${parsed.pageCount} page(s)) but found no text.`,
           );
+        }
+        if (options.ingestToMemory) {
+          try {
+            await options.ingestToMemory({
+              text: redactSecrets(body),
+              sourcePath: asString(args, "path"),
+              engine: parsed.engine,
+            });
+          } catch {
+            /* ingest is best-effort; parse still succeeds */
+          }
         }
         return ok(
           capBytes(

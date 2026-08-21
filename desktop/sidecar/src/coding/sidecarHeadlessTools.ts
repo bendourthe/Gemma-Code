@@ -25,6 +25,16 @@ import {
 } from "../../../../modules/coding/runtime/headlessTools.js";
 import { getSharedOcrRuntime } from "../ocr/sharedRuntime.js";
 
+const sidecarDocumentMemory: string[] = [];
+
+export function readSidecarDocumentMemory(): readonly string[] {
+  return sidecarDocumentMemory;
+}
+
+export function clearSidecarDocumentMemory(): void {
+  sidecarDocumentMemory.length = 0;
+}
+
 export interface SidecarHeadlessToolsOptions {
   readonly confirm?: HeadlessConfirmFn;
   /**
@@ -40,6 +50,11 @@ export interface SidecarHeadlessToolsOptions {
   readonly exec?: HeadlessExec;
   readonly byteCap?: number;
   readonly execSandbox?: boolean;
+  readonly ingestToMemory?: (input: {
+    text: string;
+    sourcePath: string;
+    engine: string;
+  }) => Promise<{ stored: boolean; reason?: string }>;
 }
 
 function readParseDocumentSettingFromDisk(): boolean | undefined {
@@ -83,6 +98,14 @@ export function createSidecarHeadlessTools(
 ): HeadlessTool[] {
   const enabled = resolveSidecarParseDocumentEnabled(options);
   const documentParser = resolveParser(enabled, options.documentParser);
+  const ingestToMemory =
+    options.ingestToMemory ??
+    (async (input: { text: string; sourcePath: string; engine: string }) => {
+      sidecarDocumentMemory.push(
+        `[ocr engine=${input.engine} path=${input.sourcePath}]\n${input.text}`,
+      );
+      return { stored: true };
+    });
   return createHeadlessTools({
     ...(options.confirm ? { guards: { confirm: options.confirm } } : {}),
     ...(options.exec ? { exec: options.exec } : {}),
@@ -91,5 +114,6 @@ export function createSidecarHeadlessTools(
     documentParser,
     parseDocumentEnabled: enabled,
     browserEnabled: true,
+    ingestToMemory,
   });
 }

@@ -392,6 +392,7 @@ export function CodingPage({
           onGetMoreModels={onGetMoreModels}
           disabled={Boolean(sessionId)}
           harnessLabel={defaultHarnessSelector.profileForModel(modelId).id}
+          harnessSelectorEnabled={false}
         />
       </header>
 

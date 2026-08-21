@@ -114,6 +114,7 @@ export function VideoLabPage({
   const [formEpoch, setFormEpoch] = useState(0);
   const [queueJobs, setQueueJobs] = useState<readonly GenerationJob[]>([]);
   const [workflowByMessage, setWorkflowByMessage] = useState<Record<string, Record<string, unknown>>>({});
+  const [frameComments, setFrameComments] = useState<readonly { frame: number; text: string }[]>([]);
   const chainRef = useRef<{
     messageId: string;
     current: ContinuationSegmentPlan;
@@ -374,9 +375,13 @@ export function VideoLabPage({
 
       const modelId =
         intent.mode === "audio2video" ? OFFICIAL_AVATAR_MODEL_ID : selectedModelId;
+      const commentBlock =
+        frameComments.length > 0
+          ? `\n\nFrame notes:\n${frameComments.map((c) => `f${c.frame}: ${c.text}`).join("\n")}`
+          : "";
       const base = videoFormToRequest({
         ...values,
-        prompt: intent.prompt,
+        prompt: `${intent.prompt}${commentBlock}`,
         modelId,
       });
 
@@ -416,6 +421,7 @@ export function VideoLabPage({
       vramGB,
       tierClip,
       dispatchSegment,
+      frameComments,
     ],
   );
 
@@ -536,12 +542,14 @@ export function VideoLabPage({
             {messages.map((m) => (
               <li key={m.id}>
                 <MessageBubble message={m} enableTools={false} />
-                {m.role === "assistant" && (playlists.get(m.id)?.length ?? 0) > 1 ? (
+                {m.role === "assistant" && (m.media || (playlists.get(m.id)?.length ?? 0) > 0) ? (
                   <TimelinePreviewer
-                    src={playlists.get(m.id)?.[0]?.src ?? null}
+                    src={playlists.get(m.id)?.[0]?.src ?? m.media?.src ?? null}
                     fps={values.fps}
                     segments={playlists.get(m.id)}
                     testId={`video-timeline-${m.id}`}
+                    comments={frameComments}
+                    onAddComment={(c) => setFrameComments((prev) => [...prev, c])}
                   />
                 ) : null}
                 {m.role === "assistant" && m.media && (

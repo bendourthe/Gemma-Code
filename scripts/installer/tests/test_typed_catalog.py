@@ -263,6 +263,38 @@ class TestLoadCatalog:
         assert models["qwen2.5-coder:7b"].agentic is True
         assert models["juggernaut-xl-v9"].agentic is False
 
+    def test_tool_calling_verified_defaults_false_and_parses_true(self, tmp_path: Path) -> None:
+        path = tmp_path / "catalog.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "models": [
+                        {
+                            "id": "plain",
+                            "displayName": "Plain",
+                            "type": "llm",
+                            "task": "chat",
+                            "sizeGB": 1,
+                            "requiredVramGB": 4,
+                        },
+                        {
+                            "id": "verified",
+                            "displayName": "Verified",
+                            "type": "llm",
+                            "task": "chat",
+                            "sizeGB": 1,
+                            "requiredVramGB": 4,
+                            "toolCallingVerified": True,
+                        },
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        models = {m.id: m for m in load_catalog_models(path)}
+        assert models["plain"].tool_calling_verified is False
+        assert models["verified"].tool_calling_verified is True
+
     def test_missing_catalog_returns_empty(self, tmp_path: Path) -> None:
         assert load_catalog_models(tmp_path / "nope.json") == []
 

@@ -8,7 +8,10 @@
 import { GenerationIndex } from "../../../../core/generations/GenerationIndex.js";
 import { GenerationQueue } from "../../../../core/generations/GenerationQueue.js";
 import { GpuScheduler } from "../../../../core/scheduler/GpuScheduler.js";
-import { InProcessTelemetryBus } from "../../../../core/telemetry/TelemetryBus.js";
+import {
+  InProcessTelemetryBus,
+  type TelemetryBus,
+} from "../../../../core/telemetry/TelemetryBus.js";
 import type { DiffusionEvent } from "../diffusion/runtimeClient.js";
 
 export interface StudioRuntime {
@@ -21,7 +24,7 @@ export interface StudioRuntime {
 export function createStudioRuntime(opts: {
   readonly dbPath?: string;
   readonly vramGB?: number;
-  readonly telemetry?: import("../../../core/telemetry/TelemetryBus.js").TelemetryBus;
+  readonly telemetry?: TelemetryBus;
 } = {}): StudioRuntime {
   const dbPath = opts.dbPath ?? ":memory:";
   const bus = opts.telemetry ?? new InProcessTelemetryBus();

@@ -115,11 +115,26 @@ def speak(params: dict[str, Any] | None) -> dict[str, Any]:
         # audio is a numpy array; encode lazily via wave in a temp file if needed.
         import numpy as np
 
-        pcm = np.asarray(audio).astype("<f4").tobytes()
-        chunks.append(pcm)
+        pcm = np.asarray(audio).astype(np.float32)
+        chunks.append(float32_pcm_to_int16_le(pcm.ravel().tolist()))
     raw = b"".join(chunks)
     wav = _wrap_wav(raw, sample_rate=24000)
     return {"audioBase64": base64.b64encode(wav).decode("ascii"), "mimeType": "audio/wav"}
+
+
+def float32_pcm_to_int16_le(samples: list[float]) -> bytes:
+    """Clip float32 PCM in [-1, 1] to little-endian signed 16-bit samples."""
+    import struct
+
+    out = bytearray()
+    for x in samples:
+        v = int(x * 32767.0)
+        if v > 32767:
+            v = 32767
+        elif v < -32768:
+            v = -32768
+        out.extend(struct.pack("<h", v))
+    return bytes(out)
 
 
 def _wrap_wav(pcm: bytes, sample_rate: int) -> bytes:

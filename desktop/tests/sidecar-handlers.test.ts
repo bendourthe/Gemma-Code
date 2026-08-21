@@ -129,6 +129,8 @@ describe("sidecar handlers", () => {
           // v1.18.0 Phase 3 wired per-tool MCP registry deny.
           "mcp.registry.list",
           "mcp.registry.setToolDenied",
+          "mcp.list",
+          "mcp.invoke",
           // v1.18.0 Phase 4 wired the ask inbox + local scheduler.
           "ask.inbox.list",
           "ask.inbox.approve",
@@ -196,6 +198,18 @@ describe("sidecar handlers", () => {
       servers: unknown[];
     };
     expect(Array.isArray(listed.servers)).toBe(true);
+  });
+
+  it("mcp.list returns exposed registry tools and mcp.invoke is fail-closed", async () => {
+    const listed = (await dispatch("mcp.list", {}, makeCtx())) as { tools: unknown[] };
+    expect(Array.isArray(listed.tools)).toBe(true);
+    const invoked = (await dispatch(
+      "mcp.invoke",
+      { name: "demo/tool", args: {} },
+      makeCtx(),
+    )) as { ok: boolean; error: string | null };
+    expect(invoked.ok).toBe(false);
+    expect(invoked.error).toMatch(/no stdio harness/i);
   });
 
   describe("coding session lifecycle", () => {
@@ -350,7 +364,7 @@ describe("sidecar handlers", () => {
       )) as { jobId: string; mode: string; offloadStrategy?: string };
       expect(result.jobId).toMatch(/^video-/);
       expect(result.mode).toBe("text2video");
-      expect(result.offloadStrategy).toBe("model_cpu_offload");
+      // Offload strategy arrives on drainEvents after pumpOnce, not on accept.
     });
 
     it("diffusion.video.image2video requires sourceImage", async () => {

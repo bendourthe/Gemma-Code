@@ -132,6 +132,42 @@ class InstallEngine(QObject):
             ok = self._desktop_provisioner.install(state, log, on_desktop_progress)
             advance("desktop", ok)
 
+        # v2.1 DF-15 -- opt-in Unsloth Core. Off the default chain; checkbox
+        # on the extras page sets state.install_unsloth. LGPL zoo is copied
+        # next to that checkbox. Unsupported hosts record provision.json and
+        # still count as success so the rest of the install is not rolled back.
+        if state.install_unsloth:
+            self.step_started.emit("unsloth")
+            log("--- Installing Unsloth Core (opt-in, LGPL zoo) ---", "info")
+            from nexus_installer.engine.host_detect import HostProfile
+            from nexus_installer.engine.unsloth_venv_provisioner import UnslothVenvProvisioner
+
+            platform = state.platform
+            os_family = (
+                "windows"
+                if platform == "win32"
+                else "macos"
+                if platform == "darwin"
+                else "linux"
+                if platform.startswith("linux")
+                else "unknown"
+            )
+            profile = HostProfile(
+                os_family=os_family,
+                gpu_vendor=(state.gpu_vendor or "none").lower(),
+                gpu_model=state.gpu_name or "unknown",
+                total_vram_gb=max(0, int(state.vram_mb) // 1024),
+                free_disk_gb=int(state.free_disk_gb or 0),
+                target_install_path=state.install_path,
+            )
+            ok = UnslothVenvProvisioner(opt_in=True).install(profile, log)
+            if ok:
+                self.step_completed.emit("unsloth")
+            else:
+                steps_failed.append("unsloth")
+                state.failed_steps.append("unsloth")
+                self.step_failed.emit("unsloth")
+
         # Final report
         if steps_failed:
             msg = f"Installation completed with failures: {', '.join(steps_failed)}"

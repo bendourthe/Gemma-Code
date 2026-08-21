@@ -33,6 +33,8 @@ export interface VideoBaseRequest {
   readonly seed: number;
   readonly latentPreview?: boolean;
   readonly continueFrom?: VideoContinueFrom;
+  /** v2.1 DF-24 -- frame-anchored comments folded into the next prompt. */
+  readonly frameComments?: readonly { readonly frame: number; readonly text: string }[];
   readonly maxCacheVramGB?: number;
   readonly maxCacheRamGB?: number;
   readonly workingMemReserveGB?: number;

@@ -133,11 +133,11 @@ class UnslothVenvProvisioner:
 
     def install(self, profile: HostProfile, log: LogFn) -> bool:
         if not self.opt_in:
-            log("info", "Unsloth Core skipped (opt-in off).")
+            log("Unsloth Core skipped (opt-in off).", "info")
             return True
         ok, reason = training_supported(profile)
         if not ok:
-            log("warn", reason)
+            log(reason, "warn")
             self._write_state({"status": "unsupported", "error": reason})
             return True
         pins = load_pins()
@@ -149,7 +149,7 @@ class UnslothVenvProvisioner:
             venv_result = self._runner(["uv", "venv", str(venv)])
             if venv_result.returncode != 0:
                 err = (venv_result.stderr or venv_result.stdout or "uv venv failed").strip()
-                log("error", err)
+                log(err, "error")
                 self._write_state({"status": "failed", "error": err})
                 return False
         argv = ["uv", "pip", "install", "--python", str(py), *args]
@@ -160,11 +160,11 @@ class UnslothVenvProvisioner:
         result = self._runner(argv)
         if result.returncode != 0:
             err = (result.stderr or result.stdout or "uv pip install failed").strip()
-            log("error", err)
+            log(err, "error")
             self._write_state({"status": "failed", "error": err})
             return False
         self._write_state({"status": "ready", "packages": args})
-        log("info", "Unsloth Core venv ready.")
+        log("Unsloth Core venv ready.", "info")
         return True
 
     def preflight(self) -> tuple[bool, str]:

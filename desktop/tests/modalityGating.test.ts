@@ -20,10 +20,12 @@ describe("modality gating", () => {
     expect(audioAttachmentCopy({ modalities: ["text", "audio"] })).toMatch(/Native audio-token/i);
   });
 
-  it("builds a chat accept list without images when vision is off", () => {
+  it("builds a chat accept list without vision wildcards when vision is off", () => {
     const blocked = chatComposerAccept({ allowImages: false, allowAudio: true });
     expect(blocked).toContain("application/pdf");
     expect(blocked).toContain("audio/*");
+    expect(blocked).toContain("image/png");
+    expect(blocked).toContain("image/jpeg");
     expect(blocked).not.toContain("image/*");
     const open = chatComposerAccept({ allowImages: true, allowAudio: true });
     expect(open).toContain("image/*");

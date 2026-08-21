@@ -36,6 +36,11 @@ let _jobIdFactory: () => string = () => {
   return `video-${Date.now().toString(36)}-${_counter.toString(36)}`;
 };
 
+/** Allocate the next video job id without talking to the runtime. */
+export function nextVideoJobId(): string {
+  return _jobIdFactory();
+}
+
 /** Test seam: deterministic ids in unit tests. */
 export function setVideoJobIdFactory(fn: () => string): void {
   _jobIdFactory = fn;
@@ -56,30 +61,49 @@ const METHOD_FOR_MODE: Record<VideoDispatcherMode, string> = {
   audio2video: "diffusion.video.audio2video",
 };
 
+/** Fail closed before enqueue so a talking-head job never sits in the queue un-gated. */
+export function gateAudio2VideoRequest(request: Record<string, unknown>): void {
+  const gate = assertAvatarAllowed({
+    tierId: (typeof request.diffusionTier === "string"
+      ? request.diffusionTier
+      : "diffusion-low") as
+      | "diffusion-low"
+      | "diffusion-mid"
+      | "diffusion-high"
+      | "diffusion-pro",
+    vramGB: typeof request.vramGB === "number" ? request.vramGB : 0,
+    confirmed: request.confirmLocalAvatar === true,
+    weightRepo: typeof request.weightRepo === "string" ? request.weightRepo : undefined,
+    modelId: typeof request.modelId === "string" ? request.modelId : undefined,
+  });
+  if (!gate.ok) {
+    throw new Error(`${gate.code}: ${gate.message}`);
+  }
+}
+
+export function audio2videoProvenance(
+  request: Record<string, unknown>,
+): AvatarProvenance | undefined {
+  if (typeof request.sourceImage !== "string" || typeof request.sourceAudio !== "string") {
+    return undefined;
+  }
+  return buildAvatarProvenance({
+    sourceImage: request.sourceImage,
+    sourceAudio: request.sourceAudio,
+    weightRepo: typeof request.weightRepo === "string" ? request.weightRepo : undefined,
+    modelId: typeof request.modelId === "string" ? request.modelId : undefined,
+  });
+}
+
 export async function buildVideoJobRequest(
   mode: VideoDispatcherMode,
   request: Record<string, unknown>,
   client: DiffusionRuntimeClient,
+  jobId: string = _jobIdFactory(),
 ): Promise<VideoDispatcherResult> {
   if (mode === "audio2video") {
-    const gate = assertAvatarAllowed({
-      tierId: (typeof request.diffusionTier === "string"
-        ? request.diffusionTier
-        : "diffusion-low") as
-        | "diffusion-low"
-        | "diffusion-mid"
-        | "diffusion-high"
-        | "diffusion-pro",
-      vramGB: typeof request.vramGB === "number" ? request.vramGB : 0,
-      confirmed: request.confirmLocalAvatar === true,
-      weightRepo: typeof request.weightRepo === "string" ? request.weightRepo : undefined,
-      modelId: typeof request.modelId === "string" ? request.modelId : undefined,
-    });
-    if (!gate.ok) {
-      throw new Error(`${gate.code}: ${gate.message}`);
-    }
+    gateAudio2VideoRequest(request);
   }
-  const jobId = _jobIdFactory();
   const payload = { jobId, mode, request };
   const method = METHOD_FOR_MODE[mode];
   const accepted = (await client.call(method, payload)) as
@@ -89,17 +113,7 @@ export async function buildVideoJobRequest(
         mp4Path?: string;
       })
     | null;
-  const provenance =
-    mode === "audio2video" &&
-    typeof request.sourceImage === "string" &&
-    typeof request.sourceAudio === "string"
-      ? buildAvatarProvenance({
-          sourceImage: request.sourceImage,
-          sourceAudio: request.sourceAudio,
-          weightRepo: typeof request.weightRepo === "string" ? request.weightRepo : undefined,
-          modelId: typeof request.modelId === "string" ? request.modelId : undefined,
-        })
-      : undefined;
+  const provenance = mode === "audio2video" ? audio2videoProvenance(request) : undefined;
   return {
     jobId,
     mode,

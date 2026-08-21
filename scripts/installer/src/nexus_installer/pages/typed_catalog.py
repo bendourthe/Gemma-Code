@@ -209,6 +209,8 @@ class CatalogModel:
     # v2.1.0 Phase 1 -- minimum Ollama version, empty when ungated.
     min_ollama_version: str = ""
     role: str = ""
+    # v1.18 DF-6 -- optional chip; omitted JSON keeps this False (no "unverified" pill).
+    tool_calling_verified: bool = False
 
     @property
     def is_text_model(self) -> bool:
@@ -318,6 +320,7 @@ def load_catalog_models(catalog_path: Path) -> list[CatalogModel]:
                 hide_below_vram_gb=_coerce_int(entry.get("hideBelowVramGB")),
                 min_ollama_version=str(entry.get("minOllamaVersion") or ""),
                 role=str(entry.get("role") or ""),
+                tool_calling_verified=bool(entry.get("toolCallingVerified")),
             )
         )
     return models
@@ -561,6 +564,10 @@ class _ModelCard(QWidget):
         chip_row.setContentsMargins(28, 2, 0, 0)
         if model.origin:
             chip_row.addWidget(_pill(f"Origin: {model.origin}"))
+        if model.tool_calling_verified:
+            chip_row.addWidget(
+                _pill("Tool calling verified", color=accent, border=accent)
+            )
         if model.is_text_model:
             agentic_color = accent if model.agentic else TEXT_MUTED
             chip_row.addWidget(

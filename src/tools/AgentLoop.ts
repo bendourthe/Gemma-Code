@@ -6,7 +6,18 @@ import { isVisionCapableModel } from "../../modules/coding/config/ModelCapabilit
 import type { ContextCompactor } from "../../modules/coding/chat/ContextCompactor.js";
 import type { SubAgentSpawner } from "../../modules/coding/agents/SubAgentSpawner.types.js";
 import type { SubAgentConfig, SubAgentResult } from "../../modules/coding/agents/types.js";
-import { parseToolCalls, stripToolCalls, formatToolResult } from "./ToolCallParser.js";
+import { formatToolResult } from "./ToolCallParser.js";
+import {
+  parseAgentToolCalls,
+  stripAgentToolCalls,
+  toolFormatForModel,
+} from "../../modules/coding/llm/parseAgentToolCalls.js";
+import type { ToolFormatName } from "../../core/registry/ModelCatalog.js";
+import type { TelemetryBus } from "../../core/telemetry/TelemetryBus.js";
+import { hashToolCall, type RoutingTurnEvent } from "../../modules/coding/orchestration/routing/RoutingSignals.js";
+import { routeTurn } from "../../modules/coding/orchestration/routing/routeTurn.js";
+import type { EscalationPolicy, RoutingModels } from "../../modules/coding/orchestration/routing/EscalationPolicy.js";
+import type { GpuScheduler } from "../../core/scheduler/GpuScheduler.js";
 import type { ToolRegistry } from "./ToolRegistry.js";
 import type { BudgetMiddleware } from "./BudgetMiddleware.js";
 import type { ToolCall, ToolResult } from "./types.js";
@@ -228,6 +239,24 @@ export interface AgentLoopOptions {
    * the classifier is bypassed entirely even if one is wired.
    */
   readonly inboundClassifierEnabled?: boolean;
+  /**
+   * Catalog / harness tool-call grammar. When omitted, looked up from
+   * ModelCatalog (Gemma XML for unknown ids).
+   */
+  readonly toolFormat?: ToolFormatName;
+  /** v2.1 DF-5 -- publish `tool.call` from the VS Code host loop. */
+  readonly telemetry?: Pick<TelemetryBus, "publish">;
+  /**
+   * v2.1 DF-5 -- optional cheap-first routing. When set, each iteration
+   * projects tool results into RoutingTurnEvent and may swap models.
+   */
+  readonly routing?: {
+    readonly policy: EscalationPolicy;
+    readonly models: RoutingModels;
+    readonly scheduler?: Pick<GpuScheduler, "evaluateRoutingSwap">;
+    readonly vramFor?: (modelId: string) => number;
+    readonly workerResident?: boolean;
+  };
 }
 
 /**
@@ -279,6 +308,11 @@ export class AgentLoop {
   private readonly _activeEditPathProvider?: () => string | null;
   private readonly _inboundClassifier?: InboundClassifier;
   private readonly _inboundClassifierEnabled: boolean;
+  private readonly _toolFormat: ToolFormatName;
+  private readonly _telemetry?: Pick<TelemetryBus, "publish">;
+  private readonly _routing?: AgentLoopOptions["routing"];
+  private readonly _routingEvents: RoutingTurnEvent[] = [];
+  private _routingTurn = 0;
   /** v1.4.0 Phase 8 (gap 5.2.P3.Q): ids of the currently-active path-scoped skills. */
   private _activePathScopedSkillIds: readonly string[] = [];
   /**
@@ -302,7 +336,7 @@ export class AgentLoop {
     private readonly _client: OllamaClient,
     private readonly _manager: ConversationManager,
     private readonly _registry: ToolRegistry,
-    private readonly _modelName: string,
+    private _modelName: string,
     private readonly _maxIterations: number = DEFAULT_MAX_ITERATIONS,
     private readonly _compactor?: ContextCompactor,
     private readonly _ollamaOptions?: OllamaOptions,
@@ -348,6 +382,9 @@ export class AgentLoop {
     this._activeEditPathProvider = options?.activeEditPathProvider;
     this._inboundClassifier = options?.inboundClassifier;
     this._inboundClassifierEnabled = options?.inboundClassifierEnabled ?? true;
+    this._toolFormat = options?.toolFormat ?? toolFormatForModel(this._modelName);
+    this._telemetry = options?.telemetry;
+    this._routing = options?.routing;
   }
 
   /**
@@ -726,7 +763,10 @@ export class AgentLoop {
 
     // Single parse pass: the previous code parsed once for presence and again
     // for the results. `parseToolCalls` now surfaces both in one scan.
-    const { results: parseResults, hasAny } = parseToolCalls(accumulated);
+    const { results: parseResults, hasAny } = parseAgentToolCalls(
+      accumulated,
+      this._toolFormat,
+    );
 
     if (!hasAny) {
       // v0.8.0 Phase 2 (item C8): pass-state gate. Refuse to terminate
@@ -776,7 +816,9 @@ export class AgentLoop {
     }
 
     // Commit the assistant's "reasoning" turn with tool calls stripped.
-    this._manager.addAssistantMessage(stripToolCalls(accumulated));
+    this._manager.addAssistantMessage(
+      stripAgentToolCalls(accumulated, this._toolFormat),
+    );
 
     const executable = parseResults.filter((p) => p.ok);
     const admitted = this._loopGuards.admit(executable.length);
@@ -994,6 +1036,17 @@ export class AgentLoop {
       summary: (contextResult.output || contextResult.error || "").slice(0, 200),
     });
 
+    this._telemetry?.publish({
+      kind: "tool.call",
+      source: "agent-loop",
+      payload: {
+        tool: call.tool,
+        success: result.success,
+        modelId: this._modelName,
+      },
+    });
+    this._noteRoutingTool(call, result.success);
+
     // Track file edits for auto-verification.
     if (FILE_EDIT_TOOLS.has(call.tool) && result.success) {
       this._fileEditCount++;
@@ -1124,6 +1177,35 @@ export class AgentLoop {
       );
       return labelled;
     }
+  }
+
+  private _noteRoutingTool(call: ToolCall, success: boolean): void {
+    if (!this._routing) return;
+    this._routingTurn += 1;
+    this._routingEvents.push({
+      sessionId: this._sessionId ?? "agent-loop",
+      turn: this._routingTurn,
+      role: "worker",
+      toolName: call.tool,
+      toolArgsHash: hashToolCall(call.tool, call.parameters),
+      toolError: !success,
+      fileMutated: FILE_EDIT_TOOLS.has(call.tool) && success,
+      testStateChanged: call.tool === "run_terminal" && success,
+    });
+    const decision = routeTurn(
+      this._routing.policy,
+      {
+        sessionId: this._sessionId ?? "agent-loop",
+        turn: this._routingTurn,
+        role: "worker",
+        events: this._routingEvents,
+        models: this._routing.models,
+        vramFor: this._routing.vramFor ?? (() => 8),
+        workerResident: this._routing.workerResident,
+      },
+      this._routing.scheduler,
+    );
+    this._modelName = decision.modelId;
   }
 
   private _postTokenCount(postMessage: PostMessageFn): void {

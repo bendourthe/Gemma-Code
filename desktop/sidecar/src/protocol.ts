@@ -1841,8 +1841,16 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
     implemented: true,
   },
   "coding.chat.autocomplete": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
-  "mcp.list": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
-  "mcp.invoke": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
+  "mcp.list": {
+    request: McpListRequest,
+    response: McpListResponse,
+    implemented: true,
+  },
+  "mcp.invoke": {
+    request: McpInvokeRequest,
+    response: McpInvokeResponse,
+    implemented: true,
+  },
   "mcp.registry.list": {
     request: McpRegistryListRequest,
     response: McpRegistryListResponse,

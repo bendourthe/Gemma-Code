@@ -36,6 +36,11 @@ let _jobIdFactory: () => string = () => {
   return `job-${Date.now().toString(36)}-${_counter.toString(36)}`;
 };
 
+/** Allocate the next image job id without talking to the runtime. */
+export function nextJobId(): string {
+  return _jobIdFactory();
+}
+
 /** Test seam: deterministic ids in unit tests. */
 export function setJobIdFactory(fn: () => string): void {
   _jobIdFactory = fn;
@@ -54,8 +59,8 @@ export async function buildJobRequest(
   mode: DispatcherMode,
   request: Record<string, unknown>,
   client: DiffusionRuntimeClient,
+  jobId: string = _jobIdFactory(),
 ): Promise<DispatcherResult> {
-  const jobId = _jobIdFactory();
   const payload = { jobId, mode, request };
   const accepted = (await client.call(mode, payload)) as Partial<DispatcherResult> | null;
   return {

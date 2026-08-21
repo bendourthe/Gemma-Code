@@ -2,7 +2,7 @@ import type { DynamicToolMetadata } from "./ToolCatalog.js";
 import type { BuiltinToolName, ToolName } from "./types.js";
 
 /** Maximum number of tools to include in the prompt for reliable Gemma 4 tool calling. */
-const MAX_TOOL_COUNT = 15;
+const MAX_TOOL_COUNT = 20;
 
 /**
  * v1.16.0 Phase 4 (adoption item A6) -- opt-in built-ins that are NOT part of
@@ -14,6 +14,10 @@ const OPTIONAL_SPECIALTY_TOOLS: ReadonlySet<string> = new Set([
   "parse_document",
   "watch_path",
   "hash_file",
+]);
+
+/** v2.0 DF-7 -- browser family trims after codegraph so coding symbol tools win first. */
+const BROWSER_FAMILY_TOOLS: ReadonlySet<string> = new Set([
   "browser_navigate",
   "browser_click",
   "browser_type",
@@ -214,8 +218,8 @@ export function computeToolActivation(
   }
 
   // Rule 6: Tool count cap — trim lowest-priority MCP tools, then the opt-in
-  // specialty built-ins (v1.16.0 Phase 4), then the specialized `codegraph_*`
-  // built-ins (v1.2.0 Phase 3.5) so the prompt stays around the 15-tool budget.
+  // specialty built-ins, then codegraph_*, then the browser family. Cap is 20
+  // so the five browser tools can remain after a full coding catalog.
   // Core built-ins (read_file, write_file, grep_codebase, etc.) are never
   // trimmed because the agent depends on them for the default path.
   const enabledTools = allTools.filter((t) => !disabled.has(t.name));
@@ -234,7 +238,10 @@ export function computeToolActivation(
     const codegraphTools = enabledTools.filter(
       (t) => t.source !== "mcp" && String(t.name).startsWith("codegraph_"),
     );
-    const trimCandidates = [...mcpTools, ...specialtyTools, ...codegraphTools];
+    const browserTools = enabledTools.filter(
+      (t) => t.source !== "mcp" && BROWSER_FAMILY_TOOLS.has(String(t.name)),
+    );
+    const trimCandidates = [...mcpTools, ...specialtyTools, ...codegraphTools, ...browserTools];
 
     let toDisable = enabledTools.length - MAX_TOOL_COUNT;
     for (const tool of trimCandidates) {

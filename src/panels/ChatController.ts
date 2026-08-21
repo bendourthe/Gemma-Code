@@ -25,6 +25,7 @@ import type { LLMClient } from "../../modules/coding/llm/types.js";
 import type { GitSafetyNet } from "../../modules/coding/guardrails/GitSafetyNet.js";
 import { LoopDetector } from "../../modules/coding/guardrails/LoopDetector.js";
 import { LoopGuards } from "../../modules/coding/guardrails/LoopGuards.js";
+import { toolFormatForModel } from "../../modules/coding/llm/parseAgentToolCalls.js";
 import {
   composePassStateGating,
   composeVerificationEnabled,
@@ -308,6 +309,7 @@ export class ChatController {
         hookBus: deps.hookBus,
         skillCatalog: deps.skillCatalog,
         activeEditPathProvider: deps.activeEditPathProvider,
+        toolFormat: toolFormatForModel(deps.modelName),
       },
     );
   }

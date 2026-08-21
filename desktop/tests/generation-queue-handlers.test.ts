@@ -104,4 +104,31 @@ describe("generation queue IPC", () => {
     expect(reply.workflow?.prompt).toBe("embedded");
     expect(reply.workflow?.schemaVersion).toBe(1);
   });
+
+  it("interactive txt2img enqueues then returns a job id without blocking", async () => {
+    const ctx = makeCtx();
+    ctx.studio = createStudioRuntime({ dbPath: ":memory:" });
+    const reply = (await dispatch(
+      "diffusion.txt2img",
+      {
+        modelId: "sana-1.6b-1024",
+        prompt: "fox",
+        width: 512,
+        height: 512,
+        steps: 4,
+        cfgScale: 1.5,
+        sampler: "euler_a",
+        seed: 1,
+      },
+      ctx,
+    )) as { jobId: string; mode: string };
+    expect(reply.jobId.length).toBeGreaterThan(0);
+    expect(reply.mode).toBe("txt2img");
+    const listed = (await dispatch("generation.queue.list", {}, ctx)) as {
+      jobs: { id: string; priority: string }[];
+    };
+    expect(listed.jobs.some((j) => j.id === reply.jobId && j.priority === "interactive")).toBe(
+      true,
+    );
+  });
 });

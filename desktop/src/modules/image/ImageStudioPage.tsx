@@ -30,6 +30,7 @@ import {
   valuesToBaseRequest,
 } from "./ImagePromptForm";
 import { inferImageIntent } from "./intent";
+import { MaskEditor } from "./MaskEditor";
 import { parseReplaceIntent, inpaintPromptFor } from "../../../../core/image/replaceIntent";
 import {
   type DiffusionClient,
@@ -106,6 +107,13 @@ export function ImageStudioPage({
   const [formEpoch, setFormEpoch] = useState(0);
   const [queueJobs, setQueueJobs] = useState<readonly GenerationJob[]>([]);
   const [workflowByMessage, setWorkflowByMessage] = useState<Record<string, Record<string, unknown>>>({});
+  const [paintedMask, setPaintedMask] = useState<string | null>(null);
+  const [pendingReplace, setPendingReplace] = useState<{
+    assistantId: string;
+    sourceImage: string;
+    base: Parameters<DiffusionClient["txt2img"]>[0];
+    candidates: readonly { label: string; maskPngBase64: string }[];
+  } | null>(null);
   const outputs = useRef<Map<string, string>>(new Map()); // messageId -> raw png
 
   const isGenerating = activeJob !== null;
@@ -238,7 +246,7 @@ export function ImageStudioPage({
     async (text: string, attachments: readonly string[]): Promise<void> => {
       if (isGenerating) return;
       const replace = attachments.length > 0 ? parseReplaceIntent(text) : null;
-      const intent = inferImageIntent({ text, attachments, mask: null });
+      const intent = inferImageIntent({ text, attachments, mask: paintedMask });
       const userMsg: ChatMessage = {
         id: nextId("user"),
         role: "user",
@@ -280,10 +288,15 @@ export function ImageStudioPage({
             return;
           }
           if (seg.candidates.length > 1) {
-            const labels = seg.candidates.map((c) => c.label).join(", ");
             patchMessage(assistantId, {
               pending: false,
-              content: `Several matches for "${replace.object}" (${labels}). Paint a mask to pick one, or rephrase.`,
+              content: `Several matches for "${replace.object}". Tap a candidate to inpaint it, or paint a mask.`,
+            });
+            setPendingReplace({
+              assistantId,
+              sourceImage,
+              base,
+              candidates: seg.candidates,
             });
             return;
           }
@@ -324,7 +337,7 @@ export function ImageStudioPage({
         });
       }
     },
-    [isGenerating, values, selectedModelId, client, patchMessage],
+    [isGenerating, values, selectedModelId, client, patchMessage, paintedMask],
   );
 
   const onSelectModel = useCallback(
@@ -336,6 +349,21 @@ export function ImageStudioPage({
       setSelectedModelId(id);
     },
     [onGetMoreModels],
+  );
+
+  const pickCandidate = useCallback(
+    async (maskPngBase64: string): Promise<void> => {
+      if (!pendingReplace) return;
+      const accepted = await client.inpaint({
+        ...pendingReplace.base,
+        sourceImage: pendingReplace.sourceImage,
+        mask: maskPngBase64,
+      });
+      patchMessage(pendingReplace.assistantId, { pending: true, content: "" });
+      setActiveJob({ jobId: accepted.jobId, messageId: pendingReplace.assistantId });
+      setPendingReplace(null);
+    },
+    [client, pendingReplace, patchMessage],
   );
 
   async function copyWorkflow(messageId: string): Promise<void> {
@@ -473,6 +501,34 @@ export function ImageStudioPage({
               disabled={isGenerating}
               diffusionTier={diffusionTier}
             />
+            {seededAttachment ? (
+              <div data-testid="image-mask-layer">
+                <p style={{ color: "var(--fg-muted)", fontSize: "var(--text-xs)" }}>
+                  Paint a mask on the source image (Advanced). The next Generate uses inpaint.
+                </p>
+                <MaskEditor
+                  sourceImage={seededAttachment}
+                  width={values.width}
+                  height={values.height}
+                  onMaskChange={setPaintedMask}
+                />
+              </div>
+            ) : null}
+            {pendingReplace ? (
+              <div data-testid="image-sam-candidates" style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
+                {pendingReplace.candidates.map((c) => (
+                  <button
+                    key={c.label}
+                    type="button"
+                    data-testid={`image-sam-candidate-${c.label}`}
+                    disabled={isGenerating}
+                    onClick={() => void pickCandidate(c.maskPngBase64)}
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <button
               type="button"
               data-testid="image-seed-sweep"

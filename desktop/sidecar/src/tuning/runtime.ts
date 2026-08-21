@@ -11,7 +11,9 @@ import { TuningJobStore, type TuningJob } from "../../../../core/tuning/jobStore
 import { TuningProvisioner, type ProvisionState } from "../../../../core/tuning/provisioner.js";
 import { buildDataset, type DatasetBuildResult } from "../../../../core/tuning/datasetBuilder.js";
 import { runTuningJob, stubTrainer, type OllamaImportPort, type Trainer } from "../../../../core/tuning/orchestrator.js";
-import type { EvalPort } from "../../../../core/tuning/evalGate.js";
+import { type EvalPort } from "../../../../core/tuning/evalGate.js";
+import { createGoldenEvalPort } from "./goldenEvalPort.js";
+import { createOllamaCreatePort } from "./ollamaImport.js";
 import { recipeForVram } from "../../../../core/tuning/recipes.js";
 import { filterTuningBaseModels, type TuningBaseModel } from "../../../../core/tuning/baseModels.js";
 import { evaluateTrainingHardware, type TrainingHost } from "../../../../core/tuning/hardwareGate.js";
@@ -74,6 +76,12 @@ export interface TuningRuntimeOptions {
 }
 
 function defaultEvalPort(): EvalPort {
+  if (process.env.NEXUS_TUNING_EVAL === "golden") {
+    return createGoldenEvalPort({
+      tasksDir: process.env.NEXUS_GOLDEN_TASKS_DIR,
+      snapshotRoot: process.env.NEXUS_GOLDEN_SNAPSHOT_ROOT,
+    });
+  }
   const base = Number(process.env.NEXUS_TUNING_EVAL_BASE ?? "0.5");
   const adapter = Number(process.env.NEXUS_TUNING_EVAL_ADAPTER ?? "0.5");
   return {
@@ -109,6 +117,12 @@ export function createTuningRuntime(opts: TuningRuntimeOptions = {}): TuningRunt
     });
   const trainer = opts.trainer ?? stubTrainer(path.join(root, "runs"));
   const evalPort = opts.evalPort ?? defaultEvalPort();
+  const ollama =
+    opts.ollama !== undefined
+      ? opts.ollama
+      : process.env.VITEST === "true"
+        ? undefined
+        : createOllamaCreatePort();
   const aborts = new Map<string, AbortController>();
 
   async function snapshot() {
@@ -183,7 +197,7 @@ export function createTuningRuntime(opts: TuningRuntimeOptions = {}): TuningRunt
                 jobId: id,
                 trainer,
                 evalPort,
-                ollama: opts.ollama,
+                ollama,
                 signal: linked.signal,
               });
             } finally {

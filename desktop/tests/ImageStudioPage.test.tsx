@@ -288,15 +288,16 @@ describe("ImageStudioPage (chat)", () => {
     expect(screen.getByAltText("Attachment")).toBeInTheDocument();
   });
 
-  it("does not inpaint when segmentation returns multiple candidates", async () => {
+  it("does not inpaint when segmentation returns multiple candidates until one is tapped", async () => {
     const client = new InMemoryDiffusionClient();
     client.segmentResult = {
       ok: true,
       candidates: [
-        { id: "c0", maskPngBase64: "a", score: 0.9, label: "car" },
-        { id: "c1", maskPngBase64: "b", score: 0.8, label: "car" },
+        { id: "c0", maskPngBase64: "mask-a", score: 0.9, label: "car-a" },
+        { id: "c1", maskPngBase64: "mask-b", score: 0.8, label: "car-b" },
       ],
     };
+    client.scriptEvents("mem-job-1", [{ kind: "complete", jobId: "mem-job-1", png: "P==" }]);
     render(<ImageStudioPage client={client} modelsClient={imageModels()} drainIntervalMs={20} />);
     const file = new File(["x"], "scene.png", { type: "image/png" });
     await act(async () => {
@@ -312,5 +313,11 @@ describe("ImageStudioPage (chat)", () => {
     });
     expect(await screen.findByText(/Several matches/i)).toBeInTheDocument();
     expect(client.lastRequest).toBeNull();
+    expect(screen.getByTestId("image-sam-candidates")).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("image-sam-candidate-car-a"));
+    });
+    await waitFor(() => expect(client.lastRequest?.mode).toBe("inpaint"));
+    expect((client.lastRequest?.request as { mask: string }).mask).toBe("mask-a");
   });
 });

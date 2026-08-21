@@ -1,3 +1,15 @@
+# Unreleased
+
+Develop follow-up after tag `v2.1.0`. No version bump. No retag.
+
+### Bug Fixes
+
+* close remaining code-completeable known-gaps without claiming live GPU passes
+
+### Documentation
+
+* reconcile known-gaps after the v2.1.0 cut (hardware, license, and live-GPU rows stay open)
+
 # [2.1.0](https://github.com/bendourthe/Nexus-AI/compare/v2.0.0...v2.1.0) (2026-08-20)
 
 

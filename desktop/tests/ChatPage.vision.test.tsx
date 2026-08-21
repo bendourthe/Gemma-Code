@@ -11,6 +11,7 @@ import { InMemoryChatExplorerClient } from "../src/modules/chat/chatExplorerClie
 import type { ChatSessionClient } from "../src/modules/chat/chatIpcClient";
 import type { ListedModelDto } from "../src/pages/settings/modelsTypes";
 import { createMinimalPng } from "../../core/image/WorkflowMetadata";
+import { createInMemoryDocumentClient } from "../src/modules/chat/documentClient";
 
 const VISION: ListedModelDto = {
   id: "gemma-4-12b-it-gguf",
@@ -32,7 +33,7 @@ const TEXT_ONLY: ListedModelDto = {
 };
 
 function png(): File {
-  const bytes = createMinimalPng();
+  const bytes = new Uint8Array(createMinimalPng());
   return new File([bytes], "cat.png", { type: "image/png" });
 }
 
@@ -84,7 +85,7 @@ describe("ChatPage vision routing", () => {
     expect(sent[0]?.message).toContain("what is this?");
   });
 
-  it("blocks image attach on a text-only model", async () => {
+  it("keeps vision attach off on a text-only model but still OCRs a PNG", async () => {
     const client = new InMemoryChatExplorerClient();
     const folder = client.createFolder({ parentId: null, name: "Work" });
     const chat = client.createChat({
@@ -92,15 +93,28 @@ describe("ChatPage vision routing", () => {
       title: "draft",
       modelId: TEXT_ONLY.id,
     });
+    const sent: Array<{ message: string; images?: readonly string[] }> = [];
     const user = userEvent.setup();
     render(
       <ChatPage
         client={client}
         chatSession={{
           start: async () => ({ sessionId: "s1", modelId: TEXT_ONLY.id, createdAt: "t" }),
-          sendMessage: async () => ({ sessionId: "s1", events: [] }),
+          sendMessage: async (input) => {
+            sent.push({ message: input.message, images: input.images });
+            return { sessionId: "s1", events: [] };
+          },
         }}
         modelsClient={{ list: async () => [TEXT_ONLY] }}
+        documentClient={createInMemoryDocumentClient({
+          result: {
+            engine: "rapidocr",
+            text: "screenshot words",
+            markdown: null,
+            pageCount: 1,
+            pages: [{ index: 0, text: "screenshot words" }],
+          },
+        })}
       />,
     );
     await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
@@ -109,7 +123,11 @@ describe("ChatPage vision routing", () => {
       expect(screen.getByTestId("media-composer-add")).toHaveAttribute("data-image-enabled", "false"),
     );
     fireEvent.change(screen.getByTestId("media-composer-file"), { target: { files: [png()] } });
-    await waitFor(() => expect(screen.queryByTestId("media-composer-thumb-0")).toBeNull());
+    await waitFor(() => expect(screen.getByTestId("media-composer-thumb-0")).toBeInTheDocument());
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "read this" } });
+    fireEvent.click(screen.getByTestId("media-composer-submit"));
+    expect(await screen.findByText(/screenshot words/)).toBeInTheDocument();
+    expect(sent).toHaveLength(0);
   });
 
   it("samples video frames when a sampler is injected", async () => {

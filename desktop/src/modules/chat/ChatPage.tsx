@@ -163,6 +163,7 @@ export function ChatPage({
   const [audioClient] = useState<AudioClient>(
     () => audioClientOverride ?? createIpcAudioClient(),
   );
+  const [personaByChat, setPersonaByChat] = useState<Record<string, string>>({});
   const [voiceLoop, setVoiceLoop] = useState<VoiceLoopState>(INITIAL_VOICE_LOOP);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const ttsAbortRef = useRef<AbortController | null>(null);
@@ -210,8 +211,19 @@ export function ChatPage({
 
   const messages = useMemo(() => {
     if (!activeChat) return [];
-    return messagesByChat.get(activeChat.id) ?? [];
-  }, [activeChat, messagesByChat]);
+    const rows = messagesByChat.get(activeChat.id) ?? [];
+    if (!voiceLoop.captureVisible) return rows;
+    return [
+      ...rows,
+      {
+        id: `${activeChat.id}-asr-capture`,
+        role: "assistant" as const,
+        content: "",
+        pending: true,
+        activity: "asr-capture" as const,
+      },
+    ];
+  }, [activeChat, messagesByChat, voiceLoop.captureVisible]);
 
   const selectedListedModel = useMemo(() => {
     const id = activeChat?.modelId ?? modelId;
@@ -348,9 +360,18 @@ export function ChatPage({
           sessionId = started.sessionId;
           sessionIdsRef.current.set(chatId, sessionId);
         }
+        const persona = personaByChat[chatId]?.trim();
+        const outbound =
+          persona && persona.length > 0
+            ? `[Persona]\n${persona}\n\n${message.trim().length > 0 ? message : images.length > 0 ? "(image)" : message}`
+            : message.trim().length > 0
+              ? message
+              : images.length > 0
+                ? "(image)"
+                : message;
         const reply = await chatSession.sendMessage({
           sessionId,
-          message: message.trim().length > 0 ? message : images.length > 0 ? "(image)" : message,
+          message: outbound,
           ...(images.length > 0 ? { images: images.map(stripDataUrlPrefix) } : {}),
         });
         content = joinChatReply(reply.events) || "(no reply)";
@@ -360,7 +381,7 @@ export function ChatPage({
       patchMessage(chatId, assistantId, { content, pending: false });
       return content;
     },
-    [activeChat, appendMessage, chatSession, modelId, patchMessage],
+    [activeChat, appendMessage, chatSession, modelId, patchMessage, personaByChat],
   );
 
   /**
@@ -492,6 +513,11 @@ export function ChatPage({
 
       const visual = [...groups.images, ...groups.video];
       if (visual.length > 0 && !imageGate.enabled) {
+        const first = groups.images[0];
+        if (first !== undefined) {
+          await handleParseDocument(chat.id, baseId, first, prompt);
+          return;
+        }
         const alt = listedModels.find((m) => m.installed && modelAcceptsVision(m));
         appendMessage(chat.id, {
           id: `${baseId}-assistant`,
@@ -561,10 +587,15 @@ export function ChatPage({
 
   const ensureVoiceMic = useCallback((): MicRecorder => {
     if (!voiceMicRef.current) {
-      voiceMicRef.current = voiceMicRecorder ?? createBrowserMicRecorder();
+      voiceMicRef.current =
+        voiceMicRecorder ??
+        createBrowserMicRecorder({
+          onSpeechStart: () => dispatchVoice({ type: "speech-start" }),
+          onSilence: () => dispatchVoice({ type: "silence" }),
+        });
     }
     return voiceMicRef.current;
-  }, [voiceMicRecorder]);
+  }, [dispatchVoice, voiceMicRecorder]);
 
   const finishVoiceCapture = useCallback(async () => {
     const recorder = voiceMicRef.current;
@@ -776,6 +807,21 @@ export function ChatPage({
                 {voiceLoop.captureVisible ? "Recording -- microphone is open" : "Mic closed"}
               </span>
             </div>
+            <label style={{ display: "flex", flexDirection: "column", gap: "var(--space-1)", color: "var(--fg-muted)", fontSize: "var(--text-sm)" }}>
+              Persona
+              <textarea
+                data-testid="chat-persona"
+                rows={2}
+                value={activeChat ? (personaByChat[activeChat.id] ?? "") : ""}
+                onChange={(e) => {
+                  if (!activeChat) return;
+                  const next = e.target.value;
+                  setPersonaByChat((prev) => ({ ...prev, [activeChat.id]: next }));
+                }}
+                placeholder="Optional system prompt for this chat"
+                style={{ resize: "vertical" }}
+              />
+            </label>
             <MediaComposer
               onSubmit={(text, attachments) => void handleSubmit(text, attachments)}
               submitAccentVar="--accent-chatbot"

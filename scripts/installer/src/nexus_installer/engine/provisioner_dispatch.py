@@ -26,41 +26,45 @@ class ProvisionerSpec:
     factory: Callable[[Path], Any]
 
 
-def chain_for(profile: HostProfile) -> list[str]:
+def chain_for(profile: HostProfile, *, include_unsloth: bool = False) -> list[str]:
     """Return the ordered provisioner names for the given host profile."""
     if profile.os_family == "windows":
         first = "cuda" if profile.cuda_compatible else "cpu-only"
-        return [
+        chain = [
             first,
             "windows-python",
             "node",
             "ollama-windows",
             "ffmpeg",
         ]
-    if profile.os_family == "macos":
+    elif profile.os_family == "macos":
         first = "metal" if profile.metal_compatible else "cpu-only"
-        return [
+        chain = [
             first,
             "macos-python",
             "node",
             "ollama-macos",
             "ffmpeg",
         ]
-    if profile.os_family == "linux":
+    elif profile.os_family == "linux":
         if profile.cuda_compatible:
             first = "cuda-linux"
         elif profile.rocm_compatible:
             first = "rocm"
         else:
             first = "cpu-only"
-        return [
+        chain = [
             first,
             "linux-python",
             "node",
             "ollama-linux",
             "ffmpeg",
         ]
-    return ["cpu-only", "node", "ffmpeg"]
+    else:
+        chain = ["cpu-only", "node", "ffmpeg"]
+    if include_unsloth:
+        chain.append("unsloth")
+    return chain
 
 
 def default_provisioner_factory(
@@ -88,6 +92,10 @@ def default_provisioner_factory(
     )
     from nexus_installer.engine.rocm_provisioner import RocmProvisioner
 
+    from nexus_installer.engine.unsloth_venv_provisioner import (
+        UnslothVenvProvisioner,
+    )
+
     venv = DiffusionVenvProvisioner(payload_dir)
     return {
         "cuda": CudaProvisioner(payload_dir),
@@ -102,6 +110,7 @@ def default_provisioner_factory(
         "ollama-macos": OllamaMacosProvisioner(payload_dir),
         "ollama-linux": OllamaLinuxProvisioner(payload_dir),
         "ffmpeg": FfmpegProvisioner(payload_dir),
+        "unsloth": UnslothVenvProvisioner(root=payload_dir, opt_in=True),
     }
 
 

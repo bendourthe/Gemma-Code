@@ -64,6 +64,9 @@ class InstallerState:
     selected_models_gb: float = 0.0
     disk_reserve_gb: int = DEFAULT_DISK_RESERVE_GB
     install_vscode_extension: bool = True
+    # v2.1 DF-15 -- opt-in Unsloth Core venv. Off by default. LGPL zoo notice
+    # is shown next to the checkbox.
+    install_unsloth: bool = False
 
     # v1.8.0 Phase 3 -- protocol-routed multi-model selection.
     # `selected_model_ids` (catalog ids, any protocol) wins over the legacy

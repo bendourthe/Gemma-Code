@@ -2,7 +2,7 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-19
+**Last updated**: 2026-08-20
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
@@ -12,14 +12,14 @@ Carry-forward source: [../v1.18/known-gaps.md](../v1.18/known-gaps.md) (v1.18.0 
 
 ## v1.19.0
 
-**Summary**: 8 open items after Phase 4 close-out - 0 NI, 8 DF, 0 MT. No suppressed warnings, no bypassed gates. v1.19.0 cycle items reconciled; file stays in-progress for sibling subplans.
+**Summary**: 7 open items after the v2.1.0 follow-up - 0 NI, 7 DF, 0 MT. Tool-format dispatch closed DF-6. File stays in-progress for sibling subplans.
 
 ### Summary
 
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 8 | 4 |
+| Deferred (DF) | 7 | 5 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
@@ -42,13 +42,6 @@ Carry-forward source: [../v1.18/known-gaps.md](../v1.18/known-gaps.md) (v1.18.0 
 - **Plan reference**: `docs/v1/v1.19/plans/v1.19.0-adoption-liquid-lfm-agentic.md` (sub-task 1.1)
 - **Reason**: `origin` is a country (or "Community") chip. Publisher color comes from `family` `lfm2.5` -> `Liquid AI` in the installer constants map. Display name and description name Liquid AI.
 - **Suggested next step**: Leave the schema as country. Do not overload `origin` with a vendor name.
-
-##### DF-6 - Coding AgentLoop still parses Gemma XML, not LFM pythonic spans
-
-- **Source phase**: Phase 2 - LFM harness profile (A3)
-- **Plan reference**: `docs/v1/v1.19/plans/v1.19.0-adoption-liquid-lfm-agentic.md` (sub-task 2.2)
-- **Reason**: [`ToolCallFormat.ts`](../../../modules/coding/llm/ToolCallFormat.ts) now has `lfm-pythonic`, and `HarnessSelector` pins it on the LFM overlay. [`AgentLoop`](../../../src/tools/AgentLoop.ts) and [`HeadlessAgentSession`](../../../modules/coding/runtime/HeadlessAgentSession.ts) still call `Gemma4ToolFormat.parseToolCalls`. That is pre-existing for Llama/Qwen/DeepSeek as well. Listing LFM in Coding `ModelCatalog` does not yet make the live agent execute LFM tool calls. v1.19.1 is loop-hardening (guards, denials), not format dispatch.
-- **Suggested next step**: Dispatch `getToolCallFormat(entry.toolFormat).parse` from the composition root (or a model-aware `ToolCallParser`) without changing Gemma's path when `toolFormat` is `gemma4-xml`.
 
 ##### DF-7 - LFM2.5-8B-A1B catalog row declined this cycle (win not demonstrated)
 
@@ -102,6 +95,10 @@ Carry-forward source: [../v1.18/known-gaps.md](../v1.18/known-gaps.md) (v1.18.0 
 - **Source phase**: Phase 1; closed Phase 2
 - **Resolution**: Local GGUF emitted `<|tool_call_start|>[get_candidate_status(candidate_id='12345')]<|tool_call_end|>`. Fixture A/B: LFM profile net win vs default gemma4-xml. Flag set with suite `nexus-harness-ab-lfm-local` dated 2026-08-18. Not a hosted eval.
 
+##### DF-6 - Coding AgentLoop still parses Gemma XML, not LFM pythonic spans
+
+- **Resolved**: 2026-08-20 (v2.1.0 follow-up). `parseAgentToolCalls` dispatches by catalog `toolFormat` in `AgentLoop` and `HeadlessAgentSession`. Gemma stays `gemma4-xml`. Also closes v1.19.2 DF-3 (Hermes `llama3-json`).
+
 ##### DF-12 - Desktop picker tests did not run on develop CI
 
 - **Source phase**: Phase 4 - CI/CD
@@ -109,22 +106,22 @@ Carry-forward source: [../v1.18/known-gaps.md](../v1.18/known-gaps.md) (v1.18.0 
 
 ### Phase 4 reconciliation
 
-v1.18 items (DF-1..8, DF-10..15) stay in [../v1.18/known-gaps.md](../v1.18/known-gaps.md). This cycle does not close them. Closest relatives: v1.18 DF-3 (sidecar overlay) and DF-15 (selector default off) sit beside v1.19 DF-6 (AgentLoop Gemma XML).
+v1.18 items (DF-1,2,5,7,10..15) stay in [../v1.18/known-gaps.md](../v1.18/known-gaps.md). v1.18 DF-3/4/6/8 closed in the v2.1.0 follow-up. Closest remaining relative: v1.18 DF-15 (selector default off).
 
-No release-blockers. Remaining v1.19.0 work is later-cycle (parser dispatch, 8B-A1B re-run, VL/PII watchlist).
+No release-blockers. Remaining v1.19.0 work is later-cycle (8B-A1B re-run, VL/PII watchlist, 128K fill).
 
-_Last updated: 2026-08-19 (v1.19.0 tagged)._
+_Last updated: 2026-08-20 (v2.1.0 follow-up; no retag)._
 
 ## v1.19.1
 
-**Summary**: 5 open items after Phase 2 (agent-loop + guardrail hardening) - 0 NI, 5 DF, 0 MT. No suppressed warnings, no bypassed gates. Engine hardening landed; Hub skill merge and Chat persona UI remain later-cycle.
+**Summary**: 2 open items after the v2.1.0 follow-up - 0 NI, 2 DF, 0 MT. Persona UI, Headless LoopGuards, and DANGEROUS clamp closed. Hub skill merge remains later-cycle.
 
 ### Summary
 
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 5 | 0 |
+| Deferred (DF) | 2 | 3 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
@@ -134,26 +131,12 @@ _Last updated: 2026-08-19 (v1.19.0 tagged)._
 
 #### Deferred
 
-##### DF-1 - Per-chat persona field is not in Chat settings
-
-- **Source phase**: Phase 1 - Persona-card prompting (1.2)
-- **Plan reference**: `docs/v1/v1.19/plans/v1.19.1-adoption-agent-loop-and-guardrail-hardening.md` (sub-task 1.2)
-- **Reason**: Chat `Chat` records expose title, modelId, folderId, and contextScopeId only. There is no system-prompt field to map a persona card onto. The Hub `prompt-engineering` / `creative-generation` skills document the workaround (paste the card as the first user message and keep it in the thread). Building the field here would have been a UI build, which the plan forbids.
-- **Suggested next step**: Add a per-chat persona / system-prompt field in the v2.0.0 Chat phases (Airi comparison stretch), then point the Hub skill mapping at that field.
-
 ##### DF-2 - Hub skill edits are authored but not yet merged or synced
 
 - **Source phase**: Phase 1 - Skill-native wins (1.1-1.3)
 - **Plan reference**: `docs/v1/v1.19/plans/v1.19.1-adoption-agent-loop-and-guardrail-hardening.md` (sub-tasks 1.1-1.3, 1.5)
 - **Reason**: Grounded-citation, persona-card, avatar-prep, and transcript-reasoning prose landed on Nexus-Hub branch `feat/v1.19.1-skill-native-wins` (commit `451e508f`) and passed `validate_skills.py --quality`. They are not on Hub `develop` / `main` and are not yet in a `nexus skills sync` catalog. CI in this repository cannot see Hub skill bodies; it asserts the Nexus-AI mapping note and the no-duplicate builtin check.
 - **Suggested next step**: Merge the Hub branch, then `nexus skills sync --apply` so `~/.nexus-ai/catalog/skills/` carries the new sections. Do not vendor copies under `modules/coding/skills/catalog/`.
-
-##### DF-3 - HeadlessAgentSession does not construct LoopGuards
-
-- **Source phase**: Phase 2 - Unified loop guards (2.2)
-- **Plan reference**: `docs/v1/v1.19/plans/v1.19.1-adoption-agent-loop-and-guardrail-hardening.md` (sub-task 2.2)
-- **Reason**: `LoopGuards` is wired in `src/tools/AgentLoop.ts` and `ChatController.buildAgentLoop`. The sidecar `HeadlessAgentSession` still relies on its own iteration cap and does not construct `LoopGuards`. Identical-call, no-action, error-burst, and bounded-queue therefore do not trip on the headless path. Wiring it is a composition-root change, not a LoopGuards bug.
-- **Suggested next step**: Construct `LoopGuards` (and pass `securityPosture`) from `HeadlessAgentSession` the same way ChatController does. Keep the session recoverable on halt.
 
 ##### DF-4 - Pass-state one-shot nudge means the no-action budget rarely trips in production
 
@@ -162,29 +145,36 @@ _Last updated: 2026-08-19 (v1.19.0 tagged)._
 - **Reason**: AgentLoop records a no-action on the pass-state gate continue path. `_gateNudgeIssued` still fires only once, so a live run typically gets one nudge and then proceeds rather than three consecutive no-action turns. Unit tests trip the guard by setting `noActionBudget: 1`. Production default remains 3.
 - **Suggested next step**: If live auto-mode "thinking loops" still burn iterations, count every no-tool turn (not only the gated continue) toward the budget, or lower the default after a dated measurement.
 
+### Resolved
+
+##### DF-1 - Per-chat persona field is not in Chat settings
+
+- **Resolved**: 2026-08-20 (v2.1.0 follow-up). Chat page `chat-persona` textarea prepends `[Persona]` onto the outbound message. In-memory only; no SQLite column.
+
+##### DF-3 - HeadlessAgentSession does not construct LoopGuards
+
+- **Resolved**: 2026-08-20 (v2.1.0 follow-up). Optional 4th ctor arg constructs `LoopGuards`. Default prompt stays `BASE_SYSTEM_PROMPT`.
+
 ##### DF-5 - getPermissionTier still maps DANGEROUS plus override 0 to CONFIRM
 
-- **Source phase**: Phase 2 - Security-posture dial (2.5)
-- **Plan reference**: `docs/v1/v1.19/plans/v1.19.1-adoption-agent-loop-and-guardrail-hardening.md` (sub-task 2.5)
-- **Reason**: Pre-existing F-003: `getPermissionTier("run_terminal", { run_terminal: 0 })` returns CONFIRM, not AUTO_APPROVE. Unattended used to skip that CONFIRM. `shouldRequireConfirmation` now returns true whenever the baseline is DANGEROUS, regardless of override, and `screenHeadlessCall` matches. The floor is therefore enforced at the confirmation gate, not inside `getPermissionTier`.
-- **Suggested next step**: Optionally make `getPermissionTier` itself refuse to drop DANGEROUS below CONFIRM so both APIs agree. Not required for the posture invariant.
+- **Resolved**: 2026-08-20 (v2.1.0 follow-up). Baseline DANGEROUS (including MCP) cannot drop below DANGEROUS. Override 0 on `run_terminal` clamps to 2.
 
 ### Phase 2 reconciliation
 
-Hard denials, LoopGuards, self-recovery, compression tail, posture dial, provenance screening, DNS pin, watch/hash, and prompt assembler all shipped. No NI, BG, WN, MT, or QG this phase. File stays in-progress for v1.19.2.
+Hard denials, LoopGuards, self-recovery, compression tail, posture dial, provenance screening, DNS pin, watch/hash, and prompt assembler all shipped. Persona UI, Headless LoopGuards, and DANGEROUS clamp closed in the v2.1.0 follow-up. Remaining: Hub skill merge (DF-2) and the no-action nudge remainder (DF-4).
 
-_Last updated: 2026-08-19 (v1.19.1 tagged)._
+_Last updated: 2026-08-20 (v2.1.0 follow-up; no retag)._
 
 ## v1.19.2
 
-**Summary**: 4 open items after Phase 1 (catalog, model, and tier additions) - 0 NI, 4 DF, 0 MT. Tag-time CI/Release were red (QG-1, closed on develop after the tag). Schema, puller variants, Hermes, Inkling, and patient-tier copy shipped; live Hermes generate and GGUF multimodal remain later-cycle.
+**Summary**: 3 open items after the v2.1.0 follow-up - 0 NI, 3 DF, 0 MT. Tool-format dispatch closed DF-3 (same seam as v1.19.0 DF-6). Live Hermes generate and GGUF multimodal remain later-cycle.
 
 ### Summary
 
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 4 | 0 |
+| Deferred (DF) | 3 | 1 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
@@ -208,13 +198,6 @@ _Last updated: 2026-08-19 (v1.19.1 tagged)._
 - **Reason**: The native Inkling-Small checkpoint is text+image+audio. The curated GGUF (`unsloth/Inkling-Small-GGUF`, UD-IQ1_S, three shards) has no verified llama.cpp multimodal projector at implementation time. The row ships `modalities: ["text"]` with copy that names the gap. Adding image/audio would over-claim.
 - **Suggested next step**: If a later llama.cpp / GGUF line grows a working projector, add those modalities only after a dated local load of an image and an audio clip. Keep the row out of `recommended.json`.
 
-##### DF-3 - Coding AgentLoop still parses Gemma XML, not llama3-json, for Hermes
-
-- **Source phase**: Phase 1 - Hermes harness profiles (1.5); same seam as v1.19.0 DF-6
-- **Plan reference**: `docs/v1/v1.19/plans/v1.19.2-adoption-catalog-and-model-expansion.md` (sub-task 1.5)
-- **Reason**: `HarnessSelector` pins `toolCallFormat: "llama3-json"` on `hermes3:8b` / `hermes3:70b`. [`AgentLoop`](../../../src/tools/AgentLoop.ts) still calls `parseToolCalls` from `Gemma4ToolFormat`. Listing Hermes in Coding `ModelCatalog` does not yet make the live agent execute Hermes tool calls. This is the same composition-root remainder as LFM pythonic spans.
-- **Suggested next step**: Dispatch `getToolCallFormat(entry.toolFormat).parse` from the composition root without changing Gemma's path when `toolFormat` is `gemma4-xml`. Closes v1.19.0 DF-6 and this item together.
-
 ##### DF-4 - Patient-tier determinism assertion skips when no offload adapter is registered
 
 - **Source phase**: Phase 1 - RAM-budget presets + determinism (1.7)
@@ -224,6 +207,10 @@ _Last updated: 2026-08-19 (v1.19.1 tagged)._
 
 ### Resolved
 
+##### DF-3 - Coding AgentLoop still parses Gemma XML, not llama3-json, for Hermes
+
+- **Resolved**: 2026-08-20 (v2.1.0 follow-up). Same dispatch as v1.19.0 DF-6. Live Hermes generate remains DF-1.
+
 ##### QG-1 - Linux CI/Release failed hash_file mkdir and installer uv.lock cache
 
 - **Source phase**: Post-tag follow-up (v1.19.1 hash_file test; v1.19.0 installer-tests cache)
@@ -232,6 +219,6 @@ _Last updated: 2026-08-19 (v1.19.1 tagged)._
 
 ### Phase 1 reconciliation
 
-Modalities, audioConditioning, official-only precision variants, Hermes 3 catalog+harness, Inkling patient-tier GGUF, and calibrated patient-tier copy all shipped. Tag-time CI/Release red is QG-1 (closed on develop; no retag). File stays in-progress so v2.0.0 can ingest DF-1..DF-4.
+Modalities, audioConditioning, official-only precision variants, Hermes 3 catalog+harness, Inkling patient-tier GGUF, and calibrated patient-tier copy all shipped. Tag-time CI/Release red is QG-1 (closed on develop; no retag). Tool-format dispatch closed DF-3 in the v2.1.0 follow-up. Remaining: live Hermes generate (DF-1), Inkling multimodal (DF-2), patient-tier adapter (DF-4).
 
-_Last updated: 2026-08-19 (v1.19.2 tagged; QG-1 closed on develop)._
+_Last updated: 2026-08-20 (v2.1.0 follow-up; no retag)._

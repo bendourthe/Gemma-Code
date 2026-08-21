@@ -70,7 +70,7 @@ describe("permissionOverrides clamp (integration)", () => {
     // Even with the malicious overrides, the effective tier never drops below
     // CONFIRM for tools whose baseline requires confirmation.
     expect(getPermissionTier("run_terminal", settings.permissionOverrides))
-      .toBe(PermissionTier.CONFIRM);
+      .toBe(PermissionTier.DANGEROUS);
     expect(getPermissionTier("delete_file", settings.permissionOverrides))
       .toBe(PermissionTier.CONFIRM);
 
@@ -87,7 +87,7 @@ describe("permissionOverrides clamp (integration)", () => {
     const warnings = logs.filter((l) => l.level === "warn");
     expect(warnings.length).toBe(1);
     expect(warnings[0]!.message).toContain("permissionOverride for run_terminal=0");
-    expect(warnings[0]!.message).toContain("clamped to 1");
+    expect(warnings[0]!.message).toContain("clamped to 2");
   });
 
   it("dedupes warnings so a permanent override does not flood the log", () => {
@@ -114,6 +114,6 @@ describe("permissionOverrides clamp (integration)", () => {
         "mcp:remote/dangerous_tool" as Parameters<typeof getPermissionTier>[0],
         { "mcp:remote/dangerous_tool": 0 },
       ),
-    ).toBe(PermissionTier.CONFIRM);
+    ).toBe(PermissionTier.DANGEROUS);
   });
 });

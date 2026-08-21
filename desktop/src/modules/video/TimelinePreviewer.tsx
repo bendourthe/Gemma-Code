@@ -31,6 +31,8 @@ export interface TimelinePreviewerProps {
   readonly testId?: string;
   /** v2.0.0 Phase 3 -- chained continuation clips played as one sequence. */
   readonly segments?: readonly TimelineSegment[];
+  readonly comments?: readonly { readonly frame: number; readonly text: string }[];
+  readonly onAddComment?: (comment: { frame: number; text: string }) => void;
 }
 
 export function TimelinePreviewer({
@@ -38,6 +40,8 @@ export function TimelinePreviewer({
   fps,
   testId = "video-timeline-previewer",
   segments,
+  comments = [],
+  onAddComment,
 }: TimelinePreviewerProps): JSX.Element {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [duration, setDuration] = useState(0);
@@ -162,6 +166,26 @@ export function TimelinePreviewer({
           </span>
         ) : null}
       </div>
+      {onAddComment ? (
+        <div data-testid={`${testId}-comments`} style={{ display: "flex", flexDirection: "column", gap: "var(--space-1)" }}>
+          <button
+            type="button"
+            data-testid={`${testId}-add-comment`}
+            onClick={() => {
+              const frame = Math.max(0, Math.round(currentTime * Math.max(fps, 1)));
+              const text = `Mark at frame ${frame}`;
+              onAddComment({ frame, text });
+            }}
+          >
+            Comment this frame
+          </button>
+          {comments.map((c) => (
+            <span key={`${c.frame}-${c.text}`} data-testid={`${testId}-comment-${c.frame}`}>
+              f{c.frame}: {c.text}
+            </span>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

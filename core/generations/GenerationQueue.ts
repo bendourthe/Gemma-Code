@@ -132,6 +132,7 @@ export class GenerationQueue {
     }
     return this._insert({
       ...input,
+      id: input.id || this._idFactory(),
       parentId: null,
       sortOrder: this._nextSort(),
       priority: input.priority ?? "interactive",

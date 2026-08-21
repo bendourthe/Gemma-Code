@@ -2,7 +2,7 @@
 
 **Project**: Nexus AI Studio
 **Status**: finalized
-**Last updated**: 2026-08-17
+**Last updated**: 2026-08-20 (v2.1.0 follow-up; no retag)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
@@ -12,14 +12,14 @@ Carry-forward source: [../v1.17/known-gaps.md](../v1.17/known-gaps.md) (reconcil
 
 ## v1.18.0
 
-**Summary**: 14 open items after Phase 4 close-out and the version bump - 0 NI, 14 DF (DF-1..8, DF-10..15), 0 MT - plus 4 resolved this cycle (EM.P1.A, EM.P5.A, OI-A3 shared transport, DF-9). No suppressed warnings, no bypassed gates. Finalized at the v1.18.0 version bump.
+**Summary**: 10 open items after the v2.1.0 follow-up - 0 NI, 10 DF (DF-1,2,5,7,10..15), 0 MT - plus 8 resolved (EM.P1.A, EM.P5.A, OI-A3 shared transport, DF-9, and DF-3/4/6/8 in the follow-up). No suppressed warnings, no bypassed gates. Finalized at the v1.18.0 version bump; this file remains the canonical tracker.
 
 ### Summary
 
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 14 | 4 |
+| Deferred (DF) | 10 | 8 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
@@ -43,20 +43,6 @@ Carry-forward source: [../v1.17/known-gaps.md](../v1.17/known-gaps.md) (reconcil
 - **Reason**: CI does not ship `~/.nexus-ai/catalog/`. The Phase 1 test asserts the mapping note and that `modules/coding/skills/catalog/` has no duplicate `agent-presets` / `browser-testing-with-devtools` / `morning-briefing` entries. Live Hub files were confirmed on the operator machine during implementation, not in CI.
 - **Suggested next step**: Keep the builtin-catalog negative check. An optional operator step is `nexus skills sync` then list those two skills under `~/.nexus-ai/catalog/skills/`. Do not vendor Hub skills into this repo.
 
-##### DF-3 - Desktop sidecar headless runner does not spread the harness overlay
-
-- **Source phase**: Phase 2 - Live harness activation (OI-A5)
-- **Plan reference**: `docs/v1/v1.18/plans/v1.18.0-adoption-agent-harness-and-governance.md` (sub-task 2.1)
-- **Reason**: EM.P1.A named the composition root as `ToolActivationContext.buildPromptContext` (VS Code / in-process coding engine). That path is wired and gated. The desktop sidecar uses `HeadlessAgentSession`, which builds a fixed system prompt and does not consume `PromptContext` / `HarnessSelector`. Support tier for sidecar overlay application is `not proven here`.
-- **Suggested next step**: A later coding-sidecar phase can thread `applyHarnessOverlay` into `HeadlessAgentSession.buildSystemPrompt` behind the same setting, with a regression test that off remains byte-identical. Phase 3 did not take this (catalog/registry scope).
-
-##### DF-4 - Desktop ModelSelector badge does not read `harnessSelectorEnabled`
-
-- **Source phase**: Phase 2 - `/harness` inspect/switch surface
-- **Plan reference**: `docs/v1/v1.18/plans/v1.18.0-adoption-agent-harness-and-governance.md` (sub-task 2.3)
-- **Reason**: The coding page shows the auto-selected profile id as a small label. The desktop settings store has no `nexus.coding.harnessSelector.enabled` reader, so the badge is informational (catalog selection), not proof the overlay is applied. The VS Code `/harness` inspect line reports applied vs not-applied from the real setting.
-- **Suggested next step**: When the sidecar grows a settings projection, hide the badge unless the selector is on, or suffix it with `off`.
-
 ##### DF-5 - Deeper scaffold knobs remain off `HarnessProfile` (EM.P1.C remainder)
 
 - **Source phase**: Phase 2 - Named per-family harness profiles (OI-A2)
@@ -64,26 +50,12 @@ Carry-forward source: [../v1.17/known-gaps.md](../v1.17/known-gaps.md) (reconcil
 - **Reason**: Named family profiles (`concise-loop`, `plan-first`, `structured-edit`, `minimal`) now exist as data and drive the three existing `PromptContext` knobs. Tool-exposure verbosity and retry / step granularity are still described in `docs/reference/low-cost-model-optimization.md` and are not fields on `HarnessProfile` / `PromptContext`.
 - **Suggested next step**: After a live weak-model A/B (EM.P1.B), extend `PromptContext` only if the A/B shows those knobs move quality. Do not add a fourth prompt style without a `PromptBuilder` change.
 
-##### DF-6 - Installer catalog cards do not render `toolCallingVerified`
-
-- **Source phase**: Phase 3 - Catalog + registry governance (OW-A4)
-- **Plan reference**: `docs/v1/v1.18/plans/v1.18.0-adoption-agent-harness-and-governance.md` (sub-task 3.2)
-- **Reason**: The plan's consumption surface is `desktop/src/shared/chat/ModelSelector.tsx`. The PyQt installer `typed_catalog.py` still ignores the new optional JSON fields (valid extra keys). Support tier for installer badge: not implemented here.
-- **Suggested next step**: If the installer picker should distinguish verified-for-tool-calling from merely-runs, add an Origin-style chip keyed to `toolCallingVerified` without requiring the field.
-
 ##### DF-7 - `gemma4:26b` MoE copy has no published active/total counts
 
 - **Source phase**: Phase 3 - Catalog schema (LG-A3)
 - **Plan reference**: `docs/v1/v1.18/plans/v1.18.0-adoption-agent-harness-and-governance.md` (sub-task 3.1)
 - **Reason**: The 26B entry describes MoE routing. No in-repo published active-parameter count was available, so `activeParams` / `totalParams` stay omitted (dense-schema default). MoE numbers are populated only on `deepseek-coder-v2:16b` (2.4B active / 16B total, already in that entry's copy).
 - **Suggested next step**: When Google publishes a stable active-parameter figure for Gemma 4 26B, add both MoE fields together. Do not guess.
-
-##### DF-8 - `mcp.list` / `mcp.invoke` remain unimplemented
-
-- **Source phase**: Phase 3 - Per-tool MCP allow/deny (OW-A5)
-- **Plan reference**: `docs/v1/v1.18/plans/v1.18.0-adoption-agent-harness-and-governance.md` (sub-task 3.4); v1.1.0 Phase 11 IPC
-- **Reason**: Those methods are the VS Code extension MCP bridge (`core/coding/McpBridge.ts`). This phase added `mcp.registry.list` / `mcp.registry.setToolDenied` for Settings governance instead of hijacking the invoke catalog.
-- **Suggested next step**: Phase 11 (or a later coding-IPC phase) can implement `mcp.list` / `mcp.invoke` over `McpManager` without loosening Hub policy. Filter listed tools through `resolveExposedMcpTools`.
 
 ##### DF-10 - ACP is HTTP JSON-RPC on the shared listener, not a stdio subprocess
 
@@ -134,12 +106,16 @@ Carry-forward source: [../v1.17/known-gaps.md](../v1.17/known-gaps.md) (reconcil
 | EM.P1.A (v1.12) | Selector not wired into the live prompt path | Phase 2 | `buildPromptContext` spreads `overlayForModel` / session override when `settings.harnessSelectorEnabled` is on; off returns the base context by reference. `HARNESS_SELECTOR_SHIPPED_DEFAULT` stays false (EM.P1.B). Do not treat the v1.12 file as finalized. |
 | EM.P5.A (v1.12) | No OS-level process sandbox for agent-run commands | Phase 6 | Abstraction + three backends shipped behind `nexus.coding.execSandbox` (off by default). **macOS**: `confined` when `/usr/bin/sandbox-exec` is present (Seatbelt FS+network). **Linux**: `confined` when Landlock is in the LSM list and python3 can apply the ctypes helper (FS+seccomp network deny). **Windows**: `partial` (job object + best-effort restricted token; filesystem and network NOT kernel-enforced). Off or missing backend is loud `unconfined`. Windows remainder is DF-11. EM.P3 / EM.P4 stay closed. |
 | OI-A3 shared transport | Serving gateway and ACP share one loopback listener | Phase 5 | [`LoopbackHttpServer`](../../../desktop/sidecar/src/controlSurface/loopbackServer.ts) + [`contract.ts`](../../../desktop/sidecar/src/controlSurface/contract.ts). `ServingGateway` no longer owns `createServer`. HTTP JSON-RPC vs stdio remains DF-10. |
+| DF-3 | Sidecar harness overlay | v2.1.0 follow-up | `HeadlessAgentSession` applies overlay only when `harnessSelectorEnabled` is true. Off remains the default prompt. |
+| DF-4 | Coding badge reads selector off | v2.1.0 follow-up | Badge suffixes `(off)` while `harnessSelectorEnabled={false}`. |
+| DF-6 | Installer `toolCallingVerified` chip | v2.1.0 follow-up | Chip renders only when the catalog flag is true. |
+| DF-8 | `mcp.list` / `mcp.invoke` | v2.1.0 follow-up | List returns exposed registry tools. Invoke is fail-closed (no stdio harness). |
 | DF-9 (OW-A1/OW-A2) | Unattended ACP confirmation fail-closes | Phase 4 | Ask inbox + scheduler landed. ACP parks when an inbox is configured; fail-closed remains the fallback when it is not. Approve replays `classifyAction` + `resolveTier`. Interactive 60s webview unchanged. |
 
 ### Phase 7 reconciliation
 
-v1.17 motion items (DF-1, DF-3, DF-5, DF-6, DF-8, DF-9, DF-10) stay in [../v1.17/known-gaps.md](../v1.17/known-gaps.md). v1.16 serving/OCR items stay in [../v1.16/known-gaps.md](../v1.16/known-gaps.md). This cycle does not close them.
+v1.17 motion items (DF-1, DF-3, DF-6, DF-8, DF-9, DF-10) stay in [../v1.17/known-gaps.md](../v1.17/known-gaps.md) (`asr-capture` closed there in the v2.1.0 follow-up). v1.16 serving/OCR items stay in [../v1.16/known-gaps.md](../v1.16/known-gaps.md).
 
-Phase 4 (ask inbox + scheduler) landed on 2026-08-17 and closed DF-9. Status is **finalized** at the v1.18.0 version bump. Open DF items remaining: DF-1..8, DF-10..15.
+Phase 4 (ask inbox + scheduler) landed on 2026-08-17 and closed DF-9. The v2.1.0 follow-up closed DF-3, DF-4, DF-6, and DF-8. Status remains **finalized** at the v1.18.0 version bump. Open DF items remaining: DF-1,2,5,7,10..15.
 
-_Last updated: 2026-08-17 (finalized for the v1.18.0 release)._
+_Last updated: 2026-08-20 (v2.1.0 follow-up; no retag)._

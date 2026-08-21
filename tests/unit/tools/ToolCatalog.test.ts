@@ -9,7 +9,7 @@ describe("TOOL_CATALOG", () => {
     // v0.7.0 Phase 4.4 added update_todos, also permission-tier 0.
     // v1.2.0 Phase 3.5 added 9 codegraph_* tools (search / context / trace /
     // callers / callees / impact / node / explore / files); they ride the
-    // 15-tool cap as trim candidates after MCP tools.
+    // 20-tool cap as trim candidates after MCP tools.
     // v1.2.0 Phase 6.2 added 2 lsp_* tools (lsp_definition, lsp_references);
     // they share the permission-tier 0 + trim-candidate posture with the
     // codegraph surface.

@@ -62,6 +62,33 @@ describe("<ChatPage>", () => {
     expect(await screen.findByText("Hi there")).toBeInTheDocument();
   });
 
+  it("prepends the per-chat persona onto the outbound message", async () => {
+    const client = new InMemoryChatExplorerClient();
+    const folder = client.createFolder({ parentId: null, name: "Work" });
+    const chat = client.createChat({ folderId: folder.id, title: "draft", modelId: "gemma4:e4b" });
+    const sent: string[] = [];
+    const chatSession: ChatSessionClient = {
+      start: async () => ({ sessionId: "s1", modelId: "gemma4:e4b", createdAt: "t" }),
+      sendMessage: async (input) => {
+        sent.push(input.message);
+        return {
+          sessionId: "s1",
+          events: [{ kind: "token", text: "ok" }, { kind: "done", finishReason: "stop" }],
+        };
+      },
+    };
+    const user = userEvent.setup();
+    render(<ChatPage client={client} chatSession={chatSession} />);
+    await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
+    await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
+    fireEvent.change(screen.getByTestId("chat-persona"), { target: { value: "Be terse." } });
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "hello" } });
+    fireEvent.click(screen.getByTestId("media-composer-submit"));
+    await waitFor(() => expect(sent[0]).toContain("[Persona]"));
+    expect(sent[0]).toContain("Be terse.");
+    expect(sent[0]).toContain("hello");
+  });
+
   it("shows the composing orb while the assistant reply is in flight", async () => {
     const client = new InMemoryChatExplorerClient();
     const folder = client.createFolder({ parentId: null, name: "Work" });

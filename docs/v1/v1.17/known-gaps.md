@@ -2,7 +2,7 @@
 
 **Project**: Nexus AI Studio
 **Status**: finalized
-**Last updated**: 2026-08-16
+**Last updated**: 2026-08-20 (v2.1.0 follow-up; no retag)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
@@ -12,7 +12,7 @@ Carry-forward source: [../v1.16/known-gaps.md](../v1.16/known-gaps.md) (reconcil
 
 ## v1.17.0
 
-**Summary**: 7 open items after Phase 6 - 0 NI, 7 DF, 0 MT - plus 3 resolved in Phase 5 (DF-2, DF-4, DF-7). No suppressed warnings, no bypassed gates. Phase 6 is verification-only (stale ChatPage/ChatInput comments, RETAINED-NOT-DEAD header on ChatInput, no behaviour change). Gates: desktop 106 files / 916 passed / 0 failed. Coverage 92.92% lines / 86.2% branches / 85.08% functions. Lint and `tsc --noEmit` clean. Finalized at the v1.17.0 version bump.
+**Summary**: 6 open items after the v2.1.0 follow-up - 0 NI, 6 DF, 0 MT - plus 4 resolved (DF-2, DF-4, DF-7 in Phase 5; DF-5 in the follow-up). No suppressed warnings, no bypassed gates. Phase 6 is verification-only (stale ChatPage/ChatInput comments, RETAINED-NOT-DEAD header on ChatInput, no behaviour change). Gates: desktop 106 files / 916 passed / 0 failed. Coverage 92.92% lines / 86.2% branches / 85.08% functions. Lint and `tsc --noEmit` clean. Finalized at the v1.17.0 version bump.
 
 ### Open Items
 
@@ -31,13 +31,6 @@ Carry-forward source: [../v1.16/known-gaps.md](../v1.16/known-gaps.md) (reconcil
 - **Plan reference**: `docs/v1/v1.17/plans/v1.17.0-adoption-ui-motion-identity.md` (Overview: shell-only cycle)
 - **Reason**: This cycle is desktop-shell-only. The PyQt installer constellation and floating logo still use their own reduced-motion checks. Desktop centralization does not change installer behavior.
 - **Suggested next step**: If a later installer pass wants one reduced-motion story across app and installer, port the same halt-not-slow contract; do not share the React hook.
-
-##### DF-5 - ASR listening and web-search activities are typed but unused
-
-- **Source phase**: Phase 2 - Agent-state orbs (A1)
-- **Plan reference**: `docs/v1/v1.17/plans/v1.17.0-adoption-ui-motion-identity.md` (sub-task 2.1)
-- **Reason**: The mapping is exhaustive over Nexus activities, including `asr-capture` (listening) and `web-search` (searching). No desktop surface currently exposes live ASR capture or a web-search turn, so those activities have unit coverage in the mapping tests only.
-- **Suggested next step**: When an ASR or web-search surface ships, pass the typed activity into `AgentStateOrb` / `ChatMessage.activity`. Do not invent a placeholder loader in this cycle.
 
 ##### DF-6 - Chat pending is a batch wait, not live token streaming
 
@@ -73,6 +66,7 @@ Carry-forward source: [../v1.16/known-gaps.md](../v1.16/known-gaps.md) (reconcil
 |---|---|---|---|
 | DF-2 | Recede-when-active incomplete across motion kinds | Phase 5 | Grouped surfaces recede once via `MotionSurface`; ungrouped orbs/metal still self-register |
 | DF-4 | GenerationCanvas stacked aurora + orb + beam | Phase 5 | Orb wins; beam paused; aurora halted to a static wash |
+| DF-5 | ASR listening unused | v2.1.0 follow-up | Chat voice capture sets `activity: "asr-capture"`. `web-search` remains mapping-only until a Chat web-search turn exists. |
 | DF-7 | Composer beam and submit metal could play together | Phase 5 | Streaming -> beam; focus -> metal; idle -> neither |
 
 ### Carried forward from v1.16.0 (still open)
@@ -100,9 +94,9 @@ _No new product behaviour._ Close-out added a RETAINED-NOT-DEAD header on `ChatI
 ### Phase 6 reconciliation (terminal gate)
 
 - **Architecture**: clean. No empty directories in v1.17-touched trees (`desktop/src/motion`, `desktop/src/components/agentState`). `check:docs-layout` and `check:naming` clean. No `thinking-orbs` / `border-beam` / `metal-fx` packages. `GenerationCanvas` stays RETAINED (IRSC.P5.A / richer in-bubble progress). `ChatInput` stays RETAINED (text-only metal twin; ChatPage uses MediaComposer). `useMotionSurface` is a public grouped-surface API with no extra caller beyond `MotionSurface` itself; keep it. No file moves. Propose-then-apply had nothing to apply besides comment accuracy.
-- **Known gaps**: 7 open DF (DF-1,3,5,6,8,9,10), 3 resolved in Phase 5. v1.16 carry-forward unchanged (serving/OCR/composition-root). No release-blockers. Remaining work is on-device visual/GPU QA (DF-8) and later-cycle product work (Tailwind compile, installer motion, ASR/web-search, token streaming, gigatoken only if a Python bulk workload appears).
+- **Known gaps**: 6 open DF (DF-1,3,6,8,9,10), 4 resolved (Phase 5 plus DF-5 in the v2.1.0 follow-up). v1.16 carry-forward unchanged (serving/OCR/composition-root). No release-blockers. Remaining work is on-device visual/GPU QA (DF-8) and later-cycle product work (Tailwind compile, installer motion, token streaming, gigatoken only if a Python bulk workload appears).
 - **CI/CD**: no rewrite. `shell-build.yml` already watches `desktop/**` (motion foundation, orb/beam/metal, coordination, tests) with concurrency cancel-in-progress, npm + cargo cache, and PR-only ubuntu. Narrowing the filter to `desktop/src` (plan 6.3 suggestion) would skip `desktop/tests` and `desktop/sidecar` and is rejected. The GitHub Actions budget freeze ended 2026-08-01 and does not apply. `ci.yml` stays unfiltered. Cross-installer parity: no new installer surface this cycle. platform-contract-verification and model-prompting-research self-gate to no-ops (not a Nexus-Hub catalog repo).
 - **Tests**: desktop 106 files / **916 passed** / 0 failed. Coverage 92.92% lines / 86.2% branches / 85.08% functions (unchanged; comment-only headers). `npm run lint --workspace @nexus/desktop` and `npm run typecheck --workspace @nexus/desktop` clean.
 - **Release**: cut as git tag `v1.17.0` via `/update release` (2026-08-16). Not auto-pushed.
 
-_Last updated: 2026-08-16 (finalized for the v1.17.0 release)._
+_Last updated: 2026-08-20 (v2.1.0 follow-up; no retag)._

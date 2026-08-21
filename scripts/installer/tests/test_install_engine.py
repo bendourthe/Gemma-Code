@@ -371,3 +371,53 @@ class TestInstallEngineCancel:
             engine._model_router = MockRouter.return_value
             engine.cancel()
             MockRouter.return_value.cancel.assert_called_once()
+
+
+class TestInstallEngineUnsloth:
+    def test_unsloth_skipped_by_default(self) -> None:
+        state = InstallerState(
+            components_to_install=["extension"],
+            vscode_path="/usr/bin/code",
+        )
+        with (
+            patch("nexus_installer.engine.installer.ExtensionInstaller") as MockExt,
+            patch(
+                "nexus_installer.engine.unsloth_venv_provisioner.UnslothVenvProvisioner"
+            ) as MockUnsloth,
+        ):
+            MockExt.return_value.install.return_value = True
+            engine = InstallEngine()
+            engine.log_message.connect(lambda *a: None)
+            engine.progress_update.connect(lambda *a: None)
+            engine.step_completed.connect(lambda *a: None)
+            engine.step_started.connect(lambda *a: None)
+            engine.install_finished.connect(lambda *a: None)
+            engine.run(state)
+            MockUnsloth.assert_not_called()
+
+    def test_unsloth_runs_when_opted_in(self) -> None:
+        state = InstallerState(
+            components_to_install=["extension"],
+            vscode_path="/usr/bin/code",
+            install_unsloth=True,
+            gpu_vendor="nvidia",
+            vram_mb=16384,
+        )
+        with (
+            patch("nexus_installer.engine.installer.ExtensionInstaller") as MockExt,
+            patch(
+                "nexus_installer.engine.unsloth_venv_provisioner.UnslothVenvProvisioner"
+            ) as MockUnsloth,
+        ):
+            MockExt.return_value.install.return_value = True
+            MockUnsloth.return_value.install.return_value = True
+            engine = InstallEngine()
+            engine.log_message.connect(lambda *a: None)
+            engine.progress_update.connect(lambda *a: None)
+            engine.step_completed.connect(lambda *a: None)
+            engine.step_started.connect(lambda *a: None)
+            engine.install_finished.connect(lambda *a: None)
+            engine.run(state)
+            MockUnsloth.assert_called_once()
+            assert MockUnsloth.call_args.kwargs.get("opt_in") is True
+            MockUnsloth.return_value.install.assert_called_once()

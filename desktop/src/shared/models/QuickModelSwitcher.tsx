@@ -23,6 +23,7 @@ export interface QuickModelSwitcherProps {
   testId?: string;
   /** v1.18.0 Phase 2 -- forwarded to ModelSelector as a small harness badge. */
   harnessLabel?: string;
+  harnessSelectorEnabled?: boolean;
 }
 
 export function QuickModelSwitcher({
@@ -35,6 +36,7 @@ export function QuickModelSwitcher({
   label = "Model",
   testId = "quick-model-switcher",
   harnessLabel,
+  harnessSelectorEnabled,
 }: QuickModelSwitcherProps): JSX.Element {
   const ready = useMemo(
     () => installedModelsForType(models, taskType),
@@ -73,6 +75,7 @@ export function QuickModelSwitcher({
       label={label}
       testId={testId}
       harnessLabel={harnessLabel}
+      harnessSelectorEnabled={harnessSelectorEnabled}
     />
   );
 }

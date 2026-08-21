@@ -2,7 +2,7 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-19 (v1.20.0 tagged; file stays in-progress for DF-1..DF-6)
+**Last updated**: 2026-08-20 (v2.1.0 follow-up; no retag)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
@@ -17,7 +17,7 @@ Carry-forward source: [../v1.16/known-gaps.md](../v1.16/known-gaps.md) (LSO.P4.B
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 3 | 6 |
+| Deferred (DF) | 2 | 7 |
 | Bugs / regressions (BG) | 0 | 0 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
@@ -26,13 +26,6 @@ Carry-forward source: [../v1.16/known-gaps.md](../v1.16/known-gaps.md) (LSO.P4.B
 ### Open Items
 
 #### Deferred
-
-##### DF-1 - Sidecar has no MemoryStore, so parse_document memory ingest is VS Code only
-
-- **Source phase**: Phase 1 - Optional memory ingest (1.3)
-- **Plan reference**: `docs/v1/v1.20/plans/v1.20.0-adoption-docling.md` (sub-task 1.3)
-- **Reason**: The sidecar coding hosts (ACP, scheduler, headless runner) have no `MemoryStore`. The plan allows skipping ingest on that host. VS Code `ChatPanelBootstrap` wires `createDocumentMemoryIngestor` when both flags are on.
-- **Suggested next step**: If a later sidecar memory cycle lands a store, pass it into `createSidecarHeadlessTools` the same way the panel does. Do not invent a second SQLite in the sidecar for this.
 
 ##### DF-5 - A4 Docling layout engine deferred; OCR on-device QA incomplete
 
@@ -53,9 +46,10 @@ Carry-forward source: [../v1.16/known-gaps.md](../v1.16/known-gaps.md) (LSO.P4.B
 | ID | Title | Resolved in | Notes |
 |---|---|---|---|
 | LSO.P4.B | Wire parse_document at composition roots | Phase 1 | Sidecar `createSidecarHeadlessTools` + VS Code `ChatPanelBootstrap` / `buildParseDocumentDeps`. Flag off keeps the tool absent. |
-| LSO.P4.C | Wire optional memory ingest | Phase 1 | VS Code only, both flags required. Injection rejection is stored=false. Sidecar remainder is DF-1. |
+| LSO.P4.C | Wire optional memory ingest | Phase 1 | VS Code uses MemoryStore when both flags are on. Sidecar ingest is an in-process array (DF-1 resolved; no second SQLite). |
 | LSO.P3.C | On-device OCR QA | Phase 4 | Partial. RapidOCR default ONNX models smoked on synthetic fixtures. Catalog RapidOCR install and Unlimited-OCR remain DF-5. |
 | QG-1 | docs/index.md catalog stale on tag v1.20.0 | follow-up | Regenerated on develop after CI failed catalog-sync. No retag. |
+| DF-1 | Sidecar parse_document ingest | v2.1.0 follow-up | In-process array (`readSidecarDocumentMemory`), not a second SQLite. VS Code still uses MemoryStore. |
 | DF-2 | Desktop Settings parse_document toggle | v2.1.0 sweep | Settings > Security checkbox writes `nexus.coding.parseDocument.enabled` via `coding.parseDocument.setEnabled`. |
 | DF-3 | Overlapping parse rejects busy | v2.1.0 sweep | Chosen rule kept: reject, not queue. `DOCUMENT_PARSER_BUSY` stays. |
 | DF-4 | First attachment only | v2.1.0 sweep | Chosen rule kept: first accepted file per turn. No silent concatenate. |
