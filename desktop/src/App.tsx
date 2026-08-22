@@ -25,6 +25,7 @@ import { AskInboxPanel } from "./pages/inbox/AskInboxPanel";
 import { SETTINGS_MODELS_PATH } from "./shared/models/installedFeed";
 import { LocalModelStatusDock } from "./components/LocalModelStatusDock";
 import { createMockTelemetryStream } from "./lib/telemetryMock";
+import { createLiveTelemetryStream } from "./lib/liveTelemetry";
 import type { TelemetryStream } from "./components/LocalModelStatus.types";
 import { ipcCall } from "./lib/ipc";
 import { MotionActivityProvider, useMotionActivity } from "./motion";
@@ -83,7 +84,14 @@ function AppLayout({ telemetryStream }: AppProps): JSX.Element {
       setStream(telemetryStream);
       return;
     }
-    const created = createMockTelemetryStream({ intervalMs: 2000 });
+    // v2.2.0 Phase 2 (2.4): poll the sidecar for REAL GPU telemetry. The mock
+    // stream stays available behind an explicit dev flag, but it must never be
+    // the shipped default -- it reported a loaded model and GPU load on hosts
+    // where neither existed.
+    const useMock = import.meta.env?.VITE_NEXUS_MOCK_TELEMETRY === "1";
+    const created = useMock
+      ? createMockTelemetryStream({ intervalMs: 2000 })
+      : createLiveTelemetryStream({ intervalMs: 2000 });
     setStream(created);
     return () => created.stop();
   }, [telemetryStream]);

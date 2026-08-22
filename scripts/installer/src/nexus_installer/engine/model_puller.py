@@ -51,11 +51,108 @@ _KIND_LINE = "line"
 _KIND_EOF = "eof"
 _KIND_READER_ERROR = "reader-error"
 
+# Prefer these phrases over a trailing URL when summarizing a failed pull.
+# Ollama's 412 path ends with https://ollama.com/download, which used to become
+# last_error and hide the actual "requires a newer version" reason.
+_PULL_ERROR_NEEDLES = (
+    "requires a newer version",
+    "tag is not available",
+    "file does not exist",
+    "pull model manifest",
+    "error:",
+)
+
 
 def clean_terminal_text(raw: str) -> str:
     """Strip ANSI escapes and control characters from one output fragment."""
     text = _ANSI_RE.sub("", raw)
     return "".join(ch for ch in text if ch == "\t" or ord(ch) >= 32).strip()
+
+
+# v2.2.0 Phase 2 (2.3): failure classes for a pull, so the summary UI can offer
+# the right remedy instead of a raw log line.
+PULL_FAILURE_VERSION = "ollama-too-old"
+PULL_FAILURE_NETWORK = "network"
+PULL_FAILURE_DISK = "disk"
+PULL_FAILURE_NOT_FOUND = "not-found"
+PULL_FAILURE_CANCELLED = "cancelled"
+PULL_FAILURE_UNKNOWN = "unknown"
+
+
+def classify_pull_failure(message: str) -> str:
+    """Map a pull failure message onto one of the PULL_FAILURE_* classes.
+
+    The 412 case is why this exists: Ollama answers "requires a newer version"
+    and then prints its download URL, so the user previously saw only a bare
+    link in the log and the installer continued as if the model were optional.
+    """
+    text = (message or "").lower()
+    if not text:
+        return PULL_FAILURE_UNKNOWN
+    if "cancelled" in text or "canceled" in text:
+        return PULL_FAILURE_CANCELLED
+    if "requires a newer version" in text or "412" in text:
+        return PULL_FAILURE_VERSION
+    if any(
+        needle in text
+        for needle in ("no space", "disk full", "not enough space", "enospc")
+    ):
+        return PULL_FAILURE_DISK
+    if any(
+        needle in text
+        for needle in (
+            "connection",
+            "timeout",
+            "timed out",
+            "network",
+            "dns",
+            "unreachable",
+            "eof",
+            "tls",
+        )
+    ):
+        return PULL_FAILURE_NETWORK
+    if "file does not exist" in text or "tag is not available" in text:
+        return PULL_FAILURE_NOT_FOUND
+    return PULL_FAILURE_UNKNOWN
+
+
+def remedy_for_failure(failure_class: str) -> str:
+    """One actionable sentence per failure class, for the summary UI."""
+    return {
+        PULL_FAILURE_VERSION: (
+            "This model needs a newer Ollama than the one installed. "
+            "Re-run the installer to upgrade Ollama, then retry the download."
+        ),
+        PULL_FAILURE_NETWORK: (
+            "The download was interrupted by a network problem. Check the "
+            "connection and retry."
+        ),
+        PULL_FAILURE_DISK: (
+            "There is not enough free disk space for this model. Free some "
+            "space and retry."
+        ),
+        PULL_FAILURE_NOT_FOUND: (
+            "This model tag is no longer published. Report it so the catalog "
+            "can be corrected."
+        ),
+        PULL_FAILURE_CANCELLED: "The download was cancelled.",
+    }.get(failure_class, "Retry the download; if it keeps failing, report the log.")
+
+
+def summarize_pull_failure(messages: list[str], exit_code: int) -> str:
+    """Pick the useful failure line, not a trailing download URL."""
+    nonempty = [m.strip() for m in messages if m and m.strip()]
+    if not nonempty:
+        return f"ollama pull exited with code {exit_code}"
+    for needle in _PULL_ERROR_NEEDLES:
+        for text in reversed(nonempty):
+            if needle in text.lower():
+                return text
+    for text in reversed(nonempty):
+        if not text.lower().startswith("http"):
+            return text
+    return nonempty[-1]
 
 
 class ModelPuller:
@@ -67,6 +164,8 @@ class ModelPuller:
         #: Plain-language reason for the most recent failure ("" on success);
         #: surfaced per-model by the router's failure events (T105/T303).
         self.last_error: str = ""
+        #: v2.2.0 Phase 2 (2.3): PULL_FAILURE_* class for `last_error`.
+        self.last_failure_class: str = ""
 
     def pull(
         self,
@@ -124,7 +223,11 @@ class ModelPuller:
                         break
                     buf += chunk
                     while True:
-                        cuts = [i for i in (buf.find(b"\n"), buf.find(b"\r")) if i != -1]
+                        cuts = [
+                            i
+                            for i in (buf.find(b"\n"), buf.find(b"\r"))
+                            if i != -1
+                        ]
                         if not cuts:
                             break
                         cut = min(cuts)
@@ -143,6 +246,7 @@ class ModelPuller:
 
         last_output = time.monotonic()
         last_message = ""
+        messages: list[str] = []
         logged_decile = -1
         while True:
             if self._cancelled:
@@ -187,6 +291,7 @@ class ModelPuller:
                     log(text, "info")
             else:
                 last_message = text
+                messages.append(text)
                 log(text, "info")
 
         exit_code = proc.returncode
@@ -201,8 +306,12 @@ class ModelPuller:
             log(f"Model {model} pulled successfully.", "success")
             progress(1.0)
             return True
-        self.last_error = last_message or f"ollama pull exited with code {exit_code}"
+        self.last_error = summarize_pull_failure(messages, exit_code) or (
+            last_message or f"ollama pull exited with code {exit_code}"
+        )
+        self.last_failure_class = classify_pull_failure(self.last_error)
         log(f"Model pull failed (exit code {exit_code}): {self.last_error}", "error")
+        log(remedy_for_failure(self.last_failure_class), "warn")
         return False
 
     def cancel(self) -> None:

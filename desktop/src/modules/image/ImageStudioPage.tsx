@@ -12,6 +12,12 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { SidecarDownBanner } from "../../components/SidecarDownBanner";
+import {
+  isBackendDownMessage,
+  isSidecarFailureMessage,
+  useSidecarStatus,
+} from "../../lib/sidecarStatus";
 
 import { MediaComposer, MessageBubble, type ChatMessage } from "../../shared/chat";
 import { ModelSelector } from "../../shared/chat/ModelSelector";
@@ -99,6 +105,11 @@ export function ImageStudioPage({
   );
   const [models, setModels] = useState<readonly ListedModelDto[]>([FALLBACK_MODEL]);
   const [noneInstalled, setNoneInstalled] = useState(false);
+  // v2.2.0 Phase 2 (2.2): distinguish "the backend is down" from "you have no
+  // image models". The pre-v2.2.0 catch-all reported the latter for both.
+  const [listFailure, setListFailure] = useState<string | null>(null);
+  const sidecar = useSidecarStatus();
+  const backendDown = sidecar.isDown || isBackendDownMessage(listFailure);
   const [selectedModelId, setSelectedModelId] = useState<string>(FALLBACK_MODEL.id);
   const [values, setValues] = useState<PromptFormValues>(DEFAULT_FORM_VALUES);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -136,14 +147,22 @@ export function ImageStudioPage({
           setModels(image);
           setSelectedModelId(first.id);
           setNoneInstalled(false);
+          setListFailure(null);
         } else {
           setModels([FALLBACK_MODEL]);
           setNoneInstalled(true);
+          setListFailure(null);
         }
-      } catch {
+      } catch (err) {
         if (!cancelled) {
+          const message = err instanceof Error ? err.message : String(err);
           setModels([FALLBACK_MODEL]);
-          setNoneInstalled(true);
+          // Only claim "none installed" when the backend actually answered.
+          // `ipc-unavailable` means we are outside Tauri (dev/tests), where
+          // the fallback model is the intended behavior.
+          const backendFailed = isSidecarFailureMessage(message);
+          setListFailure(backendFailed ? message : null);
+          setNoneInstalled(!backendFailed);
         }
       }
     })();
@@ -431,7 +450,7 @@ export function ImageStudioPage({
           disabled={isGenerating}
           testId="image-model-select"
         />
-        {noneInstalled && (
+        {noneInstalled && !backendDown && (
           <button
             type="button"
             data-testid="image-get-more-models"
@@ -445,6 +464,16 @@ export function ImageStudioPage({
           models settings
         </a>
       </header>
+      {backendDown && (
+        <SidecarDownBanner
+          status={sidecar.status}
+          restarting={sidecar.restarting}
+          restartError={sidecar.restartError}
+          onRestart={() => void sidecar.restart()}
+          context="Image models cannot be listed."
+          testId="image-sidecar-down"
+        />
+      )}
 
       <div
         data-testid="image-history"

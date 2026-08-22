@@ -119,6 +119,9 @@ describe("sidecar handlers", () => {
           "media.sampleVideoFrames",
           "coding.parseDocument.status",
           "coding.parseDocument.setEnabled",
+          // v2.2.0 Phase 2 (2.4) wired real GPU telemetry (poll-based; the
+          // telemetry.subscribe push channel stays unimplemented).
+          "gpu.sample",
           // v1.10.0 Phase 6 wired the Nexus-Hub catalog sync + update detection.
           "skills.sync",
           "skills.status",

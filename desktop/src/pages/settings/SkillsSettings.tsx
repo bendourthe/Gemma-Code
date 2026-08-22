@@ -18,6 +18,8 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
+import { SidecarDownBanner } from "../../components/SidecarDownBanner";
+import { isBackendDownMessage, useSidecarStatus } from "../../lib/sidecarStatus";
 
 import type { SkillRecord, SkillNamespace } from "../../../../core/skills/SkillCatalog";
 import type { ScanResult } from "../../../../core/skills/PromptInjectionScanner";
@@ -59,6 +61,11 @@ export function SkillsSettings({ client }: SkillsSettingsProps): JSX.Element {
   const [autoSync, setAutoSync] = useState<boolean>(false);
   const [syncing, setSyncing] = useState<boolean>(false);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
+  // v2.2.0 Phase 2 (2.2): "not yet synced" used to render whenever the IPC
+  // call failed, telling the user to press a Sync button that the same dead
+  // backend would have to service. Branch the backend-down case out.
+  const sidecar = useSidecarStatus();
+  const backendDown = sidecar.isDown || isBackendDownMessage(error);
 
   useEffect(() => {
     let cancelled = false;
@@ -184,7 +191,17 @@ export function SkillsSettings({ client }: SkillsSettingsProps): JSX.Element {
         </div>
       </header>
 
-      {!loading && activeTag === null && (
+      {backendDown && (
+        <SidecarDownBanner
+          status={sidecar.status}
+          restarting={sidecar.restarting}
+          restartError={sidecar.restartError}
+          onRestart={() => void sidecar.restart()}
+          context="The Nexus-Hub catalog cannot be read or synced."
+          testId="skills-sidecar-down"
+        />
+      )}
+      {!loading && !backendDown && activeTag === null && (
         <div data-testid="skills-not-synced" style={bannerStyle}>
           The Nexus-Hub catalog is not yet synced.{" "}
           <button

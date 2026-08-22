@@ -10,6 +10,12 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { SidecarDownBanner } from "../../components/SidecarDownBanner";
+import {
+  isBackendDownMessage,
+  isSidecarFailureMessage,
+  useSidecarStatus,
+} from "../../lib/sidecarStatus";
 
 import { MediaComposer, MessageBubble, chatComposerAccept, type ChatMessage } from "../../shared/chat";
 import { ModelSelector } from "../../shared/chat/ModelSelector";
@@ -48,7 +54,7 @@ import type { GenerationJob } from "../../../../core/generations/GenerationQueue
 
 const FALLBACK_MODEL: ListedModelDto = {
   id: DEFAULT_VIDEO_FORM_VALUES.modelId,
-  displayName: "LTX-Video",
+  displayName: "Wan 2.1 T2V 1.3B",
   type: "video",
   installed: true,
   source: "registry",
@@ -98,6 +104,10 @@ export function VideoLabPage({
   );
   const [models, setModels] = useState<readonly ListedModelDto[]>([FALLBACK_MODEL]);
   const [noneInstalled, setNoneInstalled] = useState(false);
+  // v2.2.0 Phase 2 (2.2): "backend down" is not "no models installed".
+  const [listFailure, setListFailure] = useState<string | null>(null);
+  const sidecar = useSidecarStatus();
+  const backendDown = sidecar.isDown || isBackendDownMessage(listFailure);
   const [selectedModelId, setSelectedModelId] = useState<string>(FALLBACK_MODEL.id);
   const [values, setValues] = useState<VideoFormValues>({
     ...DEFAULT_VIDEO_FORM_VALUES,
@@ -143,14 +153,20 @@ export function VideoLabPage({
           setModels(video);
           setSelectedModelId(first.id);
           setNoneInstalled(false);
+          setListFailure(null);
         } else {
           setModels([FALLBACK_MODEL]);
           setNoneInstalled(true);
+          setListFailure(null);
         }
-      } catch {
+      } catch (err) {
         if (!cancelled) {
+          const message = err instanceof Error ? err.message : String(err);
           setModels([FALLBACK_MODEL]);
-          setNoneInstalled(true);
+          // `ipc-unavailable` = outside Tauri (dev/tests): keep the fallback.
+          const backendFailed = isSidecarFailureMessage(message);
+          setListFailure(backendFailed ? message : null);
+          setNoneInstalled(!backendFailed);
         }
       }
     })();
@@ -511,7 +527,7 @@ export function VideoLabPage({
           disabled={isGenerating}
           testId="video-model-select"
         />
-        {noneInstalled && (
+        {noneInstalled && !backendDown && (
           <button
             type="button"
             data-testid="video-get-more-models"
@@ -525,6 +541,16 @@ export function VideoLabPage({
           models settings
         </a>
       </header>
+      {backendDown && (
+        <SidecarDownBanner
+          status={sidecar.status}
+          restarting={sidecar.restarting}
+          restartError={sidecar.restartError}
+          onRestart={() => void sidecar.restart()}
+          context="Video models cannot be listed."
+          testId="video-sidecar-down"
+        />
+      )}
 
       <div
         data-testid="video-history"

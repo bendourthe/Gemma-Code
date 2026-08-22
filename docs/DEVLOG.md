@@ -4,6 +4,48 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-22] v2.2.0 Phase 2 - Model availability end to end
+
+### Goal
+
+Make every downloaded model visible and runnable, and make every empty/error state tell the truth (plan `docs/v2/v2.2/plans/v2.2.0-runtime-repair-and-ux-overhaul.md`, Phase 2).
+
+### What Changed
+
+- **Probe reconciliation (2.1)**: `core/registry/installedProbe.ts` gained `safeDirName()` (a mirror of the installer's `safe_dir_name`), marker-aware `isOnDisk()`, and `synthesizeInstalledFromProbe()`. The probe compared RAW catalog ids against directory names the installer had already sanitized, so any id containing `:` or `/` (e.g. `sam2:hiera-tiny`) could never match. The installer now also stamps `.nexus-model-id` inside each verified weights dir (authoritative, survives future naming changes), `defaultModelsRoot()` honours `NEXUS_MODELS_ROOT` (fed from `runtime.json`), and a failed catalog load synthesizes rows straight off the probe instead of erasing every installed model.
+- **Truthful states (2.2)**: new `useSidecarStatus` hook + `SidecarDownBanner` / `CatalogFailedBanner`, wired into Image Studio, Video Lab, Settings > Models, and Settings > Skills. `ipcSkillsClient.activeTag()` stops swallowing IPC errors - returning null on a dead backend made "cannot reach the backend" indistinguishable from "catalog not synced", so the page offered a Sync button the same dead backend would have had to service. Added `invokeCommand()` so `sidecar_status` / `sidecar_restart` bypass the JSON-RPC bridge (routing them through it would make them fail for the very reason they exist to report).
+- **Ollama version gate (2.3)**: `ensure_ollama_supports()` enforces a catalog entry's `minOllamaVersion` at PULL time and upgrades the managed Ollama once. The global floor was only consulted while INSTALLING Ollama, a step skipped when Ollama is already present - which is exactly how `gemma-4-12b-it-gguf` reached `ollama pull` and came back HTTP 412 with only a download URL in the log. Pull failures are now classified (`ollama-too-old` / network / disk / not-found / cancelled) with a per-class remedy.
+- **Live GPU telemetry (2.4)**: `gpu.sample` IPC + `desktop/sidecar/src/telemetry/gpuRuntime.ts` supply the query function `GpuTelemetrySource` never had in production, and `createLiveTelemetryStream` replaces `createMockTelemetryStream` as the App default (mock retained behind `VITE_NEXUS_MOCK_TELEMETRY=1`). The mock was reporting "Gemma 4 7B Active / GPU 41%" on hosts with no NVIDIA adapter and nothing loaded. Hosts without a GPU now report a real CPU device; stale samples are marked `(stale)` rather than presented as current.
+- **Generation smoke (2.5)**: mocked integration test proves txt2img routes through the handler layer to the configured runtime and that a missing venv fails as typed `runtime-unavailable`; `scripts/smoke/live-gpu-generation.mjs` carries the real-weights leg behind `NEXUS_LIVE_GPU=1`.
+
+### Why It Changed
+
+The installer log showed 9 of 10 models verified on disk while Image Studio and Video Lab reported "No models installed". Phase 1 fixed the backend not starting; Phase 2 fixes what the app does once it does start.
+
+### Deviations
+
+- Two defects were found by the new tests and fixed in-flight: `synthesizeInstalledFromProbe` deduped by comparing directory names against unsanitized marker ids (emitting near-duplicate rows), and `useSidecarStatus` depended on the injected `fetchFn` identity, so an inline callback restarted the effect every render and cleared the down-debounce timer before it could fire (the banner would never have appeared for some callers).
+- The backend-down classifier was initially over-broad (any error message counted), which suppressed a page's real error text. Narrowed to explicit shell tokens with a regression test; `sidecar_status` remains the authoritative signal.
+- Live-GPU smoke written and gate-verified but NOT executed (DF-4).
+
+### Test Results
+
+Root vitest **5339 passed / 12 skipped / 0 failed**; desktop vitest **1132 passed / 0 failed** (140 files), coverage **89.95% lines / 82.79% branches**; installer pytest all green (new `test_ollama_version_gate.py`, marker tests); `tsc -b`, eslint (touched), ruff (touched) clean. The 14 remaining ruff errors are all in untouched pre-existing files.
+
+### CI/CD
+
+No workflow changes needed - `shell-build.yml` and `installer-tests.yml` already path-filter every touched area. The live-GPU smoke is deliberately excluded from CI by its env gate.
+
+### Known Issues
+
+See `docs/v2/v2.2/known-gaps.md` (DF-4 live smoke unrun, DF-5 telemetry has no queue/active-model feed until Phase 4, DF-6 private-helper reach-through, MT-3 studio banner page-level test).
+
+### Next
+
+Phase 3 - Nexus-Hub Harness Provisioning and Skills Surface.
+
+---
+
 ## [2026-08-22] v2.2.0 Phase 1 - Sidecar packaging and runtime wiring repair
 
 ### Goal

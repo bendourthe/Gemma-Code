@@ -158,6 +158,7 @@ import {
   createCredentialVault,
 } from "../../../core/security/CredentialVault.js";
 import { createModelsRuntime, type ModelsRuntime } from "./models/modelsService.js";
+import { sampleGpu } from "./telemetry/gpuRuntime.js";
 import { createServingRuntime, type ServingRuntime } from "./serving/servingRuntime.js";
 import {
   type InferenceMetricsRegistry,
@@ -891,6 +892,9 @@ export const handlers: Record<Method, HandlerFn> = {
     const req = SkillsOptimizeApplyRequest.parse(params ?? {});
     return ctx.skillOptimizer.apply(req);
   },
+  // v2.2.0 Phase 2 (2.4): real GPU telemetry. The renderer polls this at the
+  // cadence the mock stream used to tick at.
+  "gpu.sample": async () => sampleGpu(),
   "telemetry.subscribe": async () => {
     throw new NotImplementedError("telemetry.subscribe");
   },

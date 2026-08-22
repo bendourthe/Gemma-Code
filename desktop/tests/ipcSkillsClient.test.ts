@@ -31,8 +31,18 @@ describe("createIpcSkillsClient", () => {
     expect(await createIpcSkillsClient().activeTag()).toBe("v3.11.1");
   });
 
-  it("activeTag is null when the sidecar is unavailable", async () => {
+  // v2.2.0 Phase 2 (2.2): activeTag no longer swallows IPC failures. Returning
+  // null on a dead backend made "cannot reach the backend" indistinguishable
+  // from "catalog not synced", so the page offered a Sync button that the same
+  // dead backend would have had to service. Null now means ONLY "the backend
+  // answered and no catalog version is installed".
+  it("activeTag throws when the sidecar is unavailable", async () => {
     setInvokeOverride(null); // no invoke -> ipcCall returns { ok: false }
+    await expect(createIpcSkillsClient().activeTag()).rejects.toThrow(/ipc-unavailable/);
+  });
+
+  it("activeTag is null when the backend answers with no installed version", async () => {
+    stub({ "skills.status": { installedVersion: null, catalogPresent: false, sourceRepo: "x" } });
     expect(await createIpcSkillsClient().activeTag()).toBeNull();
   });
 

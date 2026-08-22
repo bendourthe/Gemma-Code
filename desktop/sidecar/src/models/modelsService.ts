@@ -25,6 +25,7 @@ import { loadCatalog } from "../../../../core/registry/catalog.js";
 import {
   type InstalledProbe,
   markInstalledFromProbe,
+  synthesizeInstalledFromProbe,
 } from "../../../../core/registry/installedProbe.js";
 import { ModelStorage } from "../../../../core/registry/ModelStorage.js";
 import {
@@ -76,8 +77,21 @@ export interface DiskUsageDto {
 
 const DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434";
 
-/** `~/.nexus/models` -- the registry root the installer + app share. */
-export function defaultModelsRoot(homeDirFn: () => string = os.homedir): string {
+/**
+ * `~/.nexus/models` -- the registry root the installer + app share.
+ *
+ * v2.2.0 Phase 2 (2.1): honours `NEXUS_MODELS_ROOT`, which the sidecar boot
+ * hook populates from the installer-written `~/.nexus/runtime.json`
+ * `modelsRoot`. Without this, a custom `models_root` install was structurally
+ * invisible to the app: the installer wrote weights somewhere else and the
+ * sidecar only ever looked in the default location.
+ */
+export function defaultModelsRoot(
+  homeDirFn: () => string = os.homedir,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const override = env["NEXUS_MODELS_ROOT"];
+  if (override && override.trim().length > 0) return override;
   return path.join(homeDirFn(), ".nexus", "models");
 }
 
@@ -113,6 +127,43 @@ export async function scanWeightsIds(modelsRoot: string): Promise<Set<string>> {
   }
 }
 
+/** Name of the marker file the installer writes inside each weights dir. */
+export const MODEL_ID_MARKER = ".nexus-model-id";
+
+/**
+ * v2.2.0 Phase 2 (2.1): read the `.nexus-model-id` markers under
+ * `<root>/weights/*`. The marker carries the TRUE catalog id, so a model whose
+ * directory name was sanitized (`sam2:hiera-tiny` -> `sam2-hiera-tiny`) still
+ * matches. Absent for pre-v2.2.0 installs, where the caller falls back to
+ * sanitized directory-name matching.
+ */
+export async function scanWeightsMarkerIds(modelsRoot: string): Promise<Set<string>> {
+  const weightsDir = path.join(modelsRoot, "weights");
+  const ids = new Set<string>();
+  let dirNames: string[];
+  try {
+    const entries = await fs.readdir(weightsDir, { withFileTypes: true });
+    dirNames = entries.filter((e) => e.isDirectory()).map((e) => e.name);
+  } catch {
+    return ids;
+  }
+  await Promise.all(
+    dirNames.map(async (dirName) => {
+        try {
+          const raw = await fs.readFile(
+            path.join(weightsDir, dirName, MODEL_ID_MARKER),
+            "utf8",
+          );
+          const id = raw.trim();
+          if (id) ids.add(id);
+        } catch {
+          // No marker in this dir -> directory-name matching covers it.
+        }
+      }),
+  );
+  return ids;
+}
+
 export interface ModelsServiceOptions {
   registry: NexusModelRegistry;
   catalog: CatalogFile;
@@ -146,13 +197,23 @@ export class ModelsService {
    * as Installed rather than catalog-only.
    */
   async list(): Promise<ListedModelDto[]> {
-    const [listed, ollamaTags, weightsIds] = await Promise.all([
+    const [listed, ollamaTags, weightsIds, weightsMarkerIds] = await Promise.all([
       this._registry.list(),
       queryOllamaTags(this._ollamaBaseUrl, this._fetch),
       scanWeightsIds(this._modelsRoot),
+      scanWeightsMarkerIds(this._modelsRoot),
     ]);
-    const probe: InstalledProbe = { ollamaTags, weightsIds };
+    const probe: InstalledProbe = { ollamaTags, weightsIds, weightsMarkerIds };
     const reconciled = markInstalledFromProbe(listed, this._catalog, probe);
+    // v2.2.0 Phase 2 (2.1): with no catalog (load failed), `markInstalledFrom
+    // Probe` has nothing to flip -- every model the user has would vanish.
+    // Synthesize metadata-poor rows straight off the probe instead; the UI
+    // still shows the catalog-load-failed banner beside them.
+    if (this._catalog.models.length === 0) {
+      const known = new Set(reconciled.map((m) => m.id));
+      const synthesized = synthesizeInstalledFromProbe(probe, known);
+      return [...reconciled, ...synthesized].map(toDto);
+    }
     return reconciled.map(toDto);
   }
 

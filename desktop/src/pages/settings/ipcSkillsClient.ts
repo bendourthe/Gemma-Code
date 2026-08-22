@@ -41,10 +41,18 @@ export function createIpcSkillsClient(): SkillsSettingsClient {
     },
     async activeTag(): Promise<string | null> {
       const reply = await ipcCall<SkillsStatusDto>("skills.status", {});
-      return reply.ok ? reply.value.installedVersion : null;
+      // v2.2.0 Phase 2 (2.2): do NOT swallow the IPC error. Returning null on
+      // failure made a dead backend indistinguishable from an unsynced
+      // catalog, so the page told the user to press "Sync now" -- which could
+      // never work, because the very same backend performs the sync. Null now
+      // means only "the backend answered and no catalog version is installed".
+      if (!reply.ok) throw new Error(reply.message);
+      return reply.value.installedVersion;
     },
     async upstreamLatestTag(): Promise<string | null> {
       const reply = await ipcCall<SkillsUpstreamDto>("skills.upstreamLatest", {});
+      // Upstream lookup is best-effort by design (offline / rate-limited hosts
+      // report "unknown"), so this one stays non-throwing.
       return reply.ok ? reply.value.latestTag : null;
     },
     async autoSyncEnabled(): Promise<boolean> {

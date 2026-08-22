@@ -69,6 +69,31 @@ export async function ipcCall<T = unknown>(
   }
 }
 
+/**
+ * v2.2.0 Phase 2 (2.2): invoke a Tauri command OTHER than `ipc_call` (the
+ * sidecar JSON-RPC bridge). Used by `sidecar_status` / `sidecar_restart`,
+ * which must answer even when the sidecar itself is down -- routing them
+ * through `ipc_call` would make them fail for exactly the reason we need to
+ * report. Returns `ipc-unavailable` outside Tauri (dev, Vitest, Storybook).
+ */
+export async function invokeCommand<T = unknown>(
+  command: string,
+  args: Record<string, unknown> = {},
+): Promise<IpcReply<T>> {
+  const invoke = await resolveInvoke();
+  if (!invoke) {
+    return { ok: false, message: "ipc-unavailable" };
+  }
+  try {
+    const value = (await invoke(command, args)) as T;
+    return { ok: true, value };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, message };
+  }
+}
+
 export const ipc = {
   call: ipcCall,
+  invoke: invokeCommand,
 };

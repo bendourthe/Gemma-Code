@@ -63,11 +63,13 @@ from nexus_installer.installer_state import InstallerState
 
 __all__ = [
     "HF_TOKEN_ENV_VARS",
+    "MODEL_ID_MARKER",
     "WEIGHTS_VARIANT_ENV",
     "discover_hf_token",
     "hf_token_from_env",
     "load_weights_manifest",
     "select_weights_variant",
+    "write_model_id_marker",
 ]
 
 # Bind httpx's exception classes at import time so the `except` clauses below
@@ -179,6 +181,23 @@ def safe_dir_name(model_id: str) -> str:
     keep the two in sync.
     """
     return _SAFE_DIR_CHAR_RE.sub("-", model_id)
+
+
+# v2.2.0 Phase 2 (2.1): marker file naming the true catalog id, read by the
+# app's installed-probe (`core/registry/installedProbe.ts`). Keep the name in
+# sync with `MODEL_ID_MARKER` in `desktop/sidecar/src/models/modelsService.ts`.
+MODEL_ID_MARKER = ".nexus-model-id"
+
+
+def write_model_id_marker(model_dir: Path, model_id: str, log: LogFn) -> bool:
+    """Write `.nexus-model-id` inside a verified weights dir. Best-effort."""
+    try:
+        (model_dir / MODEL_ID_MARKER).write_text(f"{model_id}\n", encoding="utf-8")
+        return True
+    except OSError as exc:
+        # Non-fatal: the probe falls back to sanitized directory-name matching.
+        log(f"Could not write the model-id marker for {model_id}: {exc}", "warn")
+        return False
 
 
 def default_models_root() -> Path:
@@ -544,6 +563,12 @@ class HFWeightsPuller:
                 manifest, weights_file, dest, log, file_progress, token
             ):
                 return False
+
+        # v2.2.0 Phase 2 (2.1): stamp the true catalog id inside the weights
+        # dir. The directory name is `safe_dir_name(id)`, so an id containing
+        # ":" or "/" cannot be recovered from the path alone; the app's probe
+        # prefers this marker over directory-name matching.
+        write_model_id_marker(model_dir, manifest.model_id, log)
 
         progress(1.0)
         log(f"Model {manifest.model_id} downloaded and verified.", "success")

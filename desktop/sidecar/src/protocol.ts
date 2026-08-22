@@ -75,6 +75,9 @@ export const IPC_METHODS = [
   "skills.optimize.preview",
   "skills.optimize.apply",
   "telemetry.subscribe",
+  // v2.2.0 Phase 2 (2.4): poll-based GPU telemetry (telemetry.subscribe, a
+  // push channel, remains unimplemented).
+  "gpu.sample",
   "diffusion.health",
   "diffusion.version",
   "diffusion.txt2img",
@@ -124,7 +127,7 @@ export type PingResponseT = z.infer<typeof PingResponse>;
 
 // ---- Coding session lifecycle ------------------------------------------------
 
-export const ModelFamily = z.enum(["gemma", "llama", "qwen", "deepseek", "lfm2.5", "hermes", "muse-glimmer", "nemotron-lightning"]);
+export const ModelFamily = z.enum(["gemma", "llama", "qwen", "deepseek", "lfm2.5", "hermes", "muse-glimmer", "nemotron-lightning", "gpt-oss"]);
 export type ModelFamilyT = z.infer<typeof ModelFamily>;
 
 export const CodingSessionStartRequest = z
@@ -553,6 +556,27 @@ export type DiffusionDrainEventsResponseT = z.infer<
 >;
 
 export const DiffusionEmptyRequest = z.object({}).strict();
+
+// v2.2.0 Phase 2 (2.4) -- GPU telemetry sample for the status widget.
+export const GpuSampleRequest = z.object({}).strict();
+export const GpuSampleResponse = z.object({
+  sample: z
+    .object({
+      capturedAt: z.number(),
+      device: z.enum(["cuda", "apple", "cpu"]),
+      deviceName: z.string(),
+      utilizationPct: z.number(),
+      totalVramGB: z.number(),
+      freeVramGB: z.number(),
+      activeModelId: z.string().nullable(),
+      queuedJobs: z.number(),
+      powerDrawWatts: z.number().nullable().optional(),
+      tokensPerWatt: z.number().nullable().optional(),
+      joulesPerRequest: z.number().nullable().optional(),
+      energyStatus: z.enum(["available", "unavailable"]).optional(),
+    })
+    .nullable(),
+});
 
 export const DiffusionWorkflowExtractRequest = z
   .object({ pngBase64: z.string().min(1) })
@@ -1933,6 +1957,7 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
     implemented: true,
   },
   "telemetry.subscribe": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
+  "gpu.sample": { request: GpuSampleRequest, response: GpuSampleResponse, implemented: true },
   "diffusion.health": {
     request: DiffusionEmptyRequest,
     response: DiffusionHealthResponse,

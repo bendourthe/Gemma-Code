@@ -154,3 +154,44 @@ class TestNodePins:
             node = lock["platforms"][lock_key]["node"]
             assert node["url"] == rp.NODE_DOWNLOADS[module_key]["url"]
             assert node["sha256"] == rp.NODE_DOWNLOADS[module_key]["sha256"]
+
+
+class TestModelIdMarker:
+    """v2.2.0 Phase 2 (2.1) -- the `.nexus-model-id` marker.
+
+    The installer writes weights to `safe_dir_name(id)`, so an id containing
+    ":" or "/" cannot be recovered from the directory path. The marker carries
+    the true id, and the app's probe prefers it.
+    """
+
+    def test_marker_records_the_true_catalog_id(self, tmp_path, log) -> None:
+        from nexus_installer.engine.hf_weights_puller import (
+            MODEL_ID_MARKER,
+            safe_dir_name,
+            write_model_id_marker,
+        )
+
+        model_id = "sam2:hiera-tiny"
+        model_dir = tmp_path / safe_dir_name(model_id)
+        model_dir.mkdir()
+        assert write_model_id_marker(model_dir, model_id, log) is True
+        written = (model_dir / MODEL_ID_MARKER).read_text(encoding="utf-8").strip()
+        assert written == model_id
+        # The directory name is NOT the id -- which is the whole point.
+        assert model_dir.name != model_id
+
+    def test_marker_failure_is_non_fatal(self, tmp_path, log) -> None:
+        from nexus_installer.engine.hf_weights_puller import write_model_id_marker
+
+        missing = tmp_path / "does-not-exist"
+        assert write_model_id_marker(missing, "some-model", log) is False
+        assert log.called
+
+    def test_sanitization_matches_the_typescript_probe(self) -> None:
+        # Mirror of `safeDirName` in core/registry/installedProbe.ts.
+        from nexus_installer.engine.hf_weights_puller import safe_dir_name
+
+        assert safe_dir_name("sam2:hiera-tiny") == "sam2-hiera-tiny"
+        assert safe_dir_name("qwen2.5-coder:14b") == "qwen2.5-coder-14b"
+        assert safe_dir_name("org/model") == "org-model"
+        assert safe_dir_name("sana-1.6b-2k") == "sana-1.6b-2k"

@@ -14,6 +14,8 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
+import { SidecarDownBanner } from "../../components/SidecarDownBanner";
+import { isBackendDownMessage, useSidecarStatus } from "../../lib/sidecarStatus";
 
 import {
   filterCatalog,
@@ -77,6 +79,10 @@ export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProp
   const [progress, setProgress] = useState<Record<string, InstallProgressDto>>({});
   const [active, setActive] = useState<Record<string, InstallHandle>>({});
   const [disk, setDisk] = useState<DiskUsageDto | null>(null);
+  // v2.2.0 Phase 2 (2.2): a backend that cannot start rendered the raw
+  // "sidecar-not-running" token next to three zero counts. Branch it.
+  const sidecar = useSidecarStatus();
+  const backendDown = sidecar.isDown || isBackendDownMessage(error);
 
   useEffect(() => {
     let cancelled = false;
@@ -188,9 +194,20 @@ export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProp
         <DiskSummary disk={disk} />
       </header>
 
-      <div role="alert" aria-live="polite" style={{ minHeight: "1.5em", color: "var(--accent-warning, #d97706)" }}>
-        {error ?? ""}
-      </div>
+      {backendDown ? (
+        <SidecarDownBanner
+          status={sidecar.status}
+          restarting={sidecar.restarting}
+          restartError={sidecar.restartError}
+          onRestart={() => void sidecar.restart()}
+          context="Installed models cannot be listed."
+          testId="models-sidecar-down"
+        />
+      ) : (
+        <div role="alert" aria-live="polite" style={{ minHeight: "1.5em", color: "var(--accent-warning, #d97706)" }}>
+          {error ?? ""}
+        </div>
+      )}
 
       <div style={filterRowStyle}>
         <label>

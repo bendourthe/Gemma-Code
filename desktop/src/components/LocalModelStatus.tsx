@@ -11,6 +11,9 @@ interface LocalModelStatusProps {
   stream: TelemetryStream | null;
 }
 
+/** A sample older than this is shown as stale (v2.2.0 Phase 2). */
+const STALE_AFTER_MS = 15000;
+
 export function LocalModelStatus({ stream }: LocalModelStatusProps): JSX.Element {
   const [sample, setSample] = useState<LocalModelTelemetry | null>(null);
   const [queueOpen, setQueueOpen] = useState(false);
@@ -77,10 +80,19 @@ export function LocalModelStatus({ stream }: LocalModelStatusProps): JSX.Element
   const headline = idle ? "Idle" : `${sample.modelName} ${sample.paramSize}`;
   const queue = sample.queuedJobs ?? [];
   const dockCandidates = dockMotionCandidates({ idle });
+  // v2.2.0 Phase 2 (2.4): with real (polled) telemetry a sample can go stale
+  // when the backend stops answering. Show the last known numbers, marked
+  // stale, rather than presenting them as current.
+  const isStale =
+    typeof sample.lastUpdated === "number" &&
+    Date.now() - sample.lastUpdated > STALE_AFTER_MS;
 
   const tooltipLines: string[] = [
     `Device: ${sample.deviceName}`,
   ];
+  if (isStale) {
+    tooltipLines.push("Telemetry is stale (the backend stopped reporting).");
+  }
   if (typeof sample.vramTotalGB === "number") {
     tooltipLines.push(`Total VRAM: ${sample.vramTotalGB.toFixed(1)} GB`);
   }
@@ -126,6 +138,7 @@ export function LocalModelStatus({ stream }: LocalModelStatusProps): JSX.Element
         data-state="active"
         data-idle={idle ? "true" : "false"}
         data-queue-depth={String(queue.length)}
+        data-stale={isStale ? "true" : "false"}
         role="status"
         aria-live="polite"
         aria-label={`Local model status: ${headline}, GPU ${pct.toFixed(0)} percent, ${sample.vramFreeGB.toFixed(1)} GB free`}
@@ -158,6 +171,11 @@ export function LocalModelStatus({ stream }: LocalModelStatusProps): JSX.Element
               <AgentStateOrb activity="model-inference" size="inline" surfaceId="local-model-status" />
             ) : null}
             {headline}
+            {isStale ? (
+              <span data-testid="telemetry-stale" style={{ color: "var(--fg-muted)", fontSize: "var(--text-xs)" }}>
+                (stale)
+              </span>
+            ) : null}
           </span>
           <span
             style={{
