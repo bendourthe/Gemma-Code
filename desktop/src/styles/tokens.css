@@ -1,6 +1,8 @@
 /* Nexus design tokens - dark-theme base + four module accent colors.
  * Source: docs/v1/v1.0/design-tokens.md, docs/v1/v1.0/pivot-brief.md S3.
- * Consumed via Tailwind v4 `@theme inline` in tailwind.css. */
+ * Consumed directly as CSS custom properties. (The Tailwind bridge this
+ * comment once described does not exist: no tailwind.css ships and no
+ * Tailwind dependency is installed.) */
 
 :root {
   /* Dark surfaces */
@@ -18,6 +20,21 @@
   /* Borders */
   --border-subtle: rgba(255, 255, 255, 0.06);
   --border-strong: rgba(255, 255, 255, 0.12);
+
+  /* v2.2.0 Phase 6 (6.4) -- compatibility aliases.
+   *
+   * 53 call sites use `--border-1` and another 18 use `--accent-primary`,
+   * `--accent-danger`, or `--accent-warning`. None of those were ever
+   * DEFINED, so every one of them silently fell through to whatever inline
+   * literal the author happened to write as the second argument of `var()`
+   * -- or to nothing at all. Aliasing them to the canonical tokens fixes the
+   * rendering today; migrating the call sites and deleting these aliases is
+   * tracked as a follow-up so this sweep does not also become a 71-file
+   * rename in the middle of a UI phase. */
+  --border-1: var(--border-subtle);
+  --accent-primary: var(--accent-chatbot);
+  --accent-danger: var(--status-err);
+  --accent-warning: var(--status-warn);
 
   /* Module accents (locked palette per pivot-brief Section 3) */
   --accent-chatbot: #22d3ee;

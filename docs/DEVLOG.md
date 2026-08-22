@@ -4,6 +4,37 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-22] v2.2.0 Phase 6 - Shell UI modernization
+
+### Goal
+
+Make the shell read as one system: no duplicated brand, a collapsible rail, GPU status that does not cover the buttons, and approvals without a permanent tab.
+
+### What Changed
+
+- **Sidebar (6.1)**: the brand block is gone (the frameless title bar already shows "Nexus AI Studio" one row above, so the sidebar copy was pure duplication and a wasted row). Added a compact icon rail: 248px <-> 56px, labels hidden with `aria-label` and `title` retained, a collapse toggle, and a persisted preference under `nexus.sidebar.compact`. With no stored preference the rail follows window width; an explicit choice always wins, so a narrow window never silently overwrites what the user set on a wide one.
+- **GPU status (6.2)**: `LocalModelStatusDock` deleted. It was `position: fixed` bottom-right on every route, sitting directly on top of the Send and Generate buttons - the readout was costing access to the controls it floated over. Replaced by `GpuStatusFooter` at the foot of the rail, with a compact card in the expanded rail and a slim utilization mark (numbers in the tooltip) in the icon rail. Memoized, so a 2 s telemetry tick does not re-render the nav.
+- **Approvals (6.3)**: the Ask-inbox nav entry became an `ApprovalsBell` in the footer with a pending badge, quiet when there is nothing waiting. A failed read renders an explicit error, never the "nothing waiting" message - a fake all-clear on a surface whose whole job is to not miss things would be worse than an error. Acting on a row re-reads the list rather than mutating locally, so an ask that expired while the popover was open cannot be approved from a stale row.
+- **Tokens (6.4)**: `--border-1`, `--accent-primary`, `--accent-danger`, `--accent-warning` were referenced 71 times and never defined; every usage fell through to an inline literal. They are now defined as aliases of the canonical tokens. Also corrected the tokens file's header, which described a Tailwind bridge that does not exist (no tailwind.css ships, no Tailwind dependency is installed).
+
+### Deviations
+
+- The 71 call sites still use the alias names; migrating them and deleting the aliases is DF-15, deferred to the Phase 8 refactor rather than run as a large mechanical rename inside a UI phase.
+
+### Test Results
+
+Root vitest **5410 passed / 12 skipped / 0 failed**; desktop vitest **1218 passed / 0 failed** (146 files); `tsc -b` clean. Three sidebar tests were updated: they asserted the brand lockup and the Ask-inbox nav row that this phase deliberately removes.
+
+### CI/CD
+
+No workflow changes needed.
+
+### Next
+
+Phase 7 - Settings modernization, profile retirement, and data transfer.
+
+---
+
 ## [2026-08-22] v2.2.0 Phase 5 - Local Chatbot rebuild (storage, titling, composer)
 
 ### Goal

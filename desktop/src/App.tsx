@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { Route, Routes, useNavigate } from "react-router-dom";
 import { Sidebar } from "./components/Sidebar";
 import { TitleBar } from "./components/TitleBar";
 import { ConstellationBackground } from "./components/ConstellationBackground";
@@ -23,7 +23,6 @@ import { createIpcMcpRegistryClient } from "./pages/settings/ipcMcpRegistryClien
 import { createIpcAskInboxClient } from "./pages/inbox/ipcAskInboxClient";
 import { AskInboxPanel } from "./pages/inbox/AskInboxPanel";
 import { SETTINGS_MODELS_PATH } from "./shared/models/installedFeed";
-import { LocalModelStatusDock } from "./components/LocalModelStatusDock";
 import { createMockTelemetryStream } from "./lib/telemetryMock";
 import { createLiveTelemetryStream } from "./lib/liveTelemetry";
 import type { TelemetryStream } from "./components/LocalModelStatus.types";
@@ -141,7 +140,12 @@ function AppLayout({ telemetryStream }: AppProps): JSX.Element {
           zIndex: 1,
         }}
       >
-        <Sidebar askInboxClient={askInboxClient} />
+        {/*
+          v2.2.0 Phase 6 (6.2): GPU telemetry moved from a fixed
+          bottom-right dock (which covered Send / Generate on every page)
+          into the sidebar footer.
+        */}
+        <Sidebar askInboxClient={askInboxClient} telemetryStream={stream} />
         <main
           style={{
             display: "flex",
@@ -208,17 +212,9 @@ function AppLayout({ telemetryStream }: AppProps): JSX.Element {
             />
             <Route path="/_styleguide" element={<StyleguidePage />} />
           </Routes>
-          <DockMount stream={stream} />
         </main>
       </div>
     </div>
   );
 }
 
-function DockMount({ stream }: { stream: TelemetryStream | null }): JSX.Element | null {
-  const location = useLocation();
-  // The Dashboard hosts the widget inline; every other module page gets
-  // the floating dock so telemetry is always visible.
-  if (location.pathname === "/" || location.pathname === "/_styleguide") return null;
-  return <LocalModelStatusDock stream={stream} />;
-}

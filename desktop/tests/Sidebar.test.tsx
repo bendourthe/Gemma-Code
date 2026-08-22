@@ -20,23 +20,22 @@ describe("Sidebar", () => {
     expect(screen.getByTestId("nav-image")).toBeInTheDocument();
     expect(screen.getByTestId("nav-video")).toBeInTheDocument();
     expect(screen.getByTestId("nav-admin-settings")).toBeInTheDocument();
-    expect(screen.getByTestId("nav-admin-inbox")).toBeInTheDocument();
     expect(screen.getByTestId("nav-admin-profile")).toBeInTheDocument();
   });
 
-  it("shows the Nexus AI Studio brand lockup (Phase 5 rebrand)", () => {
-    renderAt("/");
-    const brand = screen.getByTestId("sidebar-brand");
-    expect(brand).toHaveTextContent("Nexus AI Studio");
+  // v2.2.0 Phase 6 (6.1 / 6.3): the brand block and the Ask-inbox tab are
+  // gone. The title bar already carries the single brand mark, and approvals
+  // moved to a footer bell rather than holding a permanent nav row.
+  it("does not duplicate the brand that the title bar already shows", () => {
+    const { container } = renderAt("/");
+    expect(screen.queryByTestId("sidebar-brand")).toBeNull();
+    expect(container.querySelector(".nexus-gradient-text")).toBeNull();
   });
 
-  it("gradients only the 'AI Studio' run of the wordmark (v1.13.0)", () => {
-    const { container } = renderAt("/");
-    const gradient = container.querySelector(".nexus-gradient-text");
-    expect(gradient).not.toBeNull();
-    expect(gradient).toHaveTextContent("AI Studio");
-    // "Nexus" is the solid run and must not be inside the gradient span.
-    expect(gradient?.textContent).not.toContain("Nexus");
+  it("replaces the Ask inbox nav entry with a footer bell", () => {
+    renderAt("/");
+    expect(screen.queryByTestId("nav-admin-inbox")).toBeNull();
+    expect(screen.getByTestId("approvals-bell")).toBeInTheDocument();
   });
 
   it("marks the coding route as active when the route matches", () => {

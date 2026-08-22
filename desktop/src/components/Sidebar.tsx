@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   MessageSquare,
@@ -7,12 +7,16 @@ import {
   Film,
   Settings as SettingsIcon,
   UserCircle2,
-  Inbox,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
-import { moduleList, MODULES, type ModuleId } from "../types/modules";
+import { MODULES, type ModuleId } from "../types/modules";
 import { writeActiveRoute } from "../lib/persistence";
 import type { AskInboxClient } from "../pages/inbox/askInboxTypes";
 import { useAskInboxPendingCount } from "../pages/inbox/useAskInboxPendingCount";
+import { GpuStatusFooter } from "./GpuStatusFooter";
+import { ApprovalsBell } from "./ApprovalsBell";
+import type { TelemetryStream } from "./LocalModelStatus.types";
 
 interface NavEntry {
   id: ModuleId;
@@ -58,21 +62,78 @@ const NAV_ENTRIES: readonly NavEntry[] = [
   },
 ];
 
+// v2.2.0 Phase 6 (6.3): "Ask inbox" left the nav for a bell in the footer --
+// a surface with zero pending items most of the time does not deserve a
+// permanent tab. Approvals are still one click away, and never auto-approved.
 const ADMIN_ENTRIES = [
-  { label: "Ask inbox", to: "/inbox", icon: Inbox, shortcut: null },
   { label: "Settings", to: "/settings", icon: SettingsIcon, shortcut: "Ctrl+," },
   { label: "User Profile", to: "/profile", icon: UserCircle2, shortcut: null },
 ] as const;
 
-function activeAccent(activePath: string): string | undefined {
-  const match = moduleList.find((m) => activePath.startsWith(m.route));
-  return match?.accentVar;
+/** Persisted collapse preference. */
+const COMPACT_KEY = "nexus.sidebar.compact";
+/** Below this window width the rail auto-compacts. */
+const AUTO_COMPACT_WIDTH = 1100;
+const FULL_WIDTH = 248;
+const RAIL_WIDTH = 56;
+
+function readCompactPreference(): boolean | null {
+  try {
+    const raw = localStorage.getItem(COMPACT_KEY);
+    return raw === null ? null : raw === "true";
+  } catch {
+    // Private mode / blocked storage: fall back to the breakpoint.
+    return null;
+  }
 }
 
-export function Sidebar({ askInboxClient }: { askInboxClient?: AskInboxClient } = {}): JSX.Element {
+export interface SidebarProps {
+  askInboxClient?: AskInboxClient;
+  /** v2.2.0 Phase 6 (6.2): GPU status now lives at the sidebar foot. */
+  telemetryStream?: TelemetryStream | null;
+  /** Test seam for the initial window width. */
+  initialWidth?: number;
+}
+
+export function Sidebar({
+  askInboxClient,
+  telemetryStream,
+  initialWidth,
+}: SidebarProps = {}): JSX.Element {
   const navigate = useNavigate();
   const location = useLocation();
   const pendingCount = useAskInboxPendingCount(askInboxClient);
+
+  // v2.2.0 Phase 6 (6.1): compact rail. An explicit choice wins; with none
+  // stored we follow the window width, so a narrow window is usable without
+  // silently overwriting a preference the user set on a wide one.
+  const [storedCompact, setStoredCompact] = useState<boolean | null>(() =>
+    readCompactPreference(),
+  );
+  const [narrow, setNarrow] = useState<boolean>(() => {
+    const width = initialWidth ?? (typeof window === "undefined" ? FULL_WIDTH * 4 : window.innerWidth);
+    return width < AUTO_COMPACT_WIDTH;
+  });
+  const compact = storedCompact ?? narrow;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onResize = (): void => setNarrow(window.innerWidth < AUTO_COMPACT_WIDTH);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  const toggleCompact = useCallback(() => {
+    setStoredCompact((prev) => {
+      const next = !(prev ?? narrow);
+      try {
+        localStorage.setItem(COMPACT_KEY, String(next));
+      } catch {
+        // Preference is a convenience; failing to persist must not break the toggle.
+      }
+      return next;
+    });
+  }, [narrow]);
 
   useEffect(() => {
     writeActiveRoute(location.pathname);
@@ -101,7 +162,6 @@ export function Sidebar({ askInboxClient }: { askInboxClient?: AskInboxClient } 
     return () => window.removeEventListener("keydown", handler);
   }, [navigate]);
 
-  const activeBorder = useMemo(() => activeAccent(location.pathname), [location.pathname]);
 
   return (
     <aside
@@ -110,46 +170,37 @@ export function Sidebar({ askInboxClient }: { askInboxClient?: AskInboxClient } 
       className="nexus-glass"
       style={{
         borderRight: "1px solid var(--border-subtle)",
-        width: 248,
+        width: compact ? RAIL_WIDTH : FULL_WIDTH,
+        transition: "width 120ms ease",
         display: "flex",
         flexDirection: "column",
-        padding: "var(--space-4)",
-        gap: "var(--space-4)",
+        padding: compact ? "var(--space-3) var(--space-2)" : "var(--space-4)",
+        gap: "var(--space-3)",
       }}
     >
-      <div
-        data-testid="sidebar-brand"
+      {/*
+        v2.2.0 Phase 6 (6.1): the brand block is gone. The frameless title bar
+        already shows "Nexus AI Studio" one row above; repeating it here cost a
+        row of vertical space and read as a duplicate.
+      */}
+      <button
+        type="button"
+        data-testid="sidebar-collapse-toggle"
+        aria-label={compact ? "Expand sidebar" : "Collapse sidebar"}
+        aria-expanded={!compact}
+        onClick={toggleCompact}
         style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "var(--space-2)",
-          padding: "var(--space-2) var(--space-1)",
+          alignSelf: compact ? "center" : "flex-end",
+          background: "transparent",
+          border: "none",
+          color: "var(--fg-muted)",
+          cursor: "pointer",
+          padding: "var(--space-1)",
+          borderRadius: "var(--radius-md)",
         }}
       >
-        <img
-          src="/nexus-mark.png"
-          alt=""
-          aria-hidden
-          width={28}
-          height={28}
-          style={{
-            borderRadius: 6,
-            filter: "drop-shadow(var(--glow-sm))",
-            outline: activeBorder ? `1px solid var(${activeBorder})` : "none",
-          }}
-        />
-        <span
-          style={{
-            fontSize: "var(--text-md)",
-            fontWeight: 700,
-            letterSpacing: "0.01em",
-            whiteSpace: "nowrap",
-            color: "var(--fg-0)",
-          }}
-        >
-          Nexus <span className="nexus-gradient-text">AI Studio</span>
-        </span>
-      </div>
+        {compact ? <PanelLeftOpen size={16} aria-hidden /> : <PanelLeftClose size={16} aria-hidden />}
+      </button>
 
       <nav
         aria-label="Modules"
@@ -161,11 +212,13 @@ export function Sidebar({ askInboxClient }: { askInboxClient?: AskInboxClient } 
             to={entry.to}
             data-testid={`nav-${entry.id}`}
             title={`${entry.label} (${entry.shortcut})`}
+            aria-label={entry.label}
             style={({ isActive }) => ({
               display: "flex",
               alignItems: "center",
-              gap: "var(--space-3)",
-              padding: "var(--space-2) var(--space-3)",
+              justifyContent: compact ? "center" : "flex-start",
+              gap: compact ? 0 : "var(--space-3)",
+              padding: compact ? "var(--space-2)" : "var(--space-2) var(--space-3)",
               borderRadius: "var(--radius-md)",
               color: isActive ? "var(--fg-0)" : "var(--fg-1)",
               backgroundColor: isActive ? `var(${entry.accentVar}-soft)` : "transparent",
@@ -177,7 +230,7 @@ export function Sidebar({ askInboxClient }: { askInboxClient?: AskInboxClient } 
             })}
           >
             <entry.icon size={18} aria-hidden color={`var(${entry.accentVar})`} />
-            <span>{entry.label}</span>
+            {!compact && <span>{entry.label}</span>}
           </NavLink>
         ))}
       </nav>
@@ -196,11 +249,13 @@ export function Sidebar({ askInboxClient }: { askInboxClient?: AskInboxClient } 
             to={entry.to}
             data-testid={`nav-admin-${entry.to.replace("/", "")}`}
             title={entry.shortcut ? `${entry.label} (${entry.shortcut})` : entry.label}
+            aria-label={entry.label}
             style={({ isActive }) => ({
               display: "flex",
               alignItems: "center",
-              gap: "var(--space-3)",
-              padding: "var(--space-2) var(--space-3)",
+              justifyContent: compact ? "center" : "flex-start",
+              gap: compact ? 0 : "var(--space-3)",
+              padding: compact ? "var(--space-2)" : "var(--space-2) var(--space-3)",
               borderRadius: "var(--radius-md)",
               color: isActive ? "var(--fg-0)" : "var(--fg-muted)",
               backgroundColor: isActive ? "var(--bg-2)" : "transparent",
@@ -209,30 +264,22 @@ export function Sidebar({ askInboxClient }: { askInboxClient?: AskInboxClient } 
             })}
           >
             <entry.icon size={18} aria-hidden />
-            <span>{entry.label}</span>
-            {entry.to === "/inbox" && pendingCount > 0 ? (
-              <span
-                data-testid="ask-inbox-nav-badge"
-                style={{
-                  marginLeft: "auto",
-                  minWidth: 18,
-                  height: 18,
-                  borderRadius: 9,
-                  backgroundColor: "var(--status-err)",
-                  color: "var(--fg-0)",
-                  fontSize: 11,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: "0 4px",
-                }}
-              >
-                {pendingCount}
-              </span>
-            ) : null}
+            {!compact && <span>{entry.label}</span>}
           </NavLink>
         ))}
       </nav>
+
+      {/*
+        v2.2.0 Phase 6 (6.2 / 6.3): approvals and GPU status live at the foot
+        of the rail. The GPU card used to float over the bottom-right corner of
+        every page, where it covered the Send and Generate buttons.
+      */}
+      <ApprovalsBell
+        pendingCount={pendingCount}
+        compact={compact}
+        client={askInboxClient}
+      />
+      <GpuStatusFooter compact={compact} stream={telemetryStream ?? null} />
     </aside>
   );
 }
