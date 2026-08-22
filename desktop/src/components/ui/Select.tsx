@@ -39,10 +39,13 @@ export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
 export function Select({ label, testId, style, children, ...rest }: SelectProps): JSX.Element {
   return (
     <span style={{ position: "relative", display: "inline-flex", width: "100%" }}>
+      {/* `testId` is a convenience for new call sites; existing ones pass
+          `data-testid` directly through `rest`, so the spread must come LAST
+          or it would be overwritten with undefined. */}
       <select
-        {...rest}
         data-testid={testId}
         aria-label={label ?? rest["aria-label"]}
+        {...rest}
         style={{ ...controlBase, ...style }}
       >
         {children}

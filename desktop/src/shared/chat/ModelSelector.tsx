@@ -5,6 +5,7 @@
  */
 
 import type { ModelOption } from "./types";
+import { Select } from "../../components/ui/Select";
 
 export interface ModelSelectorProps {
   models: readonly ModelOption[];
@@ -61,7 +62,7 @@ export function ModelSelector({
   return (
     <label style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
       <span style={{ color: "var(--fg-muted)" }}>{label}</span>
-      <select
+      <Select
         data-testid={testId}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -84,7 +85,7 @@ export function ModelSelector({
             {m.displayName}
           </option>
         ))}
-      </select>
+      </Select>
       {harnessLabel ? (
         <span
           data-testid={`${testId}-harness`}

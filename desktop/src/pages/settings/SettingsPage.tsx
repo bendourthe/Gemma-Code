@@ -4,6 +4,7 @@
  */
 
 import { useMemo, useState } from "react";
+import { DataSettings } from "./DataSettings";
 
 import { ModelsSettings, type ModelsClient } from "./ModelsSettings";
 import { SkillsSettings, type SkillsSettingsClient } from "./SkillsSettings";
@@ -25,7 +26,18 @@ import { createMockServingClient } from "./mockServingClient";
 import { createMockFineTuningClient } from "./mockFineTuningClient";
 import { createMockMcpRegistryClient } from "./mockMcpRegistryClient";
 
-type SettingsTab = "models" | "skills" | "optimizer" | "credentials" | "serving" | "tuning" | "mcp" | "security";
+// v2.2.0 Phase 7: "data" hosts export/import; the retired User Profile page
+// redirects here rather than rendering a placeholder that read nothing.
+type SettingsTab =
+  | "models"
+  | "skills"
+  | "optimizer"
+  | "credentials"
+  | "serving"
+  | "tuning"
+  | "mcp"
+  | "security"
+  | "data";
 
 export interface SettingsPageProps {
   modelsClient?: ModelsClient;
@@ -155,6 +167,14 @@ export function SettingsPage({
         >
           Security
         </button>
+        <button
+          type="button"
+          data-testid="settings-tab-data"
+          onClick={() => setTab("data")}
+          style={tabButtonStyle(tab === "data")}
+        >
+          Data
+        </button>
       </nav>
       {tab === "models" ? (
         <ModelsSettings client={models} hostVramGB={hostVramGB} />
@@ -170,6 +190,8 @@ export function SettingsPage({
         <McpRegistrySettings client={mcp} />
       ) : tab === "security" ? (
         <SecuritySettings client={securityClient} auditClient={auditClient} />
+      ) : tab === "data" ? (
+        <DataSettings />
       ) : (
         <CredentialsSettings client={credentials} />
       )}

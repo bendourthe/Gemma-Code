@@ -4,6 +4,33 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-22] v2.2.0 Phase 7 - Settings modernization, profile retirement, data transfer
+
+### Goal
+
+Make Settings look like part of the app, retire the placeholder Profile page, and give the user a way to move their data to another machine.
+
+### What Changed
+
+- **Controls (7.1)**: added token-driven `Select`, `SearchInput`, and `Switch`, and replaced all 19 bare `<select>` elements across Models, Fine-tuning, Security, the Image and Video prompt forms, and the chat model selector. These WRAP the native elements rather than reimplementing them as div listboxes: a custom listbox has to re-earn keyboard navigation, type-ahead, and screen-reader semantics that the native control already has, and the actual complaint was appearance, not behaviour.
+- **Profile (7.3)**: `/profile` and `/inbox` now redirect to Settings. The Profile page was a placeholder whose own copy promised it would "read ~/.nexus/profile.json once Phase 2 lands"; it never read anything.
+- **Data transfer (7.4)**: new `transferRuntime` packs selected categories into one gzipped archive with a manifest and per-category checksums. Credentials are excluded unless explicitly opted in, an import validates the manifest and every destination path BEFORE writing anything, and a real apply takes a pre-import backup first. Settings > Data renders the picker with a warning when credentials are selected.
+
+### Deviations
+
+- The export/import IPC and file dialogs are not wired, so the page reports the backend as unreachable in the running app (DF-16). The runtime itself is complete and tested.
+- Settings tabs are still a hand-written button list rather than the URL-addressable registry 7.2 describes (DF-17).
+
+### Test Results
+
+Root vitest **5425 passed / 12 skipped / 0 failed**; desktop vitest **1233 passed / 0 failed** (147 files); `tsc -b` clean.
+
+### Next
+
+Phase 8 - Architecture refactor, known-gaps reconciliation, and CI/CD.
+
+---
+
 ## [2026-08-22] v2.2.0 Phase 6 - Shell UI modernization
 
 ### Goal

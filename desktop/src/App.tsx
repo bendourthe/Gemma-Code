@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Route, Routes, useNavigate } from "react-router-dom";
+import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { Sidebar } from "./components/Sidebar";
 import { TitleBar } from "./components/TitleBar";
 import { ConstellationBackground } from "./components/ConstellationBackground";
 import { Dashboard } from "./pages/Dashboard";
-import { ModulePlaceholder } from "./pages/ModulePlaceholder";
 import { StyleguidePage } from "./pages/Styleguide";
 import { CodingPage } from "./modules/coding/CodingPage";
 import { ChatPage } from "./modules/chat/ChatPage";
@@ -201,15 +200,14 @@ function AppLayout({ telemetryStream }: AppProps): JSX.Element {
                 />
               }
             />
-            <Route
-              path="/profile"
-              element={
-                <ModulePlaceholder
-                  moduleId="coding"
-                  message="Profile editor placeholder. Reads ~/.nexus/profile.json once Phase 2 lands the storage migration."
-                />
-              }
-            />
+            {/*
+              v2.2.0 Phase 7 (7.3) / Phase 6 (6.3): the User Profile page was a
+              placeholder that never read a profile, and Ask inbox moved to the
+              sidebar bell. Both redirect so old links and shortcuts still land
+              somewhere real instead of on an empty screen.
+            */}
+            <Route path="/profile" element={<Navigate to="/settings" replace />} />
+            <Route path="/inbox" element={<Navigate to="/settings" replace />} />
             <Route path="/_styleguide" element={<StyleguidePage />} />
           </Routes>
         </main>

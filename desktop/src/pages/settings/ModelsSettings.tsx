@@ -14,6 +14,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
+import { Select } from "../../components/ui/Select";
 import { SidecarDownBanner } from "../../components/SidecarDownBanner";
 import { isBackendDownMessage, useSidecarStatus } from "../../lib/sidecarStatus";
 
@@ -212,7 +213,7 @@ export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProp
       <div style={filterRowStyle}>
         <label>
           <span style={labelStyle}>Type</span>
-          <select
+          <Select
             data-testid="models-filter-type"
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value as "all" | ModelType)}
@@ -222,11 +223,11 @@ export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProp
                 {f.label}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <label>
           <span style={labelStyle}>Family</span>
-          <select
+          <Select
             data-testid="models-filter-family"
             value={familyFilter}
             onChange={(e) => setFamilyFilter(e.target.value)}
@@ -236,11 +237,11 @@ export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProp
                 {f === "all" ? "All" : f}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <label>
           <span style={labelStyle}>Status</span>
-          <select
+          <Select
             data-testid="models-filter-source"
             value={sourceFilter}
             onChange={(e) => setSourceFilter(e.target.value as SourceFilter)}
@@ -249,12 +250,12 @@ export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProp
             <option value="installed">Installed</option>
             <option value="available">Available</option>
             <option value="external">External</option>
-          </select>
+          </Select>
         </label>
         {typeof hostVramGB === "number" && (
           <label>
             <span style={labelStyle}>Tier fit</span>
-            <select
+            <Select
               data-testid="models-filter-tier"
               value={tierFitFilter}
               onChange={(e) => setTierFitFilter(e.target.value as TierFitFilter)}
@@ -262,7 +263,7 @@ export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProp
               <option value="all">All</option>
               <option value="fits">Fits this host</option>
               <option value="over-budget">Over budget</option>
-            </select>
+            </Select>
           </label>
         )}
         <label style={{ flex: 1 }}>

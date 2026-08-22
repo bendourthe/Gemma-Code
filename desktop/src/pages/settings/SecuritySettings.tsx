@@ -8,6 +8,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import { Select } from "../../components/ui/Select";
 import { ipcCall } from "../../lib/ipc";
 
 export type DesktopSecurityPosture = "strict" | "standard" | "unattended";
@@ -271,7 +272,7 @@ export function SecuritySettings({
         <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
           <label>
             Actor
-            <select
+            <Select
               data-testid="audit-filter-actor"
               value={actorFilter}
               onChange={(e) => setActorFilter(e.target.value)}
@@ -281,7 +282,7 @@ export function SecuritySettings({
               <option value="planner">planner</option>
               <option value="critic">critic</option>
               <option value="worker">worker</option>
-            </select>
+            </Select>
           </label>
           <label>
             Pillar

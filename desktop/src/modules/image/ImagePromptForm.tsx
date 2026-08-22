@@ -11,6 +11,7 @@
  */
 
 import { useMemo, useState } from "react";
+import { Select } from "../../components/ui/Select";
 import type { ControlNetRef, LoraRef } from "./diffusionClient";
 import type { DiffusionTierId } from "../../../../core/config/DiffusionTier";
 import { defaultMemoryBudget, validateMemoryBudget } from "../../../../core/config/diffusionBudget";
@@ -266,7 +267,7 @@ export function ImagePromptForm({
       </label>
       <label>
         <span style={{ display: "block", fontSize: "var(--text-xs)", color: "var(--fg-muted)" }}>Model</span>
-        <select
+        <Select
           data-testid="image-model"
           value={values.modelId}
           disabled={disabled}
@@ -277,11 +278,11 @@ export function ImagePromptForm({
               {m.displayName}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
       <label>
         Resolution
-        <select
+        <Select
           data-testid="image-resolution"
           value={selectedResolutionValue}
           disabled={disabled}
@@ -300,7 +301,7 @@ export function ImagePromptForm({
               {r.label}
             </option>
           ))}
-        </select>
+        </Select>
         {selectedResolutionTooHigh && (
           <span
             data-testid="image-resolution-tier-hint"
@@ -369,7 +370,7 @@ export function ImagePromptForm({
         </label>
         <label>
           Sampler
-          <select
+          <Select
             data-testid="image-sampler"
             value={values.sampler}
             disabled={disabled}
@@ -380,7 +381,7 @@ export function ImagePromptForm({
                 {s}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <label>
           Seed
@@ -435,7 +436,7 @@ export function ImagePromptForm({
             </button>
             {values.loras.map((lora, i) => (
               <div key={`lora-${i}`} data-testid={`image-lora-${i}`} style={{ display: "flex", gap: "var(--space-2)" }}>
-                <select
+                <Select
                   data-testid={`image-lora-id-${i}`}
                   value={lora.id}
                   onChange={(e) => updateLora(i, { id: e.target.value })}
@@ -445,7 +446,7 @@ export function ImagePromptForm({
                       {l.displayName}
                     </option>
                   ))}
-                </select>
+                </Select>
                 <input
                   data-testid={`image-lora-weight-${i}`}
                   type="number"
@@ -476,7 +477,7 @@ export function ImagePromptForm({
           </label>
           {values.controlNet && (
             <div data-testid="image-controlnet-fields" style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-              <select
+              <Select
                 data-testid="image-controlnet-model"
                 value={values.controlNet.modelId}
                 onChange={(e) =>
@@ -488,8 +489,8 @@ export function ImagePromptForm({
                     {c.displayName}
                   </option>
                 ))}
-              </select>
-              <select
+              </Select>
+              <Select
                 data-testid="image-controlnet-preprocessor"
                 value={values.controlNet.preprocessor}
                 onChange={(e) =>
@@ -503,7 +504,7 @@ export function ImagePromptForm({
                 <option value="pose">Pose</option>
                 <option value="depth">Depth</option>
                 <option value="none">None</option>
-              </select>
+              </Select>
             </div>
           )}
           <div data-testid="image-memory-budget" style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>

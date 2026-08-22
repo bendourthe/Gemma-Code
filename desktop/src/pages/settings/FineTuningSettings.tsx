@@ -6,6 +6,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import { Select } from "../../components/ui/Select";
 import type {
   FineTuningClient,
   TuningBaseModelDto,
@@ -183,7 +184,7 @@ export function FineTuningSettings({ client }: FineTuningSettingsProps): JSX.Ele
 
               <label style={mutedStyle}>
                 Base model
-                <select
+                <Select
                   data-testid="fine-tuning-base-model"
                   value={baseModelId}
                   onChange={(e) => setBaseModelId(e.target.value)}
@@ -195,7 +196,7 @@ export function FineTuningSettings({ client }: FineTuningSettingsProps): JSX.Ele
                       {m.vision ? " (vision)" : ""}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
               <button
                 type="button"

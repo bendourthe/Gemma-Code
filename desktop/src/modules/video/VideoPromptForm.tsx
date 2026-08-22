@@ -9,6 +9,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Select } from "../../components/ui/Select";
 import { planVideoContinuation } from "../../../../core/video/continuation";
 import type { DiffusionTierId } from "../../../../core/config/DiffusionTier";
 import { defaultMemoryBudget, validateMemoryBudget } from "../../../../core/config/diffusionBudget";
@@ -69,7 +70,7 @@ const RESOLUTIONS: Array<{
 export const DEFAULT_VIDEO_FORM_VALUES: VideoFormValues = {
   prompt: "",
   negativePrompt: "",
-  modelId: "ltx-video",
+  modelId: "wan2.1-t2v-1.3b",
   mode: "text2video",
   durationSeconds: 4,
   fps: 24,
@@ -208,7 +209,7 @@ export function VideoPromptForm({
     >
       <label>
         Preset
-        <select
+        <Select
           data-testid="video-preset"
           value={presetId}
           disabled={disabled}
@@ -219,13 +220,13 @@ export function VideoPromptForm({
               {p.label}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
 
       {!hideMode && (
         <label>
           Mode
-          <select
+          <Select
             data-testid="video-mode"
             value={values.mode}
             disabled={disabled}
@@ -236,7 +237,7 @@ export function VideoPromptForm({
             {avatarAvailable ? (
               <option value="audio2video">Photo + audio -&gt; Avatar</option>
             ) : null}
-          </select>
+          </Select>
         </label>
       )}
 
@@ -264,7 +265,7 @@ export function VideoPromptForm({
 
       <label>
         Model
-        <select
+        <Select
           data-testid="video-model"
           value={values.modelId}
           disabled={disabled || modelsForMode.length === 0}
@@ -275,7 +276,7 @@ export function VideoPromptForm({
               {m.displayName}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
 
       <label>
@@ -300,7 +301,7 @@ export function VideoPromptForm({
 
       <label>
         FPS
-        <select
+        <Select
           data-testid="video-fps"
           value={values.fps}
           disabled={disabled}
@@ -311,12 +312,12 @@ export function VideoPromptForm({
               {f}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
 
       <label>
         Resolution
-        <select
+        <Select
           data-testid="video-resolution"
           value={`${values.width}x${values.height}`}
           disabled={disabled}
@@ -333,7 +334,7 @@ export function VideoPromptForm({
               {r.label}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
 
       <label>
@@ -394,7 +395,7 @@ export function VideoPromptForm({
         <summary>Advanced</summary>
         <label>
           Sampler
-          <select
+          <Select
             data-testid="video-sampler"
             value={values.sampler}
             disabled={disabled}
@@ -405,7 +406,7 @@ export function VideoPromptForm({
                 {s}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <div data-testid="video-memory-budget" style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
           <strong>VRAM budget</strong>
