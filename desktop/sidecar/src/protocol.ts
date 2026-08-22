@@ -72,6 +72,12 @@ export const IPC_METHODS = [
   "skills.sync",
   "skills.status",
   "skills.upstreamLatest",
+  // v2.2.0 Phase 3 (3.2 / 3.3): real skills listing, the auto-sync setting,
+  // and hub command discovery for the Agentic composer.
+  "skills.list",
+  "skills.autoSync.get",
+  "skills.autoSync.set",
+  "commands.list",
   "skills.optimize.preview",
   "skills.optimize.apply",
   "telemetry.subscribe",
@@ -558,6 +564,46 @@ export type DiffusionDrainEventsResponseT = z.infer<
 export const DiffusionEmptyRequest = z.object({}).strict();
 
 // v2.2.0 Phase 2 (2.4) -- GPU telemetry sample for the status widget.
+// v2.2.0 Phase 3 (3.2) -- installed skills listing for Settings > Skills.
+export const SkillsListRequest = z.object({}).strict();
+export const SkillsListResponse = z.object({
+  skills: z.array(
+    z.object({
+      id: z.string(),
+      displayName: z.string(),
+      category: z.string().optional(),
+      path: z.string(),
+      tags: z.array(z.string()).optional(),
+      active: z.boolean().optional(),
+      provenance: z.object({
+        source: z.enum(["builtin", "user", "nexus-hub"]),
+        tag: z.string().optional(),
+        contentHash: z.string(),
+      }),
+    }),
+  ),
+  /** Non-null when the catalog exists but could not be parsed. */
+  error: z.string().nullable(),
+});
+
+export const SkillsAutoSyncGetRequest = z.object({}).strict();
+export const SkillsAutoSyncGetResponse = z.object({ enabled: z.boolean() });
+export const SkillsAutoSyncSetRequest = z.object({ enabled: z.boolean() }).strict();
+export const SkillsAutoSyncSetResponse = z.object({ enabled: z.boolean() });
+
+// v2.2.0 Phase 3 (3.3) -- hub command discovery for the Agentic composer.
+export const CommandsListRequest = z.object({}).strict();
+export const CommandsListResponse = z.object({
+  commands: z.array(
+    z.object({
+      name: z.string(),
+      description: z.string(),
+      source: z.enum(["builtin", "nexus-hub"]),
+    }),
+  ),
+  catalogPresent: z.boolean(),
+});
+
 export const GpuSampleRequest = z.object({}).strict();
 export const GpuSampleResponse = z.object({
   sample: z
@@ -1958,6 +2004,10 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
   },
   "telemetry.subscribe": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },
   "gpu.sample": { request: GpuSampleRequest, response: GpuSampleResponse, implemented: true },
+  "skills.list": { request: SkillsListRequest, response: SkillsListResponse, implemented: true },
+  "skills.autoSync.get": { request: SkillsAutoSyncGetRequest, response: SkillsAutoSyncGetResponse, implemented: true },
+  "skills.autoSync.set": { request: SkillsAutoSyncSetRequest, response: SkillsAutoSyncSetResponse, implemented: true },
+  "commands.list": { request: CommandsListRequest, response: CommandsListResponse, implemented: true },
   "diffusion.health": {
     request: DiffusionEmptyRequest,
     response: DiffusionHealthResponse,

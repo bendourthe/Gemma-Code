@@ -2,7 +2,7 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-22 (Phase 2 of runtime-repair-and-ux-overhaul)
+**Last updated**: 2026-08-22 (Phase 3 of runtime-repair-and-ux-overhaul)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
@@ -15,10 +15,10 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 6 | 0 |
-| Bugs / regressions (BG) | 0 | 0 |
+| Deferred (DF) | 8 | 0 |
+| Bugs / regressions (BG) | 0 | 2 |
 | Warnings (WN) | 0 | 0 |
-| Missing tests / coverage gaps (MT) | 3 | 0 |
+| Missing tests / coverage gaps (MT) | 3 | 1 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
 ### Open Items
@@ -67,6 +67,20 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 - **Reason**: `ensure_ollama_supports()` calls `OllamaInstaller._ollama_version()` (a private method, flagged with `noqa: SLF001`) because there is no public version accessor. Correct behavior, slightly leaky boundary.
 - **Suggested next step**: Promote `_ollama_version` to a public `installed_version()` during the Phase 8 refactor and drop the noqa.
 
+##### DF-7 - Bundled hub snapshot is not produced by the release build yet
+
+- **Source phase**: Phase 3 - Nexus-Hub Harness Provisioning (3.1)
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.0-runtime-repair-and-ux-overhaul.md` (sub-task 3.1)
+- **Reason**: `scripts/installer/build/build-hub-snapshot.py` produces a checksummed `catalog.tar.gz` + `manifest.json`, the PyInstaller spec stages them when present (refusing a placeholder digest), and the provisioner extracts them. But no snapshot has been built and no build script calls the builder, so today's installer still falls back to the network sync. The OFFLINE-install guarantee is therefore implemented but not yet delivered.
+- **Suggested next step**: Call `build-hub-snapshot.py` from `build-windows.ps1` (and the macOS/Linux build scripts) after a sync, so the release installer always carries a snapshot; then verify an offline install lands a populated catalog.
+
+##### DF-8 - Hub tar extraction uses a minimal in-house reader
+
+- **Source phase**: Phase 3 (3.1)
+- **Plan reference**: sub-task 3.1
+- **Reason**: `extractHubSnapshot` implements a small ustar reader (with a tar-slip guard) rather than adding a tar dependency to the sidecar bundle. It handles the regular-file and directory entries a catalog snapshot contains, but not symlinks, long-name (GNU/PAX) headers, or sparse entries. A snapshot built by `build-hub-snapshot.py` never contains those; a hand-rolled archive could.
+- **Suggested next step**: Either keep it and assert the constraint in the builder (reject symlinks/long names at pack time), or vendor a small tar implementation, during the Phase 8 refactor.
+
 #### Missing tests / coverage
 
 ##### MT-3 - Studio backend-down banner not covered by a page-level test
@@ -92,4 +106,17 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 
 ### Resolved Items
 
-(none yet)
+#### Bugs found and fixed within this cycle
+
+##### BG-1 (resolved) - the hub CLI reported a scanner-blocked sync as success
+
+- **Source phase**: Phase 3 (3.1), found while restoring a catalog damaged by BG-2.
+- **What happened**: `NexusHubSyncer.sync({apply: true})` returns `applied: false` when the prompt-injection scanner blocks the fetched bundle. The CLI reported that outcome as `{kind: "done", ok: true}`, so the installer would have recorded a successful harness install while the catalog on disk was untouched.
+- **Fix**: a sync that did not apply and is not `alreadyUpToDate` now returns a `scan-quarantine` error and exit 1. Covered by `hub-catalog-phase3.test.ts` ("reports a fetched-but-not-applied sync as a failure").
+
+##### BG-2 (resolved) - the hub CLI could only ever target the real `~/.nexus-ai/catalog`
+
+- **Source phase**: Phase 3 (3.4).
+- **What happened**: the CLI had no way to point at a different catalog directory, so a round-trip test that invoked the real `--extract-hub-snapshot` bundle overwrote the developer's installed catalog with a one-skill test fixture. The catalog was rebuilt from the intact top-level `~/.nexus-ai/` trees and its original tag (`3.12.0`) restored; no other data was affected.
+- **Fix**: `--catalog-dir` (and `NEXUS_HUB_CATALOG_DIR`) are honoured by every CLI mode, the round-trip test passes an explicit target and asserts nothing was written outside it, and a regression test pins the override. The destructive extract path can no longer default onto a real home in a test.
+

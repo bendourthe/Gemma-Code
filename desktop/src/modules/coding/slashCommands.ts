@@ -174,3 +174,64 @@ export function filterSlashCommandsWithSkills(
   }
   return [...builtinHits, ...skillOut];
 }
+
+// ---------------------------------------------------------------------------
+// v2.2.0 Phase 3 (3.3) -- Nexus-Hub command discovery.
+//
+// The desktop Agentic composer had NO harness discovery: it rendered a frozen
+// 16-entry array sliced to 8, so hub commands were unreachable and most
+// built-ins were invisible. (The VS Code extension did wire the hub loader;
+// the desktop app never constructed it.) These helpers merge the two sources
+// for the composer without touching the prompt: only names and descriptions
+// cross this boundary, never command bodies, so discovery costs no context.
+// ---------------------------------------------------------------------------
+
+/** A hub command as returned by the sidecar `commands.list` IPC. */
+export interface HubCommandDescriptor {
+  readonly name: string;
+  readonly description: string;
+  readonly source: "builtin" | "nexus-hub";
+}
+
+/** Convert a hub descriptor into a composer entry. */
+export function toSlashCommandFromHub(descriptor: HubCommandDescriptor): SlashCommand {
+  return {
+    name: descriptor.name,
+    description: descriptor.description || `Nexus-Hub command: ${descriptor.name}`,
+    template: `/${descriptor.name} `,
+    namespace: "nexus-hub",
+  };
+}
+
+/**
+ * Merge built-ins with hub commands, filtered by the composer input.
+ *
+ * Built-ins always win a name collision and are never shadowed by a hub
+ * command of the same name (mirrors the router's precedence, so what the
+ * dropdown offers is what actually executes). Malformed hub entries - missing
+ * or non-string names - are skipped rather than breaking the dropdown.
+ */
+export function filterSlashCommandsWithHub(
+  input: string,
+  hubCommands: readonly HubCommandDescriptor[],
+): readonly SlashCommand[] {
+  const builtinHits = filterSlashCommands(input);
+  if (input && !input.startsWith("/")) return builtinHits; // == []
+
+  const builtinNames = new Set(SLASH_COMMANDS.map((c) => c.name.toLowerCase()));
+  const needle = input.startsWith("/") ? input.slice(1).toLowerCase() : "";
+  const seen = new Set<string>();
+  const hubHits: SlashCommand[] = [];
+
+  for (const raw of hubCommands) {
+    const name = typeof raw?.name === "string" ? raw.name.trim() : "";
+    if (!name) continue; // malformed entry: skip, never throw
+    const key = name.toLowerCase();
+    if (builtinNames.has(key) || seen.has(key)) continue;
+    if (needle !== "" && !key.startsWith(needle)) continue;
+    seen.add(key);
+    hubHits.push(toSlashCommandFromHub({ ...raw, name }));
+  }
+  hubHits.sort((a, b) => a.name.localeCompare(b.name));
+  return [...builtinHits, ...hubHits];
+}

@@ -4,6 +4,46 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-22] v2.2.0 Phase 3 - Nexus-Hub harness provisioning and skills surface
+
+### Goal
+
+Put the harness on disk at install time and make it visible in the app (plan `docs/v2/v2.2/plans/v2.2.0-runtime-repair-and-ux-overhaul.md`, Phase 3).
+
+### What Changed
+
+- **Harness provisioning (3.1)**: new side-effect-free sidecar bundle `hub-catalog.js` (`--sync-hub-catalog`, `--extract-hub-snapshot`, `--hub-catalog-status`, `--catalog-dir`), a checksummed snapshot builder (`build-hub-snapshot.py`), PyInstaller staging that refuses a placeholder digest, and an always-on `HubCatalogProvisioner` install step that extracts the bundled snapshot when the catalog is absent then refreshes from upstream when online. The CLI is a SEPARATE entry from `main.ts` because that module starts the scheduler, serving gateway, and studio DB at import time - none of which a one-shot catalog sync should touch.
+- **Skills surface (3.2)**: `skills.list` now reads the installed catalog through a new vscode-free `hubSkillReader`, closing NHC.P6.B (`ipcSkillsClient.list()` returned a hardcoded `[]`, so the page showed "(0)" in every section regardless of disk contents). `skills.autoSync.get/set` persist the opt-in under the key `codingBootstrap` already honors, closing NHC.P6.C. Enable/disable and quarantine approval still reject, because the sidecar genuinely cannot perform them - no dead buttons.
+- **Command discovery (3.3)**: `commands.list` IPC plus `filterSlashCommandsWithHub` merge built-ins with hub commands in the Agentic composer. The `.slice(0, 8)` cap is gone (a scrollable list; 8 of 16 built-ins were previously unreachable), hub entries carry a source badge, and an absent catalog shows a one-line hint. Only names and descriptions cross the IPC boundary - bodies load on invocation, so discovery costs no prompt context.
+
+### Why It Changed
+
+Nothing bundled or provisioned the harness: it arrived only if the sidecar's best-effort first-launch fetch happened to succeed. An offline install shipped an app with zero skills and a Skills page that blamed the user for not syncing.
+
+### Deviations
+
+- The plan said to construct `HubCommandCatalogLoader` in the sidecar. That module imports a vscode-coupled logger and CANNOT run there - which is exactly why only the VS Code extension ever wired it. Wrote an equivalent vscode-free reader instead; the first attempt broke ~30 handler test files at import until this was found.
+- Two defects were found and fixed mid-phase, both recorded as resolved in known-gaps: the CLI reported a scanner-blocked sync (`applied: false`) as success, and the CLI could only ever target the real `~/.nexus-ai/catalog`. The latter caused a round-trip test to overwrite the developer's installed catalog with a one-skill fixture; it was rebuilt from the intact top-level `~/.nexus-ai/` trees and its original tag restored. `--catalog-dir` now exists and the test asserts it writes nowhere else.
+- MT-4 (no real-archive round-trip test) was raised and then closed within the phase rather than deferred.
+
+### Test Results
+
+Root vitest **5339 passed / 12 skipped / 0 failed**; desktop vitest **1170 passed / 0 failed** (142 files), coverage 89.54% lines / 82.65% branches; installer pytest all green (new `test_hub_catalog_provisioner.py`, 14 cases incl. a real builder-to-extractor round trip); `tsc -b`, eslint, and ruff clean on touched files.
+
+### CI/CD
+
+No workflow changes needed: `shell-build.yml` and `installer-tests.yml` already path-filter `desktop/**`, `core/**`, `modules/**`, and `scripts/installer/**`. The round-trip test skips cleanly when the sidecar bundle has not been built.
+
+### Known Issues
+
+See `docs/v2/v2.2/known-gaps.md` (DF-7 no snapshot produced by the release build yet, DF-8 minimal tar reader; BG-1/BG-2 resolved this phase).
+
+### Next
+
+Phase 4 - Smart Single-GPU Model Orchestration.
+
+---
+
 ## [2026-08-22] v2.2.0 Phase 2 - Model availability end to end
 
 ### Goal

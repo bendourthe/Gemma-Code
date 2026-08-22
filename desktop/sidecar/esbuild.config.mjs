@@ -48,6 +48,22 @@ await build({
   define: { "import.meta.url": "import_meta_url" },
 });
 
+// v2.2.0 Phase 3 (3.1): a second, side-effect-free entry the installer invokes
+// to provision ~/.nexus-ai/catalog/ during installation. Kept separate from
+// main.js because that module starts the scheduler, serving gateway, and studio
+// DB at import time -- none of which a one-shot catalog sync should touch.
+await build({
+  entryPoints: [path.join(here, "src", "cli", "hubCatalogEntry.ts")],
+  bundle: true,
+  platform: "node",
+  target: "node20",
+  format: "cjs",
+  outfile: path.join(distDir, "hub-catalog.js"),
+  external: ["tree-sitter-wasms"],
+  banner: { js: "const import_meta_url = require('url').pathToFileURL(__filename).href;" },
+  define: { "import.meta.url": "import_meta_url" },
+});
+
 // esbuild emits a CommonJS bundle, but desktop/package.json declares
 // "type": "module", which would make Node treat dist/main.js as ESM (require
 // undefined -> spawn fails). Drop a CommonJS marker beside the bundle so Node

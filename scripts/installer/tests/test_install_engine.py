@@ -18,8 +18,14 @@ def _stub_runtime_provisioner():
     real ~/.nexus/runtime.json; its own behavior is covered in
     test_runtime_provisioner.py.
     """
-    with patch("nexus_installer.engine.installer.RuntimeProvisioner") as mock_rt:
+    with (
+        patch("nexus_installer.engine.installer.RuntimeProvisioner") as mock_rt,
+        patch("nexus_installer.engine.installer.HubCatalogProvisioner") as mock_hub,
+    ):
         mock_rt.return_value.install.return_value = True
+        # v2.2.0 Phase 3 (3.1): the hub step always runs too; stub it so no
+        # engine test touches the real ~/.nexus-ai catalog or the network.
+        mock_hub.return_value.install.return_value = True
         yield mock_rt
 
 
@@ -235,6 +241,9 @@ class TestInstallEngineStepSignals:
             # v2.2.0 Phase 1: the always-on runtime-wiring step.
             ("started", "runtime"),
             ("completed", "runtime"),
+            # v2.2.0 Phase 3: the always-on Nexus-Hub harness step.
+            ("started", "hub-catalog"),
+            ("completed", "hub-catalog"),
         ]
 
     def test_step_failed_emitted_on_failure(self) -> None:
@@ -260,7 +269,7 @@ class TestInstallEngineStepSignals:
             engine.run(state)
 
         assert failed == ["ollama"]
-        assert completed == ["extension", "runtime"]
+        assert completed == ["extension", "runtime", "hub-catalog"]
 
     def test_step_progress_forwarded_from_model_and_desktop(self) -> None:
         state = InstallerState(

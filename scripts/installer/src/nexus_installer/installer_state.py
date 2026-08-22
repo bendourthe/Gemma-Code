@@ -99,6 +99,10 @@ class InstallerState:
     desktop_bundle_override: str = ""  # local bundle path; skips release fetch
     desktop_installed: bool = False
     desktop_health_ok: bool = False
+    # v2.2.0 Phase 3 (3.1): Nexus-Hub catalog provisioning outcome.
+    hub_catalog_source: str = ""
+    hub_catalog_tag: str = ""
+    hub_catalog_error: str = ""
     # v2.2.0 Phase 1 (1.4): human-readable health verdict for the Complete page
     # (sidecar ok + catalog rows, or the failure reason).
     desktop_health_detail: str = ""

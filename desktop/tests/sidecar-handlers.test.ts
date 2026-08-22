@@ -122,6 +122,12 @@ describe("sidecar handlers", () => {
           // v2.2.0 Phase 2 (2.4) wired real GPU telemetry (poll-based; the
           // telemetry.subscribe push channel stays unimplemented).
           "gpu.sample",
+          // v2.2.0 Phase 3 wired real skills listing, the auto-sync setting,
+          // and hub command discovery for the Agentic composer.
+          "skills.list",
+          "skills.autoSync.get",
+          "skills.autoSync.set",
+          "commands.list",
           // v1.10.0 Phase 6 wired the Nexus-Hub catalog sync + update detection.
           "skills.sync",
           "skills.status",

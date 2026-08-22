@@ -8,6 +8,7 @@ from PyQt5.QtCore import QObject, QThread, pyqtSignal
 
 from nexus_installer.engine.desktop_provisioner import DesktopProvisioner
 from nexus_installer.engine.extension_installer import ExtensionInstaller
+from nexus_installer.engine.hub_catalog_provisioner import HubCatalogProvisioner
 from nexus_installer.engine.model_router import ModelStepEvents, ModelStepRouter
 from nexus_installer.engine.ollama_installer import OllamaInstaller
 from nexus_installer.engine.runtime_provisioner import RuntimeProvisioner
@@ -159,6 +160,25 @@ class InstallEngine(QObject):
             steps_failed.append("runtime")
             state.failed_steps.append("runtime")
             self.step_failed.emit("runtime")
+
+        # 7. Nexus-Hub harness (v2.2.0 Phase 3, 3.1) -- offline-first: extract
+        # the bundled snapshot when the catalog is absent, then refresh from
+        # upstream when the network allows. Runs after the runtime step because
+        # it uses the Node and the hub-catalog CLI that step guarantees. A
+        # failure here never fails the install: the app still runs, it just has
+        # no harness until the user syncs.
+        self.step_started.emit("hub-catalog")
+        log("--- Installing the Nexus-Hub Harness ---", "info")
+        hub_ok = HubCatalogProvisioner().install(state, log)
+        if hub_ok:
+            self.step_completed.emit("hub-catalog")
+        else:
+            log(
+                "The Nexus-Hub harness is not installed yet; Settings > Skills "
+                "can sync it later.",
+                "warn",
+            )
+            self.step_failed.emit("hub-catalog")
 
         # v2.1 DF-15 -- opt-in Unsloth Core. Off the default chain; checkbox
         # on the extras page sets state.install_unsloth. LGPL zoo is copied

@@ -14,13 +14,23 @@ import { MetalAccent } from "../../components/MetalAccent";
 import { MotionSurface, composerMotionCandidates } from "../../motion";
 import { DOCUMENT_ACCEPT } from "../../shared/chat/documentAccept";
 import { fileMatchesAccept, isImageDataUrl } from "../../shared/chat/MediaComposer";
-import { filterSlashCommands, SLASH_COMMANDS } from "./slashCommands";
+import {
+  filterSlashCommandsWithHub,
+  SLASH_COMMANDS,
+  type HubCommandDescriptor,
+} from "./slashCommands";
+import { useHubCommands } from "./useHubCommands";
 
 export interface CodingInputProps {
   disabled?: boolean;
   onSubmit: (text: string, attachments?: readonly string[]) => void;
   /** Traveling beam while a coding turn is in flight. */
   streaming?: boolean;
+  /**
+   * v2.2.0 Phase 3 (3.3) test seam: pre-resolved hub commands. Production
+   * omits this and the composer loads them from the sidecar.
+   */
+  hubCommands?: readonly HubCommandDescriptor[];
 }
 
 function readFilesAsDataUrls(files: readonly File[]): Promise<string[]> {
@@ -38,16 +48,27 @@ function readFilesAsDataUrls(files: readonly File[]): Promise<string[]> {
   ).then((urls) => urls.filter(Boolean));
 }
 
-export function CodingInput({ disabled, onSubmit, streaming = false }: CodingInputProps): JSX.Element {
+export function CodingInput({
+  disabled,
+  onSubmit,
+  streaming = false,
+  hubCommands,
+}: CodingInputProps): JSX.Element {
   const [value, setValue] = useState("");
   const [attachments, setAttachments] = useState<string[]>([]);
   const [focused, setFocused] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // v2.2.0 Phase 3 (3.3): merge the built-ins with the installed Nexus-Hub
+  // commands. The pre-v2.2.0 composer showed `filterSlashCommands(value)
+  // .slice(0, 8)` -- no hub discovery at all, and 8 of 16 built-ins hidden at
+  // an empty "/". Only names and descriptions cross this boundary; command
+  // bodies load on invocation, so discovery costs no prompt context.
+  const discovered = useHubCommands(hubCommands);
   const suggestions = useMemo(() => {
     if (!value.startsWith("/")) return [];
-    return filterSlashCommands(value).slice(0, 8);
-  }, [value]);
+    return filterSlashCommandsWithHub(value, discovered.commands);
+  }, [value, discovered.commands]);
 
   const canSubmit = !disabled && (value.trim().length > 0 || attachments.length > 0);
 
@@ -154,6 +175,10 @@ export function CodingInput({ disabled, onSubmit, streaming = false }: CodingInp
             display: "flex",
             flexDirection: "column",
             gap: "var(--space-1)",
+            // The cap is gone; a long merged list scrolls instead of hiding
+            // entries the user cannot otherwise discover.
+            maxHeight: "18rem",
+            overflowY: "auto",
           }}
         >
           {suggestions.map((s, i) => (
@@ -173,12 +198,37 @@ export function CodingInput({ disabled, onSubmit, streaming = false }: CodingInp
                 }}
               >
                 <strong>/{s.name}</strong>
+                {s.namespace === "nexus-hub" && (
+                  <span
+                    data-testid={`slash-${s.name}-source`}
+                    style={{
+                      marginLeft: "var(--space-2)",
+                      fontSize: "var(--text-xs)",
+                      color: "var(--accent-coding)",
+                    }}
+                  >
+                    Nexus-Hub
+                  </span>
+                )}
                 <span style={{ color: "var(--fg-muted)", marginLeft: "var(--space-2)" }}>
                   {s.description}
                 </span>
               </button>
             </li>
           ))}
+          {!discovered.catalogPresent && value.startsWith("/") && (
+            <li
+              data-testid="slash-no-catalog-hint"
+              style={{
+                color: "var(--fg-muted)",
+                fontSize: "var(--text-xs)",
+                padding: "var(--space-1) var(--space-2)",
+              }}
+            >
+              Built-in commands only. Install the Nexus-Hub harness in Settings &gt; Skills
+              for more.
+            </li>
+          )}
         </ul>
       )}
       {attachments.length > 0 && (

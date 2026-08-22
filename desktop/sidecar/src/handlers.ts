@@ -72,6 +72,8 @@ import {
   type AudioTranscribeResponseT,
   type AudioSpeakResponseT,
   SkillsSyncRequest,
+  SkillsAutoSyncGetRequest,
+  SkillsAutoSyncSetRequest,
   SkillsOptimizePreviewRequest,
   SkillsOptimizeApplyRequest,
   type SkillsStatusResponseT,
@@ -159,6 +161,8 @@ import {
 } from "../../../core/security/CredentialVault.js";
 import { createModelsRuntime, type ModelsRuntime } from "./models/modelsService.js";
 import { sampleGpu } from "./telemetry/gpuRuntime.js";
+import { readHubCatalog, readHubCommands } from "./skills/hubSkillReader.js";
+import { NEXUS_HUB_AUTO_SYNC_SETTING_KEY } from "../../../core/skills/NexusHubAutoSync.js";
 import { createServingRuntime, type ServingRuntime } from "./serving/servingRuntime.js";
 import {
   type InferenceMetricsRegistry,
@@ -872,6 +876,42 @@ export const handlers: Record<Method, HandlerFn> = {
       installedVersion: manifest?.version ?? null,
       catalogPresent: existsSync(skillsDir),
       sourceRepo: manifest?.source_repo ?? DEFAULT_HUB_SOURCE_REPO,
+    };
+  },
+  // v2.2.0 Phase 3 (3.2): the real listing. `ipcSkillsClient.list()` returned a
+  // hardcoded [] (NHC.P6.B), so the page showed (0) in every section no matter
+  // what was on disk.
+  "skills.list": async () => {
+    const root = catalogRoot();
+    const manifest = readHubVersionManifest(root);
+    const listing = await readHubCatalog({ catalogDir: root, tag: manifest?.version ?? null });
+    return { skills: listing.rows, error: listing.error };
+  },
+  "skills.autoSync.get": async (params, ctx) => {
+    SkillsAutoSyncGetRequest.parse(params ?? {});
+    const stored = await resolveSettings(ctx).get<boolean>(NEXUS_HUB_AUTO_SYNC_SETTING_KEY);
+    return { enabled: stored === true };
+  },
+  "skills.autoSync.set": async (params, ctx) => {
+    const req = SkillsAutoSyncSetRequest.parse(params ?? {});
+    await resolveSettings(ctx).set(NEXUS_HUB_AUTO_SYNC_SETTING_KEY, req.enabled);
+    return { enabled: req.enabled };
+  },
+  // v2.2.0 Phase 3 (3.3): hub command discovery for the Agentic composer. The
+  // desktop app previously had NO harness discovery at all -- only the VS Code
+  // extension constructed the loader.
+  "commands.list": async () => {
+    const root = catalogRoot();
+    let commandsDir: string | null = null;
+    try {
+      commandsDir = hubLayoutDir(root, "commands", resolveHubLayout(root));
+    } catch {
+      commandsDir = null;
+    }
+    const present = commandsDir !== null && existsSync(commandsDir);
+    return {
+      commands: present ? await readHubCommands(root) : [],
+      catalogPresent: present,
     };
   },
   "skills.upstreamLatest": async (): Promise<SkillsUpstreamLatestResponseT> => {

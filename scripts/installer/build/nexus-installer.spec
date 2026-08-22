@@ -145,6 +145,33 @@ if not (_runtimes_src / "diffusion").is_dir():
     raise SystemExit(f"runtimes sources missing: expected {_runtimes_src / 'diffusion'}")
 datas.append((str(_runtimes_src), "runtimes"))
 
+# v2.2.0 Phase 3 (3.1): the bundled Nexus-Hub catalog snapshot, so an OFFLINE
+# install still lands a working harness. Built by
+# scripts/installer/build/build-hub-snapshot.py. Optional by design (a dev
+# build without it still packages; the installer falls back to a network sync),
+# but when present the manifest MUST carry a real sha256 -- v1.10.0 removed an
+# earlier bundled baseline precisely because its pins were placeholders.
+_hub_snapshot = INSTALLER_ROOT / "build" / "hub-snapshot"
+if _hub_snapshot.is_dir():
+    _snap_archive = _hub_snapshot / "catalog.tar.gz"
+    _snap_manifest = _hub_snapshot / "manifest.json"
+    if not (_snap_archive.is_file() and _snap_manifest.is_file()):
+        raise SystemExit(
+            "hub-snapshot directory present but incomplete: expected "
+            "catalog.tar.gz + manifest.json (run build-hub-snapshot.py)"
+        )
+    import json as _hub_json
+
+    _snap_meta = _hub_json.loads(_snap_manifest.read_text(encoding="utf-8"))
+    _snap_sha = str(_snap_meta.get("sha256", ""))
+    if len(_snap_sha) != 64 or _snap_sha == "0" * 64:
+        raise SystemExit(
+            "hub snapshot manifest carries a placeholder sha256; refusing to "
+            "bundle an unverifiable catalog snapshot"
+        )
+    datas.append((str(_snap_archive), "hub-snapshot"))
+    datas.append((str(_snap_manifest), "hub-snapshot"))
+
 a = Analysis(
     [str(INSTALLER_ROOT / "src" / "nexus_installer" / "main.py")],
     pathex=[str(INSTALLER_ROOT / "src")],
