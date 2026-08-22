@@ -4,6 +4,48 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-22] v2.2.0 Phase 4 - Smart single-GPU model orchestration
+
+### Goal
+
+Make model switching on one GPU predictable: never on a tab click, automatic when nothing is at stake, and a confirmation only when something the user is running would be evicted (plan `docs/v2/v2.2/plans/v2.2.0-runtime-repair-and-ux-overhaul.md`, Phase 4).
+
+### What Changed
+
+- **Policy engine (4.1)**: new `core/scheduler/ModelSwitchPolicy.ts` classifies each request as `resident | coreside | auto-switch | confirm | defer | not-installed`. Pure and dependency-free like `modelSwap.ts` beside it, so the whole matrix is unit-testable. Co-residency requires 2 GB headroom on top of both models (loading to the exact byte leaves nothing for activations and KV cache, which is how a "successful" co-residency OOMs mid-generation). `assertNoLoadOnNavigation` plus a route-mount test pin the invariant the user actually asked for: arriving on Image Studio must not evict an agentic task's model.
+- **Cross-model orchestration (4.2)**: new `core/scheduler/CrossModelRequest.ts` runs one cross-model step with hold -> classify -> run -> restore. The hold on the agentic model is taken before the swap and released in a `finally`, so an abort, a swap failure, or a runtime crash all end with residency restored. `ModelNotInstalledError` is thrown before any hold or queue entry, so a bad tool call leaves no scheduler state behind.
+- **Switch UX (4.3)**: `useModelResidency` owns residency, the in-flight switch, and the session-scoped "remember" set (shared across surfaces, deliberately not persisted - a choice made once should not silently govern every future launch). `ModelSwitchDialog` names the concrete models and what is using the GPU; `ModelSwitchChip` is the non-interrupting counterpart for auto-switch and co-residency. Answering the dialog re-classifies before acting, so a warning about a job that has since finished cannot evict anything.
+- **Integration**: `ImageStudioPage.handleSubmit` consults the policy, opens the dialog, and resumes the original prompt when the user agrees.
+
+### Why It Changed
+
+On a consumer GPU only one model fits at a time. Switching silently lets a stray tab click evict an agentic task's model; asking every time makes cross-modality automation unusable. The policy is what lets both cases be handled correctly.
+
+### Deviations
+
+- Sub-task 4.3 asks for integration into the studios' AND chat/coding submit paths; only Image Studio is wired (DF-9).
+- The policy is not yet fed live residency or scheduler state - `App.tsx` does not supply the new props and nothing updates the resident list from the scheduler (DF-10, same missing feed as DF-5).
+- `runCrossModelRequest` is not called by the real agent tools yet; it is covered against a mock runtime, which is what 4.2's acceptance asks for, but no live agentic session exercises it (DF-11).
+- **A design flaw surfaced through 9 broken tests**: the first policy demanded confirmation whenever free VRAM was unknown, which would have gated EVERY generation behind a dialog on any host without telemetry. The confirm exists to protect an incumbent model; with nothing resident there is nothing to protect, so that case now loads directly and the scheduler's own VRAM gate remains the backstop.
+
+### Test Results
+
+Root vitest **5373 passed / 12 skipped / 0 failed**; desktop vitest **1191 passed / 0 failed** (144 files), coverage 89.5% lines / 82.53% branches; `tsc -b` and eslint clean. `core/**` is outside the repo's lint scope (`eslint src modules`) by existing convention; typecheck and tests cover it.
+
+### CI/CD
+
+No workflow changes: `shell-build.yml` already path-filters `core/**` and `desktop/**`. No installer files were touched this phase.
+
+### Known Issues
+
+See `docs/v2/v2.2/known-gaps.md` (DF-9 one surface wired, DF-10 no live scheduler feed, DF-11 agent tools not calling the orchestrator).
+
+### Next
+
+Phase 5 - Local Chatbot Rebuild.
+
+---
+
 ## [2026-08-22] v2.2.0 Phase 3 - Nexus-Hub harness provisioning and skills surface
 
 ### Goal
