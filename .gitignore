@@ -294,3 +294,8 @@ desktop/sidecar/dist/
 desktop/src-tauri/target/
 desktop/src-tauri/gen/
 desktop/src-tauri/Cargo.lock
+
+# v2.2.0 Phase 8: the bundled Nexus-Hub catalog snapshot is a build
+# artifact. It is regenerated from the local catalog on every installer build
+# and its manifest changes each time, so tracking it only produces noise.
+scripts/installer/build/hub-snapshot/
