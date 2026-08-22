@@ -23,7 +23,7 @@ NEXUS_MODEL_PREFLIGHT=1 scripts/installer/.venv/Scripts/python -m nexus_installe
 
 ## Gated (license) models
 
-A few offered models are open-weight but sit behind a Hugging Face license click-through (`gated: true` + `requiresLicense` in `core/registry/catalog.json`): currently `svd`, `stable-audio-open-1.0`, and `sana-1.6b-int4`. The installer makes them work rather than skipping them:
+A few offered models are open-weight but sit behind a Hugging Face license click-through (`gated: true` + `requiresLicense` in `core/registry/catalog.json`): currently `sana-1.6b-int4`. The installer makes them work rather than skipping them:
 
 1. **Automatic** - it resolves a Hugging Face token from `HF_TOKEN` / `HUGGING_FACE_HUB_TOKEN` or the `huggingface-cli login` cache (`engine.hf_auth.discover_hf_token`) and uses it silently.
 2. **Guided (last resort)** - if no token is found and you selected a gated model, a one-time dialog (`widgets.gated_auth_dialog`) opens the model's license page, lets you paste a free read token, validates it against the repo, and proceeds. Declining removes that model from the install queue so nothing fails mid-download.

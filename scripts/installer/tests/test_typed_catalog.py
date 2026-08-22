@@ -391,8 +391,10 @@ class TestModelMetadata:
         img = self._model(task="image", type="image")
         assert img.guardrails_label == "Safety-tuned"
 
-    def test_is_required_is_embed_only(self) -> None:
-        assert self._model(task="embed").is_required is True
+    def test_is_required_is_nomic_embed_only(self) -> None:
+        assert self._model(id="nomic-embed-text", task="embed").is_required is True
+        assert self._model(id="embeddinggemma", task="embed").is_required is False
+        assert self._model(id="qwen3-embedding:0.6b", task="embed").is_required is False
         assert self._model(task="chat").is_required is False
         assert self._model(task="agentic", type="agentic").is_required is False
 
@@ -589,6 +591,17 @@ class TestTypedCatalogPage:
         over = [m.required_vram_gb > 8 for m in models]
         assert over == sorted(over)  # every fitting row precedes every gray row
 
+    def test_enabled_sort_required_then_defaults_then_newest(
+        self, qt_app, tmp_path: Path
+    ) -> None:
+        page = self._page(_gpu_state(vram_mb=8192), tmp_path)
+        models = page._sorted_section_models(
+            "chat", 8, "nvidia", {"gemma4:e4b", "nomic-embed-text"}
+        )
+        enabled = [m.id for m in models if m.required_vram_gb <= 8]
+        assert enabled[0] == "nomic-embed-text"
+        assert enabled.index("gemma4:e4b") < enabled.index("legacy-text-no-task")
+
     def test_try_advance_tab_walks_tabs_then_stops(
         self, qt_app, tmp_path: Path
     ) -> None:
@@ -692,6 +705,52 @@ class TestRealCatalogPage:
         selected = page.selection().selected
         assert "lfm2.5:2.6b" not in selected
         assert "gemma4:e4b" in selected
+
+    def test_agentic_order_is_recommendation_then_newest(self, qt_app) -> None:
+        page = TypedCatalogPage(_gpu_state(vram_mb=16384))
+        fitted = set(page._current_defaults())
+        assert "gemma-4-12b-it-gguf" in fitted
+        assert "gpt-oss:20b" not in fitted
+        models = page._sorted_section_models(
+            "agentic",
+            16,
+            "nvidia",
+            fitted,
+            list(page._matrix["16"]["agentic"]),
+        )
+        enabled = [m.id for m in models if m.required_vram_gb <= 16]
+        assert enabled[:2] == ["gemma-4-12b-it-gguf", "gpt-oss:20b"]
+        assert enabled.index("gpt-oss:20b") < enabled.index("lfm2.5:2.6b")
+
+    def test_8gb_agentic_order_follows_recommended_list(self, qt_app) -> None:
+        page = TypedCatalogPage(_gpu_state(vram_mb=8192))
+        models = page._sorted_section_models(
+            "agentic",
+            8,
+            "nvidia",
+            set(page._current_defaults()),
+            list(page._matrix["8"]["agentic"]),
+        )
+        enabled = [m.id for m in models if m.required_vram_gb <= 8]
+        assert enabled[:3] == ["gemma4:e4b", "lfm2.5:2.6b", "qwen3.5:9b"]
+
+    def test_new_specialists_listed_retired_coders_absent(self, qt_app) -> None:
+        page = TypedCatalogPage(_gpu_state(vram_mb=24576))
+        ids = {m.id for m in page._catalog.values()}
+        for model_id in (
+            "qwen3.5:4b",
+            "qwen3.5:9b",
+            "gpt-oss:20b",
+            "qwen3-coder:30b",
+            "embeddinggemma",
+            "qwen3-embedding:0.6b",
+        ):
+            assert model_id in ids
+        assert "qwen2.5-coder:7b" not in ids
+        assert "qwen2.5-coder:14b" not in ids
+        assert "deepseek-coder-v2:16b" not in ids
+        assert page._catalog["nomic-embed-text"].is_required is True
+        assert page._catalog["embeddinggemma"].is_required is False
 
     def test_cards_colored_by_provider_not_tab(self, qt_app) -> None:
         # v1.9.0 Phase 6 (T022, DoD #7): cards are colored by the model's

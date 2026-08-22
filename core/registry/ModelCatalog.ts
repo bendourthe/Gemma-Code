@@ -19,7 +19,7 @@
  *    content-addressed registry; the public type surface stays stable).
  */
 
-export type ModelFamily = "gemma" | "llama" | "qwen" | "deepseek" | "lfm2.5" | "hermes" | "muse-glimmer" | "nemotron-lightning";
+export type ModelFamily = "gemma" | "llama" | "qwen" | "deepseek" | "lfm2.5" | "hermes" | "muse-glimmer" | "nemotron-lightning" | "gpt-oss";
 
 export type PromptFormatName = "gemma4" | "llama3" | "qwen" | "deepseek" | "lfm";
 
@@ -125,6 +125,52 @@ const ENTRIES: readonly LlmCatalogEntry[] = Object.freeze([
     sampling: { temperature: 0.4, topP: 0.85, topK: 20, contextLength: 32768 },
     promptFormat: "qwen",
     toolFormat: "qwen-json",
+  },
+  {
+    id: "qwen3.5:4b",
+    displayName: "Qwen 3.5 4B",
+    family: "qwen",
+    runtime: "ollama",
+    vramGb: 4,
+    tags: Object.freeze(["coding", "tool-use", "lightweight"]),
+    sampling: { temperature: 0.6, topP: 0.8, topK: 20, contextLength: 32768 },
+    promptFormat: "qwen",
+    toolFormat: "qwen-json",
+  },
+  {
+    id: "qwen3.5:9b",
+    displayName: "Qwen 3.5 9B",
+    family: "qwen",
+    runtime: "ollama",
+    vramGb: 8,
+    tags: Object.freeze(["recommended", "coding", "tool-use"]),
+    sampling: { temperature: 0.6, topP: 0.8, topK: 20, contextLength: 32768 },
+    promptFormat: "qwen",
+    toolFormat: "qwen-json",
+  },
+  {
+    id: "qwen3-coder:30b",
+    displayName: "Qwen3-Coder 30B-A3B",
+    family: "qwen",
+    runtime: "ollama",
+    vramGb: 20,
+    activeParams: 3.3,
+    totalParams: 30,
+    tags: Object.freeze(["recommended", "coding", "tool-use", "advanced"]),
+    sampling: { temperature: 0.4, topP: 0.8, topK: 20, contextLength: 32768 },
+    promptFormat: "qwen",
+    toolFormat: "qwen-json",
+  },
+  {
+    id: "gpt-oss:20b",
+    displayName: "gpt-oss 20B",
+    family: "gpt-oss",
+    runtime: "ollama",
+    vramGb: 16,
+    tags: Object.freeze(["recommended", "coding", "tool-use"]),
+    sampling: { temperature: 0.7, topP: 0.9, topK: 50, contextLength: 32768 },
+    promptFormat: "llama3",
+    toolFormat: "llama3-json",
   },
   {
     id: "deepseek-coder:6.7b",

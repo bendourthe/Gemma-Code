@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { App } from "../src/App";
-import { ModulePlaceholder } from "../src/pages/ModulePlaceholder";
 import { StyleguidePage } from "../src/pages/Styleguide";
 
 describe("App shell", () => {
@@ -96,17 +95,6 @@ describe("App shell", () => {
   });
 });
 
-describe("ModulePlaceholder", () => {
-  it("renders a custom message when provided", () => {
-    render(<ModulePlaceholder moduleId="image" message="hello world" />);
-    expect(screen.getByText("hello world")).toBeInTheDocument();
-  });
-
-  it("falls back to a default message", () => {
-    render(<ModulePlaceholder moduleId="video" />);
-    expect(screen.getByText(/coming online/i)).toBeInTheDocument();
-  });
-});
 
 describe("Styleguide", () => {
   it("renders swatches for every surface and accent token", () => {

@@ -34,19 +34,23 @@ describe("<FolderTree>", () => {
     const client = setupClient();
     render(<FolderTree client={client} storageAdapter={storageAdapter} />);
     expect(screen.getByTestId("folder-tree-empty")).toBeInTheDocument();
+    // v2.2.0 DF-12: this used to read "Create your first folder", which is why
+    // the module looked like it required a folder before you could talk to
+    // anything. Folders stay available; they are just no longer the entry.
     expect(screen.getByTestId("folder-tree-empty-cta")).toHaveTextContent(
-      /create your first folder/i,
+      /start a new chat/i,
     );
   });
 
-  it("clicking the empty-state CTA creates a folder and enters rename mode", async () => {
+  it("clicking the empty-state CTA creates a chat at the root, not a folder", async () => {
     const client = setupClient();
     const user = userEvent.setup();
     render(<FolderTree client={client} storageAdapter={storageAdapter} />);
     await user.click(screen.getByTestId("folder-tree-empty-cta"));
-    // The new folder shows up with an inline rename input focused.
-    const renameInput = await screen.findByTestId(/^tree-rename-input-/);
-    expect(renameInput).toHaveValue("New folder");
+    const tree = client.listTree();
+    expect(tree.chats.length).toBe(1);
+    expect(tree.chats[0].folderId).toBeNull();
+    expect(tree.children.length).toBe(0);
   });
 
   it("creates a new folder via the toolbar button", async () => {

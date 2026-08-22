@@ -13,7 +13,6 @@ import os
 from collections.abc import Callable
 
 from PyQt5.QtCore import QEvent, Qt, pyqtSignal
-from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -41,7 +40,6 @@ from nexus_installer.constants import (
 )
 from nexus_installer.engine.install_guard import evaluate_install_guard
 from nexus_installer.installer_state import InstallerState
-from nexus_installer.registry_paths import resolve_window_icon
 from nexus_installer.theme import generate_stylesheet
 from nexus_installer.widgets.background import BackgroundWidget
 from nexus_installer.widgets.footer import Footer
@@ -49,6 +47,7 @@ from nexus_installer.widgets.header import HEADER_STEP_PX, Header
 from nexus_installer.widgets.sidebar import Sidebar
 from nexus_installer.widgets.step_indicator import StepIndicator
 from nexus_installer.widgets.title_bar import TitleBar
+from nexus_installer.widgets.win_titlebar import build_window_icon
 
 #: Window title / OS taskbar caption (T304).
 WINDOW_TITLE = "Nexus AI Studio"
@@ -98,9 +97,9 @@ class InstallerWindow(QMainWindow):
         self.setWindowTitle(WINDOW_TITLE)
         # Set the window icon explicitly (not only app-wide) so the taskbar
         # button reliably shows the Nexus mark in the frozen build (T018).
-        _icon_path = resolve_window_icon()
-        if _icon_path is not None:
-            self.setWindowIcon(QIcon(str(_icon_path)))
+        _window_icon = build_window_icon()
+        if _window_icon is not None:
+            self.setWindowIcon(_window_icon)
         self.setMinimumSize(WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT)
         self.resize(WINDOW_DEFAULT_WIDTH, WINDOW_DEFAULT_HEIGHT)
         self.setStyleSheet(generate_stylesheet())

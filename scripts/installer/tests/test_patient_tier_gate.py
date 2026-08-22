@@ -56,7 +56,8 @@ class TestPatientTierGate:
         monkeypatch.delenv("NEXUS_PATIENT_TIER", raising=False)
         ids = {m.id for m in load_catalog_models(default_catalog_path())}
         assert "inkling-small" not in ids
-        assert "hermes3:8b" in ids
+        assert "nomic-embed-text" in ids
+        assert "hermes3:8b" not in ids
 
     def test_repo_inkling_visible_when_opted_in(self, monkeypatch) -> None:
         from nexus_installer.registry_paths import default_catalog_path

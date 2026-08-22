@@ -143,6 +143,7 @@ describe("catalog", () => {
     // hf.co GGUF path that failed Ollama manifest registration (bug #15447).
     expect(gguf?.source.protocol).toBe("ollama");
     expect(gguf?.source.url).toBe("ollama://gemma4:12b");
+    expect(gguf?.minOllamaVersion).toBe("0.32.15");
     expect(gguf?.tags).toContain("recommended");
     expect(gguf?.tags).toContain("multimodal");
   });
@@ -262,12 +263,12 @@ describe("catalog", () => {
       expect(spec.agentic).toBe(true);
       expect(spec.toolCallingBenchmark?.suite).toBeTruthy();
     }
-    const denseUnflagged = file.models.find((m) => m.id === "llama3.1:8b");
+    const denseUnflagged = file.models.find((m) => m.id === "nomic-embed-text");
     expect(denseUnflagged?.toolCallingVerified).toBeUndefined();
     expect(denseUnflagged?.activeParams).toBeUndefined();
-    const moe = file.models.find((m) => m.id === "deepseek-coder-v2:16b");
-    expect(moe?.activeParams).toBe(2.4);
-    expect(moe?.totalParams).toBe(16);
+    const moe = file.models.find((m) => m.id === "qwen3-coder:30b");
+    expect(moe?.activeParams).toBe(3.3);
+    expect(moe?.totalParams).toBe(30);
   });
 
   it("bundled catalog carries the Phase 4 curated uncensored image/video entries", async () => {
@@ -344,9 +345,7 @@ describe("catalog", () => {
     const speech: Array<[string, string]> = [
       ["faster-whisper-large-v3", "MIT"],
       ["kokoro-82m", "Apache-2.0"],
-      ["piper-en-us-lessac", "MIT"],
     ];
-    const generation = ["musicgen-medium", "stable-audio-open-1.0"];
     for (const [id, licensePrefix] of speech) {
       const entry = byId.get(id);
       expect(entry, `${id} should exist`).toBeDefined();
@@ -358,12 +357,9 @@ describe("catalog", () => {
       expect(entry?.source.protocol).toBe("huggingface");
       expect(entry?.weights?.files.length).toBeGreaterThan(0);
     }
-    for (const id of generation) {
-      const entry = byId.get(id);
-      expect(entry, `${id} should exist`).toBeDefined();
-      expect(entry?.type).toBe("audio");
-      expect(entry?.license, `${id} must record a license`).toBeTruthy();
-    }
+    expect(byId.has("piper-en-us-lessac")).toBe(false);
+    expect(byId.has("musicgen-medium")).toBe(false);
+    expect(byId.has("stable-audio-open-1.0")).toBe(false);
   });
 
   it("populates origin on every user-facing entry (v1.9.0 Phase 4)", async () => {
@@ -385,12 +381,11 @@ describe("catalog", () => {
       "gemma4:26b",
       "gemma4:31b",
       "gemma-4-12b-it-gguf",
-      "qwen2.5-coder:7b",
-      "qwen2.5-coder:14b",
-      "deepseek-coder-v2:16b",
+      "qwen3.5:4b",
+      "qwen3.5:9b",
+      "qwen3-coder:30b",
+      "gpt-oss:20b",
       "lfm2.5:2.6b",
-      "hermes3:8b",
-      "hermes3:70b",
       "muse-glimmer:30b",
       "muse-glimmer:30b-dynamic",
       "nemotron-lightning:30b-a3b",
@@ -399,10 +394,28 @@ describe("catalog", () => {
     for (const id of agentic) {
       expect(byId.get(id)?.agentic, `${id} should be agentic-capable`).toBe(true);
     }
-    // A general chat model that is not agentic-coding-capable is not flagged.
-    expect(byId.get("llama3.1:8b")?.agentic ?? false).toBe(false);
+    // A non-coding support model is not flagged agentic.
+    expect(byId.get("nomic-embed-text")?.agentic ?? false).toBe(false);
     // The Gemma 4 family keeps its primary task as chat (surfaced in both tabs).
     expect(byId.get("gemma4:e4b")?.task).toBe("chat");
+  });
+
+  it("ships 2025+ coding specialists and embed opt-ins", async () => {
+    const file = await loadCatalog();
+    const byId = new Map(file.models.map((m) => [m.id, m]));
+    expect(byId.get("qwen3.5:4b")?.source.url).toBe("ollama://qwen3.5:4b");
+    expect(byId.get("qwen3.5:9b")?.source.url).toBe("ollama://qwen3.5:9b");
+    expect(byId.get("gpt-oss:20b")?.source.url).toBe("ollama://gpt-oss:20b");
+    expect(byId.get("qwen3-coder:30b")?.source.url).toBe("ollama://qwen3-coder:30b");
+    expect(byId.get("embeddinggemma")?.source.url).toBe("ollama://embeddinggemma:300m");
+    expect(byId.get("qwen3-embedding:0.6b")?.source.url).toBe(
+      "ollama://qwen3-embedding:0.6b",
+    );
+    expect(byId.get("qwen3.5:9b")?.task).toBe("agentic");
+    expect(byId.get("embeddinggemma")?.task).toBe("embed");
+    expect(byId.has("qwen2.5-coder:7b")).toBe(false);
+    expect(byId.has("qwen2.5-coder:14b")).toBe(false);
+    expect(byId.has("deepseek-coder-v2:16b")).toBe(false);
   });
 
   it("curates LFM2.5-2.6B as the low-VRAM agentic entry (v1.19.0 Phase 1)", async () => {
@@ -446,7 +459,7 @@ describe("catalog", () => {
     expect(recommended.tiers["8"].agentic).toEqual([
       "gemma4:e4b",
       "lfm2.5:2.6b",
-      "qwen2.5-coder:7b",
+      "qwen3.5:9b",
     ]);
     for (const tier of ["12", "16", "24"]) {
       expect(recommended.tiers[tier].agentic).not.toContain("lfm2.5:2.6b");
@@ -536,22 +549,10 @@ describe("catalog", () => {
     expect(recommended).not.toContain("longcat-video-avatar-1.5");
   });
 
-  it("curates Hermes 3 8B/70B as agentic catalog entries (v1.19.2)", async () => {
+  it("does not catalog Hermes 3 in the installer catalog (coding ModelCatalog keeps the family)", async () => {
     const file = await loadCatalog();
-    const eight = findSpec(file, "hermes3:8b");
-    expect(eight).toBeDefined();
-    expect(eight?.family).toBe("hermes");
-    expect(eight?.agentic).toBe(true);
-    expect(eight?.origin).toBe("USA");
-    expect(eight?.license).toMatch(/Llama 3\.1/);
-    expect(eight?.source.protocol).toBe("ollama");
-    expect(eight?.source.url).toBe("ollama://hermes3:8b");
-    expect(eight?.modalities).toEqual(["text"]);
-    expect(eight?.contextWindow).toBe(131072);
-    const seventy = findSpec(file, "hermes3:70b");
-    expect(seventy?.agentic).toBe(true);
-    expect(seventy?.source.url).toBe("ollama://hermes3:70b");
-    expect(seventy?.tags).toContain("advanced");
+    expect(findSpec(file, "hermes3:8b")).toBeUndefined();
+    expect(findSpec(file, "hermes3:70b")).toBeUndefined();
   });
 
   it("curates Inkling-Small as an opt-in patient-tier GGUF (v1.19.2)", async () => {
@@ -883,7 +884,8 @@ describe("catalog", () => {
     expect(native?.activeParams).toBe(3);
     expect(native?.totalParams).toBe(30);
     expect(native?.localEval?.status).toBe("not_run");
-    expect(native?.source.url).toContain("NVIDIA-Nemotron-3.5-Lightning-30B-A3B-GGUF");
+    expect(native?.source.url).toBe("ollama://nemotron-3.5-lightning:30b");
+    expect(offload?.source.url).toBe("ollama://nemotron-3.5-lightning:30b");
   });
 
   it("does not promote Muse or Lightning onto recommended.json defaults (v2.1.0)", async () => {

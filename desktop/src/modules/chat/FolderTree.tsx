@@ -45,6 +45,13 @@ export interface FolderTreeProps {
   client: ChatExplorerClient;
   /** Called whenever the tree changes; consumers can use it to refresh. */
   onChange?: () => void;
+  /**
+   * Bump to force a re-read of the store. Needed when something OUTSIDE the
+   * tree changes a row: v2.2.0 auto-titling renames a chat from the message
+   * pane, and the rail would otherwise keep showing "New chat" until the next
+   * local edit. (DF-13)
+   */
+  refreshToken?: number;
   /** Currently active selection (controlled). */
   selected?: SelectedNode | null;
   /** Selection callback. */
@@ -158,6 +165,7 @@ export function FolderTree({
   onOpenChat,
   onOpenFolder,
   storageAdapter,
+  refreshToken,
   defaultModelId = "gemma4:e4b",
 }: FolderTreeProps): JSX.Element {
   const storage = storageAdapter ?? defaultStorage;
@@ -174,7 +182,7 @@ export function FolderTree({
     onChange?.();
   }, [onChange]);
 
-  const tree = useMemo(() => client.listTree(), [client, revision]);
+  const tree = useMemo(() => client.listTree(), [client, revision, refreshToken]);
 
   const flat = useMemo(() => {
     const full = flattenTree(tree, expanded);
@@ -429,10 +437,17 @@ export function FolderTree({
         }}
       >
         <p style={{ margin: 0, color: "var(--fg-muted)" }}>No chats yet.</p>
+        {/*
+          v2.2.0 Phase 8 (DF-12): this used to read "Create your first folder",
+          which is why the module appeared to require a folder before it would
+          let you talk to anything. The store has always supported chats with
+          `folderId: null`; only this button insisted otherwise. Folders remain
+          available for organising later, from the header and context menu.
+        */}
         <button
           type="button"
           data-testid="folder-tree-empty-cta"
-          onClick={() => onCreateFolder(null)}
+          onClick={() => onCreateChat(null)}
           style={{
             backgroundColor: "var(--accent-chatbot, var(--accent-coding))",
             color: "var(--bg-0)",
@@ -442,7 +457,7 @@ export function FolderTree({
             cursor: "pointer",
           }}
         >
-          Create your first folder
+          Start a new chat
         </button>
       </div>
     );

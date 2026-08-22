@@ -2,434 +2,9 @@
   "_meta": {
     "version": 1,
     "phase": "v2.1.0 Phase 1",
-    "comment": "Curated installable model catalog used by the Settings UI and the installer wizard. LLMs ship in Phase 5; image models are flagged for Phase 6 (Image Studio); video models for Phase 7 (Video Lab); NVIDIA SANA family landed in v1.1.0 Phase 12. Ollama-sourced entries delegate digest verification to `ollama pull` and carry no sha256. Hugging Face entries carry a per-model `weights` manifest (v1.8.0 Phase 3): an explicit file list, each downloaded from https://huggingface.co/{repo}/resolve/main/{path} into <models_root>/weights/<model-id>/{path} (models_root defaults to ~/.nexus/models) -- the per-model directory the diffusion runtime loads at startup (diffusers from_pretrained on the model directory; repo-relative subpaths like transformer/ are preserved). Each file pins a SHA-256 (versions.lock.json discipline): all-zero digests are placeholders -- the installer's weights puller warns, skips verification, and logs the computed digest; rotate pins with scripts/installer/build/pin-hf-weights.py. source.sha256 remains the primary-blob digest for older consumers and is superseded by weights.files[].sha256. v1.8.0 Phase 4 adds the selection-UX fields: `task` (chat | agentic | image | video | audio | embed) drives the installer's catalog sections; `strengths` / `whyRecommended` / `differentiators` carry the per-model copy the wizard cards render; `provenance` records publisher + lineage for curated entries (required on uncensored ones). Uncensored entries (uncensored: true) were curated 2026-07-03 with license + provenance verified per entry; per-VRAM-tier defaults live in recommended.json. v1.9.0 Phase 4 adds the scannable-catalog metadata: `origin` (publisher country, or Community) and `agentic` (agentic-coding capability flag -- set on the Gemma 4 family + the coding specialists so both surface in the installer's Agentic tab); an optional `guardrails` string overrides the installer's derived Uncensored/Safety-tuned/N/A label. The audio pillar (type/task `audio`) is curated: speech (faster-whisper STT MIT, Kokoro + Piper TTS) and generation (MusicGen CC-BY-NC-4.0, Stable Audio Open community-license) -- STT/TTS are permissive + CPU-capable and default on every tier; the non-commercial generation models are listed opt-in (never defaults). v1.14.0 Phase 1 curation: releaseDate (ISO YYYY-MM-DD) is now a first-class field on every selectable model, rendered as a card pill by the installer picker; gated open-weight opt-ins (svd, stable-audio-open-1.0, sana-1.6b-int4) carry requiresLicense=true + licenseUrl so the installer guided Hugging Face step (accept license + free token) can unlock them, and sd1.5 was re-pointed from the withdrawn runwayml repo to the public stable-diffusion-v1-5 mirror; auxiliary types (vae, controlnet) stay excluded from the picker by the loader; the per-family best-fit collapse (show the single best variant that fits the detected hardware, larger tiers grayed) happens in the installer picker at render time, so the catalog stays a complete data source for the desktop app and diffusion runtime. v1.18.0 Phase 3 adds optional toolCallingVerified + toolCallingBenchmark (OW-A4) and MoE activeParams/totalParams in billions (LG-A3); omitted fields stay unverified / dense. v1.19.0 Phase 1 adds LFM2.5-2.6B as the low-VRAM Agentic entry (official Liquid GGUF via the Ollama hf.co bridge -- the official Ollama library does not carry it at curation time -- plus a real SHA-256 pin on weights.files) and an optional licenseNote use-restriction string so ungated licenses with a commercial-use cap stay visible without triggering requiresLicense gated-auth. Record contextWindow conservatively at 32K until Phase 2 verifies the 128K claim. v1.19.2 Phase 1 adds `modalities` (backfilled text-only unless documented otherwise), `audioConditioning` on video entries, official precision `weights.variants` for quantized delivery, the Hermes 3 family (hermes3:8b / hermes3:70b) via the Ollama library, and the opt-in Inkling-Small patient-tier GGUF (never a recommended.json default)."
+    "comment": "Curated installable model catalog used by the Settings UI and the installer wizard. LLMs ship in Phase 5; image models are flagged for Phase 6 (Image Studio); video models for Phase 7 (Video Lab); NVIDIA SANA family landed in v1.1.0 Phase 12. Ollama-sourced entries delegate digest verification to `ollama pull` and carry no sha256. Hugging Face entries carry a per-model `weights` manifest (v1.8.0 Phase 3): an explicit file list, each downloaded from https://huggingface.co/{repo}/resolve/main/{path} into <models_root>/weights/<model-id>/{path} (models_root defaults to ~/.nexus/models) -- the per-model directory the diffusion runtime loads at startup (diffusers from_pretrained on the model directory; repo-relative subpaths like transformer/ are preserved). Each file pins a SHA-256 (versions.lock.json discipline): all-zero digests are placeholders -- the installer's weights puller warns, skips verification, and logs the computed digest; rotate pins with scripts/installer/build/pin-hf-weights.py. source.sha256 remains the primary-blob digest for older consumers and is superseded by weights.files[].sha256. v1.8.0 Phase 4 adds the selection-UX fields: `task` (chat | agentic | image | video | audio | embed) drives the installer's catalog sections; `strengths` / `whyRecommended` / `differentiators` carry the per-model copy the wizard cards render; `provenance` records publisher + lineage for curated entries (required on uncensored ones). Uncensored entries (uncensored: true) were curated 2026-07-03 with license + provenance verified per entry; per-VRAM-tier defaults live in recommended.json. v1.9.0 Phase 4 adds the scannable-catalog metadata: `origin` (publisher country, or Community) and `agentic` (agentic-coding capability flag -- set on the Gemma 4 family + the coding specialists so both surface in the installer's Agentic tab); an optional `guardrails` string overrides the installer's derived Uncensored/Safety-tuned/N/A label. The audio pillar (type/task `audio`) is curated: speech (faster-whisper STT MIT, Kokoro + Piper TTS) and generation (MusicGen CC-BY-NC-4.0, Stable Audio Open community-license) -- STT/TTS are permissive + CPU-capable and default on every tier; the non-commercial generation models are listed opt-in (never defaults). v1.14.0 Phase 1 curation: releaseDate (ISO YYYY-MM-DD) is now a first-class field on every selectable model, rendered as a card pill by the installer picker; gated open-weight opt-ins (svd, stable-audio-open-1.0, sana-1.6b-int4) carry requiresLicense=true + licenseUrl so the installer guided Hugging Face step (accept license + free token) can unlock them, and sd1.5 was re-pointed from the withdrawn runwayml repo to the public stable-diffusion-v1-5 mirror; auxiliary types (vae, controlnet) stay excluded from the picker by the loader; the per-family best-fit collapse (show the single best variant that fits the detected hardware, larger tiers grayed) happens in the installer picker at render time, so the catalog stays a complete data source for the desktop app and diffusion runtime. v1.18.0 Phase 3 adds optional toolCallingVerified + toolCallingBenchmark (OW-A4) and MoE activeParams/totalParams in billions (LG-A3); omitted fields stay unverified / dense. v1.19.0 Phase 1 adds LFM2.5-2.6B as the low-VRAM Agentic entry (official Liquid GGUF via the Ollama hf.co bridge -- the official Ollama library does not carry it at curation time -- plus a real SHA-256 pin on weights.files) and an optional licenseNote use-restriction string so ungated licenses with a commercial-use cap stay visible without triggering requiresLicense gated-auth. Record contextWindow conservatively at 32K until Phase 2 verifies the 128K claim. v1.19.2 Phase 1 adds `modalities` (backfilled text-only unless documented otherwise), `audioConditioning` on video entries, official precision `weights.variants` for quantized delivery, the Hermes 3 family (hermes3:8b / hermes3:70b) via the Ollama library, and the opt-in Inkling-Small patient-tier GGUF (never a recommended.json default). v2.1 develop follow-up: installer catalog drops pre-2025 opt-ins unless they are required (embed), recommended.json defaults, RapidOCR, or SAM2; remaining cards sort newest-first then by size. Nemotron Lightning pulls the Ollama library tag nemotron-3.5-lightning:30b. Gemma 4 entries declare minOllamaVersion 0.32.15. v2.1 develop follow-up: installer catalog adds Qwen 3.5 4B/9B, gpt-oss 20B, Qwen3-Coder 30B, EmbeddingGemma, and Qwen3-Embedding 0.6B; drops Qwen 2.5 Coder and DeepSeek Coder V2 now that 2025+ specialists cover those tiers. Extra embedders are opt-in; nomic-embed-text stays required."
   },
   "models": [
-    {
-      "id": "gemma4:e2b",
-      "family": "gemma4",
-      "name": "gemma4",
-      "tag": "e2b",
-      "type": "llm",
-      "task": "chat",
-      "displayName": "Gemma 4 E2B",
-      "releaseDate": "2026-05-01",
-      "origin": "USA",
-      "agentic": true,
-      "description": "Google's Gemma 4 E2B is a compact 2B-parameter chat model from the USA. The smallest chat tier: it stays responsive on a 4 GB GPU, or even with no dedicated GPU at all.",
-      "strengths": [
-        "Fast everyday chat and quick questions",
-        "Summarizing short documents and drafting notes",
-        "Runs acceptably with no dedicated GPU at all"
-      ],
-      "whyRecommended": "The only chat tier that stays responsive without a dedicated GPU, so every machine gets a working assistant.",
-      "differentiators": "Smallest download of the chat family (1.6 GB); trades reasoning depth for speed and reach.",
-      "sizeGB": 1.6,
-      "vramGB": 4,
-      "license": "Gemma Terms of Use",
-      "source": {
-        "protocol": "ollama",
-        "url": "ollama://gemma4:e2b"
-      },
-      "toolCallingVerified": true,
-      "toolCallingBenchmark": {
-        "suite": "nexus-catalog-agentic-flag",
-        "date": "2026-08-17",
-        "result": "pass: in-repo agentic=true (coding-engine / installer Agentic tab); not a live golden-task A/B"
-      },
-      "modalities": [
-        "text"
-      ]
-    },
-    {
-      "id": "gemma4:e4b",
-      "family": "gemma4",
-      "name": "gemma4",
-      "tag": "e4b",
-      "type": "llm",
-      "task": "chat",
-      "displayName": "Gemma 4 E4B",
-      "releaseDate": "2026-05-01",
-      "origin": "USA",
-      "agentic": true,
-      "description": "Google's Gemma 4 E4B is a balanced 4B-parameter chat model from the USA. The default pick: strong general chat quality on mainstream 6-8 GB gaming GPUs.",
-      "strengths": [
-        "General conversation, drafting, and rewriting",
-        "Reliable instruction following for its size",
-        "Loads fast and leaves VRAM headroom on 8 GB cards"
-      ],
-      "whyRecommended": "Best chat quality per gigabyte on mainstream gaming GPUs; the default most users should start with.",
-      "differentiators": "The sweet spot of the Gemma 4 ladder: near-instant loads at 2.7 GB with noticeably better answers than the 2B tier.",
-      "sizeGB": 2.7,
-      "vramGB": 6,
-      "license": "Gemma Terms of Use",
-      "source": {
-        "protocol": "ollama",
-        "url": "ollama://gemma4:e4b"
-      },
-      "tags": [
-        "recommended"
-      ],
-      "toolCallingVerified": true,
-      "toolCallingBenchmark": {
-        "suite": "nexus-catalog-agentic-flag",
-        "date": "2026-08-17",
-        "result": "pass: in-repo agentic=true (coding-engine / installer Agentic tab); not a live golden-task A/B"
-      },
-      "modalities": [
-        "text"
-      ]
-    },
-    {
-      "id": "gemma4:26b",
-      "family": "gemma4",
-      "name": "gemma4",
-      "tag": "26b",
-      "type": "llm",
-      "task": "chat",
-      "displayName": "Gemma 4 26B",
-      "releaseDate": "2026-05-01",
-      "origin": "USA",
-      "agentic": true,
-      "description": "Google's Gemma 4 26B is a larger chat model from the USA for 18 GB+ GPUs. Upper-mid tier: deeper reasoning and longer documents than the E-series.",
-      "strengths": [
-        "Nuanced multi-step reasoning",
-        "Long-document comprehension and synthesis",
-        "MoE routing keeps generation fast for its quality class"
-      ],
-      "differentiators": "Mixture-of-experts: 26B-class answers while activating only a fraction of the parameters per token.",
-      "sizeGB": 14.5,
-      "vramGB": 18,
-      "license": "Gemma Terms of Use",
-      "source": {
-        "protocol": "ollama",
-        "url": "ollama://gemma4:26b"
-      },
-      "toolCallingVerified": true,
-      "toolCallingBenchmark": {
-        "suite": "nexus-catalog-agentic-flag",
-        "date": "2026-08-17",
-        "result": "pass: in-repo agentic=true (coding-engine / installer Agentic tab); not a live golden-task A/B"
-      },
-      "modalities": [
-        "text"
-      ]
-    },
-    {
-      "id": "gemma4:31b",
-      "family": "gemma4",
-      "name": "gemma4",
-      "tag": "31b",
-      "type": "llm",
-      "task": "chat",
-      "displayName": "Gemma 4 31B",
-      "releaseDate": "2026-05-01",
-      "origin": "USA",
-      "agentic": true,
-      "description": "Google's Gemma 4 31B is the flagship local chat model from the USA. The strongest answer quality in the catalog, on a single 24 GB GPU.",
-      "strengths": [
-        "Complex reasoning and analysis",
-        "High-fidelity long-form writing",
-        "Best factual grounding of the Gemma family"
-      ],
-      "whyRecommended": "The strongest local chat quality that fits a single 24 GB GPU.",
-      "differentiators": "Dense 31B weights: maximum quality per prompt, no expert-routing variance.",
-      "sizeGB": 17.5,
-      "vramGB": 22,
-      "license": "Gemma Terms of Use",
-      "source": {
-        "protocol": "ollama",
-        "url": "ollama://gemma4:31b"
-      },
-      "toolCallingVerified": true,
-      "toolCallingBenchmark": {
-        "suite": "nexus-catalog-agentic-flag",
-        "date": "2026-08-17",
-        "result": "pass: in-repo agentic=true (coding-engine / installer Agentic tab); not a live golden-task A/B"
-      },
-      "modalities": [
-        "text"
-      ]
-    },
-    {
-      "id": "gemma-4-12b-it-gguf",
-      "family": "gemma4",
-      "name": "gemma4",
-      "tag": "12b",
-      "type": "llm",
-      "task": "chat",
-      "displayName": "Gemma 4 12B",
-      "origin": "USA",
-      "agentic": true,
-      "description": "Google's Gemma 4 12B is a mid-size chat model from the USA that also understands images. It reads book-length material in one go and runs on 12 GB VRAM and up.",
-      "strengths": [
-        "Multimodal input: text and images in one chat",
-        "256K context window for whole-project or book-length material",
-        "Mid-tier quality that fits a 12 GB GPU"
-      ],
-      "whyRecommended": "Multimodal input and a 256K context window at a size that fits 12 GB GPUs.",
-      "differentiators": "Native image input with a 256K context; pulled from the Ollama library so it registers and loads reliably on a Gemma-4-capable Ollama.",
-      "sizeGB": 7.6,
-      "vramGB": 11,
-      "requiredVramGB": 11,
-      "releaseDate": "2026-05-01",
-      "uncensored": false,
-      "multimodal": true,
-      "contextWindow": 262144,
-      "license": "Gemma Terms of Use",
-      "source": {
-        "protocol": "ollama",
-        "url": "ollama://gemma4:12b"
-      },
-      "tags": [
-        "recommended",
-        "coding",
-        "chat",
-        "multimodal"
-      ],
-      "toolCallingVerified": true,
-      "toolCallingBenchmark": {
-        "suite": "nexus-catalog-agentic-flag",
-        "date": "2026-08-17",
-        "result": "pass: in-repo agentic=true (coding-engine / installer Agentic tab); not a live golden-task A/B"
-      },
-      "modalities": [
-        "text",
-        "image"
-      ],
-      "vision": true,
-      "visualTokenBudget": {
-        "maxImages": 1,
-        "maxPixels": 1048576,
-        "maxVideoFrames": 8,
-        "maxVideoSeconds": 8
-      }
-    },
-    {
-      "id": "llama3.1:8b",
-      "family": "llama",
-      "name": "llama3.1",
-      "tag": "8b",
-      "type": "llm",
-      "task": "chat",
-      "displayName": "Llama 3.1 8B Instruct",
-      "releaseDate": "2024-07-23",
-      "origin": "USA",
-      "description": "Meta's Llama 3.1 8B is a well-rounded chat model from the USA. A dependable alternative with the broadest fine-tune and tooling ecosystem of any open model its size.",
-      "strengths": [
-        "Balanced general-purpose chat",
-        "Huge community ecosystem of fine-tunes and guides",
-        "128K context window"
-      ],
-      "differentiators": "The most widely deployed open 8B: predictable behavior and the broadest third-party compatibility.",
-      "sizeGB": 4.7,
-      "vramGB": 8,
-      "license": "Llama 3.1 Community License",
-      "source": {
-        "protocol": "ollama",
-        "url": "ollama://llama3.1:8b"
-      },
-      "modalities": [
-        "text"
-      ]
-    },
-    {
-      "id": "llama3.1:70b",
-      "family": "llama",
-      "name": "llama3.1",
-      "tag": "70b",
-      "type": "llm",
-      "task": "chat",
-      "displayName": "Llama 3.1 70B Instruct",
-      "releaseDate": "2024-07-23",
-      "origin": "USA",
-      "description": "Meta's Llama 3.1 70B is a workstation-class chat model from the USA. Near-frontier reasoning fully offline, but it needs 40 GB+ of VRAM or aggressive CPU offload.",
-      "strengths": [
-        "Frontier-adjacent reasoning fully offline",
-        "Strong coding and math for a chat generalist",
-        "128K context window"
-      ],
-      "differentiators": "The largest chat option in the catalog; for multi-GPU or unified-memory workstations only.",
-      "sizeGB": 39.0,
-      "vramGB": 40,
-      "license": "Llama 3.1 Community License",
-      "source": {
-        "protocol": "ollama",
-        "url": "ollama://llama3.1:70b"
-      },
-      "modalities": [
-        "text"
-      ]
-    },
-    {
-      "id": "qwen2.5:7b",
-      "family": "qwen",
-      "name": "qwen2.5",
-      "tag": "7b",
-      "type": "llm",
-      "task": "chat",
-      "displayName": "Qwen 2.5 7B Instruct",
-      "releaseDate": "2024-09-19",
-      "origin": "China",
-      "description": "Alibaba's Qwen 2.5 7B is a multilingual chat model from China. A strong non-English alternative with good math and structured-output skills on a 7-8 GB GPU.",
-      "strengths": [
-        "Strong multilingual coverage (29+ languages)",
-        "Good at JSON and structured output",
-        "Solid math for a 7B model"
-      ],
-      "differentiators": "The multilingual pick of the 7-8 GB class; noticeably better non-English answers than same-size peers.",
-      "sizeGB": 4.4,
-      "vramGB": 7,
-      "license": "Apache-2.0",
-      "source": {
-        "protocol": "ollama",
-        "url": "ollama://qwen2.5:7b"
-      },
-      "modalities": [
-        "text"
-      ]
-    },
-    {
-      "id": "qwen2.5:14b",
-      "family": "qwen",
-      "name": "qwen2.5",
-      "tag": "14b",
-      "type": "llm",
-      "task": "chat",
-      "displayName": "Qwen 2.5 14B Instruct",
-      "releaseDate": "2024-09-19",
-      "origin": "China",
-      "description": "Alibaba's Qwen 2.5 14B is a mid-size multilingual chat model from China for 12 GB GPUs. Deeper reasoning than the 7B, with the same multilingual strengths.",
-      "strengths": [
-        "Multilingual chat with deeper reasoning than the 7B",
-        "Reliable structured output at scale",
-        "Fits 12 GB cards comfortably"
-      ],
-      "differentiators": "Scales the Qwen multilingual strengths to the 12 GB tier under a permissive Apache-2.0 license.",
-      "sizeGB": 8.2,
-      "vramGB": 12,
-      "license": "Apache-2.0",
-      "source": {
-        "protocol": "ollama",
-        "url": "ollama://qwen2.5:14b"
-      },
-      "modalities": [
-        "text"
-      ]
-    },
-    {
-      "id": "qwen2.5-coder:7b",
-      "family": "qwen",
-      "name": "qwen2.5-coder",
-      "tag": "7b",
-      "type": "llm",
-      "task": "agentic",
-      "displayName": "Qwen 2.5 Coder 7B",
-      "releaseDate": "2024-11-12",
-      "origin": "China",
-      "agentic": true,
-      "description": "Alibaba's Qwen 2.5 Coder 7B is a code-specialized model from China. Built for the Coding pillar: generation, repair, and editor completions across 40+ languages.",
-      "strengths": [
-        "Code generation and bug fixing across 40+ languages",
-        "Fill-in-the-middle for inline editor completions",
-        "Tool-calling for agentic coding workflows"
-      ],
-      "whyRecommended": "The most capable agentic-coding model that fits 8 GB cards, and it still runs CPU-only in a pinch.",
-      "differentiators": "Purpose-trained on code: outperforms general-purpose 7B chat models on coding benchmarks by a wide margin.",
-      "sizeGB": 4.4,
-      "vramGB": 7,
-      "license": "Apache-2.0",
-      "source": {
-        "protocol": "ollama",
-        "url": "ollama://qwen2.5-coder:7b"
-      },
-      "tags": [
-        "recommended"
-      ],
-      "toolCallingVerified": true,
-      "toolCallingBenchmark": {
-        "suite": "nexus-catalog-agentic-flag",
-        "date": "2026-08-17",
-        "result": "pass: in-repo agentic=true (coding-engine / installer Agentic tab); not a live golden-task A/B"
-      },
-      "modalities": [
-        "text"
-      ]
-    },
-    {
-      "id": "qwen2.5-coder:14b",
-      "family": "qwen",
-      "name": "qwen2.5-coder",
-      "tag": "14b",
-      "type": "llm",
-      "task": "agentic",
-      "displayName": "Qwen 2.5 Coder 14B",
-      "releaseDate": "2024-11-12",
-      "origin": "China",
-      "agentic": true,
-      "description": "Alibaba's Qwen 2.5 Coder 14B is a mid-tier coding model from China that still fits 12 GB GPUs. Stronger multi-file reasoning and refactoring than the 7B.",
-      "strengths": [
-        "Multi-file refactoring and cross-module reasoning",
-        "More reliable tool-calling in long agent loops",
-        "Better test generation and code review than the 7B tier"
-      ],
-      "whyRecommended": "Meaningfully stronger multi-file agentic work than the 7B tier while still fitting a 12 GB GPU.",
-      "differentiators": "The best coding quality per VRAM in the 12 GB class; Apache-2.0 licensed.",
-      "sizeGB": 8.2,
-      "vramGB": 12,
-      "license": "Apache-2.0",
-      "source": {
-        "protocol": "ollama",
-        "url": "ollama://qwen2.5-coder:14b"
-      },
-      "toolCallingVerified": true,
-      "toolCallingBenchmark": {
-        "suite": "nexus-catalog-agentic-flag",
-        "date": "2026-08-17",
-        "result": "pass: in-repo agentic=true (coding-engine / installer Agentic tab); not a live golden-task A/B"
-      },
-      "modalities": [
-        "text"
-      ]
-    },
-    {
-      "id": "deepseek-coder-v2:16b",
-      "family": "deepseek",
-      "name": "deepseek-coder-v2",
-      "tag": "16b",
-      "type": "llm",
-      "task": "agentic",
-      "displayName": "DeepSeek Coder V2 16B",
-      "releaseDate": "2024-06-17",
-      "origin": "China",
-      "agentic": true,
-      "description": "DeepSeek's Coder V2 16B is an advanced coding model from China with fast inference on 14 GB+ GPUs. Near-flagship coding skill for the Agentic tier.",
-      "strengths": [
-        "Top-of-catalog code generation and repair quality",
-        "Fast generation: only 2.4B parameters active per token",
-        "Strong on math-heavy and algorithmic code"
-      ],
-      "whyRecommended": "Top agentic quality in the catalog: mixture-of-experts delivers near-flagship coding skill at consumer-GPU speeds.",
-      "differentiators": "MoE architecture: 16B-class quality with the per-token cost of a 2.4B model.",
-      "sizeGB": 8.9,
-      "vramGB": 14,
-      "license": "DeepSeek License",
-      "source": {
-        "protocol": "ollama",
-        "url": "ollama://deepseek-coder-v2:16b"
-      },
-      "toolCallingVerified": true,
-      "toolCallingBenchmark": {
-        "suite": "nexus-catalog-agentic-flag",
-        "date": "2026-08-17",
-        "result": "pass: in-repo agentic=true (coding-engine / installer Agentic tab); not a live golden-task A/B"
-      },
-      "activeParams": 2.4,
-      "totalParams": 16,
-      "modalities": [
-        "text"
-      ]
-    },
     {
       "id": "lfm2.5:2.6b",
       "family": "lfm2.5",
@@ -486,6 +61,792 @@
       ]
     },
     {
+      "id": "qwen3.5:9b",
+      "family": "qwen3.5",
+      "name": "qwen3.5",
+      "tag": "9b",
+      "type": "llm",
+      "task": "agentic",
+      "displayName": "Qwen 3.5 9B",
+      "releaseDate": "2026-02-01",
+      "origin": "China",
+      "agentic": true,
+      "codingEligible": true,
+      "description": "Alibaba's Qwen 3.5 9B is a 2026 multimodal coding and chat model from China. It fits 8 GB GPUs, takes text and images, and replaces the 2024 Qwen 2.5 Coder 7B/14B specialists on laptop tiers.",
+      "strengths": [
+        "Tool-calling agentic coding on 8-12 GB cards",
+        "Native image input for screenshots and diffs",
+        "256K context window for repo-scale prompts"
+      ],
+      "whyRecommended": "The 8-12 GB coding specialist: newer than Qwen 2.5 Coder, with vision and a 256K window, at a size that still fits a laptop GPU.",
+      "differentiators": "Official Ollama library tag qwen3.5:9b (6.6 GB). Apache-2.0. There is no official qwen3-coder smaller than 30B, so this is the laptop-sized Qwen 3 successor.",
+      "sizeGB": 6.6,
+      "vramGB": 8,
+      "requiredVramGB": 8,
+      "hideBelowVramGB": 6,
+      "contextWindow": 256000,
+      "license": "Apache-2.0",
+      "licenseUrl": "https://huggingface.co/Qwen/Qwen3.5-9B",
+      "source": {
+        "protocol": "ollama",
+        "url": "ollama://qwen3.5:9b"
+      },
+      "tags": [
+        "recommended",
+        "coding",
+        "multimodal"
+      ],
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "vision": true,
+      "visualTokenBudget": {
+        "maxImages": 1,
+        "maxPixels": 1048576,
+        "maxVideoFrames": 8,
+        "maxVideoSeconds": 8
+      },
+      "multimodal": true
+    },
+    {
+      "id": "qwen3.5:4b",
+      "family": "qwen3.5",
+      "name": "qwen3.5",
+      "tag": "4b",
+      "type": "llm",
+      "task": "agentic",
+      "displayName": "Qwen 3.5 4B",
+      "releaseDate": "2026-02-01",
+      "origin": "China",
+      "agentic": true,
+      "codingEligible": true,
+      "description": "Alibaba's Qwen 3.5 4B is the small sibling of Qwen 3.5 9B from China. It is the CPU / sub-8 GB coding fallback: 3.4 GB, text and images, 256K context.",
+      "strengths": [
+        "Fits 4 GB GPUs and tight laptop RAM",
+        "Same Qwen 3.5 tool-calling and vision stack as the 9B",
+        "256K context at a 3.4 GB download"
+      ],
+      "whyRecommended": "The sub-8 GB Qwen 3.5 pick when 9B does not fit. Family collapse shows this on 4 GB hosts and hides it once 9B fits.",
+      "differentiators": "Official Ollama library tag qwen3.5:4b. Same family as the 9B so the installer shows one Qwen 3.5 card per GPU.",
+      "sizeGB": 3.4,
+      "vramGB": 4,
+      "requiredVramGB": 4,
+      "contextWindow": 256000,
+      "license": "Apache-2.0",
+      "licenseUrl": "https://huggingface.co/Qwen/Qwen3.5-4B",
+      "source": {
+        "protocol": "ollama",
+        "url": "ollama://qwen3.5:4b"
+      },
+      "tags": [
+        "coding",
+        "multimodal",
+        "lightweight"
+      ],
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "vision": true,
+      "visualTokenBudget": {
+        "maxImages": 1,
+        "maxPixels": 1048576,
+        "maxVideoFrames": 8,
+        "maxVideoSeconds": 8
+      },
+      "multimodal": true
+    },
+    {
+      "id": "gpt-oss:20b",
+      "family": "gpt-oss",
+      "name": "gpt-oss",
+      "tag": "20b",
+      "type": "llm",
+      "task": "agentic",
+      "displayName": "gpt-oss 20B",
+      "releaseDate": "2025-08-05",
+      "origin": "USA",
+      "agentic": true,
+      "codingEligible": true,
+      "description": "OpenAI's gpt-oss 20B is an Apache-2.0 open-weight reasoning model from the USA. The official Ollama MXFP4 build is 14 GB and is the 16 GB-tier coding specialist.",
+      "strengths": [
+        "Permissive Apache-2.0 weights for commercial local use",
+        "Native tool calling and configurable reasoning effort",
+        "Fits a 16 GB GPU at the official MXFP4 quant"
+      ],
+      "whyRecommended": "The 16 GB coding specialist: 14 GB download, Apache-2.0, official Ollama library tag. Qwen3-Coder 30B is 19 GB and does not fit this tier cleanly.",
+      "differentiators": "Official Ollama library tag gpt-oss:20b (MXFP4). Hidden below 12 GB VRAM. Reasoning scores are vendor-reported and not reproduced here.",
+      "sizeGB": 14,
+      "vramGB": 16,
+      "requiredVramGB": 16,
+      "hideBelowVramGB": 12,
+      "contextWindow": 128000,
+      "license": "Apache-2.0",
+      "licenseUrl": "https://huggingface.co/openai/gpt-oss-20b",
+      "source": {
+        "protocol": "ollama",
+        "url": "ollama://gpt-oss:20b"
+      },
+      "tags": [
+        "recommended",
+        "coding"
+      ],
+      "modalities": [
+        "text"
+      ]
+    },
+    {
+      "id": "qwen3-coder:30b",
+      "family": "qwen3-coder",
+      "name": "qwen3-coder",
+      "tag": "30b",
+      "type": "llm",
+      "task": "agentic",
+      "displayName": "Qwen3-Coder 30B-A3B",
+      "releaseDate": "2025-07-22",
+      "origin": "China",
+      "agentic": true,
+      "codingEligible": true,
+      "description": "Alibaba's Qwen3-Coder 30B-A3B is a 2025 MoE coding specialist from China (30B total, 3.3B active). The official Ollama Q4 build is 19 GB and is the 24 GB-tier coding specialist.",
+      "strengths": [
+        "Dedicated agentic-coding specialist at 3.3B active parameters",
+        "256K native context for repository-scale prompts",
+        "Same Qwen3-Coder tool-call style the Lightning worker already uses"
+      ],
+      "whyRecommended": "The 24 GB coding specialist. Official Ollama library tag qwen3-coder:30b (19 GB). Vendor SWE-bench numbers are not copied here.",
+      "differentiators": "Separate family from Qwen 3.5 so the 9B laptop pick and this 30B specialist can both appear. Hidden below 16 GB VRAM.",
+      "sizeGB": 19,
+      "vramGB": 20,
+      "requiredVramGB": 20,
+      "hideBelowVramGB": 16,
+      "contextWindow": 256000,
+      "license": "Apache-2.0",
+      "licenseUrl": "https://huggingface.co/Qwen/Qwen3-Coder-30B-A3B-Instruct",
+      "source": {
+        "protocol": "ollama",
+        "url": "ollama://qwen3-coder:30b"
+      },
+      "tags": [
+        "recommended",
+        "coding"
+      ],
+      "modalities": [
+        "text"
+      ],
+      "activeParams": 3.3,
+      "totalParams": 30
+    },
+    {
+      "id": "embeddinggemma",
+      "family": "embeddinggemma",
+      "name": "embeddinggemma",
+      "tag": "300m",
+      "type": "embed",
+      "task": "embed",
+      "displayName": "EmbeddingGemma 300M",
+      "releaseDate": "2025-09-04",
+      "origin": "USA",
+      "agentic": false,
+      "description": "Google's EmbeddingGemma is a 300M on-device embedding model from the USA, built from Gemma 3. It is an opt-in alternative to Nomic Embed Text; switching embedders requires a memory reindex.",
+      "strengths": [
+        "622 MB download, 100+ languages",
+        "Matryoshka dimensions (768 down to 128)",
+        "Official Ollama library tag, listed in Ollama's own embed docs"
+      ],
+      "whyRecommended": "A 2025 Google embedder for hosts that want to opt in. Nomic Embed Text stays the required default so existing memory indexes keep working.",
+      "differentiators": "Not the memory-layer default. 2K context vs Nomic's 8K. Gemma Terms of Use.",
+      "sizeGB": 0.62,
+      "vramGB": 1,
+      "requiredVramGB": 0,
+      "contextWindow": 2048,
+      "license": "Gemma Terms of Use",
+      "licenseUrl": "https://ai.google.dev/gemma/terms",
+      "source": {
+        "protocol": "ollama",
+        "url": "ollama://embeddinggemma:300m"
+      },
+      "modalities": [
+        "text"
+      ]
+    },
+    {
+      "id": "qwen3-embedding:0.6b",
+      "family": "qwen3-embedding",
+      "name": "qwen3-embedding",
+      "tag": "0.6b",
+      "type": "embed",
+      "task": "embed",
+      "displayName": "Qwen3 Embedding 0.6B",
+      "releaseDate": "2025-06-05",
+      "origin": "China",
+      "agentic": false,
+      "description": "Alibaba's Qwen3 Embedding 0.6B is a 2025 multilingual embedding model from China with a 32K window. Opt-in for code and long-document retrieval; Nomic Embed Text stays the required default.",
+      "strengths": [
+        "32K context per passage",
+        "Instruction-aware embeddings for retrieval and clustering",
+        "639 MB official Ollama library tag"
+      ],
+      "whyRecommended": "The long-context embed opt-in. Do not make it the default: swapping embedders invalidates the on-disk memory index.",
+      "differentiators": "Official Ollama library tag qwen3-embedding:0.6b. MTEB figures are vendor-reported and not reproduced here.",
+      "sizeGB": 0.64,
+      "vramGB": 1,
+      "requiredVramGB": 0,
+      "contextWindow": 32768,
+      "license": "Apache-2.0",
+      "licenseUrl": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
+      "source": {
+        "protocol": "ollama",
+        "url": "ollama://qwen3-embedding:0.6b"
+      },
+      "modalities": [
+        "text"
+      ]
+    },
+    {
+      "id": "nemotron-lightning:30b-a3b",
+      "family": "nemotron-lightning",
+      "name": "nemotron-lightning",
+      "tag": "30b-a3b",
+      "type": "llm",
+      "task": "agentic",
+      "displayName": "Nemotron 3.5 Lightning 30B-A3B",
+      "releaseDate": "2026-08-01",
+      "origin": "USA",
+      "agentic": true,
+      "codingEligible": true,
+      "diffusion": false,
+      "description": "NVIDIA's Nemotron 3.5 Lightning 30B-A3B is an OpenMDW-1.1 MoE from the USA (30B total, 3B active). The Ollama library 30b build is 25 GB and is the 24 GB-tier native worker. Hidden below 16 GB VRAM and on Ollama older than 0.32.9.",
+      "strengths": [
+        "Fast routine-step worker for the coding DAG",
+        "Qwen3-Coder-style tool calls at 3B active parameters",
+        "1M context window recorded on the card; serving length is runtime-limited"
+      ],
+      "whyRecommended": "The 24 GB native Lightning worker. Phase 2 routing consumes the worker-candidate role. Not a default coding route until a local eval is recorded.",
+      "differentiators": "Official Ollama library tag nemotron-3.5-lightning:30b (ships with Ollama 0.32.9+); dual-tier with an expert-offload sibling at 16 GB.",
+      "provenance": "NVIDIA Nemotron 3.5 Lightning 30B-A3B (OpenMDW-1.1) via the Ollama library tag nemotron-3.5-lightning:30b. Weights are not redistributed by Nexus. License verified 2026-08-20 from the plan's published OpenMDW-1.1 claim.",
+      "sizeGB": 25,
+      "vramGB": 22.5,
+      "requiredVramGB": 24,
+      "hideBelowVramGB": 16,
+      "minOllamaVersion": "0.32.9",
+      "quant": "Q4_K_M",
+      "activeParams": 3,
+      "totalParams": 30,
+      "license": "OpenMDW-1.1",
+      "licenseUrl": "https://ollama.com/library/nemotron-3.5-lightning",
+      "source": {
+        "protocol": "ollama",
+        "url": "ollama://nemotron-3.5-lightning:30b"
+      },
+      "modalities": [
+        "text"
+      ],
+      "contextWindow": 1048576,
+      "role": "worker-candidate",
+      "vendorReported": {
+        "suite": "NVIDIA model card",
+        "metric": "context_tokens",
+        "value": 1048576,
+        "date": "2026-08-13",
+        "vendorReported": true
+      },
+      "localEval": {
+        "suite": "nexus-golden-task",
+        "status": "not_run",
+        "date": "2026-08-20",
+        "hardwareTier": "24GB",
+        "reason": "No 24 GB-tier host with Lightning loaded in this cycle. Vendor-reported figures must not drive routing."
+      },
+      "tags": [
+        "agentic",
+        "worker-candidate",
+        "coding"
+      ]
+    },
+    {
+      "id": "nemotron-lightning:30b-a3b-offload",
+      "family": "nemotron-lightning",
+      "name": "nemotron-lightning",
+      "tag": "30b-a3b-offload",
+      "type": "llm",
+      "task": "agentic",
+      "displayName": "Nemotron 3.5 Lightning 30B-A3B (expert offload)",
+      "releaseDate": "2026-08-01",
+      "origin": "USA",
+      "agentic": true,
+      "codingEligible": true,
+      "diffusion": false,
+      "description": "NVIDIA's Nemotron 3.5 Lightning 30B-A3B expert-offload variant from the USA rides the 16 GB quant-ladder rung of the Ollama library 30b build (25 GB on disk). Hidden below 16 GB VRAM and on Ollama older than 0.32.9.",
+      "strengths": [
+        "Same worker-candidate role as the 24 GB native entry",
+        "Fits 16 GB cards by offloading MoE experts",
+        "Same OpenMDW-1.1 GGUF as the native 24 GB pick"
+      ],
+      "whyRecommended": "The 16 GB Lightning worker when the host cannot keep the full library 30b build resident. Disk-offload preflight still applies before download.",
+      "differentiators": "Expert-offload sibling of nemotron-lightning:30b-a3b; family collapse picks this on 16 GB hosts and the native build on 24 GB. Both pull nemotron-3.5-lightning:30b from the Ollama library.",
+      "provenance": "Same Ollama library tag as the native 24 GB entry (nemotron-3.5-lightning:30b), tagged for the existing expert-offload quant-ladder rung. Weights are not redistributed by Nexus.",
+      "sizeGB": 25,
+      "vramGB": 16,
+      "requiredVramGB": 16,
+      "hideBelowVramGB": 16,
+      "minOllamaVersion": "0.32.9",
+      "quant": "Q4_K_M",
+      "activeParams": 3,
+      "totalParams": 30,
+      "license": "OpenMDW-1.1",
+      "licenseUrl": "https://ollama.com/library/nemotron-3.5-lightning",
+      "source": {
+        "protocol": "ollama",
+        "url": "ollama://nemotron-3.5-lightning:30b"
+      },
+      "modalities": [
+        "text"
+      ],
+      "contextWindow": 1048576,
+      "role": "worker-candidate",
+      "localEval": {
+        "suite": "nexus-golden-task",
+        "status": "not_run",
+        "date": "2026-08-20",
+        "hardwareTier": "16GB",
+        "reason": "No 16 GB-tier host with Lightning expert-offload loaded in this cycle. Vendor-reported figures must not drive routing."
+      },
+      "tags": [
+        "agentic",
+        "worker-candidate",
+        "expert-offload",
+        "coding"
+      ]
+    },
+    {
+      "id": "muse-glimmer:30b-dynamic",
+      "family": "muse-glimmer",
+      "name": "muse-glimmer",
+      "tag": "30b-dynamic",
+      "type": "llm",
+      "task": "chat",
+      "displayName": "Muse Glimmer 30B (K-Quant-Dynamic)",
+      "releaseDate": "2026-08-01",
+      "origin": "USA",
+      "agentic": true,
+      "codingEligible": true,
+      "diffusion": false,
+      "vision": false,
+      "description": "Meta's Muse Glimmer 30B K-Quant-Dynamic is the 32 GB-tier Apache-2.0 pick from the USA. Same model family as the 17 GB quant; hidden below 16 GB VRAM.",
+      "strengths": [
+        "Lower quantization loss than the 17 GB K-Quant on 32 GB cards",
+        "Same Muse Glimmer agentic harness profile as the 24 GB variant",
+        "Still excluded from hosts below 16 GB"
+      ],
+      "whyRecommended": "The 32 GB-tier Muse Glimmer pick. Not a default route until a local eval is recorded.",
+      "differentiators": "Meta-published Dynamic quant for 32 GB VRAM; family-collapsed away on 24 GB hosts in favor of K-Quant-17GB.",
+      "provenance": "First-party Meta Muse Glimmer 30B (Apache-2.0) GGUF at huggingface.co/meta-models/Muse-Glimmer-30B-GGUF. Pulled through Ollama's hf.co bridge. Weights are not redistributed by Nexus.",
+      "sizeGB": 22,
+      "vramGB": 24,
+      "requiredVramGB": 32,
+      "hideBelowVramGB": 16,
+      "minOllamaVersion": "0.32.7",
+      "quant": "K-Quant-Dynamic",
+      "activeParams": 4,
+      "totalParams": 30,
+      "license": "Apache-2.0",
+      "licenseUrl": "https://huggingface.co/meta-models/Muse-Glimmer-30B-GGUF",
+      "source": {
+        "protocol": "ollama",
+        "url": "ollama://hf.co/meta-models/Muse-Glimmer-30B-GGUF:K-Quant-Dynamic"
+      },
+      "modalities": [
+        "text"
+      ],
+      "contextWindow": 131072,
+      "role": "strong-candidate",
+      "vendorReported": {
+        "suite": "SWE-Bench Verified",
+        "metric": "resolved",
+        "value": 76.0,
+        "date": "2026-08-13",
+        "vendorReported": true
+      },
+      "localEval": {
+        "suite": "nexus-golden-task",
+        "status": "not_run",
+        "date": "2026-08-20",
+        "hardwareTier": "32GB",
+        "reason": "No 32 GB-tier host with Muse Glimmer loaded in this cycle. Vendor-reported figures must not drive routing."
+      },
+      "tags": [
+        "agentic",
+        "muse-glimmer",
+        "coding",
+        "advanced"
+      ]
+    },
+    {
+      "id": "muse-glimmer:30b",
+      "family": "muse-glimmer",
+      "name": "muse-glimmer",
+      "tag": "30b-k17",
+      "type": "llm",
+      "task": "chat",
+      "displayName": "Muse Glimmer 30B (K-Quant-17GB)",
+      "releaseDate": "2026-08-01",
+      "origin": "USA",
+      "agentic": true,
+      "codingEligible": true,
+      "diffusion": false,
+      "vision": false,
+      "description": "Meta's Muse Glimmer 30B is an Apache-2.0 agentic model from the USA. The 17 GB K-Quant fits a 24 GB GPU. Local golden-task numbers are not recorded yet, so this entry is not a default route.",
+      "strengths": [
+        "Long-horizon agentic coding with adjustable reasoning strength",
+        "Native function calling on the Meta GGUF line",
+        "Fits a single 24 GB GPU at the K-Quant-17GB quant"
+      ],
+      "whyRecommended": "The 24 GB-tier Muse Glimmer pick once a local eval is recorded. Not a default until then.",
+      "differentiators": "Meta-published 30B agentic weights via the Ollama hf.co bridge; hidden below 16 GB VRAM and on Ollama older than 0.32.7.",
+      "provenance": "First-party Meta Muse Glimmer 30B (Apache-2.0) GGUF at huggingface.co/meta-models/Muse-Glimmer-30B-GGUF. Pulled through Ollama's hf.co bridge. Weights are not redistributed by Nexus. License verified 2026-08-20 from the plan's published Apache-2.0 claim.",
+      "sizeGB": 17,
+      "vramGB": 17,
+      "requiredVramGB": 24,
+      "hideBelowVramGB": 16,
+      "minOllamaVersion": "0.32.7",
+      "quant": "K-Quant-17GB",
+      "activeParams": 4,
+      "totalParams": 30,
+      "license": "Apache-2.0",
+      "licenseUrl": "https://huggingface.co/meta-models/Muse-Glimmer-30B-GGUF",
+      "source": {
+        "protocol": "ollama",
+        "url": "ollama://hf.co/meta-models/Muse-Glimmer-30B-GGUF:K-Quant-17GB"
+      },
+      "modalities": [
+        "text"
+      ],
+      "contextWindow": 131072,
+      "role": "strong-candidate",
+      "vendorReported": {
+        "suite": "SWE-Bench Verified",
+        "metric": "resolved",
+        "value": 76.0,
+        "date": "2026-08-13",
+        "vendorReported": true
+      },
+      "localEval": {
+        "suite": "nexus-golden-task",
+        "status": "not_run",
+        "date": "2026-08-20",
+        "hardwareTier": "24GB",
+        "reason": "No 24 GB-tier host with Muse Glimmer loaded in this cycle. Vendor-reported figures must not drive routing."
+      },
+      "tags": [
+        "agentic",
+        "muse-glimmer",
+        "coding",
+        "advanced"
+      ]
+    },
+    {
+      "id": "inkling-small",
+      "family": "inkling",
+      "name": "inkling-small",
+      "tag": "ud-iq1-s",
+      "type": "llm",
+      "task": "chat",
+      "displayName": "Inkling-Small (patient tier)",
+      "releaseDate": "2026-07-30",
+      "origin": "USA",
+      "agentic": true,
+      "description": "Thinking Machines Lab's Inkling-Small is a 276B-total / 12B-active MoE from the USA. It is an opt-in patient-tier entry: the established UD-IQ1_S GGUF is 74.8 GB and runs via disk offload, not as an interactive GPU default. The native checkpoint accepts text, image, and audio, but llama.cpp GGUF multimodal projector support is unverified here, so this entry is catalogued as text-only.",
+      "strengths": [
+        "Frontier-class MoE quality on a disk-offload path",
+        "Apache-2.0 weights with an established GGUF line",
+        "Honest sub-interactive latency labelling"
+      ],
+      "whyRecommended": "Only if you have enabled the patient tier and accept minutes-to-hours generation. Never a per-VRAM default.",
+      "differentiators": "The catalog's patient-tier frontier MoE: 74.8 GB GGUF, calibrated latency warning, and no recommended.json default slot.",
+      "provenance": "First-party Thinking Machines Lab Inkling-Small (Apache-2.0) at huggingface.co/thinkingmachines/Inkling-Small. The installable artifact is the established Unsloth GGUF line unsloth/Inkling-Small-GGUF UD-IQ1_S (not an unvetted community re-quant of an unofficial dump). Nexus does not redistribute weights. License verified 2026-08-19 from the first-party card.",
+      "sizeGB": 74.8,
+      "vramGB": 0,
+      "requiredVramGB": 0,
+      "requiredRamGB": 8,
+      "quant": "UD-IQ1_S",
+      "license": "Apache-2.0",
+      "licenseUrl": "https://huggingface.co/thinkingmachines/Inkling-Small",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "unsloth/Inkling-Small-GGUF",
+        "url": "https://huggingface.co/unsloth/Inkling-Small-GGUF/resolve/main/UD-IQ1_S/Inkling-Small-UD-IQ1_S-00001-of-00003.gguf",
+        "sha256": "eb600cf15a361c70fcb31adc14b4bb5d8ebe3056acff252f1aa210e49fe8ad98",
+        "revision": "1a19ef82883cb7b9c581b93c30ea252dabbf658d"
+      },
+      "weights": {
+        "layoutVersion": 2,
+        "defaultVariant": "gguf-ud-iq1-s",
+        "variants": [
+          {
+            "id": "gguf-ud-iq1-s",
+            "precision": "gguf",
+            "quant": "UD-IQ1_S",
+            "official": true,
+            "sizeGB": 74.8,
+            "vramGB": 0,
+            "files": [
+              {
+                "path": "UD-IQ1_S/Inkling-Small-UD-IQ1_S-00001-of-00003.gguf",
+                "sha256": "eb600cf15a361c70fcb31adc14b4bb5d8ebe3056acff252f1aa210e49fe8ad98"
+              },
+              {
+                "path": "UD-IQ1_S/Inkling-Small-UD-IQ1_S-00002-of-00003.gguf",
+                "sha256": "3577440036e65e2209f735cf50d5bcfbb872365ae15f3b86139c296f0a6c42f3"
+              },
+              {
+                "path": "UD-IQ1_S/Inkling-Small-UD-IQ1_S-00003-of-00003.gguf",
+                "sha256": "da1f2395aea71a475623231d42801f3d997d1186e9c728c73ec307ae283d4d6b"
+              }
+            ]
+          }
+        ]
+      },
+      "modalities": [
+        "text"
+      ],
+      "contextWindow": 32768,
+      "tags": [
+        "patient-tier",
+        "opt-in"
+      ],
+      "expectedSecondsPerToken": 32,
+      "measuredPeakRssGB": 8.24,
+      "patientRamPresets": [
+        {
+          "id": "laptop",
+          "label": "Laptop",
+          "peakRssGB": 8.24,
+          "expectedSecondsPerToken": 32,
+          "copy": "Laptop RAM budget: independently measured ~32 s/token (~0.03 tok/s) at 8.24 GB peak RSS for a trillion-class disk-offload MoE. Seeded as the honest floor for this patient-tier entry (Inkling-Small itself is not independently timed here). Expectation copy only -- Nexus does not bundle the offload runtime."
+        },
+        {
+          "id": "workstation",
+          "label": "Workstation",
+          "peakRssGB": 64,
+          "expectedSecondsPerToken": 21,
+          "copy": "Workstation RAM budget: independently measured ~19-21 s/token on a server-class host for a trillion-class disk-offload MoE. Seeded as the honest floor for this patient-tier entry. Expectation copy only -- Nexus does not bundle the offload runtime."
+        },
+        {
+          "id": "max",
+          "label": "Max",
+          "peakRssGB": 224,
+          "expectedSecondsPerToken": 19,
+          "copy": "Max RAM budget: independently measured ~19 s/token at ~224 GB peak RSS for a trillion-class disk-offload MoE. Seeded as the honest floor for this patient-tier entry. Expectation copy only -- Nexus does not bundle the offload runtime."
+        }
+      ]
+    },
+    {
+      "id": "gemma4:31b",
+      "family": "gemma4",
+      "name": "gemma4",
+      "tag": "31b",
+      "type": "llm",
+      "task": "chat",
+      "displayName": "Gemma 4 31B",
+      "releaseDate": "2026-05-01",
+      "minOllamaVersion": "0.32.15",
+      "origin": "USA",
+      "agentic": true,
+      "description": "Google's Gemma 4 31B is the flagship local chat model from the USA. The strongest answer quality in the catalog, on a single 24 GB GPU.",
+      "strengths": [
+        "Complex reasoning and analysis",
+        "High-fidelity long-form writing",
+        "Best factual grounding of the Gemma family"
+      ],
+      "whyRecommended": "The strongest local chat quality that fits a single 24 GB GPU.",
+      "differentiators": "Dense 31B weights: maximum quality per prompt, no expert-routing variance.",
+      "sizeGB": 17.5,
+      "vramGB": 22,
+      "license": "Gemma Terms of Use",
+      "source": {
+        "protocol": "ollama",
+        "url": "ollama://gemma4:31b"
+      },
+      "toolCallingVerified": true,
+      "toolCallingBenchmark": {
+        "suite": "nexus-catalog-agentic-flag",
+        "date": "2026-08-17",
+        "result": "pass: in-repo agentic=true (coding-engine / installer Agentic tab); not a live golden-task A/B"
+      },
+      "modalities": [
+        "text"
+      ]
+    },
+    {
+      "id": "gemma4:26b",
+      "family": "gemma4",
+      "name": "gemma4",
+      "tag": "26b",
+      "type": "llm",
+      "task": "chat",
+      "displayName": "Gemma 4 26B",
+      "releaseDate": "2026-05-01",
+      "minOllamaVersion": "0.32.15",
+      "origin": "USA",
+      "agentic": true,
+      "description": "Google's Gemma 4 26B is a larger chat model from the USA for 18 GB+ GPUs. Upper-mid tier: deeper reasoning and longer documents than the E-series.",
+      "strengths": [
+        "Nuanced multi-step reasoning",
+        "Long-document comprehension and synthesis",
+        "MoE routing keeps generation fast for its quality class"
+      ],
+      "differentiators": "Mixture-of-experts: 26B-class answers while activating only a fraction of the parameters per token.",
+      "sizeGB": 14.5,
+      "vramGB": 18,
+      "license": "Gemma Terms of Use",
+      "source": {
+        "protocol": "ollama",
+        "url": "ollama://gemma4:26b"
+      },
+      "toolCallingVerified": true,
+      "toolCallingBenchmark": {
+        "suite": "nexus-catalog-agentic-flag",
+        "date": "2026-08-17",
+        "result": "pass: in-repo agentic=true (coding-engine / installer Agentic tab); not a live golden-task A/B"
+      },
+      "modalities": [
+        "text"
+      ]
+    },
+    {
+      "id": "gemma-4-12b-it-gguf",
+      "family": "gemma4",
+      "name": "gemma4",
+      "tag": "12b",
+      "type": "llm",
+      "task": "chat",
+      "displayName": "Gemma 4 12B",
+      "origin": "USA",
+      "agentic": true,
+      "description": "Google's Gemma 4 12B is a mid-size chat model from the USA that also understands images. It reads book-length material in one go and runs on 12 GB VRAM and up.",
+      "strengths": [
+        "Multimodal input: text and images in one chat",
+        "256K context window for whole-project or book-length material",
+        "Mid-tier quality that fits a 12 GB GPU"
+      ],
+      "whyRecommended": "Multimodal input and a 256K context window at a size that fits 12 GB GPUs.",
+      "differentiators": "Native image input with a 256K context; pulled from the Ollama library so it registers and loads reliably on a Gemma-4-capable Ollama.",
+      "sizeGB": 7.6,
+      "vramGB": 11,
+      "requiredVramGB": 11,
+      "releaseDate": "2026-05-01",
+      "minOllamaVersion": "0.32.15",
+      "uncensored": false,
+      "multimodal": true,
+      "contextWindow": 262144,
+      "license": "Gemma Terms of Use",
+      "source": {
+        "protocol": "ollama",
+        "url": "ollama://gemma4:12b"
+      },
+      "tags": [
+        "recommended",
+        "coding",
+        "chat",
+        "multimodal"
+      ],
+      "toolCallingVerified": true,
+      "toolCallingBenchmark": {
+        "suite": "nexus-catalog-agentic-flag",
+        "date": "2026-08-17",
+        "result": "pass: in-repo agentic=true (coding-engine / installer Agentic tab); not a live golden-task A/B"
+      },
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "vision": true,
+      "visualTokenBudget": {
+        "maxImages": 1,
+        "maxPixels": 1048576,
+        "maxVideoFrames": 8,
+        "maxVideoSeconds": 8
+      }
+    },
+    {
+      "id": "gemma4:e4b",
+      "family": "gemma4",
+      "name": "gemma4",
+      "tag": "e4b",
+      "type": "llm",
+      "task": "chat",
+      "displayName": "Gemma 4 E4B",
+      "releaseDate": "2026-05-01",
+      "minOllamaVersion": "0.32.15",
+      "origin": "USA",
+      "agentic": true,
+      "description": "Google's Gemma 4 E4B is a balanced 4B-parameter chat model from the USA. The default pick: strong general chat quality on mainstream 6-8 GB gaming GPUs.",
+      "strengths": [
+        "General conversation, drafting, and rewriting",
+        "Reliable instruction following for its size",
+        "Loads fast and leaves VRAM headroom on 8 GB cards"
+      ],
+      "whyRecommended": "Best chat quality per gigabyte on mainstream gaming GPUs; the default most users should start with.",
+      "differentiators": "The sweet spot of the Gemma 4 ladder: near-instant loads at 2.7 GB with noticeably better answers than the 2B tier.",
+      "sizeGB": 2.7,
+      "vramGB": 6,
+      "license": "Gemma Terms of Use",
+      "source": {
+        "protocol": "ollama",
+        "url": "ollama://gemma4:e4b"
+      },
+      "tags": [
+        "recommended"
+      ],
+      "toolCallingVerified": true,
+      "toolCallingBenchmark": {
+        "suite": "nexus-catalog-agentic-flag",
+        "date": "2026-08-17",
+        "result": "pass: in-repo agentic=true (coding-engine / installer Agentic tab); not a live golden-task A/B"
+      },
+      "modalities": [
+        "text"
+      ]
+    },
+    {
+      "id": "gemma4:e2b",
+      "family": "gemma4",
+      "name": "gemma4",
+      "tag": "e2b",
+      "type": "llm",
+      "task": "chat",
+      "displayName": "Gemma 4 E2B",
+      "releaseDate": "2026-05-01",
+      "minOllamaVersion": "0.32.15",
+      "origin": "USA",
+      "agentic": true,
+      "description": "Google's Gemma 4 E2B is a compact 2B-parameter chat model from the USA. The smallest chat tier: it stays responsive on a 4 GB GPU, or even with no dedicated GPU at all.",
+      "strengths": [
+        "Fast everyday chat and quick questions",
+        "Summarizing short documents and drafting notes",
+        "Runs acceptably with no dedicated GPU at all"
+      ],
+      "whyRecommended": "The only chat tier that stays responsive without a dedicated GPU, so every machine gets a working assistant.",
+      "differentiators": "Smallest download of the chat family (1.6 GB); trades reasoning depth for speed and reach.",
+      "sizeGB": 1.6,
+      "vramGB": 4,
+      "license": "Gemma Terms of Use",
+      "source": {
+        "protocol": "ollama",
+        "url": "ollama://gemma4:e2b"
+      },
+      "toolCallingVerified": true,
+      "toolCallingBenchmark": {
+        "suite": "nexus-catalog-agentic-flag",
+        "date": "2026-08-17",
+        "result": "pass: in-repo agentic=true (coding-engine / installer Agentic tab); not a live golden-task A/B"
+      },
+      "modalities": [
+        "text"
+      ]
+    },
+    {
       "id": "nomic-embed-text",
       "family": "nomic",
       "name": "nomic-embed-text",
@@ -495,14 +856,14 @@
       "displayName": "Nomic Embed Text",
       "releaseDate": "2024-02-14",
       "origin": "USA",
-      "description": "Nomic AI's Nomic Embed Text is a small embedding model from the USA, not a chat model. It powers the semantic memory layer: search, recall, and retrieval across your conversations and files.",
+      "description": "Nomic AI's Nomic Embed Text is a small embedding model from the USA, not a chat model. It powers the semantic memory layer: search, recall, and retrieval across your conversations and files. It remains the required default even after newer embedders landed.",
       "strengths": [
         "Semantic search over conversations and documents",
         "Long-context retrieval (8K tokens per passage)",
         "Tiny footprint: 0.27 GB, runs on any hardware"
       ],
       "whyRecommended": "Required by the semantic memory layer; tiny and runs anywhere, so it ships in every default selection.",
-      "differentiators": "The only embedding model in the catalog; without it, memory search falls back to keyword matching.",
+      "differentiators": "The required memory-layer embedder. EmbeddingGemma and Qwen3-Embedding 0.6B are opt-in 2025 alternatives; switching embedders needs a reindex.",
       "sizeGB": 0.27,
       "vramGB": 1,
       "license": "Apache-2.0",
@@ -518,545 +879,41 @@
       ]
     },
     {
-      "id": "sdxl-turbo",
-      "family": "sdxl",
-      "name": "sdxl-turbo",
-      "tag": "fp16",
-      "type": "image",
-      "task": "image",
-      "displayName": "SDXL Turbo",
-      "releaseDate": "2023-11-28",
-      "origin": "UK",
-      "description": "Stability AI's SDXL Turbo is a speed-tuned image model from the UK that draws in 1-4 steps. The fast-draft pick of the SDXL lineage, ideal for rapid prompt iteration.",
-      "strengths": [
-        "Near-real-time drafts: 1-4 denoising steps",
-        "Good for rapid prompt iteration",
-        "Full SDXL ecosystem compatibility"
-      ],
-      "differentiators": "Fastest SDXL variant in the catalog; quality ceiling below the fine-tuned checkpoints.",
-      "sizeGB": 6.9,
-      "vramGB": 8,
-      "license": "Stability AI Non-Commercial",
-      "source": {
-        "protocol": "huggingface",
-        "repo": "stabilityai/sdxl-turbo",
-        "url": "https://huggingface.co/stabilityai/sdxl-turbo/resolve/main/sd_xl_turbo_1.0_fp16.safetensors",
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-      },
-      "weights": {
-        "layoutVersion": 1,
-        "files": [
-          {
-            "path": "sd_xl_turbo_1.0_fp16.safetensors",
-            "sha256": "e869ac7d6942cb327d68d5ed83a40447aadf20e0c3358d98b2cc9e270db0da26"
-          }
-        ]
-      },
-      "tags": [
-        "phase-6",
-        "image"
-      ],
-      "modalities": [
-        "text"
-      ]
-    },
-    {
-      "id": "sdxl-base-1.0",
-      "family": "sdxl",
-      "name": "sdxl-base",
-      "tag": "1.0",
-      "type": "image",
-      "task": "image",
-      "displayName": "Stable Diffusion XL 1.0 Base",
-      "releaseDate": "2023-07-26",
-      "origin": "UK",
-      "description": "Stability AI's Stable Diffusion XL 1.0 is the reference image model from the UK. The compatibility baseline for the SDXL LoRA and ControlNet ecosystem.",
-      "strengths": [
-        "Broadest LoRA and ControlNet compatibility",
-        "Well-documented, predictable prompting",
-        "Strong general-purpose 1024px generation"
-      ],
-      "differentiators": "The unmodified SDXL reference: fine-tunes beat it on looks, nothing beats it on ecosystem compatibility.",
-      "sizeGB": 6.9,
-      "vramGB": 10,
-      "license": "OpenRAIL++",
-      "source": {
-        "protocol": "huggingface",
-        "repo": "stabilityai/stable-diffusion-xl-base-1.0",
-        "url": "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors",
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-      },
-      "weights": {
-        "layoutVersion": 1,
-        "files": [
-          {
-            "path": "sd_xl_base_1.0.safetensors",
-            "sha256": "31e35c80fc4829d14f90153f4c74cd59c90b779f6afe05a74cd6120b893f7e5b"
-          }
-        ]
-      },
-      "tags": [
-        "phase-6",
-        "image"
-      ],
-      "modalities": [
-        "text"
-      ]
-    },
-    {
-      "id": "juggernaut-xl-v9",
-      "family": "sdxl",
-      "name": "juggernaut-xl",
-      "tag": "v9",
-      "type": "image",
-      "task": "image",
-      "displayName": "Juggernaut XL v9",
-      "origin": "USA",
-      "description": "Juggernaut XL v9 is a photorealistic image model from the USA: a community fine-tune of SDXL by KandooAI and RunDiffusion with no built-in content filter. The uncensored photorealism default for 8-12 GB GPUs.",
-      "strengths": [
-        "Best-in-class photorealistic people and scenes",
-        "Uncensored weights: no baked-in content filter",
-        "Works with the whole SDXL LoRA/ControlNet ecosystem"
-      ],
-      "whyRecommended": "The proven photorealism workhorse of the SDXL family, with uncensored weights and a clearly documented license.",
-      "differentiators": "One of the most-downloaded SDXL fine-tunes ever (6M+ downloads); markedly more lifelike output than SDXL base at the same VRAM cost.",
-      "provenance": "Community SDXL 1.0 fine-tune co-developed by KandooAI and RunDiffusion; published at huggingface.co/RunDiffusion/Juggernaut-XL-v9 (RunDiffusionPhoto v2 blend). Uncensored basis: photoreal training data and no safety filter in the weights. License verified 2026-07-03 from the HF model card.",
-      "sizeGB": 6.9,
-      "vramGB": 8,
-      "requiredVramGB": 8,
-      "releaseDate": "2024-02-19",
-      "uncensored": true,
-      "multimodal": false,
-      "contextWindow": null,
-      "license": "CreativeML Open RAIL-M (no paid-API redeployment without a RunDiffusion license)",
-      "source": {
-        "protocol": "huggingface",
-        "repo": "RunDiffusion/Juggernaut-XL-v9",
-        "url": "https://huggingface.co/RunDiffusion/Juggernaut-XL-v9/resolve/main/Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors",
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-      },
-      "weights": {
-        "layoutVersion": 1,
-        "files": [
-          {
-            "path": "Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors",
-            "sha256": "c9e3e68f89b8e38689e1097d4be4573cf308de4e3fd044c64ca697bdb4aa8bca"
-          }
-        ]
-      },
-      "tags": [
-        "recommended",
-        "image",
-        "uncensored",
-        "sdxl",
-        "phase-4"
-      ],
-      "modalities": [
-        "text"
-      ]
-    },
-    {
-      "id": "realvisxl-v5",
-      "family": "sdxl",
-      "name": "realvisxl",
-      "tag": "v5.0",
-      "type": "image",
-      "task": "image",
-      "displayName": "RealVisXL V5.0",
-      "origin": "Community",
-      "description": "RealVisXL V5.0 is a photorealistic image model from the open-source community: a fine-tune of SDXL by SG161222 with no built-in content filter. The uncensored photorealism default for 16 GB+ GPUs.",
-      "strengths": [
-        "Exceptional skin texture, lighting, and fine detail",
-        "Uncensored weights: no baked-in content filter",
-        "Strong prompt adherence for a photoreal fine-tune"
-      ],
-      "whyRecommended": "The sharpest photoreal detail of the SDXL fine-tune class; uncensored weights under a standard OpenRAIL++ license.",
-      "differentiators": "Tuned for maximum realism rather than speed; pairs well with higher step counts on 16 GB+ cards.",
-      "provenance": "Community SDXL 1.0 fine-tune by SG161222; published at huggingface.co/SG161222/RealVisXL_V5.0 (fp16 checkpoint). Uncensored basis: photoreal training data and no safety filter in the weights. License verified 2026-07-03 from the HF model card.",
-      "sizeGB": 6.9,
-      "vramGB": 10,
-      "requiredVramGB": 10,
-      "releaseDate": "2024-08-01",
-      "uncensored": true,
-      "multimodal": false,
-      "contextWindow": null,
-      "license": "OpenRAIL++",
-      "source": {
-        "protocol": "huggingface",
-        "repo": "SG161222/RealVisXL_V5.0",
-        "url": "https://huggingface.co/SG161222/RealVisXL_V5.0/resolve/main/RealVisXL_V5.0_fp16.safetensors",
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-      },
-      "weights": {
-        "layoutVersion": 1,
-        "files": [
-          {
-            "path": "RealVisXL_V5.0_fp16.safetensors",
-            "sha256": "6a35a7855770ae9820a3c931d4964c3817b6d9e3c6f9c4dabb5b3a94e5643b80"
-          }
-        ]
-      },
-      "tags": [
-        "recommended",
-        "image",
-        "uncensored",
-        "sdxl",
-        "phase-4"
-      ],
-      "modalities": [
-        "text"
-      ]
-    },
-    {
-      "id": "flux-schnell",
-      "family": "flux",
-      "name": "flux",
-      "tag": "schnell",
-      "type": "image",
-      "task": "image",
-      "displayName": "FLUX.1 Schnell",
-      "releaseDate": "2024-08-01",
-      "origin": "Germany",
-      "description": "Black Forest Labs' FLUX.1 Schnell is a large image model from Germany that generates in just 4 steps. The prompt-adherence flagship for 24 GB GPUs, with the best text rendering in the catalog.",
-      "strengths": [
-        "Best prompt adherence and text rendering in the catalog",
-        "4-step generation despite its size",
-        "Apache-2.0: fully permissive license"
-      ],
-      "differentiators": "A different architecture class than SDXL: dramatically better at complex compositions and legible text, at 3x the download size.",
-      "sizeGB": 23.0,
-      "vramGB": 24,
-      "license": "Apache-2.0",
-      "source": {
-        "protocol": "huggingface",
-        "repo": "Comfy-Org/flux1-schnell",
-        "url": "https://huggingface.co/Comfy-Org/flux1-schnell/resolve/main/flux1-schnell.safetensors",
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-      },
-      "weights": {
-        "layoutVersion": 1,
-        "files": [
-          {
-            "path": "flux1-schnell.safetensors",
-            "sha256": "9403429e0052277ac2a87ad800adece5481eecefd9ed334e1f348723621d2a0a"
-          }
-        ]
-      },
-      "tags": [
-        "phase-6",
-        "image"
-      ],
-      "modalities": [
-        "text"
-      ]
-    },
-    {
-      "id": "sd1.5",
-      "family": "sd1",
-      "name": "sd1",
-      "tag": "5",
-      "type": "image",
-      "task": "image",
-      "displayName": "Stable Diffusion 1.5",
-      "releaseDate": "2022-10-20",
-      "origin": "UK",
-      "description": "Stable Diffusion 1.5 is the classic lightweight image model from the UK. The lightest in the catalog: 512px generation on 4 GB VRAM, with a vast legacy fine-tune ecosystem.",
-      "strengths": [
-        "Runs on 4 GB VRAM",
-        "Enormous legacy LoRA and checkpoint ecosystem",
-        "Fast at 512px"
-      ],
-      "differentiators": "The compatibility floor: lowest quality of the image catalog, but runs where nothing else fits.",
-      "sizeGB": 4.0,
-      "vramGB": 4,
-      "license": "OpenRAIL",
-      "source": {
-        "protocol": "huggingface",
-        "repo": "stable-diffusion-v1-5/stable-diffusion-v1-5",
-        "url": "https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.safetensors",
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-      },
-      "weights": {
-        "layoutVersion": 1,
-        "files": [
-          {
-            "path": "v1-5-pruned-emaonly.safetensors",
-            "sha256": "6ce0161689b3853acaa03779ec93eafe75a02f4ced659bee03f50797806fa2fa"
-          }
-        ]
-      },
-      "tags": [
-        "phase-6",
-        "image"
-      ],
-      "modalities": [
-        "text"
-      ]
-    },
-    {
-      "id": "ltx-video",
-      "family": "ltx",
-      "name": "ltx-video",
-      "tag": "0.9",
-      "type": "video",
-      "task": "video",
-      "displayName": "LTX-Video 0.9",
-      "releaseDate": "2024-11-21",
-      "origin": "Israel",
-      "description": "Lightricks' LTX-Video is a speed-focused text-to-video model from Israel for 12 GB+ GPUs. The fastest clip generation in the catalog, with good motion on short clips.",
-      "strengths": [
-        "Fastest clip generation in the catalog",
-        "Good motion coherence for short clips",
-        "Text-to-video and image-to-video in one model"
-      ],
-      "differentiators": "The speed pick: generates a clip in seconds where diffusion peers take minutes.",
-      "sizeGB": 13.0,
-      "vramGB": 12,
-      "license": "OpenRAIL-M",
-      "source": {
-        "protocol": "huggingface",
-        "repo": "Lightricks/LTX-Video",
-        "url": "https://huggingface.co/Lightricks/LTX-Video/resolve/main/ltx-video-2b-v0.9.safetensors",
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-      },
-      "weights": {
-        "layoutVersion": 1,
-        "files": [
-          {
-            "path": "ltx-video-2b-v0.9.safetensors",
-            "sha256": "45369c2ae94e3949b127ef99ca9fe173b077f1ca0fecf8185e4115afcbc09581"
-          }
-        ]
-      },
-      "tags": [
-        "phase-7",
-        "video"
-      ],
-      "modalities": [
-        "text"
-      ],
-      "audioConditioning": {
-        "supported": false,
-        "modes": []
-      }
-    },
-    {
-      "id": "wan2.1-t2v-1.3b",
-      "family": "wan",
-      "name": "wan2.1-t2v",
-      "tag": "1.3b",
-      "type": "video",
-      "task": "video",
-      "displayName": "Wan 2.1 T2V 1.3B",
-      "origin": "China",
-      "description": "Alibaba's Wan 2.1 T2V is a 1.3B text-to-video model from China that runs on ~8 GB VRAM at 480p, with no built-in content filter. The consumer-hardware entry point for local video.",
-      "strengths": [
-        "Runs on ~8 GB consumer GPUs (480p)",
-        "Leading VBench motion quality in the small-model class",
-        "Uncensored-capable: no weights-level content filter"
-      ],
-      "whyRecommended": "The best open video model that fits consumer 8-16 GB GPUs, under a fully permissive Apache-2.0 license.",
-      "differentiators": "The consumer-hardware entry point for local video: where LTX-Video optimizes speed, Wan 2.1 optimizes quality per GB of VRAM.",
-      "provenance": "Published by Alibaba (Wan-AI) at huggingface.co/Wan-AI/Wan2.1-T2V-1.3B; original release, not a fine-tune. Uncensored basis: no safety filter in the released weights (content filtering in the hosted service is pipeline-level). License verified 2026-07-03 from the HF model card.",
-      "sizeGB": 17.6,
-      "vramGB": 8,
-      "requiredVramGB": 8,
-      "releaseDate": "2025-02-25",
-      "uncensored": true,
-      "multimodal": false,
-      "contextWindow": null,
-      "license": "Apache-2.0",
-      "source": {
-        "protocol": "huggingface",
-        "repo": "Wan-AI/Wan2.1-T2V-1.3B",
-        "url": "https://huggingface.co/Wan-AI/Wan2.1-T2V-1.3B/resolve/main/diffusion_pytorch_model.safetensors",
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-      },
-      "weights": {
-        "layoutVersion": 1,
-        "files": [
-          {
-            "path": "diffusion_pytorch_model.safetensors",
-            "sha256": "96b6b242ca1c2f24e9d02cd6596066fab6d310e2d7538f33ae267cb18d957e8f"
-          },
-          {
-            "path": "models_t5_umt5-xxl-enc-bf16.pth",
-            "sha256": "7cace0da2b446bbbbc57d031ab6cf163a3d59b366da94e5afe36745b746fd81d"
-          },
-          {
-            "path": "Wan2.1_VAE.pth",
-            "sha256": "38071ab59bd94681c686fa51d75a1968f64e470262043be31f7a094e442fd981"
-          }
-        ]
-      },
-      "tags": [
-        "recommended",
-        "video",
-        "uncensored",
-        "wan",
-        "phase-4"
-      ],
-      "modalities": [
-        "text"
-      ],
-      "audioConditioning": {
-        "supported": false,
-        "modes": []
-      }
-    },
-    {
-      "id": "wan2.2-ti2v-5b",
-      "family": "wan",
-      "name": "wan2.2-ti2v",
-      "tag": "5b",
-      "type": "video",
-      "task": "video",
-      "displayName": "Wan 2.2 TI2V 5B",
-      "origin": "China",
-      "description": "Alibaba's Wan 2.2 TI2V is a 5B text-and-image-to-video model from China that reaches 720p at 24 fps on a single 24 GB card, with no built-in content filter. The higher-resolution local-video default.",
-      "strengths": [
-        "720p @ 24 fps on a single 24 GB GPU",
-        "Text-to-video and image-to-video in one model",
-        "Uncensored-capable: no weights-level content filter"
-      ],
-      "whyRecommended": "The strongest local video quality that fits a single 24 GB GPU, under a fully permissive Apache-2.0 license.",
-      "differentiators": "The high-compression Wan2.2-VAE makes true 720p24 practical on one consumer card; among the fastest 720p open models.",
-      "provenance": "Published by Alibaba (Wan-AI) at huggingface.co/Wan-AI/Wan2.2-TI2V-5B; original release, not a fine-tune. Uncensored basis: no safety filter in the released weights (content filtering in the hosted service is pipeline-level). License verified 2026-07-03 from the HF model card.",
-      "sizeGB": 34.2,
-      "vramGB": 24,
-      "requiredVramGB": 24,
-      "releaseDate": "2025-07-28",
-      "uncensored": true,
-      "multimodal": false,
-      "contextWindow": null,
-      "license": "Apache-2.0",
-      "source": {
-        "protocol": "huggingface",
-        "repo": "Wan-AI/Wan2.2-TI2V-5B",
-        "url": "https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B/resolve/main/diffusion_pytorch_model-00001-of-00003.safetensors",
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-      },
-      "weights": {
-        "layoutVersion": 1,
-        "files": [
-          {
-            "path": "diffusion_pytorch_model-00001-of-00003.safetensors",
-            "sha256": "720b06c4ade5e87c1246bba8ac95b664c638749cd9b102cf84d823bb44c026a1"
-          },
-          {
-            "path": "diffusion_pytorch_model-00002-of-00003.safetensors",
-            "sha256": "09ec5ef720d8396f6cfa51fbdcbdb2327e37722afd6e89fd38f1e7e5e782c283"
-          },
-          {
-            "path": "diffusion_pytorch_model-00003-of-00003.safetensors",
-            "sha256": "6306f7894c345de9093ad588771c2abfaeb668a81f7a6d9a918bd26ba3568e49"
-          },
-          {
-            "path": "models_t5_umt5-xxl-enc-bf16.pth",
-            "sha256": "7cace0da2b446bbbbc57d031ab6cf163a3d59b366da94e5afe36745b746fd81d"
-          },
-          {
-            "path": "Wan2.2_VAE.pth",
-            "sha256": "20eb789667fa5e60e7516bf509512f6cb61f01b0aa0695eadaea930c13892b36"
-          }
-        ]
-      },
-      "tags": [
-        "recommended",
-        "video",
-        "uncensored",
-        "wan",
-        "phase-4"
-      ],
-      "modalities": [
-        "text"
-      ],
-      "audioConditioning": {
-        "supported": false,
-        "modes": []
-      }
-    },
-    {
-      "id": "svd",
-      "family": "svd",
-      "name": "stable-video-diffusion",
-      "tag": "1.1",
-      "type": "video",
-      "task": "video",
-      "displayName": "Stable Video Diffusion 1.1",
-      "releaseDate": "2024-02-02",
-      "origin": "UK",
-      "description": "Stability AI's Stable Video Diffusion 1.1 is an image-to-video model from the UK. It animates a still image into a short clip with coherent camera motion.",
-      "strengths": [
-        "Animates existing images with coherent camera motion",
-        "Predictable, stable short clips",
-        "Well-documented reference pipeline"
-      ],
-      "differentiators": "Image-to-video specialist: give it a picture, not a prompt.",
-      "sizeGB": 9.5,
-      "vramGB": 12,
-      "license": "Stability AI Non-Commercial",
-      "gated": true,
-      "requiresLicense": true,
-      "licenseUrl": "https://huggingface.co/stabilityai/stable-video-diffusion-img2vid-xt-1-1",
-      "gatedReason": "Access-gated open-weight model (HTTP 401 for unauthenticated clients): the installer guided Hugging Face step (accept the model license on its page, then sign in with a free read token) unlocks it. Public alternatives (ltx-video, wan2.2-ti2v-5b) also cover image-to-video.",
-      "source": {
-        "protocol": "huggingface",
-        "repo": "stabilityai/stable-video-diffusion-img2vid-xt-1-1",
-        "url": "https://huggingface.co/stabilityai/stable-video-diffusion-img2vid-xt-1-1/resolve/main/svd_xt_1_1.safetensors",
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-      },
-      "weights": {
-        "layoutVersion": 1,
-        "files": [
-          {
-            "path": "svd_xt_1_1.safetensors",
-            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-          }
-        ]
-      },
-      "tags": [
-        "phase-7",
-        "video"
-      ],
-      "modalities": [
-        "text"
-      ],
-      "audioConditioning": {
-        "supported": false,
-        "modes": []
-      }
-    },
-    {
-      "id": "sana-1.6b-1024",
+      "id": "sana-1.6b-int4",
       "family": "sana",
       "name": "sana",
-      "tag": "1.6b-1024",
+      "tag": "1.6b-int4",
       "type": "image",
       "task": "image",
-      "displayName": "SANA 1.5 1.6B 1024px",
+      "displayName": "SANA 1.5 1.6B INT4 (SVDQuant)",
       "origin": "USA",
-      "description": "NVIDIA's SANA 1.5 1.6B is an efficient 1024px image model from the USA. About 2x faster than SDXL Turbo on 6 GB VRAM, with permissive Apache-2.0 weights.",
+      "description": "NVIDIA's SANA 1.5 1.6B INT4 is a compressed image model from the USA that fits 5 GB GPUs. The low-VRAM way to still get 1024px generation (needs the nunchaku runtime).",
       "strengths": [
-        "Very fast 1024px generation on 6 GB VRAM",
-        "Strong text rendering for its size",
+        "Smallest capable 1024px model (1.4 GB, 5 GB VRAM)",
+        "INT4 quantization with minimal quality loss",
         "Apache-2.0: fully permissive license"
       ],
-      "whyRecommended": "The efficiency pick: full 1024px quality on GPUs that cannot fit the SDXL-class models.",
-      "differentiators": "Linear-attention architecture: SDXL-class output at a fraction of the compute and VRAM.",
-      "sizeGB": 3.2,
-      "vramGB": 6,
-      "requiredVramGB": 6,
-      "releaseDate": "2025-08-01",
+      "differentiators": "The low-VRAM safety net of the image catalog; needs the nunchaku runtime dependency.",
+      "sizeGB": 1.4,
+      "vramGB": 5,
+      "requiredVramGB": 5,
+      "releaseDate": "2025-10-01",
       "uncensored": false,
       "multimodal": false,
       "contextWindow": null,
       "linkedVAE": "dc-ae-f32c32-sana-1.1",
       "license": "Apache-2.0",
+      "gated": true,
+      "requiresLicense": true,
+      "licenseUrl": "https://huggingface.co/Efficient-Large-Model/SANA1.5_1.6B_1024px_int4",
+      "gatedReason": "Access-gated open-weight model (HTTP 401) that also needs the nunchaku runtime dependency: the installer guided Hugging Face step unlocks the download and the diffusion runtime provides nunchaku. The public sana-1.6b-1024 covers 1024px generation without either requirement.",
+      "runtimeDeps": [
+        "nunchaku"
+      ],
       "source": {
         "protocol": "huggingface",
-        "repo": "Efficient-Large-Model/SANA1.5_1.6B_1024px_diffusers",
-        "url": "https://huggingface.co/Efficient-Large-Model/SANA1.5_1.6B_1024px_diffusers/resolve/main/transformer/diffusion_pytorch_model.safetensors",
+        "repo": "Efficient-Large-Model/SANA1.5_1.6B_1024px_int4",
+        "url": "https://huggingface.co/Efficient-Large-Model/SANA1.5_1.6B_1024px_int4/resolve/main/transformer/diffusion_pytorch_model.safetensors",
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
       "weights": {
@@ -1064,15 +921,65 @@
         "files": [
           {
             "path": "transformer/diffusion_pytorch_model.safetensors",
-            "sha256": "300b4109622d8ffd12d827a4127d2f82f102e3b9a0d413285f6bcf46729a3e54"
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
           }
         ]
       },
       "tags": [
-        "recommended",
         "image",
         "phase-12",
-        "sana"
+        "sana",
+        "int4"
+      ],
+      "modalities": [
+        "text"
+      ]
+    },
+    {
+      "id": "sana-1.6b-4k",
+      "family": "sana",
+      "name": "sana",
+      "tag": "1.6b-4k",
+      "type": "image",
+      "task": "image",
+      "displayName": "SANA 1.6B 4K",
+      "origin": "USA",
+      "description": "NVIDIA's SANA 1.6B 4K is an ultra-high-resolution image model from the USA for 20 GB GPUs. Native 4096px, poster-scale output without upscalers.",
+      "strengths": [
+        "Native 4096px generation",
+        "Poster-scale output without upscalers",
+        "Apache-2.0: fully permissive license"
+      ],
+      "differentiators": "The only native-4K image entry in the catalog.",
+      "sizeGB": 3.2,
+      "vramGB": 20,
+      "requiredVramGB": 20,
+      "releaseDate": "2025-09-10",
+      "uncensored": false,
+      "multimodal": false,
+      "contextWindow": null,
+      "linkedVAE": "dc-ae-f32c32-sana-1.1",
+      "license": "Apache-2.0",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "Efficient-Large-Model/Sana_1600M_4Kpx_BF16",
+        "url": "https://huggingface.co/Efficient-Large-Model/Sana_1600M_4Kpx_BF16/resolve/main/checkpoints/Sana_1600M_4Kpx_BF16.pth",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "checkpoints/Sana_1600M_4Kpx_BF16.pth",
+            "sha256": "6a0f015d5913553e45c72fe50bac971ee7290b377aa6f9ee989f6ce1aa9b5a12"
+          }
+        ]
+      },
+      "tags": [
+        "image",
+        "phase-12",
+        "sana",
+        "4k"
       ],
       "modalities": [
         "text"
@@ -1180,25 +1087,26 @@
       ]
     },
     {
-      "id": "sana-1.6b-4k",
+      "id": "sana-1.6b-1024",
       "family": "sana",
       "name": "sana",
-      "tag": "1.6b-4k",
+      "tag": "1.6b-1024",
       "type": "image",
       "task": "image",
-      "displayName": "SANA 1.6B 4K",
+      "displayName": "SANA 1.5 1.6B 1024px",
       "origin": "USA",
-      "description": "NVIDIA's SANA 1.6B 4K is an ultra-high-resolution image model from the USA for 20 GB GPUs. Native 4096px, poster-scale output without upscalers.",
+      "description": "NVIDIA's SANA 1.5 1.6B is an efficient 1024px image model from the USA. About 2x faster than SDXL Turbo on 6 GB VRAM, with permissive Apache-2.0 weights.",
       "strengths": [
-        "Native 4096px generation",
-        "Poster-scale output without upscalers",
+        "Very fast 1024px generation on 6 GB VRAM",
+        "Strong text rendering for its size",
         "Apache-2.0: fully permissive license"
       ],
-      "differentiators": "The only native-4K image entry in the catalog.",
+      "whyRecommended": "The efficiency pick: full 1024px quality on GPUs that cannot fit the SDXL-class models.",
+      "differentiators": "Linear-attention architecture: SDXL-class output at a fraction of the compute and VRAM.",
       "sizeGB": 3.2,
-      "vramGB": 20,
-      "requiredVramGB": 20,
-      "releaseDate": "2025-09-10",
+      "vramGB": 6,
+      "requiredVramGB": 6,
+      "releaseDate": "2025-08-01",
       "uncensored": false,
       "multimodal": false,
       "contextWindow": null,
@@ -1206,65 +1114,8 @@
       "license": "Apache-2.0",
       "source": {
         "protocol": "huggingface",
-        "repo": "Efficient-Large-Model/Sana_1600M_4Kpx_BF16",
-        "url": "https://huggingface.co/Efficient-Large-Model/Sana_1600M_4Kpx_BF16/resolve/main/checkpoints/Sana_1600M_4Kpx_BF16.pth",
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-      },
-      "weights": {
-        "layoutVersion": 1,
-        "files": [
-          {
-            "path": "checkpoints/Sana_1600M_4Kpx_BF16.pth",
-            "sha256": "6a0f015d5913553e45c72fe50bac971ee7290b377aa6f9ee989f6ce1aa9b5a12"
-          }
-        ]
-      },
-      "tags": [
-        "image",
-        "phase-12",
-        "sana",
-        "4k"
-      ],
-      "modalities": [
-        "text"
-      ]
-    },
-    {
-      "id": "sana-1.6b-int4",
-      "family": "sana",
-      "name": "sana",
-      "tag": "1.6b-int4",
-      "type": "image",
-      "task": "image",
-      "displayName": "SANA 1.5 1.6B INT4 (SVDQuant)",
-      "origin": "USA",
-      "description": "NVIDIA's SANA 1.5 1.6B INT4 is a compressed image model from the USA that fits 5 GB GPUs. The low-VRAM way to still get 1024px generation (needs the nunchaku runtime).",
-      "strengths": [
-        "Smallest capable 1024px model (1.4 GB, 5 GB VRAM)",
-        "INT4 quantization with minimal quality loss",
-        "Apache-2.0: fully permissive license"
-      ],
-      "differentiators": "The low-VRAM safety net of the image catalog; needs the nunchaku runtime dependency.",
-      "sizeGB": 1.4,
-      "vramGB": 5,
-      "requiredVramGB": 5,
-      "releaseDate": "2025-10-01",
-      "uncensored": false,
-      "multimodal": false,
-      "contextWindow": null,
-      "linkedVAE": "dc-ae-f32c32-sana-1.1",
-      "license": "Apache-2.0",
-      "gated": true,
-      "requiresLicense": true,
-      "licenseUrl": "https://huggingface.co/Efficient-Large-Model/SANA1.5_1.6B_1024px_int4",
-      "gatedReason": "Access-gated open-weight model (HTTP 401) that also needs the nunchaku runtime dependency: the installer guided Hugging Face step unlocks the download and the diffusion runtime provides nunchaku. The public sana-1.6b-1024 covers 1024px generation without either requirement.",
-      "runtimeDeps": [
-        "nunchaku"
-      ],
-      "source": {
-        "protocol": "huggingface",
-        "repo": "Efficient-Large-Model/SANA1.5_1.6B_1024px_int4",
-        "url": "https://huggingface.co/Efficient-Large-Model/SANA1.5_1.6B_1024px_int4/resolve/main/transformer/diffusion_pytorch_model.safetensors",
+        "repo": "Efficient-Large-Model/SANA1.5_1.6B_1024px_diffusers",
+        "url": "https://huggingface.co/Efficient-Large-Model/SANA1.5_1.6B_1024px_diffusers/resolve/main/transformer/diffusion_pytorch_model.safetensors",
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
       "weights": {
@@ -1272,246 +1123,175 @@
         "files": [
           {
             "path": "transformer/diffusion_pytorch_model.safetensors",
-            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+            "sha256": "300b4109622d8ffd12d827a4127d2f82f102e3b9a0d413285f6bcf46729a3e54"
           }
         ]
       },
       "tags": [
+        "recommended",
         "image",
-        "phase-12",
-        "sana",
-        "int4"
-      ],
-      "modalities": [
-        "text"
-      ]
-    },
-    {
-      "id": "dc-ae-f32c32-sana-1.1",
-      "family": "sana",
-      "name": "dc-ae",
-      "tag": "f32c32-sana-1.1",
-      "type": "vae",
-      "displayName": "DC-AE f32c32 (SANA 1.1)",
-      "origin": "USA",
-      "description": "MIT HAN Lab Deep Compression AutoEncoder (32x compression, 32 channels). Auto-loaded by every SANA pipeline.",
-      "sizeGB": 0.32,
-      "vramGB": 1,
-      "requiredVramGB": 1,
-      "releaseDate": "2025-07-01",
-      "uncensored": false,
-      "multimodal": false,
-      "contextWindow": null,
-      "license": "Apache-2.0",
-      "source": {
-        "protocol": "huggingface",
-        "repo": "mit-han-lab/dc-ae-f32c32-sana-1.1",
-        "url": "https://huggingface.co/mit-han-lab/dc-ae-f32c32-sana-1.1/resolve/main/model.safetensors",
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-      },
-      "weights": {
-        "layoutVersion": 1,
-        "files": [
-          {
-            "path": "model.safetensors",
-            "sha256": "01a99a6d08b8e1d54bf9af28cab521432cdeee372720e84c38bac8b8abe27ba6"
-          }
-        ]
-      },
-      "tags": [
-        "vae",
-        "phase-12",
-        "sana",
-        "auto-loaded"
-      ],
-      "modalities": [
-        "image"
-      ]
-    },
-    {
-      "id": "sana-controlnet-pose",
-      "family": "sana",
-      "name": "sana-controlnet",
-      "tag": "pose",
-      "type": "controlnet",
-      "displayName": "SANA-ControlNet Pose",
-      "origin": "USA",
-      "description": "Pose-conditioning ControlNet for SANA. Pairs with the OpenPose preprocessor (controlnet_aux).",
-      "sizeGB": 0.7,
-      "vramGB": 2,
-      "requiredVramGB": 2,
-      "releaseDate": "2025-09-20",
-      "uncensored": false,
-      "multimodal": false,
-      "contextWindow": null,
-      "linkedFamily": "sana",
-      "license": "Apache-2.0",
-      "source": {
-        "protocol": "huggingface",
-        "repo": "Efficient-Large-Model/SANA-ControlNet-Pose",
-        "url": "https://huggingface.co/Efficient-Large-Model/SANA-ControlNet-Pose/resolve/main/diffusion_pytorch_model.safetensors",
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-      },
-      "weights": {
-        "layoutVersion": 1,
-        "files": [
-          {
-            "path": "diffusion_pytorch_model.safetensors",
-            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-          }
-        ]
-      },
-      "tags": [
-        "controlnet",
-        "phase-12",
-        "sana",
-        "pose"
-      ],
-      "modalities": [
-        "image"
-      ]
-    },
-    {
-      "id": "sana-controlnet-depth",
-      "family": "sana",
-      "name": "sana-controlnet",
-      "tag": "depth",
-      "type": "controlnet",
-      "displayName": "SANA-ControlNet Depth",
-      "origin": "USA",
-      "description": "Depth-conditioning ControlNet for SANA. Pairs with the MiDaS preprocessor (controlnet_aux).",
-      "sizeGB": 0.7,
-      "vramGB": 2,
-      "requiredVramGB": 2,
-      "releaseDate": "2025-09-20",
-      "uncensored": false,
-      "multimodal": false,
-      "contextWindow": null,
-      "linkedFamily": "sana",
-      "license": "Apache-2.0",
-      "source": {
-        "protocol": "huggingface",
-        "repo": "Efficient-Large-Model/SANA-ControlNet-Depth",
-        "url": "https://huggingface.co/Efficient-Large-Model/SANA-ControlNet-Depth/resolve/main/diffusion_pytorch_model.safetensors",
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-      },
-      "weights": {
-        "layoutVersion": 1,
-        "files": [
-          {
-            "path": "diffusion_pytorch_model.safetensors",
-            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-          }
-        ]
-      },
-      "tags": [
-        "controlnet",
-        "phase-12",
-        "sana",
-        "depth"
-      ],
-      "modalities": [
-        "image"
-      ]
-    },
-    {
-      "id": "sana-controlnet-canny",
-      "family": "sana",
-      "name": "sana-controlnet",
-      "tag": "canny",
-      "type": "controlnet",
-      "displayName": "SANA-ControlNet Canny",
-      "origin": "USA",
-      "description": "Canny-edge-conditioning ControlNet for SANA. Pairs with the OpenCV Canny preprocessor.",
-      "sizeGB": 0.7,
-      "vramGB": 2,
-      "requiredVramGB": 2,
-      "releaseDate": "2025-09-20",
-      "uncensored": false,
-      "multimodal": false,
-      "contextWindow": null,
-      "linkedFamily": "sana",
-      "license": "Apache-2.0",
-      "source": {
-        "protocol": "huggingface",
-        "repo": "Efficient-Large-Model/SANA-ControlNet-Canny",
-        "url": "https://huggingface.co/Efficient-Large-Model/SANA-ControlNet-Canny/resolve/main/diffusion_pytorch_model.safetensors",
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-      },
-      "weights": {
-        "layoutVersion": 1,
-        "files": [
-          {
-            "path": "diffusion_pytorch_model.safetensors",
-            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-          }
-        ]
-      },
-      "tags": [
-        "controlnet",
-        "phase-12",
-        "sana",
-        "canny"
-      ],
-      "modalities": [
-        "image"
-      ]
-    },
-    {
-      "id": "sana-video-2b-720p",
-      "family": "sana",
-      "name": "sana-video",
-      "tag": "2b-720p",
-      "type": "video",
-      "task": "video",
-      "displayName": "SANA-Video 2B 720p",
-      "origin": "USA",
-      "description": "NVIDIA's SANA-Video 2B is a fast 720p text-to-video model from the USA for 12 GB GPUs. The efficiency pick: faster than the Wan family, higher fidelity than LTX-Video.",
-      "strengths": [
-        "Fast 720p clips on 12 GB VRAM",
-        "Efficient linear-attention video architecture",
-        "Apache-2.0: fully permissive license"
-      ],
-      "differentiators": "The efficiency pick for 720p: faster than the Wan family, higher fidelity than LTX-Video.",
-      "sizeGB": 4.0,
-      "vramGB": 12,
-      "requiredVramGB": 12,
-      "releaseDate": "2025-10-15",
-      "uncensored": false,
-      "multimodal": false,
-      "contextWindow": null,
-      "license": "Apache-2.0",
-      "source": {
-        "protocol": "huggingface",
-        "repo": "Efficient-Large-Model/SANA-Video_2B_720p_diffusers",
-        "url": "https://huggingface.co/Efficient-Large-Model/SANA-Video_2B_720p_diffusers/resolve/main/transformer/diffusion_pytorch_model-00001-of-00002.safetensors",
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-      },
-      "weights": {
-        "layoutVersion": 1,
-        "files": [
-          {
-            "path": "transformer/diffusion_pytorch_model-00001-of-00002.safetensors",
-            "sha256": "c7c58e08418fc09a240bf936d46b629304002053c5ea9860ee156fd3c9de2546"
-          },
-          {
-            "path": "transformer/diffusion_pytorch_model-00002-of-00002.safetensors",
-            "sha256": "9d083c8419daa52591a969462f93f3d693128e7e57a69fa6ee2b89f942e887fa"
-          }
-        ]
-      },
-      "tags": [
-        "video",
         "phase-12",
         "sana"
       ],
       "modalities": [
         "text"
+      ]
+    },
+    {
+      "id": "realvisxl-v5",
+      "family": "sdxl",
+      "name": "realvisxl",
+      "tag": "v5.0",
+      "type": "image",
+      "task": "image",
+      "displayName": "RealVisXL V5.0",
+      "origin": "Community",
+      "description": "RealVisXL V5.0 is a photorealistic image model from the open-source community: a fine-tune of SDXL by SG161222 with no built-in content filter. The uncensored photorealism default for 16 GB+ GPUs.",
+      "strengths": [
+        "Exceptional skin texture, lighting, and fine detail",
+        "Uncensored weights: no baked-in content filter",
+        "Strong prompt adherence for a photoreal fine-tune"
       ],
-      "audioConditioning": {
-        "supported": false,
-        "modes": []
-      }
+      "whyRecommended": "The sharpest photoreal detail of the SDXL fine-tune class; uncensored weights under a standard OpenRAIL++ license.",
+      "differentiators": "Tuned for maximum realism rather than speed; pairs well with higher step counts on 16 GB+ cards.",
+      "provenance": "Community SDXL 1.0 fine-tune by SG161222; published at huggingface.co/SG161222/RealVisXL_V5.0 (fp16 checkpoint). Uncensored basis: photoreal training data and no safety filter in the weights. License verified 2026-07-03 from the HF model card.",
+      "sizeGB": 6.9,
+      "vramGB": 10,
+      "requiredVramGB": 10,
+      "releaseDate": "2024-08-01",
+      "uncensored": true,
+      "multimodal": false,
+      "contextWindow": null,
+      "license": "OpenRAIL++",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "SG161222/RealVisXL_V5.0",
+        "url": "https://huggingface.co/SG161222/RealVisXL_V5.0/resolve/main/RealVisXL_V5.0_fp16.safetensors",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "RealVisXL_V5.0_fp16.safetensors",
+            "sha256": "6a35a7855770ae9820a3c931d4964c3817b6d9e3c6f9c4dabb5b3a94e5643b80"
+          }
+        ]
+      },
+      "tags": [
+        "recommended",
+        "image",
+        "uncensored",
+        "sdxl",
+        "phase-4"
+      ],
+      "modalities": [
+        "text"
+      ]
+    },
+    {
+      "id": "sam2:hiera-tiny",
+      "family": "sam2",
+      "name": "sam2",
+      "tag": "hiera-tiny",
+      "type": "image",
+      "task": "image",
+      "displayName": "SAM2 Hiera Tiny",
+      "releaseDate": "2024-08-01",
+      "origin": "USA",
+      "agentic": false,
+      "codingEligible": false,
+      "diffusion": false,
+      "vision": false,
+      "description": "Meta's Segment Anything 2 (Hiera Tiny) is an Apache-2.0 local segmentation utility from the USA. Image Studio uses it for maskless edits such as replace-the-X. It is not a chat or diffusion generator.",
+      "strengths": [
+        "On-device object masks from a point, box, or text-derived hint",
+        "Tiny checkpoint that fits consumer VRAM alongside a diffusion model",
+        "Apache-2.0 weights; nothing leaves the machine"
+      ],
+      "whyRecommended": "The Image Studio segmentation helper. Install it to skip painting masks by hand.",
+      "differentiators": "Utility weights, not a generator: hidden from the Image Studio model picker via the utility tag.",
+      "provenance": "First-party Meta SAM 2 Hiera Tiny checkpoints on Hugging Face (facebook/sam2-hiera-tiny), Apache-2.0. Nexus does not redistribute the weights. Live SHA-256 pins are placeholders until the installer puller records them.",
+      "sizeGB": 0.04,
+      "vramGB": 2,
+      "requiredVramGB": 4,
+      "license": "Apache-2.0",
+      "licenseUrl": "https://github.com/facebookresearch/sam2/blob/main/LICENSE",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "facebook/sam2-hiera-tiny",
+        "url": "https://huggingface.co/facebook/sam2-hiera-tiny",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "sam2_hiera_tiny.pt",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
+      },
+      "tags": [
+        "sam2",
+        "utility",
+        "segmentation"
+      ],
+      "modalities": [
+        "image"
+      ]
+    },
+    {
+      "id": "juggernaut-xl-v9",
+      "family": "sdxl",
+      "name": "juggernaut-xl",
+      "tag": "v9",
+      "type": "image",
+      "task": "image",
+      "displayName": "Juggernaut XL v9",
+      "origin": "USA",
+      "description": "Juggernaut XL v9 is a photorealistic image model from the USA: a community fine-tune of SDXL by KandooAI and RunDiffusion with no built-in content filter. The uncensored photorealism default for 8-12 GB GPUs.",
+      "strengths": [
+        "Best-in-class photorealistic people and scenes",
+        "Uncensored weights: no baked-in content filter",
+        "Works with the whole SDXL LoRA/ControlNet ecosystem"
+      ],
+      "whyRecommended": "The proven photorealism workhorse of the SDXL family, with uncensored weights and a clearly documented license.",
+      "differentiators": "One of the most-downloaded SDXL fine-tunes ever (6M+ downloads); markedly more lifelike output than SDXL base at the same VRAM cost.",
+      "provenance": "Community SDXL 1.0 fine-tune co-developed by KandooAI and RunDiffusion; published at huggingface.co/RunDiffusion/Juggernaut-XL-v9 (RunDiffusionPhoto v2 blend). Uncensored basis: photoreal training data and no safety filter in the weights. License verified 2026-07-03 from the HF model card.",
+      "sizeGB": 6.9,
+      "vramGB": 8,
+      "requiredVramGB": 8,
+      "releaseDate": "2024-02-19",
+      "uncensored": true,
+      "multimodal": false,
+      "contextWindow": null,
+      "license": "CreativeML Open RAIL-M (no paid-API redeployment without a RunDiffusion license)",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "RunDiffusion/Juggernaut-XL-v9",
+        "url": "https://huggingface.co/RunDiffusion/Juggernaut-XL-v9/resolve/main/Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors",
+            "sha256": "c9e3e68f89b8e38689e1097d4be4573cf308de4e3fd044c64ca697bdb4aa8bca"
+          }
+        ]
+      },
+      "tags": [
+        "recommended",
+        "image",
+        "uncensored",
+        "sdxl",
+        "phase-4"
+      ],
+      "modalities": [
+        "text"
+      ]
     },
     {
       "id": "longcat-video-avatar-1.5",
@@ -1608,54 +1388,196 @@
       }
     },
     {
-      "id": "faster-whisper-large-v3",
-      "family": "whisper",
-      "name": "faster-whisper-large-v3",
-      "tag": "ct2",
-      "type": "audio",
-      "task": "audio",
-      "displayName": "Faster-Whisper Large v3",
+      "id": "sana-video-2b-720p",
+      "family": "sana",
+      "name": "sana-video",
+      "tag": "2b-720p",
+      "type": "video",
+      "task": "video",
+      "displayName": "SANA-Video 2B 720p",
       "origin": "USA",
-      "description": "OpenAI's Whisper Large v3 (Faster-Whisper build) is a speech-to-text model from the USA that runs on CPU or GPU. Accurate transcription and translation across 90+ languages, on any hardware.",
+      "description": "NVIDIA's SANA-Video 2B is a fast 720p text-to-video model from the USA for 12 GB GPUs. The efficiency pick: faster than the Wan family, higher fidelity than LTX-Video.",
       "strengths": [
-        "Accurate multilingual speech-to-text (90+ languages)",
-        "4-5x faster than reference Whisper via CTranslate2",
-        "Runs on CPU -- no GPU required"
+        "Fast 720p clips on 12 GB VRAM",
+        "Efficient linear-attention video architecture",
+        "Apache-2.0: fully permissive license"
       ],
-      "whyRecommended": "The de-facto local speech-to-text model: accurate, multilingual, and fast enough to run without a GPU.",
-      "differentiators": "MIT-licensed and CPU-capable, so every install gets working transcription regardless of hardware.",
-      "sizeGB": 1.5,
-      "requiredVramGB": 0,
-      "releaseDate": "2023-11-07",
+      "differentiators": "The efficiency pick for 720p: faster than the Wan family, higher fidelity than LTX-Video.",
+      "sizeGB": 4.0,
+      "vramGB": 12,
+      "requiredVramGB": 12,
+      "releaseDate": "2025-10-15",
       "uncensored": false,
       "multimodal": false,
       "contextWindow": null,
-      "license": "MIT",
+      "license": "Apache-2.0",
       "source": {
         "protocol": "huggingface",
-        "repo": "Systran/faster-whisper-large-v3",
-        "url": "https://huggingface.co/Systran/faster-whisper-large-v3/resolve/main/model.bin",
+        "repo": "Efficient-Large-Model/SANA-Video_2B_720p_diffusers",
+        "url": "https://huggingface.co/Efficient-Large-Model/SANA-Video_2B_720p_diffusers/resolve/main/transformer/diffusion_pytorch_model-00001-of-00002.safetensors",
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
       "weights": {
         "layoutVersion": 1,
         "files": [
           {
-            "path": "model.bin",
-            "sha256": "69f74147e3334731bc3a76048724833325d2ec74642fb52620eda87352e3d4f1"
+            "path": "transformer/diffusion_pytorch_model-00001-of-00002.safetensors",
+            "sha256": "c7c58e08418fc09a240bf936d46b629304002053c5ea9860ee156fd3c9de2546"
+          },
+          {
+            "path": "transformer/diffusion_pytorch_model-00002-of-00002.safetensors",
+            "sha256": "9d083c8419daa52591a969462f93f3d693128e7e57a69fa6ee2b89f942e887fa"
+          }
+        ]
+      },
+      "tags": [
+        "video",
+        "phase-12",
+        "sana"
+      ],
+      "modalities": [
+        "text"
+      ],
+      "audioConditioning": {
+        "supported": false,
+        "modes": []
+      }
+    },
+    {
+      "id": "wan2.2-ti2v-5b",
+      "family": "wan",
+      "name": "wan2.2-ti2v",
+      "tag": "5b",
+      "type": "video",
+      "task": "video",
+      "displayName": "Wan 2.2 TI2V 5B",
+      "origin": "China",
+      "description": "Alibaba's Wan 2.2 TI2V is a 5B text-and-image-to-video model from China that reaches 720p at 24 fps on a single 24 GB card, with no built-in content filter. The higher-resolution local-video default.",
+      "strengths": [
+        "720p @ 24 fps on a single 24 GB GPU",
+        "Text-to-video and image-to-video in one model",
+        "Uncensored-capable: no weights-level content filter"
+      ],
+      "whyRecommended": "The strongest local video quality that fits a single 24 GB GPU, under a fully permissive Apache-2.0 license.",
+      "differentiators": "The high-compression Wan2.2-VAE makes true 720p24 practical on one consumer card; among the fastest 720p open models.",
+      "provenance": "Published by Alibaba (Wan-AI) at huggingface.co/Wan-AI/Wan2.2-TI2V-5B; original release, not a fine-tune. Uncensored basis: no safety filter in the released weights (content filtering in the hosted service is pipeline-level). License verified 2026-07-03 from the HF model card.",
+      "sizeGB": 34.2,
+      "vramGB": 24,
+      "requiredVramGB": 24,
+      "releaseDate": "2025-07-28",
+      "uncensored": true,
+      "multimodal": false,
+      "contextWindow": null,
+      "license": "Apache-2.0",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "Wan-AI/Wan2.2-TI2V-5B",
+        "url": "https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B/resolve/main/diffusion_pytorch_model-00001-of-00003.safetensors",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "diffusion_pytorch_model-00001-of-00003.safetensors",
+            "sha256": "720b06c4ade5e87c1246bba8ac95b664c638749cd9b102cf84d823bb44c026a1"
+          },
+          {
+            "path": "diffusion_pytorch_model-00002-of-00003.safetensors",
+            "sha256": "09ec5ef720d8396f6cfa51fbdcbdb2327e37722afd6e89fd38f1e7e5e782c283"
+          },
+          {
+            "path": "diffusion_pytorch_model-00003-of-00003.safetensors",
+            "sha256": "6306f7894c345de9093ad588771c2abfaeb668a81f7a6d9a918bd26ba3568e49"
+          },
+          {
+            "path": "models_t5_umt5-xxl-enc-bf16.pth",
+            "sha256": "7cace0da2b446bbbbc57d031ab6cf163a3d59b366da94e5afe36745b746fd81d"
+          },
+          {
+            "path": "Wan2.2_VAE.pth",
+            "sha256": "20eb789667fa5e60e7516bf509512f6cb61f01b0aa0695eadaea930c13892b36"
           }
         ]
       },
       "tags": [
         "recommended",
-        "audio",
-        "speech",
-        "stt",
+        "video",
+        "uncensored",
+        "wan",
         "phase-4"
       ],
       "modalities": [
-        "audio"
-      ]
+        "text"
+      ],
+      "audioConditioning": {
+        "supported": false,
+        "modes": []
+      }
+    },
+    {
+      "id": "wan2.1-t2v-1.3b",
+      "family": "wan",
+      "name": "wan2.1-t2v",
+      "tag": "1.3b",
+      "type": "video",
+      "task": "video",
+      "displayName": "Wan 2.1 T2V 1.3B",
+      "origin": "China",
+      "description": "Alibaba's Wan 2.1 T2V is a 1.3B text-to-video model from China that runs on ~8 GB VRAM at 480p, with no built-in content filter. The consumer-hardware entry point for local video.",
+      "strengths": [
+        "Runs on ~8 GB consumer GPUs (480p)",
+        "Leading VBench motion quality in the small-model class",
+        "Uncensored-capable: no weights-level content filter"
+      ],
+      "whyRecommended": "The best open video model that fits consumer 8-16 GB GPUs, under a fully permissive Apache-2.0 license.",
+      "differentiators": "The consumer-hardware entry point for local video: where LTX-Video optimizes speed, Wan 2.1 optimizes quality per GB of VRAM.",
+      "provenance": "Published by Alibaba (Wan-AI) at huggingface.co/Wan-AI/Wan2.1-T2V-1.3B; original release, not a fine-tune. Uncensored basis: no safety filter in the released weights (content filtering in the hosted service is pipeline-level). License verified 2026-07-03 from the HF model card.",
+      "sizeGB": 17.6,
+      "vramGB": 8,
+      "requiredVramGB": 8,
+      "releaseDate": "2025-02-25",
+      "uncensored": true,
+      "multimodal": false,
+      "contextWindow": null,
+      "license": "Apache-2.0",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "Wan-AI/Wan2.1-T2V-1.3B",
+        "url": "https://huggingface.co/Wan-AI/Wan2.1-T2V-1.3B/resolve/main/diffusion_pytorch_model.safetensors",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "diffusion_pytorch_model.safetensors",
+            "sha256": "96b6b242ca1c2f24e9d02cd6596066fab6d310e2d7538f33ae267cb18d957e8f"
+          },
+          {
+            "path": "models_t5_umt5-xxl-enc-bf16.pth",
+            "sha256": "7cace0da2b446bbbbc57d031ab6cf163a3d59b366da94e5afe36745b746fd81d"
+          },
+          {
+            "path": "Wan2.1_VAE.pth",
+            "sha256": "38071ab59bd94681c686fa51d75a1968f64e470262043be31f7a094e442fd981"
+          }
+        ]
+      },
+      "tags": [
+        "recommended",
+        "video",
+        "uncensored",
+        "wan",
+        "phase-4"
+      ],
+      "modalities": [
+        "text"
+      ],
+      "audioConditioning": {
+        "supported": false,
+        "modes": []
+      }
     },
     {
       "id": "kokoro-82m",
@@ -1708,209 +1630,53 @@
       ]
     },
     {
-      "id": "piper-en-us-lessac",
-      "family": "piper",
-      "name": "piper-en-us-lessac",
-      "tag": "medium",
+      "id": "faster-whisper-large-v3",
+      "family": "whisper",
+      "name": "faster-whisper-large-v3",
+      "tag": "ct2",
       "type": "audio",
       "task": "audio",
-      "displayName": "Piper (en-US Lessac, medium)",
-      "origin": "Community",
-      "description": "Piper is a fast on-device text-to-speech system from the open-source community; this is the US-English Lessac (medium) voice. Low-latency speech even on a Raspberry Pi-class CPU.",
+      "displayName": "Faster-Whisper Large v3",
+      "origin": "USA",
+      "description": "OpenAI's Whisper Large v3 (Faster-Whisper build) is a speech-to-text model from the USA that runs on CPU or GPU. Accurate transcription and translation across 90+ languages, on any hardware.",
       "strengths": [
-        "Extremely fast, low-latency on-device TTS",
-        "Tiny footprint: runs on a Raspberry Pi-class CPU",
-        "Dozens of voices and languages available"
+        "Accurate multilingual speech-to-text (90+ languages)",
+        "4-5x faster than reference Whisper via CTranslate2",
+        "Runs on CPU -- no GPU required"
       ],
-      "differentiators": "The lightest TTS option in the catalog; optimized for embedded and low-power hardware rather than maximum expressiveness.",
-      "sizeGB": 0.06,
+      "whyRecommended": "The de-facto local speech-to-text model: accurate, multilingual, and fast enough to run without a GPU.",
+      "differentiators": "MIT-licensed and CPU-capable, so every install gets working transcription regardless of hardware.",
+      "sizeGB": 1.5,
       "requiredVramGB": 0,
-      "releaseDate": "2023-06-01",
+      "releaseDate": "2023-11-07",
       "uncensored": false,
       "multimodal": false,
       "contextWindow": null,
       "license": "MIT",
       "source": {
         "protocol": "huggingface",
-        "repo": "rhasspy/piper-voices",
-        "url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx",
-        "sha256": "5efe09e69902187827af646e1a6e9d269dee769f9877d17b16b1b46eeaaf019f"
+        "repo": "Systran/faster-whisper-large-v3",
+        "url": "https://huggingface.co/Systran/faster-whisper-large-v3/resolve/main/model.bin",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
       "weights": {
         "layoutVersion": 1,
         "files": [
           {
-            "path": "en/en_US/lessac/medium/en_US-lessac-medium.onnx",
-            "sha256": "5efe09e69902187827af646e1a6e9d269dee769f9877d17b16b1b46eeaaf019f"
+            "path": "model.bin",
+            "sha256": "69f74147e3334731bc3a76048724833325d2ec74642fb52620eda87352e3d4f1"
           }
         ]
       },
       "tags": [
+        "recommended",
         "audio",
         "speech",
-        "tts",
+        "stt",
         "phase-4"
       ],
       "modalities": [
-        "text"
-      ]
-    },
-    {
-      "id": "musicgen-medium",
-      "family": "musicgen",
-      "name": "musicgen-medium",
-      "tag": "medium",
-      "type": "audio",
-      "task": "audio",
-      "displayName": "MusicGen Medium",
-      "origin": "USA",
-      "description": "Meta's MusicGen Medium is a 1.5B text-to-music model from the USA that turns a prompt into short instrumental clips. Opt-in rather than a default: it needs a GPU and ships under a non-commercial license.",
-      "strengths": [
-        "Text-to-music generation from a prompt",
-        "Coherent melody and instrumentation for short clips",
-        "Single-stage autoregressive model"
-      ],
-      "differentiators": "The music-generation pillar of the audio catalog; needs a GPU and ships under a non-commercial license, so it is opt-in rather than a default.",
-      "sizeGB": 3.4,
-      "vramGB": 8,
-      "requiredVramGB": 8,
-      "releaseDate": "2023-06-09",
-      "uncensored": false,
-      "multimodal": false,
-      "contextWindow": null,
-      "license": "CC-BY-NC-4.0",
-      "source": {
-        "protocol": "huggingface",
-        "repo": "facebook/musicgen-medium",
-        "url": "https://huggingface.co/facebook/musicgen-medium/resolve/main/state_dict.bin",
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-      },
-      "weights": {
-        "layoutVersion": 1,
-        "files": [
-          {
-            "path": "state_dict.bin",
-            "sha256": "fbc9f401db2aba7518adf208ce5a56aca4ece335242e8274ce1ebd3dfbc86cf5"
-          }
-        ]
-      },
-      "tags": [
-        "audio",
-        "generation",
-        "music",
-        "phase-4"
-      ],
-      "modalities": [
-        "text"
-      ]
-    },
-    {
-      "id": "stable-audio-open-1.0",
-      "family": "stable-audio",
-      "name": "stable-audio-open",
-      "tag": "1.0",
-      "type": "audio",
-      "task": "audio",
-      "displayName": "Stable Audio Open 1.0",
-      "origin": "UK",
-      "description": "Stability AI's Stable Audio Open is a text-to-audio model from the UK for sound effects and short musical samples (up to ~47s). Opt-in under a community license; the sound-design counterpart to MusicGen.",
-      "strengths": [
-        "Text-to-audio: sound effects and musical samples",
-        "Generates variable-length stereo audio",
-        "Strong for foley and instrument one-shots"
-      ],
-      "differentiators": "The sound-design counterpart to MusicGen; tuned for samples and effects rather than full songs. GPU-gated, opt-in (community license).",
-      "sizeGB": 4.9,
-      "vramGB": 8,
-      "requiredVramGB": 8,
-      "releaseDate": "2024-06-05",
-      "uncensored": false,
-      "multimodal": false,
-      "contextWindow": null,
-      "license": "Stability AI Community License",
-      "gated": true,
-      "requiresLicense": true,
-      "licenseUrl": "https://huggingface.co/stabilityai/stable-audio-open-1.0",
-      "gatedReason": "Access-gated open-weight model (HTTP 401 for unauthenticated clients): the installer guided Hugging Face step (accept the model license on its page, then sign in with a free read token) unlocks it. MusicGen Medium is a public alternative for music generation.",
-      "source": {
-        "protocol": "huggingface",
-        "repo": "stabilityai/stable-audio-open-1.0",
-        "url": "https://huggingface.co/stabilityai/stable-audio-open-1.0/resolve/main/model.safetensors",
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-      },
-      "weights": {
-        "layoutVersion": 1,
-        "files": [
-          {
-            "path": "model.safetensors",
-            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-          }
-        ]
-      },
-      "tags": [
-        "audio",
-        "generation",
-        "sound",
-        "phase-4"
-      ],
-      "modalities": [
-        "text"
-      ]
-    },
-    {
-      "id": "rapidocr-ppocrv4",
-      "family": "rapidocr",
-      "name": "rapidocr",
-      "tag": "ppocrv4",
-      "type": "document",
-      "task": "document",
-      "displayName": "RapidOCR PP-OCRv4",
-      "origin": "Community",
-      "description": "RapidOCR PP-OCRv4 is a community-maintained ONNX text-detection and text-recognition pair that reads images and PDFs on any machine. It runs on the CPU through ONNX Runtime, so document parsing works on Windows, macOS (Intel and Apple Silicon), and Linux with no GPU at all.",
-      "strengths": [
-        "Runs on CPU -- no GPU required, works on every supported OS",
-        "Tiny download (about 20 MB) and fast to load",
-        "Apache-2.0 across both the models and the runtime"
-      ],
-      "whyRecommended": "The portable half of the document-OCR pair: every install gets working document parsing regardless of hardware, mirroring how faster-whisper guarantees transcription everywhere.",
-      "differentiators": "Traditional detect-then-recognize OCR rather than a vision-language model: far smaller and CPU-capable, at the cost of layout reasoning on complex documents.",
-      "sizeGB": 0.02,
-      "requiredVramGB": 0,
-      "releaseDate": "2024-08-28",
-      "uncensored": false,
-      "multimodal": false,
-      "contextWindow": null,
-      "license": "Apache-2.0",
-      "ocrEngine": "rapidocr",
-      "source": {
-        "protocol": "huggingface",
-        "repo": "SWHL/RapidOCR",
-        "revision": "1cfba2e90fc938db55889873735088de210cc173",
-        "url": "https://huggingface.co/SWHL/RapidOCR/resolve/1cfba2e90fc938db55889873735088de210cc173/PP-OCRv4/ch_PP-OCRv4_det_infer.onnx",
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-      },
-      "weights": {
-        "layoutVersion": 1,
-        "files": [
-          {
-            "path": "PP-OCRv4/ch_PP-OCRv4_det_infer.onnx",
-            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-          },
-          {
-            "path": "PP-OCRv4/ch_PP-OCRv4_rec_infer.onnx",
-            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-          }
-        ]
-      },
-      "tags": [
-        "document",
-        "ocr",
-        "cpu",
-        "portable",
-        "phase-3"
-      ],
-      "modalities": [
-        "image"
+        "audio"
       ]
     },
     {
@@ -1990,465 +1756,227 @@
       ]
     },
     {
-      "id": "hermes3:8b",
-      "family": "hermes",
-      "name": "hermes3",
-      "tag": "8b",
-      "type": "llm",
-      "task": "chat",
-      "displayName": "Hermes 3 8B",
-      "releaseDate": "2024-08-15",
-      "origin": "USA",
-      "agentic": true,
-      "description": "Nous Research's Hermes 3 8B is an agentic Llama 3.1 fine-tune from the USA. The consumer Hermes pick: 4.7 GB download, 128K context, and native function calling on an 8 GB GPU.",
+      "id": "rapidocr-ppocrv4",
+      "family": "rapidocr",
+      "name": "rapidocr",
+      "tag": "ppocrv4",
+      "type": "document",
+      "task": "document",
+      "displayName": "RapidOCR PP-OCRv4",
+      "origin": "Community",
+      "description": "RapidOCR PP-OCRv4 is a community-maintained ONNX text-detection and text-recognition pair that reads images and PDFs on any machine. It runs on the CPU through ONNX Runtime, so document parsing works on Windows, macOS (Intel and Apple Silicon), and Linux with no GPU at all.",
       "strengths": [
-        "Reliable function calling and structured JSON output",
-        "Strong system-prompt steering for agent loops",
-        "Fits mainstream 8 GB gaming GPUs at Q4"
+        "Runs on CPU -- no GPU required, works on every supported OS",
+        "Tiny download (about 20 MB) and fast to load",
+        "Apache-2.0 across both the models and the runtime"
       ],
-      "whyRecommended": "The Hermes-family representative that fits consumer GPUs while staying on the official Ollama hermes3 library tag.",
-      "differentiators": "Nous Research's user-steerable Hermes 3 line on Llama 3.1 8B: better tool calling than the base Llama chat pick at the same size.",
-      "provenance": "Official Nous Research Hermes 3 (Llama 3.1 8B) distributed as the Ollama library tag hermes3:8b. Weights are not redistributed by Nexus. License verified 2026-08-19 from the NousResearch/Hermes-3-Llama-3.1-8B model card (Llama 3.1 Community License).",
-      "sizeGB": 4.7,
-      "vramGB": 8,
-      "license": "Llama 3.1 Community License",
-      "licenseUrl": "https://huggingface.co/NousResearch/Hermes-3-Llama-3.1-8B",
-      "source": {
-        "protocol": "ollama",
-        "url": "ollama://hermes3:8b"
-      },
-      "modalities": [
-        "text"
-      ],
-      "contextWindow": 131072,
-      "tags": [
-        "agentic",
-        "hermes"
-      ]
-    },
-    {
-      "id": "hermes3:70b",
-      "family": "hermes",
-      "name": "hermes3",
-      "tag": "70b",
-      "type": "llm",
-      "task": "chat",
-      "displayName": "Hermes 3 70B",
-      "releaseDate": "2024-08-15",
-      "origin": "USA",
-      "agentic": true,
-      "description": "Nous Research's Hermes 3 70B is the large agentic Llama 3.1 fine-tune from the USA. Workstation-class: ~40 GB download and 40 GB+ VRAM.",
-      "strengths": [
-        "Deeper multi-step tool use than the 8B Hermes pick",
-        "128K context with stronger long-horizon coherence",
-        "Same official hermes3 library family as the 8B entry"
-      ],
-      "whyRecommended": "The high-VRAM Hermes pick for hosts that already run llama3.3:70b-class models.",
-      "differentiators": "Same Hermes 3 steering and function-calling work as the 8B, at 70B scale. Not a consumer default.",
-      "provenance": "Official Nous Research Hermes 3 (Llama 3.1 70B) distributed as the Ollama library tag hermes3:70b. Weights are not redistributed by Nexus. License verified 2026-08-19 from the NousResearch/Hermes-3-Llama-3.1-70B model card (Llama 3.1 Community License).",
-      "sizeGB": 40.0,
-      "vramGB": 40,
-      "license": "Llama 3.1 Community License",
-      "licenseUrl": "https://huggingface.co/NousResearch/Hermes-3-Llama-3.1-70B",
-      "source": {
-        "protocol": "ollama",
-        "url": "ollama://hermes3:70b"
-      },
-      "modalities": [
-        "text"
-      ],
-      "contextWindow": 131072,
-      "tags": [
-        "agentic",
-        "hermes",
-        "advanced"
-      ]
-    },
-    {
-      "id": "muse-glimmer:30b",
-      "family": "muse-glimmer",
-      "name": "muse-glimmer",
-      "tag": "30b-k17",
-      "type": "llm",
-      "task": "chat",
-      "displayName": "Muse Glimmer 30B (K-Quant-17GB)",
-      "releaseDate": "2026-08-01",
-      "origin": "USA",
-      "agentic": true,
-      "codingEligible": true,
-      "diffusion": false,
-      "vision": false,
-      "description": "Meta's Muse Glimmer 30B is an Apache-2.0 agentic model from the USA. The 17 GB K-Quant fits a 24 GB GPU. Local golden-task numbers are not recorded yet, so this entry is not a default route.",
-      "strengths": [
-        "Long-horizon agentic coding with adjustable reasoning strength",
-        "Native function calling on the Meta GGUF line",
-        "Fits a single 24 GB GPU at the K-Quant-17GB quant"
-      ],
-      "whyRecommended": "The 24 GB-tier Muse Glimmer pick once a local eval is recorded. Not a default until then.",
-      "differentiators": "Meta-published 30B agentic weights via the Ollama hf.co bridge; hidden below 16 GB VRAM and on Ollama older than 0.32.7.",
-      "provenance": "First-party Meta Muse Glimmer 30B (Apache-2.0) GGUF at huggingface.co/meta-models/Muse-Glimmer-30B-GGUF. Pulled through Ollama's hf.co bridge. Weights are not redistributed by Nexus. License verified 2026-08-20 from the plan's published Apache-2.0 claim.",
-      "sizeGB": 17,
-      "vramGB": 17,
-      "requiredVramGB": 24,
-      "hideBelowVramGB": 16,
-      "minOllamaVersion": "0.32.7",
-      "quant": "K-Quant-17GB",
-      "activeParams": 4,
-      "totalParams": 30,
-      "license": "Apache-2.0",
-      "licenseUrl": "https://huggingface.co/meta-models/Muse-Glimmer-30B-GGUF",
-      "source": {
-        "protocol": "ollama",
-        "url": "ollama://hf.co/meta-models/Muse-Glimmer-30B-GGUF:K-Quant-17GB"
-      },
-      "modalities": [
-        "text"
-      ],
-      "contextWindow": 131072,
-      "role": "strong-candidate",
-      "vendorReported": {
-        "suite": "SWE-Bench Verified",
-        "metric": "resolved",
-        "value": 76.0,
-        "date": "2026-08-13",
-        "vendorReported": true
-      },
-      "localEval": {
-        "suite": "nexus-golden-task",
-        "status": "not_run",
-        "date": "2026-08-20",
-        "hardwareTier": "24GB",
-        "reason": "No 24 GB-tier host with Muse Glimmer loaded in this cycle. Vendor-reported figures must not drive routing."
-      },
-      "tags": [
-        "agentic",
-        "muse-glimmer",
-        "coding",
-        "advanced"
-      ]
-    },
-    {
-      "id": "muse-glimmer:30b-dynamic",
-      "family": "muse-glimmer",
-      "name": "muse-glimmer",
-      "tag": "30b-dynamic",
-      "type": "llm",
-      "task": "chat",
-      "displayName": "Muse Glimmer 30B (K-Quant-Dynamic)",
-      "releaseDate": "2026-08-01",
-      "origin": "USA",
-      "agentic": true,
-      "codingEligible": true,
-      "diffusion": false,
-      "vision": false,
-      "description": "Meta's Muse Glimmer 30B K-Quant-Dynamic is the 32 GB-tier Apache-2.0 pick from the USA. Same model family as the 17 GB quant; hidden below 16 GB VRAM.",
-      "strengths": [
-        "Lower quantization loss than the 17 GB K-Quant on 32 GB cards",
-        "Same Muse Glimmer agentic harness profile as the 24 GB variant",
-        "Still excluded from hosts below 16 GB"
-      ],
-      "whyRecommended": "The 32 GB-tier Muse Glimmer pick. Not a default route until a local eval is recorded.",
-      "differentiators": "Meta-published Dynamic quant for 32 GB VRAM; family-collapsed away on 24 GB hosts in favor of K-Quant-17GB.",
-      "provenance": "First-party Meta Muse Glimmer 30B (Apache-2.0) GGUF at huggingface.co/meta-models/Muse-Glimmer-30B-GGUF. Pulled through Ollama's hf.co bridge. Weights are not redistributed by Nexus.",
-      "sizeGB": 22,
-      "vramGB": 24,
-      "requiredVramGB": 32,
-      "hideBelowVramGB": 16,
-      "minOllamaVersion": "0.32.7",
-      "quant": "K-Quant-Dynamic",
-      "activeParams": 4,
-      "totalParams": 30,
-      "license": "Apache-2.0",
-      "licenseUrl": "https://huggingface.co/meta-models/Muse-Glimmer-30B-GGUF",
-      "source": {
-        "protocol": "ollama",
-        "url": "ollama://hf.co/meta-models/Muse-Glimmer-30B-GGUF:K-Quant-Dynamic"
-      },
-      "modalities": [
-        "text"
-      ],
-      "contextWindow": 131072,
-      "role": "strong-candidate",
-      "vendorReported": {
-        "suite": "SWE-Bench Verified",
-        "metric": "resolved",
-        "value": 76.0,
-        "date": "2026-08-13",
-        "vendorReported": true
-      },
-      "localEval": {
-        "suite": "nexus-golden-task",
-        "status": "not_run",
-        "date": "2026-08-20",
-        "hardwareTier": "32GB",
-        "reason": "No 32 GB-tier host with Muse Glimmer loaded in this cycle. Vendor-reported figures must not drive routing."
-      },
-      "tags": [
-        "agentic",
-        "muse-glimmer",
-        "coding",
-        "advanced"
-      ]
-    },
-    {
-      "id": "nemotron-lightning:30b-a3b",
-      "family": "nemotron-lightning",
-      "name": "nemotron-lightning",
-      "tag": "30b-a3b",
-      "type": "llm",
-      "task": "agentic",
-      "displayName": "Nemotron 3.5 Lightning 30B-A3B",
-      "releaseDate": "2026-08-01",
-      "origin": "USA",
-      "agentic": true,
-      "codingEligible": true,
-      "diffusion": false,
-      "description": "NVIDIA's Nemotron 3.5 Lightning 30B-A3B is an OpenMDW-1.1 MoE from the USA (30B total, 3B active). The Q4_K_M build is 22.5 GB and is the 24 GB-tier native worker. Hidden below 16 GB VRAM and on Ollama older than 0.32.9.",
-      "strengths": [
-        "Fast routine-step worker for the coding DAG",
-        "Qwen3-Coder-style tool calls at 3B active parameters",
-        "1M context window recorded on the card; serving length is runtime-limited"
-      ],
-      "whyRecommended": "The 24 GB native Lightning worker. Phase 2 routing consumes the worker-candidate role. Not a default coding route until a local eval is recorded.",
-      "differentiators": "Official ggml-org GGUF via Ollama's hf.co bridge; dual-tier with an expert-offload sibling at 16 GB.",
-      "provenance": "NVIDIA Nemotron 3.5 Lightning 30B-A3B (OpenMDW-1.1) GGUF at huggingface.co/ggml-org/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-GGUF. Pulled through Ollama's hf.co bridge. Weights are not redistributed by Nexus. License verified 2026-08-20 from the plan's published OpenMDW-1.1 claim.",
-      "sizeGB": 22.5,
-      "vramGB": 22.5,
-      "requiredVramGB": 24,
-      "hideBelowVramGB": 16,
-      "minOllamaVersion": "0.32.9",
-      "quant": "Q4_K_M",
-      "activeParams": 3,
-      "totalParams": 30,
-      "license": "OpenMDW-1.1",
-      "licenseUrl": "https://huggingface.co/ggml-org/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-GGUF",
-      "source": {
-        "protocol": "ollama",
-        "url": "ollama://hf.co/ggml-org/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-GGUF:Q4_K_M"
-      },
-      "modalities": [
-        "text"
-      ],
-      "contextWindow": 1048576,
-      "role": "worker-candidate",
-      "vendorReported": {
-        "suite": "NVIDIA model card",
-        "metric": "context_tokens",
-        "value": 1048576,
-        "date": "2026-08-13",
-        "vendorReported": true
-      },
-      "localEval": {
-        "suite": "nexus-golden-task",
-        "status": "not_run",
-        "date": "2026-08-20",
-        "hardwareTier": "24GB",
-        "reason": "No 24 GB-tier host with Lightning loaded in this cycle. Vendor-reported figures must not drive routing."
-      },
-      "tags": [
-        "agentic",
-        "worker-candidate",
-        "coding"
-      ]
-    },
-    {
-      "id": "nemotron-lightning:30b-a3b-offload",
-      "family": "nemotron-lightning",
-      "name": "nemotron-lightning",
-      "tag": "30b-a3b-offload",
-      "type": "llm",
-      "task": "agentic",
-      "displayName": "Nemotron 3.5 Lightning 30B-A3B (expert offload)",
-      "releaseDate": "2026-08-01",
-      "origin": "USA",
-      "agentic": true,
-      "codingEligible": true,
-      "diffusion": false,
-      "description": "NVIDIA's Nemotron 3.5 Lightning 30B-A3B expert-offload variant from the USA rides the 16 GB quant-ladder rung of the same Q4_K_M GGUF. Hidden below 16 GB VRAM and on Ollama older than 0.32.9.",
-      "strengths": [
-        "Same worker-candidate role as the 24 GB native entry",
-        "Fits 16 GB cards by offloading MoE experts",
-        "Same OpenMDW-1.1 GGUF as the native 24 GB pick"
-      ],
-      "whyRecommended": "The 16 GB Lightning worker when the host cannot keep the full Q4_K_M resident. Disk-offload preflight still applies before download.",
-      "differentiators": "Expert-offload sibling of nemotron-lightning:30b-a3b; family collapse picks this on 16 GB hosts and the native build on 24 GB.",
-      "provenance": "Same ggml-org NVIDIA Nemotron 3.5 Lightning GGUF as the native 24 GB entry, tagged for the existing expert-offload / disk-offload quant-ladder rung. Weights are not redistributed by Nexus.",
-      "sizeGB": 22.5,
-      "vramGB": 16,
-      "requiredVramGB": 16,
-      "hideBelowVramGB": 16,
-      "minOllamaVersion": "0.32.9",
-      "quant": "Q4_K_M",
-      "activeParams": 3,
-      "totalParams": 30,
-      "license": "OpenMDW-1.1",
-      "licenseUrl": "https://huggingface.co/ggml-org/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-GGUF",
-      "source": {
-        "protocol": "ollama",
-        "url": "ollama://hf.co/ggml-org/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-GGUF:Q4_K_M"
-      },
-      "modalities": [
-        "text"
-      ],
-      "contextWindow": 1048576,
-      "role": "worker-candidate",
-      "localEval": {
-        "suite": "nexus-golden-task",
-        "status": "not_run",
-        "date": "2026-08-20",
-        "hardwareTier": "16GB",
-        "reason": "No 16 GB-tier host with Lightning expert-offload loaded in this cycle. Vendor-reported figures must not drive routing."
-      },
-      "tags": [
-        "agentic",
-        "worker-candidate",
-        "expert-offload",
-        "coding"
-      ]
-    },
-    {
-      "id": "inkling-small",
-      "family": "inkling",
-      "name": "inkling-small",
-      "tag": "ud-iq1-s",
-      "type": "llm",
-      "task": "chat",
-      "displayName": "Inkling-Small (patient tier)",
-      "releaseDate": "2026-07-30",
-      "origin": "USA",
-      "agentic": true,
-      "description": "Thinking Machines Lab's Inkling-Small is a 276B-total / 12B-active MoE from the USA. It is an opt-in patient-tier entry: the established UD-IQ1_S GGUF is 74.8 GB and runs via disk offload, not as an interactive GPU default. The native checkpoint accepts text, image, and audio, but llama.cpp GGUF multimodal projector support is unverified here, so this entry is catalogued as text-only.",
-      "strengths": [
-        "Frontier-class MoE quality on a disk-offload path",
-        "Apache-2.0 weights with an established GGUF line",
-        "Honest sub-interactive latency labelling"
-      ],
-      "whyRecommended": "Only if you have enabled the patient tier and accept minutes-to-hours generation. Never a per-VRAM default.",
-      "differentiators": "The catalog's patient-tier frontier MoE: 74.8 GB GGUF, calibrated latency warning, and no recommended.json default slot.",
-      "provenance": "First-party Thinking Machines Lab Inkling-Small (Apache-2.0) at huggingface.co/thinkingmachines/Inkling-Small. The installable artifact is the established Unsloth GGUF line unsloth/Inkling-Small-GGUF UD-IQ1_S (not an unvetted community re-quant of an unofficial dump). Nexus does not redistribute weights. License verified 2026-08-19 from the first-party card.",
-      "sizeGB": 74.8,
-      "vramGB": 0,
+      "whyRecommended": "The portable half of the document-OCR pair: every install gets working document parsing regardless of hardware, mirroring how faster-whisper guarantees transcription everywhere.",
+      "differentiators": "Traditional detect-then-recognize OCR rather than a vision-language model: far smaller and CPU-capable, at the cost of layout reasoning on complex documents.",
+      "sizeGB": 0.02,
       "requiredVramGB": 0,
-      "requiredRamGB": 8,
-      "quant": "UD-IQ1_S",
+      "releaseDate": "2024-08-28",
+      "uncensored": false,
+      "multimodal": false,
+      "contextWindow": null,
       "license": "Apache-2.0",
-      "licenseUrl": "https://huggingface.co/thinkingmachines/Inkling-Small",
+      "ocrEngine": "rapidocr",
       "source": {
         "protocol": "huggingface",
-        "repo": "unsloth/Inkling-Small-GGUF",
-        "url": "https://huggingface.co/unsloth/Inkling-Small-GGUF/resolve/main/UD-IQ1_S/Inkling-Small-UD-IQ1_S-00001-of-00003.gguf",
-        "sha256": "eb600cf15a361c70fcb31adc14b4bb5d8ebe3056acff252f1aa210e49fe8ad98",
-        "revision": "1a19ef82883cb7b9c581b93c30ea252dabbf658d"
-      },
-      "weights": {
-        "layoutVersion": 2,
-        "defaultVariant": "gguf-ud-iq1-s",
-        "variants": [
-          {
-            "id": "gguf-ud-iq1-s",
-            "precision": "gguf",
-            "quant": "UD-IQ1_S",
-            "official": true,
-            "sizeGB": 74.8,
-            "vramGB": 0,
-            "files": [
-              {
-                "path": "UD-IQ1_S/Inkling-Small-UD-IQ1_S-00001-of-00003.gguf",
-                "sha256": "eb600cf15a361c70fcb31adc14b4bb5d8ebe3056acff252f1aa210e49fe8ad98"
-              },
-              {
-                "path": "UD-IQ1_S/Inkling-Small-UD-IQ1_S-00002-of-00003.gguf",
-                "sha256": "3577440036e65e2209f735cf50d5bcfbb872365ae15f3b86139c296f0a6c42f3"
-              },
-              {
-                "path": "UD-IQ1_S/Inkling-Small-UD-IQ1_S-00003-of-00003.gguf",
-                "sha256": "da1f2395aea71a475623231d42801f3d997d1186e9c728c73ec307ae283d4d6b"
-              }
-            ]
-          }
-        ]
-      },
-      "modalities": [
-        "text"
-      ],
-      "contextWindow": 32768,
-      "tags": [
-        "patient-tier",
-        "opt-in"
-      ],
-      "expectedSecondsPerToken": 32,
-      "measuredPeakRssGB": 8.24,
-      "patientRamPresets": [
-        {
-          "id": "laptop",
-          "label": "Laptop",
-          "peakRssGB": 8.24,
-          "expectedSecondsPerToken": 32,
-          "copy": "Laptop RAM budget: independently measured ~32 s/token (~0.03 tok/s) at 8.24 GB peak RSS for a trillion-class disk-offload MoE. Seeded as the honest floor for this patient-tier entry (Inkling-Small itself is not independently timed here). Expectation copy only -- Nexus does not bundle the offload runtime."
-        },
-        {
-          "id": "workstation",
-          "label": "Workstation",
-          "peakRssGB": 64,
-          "expectedSecondsPerToken": 21,
-          "copy": "Workstation RAM budget: independently measured ~19-21 s/token on a server-class host for a trillion-class disk-offload MoE. Seeded as the honest floor for this patient-tier entry. Expectation copy only -- Nexus does not bundle the offload runtime."
-        },
-        {
-          "id": "max",
-          "label": "Max",
-          "peakRssGB": 224,
-          "expectedSecondsPerToken": 19,
-          "copy": "Max RAM budget: independently measured ~19 s/token at ~224 GB peak RSS for a trillion-class disk-offload MoE. Seeded as the honest floor for this patient-tier entry. Expectation copy only -- Nexus does not bundle the offload runtime."
-        }
-      ]
-    },
-    {
-      "id": "sam2:hiera-tiny",
-      "family": "sam2",
-      "name": "sam2",
-      "tag": "hiera-tiny",
-      "type": "image",
-      "task": "image",
-      "displayName": "SAM2 Hiera Tiny",
-      "releaseDate": "2024-08-01",
-      "origin": "USA",
-      "agentic": false,
-      "codingEligible": false,
-      "diffusion": false,
-      "vision": false,
-      "description": "Meta's Segment Anything 2 (Hiera Tiny) is an Apache-2.0 local segmentation utility from the USA. Image Studio uses it for maskless edits such as replace-the-X. It is not a chat or diffusion generator.",
-      "strengths": [
-        "On-device object masks from a point, box, or text-derived hint",
-        "Tiny checkpoint that fits consumer VRAM alongside a diffusion model",
-        "Apache-2.0 weights; nothing leaves the machine"
-      ],
-      "whyRecommended": "The Image Studio segmentation helper. Install it to skip painting masks by hand.",
-      "differentiators": "Utility weights, not a generator: hidden from the Image Studio model picker via the utility tag.",
-      "provenance": "First-party Meta SAM 2 Hiera Tiny checkpoints on Hugging Face (facebook/sam2-hiera-tiny), Apache-2.0. Nexus does not redistribute the weights. Live SHA-256 pins are placeholders until the installer puller records them.",
-      "sizeGB": 0.04,
-      "vramGB": 2,
-      "requiredVramGB": 4,
-      "license": "Apache-2.0",
-      "licenseUrl": "https://github.com/facebookresearch/sam2/blob/main/LICENSE",
-      "source": {
-        "protocol": "huggingface",
-        "repo": "facebook/sam2-hiera-tiny",
-        "url": "https://huggingface.co/facebook/sam2-hiera-tiny",
+        "repo": "SWHL/RapidOCR",
+        "revision": "1cfba2e90fc938db55889873735088de210cc173",
+        "url": "https://huggingface.co/SWHL/RapidOCR/resolve/1cfba2e90fc938db55889873735088de210cc173/PP-OCRv4/ch_PP-OCRv4_det_infer.onnx",
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
       "weights": {
         "layoutVersion": 1,
         "files": [
           {
-            "path": "sam2_hiera_tiny.pt",
+            "path": "PP-OCRv4/ch_PP-OCRv4_det_infer.onnx",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          {
+            "path": "PP-OCRv4/ch_PP-OCRv4_rec_infer.onnx",
             "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
           }
         ]
       },
       "tags": [
-        "sam2",
-        "utility",
-        "segmentation"
+        "document",
+        "ocr",
+        "cpu",
+        "portable",
+        "phase-3"
+      ],
+      "modalities": [
+        "image"
+      ]
+    },
+    {
+      "id": "dc-ae-f32c32-sana-1.1",
+      "family": "sana",
+      "name": "dc-ae",
+      "tag": "f32c32-sana-1.1",
+      "type": "vae",
+      "displayName": "DC-AE f32c32 (SANA 1.1)",
+      "origin": "USA",
+      "description": "MIT HAN Lab Deep Compression AutoEncoder (32x compression, 32 channels). Auto-loaded by every SANA pipeline.",
+      "sizeGB": 0.32,
+      "vramGB": 1,
+      "requiredVramGB": 1,
+      "releaseDate": "2025-07-01",
+      "uncensored": false,
+      "multimodal": false,
+      "contextWindow": null,
+      "license": "Apache-2.0",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "mit-han-lab/dc-ae-f32c32-sana-1.1",
+        "url": "https://huggingface.co/mit-han-lab/dc-ae-f32c32-sana-1.1/resolve/main/model.safetensors",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "model.safetensors",
+            "sha256": "01a99a6d08b8e1d54bf9af28cab521432cdeee372720e84c38bac8b8abe27ba6"
+          }
+        ]
+      },
+      "tags": [
+        "vae",
+        "phase-12",
+        "sana",
+        "auto-loaded"
+      ],
+      "modalities": [
+        "image"
+      ]
+    },
+    {
+      "id": "sana-controlnet-canny",
+      "family": "sana",
+      "name": "sana-controlnet",
+      "tag": "canny",
+      "type": "controlnet",
+      "displayName": "SANA-ControlNet Canny",
+      "origin": "USA",
+      "description": "Canny-edge-conditioning ControlNet for SANA. Pairs with the OpenCV Canny preprocessor.",
+      "sizeGB": 0.7,
+      "vramGB": 2,
+      "requiredVramGB": 2,
+      "releaseDate": "2025-09-20",
+      "uncensored": false,
+      "multimodal": false,
+      "contextWindow": null,
+      "linkedFamily": "sana",
+      "license": "Apache-2.0",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "Efficient-Large-Model/SANA-ControlNet-Canny",
+        "url": "https://huggingface.co/Efficient-Large-Model/SANA-ControlNet-Canny/resolve/main/diffusion_pytorch_model.safetensors",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "diffusion_pytorch_model.safetensors",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
+      },
+      "tags": [
+        "controlnet",
+        "phase-12",
+        "sana",
+        "canny"
+      ],
+      "modalities": [
+        "image"
+      ]
+    },
+    {
+      "id": "sana-controlnet-depth",
+      "family": "sana",
+      "name": "sana-controlnet",
+      "tag": "depth",
+      "type": "controlnet",
+      "displayName": "SANA-ControlNet Depth",
+      "origin": "USA",
+      "description": "Depth-conditioning ControlNet for SANA. Pairs with the MiDaS preprocessor (controlnet_aux).",
+      "sizeGB": 0.7,
+      "vramGB": 2,
+      "requiredVramGB": 2,
+      "releaseDate": "2025-09-20",
+      "uncensored": false,
+      "multimodal": false,
+      "contextWindow": null,
+      "linkedFamily": "sana",
+      "license": "Apache-2.0",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "Efficient-Large-Model/SANA-ControlNet-Depth",
+        "url": "https://huggingface.co/Efficient-Large-Model/SANA-ControlNet-Depth/resolve/main/diffusion_pytorch_model.safetensors",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "diffusion_pytorch_model.safetensors",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
+      },
+      "tags": [
+        "controlnet",
+        "phase-12",
+        "sana",
+        "depth"
+      ],
+      "modalities": [
+        "image"
+      ]
+    },
+    {
+      "id": "sana-controlnet-pose",
+      "family": "sana",
+      "name": "sana-controlnet",
+      "tag": "pose",
+      "type": "controlnet",
+      "displayName": "SANA-ControlNet Pose",
+      "origin": "USA",
+      "description": "Pose-conditioning ControlNet for SANA. Pairs with the OpenPose preprocessor (controlnet_aux).",
+      "sizeGB": 0.7,
+      "vramGB": 2,
+      "requiredVramGB": 2,
+      "releaseDate": "2025-09-20",
+      "uncensored": false,
+      "multimodal": false,
+      "contextWindow": null,
+      "linkedFamily": "sana",
+      "license": "Apache-2.0",
+      "source": {
+        "protocol": "huggingface",
+        "repo": "Efficient-Large-Model/SANA-ControlNet-Pose",
+        "url": "https://huggingface.co/Efficient-Large-Model/SANA-ControlNet-Pose/resolve/main/diffusion_pytorch_model.safetensors",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "weights": {
+        "layoutVersion": 1,
+        "files": [
+          {
+            "path": "diffusion_pytorch_model.safetensors",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
+      },
+      "tags": [
+        "controlnet",
+        "phase-12",
+        "sana",
+        "pose"
       ],
       "modalities": [
         "image"

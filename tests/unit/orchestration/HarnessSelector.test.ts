@@ -206,7 +206,10 @@ describe("HarnessSelector -- named family profiles (v1.18 OI-A2)", () => {
 
   it("keys qwen to plan-first, deepseek to structured-edit, llama-weak to minimal", () => {
     expect(defaultHarnessSelector.profileForModel("qwen2.5-coder:7b").id).toBe("plan-first");
-    expect(defaultHarnessSelector.profileForModel("qwen2.5-coder:7b").tier).toBe("mid");
+    expect(defaultHarnessSelector.profileForModel("qwen3.5:9b").id).toBe("plan-first");
+    expect(defaultHarnessSelector.profileForModel("qwen3-coder:30b").id).toBe("plan-first");
+    expect(defaultHarnessSelector.profileForModel("gpt-oss:20b").id).toBe("plan-first");
+    expect(defaultHarnessSelector.select("gpt-oss:20b").family).toBe("gpt-oss");
     expect(defaultHarnessSelector.profileForModel("deepseek-coder:6.7b").id).toBe("structured-edit");
     expect(defaultHarnessSelector.profileForModel("llama3.2:3b").id).toBe("minimal");
     expect(defaultHarnessSelector.profileForModel("llama3.2:3b").tier).toBe("weak");

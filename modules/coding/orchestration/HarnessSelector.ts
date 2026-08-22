@@ -301,6 +301,7 @@ const NAMED_PROFILES: Readonly<Record<HarnessProfileId, HarnessProfile>> = Objec
  */
 const FAMILY_PROFILE_IDS: Readonly<Record<string, HarnessProfileId>> = Object.freeze({
   qwen: "plan-first",
+  "gpt-oss": "plan-first",
   deepseek: "structured-edit",
   kimi: "concise-loop",
   "lfm2.5": "lfm-agentic",
@@ -466,6 +467,7 @@ function resolveFamilyKey(
   if (id.includes("hermes")) return "hermes";
   if (id.includes("muse") || id.includes("glimmer")) return "muse-glimmer";
   if (id.includes("nemotron") || id.includes("lightning")) return "nemotron-lightning";
+  if (id.includes("gpt-oss")) return "gpt-oss";
   const tags = entry.tags ?? [];
   if (tags.some((t) => t.toLowerCase().includes("kimi"))) return "kimi";
   if (tags.some((t) => t.toLowerCase().includes("lfm"))) return "lfm2.5";

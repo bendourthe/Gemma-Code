@@ -153,25 +153,28 @@ class TestCatalogIntegrity:
             == "hf.co/LiquidAI/LFM2.5-2.6B-GGUF:Q4_K_M"
         )
 
-    def test_sd15_repointed_to_public_mirror(self) -> None:
-        # v1.14.0 Phase 1: the withdrawn runwayml repo is re-pointed to the
-        # public stable-diffusion-v1-5 mirror and is no longer gated.
-        entry = self._catalog()["sd1.5"]
-        assert entry.get("gated") is not True
-        assert entry["source"]["repo"] == "stable-diffusion-v1-5/stable-diffusion-v1-5"
-        assert "runwayml" not in entry["source"]["url"]
+    def test_sd15_retired_from_installer_catalog(self) -> None:
+        assert "sd1.5" not in self._catalog()
+        assert "ltx-video" not in self._catalog()
+        assert "svd" not in self._catalog()
 
     def test_gated_opt_ins_carry_license_metadata(self) -> None:
-        # v1.14.0 Phase 1: genuinely license-gated open-weight opt-ins keep
-        # gated=true and add requiresLicense + a licenseUrl so the installer's
-        # guided Hugging Face step can unlock them (never a silent skip).
+        # Remaining license-gated open-weight opt-in after the pre-2025 prune.
         catalog = self._catalog()
-        for mid in ("sana-1.6b-int4", "svd", "stable-audio-open-1.0"):
+        for mid in ("sana-1.6b-int4",):
             entry = catalog[mid]
             assert entry.get("gated") is True, f"{mid} must be gated"
             assert entry.get("requiresLicense") is True, f"{mid} needs requiresLicense"
             url = str(entry.get("licenseUrl", ""))
             assert url.startswith("https://huggingface.co/"), f"{mid} needs licenseUrl"
+        for retired in ("svd", "stable-audio-open-1.0"):
+            assert retired not in catalog
+
+    def test_lightning_pulls_ollama_library_tag(self) -> None:
+        entry = self._catalog()["nemotron-lightning:30b-a3b"]
+        assert ollama_target_for(entry, "nemotron-lightning:30b-a3b") == (
+            "nemotron-3.5-lightning:30b"
+        )
 
     def test_every_selectable_model_has_release_date(self) -> None:
         # v1.14.0 Phase 1: the picker renders releaseDate as a pill, so every

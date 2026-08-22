@@ -18,6 +18,10 @@ describe("ModelCatalog", () => {
         "llama3.3:70b",
         "qwen2.5:7b",
         "qwen2.5-coder:7b",
+        "qwen3.5:4b",
+        "qwen3.5:9b",
+        "qwen3-coder:30b",
+        "gpt-oss:20b",
         "deepseek-coder:6.7b",
       ]),
     );
@@ -28,6 +32,7 @@ describe("ModelCatalog", () => {
     expect(families).toEqual([
       "deepseek",
       "gemma",
+      "gpt-oss",
       "hermes",
       "lfm2.5",
       "llama",

@@ -15,8 +15,8 @@ function videoModels(): { list: () => Promise<ListedModelDto[]> } {
   return {
     list: async () => [
       {
-        id: "ltx-video",
-        displayName: "LTX-Video",
+        id: "wan2.1-t2v-1.3b",
+        displayName: "Wan 2.1 T2V 1.3B",
         type: "video",
         installed: true,
         source: "registry",
@@ -71,7 +71,7 @@ describe("VideoLabPage (chat)", () => {
     const media = await screen.findByTestId(/^message-media-/);
     expect(media.getAttribute("src")).toBe("mock:///tmp/clip.mp4");
     expect((client.lastRequest?.request as { prompt: string }).prompt).toBe("a fox");
-    expect((client.lastRequest?.request as { modelId: string }).modelId).toBe("ltx-video");
+    expect((client.lastRequest?.request as { modelId: string }).modelId).toBe("wan2.1-t2v-1.3b");
   });
 
   it("an attached image routes to image2video with the source image", async () => {

@@ -2,9 +2,17 @@
 
 Develop follow-up after tag `v2.1.0`. No version bump. No retag.
 
+### Features
+
+* add Qwen 3.5 4B/9B, gpt-oss 20B, Qwen3-Coder 30B, EmbeddingGemma, and Qwen3-Embedding 0.6B to the installer catalog
+* drop pre-2025 installer-catalog opt-ins that are not required or recommended, retire Qwen 2.5 Coder / DeepSeek Coder V2, and sort remaining cards by recommendation then newest release then capability
+
 ### Bug Fixes
 
 * close remaining code-completeable known-gaps without claiming live GPU passes
+* show the Nexus mark on the Windows installer taskbar instead of the generic exe icon
+* upgrade the installer Ollama pin to v0.32.15 so Gemma 4 12B can pull (HTTP 412 on older hosts)
+* look up the Windows desktop binary in `%LOCALAPPDATA%\\Nexus AI Studio` (Tauri productName) instead of `%LOCALAPPDATA%\\Nexus\\Nexus.exe`
 
 ### Documentation
 

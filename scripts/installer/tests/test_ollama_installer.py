@@ -70,16 +70,17 @@ class TestExtractTarZst:
 
 
 class TestOllamaVersionGate:
-    """v1.13.0 Phase 1: a pre-existing Ollama must meet the Gemma 4 floor
-    (MIN_OLLAMA_VERSION) or be upgraded; the whole default chat/agentic line is
-    Gemma 4, which older Ollama builds cannot pull or load."""
+    """v1.13.0 Phase 1: a pre-existing Ollama must meet the installer floor
+    (MIN_OLLAMA_VERSION) or be upgraded; current Gemma 4 library tags 412 on
+    anything older than the pin."""
 
     def test_version_tuple_parses(self) -> None:
         assert _version_tuple("v0.32.0") == (0, 32, 0)
         assert _version_tuple("0.22.0") == (0, 22, 0)
 
     def test_meets_min_version(self) -> None:
-        assert _meets_min_version("0.32.0", MIN_OLLAMA_VERSION) is True
+        assert _meets_min_version("0.32.15", MIN_OLLAMA_VERSION) is True
+        assert _meets_min_version("0.32.0", MIN_OLLAMA_VERSION) is False
         assert _meets_min_version(MIN_OLLAMA_VERSION, MIN_OLLAMA_VERSION) is True
         assert _meets_min_version("0.20.4", MIN_OLLAMA_VERSION) is False
 
@@ -89,11 +90,11 @@ class TestOllamaVersionGate:
     def test_skips_when_existing_meets_floor(self) -> None:
         state = InstallerState(ollama_installed=True)
         log = MagicMock()
-        with patch.object(OllamaInstaller, "_ollama_version", return_value="0.32.0"):
+        with patch.object(OllamaInstaller, "_ollama_version", return_value="0.32.15"):
             result = OllamaInstaller().install(state, log)
         assert result is True
         assert any(
-            "supports gemma 4" in c.args[0].lower()
+            "ollama floor" in c.args[0].lower()
             for c in log.call_args_list
             if c.args
         )
@@ -116,7 +117,7 @@ class TestOllamaVersionGate:
         state = InstallerState(ollama_installed=True)
         log = MagicMock()
         with (
-            patch.object(OllamaInstaller, "_ollama_version", return_value="0.20.4"),
+            patch.object(OllamaInstaller, "_ollama_version", return_value="0.32.0"),
             patch(
                 "nexus_installer.engine.ollama_installer.is_windows",
                 return_value=False,

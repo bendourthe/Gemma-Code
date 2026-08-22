@@ -225,6 +225,7 @@ class TestRealMatrixDefaults:
         )
         assert "lfm2.5:2.6b" in ids
         assert "qwen2.5-coder:7b" not in ids
+        assert "qwen3.5:9b" not in ids
         assert "gemma4:e4b" not in ids
 
     def test_higher_tiers_do_not_default_lfm(self) -> None:

@@ -22,8 +22,14 @@ describe("isVisionCapableModel", () => {
   it("treats text-only models as non-vision", () => {
     expect(isVisionCapableModel("gemma3:27b")).toBe(false);
     expect(isVisionCapableModel("qwen2.5-coder:7b")).toBe(false);
+    expect(isVisionCapableModel("qwen3-coder:30b")).toBe(false);
     expect(isVisionCapableModel("llama3.1:8b")).toBe(false);
     expect(isVisionCapableModel("deepseek-coder-v2:16b")).toBe(false);
+  });
+
+  it("recognizes Qwen 3.5 library tags as vision-capable", () => {
+    expect(isVisionCapableModel("qwen3.5:4b")).toBe(true);
+    expect(isVisionCapableModel("qwen3.5:9b")).toBe(true);
   });
 
   it("returns false for empty / undefined / null", () => {

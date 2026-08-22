@@ -11,7 +11,10 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from nexus_installer.catalog_invariants import validate_catalog
+from nexus_installer.catalog_invariants import (
+    POST_2025_OLLAMA_TARGETS,
+    validate_catalog,
+)
 from nexus_installer.registry_paths import default_catalog_path
 
 _LFM_PIN = "79fdf00351b46cf26f020aead28d01889886be87c55fa0eb907e6f9b00bfee14"
@@ -51,6 +54,7 @@ class TestRepoCatalog:
             m for m in catalog["models"] if m.get("id") == "gemma-4-12b-it-gguf"
         )
         assert gemma["source"]["url"] == "ollama://gemma4:12b"
+        assert gemma.get("minOllamaVersion") == "0.32.15"
 
     def test_sana_int4_is_flagged_gated(self) -> None:
         # Direct regression check for the reported HTTP-401 loop.
@@ -60,6 +64,17 @@ class TestRepoCatalog:
         )
         if sana is not None:
             assert sana.get("gated") is True
+
+    def test_post_2025_ollama_targets_are_present(self) -> None:
+        catalog = _load_repo_catalog()
+        by_id = {m.get("id"): m for m in catalog["models"] if isinstance(m, dict)}
+        for model_id, expected_url in POST_2025_OLLAMA_TARGETS.items():
+            entry = by_id.get(model_id)
+            assert entry is not None, f"{model_id} missing from catalog.json"
+            assert entry.get("source", {}).get("url") == expected_url
+        assert "qwen2.5-coder:7b" not in by_id
+        assert "qwen2.5-coder:14b" not in by_id
+        assert "deepseek-coder-v2:16b" not in by_id
 
 
 class TestLfmLowVramAgentic:
@@ -127,6 +142,12 @@ class TestMuseAndLightning:
         assert "nemotron-lightning:30b-a3b" in ids
         assert "nemotron-lightning:30b-a3b-offload" in ids
         assert "sam2:hiera-tiny" in ids
+        lightning = next(
+            m
+            for m in catalog["models"]
+            if m.get("id") == "nemotron-lightning:30b-a3b"
+        )
+        assert lightning["source"]["url"] == "ollama://nemotron-3.5-lightning:30b"
         assert validate_catalog(catalog) == []
 
     def test_muse_vendor_score_in_copy_is_flagged(self) -> None:
@@ -160,7 +181,7 @@ class TestMuseAndLightning:
             "requiredVramGB": 24,
             "source": {
                 "protocol": "ollama",
-                "url": "ollama://hf.co/ggml-org/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-GGUF:Q4_K_M",
+                "url": "ollama://nemotron-3.5-lightning:30b",
             },
             "localEval": {"status": "not_run"},
         }
@@ -192,6 +213,7 @@ class TestValidateCatalog:
             "models": [
                 {
                     "id": "gemma-4-12b-it-gguf",
+                    "minOllamaVersion": "0.32.15",
                     "source": {"protocol": "ollama", "url": "ollama://gemma4:12b"},
                 }
             ]
@@ -237,3 +259,66 @@ class TestValidateCatalog:
     def test_missing_source_protocol_is_flagged(self) -> None:
         catalog = {"models": [{"id": "x"}]}
         assert any("source.protocol" in p for p in validate_catalog(catalog))
+
+    def test_pre_2025_opt_in_is_flagged(self) -> None:
+        catalog = {
+            "models": [
+                {
+                    "id": "llama3.1:8b",
+                    "task": "chat",
+                    "releaseDate": "2024-07-23",
+                    "source": {"protocol": "ollama", "url": "ollama://llama3.1:8b"},
+                }
+            ]
+        }
+        assert any("pre-2025" in p for p in validate_catalog(catalog))
+
+    def test_pre_2025_keep_list_is_allowed(self) -> None:
+        catalog = {
+            "models": [
+                {
+                    "id": "nomic-embed-text",
+                    "task": "embed",
+                    "releaseDate": "2024-02-14",
+                    "source": {
+                        "protocol": "ollama",
+                        "url": "ollama://nomic-embed-text",
+                    },
+                }
+            ]
+        }
+        problems = validate_catalog(catalog)
+        assert not any("pre-2025" in p for p in problems)
+
+    def test_gemma12_missing_min_ollama_is_flagged(self) -> None:
+        catalog = {
+            "models": [
+                {
+                    "id": "gemma-4-12b-it-gguf",
+                    "source": {"protocol": "ollama", "url": "ollama://gemma4:12b"},
+                }
+            ]
+        }
+        assert any("minOllamaVersion" in p for p in validate_catalog(catalog))
+
+    def test_post_2025_wrong_url_is_flagged(self) -> None:
+        catalog = {
+            "models": [
+                {
+                    "id": "gpt-oss:20b",
+                    "source": {"protocol": "ollama", "url": "ollama://gpt-oss:wrong"},
+                }
+            ]
+        }
+        assert any("gpt-oss:20b" in p for p in validate_catalog(catalog))
+
+    def test_qwen35_sizes_must_ship_together(self) -> None:
+        catalog = {
+            "models": [
+                {
+                    "id": "qwen3.5:9b",
+                    "source": {"protocol": "ollama", "url": "ollama://qwen3.5:9b"},
+                }
+            ]
+        }
+        assert any("qwen3.5" in p for p in validate_catalog(catalog))

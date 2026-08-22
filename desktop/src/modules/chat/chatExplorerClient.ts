@@ -31,6 +31,13 @@ export interface ChatExplorerClient {
   getChat(id: string): Chat | null;
   ancestors(folderId: string | null): readonly Folder[];
   search(query: string, limit?: number): readonly ChatExplorerSearchHit[];
+  /**
+   * Name a chat from its first prompt using a local model. OPTIONAL: only the
+   * sidecar-backed client can do this, because it needs a model. The in-memory
+   * client used in tests and outside Tauri leaves chats at their default name
+   * rather than pretending to generate one. (v2.2.0 DF-13)
+   */
+  generateTitle?(chatId: string, firstMessage: string): Promise<{ title: string; source: string }>;
 }
 
 function makeId(): string {

@@ -4,6 +4,25 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-22] v2.2.0 Phase 8 - Refactor, known-gaps reconciliation, CI/CD
+
+### Goal
+
+Leave the cycle clean: remove what this work orphaned, close the gaps that were code-completeable, and confirm CI still covers everything.
+
+### What Changed
+
+- **Refactor**: deleted `LocalModelStatusDock` (replaced by the sidebar GPU footer in Phase 6) and `ModulePlaceholder` (its last two routes became redirects in Phase 7). Both were unreachable from app code.
+- **DF-12 closed**: the chat empty state read "Create your first folder", which is the whole reason the module looked like it required a folder before it would let you talk. The store has always accepted `folderId: null`; only the button insisted otherwise. It now starts a chat, and folders stay available from the header and context menu. Two existing tests pinned the old behaviour and were updated to the new intent rather than worked around.
+- **DF-13 closed**: the title generator and its IPC method shipped in Phase 5, but nothing ever called them, so every chat stayed "New chat". The send path now titles a chat from its first prompt, once, only while the chat is still default-named, and treats a titling failure as a no-op rather than failing the send. Titling is declared OPTIONAL on the client interface because the in-memory client has no model and must not pretend to have one.
+- **CI/CD (8.3)**: no change needed. `ci.yml` already runs both suites and both new test files fall inside its globs; 17 of 19 workflows already carry concurrency groups and 13 cache dependencies.
+
+### Test Results
+
+Root vitest **5425 passed / 12 skipped**; desktop vitest **1239 passed** (147 files); eslint clean.
+
+---
+
 ## [2026-08-22] v2.2.0 Phase 7 - Settings modernization, profile retirement, data transfer
 
 ### Goal

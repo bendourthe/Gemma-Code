@@ -34,6 +34,8 @@ import { GEMMA4_GGUF_OLLAMA_BASE } from "./Gemma4GgufQuants.js";
 const VISION_CAPABLE_PATTERNS: readonly RegExp[] = [
   // `gemma4`, `gemma-4`, `gemma_4` in any tag segment (family or HF ref).
   /gemma[-_]?4/i,
+  // Qwen 3.5 library tags (4b / 9b) accept native image input.
+  /qwen3\.5/i,
 ];
 
 void GEMMA4_GGUF_OLLAMA_BASE;

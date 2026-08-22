@@ -160,6 +160,8 @@ export function ChatPage({
 
   const [selected, setSelected] = useState<SelectedNode | null>(null);
   const [activeChat, setActiveChat] = useState<Chat | null>(null);
+  // Bumped when something outside the rail renames a chat (auto-titling).
+  const [treeVersion, setTreeVersion] = useState(0);
   const [modelId, setModelId] = useState<string>(defaultModelId);
   const [enableTools, setEnableTools] = useState(false);
   const [messagesByChat, setMessagesByChat] = useState<Map<string, ChatMessage[]>>(
@@ -503,7 +505,33 @@ export function ChatPage({
         ...(displayAttachments.length > 0 ? { attachments: displayAttachments } : {}),
         ...(origin ? { origin } : {}),
       });
-      client.renameChat(chat.id, chat.title);
+      // v2.2.0 Phase 8 (DF-13): name the chat from its first prompt.
+      //
+      // The generator and its IPC method have existed since Phase 5, but
+      // nothing ever called them, so every chat stayed "New chat". Fire only
+      // on the first message of a still-default chat: a chat the user already
+      // named must never be renamed out from under them, and re-titling on
+      // every send would fight the user's own rename.
+      if (
+        client.generateTitle &&
+        chat.messageCount === 0 &&
+        chat.title === "New chat" &&
+        prompt.trim()
+      ) {
+        void client
+          .generateTitle(chat.id, prompt)
+          .then((result: { title: string }) => {
+            setActiveChat((prev) =>
+              prev && prev.id === chat.id ? { ...prev, title: result.title } : prev,
+            );
+            setTreeVersion((v) => v + 1);
+          })
+          // Titling is a convenience. If the local model is busy or missing,
+          // the chat keeps its default name rather than failing the send.
+          .catch(() => undefined);
+      } else {
+        client.renameChat(chat.id, chat.title);
+      }
 
       if (memoryHub && attachments.length > 0) {
         const kinds = [
@@ -728,6 +756,7 @@ export function ChatPage({
           selected={selected}
           onSelect={handleSelect}
           onOpenChat={handleOpenChat}
+          refreshToken={treeVersion}
           defaultModelId={modelId}
         />
       </aside>

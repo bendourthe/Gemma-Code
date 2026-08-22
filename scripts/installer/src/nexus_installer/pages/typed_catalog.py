@@ -32,7 +32,7 @@ import contextlib
 import html
 import json
 import os
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -218,14 +218,14 @@ class CatalogModel:
 
     @property
     def is_required(self) -> bool:
-        """The embedding model is required by the semantic memory layer.
+        """Nomic Embed Text is required by the semantic memory layer.
 
-        v1.9.0 Phase 4 (T403): nomic-embed is the de-facto required model, so
-        its card gets a Required badge and a locked-on checkbox. Derived from
-        the task rather than a schema field -- the memory layer needs *an*
-        embedding model, and there is exactly one embed entry.
+        v1.9.0 Phase 4 (T403): its card gets a Required badge and a locked-on
+        checkbox. Later embedders (EmbeddingGemma, Qwen3-Embedding) are the
+        same task but stay opt-in because swapping the default invalidates
+        the on-disk memory index.
         """
-        return self.task == "embed"
+        return self.id == "nomic-embed-text"
 
     @property
     def guardrails_label(self) -> str:
@@ -324,6 +324,19 @@ def load_catalog_models(catalog_path: Path) -> list[CatalogModel]:
             )
         )
     return models
+
+
+def _release_ordinal(value: str) -> int:
+    """YYYYMMDD integer for newest-first sort; missing/invalid dates sort last."""
+    text = (value or "").strip()
+    parts = text.split("-")
+    try:
+        year = int(parts[0])
+        month = int(parts[1]) if len(parts) > 1 else 0
+        day = int(parts[2]) if len(parts) > 2 else 0
+        return year * 10000 + month * 100 + day
+    except (TypeError, ValueError):
+        return 0
 
 
 def _is_over_budget(model: CatalogModel, host_vram_gb: int, gpu_vendor: str) -> bool:
@@ -857,6 +870,7 @@ class TypedCatalogPage(QWidget):
         host_vram_gb: int,
         gpu_vendor: str,
         defaults: set[str] | None = None,
+        recommend_order: Sequence[str] | None = None,
     ) -> list[CatalogModel]:
         """Collapse a tab to one best-fitting model per family.
 
@@ -866,13 +880,24 @@ class TypedCatalogPage(QWidget):
         (highest-VRAM) fitting variant. Other fitting variants are hidden; every
         variant that needs more VRAM than the GPU has is shown disabled/grayed;
         a family with no fitting variant shows its smallest one, grayed. Enabled
-        rows come first (recommended before the rest, most-capable first), then
-        the over-budget rows.
+        rows come first: required, then pre-ticked defaults, then the rest of
+        this tier's recommended.json list (recommendation order), then newest
+        release, then most-capable. Over-budget rows follow.
         """
         defaults = defaults or set()
+        rec_rank = {
+            model_id: index for index, model_id in enumerate(recommend_order or ())
+        }
 
         def vram(m: CatalogModel) -> float:
             return float(m.required_vram_gb)
+
+        def recommend_group(m: CatalogModel) -> int:
+            if m.id in defaults:
+                return 0
+            if m.id in rec_rank:
+                return 1
+            return 2
 
         by_family: dict[str, list[CatalogModel]] = {}
         for model in self._models_for_section(section_key):
@@ -898,7 +923,16 @@ class TypedCatalogPage(QWidget):
                 # No variant fits: show the smallest so the family still appears.
                 disabled.append(min(members, key=lambda m: (vram(m), m.display_name)))
 
-        enabled.sort(key=lambda m: (m.id not in defaults, -vram(m), m.display_name))
+        enabled.sort(
+            key=lambda m: (
+                not m.is_required,
+                recommend_group(m),
+                rec_rank.get(m.id, 10_000),
+                -_release_ordinal(m.release_date),
+                -vram(m),
+                m.display_name,
+            )
+        )
         disabled.sort(key=lambda m: (vram(m), m.display_name))
         return enabled + disabled
 
@@ -931,8 +965,14 @@ class TypedCatalogPage(QWidget):
         layout.setSpacing(8)
 
         gpu_vendor = state.gpu_vendor or "none"
+        tier = resolve_tier(state.vram_mb, gpu_vendor)
+        recommend_order = list(self._matrix.get(tier, {}).get(section_key, []))
         models = self._sorted_section_models(
-            section_key, host_vram_gb, gpu_vendor, defaults
+            section_key,
+            host_vram_gb,
+            gpu_vendor,
+            defaults,
+            recommend_order,
         )
 
         if not models:

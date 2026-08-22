@@ -60,8 +60,49 @@ MUSE_FORBIDDEN_COPY: tuple[str, ...] = ("SWE-Bench", "76.0", "76.00")
 LIGHTNING_NATIVE_ID = "nemotron-lightning:30b-a3b"
 LIGHTNING_OFFLOAD_ID = "nemotron-lightning:30b-a3b-offload"
 LIGHTNING_IDS: frozenset[str] = frozenset({LIGHTNING_NATIVE_ID, LIGHTNING_OFFLOAD_ID})
-LIGHTNING_OLLAMA_TARGET = "ggml-org/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-GGUF"
+# Official Ollama library tag (0.32.9+). The ggml-org hf.co Q4_K_M GGUF was
+# deleted; pulling that tag 400s with "specified tag is not available".
+LIGHTNING_OLLAMA_TARGET = "nemotron-3.5-lightning:30b"
 LIGHTNING_MIN_OLLAMA = "0.32.9"
+
+#: Gemma 4 library tags need Ollama 0.32.15 (HTTP 412 below that).
+GEMMA_MIN_OLLAMA = "0.32.15"
+GEMMA_OLLAMA_IDS: frozenset[str] = frozenset(
+    {
+        "gemma4:e2b",
+        "gemma4:e4b",
+        "gemma4:26b",
+        "gemma4:31b",
+        "gemma-4-12b-it-gguf",
+    }
+)
+
+#: Official Ollama library tags added in the v2.1 develop catalog refresh.
+#: Keep ids and pull URLs in lockstep so a stale hf.co path cannot ship.
+POST_2025_OLLAMA_TARGETS: dict[str, str] = {
+    "qwen3.5:4b": "ollama://qwen3.5:4b",
+    "qwen3.5:9b": "ollama://qwen3.5:9b",
+    "gpt-oss:20b": "ollama://gpt-oss:20b",
+    "qwen3-coder:30b": "ollama://qwen3-coder:30b",
+    "embeddinggemma": "ollama://embeddinggemma:300m",
+    "qwen3-embedding:0.6b": "ollama://qwen3-embedding:0.6b",
+}
+
+#: Pre-2025 selectable models that stay because they are required (embed),
+#: recommended.json image/audio defaults, RapidOCR (CPU document pillar), or
+#: SAM2 (Image Studio replace-the-X). 2024 coding specialists were replaced
+#: by Qwen 3.5 / gpt-oss / Qwen3-Coder. Everything else 2024-or-earlier is
+#: dropped.
+PRE_2025_KEEP_IDS: frozenset[str] = frozenset(
+    {
+        "nomic-embed-text",
+        "juggernaut-xl-v9",
+        "realvisxl-v5",
+        "faster-whisper-large-v3",
+        "rapidocr-ppocrv4",
+        "sam2:hiera-tiny",
+    }
+)
 
 
 def validate_catalog(catalog: dict[str, Any]) -> list[str]:
@@ -162,6 +203,35 @@ def validate_catalog(catalog: dict[str, Any]) -> list[str]:
     sam2 = by_id.get("sam2:hiera-tiny")
     if isinstance(sam2, dict):
         problems.extend(_check_sam2_entry(sam2))
+
+    for gemma_id in GEMMA_OLLAMA_IDS:
+        gemma = by_id.get(gemma_id)
+        if not isinstance(gemma, dict):
+            continue
+        if gemma.get("minOllamaVersion") != GEMMA_MIN_OLLAMA:
+            problems.append(
+                f"{gemma_id}: minOllamaVersion must be {GEMMA_MIN_OLLAMA}"
+            )
+
+    for model_id, expected_url in POST_2025_OLLAMA_TARGETS.items():
+        entry = by_id.get(model_id)
+        if not isinstance(entry, dict):
+            continue
+        url = ""
+        source = entry.get("source")
+        if isinstance(source, dict):
+            url = str(source.get("url") or "")
+        if url != expected_url:
+            problems.append(
+                f"{model_id}: ollama source must be {expected_url} (got {url!r})"
+            )
+    qwen35_present = [
+        i for i in ("qwen3.5:4b", "qwen3.5:9b") if isinstance(by_id.get(i), dict)
+    ]
+    if qwen35_present and len(qwen35_present) != 2:
+        problems.append("qwen3.5: both 4b and 9b entries must ship together")
+
+    problems.extend(_check_pre_2025_keep(by_id))
 
     return problems
 
@@ -278,7 +348,8 @@ def _check_muse_entry(model: dict[str, Any], where: str) -> list[str]:
         problems.append(f"{where}: a passing localEval must record a result")
     if model.get("vision") is not False:
         problems.append(
-            f"{where}: vision must be false until the hf.co GGUF pull is proven to ship mmproj"
+            f"{where}: vision must be false until the hf.co GGUF pull is "
+            "proven to ship mmproj"
         )
     blob = _card_copy(model)
     for token in MUSE_FORBIDDEN_COPY:
@@ -314,7 +385,9 @@ def _check_lightning_entry(model: dict[str, Any], where: str) -> list[str]:
     if LIGHTNING_OLLAMA_TARGET not in url:
         problems.append(f"{where}: ollama source must pull {LIGHTNING_OLLAMA_TARGET}")
     if where == LIGHTNING_NATIVE_ID and model.get("requiredVramGB") != 24:
-        problems.append(f"{where}: native Q4_K_M must map to the 24 GB VRAM tier")
+        problems.append(
+            f"{where}: native library 30b build must map to the 24 GB VRAM tier"
+        )
     if where == LIGHTNING_OFFLOAD_ID:
         tags = model.get("tags") if isinstance(model.get("tags"), list) else []
         if "expert-offload" not in tags:
@@ -342,11 +415,34 @@ def _check_sam2_entry(model: dict[str, Any]) -> list[str]:
     return problems
 
 
+def _check_pre_2025_keep(by_id: dict[str, Any]) -> list[str]:
+    """Selectable models released before 2025 must be on the keep-list."""
+    problems: list[str] = []
+    for model_id, model in by_id.items():
+        if not isinstance(model, dict):
+            continue
+        if model.get("task") is None:
+            continue
+        date = str(model.get("releaseDate") or "")
+        if not date or date >= "2025-01-01":
+            continue
+        if str(model_id) not in PRE_2025_KEEP_IDS:
+            problems.append(
+                f"{model_id}: pre-2025 selectable model is not on the keep-list "
+                "(required embed, recommended.json default, RapidOCR, or SAM2)"
+            )
+    return problems
+
+
 __all__ = [
     "KNOWN_BROKEN_OLLAMA_REFS",
     "KNOWN_GATED_IDS",
     "LFM_AGENTIC_ID",
     "MUSE_IDS",
     "LIGHTNING_IDS",
+    "LIGHTNING_OLLAMA_TARGET",
+    "GEMMA_MIN_OLLAMA",
+    "POST_2025_OLLAMA_TARGETS",
+    "PRE_2025_KEEP_IDS",
     "validate_catalog",
 ]

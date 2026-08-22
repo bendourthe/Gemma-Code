@@ -122,13 +122,12 @@ def is_tray_available() -> bool:
 
 def create_tray_icon(parent: QWidget) -> QSystemTrayIcon:
     """Build the real tray icon (used by the GUI entry point, not tests)."""
-    from PyQt5.QtGui import QIcon
     from PyQt5.QtWidgets import QSystemTrayIcon
 
-    from nexus_installer.registry_paths import resolve_window_icon
+    from nexus_installer.widgets.win_titlebar import build_window_icon
 
     tray = QSystemTrayIcon(parent)
-    icon_path = resolve_window_icon()
-    if icon_path is not None:
-        tray.setIcon(QIcon(str(icon_path)))
+    icon = build_window_icon()
+    if icon is not None:
+        tray.setIcon(icon)
     return tray
