@@ -11,7 +11,8 @@
 
 import { useState } from "react";
 
-import { Switch } from "../../components/ui/Select";
+import { SearchInput, Switch } from "../../components/ui/Select";
+import { createDataTransferClient, defaultExportPath } from "./dataTransferClient";
 
 export interface TransferCategoryDto {
   id: string;
@@ -25,6 +26,7 @@ export interface DataSettingsClient {
   export(input: {
     categories: readonly string[];
     includeCredentials: boolean;
+    outPath?: string;
   }): Promise<{ path: string; bytes: number; empty: readonly string[] }>;
   importDryRun(path: string): Promise<{ applied: readonly string[]; skipped: readonly string[] }>;
   importApply(path: string): Promise<{ applied: readonly string[]; backupPath: string | null }>;
@@ -52,6 +54,14 @@ const DEFAULT_CATEGORIES: readonly TransferCategoryDto[] = [
 
 export function DataSettings({ client, categories }: DataSettingsProps): JSX.Element {
   const list = categories ?? DEFAULT_CATEGORIES;
+  // v2.2.0 Phase 8 (DF-16): self-wire to the sidecar when one is present.
+  // Tests and the browser dev server pass (or get) null and see the honest
+  // "not reachable" message rather than a button that does nothing.
+  const [resolvedClient] = useState<DataSettingsClient | null>(
+    () => client ?? createDataTransferClient(),
+  );
+  const [outPath, setOutPath] = useState<string>(() => defaultExportPath());
+  const [importPath, setImportPath] = useState<string>("");
   const [selected, setSelected] = useState<Set<string>>(
     // Everything except the sensitive bucket starts on.
     () => new Set(list.filter((c) => !c.sensitive).map((c) => c.id)),
@@ -72,7 +82,7 @@ export function DataSettings({ client, categories }: DataSettingsProps): JSX.Ele
   };
 
   const runExport = async (): Promise<void> => {
-    if (!client) {
+    if (!resolvedClient) {
       setError("Data transfer needs the Nexus backend, which is not reachable.");
       return;
     }
@@ -80,14 +90,50 @@ export function DataSettings({ client, categories }: DataSettingsProps): JSX.Ele
     setError(null);
     setStatus(null);
     try {
-      const result = await client.export({
+      const result = await resolvedClient.export({
         categories: [...selected],
         includeCredentials,
+        outPath,
       });
       const mb = (result.bytes / 1024 / 1024).toFixed(1);
       const emptyNote =
         result.empty.length > 0 ? ` (nothing to export for: ${result.empty.join(", ")})` : "";
       setStatus(`Exported ${mb} MB to ${result.path}${emptyNote}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const runImport = async (apply: boolean): Promise<void> => {
+    if (!resolvedClient) {
+      setError("Data transfer needs the Nexus backend, which is not reachable.");
+      return;
+    }
+    if (!importPath.trim()) {
+      setError("Enter the path of the archive to import.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setStatus(null);
+    try {
+      if (apply) {
+        const result = await resolvedClient.importApply(importPath.trim());
+        const backup =
+          result.backupPath === null
+            ? ""
+            : ` A backup of what was replaced is at ${result.backupPath}.`;
+        setStatus(`Imported: ${result.applied.join(", ") || "nothing"}.${backup}`);
+      } else {
+        // Always offer the preview first. An import replaces local data, and
+        // the user should see what an archive claims to hold before it does.
+        const result = await resolvedClient.importDryRun(importPath.trim());
+        const skipped =
+          result.skipped.length > 0 ? ` Not in this archive: ${result.skipped.join(", ")}.` : "";
+        setStatus(`This archive would restore: ${result.applied.join(", ") || "nothing"}.${skipped}`);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -147,6 +193,18 @@ export function DataSettings({ client, categories }: DataSettingsProps): JSX.Ele
         </div>
       ) : null}
 
+      <label style={{ display: "flex", flexDirection: "column", gap: "var(--space-1)" }}>
+        <span style={{ fontSize: "var(--text-sm)", color: "var(--fg-muted)" }}>
+          Export to
+        </span>
+        <SearchInput
+          testId="data-export-path"
+          value={outPath}
+          onChange={setOutPath}
+          label="Export file path"
+        />
+      </label>
+
       <div style={{ display: "flex", gap: "var(--space-2)" }}>
         <button
           type="button"
@@ -156,6 +214,41 @@ export function DataSettings({ client, categories }: DataSettingsProps): JSX.Ele
         >
           {busy ? "Exporting..." : "Export selected"}
         </button>
+      </div>
+
+      <hr style={{ border: 0, borderTop: "1px solid var(--border-subtle)", width: "100%" }} />
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+        <h2 style={{ margin: 0, fontSize: "var(--text-md)" }}>Import</h2>
+        <p style={{ margin: 0, color: "var(--fg-muted)", fontSize: "var(--text-sm)" }}>
+          Restore an export made on another machine. Preview first: an import replaces the
+          local copy of whatever the archive holds.
+        </p>
+        <SearchInput
+          testId="data-import-path"
+          value={importPath}
+          onChange={setImportPath}
+          label="Archive to import"
+          placeholder="Path to a nexus-export archive"
+        />
+        <div style={{ display: "flex", gap: "var(--space-2)" }}>
+          <button
+            type="button"
+            data-testid="data-import-preview"
+            disabled={busy}
+            onClick={() => void runImport(false)}
+          >
+            Preview
+          </button>
+          <button
+            type="button"
+            data-testid="data-import-apply"
+            disabled={busy}
+            onClick={() => void runImport(true)}
+          >
+            Import
+          </button>
+        </div>
       </div>
 
       {status ? (

@@ -49,7 +49,7 @@ describe("<FolderTree>", () => {
     await user.click(screen.getByTestId("folder-tree-empty-cta"));
     const tree = client.listTree();
     expect(tree.chats.length).toBe(1);
-    expect(tree.chats[0].folderId).toBeNull();
+    expect(tree.chats[0]?.folderId).toBeNull();
     expect(tree.children.length).toBe(0);
   });
 

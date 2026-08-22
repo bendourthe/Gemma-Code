@@ -83,6 +83,8 @@ import {
   ChatExplorerSetPersonaRequest,
   ChatExplorerAppendMessageRequest,
   ChatGenerateTitleRequest,
+  DataExportRequest,
+  DataImportRequest,
   SkillsSyncRequest,
   SkillsAutoSyncGetRequest,
   SkillsAutoSyncSetRequest,
@@ -984,6 +986,47 @@ export const handlers: Record<Method, HandlerFn> = {
   "chat.generateTitle": async (params, ctx) => {
     const req = ChatGenerateTitleRequest.parse(params ?? {});
     return generateChatTitle(req, ctx);
+  },
+  // v2.2.0 Phase 8 (DF-16): local data export / import.
+  //
+  // These load the runtime lazily. transferRuntime reaches into the storage
+  // paths module at call time, and a static import would pull that graph into
+  // every handler test that only wanted an unrelated method.
+  "data.categories": async () => {
+    const { CATEGORIES } = await import("./data/transferRuntime.js");
+    return {
+      categories: CATEGORIES.map((c) => ({
+        id: c.id,
+        label: c.label,
+        description: c.description,
+        ...(c.sensitive ? { sensitive: true } : {}),
+      })),
+    };
+  },
+  "data.export": async (params) => {
+    const req = DataExportRequest.parse(params ?? {});
+    const { exportData } = await import("./data/transferRuntime.js");
+    const result = await exportData({
+      categories: req.categories,
+      outPath: req.outPath,
+      includeCredentials: req.includeCredentials === true,
+    });
+    return { path: result.path, bytes: result.bytes, empty: result.empty };
+  },
+  "data.import": async (params) => {
+    const req = DataImportRequest.parse(params ?? {});
+    const { importData } = await import("./data/transferRuntime.js");
+    const result = await importData({
+      archivePath: req.archivePath,
+      dryRun: req.dryRun === true,
+      ...(req.categories ? { categories: req.categories } : {}),
+    });
+    return {
+      applied: result.applied,
+      skipped: result.skipped,
+      dryRun: result.dryRun,
+      backupPath: result.backupPath,
+    };
   },
   "skills.upstreamLatest": async (): Promise<SkillsUpstreamLatestResponseT> => {
     try {

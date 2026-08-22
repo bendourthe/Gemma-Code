@@ -4,6 +4,16 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-22] v2.2.0 Phase 8b - Data transfer reaches the backend (DF-16)
+
+Phase 7 shipped the transfer runtime and the Settings > Data page but never connected them, so the page could only ever report the backend as unreachable. This wires `data.categories`, `data.export`, and `data.import` through the protocol and handlers, adds an IPC adapter that returns null outside the desktop shell (so the browser dev server still tells the truth), gives the export an editable destination defaulting to a timestamped name, and adds a Preview step before Import.
+
+Deliberately NOT added: a native file dialog. That needs a Tauri plugin and a capability change, which is not something to slip into a build the user is about to install; the path fields cover the same ground. The import still stages under `~/.nexus/import-staging` rather than merging into final destinations, so it is a preview-and-stage rather than a full restore (DF-16 remaining).
+
+Gates: root 5425 passed; desktop 1251 passed; tsc clean.
+
+---
+
 ## [2026-08-22] v2.2.0 Phase 8 - Refactor, known-gaps reconciliation, CI/CD
 
 ### Goal

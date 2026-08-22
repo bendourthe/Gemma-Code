@@ -93,6 +93,9 @@ export const IPC_METHODS = [
   "chat.explorer.listMessages",
   "chat.explorer.search",
   "chat.generateTitle",
+  "data.categories",
+  "data.export",
+  "data.import",
   "skills.optimize.preview",
   "skills.optimize.apply",
   "telemetry.subscribe",
@@ -670,6 +673,57 @@ export const ChatGenerateTitleResponse = z.object({
   title: z.string(),
   /** "model" when a local model produced it, "fallback" when derived locally. */
   source: z.enum(["model", "fallback"]),
+});
+
+// v2.2.0 Phase 8 (DF-16) -- move local data to another machine.
+const TransferCategoryId = z.enum([
+  "preferences",
+  "chats",
+  "harness",
+  "generations",
+  "agentic",
+  "credentials",
+]);
+
+export const DataCategoriesRequest = z.object({}).strict();
+export const DataCategoriesResponse = z.object({
+  categories: z.array(
+    z.object({
+      id: TransferCategoryId,
+      label: z.string(),
+      description: z.string(),
+      sensitive: z.boolean().optional(),
+    }),
+  ),
+});
+
+export const DataExportRequest = z
+  .object({
+    categories: z.array(TransferCategoryId).min(1),
+    outPath: z.string().min(1),
+    // Defaults to false on purpose: credentials must be an explicit choice at
+    // the call site, never something a missing field turns on.
+    includeCredentials: z.boolean().optional(),
+  })
+  .strict();
+export const DataExportResponse = z.object({
+  path: z.string(),
+  bytes: z.number(),
+  empty: z.array(TransferCategoryId),
+});
+
+export const DataImportRequest = z
+  .object({
+    archivePath: z.string().min(1),
+    dryRun: z.boolean().optional(),
+    categories: z.array(TransferCategoryId).optional(),
+  })
+  .strict();
+export const DataImportResponse = z.object({
+  applied: z.array(TransferCategoryId),
+  skipped: z.array(TransferCategoryId),
+  dryRun: z.boolean(),
+  backupPath: z.string().nullable(),
 });
 
 export const SkillsListRequest = z.object({}).strict();
@@ -2129,6 +2183,9 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
   "chat.explorer.listMessages": { request: ChatExplorerListMessagesRequest, response: ChatExplorerListMessagesResponse, implemented: true },
   "chat.explorer.search": { request: ChatExplorerSearchRequest, response: ChatExplorerSearchResponse, implemented: true },
   "chat.generateTitle": { request: ChatGenerateTitleRequest, response: ChatGenerateTitleResponse, implemented: true },
+  "data.categories": { request: DataCategoriesRequest, response: DataCategoriesResponse, implemented: true },
+  "data.export": { request: DataExportRequest, response: DataExportResponse, implemented: true },
+  "data.import": { request: DataImportRequest, response: DataImportResponse, implemented: true },
   "diffusion.health": {
     request: DiffusionEmptyRequest,
     response: DiffusionHealthResponse,

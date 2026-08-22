@@ -143,6 +143,10 @@ describe("sidecar handlers", () => {
           "chat.explorer.listMessages",
           "chat.explorer.search",
           "chat.generateTitle",
+          // v2.2.0 Phase 8 (DF-16) wired local data export / import.
+          "data.categories",
+          "data.export",
+          "data.import",
           // v1.10.0 Phase 6 wired the Nexus-Hub catalog sync + update detection.
           "skills.sync",
           "skills.status",

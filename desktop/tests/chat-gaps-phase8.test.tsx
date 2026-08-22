@@ -73,7 +73,8 @@ describe("DF-13: first message names the chat", () => {
     expect(screen.getByText("New chat")).toBeTruthy();
 
     const chat = client.listTree().chats[0];
-    client.renameChat(chat.id, "Renamed elsewhere");
+    expect(chat).toBeDefined();
+    client.renameChat((chat as { id: string }).id, "Renamed elsewhere");
     // Without the token the rail keeps a stale row: the rename happened in
     // the message pane, not in the tree.
     rerender(<FolderTree client={client} refreshToken={1} />);
