@@ -10,6 +10,9 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+import { useModelResidency } from "../../shared/models/useModelResidency";
+import { ModelSwitchChip, ModelSwitchDialog } from "../../shared/models/ModelSwitchDialog";
 import { SidecarDownBanner } from "../../components/SidecarDownBanner";
 import {
   isBackendDownMessage,
@@ -76,6 +79,17 @@ export interface VideoLabPageProps {
   readonly diffusionTier?: DiffusionTierId;
   readonly vramGB?: number;
   readonly queueClient?: GenerationQueueClient;
+  /**
+   * v2.2.0 Phase 8 (DF-9/10/11): free VRAM from live telemetry. `null` (the
+   * default) means telemetry is unreadable, which the policy treats as "ask
+   * the user" rather than guessing a fit.
+   */
+  readonly hostVramFreeGB?: number | null;
+  /** The scheduler's active job, so the policy knows what would be evicted. */
+  readonly activeSchedulerJob?: {
+    moduleId: "coding" | "chat" | "image" | "video" | "tuning";
+    jobType: string;
+  } | null;
 }
 
 let messageSeq = 0;
@@ -95,6 +109,8 @@ export function VideoLabPage({
   diffusionTier = "diffusion-mid",
   vramGB = 0,
   queueClient: queueOverride,
+  hostVramFreeGB = null,
+  activeSchedulerJob = null,
 }: VideoLabPageProps = {}): JSX.Element {
   const tierClip = getDiffusionTierConfig(diffusionTier).video.clipSeconds || 4;
   const canAvatar = avatarAvailable(diffusionTier, vramGB);
@@ -137,6 +153,18 @@ export function VideoLabPage({
   } | null>(null);
 
   const isGenerating = activeJob !== null;
+  // v2.2.0 Phase 8 (DF-9/10/11): the same single-GPU switch policy Image
+  // Studio has used since Phase 4. Video is the tab most likely to collide
+  // with agentic work, and it was the one still loading unconditionally.
+  // Classification happens on SUBMIT only: mounting this route must never
+  // change residency, which is the accidental-tab-click case.
+  const residency = useModelResidency();
+  // Holds the prompt whose submit opened the dialog, so "Switch now" resumes
+  // the SAME request instead of losing it.
+  const pendingPromptRef = useRef<{ text: string; attachments: readonly string[] }>({
+    text: "",
+    attachments: [],
+  });
 
   // Installed video models for the selector (Phase 4 feed). Falls back to a
   // single default when the sidecar is unavailable so generation still works.
@@ -349,6 +377,34 @@ export function VideoLabPage({
   const handleSubmit = useCallback(
     async (text: string, attachments: readonly string[]): Promise<void> => {
       if (isGenerating) return;
+      const selected = models.find((m) => m.id === selectedModelId);
+      const verdict = residency.request({
+        targetModelId: selectedModelId,
+        targetVramGB: selected?.vramGB ?? 0,
+        requestingModule: "video",
+        resident: residency.resident,
+        freeVramGB: hostVramFreeGB,
+        activeJob: activeSchedulerJob,
+        installed: Boolean(selected?.installed ?? true),
+      });
+      if (verdict.kind === "confirm") {
+        pendingPromptRef.current = { text, attachments };
+        return; // dialog is open; the answer re-enters this path
+      }
+      if (verdict.kind === "not-installed" || verdict.kind === "defer") {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: nextId("vassistant"),
+            role: "assistant",
+            content:
+              verdict.kind === "not-installed"
+                ? `${selectedModelId} is not installed. Install it in Settings > Models.`
+                : `Cannot load ${selectedModelId} right now: ${verdict.reason}`,
+          },
+        ]);
+        return;
+      }
       const intent = inferVideoIntent({ text, attachments, avatarEnabled: canAvatar });
       const userMsg: ChatMessage = {
         id: nextId("vuser"),
@@ -541,6 +597,22 @@ export function VideoLabPage({
           models settings
         </a>
       </header>
+      {residency.pending && (
+        <ModelSwitchDialog
+          pending={residency.pending}
+          onResolve={(resolution) => {
+            const resolved = residency.resolvePending(resolution);
+            if (resolved && resolved.kind !== "confirm") {
+              // The user agreed: re-enter the submit path with consent applied.
+              const resumed = pendingPromptRef.current;
+              pendingPromptRef.current = { text: "", attachments: [] };
+              void handleSubmit(resumed.text, resumed.attachments);
+            }
+          }}
+          onExpire={() => residency.dismissPending()}
+        />
+      )}
+      <ModelSwitchChip switching={residency.switching} />
       {backendDown && (
         <SidecarDownBanner
           status={sidecar.status}

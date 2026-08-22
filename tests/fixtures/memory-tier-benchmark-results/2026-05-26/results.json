@@ -10,7 +10,7 @@
   "pruned": {
     "onDiskBytes": 574202,
     "ingestMs": 1,
-    "compactMs": 1213
+    "compactMs": 1215
   },
   "storageRatio": 0.1859,
   "storageRatioPercent": "18.59%",
