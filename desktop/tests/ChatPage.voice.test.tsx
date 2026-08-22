@@ -60,19 +60,31 @@ describe("ChatPage voice loop", () => {
     );
     await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
     await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
-    fireEvent.click(screen.getByTestId("chat-voice-enabled"));
+    // v2.2.0 Phase 5 (5.4): the five-button voice row is gone. The same
+    // voiceLoop machine is now driven from the composer's mic menu.
+    const openMicMenu = async (): Promise<void> => {
+      await user.click(screen.getByTestId("media-composer-mic-menu-toggle"));
+    };
+    await openMicMenu();
+    fireEvent.click(screen.getByTestId("media-composer-voice-voice-loop"));
     expect(screen.getByTestId("chat-voice-capture-indicator")).toHaveAttribute(
       "data-visible",
       "false",
     );
-    fireEvent.mouseDown(screen.getByTestId("chat-voice-ptt"));
+    // Select push-to-talk, then trigger it: first click arms the mode, the
+    // second starts capture.
+    await openMicMenu();
+    fireEvent.click(screen.getByTestId("media-composer-voice-ptt"));
+    await openMicMenu();
+    fireEvent.click(screen.getByTestId("media-composer-voice-ptt"));
     await waitFor(() =>
       expect(screen.getByTestId("chat-voice-capture-indicator")).toHaveAttribute(
         "data-visible",
         "true",
       ),
     );
-    fireEvent.mouseUp(screen.getByTestId("chat-voice-ptt"));
+    await openMicMenu();
+    fireEvent.click(screen.getByTestId("media-composer-voice-ptt"));
     expect(await screen.findByText("spoken reply")).toBeInTheDocument();
     await waitFor(() => expect(played.length).toBeGreaterThan(0));
     expect(audio.speakCalls.some((t) => t.includes("spoken reply"))).toBe(true);
@@ -104,16 +116,24 @@ describe("ChatPage voice loop", () => {
     );
     await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
     await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
-    fireEvent.click(screen.getByTestId("chat-voice-enabled"));
-    fireEvent.click(screen.getByTestId("chat-voice-mode-vad"));
-    fireEvent.click(screen.getByTestId("chat-voice-vad-toggle"));
+    const openMicMenu = async (): Promise<void> => {
+      await user.click(screen.getByTestId("media-composer-mic-menu-toggle"));
+    };
+    await openMicMenu();
+    fireEvent.click(screen.getByTestId("media-composer-voice-voice-loop"));
+    // First VAD click arms the mode; the second starts capture.
+    await openMicMenu();
+    fireEvent.click(screen.getByTestId("media-composer-voice-vad"));
+    await openMicMenu();
+    fireEvent.click(screen.getByTestId("media-composer-voice-vad"));
     await waitFor(() =>
       expect(screen.getByTestId("chat-voice-capture-indicator")).toHaveAttribute(
         "data-visible",
         "true",
       ),
     );
-    fireEvent.click(screen.getByTestId("chat-voice-vad-toggle"));
+    await openMicMenu();
+    fireEvent.click(screen.getByTestId("media-composer-voice-vad"));
     expect(await screen.findByText("ok")).toBeInTheDocument();
   });
 });

@@ -7,7 +7,9 @@
  *   - compact model switcher (installed-and-ready LLMs + Get more models)
  *   - per-folder `enableTools` toggle (default off; power users opt in)
  *
- * The page consumes an `InMemoryChatExplorerClient` for now (Phase 4 stub);
+ * v2.2.0 Phase 5 (5.1): the page persists through the sidecar's SQLite store
+ * when running inside Tauri, falling back to the in-memory client elsewhere.
+ * Historically (Phase 4 stub):
  * the IPC-backed client lands once the sidecar shared-core build closes
  * known-gap 3.P1.N.
  */
@@ -16,6 +18,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FolderTree, type SelectedNode } from "./FolderTree";
 import { Breadcrumb } from "./Breadcrumb";
 import { InMemoryChatExplorerClient } from "./chatExplorerClient";
+import {
+  createIpcChatExplorerClient,
+  tauriAvailable,
+} from "./ipcChatExplorerClient";
 import type {
   ChatExplorerClient,
 } from "./chatExplorerClient";
@@ -136,7 +142,14 @@ export function ChatPage({
   // The client survives re-renders but is recreated per ChatPage instance.
   // Tests can inject one via the prop so they observe state changes.
   const [internalClient] = useState<ChatExplorerClient>(
-    () => clientOverride ?? new InMemoryChatExplorerClient(),
+    // v2.2.0 Phase 5 (5.1): the app now persists to SQLite through the sidecar
+    // (closes 3.P1.N). The in-memory client remains the fallback for tests and
+    // for running outside Tauri, where there is no sidecar to talk to.
+    () =>
+      clientOverride ??
+      (tauriAvailable()
+        ? (createIpcChatExplorerClient() as unknown as ChatExplorerClient)
+        : new InMemoryChatExplorerClient()),
   );
   const client = clientOverride ?? internalClient;
   const [chatSession] = useState<ChatSessionClient>(
@@ -164,6 +177,9 @@ export function ChatPage({
     () => audioClientOverride ?? createIpcAudioClient(),
   );
   const [personaByChat, setPersonaByChat] = useState<Record<string, string>>({});
+  // v2.2.0 Phase 5 (5.4): the persona left the always-on textarea under the
+  // composer and became a per-chat setting behind a header gear.
+  const [personaOpen, setPersonaOpen] = useState(false);
   const [voiceLoop, setVoiceLoop] = useState<VoiceLoopState>(INITIAL_VOICE_LOOP);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const ttsAbortRef = useRef<AbortController | null>(null);
@@ -640,6 +656,56 @@ export function ChatPage({
     voiceLoop.phase,
   ]);
 
+  // v2.2.0 Phase 5 (5.4): the mic menu's entries, wired to the SAME voiceLoop
+  // state machine the old button row drove. Nothing was dropped -- Voice loop,
+  // push-to-talk, VAD and hold-to-talk are all still reachable, just not as
+  // five flat buttons above the composer.
+  const voiceModes = useMemo(
+    () => [
+      {
+        id: "voice-loop",
+        label: voiceEnabled ? "Turn voice loop off" : "Turn voice loop on",
+        active: voiceEnabled,
+        onSelect: () => {
+          setVoiceEnabled((prev) => {
+            if (prev) dispatchVoice({ type: "reset" });
+            return !prev;
+          });
+        },
+      },
+      {
+        id: "ptt",
+        // Selecting this arms push-to-talk; the composer's mic button is then
+        // the hold target, which is why the old dedicated "Hold to talk"
+        // button is no longer needed.
+        label: voiceLoop.mode === "ptt" && voiceLoop.phase === "recording" ? "Release to send" : "Push to talk",
+        active: voiceEnabled && voiceLoop.mode === "ptt",
+        onSelect: () => {
+          if (voiceLoop.mode !== "ptt") {
+            dispatchVoice({ type: "set-mode", mode: "ptt" });
+            return;
+          }
+          if (voiceLoop.phase === "recording") onPttUp();
+          else onPttDown();
+        },
+      },
+      {
+        id: "vad",
+        label:
+          voiceLoop.mode === "vad" && voiceLoop.phase === "recording" ? "Stop VAD" : "Start VAD",
+        active: voiceEnabled && voiceLoop.mode === "vad",
+        onSelect: () => {
+          if (voiceLoop.mode !== "vad") {
+            dispatchVoice({ type: "set-mode", mode: "vad" as VoiceCaptureMode });
+            return;
+          }
+          onVadToggle();
+        },
+      },
+    ],
+    [voiceEnabled, voiceLoop.mode, voiceLoop.phase, dispatchVoice, onVadToggle, onPttDown, onPttUp],
+  );
+
   return (
     <section
       data-testid="chat-page"
@@ -668,6 +734,64 @@ export function ChatPage({
       <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "var(--space-4)", gap: "var(--space-3)" }}>
         <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "var(--space-3)" }}>
           <Breadcrumb ancestors={breadcrumbAncestors} />
+          <button
+            type="button"
+            data-testid="chat-persona-toggle"
+            aria-label="Chat settings"
+            aria-expanded={personaOpen}
+            disabled={!activeChat}
+            onClick={() => setPersonaOpen((v) => !v)}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "var(--fg-muted)",
+              cursor: activeChat ? "pointer" : "default",
+              fontSize: "var(--text-sm)",
+            }}
+          >
+            {"⚙"}
+          </button>
+          {personaOpen && activeChat ? (
+            <div
+              data-testid="chat-persona-popover"
+              style={{
+                position: "absolute",
+                right: "var(--space-4)",
+                top: "2.5rem",
+                zIndex: 30,
+                width: "22rem",
+                padding: "var(--space-3)",
+                borderRadius: "var(--radius-md)",
+                border: "1px solid var(--border-subtle, #2a2a2a)",
+                background: "var(--bg-elevated, #1b1b1b)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "var(--space-2)",
+              }}
+            >
+              <label style={{ fontSize: "var(--text-sm)", color: "var(--fg-muted)" }}>
+                Persona for this chat
+              </label>
+              <textarea
+                data-testid="chat-persona"
+                rows={3}
+                value={personaByChat[activeChat.id] ?? ""}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setPersonaByChat((prev) => ({ ...prev, [activeChat.id]: next }));
+                  // Persisted, unlike the pre-v2.2.0 React-only state that
+                  // silently vanished on reload.
+                  void (
+                    client as ChatExplorerClient & {
+                      setPersona?: (id: string, persona: string | null) => Promise<void>;
+                    }
+                  ).setPersona?.(activeChat.id, next.trim() ? next : null);
+                }}
+                placeholder="Optional system prompt for this chat"
+                style={{ resize: "vertical", width: "100%", boxSizing: "border-box" }}
+              />
+            </div>
+          ) : null}
           <span style={{ display: "flex", gap: "var(--space-3)", alignItems: "center" }}>
             <label style={{ display: "flex", gap: "var(--space-2)", color: "var(--fg-muted)", fontSize: "var(--text-sm)" }}>
               <input
@@ -739,92 +863,33 @@ export function ChatPage({
                 </a>
               </div>
             ) : null}
-            <div
-              data-testid="chat-voice-bar"
-              style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)", alignItems: "center" }}
+            {/*
+              v2.2.0 Phase 5 (5.4): the capture indicator survives the voice-row
+              removal. Knowing whether the microphone is open is real feedback,
+              not chrome -- it just does not need four buttons beside it.
+            */}
+            <span
+              data-testid="chat-voice-capture-indicator"
+              data-visible={voiceLoop.captureVisible ? "true" : "false"}
+              role="status"
+              aria-live="polite"
+              style={{
+                fontSize: "var(--text-xs)",
+                color: voiceLoop.captureVisible ? "var(--accent-chatbot)" : "var(--fg-muted)",
+              }}
             >
-              <label style={{ display: "flex", gap: "var(--space-2)", fontSize: "var(--text-sm)", color: "var(--fg-muted)" }}>
-                <input
-                  type="checkbox"
-                  data-testid="chat-voice-enabled"
-                  checked={voiceEnabled}
-                  onChange={(e) => {
-                    setVoiceEnabled(e.target.checked);
-                    if (!e.target.checked) dispatchVoice({ type: "reset" });
-                  }}
-                />
-                Voice loop
-              </label>
-              <button
-                type="button"
-                data-testid="chat-voice-mode-ptt"
-                disabled={!voiceEnabled}
-                onClick={() => dispatchVoice({ type: "set-mode", mode: "ptt" })}
-                style={getMoreModelsStyle}
-              >
-                Push to talk
-              </button>
-              <button
-                type="button"
-                data-testid="chat-voice-mode-vad"
-                disabled={!voiceEnabled}
-                onClick={() => dispatchVoice({ type: "set-mode", mode: "vad" as VoiceCaptureMode })}
-                style={getMoreModelsStyle}
-              >
-                VAD
-              </button>
-              <button
-                type="button"
-                data-testid="chat-voice-ptt"
-                disabled={!voiceEnabled || voiceLoop.mode !== "ptt"}
-                onMouseDown={onPttDown}
-                onMouseUp={onPttUp}
-                onTouchStart={onPttDown}
-                onTouchEnd={onPttUp}
-                style={getMoreModelsStyle}
-              >
-                Hold to talk
-              </button>
-              <button
-                type="button"
-                data-testid="chat-voice-vad-toggle"
-                disabled={!voiceEnabled || voiceLoop.mode !== "vad"}
-                onClick={onVadToggle}
-                style={getMoreModelsStyle}
-              >
-                {voiceLoop.mode === "vad" && voiceLoop.phase === "recording" ? "Stop VAD" : "Start VAD"}
-              </button>
-              <span
-                data-testid="chat-voice-capture-indicator"
-                data-visible={voiceLoop.captureVisible ? "true" : "false"}
-                role="status"
-                aria-live="polite"
-                style={{
-                  fontSize: "var(--text-xs)",
-                  color: voiceLoop.captureVisible ? "var(--accent-chatbot)" : "var(--fg-muted)",
-                }}
-              >
-                {voiceLoop.captureVisible ? "Recording -- microphone is open" : "Mic closed"}
-              </span>
-            </div>
-            <label style={{ display: "flex", flexDirection: "column", gap: "var(--space-1)", color: "var(--fg-muted)", fontSize: "var(--text-sm)" }}>
-              Persona
-              <textarea
-                data-testid="chat-persona"
-                rows={2}
-                value={activeChat ? (personaByChat[activeChat.id] ?? "") : ""}
-                onChange={(e) => {
-                  if (!activeChat) return;
-                  const next = e.target.value;
-                  setPersonaByChat((prev) => ({ ...prev, [activeChat.id]: next }));
-                }}
-                placeholder="Optional system prompt for this chat"
-                style={{ resize: "vertical" }}
-              />
-            </label>
+              {voiceLoop.captureVisible ? "Recording -- microphone is open" : "Mic closed"}
+            </span>
+            {/*
+              v2.2.0 Phase 5 (5.4): the five-button voice row and the always-on
+              Persona textarea are gone. Every voice capability now lives in the
+              composer's mic menu, and the persona moved into the chat header
+              popover where it is also persisted.
+            */}
             <MediaComposer
               onSubmit={(text, attachments) => void handleSubmit(text, attachments)}
               submitAccentVar="--accent-chatbot"
+              voiceModes={voiceModes}
               accept={chatComposerAccept({ allowImages: imageGate.enabled, allowAudio: true })}
               placeholder="Type a message, attach a document, or record audio to transcribe locally."
               streaming={messages.some((m) => m.pending)}
@@ -841,6 +906,7 @@ export function ChatPage({
 }
 
 function dataUrlToBytes(dataUrl: string): Uint8Array {
+
   const b64 = stripDataUrlPrefix(dataUrl);
   if (typeof Buffer !== "undefined") return new Uint8Array(Buffer.from(b64, "base64"));
   const bin = atob(b64);

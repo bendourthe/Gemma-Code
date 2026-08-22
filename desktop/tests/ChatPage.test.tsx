@@ -81,6 +81,9 @@ describe("<ChatPage>", () => {
     render(<ChatPage client={client} chatSession={chatSession} />);
     await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
     await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
+    // v2.2.0 Phase 5 (5.4): the persona left the always-on textarea under the
+    // composer and now lives behind the chat header's settings gear.
+    await user.click(screen.getByTestId("chat-persona-toggle"));
     fireEvent.change(screen.getByTestId("chat-persona"), { target: { value: "Be terse." } });
     fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "hello" } });
     fireEvent.click(screen.getByTestId("media-composer-submit"));

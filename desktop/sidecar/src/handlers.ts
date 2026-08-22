@@ -71,6 +71,18 @@ import {
   type AudioHealthResponseT,
   type AudioTranscribeResponseT,
   type AudioSpeakResponseT,
+  ChatExplorerCreateChatRequest,
+  ChatExplorerCreateFolderRequest,
+  ChatExplorerIdRequest,
+  ChatExplorerListMessagesRequest,
+  ChatExplorerMoveChatRequest,
+  ChatExplorerMoveFolderRequest,
+  ChatExplorerRenameChatRequest,
+  ChatExplorerRenameFolderRequest,
+  ChatExplorerSearchRequest,
+  ChatExplorerSetPersonaRequest,
+  ChatExplorerAppendMessageRequest,
+  ChatGenerateTitleRequest,
   SkillsSyncRequest,
   SkillsAutoSyncGetRequest,
   SkillsAutoSyncSetRequest,
@@ -162,6 +174,8 @@ import {
 import { createModelsRuntime, type ModelsRuntime } from "./models/modelsService.js";
 import { sampleGpu } from "./telemetry/gpuRuntime.js";
 import { readHubCatalog, readHubCommands } from "./skills/hubSkillReader.js";
+import { generateChatTitle } from "./chat/titleGenerator.js";
+import type { ChatExplorerOps } from "./chat/explorerRuntime.js";
 import { NEXUS_HUB_AUTO_SYNC_SETTING_KEY } from "../../../core/skills/NexusHubAutoSync.js";
 import { createServingRuntime, type ServingRuntime } from "./serving/servingRuntime.js";
 import {
@@ -376,6 +390,30 @@ function resolveSettings(ctx: HandlerContext): SettingsStore {
           });
   }
   return _settingsStore;
+}
+
+let _explorerOps: ChatExplorerOps | null = null;
+/**
+ * Lazily build the chat-explorer ops.
+ *
+ * The import is dynamic on purpose: `ChatExplorerStore` pulls in
+ * `better-sqlite3` (a native module) and, through `src/storage/dbPermissions`,
+ * a vscode-coupled logger. Importing it statically here would drag both into
+ * every consumer of this module -- which broke ~30 handler test files at
+ * collection time. Deferring it also means a session that never opens the chat
+ * tab never loads the native binding or creates a database file.
+ */
+async function explorerOps(): Promise<ChatExplorerOps> {
+  if (!_explorerOps) {
+    const mod = await import("./chat/explorerRuntime.js");
+    _explorerOps = mod.createChatExplorerOps();
+  }
+  return _explorerOps;
+}
+
+/** Test seam: drop the memoized explorer ops. */
+export function resetExplorerOps(): void {
+  _explorerOps = null;
 }
 
 function resolveAudit(ctx: HandlerContext): AuditLog {
@@ -913,6 +951,39 @@ export const handlers: Record<Method, HandlerFn> = {
       commands: present ? await readHubCommands(root) : [],
       catalogPresent: present,
     };
+  },
+  // v2.2.0 Phase 5 (5.1): persistent chat explorer. Every op resolves the
+  // store lazily, so a session that never opens the chat tab never creates a
+  // database file.
+  "chat.explorer.tree": async () => (await explorerOps()).tree(),
+  "chat.explorer.createFolder": async (params) =>
+    (await explorerOps()).createFolder(ChatExplorerCreateFolderRequest.parse(params ?? {})),
+  "chat.explorer.renameFolder": async (params) =>
+    (await explorerOps()).renameFolder(ChatExplorerRenameFolderRequest.parse(params ?? {})),
+  "chat.explorer.moveFolder": async (params) =>
+    (await explorerOps()).moveFolder(ChatExplorerMoveFolderRequest.parse(params ?? {})),
+  "chat.explorer.deleteFolder": async (params) =>
+    (await explorerOps()).deleteFolder(ChatExplorerIdRequest.parse(params ?? {})),
+  "chat.explorer.createChat": async (params) =>
+    (await explorerOps()).createChat(ChatExplorerCreateChatRequest.parse(params ?? {})),
+  "chat.explorer.renameChat": async (params) =>
+    (await explorerOps()).renameChat(ChatExplorerRenameChatRequest.parse(params ?? {})),
+  "chat.explorer.moveChat": async (params) =>
+    (await explorerOps()).moveChat(ChatExplorerMoveChatRequest.parse(params ?? {})),
+  "chat.explorer.deleteChat": async (params) =>
+    (await explorerOps()).deleteChat(ChatExplorerIdRequest.parse(params ?? {})),
+  "chat.explorer.setPersona": async (params) =>
+    (await explorerOps()).setPersona(ChatExplorerSetPersonaRequest.parse(params ?? {})),
+  "chat.explorer.appendMessage": async (params) =>
+    (await explorerOps()).appendMessage(ChatExplorerAppendMessageRequest.parse(params ?? {})),
+  "chat.explorer.listMessages": async (params) =>
+    (await explorerOps()).listMessages(ChatExplorerListMessagesRequest.parse(params ?? {})),
+  "chat.explorer.search": async (params) =>
+    (await explorerOps()).search(ChatExplorerSearchRequest.parse(params ?? {})),
+  // v2.2.0 Phase 5 (5.3): name a chat from its first message.
+  "chat.generateTitle": async (params, ctx) => {
+    const req = ChatGenerateTitleRequest.parse(params ?? {});
+    return generateChatTitle(req, ctx);
   },
   "skills.upstreamLatest": async (): Promise<SkillsUpstreamLatestResponseT> => {
     try {

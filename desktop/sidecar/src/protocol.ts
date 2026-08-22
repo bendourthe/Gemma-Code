@@ -78,6 +78,21 @@ export const IPC_METHODS = [
   "skills.autoSync.get",
   "skills.autoSync.set",
   "commands.list",
+  // v2.2.0 Phase 5 (5.1): persistent chat explorer (closes 3.P1.N).
+  "chat.explorer.tree",
+  "chat.explorer.createFolder",
+  "chat.explorer.renameFolder",
+  "chat.explorer.moveFolder",
+  "chat.explorer.deleteFolder",
+  "chat.explorer.createChat",
+  "chat.explorer.renameChat",
+  "chat.explorer.moveChat",
+  "chat.explorer.deleteChat",
+  "chat.explorer.setPersona",
+  "chat.explorer.appendMessage",
+  "chat.explorer.listMessages",
+  "chat.explorer.search",
+  "chat.generateTitle",
   "skills.optimize.preview",
   "skills.optimize.apply",
   "telemetry.subscribe",
@@ -565,6 +580,98 @@ export const DiffusionEmptyRequest = z.object({}).strict();
 
 // v2.2.0 Phase 2 (2.4) -- GPU telemetry sample for the status widget.
 // v2.2.0 Phase 3 (3.2) -- installed skills listing for Settings > Skills.
+// v2.2.0 Phase 5 (5.1) -- chat explorer persistence.
+const ChatFolderDto = z.object({
+  id: z.string(),
+  parentId: z.string().nullable(),
+  name: z.string(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+  color: z.string().nullable().optional(),
+  icon: z.string().nullable().optional(),
+});
+const ChatChatDto = z.object({
+  id: z.string(),
+  folderId: z.string().nullable(),
+  title: z.string(),
+  modelId: z.string(),
+  contextScopeId: z.string().nullable(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+  messageCount: z.number(),
+  persona: z.string().nullable().optional(),
+  userRenamed: z.boolean().optional(),
+});
+const ChatMessageDto = z.object({
+  id: z.string(),
+  chatId: z.string(),
+  role: z.enum(["user", "assistant"]),
+  content: z.string(),
+  attachments: z.array(z.string()),
+  createdAt: z.number(),
+});
+// The tree is recursive; validate the leaf shapes and pass the nesting
+// through rather than fighting zod's recursive typing for an internal DTO.
+export const ChatExplorerTreeRequest = z.object({}).strict();
+export const ChatExplorerTreeResponse = z.object({ tree: z.unknown() });
+export const ChatExplorerCreateFolderRequest = z
+  .object({ parentId: z.string().nullable(), name: z.string().min(1) })
+  .strict();
+export const ChatExplorerFolderResponse = ChatFolderDto;
+export const ChatExplorerRenameFolderRequest = z
+  .object({ id: z.string(), name: z.string().min(1) })
+  .strict();
+export const ChatExplorerMoveFolderRequest = z
+  .object({ id: z.string(), parentId: z.string().nullable() })
+  .strict();
+export const ChatExplorerIdRequest = z.object({ id: z.string() }).strict();
+export const ChatExplorerOkResponse = z.object({ ok: z.literal(true) });
+export const ChatExplorerCreateChatRequest = z
+  .object({
+    folderId: z.string().nullable(),
+    title: z.string().min(1),
+    modelId: z.string().min(1),
+  })
+  .strict();
+export const ChatExplorerChatResponse = ChatChatDto;
+export const ChatExplorerRenameChatRequest = z
+  .object({ id: z.string(), title: z.string().min(1), byUser: z.boolean().optional() })
+  .strict();
+export const ChatExplorerMoveChatRequest = z
+  .object({ id: z.string(), folderId: z.string().nullable() })
+  .strict();
+export const ChatExplorerSetPersonaRequest = z
+  .object({ id: z.string(), persona: z.string().nullable() })
+  .strict();
+export const ChatExplorerAppendMessageRequest = z
+  .object({
+    chatId: z.string(),
+    role: z.enum(["user", "assistant"]),
+    content: z.string(),
+    attachments: z.array(z.string()).optional(),
+  })
+  .strict();
+export const ChatExplorerListMessagesRequest = z
+  .object({ chatId: z.string(), limit: z.number().int().positive().optional() })
+  .strict();
+export const ChatExplorerListMessagesResponse = z.object({
+  messages: z.array(ChatMessageDto),
+});
+export const ChatExplorerSearchRequest = z
+  .object({ query: z.string(), limit: z.number().int().positive().optional() })
+  .strict();
+export const ChatExplorerSearchResponse = z.object({ hits: z.array(z.unknown()) });
+
+// v2.2.0 Phase 5 (5.3) -- auto-title a chat from its first message.
+export const ChatGenerateTitleRequest = z
+  .object({ chatId: z.string(), firstMessage: z.string().min(1), modelId: z.string().optional() })
+  .strict();
+export const ChatGenerateTitleResponse = z.object({
+  title: z.string(),
+  /** "model" when a local model produced it, "fallback" when derived locally. */
+  source: z.enum(["model", "fallback"]),
+});
+
 export const SkillsListRequest = z.object({}).strict();
 export const SkillsListResponse = z.object({
   skills: z.array(
@@ -2008,6 +2115,20 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
   "skills.autoSync.get": { request: SkillsAutoSyncGetRequest, response: SkillsAutoSyncGetResponse, implemented: true },
   "skills.autoSync.set": { request: SkillsAutoSyncSetRequest, response: SkillsAutoSyncSetResponse, implemented: true },
   "commands.list": { request: CommandsListRequest, response: CommandsListResponse, implemented: true },
+  "chat.explorer.tree": { request: ChatExplorerTreeRequest, response: ChatExplorerTreeResponse, implemented: true },
+  "chat.explorer.createFolder": { request: ChatExplorerCreateFolderRequest, response: ChatExplorerFolderResponse, implemented: true },
+  "chat.explorer.renameFolder": { request: ChatExplorerRenameFolderRequest, response: ChatExplorerFolderResponse, implemented: true },
+  "chat.explorer.moveFolder": { request: ChatExplorerMoveFolderRequest, response: ChatExplorerFolderResponse, implemented: true },
+  "chat.explorer.deleteFolder": { request: ChatExplorerIdRequest, response: ChatExplorerOkResponse, implemented: true },
+  "chat.explorer.createChat": { request: ChatExplorerCreateChatRequest, response: ChatExplorerChatResponse, implemented: true },
+  "chat.explorer.renameChat": { request: ChatExplorerRenameChatRequest, response: ChatExplorerChatResponse, implemented: true },
+  "chat.explorer.moveChat": { request: ChatExplorerMoveChatRequest, response: ChatExplorerChatResponse, implemented: true },
+  "chat.explorer.deleteChat": { request: ChatExplorerIdRequest, response: ChatExplorerOkResponse, implemented: true },
+  "chat.explorer.setPersona": { request: ChatExplorerSetPersonaRequest, response: ChatExplorerOkResponse, implemented: true },
+  "chat.explorer.appendMessage": { request: ChatExplorerAppendMessageRequest, response: ChatMessageDto, implemented: true },
+  "chat.explorer.listMessages": { request: ChatExplorerListMessagesRequest, response: ChatExplorerListMessagesResponse, implemented: true },
+  "chat.explorer.search": { request: ChatExplorerSearchRequest, response: ChatExplorerSearchResponse, implemented: true },
+  "chat.generateTitle": { request: ChatGenerateTitleRequest, response: ChatGenerateTitleResponse, implemented: true },
   "diffusion.health": {
     request: DiffusionEmptyRequest,
     response: DiffusionHealthResponse,

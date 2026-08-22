@@ -4,6 +4,48 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-22] v2.2.0 Phase 5 - Local Chatbot rebuild (storage, titling, composer)
+
+### Goal
+
+Make the Local Chatbot persistent and modern: conversations that survive a reload, chats that name themselves, and one composer surface instead of a textarea flanked by loose buttons (plan `docs/v2/v2.2/plans/v2.2.0-runtime-repair-and-ux-overhaul.md`, Phase 5).
+
+### What Changed
+
+- **Persistence (5.1, closes 3.P1.N)**: `ChatExplorerStore` gained a `chat_chat_messages` table, per-chat `persona`, and a `user_renamed` flag, migrated additively (`PRAGMA table_info` probe, since SQLite has no `ADD COLUMN IF NOT EXISTS`) so re-opening an existing database is a no-op. A message and its chat's counter move in ONE transaction: a message stored but not counted would make the rail disagree with the conversation. New `chat.explorer.*` IPC (13 methods) plus `IpcChatExplorerClient`, and `ChatPage` now uses it inside Tauri while keeping the in-memory client for tests and the dev server. Desktop chat previously held every message in a React Map, so reloading lost the conversation and the persona with it.
+- **Auto-titling (5.3)**: `chat.generateTitle` asks the ALREADY-RESIDENT local model for a 3-6 word title and degrades to a prompt-derived fallback on every failure path (no model, timeout, empty answer, unusable answer). It never triggers a model switch, because evicting the model a user is talking to in order to produce a label would be absurd. `renameChat` is split into a machine path and a `byUser` path so a generated title can never overwrite one the user chose.
+- **Composer (5.4)**: `MediaComposer` is now a single rounded surface with `+` inside-left and mic/send inside-right, absolutely positioned, with textarea padding reserved so typed text can never slide under the controls. It grows to about six lines then scrolls internally. The five-button voice row (Voice loop / Push to talk / VAD / Hold to talk / Start VAD) and the always-on Persona textarea are gone from `ChatPage`: every voice capability moved into the mic dropdown driving the SAME `voiceLoop` state machine, and the persona became a persisted per-chat setting behind a header gear. The mic-open indicator survived, because knowing whether the microphone is live is feedback, not chrome.
+
+### Why It Changed
+
+The user's report was specific: the chatbot "doesn't look like a chatbot", the + button "is poorly designed", and the chat surface was "far from modern". Underneath that, nothing persisted.
+
+### Deviations
+
+- **5.2 (the chat-first rail) is not done.** The storage supports root-level chats and always has, but `FolderTree` still shows "Create your first folder" and the page still needs a selected chat before the composer is useful. The user's "it only starts a chat when we create a folder" complaint is therefore still visible in the UI (DF-12).
+- Auto-titling is implemented and tested end to end but not yet called from `handleSubmit` (DF-13).
+- `CodingInput` still has its own composer; sharing the surface needs an overlay slot for its slash-command dropdown (DF-14).
+- Two import-graph traps were hit and fixed: importing `HandlerContext` into the title generator, and importing the store statically into `handlers.ts`, each of which drags a vscode-coupled logger (and, for the store, `better-sqlite3`) into every consumer. The store import is now dynamic, which also means a session that never opens the chat tab never loads the native binding or creates a database file.
+- A truncation off-by-error was caught by its own test: slicing a title to the 60-char cap and THEN appending an ellipsis produced 62 characters.
+
+### Test Results
+
+Root vitest **5410 passed / 12 skipped / 0 failed**; desktop vitest **1201 passed / 0 failed** (145 files), coverage 88.72% lines / 82.61% branches; `tsc -b` and eslint clean on touched files.
+
+### CI/CD
+
+No workflow changes: `shell-build.yml` already path-filters `desktop/**`, `core/**`, and `modules/**`. No installer files were touched.
+
+### Known Issues
+
+See `docs/v2/v2.2/known-gaps.md` (DF-12 rail not rebuilt, DF-13 titling not triggered on send, DF-14 CodingInput composer not shared).
+
+### Next
+
+Phase 6 - Shell UI Modernization.
+
+---
+
 ## [2026-08-22] v2.2.0 Phase 4 - Smart single-GPU model orchestration
 
 ### Goal

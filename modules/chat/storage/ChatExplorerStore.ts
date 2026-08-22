@@ -19,15 +19,17 @@ import { sanitizeFtsQuery } from "../../../src/storage/embeddingUtils.js";
 import { createFtsTableAndTriggers } from "../../../src/storage/sqliteFts.js";
 import { secureDbPermissions } from "../../../src/storage/dbPermissions.js";
 import type {
+  AppendMessageInput,
   Chat,
   ChatExplorerSearchHit,
+  ChatMessageRecord,
   CreateChatInput,
   CreateFolderInput,
   Folder,
   FolderTreeNode,
 } from "./ChatExplorerStore.types.js";
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 interface FolderRow {
   id: string;
@@ -48,6 +50,19 @@ interface ChatRow {
   created_at: number;
   updated_at: number;
   message_count: number;
+  // v2.2.0 Phase 5: added by the v2 migration; older databases return
+  // undefined for these until the ALTER runs, hence the optional types.
+  persona?: string | null;
+  user_renamed?: number;
+}
+
+interface MessageRow {
+  id: string;
+  chat_id: string;
+  role: string;
+  content: string;
+  attachments: string | null;
+  created_at: number;
 }
 
 function rowToFolder(row: FolderRow): Folder {
@@ -72,6 +87,31 @@ function rowToChat(row: ChatRow): Chat {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     messageCount: row.message_count,
+    persona: row.persona ?? null,
+    // SQLite has no boolean; 1 means the user renamed this chat by hand and
+    // auto-titling must never overwrite it.
+    userRenamed: row.user_renamed === 1,
+  };
+}
+
+function rowToMessage(row: MessageRow): ChatMessageRecord {
+  let attachments: string[] = [];
+  if (row.attachments) {
+    try {
+      const parsed: unknown = JSON.parse(row.attachments);
+      if (Array.isArray(parsed)) attachments = parsed.filter((a): a is string => typeof a === "string");
+    } catch {
+      // A corrupt attachments blob must not make the whole message unreadable.
+      attachments = [];
+    }
+  }
+  return {
+    id: row.id,
+    chatId: row.chat_id,
+    role: row.role === "assistant" ? "assistant" : "user",
+    content: row.content,
+    attachments,
+    createdAt: row.created_at,
   };
 }
 
@@ -113,7 +153,26 @@ export class ChatExplorerStore {
       );
       CREATE INDEX IF NOT EXISTS idx_chat_chats_folder ON chat_chats(folder_id);
       CREATE INDEX IF NOT EXISTS idx_chat_chats_scope  ON chat_chats(context_scope_id);
+
+      -- v2.2.0 Phase 5: message turns. Before this the desktop chat held
+      -- messages in a React Map, so every conversation was lost on reload.
+      CREATE TABLE IF NOT EXISTS chat_chat_messages (
+        id          TEXT    PRIMARY KEY,
+        chat_id     TEXT    NOT NULL REFERENCES chat_chats(id) ON DELETE CASCADE,
+        role        TEXT    NOT NULL,
+        content     TEXT    NOT NULL,
+        attachments TEXT,
+        created_at  INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_chat_messages_chat
+        ON chat_chat_messages(chat_id, created_at);
     `);
+
+    // v2.2.0 Phase 5: additive columns. SQLite has no `ADD COLUMN IF NOT
+    // EXISTS`, so probe the table and add only what is missing -- this keeps
+    // the constructor idempotent on an already-migrated database.
+    this._addColumnIfMissing("chat_chats", "persona", "TEXT");
+    this._addColumnIfMissing("chat_chats", "user_renamed", "INTEGER NOT NULL DEFAULT 0");
 
     createFtsTableAndTriggers(this._db, {
       ftsTable: "chat_folders_fts",
@@ -430,6 +489,79 @@ export class ChatExplorerStore {
       cursor = row.parent_id;
     }
     return chain.reverse();
+  }
+
+  /** Add a column when absent. Idempotent; safe on every construction. */
+  private _addColumnIfMissing(table: string, column: string, definition: string): void {
+    const columns = this._db.prepare(`PRAGMA table_info(${table})`).all() as Array<{
+      name: string;
+    }>;
+    if (columns.some((c) => c.name === column)) return;
+    this._db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+
+  // ---- Messages (v2.2.0 Phase 5) -----------------------------------------
+
+  /** Append one message turn and bump the chat's counter in a single tx. */
+  appendMessage(input: AppendMessageInput): ChatMessageRecord {
+    const now = input.createdAt ?? Date.now();
+    const id = input.id ?? `msg-${now}-${Math.random().toString(36).slice(2, 10)}`;
+    const attachments =
+      input.attachments && input.attachments.length > 0
+        ? JSON.stringify(input.attachments)
+        : null;
+    // One transaction: a message that is stored but not counted (or the
+    // reverse) would make the rail disagree with the conversation.
+    const tx = this._db.transaction(() => {
+      this._db
+        .prepare(
+          `INSERT INTO chat_chat_messages (id, chat_id, role, content, attachments, created_at)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+        )
+        .run(id, input.chatId, input.role, input.content, attachments, now);
+      this._db
+        .prepare(
+          `UPDATE chat_chats SET message_count = message_count + 1, updated_at = ?
+           WHERE id = ?`,
+        )
+        .run(now, input.chatId);
+    });
+    tx();
+    return {
+      id,
+      chatId: input.chatId,
+      role: input.role,
+      content: input.content,
+      attachments: [...(input.attachments ?? [])],
+      createdAt: now,
+    };
+  }
+
+  listMessages(chatId: string, limit = 500): readonly ChatMessageRecord[] {
+    const rows = this._db
+      .prepare(
+        `SELECT * FROM chat_chat_messages WHERE chat_id = ?
+         ORDER BY created_at ASC, rowid ASC LIMIT ?`,
+      )
+      .all(chatId, limit) as MessageRow[];
+    return rows.map(rowToMessage);
+  }
+
+  /** Per-chat persona (system prompt). Persisted; previously React-only state. */
+  setPersona(chatId: string, persona: string | null): void {
+    this._db
+      .prepare(`UPDATE chat_chats SET persona = ?, updated_at = ? WHERE id = ?`)
+      .run(persona && persona.trim() ? persona : null, Date.now(), chatId);
+  }
+
+  /**
+   * Rename by the USER, which pins the title against auto-titling.
+   * `renameChat` stays the machine path so a generated title never sets it.
+   */
+  renameChatByUser(id: string, title: string): Chat {
+    const chat = this.renameChat(id, title);
+    this._db.prepare(`UPDATE chat_chats SET user_renamed = 1 WHERE id = ?`).run(id);
+    return { ...chat, userRenamed: true };
   }
 
   close(): void {

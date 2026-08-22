@@ -58,6 +58,20 @@ export interface MediaComposerProps {
   audioHint?: string;
   /** Tests inject a fake; production uses getUserMedia + MediaRecorder. */
   micRecorder?: MicRecorder;
+  /**
+   * v2.2.0 Phase 5 (5.4) -- voice modes for the mic menu. Chat passes Voice
+   * loop / VAD / Hold to talk here so those capabilities stay reachable
+   * without the five-button row that used to sit above the composer.
+   */
+  voiceModes?: readonly VoiceModeOption[];
+}
+
+/** One entry in the mic dropdown. */
+export interface VoiceModeOption {
+  readonly id: string;
+  readonly label: string;
+  readonly active?: boolean;
+  onSelect(): void;
 }
 
 /**
@@ -122,8 +136,12 @@ export function MediaComposer({
   audioEnabled = false,
   audioHint,
   micRecorder: micRecorderOverride,
+  voiceModes = [],
 }: MediaComposerProps): JSX.Element {
   const [text, setText] = useState("");
+  // v2.2.0 Phase 5 (5.4): mic menu + auto-grow ref (focus state already exists).
+  const [micMenuOpen, setMicMenuOpen] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [attachments, setAttachments] = useState<string[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -135,6 +153,15 @@ export function MediaComposer({
   useEffect(() => {
     if (seededAttachment) setAttachments((prev) => [...prev, seededAttachment]);
   }, [seededAttachment]);
+
+  // v2.2.0 Phase 5 (5.4): grow with the content up to the CSS max-height, then
+  // let it scroll. Without this the single-row field would clip a long message.
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [text]);
 
   const addFiles = async (files: FileList | null): Promise<void> => {
     if (!files || files.length === 0) return;
@@ -310,7 +337,17 @@ export function MediaComposer({
           Recording -- microphone is open
         </div>
       ) : null}
-      <div style={{ display: "flex", alignItems: "flex-end", gap: "var(--space-2)" }}>
+      {/*
+        v2.2.0 Phase 5 (5.4): ONE rounded surface. The + and send buttons used
+        to sit outside the textarea as separate boxes, which is what made the
+        composer look bolted together. They are now absolutely positioned
+        inside the field, and the textarea reserves matching padding so typed
+        text can never slide underneath them.
+      */}
+      <div
+        data-testid="media-composer-surface"
+        style={composerSurfaceStyle(focused)}
+      >
         <input
           ref={fileInputRef}
           type="file"
@@ -328,24 +365,13 @@ export function MediaComposer({
           data-image-enabled={imageEnabled ? "true" : "false"}
           disabled={disabled}
           onClick={() => fileInputRef.current?.click()}
-          style={addBtnStyle}
+          style={inFieldButtonStyle("left")}
         >
           +
         </button>
-        {audioEnabled ? (
-          <button
-            type="button"
-            aria-label={recording ? "Stop recording" : "Record audio"}
-            title={audioHint}
-            data-testid="media-composer-mic"
-            disabled={disabled}
-            onClick={() => void toggleMic()}
-            style={recording ? micBtnRecordingStyle : addBtnStyle}
-          >
-            {recording ? "Stop" : "Mic"}
-          </button>
-        ) : null}
+
         <textarea
+          ref={textareaRef}
           data-testid="media-composer-textarea"
           aria-label="Generation prompt"
           value={text}
@@ -353,25 +379,82 @@ export function MediaComposer({
           onChange={(e) => setText(e.target.value)}
           onKeyDown={onKeyDown}
           onPaste={onPaste}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
           placeholder={placeholder}
-          rows={2}
-          style={textareaStyle}
+          rows={1}
+          style={inFieldTextareaStyle(audioEnabled)}
         />
-        <MetalAccent
-          accentToken={metalTokenFromCssVar(submitAccentVar)}
-          surfaceId="media-composer-submit"
-          data-testid="media-composer-submit-metal"
-        >
-          <button
-            type="button"
-            data-testid="media-composer-submit"
-            disabled={!canSubmit}
-            onClick={submit}
-            style={submitStyle(submitAccentVar)}
+
+        <div style={rightControlsStyle}>
+          {audioEnabled ? (
+            <>
+              <button
+                type="button"
+                aria-label={recording ? "Stop recording" : "Record audio"}
+                title={audioHint}
+                data-testid="media-composer-mic"
+                disabled={disabled}
+                onClick={() => void toggleMic()}
+                style={recording ? micActiveStyle : iconButtonStyle}
+              >
+                {recording ? "Stop" : "Mic"}
+              </button>
+              <button
+                type="button"
+                aria-label="Voice options"
+                data-testid="media-composer-mic-menu-toggle"
+                aria-expanded={micMenuOpen}
+                disabled={disabled}
+                onClick={() => setMicMenuOpen((v) => !v)}
+                style={chevronButtonStyle}
+              >
+                {"▾"}
+              </button>
+            </>
+          ) : null}
+          <MetalAccent
+            accentToken={metalTokenFromCssVar(submitAccentVar)}
+            surfaceId="media-composer-submit"
+            data-testid="media-composer-submit-metal"
           >
-            {submitLabel}
-          </button>
-        </MetalAccent>
+            <button
+              type="button"
+              data-testid="media-composer-submit"
+              disabled={!canSubmit}
+              onClick={submit}
+              style={submitStyle(submitAccentVar)}
+            >
+              {submitLabel}
+            </button>
+          </MetalAccent>
+        </div>
+
+        {micMenuOpen && audioEnabled ? (
+          <div
+            data-testid="media-composer-mic-menu"
+            role="menu"
+            aria-label="Voice options"
+            style={micMenuStyle}
+          >
+            {voiceModes.map((mode) => (
+              <button
+                key={mode.id}
+                type="button"
+                role="menuitem"
+                data-testid={`media-composer-voice-${mode.id}`}
+                aria-pressed={mode.active ? true : undefined}
+                onClick={() => {
+                  mode.onSelect();
+                  setMicMenuOpen(false);
+                }}
+                style={micMenuItemStyle(mode.active)}
+              >
+                {mode.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
     </div>
     </AccentBeam>
@@ -404,17 +487,125 @@ function composerStyle(dragActive: boolean): CSSProperties {
   };
 }
 
-const textareaStyle: CSSProperties = {
-  flex: 1,
-  padding: "var(--space-2)",
-  backgroundColor: "var(--bg-0)",
-  color: "var(--fg-0)",
-  border: "1px solid var(--border-1)",
-  borderRadius: "var(--radius-md)",
-  fontFamily: "var(--font-sans)",
-  fontSize: "var(--text-sm)",
-  resize: "vertical",
+/**
+ * v2.2.0 Phase 5 (5.4) -- the single composer surface.
+ *
+ * The old layout put the + button, the textarea, and the send button side by
+ * side as three separate boxes, which is what made the composer look bolted
+ * together. One rounded container with the controls inside it reads as a
+ * modern composer and stops the buttons competing with the text for width.
+ */
+function composerSurfaceStyle(focused: boolean): CSSProperties {
+  return {
+    position: "relative",
+    display: "block",
+    backgroundColor: "var(--bg-0)",
+    border: `1px solid ${focused ? "var(--accent-chatbot, #4aa)" : "var(--border-subtle, #2a2a2a)"}`,
+    borderRadius: "var(--radius-lg, 12px)",
+    transition: "border-color 120ms ease",
+  };
+}
+
+/** Buttons pinned inside the field, anchored to its bottom edge. */
+function inFieldButtonStyle(side: "left" | "right"): CSSProperties {
+  const base: CSSProperties = {
+    position: "absolute",
+    bottom: 6,
+    width: 32,
+    height: 32,
+    fontSize: "var(--text-lg)",
+    lineHeight: 1,
+    borderRadius: "var(--radius-md)",
+    border: "none",
+    background: "transparent",
+    color: "var(--fg-muted, #999)",
+    cursor: "pointer",
+  };
+  return side === "left" ? { ...base, left: 8 } : { ...base, right: 8 };
+}
+
+/**
+ * Padding reserves exactly the space the in-field controls occupy, so typed
+ * text can never render underneath them however long the message gets.
+ */
+function inFieldTextareaStyle(audioEnabled: boolean): CSSProperties {
+  return {
+    display: "block",
+    width: "100%",
+    boxSizing: "border-box",
+    // Left: the + button. Right: send, plus mic and chevron when audio is on.
+    paddingLeft: 48,
+    paddingRight: audioEnabled ? 190 : 110,
+    paddingTop: "var(--space-3, 8px)",
+    paddingBottom: "var(--space-3, 8px)",
+    backgroundColor: "transparent",
+    color: "var(--fg-0)",
+    border: "none",
+    outline: "none",
+    fontFamily: "var(--font-sans)",
+    fontSize: "var(--text-sm)",
+    resize: "none",
+    // Grow to roughly six lines, then scroll internally rather than pushing
+    // the conversation off screen.
+    maxHeight: "9rem",
+    overflowY: "auto",
+  };
+}
+
+const rightControlsStyle: CSSProperties = {
+  position: "absolute",
+  right: 8,
+  bottom: 6,
+  display: "flex",
+  alignItems: "center",
+  gap: "var(--space-1, 4px)",
 };
+
+const iconButtonStyle: CSSProperties = {
+  height: 32,
+  padding: "0 var(--space-2, 6px)",
+  borderRadius: "var(--radius-md)",
+  border: "none",
+  background: "transparent",
+  color: "var(--fg-muted, #999)",
+  cursor: "pointer",
+  fontSize: "var(--text-xs)",
+};
+
+const micActiveStyle: CSSProperties = { ...iconButtonStyle, color: "var(--accent-chatbot)" };
+
+const chevronButtonStyle: CSSProperties = {
+  ...iconButtonStyle,
+  padding: "0 2px",
+  minWidth: 16,
+};
+
+const micMenuStyle: CSSProperties = {
+  position: "absolute",
+  right: 8,
+  bottom: 44,
+  zIndex: 20,
+  display: "flex",
+  flexDirection: "column",
+  minWidth: "10rem",
+  padding: "var(--space-1, 4px)",
+  borderRadius: "var(--radius-md)",
+  border: "1px solid var(--border-subtle, #2a2a2a)",
+  background: "var(--bg-elevated, #1b1b1b)",
+};
+
+function micMenuItemStyle(active?: boolean): CSSProperties {
+  return {
+    textAlign: "left",
+    padding: "var(--space-2, 6px)",
+    background: "transparent",
+    border: "none",
+    borderRadius: "var(--radius-sm, 4px)",
+    color: active ? "var(--accent-chatbot)" : "var(--fg-0)",
+    cursor: "pointer",
+    fontSize: "var(--text-sm)",
+  };
+}
 
 /** v1.16.0 Phase 3 -- chip for a non-image attachment (a PDF). */
 const docChipStyle: CSSProperties = {
@@ -429,24 +620,6 @@ const docChipStyle: CSSProperties = {
   color: "var(--fg-muted)",
   fontSize: "var(--text-xs)",
   fontWeight: 600,
-};
-
-const addBtnStyle: CSSProperties = {
-  width: 36,
-  height: 36,
-  fontSize: "var(--text-lg)",
-  lineHeight: 1,
-  borderRadius: "var(--radius-md)",
-  border: "1px solid var(--border-1)",
-  background: "var(--bg-0)",
-  color: "var(--fg-0)",
-  cursor: "pointer",
-};
-
-const micBtnRecordingStyle: CSSProperties = {
-  ...addBtnStyle,
-  border: "1px solid var(--accent-chatbot)",
-  color: "var(--accent-chatbot)",
 };
 
 const removeBtnStyle: CSSProperties = {

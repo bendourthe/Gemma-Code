@@ -37,6 +37,36 @@ export interface Chat {
   updatedAt: number;
   /** Mirrored from ChatHistoryStore; updated by `bumpMessageCount`. */
   messageCount: number;
+  /**
+   * v2.2.0 Phase 5: per-chat system prompt. Previously unpersisted React
+   * state, so it silently vanished on reload.
+   */
+  persona?: string | null;
+  /**
+   * v2.2.0 Phase 5: true once the USER renamed this chat by hand. Auto-titling
+   * must never overwrite a title the user chose.
+   */
+  userRenamed?: boolean;
+}
+
+/** v2.2.0 Phase 5: one persisted message turn. */
+export interface ChatMessageRecord {
+  id: string;
+  chatId: string;
+  role: "user" | "assistant";
+  content: string;
+  attachments: readonly string[];
+  createdAt: number;
+}
+
+export interface AppendMessageInput {
+  chatId: string;
+  role: "user" | "assistant";
+  content: string;
+  attachments?: readonly string[];
+  /** Injected in tests for deterministic ordering. */
+  id?: string;
+  createdAt?: number;
 }
 
 /** Tree node returned by `listTree()`; children are folders, with chats as a sibling list. */
