@@ -99,6 +99,9 @@ class InstallerState:
     desktop_bundle_override: str = ""  # local bundle path; skips release fetch
     desktop_installed: bool = False
     desktop_health_ok: bool = False
+    # v2.2.0 Phase 1 (1.4): human-readable health verdict for the Complete page
+    # (sidecar ok + catalog rows, or the failure reason).
+    desktop_health_detail: str = ""
     desktop_exe_path: str = ""
     launch_desktop_on_finish: bool = True
 

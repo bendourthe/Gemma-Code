@@ -55,6 +55,15 @@ await build({
 mkdirSync(distDir, { recursive: true });
 writeFileSync(path.join(distDir, "package.json"), `${JSON.stringify({ type: "commonjs" }, null, 2)}\n`);
 
+// v2.2.0 Phase 1 (1.1): ship the model catalog next to the bundle. The core
+// loader resolves `catalog.json` via `__dirname`, which is `dist/` in the
+// bundled sidecar, so without this copy `loadCatalog()` throws in a packaged
+// app and every model list rendered empty.
+cpSync(
+  path.join(here, "..", "..", "core", "registry", "catalog.json"),
+  path.join(distDir, "catalog.json"),
+);
+
 mkdirSync(distWasm, { recursive: true });
 
 // web-tree-sitter runtime wasm (loaded via Parser.init locateFile). The package

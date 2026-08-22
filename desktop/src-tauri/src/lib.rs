@@ -1,15 +1,24 @@
 // Nexus shell library entry point. Wires the Tauri builder, registers the
-// `ipc_call` command, and manages the Node sidecar lifecycle.
+// `ipc_call` / `sidecar_status` / `sidecar_restart` commands, and manages the
+// Node sidecar lifecycle.
+//
+// v2.2.0 Phase 1: spawn failures are captured in a queryable `SidecarStatus`
+// (1.2), and a `--healthcheck` CLI mode spawns the sidecar headless, issues
+// real RPCs, prints a single JSON verdict to stdout, and exits nonzero on
+// failure so the installer can prove the app actually works (1.4).
 
 pub mod sidecar;
 
-use serde_json::Value;
-use sidecar::{Sidecar, SidecarHandle};
+use serde_json::{json, Value};
+use sidecar::{resolve_node, runtime_config_path, Sidecar, SidecarHandle, SidecarStatus};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use tauri::{Manager, RunEvent};
 
 pub struct AppState {
     pub sidecar: Mutex<Option<SidecarHandle>>,
+    pub status: Mutex<SidecarStatus>,
+    pub restarting: AtomicBool,
 }
 
 #[tauri::command]
@@ -28,6 +37,105 @@ async fn ipc_call(
     Sidecar::request(&handle, &method, params)
         .await
         .map_err(|e| e.to_string())
+}
+
+/// Refresh liveness + stderr tail into the stored status, then return it.
+fn refreshed_status(state: &AppState) -> SidecarStatus {
+    let handle = state
+        .sidecar
+        .lock()
+        .ok()
+        .and_then(|guard| guard.clone());
+    let mut status = state
+        .status
+        .lock()
+        .map(|s| s.clone())
+        .unwrap_or_default();
+    if let Some(handle) = handle {
+        status.stderr_tail = handle.stderr_tail();
+        match handle.try_exit_code() {
+            Ok(None) => status.running = true,
+            Ok(Some(code)) => {
+                status.running = false;
+                status.failure = Some(format!("sidecar-exited: code {code}"));
+            }
+            Err(e) => {
+                status.running = false;
+                status.failure = Some(format!("sidecar-unprobeable: {e}"));
+            }
+        }
+    } else {
+        status.running = false;
+        if status.failure.is_none() {
+            status.failure = Some("sidecar-not-running".to_string());
+        }
+    }
+    if let Ok(mut stored) = state.status.lock() {
+        *stored = status.clone();
+    }
+    status
+}
+
+#[tauri::command]
+fn sidecar_status(state: tauri::State<'_, AppState>) -> SidecarStatus {
+    refreshed_status(&state)
+}
+
+/// Restart the sidecar (single-flight: concurrent calls beyond the first get
+/// `restart-in-progress`). Used by the frontend's sidecar-down banner.
+#[tauri::command]
+fn sidecar_restart(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<SidecarStatus, String> {
+    if state
+        .restarting
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return Err("restart-in-progress".to_string());
+    }
+    let result = restart_sidecar_locked(&app, &state);
+    state.restarting.store(false, Ordering::SeqCst);
+    result
+}
+
+/// The restart body, factored out so the single-flight flag reset in
+/// `sidecar_restart` wraps exactly one call.
+fn restart_sidecar_locked(
+    app: &tauri::AppHandle,
+    state: &AppState,
+) -> Result<SidecarStatus, String> {
+    // Tear down the old child first so we never run two sidecars.
+    if let Ok(mut guard) = state.sidecar.lock() {
+        if let Some(old) = guard.take() {
+            Sidecar::shutdown(old);
+        }
+    }
+    match Sidecar::spawn(app) {
+        Ok((handle, status)) => {
+            if let Ok(mut guard) = state.sidecar.lock() {
+                *guard = Some(handle);
+            }
+            if let Ok(mut stored) = state.status.lock() {
+                *stored = status.clone();
+            }
+            Ok(status)
+        }
+        Err(err) => {
+            let mut status = state
+                .status
+                .lock()
+                .map(|s| s.clone())
+                .unwrap_or_default();
+            status.running = false;
+            status.failure = Some(err.to_string());
+            if let Ok(mut stored) = state.status.lock() {
+                *stored = status.clone();
+            }
+            Err(err.to_string())
+        }
+    }
 }
 
 /// Force process-wide dark mode on Windows so native common dialogs (the file
@@ -59,14 +167,131 @@ fn force_dark_app_mode() {
 #[cfg(not(target_os = "windows"))]
 fn force_dark_app_mode() {}
 
+/// `--healthcheck` mode (v2.2.0 Phase 1, 1.4): spawn the sidecar exactly as the
+/// app would (same script + node resolution), issue `models.list` and
+/// `skills.status` with retry/backoff inside `budget_secs`, print ONE JSON
+/// verdict line to stdout, and return the process exit code. No window opens.
+pub fn run_healthcheck(budget_secs: u64) -> i32 {
+    let script = Sidecar::script_path_without_app();
+    let node = resolve_node(runtime_config_path().as_deref());
+    let spawned = Sidecar::spawn_with(&script, &node);
+    let (handle, status) = match spawned {
+        Ok(pair) => pair,
+        Err(err) => {
+            let verdict = json!({
+                "sidecar": format!("fail: {err}"),
+                "nodePath": node.path.display().to_string(),
+                "scriptPath": script.display().to_string(),
+                "candidatesRejected": node.rejected,
+                "catalogRows": 0,
+                "hubCatalog": "unknown",
+            });
+            println!("{verdict}");
+            return 1;
+        }
+    };
+
+    let rt = match tokio::runtime::Runtime::new() {
+        Ok(rt) => rt,
+        Err(e) => {
+            println!(
+                "{}",
+                json!({ "sidecar": format!("fail: tokio runtime: {e}"), "catalogRows": 0 })
+            );
+            return 1;
+        }
+    };
+
+    let outcome = rt.block_on(async {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(budget_secs);
+        let mut backoff = std::time::Duration::from_millis(500);
+        loop {
+            let attempt_err = match Sidecar::request(&handle, "models.list", json!({})).await {
+                Ok(models_reply) => {
+                    let catalog_rows = models_reply
+                        .get("models")
+                        .and_then(|m| m.as_array())
+                        .map(|a| a.len())
+                        .unwrap_or(0);
+                    let catalog_status = models_reply
+                        .get("catalogStatus")
+                        .and_then(|s| s.as_str())
+                        .unwrap_or("unknown")
+                        .to_string();
+                    let hub = match Sidecar::request(&handle, "skills.status", json!({})).await {
+                        Ok(reply) => {
+                            if reply
+                                .get("catalogPresent")
+                                .and_then(|v| v.as_bool())
+                                .unwrap_or(false)
+                            {
+                                "present".to_string()
+                            } else {
+                                "absent".to_string()
+                            }
+                        }
+                        Err(e) => format!("unknown ({e})"),
+                    };
+                    return Ok((catalog_rows, catalog_status, hub));
+                }
+                Err(e) => e.to_string(),
+            };
+            if std::time::Instant::now() >= deadline {
+                return Err(attempt_err);
+            }
+            tokio::time::sleep(backoff).await;
+            backoff = (backoff * 2).min(std::time::Duration::from_secs(4));
+        }
+    });
+
+    let (verdict, code) = match outcome {
+        Ok((catalog_rows, catalog_status, hub)) => (
+            json!({
+                "sidecar": "ok",
+                "nodePath": status.node_path,
+                "scriptPath": status.script_path,
+                "catalogRows": catalog_rows,
+                "catalogStatus": catalog_status,
+                "hubCatalog": hub,
+            }),
+            0,
+        ),
+        Err(reason) => (
+            json!({
+                "sidecar": format!("fail: {reason}"),
+                "nodePath": status.node_path,
+                "scriptPath": status.script_path,
+                "stderrTail": handle.stderr_tail(),
+                "catalogRows": 0,
+                "hubCatalog": "unknown",
+            }),
+            1,
+        ),
+    };
+    println!("{verdict}");
+    Sidecar::shutdown(handle);
+    code
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Headless health check: never build a window, print a verdict, exit.
+    if std::env::args().any(|a| a == "--healthcheck") {
+        std::process::exit(run_healthcheck(25));
+    }
+
     force_dark_app_mode();
     let builder = tauri::Builder::default()
         .manage(AppState {
             sidecar: Mutex::new(None),
+            status: Mutex::new(SidecarStatus::default()),
+            restarting: AtomicBool::new(false),
         })
-        .invoke_handler(tauri::generate_handler![ipc_call])
+        .invoke_handler(tauri::generate_handler![
+            ipc_call,
+            sidecar_status,
+            sidecar_restart
+        ])
         .setup(|app| {
             // Window icon (title bar + taskbar): the transparent no-background
             // Nexus mark, deliberately distinct from the exe/Explorer icon
@@ -82,17 +307,27 @@ pub fn run() {
                     let _ = window.set_icon(icon);
                 }
             }
-            // Spawn the Node sidecar; failure is non-fatal in dev (logged).
+            // Spawn the Node sidecar; failure is captured in AppState.status so
+            // the frontend can render the reason (never only a stderr line).
             match Sidecar::spawn(app.handle()) {
-                Ok(handle) => {
+                Ok((handle, status)) => {
                     if let Some(state) = app.try_state::<AppState>() {
                         if let Ok(mut guard) = state.sidecar.lock() {
                             *guard = Some(handle);
+                        }
+                        if let Ok(mut stored) = state.status.lock() {
+                            *stored = status;
                         }
                     }
                 }
                 Err(err) => {
                     eprintln!("[nexus-shell] sidecar failed to spawn: {err}");
+                    if let Some(state) = app.try_state::<AppState>() {
+                        if let Ok(mut stored) = state.status.lock() {
+                            stored.running = false;
+                            stored.failure = Some(err.to_string());
+                        }
+                    }
                 }
             }
             Ok(())

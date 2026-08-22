@@ -249,10 +249,21 @@ class CompletePage(QWidget):
             ext_installed,
         )
         if state.desktop_installed:
+            # v2.2.0 Phase 1 (1.4): surface the sidecar verdict, not just a
+            # binary pass/fail -- "health check passed" used to mean only
+            # "the window opened".
+            detail_suffix = (
+                f" -- {state.desktop_health_detail}"
+                if getattr(state, "desktop_health_detail", "")
+                else ""
+            )
             desktop_detail = (
-                "Installed (health check passed)"
+                f"Installed (health check passed{detail_suffix})"
                 if state.desktop_health_ok
-                else "Installed (health check failed -- try launching from the OS menu)"
+                else (
+                    "Installed (health check FAILED"
+                    f"{detail_suffix}) -- the app backend cannot start"
+                )
             )
         else:
             desktop_detail = "Not installed"

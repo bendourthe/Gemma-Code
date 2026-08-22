@@ -172,10 +172,13 @@ describe("sidecar handlers", () => {
         drain: () => ({ events: [{ kind: "complete", id: "a" }], done: true }),
         cancel: () => {},
       },
+      // v2.2.0 Phase 1 (1.1): models.list surfaces catalog health.
+      catalogStatus: "ok",
     } as unknown as HandlerContext["models"];
 
     expect(await dispatch("models.list", {}, ctx)).toEqual({
       models: [{ id: "a", displayName: "A", installed: true, source: "registry" }],
+      catalogStatus: "ok",
     });
     expect(await dispatch("models.diskUsage", {}, ctx)).toEqual({
       usedBytes: 5,

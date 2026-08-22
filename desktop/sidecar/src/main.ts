@@ -27,6 +27,7 @@ import { createAuditRuntime } from "./audit/runtime.js";
 import { InProcessTelemetryBus } from "../../../core/telemetry/TelemetryBus.js";
 import { SIDECAR_MODELS } from "./coding/models.js";
 import { warmUpTreeSitter } from "./treeSitterWarmup.js";
+import { applyRuntimeConfigEnv } from "./runtimeConfig.js";
 import { existsSync } from "node:fs";
 import { NexusHubSyncer } from "../../../core/skills/NexusHubSyncer.js";
 import { migrateLegacyCatalogCleanup } from "../../../core/skills/migrateLegacyCatalog.js";
@@ -50,6 +51,16 @@ interface JsonRpcResponseErr {
   jsonrpc: "2.0";
   id: number | null;
   error: { code: number; message: string };
+}
+
+// v2.2.0 Phase 1 (1.3): apply the installer-written runtime contract BEFORE
+// any runtime construction below reads process.env. Explicit env always wins;
+// a missing runtime.json (dev checkout) is a silent no-op.
+const appliedRuntimeEnv = applyRuntimeConfigEnv(process.env);
+if (appliedRuntimeEnv.length > 0) {
+  process.stderr.write(
+    `[nexus-sidecar] runtime.json applied: ${appliedRuntimeEnv.join(", ")}\n`,
+  );
 }
 
 // v1.7.0: drive the Coding pillar with the real headless agent runtime (the

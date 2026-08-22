@@ -578,8 +578,8 @@ export const handlers: Record<Method, HandlerFn> = {
     return response;
   },
   "models.list": async (_params, ctx) => {
-    const { service } = await resolveModelsRuntime(ctx);
-    return { models: await service.list() };
+    const runtime = await resolveModelsRuntime(ctx);
+    return { models: await runtime.service.list(), catalogStatus: runtime.catalogStatus };
   },
   "models.install": async (params, ctx) => {
     const req = ModelsInstallRequest.parse(params ?? {});

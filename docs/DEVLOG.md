@@ -4,6 +4,47 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-22] v2.2.0 Phase 1 - Sidecar packaging and runtime wiring repair
+
+### Goal
+
+Make a fresh install functional: the packaged app must spawn its Node sidecar, see the model catalog, reach the diffusion runtime, and the installer health check must prove it (plan `docs/v2/v2.2/plans/v2.2.0-runtime-repair-and-ux-overhaul.md`, Phase 1).
+
+### What Changed
+
+- **Tauri packaging (1.1)**: `bundle.resources` now ships `desktop/sidecar/dist` into the app bundle; `esbuild.config.mjs` copies `core/registry/catalog.json` next to `main.js`; `resolveCatalog()` returns a `{file, error}` pair and `models.list` replies carry `catalogStatus: "ok" | "catalog-load-failed: <reason>"` instead of silently degrading to an empty catalog.
+- **Node resolution + spawn status (1.2)**: `sidecar.rs` replaces bare `Command::new("node")` with a chain (`NEXUS_NODE_PATH` -> `~/.nexus/runtime.json` `nodePath` -> per-OS provisioned runtime path -> PATH `node`), captures the outcome in a serializable `SidecarStatus` (node source, script path, failure reason, rejected candidates), drains child stderr into a 50-line ring buffer (the old piped-but-undrained stderr was a latent deadlock: a chatty sidecar would block once the pipe buffer filled), and exposes `sidecar_status` / single-flight `sidecar_restart` Tauri commands.
+- **Runtime contract (1.3)**: new installer step (always-on, after the component steps) provisions a per-user Node runtime (reuse -> offline payload -> pinned sha256-verified nodejs.org download; real pins replace the all-zero placeholders in `versions.lock.json` for node), copies the `runtimes/` Python sources out of the frozen bundle (now staged by `nexus-installer.spec`, fail-closed), and atomically writes `~/.nexus/runtime.json` (`nodePath`, `diffusionPython`, `diffusionCwd`, `modelsRoot`, ollama). The sidecar applies it at boot via `runtimeConfig.ts` (env always wins); `runtimeFactory.ts` returns a typed `UnavailableDiffusionRuntime` (`runtime-unavailable: ...`) when a configured absolute python path is missing.
+- **Honest health check (1.4)**: the app gained a `--healthcheck` CLI mode (headless sidecar spawn, real `models.list` + `skills.status` RPCs with retry/backoff, one JSON verdict line, nonzero exit on failure); `first_run_health_check` invokes it with a 40 s budget and fails with the reason (the old check passed whenever the window survived 5 s - exactly the state of a sidecar-less app); the Complete page surfaces the verdict detail.
+
+### Why It Changed
+
+Field evidence from a v2.1.0 install: every surface printed `sidecar-not-running` while 9/10 models sat verified on disk. Root causes were all packaging/wiring: sidecar never bundled, bare PATH `node` spawn, catalog never copied, diffusion venv never connected - and the live `InstallEngine.run` never wired the v1.x `provisioner_dispatch` "node" step at all (dead code), so no machine ever had the provisioned Node the spawner was supposed to use.
+
+### Deviations
+
+- Node SEA/`externalBin` bundling (plan's preferred option) deferred to a later phase; the chain + installer guarantee covers all installer-driven paths (DF-1).
+- Real clean-VM packaged-build smoke deferred to the next installer build (DF-2); contracts pinned by static packaging tests instead.
+- `zstandard` was missing from the local dev env (two pre-existing ollama tests failed to import); installed locally - ENV issue, not a code change.
+
+### Test Results
+
+Root vitest **5325 passed / 12 skipped / 0 failed**; desktop vitest full run green, coverage **90.71% lines / 82.93% branches**; installer pytest all green (incl. new `test_runtime_provisioner.py`, rewritten health-check tests, `TestSidecarPackagingContracts`); `cargo test` 10/10; `cargo clippy` 0 warnings; `tsc -b`, eslint (touched), ruff (touched) clean.
+
+### CI/CD
+
+No workflow changes needed: `shell-build.yml` already runs cargo check/clippy/test path-filtered on `desktop/**` with caching + concurrency cancel + PR-gated matrix; `installer-tests.yml` covers `scripts/installer/**`. New tests ride the existing jobs.
+
+### Known Issues
+
+See `docs/v2/v2.2/known-gaps.md` (3 DF, 2 MT; no bugs, no bypassed gates).
+
+### Next
+
+Phase 2 - Model Availability End to End (probe sanitization/marker matching, truthful sidecar/empty/error states, live GPU telemetry, Ollama 412 upgrade path, generation smoke).
+
+---
+
 ## [2026-08-20] v2.1.0 cut
 
 ### Goal

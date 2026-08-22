@@ -209,25 +209,44 @@ function toDto(m: ListedModel): ListedModelDto {
 }
 
 /**
+ * v2.2.0 Phase 1 (1.1): catalog resolution outcome. `error` is null on success;
+ * on failure it carries the load error so `models.list` replies can surface a
+ * distinct `catalog-load-failed` status instead of a silent empty list.
+ */
+export interface ResolvedCatalog {
+  file: CatalogFile;
+  error: string | null;
+}
+
+/**
  * Resolve the shared `catalog.json` for the running sidecar. Honours a
  * `NEXUS_CATALOG_PATH` override, else falls back to the core loader's default
  * (which resolves the bundled/adjacent catalog). Degrades to an empty catalog
  * so `list()` still surfaces Ollama / weights-probed installs when the catalog
- * cannot be found.
+ * cannot be found -- but the failure is captured, logged to stderr, and
+ * reported through `ModelsRuntime.catalogStatus`, never swallowed.
  */
-export async function resolveCatalog(): Promise<CatalogFile> {
+export async function resolveCatalog(): Promise<ResolvedCatalog> {
   const override = process.env.NEXUS_CATALOG_PATH;
   try {
-    return override ? await loadCatalog(override) : await loadCatalog();
-  } catch {
-    return { models: [] } as unknown as CatalogFile;
+    const file = override ? await loadCatalog(override) : await loadCatalog();
+    return { file, error: null };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`[nexus-sidecar] catalog-load-failed: ${message}\n`);
+    return { file: { models: [] } as unknown as CatalogFile, error: message };
   }
 }
+
+/** `models.list` catalog health: `ok`, or `catalog-load-failed: <reason>`. */
+export type CatalogStatus = "ok" | `catalog-load-failed: ${string}`;
 
 /** The reflect (`service`) + install (`installer`) surfaces for the `models.*` IPC. */
 export interface ModelsRuntime {
   service: ModelsService;
   installer: InstallManager;
+  /** v2.2.0 Phase 1 (1.1): whether the shared catalog actually loaded. */
+  catalogStatus: CatalogStatus;
 }
 
 /**
@@ -242,7 +261,10 @@ export async function createModelsRuntime(
   const modelsRoot = opts.modelsRoot ?? defaultModelsRoot();
   const ollamaBaseUrl = opts.ollamaBaseUrl ?? DEFAULT_OLLAMA_URL;
   const fetchFn = opts.fetchFn ?? fetch;
-  const catalog = await resolveCatalog();
+  const resolved = await resolveCatalog();
+  const catalog = resolved.file;
+  const catalogStatus: CatalogStatus =
+    resolved.error === null ? "ok" : `catalog-load-failed: ${resolved.error}`;
   const storage = new ModelStorage(modelsRoot);
   await storage.ensureLayout();
   const registry = new NexusModelRegistry({
@@ -252,5 +274,5 @@ export async function createModelsRuntime(
   });
   const service = new ModelsService({ registry, catalog, modelsRoot, ollamaBaseUrl, fetchFn });
   const installer = new InstallManager(registry);
-  return { service, installer };
+  return { service, installer, catalogStatus };
 }

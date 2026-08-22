@@ -20,6 +20,7 @@ import pytest
 
 from nexus_installer.engine.desktop_provisioner import (
     DesktopProvisioner,
+    _locate_windows_exe,
     _resolve_windows_exe,
     check_desktop_payload,
     first_run_health_check,
@@ -76,9 +77,7 @@ class TestPayloadManifest:
         """PowerShell-authored manifests may carry a BOM (IO.P2.C lesson)."""
         payload = tmp_path / "p"
         payload.mkdir()
-        body = json.dumps(
-            {"filename": "x.exe", "version": "1.0.0", "sha256": "a" * 64}
-        )
+        body = json.dumps({"filename": "x.exe", "version": "1.0.0", "sha256": "a" * 64})
         (payload / "manifest.json").write_bytes(b"\xef\xbb\xbf" + body.encode())
         assert load_payload_manifest(payload) is not None
 
@@ -151,9 +150,7 @@ class TestInstallFromEmbedded:
             ok = DesktopProvisioner().install(state, MagicMock())
         assert ok is True
         assert state.desktop_installed is True
-        assert mock_dispatch.call_args[0][0] == str(
-            payload / "Nexus-Desktop-Setup.exe"
-        )
+        assert mock_dispatch.call_args[0][0] == str(payload / "Nexus-Desktop-Setup.exe")
 
     def test_missing_payload_fails_install(self) -> None:
         state = InstallerState()
@@ -196,7 +193,7 @@ class TestInstallDispatchWindows:
         cmd = mock_run.call_args[0][0]
         assert cmd == ["bundle.exe", "/S"]
         assert state.desktop_exe_path == os.path.join(
-            r"C:\Users\u\AppData\Local", "Nexus", "Nexus.exe"
+            r"C:\Users\u\AppData\Local", "Nexus AI Studio", "Nexus AI Studio.exe"
         )
 
     @patch(f"{_MOD}.is_windows", return_value=True)
@@ -214,7 +211,7 @@ class TestInstallDispatchWindows:
         cmd = mock_run.call_args[0][0]
         assert cmd[-1] == r"/D=D:\Apps\Nexus Desktop"  # NSIS: last arg, no quotes
         assert state.desktop_exe_path == os.path.join(
-            r"D:\Apps\Nexus Desktop", "Nexus.exe"
+            r"D:\Apps\Nexus Desktop", "Nexus AI Studio.exe"
         )
 
     @patch(f"{_MOD}.is_windows", return_value=True)
@@ -232,14 +229,32 @@ class TestInstallDispatchWindows:
         # The T104 bundle ships nexus-shell.exe, not a product-named exe.
         (tmp_path / "nexus-shell.exe").write_bytes(b"x")
         (tmp_path / "uninstall.exe").write_bytes(b"x")
-        assert _resolve_windows_exe(str(tmp_path)) == str(
-            tmp_path / "nexus-shell.exe"
-        )
+        assert _resolve_windows_exe(str(tmp_path)) == str(tmp_path / "nexus-shell.exe")
 
     def test_resolve_exe_prefers_product_name(self, tmp_path: Path) -> None:
         (tmp_path / "Nexus.exe").write_bytes(b"x")
         (tmp_path / "nexus-shell.exe").write_bytes(b"x")
         assert _resolve_windows_exe(str(tmp_path)) == str(tmp_path / "Nexus.exe")
+
+    def test_resolve_exe_prefers_current_product_name(self, tmp_path: Path) -> None:
+        (tmp_path / "Nexus AI Studio.exe").write_bytes(b"x")
+        (tmp_path / "Nexus.exe").write_bytes(b"x")
+        (tmp_path / "nexus-shell.exe").write_bytes(b"x")
+        assert _resolve_windows_exe(str(tmp_path)) == str(
+            tmp_path / "Nexus AI Studio.exe"
+        )
+
+    def test_locate_exe_finds_tauri_product_dir(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        local = tmp_path / "Local"
+        (local / "Nexus").mkdir(parents=True)
+        studio = local / "Nexus AI Studio"
+        studio.mkdir()
+        (studio / "nexus-shell.exe").write_bytes(b"x")
+        monkeypatch.setenv("LOCALAPPDATA", str(local))
+        found = _locate_windows_exe(str(local / "Nexus"))
+        assert found == str(studio / "nexus-shell.exe")
 
     def test_resolve_exe_skips_uninstaller(self, tmp_path: Path) -> None:
         (tmp_path / "uninstall.exe").write_bytes(b"x")
@@ -402,6 +417,9 @@ class TestInstallOrchestration:
 
 
 class TestFirstRunHealthCheck:
+    """v2.2.0 Phase 1 (1.4): the check runs `<exe> --healthcheck` and parses a
+    single-line JSON verdict; a sidecar failure fails the install step."""
+
     def test_missing_binary_fails(self) -> None:
         state = InstallerState(desktop_exe_path="")
         assert first_run_health_check(state, MagicMock()) is False
@@ -416,24 +434,64 @@ class TestFirstRunHealthCheck:
             first_run_health_check(state, MagicMock(), grace_seconds=1)
         return state
 
-    def test_clean_exit_zero_passes(self) -> None:
+    def test_ok_verdict_passes_with_detail(self) -> None:
         proc = MagicMock()
-        proc.wait.return_value = 0
+        proc.communicate.return_value = (
+            '{"sidecar":"ok","catalogRows":42,"hubCatalog":"present"}\n',
+            None,
+        )
+        proc.returncode = 0
         state = self._check(proc)
         assert state.desktop_health_ok is True
+        assert "catalogRows=42" in state.desktop_health_detail
 
-    def test_immediate_nonzero_exit_fails(self) -> None:
+    def test_fail_verdict_fails_with_reason(self) -> None:
         proc = MagicMock()
-        proc.wait.return_value = 3
+        proc.communicate.return_value = (
+            '{"sidecar":"fail: script-not-found: C:/x/main.js",'
+            '"catalogRows":0,"stderrTail":["boom"]}\n',
+            None,
+        )
+        proc.returncode = 1
+        state = self._check(proc)
+        assert state.desktop_health_ok is False
+        assert "script-not-found" in state.desktop_health_detail
+
+    def test_zero_catalog_rows_still_passes_but_detail_records_it(self) -> None:
+        proc = MagicMock()
+        proc.communicate.return_value = (
+            '{"sidecar":"ok","catalogRows":0,"hubCatalog":"absent"}\n',
+            None,
+        )
+        proc.returncode = 0
+        state = self._check(proc)
+        assert state.desktop_health_ok is True
+        assert "catalogRows=0" in state.desktop_health_detail
+
+    def test_legacy_app_without_verdict_passes_with_warning(self) -> None:
+        proc = MagicMock()
+        proc.communicate.return_value = ("", None)
+        proc.returncode = 0
+        state = self._check(proc)
+        assert state.desktop_health_ok is True
+        assert "legacy" in state.desktop_health_detail
+
+    def test_nonzero_exit_without_verdict_fails(self) -> None:
+        proc = MagicMock()
+        proc.communicate.return_value = ("", None)
+        proc.returncode = 3
         state = self._check(proc)
         assert state.desktop_health_ok is False
 
-    def test_still_alive_after_grace_passes_and_terminates(self) -> None:
+    def test_timeout_fails(self) -> None:
         proc = MagicMock()
-        proc.wait.side_effect = [subprocess.TimeoutExpired(cmd="nexus", timeout=1), 0]
+        proc.communicate.side_effect = [
+            subprocess.TimeoutExpired(cmd="nexus", timeout=1),
+            ("", None),
+        ]
         state = self._check(proc)
-        assert state.desktop_health_ok is True
-        proc.terminate.assert_called_once()
+        assert state.desktop_health_ok is False
+        proc.kill.assert_called_once()
 
     def test_spawn_failure_fails(self) -> None:
         state = InstallerState(desktop_exe_path="/apps/nexus")

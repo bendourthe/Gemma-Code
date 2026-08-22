@@ -52,6 +52,9 @@ class TestSpecFile:
         assert "icon.ico" in content
         assert "nexus-ai-primary_no-background.png" in content
         assert '"assets"' in content
+        assert "runtime icon missing" in content
+        assert "upx=False" in content
+        assert "upx=True" not in content
 
     def test_spec_prefers_renamed_vsix(self) -> None:
         content = (BUILD_DIR / "nexus-installer.spec").read_text()
@@ -182,3 +185,36 @@ class TestWorkflows:
             content = (WORKFLOWS / name).read_text()
             assert f"path: {artifact}" in content
             assert "scripts/installer/dist" not in content
+
+
+class TestSidecarPackagingContracts:
+    """v2.2.0 Phase 1 -- static parity guards for the sidecar packaging chain.
+
+    These pin the three facts that made a v2.1.0 install functionally inert:
+    the sidecar was never bundled into the Tauri app, the model catalog was
+    never copied next to the sidecar bundle, and the diffusion runtime sources
+    were never shipped by the installer.
+    """
+
+    def test_tauri_bundle_ships_sidecar_dist(self) -> None:
+        import json
+
+        conf = json.loads(
+            (REPO_ROOT / "desktop" / "src-tauri" / "tauri.conf.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        resources = conf.get("bundle", {}).get("resources")
+        assert resources, "tauri.conf.json bundle.resources is missing"
+        assert resources.get("../sidecar/dist") == "sidecar/dist"
+
+    def test_sidecar_esbuild_copies_catalog(self) -> None:
+        content = (
+            REPO_ROOT / "desktop" / "sidecar" / "esbuild.config.mjs"
+        ).read_text(encoding="utf-8")
+        assert "catalog.json" in content
+
+    def test_spec_bundles_diffusion_runtime_sources(self) -> None:
+        content = (BUILD_DIR / "nexus-installer.spec").read_text()
+        assert '"runtimes"' in content
+        assert "runtimes sources missing" in content

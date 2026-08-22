@@ -10,6 +10,7 @@ import * as path from "node:path";
 import {
   ModelsService,
   queryOllamaTags,
+  resolveCatalog,
   scanWeightsIds,
 } from "../sidecar/src/models/modelsService";
 import type { CatalogFile } from "../../core/registry/catalog";
@@ -116,5 +117,58 @@ describe("ModelsService.diskUsage / remove", () => {
     });
     await svc.remove("gemma-4-12b-it-gguf");
     expect(removed).toEqual(["gemma-4-12b-it-gguf"]);
+  });
+});
+
+// v2.2.0 Phase 1 (1.1): catalog resolution surfaces failures instead of
+// silently degrading to an empty catalog (the packaged-app "0 models" bug).
+describe("resolveCatalog", () => {
+  it("captures a load error for a missing NEXUS_CATALOG_PATH override", async () => {
+    const prev = process.env.NEXUS_CATALOG_PATH;
+    process.env.NEXUS_CATALOG_PATH = path.join(
+      os.tmpdir(),
+      "nexus-absent",
+      "catalog.json",
+    );
+    try {
+      const resolved = await resolveCatalog();
+      expect(resolved.error).not.toBeNull();
+      expect(resolved.file.models).toEqual([]);
+    } finally {
+      if (prev === undefined) delete process.env.NEXUS_CATALOG_PATH;
+      else process.env.NEXUS_CATALOG_PATH = prev;
+    }
+  });
+
+  it("captures a parse/validation error for a corrupt catalog file", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "nexus-catalog-"));
+    const corrupt = path.join(dir, "catalog.json");
+    await fs.writeFile(corrupt, "{not json");
+    const prev = process.env.NEXUS_CATALOG_PATH;
+    process.env.NEXUS_CATALOG_PATH = corrupt;
+    try {
+      const resolved = await resolveCatalog();
+      expect(resolved.error).not.toBeNull();
+      expect(resolved.file.models).toEqual([]);
+    } finally {
+      if (prev === undefined) delete process.env.NEXUS_CATALOG_PATH;
+      else process.env.NEXUS_CATALOG_PATH = prev;
+    }
+  });
+
+  it("loads the real repo catalog with a null error", async () => {
+    // The shipped catalog is the strongest fixture: this is exactly the file
+    // the esbuild step copies next to the sidecar bundle.
+    const repoCatalog = path.resolve(__dirname, "../../core/registry/catalog.json");
+    const prev = process.env.NEXUS_CATALOG_PATH;
+    process.env.NEXUS_CATALOG_PATH = repoCatalog;
+    try {
+      const resolved = await resolveCatalog();
+      expect(resolved.error).toBeNull();
+      expect(resolved.file.models.length).toBeGreaterThan(0);
+    } finally {
+      if (prev === undefined) delete process.env.NEXUS_CATALOG_PATH;
+      else process.env.NEXUS_CATALOG_PATH = prev;
+    }
   });
 });

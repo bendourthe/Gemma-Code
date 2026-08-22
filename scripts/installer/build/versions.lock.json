@@ -32,7 +32,7 @@
       },
       "node": {
         "url": "https://nodejs.org/dist/v22.11.0/node-v22.11.0-win-x64.zip",
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+        "sha256": "905373a059aecaf7f48c1ce10ffbd5334457ca00f678747f19db5ea7d256c236"
       },
       "cuda_runtime": {
         "url": "https://developer.download.nvidia.com/compute/cuda/12.1.0/local_installers/cuda_12.1.0_531.14_windows.exe",
@@ -55,7 +55,7 @@
       },
       "node": {
         "url": "https://nodejs.org/dist/v22.11.0/node-v22.11.0-darwin-arm64.tar.gz",
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+        "sha256": "2e89afe6f4e3aa6c7e21c560d8a0453d84807e97850bbb819b998531a22bdfde"
       },
       "ollama": {
         "url": "https://github.com/ollama/ollama/releases/download/v0.3.6/Ollama-darwin.zip",
@@ -74,7 +74,7 @@
       },
       "node": {
         "url": "https://nodejs.org/dist/v22.11.0/node-v22.11.0-linux-x64.tar.xz",
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+        "sha256": "83bf07dd343002a26211cf1fcd46a9d9534219aad42ee02847816940bf610a72"
       },
       "cuda_runtime": {
         "url": "https://developer.download.nvidia.com/compute/cuda/12.1.0/local_installers/cuda_12.1.0_530.30.02_linux.run",

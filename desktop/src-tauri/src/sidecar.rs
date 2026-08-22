@@ -5,12 +5,20 @@
 // the child's stdin/stdout. The actual JSON-RPC plumbing lives in this module
 // behind a small `request()` helper; the frontend reaches it through the
 // `ipc_call` Tauri command.
+//
+// v2.2.0 Phase 1 (1.2): the spawner no longer depends on a system `node` on
+// PATH. Node resolution walks an explicit chain (NEXUS_NODE_PATH -> the
+// installer-written ~/.nexus/runtime.json -> the per-OS provisioned runtime
+// path -> PATH `node` as a dev fallback), the child's stderr is drained into a
+// bounded ring buffer (an undrained pipe eventually blocks the child), and the
+// spawn outcome is captured in a serializable `SidecarStatus` the frontend can
+// query via the `sidecar_status` command.
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::io::{BufRead, BufReader, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -19,6 +27,9 @@ use std::time::Duration;
 use tauri::{AppHandle, Manager};
 use thiserror::Error;
 use tokio::sync::oneshot;
+
+/// Max stderr lines retained for diagnostics.
+const STDERR_TAIL_LINES: usize = 50;
 
 #[derive(Debug, Error)]
 pub enum SidecarError {
@@ -58,6 +69,167 @@ struct JsonRpcError {
 }
 
 type PendingMap = Arc<Mutex<HashMap<u64, oneshot::Sender<Result<Value, String>>>>>;
+type StderrTail = Arc<Mutex<VecDeque<String>>>;
+
+/// How the node executable was chosen. Serialized into `SidecarStatus`.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum NodeSource {
+    EnvOverride,
+    RuntimeConfig,
+    ProvisionedDefault,
+    PathFallback,
+}
+
+/// Outcome of the node resolution chain.
+#[derive(Debug, Clone)]
+pub struct NodeResolution {
+    pub path: PathBuf,
+    pub source: NodeSource,
+    /// Candidates that were considered but rejected, with the reason.
+    pub rejected: Vec<String>,
+}
+
+/// Serializable spawn/runtime status for the `sidecar_status` command and the
+/// installer's `--healthcheck` verdict.
+#[derive(Debug, Clone, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SidecarStatus {
+    pub running: bool,
+    pub node_path: Option<String>,
+    pub node_source: Option<String>,
+    pub script_path: Option<String>,
+    pub failure: Option<String>,
+    pub stderr_tail: Vec<String>,
+    pub candidates_rejected: Vec<String>,
+}
+
+/// The subset of `~/.nexus/runtime.json` the shell reads (installer contract,
+/// v2.2.0 Phase 1). Unknown fields are ignored so the installer can extend it.
+#[derive(Debug, Deserialize)]
+struct RuntimeConfig {
+    #[serde(rename = "nodePath")]
+    node_path: Option<String>,
+}
+
+/// `~/.nexus/runtime.json` -- the installer-written runtime contract.
+pub fn runtime_config_path() -> Option<PathBuf> {
+    home_dir().map(|h| h.join(".nexus").join("runtime.json"))
+}
+
+fn home_dir() -> Option<PathBuf> {
+    #[cfg(target_os = "windows")]
+    {
+        std::env::var_os("USERPROFILE").map(PathBuf::from)
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        std::env::var_os("HOME").map(PathBuf::from)
+    }
+}
+
+/// Per-OS path the installer's node_provisioner writes the portable Node to.
+/// Mirrors `scripts/installer/src/nexus_installer/engine/node_provisioner.py`.
+pub fn provisioned_node_path() -> Option<PathBuf> {
+    #[cfg(target_os = "windows")]
+    {
+        std::env::var_os("LOCALAPPDATA")
+            .map(PathBuf::from)
+            .or_else(home_dir)
+            .map(|base| base.join("Nexus").join("runtime").join("node").join("node.exe"))
+    }
+    #[cfg(target_os = "macos")]
+    {
+        home_dir().map(|h| {
+            h.join("Library")
+                .join("Application Support")
+                .join("Nexus")
+                .join("runtime")
+                .join("node")
+                .join("bin")
+                .join("node")
+        })
+    }
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    {
+        home_dir().map(|h| {
+            h.join(".local")
+                .join("share")
+                .join("nexus")
+                .join("runtime")
+                .join("node")
+                .join("bin")
+                .join("node")
+        })
+    }
+}
+
+/// Resolve the Node executable. Chain (first hit wins):
+/// 1. `NEXUS_NODE_PATH` env override (must exist).
+/// 2. `nodePath` from the installer-written runtime config (must exist).
+/// 3. The per-OS provisioned runtime path (must exist).
+/// 4. Bare `node` from PATH (dev fallback; existence checked at spawn).
+pub fn resolve_node(runtime_config: Option<&Path>) -> NodeResolution {
+    let mut rejected: Vec<String> = Vec::new();
+
+    if let Some(raw) = std::env::var_os("NEXUS_NODE_PATH") {
+        let p = PathBuf::from(&raw);
+        if p.is_file() {
+            return NodeResolution {
+                path: p,
+                source: NodeSource::EnvOverride,
+                rejected,
+            };
+        }
+        rejected.push(format!("NEXUS_NODE_PATH not a file: {}", p.display()));
+    }
+
+    if let Some(cfg_path) = runtime_config {
+        match std::fs::read_to_string(cfg_path) {
+            Ok(body) => match serde_json::from_str::<RuntimeConfig>(&body) {
+                Ok(cfg) => {
+                    if let Some(node) = cfg.node_path {
+                        let p = PathBuf::from(&node);
+                        if p.is_file() {
+                            return NodeResolution {
+                                path: p,
+                                source: NodeSource::RuntimeConfig,
+                                rejected,
+                            };
+                        }
+                        rejected.push(format!(
+                            "runtime.json nodePath not a file: {}",
+                            p.display()
+                        ));
+                    } else {
+                        rejected.push("runtime.json has no nodePath".to_string());
+                    }
+                }
+                Err(e) => rejected.push(format!("runtime.json parse error: {e}")),
+            },
+            Err(_) => rejected.push(format!("runtime.json not readable: {}", cfg_path.display())),
+        }
+    } else {
+        rejected.push("no home dir; runtime.json unresolvable".to_string());
+    }
+
+    if let Some(p) = provisioned_node_path() {
+        if p.is_file() {
+            return NodeResolution {
+                path: p,
+                source: NodeSource::ProvisionedDefault,
+                rejected,
+            };
+        }
+        rejected.push(format!("provisioned node not found: {}", p.display()));
+    }
+
+    NodeResolution {
+        path: PathBuf::from("node"),
+        source: NodeSource::PathFallback,
+        rejected,
+    }
+}
 
 #[derive(Clone)]
 pub struct SidecarHandle {
@@ -65,14 +237,39 @@ pub struct SidecarHandle {
     stdin: Arc<Mutex<Option<ChildStdin>>>,
     next_id: Arc<AtomicU64>,
     pending: PendingMap,
+    stderr_tail: StderrTail,
+}
+
+impl SidecarHandle {
+    /// Last captured stderr lines (bounded ring buffer).
+    pub fn stderr_tail(&self) -> Vec<String> {
+        self.stderr_tail
+            .lock()
+            .map(|d| d.iter().cloned().collect())
+            .unwrap_or_default()
+    }
+
+    /// Non-blocking liveness probe. Returns `Ok(None)` while running, the exit
+    /// code once the child has died, and an error string when unprobeable.
+    pub fn try_exit_code(&self) -> Result<Option<i32>, String> {
+        let mut guard = self.child.lock().map_err(|e| e.to_string())?;
+        let Some(child) = guard.as_mut() else {
+            return Err("child-already-taken".to_string());
+        };
+        match child.try_wait() {
+            Ok(Some(status)) => Ok(Some(status.code().unwrap_or(-1))),
+            Ok(None) => Ok(None),
+            Err(e) => Err(e.to_string()),
+        }
+    }
 }
 
 pub struct Sidecar;
 
 impl Sidecar {
-    /// Resolve the bundled sidecar script path. In dev we walk relative to the
-    /// Tauri working directory; in production the script ships alongside the
-    /// resource bundle.
+    /// Resolve the bundled sidecar script path. In production the script ships
+    /// in the resource bundle (`bundle.resources` maps `../sidecar/dist` to
+    /// `sidecar/dist`); in dev we walk relative to the working directory.
     pub fn script_path(app: &AppHandle) -> PathBuf {
         if let Ok(resolved) = app.path().resolve(
             "sidecar/dist/main.js",
@@ -82,33 +279,74 @@ impl Sidecar {
                 return resolved;
             }
         }
-        // Dev fallback: relative to current_dir (`desktop/src-tauri/` or `desktop/`).
+        Self::script_path_without_app()
+    }
+
+    /// Script resolution that needs no `AppHandle` -- used by the
+    /// `--healthcheck` mode, which runs before any Tauri window exists. Checks
+    /// next to the exe (where the NSIS/`.app` resource dir lands), then the dev
+    /// working-directory fallbacks.
+    pub fn script_path_without_app() -> PathBuf {
+        let mut candidates: Vec<PathBuf> = Vec::new();
+        if let Ok(exe) = std::env::current_exe() {
+            if let Some(dir) = exe.parent() {
+                candidates.push(dir.join("sidecar/dist/main.js"));
+                // macOS .app layout: Contents/MacOS/<exe> with resources in
+                // Contents/Resources.
+                candidates.push(dir.join("../Resources/sidecar/dist/main.js"));
+            }
+        }
         let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-        let candidates = [
-            cwd.join("sidecar/dist/main.js"),
-            cwd.join("../sidecar/dist/main.js"),
-            cwd.join("../../desktop/sidecar/dist/main.js"),
-        ];
+        candidates.push(cwd.join("sidecar/dist/main.js"));
+        candidates.push(cwd.join("../sidecar/dist/main.js"));
+        candidates.push(cwd.join("../../desktop/sidecar/dist/main.js"));
         for c in &candidates {
             if c.exists() {
                 return c.clone();
             }
         }
-        candidates[0].clone()
+        candidates
+            .first()
+            .cloned()
+            .unwrap_or_else(|| PathBuf::from("sidecar/dist/main.js"))
     }
 
-    pub fn spawn(app: &AppHandle) -> Result<SidecarHandle, SidecarError> {
+    pub fn spawn(app: &AppHandle) -> Result<(SidecarHandle, SidecarStatus), SidecarError> {
         let script = Self::script_path(app);
+        Self::spawn_with(&script, &resolve_node(runtime_config_path().as_deref()))
+    }
+
+    /// Spawn against an explicit script + node resolution. Shared by the app
+    /// setup path and the `--healthcheck` mode.
+    pub fn spawn_with(
+        script: &Path,
+        node: &NodeResolution,
+    ) -> Result<(SidecarHandle, SidecarStatus), SidecarError> {
+        let mut status = SidecarStatus {
+            running: false,
+            node_path: Some(node.path.display().to_string()),
+            node_source: Some(
+                serde_json::to_value(&node.source)
+                    .ok()
+                    .and_then(|v| v.as_str().map(String::from))
+                    .unwrap_or_default(),
+            ),
+            script_path: Some(script.display().to_string()),
+            failure: None,
+            stderr_tail: Vec::new(),
+            candidates_rejected: node.rejected.clone(),
+        };
         if !script.exists() {
-            return Err(SidecarError::NotFound(script));
+            status.failure = Some(format!("script-not-found: {}", script.display()));
+            return Err(SidecarError::NotFound(script.to_path_buf()));
         }
-        let mut child = Command::new("node")
-            .arg(&script)
+        let mut child = Command::new(&node.path)
+            .arg(script)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .map_err(|e| SidecarError::Spawn(e.to_string()))?;
+            .map_err(|e| SidecarError::Spawn(format!("{} ({})", e, node.path.display())))?;
 
         let stdin = child
             .stdin
@@ -119,15 +357,39 @@ impl Sidecar {
             .take()
             .ok_or_else(|| SidecarError::Spawn("missing stdout".to_string()))?;
 
+        let stderr_tail: StderrTail = Arc::new(Mutex::new(VecDeque::new()));
+        if let Some(stderr) = child.stderr.take() {
+            let tail = stderr_tail.clone();
+            // Drain stderr continuously: an undrained pipe fills its OS buffer
+            // and blocks the sidecar's writes (a silent production deadlock).
+            thread::spawn(move || {
+                let reader = BufReader::new(stderr);
+                for line in reader.lines() {
+                    let Ok(line) = line else { break };
+                    if let Ok(mut deque) = tail.lock() {
+                        if deque.len() >= STDERR_TAIL_LINES {
+                            deque.pop_front();
+                        }
+                        deque.push_back(line);
+                    }
+                }
+            });
+        }
+
         let pending: PendingMap = Arc::new(Mutex::new(HashMap::new()));
         Self::spawn_reader(stdout, pending.clone());
 
-        Ok(SidecarHandle {
-            child: Arc::new(Mutex::new(Some(child))),
-            stdin: Arc::new(Mutex::new(Some(stdin))),
-            next_id: Arc::new(AtomicU64::new(1)),
-            pending,
-        })
+        status.running = true;
+        Ok((
+            SidecarHandle {
+                child: Arc::new(Mutex::new(Some(child))),
+                stdin: Arc::new(Mutex::new(Some(stdin))),
+                next_id: Arc::new(AtomicU64::new(1)),
+                pending,
+                stderr_tail,
+            },
+            status,
+        ))
     }
 
     fn spawn_reader(stdout: ChildStdout, pending: PendingMap) {
@@ -224,15 +486,154 @@ impl Sidecar {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+
+    /// Tests below mutate the process-wide NEXUS_NODE_PATH; serialize them.
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    fn env_lock() -> std::sync::MutexGuard<'static, ()> {
+        ENV_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    struct EnvGuard(&'static str, Option<std::ffi::OsString>);
+    impl EnvGuard {
+        fn set(key: &'static str, value: &Path) -> Self {
+            let prev = std::env::var_os(key);
+            std::env::set_var(key, value);
+            EnvGuard(key, prev)
+        }
+        fn unset(key: &'static str) -> Self {
+            let prev = std::env::var_os(key);
+            std::env::remove_var(key);
+            EnvGuard(key, prev)
+        }
+    }
+    impl Drop for EnvGuard {
+        fn drop(&mut self) {
+            match &self.1 {
+                Some(v) => std::env::set_var(self.0, v),
+                None => std::env::remove_var(self.0),
+            }
+        }
+    }
 
     #[test]
-    fn script_path_returns_a_path() {
-        // We cannot construct a real AppHandle in unit tests, so we exercise
-        // the path resolution helper indirectly by checking that the fallback
-        // candidates yield a non-empty PathBuf.
-        let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-        let candidate = cwd.join("sidecar/dist/main.js");
-        assert!(candidate.to_string_lossy().contains("sidecar"));
+    fn resolve_node_prefers_env_override_when_file_exists() {
+        let _lock = env_lock();
+        let dir = std::env::temp_dir().join("nexus-test-node-env");
+        fs::create_dir_all(&dir).unwrap();
+        let fake_node = dir.join("node.exe");
+        fs::write(&fake_node, b"stub").unwrap();
+        let _g = EnvGuard::set("NEXUS_NODE_PATH", &fake_node);
+        let res = resolve_node(None);
+        assert_eq!(res.source, NodeSource::EnvOverride);
+        assert_eq!(res.path, fake_node);
+    }
+
+    #[test]
+    fn resolve_node_uses_runtime_config_node_path() {
+        let _lock = env_lock();
+        let _g = EnvGuard::unset("NEXUS_NODE_PATH");
+        let dir = std::env::temp_dir().join("nexus-test-node-cfg");
+        fs::create_dir_all(&dir).unwrap();
+        let fake_node = dir.join("node-from-config.exe");
+        fs::write(&fake_node, b"stub").unwrap();
+        let cfg = dir.join("runtime.json");
+        fs::write(
+            &cfg,
+            serde_json::to_string(&serde_json::json!({
+                "schemaVersion": 1,
+                "nodePath": fake_node.to_string_lossy(),
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        let res = resolve_node(Some(&cfg));
+        assert_eq!(res.source, NodeSource::RuntimeConfig);
+        assert_eq!(res.path, fake_node);
+    }
+
+    #[test]
+    fn resolve_node_reports_stale_runtime_config_and_falls_through() {
+        let _lock = env_lock();
+        let _g = EnvGuard::unset("NEXUS_NODE_PATH");
+        let dir = std::env::temp_dir().join("nexus-test-node-stale");
+        fs::create_dir_all(&dir).unwrap();
+        let cfg = dir.join("runtime.json");
+        fs::write(
+            &cfg,
+            r#"{"schemaVersion":1,"nodePath":"Z:/definitely/not/here/node.exe"}"#,
+        )
+        .unwrap();
+        let res = resolve_node(Some(&cfg));
+        // Falls through to provisioned-default or PATH depending on machine;
+        // either way the stale config is recorded as rejected.
+        assert!(res
+            .rejected
+            .iter()
+            .any(|r| r.contains("nodePath not a file")));
+        assert_ne!(res.source, NodeSource::RuntimeConfig);
+    }
+
+    #[test]
+    fn resolve_node_handles_corrupt_runtime_config() {
+        let _lock = env_lock();
+        let _g = EnvGuard::unset("NEXUS_NODE_PATH");
+        let dir = std::env::temp_dir().join("nexus-test-node-corrupt");
+        fs::create_dir_all(&dir).unwrap();
+        let cfg = dir.join("runtime.json");
+        fs::write(&cfg, b"{not json").unwrap();
+        let res = resolve_node(Some(&cfg));
+        assert!(res.rejected.iter().any(|r| r.contains("parse error")));
+        assert_ne!(res.source, NodeSource::RuntimeConfig);
+    }
+
+    #[test]
+    fn resolve_node_path_fallback_is_bare_node() {
+        let _lock = env_lock();
+        let _g = EnvGuard::unset("NEXUS_NODE_PATH");
+        let dir = std::env::temp_dir().join("nexus-test-node-missingcfg");
+        fs::create_dir_all(&dir).unwrap();
+        let cfg = dir.join("does-not-exist.json");
+        let res = resolve_node(Some(&cfg));
+        if res.source == NodeSource::PathFallback {
+            assert_eq!(res.path, PathBuf::from("node"));
+            assert!(!res.rejected.is_empty());
+        }
+        // On a machine with a provisioned Node the chain legitimately stops
+        // earlier; the assertion above only pins the fallback branch.
+    }
+
+    #[test]
+    fn spawn_with_missing_script_reports_not_found() {
+        let node = NodeResolution {
+            path: PathBuf::from("node"),
+            source: NodeSource::PathFallback,
+            rejected: vec![],
+        };
+        let missing = std::env::temp_dir().join("nexus-test-missing/main.js");
+        match Sidecar::spawn_with(&missing, &node) {
+            Err(SidecarError::NotFound(p)) => assert_eq!(p, missing),
+            Err(other) => panic!("expected NotFound, got {other:?}"),
+            Ok(_) => panic!("expected NotFound, got Ok"),
+        }
+    }
+
+    #[test]
+    fn sidecar_status_serializes_camel_case() {
+        let status = SidecarStatus {
+            running: false,
+            node_path: Some("node".into()),
+            node_source: Some("path-fallback".into()),
+            script_path: None,
+            failure: Some("script-not-found: x".into()),
+            stderr_tail: vec!["boom".into()],
+            candidates_rejected: vec![],
+        };
+        let s = serde_json::to_string(&status).unwrap();
+        assert!(s.contains("\"nodePath\""));
+        assert!(s.contains("\"stderrTail\""));
+        assert!(s.contains("script-not-found"));
     }
 
     #[test]
