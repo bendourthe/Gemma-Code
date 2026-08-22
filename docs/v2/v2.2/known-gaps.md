@@ -15,7 +15,7 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 17 | 3 |
+| Deferred (DF) | 17 | 4 |
 | Bugs / regressions (BG) | 0 | 2 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 3 | 1 |
@@ -67,7 +67,7 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 - **Reason**: `ensure_ollama_supports()` calls `OllamaInstaller._ollama_version()` (a private method, flagged with `noqa: SLF001`) because there is no public version accessor. Correct behavior, slightly leaky boundary.
 - **Suggested next step**: Promote `_ollama_version` to a public `installed_version()` during the Phase 8 refactor and drop the noqa.
 
-##### DF-7 - Bundled hub snapshot is not produced by the release build yet
+##### DF-7 [RESOLVED 2026-08-22, Phase 8] - Bundled hub snapshot is not produced by the release build yet
 
 - **Source phase**: Phase 3 - Nexus-Hub Harness Provisioning (3.1)
 - **Plan reference**: `docs/v2/v2.2/plans/v2.2.0-runtime-repair-and-ux-overhaul.md` (sub-task 3.1)

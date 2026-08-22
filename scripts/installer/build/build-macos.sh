@@ -1,6 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# v2.2.0 Phase 8 (DF-7): build the bundled Nexus-Hub catalog snapshot so an
+# offline first run still lands a working harness. Non-fatal: a build host
+# without a local catalog still produces an installer that syncs at install
+# time.
+HUB_CATALOG="${HOME}/.nexus-ai/catalog"
+if [ -d "$HUB_CATALOG" ]; then
+  python "$(dirname "$0")/build-hub-snapshot.py" --catalog "$HUB_CATALOG" --out "$(dirname "$0")/hub-snapshot"
+  echo "  Snapshot built from $HUB_CATALOG"
+else
+  echo "  No local catalog at $HUB_CATALOG; installer will sync at install time."
+fi
+
 # Build the Nexus installer for macOS via PyInstaller.
 # v1.9.0 Phase 1 (T102): a single onefile (spec APP_NAME "Nexus AI Studio
 # Setup") is frozen into a staging dir, then packaged into exactly one

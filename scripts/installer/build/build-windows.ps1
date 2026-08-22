@@ -23,13 +23,29 @@ $InstallerRoot = Split-Path -Parent $PSScriptRoot
 $RepoRoot = (Resolve-Path "$InstallerRoot\..\..").Path
 $DistDir  = Join-Path $RepoRoot "dist"
 
-Write-Host "[1/4] Installing build dependencies..." -ForegroundColor Cyan
+Write-Host "[1/5] Installing build dependencies..." -ForegroundColor Cyan
 Push-Location $InstallerRoot
 uv sync --quiet
 uv pip install pyinstaller --quiet
 Pop-Location
 
-Write-Host "[2/4] Locating artifacts..." -ForegroundColor Cyan
+# v2.2.0 Phase 8 (DF-7): build the bundled Nexus-Hub catalog snapshot.
+#
+# The spec has embedded this snapshot since Phase 3, but no build script ever
+# produced it, so every installer shipped without an offline harness and a
+# first run with no network landed no skills or commands at all. Non-fatal: a
+# dev box without a local catalog still builds, and the installer falls back to
+# a network sync at install time.
+Write-Host "[2/5] Building Nexus-Hub catalog snapshot..." -ForegroundColor Cyan
+$HubCatalog = Join-Path $env:USERPROFILE ".nexus-ai\catalog"
+if (Test-Path $HubCatalog) {
+    python (Join-Path $PSScriptRoot "build-hub-snapshot.py") --catalog $HubCatalog --out (Join-Path $PSScriptRoot "hub-snapshot")
+    Write-Host "  Snapshot built from $HubCatalog"
+} else {
+    Write-Host "  No local catalog at $HubCatalog; installer will sync at install time." -ForegroundColor Yellow
+}
+
+Write-Host "[3/5] Locating artifacts..." -ForegroundColor Cyan
 $Version = (Get-Content "$RepoRoot\package.json" | ConvertFrom-Json).version
 Write-Host "  Version: $Version"
 # vsce emits nexus-coding-*.vsix (the root package name); the legacy
@@ -92,7 +108,7 @@ Write-Host "  Desktop bundle staged: $(Split-Path $DesktopBundle -Leaf) (sha256 
 
 # The onefile is written straight to the repo-root dist/ (gitignored) so the
 # canonical local output is easy to find -- no deep pyqt/dist + hand-copy.
-Write-Host "[3/4] Running PyInstaller (single onefile -> dist/NexusSetup.exe)..." -ForegroundColor Cyan
+Write-Host "[4/5] Running PyInstaller (single onefile -> dist/NexusSetup.exe)..." -ForegroundColor Cyan
 New-Item -ItemType Directory -Force -Path $DistDir | Out-Null
 Push-Location $InstallerRoot
 
@@ -135,7 +151,7 @@ if (-not (Test-Path $ExePath)) {
     exit 1
 }
 
-Write-Host "[4/4] Build output:" -ForegroundColor Cyan
+Write-Host "[5/5] Build output:" -ForegroundColor Cyan
 $FileSize = (Get-Item $ExePath).Length / 1MB
 $Hash = (Get-FileHash $ExePath -Algorithm SHA256).Hash
 Write-Host "  File: $ExePath"

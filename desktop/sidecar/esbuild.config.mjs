@@ -15,7 +15,7 @@
 
 import { build } from "esbuild";
 import { createRequire } from "node:module";
-import { cpSync, mkdirSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -33,6 +33,15 @@ const GRAMMARS = [
   "tree-sitter-go.wasm",
 ];
 
+// v2.2.0 Phase 8: the sidecar reuses the coding runtime, which was written for
+// the VS Code extension and reaches `vscode` through its logger. There is no
+// VS Code process here, so the bundle could not resolve the module at all and
+// this build failed outright. Since Phase 1 the installer embeds sidecar/dist
+// as a Tauri resource, so a sidecar that cannot be built is a shipped app with
+// no backend. The shim provides only the logger's surface and writes to
+// stderr, because stdout carries the JSON-RPC stream.
+const vscodeShim = path.join(here, "src", "shims", "vscode.ts");
+
 await build({
   entryPoints: [path.join(here, "src", "main.ts")],
   bundle: true,
@@ -40,7 +49,12 @@ await build({
   target: "node20",
   format: "cjs",
   outfile: path.join(distDir, "main.js"),
-  external: ["tree-sitter-wasms"],
+  // better-sqlite3 is a NATIVE addon. Bundling its JS wrapper inlines a
+  // `require` for a .node binary that is then looked up relative to the bundle
+  // and never found, so the sidecar died at startup before answering a single
+  // request. Keep it external and ship the real package next to the bundle.
+  external: ["tree-sitter-wasms", "better-sqlite3", "bindings"],
+  alias: { vscode: vscodeShim },
   // import.meta.url is empty in CJS output; rewrite it to a __filename-derived
   // URL so treeSitterWarmup.bundledWasmDir() resolves <dist>/wasm at runtime.
   // The source stays valid ESM (native import.meta.url) for typecheck + tests.
@@ -52,8 +66,39 @@ await build({
 // to provision ~/.nexus-ai/catalog/ during installation. Kept separate from
 // main.js because that module starts the scheduler, serving gateway, and studio
 // DB at import time -- none of which a one-shot catalog sync should touch.
+// Ship the native addon and its resolver next to the bundle so Node's own
+// resolution finds them from dist/. Copied, not bundled: a .node binary is
+// platform-specific machine code, not something a JS bundler can inline.
+const repoNodeModules = path.join(here, "..", "..", "node_modules");
+const distNodeModules = path.join(distDir, "node_modules");
+for (const pkg of ["better-sqlite3", "bindings", "file-uri-to-path"]) {
+  const src = path.join(repoNodeModules, pkg);
+  if (!existsSync(src)) {
+    throw new Error(
+      `[build:sidecar] ${pkg} not found at ${src}. The sidecar cannot open its ` +
+        `database without it, and a sidecar that cannot start is a shipped app ` +
+        `with no backend.`,
+    );
+  }
+  cpSync(src, path.join(distNodeModules, pkg), { recursive: true });
+}
+const nativeBinary = path.join(
+  distNodeModules,
+  "better-sqlite3",
+  "build",
+  "Release",
+  "better_sqlite3.node",
+);
+if (!existsSync(nativeBinary)) {
+  throw new Error(
+    `[build:sidecar] better_sqlite3.node missing after copy (${nativeBinary}). ` +
+      `Run npm rebuild better-sqlite3 before packaging.`,
+  );
+}
+
 await build({
   entryPoints: [path.join(here, "src", "cli", "hubCatalogEntry.ts")],
+  alias: { vscode: vscodeShim },
   bundle: true,
   platform: "node",
   target: "node20",

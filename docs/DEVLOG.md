@@ -4,6 +4,29 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-22] v2.2.0 Phase 8c - The sidecar bundle could not build or start
+
+### What was actually wrong
+
+Rebuilding for release surfaced two defects that had already shipped, both of which produce exactly the reported "nothing is working":
+
+1. **`npm run build:sidecar` failed outright.** The sidecar reuses the coding runtime, which was written for the VS Code extension and reaches `vscode` through its logger. There is no VS Code process in the sidecar, so esbuild could not resolve the module. Since Phase 1 the installer embeds `sidecar/dist` as a Tauri resource, so a sidecar that cannot be built means the app ships with a stale backend or none.
+2. **The built sidecar died at startup.** better-sqlite3 is a native addon. Bundling its JS wrapper inlined a `require` for a `.node` binary that was then looked up relative to the bundle and never found. `GenerationIndex` constructs a database at module scope, so the process threw before answering a single request.
+
+### Fixes
+
+- Added a `vscode` shim providing only `window.createOutputChannel`, aliased for both entry points. It writes to **stderr**: stdout carries the line-delimited JSON-RPC stream, and a log line there would corrupt the protocol rather than merely being noisy.
+- Marked `better-sqlite3` and `bindings` external and copy the real packages next to the bundle. A `.node` file is platform-specific machine code, not something a bundler can inline. The build now FAILS if the binary is missing after the copy, because a silent skip produces an installer whose backend cannot open its database.
+- DF-7: all three installer build scripts now build the Nexus-Hub catalog snapshot. The PyInstaller spec has embedded it since Phase 3, but nothing ever produced it, so every installer shipped without an offline harness. A build host with no local catalog still builds and syncs at install time.
+
+### Verification
+
+Not just "it compiles": the built sidecar was run and answered `ping` and the new `data.categories` (6 categories) over real JSON-RPC on stdin/stdout.
+
+Gates: root 5425 passed; desktop 1251 passed; 7 new bundle-contract tests.
+
+---
+
 ## [2026-08-22] v2.2.0 Phase 8b - Data transfer reaches the backend (DF-16)
 
 Phase 7 shipped the transfer runtime and the Settings > Data page but never connected them, so the page could only ever report the backend as unreachable. This wires `data.categories`, `data.export`, and `data.import` through the protocol and handlers, adds an IPC adapter that returns null outside the desktop shell (so the browser dev server still tells the truth), gives the export an editable destination defaulting to a timestamped name, and adds a Preview step before Import.
