@@ -1,6 +1,6 @@
 # Nexus - Progress Dashboard
 
-**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (**v2.2.3** glass-orbs-and-pillar-runtime in progress on `develop`; Phases 1, 2, 3, 4, and 7 implemented and verified, Phases 5, 6, and 8 pending; package still **2.1.0** until `/update release`).
+**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (**v2.2.3** glass-orbs-and-pillar-runtime in progress on `develop`; Phases 1, 2, 3, 4, 5, and 7 implemented and verified, Phases 6 and 8 pending; package still **2.1.0** until `/update release`).
 
 > **v2.1.0 RELEASED (2026-08-20)** -- [open-local-ai-wave](v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md) Phases 1-7 plus known-gaps sweeps. Package **2.1.0**. Known-gaps [finalized](v2/v2.1/known-gaps.md) (6 open DF remain hardware/watch/live-GPU). Cycle: Muse Glimmer + Nemotron Lightning catalog/harness, cheap-first routing, studio provenance + queue, vision budgets + SAM2, Unsloth Core fine-tuning, signed audit log + JSON CLI + VRAM knobs. Develop follow-up closed code-completeable rows (unload, AgentLoop routing, SAM picker, MaskEditor, frame comments, installer Unsloth checkbox, golden-eval adapter). No retag.
 >

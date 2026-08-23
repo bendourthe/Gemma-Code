@@ -4,6 +4,33 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-23] v2.2.3 Phase 5 - Four-pillar submit-time occupancy
+
+### What Changed
+
+- Added read-only `generation.scheduler.snapshot` IPC over the existing Studio `GpuScheduler` active and queued state.
+- Fed live free VRAM, the active scheduler job, and the resolved diffusion tier from App into Image Studio and Video Lab.
+- Added the same submit-time residency gate and switch dialog to Local Chatbot and Agentic Coding.
+- Shared remembered model-pair consent across routes for one renderer session, while keeping each page's pending dialog local.
+- Fixed the existing Studio resume loop so Switch now bypasses classification exactly once even when Remember is unchecked.
+
+### Why It Changed
+
+Image and Video had policy calls but App starved them of live inputs, while Chat and Coding sent immediately. The prior dialog resume pattern could also reopen itself after Switch because one-time approval was lost when the handler reclassified the same prompt.
+
+### Decisions Made
+
+- Classification runs only inside submit handlers; navigation and model-list browsing never load, unload, or classify a model.
+- Missing catalog VRAM is treated as an unknown estimate rather than zero-cost co-residency.
+- Unknown free VRAM with an incumbent produces a confirmation, never a silent swap.
+- Session-only Remember uses in-memory App state and is not written to disk.
+
+### Impact and Context
+
+The focused occupancy suite passed 126 tests across 10 files. The solo desktop suite passed 1355 tests across 156 files, and the root suite passed 5438 tests with 12 skips across 516 passing files and 3 skipped files. Desktop lint, typecheck, web and sidecar builds, root build, and architecture validation passed; the architecture gate retained 16 pre-existing warnings. DF-9 remains open only for the Phase 8 final reconciliation required by the plan.
+
+---
+
 ## [2026-08-23] v2.2.3 Phase 4 - Durable chat transcripts and memory
 
 ### What Changed

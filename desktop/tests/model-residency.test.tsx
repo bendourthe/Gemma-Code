@@ -63,6 +63,16 @@ describe("useModelResidency", () => {
     expect(result.current.pending).toBeNull();
   });
 
+  it("asks when an incumbent exists and free VRAM is unknown", () => {
+    const { result } = renderHook(() => useModelResidency());
+    let verdict;
+    act(() => {
+      verdict = result.current.request(req({ freeVramGB: null }));
+    });
+    expect(verdict).toMatchObject({ kind: "confirm", reason: "vram-unknown" });
+    expect(result.current.pending?.verdict.reason).toBe("vram-unknown");
+  });
+
   it("suppresses the next dialog once the user remembers the choice", () => {
     const { result } = renderHook(() => useModelResidency());
     act(() => {
@@ -95,6 +105,26 @@ describe("useModelResidency", () => {
       second = result.current.request(req());
     });
     expect(second).toMatchObject({ kind: "confirm" });
+  });
+
+  it("shares remembered pairs across page hook instances for one App session", () => {
+    const sessionMemory = new Set<string>();
+    const first = renderHook(() => useModelResidency({ rememberedPairs: sessionMemory }));
+    act(() => {
+      first.result.current.request(req());
+    });
+    act(() => {
+      first.result.current.resolvePending({ action: "switch", remember: true });
+    });
+    first.unmount();
+
+    const second = renderHook(() => useModelResidency({ rememberedPairs: sessionMemory }));
+    let verdict;
+    act(() => {
+      verdict = second.result.current.request(req());
+    });
+    expect(verdict).toMatchObject({ kind: "auto-switch" });
+    expect(second.result.current.pending).toBeNull();
   });
 
   it("re-classifies on confirm so a finished job is not treated as busy", () => {

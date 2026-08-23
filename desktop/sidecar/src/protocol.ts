@@ -123,6 +123,8 @@ export const IPC_METHODS = [
   "generation.queue.cancel",
   "generation.queue.reorder",
   "generation.queue.pendingCount",
+  // v2.2.3 Phase 5 -- read-only Studio GPU occupancy for submit-time gates.
+  "generation.scheduler.snapshot",
   // v2.1.0 Phase 5 -- local Unsloth Core fine-tuning pillar.
   "tuning.status",
   "tuning.provision",
@@ -1065,6 +1067,47 @@ export const GenerationQueuePendingCountRequest = z.object({}).strict();
 export const GenerationQueuePendingCountResponse = z
   .object({ count: z.number().int().nonnegative() })
   .strict();
+
+export const GenerationSchedulerSnapshotRequest = z.object({}).strict();
+export const GenerationSchedulerModuleId = z.enum([
+  "coding",
+  "chat",
+  "image",
+  "video",
+  "tuning",
+]);
+export const GenerationSchedulerActiveJob = z
+  .object({
+    id: z.string().min(1),
+    moduleId: GenerationSchedulerModuleId,
+    jobType: z.string().min(1),
+    modelId: z.string().min(1).optional(),
+    estimatedVramGB: z.number().nonnegative(),
+    startedAt: z.number(),
+  })
+  .strict();
+export type GenerationSchedulerActiveJobT = z.infer<typeof GenerationSchedulerActiveJob>;
+export const GenerationSchedulerQueuedJob = z
+  .object({
+    id: z.string().min(1),
+    moduleId: GenerationSchedulerModuleId,
+    jobType: z.string().min(1),
+    modelId: z.string().min(1).optional(),
+    estimatedVramGB: z.number().nonnegative(),
+    priority: z.enum(["foreground", "background"]),
+    enqueuedAt: z.number(),
+  })
+  .strict();
+export const GenerationSchedulerSnapshotResponse = z
+  .object({
+    active: GenerationSchedulerActiveJob.nullable(),
+    queued: z.array(GenerationSchedulerQueuedJob),
+    foregroundModule: GenerationSchedulerModuleId.nullable(),
+  })
+  .strict();
+export type GenerationSchedulerSnapshotResponseT = z.infer<
+  typeof GenerationSchedulerSnapshotResponse
+>;
 
 // ---- v2.1.0 Phase 5 -- local fine-tuning pillar -----------------------------
 
@@ -2333,6 +2376,11 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
   "generation.queue.pendingCount": {
     request: GenerationQueuePendingCountRequest,
     response: GenerationQueuePendingCountResponse,
+    implemented: true,
+  },
+  "generation.scheduler.snapshot": {
+    request: GenerationSchedulerSnapshotRequest,
+    response: GenerationSchedulerSnapshotResponse,
     implemented: true,
   },
   "tuning.status": {

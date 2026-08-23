@@ -40,6 +40,7 @@ import {
   GenerationQueueListRequest,
   GenerationQueuePendingCountRequest,
   GenerationQueueReorderRequest,
+  GenerationSchedulerSnapshotRequest,
   TuningEmptyRequest,
   TuningDatasetBuildRequest,
   TuningJobStartRequest,
@@ -1206,6 +1207,10 @@ export const handlers: Record<Method, HandlerFn> = {
   "generation.queue.pendingCount": async (params, ctx) => {
     GenerationQueuePendingCountRequest.parse(params ?? {});
     return { count: resolveStudio(ctx).queue.pendingCount() };
+  },
+  "generation.scheduler.snapshot": async (params, ctx) => {
+    GenerationSchedulerSnapshotRequest.parse(params ?? {});
+    return resolveStudio(ctx).scheduler.snapshot();
   },
   "tuning.status": async (params, ctx) => {
     TuningEmptyRequest.parse(params ?? {});

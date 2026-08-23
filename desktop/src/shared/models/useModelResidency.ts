@@ -68,6 +68,8 @@ export interface UseModelResidency {
 export interface UseModelResidencyOptions {
   readonly initialResident?: readonly ModelResidency[];
   readonly now?: () => number;
+  /** Shared by App routes so Remember lasts for this renderer session only. */
+  readonly rememberedPairs?: Set<string>;
 }
 
 export function useModelResidency(
@@ -81,7 +83,7 @@ export function useModelResidency(
   const [pending, setPending] = useState<PendingSwitch | null>(null);
   // A ref, not state: consenting must take effect for the very next
   // classification, without waiting for a re-render.
-  const remembered = useRef<Set<string>>(new Set());
+  const remembered = useRef<Set<string>>(options.rememberedPairs ?? new Set());
 
   const request = useCallback(
     (input: SwitchRequest): SwitchVerdict => {

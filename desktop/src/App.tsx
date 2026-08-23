@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { Sidebar } from "./components/Sidebar";
@@ -31,6 +31,11 @@ import { createLiveTelemetryStream } from "./lib/liveTelemetry";
 import type { TelemetryStream } from "./components/LocalModelStatus.types";
 import { ipcCall } from "./lib/ipc";
 import { MotionActivityProvider, useMotionActivity } from "./motion";
+import {
+  fetchSchedulerSnapshot,
+  type ResidencySessionMemory,
+  type SchedulerActiveJob,
+} from "./shared/models/schedulerResidency";
 
 export interface AppProps {
   // Test seam: callers may inject a fake telemetry stream.
@@ -78,6 +83,9 @@ export function App({ telemetryStream }: AppProps = {}): JSX.Element {
 function AppLayout({ telemetryStream }: AppProps): JSX.Element {
   const [stream, setStream] = useState<TelemetryStream | null>(telemetryStream ?? null);
   const [hostVramGB, setHostVramGB] = useState<number | null>(null);
+  const [hostVramFreeGB, setHostVramFreeGB] = useState<number | null>(null);
+  const [activeSchedulerJob, setActiveSchedulerJob] = useState<SchedulerActiveJob | null>(null);
+  const residencyMemory = useRef<ResidencySessionMemory>(new Set()).current;
   const navigate = useNavigate();
   // v2.2.3 Phase 1 (1.1): the error boundary is keyed by pathname so a crashed
   // module remounts cleanly when the user switches to another route.
@@ -106,8 +114,27 @@ function AppLayout({ telemetryStream }: AppProps): JSX.Element {
     if (!stream) return;
     return stream.subscribe((sample) => {
       if (typeof sample.vramTotalGB === "number") setHostVramGB(sample.vramTotalGB);
+      setHostVramFreeGB(
+        typeof sample.vramFreeGB === "number" && Number.isFinite(sample.vramFreeGB)
+          ? sample.vramFreeGB
+          : null,
+      );
     });
   }, [stream]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const poll = async (): Promise<void> => {
+      const snapshot = await fetchSchedulerSnapshot();
+      if (!cancelled) setActiveSchedulerJob(snapshot?.active ?? null);
+    };
+    void poll();
+    const timer = setInterval(() => void poll(), 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, []);
 
   // Fixed-viewport shell: the title bar is fixed chrome and the content row
   // scrolls internally. The ambient radial-glow + constellation backdrop sits
@@ -193,13 +220,34 @@ function AppLayout({ telemetryStream }: AppProps): JSX.Element {
                   onGetMoreModels={() => navigate(SETTINGS_MODELS_PATH)}
                   memoryHub={chatMemoryHub}
                   sampleVideoFrames={sampleChatVideoFrames}
+                  hostVramFreeGB={hostVramFreeGB}
+                  activeSchedulerJob={activeSchedulerJob}
+                  residencyMemory={residencyMemory}
                 />
               }
             />
-            <Route path="/coding" element={<CodingPage onGetMoreModels={() => navigate(SETTINGS_MODELS_PATH)} />} />
+            <Route
+              path="/coding"
+              element={
+                <CodingPage
+                  onGetMoreModels={() => navigate(SETTINGS_MODELS_PATH)}
+                  hostVramFreeGB={hostVramFreeGB}
+                  activeSchedulerJob={activeSchedulerJob}
+                  residencyMemory={residencyMemory}
+                />
+              }
+            />
             <Route
               path="/images"
-              element={<ImageStudioPage onGetMoreModels={() => navigate(SETTINGS_MODELS_PATH)} />}
+              element={
+                <ImageStudioPage
+                  onGetMoreModels={() => navigate(SETTINGS_MODELS_PATH)}
+                  diffusionTier={classifyDiffusionTier(hostVramGB ?? 0)}
+                  hostVramFreeGB={hostVramFreeGB}
+                  activeSchedulerJob={activeSchedulerJob}
+                  residencyMemory={residencyMemory}
+                />
+              }
             />
             <Route
               path="/videos"
@@ -208,6 +256,9 @@ function AppLayout({ telemetryStream }: AppProps): JSX.Element {
                   onGetMoreModels={() => navigate(SETTINGS_MODELS_PATH)}
                   vramGB={hostVramGB ?? 0}
                   diffusionTier={classifyDiffusionTier(hostVramGB ?? 0)}
+                  hostVramFreeGB={hostVramFreeGB}
+                  activeSchedulerJob={activeSchedulerJob}
+                  residencyMemory={residencyMemory}
                   resolveMp4Url={convertFileSrc}
                 />
               }

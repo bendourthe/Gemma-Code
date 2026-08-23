@@ -41,7 +41,7 @@ describe("Video Lab switch policy", () => {
   it("resumes the same prompt after the user agrees", () => {
     // Losing the prompt on confirm would make the dialog feel like a failure.
     expect(SOURCE).toContain("const resumed = pendingPromptRef.current");
-    expect(SOURCE).toContain("void handleSubmit(resumed.text, resumed.attachments)");
+    expect(SOURCE).toContain("void handleSubmit(resumed.text, resumed.attachments, true)");
   });
 
   it("explains a refusal instead of failing silently", () => {

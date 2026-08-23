@@ -42,10 +42,43 @@ describe("generation queue IPC", () => {
       "generation.queue.cancel",
       "generation.queue.reorder",
       "generation.queue.pendingCount",
+      "generation.scheduler.snapshot",
     ] as const) {
       expect(IPC_METHODS).toContain(method);
       expect(METHOD_SCHEMAS[method].implemented).toBe(true);
     }
+  });
+
+  it("returns the active Studio scheduler job", async () => {
+    const ctx = makeCtx();
+    ctx.studio = createStudioRuntime({ dbPath: ":memory:", vramGB: 24 });
+    let release!: () => void;
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const handle = await ctx.studio.scheduler.enqueue({
+      id: "active-image",
+      moduleId: "image",
+      jobType: "txt2img",
+      modelId: "sana-1.6b-1024",
+      estimatedVramGB: 3.2,
+      priority: "foreground",
+      run: async () => blocked,
+    });
+    for (let attempt = 0; attempt < 10 && ctx.studio.scheduler.snapshot().active === null; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    const snapshot = (await dispatch("generation.scheduler.snapshot", {}, ctx)) as {
+      active: { id: string; moduleId: string; modelId?: string; estimatedVramGB: number } | null;
+    };
+    expect(snapshot.active).toMatchObject({
+      id: "active-image",
+      moduleId: "image",
+      modelId: "sana-1.6b-1024",
+      estimatedVramGB: 3.2,
+    });
+    release();
+    await handle.completion;
   });
 
   it("enqueues a seed range and reports pending count", async () => {

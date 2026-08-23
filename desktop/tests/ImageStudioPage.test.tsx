@@ -21,6 +21,7 @@ function imageModels(): { list: () => Promise<ListedModelDto[]> } {
         type: "image",
         installed: true,
         source: "registry",
+        vramGB: 3.2,
       },
     ],
   };
@@ -66,6 +67,34 @@ describe("ImageStudioPage (chat)", () => {
     expect((client.lastRequest?.request as { prompt: string }).prompt).toBe("a fox");
     expect((client.lastRequest?.request as { modelId: string }).modelId).toBe("sana-1.6b-1024");
     expect(screen.getByText("a fox")).toBeInTheDocument(); // echoed user bubble
+  });
+
+  it("does not generate until a conflicting active model switch is approved", async () => {
+    const client = new InMemoryDiffusionClient();
+    render(
+      <ImageStudioPage
+        client={client}
+        modelsClient={imageModels()}
+        hostVramFreeGB={1}
+        activeSchedulerJob={{
+          id: "coding-job",
+          moduleId: "coding",
+          jobType: "agent-turn",
+          modelId: "qwen2.5-coder:14b",
+          estimatedVramGB: 9,
+          startedAt: 1,
+        }}
+      />,
+    );
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "a fox" },
+    });
+    fireEvent.click(screen.getByTestId("media-composer-submit"));
+    expect(await screen.findByTestId("model-switch-dialog")).toBeInTheDocument();
+    expect(client.lastRequest).toBeNull();
+    fireEvent.click(screen.getByTestId("model-switch-dialog-switch"));
+    await waitFor(() => expect(client.lastRequest?.mode).toBe("txt2img"));
+    expect(screen.queryByTestId("model-switch-dialog")).toBeNull();
   });
 
   it("an attached image routes to img2img with the source image", async () => {

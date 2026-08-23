@@ -22,6 +22,13 @@ import {
 } from "../../lib/sidecarStatus";
 import { useModelResidency } from "../../shared/models/useModelResidency";
 import {
+  busyContextFromScheduler,
+  modelVramEstimate,
+  residentModelsFromScheduler,
+  type ResidencySessionMemory,
+  type SchedulerActiveJob,
+} from "../../shared/models/schedulerResidency";
+import {
   ModelSwitchChip,
   ModelSwitchDialog,
 } from "../../shared/models/ModelSwitchDialog";
@@ -97,11 +104,8 @@ export interface ImageStudioPageProps {
    */
   readonly hostVramFreeGB?: number | null;
   /** The scheduler's active job, so the policy knows what would be evicted. */
-  readonly activeSchedulerJob?: {
-    moduleId: "coding" | "chat" | "image" | "video" | "tuning";
-    jobType: string;
-    modelId?: string;
-  } | null;
+  readonly activeSchedulerJob?: SchedulerActiveJob | null;
+  readonly residencyMemory?: ResidencySessionMemory;
 }
 
 let messageSeq = 0;
@@ -119,6 +123,7 @@ export function ImageStudioPage({
   diffusionTier = "diffusion-low",
   hostVramFreeGB,
   activeSchedulerJob,
+  residencyMemory,
   queueClient: queueOverride,
 }: ImageStudioPageProps = {}): JSX.Element {
   const [client] = useState<DiffusionClient>(() => clientOverride ?? createIpcDiffusionClient());
@@ -133,7 +138,7 @@ export function ImageStudioPage({
   const sidecar = useSidecarStatus();
   // v2.2.0 Phase 4 (4.3): single-GPU switch policy. Classification happens
   // on SUBMIT only -- mounting this route must never change residency.
-  const residency = useModelResidency();
+  const residency = useModelResidency({ rememberedPairs: residencyMemory });
   // Holds the prompt whose submit opened the confirm dialog, so answering
   // "Switch now" resumes the SAME request instead of losing it.
   const pendingPromptRef = useRef<{ text: string; attachments: readonly string[] }>({
@@ -335,38 +340,44 @@ export function ImageStudioPage({
   }, [queueClient, drainIntervalMs]);
 
   const handleSubmit = useCallback(
-    async (text: string, attachments: readonly string[]): Promise<void> => {
+    async (
+      text: string,
+      attachments: readonly string[],
+      residencyApproved = false,
+    ): Promise<void> => {
       if (isGenerating) return;
       // v2.2.0 Phase 4: ask the policy before doing GPU work. A `confirm`
       // verdict opens the dialog and returns; the user's answer re-enters
       // this path. Everything else proceeds immediately.
-      const selected = models.find((m) => m.id === selectedModelId);
-      const verdict = residency.request({
-        targetModelId: selectedModelId,
-        targetVramGB: selected?.vramGB ?? 0,
-        requestingModule: "image",
-        resident: residency.resident,
-        freeVramGB: hostVramFreeGB ?? null,
-        activeJob: activeSchedulerJob ?? null,
-        installed: Boolean(selected?.installed ?? true),
-      });
-      if (verdict.kind === "confirm") {
-        pendingPromptRef.current = { text, attachments };
-        return; // dialog is open; the answer re-enters this path
-      }
-      if (verdict.kind === "not-installed" || verdict.kind === "defer") {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: nextId("assistant"),
-            role: "assistant",
-            content:
-              verdict.kind === "not-installed"
-                ? `${selectedModelId} is not installed. Install it in Settings > Models.`
-                : `Cannot load ${selectedModelId} right now: ${verdict.reason}`,
-          },
-        ]);
-        return;
+      if (!residencyApproved) {
+        const selected = models.find((m) => m.id === selectedModelId);
+        const verdict = residency.request({
+          targetModelId: selectedModelId,
+          targetVramGB: modelVramEstimate(selected?.vramGB),
+          requestingModule: "image",
+          resident: residentModelsFromScheduler(activeSchedulerJob),
+          freeVramGB: hostVramFreeGB ?? null,
+          activeJob: busyContextFromScheduler(activeSchedulerJob),
+          installed: Boolean(selected?.installed ?? true),
+        });
+        if (verdict.kind === "confirm") {
+          pendingPromptRef.current = { text, attachments };
+          return;
+        }
+        if (verdict.kind === "not-installed" || verdict.kind === "defer") {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: nextId("assistant"),
+              role: "assistant",
+              content:
+                verdict.kind === "not-installed"
+                  ? `${selectedModelId} is not installed. Install it in Settings > Models.`
+                  : `Cannot load ${selectedModelId} right now: ${verdict.reason}`,
+            },
+          ]);
+          return;
+        }
       }
       const replace = attachments.length > 0 ? parseReplaceIntent(text) : null;
       const intent = inferImageIntent({ text, attachments, mask: paintedMask });
@@ -577,7 +588,7 @@ export function ImageStudioPage({
               // The user agreed: re-enter the submit path with consent applied.
               const resumed = pendingPromptRef.current;
               pendingPromptRef.current = { text: "", attachments: [] };
-              void handleSubmit(resumed.text, resumed.attachments);
+              void handleSubmit(resumed.text, resumed.attachments, true);
             }
           }}
           onExpire={() => residency.dismissPending()}

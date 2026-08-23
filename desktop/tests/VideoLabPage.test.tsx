@@ -20,6 +20,7 @@ function videoModels(): { list: () => Promise<ListedModelDto[]> } {
         type: "video",
         installed: true,
         source: "registry",
+        vramGB: 5.5,
       },
     ],
   };
@@ -72,6 +73,34 @@ describe("VideoLabPage (chat)", () => {
     expect(media.getAttribute("src")).toBe("mock:///tmp/clip.mp4");
     expect((client.lastRequest?.request as { prompt: string }).prompt).toBe("a fox");
     expect((client.lastRequest?.request as { modelId: string }).modelId).toBe("wan2.1-t2v-1.3b");
+  });
+
+  it("does not generate until a conflicting active model switch is approved", async () => {
+    const client = new InMemoryVideoClient();
+    render(
+      <VideoLabPage
+        client={client}
+        modelsClient={videoModels()}
+        hostVramFreeGB={1}
+        activeSchedulerJob={{
+          id: "coding-job",
+          moduleId: "coding",
+          jobType: "agent-turn",
+          modelId: "qwen2.5-coder:14b",
+          estimatedVramGB: 9,
+          startedAt: 1,
+        }}
+      />,
+    );
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), {
+      target: { value: "a fox" },
+    });
+    fireEvent.click(screen.getByTestId("media-composer-submit"));
+    expect(await screen.findByTestId("model-switch-dialog")).toBeInTheDocument();
+    expect(client.lastRequest).toBeNull();
+    fireEvent.click(screen.getByTestId("model-switch-dialog-switch"));
+    await waitFor(() => expect(client.lastRequest?.mode).toBe("text2video"));
+    expect(screen.queryByTestId("model-switch-dialog")).toBeNull();
   });
 
   it("an attached image routes to image2video with the source image", async () => {

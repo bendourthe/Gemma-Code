@@ -6,7 +6,7 @@
  * - new chat - send message - see assistant echo".
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ChatPage } from "../src/modules/chat/ChatPage";
@@ -41,6 +41,41 @@ describe("<ChatPage>", () => {
     expect(await screen.findByText("hello from an empty rail")).toBeInTheDocument();
     expect(client.listTree().chats.length).toBe(1);
     expect(client.listTree().chats[0]?.title).toBe("New chat");
+  });
+
+  it("does not send until a conflicting active model switch is approved", async () => {
+    const client = new InMemoryChatExplorerClient();
+    const start = vi.fn(async () => ({ sessionId: "s1", modelId: "gemma4:e4b", createdAt: "t" }));
+    const sendMessage = vi.fn(async () => ({
+      sessionId: "s1",
+      events: [
+        { kind: "token" as const, text: "ok" },
+        { kind: "done" as const, finishReason: "stop" },
+      ],
+    }));
+    const user = userEvent.setup();
+    render(
+      <ChatPage
+        client={client}
+        chatSession={{ start, sendMessage }}
+        hostVramFreeGB={1}
+        activeSchedulerJob={{
+          id: "image-job",
+          moduleId: "image",
+          jobType: "txt2img",
+          modelId: "sana-1.6b-1024",
+          estimatedVramGB: 3.2,
+          startedAt: 1,
+        }}
+      />,
+    );
+    await user.type(screen.getByTestId("media-composer-textarea"), "hello{Enter}");
+    expect(await screen.findByTestId("chat-model-switch-dialog")).toBeInTheDocument();
+    expect(start).not.toHaveBeenCalled();
+    expect(sendMessage).not.toHaveBeenCalled();
+    await user.click(screen.getByTestId("chat-model-switch-dialog-switch"));
+    await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText("ok")).toBeInTheDocument();
   });
 
   it("opening a chat surfaces the message list and input", async () => {

@@ -77,6 +77,15 @@ import { createIpcModelsClient } from "../../pages/settings/ipcModelsClient";
 import type { ListedModelDto } from "../../pages/settings/modelsTypes";
 import { SidecarDownBanner } from "../../components/SidecarDownBanner";
 import { useSidecarStatus, type UseSidecarStatusOptions } from "../../lib/sidecarStatus";
+import { useModelResidency } from "../../shared/models/useModelResidency";
+import { ModelSwitchDialog } from "../../shared/models/ModelSwitchDialog";
+import {
+  busyContextFromScheduler,
+  modelVramEstimate,
+  residentModelsFromScheduler,
+  type ResidencySessionMemory,
+  type SchedulerActiveJob,
+} from "../../shared/models/schedulerResidency";
 
 const FALLBACK_LLMS: readonly ListedModelDto[] = FRONTEND_MODELS.map((m) => ({
   id: m.id,
@@ -128,6 +137,10 @@ export interface ChatPageProps {
   voiceMicRecorder?: import("../../shared/chat/micRecorder").MicRecorder;
   /** v2.2.2 -- test seam for the backend-down banner. */
   sidecarStatus?: UseSidecarStatusOptions;
+  /** v2.2.3 Phase 5 -- submit-time GPU occupancy inputs. */
+  hostVramFreeGB?: number | null;
+  activeSchedulerJob?: SchedulerActiveJob | null;
+  residencyMemory?: ResidencySessionMemory;
 }
 
 export function ChatPage({
@@ -143,6 +156,9 @@ export function ChatPage({
   sampleVideoFrames,
   memoryHub,
   sidecarStatus: sidecarStatusOptions,
+  hostVramFreeGB = null,
+  activeSchedulerJob = null,
+  residencyMemory,
 }: ChatPageProps = {}): JSX.Element {
   // The client survives re-renders but is recreated per ChatPage instance.
   // Tests can inject one via the prop so they observe state changes.
@@ -180,6 +196,11 @@ export function ChatPage({
     () => new Map(),
   );
   const [transcriptError, setTranscriptError] = useState<string | null>(null);
+  const residency = useModelResidency({ rememberedPairs: residencyMemory });
+  const pendingPromptRef = useRef<{ text: string; attachments: readonly string[] }>({
+    text: "",
+    attachments: [],
+  });
   // v1.5.0 Phase 5 (item 24): the artifact currently shown in the side-by-side
   // preview pane, or null when the pane is closed.
   const [preview, setPreview] = useState<PreviewArtifact | null>(null);
@@ -567,7 +588,11 @@ export function ChatPage({
   );
 
   const handleSubmit = useCallback(
-    async (text: string, attachments: readonly string[] = []) => {
+    async (
+      text: string,
+      attachments: readonly string[] = [],
+      residencyApproved = false,
+    ) => {
       let chat = activeChat;
       if (!chat) {
         const created = client.createChat({
@@ -581,6 +606,33 @@ export function ChatPage({
         setTreeVersion((v) => v + 1);
       } else {
         await hydrationPromisesRef.current.get(chat.id);
+      }
+      if (!residencyApproved) {
+        const selectedModel = listedModels.find((candidate) => candidate.id === modelId);
+        const verdict = residency.request({
+          targetModelId: modelId,
+          targetVramGB: modelVramEstimate(selectedModel?.vramGB),
+          requestingModule: "chat",
+          resident: residentModelsFromScheduler(activeSchedulerJob),
+          freeVramGB: hostVramFreeGB,
+          activeJob: busyContextFromScheduler(activeSchedulerJob),
+          installed: Boolean(selectedModel?.installed ?? true),
+        });
+        if (verdict.kind === "confirm") {
+          pendingPromptRef.current = { text, attachments };
+          return;
+        }
+        if (verdict.kind === "not-installed" || verdict.kind === "defer") {
+          appendMessage(chat.id, {
+            id: `${chat.id}-${Date.now()}-assistant`,
+            role: "assistant",
+            content:
+              verdict.kind === "not-installed"
+                ? `${modelId} is not installed. Install it in Settings > Models.`
+                : `Cannot load ${modelId} right now: ${verdict.reason}`,
+          });
+          return;
+        }
       }
       const baseId = `${chat.id}-${Date.now()}`;
       const groups = partitionAttachments(attachments);
@@ -743,15 +795,18 @@ export function ChatPage({
     },
     [
       activeChat,
+      activeSchedulerJob,
       appendMessage,
       audioClient,
       client,
       handleParseDocument,
+      hostVramFreeGB,
       imageGate.enabled,
       listedModels,
       memoryHub,
       modelId,
       playReply,
+      residency,
       sampleVideoFrames,
       selectedListedModel,
       sendChatTurn,
@@ -994,6 +1049,22 @@ export function ChatPage({
           >
             {transcriptError}
           </div>
+        ) : null}
+
+        {residency.pending ? (
+          <ModelSwitchDialog
+            pending={residency.pending}
+            testId="chat-model-switch-dialog"
+            onResolve={(resolution) => {
+              const resolved = residency.resolvePending(resolution);
+              if (resolved && resolved.kind !== "confirm") {
+                const resumed = pendingPromptRef.current;
+                pendingPromptRef.current = { text: "", attachments: [] };
+                void handleSubmit(resumed.text, resumed.attachments, true);
+              }
+            }}
+            onExpire={() => residency.dismissPending()}
+          />
         ) : null}
 
         <div style={{ flex: 1, display: "flex", minHeight: 0, gap: "var(--space-3)" }}>

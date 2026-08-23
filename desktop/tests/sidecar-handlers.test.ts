@@ -106,6 +106,7 @@ describe("sidecar handlers", () => {
           "generation.queue.cancel",
           "generation.queue.reorder",
           "generation.queue.pendingCount",
+          "generation.scheduler.snapshot",
           // v2.1.0 Phase 5 wired the Unsloth Core fine-tuning pillar.
           "tuning.status",
           "tuning.provision",

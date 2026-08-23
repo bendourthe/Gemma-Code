@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ipc } from "../../lib/ipc";
 import type {
   CodingSessionEventT,
@@ -30,6 +30,15 @@ import {
   type DocumentClient,
 } from "../chat/documentClient";
 import type { AgentActivity } from "../../components/agentState/mapping";
+import { useModelResidency } from "../../shared/models/useModelResidency";
+import { ModelSwitchDialog } from "../../shared/models/ModelSwitchDialog";
+import {
+  busyContextFromScheduler,
+  modelVramEstimate,
+  residentModelsFromScheduler,
+  type ResidencySessionMemory,
+  type SchedulerActiveJob,
+} from "../../shared/models/schedulerResidency";
 
 type Tab = "chat" | "memory" | "trace" | "sessions";
 
@@ -93,6 +102,10 @@ export interface CodingPageProps {
   documentClient?: DocumentClient;
   /** v2.2.2 -- test seam for the backend-down banner. */
   sidecarStatus?: UseSidecarStatusOptions;
+  /** v2.2.3 Phase 5 -- submit-time GPU occupancy inputs. */
+  hostVramFreeGB?: number | null;
+  activeSchedulerJob?: SchedulerActiveJob | null;
+  residencyMemory?: ResidencySessionMemory;
 }
 
 export function CodingPage({
@@ -102,6 +115,9 @@ export function CodingPage({
   onGetMoreModels,
   documentClient: documentClientOverride,
   sidecarStatus: sidecarStatusOptions,
+  hostVramFreeGB = null,
+  activeSchedulerJob = null,
+  residencyMemory,
 }: CodingPageProps = {}): JSX.Element {
   const [tab, setTab] = useState<Tab>(initialTab ?? "chat");
   const [modelId, setModelId] = useState<string>(initialModelId ?? DEFAULT_MODEL_ID);
@@ -125,6 +141,11 @@ export function CodingPage({
   const [compareSessionId, setCompareSessionId] = useState<string | null>(null);
   const [compareEvents, setCompareEvents] = useState<readonly TraceEventT[]>([]);
   const sidecar = useSidecarStatus(sidecarStatusOptions);
+  const residency = useModelResidency({ rememberedPairs: residencyMemory });
+  const pendingPromptRef = useRef<{ text: string; attachments: readonly string[] }>({
+    text: "",
+    attachments: [],
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -221,8 +242,36 @@ export function CodingPage({
   );
 
   const handleSubmit = useCallback(
-    async (text: string, attachments: readonly string[] = []): Promise<void> => {
+    async (
+      text: string,
+      attachments: readonly string[] = [],
+      residencyApproved = false,
+    ): Promise<void> => {
       setError(null);
+      if (!residencyApproved) {
+        const selectedModel = listedModels.find((candidate) => candidate.id === modelId);
+        const verdict = residency.request({
+          targetModelId: modelId,
+          targetVramGB: modelVramEstimate(selectedModel?.vramGB),
+          requestingModule: "coding",
+          resident: residentModelsFromScheduler(activeSchedulerJob),
+          freeVramGB: hostVramFreeGB,
+          activeJob: busyContextFromScheduler(activeSchedulerJob),
+          installed: Boolean(selectedModel?.installed ?? true),
+        });
+        if (verdict.kind === "confirm") {
+          pendingPromptRef.current = { text, attachments };
+          return;
+        }
+        if (verdict.kind === "not-installed" || verdict.kind === "defer") {
+          setError(
+            verdict.kind === "not-installed"
+              ? `${modelId} is not installed. Install it in Settings > Models.`
+              : `Cannot load ${modelId} right now: ${verdict.reason}`,
+          );
+          return;
+        }
+      }
       if (attachments.length > 0) {
         const first = attachments[0];
         if (first !== undefined) {
@@ -251,7 +300,15 @@ export function CodingPage({
         setBusy(false);
       }
     },
-    [ensureSession, handleParseDocument],
+    [
+      activeSchedulerJob,
+      ensureSession,
+      handleParseDocument,
+      hostVramFreeGB,
+      listedModels,
+      modelId,
+      residency,
+    ],
   );
 
   const handleCancel = useCallback(async (): Promise<void> => {
@@ -422,6 +479,22 @@ export function CodingPage({
           {error}
         </p>
       )}
+
+      {residency.pending ? (
+        <ModelSwitchDialog
+          pending={residency.pending}
+          testId="coding-model-switch-dialog"
+          onResolve={(resolution) => {
+            const resolved = residency.resolvePending(resolution);
+            if (resolved && resolved.kind !== "confirm") {
+              const resumed = pendingPromptRef.current;
+              pendingPromptRef.current = { text: "", attachments: [] };
+              void handleSubmit(resumed.text, resumed.attachments, true);
+            }
+          }}
+          onExpire={() => residency.dismissPending()}
+        />
+      ) : null}
 
       {sidecar.isDown && (
         <SidecarDownBanner

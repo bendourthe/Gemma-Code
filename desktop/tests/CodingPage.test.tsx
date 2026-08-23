@@ -122,6 +122,32 @@ describe("CodingPage", () => {
     });
   });
 
+  it("does not start or send until a conflicting active model switch is approved", async () => {
+    render(
+      <CodingPage
+        hostVramFreeGB={1}
+        activeSchedulerJob={{
+          id: "video-job",
+          moduleId: "video",
+          jobType: "text2video",
+          modelId: "wan2.1-t2v-1.3b",
+          estimatedVramGB: 5.5,
+          startedAt: 1,
+        }}
+      />,
+    );
+    await userEvent.type(screen.getByTestId("coding-input-textarea"), "Hello agent");
+    await userEvent.click(screen.getByTestId("coding-input-submit"));
+    expect(await screen.findByTestId("coding-model-switch-dialog")).toBeInTheDocument();
+    expect(fake.calls.some((call) => call.method === "coding.session.start")).toBe(false);
+    expect(fake.calls.some((call) => call.method === "coding.session.sendMessage")).toBe(false);
+    await userEvent.click(screen.getByTestId("coding-model-switch-dialog-switch"));
+    await waitFor(() =>
+      expect(fake.calls.some((call) => call.method === "coding.session.sendMessage")).toBe(true),
+    );
+    expect(screen.getByTestId("coding-chat")).toHaveTextContent("Hello agent");
+  });
+
   it("shows the working orb while a coding turn is in flight", async () => {
     let release!: () => void;
     const gate = new Promise<void>((resolve) => {

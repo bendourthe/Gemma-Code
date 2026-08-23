@@ -67,3 +67,14 @@ Clean. No action required.
 - Session replay remains part of the existing chat start request, and retrieved context remains ephemeral. No duplicate session manager, streaming facade, scratch document, or alternate memory directory was added.
 
 **Verdict**: Clean for Phase 4. No move proposed.
+
+## v2.2.3 Phase 5 audit
+
+**Date**: 2026-08-23
+**Mode**: audit (no files moved)
+
+- The new `generation.scheduler.snapshot` method exposes the existing Studio `GpuScheduler`; it does not create a second scheduler or occupancy store.
+- Renderer occupancy conversion lives in one shared model helper, while the four pages retain their existing submit handlers and dialog primitive.
+- Remembered consent is one App-session `Set` passed into page-local hooks. Pending dialog state does not leak across routes, and no persistent settings key or alternate consent database was added.
+
+**Verdict**: Clean for Phase 5. No move proposed.

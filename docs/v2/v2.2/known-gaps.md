@@ -2,7 +2,7 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-23 (v2.2.3 Phase 4)
+**Last updated**: 2026-08-23 (v2.2.3 Phase 5)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
@@ -10,7 +10,7 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 
 ## v2.2.3
 
-**Last updated**: 2026-08-23 (Phase 4 - durable chat transcripts and episodic memory)
+**Last updated**: 2026-08-23 (Phase 5 - four-pillar submit-time occupancy)
 
 ### Summary
 
@@ -48,12 +48,12 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 - **Reason**: Automated tests now prove that queue failures, empty image completes, empty video completes, and decode failures become written errors with no false media actions. Real SANA and LTX generation were not executed on a supported GPU, so successful bytes, runtime duration, and asset playback under live load remain unproven.
 - **Suggested next step**: Run the existing image and video generation smoke on a supported GPU and capture successful output plus packaged playback evidence.
 
-##### DF-9 - Occupancy policy is not yet wired to all four submit surfaces
+##### DF-9 - Four-pillar occupancy final acceptance is pending
 
 - **Source phase**: v2.2.3 verification addendum, reopened in Phase 1
 - **Plan reference**: `docs/v2/v2.2/plans/v2.2.3-glass-orbs-and-pillar-runtime.md` (Phase 5)
-- **Reason**: The earlier closure was not field-true. Chat and Coding do not gate submit, and App does not yet feed Image and Video live free VRAM plus the studio scheduler snapshot.
-- **Suggested next step**: Implement Phase 5 and resolve this item only after four page-level residency tests pass.
+- **Reason**: Phase 5 implementation is complete: App supplies live free VRAM, the Studio scheduler active snapshot, and one renderer-session consent set; Chat, Coding, Image, and Video classify only on submit. Four interaction tests prove a conflicting active model blocks dispatch until Switch, and policy tests prove unknown VRAM confirms. The canonical plan reserves closure for the Phase 8 whole-cycle reconciliation, so this row remains open until that gate.
+- **Suggested next step**: In Phase 8, re-run the four page gates plus no-load-on-navigation and resolve this item if the final suite remains green.
 
 ##### DF-14 - CodingInput retains a separate composer implementation
 
