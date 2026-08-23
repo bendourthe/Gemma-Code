@@ -18,13 +18,22 @@ export interface ChatStartResult {
   createdAt: string;
 }
 
+export interface ChatReplayMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
 export interface ChatSendResult {
   sessionId: string;
   events: ChatStreamEvent[];
 }
 
 export interface ChatSessionClient {
-  start(input: { modelId: string; title?: string }): Promise<ChatStartResult>;
+  start(input: {
+    modelId: string;
+    title?: string;
+    history?: readonly ChatReplayMessage[];
+  }): Promise<ChatStartResult>;
   sendMessage(input: {
     sessionId: string;
     message: string;
@@ -46,6 +55,7 @@ export function createChatIpcClient(): ChatSessionClient {
       const reply = await ipcCall<ChatStartResult>("chat.session.start", {
         modelId: input.modelId,
         ...(input.title ? { title: input.title } : {}),
+        ...(input.history ? { history: input.history } : {}),
       });
       if (!reply.ok) throw new Error(reply.message);
       return reply.value;

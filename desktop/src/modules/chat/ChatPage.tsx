@@ -30,7 +30,7 @@ import {
   joinChatReply,
   type ChatSessionClient,
 } from "./chatIpcClient";
-import type { Chat, Folder } from "./types";
+import type { Chat, ChatMessageRecord, Folder } from "./types";
 import {
   MediaComposer,
   MessageList,
@@ -50,7 +50,7 @@ import {
 } from "../../../../core/chat/vision";
 import { enforceVisualBudget, capVideoFrames } from "../../../../core/chat/visualBudget";
 import { recordMultimodalTurn } from "../../../../core/memory/multimodalSurrogate";
-import type { MemoryHub } from "../../../../core/memory/MemoryHub";
+import type { EpisodicMemory } from "../../../../core/memory/MemoryHub";
 import { redactSecrets } from "../../../../core/observability/redactSecrets";
 import { PreviewPane, type PreviewArtifact } from "../../components/PreviewPane";
 import { DEFAULT_MODEL_ID, FRONTEND_MODELS } from "../coding/models";
@@ -116,7 +116,7 @@ export interface ChatPageProps {
    * v2.1.0 Phase 4 -- optional episodic hub so non-text turns are indexed by
    * a redacted caption surrogate. Tests inject InMemoryMemoryHub.
    */
-  memoryHub?: Pick<MemoryHub, "episodic">;
+  memoryHub?: { episodic: Pick<EpisodicMemory, "record"> };
   /**
    * v2.0.0 Phase 1 -- local STT/TTS client. Tests inject an in-memory fake;
    * production talks to sidecar `audio.*` IPC.
@@ -166,6 +166,9 @@ export function ChatPage({
   );
   // Per-chat sidecar session id, lazily started on first message.
   const sessionIdsRef = useRef<Map<string, string>>(new Map());
+  const messagesByChatRef = useRef<Map<string, ChatMessage[]>>(new Map());
+  const hydrationPromisesRef = useRef<Map<string, Promise<void>>>(new Map());
+  const hydrationVersionRef = useRef<Map<string, number>>(new Map());
 
   const [selected, setSelected] = useState<SelectedNode | null>(null);
   const [activeChat, setActiveChat] = useState<Chat | null>(null);
@@ -176,6 +179,7 @@ export function ChatPage({
   const [messagesByChat, setMessagesByChat] = useState<Map<string, ChatMessage[]>>(
     () => new Map(),
   );
+  const [transcriptError, setTranscriptError] = useState<string | null>(null);
   // v1.5.0 Phase 5 (item 24): the artifact currently shown in the side-by-side
   // preview pane, or null when the pane is closed.
   const [preview, setPreview] = useState<PreviewArtifact | null>(null);
@@ -337,7 +341,33 @@ export function ChatPage({
     setActiveChat(chat);
     setSelected({ kind: "chat", id: chat.id });
     setPreview(null);
-  }, []);
+    if (!client.listMessages) return;
+
+    const version = (hydrationVersionRef.current.get(chat.id) ?? 0) + 1;
+    hydrationVersionRef.current.set(chat.id, version);
+    const hydration = Promise.resolve(client.listMessages(chat.id, 500)).then(
+      (records) => {
+        if (hydrationVersionRef.current.get(chat.id) !== version) return;
+        const hydrated = records.map(chatMessageFromRecord);
+        const next = new Map(messagesByChatRef.current);
+        next.set(chat.id, hydrated);
+        messagesByChatRef.current = next;
+        setMessagesByChat(next);
+        setTranscriptError(null);
+      },
+      (err: unknown) => {
+        setTranscriptError(
+          `Chat history could not be loaded: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      },
+    );
+    hydrationPromisesRef.current.set(chat.id, hydration);
+    void hydration.finally(() => {
+      if (hydrationPromisesRef.current.get(chat.id) === hydration) {
+        hydrationPromisesRef.current.delete(chat.id);
+      }
+    });
+  }, [client]);
 
   // v1.5.0 Phase 5 (item 24): open a message's output in the side-by-side
   // preview pane. HTML artifacts (interactive forms / tool HTML) render through
@@ -355,26 +385,50 @@ export function ChatPage({
     );
   }, []);
 
-  /** Append one message to a chat's transcript. */
-  const appendMessage = useCallback((chatId: string, message: ChatMessage) => {
-    setMessagesByChat((prev) => {
-      const next = new Map(prev);
+  const persistMessage = useCallback(
+    async (chatId: string, message: ChatMessage): Promise<void> => {
+      if (!client.appendMessage || message.pending) return;
+      try {
+        await Promise.resolve(
+          client.appendMessage({
+            chatId,
+            role: message.role === "user" ? "user" : "assistant",
+            content: message.content,
+            ...(message.attachments ? { attachments: message.attachments } : {}),
+          }),
+        );
+        setTranscriptError(null);
+      } catch (err) {
+        setTranscriptError(
+          `Message is visible but was not saved: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    },
+    [client],
+  );
+
+  /** Append locally first, then persist non-pending rows without blocking UI. */
+  const appendMessage = useCallback(
+    (chatId: string, message: ChatMessage) => {
+      const next = new Map(messagesByChatRef.current);
       next.set(chatId, [...(next.get(chatId) ?? []), message]);
-      return next;
-    });
-  }, []);
+      messagesByChatRef.current = next;
+      setMessagesByChat(next);
+      if (!message.pending) void persistMessage(chatId, message);
+    },
+    [persistMessage],
+  );
 
   /** Replace one message in place (used to stream parse progress into a bubble). */
   const patchMessage = useCallback(
     (chatId: string, messageId: string, patch: Partial<ChatMessage>) => {
-      setMessagesByChat((prev) => {
-        const next = new Map(prev);
-        next.set(
-          chatId,
-          (next.get(chatId) ?? []).map((m) => (m.id === messageId ? { ...m, ...patch } : m)),
-        );
-        return next;
-      });
+      const next = new Map(messagesByChatRef.current);
+      next.set(
+        chatId,
+        (next.get(chatId) ?? []).map((m) => (m.id === messageId ? { ...m, ...patch } : m)),
+      );
+      messagesByChatRef.current = next;
+      setMessagesByChat(next);
     },
     [],
   );
@@ -402,6 +456,7 @@ export function ChatPage({
           const started = await chatSession.start({
             modelId: chat?.modelId ?? modelId,
             title: chat?.title,
+            history: replayHistory(messagesByChatRef.current.get(chatId) ?? [], `${baseId}-user`),
           });
           sessionId = started.sessionId;
           sessionIdsRef.current.set(chatId, sessionId);
@@ -415,19 +470,37 @@ export function ChatPage({
               : images.length > 0
                 ? "(image)"
                 : message;
-        const reply = await chatSession.sendMessage({
-          sessionId,
-          message: outbound,
-          ...(images.length > 0 ? { images: images.map(stripDataUrlPrefix) } : {}),
-        });
+        let reply;
+        try {
+          reply = await chatSession.sendMessage({
+            sessionId,
+            message: outbound,
+            ...(images.length > 0 ? { images: images.map(stripDataUrlPrefix) } : {}),
+          });
+        } catch (err) {
+          if (!isUnknownChatSessionError(err)) throw err;
+          sessionIdsRef.current.delete(chatId);
+          const restarted = await chatSession.start({
+            modelId: chat?.modelId ?? modelId,
+            title: chat?.title,
+            history: replayHistory(messagesByChatRef.current.get(chatId) ?? [], `${baseId}-user`),
+          });
+          sessionIdsRef.current.set(chatId, restarted.sessionId);
+          reply = await chatSession.sendMessage({
+            sessionId: restarted.sessionId,
+            message: outbound,
+            ...(images.length > 0 ? { images: images.map(stripDataUrlPrefix) } : {}),
+          });
+        }
         content = joinChatReply(reply.events) || "(no reply)";
       } catch (err) {
         content = `(chat unavailable) ${err instanceof Error ? err.message : String(err)}`;
       }
       patchMessage(chatId, assistantId, { content, pending: false });
+      void persistMessage(chatId, { id: assistantId, role: "assistant", content });
       return content;
     },
-    [activeChat, appendMessage, chatSession, modelId, patchMessage, personaByChat],
+    [activeChat, appendMessage, chatSession, modelId, patchMessage, persistMessage, personaByChat],
   );
 
   /**
@@ -465,17 +538,21 @@ export function ChatPage({
           result.pageCount > 1
             ? `Parsed ${result.pageCount} pages with ${result.engine}:`
             : `Parsed with ${result.engine}:`;
+        const content = body.length > 0 ? `${header}\n\n${body}` : `${header}\n\n(no text found)`;
         patchMessage(chatId, messageId, {
-          content: body.length > 0 ? `${header}\n\n${body}` : `${header}\n\n(no text found)`,
+          content,
           pending: false,
         });
+        void persistMessage(chatId, { id: messageId, role: "assistant", content });
       } catch (err) {
+        const content = `Could not parse the document: ${
+          err instanceof Error ? err.message : String(err)
+        }`;
         patchMessage(chatId, messageId, {
-          content: `Could not parse the document: ${
-            err instanceof Error ? err.message : String(err)
-          }`,
+          content,
           pending: false,
         });
+        void persistMessage(chatId, { id: messageId, role: "assistant", content });
       }
       if (note.trim().length > 0) {
         // The user typed alongside the attachment; keep their note visible.
@@ -486,7 +563,7 @@ export function ChatPage({
         });
       }
     },
-    [appendMessage, documentClient, patchMessage],
+    [appendMessage, documentClient, patchMessage, persistMessage],
   );
 
   const handleSubmit = useCallback(
@@ -502,6 +579,8 @@ export function ChatPage({
         setActiveChat(chat);
         setSelected({ kind: "chat", id: chat.id });
         setTreeVersion((v) => v + 1);
+      } else {
+        await hydrationPromisesRef.current.get(chat.id);
       }
       const baseId = `${chat.id}-${Date.now()}`;
       const groups = partitionAttachments(attachments);
@@ -650,6 +729,16 @@ export function ChatPage({
       }
 
       const reply = await sendChatTurn(chat.id, baseId, prompt, imageGate.enabled ? sendImages : []);
+      if (memoryHub) {
+        void memoryHub.episodic
+          .record({
+            id: `${baseId}-turn`,
+            content: redactSecrets(`User: ${prompt}\nAssistant: ${reply}`),
+            source: "chat-turn",
+            scopeId: chat.contextScopeId,
+          })
+          .catch(() => undefined);
+      }
       if (voiceEnabled) void playReply(reply);
     },
     [
@@ -897,6 +986,16 @@ export function ChatPage({
           />
         )}
 
+        {transcriptError ? (
+          <div
+            data-testid="chat-transcript-error"
+            role="status"
+            style={{ color: "var(--warning)", fontSize: "var(--text-sm)" }}
+          >
+            {transcriptError}
+          </div>
+        ) : null}
+
         <div style={{ flex: 1, display: "flex", minHeight: 0, gap: "var(--space-3)" }}>
           <div style={{ flex: 1, overflowY: "auto", minWidth: 0 }}>
             {activeChat ? (
@@ -994,6 +1093,33 @@ function dataUrlToBytes(dataUrl: string): Uint8Array {
   const out = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i += 1) out[i] = bin.charCodeAt(i);
   return out;
+}
+
+function chatMessageFromRecord(record: ChatMessageRecord): ChatMessage {
+  return {
+    id: record.id,
+    role: record.role,
+    content: record.content,
+    attachments: record.attachments,
+    timestamp: new Date(record.createdAt).toISOString(),
+  };
+}
+
+function replayHistory(
+  messages: readonly ChatMessage[],
+  currentUserId: string,
+): Array<{ role: "user" | "assistant"; content: string }> {
+  return messages
+    .filter(
+      (message): message is ChatMessage & { role: "user" | "assistant" } =>
+        !message.pending && message.id !== currentUserId && message.role !== "system",
+    )
+    .slice(-500)
+    .map((message) => ({ role: message.role, content: message.content }));
+}
+
+function isUnknownChatSessionError(err: unknown): boolean {
+  return err instanceof Error && /unknown sessionId/i.test(err.message);
 }
 
 function uint8ToBase64(bytes: Uint8Array): string {

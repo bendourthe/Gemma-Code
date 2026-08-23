@@ -79,6 +79,8 @@ describe("sidecar handlers", () => {
           // v1.7.0 wired the Local Chatbot Explorer surface.
           "chat.session.start",
           "chat.session.sendMessage",
+          "memory.episodic.record",
+          "memory.episodic.search",
           // v1.5.0 Phase 5 wired the credential-vault surface.
           "credentials.status",
           "credentials.list",
@@ -180,6 +182,53 @@ describe("sidecar handlers", () => {
 
   it("handlers covers every declared method", () => {
     for (const m of IPC_METHODS) expect(typeof handlers[m]).toBe("function");
+  });
+
+  it("routes episodic record and search through the injected chat-memory seam", async () => {
+    const recorded: Array<{ id: string; content: string }> = [];
+    const ctx = makeCtx();
+    ctx.chatMemory = {
+      record: async (input) => {
+        recorded.push({ id: input.id, content: input.content });
+        return { ok: true };
+      },
+      search: async (input) => ({
+        hits: [
+          {
+            id: "m1",
+            content: `matched ${input.query}`,
+            source: "chat-turn",
+            capturedAt: "2026-08-23T00:00:00.000Z",
+            scopeId: input.scopeId ?? null,
+          },
+        ],
+      }),
+    };
+    expect(
+      await dispatch(
+        "memory.episodic.record",
+        { id: "turn-1", content: "remember me", source: "chat-turn", scopeId: "work" },
+        ctx,
+      ),
+    ).toEqual({ ok: true });
+    expect(recorded).toEqual([{ id: "turn-1", content: "remember me" }]);
+    expect(
+      await dispatch(
+        "memory.episodic.search",
+        { query: "remember", limit: 3, scopeId: "work" },
+        ctx,
+      ),
+    ).toEqual({
+      hits: [
+        {
+          id: "m1",
+          content: "matched remember",
+          source: "chat-turn",
+          capturedAt: "2026-08-23T00:00:00.000Z",
+          scopeId: "work",
+        },
+      ],
+    });
   });
 
   it("models.* route to the injected runtime (v1.15.0 Phase 4)", async () => {

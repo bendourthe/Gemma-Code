@@ -13,6 +13,7 @@ export type {
   Folder,
   Chat,
   ChatMessageRecord,
+  AppendMessageInput,
   FolderTreeNode,
   ChatExplorerSearchHit,
   CreateFolderInput,

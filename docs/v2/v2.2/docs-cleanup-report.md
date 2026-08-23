@@ -56,3 +56,14 @@ Clean. No action required.
 - Tauri asset access is limited to the existing video output directory. No broad filesystem scope, generated bundle, scratch document, or alternate media directory was added.
 
 **Verdict**: Clean for Phase 3. No move proposed.
+
+## v2.2.3 Phase 4 audit
+
+**Date**: 2026-08-23
+**Mode**: audit (no files moved)
+
+- Chat transcript persistence extends the existing explorer message store and async client contract; it does not introduce a parallel transcript database.
+- Durable episodic memory reuses the existing `EpisodicMemory` SQLite layer through a sidecar composition adapter. The renderer receives a narrow IPC port rather than a second storage implementation.
+- Session replay remains part of the existing chat start request, and retrieved context remains ephemeral. No duplicate session manager, streaming facade, scratch document, or alternate memory directory was added.
+
+**Verdict**: Clean for Phase 4. No move proposed.

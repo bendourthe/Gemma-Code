@@ -131,4 +131,56 @@ describe("ChatSessionManager", () => {
     await mgr.sendMessage(started.sessionId, "what is this?", ["QUJD"]);
     expect(seen[0]?.images).toEqual(["QUJD"]);
   });
+
+  it("replays persisted turns when a replacement session starts", async () => {
+    const seen: Array<readonly { role: string; content: string }[]> = [];
+    const mgr = new ChatSessionManager({
+      runner: async (input) => {
+        seen.push(input.messages);
+        return [{ kind: "token", text: "continued" }, { kind: "done", finishReason: "stop" }];
+      },
+    });
+    const started = mgr.start({
+      modelId: "gemma4:e4b",
+      history: [
+        { role: "user", content: "remember alpha" },
+        { role: "assistant", content: "alpha stored" },
+      ],
+    });
+    await mgr.sendMessage(started.sessionId, "what was it?");
+    expect(seen[0]?.slice(1, 3)).toEqual([
+      { role: "user", content: "remember alpha" },
+      { role: "assistant", content: "alpha stored" },
+    ]);
+  });
+
+  it("injects retrieved memory as reference context without persisting it in history", async () => {
+    const seen: Array<readonly { role: string; content: string }[]> = [];
+    const mgr = new ChatSessionManager({
+      retrieveMemory: async () => ["User prefers concise answers"],
+      runner: async (input) => {
+        seen.push(input.messages);
+        return [{ kind: "token", text: "ok" }, { kind: "done", finishReason: "stop" }];
+      },
+    });
+    const started = mgr.start({ modelId: "gemma4:e4b" });
+    await mgr.sendMessage(started.sessionId, "answer this");
+    await mgr.sendMessage(started.sessionId, "and this");
+    expect(seen[0]?.some((message) => message.content.includes("User prefers concise"))).toBe(true);
+    expect(
+      seen[1]?.filter((message) => message.content.startsWith("Relevant past context")),
+    ).toHaveLength(1);
+  });
+
+  it("continues the turn when episodic retrieval is unavailable", async () => {
+    const mgr = new ChatSessionManager({
+      retrieveMemory: async () => {
+        throw new Error("memory offline");
+      },
+      runner: async () => [{ kind: "token", text: "still works" }, { kind: "done", finishReason: "stop" }],
+    });
+    const started = mgr.start({ modelId: "gemma4:e4b" });
+    const events = await mgr.sendMessage(started.sessionId, "hello");
+    expect(events[0]).toEqual({ kind: "token", text: "still works" });
+  });
 });

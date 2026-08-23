@@ -4,6 +4,31 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-23] v2.2.3 Phase 4 - Durable chat transcripts and memory
+
+### What Changed
+
+- Persisted completed Local Chatbot user and assistant turns through the explorer message store and hydrated only the opened chat on remount.
+- Replayed stored turns into new sidecar sessions and retried once after an unknown-session response, preserving model context across renderer remounts and sidecar restarts.
+- Replaced the production in-memory episodic facade with sidecar IPC backed by the existing SQLite memory layer, including scoped retrieval and redaction.
+- Kept pending replies visible as a captioned Composing orb and surfaced transcript hydration or write failures without discarding the in-memory conversation.
+
+### Why It Changed
+
+The explorer could preserve folders and chat metadata while every visible turn lived only in React state. Restoring those rows alone would still have left the model with an empty context, and the production App's `InMemoryMemoryHub` lost episodic records whenever the renderer exited.
+
+### Decisions Made
+
+- Used the explorer message store as transcript source of truth and the existing episodic SQLite layer for cross-chat memory instead of creating another database.
+- Sent bounded persisted history only when a sidecar session is created; retrieval references are ephemeral and never written back into the visible transcript.
+- Kept request/response batching because no incremental transport exists, and recorded streaming as DF-21 rather than presenting simulated tokens.
+
+### Impact and Context
+
+The solo desktop suite passed 1344 tests across 155 files. The full root suite passed 5438 tests with 12 skips across 516 passing files and 3 skipped files. Desktop lint, typecheck, web build, sidecar build, root build, and the architecture gate all passed; the architecture gate retained 16 pre-existing warnings.
+
+---
+
 ## [2026-08-23] v2.2.3 Phase 3 - Orbs, generation honesty, media playback
 
 ### What Changed

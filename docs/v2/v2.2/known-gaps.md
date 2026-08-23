@@ -2,7 +2,7 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-23 (v2.2.3 Phase 3)
+**Last updated**: 2026-08-23 (v2.2.3 Phase 4)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
@@ -10,15 +10,15 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 
 ## v2.2.3
 
-**Last updated**: 2026-08-23 (Phase 3 - orbs, generation honesty, media playback)
+**Last updated**: 2026-08-23 (Phase 4 - durable chat transcripts and episodic memory)
 
 ### Summary
 
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 10 | 0 |
-| Bugs / regressions (BG) | 0 | 11 |
+| Deferred (DF) | 11 | 0 |
+| Bugs / regressions (BG) | 0 | 14 |
 | Warnings (WN) | 1 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
@@ -96,6 +96,13 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 - **Plan reference**: `docs/v2/v2.2/plans/v2.2.3-glass-orbs-and-pillar-runtime.md` (verification addendum item 33)
 - **Reason**: The explorer protocol exposes no `updateFolder` method. The existing UI can reflect a local color touch for the in-memory client, but a production IPC client cannot persist it.
 - **Suggested next step**: Add an explicit explorer `updateFolder` protocol method and a persistence regression test in a later chat-organization phase.
+
+##### DF-21 - Local Chatbot reply transport remains batched
+
+- **Source phase**: v2.2.3 Phase 4
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.3-glass-orbs-and-pillar-runtime.md` (Phase 4)
+- **Reason**: The sidecar chat protocol is request/response only and exposes no incremental token event channel. Phase 4 keeps the visible Composing orb until the complete reply arrives rather than simulating streaming.
+- **Suggested next step**: Add a typed incremental chat event protocol and cancellation contract in a transport-focused cycle, then replace the single terminal response without changing transcript persistence.
 
 #### Warnings
 
@@ -186,6 +193,27 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 - **What happened**: `resolveMp4Url` defaulted to the identity function, App never supplied a resolver, and the Tauri shell had no asset-protocol feature or scope. A valid filesystem path therefore reached the webview as an unplayable URL.
 - **Fix**: App resolves MP4 paths with `convertFileSrc`; Tauri enables `protocol-asset` with a scope limited to `~/.nexus/outputs/videos/`; the CSP admits only the local asset schemes; and video completion no longer depends on optional workflow metadata.
 - **Evidence**: The debug Tauri build passed with the asset-protocol configuration, sidecar and web builds passed, and Video Lab tests cover resolved URLs plus visible playback failures. Packaged playback remains part of DF-2 acceptance.
+
+##### BG-26 (resolved) - Local Chatbot transcripts existed only in renderer memory
+
+- **Source phase**: Phase 4
+- **What happened**: ChatPage appended messages only to React state. Opening another chat or remounting the page discarded visible turns even though the explorer database already exposed message APIs.
+- **Fix**: ChatPage now hydrates the opened chat through `listMessages`, persists completed user and assistant rows through `appendMessage`, keeps pending rows transient, and reports hydration or write failures without discarding the in-memory conversation.
+- **Evidence**: Persistence tests cover remount hydration, chat isolation, user and assistant writes, pending-row exclusion, and nonblocking failure behavior. The solo desktop suite passed 1344 tests across 155 files.
+
+##### BG-27 (resolved) - Restored transcripts did not restore model context
+
+- **Source phase**: Phase 4
+- **What happened**: `sessionIdsRef` was per ChatPage instance and the sidecar session map was process-local. A remount or sidecar restart could show old messages while sending the model an empty conversation context.
+- **Fix**: `chat.session.start` accepts bounded persisted user and assistant history. ChatPage replays the opened transcript when starting a session and retries once with the same history when a sidecar restart reports an unknown session id.
+- **Evidence**: Page and session-manager tests prove history replay, sidecar-restart recovery, and omission of the transient retrieval prefix from stored session history.
+
+##### BG-28 (resolved) - Production Local Chatbot used process-local episodic memory
+
+- **Source phase**: Phase 4
+- **What happened**: App constructed `InMemoryMemoryHub`, so chat memory vanished with the renderer and was never retrieved into later turns.
+- **Fix**: Production App now records through sidecar episodic-memory IPC backed by the existing SQLite `EpisodicMemory` store. ChatSessionManager retrieves scoped, redacted references before generation and treats retrieval failure as nonfatal.
+- **Evidence**: Handler, runtime, and session tests prove durable reopen, scope isolation, redaction, retrieval injection, and failure-safe generation. The full root suite passed 5438 tests with 12 skips across 516 passing files and 3 skipped files.
 
 ## v2.2.2
 

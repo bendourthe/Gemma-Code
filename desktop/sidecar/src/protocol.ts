@@ -47,6 +47,9 @@ export const IPC_METHODS = [
   // v1.7.0 -- Local Chatbot Explorer (non-agentic chat pillar).
   "chat.session.start",
   "chat.session.sendMessage",
+  // v2.2.3 Phase 4 -- durable episodic memory for Local Chat.
+  "memory.episodic.record",
+  "memory.episodic.search",
   // v1.1.0 Phase 11 -- nexus VS Code extension surface.
   "coding.chat.autocomplete",
   "mcp.list",
@@ -231,6 +234,20 @@ export const ChatSessionStartRequest = z
   .object({
     modelId: z.string().min(1),
     title: z.string().max(200).optional(),
+    // Replayed explorer rows rebuild model context after a renderer remount or
+    // sidecar restart. Images are deliberately omitted: explorer persistence
+    // stores display attachments, not model-ready visual bytes.
+    history: z
+      .array(
+        z
+          .object({
+            role: z.enum(["user", "assistant"]),
+            content: z.string(),
+          })
+          .strict(),
+      )
+      .max(500)
+      .optional(),
   })
   .strict();
 export type ChatSessionStartRequestT = z.infer<typeof ChatSessionStartRequest>;
@@ -273,6 +290,36 @@ export const ChatSessionSendMessageResponse = z
 export type ChatSessionSendMessageResponseT = z.infer<
   typeof ChatSessionSendMessageResponse
 >;
+
+export const EpisodicMemoryRecordRequest = z
+  .object({
+    id: z.string().min(1),
+    content: z.string().min(1),
+    source: z.string().min(1).optional(),
+    scopeId: z.string().nullable().optional(),
+  })
+  .strict();
+export const EpisodicMemoryRecordResponse = z.object({ ok: z.literal(true) }).strict();
+
+export const EpisodicMemorySearchRequest = z
+  .object({
+    query: z.string().min(1),
+    limit: z.number().int().positive().max(20).optional(),
+    scopeId: z.string().nullable().optional(),
+  })
+  .strict();
+export const EpisodicMemoryHit = z
+  .object({
+    id: z.string(),
+    content: z.string(),
+    source: z.string().optional(),
+    capturedAt: z.string(),
+    scopeId: z.string().nullable().optional(),
+  })
+  .strict();
+export const EpisodicMemorySearchResponse = z
+  .object({ hits: z.array(EpisodicMemoryHit) })
+  .strict();
 
 export const CodingSessionCancelRequest = z
   .object({ sessionId: z.string().min(1) })
@@ -2071,6 +2118,16 @@ export const METHOD_SCHEMAS: Record<Method, MethodSchema> = {
   "chat.session.sendMessage": {
     request: ChatSessionSendMessageRequest,
     response: ChatSessionSendMessageResponse,
+    implemented: true,
+  },
+  "memory.episodic.record": {
+    request: EpisodicMemoryRecordRequest,
+    response: EpisodicMemoryRecordResponse,
+    implemented: true,
+  },
+  "memory.episodic.search": {
+    request: EpisodicMemorySearchRequest,
+    response: EpisodicMemorySearchResponse,
     implemented: true,
   },
   "coding.chat.autocomplete": { request: NotImplementedAny, response: NotImplementedAny, implemented: false },

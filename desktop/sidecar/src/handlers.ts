@@ -10,6 +10,8 @@
 import {
   ChatSessionSendMessageRequest,
   ChatSessionStartRequest,
+  EpisodicMemoryRecordRequest,
+  EpisodicMemorySearchRequest,
   CodingMemorySnapshotRequest,
   CodingSessionCancelRequest,
   CodingSessionListRequest,
@@ -178,6 +180,7 @@ import { sampleGpu } from "./telemetry/gpuRuntime.js";
 import { readHubCatalog, readHubCommands } from "./skills/hubSkillReader.js";
 import { generateChatTitle } from "./chat/titleGenerator.js";
 import type { ChatExplorerOps } from "./chat/explorerRuntime.js";
+import type { ChatMemoryOps } from "./chat/memoryRuntime.js";
 import { NEXUS_HUB_AUTO_SYNC_SETTING_KEY } from "../../../core/skills/NexusHubAutoSync.js";
 import { createServingRuntime, type ServingRuntime } from "./serving/servingRuntime.js";
 import {
@@ -263,6 +266,8 @@ export interface HandlerContext {
   audit?: AuditLog;
   /** v2.1.0 Phase 6 -- shared telemetry bus for audit attribution. */
   telemetry?: TelemetryBus;
+  /** v2.2.3 Phase 4 -- durable Local Chat episodic memory. */
+  chatMemory?: ChatMemoryOps;
   /** Optional settings store (parse_document toggle, tests). */
   settings?: SettingsStore;
 }
@@ -416,6 +421,12 @@ async function explorerOps(): Promise<ChatExplorerOps> {
 /** Test seam: drop the memoized explorer ops. */
 export function resetExplorerOps(): void {
   _explorerOps = null;
+}
+
+async function memoryOps(ctx: HandlerContext): Promise<ChatMemoryOps> {
+  if (ctx.chatMemory) return ctx.chatMemory;
+  const mod = await import("./chat/memoryRuntime.js");
+  return mod.chatMemoryRuntime();
 }
 
 function resolveAudit(ctx: HandlerContext): AuditLog {
@@ -821,6 +832,10 @@ export const handlers: Record<Method, HandlerFn> = {
     const events = await ctx.chat.sendMessage(req.sessionId, req.message, req.images);
     return { sessionId: req.sessionId, events };
   },
+  "memory.episodic.record": async (params, ctx) =>
+    (await memoryOps(ctx)).record(EpisodicMemoryRecordRequest.parse(params ?? {})),
+  "memory.episodic.search": async (params, ctx) =>
+    (await memoryOps(ctx)).search(EpisodicMemorySearchRequest.parse(params ?? {})),
   "coding.chat.autocomplete": async () => {
     throw new NotImplementedError("coding.chat.autocomplete");
   },

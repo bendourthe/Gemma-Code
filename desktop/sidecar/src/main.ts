@@ -71,7 +71,14 @@ const sessions = new CodingSessionManager({ agentRunner: createHeadlessAgentRunn
 // (set NEXUS_DIFFUSION_INMEMORY=1 for a no-GPU dev/test host).
 const diffusion = createDiffusionRuntime(process.env);
 // v1.7.0: drive the Local Chatbot Explorer with a real local-model chat stream.
-const chat = new ChatSessionManager({ runner: createChatMessageHandler() });
+const chat = new ChatSessionManager({
+  runner: createChatMessageHandler(),
+  retrieveMemory: async ({ query, limit }) => {
+    const { chatMemoryRuntime } = await import("./chat/memoryRuntime.js");
+    const result = await chatMemoryRuntime().search({ query, limit });
+    return result.hits.map((hit) => hit.content);
+  },
+});
 // v1.12.0 EM.P2.A: the skill-optimizer preview/apply manager. The preview runner
 // needs the golden task corpus + a local model, so it is wired only when the
 // golden tasks dir is resolvable (NEXUS_GOLDEN_TASKS_DIR); otherwise the manager

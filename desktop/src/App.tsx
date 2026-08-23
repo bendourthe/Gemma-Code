@@ -14,7 +14,7 @@ import { ChatPage } from "./modules/chat/ChatPage";
 import { ImageStudioPage } from "./modules/image/ImageStudioPage";
 import { VideoLabPage } from "./modules/video/VideoLabPage";
 import { classifyDiffusionTier } from "../../core/config/DiffusionTier";
-import { InMemoryMemoryHub } from "../../core/memory/MemoryHub";
+import { createIpcChatMemoryHub } from "./modules/chat/memoryIpcClient";
 import { SettingsPage } from "./pages/settings/SettingsPage";
 import { createIpcSkillsClient } from "./pages/settings/ipcSkillsClient";
 import { createIpcSkillOptimizerClient } from "./pages/settings/ipcSkillOptimizerClient";
@@ -57,7 +57,7 @@ const fineTuningClient = createIpcFineTuningClient();
 const auditClient = createIpcAuditClient();
 const mcpClient = createIpcMcpRegistryClient();
 const askInboxClient = createIpcAskInboxClient();
-const chatMemoryHub = new InMemoryMemoryHub();
+const chatMemoryHub = createIpcChatMemoryHub();
 
 async function sampleChatVideoFrames(dataUrl: string): Promise<{ frames: string[]; notice?: string }> {
   const reply = await ipcCall<{ frames: string[]; notice?: string }>("media.sampleVideoFrames", { dataUrl });

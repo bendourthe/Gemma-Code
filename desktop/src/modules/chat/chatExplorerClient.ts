@@ -10,7 +10,9 @@
 
 import type {
   Chat,
+  ChatMessageRecord,
   ChatExplorerSearchHit,
+  AppendMessageInput,
   CreateChatInput,
   CreateFolderInput,
   Folder,
@@ -47,6 +49,9 @@ export interface AsyncChatExplorerClient {
   generateTitle?(chatId: string, firstMessage: string): Promise<{ title: string; source: string }>;
   /** OPTIONAL: persisted per-chat persona (sidecar-backed adapter only). */
   setPersona?(id: string, persona: string | null): Promise<void>;
+  /** OPTIONAL: durable transcript methods exposed by the sidecar adapter. */
+  appendMessage?(input: AppendMessageInput): MaybeAsync<ChatMessageRecord>;
+  listMessages?(chatId: string, limit?: number): MaybeAsync<readonly ChatMessageRecord[]>;
 }
 
 function isThenable<T>(value: MaybeAsync<T>): value is Promise<T> {
