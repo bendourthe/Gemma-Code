@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 
 from PyQt5.QtCore import QEvent, QObject, Qt
-from PyQt5.QtGui import QColor, QIcon, QImage, QPainter
+from PyQt5.QtGui import QIcon, QImage, QPainter
 from PyQt5.QtWidgets import QWidget
 
 from nexus_installer.registry_paths import asset_file
@@ -40,10 +40,6 @@ _GCLP_HICONSM = -34
 _IMAGE_ICON = 1
 _LR_LOADFROMFILE = 0x00000010
 _BI_RGB = 0
-
-# Brand navy behind the transparent mark so the taskbar tile has opaque pixels
-# Windows will actually paint (the committed ICO keeps transparent corners).
-_TASKBAR_TILE_BG = QColor(15, 19, 24, 255)
 
 _hicon_big = 0
 _hicon_small = 0
@@ -194,16 +190,19 @@ def _first_existing(*names: str) -> Path | None:
 
 
 def _render_taskbar_tile(size: int) -> QImage | None:
-    src_path = _first_existing(
-        "icon.png", "nexus-ai-primary_no-background.png"
-    )
+    # v2.2.3 Phase 7 (7.2): prefer the transparent brand mark (the same source
+    # the installed app's window-icon.png uses); the black-background icon.png
+    # is only the fallback, and the canvas stays fully transparent (alpha 0)
+    # instead of the old opaque navy fill, so the taskbar tile matches the
+    # installed app's transparent PNG tile.
+    src_path = _first_existing("nexus-ai-primary_no-background.png", "icon.png")
     if src_path is None:
         return None
     src = QImage(str(src_path))
     if src.isNull():
         return None
     canvas = QImage(size, size, QImage.Format_ARGB32)
-    canvas.fill(_TASKBAR_TILE_BG)
+    canvas.fill(0)
     painter = QPainter(canvas)
     painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
     scaled = src.scaled(

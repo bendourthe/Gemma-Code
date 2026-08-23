@@ -2,7 +2,7 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-22 (v2.2.3 Phase 2)
+**Last updated**: 2026-08-22 (v2.2.3 Phase 7)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
@@ -10,7 +10,7 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 
 ## v2.2.3
 
-**Last updated**: 2026-08-22 (Phase 2 - liquid glass rail, full-perimeter beam, icon actions)
+**Last updated**: 2026-08-22 (Phase 7 - installer Document, taskbar, Complete)
 
 ### Summary
 
@@ -18,8 +18,8 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
 | Deferred (DF) | 10 | 0 |
-| Bugs / regressions (BG) | 0 | 5 |
-| Warnings (WN) | 0 | 0 |
+| Bugs / regressions (BG) | 0 | 8 |
+| Warnings (WN) | 1 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
@@ -97,6 +97,15 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 - **Reason**: The explorer protocol exposes no `updateFolder` method. The existing UI can reflect a local color touch for the in-memory client, but a production IPC client cannot persist it.
 - **Suggested next step**: Add an explicit explorer `updateFolder` protocol method and a persistence regression test in a later chat-organization phase.
 
+#### Warnings
+
+##### WN-1 - Pre-existing SIM117 in installer Complete test
+
+- **Source phase**: v2.2.3 Phase 7 verification
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.3-glass-orbs-and-pillar-runtime.md` (7.4)
+- **Reason**: Ruff reports a nested `with patch(...)` at `scripts/installer/tests/test_complete.py:13`. The line predates v2.2.3 and is outside the Phase 7 hunks; changing it would be unrelated cleanup. All Phase 7 source and newly changed test paths pass ruff, and every touched file passes `ruff format --check`.
+- **Suggested next step**: Combine the two patch contexts during a dedicated installer test-cleanup task.
+
 ### Resolved Items
 
 #### Bugs found and fixed within this cycle
@@ -135,6 +144,27 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 - **What happened**: Download, workflow, prompt, seed, remix, and use-as-source actions used native Windows button chrome and visible captions.
 - **Fix**: The actions now share `.nx-icon-btn`, use lucide icons, retain every existing test ID, and expose their names through `aria-label` plus `title`. Coding New session also uses neutral glass instead of the retired per-pillar MetalAccent ring.
 - **Evidence**: Image Studio and Coding page tests assert icon-accessible controls and the new glass New session contract.
+
+##### BG-20 (resolved) - Installer Document section had no recommended OCR model
+
+- **Source phase**: Phase 7
+- **What happened**: `document` was absent from `SECTION_ORDER` and every tier in `recommended.json`, so the Document tab never pre-selected a model.
+- **Fix**: Document is a multi-pick section. CPU and 8 GB tiers default RapidOCR PP-OCRv4; 12, 16, and 24 GB tiers default Unlimited-OCR 3B.
+- **Evidence**: Tier-default tests cover all five tiers and assert Document is not a single-pick section.
+
+##### BG-21 (resolved) - Installer taskbar tile used an opaque navy background
+
+- **Source phase**: Phase 7
+- **What happened**: The Win32 taskbar renderer filled an opaque navy canvas and preferred `icon.png` over the transparent no-background brand asset.
+- **Fix**: The renderer prefers `nexus-ai-primary_no-background.png`, falls back to `icon.png`, and paints onto an alpha-zero ARGB canvas.
+- **Evidence**: Win-titlebar tests assert preference order, transparent corners and center pixels, and fallback rendering.
+
+##### BG-22 (resolved) - Successful install required an extra Next into an oversized Complete page
+
+- **Source phase**: Phase 7
+- **What happened**: `_on_install_finished` only refreshed navigation. Complete remained a manual next step, service names clipped, default row margins wasted space, and Copy inherited the global 38px secondary-button height.
+- **Fix**: Success defers an automatic jump to Complete, failure stays on Installing, the progress indicator unpins, rows and cards are compacted, the service-name column is wider, and Copy receives a local-only height override.
+- **Evidence**: Installer navigation and Complete-page tests cover success, failure, stepper state, spacing, margins, label width, and local button styling.
 
 ## v2.2.2
 

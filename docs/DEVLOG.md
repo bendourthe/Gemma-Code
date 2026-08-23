@@ -4,6 +4,31 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-22] v2.2.3 Phase 7 - Installer Document, taskbar, Complete
+
+### What Changed
+
+- Added Document to the installer recommendation order as a multi-pick section, with RapidOCR PP-OCRv4 on CPU and 8 GB tiers and Unlimited-OCR 3B on 12, 16, and 24 GB tiers.
+- Changed the Win32 taskbar tile renderer to prefer the transparent no-background brand asset and paint it on an alpha-zero ARGB canvas.
+- Auto-advanced successful installs to Complete through a deferred callback, kept failed or cancelled installs on Installing, and unpinned the stepper after completion.
+- Compacted Complete-page spacing, card padding, service-row margins, and Copy buttons with a local override while widening service names past the clipped VS Code extension label.
+
+### Why It Changed
+
+The field session still showed an empty Document default, an opaque navy taskbar tile, and a completion flow that required an extra click into a page with clipped and oversized rows.
+
+### Decisions Made
+
+- Kept Document multi-pick so later OCR choices can coexist; chat and agentic remain the only single-pick sections.
+- Kept the global `BUTTON_HEIGHT` unchanged and scoped the smaller Copy treatment to Complete-page command rows.
+- Auto-advance occurs only on `finish(True)`; failure and user cancellation never masquerade as completion.
+
+### Impact and Context
+
+The fresh installer gate passed 1101 tests with 3 skips and no failures; all touched files are format-clean, and Phase 7 source plus new test paths pass ruff. One inherited `SIM117` outside the Phase 7 hunks remains tracked as WN-1. This phase does not rebuild `NexusSetup.exe`; frozen visual acceptance remains separate from the supported automated path.
+
+---
+
 ## [2026-08-22] v2.2.3 Phase 2 - Liquid glass rail, full-perimeter beam, icon actions
 
 ### What Changed
