@@ -68,6 +68,11 @@ export interface ListedModelDto {
       readonly maxVideoFrames?: number;
       readonly maxVideoSeconds?: number;
     };
+    description?: string;
+    strengths?: readonly string[];
+    whyRecommended?: string;
+    differentiators?: string;
+    agentic?: boolean;
   }
 
 export interface DiskUsageDto {
@@ -266,6 +271,11 @@ function toDto(m: ListedModel): ListedModelDto {
     modalities: m.modalities,
     vision: m.vision,
     visualTokenBudget: m.visualTokenBudget,
+    description: m.description,
+    strengths: m.strengths,
+    whyRecommended: m.whyRecommended,
+    differentiators: m.differentiators,
+    agentic: m.agentic,
   };
 }
 

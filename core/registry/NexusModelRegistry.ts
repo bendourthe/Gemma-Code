@@ -115,6 +115,12 @@ export interface ListedModel {
   readonly vision?: boolean;
   /** v2.1.0 Phase 4 -- visual-token budget from the catalog. */
   readonly visualTokenBudget?: ModelSpec["visualTokenBudget"];
+  /** v2.2.4 Phase 5 -- installer card copy. */
+  readonly description?: string;
+  readonly strengths?: readonly string[];
+  readonly whyRecommended?: string;
+  readonly differentiators?: string;
+  readonly agentic?: boolean;
 }
 
 export interface ListFilter {
@@ -214,6 +220,11 @@ export class NexusModelRegistry {
         modalities: spec?.modalities,
         vision: spec?.vision,
         visualTokenBudget: spec?.visualTokenBudget,
+        description: spec?.description,
+        strengths: spec?.strengths,
+        whyRecommended: spec?.whyRecommended,
+        differentiators: spec?.differentiators,
+        agentic: spec?.agentic,
       });
     }
 
@@ -243,6 +254,11 @@ export class NexusModelRegistry {
         modalities: spec.modalities,
         vision: spec.vision,
         visualTokenBudget: spec.visualTokenBudget,
+        description: spec.description,
+        strengths: spec.strengths,
+        whyRecommended: spec.whyRecommended,
+        differentiators: spec.differentiators,
+        agentic: spec.agentic,
       });
     }
 

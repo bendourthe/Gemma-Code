@@ -1,30 +1,34 @@
 /**
- * v1.0.0 Phase 5.5 -- Settings > Models page.
+ * v2.2.4 Phase 5 -- Settings > Models.
  *
- * Three sections: Installed (registry entries), Available (catalog entries
- * that have not been installed), External (sourced from
- * `~/.nexus/extra_model_paths.yaml`). Filters by type, family, install
- * status, and (when host VRAM is known) tier-fit; free-text search by name
- * or capability; disk-usage summary at the top. v1.16.0 Phase 5 (A4) added
- * the status / tier-fit filters and the over-budget install state.
- *
- * The page is provider-driven: callers inject a `ModelsClient` so tests
- * (and the eventual IPC wiring) can swap the real disk-backed
- * `NexusModelRegistry` for an in-memory fake.
+ * Installer-parity catalog: Chat / Agentic / Image / Video / Audio / Document
+ * tabs, card copy (description, Best for, license, size, Recommended /
+ * Required / Compatible), Download vs Downloaded, hardware gating, and one
+ * Favorite star per tab. Search stays as a secondary filter. Unknown tasks
+ * land in Other so a row is never dropped. The installer Qt wizard is not
+ * iframed.
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { Button, SearchInput, Select } from "../../components/ui";
+import type { CSSProperties } from "react";
+import { Button, SearchInput } from "../../components/ui";
 import { SidecarDownBanner } from "../../components/SidecarDownBanner";
 import { isBackendDownMessage, useSidecarStatus } from "../../lib/sidecarStatus";
 
 import {
-  filterCatalog,
-  modelFitsHost,
-  sourceLabel,
-  type SourceFilter,
-  type TierFitFilter,
-} from "../../shared/models/modelLibrary";
+  CATALOG_TAB_DEFS,
+  catalogTabsFor,
+  modelsOnTab,
+  recommendationKind,
+  type CatalogTab,
+} from "../../shared/models/catalogTabs";
+import { filterCatalog, modelFitsHost } from "../../shared/models/modelLibrary";
+import {
+  FAVORITE_STORAGE_PREFIX,
+  readFavorite,
+  writeFavorite,
+  type TaskKey,
+} from "../../shared/models/selectionPolicy";
 import type {
   DiskUsageDto,
   InstallProgressDto,
@@ -50,38 +54,34 @@ export interface ModelsClient {
 export interface ModelsSettingsProps {
   client: ModelsClient;
   /**
-   * v1.16.0 Phase 5 (A4) -- host VRAM in GB, used by the tier-fit filter and
-   * to disable Install on over-budget catalog entries. Omit or pass `null`
-   * when telemetry has not reported a total yet; the filter then hides.
+   * Host VRAM in GB. Download disables when modelFitsHost is false.
+   * Omit or pass null when telemetry has not reported a total yet.
    */
   hostVramGB?: number | null;
 }
 
-const TYPE_FILTERS: ReadonlyArray<{ value: "all" | ModelType; label: string }> = [
-  { value: "all", label: "All" },
-  { value: "llm", label: "LLM" },
-  { value: "image", label: "Image" },
-  { value: "video", label: "Video" },
-  { value: "audio", label: "Audio" },
-  { value: "embed", label: "Embed" },
-  // v1.16.0 Phase 3 (adoption item A5) -- document OCR / parsing models.
-  { value: "document", label: "Document" },
-];
+const TASK_TABS: readonly TaskKey[] = ["chat", "agentic", "image", "video", "audio", "document"];
 
 export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProps): JSX.Element {
   const [items, setItems] = useState<readonly ListedModelDto[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [typeFilter, setTypeFilter] = useState<"all" | ModelType>("all");
-  const [familyFilter, setFamilyFilter] = useState<string>("all");
-  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
-  const [tierFitFilter, setTierFitFilter] = useState<TierFitFilter>("all");
+  const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
+  const [tab, setTab] = useState<CatalogTab>("chat");
   const [query, setQuery] = useState<string>("");
   const [progress, setProgress] = useState<Record<string, InstallProgressDto>>({});
   const [active, setActive] = useState<Record<string, InstallHandle>>({});
   const [disk, setDisk] = useState<DiskUsageDto | null>(null);
-  // v2.2.0 Phase 2 (2.2): a backend that cannot start rendered the raw
-  // "sidecar-not-running" token next to three zero counts. Branch it.
+  const [favorites, setFavorites] = useState<Partial<Record<string, string | null>>>(() => {
+    const next: Partial<Record<string, string | null>> = {};
+    for (const t of TASK_TABS) next[t] = readFavorite(t);
+    try {
+      next.other = window.localStorage.getItem(`${FAVORITE_STORAGE_PREFIX}other`);
+    } catch {
+      next.other = null;
+    }
+    return next;
+  });
   const sidecar = useSidecarStatus();
   const backendDown = sidecar.isDown || isBackendDownMessage(error);
 
@@ -108,35 +108,29 @@ export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProp
         if (!cancelled) setDisk(d);
       })
       .catch(() => {
-        // disk usage is informational; ignore failures
+        /* disk usage is informational */
       });
     return () => {
       cancelled = true;
     };
   }, [client]);
 
-  const families = useMemo(() => {
-    const set = new Set<string>();
-    for (const m of items) if (m.family) set.add(m.family);
-    return ["all", ...Array.from(set).sort()];
-  }, [items]);
-
-  const filtered = useMemo(
+  const searched = useMemo(
     () =>
       filterCatalog(items, {
         query,
-        type: typeFilter,
-        family: familyFilter,
-        source: sourceFilter,
-        tierFit: tierFitFilter,
+        type: "all",
+        family: "all",
+        source: "all",
+        tierFit: "all",
         hostVramGB,
       }),
-    [items, query, typeFilter, familyFilter, sourceFilter, tierFitFilter, hostVramGB],
+    [items, query, hostVramGB],
   );
 
-  const installed = filtered.filter((m) => m.source === "registry");
-  const available = filtered.filter((m) => m.source === "catalog-only");
-  const external = filtered.filter((m) => m.source === "external");
+  const otherCount = modelsOnTab(searched, "other").length;
+  const tabDefs = otherCount > 0 ? [...CATALOG_TAB_DEFS, { id: "other" as const, label: "Other" }] : CATALOG_TAB_DEFS;
+  const visible = modelsOnTab(searched, tab);
 
   async function refresh(): Promise<void> {
     const list = await client.list();
@@ -146,6 +140,11 @@ export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProp
   }
 
   function startInstall(id: string): void {
+    setRowErrors((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
     const handle = client.install(id, (p) => {
       setProgress((prev) => ({ ...prev, [id]: p }));
     });
@@ -165,7 +164,12 @@ export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProp
         void refresh();
       })
       .catch((e: unknown) => {
-        setError(messageFor(e));
+        setRowErrors((prev) => ({ ...prev, [id]: messageFor(e) }));
+        setProgress((prev) => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
         setActive((prev) => {
           const next = { ...prev };
           delete next[id];
@@ -184,8 +188,25 @@ export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProp
       await client.remove(id);
       await refresh();
     } catch (e) {
-      setError(messageFor(e));
+      setRowErrors((prev) => ({ ...prev, [id]: messageFor(e) }));
     }
+  }
+
+  function toggleFavorite(id: string): void {
+    const current = favorites[tab] ?? null;
+    const next = current === id ? null : id;
+    setFavorites((prev) => ({ ...prev, [tab]: next }));
+    if (tab === "other") {
+      try {
+        const key = `${FAVORITE_STORAGE_PREFIX}other`;
+        if (!next) window.localStorage.removeItem(key);
+        else window.localStorage.setItem(key, next);
+      } catch {
+        /* preference is optional */
+      }
+      return;
+    }
+    writeFavorite(tab, next);
   }
 
   return (
@@ -210,323 +231,255 @@ export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProp
         </div>
       )}
 
-      <div style={filterRowStyle}>
-        <label>
-          <span style={labelStyle}>Type</span>
-          <Select
-            data-testid="models-filter-type"
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value as "all" | ModelType)}
+      <div role="tablist" aria-label="Model catalog" style={tabListStyle}>
+        {tabDefs.map((def) => (
+          <button
+            key={def.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === def.id}
+            data-testid={`models-tab-${def.id}`}
+            onClick={() => setTab(def.id)}
+            style={tabButtonStyle(tab === def.id)}
           >
-            {TYPE_FILTERS.map((f) => (
-              <option key={f.value} value={f.value}>
-                {f.label}
-              </option>
-            ))}
-          </Select>
-        </label>
-        <label>
-          <span style={labelStyle}>Family</span>
-          <Select
-            data-testid="models-filter-family"
-            value={familyFilter}
-            onChange={(e) => setFamilyFilter(e.target.value)}
-          >
-            {families.map((f) => (
-              <option key={f} value={f}>
-                {f === "all" ? "All" : f}
-              </option>
-            ))}
-          </Select>
-        </label>
-        <label>
-          <span style={labelStyle}>Status</span>
-          <Select
-            data-testid="models-filter-source"
-            value={sourceFilter}
-            onChange={(e) => setSourceFilter(e.target.value as SourceFilter)}
-          >
-            <option value="all">All</option>
-            <option value="installed">Installed</option>
-            <option value="available">Available</option>
-            <option value="external">External</option>
-          </Select>
-        </label>
-        {typeof hostVramGB === "number" && (
-          <label>
-            <span style={labelStyle}>Tier fit</span>
-            <Select
-              data-testid="models-filter-tier"
-              value={tierFitFilter}
-              onChange={(e) => setTierFitFilter(e.target.value as TierFitFilter)}
-            >
-              <option value="all">All</option>
-              <option value="fits">Fits this host</option>
-              <option value="over-budget">Over budget</option>
-            </Select>
-          </label>
-        )}
-        <label style={{ flex: 1 }}>
-          <span style={labelStyle}>Search</span>
-          <SearchInput
-            testId="models-search"
-            value={query}
-            onChange={setQuery}
-            placeholder="Search by name, type, or id"
-            label="Search models"
-          />
-        </label>
+            {def.label}
+          </button>
+        ))}
       </div>
+
+      <label style={{ flex: 1 }}>
+        <span style={labelStyle}>Search</span>
+        <SearchInput
+          testId="models-search"
+          value={query}
+          onChange={setQuery}
+          placeholder="Search by name, type, or id"
+          label="Search models"
+        />
+      </label>
 
       {loading ? (
         <p data-testid="models-loading">Loading installed models...</p>
       ) : (
-        <>
-          {(sourceFilter === "all" || sourceFilter === "installed") && (
-            <Section
-              title="Installed"
-              testId="section-installed"
-              items={installed}
-              hostVramGB={hostVramGB}
-              renderAction={(m) => (
-                <RowActions
+        <section data-testid={`models-panel-${tab}`} style={sectionStyle}>
+          {visible.length === 0 ? (
+            <p style={{ color: "var(--fg-muted)" }}>No matching entries.</p>
+          ) : (
+            <ul style={listStyle}>
+              {visible.map((m) => (
+                <ModelCard
+                  key={m.id}
                   item={m}
-                  progress={progress[m.id]}
                   hostVramGB={hostVramGB}
-                  onRemove={() => handleRemove(m.id)}
-                  onPin={
-                    client.pin
-                      ? () => client.pin?.(m.id, true).catch((e) => setError(messageFor(e)))
-                      : undefined
-                  }
-                />
-              )}
-            />
-          )}
-          {(sourceFilter === "all" || sourceFilter === "available") && (
-            <Section
-              title="Available"
-              testId="section-available"
-              items={available}
-              hostVramGB={hostVramGB}
-              renderAction={(m) => (
-                <RowActions
-                  item={m}
                   progress={progress[m.id]}
-                  hostVramGB={hostVramGB}
+                  installing={Boolean(active[m.id])}
+                  favorite={favorites[tab] === m.id}
+                  rowError={rowErrors[m.id]}
+                  onFavorite={() => toggleFavorite(m.id)}
                   onInstall={() => startInstall(m.id)}
                   onCancel={() => cancelInstall(m.id)}
-                  installing={Boolean(active[m.id])}
-                />
-              )}
-            />
-          )}
-          {(sourceFilter === "all" || sourceFilter === "external") && (
-            <Section
-              title="External"
-              testId="section-external"
-              items={external}
-              hostVramGB={hostVramGB}
-              renderAction={(m) => (
-                <RowActions
-                  item={m}
-                  progress={progress[m.id]}
-                  hostVramGB={hostVramGB}
+                  onRemove={m.source === "registry" ? () => void handleRemove(m.id) : undefined}
                   onReveal={
-                    m.absPath && client.reveal
-                      ? () => client.reveal?.(m.absPath as string)
-                      : undefined
+                    m.absPath && client.reveal ? () => client.reveal?.(m.absPath as string) : undefined
                   }
                 />
-              )}
-            />
+              ))}
+            </ul>
           )}
-        </>
+        </section>
       )}
     </section>
   );
 }
 
-interface SectionProps {
-  title: string;
-  testId: string;
-  items: readonly ListedModelDto[];
-  hostVramGB?: number | null;
-  renderAction: (m: ListedModelDto) => JSX.Element;
-}
-
-function Section({ title, testId, items, hostVramGB, renderAction }: SectionProps): JSX.Element {
-  return (
-    <section data-testid={testId} style={sectionStyle}>
-      <h2 style={{ margin: "0 0 var(--space-2, 8px)" }}>
-        {title} <span data-testid={`${testId}-count`} style={{ color: "var(--fg-muted)" }}>({items.length})</span>
-      </h2>
-      {items.length === 0 ? (
-        <p style={{ color: "var(--fg-muted)" }}>No matching entries.</p>
-      ) : (
-        <ul style={listStyle}>
-          {items.map((m) => (
-            <li key={m.id} data-testid={`models-row-${m.id}`} style={rowStyle}>
-              <ModelIcon type={m.type} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600, display: "flex", alignItems: "center", gap: "var(--space-2, 8px)" }}>
-                  <span>{m.displayName}</span>
-                  <StatusBadge item={m} hostVramGB={hostVramGB} />
-                </div>
-                <div style={{ fontSize: "0.85em", color: "var(--fg-muted)" }}>
-                  {m.family ?? "?"}
-                  {m.tag ? `:${m.tag}` : ""}
-                  {m.task ? ` - ${m.task}` : ""} - {formatBytes(m.sizeBytes)} - {m.license ?? "license: ?"}
-                </div>
-                {m.licenseNote ? (
-                  <div
-                    data-testid={`models-row-${m.id}-license-note`}
-                    style={{ fontSize: "0.8em", color: "var(--fg-muted)", marginTop: 2 }}
-                  >
-                    Use restriction: {m.licenseNote}
-                    {m.licenseUrl ? (
-                      <>
-                        {" "}
-                        <a href={m.licenseUrl} target="_blank" rel="noreferrer">
-                          License text
-                        </a>
-                      </>
-                    ) : null}
-                  </div>
-                ) : null}
-              </div>
-              {renderAction(m)}
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
-
-interface RowActionsProps {
+interface ModelCardProps {
   item: ListedModelDto;
-  progress?: InstallProgressDto;
   hostVramGB?: number | null;
-  onInstall?: () => void;
-  onCancel?: () => void;
+  progress?: InstallProgressDto;
+  installing?: boolean;
+  favorite: boolean;
+  rowError?: string;
+  onFavorite: () => void;
+  onInstall: () => void;
+  onCancel: () => void;
   onRemove?: () => void;
   onReveal?: () => void;
-  onPin?: () => void;
-  installing?: boolean;
+}
+
+function ModelCard({
+  item,
+  hostVramGB,
+  progress,
+  installing,
+  favorite,
+  rowError,
+  onFavorite,
+  onInstall,
+  onCancel,
+  onRemove,
+  onReveal,
+}: ModelCardProps): JSX.Element {
+  const kind = recommendationKind(item);
+  const overBudget = modelFitsHost(item, hostVramGB) === false;
+  const downloaded = item.installed && item.source !== "catalog-only";
+  return (
+    <li data-testid={`models-row-${item.id}`} style={cardStyle}>
+      <div style={{ display: "flex", gap: "var(--space-3, 12px)", alignItems: "flex-start" }}>
+        <ModelIcon type={item.type} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2, 8px)", flexWrap: "wrap" }}>
+            <span style={{ fontWeight: 600 }}>{item.displayName}</span>
+            <span data-testid={`models-badge-${item.id}`} style={badgeStyle(kind)}>
+              {kind === "required" ? "Required" : kind === "recommended" ? "Recommended" : "Compatible"}
+            </span>
+            {catalogTabsFor(item).includes("agentic") && item.task === "chat" ? (
+              <span style={{ fontSize: "0.75em", color: "var(--fg-muted)" }}>Also agentic</span>
+            ) : null}
+          </div>
+          {item.description ? (
+            <p data-testid={`models-row-${item.id}-description`} style={copyStyle}>
+              {item.description}
+            </p>
+          ) : null}
+          {item.strengths && item.strengths.length > 0 ? (
+            <p data-testid={`models-row-${item.id}-best-for`} style={copyStyle}>
+              Best for: {item.strengths.join(", ")}
+            </p>
+          ) : null}
+          {item.whyRecommended ? (
+            <p data-testid={`models-row-${item.id}-why`} style={copyStyle}>
+              Why this one: {item.whyRecommended}
+            </p>
+          ) : null}
+          <div style={{ fontSize: "0.85em", color: "var(--fg-muted)" }}>
+            {item.family ?? "?"}
+            {item.tag ? `:${item.tag}` : ""}
+            {item.task ? ` - ${item.task}` : ""} - {formatBytes(item.sizeBytes)} - {item.license ?? "license: ?"}
+            {typeof item.vramGB === "number" ? ` - ${item.vramGB} GB VRAM` : ""}
+          </div>
+          {item.licenseNote ? (
+            <div data-testid={`models-row-${item.id}-license-note`} style={{ fontSize: "0.8em", color: "var(--fg-muted)", marginTop: 2 }}>
+              Use restriction: {item.licenseNote}
+              {item.licenseUrl ? (
+                <>
+                  {" "}
+                  <a href={item.licenseUrl} target="_blank" rel="noreferrer">
+                    License text
+                  </a>
+                </>
+              ) : null}
+            </div>
+          ) : null}
+          {rowError ? (
+            <p data-testid={`models-row-error-${item.id}`} role="alert" style={{ color: "var(--status-err, #dc2626)", fontSize: "0.85em" }}>
+              {rowError}
+            </p>
+          ) : null}
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "var(--space-2, 8px)" }}>
+          <button
+            type="button"
+            data-testid={`models-favorite-${item.id}`}
+            aria-pressed={favorite}
+            aria-label={favorite ? "Unfavorite" : "Favorite"}
+            onClick={onFavorite}
+            style={starStyle(favorite)}
+          >
+            {favorite ? "★" : "☆"}
+          </button>
+          <RowActions
+            item={item}
+            progress={progress}
+            installing={installing}
+            downloaded={downloaded}
+            overBudget={overBudget}
+            hostVramGB={hostVramGB}
+            onInstall={onInstall}
+            onCancel={onCancel}
+            onRemove={onRemove}
+            onReveal={onReveal}
+          />
+        </div>
+      </div>
+    </li>
+  );
 }
 
 function RowActions({
   item,
   progress,
+  installing,
+  downloaded,
+  overBudget,
   hostVramGB,
   onInstall,
   onCancel,
   onRemove,
   onReveal,
-  onPin,
-  installing,
-}: RowActionsProps): JSX.Element {
+}: {
+  item: ListedModelDto;
+  progress?: InstallProgressDto;
+  installing?: boolean;
+  downloaded: boolean;
+  overBudget: boolean;
+  hostVramGB?: number | null;
+  onInstall: () => void;
+  onCancel: () => void;
+  onRemove?: () => void;
+  onReveal?: () => void;
+}): JSX.Element {
   if (installing && progress) {
     const total = progress.total ?? 0;
     const pct = total > 0 ? Math.min(100, (progress.bytes / total) * 100) : 0;
     return (
       <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2, 8px)" }}>
-        <progress
-          data-testid={`models-progress-${item.id}`}
-          value={progress.bytes}
-          max={total || undefined}
-        />
+        <progress data-testid={`models-progress-${item.id}`} value={progress.bytes} max={total || undefined} />
         <span data-testid={`models-progress-text-${item.id}`} style={{ fontSize: "0.85em", color: "var(--fg-muted)" }}>
           {formatBytes(progress.bytes)}
           {total > 0 ? ` / ${formatBytes(total)} (${pct.toFixed(0)}%)` : ""}
         </span>
-        <Button
-          type="button"
-          testId={`models-cancel-${item.id}`}
-          onClick={onCancel}
-        >
+        <Button type="button" testId={`models-cancel-${item.id}`} onClick={onCancel}>
           Cancel
         </Button>
       </div>
     );
   }
-  if (onInstall) {
-    const overBudget = modelFitsHost(item, hostVramGB) === false;
-    if (overBudget) {
-      return (
-        <span
-          data-testid={`models-over-budget-${item.id}`}
-          style={{ fontSize: "0.85em", color: "var(--fg-muted)" }}
-          title={`Needs ${item.vramGB} GB VRAM; this host has ${hostVramGB} GB.`}
-        >
-          Needs {item.vramGB} GB VRAM
-        </span>
-      );
-    }
+  if (onReveal && item.source === "external") {
     return (
-      <Button
-        type="button"
-        testId={`models-install-${item.id}`}
-        onClick={onInstall}
-      >
-        Install
-      </Button>
-    );
-  }
-  if (onReveal) {
-    return (
-      <Button
-        type="button"
-        testId={`models-reveal-${item.id}`}
-        onClick={onReveal}
-      >
+      <Button type="button" testId={`models-reveal-${item.id}`} onClick={onReveal}>
         Reveal
       </Button>
     );
   }
-  if (onRemove) {
+  if (downloaded) {
     return (
-      <div style={{ display: "flex", gap: "var(--space-2, 8px)" }}>
-        {onPin && (
-          <Button type="button" testId={`models-pin-${item.id}`} onClick={onPin}>
-            Pin
+      <div style={{ display: "flex", gap: "var(--space-2, 8px)", alignItems: "center" }}>
+        <span data-testid={`models-downloaded-${item.id}`} style={{ fontSize: "0.85em", color: "var(--fg-muted)" }}>
+          Downloaded
+        </span>
+        {onRemove ? (
+          <Button type="button" testId={`models-remove-${item.id}`} onClick={onRemove}>
+            Remove
           </Button>
-        )}
-        <Button type="button" testId={`models-remove-${item.id}`} onClick={onRemove}>
-          Remove
-        </Button>
+        ) : null}
       </div>
     );
   }
-  return <span />;
-}
-
-function StatusBadge({
-  item,
-  hostVramGB,
-}: {
-  item: ListedModelDto;
-  hostVramGB?: number | null;
-}): JSX.Element {
-  const overBudget = modelFitsHost(item, hostVramGB) === false;
-  const label = overBudget ? "Over budget" : sourceLabel(item.source);
+  if (overBudget) {
+    return (
+      <span
+        data-testid={`models-over-budget-${item.id}`}
+        style={{ fontSize: "0.85em", color: "var(--fg-muted)" }}
+        title={`Needs ${item.vramGB} GB VRAM; this host has ${hostVramGB} GB.`}
+      >
+        Needs {item.vramGB} GB VRAM
+      </span>
+    );
+  }
   return (
-    <span
-      data-testid={`models-status-${item.id}`}
-      style={{
-        fontSize: "0.7em",
-        fontWeight: 600,
-        letterSpacing: "0.02em",
-        textTransform: "uppercase",
-        color: overBudget ? "var(--accent-warning, #d97706)" : "var(--fg-muted)",
-        border: "1px solid var(--border-1, #2a2a2a)",
-        borderRadius: "var(--radius-1, 4px)",
-        padding: "0 0.45em",
-      }}
-    >
-      {label}
-    </span>
+    <Button type="button" testId={`models-install-${item.id}`} onClick={onInstall}>
+      Download
+    </Button>
   );
 }
 
@@ -577,7 +530,7 @@ function ModelIcon({ type }: { type?: ModelType }): JSX.Element {
         alignItems: "center",
         justifyContent: "center",
         fontWeight: 700,
-        marginRight: "var(--space-2, 8px)",
+        flexShrink: 0,
       }}
     >
       {label}
@@ -618,7 +571,51 @@ function messageFor(e: unknown): string {
   return String(e);
 }
 
-const pageStyle: React.CSSProperties = {
+function badgeStyle(kind: "required" | "recommended" | "compatible"): CSSProperties {
+  const color =
+    kind === "required"
+      ? "var(--accent-warning, #d97706)"
+      : kind === "recommended"
+        ? "var(--accent-llm, #10b981)"
+        : "var(--fg-muted)";
+  return {
+    fontSize: "0.7em",
+    fontWeight: 600,
+    letterSpacing: "0.02em",
+    textTransform: "uppercase",
+    color,
+    border: `1px solid ${color}`,
+    borderRadius: "var(--radius-1, 4px)",
+    padding: "0 0.45em",
+  };
+}
+
+function tabButtonStyle(active: boolean): CSSProperties {
+  return {
+    appearance: "none",
+    background: active ? "var(--bg-elevated, #1b1b1b)" : "transparent",
+    color: "var(--fg-0)",
+    border: "1px solid var(--border-1, #2a2a2a)",
+    borderRadius: "var(--radius-2, 6px)",
+    padding: "6px 12px",
+    cursor: "pointer",
+    fontWeight: active ? 600 : 400,
+  };
+}
+
+function starStyle(on: boolean): CSSProperties {
+  return {
+    appearance: "none",
+    background: "transparent",
+    border: "none",
+    cursor: "pointer",
+    fontSize: "1.25em",
+    lineHeight: 1,
+    color: on ? "var(--accent-warning, #fbbf24)" : "var(--fg-muted)",
+  };
+}
+
+const pageStyle: CSSProperties = {
   flex: 1,
   display: "flex",
   flexDirection: "column",
@@ -627,27 +624,26 @@ const pageStyle: React.CSSProperties = {
   color: "var(--fg-0)",
 };
 
-const headerStyle: React.CSSProperties = {
+const headerStyle: CSSProperties = {
   display: "flex",
   alignItems: "baseline",
   justifyContent: "space-between",
   gap: "var(--space-4, 16px)",
 };
 
-const filterRowStyle: React.CSSProperties = {
+const tabListStyle: CSSProperties = {
   display: "flex",
-  gap: "var(--space-3, 12px)",
-  alignItems: "flex-end",
+  gap: "var(--space-2, 8px)",
   flexWrap: "wrap",
 };
 
-const sectionStyle: React.CSSProperties = {
+const sectionStyle: CSSProperties = {
   display: "flex",
   flexDirection: "column",
   gap: "var(--space-2, 8px)",
 };
 
-const listStyle: React.CSSProperties = {
+const listStyle: CSSProperties = {
   listStyle: "none",
   margin: 0,
   padding: 0,
@@ -656,19 +652,22 @@ const listStyle: React.CSSProperties = {
   gap: "var(--space-2, 8px)",
 };
 
-const rowStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: "var(--space-3, 12px)",
-  padding: "var(--space-2, 8px) var(--space-3, 12px)",
+const cardStyle: CSSProperties = {
+  padding: "var(--space-3, 12px)",
   border: "1px solid var(--border-1, #2a2a2a)",
   borderRadius: "var(--radius-2, 6px)",
   background: "var(--bg-1, transparent)",
 };
 
-const labelStyle: React.CSSProperties = {
+const labelStyle: CSSProperties = {
   display: "block",
   fontSize: "0.8em",
   color: "var(--fg-muted)",
   marginBottom: "2px",
+};
+
+const copyStyle: CSSProperties = {
+  margin: "4px 0 0",
+  fontSize: "0.85em",
+  color: "var(--fg-1, var(--fg-0))",
 };

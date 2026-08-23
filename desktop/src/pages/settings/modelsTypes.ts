@@ -54,6 +54,12 @@ export interface ListedModelDto {
     readonly maxVideoFrames?: number;
     readonly maxVideoSeconds?: number;
   };
+  /** v2.2.4 Phase 5 -- installer card copy, marshaled from the catalog spec. */
+  description?: string;
+  strengths?: readonly string[];
+  whyRecommended?: string;
+  differentiators?: string;
+  agentic?: boolean;
 }
 
 export interface InstallProgressDto {

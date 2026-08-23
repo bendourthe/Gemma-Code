@@ -66,7 +66,7 @@ export function filterCatalog(
       if (tierFit === "over-budget" && fits !== false) return false;
     }
     if (query) {
-      const hay = `${m.id} ${m.displayName} ${m.family ?? ""} ${m.type ?? ""} ${(m.tags ?? []).join(" ")}`.toLowerCase();
+      const hay = `${m.id} ${m.displayName} ${m.family ?? ""} ${m.type ?? ""} ${m.description ?? ""} ${(m.strengths ?? []).join(" ")} ${(m.tags ?? []).join(" ")}`.toLowerCase();
       if (!hay.includes(query)) return false;
     }
     return true;

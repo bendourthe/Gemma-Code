@@ -8,7 +8,7 @@
 
 import type { ListedModelDto, ModelType } from "../../pages/settings/modelsTypes";
 
-export type TaskKey = "chat" | "agentic" | "image" | "video";
+export type TaskKey = "chat" | "agentic" | "image" | "video" | "audio" | "document";
 
 export interface SelectionSnapshot {
   schemaVersion: 1;
@@ -26,6 +26,8 @@ export function favoriteStorageKey(task: TaskKey): string {
 export function modelTypeForTask(task: TaskKey): ModelType {
   if (task === "image") return "image";
   if (task === "video") return "video";
+  if (task === "audio") return "audio";
+  if (task === "document") return "document";
   return "llm";
 }
 
