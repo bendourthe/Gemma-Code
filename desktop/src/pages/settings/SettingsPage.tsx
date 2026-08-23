@@ -3,7 +3,8 @@
  * v1.0.0 Phase 10.4 -- adds a "Skills" tab next to Models.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { DataSettings } from "./DataSettings";
 
 import { ModelsSettings, type ModelsClient } from "./ModelsSettings";
@@ -39,6 +40,25 @@ type SettingsTab =
   | "security"
   | "data";
 
+const SETTINGS_TABS: readonly SettingsTab[] = [
+  "models",
+  "skills",
+  "optimizer",
+  "credentials",
+  "serving",
+  "tuning",
+  "mcp",
+  "security",
+  "data",
+];
+
+function parseSettingsTab(raw: string | null): SettingsTab | null {
+  if (raw && (SETTINGS_TABS as readonly string[]).includes(raw)) {
+    return raw as SettingsTab;
+  }
+  return null;
+}
+
 export interface SettingsPageProps {
   modelsClient?: ModelsClient;
   skillsClient?: SkillsSettingsClient;
@@ -70,7 +90,26 @@ export function SettingsPage({
   initialTab = "models",
   hostVramGB = null,
 }: SettingsPageProps = {}): JSX.Element {
-  const [tab, setTab] = useState<SettingsTab>(initialTab);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabFromUrl = parseSettingsTab(searchParams.get("tab"));
+  const [tab, setTabState] = useState<SettingsTab>(tabFromUrl ?? initialTab);
+
+  useEffect(() => {
+    const next = parseSettingsTab(searchParams.get("tab"));
+    if (next) setTabState(next);
+  }, [searchParams]);
+
+  function setTab(next: SettingsTab): void {
+    setTabState(next);
+    setSearchParams(
+      (prev) => {
+        const copy = new URLSearchParams(prev);
+        copy.set("tab", next);
+        return copy;
+      },
+      { replace: true },
+    );
+  }
   const models = useMemo<ModelsClient>(
     () => modelsClient ?? createMockModelsClient(),
     [modelsClient],

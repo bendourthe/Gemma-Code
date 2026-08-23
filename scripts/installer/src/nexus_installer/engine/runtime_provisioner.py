@@ -279,6 +279,83 @@ def write_runtime_config(
         return False
 
 
+def selection_snapshot_path() -> Path:
+    """``~/.nexus/selected-models.json`` -- picker ownership contract."""
+    return Path.home() / ".nexus" / "selected-models.json"
+
+
+def _ordered_selected_ids(state: InstallerState) -> list[str]:
+    raw = list(getattr(state, "selected_model_ids", None) or [])
+    selected = getattr(state, "selected_model", "") or ""
+    if not raw and selected:
+        raw = [selected]
+    ordered: list[str] = []
+    seen: set[str] = set()
+    for model_id in raw:
+        if model_id and model_id not in seen:
+            seen.add(model_id)
+            ordered.append(model_id)
+    return ordered
+
+
+def _recommended_by_task(ordered_ids: list[str]) -> dict[str, str]:
+    catalog: dict[str, object] = {}
+    try:
+        from nexus_installer.engine.model_router import (
+            default_catalog_path,
+            load_catalog_index,
+        )
+
+        catalog = load_catalog_index(default_catalog_path())
+    except (OSError, ImportError, TypeError, ValueError):
+        catalog = {}
+    recommended: dict[str, str] = {}
+    for model_id in ordered_ids:
+        entry = catalog.get(model_id) if isinstance(catalog, dict) else None
+        task: str | None = None
+        if isinstance(entry, dict):
+            raw_task = entry.get("task")
+            if raw_task in ("chat", "agentic", "image", "video"):
+                task = str(raw_task)
+            else:
+                typ = entry.get("type")
+                if typ == "image":
+                    task = "image"
+                elif typ == "video":
+                    task = "video"
+                elif typ in ("llm", "embed"):
+                    task = "chat"
+        if task and task not in recommended:
+            recommended[task] = model_id
+    return recommended
+
+
+def write_selection_snapshot(state: InstallerState, log: LogFn) -> bool:
+    """Atomically write the installer selection snapshot the sidecar reads."""
+    ordered = _ordered_selected_ids(state)
+    payload = {
+        "schemaVersion": 1,
+        "orderedIds": ordered,
+        "recommendedByTask": _recommended_by_task(ordered),
+        "downloadedSinceInstall": [],
+    }
+    target = selection_snapshot_path()
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp_name = tempfile.mkstemp(
+            prefix="selected-models-", suffix=".json.tmp", dir=str(target.parent)
+        )
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(payload, fh, indent=2)
+            fh.write("\n")
+        os.replace(tmp_name, target)
+        log(f"Selection snapshot written to {target}", "success")
+        return True
+    except OSError as e:
+        log(f"Could not write selected-models.json: {e}", "error")
+        return False
+
+
 class RuntimeProvisioner:
     """One installer step: Node + runtime sources + runtime.json."""
 
@@ -295,6 +372,13 @@ class RuntimeProvisioner:
             diffusion_cwd=diffusion_cwd,
             app_version=getattr(state, "app_version", None),
         )
+        snapshot_ok = write_selection_snapshot(state, log)
+        if not snapshot_ok:
+            log(
+                "Selection snapshot was not written; pickers may show leftover "
+                "models from a previous install until this file exists.",
+                "warn",
+            )
         if node is None:
             log(
                 "No Node runtime could be provisioned; the desktop backend "
@@ -316,4 +400,6 @@ __all__ = [
     "runtime_config_path",
     "runtimes_sources_root",
     "write_runtime_config",
+    "selection_snapshot_path",
+    "write_selection_snapshot",
 ]

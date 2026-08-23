@@ -32,4 +32,10 @@ describe("installedModelsForType", () => {
     expect(SETTINGS_MODELS_PATH).toBe("/settings?tab=models");
     expect(GET_MORE_MODELS_ID).toBe("__get_more_models__");
   });
+
+  it("intersects with an ownership set when one is provided", () => {
+    expect(
+      installedModelsForType(MODELS, "llm", new Set(["llm-ready", "missing"])).map((m) => m.id),
+    ).toEqual(["llm-ready"]);
+  });
 });

@@ -1396,8 +1396,21 @@ export const ModelListedEntry = z
   .strict();
 export type ModelListedEntryT = z.infer<typeof ModelListedEntry>;
 
+export const SelectionSnapshotSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    orderedIds: z.array(z.string()),
+    recommendedByTask: z.record(z.string()).optional(),
+    downloadedSinceInstall: z.array(z.string()).optional(),
+  })
+  .strict();
+
 export const ModelsRegistryListResponse = z
-  .object({ models: z.array(ModelListedEntry) })
+  .object({
+    models: z.array(ModelListedEntry),
+    catalogStatus: z.string().optional(),
+    selection: SelectionSnapshotSchema.nullable().optional(),
+  })
   .strict();
 export type ModelsRegistryListResponseT = z.infer<typeof ModelsRegistryListResponse>;
 

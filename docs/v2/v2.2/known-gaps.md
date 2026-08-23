@@ -2,7 +2,7 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-23 (v2.2.4 Phase 1)
+**Last updated**: 2026-08-23 (v2.2.4 Phase 2)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
@@ -10,22 +10,28 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 
 ## v2.2.4
 
-**Last updated**: 2026-08-23 (Phase 1 - Chatbot-first shell and rail)
+**Last updated**: 2026-08-23 (Phase 2 - Installed catalog contract)
 
 ### Summary
 
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 11 | 0 |
+| Deferred (DF) | 10 | 1 |
 | Bugs / regressions (BG) | 0 | 3 |
 | Warnings (WN) | 2 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-Open deferred items remain those carried from v2.2.3 (DF-1, DF-2, DF-4, DF-14, DF-16 through DF-22). DF-17 stays open until Phase 2 honors `?tab=models`.
+Open deferred items remain those carried from v2.2.3 (DF-1, DF-2, DF-4, DF-14, DF-16, DF-18 through DF-22). DF-17 is resolved in Phase 2.
 
 ### Resolved this phase
+
+##### DF-17 - Settings tabs are not URL-addressable
+
+- **Source phase**: Carried from v2.2.3; closed in v2.2.4 Phase 2
+- **Resolution**: `SettingsPage` honors `?tab=` on mount and when the query changes while Settings stays mounted. `+ Get more models` already navigates to `/settings?tab=models`.
+- **Evidence**: `desktop/tests/SettingsPage.test.tsx`.
 
 ##### BG-33 - Cold start restored the last module instead of Chatbot
 
@@ -103,8 +109,8 @@ Open deferred items remain those carried from v2.2.3 (DF-1, DF-2, DF-4, DF-14, D
 
 - **Source phase**: Carried into v2.2.3 Phase 1
 - **Plan reference**: `docs/v2/v2.2/plans/v2.2.3-glass-orbs-and-pillar-runtime.md` (Phase 8.2)
-- **Reason**: This patch does not change Settings navigation or deep-link behavior.
-- **Suggested next step**: Add nested Settings routes in a future navigation-focused plan.
+- **Reason**: Resolved in v2.2.4 Phase 2. `SettingsPage` now reads `?tab=` via `useSearchParams` so `/settings?tab=models` opens Models even when Settings is already mounted.
+- **Suggested next step**: Nested Settings routes remain optional; query-param tabs satisfy the deep-link contract.
 
 ##### DF-18 - Packaged macOS and Linux sidecar native-addon paths are not proven
 

@@ -36,6 +36,12 @@ import {
   GET_MORE_MODELS_ID,
   installedModelsForType,
 } from "../../shared/models/installedFeed";
+import {
+  ownedIdSet,
+  readFavorite,
+  resolveDefaultId,
+  type SelectionSnapshot,
+} from "../../shared/models/selectionPolicy";
 import { createIpcModelsClient } from "../../pages/settings/ipcModelsClient";
 import type { ListedModelDto } from "../../pages/settings/modelsTypes";
 import type { DiffusionTierId } from "../../../../core/config/DiffusionTier";
@@ -75,7 +81,10 @@ const FALLBACK_MODEL: ListedModelDto = {
 export interface VideoLabPageProps {
   readonly client?: VideoClient;
   /** Models client for the installed video-model selector. */
-  readonly modelsClient?: { list(): Promise<readonly ListedModelDto[]> };
+  readonly modelsClient?: {
+    list(): Promise<readonly ListedModelDto[]>;
+    lastSelection?: SelectionSnapshot | null;
+  };
   /** Test seam: drain interval (ms). Defaults to 100ms. */
   readonly drainIntervalMs?: number;
   /** Test seam: clipboard adapter. Defaults to navigator.clipboard. */
@@ -183,12 +192,17 @@ export function VideoLabPage({
     void (async () => {
       try {
         const all = await source.list();
-        const video = installedModelsForType(all, "video");
+        const snap = source.lastSelection ?? null;
+        const video = installedModelsForType(all, "video", ownedIdSet(snap));
         if (cancelled) return;
         const first = video[0];
         if (first) {
           setModels(video);
-          setSelectedModelId(first.id);
+          const next = resolveDefaultId(video, {
+            favorite: readFavorite("video"),
+            recommended: snap?.recommendedByTask.video ?? null,
+          });
+          setSelectedModelId(next || first.id);
           setNoneInstalled(false);
           setListFailure(null);
         } else {

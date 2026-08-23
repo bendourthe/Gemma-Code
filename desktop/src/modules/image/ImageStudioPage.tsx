@@ -40,6 +40,12 @@ import {
   GET_MORE_MODELS_ID,
   installedModelsForType,
 } from "../../shared/models/installedFeed";
+import {
+  ownedIdSet,
+  readFavorite,
+  resolveDefaultId,
+  type SelectionSnapshot,
+} from "../../shared/models/selectionPolicy";
 import { createIpcModelsClient } from "../../pages/settings/ipcModelsClient";
 import type { ListedModelDto } from "../../pages/settings/modelsTypes";
 import type { DiffusionTierId } from "../../../../core/config/DiffusionTier";
@@ -85,7 +91,10 @@ const DEFAULT_CONTROLNETS = [
 export interface ImageStudioPageProps {
   readonly client?: DiffusionClient;
   /** Models client for the installed image-model selector. */
-  readonly modelsClient?: { list(): Promise<readonly ListedModelDto[]> };
+  readonly modelsClient?: {
+    list(): Promise<readonly ListedModelDto[]>;
+    lastSelection?: SelectionSnapshot | null;
+  };
   /** Test seam: drain interval (ms). Defaults to 100ms. */
   readonly drainIntervalMs?: number;
   /** Test seam: clipboard adapter. Defaults to navigator.clipboard. */
@@ -179,14 +188,19 @@ export function ImageStudioPage({
     void (async () => {
       try {
         const all = await source.list();
-        const image = installedModelsForType(all, "image").filter(
+        const snap = source.lastSelection ?? null;
+        const image = installedModelsForType(all, "image", ownedIdSet(snap)).filter(
           (m) => !m.tags?.includes("utility"),
         );
         if (cancelled) return;
         const first = image[0];
         if (first) {
           setModels(image);
-          setSelectedModelId(first.id);
+          const next = resolveDefaultId(image, {
+            favorite: readFavorite("image"),
+            recommended: snap?.recommendedByTask.image ?? null,
+          });
+          setSelectedModelId(next || first.id);
           setNoneInstalled(false);
           setListFailure(null);
         } else {

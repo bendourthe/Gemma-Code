@@ -225,8 +225,31 @@ describe("CodingPage", () => {
   });
 
   it("model select changes the modelId before a session starts", async () => {
-    render(<CodingPage />);
+    const modelsClient = {
+      async list() {
+        return [
+          {
+            id: "gemma4:e4b",
+            displayName: "Gemma 4 E4B",
+            type: "llm" as const,
+            installed: true,
+            source: "registry" as const,
+          },
+          {
+            id: "qwen2.5-coder:7b",
+            displayName: "Qwen 2.5 Coder 7B",
+            type: "llm" as const,
+            installed: true,
+            source: "registry" as const,
+          },
+        ];
+      },
+    };
+    render(<CodingPage modelsClient={modelsClient} />);
     const select = screen.getByTestId("coding-model-select") as HTMLSelectElement;
+    await waitFor(() => {
+      expect([...select.options].map((o) => o.value)).toContain("qwen2.5-coder:7b");
+    });
     await userEvent.selectOptions(select, "qwen2.5-coder:7b");
     expect(select.value).toBe("qwen2.5-coder:7b");
   });

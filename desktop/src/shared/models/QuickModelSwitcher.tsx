@@ -6,7 +6,7 @@
  * full Settings round-trip.
  */
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 
 import { ModelSelector } from "../chat/ModelSelector";
 import type { ListedModelDto, ModelType } from "../../pages/settings/modelsTypes";
@@ -18,6 +18,8 @@ export interface QuickModelSwitcherProps {
   readonly value: string;
   readonly onChange: (modelId: string) => void;
   readonly onGetMoreModels?: () => void;
+  /** v2.2.4 Phase 2 -- this-install ownership set; omit to keep probe-only filtering. */
+  ownedIds?: ReadonlySet<string> | null;
   disabled?: boolean;
   label?: string;
   testId?: string;
@@ -32,6 +34,7 @@ export function QuickModelSwitcher({
   value,
   onChange,
   onGetMoreModels,
+  ownedIds,
   disabled,
   label = "Model",
   testId = "quick-model-switcher",
@@ -39,8 +42,8 @@ export function QuickModelSwitcher({
   harnessSelectorEnabled,
 }: QuickModelSwitcherProps): JSX.Element {
   const ready = useMemo(
-    () => installedModelsForType(models, taskType),
-    [models, taskType],
+    () => installedModelsForType(models, taskType, ownedIds),
+    [models, taskType, ownedIds],
   );
 
   const options = useMemo(
@@ -65,6 +68,15 @@ export function QuickModelSwitcher({
   }
 
   const selectValue = ready.some((m) => m.id === value) ? value : (ready[0]?.id ?? GET_MORE_MODELS_ID);
+
+  // v2.2.4 Phase 2: never display ready[0] while parent state stays on a
+  // missing id. Sync once so send uses the same id the <select> shows.
+  useEffect(() => {
+    if (ready.length === 0) return;
+    if (!ready.some((m) => m.id === value)) {
+      onChange(ready[0].id);
+    }
+  }, [ready, value, onChange]);
 
   return (
     <ModelSelector

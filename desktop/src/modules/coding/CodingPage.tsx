@@ -20,6 +20,13 @@ import { TraceDashboardPanel } from "./panels/TraceDashboardPanel";
 import { SessionListPanel } from "./panels/SessionListPanel";
 import { MessageList, type ChatMessage } from "../../shared/chat";
 import { QuickModelSwitcher } from "../../shared/models/QuickModelSwitcher";
+import {
+  installedForTask,
+  ownedIdSet,
+  readFavorite,
+  resolveDefaultId,
+  type SelectionSnapshot,
+} from "../../shared/models/selectionPolicy";
 import { createIpcModelsClient } from "../../pages/settings/ipcModelsClient";
 import type { ListedModelDto } from "../../pages/settings/modelsTypes";
 import { SidecarDownBanner } from "../../components/SidecarDownBanner";
@@ -50,7 +57,7 @@ const FALLBACK_LLMS: readonly ListedModelDto[] = FRONTEND_MODELS.map((m) => ({
   id: m.id,
   displayName: m.displayName,
   type: "llm" as const,
-  installed: true,
+  installed: false,
   source: "registry" as const,
 }));
 
@@ -96,7 +103,10 @@ export interface CodingPageProps {
   initialModelId?: string;
   initialTab?: Tab;
   /** v1.16.0 Phase 5 (A4) -- installed-model feed; tests inject a fake. */
-  modelsClient?: { list(): Promise<readonly ListedModelDto[]> };
+  modelsClient?: {
+    list(): Promise<readonly ListedModelDto[]>;
+    lastSelection?: SelectionSnapshot | null;
+  };
   onGetMoreModels?: () => void;
   /**
    * v1.20.0 Phase 3 -- document-parse client. Tests inject the in-memory one;
@@ -129,6 +139,7 @@ export function CodingPage({
   const [tab, setTab] = useState<Tab>(initialTab ?? "chat");
   const [modelId, setModelId] = useState<string>(initialModelId ?? DEFAULT_MODEL_ID);
   const [listedModels, setListedModels] = useState<readonly ListedModelDto[]>(FALLBACK_LLMS);
+  const [selection, setSelection] = useState<SelectionSnapshot | null>(null);
   const [documentClient] = useState<DocumentClient>(
     () => documentClientOverride ?? createIpcDocumentClient(),
   );
@@ -162,7 +173,19 @@ export function CodingPage({
     const source = modelsClientOverride ?? createIpcModelsClient();
     void source.list().then(
       (all) => {
-        if (!cancelled && all.length > 0) setListedModels(all);
+        if (!cancelled && all.length > 0) {
+          const snap = source.lastSelection ?? null;
+          setListedModels(all);
+          setSelection(snap);
+          const ready = installedForTask(all, "agentic", snap);
+          const next = resolveDefaultId(ready, {
+            favorite: readFavorite("agentic"),
+            recommended: snap?.recommendedByTask.agentic ?? null,
+          });
+          if (next) {
+            setModelId((current) => (ready.some((m) => m.id === current) ? current : next));
+          }
+        }
       },
       () => {
         // Keep the catalog fallback.
@@ -466,6 +489,7 @@ export function CodingPage({
             testId="coding-model-select"
             models={listedModels}
             taskType="llm"
+            ownedIds={ownedIdSet(selection)}
             value={modelId}
             onChange={setModelId}
             onGetMoreModels={onGetMoreModels}

@@ -103,6 +103,9 @@ export class InstallManager {
         },
       });
       job.buffer.push({ kind: "complete", id: job.id });
+      void import("./selectionSnapshot.js")
+        .then(({ appendDownloadedId }) => appendDownloadedId(job.id))
+        .catch(() => undefined);
     } catch (err) {
       const message = job.controller.signal.aborted
         ? "cancelled"

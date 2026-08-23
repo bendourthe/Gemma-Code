@@ -254,10 +254,12 @@ describe("sidecar handlers", () => {
       catalogStatus: "ok",
     } as unknown as HandlerContext["models"];
 
-    expect(await dispatch("models.list", {}, ctx)).toEqual({
-      models: [{ id: "a", displayName: "A", installed: true, source: "registry" }],
-      catalogStatus: "ok",
-    });
+    expect(await dispatch("models.list", {}, ctx)).toEqual(
+      expect.objectContaining({
+        models: [{ id: "a", displayName: "A", installed: true, source: "registry" }],
+        catalogStatus: "ok",
+      }),
+    );
     expect(await dispatch("models.diskUsage", {}, ctx)).toEqual({
       usedBytes: 5,
       freeBytes: null,

@@ -195,3 +195,24 @@ class TestModelIdMarker:
         assert safe_dir_name("qwen2.5-coder:14b") == "qwen2.5-coder-14b"
         assert safe_dir_name("org/model") == "org-model"
         assert safe_dir_name("sana-1.6b-2k") == "sana-1.6b-2k"
+
+
+class TestSelectionSnapshotWrite:
+    def test_writes_ordered_ids_matching_the_sidecar_schema(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, log: MagicMock
+    ) -> None:
+        monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+        monkeypatch.setattr(
+            rp,
+            "_recommended_by_task",
+            lambda _ids: {"chat": "lfm2.5:1.2b", "image": "sana-1.5-1.6b"},
+        )
+        state = InstallerState()
+        state.selected_model_ids = ["lfm2.5:1.2b", "sana-1.5-1.6b"]
+        assert rp.write_selection_snapshot(state, log) is True
+        target = tmp_path / ".nexus" / "selected-models.json"
+        data = json.loads(target.read_text(encoding="utf-8"))
+        assert data["schemaVersion"] == 1
+        assert data["orderedIds"] == ["lfm2.5:1.2b", "sana-1.5-1.6b"]
+        assert data["recommendedByTask"]["chat"] == "lfm2.5:1.2b"
+        assert data["downloadedSinceInstall"] == []

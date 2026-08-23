@@ -73,6 +73,13 @@ import {
 } from "./voiceLoop";
 import { QuickModelSwitcher } from "../../shared/models/QuickModelSwitcher";
 import { SETTINGS_MODELS_PATH } from "../../shared/models/installedFeed";
+import {
+  installedForTask,
+  ownedIdSet,
+  readFavorite,
+  resolveDefaultId,
+  type SelectionSnapshot,
+} from "../../shared/models/selectionPolicy";
 import { createIpcModelsClient } from "../../pages/settings/ipcModelsClient";
 import type { ListedModelDto } from "../../pages/settings/modelsTypes";
 import { SidecarDownBanner } from "../../components/SidecarDownBanner";
@@ -91,7 +98,7 @@ const FALLBACK_LLMS: readonly ListedModelDto[] = FRONTEND_MODELS.map((m) => ({
   id: m.id,
   displayName: m.displayName,
   type: "llm" as const,
-  installed: true,
+  installed: false,
   source: "registry" as const,
   modalities: ["text"] as const,
 }));
@@ -114,7 +121,10 @@ export interface ChatPageProps {
    * v1.16.0 Phase 5 (A4) -- installed-model feed for the compact switcher.
    * Tests inject a fake; production talks to the sidecar `models.list` IPC.
    */
-  modelsClient?: { list(): Promise<readonly ListedModelDto[]> };
+  modelsClient?: {
+    list(): Promise<readonly ListedModelDto[]>;
+    lastSelection?: SelectionSnapshot | null;
+  };
   /**
    * v2.1.0 Phase 4 -- turn a video data URL into still frames. Tests inject
    * a stub; production can wire ffmpeg. Missing sampler skips the video
@@ -224,6 +234,7 @@ export function ChatPage({
   // v1.16.0 Phase 5 (A4) -- compact switcher feed. Falls back to the catalog
   // projection when `models.list` is unavailable (tests, sidecar down).
   const [listedModels, setListedModels] = useState<readonly ListedModelDto[]>(FALLBACK_LLMS);
+  const [selection, setSelection] = useState<SelectionSnapshot | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -245,7 +256,19 @@ export function ChatPage({
     const source = modelsClientOverride ?? createIpcModelsClient();
     void source.list().then(
       (all) => {
-        if (!cancelled && all.length > 0) setListedModels(all);
+        if (!cancelled && all.length > 0) {
+          const snap = source.lastSelection ?? null;
+          setListedModels(all);
+          setSelection(snap);
+          const ready = installedForTask(all, "chat", snap);
+          const next = resolveDefaultId(ready, {
+            favorite: readFavorite("chat"),
+            recommended: snap?.recommendedByTask.chat ?? null,
+          });
+          if (next) {
+            setModelId((current) => (ready.some((m) => m.id === current) ? current : next));
+          }
+        }
       },
       () => {
         // Keep the catalog fallback; the switcher still has something to show.
@@ -1022,6 +1045,7 @@ export function ChatPage({
               testId="chat-model-select"
               models={listedModels}
               taskType="llm"
+              ownedIds={ownedIdSet(selection)}
               value={modelId}
               onChange={setModelId}
               onGetMoreModels={onGetMoreModels}

@@ -106,6 +106,20 @@ describe("QuickModelSwitcher", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
+  it("calls onChange with the first owned id when value is not in the ready list", () => {
+    const onChange = vi.fn();
+    render(
+      <QuickModelSwitcher
+        models={MODELS}
+        taskType="llm"
+        value="gemma4:e4b"
+        onChange={onChange}
+        ownedIds={new Set(["qwen2.5-coder:7b"])}
+      />,
+    );
+    expect(onChange).toHaveBeenCalledWith("qwen2.5-coder:7b");
+  });
+
   it("forwards a harnessLabel to the ModelSelector badge", () => {
     render(
       <QuickModelSwitcher

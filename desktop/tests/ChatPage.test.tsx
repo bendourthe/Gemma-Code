@@ -13,6 +13,20 @@ import { ChatPage } from "../src/modules/chat/ChatPage";
 import { InMemoryChatExplorerClient } from "../src/modules/chat/chatExplorerClient";
 import type { ChatSessionClient } from "../src/modules/chat/chatIpcClient";
 
+const INSTALLED_CHAT_MODELS = {
+  async list() {
+    return [
+      {
+        id: "gemma4:e4b",
+        displayName: "Gemma 4 E4B",
+        type: "llm" as const,
+        installed: true,
+        source: "registry" as const,
+      },
+    ];
+  },
+};
+
 describe("<ChatPage>", () => {
   it("renders the empty-state when no chat is active", () => {
     const client = new InMemoryChatExplorerClient();
@@ -35,7 +49,7 @@ describe("<ChatPage>", () => {
       }),
     };
     const user = userEvent.setup();
-    render(<ChatPage client={client} chatSession={chatSession} />);
+    render(<ChatPage client={client} chatSession={chatSession} modelsClient={INSTALLED_CHAT_MODELS} />);
     const textarea = screen.getByTestId("media-composer-textarea");
     await user.type(textarea, "hello from an empty rail{Enter}");
     expect(await screen.findByText("hello from an empty rail")).toBeInTheDocument();
@@ -58,6 +72,7 @@ describe("<ChatPage>", () => {
       <ChatPage
         client={client}
         chatSession={{ start, sendMessage }}
+        modelsClient={INSTALLED_CHAT_MODELS}
         hostVramFreeGB={1}
         activeSchedulerJob={{
           id: "image-job",
@@ -110,7 +125,7 @@ describe("<ChatPage>", () => {
       }),
     };
     const user = userEvent.setup();
-    render(<ChatPage client={client} chatSession={chatSession} />);
+    render(<ChatPage client={client} chatSession={chatSession} modelsClient={INSTALLED_CHAT_MODELS} />);
     await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
     await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
     const textarea = screen.getByTestId("media-composer-textarea");
@@ -135,7 +150,7 @@ describe("<ChatPage>", () => {
       },
     };
     const user = userEvent.setup();
-    render(<ChatPage client={client} chatSession={chatSession} />);
+    render(<ChatPage client={client} chatSession={chatSession} modelsClient={INSTALLED_CHAT_MODELS} />);
     await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
     await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
     // v2.2.0 Phase 5 (5.4): the persona left the always-on textarea under the
@@ -172,7 +187,7 @@ describe("<ChatPage>", () => {
       },
     };
     const user = userEvent.setup();
-    render(<ChatPage client={client} chatSession={chatSession} />);
+    render(<ChatPage client={client} chatSession={chatSession} modelsClient={INSTALLED_CHAT_MODELS} />);
     await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
     await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
     await user.type(screen.getByTestId("media-composer-textarea"), "hello{Enter}");
@@ -198,7 +213,7 @@ describe("<ChatPage>", () => {
       sendMessage: async () => ({ sessionId: "s1", events: [] }),
     };
     const user = userEvent.setup();
-    render(<ChatPage client={client} chatSession={chatSession} />);
+    render(<ChatPage client={client} chatSession={chatSession} modelsClient={INSTALLED_CHAT_MODELS} />);
     await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
     await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
     await user.type(screen.getByTestId("media-composer-textarea"), "hello{Enter}");

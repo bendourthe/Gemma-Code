@@ -27,8 +27,13 @@ export const GET_MORE_MODELS_ID = "__get_more_models__";
 export function installedModelsForType(
   models: readonly ListedModelDto[],
   type: ModelType,
+  ownedIds?: ReadonlySet<string> | null,
 ): ListedModelDto[] {
   return models.filter(
-    (m) => m.installed && m.source !== "catalog-only" && m.type === type,
+    (m) =>
+      m.installed &&
+      m.source !== "catalog-only" &&
+      m.type === type &&
+      (!ownedIds || ownedIds.has(m.id)),
   );
 }
