@@ -116,4 +116,25 @@ describe("Sidebar", () => {
     fireEvent.keyDown(window, { key: "9", ctrlKey: true });
     expect(window.localStorage.getItem(PERSISTENCE_KEYS.activeRoute)).toBe("/");
   });
+
+  // v2.2.4 Phase 1 (1.3): collapse is an edge pill, not a flex row above Chatbot.
+  it("keeps the collapse control out of document flow above the first tab", () => {
+    renderAt("/chatbot");
+    const aside = screen.getByTestId("sidebar");
+    const nav = screen.getByTestId("sidebar-module-nav");
+    const toggle = screen.getByTestId("sidebar-collapse-toggle");
+    expect(aside.firstElementChild).toBe(nav);
+    expect(toggle.className).toContain("nexus-sidebar-collapse-pill");
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("toggles the edge pill without navigating modules", () => {
+    renderAt("/chatbot");
+    const toggle = screen.getByTestId("sidebar-collapse-toggle");
+    expect(toggle.getAttribute("aria-label")).toBe("Expand sidebar");
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(toggle.getAttribute("aria-label")).toBe("Collapse sidebar");
+    expect(screen.getByTestId("nav-chatbot").getAttribute("aria-current")).toBe("page");
+  });
 });

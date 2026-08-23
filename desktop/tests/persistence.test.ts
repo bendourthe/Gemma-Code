@@ -65,15 +65,23 @@ describe("normalizeActiveRoute", () => {
     expect(normalizeActiveRoute("/dashboard")).toBe("/chatbot");
   });
 
-  it.each(["/chatbot", "/coding", "/images", "/videos", "/settings"])(
-    "restores the real module route %s unchanged",
+  it.each(["/coding", "/images", "/videos", "/settings", "/dashboard"])(
+    "maps last-module route %s to /chatbot on cold start (v2.2.4 Phase 1.1)",
     (route) => {
-      expect(normalizeActiveRoute(route)).toBe(route);
+      expect(normalizeActiveRoute(route)).toBe("/chatbot");
     },
   );
 
-  it("restores module sub-paths unchanged", () => {
-    expect(normalizeActiveRoute("/settings/models")).toBe("/settings/models");
+  it("still restores /chatbot unchanged", () => {
+    expect(normalizeActiveRoute("/chatbot")).toBe("/chatbot");
+  });
+
+  it("still restores a Chatbot thread sub-path", () => {
+    expect(normalizeActiveRoute("/chatbot/thread-abc")).toBe("/chatbot/thread-abc");
+  });
+
+  it("does not restore settings sub-paths", () => {
+    expect(normalizeActiveRoute("/settings/models")).toBe("/chatbot");
   });
 
   it("maps garbage to /chatbot instead of a blank route", () => {

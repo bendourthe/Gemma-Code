@@ -2,11 +2,48 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-23 (v2.2.3 Phase 8)
+**Last updated**: 2026-08-23 (v2.2.4 Phase 1)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
-Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repair-and-ux-overhaul.md), [plans/v2.2.1-field-repair-and-chrome-completion.md](plans/v2.2.1-field-repair-and-chrome-completion.md), [plans/v2.2.2-ready-shell-and-studio-chrome.md](plans/v2.2.2-ready-shell-and-studio-chrome.md), [plans/v2.2.3-glass-orbs-and-pillar-runtime.md](plans/v2.2.3-glass-orbs-and-pillar-runtime.md)
+Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repair-and-ux-overhaul.md), [plans/v2.2.1-field-repair-and-chrome-completion.md](plans/v2.2.1-field-repair-and-chrome-completion.md), [plans/v2.2.2-ready-shell-and-studio-chrome.md](plans/v2.2.2-ready-shell-and-studio-chrome.md), [plans/v2.2.3-glass-orbs-and-pillar-runtime.md](plans/v2.2.3-glass-orbs-and-pillar-runtime.md), [plans/v2.2.4-chatbot-first-and-runtime-honesty.md](plans/v2.2.4-chatbot-first-and-runtime-honesty.md)
+
+## v2.2.4
+
+**Last updated**: 2026-08-23 (Phase 1 - Chatbot-first shell and rail)
+
+### Summary
+
+| Category | Open | Resolved |
+|---|---|---|
+| Not implemented (NI) | 0 | 0 |
+| Deferred (DF) | 11 | 0 |
+| Bugs / regressions (BG) | 0 | 3 |
+| Warnings (WN) | 2 | 0 |
+| Missing tests / coverage gaps (MT) | 0 | 0 |
+| Quality-gate gaps (QG) | 0 | 0 |
+
+Open deferred items remain those carried from v2.2.3 (DF-1, DF-2, DF-4, DF-14, DF-16 through DF-22). DF-17 stays open until Phase 2 honors `?tab=models`.
+
+### Resolved this phase
+
+##### BG-33 - Cold start restored the last module instead of Chatbot
+
+- **Source phase**: v2.2.4 Phase 1
+- **Resolution**: `normalizeActiveRoute` now maps every stored path except `/chatbot` and `/chatbot/...` onto `/chatbot`. In-session navigation to Agents/Images/Videos is unchanged.
+- **Evidence**: `desktop/tests/persistence.test.ts` (17 tests) plus App redirect coverage.
+
+##### BG-34 - Rail labels still used the old product names
+
+- **Source phase**: v2.2.4 Phase 1
+- **Resolution**: `MODULES` labels are Chatbot, Agents, Images, Videos. Routes stay `/chatbot`, `/coding`, `/images`, `/videos`.
+- **Evidence**: `desktop/tests/shell-phase6.test.tsx`, `desktop/tests/ModuleCard.test.tsx`.
+
+##### BG-35 - Collapse control occupied a flex row above the first tab
+
+- **Source phase**: v2.2.4 Phase 1
+- **Resolution**: Collapse is an absolutely positioned edge pill (chevron left/right). The first aside element is the module nav.
+- **Evidence**: `desktop/tests/Sidebar.test.tsx` document-flow assertions.
 
 ## v2.2.3
 

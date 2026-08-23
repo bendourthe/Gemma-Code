@@ -5,7 +5,7 @@ import { App } from "../src/App";
 import { StyleguidePage } from "../src/pages/Styleguide";
 
 describe("App shell", () => {
-  it("redirects / to the Local Chatbot module (v2.2.3 Phase 1, U7)", () => {
+  it("redirects / to the Chatbot module (v2.2.4 Phase 1.1)", () => {
     render(
       <MemoryRouter initialEntries={["/"]}>
         <App telemetryStream={null} />

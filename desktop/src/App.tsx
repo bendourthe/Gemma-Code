@@ -204,9 +204,10 @@ function AppLayout({ telemetryStream }: AppProps): JSX.Element {
           <ModuleErrorBoundary key={location.pathname}>
           <Routes>
             {/*
-              v2.2.3 Phase 1 (1.2, U7): first launch and `/` land on Local
-              Chatbot. Dashboard stays reachable at /dashboard for tests and
-              deep links, but it is not the first-run landing.
+              v2.2.4 Phase 1 (1.1): first launch and `/` land on Chatbot.
+              Dashboard stays reachable at /dashboard for tests and deep
+              links, but it is not the first-run landing. Last-module restore
+              is handled in main.tsx via normalizeActiveRoute.
             */}
             <Route path="/" element={<Navigate to="/chatbot" replace />} />
             <Route

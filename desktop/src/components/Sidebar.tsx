@@ -6,8 +6,8 @@ import {
   Image as ImageIcon,
   Film,
   Settings as SettingsIcon,
-  PanelLeftClose,
-  PanelLeftOpen,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { moduleList, type ModuleId } from "../types/modules";
 import { writeActiveRoute } from "../lib/persistence";
@@ -134,41 +134,28 @@ export function Sidebar({
       aria-label="Primary navigation"
       className="nexus-glass"
       style={{
+        position: "relative",
+        zIndex: 2,
+        overflow: "visible",
         borderRight: "1px solid var(--border-subtle)",
         width: compact ? RAIL_WIDTH : FULL_WIDTH,
         transition: "width 120ms ease",
         display: "flex",
         flexDirection: "column",
-        padding: compact ? "var(--space-3) var(--space-2)" : "var(--space-4)",
-        gap: "var(--space-3)",
+        padding: compact ? "var(--space-2)" : "var(--space-3) var(--space-4)",
+        gap: "var(--space-2)",
       }}
     >
       {/*
         v2.2.0 Phase 6 (6.1): the brand block is gone. The frameless title bar
         already shows "Nexus AI Studio" one row above; repeating it here cost a
         row of vertical space and read as a duplicate.
+        v2.2.4 Phase 1 (1.3): collapse is an edge pill, not the first flex
+        child, so Chatbot is the first row with no spacer gap above it.
       */}
-      <button
-        type="button"
-        data-testid="sidebar-collapse-toggle"
-        aria-label={compact ? "Expand sidebar" : "Collapse sidebar"}
-        aria-expanded={!compact}
-        onClick={toggleCompact}
-        style={{
-          alignSelf: compact ? "center" : "flex-end",
-          background: "transparent",
-          border: "none",
-          color: "var(--fg-muted)",
-          cursor: "pointer",
-          padding: "var(--space-1)",
-          borderRadius: "var(--radius-md)",
-        }}
-      >
-        {compact ? <PanelLeftOpen size={16} aria-hidden /> : <PanelLeftClose size={16} aria-hidden />}
-      </button>
-
       <nav
         aria-label="Modules"
+        data-testid="sidebar-module-nav"
         style={{ display: "flex", flexDirection: "column", gap: "var(--space-1)" }}
       >
         {/*
@@ -248,6 +235,21 @@ export function Sidebar({
         client={askInboxClient}
       />
       <GpuStatusFooter compact={compact} stream={telemetryStream ?? null} />
+      <button
+        type="button"
+        className="nexus-sidebar-collapse-pill"
+        data-testid="sidebar-collapse-toggle"
+        aria-label={compact ? "Expand sidebar" : "Collapse sidebar"}
+        aria-expanded={!compact}
+        title={compact ? "Expand sidebar" : "Collapse sidebar"}
+        onClick={toggleCompact}
+      >
+        {compact ? (
+          <ChevronRight size={12} aria-hidden />
+        ) : (
+          <ChevronLeft size={12} aria-hidden />
+        )}
+      </button>
     </aside>
   );
 }

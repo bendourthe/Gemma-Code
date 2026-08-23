@@ -10,9 +10,9 @@ if (!root) {
   throw new Error("Nexus shell: #root element missing");
 }
 
-// Restore the last route the user was on (single-window app). v2.2.3 Phase 1
-// (1.2, U7): missing, "/", "/dashboard", and invalid stored paths all land on
-// Local Chatbot; the five real module routes restore unchanged.
+// Cold start always opens Chatbot (v2.2.4 Phase 1.1). A stored /coding,
+// /images, /videos, or /settings path is not restored. Chatbot thread
+// sub-paths under /chatbot/ still restore.
 const initial = normalizeActiveRoute(readActiveRoute());
 if (initial !== window.location.pathname) {
   window.history.replaceState(null, "", initial);

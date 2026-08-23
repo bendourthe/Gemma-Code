@@ -60,22 +60,14 @@ export const PERSISTENCE_KEYS = {
 };
 
 /**
- * v2.2.3 Phase 1 (1.2, U7): the routes a stored value may restore to. Local
- * Chatbot is the default module; Dashboard is intentionally absent so a
- * stored `/dashboard` (or `/`, or garbage) lands on `/chatbot` next launch.
- */
-const RESTORABLE_ROUTES = ["/chatbot", "/coding", "/images", "/videos", "/settings"] as const;
-
-/**
- * Map a stored route onto a real module route. Missing, `/`, `/dashboard`,
- * and any unknown path all normalize to `/chatbot`; the five module routes
- * (including their sub-paths, e.g. `/settings/...`) restore unchanged.
+ * v2.2.4 Phase 1 (1.1): cold start always opens Chatbot. Last-module restore
+ * of /coding, /images, /videos, and /settings is reversed. A Chatbot thread
+ * sub-path (/chatbot/...) still restores so in-module conversation state is
+ * not thrown away.
  */
 export function normalizeActiveRoute(stored: string | null): string {
-  if (stored) {
-    for (const route of RESTORABLE_ROUTES) {
-      if (stored === route || stored.startsWith(`${route}/`)) return stored;
-    }
+  if (stored === "/chatbot" || (stored !== null && stored.startsWith("/chatbot/"))) {
+    return stored;
   }
   return "/chatbot";
 }

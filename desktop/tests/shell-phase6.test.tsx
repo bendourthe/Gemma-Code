@@ -54,7 +54,7 @@ describe("sidebar compact mode", () => {
     localStorage.clear();
     renderSidebar({ initialWidth: 1600 });
     expect(screen.getByTestId("nav-chatbot").textContent).toBe("");
-    expect(screen.getByTestId("nav-chatbot").getAttribute("aria-label")).toBe("Local Chatbot");
+    expect(screen.getByTestId("nav-chatbot").getAttribute("aria-label")).toBe("Chatbot");
   });
 
   it("auto-compacts on a narrow window without a stored preference", () => {
@@ -62,14 +62,14 @@ describe("sidebar compact mode", () => {
     renderSidebar({ initialWidth: 900 });
     // Labels are hidden; the icon and its aria-label remain.
     expect(screen.getByTestId("nav-chatbot").textContent).toBe("");
-    expect(screen.getByTestId("nav-chatbot").getAttribute("aria-label")).toBe("Local Chatbot");
+    expect(screen.getByTestId("nav-chatbot").getAttribute("aria-label")).toBe("Chatbot");
   });
 
   it("lets an explicit preference beat the width heuristic", () => {
     // A user who expanded the rail on a narrow window keeps it expanded.
     localStorage.setItem("nexus.sidebar.compact", "false");
     renderSidebar({ initialWidth: 900 });
-    expect(screen.getByTestId("nav-chatbot").textContent).toContain("Local Chatbot");
+    expect(screen.getByTestId("nav-chatbot").textContent).toContain("Chatbot");
     localStorage.clear();
   });
 
@@ -79,7 +79,7 @@ describe("sidebar compact mode", () => {
     renderSidebar({ initialWidth: 1600 });
     await user.click(screen.getByTestId("sidebar-collapse-toggle"));
     expect(localStorage.getItem("nexus.sidebar.compact")).toBe("false");
-    expect(screen.getByTestId("nav-chatbot").textContent).toContain("Local Chatbot");
+    expect(screen.getByTestId("nav-chatbot").textContent).toContain("Chatbot");
     localStorage.clear();
   });
 
