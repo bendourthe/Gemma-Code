@@ -37,6 +37,18 @@ const LIVENESS_WAIT: Duration = Duration::from_millis(500);
 const LIVENESS_POLL: Duration = Duration::from_millis(25);
 /// Sidecar prints this on stderr after stdin is wired (v2.2.1).
 const READY_MARKER: &str = "[nexus-sidecar] ready";
+/// Default JSON-RPC wait. Do not raise this globally (v2.2.4 Phase 6).
+const RPC_TIMEOUT_DEFAULT: Duration = Duration::from_secs(15);
+/// Hub `skills.sync` may clone for minutes; other methods keep 15s.
+const RPC_TIMEOUT_SKILLS_SYNC: Duration = Duration::from_secs(10 * 60);
+const HUB_SYNC_TIMEOUT_MSG: &str = "Hub fetch did not finish. Check the network and retry Update now. The sidecar is still running.";
+
+pub fn rpc_timeout_for(method: &str) -> Duration {
+    match method {
+        "skills.sync" => RPC_TIMEOUT_SKILLS_SYNC,
+        _ => RPC_TIMEOUT_DEFAULT,
+    }
+}
 
 #[derive(Debug, Error)]
 pub enum SidecarError {
@@ -513,7 +525,7 @@ impl Sidecar {
             })?;
         }
 
-        match tokio::time::timeout(Duration::from_secs(15), rx).await {
+        match tokio::time::timeout(rpc_timeout_for(method), rx).await {
             Ok(Ok(Ok(value))) => Ok(value),
             Ok(Ok(Err(msg))) => Err(SidecarError::Request(msg)),
             Ok(Err(_)) => Err(SidecarError::Request("channel-dropped".to_string())),
@@ -521,7 +533,14 @@ impl Sidecar {
                 if let Ok(mut map) = handle.pending.lock() {
                     map.remove(&id);
                 }
-                Err(SidecarError::Timeout)
+                // A Hub clone can exceed 15s on a healthy sidecar. Do not raise
+                // the global timeout; do not report "sidecar response timeout"
+                // when the sidecar is still answering other RPCs.
+                if method == "skills.sync" {
+                    Err(SidecarError::Request(HUB_SYNC_TIMEOUT_MSG.to_string()))
+                } else {
+                    Err(SidecarError::Timeout)
+                }
             }
         }
     }
@@ -881,6 +900,19 @@ mod tests {
             Err(SidecarError::Spawn(_)) => {}
             Err(other) => panic!("unexpected spawn error: {other}"),
         }
+    }
+
+    #[test]
+    fn rpc_timeout_keeps_15s_for_ordinary_methods() {
+        assert_eq!(rpc_timeout_for("ping"), Duration::from_secs(15));
+        assert_eq!(rpc_timeout_for("models.list"), Duration::from_secs(15));
+        assert_eq!(rpc_timeout_for("chat.send"), Duration::from_secs(15));
+    }
+
+    #[test]
+    fn rpc_timeout_allows_minutes_for_skills_sync() {
+        assert_eq!(rpc_timeout_for("skills.sync"), Duration::from_secs(600));
+        assert!(rpc_timeout_for("skills.sync") > rpc_timeout_for("ping"));
     }
 
     #[test]

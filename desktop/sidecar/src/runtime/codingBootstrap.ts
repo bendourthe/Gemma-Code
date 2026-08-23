@@ -135,6 +135,9 @@ export async function bootstrapCoding(opts: CodingBootstrapOptions): Promise<Cod
       if (legacy !== undefined) {
         await settings.set(AUTO_SYNC_SETTING_KEY, legacy);
         enabled = legacy;
+      } else {
+        // v2.2.4 Phase 6: unset means ON. Explicit false still skips.
+        enabled = true;
       }
     }
     if (enabled === true) {

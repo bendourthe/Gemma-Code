@@ -2,7 +2,7 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-23 (v2.2.4 Phase 5)
+**Last updated**: 2026-08-23 (v2.2.4 Phase 6)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
@@ -10,7 +10,7 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 
 ## v2.2.4
 
-**Last updated**: 2026-08-23 (Phase 5 - Settings Models as installer catalog)
+**Last updated**: 2026-08-23 (Phase 6 - Hub update that finishes)
 
 ### Summary
 
@@ -18,14 +18,21 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
 | Deferred (DF) | 10 | 1 |
-| Bugs / regressions (BG) | 0 | 9 |
+| Bugs / regressions (BG) | 0 | 10 |
 | Warnings (WN) | 2 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-Open deferred items remain those carried from v2.2.3 (DF-1, DF-2, DF-4, DF-14, DF-16, DF-18 through DF-22). DF-17 is resolved in Phase 2. Screenshot 6 is closed in Phase 3. Screenshots 7 and 8 are closed in Phase 4. Screenshot 8b (Settings > Models vs installer IA) is closed in Phase 5.
+Open deferred items remain those carried from v2.2.3 (DF-1, DF-2, DF-4, DF-14, DF-16, DF-18 through DF-22). DF-17 is resolved in Phase 2. Screenshots 6-8 and Settings Models IA are closed in Phases 3-5. Screenshot 9 (Hub Update now dying at 15s) is closed in Phase 6.
 
 ### Resolved this phase
+
+
+##### BG-42 - Hub Update now failed at the 15s sidecar RPC timeout
+
+- **Source phase**: v2.2.4 Phase 6
+- **Resolution**: `skills.sync` uses a 10-minute per-method timeout. Other RPCs stay at 15s. A Hub timeout reports Hub fetch copy, not sidecar response timeout. Auto-update to latest Nexus-Hub release defaults ON when the setting key is missing; explicit false stays off.
+- **Evidence**: `desktop/src-tauri/src/sidecar.rs` (`rpc_timeout_for`), `desktop/tests/SkillsSettings.test.tsx`, `desktop/tests/codingBootstrap.test.ts`.
 
 ##### BG-41 - Settings > Models used Type/Family/Status filters instead of installer tabs
 

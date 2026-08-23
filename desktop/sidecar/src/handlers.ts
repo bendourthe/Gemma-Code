@@ -957,7 +957,8 @@ export const handlers: Record<Method, HandlerFn> = {
   "skills.autoSync.get": async (params, ctx) => {
     SkillsAutoSyncGetRequest.parse(params ?? {});
     const stored = await resolveSettings(ctx).get<boolean>(NEXUS_HUB_AUTO_SYNC_SETTING_KEY);
-    return { enabled: stored === true };
+    // v2.2.4 Phase 6: missing key defaults ON. An explicit false stays off.
+    return { enabled: stored !== false };
   },
   "skills.autoSync.set": async (params, ctx) => {
     const req = SkillsAutoSyncSetRequest.parse(params ?? {});

@@ -153,6 +153,31 @@ describe("SkillsSettings", () => {
     expect(spy).toHaveBeenCalledWith(true);
   });
 
+  it("labels auto-update as latest Nexus-Hub release", async () => {
+    const client = makeClient(makeRows());
+    render(<SkillsSettings client={client} />);
+    await waitFor(() => expect(screen.queryByTestId("skills-loading")).toBeNull());
+    expect(screen.getByTestId("skills-auto-sync").closest("label")?.textContent ?? "").toMatch(
+      /Auto-update to latest Nexus-Hub release/i,
+    );
+  });
+
+  it("maps sidecar response timeout during Update now to Hub fetch copy", async () => {
+    const client = makeClient(makeRows());
+    client.syncNow = async () => {
+      throw new Error("sidecar response timeout");
+    };
+    render(<SkillsSettings client={client} />);
+    await waitFor(() => expect(screen.queryByTestId("skills-loading")).toBeNull());
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("skills-sync-now"));
+    });
+    await waitFor(() => {
+      expect(screen.getByRole("alert").textContent ?? "").toMatch(/Hub fetch did not finish/i);
+      expect(screen.getByRole("alert").textContent ?? "").not.toMatch(/sidecar response timeout/i);
+    });
+  });
+
   it("Quarantined skills are listed under a dedicated section with findings", async () => {
     const client = makeClient(makeRows());
     render(<SkillsSettings client={client} />);

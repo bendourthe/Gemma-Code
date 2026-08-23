@@ -131,7 +131,12 @@ export function SkillsSettings({ client }: SkillsSettingsProps): JSX.Element {
       );
       await refresh();
     } catch (e) {
-      setError(messageFor(e));
+      const msg = messageFor(e);
+      setError(
+        /sidecar response timeout/i.test(msg)
+          ? "Hub fetch did not finish. Check the network and retry Update now. The sidecar is still running."
+          : msg,
+      );
     } finally {
       setSyncing(false);
     }
@@ -249,7 +254,7 @@ export function SkillsSettings({ client }: SkillsSettingsProps): JSX.Element {
           testId="skills-auto-sync"
           checked={autoSync}
           onChange={(next) => void handleAutoSyncToggle(next)}
-          label="Auto-sync weekly (idle time)"
+          label="Auto-update to latest Nexus-Hub release"
         />
         {syncStatus && (
           <span data-testid="skills-sync-status" style={{ color: "var(--fg-muted)" }}>
