@@ -630,7 +630,10 @@ export function ChatPage({
       } else {
         await hydrationPromisesRef.current.get(chat.id);
       }
-      if (!residencyApproved) {
+      const groups = partitionAttachments(attachments);
+      // Document parse does not load the chat LLM. Gate residency only when
+      // this turn will actually start or send to the selected chat model.
+      if (!residencyApproved && groups.documents.length === 0) {
         const selectedModel = listedModels.find((candidate) => candidate.id === modelId);
         const verdict = residency.request({
           targetModelId: modelId,
@@ -666,7 +669,6 @@ export function ChatPage({
         }
       }
       const baseId = `${chat.id}-${Date.now()}`;
-      const groups = partitionAttachments(attachments);
       let prompt = text;
       let origin: ChatMessage["origin"];
       const displayAttachments = groups.images;

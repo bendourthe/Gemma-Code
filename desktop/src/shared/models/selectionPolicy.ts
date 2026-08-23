@@ -66,7 +66,7 @@ export function resolveDefaultId(
   if (ready.length === 0) return "";
   if (opts.favorite && ready.some((m) => m.id === opts.favorite)) return opts.favorite;
   if (opts.recommended && ready.some((m) => m.id === opts.recommended)) return opts.recommended;
-  return ready[0].id;
+  return ready[0]?.id ?? "";
 }
 
 export function readFavorite(task: TaskKey, storage: Pick<Storage, "getItem"> | null = defaultStorage()): string | null {

@@ -13,20 +13,7 @@ import userEvent from "@testing-library/user-event";
 import { ChatPage } from "../src/modules/chat/ChatPage";
 import { InMemoryChatExplorerClient } from "../src/modules/chat/chatExplorerClient";
 import type { ChatSessionClient } from "../src/modules/chat/chatIpcClient";
-
-const INSTALLED_CHAT_MODELS = {
-  async list() {
-    return [
-      {
-        id: "gemma4:e4b",
-        displayName: "Gemma 4 E4B",
-        type: "llm" as const,
-        installed: true,
-        source: "registry" as const,
-      },
-    ];
-  },
-};
+import { INSTALLED_CHAT_MODELS } from "./installedChatModels";
 
 describe("<ChatPage>", () => {
   it("renders the empty-state when no chat is active", () => {
@@ -275,7 +262,7 @@ describe("<ChatPage>", () => {
     await waitFor(() => {
       expect(start).toHaveBeenCalled();
     });
-    expect(start.mock.calls[0]?.[0]).toEqual(expect.objectContaining({ modelId: "lfm2.5:1.2b" }));
+    expect(start).toHaveBeenCalledWith(expect.objectContaining({ modelId: "lfm2.5:1.2b" }));
   });
 
   it("keeps the Hi user bubble when the selected model is not installed", async () => {

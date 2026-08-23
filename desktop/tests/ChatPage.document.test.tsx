@@ -17,6 +17,7 @@ import { InMemoryChatExplorerClient } from "../src/modules/chat/chatExplorerClie
 import { createInMemoryDocumentClient } from "../src/modules/chat/documentClient";
 import type { ListedModelDto } from "../src/pages/settings/modelsTypes";
 import type { ChatSessionClient } from "../src/modules/chat/chatIpcClient";
+import { INSTALLED_CHAT_MODELS, waitForInstalledChatModel } from "./installedChatModels";
 
 const DOCUMENT_MODEL: ListedModelDto = {
   id: "rapidocr-ppocrv4",
@@ -274,10 +275,12 @@ describe("ChatPage document parsing", () => {
         client={seeded.client}
         chatSession={session}
         documentClient={createInMemoryDocumentClient({ models: [DOCUMENT_MODEL] })}
+        modelsClient={INSTALLED_CHAT_MODELS}
       />,
     );
     await openChat(user, seeded);
     await waitFor(() => expect(screen.getByTestId("media-composer")).toBeInTheDocument());
+    await waitForInstalledChatModel();
     await user.type(screen.getByTestId("media-composer-textarea"), "hello");
     await user.click(screen.getByTestId("media-composer-submit"));
     await waitFor(() => expect(session.calls).toBeGreaterThan(0));

@@ -70,9 +70,10 @@ export function QuickModelSwitcher({
   // v2.2.4 Phase 2: never display ready[0] while parent state stays on a
   // missing id. Sync once so send uses the same id the <select> shows.
   useEffect(() => {
-    if (ready.length === 0) return;
+    const first = ready[0];
+    if (!first) return;
     if (!ready.some((m) => m.id === value)) {
-      onChange(ready[0].id);
+      onChange(first.id);
     }
   }, [ready, value, onChange]);
 

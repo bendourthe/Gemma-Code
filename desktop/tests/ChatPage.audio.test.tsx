@@ -10,6 +10,7 @@ import { ChatPage } from "../src/modules/chat/ChatPage";
 import { InMemoryChatExplorerClient } from "../src/modules/chat/chatExplorerClient";
 import { createInMemoryAudioClient } from "../src/modules/chat/audioClient";
 import type { ChatSessionClient } from "../src/modules/chat/chatIpcClient";
+import { INSTALLED_CHAT_MODELS, waitForInstalledChatModel } from "./installedChatModels";
 
 function seed() {
   const client = new InMemoryChatExplorerClient();
@@ -43,9 +44,17 @@ describe("ChatPage audio bridge", () => {
       transcript: "[origin:stt_transcript]\nplease sit down",
     });
     const user = userEvent.setup();
-    render(<ChatPage client={client} chatSession={chatSession} audioClient={audio} />);
+    render(
+      <ChatPage
+        client={client}
+        chatSession={chatSession}
+        audioClient={audio}
+        modelsClient={INSTALLED_CHAT_MODELS}
+      />,
+    );
     await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
     await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
+    await waitForInstalledChatModel();
     fireEvent.change(screen.getByTestId("media-composer-file"), {
       target: { files: [new File(["x"], "clip.wav", { type: "audio/wav" })] },
     });

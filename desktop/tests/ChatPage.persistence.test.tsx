@@ -9,6 +9,7 @@ import { ChatPage } from "../src/modules/chat/ChatPage";
 import { InMemoryChatExplorerClient } from "../src/modules/chat/chatExplorerClient";
 import type { ChatSessionClient } from "../src/modules/chat/chatIpcClient";
 import type { AppendMessageInput, ChatMessageRecord } from "../src/modules/chat/types";
+import { INSTALLED_CHAT_MODELS, waitForInstalledChatModel } from "./installedChatModels";
 
 class PersistentExplorerClient extends InMemoryChatExplorerClient {
   private readonly messages = new Map<string, ChatMessageRecord[]>();
@@ -86,7 +87,7 @@ describe("<ChatPage> transcript durability", () => {
       createdAt: 2,
     });
     const user = userEvent.setup();
-    const first = render(<ChatPage client={client} />);
+    const first = render(<ChatPage client={client} modelsClient={INSTALLED_CHAT_MODELS} />);
     await openChat(user, folder.id, chatB.id);
     expect(await screen.findByText("restored chat B")).toBeInTheDocument();
     expect(screen.queryByText("chat A only")).toBeNull();
@@ -103,8 +104,9 @@ describe("<ChatPage> transcript durability", () => {
     const folder = client.createFolder({ parentId: null, name: "Saved" });
     const chat = client.createChat({ folderId: folder.id, title: "Thread", modelId: "gemma4:e4b" });
     const user = userEvent.setup();
-    render(<ChatPage client={client} chatSession={successfulSession()} />);
+    render(<ChatPage client={client} chatSession={successfulSession()} modelsClient={INSTALLED_CHAT_MODELS} />);
     await openChat(user, folder.id, chat.id);
+    await waitForInstalledChatModel();
     await user.type(screen.getByTestId("media-composer-textarea"), "remember this{Enter}");
     expect(await screen.findByText("Persisted reply")).toBeInTheDocument();
     await waitFor(() => expect(client.appendMessage).toHaveBeenCalledTimes(2));
@@ -126,9 +128,10 @@ describe("<ChatPage> transcript durability", () => {
     client.seed({ id: "a1", chatId: chat.id, role: "assistant", content: "old answer", attachments: [], createdAt: 2 });
     const start = vi.fn(successfulSession().start);
     const user = userEvent.setup();
-    render(<ChatPage client={client} chatSession={successfulSession({ start })} />);
+    render(<ChatPage client={client} chatSession={successfulSession({ start })} modelsClient={INSTALLED_CHAT_MODELS} />);
     await openChat(user, folder.id, chat.id);
     await screen.findByText("old answer");
+    await waitForInstalledChatModel();
     await user.type(screen.getByTestId("media-composer-textarea"), "new question{Enter}");
     await waitFor(() => expect(start).toHaveBeenCalledTimes(1));
     expect(start.mock.calls[0]?.[0].history).toEqual([
@@ -153,8 +156,9 @@ describe("<ChatPage> transcript durability", () => {
         events: [{ kind: "token", text: "Recovered" }, { kind: "done", finishReason: "stop" }],
       });
     const user = userEvent.setup();
-    render(<ChatPage client={client} chatSession={{ start, sendMessage }} />);
+    render(<ChatPage client={client} chatSession={{ start, sendMessage }} modelsClient={INSTALLED_CHAT_MODELS} />);
     await openChat(user, folder.id, chat.id);
+    await waitForInstalledChatModel();
     await user.type(screen.getByTestId("media-composer-textarea"), "hello{Enter}");
     expect(await screen.findByText("Recovered")).toBeInTheDocument();
     expect(start).toHaveBeenCalledTimes(2);

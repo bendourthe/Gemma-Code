@@ -45,8 +45,10 @@ const TYPE_TAB: Partial<Record<ModelType, CatalogTab>> = {
 };
 
 export function primaryCatalogTab(model: Pick<ListedModelDto, "task" | "type">): CatalogTab {
-  if (model.task && TASK_TAB[model.task]) return TASK_TAB[model.task];
-  if (model.type && TYPE_TAB[model.type]) return TYPE_TAB[model.type];
+  const fromTask = model.task ? TASK_TAB[model.task] : undefined;
+  if (fromTask) return fromTask;
+  const fromType = model.type ? TYPE_TAB[model.type] : undefined;
+  if (fromType) return fromType;
   return "other";
 }
 

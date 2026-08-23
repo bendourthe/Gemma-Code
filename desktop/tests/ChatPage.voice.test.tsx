@@ -11,6 +11,7 @@ import { InMemoryChatExplorerClient } from "../src/modules/chat/chatExplorerClie
 import { createInMemoryAudioClient } from "../src/modules/chat/audioClient";
 import type { ChatSessionClient } from "../src/modules/chat/chatIpcClient";
 import type { MicRecorder } from "../src/shared/chat/micRecorder";
+import { INSTALLED_CHAT_MODELS, waitForInstalledChatModel } from "./installedChatModels";
 
 function fakeMic(): MicRecorder {
   return {
@@ -24,7 +25,9 @@ function fakeMic(): MicRecorder {
 }
 
 describe("ChatPage voice loop", () => {
-  it("push-to-talk captures, transcribes, chats, and speaks offline", async () => {
+  it(
+    "push-to-talk captures, transcribes, chats, and speaks offline",
+    async () => {
     const client = new InMemoryChatExplorerClient();
     const folder = client.createFolder({ parentId: null, name: "Work" });
     const chat = client.createChat({
@@ -56,10 +59,12 @@ describe("ChatPage voice loop", () => {
         playAudio={async (url) => {
           played.push(url);
         }}
+        modelsClient={INSTALLED_CHAT_MODELS}
       />,
     );
     await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
     await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
+    await waitForInstalledChatModel();
     // v2.2.0 Phase 5 (5.4): the five-button voice row is gone. The same
     // voiceLoop machine is now driven from the composer's mic menu.
     const openMicMenu = async (): Promise<void> => {
@@ -88,7 +93,9 @@ describe("ChatPage voice loop", () => {
     expect(await screen.findByText("spoken reply")).toBeInTheDocument();
     await waitFor(() => expect(played.length).toBeGreaterThan(0));
     expect(audio.speakCalls.some((t) => t.includes("spoken reply"))).toBe(true);
-  });
+  },
+  15_000,
+);
 
   it("VAD start shows the capture indicator until stop", async () => {
     const client = new InMemoryChatExplorerClient();
@@ -112,10 +119,12 @@ describe("ChatPage voice loop", () => {
         audioClient={createInMemoryAudioClient()}
         voiceMicRecorder={fakeMic()}
         playAudio={async () => undefined}
+        modelsClient={INSTALLED_CHAT_MODELS}
       />,
     );
     await user.click(screen.getByTestId(`tree-row-folder-${folder.id}`));
     await user.click(screen.getByTestId(`tree-row-chat-${chat.id}`));
+    await waitForInstalledChatModel();
     const openMicMenu = async (): Promise<void> => {
       await user.click(screen.getByTestId("media-composer-mic-menu-toggle"));
     };

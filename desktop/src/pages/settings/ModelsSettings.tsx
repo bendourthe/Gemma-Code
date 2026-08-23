@@ -233,17 +233,18 @@ export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProp
 
       <div role="tablist" aria-label="Model catalog" style={tabListStyle}>
         {tabDefs.map((def) => (
-          <button
+          <Button
             key={def.id}
             type="button"
             role="tab"
             aria-selected={tab === def.id}
-            data-testid={`models-tab-${def.id}`}
+            testId={`models-tab-${def.id}`}
             onClick={() => setTab(def.id)}
+            variant="ghost"
             style={tabButtonStyle(tab === def.id)}
           >
             {def.label}
-          </button>
+          </Button>
         ))}
       </div>
 
@@ -377,16 +378,17 @@ function ModelCard({
           ) : null}
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "var(--space-2, 8px)" }}>
-          <button
+          <Button
             type="button"
-            data-testid={`models-favorite-${item.id}`}
+            testId={`models-favorite-${item.id}`}
             aria-pressed={favorite}
             aria-label={favorite ? "Unfavorite" : "Favorite"}
             onClick={onFavorite}
+            variant="ghost"
             style={starStyle(favorite)}
           >
             {favorite ? "★" : "☆"}
-          </button>
+          </Button>
           <RowActions
             item={item}
             progress={progress}
