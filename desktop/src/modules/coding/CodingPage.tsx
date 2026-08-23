@@ -13,7 +13,6 @@ import type {
   TraceEventT,
 } from "../../../sidecar/src/protocol";
 import { CodingInput } from "./CodingInput";
-import { MetalAccent } from "../../components/MetalAccent";
 import { DEFAULT_MODEL_ID, FRONTEND_MODELS } from "./models";
 import { applyEvents, type RenderedTurn } from "./toolCallCard";
 import { MemoryPanel } from "./panels/MemoryPanel";
@@ -481,27 +480,28 @@ export function CodingPage({
                 gap: "var(--space-2)",
               }}
             >
-              <MetalAccent
-                accentToken="--accent-coding"
-                surfaceId="coding-new-session"
-                data-testid="coding-new-session-metal"
+              {/*
+                v2.2.3 Phase 2: the MetalAccent ring is replaced by the same
+                liquid-glass treatment the rest of the chrome uses (frosted
+                fill, hairline, inset highlight) -- no pillar hue, no metal.
+              */}
+              <button
+                type="button"
+                data-testid="coding-new-session"
+                onClick={() => void handleNewSession()}
+                style={{
+                  padding: "var(--space-1) var(--space-3)",
+                  backgroundColor: "color-mix(in srgb, var(--bg-1) 70%, transparent)",
+                  color: "var(--fg-0)",
+                  border: "1px solid color-mix(in srgb, var(--fg-0) 14%, transparent)",
+                  boxShadow: "inset 0 1px 0 color-mix(in srgb, white 8%, transparent)",
+                  backdropFilter: "blur(12px)",
+                  borderRadius: "var(--radius-md)",
+                  cursor: "pointer",
+                }}
               >
-                <button
-                  type="button"
-                  data-testid="coding-new-session"
-                  onClick={() => void handleNewSession()}
-                  style={{
-                    padding: "var(--space-1) var(--space-3)",
-                    backgroundColor: "var(--accent-coding)",
-                    color: "var(--bg-0)",
-                    border: "none",
-                    borderRadius: "var(--radius-md)",
-                    cursor: "pointer",
-                  }}
-                >
-                  New session
-                </button>
-              </MetalAccent>
+                New session
+              </button>
               <button
                 type="button"
                 data-testid="coding-cancel"

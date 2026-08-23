@@ -23,3 +23,14 @@ Clean. No action required.
 - The shared v2.2 known-gaps and devlog files are updated in place; no cleanup move is proposed.
 
 **Verdict**: Clean. No action required.
+
+## v2.2.3 Phase 2 audit
+
+**Date**: 2026-08-22
+**Mode**: audit (no files moved)
+
+- Phase 2 changes existing desktop chrome and tests in place; it creates no scratch docs, duplicate component directory, or alternate styling subtree.
+- Shared `.nexus-nav-link` and `.nx-icon-btn` rules live with the existing global surface primitives rather than creating a parallel stylesheet.
+- The remaining MediaComposer/CodingInput surface duplication is already tracked as DF-14 for the Phase 8 scoped architecture audit.
+
+**Verdict**: Clean for Phase 2. No move proposed.

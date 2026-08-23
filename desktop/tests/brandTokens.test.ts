@@ -120,3 +120,28 @@ describe("v1.17.0 surface-liveness beam CSS", () => {
     expect(globalsCss).toContain(".nexus-accent-beam");
   });
 });
+
+describe("v2.2.3 Phase 2 chrome CSS", () => {
+  it("breathing no longer oscillates a 48deg conic wedge", () => {
+    expect(globalsCss).not.toContain("--nexus-beam-angle: 48deg");
+  });
+
+  it("breathing paints a full-perimeter ring on a border-box ::before", () => {
+    expect(globalsCss).toContain('[data-beam-mode="breathing"]::before');
+    expect(globalsCss).toContain("box-sizing: border-box");
+  });
+
+  it("defines the liquid-glass nav-link selected state", () => {
+    expect(globalsCss).toContain(".nexus-nav-link");
+    expect(globalsCss).toContain('.nexus-nav-link[aria-current="page"]');
+  });
+
+  it("defines the shared glass icon button for studio actions", () => {
+    expect(globalsCss).toContain(".nx-icon-btn");
+  });
+
+  it("does not put a border on .nexus-glass (the aside draws its own edge)", () => {
+    const glassBlock = globalsCss.match(/\.nexus-glass\s*{[^}]*}/)?.[0] ?? "";
+    expect(glassBlock).not.toContain("border:");
+  });
+});

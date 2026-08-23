@@ -204,7 +204,9 @@ describe("CodingPage", () => {
     });
   });
 
-  it("shows a metal New session control after a session starts and clears the transcript", async () => {
+  // v2.2.3 Phase 2: the MetalAccent ring was deliberately replaced by the
+  // glass treatment -- no `-metal` wrapper remains around New session.
+  it("shows a glass New session control after a session starts and clears the transcript", async () => {
     render(<CodingPage />);
     expect(screen.queryByTestId("coding-new-session")).toBeNull();
     await userEvent.type(screen.getByTestId("coding-input-textarea"), "Hello agent");
@@ -213,7 +215,7 @@ describe("CodingPage", () => {
       expect(screen.getByTestId("coding-chat")).toHaveTextContent("Hello agent");
     });
     const neu = screen.getByTestId("coding-new-session");
-    expect(neu.closest("[data-testid='coding-new-session-metal']")).not.toBeNull();
+    expect(neu.closest("[data-testid$='-metal']")).toBeNull();
     expect(screen.getByTestId("coding-cancel").closest("[data-testid$='-metal']")).toBeNull();
     await userEvent.click(neu);
     await waitFor(() => {

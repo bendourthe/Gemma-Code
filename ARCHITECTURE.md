@@ -140,7 +140,7 @@ The desktop shell (`desktop/src/`) ships an internal motion system with no new f
 - `desktop/src/motion/` -- tokens, `useReducedMotion` (halt, not slow), recede-when-active, and precedence (`orb > metal > beam > aurora`).
 - `desktop/src/components/agentState/` -- Canvas 2D dotted orbs mapped to Nexus activities.
 - `AccentBeam.tsx` -- CSS traveling / breathing border on composers, the idle model dock, and the retained generation-canvas frame.
-- `MetalAccent.tsx` -- WebGL liquid-metal ring on Send / Generate / New session, instance-capped at 3, static fallback when WebGL is missing.
+- `MetalAccent.tsx` -- retained WebGL liquid-metal primitive for legacy/styleguide consumers, instance-capped at 3 with a static fallback when WebGL is missing. The production MediaComposer, CodingInput, and Coding New session controls use neutral glass chrome instead.
 
 Design tokens: [docs/v1/v1.17/design-tokens.md](docs/v1/v1.17/design-tokens.md). Known gaps: [docs/v1/v1.17/known-gaps.md](docs/v1/v1.17/known-gaps.md).
 

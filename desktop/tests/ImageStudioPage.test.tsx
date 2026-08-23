@@ -164,7 +164,8 @@ describe("ImageStudioPage (chat)", () => {
       await Promise.resolve();
     });
     await waitFor(() => expect(screen.getByAltText("Generated image")).toBeInTheDocument());
-    expect(screen.queryByText("Use Prompt")).toBeNull();
+    // v2.2.3 Phase 2 (2.3): recall actions are icon buttons named by aria-label.
+    expect(screen.queryByLabelText("Use Prompt")).toBeNull();
   });
 
   it("Use Prompt prefills the advanced prompt from extracted workflow", async () => {
@@ -180,7 +181,7 @@ describe("ImageStudioPage (chat)", () => {
       vi.advanceTimersByTime(40);
       await Promise.resolve();
     });
-    const usePrompt = await screen.findByText("Use Prompt");
+    const usePrompt = await screen.findByLabelText("Use Prompt");
     fireEvent.click(screen.getByTestId("image-advanced-settings"));
     await act(async () => {
       fireEvent.click(usePrompt);

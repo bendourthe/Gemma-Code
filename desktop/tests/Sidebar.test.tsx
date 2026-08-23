@@ -50,6 +50,30 @@ describe("Sidebar", () => {
     expect(link.getAttribute("aria-current")).toBeNull();
   });
 
+  // v2.2.3 Phase 2 (2.1): one liquid-glass selected state for every module.
+  // No per-tab accent on the icon color, background fill, or a 3px left bar.
+  it("does not tint the active module row or its icon with a pillar accent", () => {
+    renderAt("/images");
+    const link = screen.getByTestId("nav-image") as HTMLAnchorElement;
+    expect(link.className).toContain("nexus-nav-link");
+    const inlineStyle = link.getAttribute("style") ?? "";
+    expect(inlineStyle).not.toContain("accent-image");
+    expect(inlineStyle).not.toContain("border-left");
+    const icon = link.querySelector("svg");
+    expect(icon?.getAttribute("color") ?? "").not.toContain("accent");
+  });
+
+  it("keeps the inactive rows free of pillar accents too", () => {
+    renderAt("/images");
+    for (const id of ["nav-chatbot", "nav-coding", "nav-video"]) {
+      const link = screen.getByTestId(id) as HTMLAnchorElement;
+      const inlineStyle = link.getAttribute("style") ?? "";
+      expect(inlineStyle).not.toContain("accent-");
+      const icon = link.querySelector("svg");
+      expect(icon?.getAttribute("color") ?? "").not.toContain("accent");
+    }
+  });
+
   it("persists the active route in localStorage", () => {
     renderAt("/images");
     expect(window.localStorage.getItem(PERSISTENCE_KEYS.activeRoute)).toBe("/images");

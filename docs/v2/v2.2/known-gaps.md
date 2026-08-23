@@ -2,7 +2,7 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-22 (v2.2.3 Phase 1)
+**Last updated**: 2026-08-22 (v2.2.3 Phase 2)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
@@ -10,7 +10,7 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 
 ## v2.2.3
 
-**Last updated**: 2026-08-22 (Phase 1 - Chat explorer IPC and default route)
+**Last updated**: 2026-08-22 (Phase 2 - liquid glass rail, full-perimeter beam, icon actions)
 
 ### Summary
 
@@ -18,7 +18,7 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
 | Deferred (DF) | 10 | 0 |
-| Bugs / regressions (BG) | 0 | 2 |
+| Bugs / regressions (BG) | 0 | 5 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
@@ -114,6 +114,27 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 - **What happened**: `/` rendered Dashboard and missing or invalid persisted routes were not normalized to a visible module.
 - **Fix**: `/` redirects to `/chatbot`; missing, `/`, `/dashboard`, and invalid stored routes normalize to `/chatbot`, while real module routes continue to restore.
 - **Evidence**: App and persistence regression tests passed in the 1325-test solo desktop run.
+
+##### BG-17 (resolved) - Module rail used four unrelated accent colors
+
+- **Source phase**: Phase 2
+- **What happened**: Each module NavLink painted its icon, active fill, and 3px left bar from a per-pillar accent token.
+- **Fix**: Every module row now shares `.nexus-nav-link`: muted inactive text and a frosted selected fill with one hairline and inset highlight. Lucide icons inherit `currentColor`; the rail no longer consumes `accentVar`.
+- **Evidence**: Sidebar and brand-token tests assert the glass class and absence of per-pillar icon color.
+
+##### BG-18 (resolved) - Composer beam illuminated only a partial wedge
+
+- **Source phase**: Phase 2
+- **What happened**: The breathing beam moved only from 0 to 48 degrees, wrapped the outer attachment box, and competed with inner focused borders in pillar colors.
+- **Fix**: The beam wraps the inner typing surface, breathes as a full masked ring, travels 360 degrees, uses brand cyan on every pillar, and is the only focus ring. Drag and send controls also use neutral brand tokens.
+- **Evidence**: MediaComposer, CodingInput, and brand-token tests assert inner-surface nesting, `--accent-chatbot`, and the absence of `48deg`.
+
+##### BG-19 (resolved) - Studio recall actions rendered as native text buttons
+
+- **Source phase**: Phase 2
+- **What happened**: Download, workflow, prompt, seed, remix, and use-as-source actions used native Windows button chrome and visible captions.
+- **Fix**: The actions now share `.nx-icon-btn`, use lucide icons, retain every existing test ID, and expose their names through `aria-label` plus `title`. Coding New session also uses neutral glass instead of the retired per-pillar MetalAccent ring.
+- **Evidence**: Image Studio and Coding page tests assert icon-accessible controls and the new glass New session contract.
 
 ## v2.2.2
 

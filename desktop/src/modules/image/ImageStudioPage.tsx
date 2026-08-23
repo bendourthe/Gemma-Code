@@ -12,6 +12,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Download, FileJson, ImagePlus } from "lucide-react";
 import { SidecarDownBanner } from "../../components/SidecarDownBanner";
 import { Button } from "../../components/ui";
 import {
@@ -581,11 +582,26 @@ export function ImageStudioPage({
                   data-testid={`image-actions-${m.id}`}
                   style={{ display: "flex", gap: "var(--space-2)", marginTop: "var(--space-1)" }}
                 >
-                  <button type="button" data-testid={`image-download-${m.id}`} onClick={() => downloadImage(m.id)}>
-                    Download
+                  {/* v2.2.3 Phase 2 (2.3): icon-only glass actions; names on aria-label + title. */}
+                  <button
+                    type="button"
+                    className="nx-icon-btn"
+                    aria-label="Download"
+                    title="Download"
+                    data-testid={`image-download-${m.id}`}
+                    onClick={() => downloadImage(m.id)}
+                  >
+                    <Download size={16} aria-hidden="true" />
                   </button>
-                  <button type="button" data-testid={`image-copyworkflow-${m.id}`} onClick={() => void copyWorkflow(m.id)}>
-                    Copy Workflow
+                  <button
+                    type="button"
+                    className="nx-icon-btn"
+                    aria-label="Copy Workflow"
+                    title="Copy Workflow"
+                    data-testid={`image-copyworkflow-${m.id}`}
+                    onClick={() => void copyWorkflow(m.id)}
+                  >
+                    <FileJson size={16} aria-hidden="true" />
                   </button>
                   <RecallActions
                     messageId={m.id}
@@ -593,8 +609,15 @@ export function ImageStudioPage({
                     hasWorkflow={Boolean(workflowByMessage[m.id])}
                     onRecall={(mode) => recall(m.id, mode)}
                   />
-                  <button type="button" data-testid={`image-usesource-${m.id}`} onClick={() => useAsSource(m.id)}>
-                    Use as Source
+                  <button
+                    type="button"
+                    className="nx-icon-btn"
+                    aria-label="Use as Source"
+                    title="Use as Source"
+                    data-testid={`image-usesource-${m.id}`}
+                    onClick={() => useAsSource(m.id)}
+                  >
+                    <ImagePlus size={16} aria-hidden="true" />
                   </button>
                 </div>
               ) : null

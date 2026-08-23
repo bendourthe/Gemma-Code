@@ -80,6 +80,18 @@ describe("CodingInput", () => {
     expect(screen.getByTestId("coding-composer-beam")).toHaveAttribute("data-beam-playing", "true");
   });
 
+  // v2.2.3 Phase 2 (2.2): the beam wraps the INNER typing surface in brand
+  // cyan (never the coding pink), and the send icon is neutral fg.
+  it("wraps the inner typing surface with a brand-cyan beam", () => {
+    render(<CodingInput onSubmit={vi.fn()} />);
+    const beam = screen.getByTestId("coding-composer-beam");
+    const surface = screen.getByTestId("coding-input-surface");
+    expect(beam.contains(surface)).toBe(true);
+    expect(beam.contains(screen.getByTestId("coding-input"))).toBe(false);
+    expect(beam).toHaveAttribute("data-beam-accent", "--accent-chatbot");
+    expect(screen.getByTestId("coding-input-submit").style.color).toBe("var(--fg-0)");
+  });
+
   it("groups + and icon send inside the surface with no Send caption", async () => {
     render(<CodingInput onSubmit={vi.fn()} />);
     const surface = screen.getByTestId("coding-input-surface");

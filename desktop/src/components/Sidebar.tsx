@@ -193,6 +193,13 @@ export function Sidebar({
         aria-label="Modules"
         style={{ display: "flex", flexDirection: "column", gap: "var(--space-1)" }}
       >
+        {/*
+          v2.2.3 Phase 2 (2.1): no per-tab accent on the rail. The selected
+          state is the liquid-glass `.nexus-nav-link` treatment (frosted
+          fill, hairline, inset highlight) keyed off aria-current; icons
+          inherit currentColor. MODULES.*.accentVar stays for styleguide /
+          module cards only.
+        */}
         {NAV_ENTRIES.map((entry) => (
           <NavLink
             key={entry.id}
@@ -200,23 +207,19 @@ export function Sidebar({
             data-testid={`nav-${entry.id}`}
             title={`${entry.label} (${entry.shortcut})`}
             aria-label={entry.label}
-            style={({ isActive }) => ({
+            className="nexus-nav-link"
+            style={{
               display: "flex",
               alignItems: "center",
               justifyContent: compact ? "center" : "flex-start",
               gap: compact ? 0 : "var(--space-3)",
               padding: compact ? "var(--space-2)" : "var(--space-2) var(--space-3)",
               borderRadius: "var(--radius-md)",
-              color: isActive ? "var(--fg-0)" : "var(--fg-1)",
-              backgroundColor: isActive ? `var(${entry.accentVar}-soft)` : "transparent",
-              borderLeft: isActive
-                ? `3px solid var(${entry.accentVar})`
-                : "3px solid transparent",
               textDecoration: "none",
               fontSize: "var(--text-sm)",
-            })}
+            }}
           >
-            <entry.icon size={18} aria-hidden color={`var(${entry.accentVar})`} />
+            <entry.icon size={18} aria-hidden />
             {!compact && <span>{entry.label}</span>}
           </NavLink>
         ))}

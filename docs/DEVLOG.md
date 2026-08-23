@@ -4,6 +4,31 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-22] v2.2.3 Phase 2 - Liquid glass rail, full-perimeter beam, icon actions
+
+### What Changed
+
+- Replaced per-pillar sidebar icon colors, tinted fills, and 3px bars with one `.nexus-nav-link` liquid-glass selected state.
+- Moved AccentBeam around the inner MediaComposer and CodingInput typing surfaces, made breathing a full masked ring, kept traveling at 360 degrees, and fixed beam, drag, and send colors to the brand-neutral tokens.
+- Replaced native Image and Video action captions with lucide icon buttons using `.nx-icon-btn`, `aria-label`, `title`, and the existing test IDs.
+- Replaced Coding New session's per-pillar MetalAccent wrapper with a neutral glass button.
+
+### Why It Changed
+
+The field session showed a four-color rail, a beam stuck in one quadrant, and Windows-native text buttons beside generated media. Those surfaces competed with the dark glass identity and made the studios look unfinished even when their underlying controls worked.
+
+### Decisions Made
+
+- Kept per-pillar accent tokens for styleguide and module-card use, but removed them from the rail, composer beam, send icon, and New session action.
+- Kept visible captions out of compact studio toolbars while preserving accessible names and tooltips.
+- Made the breathing beam a full-perimeter opacity pulse; the traveling mode remains the 360-degree chase.
+
+### Impact and Context
+
+The earlier solo full desktop gate remained green at 154 files and 1325 tests. The focused Phase 2 gate passed 105 tests across nine files, desktop lint and typecheck exited zero, and Vite built 1751 modules. Generation behavior is unchanged by this phase and remains the responsibility of Phase 3.
+
+---
+
 ## [2026-08-22] v2.2.3 Phase 1 - Chat explorer IPC and default route
 
 ### What Changed

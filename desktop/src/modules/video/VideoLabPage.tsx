@@ -10,6 +10,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FileJson, ImagePlus } from "lucide-react";
 
 import { useModelResidency } from "../../shared/models/useModelResidency";
 import { ModelSwitchChip, ModelSwitchDialog } from "../../shared/models/ModelSwitchDialog";
@@ -663,8 +664,16 @@ export function VideoLabPage({
                     data-testid={`video-actions-${m.id}`}
                     style={{ display: "flex", gap: "var(--space-2)", marginTop: "var(--space-1)" }}
                   >
-                    <button type="button" data-testid={`video-copyworkflow-${m.id}`} onClick={() => void copyWorkflow(m.id)}>
-                      Copy Workflow
+                    {/* v2.2.3 Phase 2 (2.3): icon-only glass actions; names on aria-label + title. */}
+                    <button
+                      type="button"
+                      className="nx-icon-btn"
+                      aria-label="Copy Workflow"
+                      title="Copy Workflow"
+                      data-testid={`video-copyworkflow-${m.id}`}
+                      onClick={() => void copyWorkflow(m.id)}
+                    >
+                      <FileJson size={16} aria-hidden="true" />
                     </button>
                     <RecallActions
                       messageId={m.id}
@@ -674,10 +683,13 @@ export function VideoLabPage({
                     />
                     <button
                       type="button"
+                      className="nx-icon-btn"
+                      aria-label="Use as Source"
+                      title="Use as Source"
                       data-testid={`video-useframe-${m.id}`}
                       onClick={() => setSeededAttachment(m.media?.src ?? null)}
                     >
-                      Use as Source
+                      <ImagePlus size={16} aria-hidden="true" />
                     </button>
                   </div>
                 ) : null}

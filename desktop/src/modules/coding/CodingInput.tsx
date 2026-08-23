@@ -11,7 +11,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import { Send } from "lucide-react";
-import { AccentBeam } from "../../components/AccentBeam";
+import { AccentBeam, type AccentBeamAccentToken } from "../../components/AccentBeam";
 import { MotionSurface, composerMotionCandidates } from "../../motion";
 import { DOCUMENT_ACCEPT } from "../../shared/chat/documentAccept";
 import { fileMatchesAccept, isImageDataUrl } from "../../shared/chat/MediaComposer";
@@ -141,15 +141,6 @@ export function CodingInput({
       surfaceId="coding-composer"
       candidates={candidates}
     >
-    <AccentBeam
-      mode={streaming ? "traveling" : "breathing"}
-      playing={Boolean(streaming || focused)}
-      accentToken="--accent-coding"
-      radiusToken="--radius-md"
-      strength={streaming ? 0.9 : 0.7}
-      surfaceId="coding-composer-beam"
-      data-testid="coding-composer-beam"
-    >
     <div
       data-testid="coding-input"
       data-drag-active={dragActive}
@@ -268,7 +259,21 @@ export function CodingInput({
           ))}
         </div>
       )}
-      <div data-testid="coding-input-surface" style={composerSurfaceStyle(focused)}>
+      {/*
+        v2.2.3 Phase 2 (2.2): the beam wraps the INNER typing surface and is
+        always the brand cyan, not the coding pillar pink. It is the only
+        focus/streaming ring.
+      */}
+      <AccentBeam
+        mode={streaming ? "traveling" : "breathing"}
+        playing={Boolean(streaming || focused)}
+        accentToken={BEAM_ACCENT}
+        radiusToken={BEAM_RADIUS}
+        strength={streaming ? 0.9 : 0.7}
+        surfaceId="coding-composer-beam"
+        data-testid="coding-composer-beam"
+      >
+      <div data-testid="coding-input-surface" style={composerSurfaceStyle}>
         <input
           ref={fileInputRef}
           type="file"
@@ -319,8 +324,8 @@ export function CodingInput({
           </button>
         </div>
       </div>
+      </AccentBeam>
     </div>
-    </AccentBeam>
     </MotionSurface>
   );
 }
@@ -339,16 +344,20 @@ const docChipStyle: CSSProperties = {
   fontWeight: 600,
 };
 
-function composerSurfaceStyle(focused: boolean): CSSProperties {
-  return {
-    position: "relative",
-    display: "block",
-    backgroundColor: "var(--bg-0)",
-    border: `1px solid ${focused ? "var(--accent-coding, #4aa)" : "var(--border-subtle, #2a2a2a)"}`,
-    borderRadius: "var(--radius-lg, 12px)",
-    transition: "border-color 120ms ease",
-  };
-}
+/*
+ * v2.2.3 Phase 2 (2.2): the beam is the only focus ring, always brand cyan;
+ * the surface keeps one static hairline (no focused pink border).
+ */
+const BEAM_ACCENT = "--accent-chatbot" satisfies AccentBeamAccentToken;
+const BEAM_RADIUS = "--radius-lg" as const;
+
+const composerSurfaceStyle: CSSProperties = {
+  position: "relative",
+  display: "block",
+  backgroundColor: "var(--bg-0)",
+  border: "1px solid var(--border-subtle, #2a2a2a)",
+  borderRadius: "var(--radius-lg, 12px)",
+};
 
 const inFieldTextareaStyle: CSSProperties = {
   display: "block",
@@ -391,6 +400,7 @@ const clusterIconStyle: CSSProperties = {
   cursor: "pointer",
 };
 
+/* v2.2.3 Phase 2 (2.2): send icon is neutral fg, never a pillar hue. */
 const submitStyle: CSSProperties = {
   width: 32,
   height: 32,
@@ -399,7 +409,7 @@ const submitStyle: CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   backgroundColor: "transparent",
-  color: "var(--accent-coding)",
+  color: "var(--fg-0)",
   border: "none",
   borderRadius: "var(--radius-md)",
   cursor: "pointer",

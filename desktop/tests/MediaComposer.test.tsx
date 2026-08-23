@@ -63,10 +63,27 @@ describe("MediaComposer", () => {
     fireEvent.focus(screen.getByTestId("media-composer-textarea"));
     expect(beam).toHaveAttribute("data-beam-playing", "true");
     expect(screen.queryByTestId("media-composer-submit-metal")).toBeNull();
-    rerender(<MediaComposer onSubmit={vi.fn()} streaming submitAccentVar="--accent-chatbot" />);
+    // v2.2.3 Phase 2 (2.2): a pillar submitAccentVar must NOT tint the beam --
+    // the beam is always the brand cyan.
+    rerender(<MediaComposer onSubmit={vi.fn()} streaming submitAccentVar="--accent-image" />);
     expect(screen.getByTestId("media-composer-beam")).toHaveAttribute("data-beam-mode", "traveling");
     expect(screen.getByTestId("media-composer-beam")).toHaveAttribute("data-beam-playing", "true");
     expect(screen.getByTestId("media-composer-beam")).toHaveAttribute("data-beam-accent", "--accent-chatbot");
+  });
+
+  // v2.2.3 Phase 2 (2.2): the beam wraps the INNER typing surface, sits inside
+  // the outer composer box, and the send icon is neutral fg, not a pillar hue.
+  it("wraps the inner typing surface with the beam, not the outer box", () => {
+    render(<MediaComposer onSubmit={vi.fn()} submitAccentVar="--accent-image" />);
+    const beam = screen.getByTestId("media-composer-beam");
+    const outer = screen.getByTestId("media-composer");
+    const surface = screen.getByTestId("media-composer-surface");
+    expect(beam.contains(surface)).toBe(true);
+    expect(outer.contains(beam)).toBe(true);
+    expect(beam.contains(outer)).toBe(false);
+    expect(beam).toHaveAttribute("data-beam-accent", "--accent-chatbot");
+    const submit = screen.getByTestId("media-composer-submit");
+    expect(submit.style.color).toBe("var(--fg-0)");
   });
 
   it("uses an icon send with aria-label and no MetalAccent box", () => {

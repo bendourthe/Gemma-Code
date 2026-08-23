@@ -126,7 +126,8 @@ export function MediaComposer({
   placeholder = "Describe what you want to generate, or drop an image...",
   onSubmit,
   accept = "image/*",
-  submitAccentVar = "--accent-image",
+  // v2.2.3 Phase 2 (2.2): `submitAccentVar` stays on the props contract for
+  // callers, but no longer drives the beam or the send icon -- both are brand.
   submitLabel = "Send",
   seededAttachment,
   streaming = false,
@@ -267,15 +268,6 @@ export function MediaComposer({
       surfaceId="media-composer"
       candidates={candidates}
     >
-    <AccentBeam
-      mode={streaming ? "traveling" : "breathing"}
-      playing={Boolean(streaming || focused)}
-      accentToken={beamAccentFrom(submitAccentVar)}
-      radiusToken="--radius-md"
-      strength={streaming ? 0.9 : 0.7}
-      surfaceId="media-composer-beam"
-      data-testid="media-composer-beam"
-    >
     <div
       data-testid="media-composer"
       data-drag-active={dragActive}
@@ -343,9 +335,24 @@ export function MediaComposer({
         inside the field, and the textarea reserves matching padding so typed
         text can never slide underneath them.
       */}
+      {/*
+        v2.2.3 Phase 2 (2.2): the beam wraps the INNER typing surface, not the
+        outer thumbs box, and is always the brand cyan regardless of the
+        pillar's submitAccentVar. It is the only focus ring -- the surface no
+        longer flips its own border on focus.
+      */}
+      <AccentBeam
+        mode={streaming ? "traveling" : "breathing"}
+        playing={Boolean(streaming || focused)}
+        accentToken={BEAM_ACCENT}
+        radiusToken={BEAM_RADIUS}
+        strength={streaming ? 0.9 : 0.7}
+        surfaceId="media-composer-beam"
+        data-testid="media-composer-beam"
+      >
       <div
         data-testid="media-composer-surface"
-        style={composerSurfaceStyle(focused)}
+        style={composerSurfaceStyle}
       >
         <input
           ref={fileInputRef}
@@ -417,7 +424,7 @@ export function MediaComposer({
             data-testid="media-composer-submit"
             disabled={!canSubmit}
             onClick={submit}
-            style={submitStyle(submitAccentVar)}
+            style={submitStyle}
           >
             <Send size={16} aria-hidden="true" />
           </button>
@@ -449,8 +456,8 @@ export function MediaComposer({
           </div>
         ) : null}
       </div>
+      </AccentBeam>
     </div>
-    </AccentBeam>
     </MotionSurface>
   );
 }
@@ -461,12 +468,12 @@ function chipLabel(src: string): string {
   return "DOC";
 }
 
-function beamAccentFrom(token: string): AccentBeamAccentToken {
-  if (token === "--accent-chatbot") return "--accent-chatbot";
-  if (token === "--accent-video") return "--accent-video";
-  if (token === "--accent-image") return "--accent-image";
-  return "--accent-coding";
-}
+/*
+ * v2.2.3 Phase 2 (2.2): the beam is always the brand cyan on every pillar --
+ * `submitAccentVar` no longer maps to a per-pillar beam hue.
+ */
+const BEAM_ACCENT = "--accent-chatbot" satisfies AccentBeamAccentToken;
+const BEAM_RADIUS = "--radius-lg" as const;
 
 function composerStyle(dragActive: boolean): CSSProperties {
   return {
@@ -474,7 +481,9 @@ function composerStyle(dragActive: boolean): CSSProperties {
     flexDirection: "column",
     gap: "var(--space-2)",
     padding: "var(--space-2)",
-    border: `1px solid ${dragActive ? "var(--accent-image)" : "var(--border-1)"}`,
+    // v2.2.3 Phase 2 (2.2): drag highlight uses the brand token on every
+    // pillar, not the Image pillar's orange.
+    border: `1px solid ${dragActive ? "var(--accent-primary)" : "var(--border-1)"}`,
     borderRadius: "var(--radius-md)",
     backgroundColor: "var(--bg-1)",
   };
@@ -488,16 +497,18 @@ function composerStyle(dragActive: boolean): CSSProperties {
  * together. One rounded container with the controls inside it reads as a
  * modern composer and stops the buttons competing with the text for width.
  */
-function composerSurfaceStyle(focused: boolean): CSSProperties {
-  return {
-    position: "relative",
-    display: "block",
-    backgroundColor: "var(--bg-0)",
-    border: `1px solid ${focused ? "var(--accent-chatbot, #4aa)" : "var(--border-subtle, #2a2a2a)"}`,
-    borderRadius: "var(--radius-lg, 12px)",
-    transition: "border-color 120ms ease",
-  };
-}
+/*
+ * v2.2.3 Phase 2 (2.2): the surface keeps ONE static hairline. The focused
+ * cyan border is gone -- the wrapping AccentBeam is the only focus/streaming
+ * ring, so the two no longer fight.
+ */
+const composerSurfaceStyle: CSSProperties = {
+  position: "relative",
+  display: "block",
+  backgroundColor: "var(--bg-0)",
+  border: "1px solid var(--border-subtle, #2a2a2a)",
+  borderRadius: "var(--radius-lg, 12px)",
+};
 
 /**
  * Padding reserves exactly the space the in-field controls occupy, so typed
@@ -624,18 +635,17 @@ const removeBtnStyle: CSSProperties = {
   padding: 0,
 };
 
-function submitStyle(accentVar: string): CSSProperties {
-  return {
-    width: 32,
-    height: 32,
-    padding: 0,
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "transparent",
-    color: `var(${accentVar})`,
-    border: "none",
-    borderRadius: "var(--radius-md)",
-    cursor: "pointer",
-  };
-}
+/* v2.2.3 Phase 2 (2.2): send icon is neutral fg, never a pillar hue. */
+const submitStyle: CSSProperties = {
+  width: 32,
+  height: 32,
+  padding: 0,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  backgroundColor: "transparent",
+  color: "var(--fg-0)",
+  border: "none",
+  borderRadius: "var(--radius-md)",
+  cursor: "pointer",
+};
