@@ -6,6 +6,9 @@
  */
 
 import { afterEach, describe, expect, it } from "vitest";
+import * as fsp from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 
 import { createSidecarHeadlessTools } from "../sidecar/src/coding/sidecarHeadlessTools";
 import { createHeadlessAgentRunner } from "../sidecar/src/coding/headlessAgentRunner";
@@ -52,6 +55,52 @@ describe("createSidecarHeadlessTools", () => {
     expect(names(tools)).toContain("browser_navigate");
     expect(names(tools)).toContain("browser_aria_snapshot");
     expect(names(tools)).toContain("browser_close");
+  });
+
+  it("rejects a matching tool through the workspace permissions deny file", async () => {
+    const workspace = await fsp.mkdtemp(path.join(os.tmpdir(), "nexus-deny-"));
+    try {
+      await fsp.mkdir(path.join(workspace, ".nexus"));
+      await fsp.writeFile(
+        path.join(workspace, ".nexus", "permissions.deny"),
+        "write_file: blocked.txt\n",
+        "utf8",
+      );
+      const tool = createSidecarHeadlessTools({ env: {}, settingsValue: false }).find(
+        (candidate) => candidate.name === "write_file",
+      );
+      const result = await tool?.execute(
+        { path: "blocked.txt", content: "no" },
+        { workdir: workspace },
+      );
+      expect(result?.success).toBe(false);
+      expect(result?.error).toContain("permissions.deny line 1");
+      await expect(fsp.stat(path.join(workspace, "blocked.txt"))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    } finally {
+      await fsp.rm(workspace, { recursive: true, force: true });
+    }
+  });
+
+  it("fails closed when the workspace permissions deny file is malformed", async () => {
+    const workspace = await fsp.mkdtemp(path.join(os.tmpdir(), "nexus-deny-malformed-"));
+    try {
+      await fsp.mkdir(path.join(workspace, ".nexus"));
+      await fsp.writeFile(
+        path.join(workspace, ".nexus", "permissions.deny"),
+        "this is not a rule\n",
+        "utf8",
+      );
+      const tool = createSidecarHeadlessTools({ env: {}, settingsValue: false }).find(
+        (candidate) => candidate.name === "read_file",
+      );
+      const result = await tool?.execute({ path: "anything.txt" }, { workdir: workspace });
+      expect(result?.success).toBe(false);
+      expect(result?.error).toContain("malformed .nexus/permissions.deny line 1");
+    } finally {
+      await fsp.rm(workspace, { recursive: true, force: true });
+    }
   });
 });
 

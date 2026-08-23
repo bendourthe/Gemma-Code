@@ -8,6 +8,7 @@
  */
 
 import { existsSync, readFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { createHeadlessOcrParser } from "../../../../core/documents/headlessOcrParser.js";
@@ -16,12 +17,17 @@ import {
   isParseDocumentEnabled,
 } from "../../../../core/documents/parseDocumentEnabled.js";
 import { nexusHome } from "../../../../core/storage/paths.js";
+import {
+  evaluateDeny,
+  parsePermissionsDeny,
+} from "../../../../core/storage/PermissionsDeny.js";
 import type { HeadlessConfirmFn } from "../../../../modules/coding/runtime/headlessGuards.js";
 import {
   createHeadlessTools,
   type HeadlessDocumentParser,
   type HeadlessExec,
   type HeadlessTool,
+  type HeadlessToolResult,
 } from "../../../../modules/coding/runtime/headlessTools.js";
 import { getSharedOcrRuntime } from "../ocr/sharedRuntime.js";
 
@@ -89,6 +95,75 @@ function resolveParser(
   return createHeadlessOcrParser(getSharedOcrRuntime().parser);
 }
 
+function malformedDenyLine(content: string): number | null {
+  const lines = content.split(/\r?\n/);
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = (lines[index] ?? "").trim();
+    if (!line || line.startsWith("#")) continue;
+    const colon = line.indexOf(":");
+    if (colon <= 0 || !line.slice(colon + 1).trim()) return index + 1;
+  }
+  return null;
+}
+
+function denySubjects(args: Readonly<Record<string, unknown>>): readonly string[] {
+  const preferred = ["command", "path", "sourcePath", "destinationPath", "url"];
+  const subjects: string[] = [];
+  for (const key of preferred) {
+    const value = args[key];
+    if (typeof value === "string") subjects.push(value);
+  }
+  for (const value of Object.values(args)) {
+    if ((typeof value === "string" || typeof value === "number") && !subjects.includes(String(value))) {
+      subjects.push(String(value));
+    }
+  }
+  subjects.push(JSON.stringify(args));
+  return subjects;
+}
+
+function permissionsDenied(message: string): HeadlessToolResult {
+  return { success: false, output: message, error: message };
+}
+
+function withWorkspacePermissionsDeny(tools: readonly HeadlessTool[]): HeadlessTool[] {
+  return tools.map((tool) => ({
+    ...tool,
+    async execute(args, ctx) {
+      const denyPath = join(ctx.workdir, ".nexus", "permissions.deny");
+      let content: string;
+      try {
+        content = await readFile(denyPath, "utf8");
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+          return tool.execute(args, ctx);
+        }
+        return permissionsDenied(
+          `Tool ${tool.name} denied: could not read .nexus/permissions.deny.`,
+        );
+      }
+
+      const malformedLine = malformedDenyLine(content);
+      if (malformedLine !== null) {
+        return permissionsDenied(
+          `Tool ${tool.name} denied: malformed .nexus/permissions.deny line ${malformedLine}.`,
+        );
+      }
+
+      const denyList = parsePermissionsDeny(content);
+      for (const subject of denySubjects(args)) {
+        const evaluation = evaluateDeny(tool.name, subject, denyList);
+        if (evaluation.denied) {
+          return permissionsDenied(
+            `Tool ${tool.name} denied by .nexus/permissions.deny line ${evaluation.rule?.line ?? "unknown"}.`,
+          );
+        }
+      }
+      return tool.execute(args, ctx);
+    },
+  }));
+}
+
 /**
  * Build the sidecar's headless tool list. Flag off => `parse_document` absent
  * even if a parser object exists.
@@ -106,7 +181,7 @@ export function createSidecarHeadlessTools(
       );
       return { stored: true };
     });
-  return createHeadlessTools({
+  const tools = createHeadlessTools({
     ...(options.confirm ? { guards: { confirm: options.confirm } } : {}),
     ...(options.exec ? { exec: options.exec } : {}),
     ...(options.byteCap !== undefined ? { byteCap: options.byteCap } : {}),
@@ -116,4 +191,5 @@ export function createSidecarHeadlessTools(
     browserEnabled: true,
     ingestToMemory,
   });
+  return withWorkspacePermissionsDeny(tools);
 }

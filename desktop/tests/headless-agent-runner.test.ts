@@ -109,6 +109,42 @@ describe("createHeadlessAgentRunner", () => {
     });
     expect(events.at(-1)?.kind).toBe("done");
   });
+
+  it("refuses to fall back to the sidecar working directory when no workspace is supplied", async () => {
+    const previous = process.env.NEXUS_WORKSPACE;
+    delete process.env.NEXUS_WORKSPACE;
+    try {
+      const runner = createHeadlessAgentRunner({ llm: scriptedLlm(["Done."]) });
+      const events = await runner({
+        sessionId: "s-no-workspace",
+        message: "x",
+        model: requireModel("gemma4:e4b"),
+      });
+      expect(events).toContainEqual({
+        kind: "token",
+        text: "Could not run coding session: workspacePath is required for a coding session",
+      });
+      expect(events.at(-1)).toEqual({ kind: "done", finishReason: "error" });
+    } finally {
+      if (previous === undefined) delete process.env.NEXUS_WORKSPACE;
+      else process.env.NEXUS_WORKSPACE = previous;
+    }
+  });
+
+  it("rejects a relative workspace instead of resolving it against the sidecar", async () => {
+    const runner = createHeadlessAgentRunner({ llm: scriptedLlm(["Done."]) });
+    const events = await runner({
+      sessionId: "s-relative-workspace",
+      message: "x",
+      model: requireModel("gemma4:e4b"),
+      workspacePath: "relative/project",
+    });
+    expect(events).toContainEqual({
+      kind: "token",
+      text: "Could not run coding session: workspacePath must be an absolute path",
+    });
+    expect(events.at(-1)).toEqual({ kind: "done", finishReason: "error" });
+  });
 });
 
 describe("CodingSessionManager.sendMessage delegation", () => {

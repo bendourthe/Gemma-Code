@@ -4,6 +4,33 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-23] v2.2.3 Phase 6 - Agentic workspace and Hub harness
+
+### What Changed
+
+- Added a persisted workspace field to the Coding header and sent its absolute path on every new coding session.
+- Refused empty, relative, and parent-traversing workspace roots instead of silently using the packaged sidecar directory.
+- Added one shared sidecar enrichment path that loads workspace `AGENTS.md` and `.nexus` rules, resolves and scans only the invoked non-built-in Hub command body, and feeds it to `HeadlessAgentSession` as the active skill.
+- Routed interactive and scheduled runs through the same enrichment and telemetry-backed HookBus, including truthful reflection transcripts and explicit written-file paths.
+- Enforced each workspace's `.nexus/permissions.deny` across the shared sidecar headless tool factory, failing closed on malformed or unreadable policy.
+
+### Why It Changed
+
+Agentic Coding looked connected to Nexus-Hub because slash commands appeared in the composer, but the headless turn ignored their bodies, workspace rules, hooks, and per-project deny policy. Session tools also defaulted to the sidecar process directory when the UI omitted a workspace.
+
+### Decisions Made
+
+- Used the plan-approved persisted text field rather than adding the missing cross-platform Tauri dialog plugin; native picking remains DF-16.
+- Preserved built-in slash-command precedence and unknown-command behavior. Only a matching Hub command file is loaded, so the catalog is never dumped into every prompt.
+- Kept policy enforcement at the shared sidecar tool factory so Coding, scheduled, and ACP-style headless tools cannot drift.
+- Treated scanner blocks and hook failures as logged, non-fatal enrichment failures; malformed deny policy remains fail-closed.
+
+### Impact and Context
+
+The focused Phase 6 gate passed 107 tests across eight files, followed by a solo desktop suite of 1368 tests across 157 files. The root suite passed 5438 tests with 12 skips across 516 passing files and 3 skipped files. Desktop lint, typecheck, web and sidecar builds, root lint and build, and architecture validation passed; the architecture gate retained 16 pre-existing warnings. Automated workspace and Hub-harness behavior is supported; a packaged turn against a real synced Hub and local model was not executed here.
+
+---
+
 ## [2026-08-23] v2.2.3 Phase 5 - Four-pillar submit-time occupancy
 
 ### What Changed

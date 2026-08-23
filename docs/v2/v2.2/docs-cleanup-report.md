@@ -78,3 +78,14 @@ Clean. No action required.
 - Remembered consent is one App-session `Set` passed into page-local hooks. Pending dialog state does not leak across routes, and no persistent settings key or alternate consent database was added.
 
 **Verdict**: Clean for Phase 5. No move proposed.
+
+## v2.2.3 Phase 6 audit
+
+**Date**: 2026-08-23
+**Mode**: audit (no files moved)
+
+- Workspace persistence extends the existing renderer persistence helper; it does not add a sidecar settings store or native-dialog dependency.
+- Interactive and scheduled headless turns share `headlessRunEnrichment.ts`, while deny enforcement remains at the existing sidecar tool factory. No parallel agent runtime or policy parser was introduced.
+- Phase 6 creates one focused scheduler adapter and one prompt-enrichment module under the existing sidecar coding boundary. It creates no scratch docs, alternate Hub catalog, or duplicate workspace directory.
+
+**Verdict**: Clean for Phase 6. No move proposed.

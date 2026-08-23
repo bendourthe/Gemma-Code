@@ -2,6 +2,7 @@
 // Tauri sandbox edge cases, private-mode browsers).
 
 const ACTIVE_ROUTE_KEY = "nexus.shell.activeRoute";
+const CODING_WORKSPACE_PATH_KEY = "nexus.coding.workspacePath";
 
 function safeStorage(): Storage | null {
   try {
@@ -33,7 +34,30 @@ export function writeActiveRoute(route: string): void {
   }
 }
 
-export const PERSISTENCE_KEYS = { activeRoute: ACTIVE_ROUTE_KEY };
+export function readCodingWorkspacePath(): string | null {
+  const storage = safeStorage();
+  if (!storage) return null;
+  try {
+    return storage.getItem(CODING_WORKSPACE_PATH_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function writeCodingWorkspacePath(workspacePath: string): void {
+  const storage = safeStorage();
+  if (!storage) return;
+  try {
+    storage.setItem(CODING_WORKSPACE_PATH_KEY, workspacePath);
+  } catch {
+    // ignore quota / disabled-storage errors
+  }
+}
+
+export const PERSISTENCE_KEYS = {
+  activeRoute: ACTIVE_ROUTE_KEY,
+  codingWorkspacePath: CODING_WORKSPACE_PATH_KEY,
+};
 
 /**
  * v2.2.3 Phase 1 (1.2, U7): the routes a stored value may restore to. Local

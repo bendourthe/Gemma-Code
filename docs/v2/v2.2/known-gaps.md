@@ -2,7 +2,7 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-23 (v2.2.3 Phase 5)
+**Last updated**: 2026-08-23 (v2.2.3 Phase 6)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
@@ -10,7 +10,7 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 
 ## v2.2.3
 
-**Last updated**: 2026-08-23 (Phase 5 - four-pillar submit-time occupancy)
+**Last updated**: 2026-08-23 (Phase 6 - agentic workspace and Hub harness)
 
 ### Summary
 
@@ -18,7 +18,7 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
 | Deferred (DF) | 11 | 0 |
-| Bugs / regressions (BG) | 0 | 14 |
+| Bugs / regressions (BG) | 0 | 17 |
 | Warnings (WN) | 1 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
@@ -66,7 +66,7 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 
 - **Source phase**: Carried into v2.2.3 Phase 1
 - **Plan reference**: `docs/v2/v2.2/plans/v2.2.3-glass-orbs-and-pillar-runtime.md` (Phase 6.1, Phase 8.2)
-- **Reason**: The repository has no Tauri dialog plugin. Phase 6 may use a persisted workspace text field, while Settings data transfer also remains path-text based.
+- **Reason**: The repository has no Tauri dialog plugin. Phase 6 ships a validated workspace text field persisted under `nexus.coding.workspacePath`, while Settings data transfer also remains path-text based.
 - **Suggested next step**: Add and capability-scope the dialog plugin in a dedicated cross-platform file-dialog task.
 
 ##### DF-17 - Settings tabs are not URL-addressable
@@ -214,6 +214,27 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 - **What happened**: App constructed `InMemoryMemoryHub`, so chat memory vanished with the renderer and was never retrieved into later turns.
 - **Fix**: Production App now records through sidecar episodic-memory IPC backed by the existing SQLite `EpisodicMemory` store. ChatSessionManager retrieves scoped, redacted references before generation and treats retrieval failure as nonfatal.
 - **Evidence**: Handler, runtime, and session tests prove durable reopen, scope isolation, redaction, retrieval injection, and failure-safe generation. The full root suite passed 5438 tests with 12 skips across 516 passing files and 3 skipped files.
+
+##### BG-29 (resolved) - Agentic Coding silently used the sidecar directory as its workspace
+
+- **Source phase**: Phase 6
+- **What happened**: CodingPage started sessions with only a model id, so headless tools fell through to `NEXUS_WORKSPACE` or the packaged sidecar process directory instead of the user's project.
+- **Fix**: The Coding header now displays and persists an explicit workspace path, refuses an empty selection before IPC, sends `workspacePath` on session start, and the runner rejects missing, relative, or parent-traversing roots instead of falling back to `process.cwd()`.
+- **Evidence**: Renderer and runner tests prove empty-path refusal, persistence, protocol transport, per-session scoping, and relative-root rejection. The final solo desktop suite passed 1368 tests across 157 files.
+
+##### BG-30 (resolved) - Hub commands, workspace rules, and lifecycle hooks were absent from headless turns
+
+- **Source phase**: Phase 6
+- **What happened**: The composer listed Hub commands, but `createHeadlessAgentRunner` passed no command body, workspace `AGENTS.md`, `.nexus` rules, or lifecycle bus into `HeadlessAgentSession`. The cron scheduler used a separate unenriched composition.
+- **Fix**: A shared sidecar enrichment builder resolves only the invoked non-built-in Hub command, prompt-injection scans its body, loads workspace instructions and rules, and emits start, prompt, skill-entry, end, stop, and reflection events. Interactive and scheduled runs use the same builder and telemetry-backed HookBus.
+- **Evidence**: Fixture tests prove invoked-command-only injection, built-in precedence, scanner-blocked fallback, AGENTS/rule prompt composition, scheduled parity, hook failure isolation, reflection transcript, and explicit written-file capture.
+
+##### BG-31 (resolved) - Headless tools bypassed workspace permissions.deny
+
+- **Source phase**: Phase 6
+- **What happened**: The pure deny parser was enforced by the VS Code ToolRegistry only. Sidecar Coding, scheduled, and ACP-style headless tools could execute a call that the workspace policy denied.
+- **Fix**: The shared sidecar tool factory now reads the active workdir's `.nexus/permissions.deny` for every invocation, rejects the first matching rule, and fails closed when the policy is malformed or unreadable.
+- **Evidence**: Sidecar tool tests prove a matching `write_file` call is rejected before mutation and a malformed policy rejects the attempted tool. Desktop lint, typecheck, web build, sidecar build, and the full desktop suite pass.
 
 ## v2.2.2
 

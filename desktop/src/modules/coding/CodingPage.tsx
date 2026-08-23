@@ -39,6 +39,10 @@ import {
   type ResidencySessionMemory,
   type SchedulerActiveJob,
 } from "../../shared/models/schedulerResidency";
+import {
+  readCodingWorkspacePath,
+  writeCodingWorkspacePath,
+} from "../../lib/persistence";
 
 type Tab = "chat" | "memory" | "trace" | "sessions";
 
@@ -106,6 +110,8 @@ export interface CodingPageProps {
   hostVramFreeGB?: number | null;
   activeSchedulerJob?: SchedulerActiveJob | null;
   residencyMemory?: ResidencySessionMemory;
+  /** v2.2.3 Phase 6 -- test/bootstrap seam for the persisted workspace field. */
+  initialWorkspacePath?: string;
 }
 
 export function CodingPage({
@@ -118,6 +124,7 @@ export function CodingPage({
   hostVramFreeGB = null,
   activeSchedulerJob = null,
   residencyMemory,
+  initialWorkspacePath,
 }: CodingPageProps = {}): JSX.Element {
   const [tab, setTab] = useState<Tab>(initialTab ?? "chat");
   const [modelId, setModelId] = useState<string>(initialModelId ?? DEFAULT_MODEL_ID);
@@ -126,6 +133,9 @@ export function CodingPage({
     () => documentClientOverride ?? createIpcDocumentClient(),
   );
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [workspacePath, setWorkspacePath] = useState(
+    () => initialWorkspacePath ?? readCodingWorkspacePath() ?? "",
+  );
   const [turns, setTurns] = useState<Turn[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -165,8 +175,14 @@ export function CodingPage({
 
   const ensureSession = useCallback(async (): Promise<string | null> => {
     if (sessionId) return sessionId;
+    const selectedWorkspace = workspacePath.trim();
+    if (!selectedWorkspace) {
+      setError("Choose a workspace folder before starting a coding session.");
+      return null;
+    }
     const reply = await ipc.call<CodingSessionStartResponseT>("coding.session.start", {
       modelId,
+      workspacePath: selectedWorkspace,
     });
     if (!reply.ok) {
       setError(`Could not start session: ${reply.message}`);
@@ -174,7 +190,7 @@ export function CodingPage({
     }
     setSessionId(reply.value.sessionId);
     return reply.value.sessionId;
-  }, [modelId, sessionId]);
+  }, [modelId, sessionId, workspacePath]);
 
   const handleParseDocument = useCallback(
     async (text: string, attachment: string): Promise<void> => {
@@ -434,28 +450,64 @@ export function CodingPage({
         gap: "var(--space-3)",
       }}
     >
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h1
+      <header style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h1
+            style={{
+              margin: 0,
+              fontSize: "var(--text-lg)",
+              color: "var(--accent-coding)",
+              textShadow: "0 0 18px var(--accent-coding-soft)",
+            }}
+          >
+            Agentic AI Coding
+          </h1>
+          <QuickModelSwitcher
+            testId="coding-model-select"
+            models={listedModels}
+            taskType="llm"
+            value={modelId}
+            onChange={setModelId}
+            onGetMoreModels={onGetMoreModels}
+            disabled={Boolean(sessionId)}
+            harnessLabel={defaultHarnessSelector.profileForModel(modelId).id}
+            harnessSelectorEnabled={false}
+          />
+        </div>
+        <label
+          htmlFor="coding-workspace-path"
           style={{
-            margin: 0,
-            fontSize: "var(--text-lg)",
-            color: "var(--accent-coding)",
-            textShadow: "0 0 18px var(--accent-coding-soft)",
+            display: "grid",
+            gridTemplateColumns: "auto minmax(0, 1fr)",
+            alignItems: "center",
+            gap: "var(--space-2)",
+            color: "var(--fg-muted)",
+            fontSize: "var(--text-xs)",
           }}
         >
-          Agentic AI Coding
-        </h1>
-        <QuickModelSwitcher
-          testId="coding-model-select"
-          models={listedModels}
-          taskType="llm"
-          value={modelId}
-          onChange={setModelId}
-          onGetMoreModels={onGetMoreModels}
-          disabled={Boolean(sessionId)}
-          harnessLabel={defaultHarnessSelector.profileForModel(modelId).id}
-          harnessSelectorEnabled={false}
-        />
+          Workspace
+          <input
+            id="coding-workspace-path"
+            data-testid="coding-workspace-path"
+            type="text"
+            value={workspacePath}
+            disabled={Boolean(sessionId)}
+            placeholder="C:\\path\\to\\project"
+            onChange={(event) => {
+              const next = event.currentTarget.value;
+              setWorkspacePath(next);
+              writeCodingWorkspacePath(next);
+            }}
+            style={{
+              minWidth: 0,
+              padding: "var(--space-1) var(--space-2)",
+              color: "var(--fg-0)",
+              background: "color-mix(in srgb, var(--bg-1) 72%, transparent)",
+              border: "1px solid var(--border-1)",
+              borderRadius: "var(--radius-md)",
+            }}
+          />
+        </label>
       </header>
 
       <nav role="tablist" style={{ display: "flex", gap: 0 }}>

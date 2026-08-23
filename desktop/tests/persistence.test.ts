@@ -3,7 +3,9 @@ import {
   PERSISTENCE_KEYS,
   normalizeActiveRoute,
   readActiveRoute,
+  readCodingWorkspacePath,
   writeActiveRoute,
+  writeCodingWorkspacePath,
 } from "../src/lib/persistence";
 
 describe("persistence", () => {
@@ -18,6 +20,14 @@ describe("persistence", () => {
     writeActiveRoute("/images");
     expect(readActiveRoute()).toBe("/images");
     expect(window.localStorage.getItem(PERSISTENCE_KEYS.activeRoute)).toBe("/images");
+  });
+
+  it("round-trips the coding workspace path", () => {
+    writeCodingWorkspacePath("C:\\work\\nexus-project");
+    expect(readCodingWorkspacePath()).toBe("C:\\work\\nexus-project");
+    expect(window.localStorage.getItem(PERSISTENCE_KEYS.codingWorkspacePath)).toBe(
+      "C:\\work\\nexus-project",
+    );
   });
 
   it("read returns null when nothing is stored", () => {

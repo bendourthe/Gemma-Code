@@ -6,6 +6,7 @@ import { createInterface } from "node:readline";
 import { join } from "node:path";
 import { CodingSessionManager } from "./coding/sessionManager.js";
 import { createHeadlessAgentRunner } from "./coding/headlessAgentRunner.js";
+import { createScheduledHeadlessRunner } from "./coding/scheduledHeadlessRunner.js";
 import {
   SkillOptimizerManager,
   createHeadlessOptimizePreviewRunner,
@@ -13,8 +14,6 @@ import {
 import { createHeadlessOllamaClient } from "../../../modules/coding/llm/headlessOllamaClient.js";
 import { AskInbox } from "../../../modules/coding/autonomy/AskInbox.js";
 import { AgentRunScheduler } from "../../../modules/coding/autonomy/AgentRunScheduler.js";
-import { HeadlessAgentSession } from "../../../modules/coding/runtime/HeadlessAgentSession.js";
-import { createSidecarHeadlessTools } from "./coding/sidecarHeadlessTools.js";
 import { ChatSessionManager } from "./chat/sessionManager.js";
 import { createChatMessageHandler } from "./chat/chatMessageHandler.js";
 import { createDiffusionRuntime } from "./diffusion/runtimeFactory.js";
@@ -25,6 +24,7 @@ import { createServingRuntime } from "./serving/servingRuntime.js";
 import { createJsonCliRoute } from "./controlSurface/jsonCliRoutes.js";
 import { createAuditRuntime } from "./audit/runtime.js";
 import { InProcessTelemetryBus } from "../../../core/telemetry/TelemetryBus.js";
+import { createHookBus } from "../../../core/lifecycle/HookBus.js";
 import { SIDECAR_MODELS } from "./coding/models.js";
 import { warmUpTreeSitter } from "./treeSitterWarmup.js";
 import { applyRuntimeConfigEnv } from "./runtimeConfig.js";
@@ -64,9 +64,13 @@ if (appliedRuntimeEnv.length > 0) {
 }
 
 // v1.7.0: drive the Coding pillar with the real headless agent runtime (the
-// agent's tools are scoped to the session's workspacePath, or NEXUS_WORKSPACE /
-// cwd). Tests and bare `createHandlerContext()` callers keep the placeholder.
-const sessions = new CodingSessionManager({ agentRunner: createHeadlessAgentRunner() });
+// agent's tools are scoped to the session's workspacePath, or NEXUS_WORKSPACE.
+// Tests and bare `createHandlerContext()` callers keep the placeholder.
+const telemetry = new InProcessTelemetryBus();
+const hookBus = createHookBus(telemetry);
+const sessions = new CodingSessionManager({
+  agentRunner: createHeadlessAgentRunner({ hookBus }),
+});
 // v1.7.0: route Image Studio + Video Lab to the real Python diffusion runtime
 // (set NEXUS_DIFFUSION_INMEMORY=1 for a no-GPU dev/test host).
 const diffusion = createDiffusionRuntime(process.env);
@@ -108,18 +112,9 @@ const scheduler = new AgentRunScheduler({
   inbox: askInbox,
   workspacePath: process.env.NEXUS_WORKSPACE ?? process.cwd(),
   filePath: join(nexusHome(), "agent-schedules.json"),
-  runHeadless: async (run) => {
-    const tools = createSidecarHeadlessTools({ confirm: run.confirm });
-    const session = new HeadlessAgentSession(createHeadlessOllamaClient(), tools);
-    await session.run({
-      task: run.prompt,
-      workdir: run.workspacePath,
-      model: process.env.NEXUS_SCHEDULER_MODEL ?? process.env.NEXUS_ACP_MODEL ?? "gemma4:e4b",
-    });
-  },
+  runHeadless: createScheduledHeadlessRunner({ hookBus }),
 });
 scheduler.start();
-const telemetry = new InProcessTelemetryBus();
 const ctx = createHandlerContext(
   { pid: process.pid, platform: process.platform },
   sessions,

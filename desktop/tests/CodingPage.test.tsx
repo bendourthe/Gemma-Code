@@ -7,6 +7,7 @@ import {
   setInvokeOverride,
 } from "../src/lib/ipc";
 import { createInMemoryDocumentClient } from "../src/modules/chat/documentClient";
+import { PERSISTENCE_KEYS } from "../src/lib/persistence";
 
 interface InvokeArgs {
   method: string;
@@ -99,12 +100,14 @@ describe("CodingPage", () => {
   let fake: ReturnType<typeof makeFakeInvoke>;
 
   beforeEach(() => {
+    window.localStorage.setItem(PERSISTENCE_KEYS.codingWorkspacePath, "C:\\work\\project");
     fake = makeFakeInvoke();
     setInvokeOverride(async (_cmd, args) => fake.invoke("ipc_call", args ?? {}));
   });
 
   afterEach(() => {
     clearInvokeOverride();
+    window.localStorage.clear();
   });
 
   it("renders the model selector and the chat empty state by default", () => {
@@ -120,6 +123,31 @@ describe("CodingPage", () => {
     await waitFor(() => {
       expect(screen.getByTestId("coding-chat")).toHaveTextContent("Hello agent");
     });
+    expect(fake.calls.find((call) => call.method === "coding.session.start")?.params).toMatchObject({
+      workspacePath: "C:\\work\\project",
+    });
+  });
+
+  it("refuses to start a session until a workspace is supplied", async () => {
+    window.localStorage.removeItem(PERSISTENCE_KEYS.codingWorkspacePath);
+    render(<CodingPage />);
+    await userEvent.type(screen.getByTestId("coding-input-textarea"), "Hello agent");
+    await userEvent.click(screen.getByTestId("coding-input-submit"));
+    expect(await screen.findByTestId("coding-error")).toHaveTextContent(
+      "Choose a workspace folder",
+    );
+    expect(fake.calls.some((call) => call.method === "coding.session.start")).toBe(false);
+  });
+
+  it("persists and displays the selected workspace in the coding header", async () => {
+    render(<CodingPage />);
+    const input = screen.getByTestId("coding-workspace-path") as HTMLInputElement;
+    expect(input.value).toBe("C:\\work\\project");
+    await userEvent.clear(input);
+    await userEvent.type(input, "D:\\projects\\client");
+    expect(window.localStorage.getItem(PERSISTENCE_KEYS.codingWorkspacePath)).toBe(
+      "D:\\projects\\client",
+    );
   });
 
   it("does not start or send until a conflicting active model switch is approved", async () => {
