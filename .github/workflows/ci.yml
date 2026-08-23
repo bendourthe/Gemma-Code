@@ -71,6 +71,9 @@ jobs:
       # license chip) live in the desktop workspace. shell-build.yml only
       # runs them on main; develop pushes need this step. Node 22 only so
       # the 24.x matrix does not double the minutes.
+      # v2.2.4: the same `npm run test:shell` job covers chatbot-first
+      # routing, installed-catalog pickers, compact media, Models catalog
+      # tabs, and Hub skills.sync timeout copy. Do not add a live Hub clone.
       - name: Desktop vitest (Node 22)
         if: matrix.node == '22.x'
         run: npm run test:shell

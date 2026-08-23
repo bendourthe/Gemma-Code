@@ -1,5 +1,9 @@
 /**
- * v2.2.4 Phase 2 -- picker ownership policy.
+ * v2.2.4 Phase 2 / 7 -- canonical picker feed.
+ *
+ * Chat, Agents, Images, and Videos must call `installedForTask` plus the
+ * `~/.nexus/selected-models.json` snapshot. Catalog-shaped FALLBACK_LLMS
+ * arrays are placeholders with `installed: false`, not a second feed.
  *
  * A picker row is eligible when it is installed, not catalog-only, matches
  * the tab's model type, and (when a snapshot exists) is in this install's

@@ -52,6 +52,7 @@ import {
 
 type Tab = "chat" | "memory" | "trace" | "sessions";
 
+/** Not a picker feed. Placeholders until `models.list` + snapshot return. */
 const FALLBACK_LLMS: readonly ListedModelDto[] = FRONTEND_MODELS.map((m) => ({
   id: m.id,
   displayName: m.displayName,

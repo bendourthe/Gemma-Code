@@ -549,7 +549,7 @@ function DiskSummary({ disk }: { disk: DiskUsageDto | null }): JSX.Element {
   const free = disk.freeBytes !== null ? formatBytes(disk.freeBytes) : "unknown";
   return (
     <p data-testid="models-disk-summary" style={{ margin: 0, color: "var(--fg-muted)" }}>
-      Models occupy {formatBytes(disk.usedBytes)}. {free} free.
+      Models occupy {formatBytes(disk.usedBytes)}. {free} free. Weights left from an older install can appear until you remove them here.
     </p>
   );
 }

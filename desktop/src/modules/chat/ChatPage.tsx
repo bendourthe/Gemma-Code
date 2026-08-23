@@ -94,6 +94,7 @@ import {
   type SchedulerActiveJob,
 } from "../../shared/models/schedulerResidency";
 
+/** Not a picker feed. Placeholders until `models.list` + snapshot return. */
 const FALLBACK_LLMS: readonly ListedModelDto[] = FRONTEND_MODELS.map((m) => ({
   id: m.id,
   displayName: m.displayName,

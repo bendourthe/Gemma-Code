@@ -2,7 +2,7 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-23 (v2.2.4 Phase 6)
+**Last updated**: 2026-08-23 (v2.2.4 Phase 7)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
@@ -10,20 +10,36 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 
 ## v2.2.4
 
-**Last updated**: 2026-08-23 (Phase 6 - Hub update that finishes)
+**Last updated**: 2026-08-23 (Phase 7 - architecture, gaps, and CI)
 
 ### Summary
 
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 10 | 1 |
+| Deferred (DF) | 12 | 1 |
 | Bugs / regressions (BG) | 0 | 10 |
 | Warnings (WN) | 2 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-Open deferred items remain those carried from v2.2.3 (DF-1, DF-2, DF-4, DF-14, DF-16, DF-18 through DF-22). DF-17 is resolved in Phase 2. Screenshots 6-8 and Settings Models IA are closed in Phases 3-5. Screenshot 9 (Hub Update now dying at 15s) is closed in Phase 6.
+Open deferred items remain those carried from v2.2.3 (DF-1, DF-2, DF-4, DF-14, DF-16, DF-18 through DF-22) plus DF-23 (packaged Hub update) and DF-24 (Unix installer snapshot write). DF-17 is resolved in Phase 2. Screenshot failures 1-9 are closed in Phases 1-6 at the unit/integration evidence bar. Packaged Explorer launch and live GPU soaks stay unproven (DF-2, DF-4).
+
+### Open this cycle
+
+##### DF-23 - Packaged Hub Update against a live git clone is not executed
+
+- **Source phase**: v2.2.4 Phase 6 / 7
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.4-chatbot-first-and-runtime-honesty.md` (Phase 6 residual, Phase 7.2)
+- **Reason**: Vitest and Rust prove `skills.sync` waits up to 10 minutes and Hub timeout copy. A packaged Windows build pulling a real Nexus-Hub clone over the network was not run. not_observed != absent; packaged Hub update is unproven here.
+- **Suggested next step**: Run Update now from a packaged shell with network, confirm the clone finishes, and capture log evidence.
+
+##### DF-24 - Unix installer complete-path snapshot write is not proven
+
+- **Source phase**: v2.2.4 Phase 7
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.4-chatbot-first-and-runtime-honesty.md` (Phase 7.4)
+- **Reason**: `write_selection_snapshot` lives on the shared Python `RuntimeProvisioner` used by the Windows-first installer. This repo has no separate macOS/Linux complete-path writer. Unix hosts that never run that engine do not get `~/.nexus/selected-models.json` from install. Do not claim cross-OS installer parity.
+- **Suggested next step**: If a Unix GUI/script install path is added, call the same writer from that complete step and add a fixture test.
 
 ### Resolved this phase
 
