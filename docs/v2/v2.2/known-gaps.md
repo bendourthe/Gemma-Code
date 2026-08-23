@@ -2,7 +2,7 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-23 (v2.2.4 Phase 2)
+**Last updated**: 2026-08-23 (v2.2.4 Phase 3)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
@@ -10,7 +10,7 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 
 ## v2.2.4
 
-**Last updated**: 2026-08-23 (Phase 2 - Installed catalog contract)
+**Last updated**: 2026-08-23 (Phase 3 - Chatbot and Agents honesty)
 
 ### Summary
 
@@ -18,14 +18,33 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
 | Deferred (DF) | 10 | 1 |
-| Bugs / regressions (BG) | 0 | 3 |
+| Bugs / regressions (BG) | 0 | 6 |
 | Warnings (WN) | 2 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-Open deferred items remain those carried from v2.2.3 (DF-1, DF-2, DF-4, DF-14, DF-16, DF-18 through DF-22). DF-17 is resolved in Phase 2.
+Open deferred items remain those carried from v2.2.3 (DF-1, DF-2, DF-4, DF-14, DF-16, DF-18 through DF-22). DF-17 is resolved in Phase 2. Screenshot 6 (Hi with no user bubble) is closed in Phase 3.
 
 ### Resolved this phase
+
+##### BG-36 - Hi produced a not-installed banner with no user bubble
+
+- **Source phase**: v2.2.4 Phase 3
+- **Resolution**: Chat and Agents append the human turn before a not-installed or defer return. Send uses the visible installed model id after Phase 2 picker sync.
+- **Evidence**: `desktop/tests/ChatPage.test.tsx` (Hi + LFM 2.5 send id; Hi retained when missing), `desktop/tests/CodingPage.test.tsx`.
+
+##### BG-37 - Agents showed a pink coding title and harness badges
+
+- **Source phase**: v2.2.4 Phase 3
+- **Resolution**: The Agentic AI Coding h1 is gone. Chatbot and Agents no longer pass harness or tool-calling badges into the compact switcher.
+- **Evidence**: `desktop/tests/CodingPage.test.tsx`.
+
+##### BG-38 - Chat exposed an Enable tools checkbox defaulted off
+
+- **Source phase**: v2.2.4 Phase 3
+- **Resolution**: Tools stay on. ConfirmationGate and sandbox still gate execution. The checkbox is absent.
+- **Evidence**: `desktop/tests/ChatPage.test.tsx`, `desktop/tests/sharedChat.test.tsx`.
+
 
 ##### DF-17 - Settings tabs are not URL-addressable
 

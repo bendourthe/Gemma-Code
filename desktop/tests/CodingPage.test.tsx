@@ -272,13 +272,29 @@ describe("CodingPage", () => {
     expect(screen.getByTestId("coding-chat")).toBeInTheDocument();
   });
 
-  it("shows the auto-selected harness badge next to the model switcher", async () => {
+  it("does not show a pink Agentic AI Coding heading or harness badges", async () => {
     render(<CodingPage />);
-    await waitFor(() => {
-      expect(screen.getByTestId("coding-model-select-harness")).toHaveTextContent(
-        "balanced-scaffold",
-      );
+    expect(screen.queryByText("Agentic AI Coding")).toBeNull();
+    expect(screen.queryByTestId("coding-model-select-harness")).toBeNull();
+    expect(screen.queryByTestId("coding-model-select-tool-calling")).toBeNull();
+  });
+
+  it("still shows the user prompt when the selected model is not installed", async () => {
+    fake = makeFakeInvoke();
+    setInvokeOverride(async (_cmd, args) => {
+      const a = args as { method?: string; params?: Record<string, unknown> };
+      if (a.method === "models.list") {
+        return { models: [] };
+      }
+      return fake.invoke("ipc_call", args ?? {});
     });
+    render(<CodingPage />);
+    await userEvent.type(screen.getByTestId("coding-input-textarea"), "Hi");
+    await userEvent.click(screen.getByTestId("coding-input-submit"));
+    await waitFor(() => {
+      expect(screen.getByTestId("coding-chat")).toHaveTextContent("Hi");
+    });
+    expect(screen.getByTestId("coding-chat")).toHaveTextContent(/is not installed/i);
   });
 
   // v2.2.3 Phase 2: the MetalAccent ring was deliberately replaced by the

@@ -5,7 +5,7 @@
  *   - left rail: `<FolderTree>` (drag-drop, context menu, keyboard nav)
  *   - right pane: breadcrumb + shared chat shell (`<MessageList>`, `<MediaComposer>`)
  *   - compact model switcher (installed-and-ready LLMs + Get more models)
- *   - per-folder `enableTools` toggle (default off; power users opt in)
+ *   - tools always on (confirmation and sandbox still gate execution)
  *
  * v2.2.0 Phase 5 (5.1): the page persists through the sidecar's SQLite store
  * when running inside Tauri, falling back to the in-memory client elsewhere.
@@ -201,7 +201,6 @@ export function ChatPage({
   // Bumped when something outside the rail renames a chat (auto-titling).
   const [treeVersion, setTreeVersion] = useState(0);
   const [modelId, setModelId] = useState<string>(defaultModelId);
-  const [enableTools, setEnableTools] = useState(false);
   const [messagesByChat, setMessagesByChat] = useState<Map<string, ChatMessage[]>>(
     () => new Map(),
   );
@@ -646,6 +645,14 @@ export function ChatPage({
           return;
         }
         if (verdict.kind === "not-installed" || verdict.kind === "defer") {
+          const earlyUserText = text.trim();
+          if (earlyUserText.length > 0 && attachments.length === 0) {
+            appendMessage(chat.id, {
+              id: `${chat.id}-${Date.now()}-user`,
+              role: "user",
+              content: earlyUserText,
+            });
+          }
           appendMessage(chat.id, {
             id: `${chat.id}-${Date.now()}-assistant`,
             role: "assistant",
@@ -1032,15 +1039,6 @@ export function ChatPage({
             </div>
           ) : null}
           <span style={{ display: "flex", gap: "var(--space-3)", alignItems: "center" }}>
-            <label style={{ display: "flex", gap: "var(--space-2)", color: "var(--fg-muted)", fontSize: "var(--text-sm)" }}>
-              <input
-                type="checkbox"
-                data-testid="chat-enable-tools"
-                checked={enableTools}
-                onChange={(e) => setEnableTools(e.target.checked)}
-              />
-              Enable tools
-            </label>
             <QuickModelSwitcher
               testId="chat-model-select"
               models={listedModels}
@@ -1096,7 +1094,7 @@ export function ChatPage({
             {activeChat ? (
               <MessageList
                 messages={messages}
-                enableTools={enableTools}
+                enableTools={true}
                 onSelectMessage={handleSelectMessage}
               />
             ) : (

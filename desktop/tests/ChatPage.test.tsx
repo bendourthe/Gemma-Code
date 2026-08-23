@@ -1,9 +1,10 @@
 /**
  * v1.0.0 Phase 4.4 -- ChatPage integration tests.
  *
- * Covers: folder-tree + breadcrumb wiring, model selector reuse, the
- * per-folder tools toggle (off by default), end-to-end "create folder
- * - new chat - send message - see assistant echo".
+ * Covers: folder-tree + breadcrumb wiring, model selector reuse, tools
+ * always on (no per-chat checkbox), end-to-end "create folder - new chat
+ * - send message - see assistant echo", and the v2.2.4 honesty contract
+ * (Hi user bubble + send id equals the visible installed model).
  */
 
 import { describe, it, expect, vi } from "vitest";
@@ -220,15 +221,78 @@ describe("<ChatPage>", () => {
     expect(await screen.findByText(/chat unavailable/)).toBeInTheDocument();
   });
 
-  it("tools are disabled by default and toggleable per chat", async () => {
+  it("does not render an Enable tools checkbox because tools stay on", () => {
     const client = new InMemoryChatExplorerClient();
-    const folder = client.createFolder({ parentId: null, name: "Work" });
-    client.createChat({ folderId: folder.id, title: "draft", modelId: "gemma4:e4b" });
+    client.createFolder({ parentId: null, name: "Work" });
     render(<ChatPage client={client} />);
-    const toggle = screen.getByTestId("chat-enable-tools") as HTMLInputElement;
-    expect(toggle.checked).toBe(false);
-    fireEvent.click(toggle);
-    expect(toggle.checked).toBe(true);
+    expect(screen.queryByTestId("chat-enable-tools")).toBeNull();
+  });
+
+  it("shows the Hi user bubble and sends the visible installed model, not gemma4:e4b", async () => {
+    const client = new InMemoryChatExplorerClient();
+    const start = vi.fn(async () => ({ sessionId: "s-lfm", modelId: "lfm2.5:1.2b", createdAt: "t" }));
+    const sendMessage = vi.fn(async () => ({
+      sessionId: "s-lfm",
+      events: [
+        { kind: "token" as const, text: "hello" },
+        { kind: "done" as const, finishReason: "stop" },
+      ],
+    }));
+    const modelsClient = {
+      lastSelection: {
+        schemaVersion: 1 as const,
+        orderedIds: ["lfm2.5:1.2b"],
+        recommendedByTask: { chat: "lfm2.5:1.2b" },
+        downloadedSinceInstall: [],
+      },
+      async list() {
+        return [
+          {
+            id: "lfm2.5:1.2b",
+            displayName: "LFM 2.5 1.2B",
+            type: "llm" as const,
+            installed: true,
+            source: "registry" as const,
+          },
+        ];
+      },
+    };
+    const user = userEvent.setup();
+    render(
+      <ChatPage
+        client={client}
+        chatSession={{ start, sendMessage }}
+        modelsClient={modelsClient}
+      />,
+    );
+    await waitFor(() => {
+      expect((screen.getByTestId("chat-model-select") as HTMLSelectElement).value).toBe(
+        "lfm2.5:1.2b",
+      );
+    });
+    await user.type(screen.getByTestId("media-composer-textarea"), "Hi{Enter}");
+    expect(await screen.findByText("Hi")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(start).toHaveBeenCalled();
+    });
+    expect(start.mock.calls[0]?.[0]).toEqual(expect.objectContaining({ modelId: "lfm2.5:1.2b" }));
+  });
+
+  it("keeps the Hi user bubble when the selected model is not installed", async () => {
+    const client = new InMemoryChatExplorerClient();
+    const start = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <ChatPage
+        client={client}
+        chatSession={{ start, sendMessage: vi.fn() }}
+        modelsClient={{ async list() { return []; } }}
+      />,
+    );
+    await user.type(screen.getByTestId("media-composer-textarea"), "Hi{Enter}");
+    expect(await screen.findByText("Hi")).toBeInTheDocument();
+    expect(await screen.findByText(/is not installed/i)).toBeInTheDocument();
+    expect(start).not.toHaveBeenCalled();
   });
 
   it("the model selector is disabled while a chat is active", async () => {

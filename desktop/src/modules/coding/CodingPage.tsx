@@ -31,7 +31,6 @@ import { createIpcModelsClient } from "../../pages/settings/ipcModelsClient";
 import type { ListedModelDto } from "../../pages/settings/modelsTypes";
 import { SidecarDownBanner } from "../../components/SidecarDownBanner";
 import { useSidecarStatus, type UseSidecarStatusOptions } from "../../lib/sidecarStatus";
-import { defaultHarnessSelector } from "../../../../modules/coding/orchestration/HarnessSelector";
 import {
   createIpcDocumentClient,
   type DocumentClient,
@@ -303,11 +302,21 @@ export function CodingPage({
           return;
         }
         if (verdict.kind === "not-installed" || verdict.kind === "defer") {
-          setError(
+          const notice =
             verdict.kind === "not-installed"
               ? `${modelId} is not installed. Install it in Settings > Models.`
-              : `Cannot load ${modelId} right now: ${verdict.reason}`,
-          );
+              : `Cannot load ${modelId} right now: ${verdict.reason}`;
+          if (text.trim().length > 0 && attachments.length === 0) {
+            setTurns((prev) => [
+              ...prev,
+              {
+                id: `local-${Date.now()}`,
+                prompt: text,
+                rendered: { text: notice, cards: [], done: true },
+              },
+            ]);
+          }
+          setError(notice);
           return;
         }
       }
@@ -474,17 +483,7 @@ export function CodingPage({
       }}
     >
       <header style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h1
-            style={{
-              margin: 0,
-              fontSize: "var(--text-lg)",
-              color: "var(--accent-coding)",
-              textShadow: "0 0 18px var(--accent-coding-soft)",
-            }}
-          >
-            Agentic AI Coding
-          </h1>
+        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
           <QuickModelSwitcher
             testId="coding-model-select"
             models={listedModels}
@@ -494,8 +493,6 @@ export function CodingPage({
             onChange={setModelId}
             onGetMoreModels={onGetMoreModels}
             disabled={Boolean(sessionId)}
-            harnessLabel={defaultHarnessSelector.profileForModel(modelId).id}
-            harnessSelectorEnabled={false}
           />
         </div>
         <label
