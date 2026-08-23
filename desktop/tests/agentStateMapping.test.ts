@@ -11,17 +11,17 @@ const EXPECTED: Record<
   { state: AgentState; accentToken: string; accentFallback: string }
 > = {
   idle: { state: "idle", accentToken: "--fg-muted", accentFallback: "#8a92a6" },
-  "coding-tool-use": { state: "working", accentToken: "--accent-coding", accentFallback: "#ec4899" },
-  "coding-solving": { state: "solving", accentToken: "--accent-coding", accentFallback: "#ec4899" },
-  "memory-retrieval": { state: "searching", accentToken: "--accent-coding", accentFallback: "#ec4899" },
+  "coding-tool-use": { state: "working", accentToken: "--accent-chatbot", accentFallback: "#22d3ee" },
+  "coding-solving": { state: "solving", accentToken: "--accent-chatbot", accentFallback: "#22d3ee" },
+  "memory-retrieval": { state: "searching", accentToken: "--accent-chatbot", accentFallback: "#22d3ee" },
   "web-search": { state: "searching", accentToken: "--accent-chatbot", accentFallback: "#22d3ee" },
   "chat-streaming": { state: "composing", accentToken: "--accent-chatbot", accentFallback: "#22d3ee" },
   "asr-capture": { state: "listening", accentToken: "--accent-chatbot", accentFallback: "#22d3ee" },
   "document-parse": { state: "searching", accentToken: "--accent-chatbot", accentFallback: "#22d3ee" },
-  "image-generation": { state: "shaping", accentToken: "--accent-image", accentFallback: "#f97316" },
-  "video-generation": { state: "shaping", accentToken: "--accent-video", accentFallback: "#22c55e" },
-  "model-loading": { state: "working", accentToken: "--accent-coding", accentFallback: "#ec4899" },
-  "model-inference": { state: "working", accentToken: "--accent-coding", accentFallback: "#ec4899" },
+  "image-generation": { state: "shaping", accentToken: "--accent-chatbot", accentFallback: "#22d3ee" },
+  "video-generation": { state: "shaping", accentToken: "--accent-chatbot", accentFallback: "#22d3ee" },
+  "model-loading": { state: "working", accentToken: "--accent-chatbot", accentFallback: "#22d3ee" },
+  "model-inference": { state: "working", accentToken: "--accent-chatbot", accentFallback: "#22d3ee" },
 };
 
 describe("resolveAgentState", () => {
@@ -40,13 +40,7 @@ describe("resolveAgentState", () => {
   });
 
   it("never introduces a non-Nexus palette token", () => {
-    const allowed = new Set([
-      "--accent-coding",
-      "--accent-chatbot",
-      "--accent-image",
-      "--accent-video",
-      "--fg-muted",
-    ]);
+    const allowed = new Set(["--accent-chatbot", "--fg-muted"]);
     for (const activity of AGENT_ACTIVITIES) {
       expect(allowed.has(resolveAgentState(activity).accentToken)).toBe(true);
     }

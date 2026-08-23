@@ -271,6 +271,27 @@ export function VideoLabPage({
           });
         } else if (event.kind === "complete") {
           const mp4Path = event.mp4Path ?? "";
+          if (!mp4Path) {
+            outputs.current.delete(messageId);
+            chainRef.current = null;
+            setPlaylists((prev) => {
+              const next = new Map(prev);
+              next.delete(messageId);
+              return next;
+            });
+            setWorkflowByMessage((prev) => {
+              const next = { ...prev };
+              delete next[messageId];
+              return next;
+            });
+            patchMessage(messageId, {
+              pending: false,
+              progress: undefined,
+              media: undefined,
+              content: "Generation failed: video generation completed without a playable clip.",
+            });
+            return { done: true };
+          }
           outputs.current.set(messageId, mp4Path);
           const chain = chainRef.current;
           if (chain && mp4Path) {
@@ -319,9 +340,11 @@ export function VideoLabPage({
           return { done: true };
         } else if (event.kind === "error") {
           chainRef.current = null;
+          outputs.current.delete(messageId);
           patchMessage(messageId, {
             pending: false,
             progress: undefined,
+            media: undefined,
             content: `Generation failed: ${event.message ?? "unknown error"}`,
           });
           return { done: true };
@@ -330,6 +353,27 @@ export function VideoLabPage({
       return { done: false };
     },
     [patchMessage, resolveMp4Url, dispatchSegment, client],
+  );
+
+  const handleMediaError = useCallback(
+    (message: ChatMessage): void => {
+      outputs.current.delete(message.id);
+      setPlaylists((prev) => {
+        const next = new Map(prev);
+        next.delete(message.id);
+        return next;
+      });
+      setWorkflowByMessage((prev) => {
+        const next = { ...prev };
+        delete next[message.id];
+        return next;
+      });
+      patchMessage(message.id, {
+        media: undefined,
+        content: "Generation failed: generated video could not be displayed.",
+      });
+    },
+    [patchMessage],
   );
 
   useEffect(() => {
@@ -647,6 +691,7 @@ export function VideoLabPage({
           <MessageList
             messages={messages}
             enableTools={false}
+            onMediaError={handleMediaError}
             renderAfter={(m) => (
               <>
                 {m.role === "assistant" && (m.media || (playlists.get(m.id)?.length ?? 0) > 0) ? (

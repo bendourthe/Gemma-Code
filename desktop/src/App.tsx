@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { Sidebar } from "./components/Sidebar";
 import { ModuleErrorBoundary } from "./components/ModuleErrorBoundary";
@@ -207,6 +208,7 @@ function AppLayout({ telemetryStream }: AppProps): JSX.Element {
                   onGetMoreModels={() => navigate(SETTINGS_MODELS_PATH)}
                   vramGB={hostVramGB ?? 0}
                   diffusionTier={classifyDiffusionTier(hostVramGB ?? 0)}
+                  resolveMp4Url={convertFileSrc}
                 />
               }
             />
@@ -245,4 +247,3 @@ function AppLayout({ telemetryStream }: AppProps): JSX.Element {
     </div>
   );
 }
-

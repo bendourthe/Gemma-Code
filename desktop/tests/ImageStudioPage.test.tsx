@@ -146,8 +146,41 @@ describe("ImageStudioPage (chat)", () => {
     });
     const orb = await screen.findByRole("img", { name: /agent shaping/i });
     expect(orb).toHaveAttribute("data-agent-activity", "image-generation");
+    expect(orb).toHaveAttribute("data-orb-size", "hero");
+    expect(screen.getByText("Shaping...")).toBeInTheDocument();
     expect(screen.queryByText("Generating...")).toBeNull();
     expect(screen.getByTestId("media-composer-beam")).toHaveAttribute("data-beam-mode", "traveling");
+  });
+
+  it("turns a complete event without image bytes into a written failure", async () => {
+    const client = new InMemoryDiffusionClient();
+    render(<ImageStudioPage client={client} modelsClient={imageModels()} drainIntervalMs={20} />);
+    client.scriptEvents("mem-job-1", [{ kind: "complete", jobId: "mem-job-1", png: "" }]);
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "fox" } });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+      vi.advanceTimersByTime(40);
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(screen.getByText(/Generation failed/)).toBeInTheDocument());
+    expect(screen.queryByTestId(/^image-download-/)).toBeNull();
+    expect(screen.queryByTestId(/^message-media-/)).toBeNull();
+  });
+
+  it("hides generated-image actions when the browser cannot decode the asset", async () => {
+    const client = new InMemoryDiffusionClient();
+    render(<ImageStudioPage client={client} modelsClient={imageModels()} drainIntervalMs={20} />);
+    client.scriptEvents("mem-job-1", [{ kind: "complete", jobId: "mem-job-1", png: "bad" }]);
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "fox" } });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+      vi.advanceTimersByTime(40);
+      await Promise.resolve();
+    });
+    const media = await screen.findByTestId(/^message-media-/);
+    fireEvent.error(media);
+    await waitFor(() => expect(screen.queryByTestId(/^image-download-/)).toBeNull());
+    expect(screen.getByText(/could not be displayed/)).toBeInTheDocument();
   });
 
   it("hides recall actions when extract returns no workflow", async () => {

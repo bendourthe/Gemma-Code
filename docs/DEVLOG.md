@@ -4,6 +4,30 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-23] v2.2.3 Phase 3 - Orbs, generation honesty, media playback
+
+### What Changed
+
+- Promoted pending image and video work to the existing hero orb, added activity captions, and normalized active orb states to brand cyan while retaining the muted idle state.
+- Made queue exceptions, missing image bytes, missing video paths, and media decode failures visible as written errors; empty completions no longer poison output caches or expose recall actions.
+- Wired Video Lab filesystem paths through Tauri `convertFileSrc`, enabled the asset protocol with a video-output-only scope, and allowed successful video completion without optional workflow metadata.
+
+### Why It Changed
+
+Studio generations could remain pending forever after backend failures, complete into blank bubbles, or produce an MP4 path the webview could not play. Pending media also looked like an ordinary compact chat event instead of a clear full-canvas activity state.
+
+### Decisions Made
+
+- Kept batched completion transport for this cycle because the protocol has no incremental event channel; the orb stays visible until the terminal event arrives.
+- Treated a complete without displayable bytes as an error at both sidecar and renderer boundaries.
+- Scoped Tauri asset access to `~/.nexus/outputs/videos/` rather than granting broad filesystem access.
+
+### Impact and Context
+
+The solo desktop suite passed 1334 tests across 154 files, and the full root suite passed 5436 tests with 12 skips across 515 files. Desktop lint, typecheck, web build, sidecar build, root build, and a debug Tauri build all passed. Real SANA/LTX generation and packaged MP4 playback remain not proven here and stay tracked as DF-4 and DF-2.
+
+---
+
 ## [2026-08-22] v2.2.3 Phase 7 - Installer Document, taskbar, Complete
 
 ### What Changed

@@ -470,6 +470,7 @@ async function pumpStudio(ctx: HandlerContext): Promise<void> {
       const ran = await pumpOnce(studio.queue, {
         scheduler: studio.scheduler,
         index: studio.index,
+        onError: (event) => recordCompletion(studio, event),
         run: async (job) => {
           if (job.pillar === "video") {
             const result = await buildVideoJobRequest(
@@ -478,7 +479,10 @@ async function pumpStudio(ctx: HandlerContext): Promise<void> {
               ctx.diffusion,
               job.id,
             );
-            if (result.mp4Path && result.workflow) {
+            if (!result.mp4Path) {
+              throw new Error("Video generation completed without an output path.");
+            }
+            if (result.workflow) {
               try {
                 await embedVideoWorkflow(
                   result.mp4Path,
@@ -486,16 +490,15 @@ async function pumpStudio(ctx: HandlerContext): Promise<void> {
                   ctx.ffmpeg,
                 );
               } catch {
-                /* index still records */
+                /* The playable clip remains valid even when metadata embedding fails. */
               }
-              recordCompletion(studio, {
-                kind: "complete",
-                jobId: result.jobId,
-                outputPath: result.mp4Path,
-              });
-              return { outputPath: result.mp4Path, workflow: result.workflow };
             }
-            return {};
+            recordCompletion(studio, {
+              kind: "complete",
+              jobId: result.jobId,
+              outputPath: result.mp4Path,
+            });
+            return { outputPath: result.mp4Path, workflow: result.workflow };
           }
           const result = await buildJobRequest(
             job.jobType as "txt2img" | "img2img" | "inpaint" | "outpaint",
@@ -503,13 +506,14 @@ async function pumpStudio(ctx: HandlerContext): Promise<void> {
             ctx.diffusion,
             job.id,
           );
-          if (result.pngBase64) {
-            recordCompletion(studio, {
-              kind: "complete",
-              jobId: result.jobId,
-              png: result.pngBase64,
-            });
+          if (!result.pngBase64) {
+            throw new Error("Image generation completed without image bytes.");
           }
+          recordCompletion(studio, {
+            kind: "complete",
+            jobId: result.jobId,
+            png: result.pngBase64,
+          });
           return {
             pngBase64: result.pngBase64,
             workflow: result.workflow as Record<string, unknown> | undefined,
@@ -545,7 +549,11 @@ async function enqueueInteractive(
   });
   // Return immediately so the UI can poll drainEvents. pumpOnce still owns
   // the GPU slot (interactive jobs share the queue with batches).
-  void pumpStudio(ctx).catch(() => undefined);
+  void pumpStudio(ctx).catch((err) => {
+    const message = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`[nexus-sidecar] studio-pump-failed job=${id}: ${message}\n`);
+    recordCompletion(studio, { kind: "error", jobId: id, message });
+  });
   const provenance =
     pillar === "video" && jobType === "audio2video"
       ? audio2videoProvenance(parameters)

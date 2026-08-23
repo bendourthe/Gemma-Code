@@ -6,7 +6,7 @@
  * Assistant labels on normal turns. Tool cards keep their name.
  */
 
-import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import type { ChatMessage, ToolCard } from "./types";
 import { AgentStateOrb } from "../../components/agentState/AgentStateOrb";
 
@@ -21,14 +21,20 @@ export interface MessageBubbleProps {
    * Coding pillar) render a static bubble unchanged.
    */
   onSelect?: (message: ChatMessage) => void;
+  /** Lets the owning Studio clear actions and cached output after decode failure. */
+  onMediaError?: (message: ChatMessage) => void;
 }
 
 export function MessageBubble({
   message,
   enableTools = true,
   onSelect,
+  onMediaError,
 }: MessageBubbleProps): JSX.Element {
+  const [mediaFailed, setMediaFailed] = useState(false);
+  useEffect(() => setMediaFailed(false), [message.media?.src]);
   const selectable = Boolean(onSelect);
+  const studioPending = isStudioPending(message);
   const handleSelect = () => onSelect?.(message);
   const caption = captionFor(message);
   return (
@@ -49,7 +55,7 @@ export function MessageBubble({
             },
           }
         : {})}
-      style={bubbleStyle(message.role, selectable)}
+      style={bubbleStyle(message, selectable)}
     >
       {caption}
       {message.content && <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{message.content}</p>}
@@ -72,11 +78,22 @@ export function MessageBubble({
       {message.pending && (
         <div
           data-testid={`message-pending-${message.id}`}
-          style={{ marginTop: "var(--space-2)", color: "var(--fg-muted)", display: "flex", alignItems: "center", gap: "var(--space-2)" }}
+          style={{
+            marginTop: studioPending ? 0 : "var(--space-2)",
+            color: "var(--fg-muted)",
+            display: "flex",
+            flexDirection: studioPending ? "column" : "row",
+            alignItems: "center",
+            justifyContent: studioPending ? "center" : undefined,
+            gap: "var(--space-2)",
+            width: studioPending ? "100%" : undefined,
+            minHeight: studioPending ? "12rem" : undefined,
+          }}
         >
           <AgentStateOrb
             activity={message.activity ?? "chat-streaming"}
-            size="inline"
+            size={studioPending ? "hero" : "inline"}
+            showCaption
             surfaceId={`message-${message.id}`}
           />
           {message.progress && message.progress.total > 0 && (
@@ -84,20 +101,51 @@ export function MessageBubble({
           )}
         </div>
       )}
-      {message.media &&
+      {mediaFailed ? (
+        <p data-testid={`message-media-error-${message.id}`} style={{ color: "var(--danger, #f87171)", margin: 0 }}>
+          Generation failed: generated {message.media?.kind ?? "media"} could not be displayed.
+        </p>
+      ) : message.media &&
         (message.media.kind === "image" ? (
           <img
             data-testid={`message-media-${message.id}`}
             src={message.media.src}
             alt={message.content || "Generated image"}
-            style={{ maxWidth: "100%", borderRadius: "var(--radius-md)", marginTop: "var(--space-2)" }}
+            onError={() => {
+              setMediaFailed(true);
+              onMediaError?.(message);
+            }}
+            style={{
+              display: "block",
+              width: "48rem",
+              maxWidth: "100%",
+              height: "auto",
+              minHeight: "8rem",
+              objectFit: "contain",
+              background: "var(--bg-2)",
+              borderRadius: "var(--radius-md)",
+              marginTop: "var(--space-2)",
+            }}
           />
         ) : (
           <video
             data-testid={`message-media-${message.id}`}
             src={message.media.src}
             controls
-            style={{ maxWidth: "100%", borderRadius: "var(--radius-md)", marginTop: "var(--space-2)" }}
+            onError={() => {
+              setMediaFailed(true);
+              onMediaError?.(message);
+            }}
+            style={{
+              display: "block",
+              width: "48rem",
+              maxWidth: "100%",
+              minHeight: "8rem",
+              objectFit: "contain",
+              background: "var(--bg-2)",
+              borderRadius: "var(--radius-md)",
+              marginTop: "var(--space-2)",
+            }}
           />
         ))}
       {enableTools && message.toolCards && message.toolCards.length > 0 && (
@@ -164,12 +212,35 @@ function ariaRole(role: ChatMessage["role"]): string {
   return "system";
 }
 
-function bubbleStyle(role: ChatMessage["role"], selectable = false): CSSProperties {
-  const user = role === "user";
-  const system = role === "system";
+function isStudioPending(message: ChatMessage): boolean {
+  return Boolean(
+    message.pending &&
+      (message.activity === "image-generation" || message.activity === "video-generation"),
+  );
+}
+
+function bubbleStyle(message: ChatMessage, selectable = false): CSSProperties {
+  const user = message.role === "user";
+  const system = message.role === "system";
+  const studioPending = isStudioPending(message);
+  if (studioPending) {
+    return {
+      width: "100%",
+      maxWidth: "100%",
+      minHeight: "12rem",
+      boxSizing: "border-box",
+      padding: 0,
+      border: "none",
+      backgroundColor: "transparent",
+      color: "var(--fg-0)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+    };
+  }
   return {
-    width: "fit-content",
-    maxWidth: "80%",
+    width: message.media ? "80%" : "fit-content",
+    maxWidth: message.media ? "48rem" : "80%",
     boxSizing: "border-box",
     padding: "var(--space-2) var(--space-3)",
     borderRadius: "var(--radius-lg, 12px)",

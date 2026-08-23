@@ -228,27 +228,42 @@ export function ImageStudioPage({
         } else if (event.kind === "complete") {
           done = true;
           const png = event.png ?? "";
+          if (!png) {
+            outputs.current.delete(messageId);
+            setWorkflowByMessage((prev) => {
+              const next = { ...prev };
+              delete next[messageId];
+              return next;
+            });
+            patchMessage(messageId, {
+              pending: false,
+              progress: undefined,
+              media: undefined,
+              content: "Generation failed: image generation completed without image bytes.",
+            });
+            continue;
+          }
           outputs.current.set(messageId, png);
           patchMessage(messageId, {
             pending: false,
             progress: undefined,
-            media: png ? { kind: "image", src: `data:image/png;base64,${png}` } : undefined,
+            media: { kind: "image", src: `data:image/png;base64,${png}` },
           });
-          if (png) {
-            void client.extractWorkflow(png).then((wf) => {
-              if (wf && typeof wf === "object") {
-                setWorkflowByMessage((prev) => ({
-                  ...prev,
-                  [messageId]: wf as Record<string, unknown>,
-                }));
-              }
-            });
-          }
+          void client.extractWorkflow(png).then((wf) => {
+            if (wf && typeof wf === "object") {
+              setWorkflowByMessage((prev) => ({
+                ...prev,
+                [messageId]: wf as Record<string, unknown>,
+              }));
+            }
+          });
         } else if (event.kind === "error") {
           done = true;
+          outputs.current.delete(messageId);
           patchMessage(messageId, {
             pending: false,
             progress: undefined,
+            media: undefined,
             content: `Generation failed: ${event.message ?? "unknown error"}`,
           });
         }
@@ -256,6 +271,22 @@ export function ImageStudioPage({
       return { done };
     },
     [patchMessage, client],
+  );
+
+  const handleMediaError = useCallback(
+    (message: ChatMessage): void => {
+      outputs.current.delete(message.id);
+      setWorkflowByMessage((prev) => {
+        const next = { ...prev };
+        delete next[message.id];
+        return next;
+      });
+      patchMessage(message.id, {
+        media: undefined,
+        content: "Generation failed: generated image could not be displayed.",
+      });
+    },
+    [patchMessage],
   );
 
   useEffect(() => {
@@ -576,6 +607,7 @@ export function ImageStudioPage({
           <MessageList
             messages={messages}
             enableTools={false}
+            onMediaError={handleMediaError}
             renderAfter={(m) =>
               m.role === "assistant" && m.media ? (
                 <div

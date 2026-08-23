@@ -7,6 +7,7 @@ import {
   embedWorkflow,
 } from "../../core/image/WorkflowMetadata";
 import { IPC_METHODS, METHOD_SCHEMAS } from "../sidecar/src/protocol";
+import { InMemoryDiffusionRuntime } from "../sidecar/src/diffusion/runtimeClient";
 
 function makeCtx() {
   return createHandlerContext(
@@ -19,6 +20,18 @@ function makeCtx() {
       })(),
     }),
   );
+}
+
+async function drainTerminalEvent(ctx: ReturnType<typeof makeCtx>, jobId: string) {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const reply = (await dispatch("diffusion.job.drainEvents", { jobId }, ctx)) as {
+      events: { kind: string; jobId: string; message?: string; outputPath?: string }[];
+    };
+    const terminal = reply.events.find((event) => event.kind === "complete" || event.kind === "error");
+    if (terminal) return terminal;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  throw new Error(`No terminal diffusion event for ${jobId}`);
 }
 
 describe("generation queue IPC", () => {
@@ -130,5 +143,66 @@ describe("generation queue IPC", () => {
     expect(listed.jobs.some((j) => j.id === reply.jobId && j.priority === "interactive")).toBe(
       true,
     );
+  });
+
+  it("emits an error event when txt2img completes without image bytes", async () => {
+    const runtime = new InMemoryDiffusionRuntime();
+    runtime.setResponse("txt2img", {});
+    const ctx = createHandlerContext(
+      { pid: 1, platform: process.platform },
+      new CodingSessionManager(),
+      runtime,
+    );
+    ctx.studio = createStudioRuntime({ dbPath: ":memory:" });
+    const reply = (await dispatch(
+      "diffusion.txt2img",
+      {
+        modelId: "sana-1.6b-1024",
+        prompt: "fox",
+        width: 512,
+        height: 512,
+        steps: 4,
+        cfgScale: 1.5,
+        sampler: "euler_a",
+        seed: 1,
+      },
+      ctx,
+    )) as { jobId: string };
+    await expect(drainTerminalEvent(ctx, reply.jobId)).resolves.toMatchObject({
+      kind: "error",
+      jobId: reply.jobId,
+      message: expect.stringMatching(/without image bytes/),
+    });
+  });
+
+  it("emits a playable video completion when workflow metadata is absent", async () => {
+    const runtime = new InMemoryDiffusionRuntime();
+    runtime.setResponse("diffusion.video.text2video", { mp4Path: "C:\\nexus\\outputs\\clip.mp4" });
+    const ctx = createHandlerContext(
+      { pid: 1, platform: process.platform },
+      new CodingSessionManager(),
+      runtime,
+    );
+    ctx.studio = createStudioRuntime({ dbPath: ":memory:" });
+    const reply = (await dispatch(
+      "diffusion.video.text2video",
+      {
+        modelId: "wan2.1-t2v-1.3b",
+        prompt: "fox",
+        width: 854,
+        height: 480,
+        durationSeconds: 4,
+        fps: 24,
+        steps: 30,
+        cfgScale: 3.5,
+        seed: 7,
+      },
+      ctx,
+    )) as { jobId: string };
+    await expect(drainTerminalEvent(ctx, reply.jobId)).resolves.toMatchObject({
+      kind: "complete",
+      jobId: reply.jobId,
+      outputPath: "C:\\nexus\\outputs\\clip.mp4",
+    });
   });
 });

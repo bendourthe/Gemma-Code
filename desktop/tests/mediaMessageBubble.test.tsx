@@ -2,8 +2,8 @@
  * v1.15.0 Phase 5 (Issue 5) -- MessageBubble media / attachment rendering.
  */
 
-import { afterEach, describe, it, expect } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, it, expect, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 import { MessageBubble } from "../src/shared/chat/MessageBubble";
 import type { ChatMessage } from "../src/shared/chat/types";
@@ -33,6 +33,15 @@ describe("MessageBubble media", () => {
     expect((screen.getByTestId("message-media-a1") as HTMLImageElement).getAttribute("src")).toBe(
       "data:image/png;base64,BBB",
     );
+    expect(screen.getByTestId("message-media-a1")).toHaveStyle({
+      display: "block",
+      minHeight: "8rem",
+      objectFit: "contain",
+    });
+    expect(screen.getByTestId("message-bubble-a1")).toHaveStyle({
+      width: "80%",
+      maxWidth: "48rem",
+    });
   });
 
   it("shows a pending indicator with progress", () => {
@@ -46,7 +55,39 @@ describe("MessageBubble media", () => {
     render(<MessageBubble message={msg} />);
     expect(screen.getByTestId("message-pending-a2")).toBeInTheDocument();
     expect(screen.getByRole("img", { name: /agent composing/i })).toBeInTheDocument();
+    expect(screen.getByText("Composing...")).toBeInTheDocument();
     expect(screen.queryByText("Generating...")).toBeNull();
+  });
+
+  it("centers Studio pending work around a captioned hero orb", () => {
+    const msg: ChatMessage = {
+      id: "studio-pending",
+      role: "assistant",
+      content: "",
+      pending: true,
+      activity: "image-generation",
+    };
+    render(<MessageBubble message={msg} />);
+    expect(screen.getByRole("img", { name: /agent shaping/i })).toHaveAttribute("data-orb-size", "hero");
+    expect(screen.getByText("Shaping...")).toBeInTheDocument();
+    expect(screen.getByTestId("message-bubble-studio-pending").getAttribute("style")).toContain(
+      "min-height: 12rem",
+    );
+    expect(screen.getByTestId("message-bubble-studio-pending")).toHaveStyle({ width: "100%" });
+  });
+
+  it("replaces undecodable generated media with a visible failure", () => {
+    const onMediaError = vi.fn();
+    const msg: ChatMessage = {
+      id: "bad-media",
+      role: "assistant",
+      content: "",
+      media: { kind: "image", src: "data:image/png;base64,bad" },
+    };
+    render(<MessageBubble message={msg} onMediaError={onMediaError} />);
+    fireEvent.error(screen.getByTestId("message-media-bad-media"));
+    expect(screen.getByText(/Generation failed: generated image could not be displayed/)).toBeInTheDocument();
+    expect(onMediaError).toHaveBeenCalledWith(msg);
   });
 
   it("leaves a plain-text message unchanged (no media nodes)", () => {
@@ -55,5 +96,6 @@ describe("MessageBubble media", () => {
     expect(screen.getByText("hello")).toBeInTheDocument();
     expect(screen.queryByTestId("message-media-t1")).toBeNull();
     expect(screen.queryByTestId("message-pending-t1")).toBeNull();
+    expect(screen.getByTestId("message-bubble-t1")).toHaveStyle({ width: "fit-content" });
   });
 });

@@ -20,6 +20,8 @@ export interface MessageListProps {
    * so the host can open the message's output in the side-by-side preview pane.
    */
   onSelectMessage?: (message: ChatMessage) => void;
+  /** Called when generated media cannot be decoded by the browser/WebView. */
+  onMediaError?: (message: ChatMessage) => void;
   /** Optional trailing chrome (download / recall) still aligned with the bubble. */
   renderAfter?: (message: ChatMessage) => ReactNode;
 }
@@ -34,6 +36,7 @@ export function MessageList({
   emptyMessage = "Start by asking a question or typing a message.",
   emptyTestId = "message-list-empty",
   onSelectMessage,
+  onMediaError,
   renderAfter,
 }: MessageListProps): JSX.Element {
   if (messages.length === 0) {
@@ -72,6 +75,7 @@ export function MessageList({
             message={msg}
             enableTools={enableTools}
             {...(onSelectMessage ? { onSelect: onSelectMessage } : {})}
+            {...(onMediaError ? { onMediaError } : {})}
           />
           {renderAfter?.(msg)}
         </li>

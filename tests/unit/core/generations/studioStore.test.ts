@@ -292,13 +292,16 @@ describe("pumpOnce + GpuScheduler", () => {
     const q = new GenerationQueue({ dbPath: ":memory:" });
     queues.push(q);
     q.enqueue({ id: "boom", pillar: "video", jobType: "txt2vid", parameters: {} });
+    const errors: { kind: string; jobId: string; message: string }[] = [];
     const done = await pumpOnce(q, {
       estimatedVramGB: () => 9,
+      onError: (event) => errors.push(event),
       run: async () => {
         throw new Error("pipeline down");
       },
     });
     expect(done?.state).toBe("failed");
     expect(done?.error).toBe("pipeline down");
+    expect(errors).toEqual([{ kind: "error", jobId: "boom", message: "pipeline down" }]);
   });
 });

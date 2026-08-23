@@ -36,6 +36,11 @@ describe("AgentStateOrb", () => {
     expect(orb).toHaveAttribute("data-agent-state", "working");
   });
 
+  it("shows the mapped caption when requested", () => {
+    render(<AgentStateOrb activity="video-generation" size="hero" showCaption />);
+    expect(screen.getByTestId("agent-state-orb-caption")).toHaveTextContent("Shaping...");
+  });
+
   it("treats a missing IntersectionObserver as visible", () => {
     vi.stubGlobal("IntersectionObserver", undefined);
     render(<AgentStateOrb activity="chat-streaming" />);

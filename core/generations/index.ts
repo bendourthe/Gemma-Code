@@ -18,4 +18,4 @@ export {
   type GenerationJobPriority,
   type GenerationJobState,
 } from "./GenerationQueue.js";
-export { pumpOnce, type PumpRunResult, type QueuePumpAdapters } from "./queuePump.js";
+export { pumpOnce, type PumpRunResult, type QueuePumpAdapters, type QueuePumpErrorEvent } from "./queuePump.js";

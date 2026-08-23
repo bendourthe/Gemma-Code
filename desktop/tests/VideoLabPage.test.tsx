@@ -181,8 +181,50 @@ describe("VideoLabPage (chat)", () => {
     });
     const orb = await screen.findByRole("img", { name: /agent shaping/i });
     expect(orb).toHaveAttribute("data-agent-activity", "video-generation");
+    expect(orb).toHaveAttribute("data-orb-size", "hero");
+    expect(screen.getByText("Shaping...")).toBeInTheDocument();
     expect(screen.queryByText("Generating...")).toBeNull();
     expect(screen.getByTestId("media-composer-beam")).toHaveAttribute("data-beam-mode", "traveling");
+  });
+
+  it("turns a complete event without an mp4 path into a written failure", async () => {
+    const client = new InMemoryVideoClient();
+    render(<VideoLabPage client={client} modelsClient={videoModels()} drainIntervalMs={20} />);
+    client.scriptEvents("mem-video-1", [{ kind: "complete", jobId: "mem-video-1" }]);
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "fox" } });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+      vi.advanceTimersByTime(40);
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(screen.getByText(/Generation failed/)).toBeInTheDocument());
+    expect(screen.queryByTestId(/^video-actions-/)).toBeNull();
+    expect(screen.queryByTestId(/^message-media-/)).toBeNull();
+  });
+
+  it("hides generated-video actions when the browser cannot decode the asset", async () => {
+    const client = new InMemoryVideoClient();
+    render(
+      <VideoLabPage
+        client={client}
+        modelsClient={videoModels()}
+        drainIntervalMs={20}
+        resolveMp4Url={(path) => `mock://${path}`}
+      />,
+    );
+    client.scriptEvents("mem-video-1", [
+      { kind: "complete", jobId: "mem-video-1", mp4Path: "/tmp/clip.mp4" },
+    ]);
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "fox" } });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+      vi.advanceTimersByTime(40);
+      await Promise.resolve();
+    });
+    const media = await screen.findByTestId(/^message-media-/);
+    fireEvent.error(media);
+    await waitFor(() => expect(screen.queryByTestId(/^video-actions-/)).toBeNull());
+    expect(screen.getByText(/could not be displayed/)).toBeInTheDocument();
   });
 
   it("chains continuation segments when duration exceeds the tier clip", async () => {

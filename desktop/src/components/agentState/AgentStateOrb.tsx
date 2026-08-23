@@ -21,6 +21,8 @@ import {
 export interface AgentStateOrbProps {
   activity: AgentActivity;
   size?: "hero" | "inline";
+  /** Show the mapped activity label beside or below the orb. */
+  showCaption?: boolean;
   /** Recede-when-active id. Defaults to a stable per-activity value. */
   surfaceId?: string;
   className?: string;
@@ -44,6 +46,7 @@ function readAccent(el: HTMLElement, token: string, fallback: string): string {
 export function AgentStateOrb({
   activity,
   size = "inline",
+  showCaption = false,
   surfaceId,
   className,
   ...rest
@@ -157,13 +160,17 @@ export function AgentStateOrb({
       data-orb-paused={paused ? "true" : "false"}
       className={className}
       style={{
-        width: cssSize,
-        height: cssSize,
+        width: showCaption ? "auto" : cssSize,
+        height: showCaption ? "auto" : cssSize,
         flex: "none",
-        display: "block",
-        borderRadius: "50%",
+        display: "flex",
+        flexDirection: size === "hero" ? "column" : "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: showCaption ? "var(--space-2)" : undefined,
+        borderRadius: showCaption ? undefined : "50%",
         boxShadow:
-          size === "hero" && activity !== "idle"
+          !showCaption && size === "hero" && activity !== "idle"
             ? `0 0 16px color-mix(in srgb, ${mapping.accentFallback} 32%, transparent)`
             : undefined,
       }}
@@ -173,8 +180,24 @@ export function AgentStateOrb({
         aria-hidden="true"
         width={cssSize}
         height={cssSize}
-        style={{ display: "block", width: cssSize, height: cssSize }}
+        style={{
+          display: "block",
+          width: cssSize,
+          height: cssSize,
+          filter:
+            showCaption && size === "hero" && activity !== "idle"
+              ? `drop-shadow(0 0 16px color-mix(in srgb, ${mapping.accentFallback} 32%, transparent))`
+              : undefined,
+        }}
       />
+      {showCaption ? (
+        <span
+          data-testid={`${rest["data-testid"] ?? "agent-state-orb"}-caption`}
+          style={{ color: "var(--fg-muted)", fontSize: "var(--text-sm)", whiteSpace: "nowrap" }}
+        >
+          {mapping.label}...
+        </span>
+      ) : null}
     </div>
   );
 }

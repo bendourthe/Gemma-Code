@@ -17,11 +17,19 @@ export interface PumpRunResult {
   readonly workflow?: Record<string, unknown>;
 }
 
+export interface QueuePumpErrorEvent {
+  readonly kind: "error";
+  readonly jobId: string;
+  readonly message: string;
+}
+
 export interface QueuePumpAdapters {
   readonly run: (job: GenerationJob) => Promise<PumpRunResult>;
   readonly scheduler?: Pick<GpuScheduler, "enqueue">;
   readonly index?: GenerationIndex;
   readonly estimatedVramGB?: (job: GenerationJob) => number;
+  /** Surfaces runner failures to the owning runtime event queue. */
+  readonly onError?: (event: QueuePumpErrorEvent, job: GenerationJob) => void;
 }
 
 export async function pumpOnce(
@@ -59,7 +67,9 @@ export async function pumpOnce(
     queue.markDone(job.id);
     return queue.get(job.id);
   } catch (err) {
-    queue.markFailed(job.id, err instanceof Error ? err.message : String(err));
+    const message = err instanceof Error ? err.message : String(err);
+    queue.markFailed(job.id, message);
+    adapters.onError?.({ kind: "error", jobId: job.id, message }, job);
     return queue.get(job.id);
   }
 }

@@ -2,7 +2,7 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-22 (v2.2.3 Phase 7)
+**Last updated**: 2026-08-23 (v2.2.3 Phase 3)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
@@ -10,7 +10,7 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 
 ## v2.2.3
 
-**Last updated**: 2026-08-22 (Phase 7 - installer Document, taskbar, Complete)
+**Last updated**: 2026-08-23 (Phase 3 - orbs, generation honesty, media playback)
 
 ### Summary
 
@@ -18,7 +18,7 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
 | Deferred (DF) | 10 | 0 |
-| Bugs / regressions (BG) | 0 | 8 |
+| Bugs / regressions (BG) | 0 | 11 |
 | Warnings (WN) | 1 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
@@ -38,15 +38,15 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 
 - **Source phase**: Carried into v2.2.3 Phase 1
 - **Plan reference**: `docs/v2/v2.2/plans/v2.2.3-glass-orbs-and-pillar-runtime.md` (Residual risks)
-- **Reason**: Vitest proves the async adapter and route behavior, but this phase did not launch a packaged shell from Explorer or run a clean-VM install. Packaged Chatbot first paint is not proven here.
-- **Suggested next step**: Launch the packaged application from Explorer on a clean Windows VM and confirm `/chatbot` renders without a console or blank pane.
+- **Reason**: Vitest proves the async adapter and route behavior, and the debug Tauri build validates the scoped asset-protocol configuration. This cycle has not launched a packaged shell from Explorer, run a clean-VM install, or played a generated MP4 through a packaged asset URL. Packaged Chatbot first paint and packaged video playback are not proven here.
+- **Suggested next step**: Launch the packaged application from Explorer on a clean Windows VM, confirm `/chatbot` renders without a console or blank pane, and play a generated MP4 from the scoped outputs directory.
 
 ##### DF-4 - Live-GPU image and video generation soaks not executed
 
 - **Source phase**: Carried into v2.2.3 Phase 1
 - **Plan reference**: `docs/v2/v2.2/plans/v2.2.3-glass-orbs-and-pillar-runtime.md` (Residual risks, DF-4)
-- **Reason**: This phase changes chat explorer and routing only; real SANA and LTX generation remain outside its test surface.
-- **Suggested next step**: Run the existing generation smoke on a supported GPU after Phase 3 generation-honesty changes land.
+- **Reason**: Automated tests now prove that queue failures, empty image completes, empty video completes, and decode failures become written errors with no false media actions. Real SANA and LTX generation were not executed on a supported GPU, so successful bytes, runtime duration, and asset playback under live load remain unproven.
+- **Suggested next step**: Run the existing image and video generation smoke on a supported GPU and capture successful output plus packaged playback evidence.
 
 ##### DF-9 - Occupancy policy is not yet wired to all four submit surfaces
 
@@ -165,6 +165,27 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 - **What happened**: `_on_install_finished` only refreshed navigation. Complete remained a manual next step, service names clipped, default row margins wasted space, and Copy inherited the global 38px secondary-button height.
 - **Fix**: Success defers an automatic jump to Complete, failure stays on Installing, the progress indicator unpins, rows and cards are compacted, the service-name column is wider, and Copy receives a local-only height override.
 - **Evidence**: Installer navigation and Complete-page tests cover success, failure, stepper state, spacing, margins, label width, and local button styling.
+
+##### BG-23 (resolved) - Pending studio work used a small uncaptained orb inside competing bubble chrome
+
+- **Source phase**: Phase 3
+- **What happened**: Pending image and video generations reused the compact inline orb, exposed no visible state caption, and sat inside the normal message-bubble surface. Activity colors also varied by state instead of using the locked brand cyan.
+- **Fix**: Media pending states use the existing hero orb in a centered transparent surface, all active activities use brand cyan, and inline or hero captions describe the current activity. Reduced-motion behavior remains owned by the existing orb primitive.
+- **Evidence**: Agent-state and media-bubble tests cover cyan mapping, caption layout, hero sizing, transparent pending media chrome, and unchanged plain-chat width.
+
+##### BG-24 (resolved) - Generation failures and empty completes could hang or expose empty actions
+
+- **Source phase**: Phase 3
+- **What happened**: Queue exceptions only marked SQLite rows failed, image completes without bytes produced no event, video completes were double-gated on workflow metadata, and renderer decode failures could leave empty output entries or recall actions behind.
+- **Fix**: Queue and dispatcher failures now emit typed `kind: "error"` completions. Empty image or video completes become written failures, output caches never receive empty strings, decode failures clear media and workflow state, and actions render only for displayable assets.
+- **Evidence**: Sidecar handler, queue-pump, Image Studio, Video Lab, and media-error tests cover every failure route. Full desktop Vitest passed 1334 tests; full root Vitest passed 5436 tests with 12 skips.
+
+##### BG-25 (resolved) - Successful video files were not converted into playable Tauri asset URLs
+
+- **Source phase**: Phase 3
+- **What happened**: `resolveMp4Url` defaulted to the identity function, App never supplied a resolver, and the Tauri shell had no asset-protocol feature or scope. A valid filesystem path therefore reached the webview as an unplayable URL.
+- **Fix**: App resolves MP4 paths with `convertFileSrc`; Tauri enables `protocol-asset` with a scope limited to `~/.nexus/outputs/videos/`; the CSP admits only the local asset schemes; and video completion no longer depends on optional workflow metadata.
+- **Evidence**: The debug Tauri build passed with the asset-protocol configuration, sidecar and web builds passed, and Video Lab tests cover resolved URLs plus visible playback failures. Packaged playback remains part of DF-2 acceptance.
 
 ## v2.2.2
 

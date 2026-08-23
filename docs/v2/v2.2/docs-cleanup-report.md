@@ -45,3 +45,14 @@ Clean. No action required.
 - The Complete-page Copy override remains local to `_CommandRow`; no global theme fork was introduced.
 
 **Verdict**: Clean for Phase 7. No move proposed.
+
+## v2.2.3 Phase 3 audit
+
+**Date**: 2026-08-23
+**Mode**: audit (no files moved)
+
+- Agent-state presentation remains in the existing `desktop/src/components/agentState/` boundary, and media-specific sizing remains scoped to the shared message bubble instead of creating a second renderer.
+- Generation error propagation extends the existing `core/generations/` queue and sidecar completion channel; no parallel queue, output cache, or event protocol was introduced.
+- Tauri asset access is limited to the existing video output directory. No broad filesystem scope, generated bundle, scratch document, or alternate media directory was added.
+
+**Verdict**: Clean for Phase 3. No move proposed.
