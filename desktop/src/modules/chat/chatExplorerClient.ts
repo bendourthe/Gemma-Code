@@ -17,6 +17,69 @@ import type {
   FolderTreeNode,
 } from "./types";
 
+/** A value that may arrive synchronously (in-memory client) or via IPC. */
+export type MaybeAsync<T> = T | Promise<T>;
+
+/**
+ * v2.2.3 Phase 1 (1.1) -- the async-safe explorer contract FolderTree and
+ * ChatPage actually consume. Every method may return a plain value (the sync
+ * in-memory client below satisfies this structurally, so tests stay sync) or
+ * a Promise (the IPC adapter in `ipcChatExplorerClient.ts`). Callers must go
+ * through `resolveMaybe` / `await Promise.resolve(...)` instead of assuming a
+ * sync return -- assuming sync is exactly what blanked the app (P0, U7).
+ */
+export interface AsyncChatExplorerClient {
+  listTree(): MaybeAsync<FolderTreeNode>;
+  createFolder(input: CreateFolderInput): MaybeAsync<Folder>;
+  renameFolder(id: string, name: string): MaybeAsync<Folder>;
+  moveFolder(id: string, newParentId: string | null): MaybeAsync<Folder>;
+  deleteFolder(id: string): MaybeAsync<void>;
+  createChat(input: CreateChatInput): MaybeAsync<Chat>;
+  /** `byUser` pins the title so auto-titling can never overwrite it. */
+  renameChat(id: string, title: string, byUser?: boolean): MaybeAsync<Chat>;
+  moveChat(id: string, newFolderId: string | null): MaybeAsync<Chat>;
+  deleteChat(id: string): MaybeAsync<void>;
+  getFolder(id: string): MaybeAsync<Folder | null>;
+  getChat(id: string): MaybeAsync<Chat | null>;
+  ancestors(folderId: string | null): MaybeAsync<readonly Folder[]>;
+  search(query: string, limit?: number): MaybeAsync<readonly ChatExplorerSearchHit[]>;
+  /** OPTIONAL: only the sidecar-backed adapter can title from a model. */
+  generateTitle?(chatId: string, firstMessage: string): Promise<{ title: string; source: string }>;
+  /** OPTIONAL: persisted per-chat persona (sidecar-backed adapter only). */
+  setPersona?(id: string, persona: string | null): Promise<void>;
+}
+
+function isThenable<T>(value: MaybeAsync<T>): value is Promise<T> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { then?: unknown }).then === "function"
+  );
+}
+
+/**
+ * Run one client call that may be sync or async. Sync results (and sync
+ * throws) are delivered synchronously, so existing sync-client tests keep
+ * their immediate-assertion style; Promise results are delivered on
+ * settlement. Errors always land in `onError` instead of crashing the pane.
+ */
+export function resolveMaybe<T>(
+  run: () => MaybeAsync<T>,
+  onValue: (value: T) => void,
+  onError?: (err: unknown) => void,
+): void {
+  try {
+    const result = run();
+    if (isThenable(result)) {
+      result.then(onValue, (err: unknown) => onError?.(err));
+    } else {
+      onValue(result);
+    }
+  } catch (err) {
+    onError?.(err);
+  }
+}
+
 export interface ChatExplorerClient {
   listTree(): FolderTreeNode;
   createFolder(input: CreateFolderInput): Folder;

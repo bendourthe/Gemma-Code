@@ -2,11 +2,118 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-22 (v2.2.2 ready-shell-and-studio-chrome)
+**Last updated**: 2026-08-22 (v2.2.3 Phase 1)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
-Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repair-and-ux-overhaul.md), [plans/v2.2.1-field-repair-and-chrome-completion.md](plans/v2.2.1-field-repair-and-chrome-completion.md), [plans/v2.2.2-ready-shell-and-studio-chrome.md](plans/v2.2.2-ready-shell-and-studio-chrome.md)
+Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repair-and-ux-overhaul.md), [plans/v2.2.1-field-repair-and-chrome-completion.md](plans/v2.2.1-field-repair-and-chrome-completion.md), [plans/v2.2.2-ready-shell-and-studio-chrome.md](plans/v2.2.2-ready-shell-and-studio-chrome.md), [plans/v2.2.3-glass-orbs-and-pillar-runtime.md](plans/v2.2.3-glass-orbs-and-pillar-runtime.md)
+
+## v2.2.3
+
+**Last updated**: 2026-08-22 (Phase 1 - Chat explorer IPC and default route)
+
+### Summary
+
+| Category | Open | Resolved |
+|---|---|---|
+| Not implemented (NI) | 0 | 0 |
+| Deferred (DF) | 10 | 0 |
+| Bugs / regressions (BG) | 0 | 2 |
+| Warnings (WN) | 0 | 0 |
+| Missing tests / coverage gaps (MT) | 0 | 0 |
+| Quality-gate gaps (QG) | 0 | 0 |
+
+### Open Items
+
+#### Deferred
+
+##### DF-1 - Node SEA / externalBin bundling remains deferred
+
+- **Source phase**: Carried into v2.2.3 Phase 1
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.3-glass-orbs-and-pillar-runtime.md` (Out of scope)
+- **Reason**: The sidecar still uses the verified Node resolution chain rather than a Tauri `externalBin` or Node SEA artifact.
+- **Suggested next step**: Revisit only in a packaging-focused cycle with clean-install validation for the replacement artifact.
+
+##### DF-2 - Packaged clean-VM and Explorer-launch acceptance not executed
+
+- **Source phase**: Carried into v2.2.3 Phase 1
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.3-glass-orbs-and-pillar-runtime.md` (Residual risks)
+- **Reason**: Vitest proves the async adapter and route behavior, but this phase did not launch a packaged shell from Explorer or run a clean-VM install. Packaged Chatbot first paint is not proven here.
+- **Suggested next step**: Launch the packaged application from Explorer on a clean Windows VM and confirm `/chatbot` renders without a console or blank pane.
+
+##### DF-4 - Live-GPU image and video generation soaks not executed
+
+- **Source phase**: Carried into v2.2.3 Phase 1
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.3-glass-orbs-and-pillar-runtime.md` (Residual risks, DF-4)
+- **Reason**: This phase changes chat explorer and routing only; real SANA and LTX generation remain outside its test surface.
+- **Suggested next step**: Run the existing generation smoke on a supported GPU after Phase 3 generation-honesty changes land.
+
+##### DF-9 - Occupancy policy is not yet wired to all four submit surfaces
+
+- **Source phase**: v2.2.3 verification addendum, reopened in Phase 1
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.3-glass-orbs-and-pillar-runtime.md` (Phase 5)
+- **Reason**: The earlier closure was not field-true. Chat and Coding do not gate submit, and App does not yet feed Image and Video live free VRAM plus the studio scheduler snapshot.
+- **Suggested next step**: Implement Phase 5 and resolve this item only after four page-level residency tests pass.
+
+##### DF-14 - CodingInput retains a separate composer implementation
+
+- **Source phase**: Carried into v2.2.3 Phase 1
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.3-glass-orbs-and-pillar-runtime.md` (Phase 8.1)
+- **Reason**: Phase 2 aligns its chrome with MediaComposer but does not extract the duplicated surface implementation.
+- **Suggested next step**: Evaluate extraction during the Phase 8 scoped architecture audit without changing behavior.
+
+##### DF-16 - Native file dialogs remain unavailable
+
+- **Source phase**: Carried into v2.2.3 Phase 1
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.3-glass-orbs-and-pillar-runtime.md` (Phase 6.1, Phase 8.2)
+- **Reason**: The repository has no Tauri dialog plugin. Phase 6 may use a persisted workspace text field, while Settings data transfer also remains path-text based.
+- **Suggested next step**: Add and capability-scope the dialog plugin in a dedicated cross-platform file-dialog task.
+
+##### DF-17 - Settings tabs are not URL-addressable
+
+- **Source phase**: Carried into v2.2.3 Phase 1
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.3-glass-orbs-and-pillar-runtime.md` (Phase 8.2)
+- **Reason**: This patch does not change Settings navigation or deep-link behavior.
+- **Suggested next step**: Add nested Settings routes in a future navigation-focused plan.
+
+##### DF-18 - Packaged macOS and Linux sidecar native-addon paths are not proven
+
+- **Source phase**: Carried into v2.2.3 Phase 1
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.3-glass-orbs-and-pillar-runtime.md` (Phase 8.2)
+- **Reason**: No macOS `.app` or Linux AppImage was executed in this session, so native-addon resolution on those targets is not proven here.
+- **Suggested next step**: Run packaged `--healthcheck` acceptance on both operating systems and record the resolved addon path.
+
+##### DF-19 - CREATE_NO_WINDOW parity is N/A on macOS and Linux
+
+- **Source phase**: Carried into v2.2.3 Phase 1
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.3-glass-orbs-and-pillar-runtime.md` (Phase 8.4)
+- **Reason**: The Windows creation flag has no direct Unix counterpart. Absence of an observed terminal window on other platforms is not proven here.
+- **Suggested next step**: Record platform-specific packaged-launch evidence and keep the Windows-only flag classified as N/A elsewhere.
+
+##### DF-20 - Folder color changes are not persisted through the IPC adapter
+
+- **Source phase**: v2.2.3 Phase 1
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.3-glass-orbs-and-pillar-runtime.md` (verification addendum item 33)
+- **Reason**: The explorer protocol exposes no `updateFolder` method. The existing UI can reflect a local color touch for the in-memory client, but a production IPC client cannot persist it.
+- **Suggested next step**: Add an explicit explorer `updateFolder` protocol method and a persistence regression test in a later chat-organization phase.
+
+### Resolved Items
+
+#### Bugs found and fixed within this cycle
+
+##### BG-15 (resolved) - Async explorer client crashed Local Chatbot on first paint
+
+- **Source phase**: Phase 1
+- **What happened**: ChatPage cast the promise-returning IPC client to the synchronous in-memory contract. `FolderTree.listTree()` threw immediately, and `ancestors()` would throw again after opening a chat.
+- **Fix**: A promise-safe adapter now supplies the complete explorer contract, caches tree reads, invalidates after mutations, and lets FolderTree and breadcrumbs resolve async results without crashing. `ModuleErrorBoundary` contains future route failures.
+- **Evidence**: Solo desktop Vitest run: 154 files and 1325 tests passed, including the new async adapter and breadcrumb regressions.
+
+##### BG-16 (resolved) - Fresh launch opened the hidden Dashboard route
+
+- **Source phase**: Phase 1
+- **What happened**: `/` rendered Dashboard and missing or invalid persisted routes were not normalized to a visible module.
+- **Fix**: `/` redirects to `/chatbot`; missing, `/`, `/dashboard`, and invalid stored routes normalize to `/chatbot`, while real module routes continue to restore.
+- **Evidence**: App and persistence regression tests passed in the 1325-test solo desktop run.
 
 ## v2.2.2
 

@@ -4,6 +4,30 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-22] v2.2.3 Phase 1 - Chat explorer IPC and default route
+
+### What Changed
+
+- Added a promise-safe production explorer adapter that reconciles the IPC and renderer type families, maps object-form folder creation, caches tree-backed lookups, delegates search, and invalidates the cache after mutations.
+- Converted FolderTree mutations, reads, and breadcrumb ancestry to accept synchronous test clients or asynchronous IPC clients without uncaught promise failures.
+- Added a route-keyed `ModuleErrorBoundary`, completed the ChatPage `minHeight: 0` flex chain, redirected `/` to `/chatbot`, and normalized missing, Dashboard, and invalid persisted routes to Local Chatbot.
+
+### Why It Changed
+
+The production Chatbot blanked the application because the renderer cast an async IPC client onto a synchronous interface and called `listTree()` during render. Fresh installs also opened a Dashboard route that is no longer part of the primary rail instead of the requested Local Chatbot module.
+
+### Decisions Made
+
+- Kept `InMemoryChatExplorerClient` synchronous for fast tests while defining an async-safe union contract consumed by the UI.
+- Cached tree-backed folder, chat, and ancestor lookups inside the adapter rather than dual-writing remapped identifiers in the renderer.
+- Kept Dashboard reachable at `/dashboard`, but excluded it from persisted first-launch restoration.
+
+### Impact and Context
+
+The desktop test gate passed 154 files and 1325 tests in one solo Vitest process; the focused Phase 1 pass added 71 green tests across five files. Desktop lint, typecheck, and the Vite production build also exited zero. The packaged Explorer-launch acceptance remains not proven here and is tracked under v2.2.3 DF-2.
+
+---
+
 ## [2026-08-22] v2.2.0 Phase 8c - The sidecar bundle could not build or start
 
 ### What was actually wrong

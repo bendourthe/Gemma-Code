@@ -210,6 +210,8 @@ Both benchmarks reuse the same fixture infrastructure as the earlier per-phase s
 
 Nexus is a single native desktop application with a permanent left-hand sidebar and a dynamic dashboard. Four generative pillars share a common core (model registry, telemetry, memory, settings, telemetry redaction) and are isolated as modules so a failure in one (e.g. a diffusion OOM in Image Studio) does not take down the others.
 
+The shell routes each module workspace through `ModuleErrorBoundary`, keyed by pathname, so a renderer exception becomes an in-pane recovery surface and switching modules remounts a clean boundary. `/` redirects to `/chatbot`; Local Chatbot is the first-launch module, while Dashboard remains available explicitly at `/dashboard`.
+
 ```
 +--------------------------------------------------------------------------+
 |  Nexus Desktop Shell  (Electron / Tauri - decision pending)              |

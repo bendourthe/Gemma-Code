@@ -5,13 +5,23 @@ import { App } from "../src/App";
 import { StyleguidePage } from "../src/pages/Styleguide";
 
 describe("App shell", () => {
-  it("renders the sidebar and the dashboard at /", () => {
+  it("redirects / to the Local Chatbot module (v2.2.3 Phase 1, U7)", () => {
     render(
       <MemoryRouter initialEntries={["/"]}>
         <App telemetryStream={null} />
       </MemoryRouter>,
     );
     expect(screen.getByTestId("sidebar")).toBeInTheDocument();
+    expect(screen.getByTestId("chat-page")).toBeInTheDocument();
+    expect(screen.queryByTestId("dashboard")).toBeNull();
+  });
+
+  it("keeps the Dashboard reachable at /dashboard (not the first-run landing)", () => {
+    render(
+      <MemoryRouter initialEntries={["/dashboard"]}>
+        <App telemetryStream={null} />
+      </MemoryRouter>,
+    );
     expect(screen.getByTestId("dashboard")).toBeInTheDocument();
   });
 

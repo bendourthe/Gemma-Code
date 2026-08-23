@@ -17,20 +17,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FolderTree, type SelectedNode } from "./FolderTree";
 import { Breadcrumb } from "./Breadcrumb";
-import { InMemoryChatExplorerClient } from "./chatExplorerClient";
+import { InMemoryChatExplorerClient, resolveMaybe } from "./chatExplorerClient";
 import {
-  createIpcChatExplorerClient,
+  createIpcChatExplorerAdapter,
   tauriAvailable,
 } from "./ipcChatExplorerClient";
 import type {
-  ChatExplorerClient,
+  AsyncChatExplorerClient,
 } from "./chatExplorerClient";
 import {
   createChatIpcClient,
   joinChatReply,
   type ChatSessionClient,
 } from "./chatIpcClient";
-import type { Chat } from "./types";
+import type { Chat, Folder } from "./types";
 import {
   MediaComposer,
   MessageList,
@@ -89,7 +89,7 @@ const FALLBACK_LLMS: readonly ListedModelDto[] = FRONTEND_MODELS.map((m) => ({
 
 export interface ChatPageProps {
   /** Optional client override (tests inject an InMemoryChatExplorerClient). */
-  client?: ChatExplorerClient;
+  client?: AsyncChatExplorerClient;
   /** Optional chat-session client override (tests inject a fake; default: IPC). */
   chatSession?: ChatSessionClient;
   /** Default model id used when starting a fresh chat. */
@@ -146,14 +146,17 @@ export function ChatPage({
 }: ChatPageProps = {}): JSX.Element {
   // The client survives re-renders but is recreated per ChatPage instance.
   // Tests can inject one via the prop so they observe state changes.
-  const [internalClient] = useState<ChatExplorerClient>(
+  const [internalClient] = useState<AsyncChatExplorerClient>(
     // v2.2.0 Phase 5 (5.1): the app now persists to SQLite through the sidecar
     // (closes 3.P1.N). The in-memory client remains the fallback for tests and
     // for running outside Tauri, where there is no sidecar to talk to.
+    // v2.2.3 Phase 1 (1.1): the IPC client is wrapped in an adapter that
+    // actually satisfies the contract FolderTree/ChatPage consume; the old
+    // double cast onto the sync interface crashed on first paint (U7).
     () =>
       clientOverride ??
       (tauriAvailable()
-        ? (createIpcChatExplorerClient() as unknown as ChatExplorerClient)
+        ? createIpcChatExplorerAdapter()
         : new InMemoryChatExplorerClient()),
   );
   const client = clientOverride ?? internalClient;
@@ -228,9 +231,28 @@ export function ChatPage({
     };
   }, [modelsClientOverride]);
 
-  const breadcrumbAncestors = useMemo(() => {
-    if (!activeChat) return [];
-    return client.ancestors(activeChat.folderId);
+  // v2.2.3 Phase 1 (1.1): `ancestors()` may resolve asynchronously (IPC
+  // adapter). The old useMemo assumed a sync return and threw as soon as a
+  // chat became active. A failed lookup degrades to a root-only breadcrumb.
+  const [breadcrumbAncestors, setBreadcrumbAncestors] = useState<readonly Folder[]>([]);
+  useEffect(() => {
+    if (!activeChat) {
+      setBreadcrumbAncestors([]);
+      return;
+    }
+    let cancelled = false;
+    resolveMaybe(
+      () => client.ancestors(activeChat.folderId),
+      (rows) => {
+        if (!cancelled) setBreadcrumbAncestors(rows);
+      },
+      () => {
+        if (!cancelled) setBreadcrumbAncestors([]);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
   }, [activeChat, client]);
 
   const messages = useMemo(() => {
@@ -546,7 +568,9 @@ export function ChatPage({
           // the chat keeps its default name rather than failing the send.
           .catch(() => undefined);
       } else {
-        client.renameChat(chat.id, chat.title);
+        // Async-safe touch: the IPC adapter rejects when the sidecar is down,
+        // and an unhandled rejection here must never take the send down.
+        void Promise.resolve(client.renameChat(chat.id, chat.title)).catch(() => undefined);
       }
 
       if (memoryHub && attachments.length > 0) {
@@ -757,6 +781,9 @@ export function ChatPage({
       style={{
         flex: 1,
         display: "flex",
+        // v2.2.3 Phase 1 (1.1): without minHeight the flex chain grows past
+        // the viewport and the transcript never scrolls.
+        minHeight: 0,
         color: "var(--fg-0)",
       }}
     >
@@ -777,7 +804,7 @@ export function ChatPage({
           defaultModelId={modelId}
         />
       </aside>
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "var(--space-4)", gap: "var(--space-3)" }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, padding: "var(--space-4)", gap: "var(--space-3)" }}>
         <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "var(--space-3)" }}>
           <Breadcrumb ancestors={breadcrumbAncestors} />
           <button
@@ -826,12 +853,11 @@ export function ChatPage({
                   const next = e.target.value;
                   setPersonaByChat((prev) => ({ ...prev, [activeChat.id]: next }));
                   // Persisted, unlike the pre-v2.2.0 React-only state that
-                  // silently vanished on reload.
-                  void (
-                    client as ChatExplorerClient & {
-                      setPersona?: (id: string, persona: string | null) => Promise<void>;
-                    }
-                  ).setPersona?.(activeChat.id, next.trim() ? next : null);
+                  // silently vanished on reload. `setPersona` is an optional
+                  // member of the async contract now -- no more cast.
+                  void client
+                    .setPersona?.(activeChat.id, next.trim() ? next : null)
+                    .catch(() => undefined);
                 }}
                 placeholder="Optional system prompt for this chat"
                 style={{ resize: "vertical", width: "100%", boxSizing: "border-box" }}

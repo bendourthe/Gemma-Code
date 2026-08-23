@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { Sidebar } from "./components/Sidebar";
+import { ModuleErrorBoundary } from "./components/ModuleErrorBoundary";
 import { TitleBar } from "./components/TitleBar";
 import { ConstellationBackground } from "./components/ConstellationBackground";
 import { ReadyOverlay } from "./components/ReadyOverlay";
@@ -77,6 +78,9 @@ function AppLayout({ telemetryStream }: AppProps): JSX.Element {
   const [stream, setStream] = useState<TelemetryStream | null>(telemetryStream ?? null);
   const [hostVramGB, setHostVramGB] = useState<number | null>(null);
   const navigate = useNavigate();
+  // v2.2.3 Phase 1 (1.1): the error boundary is keyed by pathname so a crashed
+  // module remounts cleanly when the user switches to another route.
+  const location = useLocation();
   const { isAmbientReceded } = useMotionActivity();
   const ready = useReadyGate();
 
@@ -164,8 +168,23 @@ function AppLayout({ telemetryStream }: AppProps): JSX.Element {
             position: "relative",
           }}
         >
+          {/*
+            v2.2.3 Phase 1 (1.1): a module crash degrades to an in-pane error
+            instead of blanking the whole app -- desktop/src had no error
+            boundary anywhere before this.
+          */}
+          <ModuleErrorBoundary key={location.pathname}>
           <Routes>
-            <Route path="/" element={<Dashboard telemetryStream={stream} askInboxClient={askInboxClient} />} />
+            {/*
+              v2.2.3 Phase 1 (1.2, U7): first launch and `/` land on Local
+              Chatbot. Dashboard stays reachable at /dashboard for tests and
+              deep links, but it is not the first-run landing.
+            */}
+            <Route path="/" element={<Navigate to="/chatbot" replace />} />
+            <Route
+              path="/dashboard"
+              element={<Dashboard telemetryStream={stream} askInboxClient={askInboxClient} />}
+            />
             <Route
               path="/chatbot"
               element={
@@ -220,6 +239,7 @@ function AppLayout({ telemetryStream }: AppProps): JSX.Element {
             <Route path="/inbox" element={<Navigate to="/settings" replace />} />
             <Route path="/_styleguide" element={<StyleguidePage />} />
           </Routes>
+          </ModuleErrorBoundary>
         </main>
       </div>
     </div>

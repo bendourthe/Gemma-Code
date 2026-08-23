@@ -8,17 +8,29 @@
  *
  * The in-memory client is kept for tests and for running outside Tauri, where
  * there is no sidecar to talk to.
+ *
+ * v2.2.3 Phase 1 (1.1): the raw IPC surface below is now wrapped by
+ * `createExplorerAdapter`, which satisfies the `AsyncChatExplorerClient`
+ * contract FolderTree/ChatPage consume (listTree, object-form createFolder,
+ * getChat/getFolder/ancestors/search against a cached tree). Before this,
+ * ChatPage cast the raw client `as unknown as` the sync interface and the
+ * first `listTree()` call blanked the whole app (P0, U7).
  */
 
 import { ipcCall } from "../../lib/ipc";
 import type {
+  AsyncChatExplorerClient,
+} from "./chatExplorerClient";
+import type {
   Chat,
+  ChatExplorerSearchHit,
   ChatMessageRecord,
   Folder,
   FolderTreeNode,
-} from "../../../../modules/chat/storage/ChatExplorerStore.types";
+} from "./types";
 
-export interface ChatExplorerClient {
+/** The raw sidecar IPC surface: async, positional args, sidecar-only extras. */
+export interface IpcChatExplorerClient {
   tree(): Promise<FolderTreeNode>;
   createFolder(parentId: string | null, name: string): Promise<Folder>;
   renameFolder(id: string, name: string): Promise<Folder>;
@@ -34,6 +46,8 @@ export interface ChatExplorerClient {
   moveChat(id: string, folderId: string | null): Promise<Chat>;
   deleteChat(id: string): Promise<void>;
   setPersona(id: string, persona: string | null): Promise<void>;
+  /** OPTIONAL so IPC-shaped fakes in tests can omit it; the adapter falls back to its cached tree. */
+  search?(query: string, limit?: number): Promise<readonly ChatExplorerSearchHit[]>;
   appendMessage(input: {
     chatId: string;
     role: "user" | "assistant";
@@ -50,7 +64,19 @@ async function call<T>(method: string, params: Record<string, unknown> = {}): Pr
   return reply.value;
 }
 
-export function createIpcChatExplorerClient(): ChatExplorerClient {
+/** Narrow one `chat.explorer.search` hit (the wire schema is `unknown[]`). */
+function isSearchHit(value: unknown): value is ChatExplorerSearchHit {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return (
+    (v.kind === "folder" || v.kind === "chat") &&
+    typeof v.id === "string" &&
+    typeof v.name === "string" &&
+    (v.parentId === null || typeof v.parentId === "string")
+  );
+}
+
+export function createIpcChatExplorerClient(): IpcChatExplorerClient {
   return {
     async tree() {
       const { tree } = await call<{ tree: FolderTreeNode }>("chat.explorer.tree");
@@ -86,6 +112,13 @@ export function createIpcChatExplorerClient(): ChatExplorerClient {
     async setPersona(id, persona) {
       await call("chat.explorer.setPersona", { id, persona });
     },
+    async search(query, limit) {
+      const { hits } = await call<{ hits: unknown[] }>("chat.explorer.search", {
+        query,
+        ...(limit ? { limit } : {}),
+      });
+      return hits.filter(isSearchHit);
+    },
     appendMessage: (input) =>
       call<ChatMessageRecord>("chat.explorer.appendMessage", {
         chatId: input.chatId,
@@ -105,6 +138,137 @@ export function createIpcChatExplorerClient(): ChatExplorerClient {
     generateTitle: (chatId, firstMessage) =>
       call<{ title: string; source: string }>("chat.generateTitle", { chatId, firstMessage }),
   };
+}
+
+function findFolderIn(node: FolderTreeNode, id: string): Folder | null {
+  if (node.folder?.id === id) return node.folder;
+  for (const child of node.children) {
+    const hit = findFolderIn(child, id);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+function findChatIn(node: FolderTreeNode, id: string): Chat | null {
+  for (const chat of node.chats) {
+    if (chat.id === id) return chat;
+  }
+  for (const child of node.children) {
+    const hit = findChatIn(child, id);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+function ancestorsIn(
+  node: FolderTreeNode,
+  folderId: string,
+  trail: readonly Folder[],
+): readonly Folder[] | null {
+  const next = node.folder ? [...trail, node.folder] : trail;
+  if (node.folder?.id === folderId) return next;
+  for (const child of node.children) {
+    const hit = ancestorsIn(child, folderId, next);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+function searchTree(
+  tree: FolderTreeNode,
+  query: string,
+  limit: number,
+): readonly ChatExplorerSearchHit[] {
+  const trimmed = query.trim().toLowerCase();
+  if (!trimmed) return [];
+  const folderHits: ChatExplorerSearchHit[] = [];
+  const chatHits: ChatExplorerSearchHit[] = [];
+  const visit = (node: FolderTreeNode): void => {
+    if (node.folder && node.folder.name.toLowerCase().includes(trimmed)) {
+      folderHits.push({
+        kind: "folder",
+        id: node.folder.id,
+        name: node.folder.name,
+        parentId: node.folder.parentId,
+      });
+    }
+    for (const chat of node.chats) {
+      if (chat.title.toLowerCase().includes(trimmed)) {
+        chatHits.push({ kind: "chat", id: chat.id, name: chat.title, parentId: chat.folderId });
+      }
+    }
+    for (const child of node.children) visit(child);
+  };
+  visit(tree);
+  folderHits.sort((a, b) => a.name.localeCompare(b.name));
+  chatHits.sort((a, b) => a.name.localeCompare(b.name));
+  return [...folderHits, ...chatHits].slice(0, limit);
+}
+
+/**
+ * Wrap the raw IPC surface into the `AsyncChatExplorerClient` contract the UI
+ * consumes. Reads (`getFolder`, `getChat`, `ancestors`, and the search
+ * fallback) resolve against a cached tree; every mutation invalidates that
+ * cache so the next read refetches -- the single source of truth stays the
+ * sidecar store, and no remapped ids are ever dual-written.
+ */
+export type ExplorerAdapter = AsyncChatExplorerClient &
+  Pick<IpcChatExplorerClient, "appendMessage" | "listMessages">;
+
+export function createExplorerAdapter(ipc: IpcChatExplorerClient): ExplorerAdapter {
+  let cachedTree: FolderTreeNode | null = null;
+
+  const refreshTree = async (): Promise<FolderTreeNode> => {
+    const tree = await ipc.tree();
+    cachedTree = tree;
+    return tree;
+  };
+  const ensureTree = async (): Promise<FolderTreeNode> => cachedTree ?? refreshTree();
+  const invalidate = <T>(value: T): T => {
+    cachedTree = null;
+    return value;
+  };
+
+  return {
+    listTree: () => refreshTree(),
+    createFolder: async (input) => invalidate(await ipc.createFolder(input.parentId, input.name)),
+    renameFolder: async (id, name) => invalidate(await ipc.renameFolder(id, name)),
+    moveFolder: async (id, newParentId) => invalidate(await ipc.moveFolder(id, newParentId)),
+    deleteFolder: async (id) => {
+      await ipc.deleteFolder(id);
+      cachedTree = null;
+    },
+    createChat: async (input) => invalidate(await ipc.createChat(input)),
+    renameChat: async (id, title, byUser) => invalidate(await ipc.renameChat(id, title, byUser)),
+    moveChat: async (id, newFolderId) => invalidate(await ipc.moveChat(id, newFolderId)),
+    deleteChat: async (id) => {
+      await ipc.deleteChat(id);
+      cachedTree = null;
+    },
+    getFolder: async (id) => findFolderIn(await ensureTree(), id),
+    getChat: async (id) => findChatIn(await ensureTree(), id),
+    ancestors: async (folderId) => {
+      if (folderId === null) return [];
+      return ancestorsIn(await ensureTree(), folderId, []) ?? [];
+    },
+    search: async (query, limit = 25) => {
+      // The sidecar implements `chat.explorer.search`; delegate when the raw
+      // client exposes it, otherwise (IPC-shaped fakes) match the cached tree.
+      if (ipc.search) return ipc.search(query, limit);
+      return searchTree(await ensureTree(), query, limit);
+    },
+    setPersona: (id, persona) => ipc.setPersona(id, persona),
+    // Kept on the adapter so Phase 4 (transcript persistence) can reach them
+    // without another cast; nothing in Phase 1 calls them yet.
+    appendMessage: (input) => ipc.appendMessage(input),
+    listMessages: (chatId, limit) => ipc.listMessages(chatId, limit),
+    generateTitle: (chatId, firstMessage) => ipc.generateTitle(chatId, firstMessage),
+  };
+}
+
+/** The production explorer client: raw IPC wrapped in the async-safe adapter. */
+export function createIpcChatExplorerAdapter(): ExplorerAdapter {
+  return createExplorerAdapter(createIpcChatExplorerClient());
 }
 
 /**
