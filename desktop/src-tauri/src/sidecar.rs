@@ -808,10 +808,10 @@ mod tests {
     fn spawn_helper_applies_create_no_window_on_windows() {
         // DETACHED_PROCESS would break JSON-RPC pipes; CREATE_NO_WINDOW is the
         // only extra Windows flag the spawn helper is allowed to set.
-        const DETACHED_PROCESS: u32 = 0x0000_0008;
         let flags = sidecar_windows_creation_flags();
         #[cfg(windows)]
         {
+            const DETACHED_PROCESS: u32 = 0x0000_0008;
             assert_eq!(flags, Some(0x0800_0000));
             assert_eq!(flags.unwrap() & DETACHED_PROCESS, 0);
             assert_eq!(CREATE_NO_WINDOW, 0x0800_0000);
