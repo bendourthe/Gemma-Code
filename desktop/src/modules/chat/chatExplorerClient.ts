@@ -21,6 +21,9 @@ import type {
 
 /** A value that may arrive synchronously (in-memory client) or via IPC. */
 export type MaybeAsync<T> = T | Promise<T>;
+export type ExplorerResult<T, Mode extends "sync" | "async"> = Mode extends "sync"
+  ? T
+  : MaybeAsync<T>;
 
 /**
  * v2.2.3 Phase 1 (1.1) -- the async-safe explorer contract FolderTree and
@@ -30,29 +33,32 @@ export type MaybeAsync<T> = T | Promise<T>;
  * through `resolveMaybe` / `await Promise.resolve(...)` instead of assuming a
  * sync return -- assuming sync is exactly what blanked the app (P0, U7).
  */
-export interface AsyncChatExplorerClient {
-  listTree(): MaybeAsync<FolderTreeNode>;
-  createFolder(input: CreateFolderInput): MaybeAsync<Folder>;
-  renameFolder(id: string, name: string): MaybeAsync<Folder>;
-  moveFolder(id: string, newParentId: string | null): MaybeAsync<Folder>;
-  deleteFolder(id: string): MaybeAsync<void>;
-  createChat(input: CreateChatInput): MaybeAsync<Chat>;
+export interface ChatExplorerClient<Mode extends "sync" | "async"> {
+  listTree(): ExplorerResult<FolderTreeNode, Mode>;
+  createFolder(input: CreateFolderInput): ExplorerResult<Folder, Mode>;
+  renameFolder(id: string, name: string): ExplorerResult<Folder, Mode>;
+  moveFolder(id: string, newParentId: string | null): ExplorerResult<Folder, Mode>;
+  deleteFolder(id: string): ExplorerResult<void, Mode>;
+  createChat(input: CreateChatInput): ExplorerResult<Chat, Mode>;
   /** `byUser` pins the title so auto-titling can never overwrite it. */
-  renameChat(id: string, title: string, byUser?: boolean): MaybeAsync<Chat>;
-  moveChat(id: string, newFolderId: string | null): MaybeAsync<Chat>;
-  deleteChat(id: string): MaybeAsync<void>;
-  getFolder(id: string): MaybeAsync<Folder | null>;
-  getChat(id: string): MaybeAsync<Chat | null>;
-  ancestors(folderId: string | null): MaybeAsync<readonly Folder[]>;
-  search(query: string, limit?: number): MaybeAsync<readonly ChatExplorerSearchHit[]>;
+  renameChat(id: string, title: string, byUser?: boolean): ExplorerResult<Chat, Mode>;
+  moveChat(id: string, newFolderId: string | null): ExplorerResult<Chat, Mode>;
+  deleteChat(id: string): ExplorerResult<void, Mode>;
+  getFolder(id: string): ExplorerResult<Folder | null, Mode>;
+  getChat(id: string): ExplorerResult<Chat | null, Mode>;
+  ancestors(folderId: string | null): ExplorerResult<readonly Folder[], Mode>;
+  search(query: string, limit?: number): ExplorerResult<readonly ChatExplorerSearchHit[], Mode>;
   /** OPTIONAL: only the sidecar-backed adapter can title from a model. */
   generateTitle?(chatId: string, firstMessage: string): Promise<{ title: string; source: string }>;
   /** OPTIONAL: persisted per-chat persona (sidecar-backed adapter only). */
   setPersona?(id: string, persona: string | null): Promise<void>;
   /** OPTIONAL: durable transcript methods exposed by the sidecar adapter. */
-  appendMessage?(input: AppendMessageInput): MaybeAsync<ChatMessageRecord>;
-  listMessages?(chatId: string, limit?: number): MaybeAsync<readonly ChatMessageRecord[]>;
+  appendMessage?(input: AppendMessageInput): ExplorerResult<ChatMessageRecord, Mode>;
+  listMessages?(chatId: string, limit?: number): ExplorerResult<readonly ChatMessageRecord[], Mode>;
 }
+
+export type AsyncChatExplorerClient = ChatExplorerClient<"async">;
+export type SyncChatExplorerClient = ChatExplorerClient<"sync">;
 
 function isThenable<T>(value: MaybeAsync<T>): value is Promise<T> {
   return (
@@ -85,29 +91,6 @@ export function resolveMaybe<T>(
   }
 }
 
-export interface ChatExplorerClient {
-  listTree(): FolderTreeNode;
-  createFolder(input: CreateFolderInput): Folder;
-  renameFolder(id: string, name: string): Folder;
-  moveFolder(id: string, newParentId: string | null): Folder;
-  deleteFolder(id: string): void;
-  createChat(input: CreateChatInput): Chat;
-  renameChat(id: string, title: string): Chat;
-  moveChat(id: string, newFolderId: string | null): Chat;
-  deleteChat(id: string): void;
-  getFolder(id: string): Folder | null;
-  getChat(id: string): Chat | null;
-  ancestors(folderId: string | null): readonly Folder[];
-  search(query: string, limit?: number): readonly ChatExplorerSearchHit[];
-  /**
-   * Name a chat from its first prompt using a local model. OPTIONAL: only the
-   * sidecar-backed client can do this, because it needs a model. The in-memory
-   * client used in tests and outside Tauri leaves chats at their default name
-   * rather than pretending to generate one. (v2.2.0 DF-13)
-   */
-  generateTitle?(chatId: string, firstMessage: string): Promise<{ title: string; source: string }>;
-}
-
 function makeId(): string {
   // 16 random bytes hex-encoded is sufficient for in-memory uniqueness.
   // crypto.randomUUID is unavailable in some test environments, so we use a
@@ -118,7 +101,7 @@ function makeId(): string {
   return "id-" + Math.random().toString(36).slice(2, 12) + Date.now().toString(36);
 }
 
-export class InMemoryChatExplorerClient implements ChatExplorerClient {
+export class InMemoryChatExplorerClient implements SyncChatExplorerClient {
   private readonly folders = new Map<string, Folder>();
   private readonly chats = new Map<string, Chat>();
 

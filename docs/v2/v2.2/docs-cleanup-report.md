@@ -89,3 +89,39 @@ Clean. No action required.
 - Phase 6 creates one focused scheduler adapter and one prompt-enrichment module under the existing sidecar coding boundary. It creates no scratch docs, alternate Hub catalog, or duplicate workspace directory.
 
 **Verdict**: Clean for Phase 6. No move proposed.
+
+## v2.2.3 Phase 8 repository and documentation audit
+
+**Date**: 2026-08-23
+**Mode**: approved proposal, no files moved or deleted
+
+### Documentation inventory
+
+The audit input contained 393 tracked documentation files before this Phase 8 session history was added.
+
+| Category | Count | Disposition |
+|---|---:|---|
+| Category 1: Temporary or scratch | 0 | None found |
+| Category 2: Prior-version archive candidates | 242 | Retained in place; a bulk v1 archive move would create reference churn outside this patch |
+| Category 3: Cross-version or externally load-bearing | 85 | Retained; includes 45 v1 files with live external references and 40 cross-cutting docs |
+| Category 4: Current-major v2 | 66 | Retained in canonical locations |
+| Total | 393 | No move or delete approved |
+
+- No byte-identical duplicate documentation groups were found.
+- The v2.2.3 plan, known-gaps ledger, cleanup report, and phase histories already follow the canonical `docs/v2/v2.2/` layout.
+- This cleanup report remains Category 4 because it is the current-major audit record.
+
+### Project structure inventory
+
+- The audit examined 2118 tracked non-documentation files.
+- Eight byte-identical groups were found; all were intentional sentinels, packaged icon copies, or golden fixture configurations.
+- Six empty directories were found; all were generated/cache outputs, test sentinels, or build output roots and none were obsolete tracked structure.
+- The dual Chat Explorer interfaces were consolidated into one generic contract.
+- Sidebar module routes and labels now derive from the canonical module registry.
+- Exact composer structural style objects moved to one shared module; behavior-specific component markup remains separate under DF-14.
+
+### Approval and result
+
+The proposal to make the three scoped architecture changes, update the shell workflow, add the installer parity contract, and perform no file moves or deletions was approved on 2026-08-23. All references remain valid because no path changed.
+
+**Verdict**: Clean and fully triaged for Phase 8. No archive, move, or deletion is warranted in this patch.

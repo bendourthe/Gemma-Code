@@ -27,6 +27,13 @@ import { Send } from "lucide-react";
 import { AccentBeam, type AccentBeamAccentToken } from "../../components/AccentBeam";
 import { MotionSurface, composerMotionCandidates } from "../../motion";
 import { isAudioDataUrl } from "./classifyAttachment";
+import {
+  clusterIconStyle,
+  composerSurfaceStyle,
+  docChipStyle,
+  removeBtnStyle,
+  rightControlsStyle,
+} from "./composerSurfaceStyles";
 import type { MicRecorder } from "./micRecorder";
 import { createBrowserMicRecorder } from "./micRecorder";
 
@@ -502,14 +509,6 @@ function composerStyle(dragActive: boolean): CSSProperties {
  * cyan border is gone -- the wrapping AccentBeam is the only focus/streaming
  * ring, so the two no longer fight.
  */
-const composerSurfaceStyle: CSSProperties = {
-  position: "relative",
-  display: "block",
-  backgroundColor: "var(--bg-0)",
-  border: "1px solid var(--border-subtle, #2a2a2a)",
-  borderRadius: "var(--radius-lg, 12px)",
-};
-
 /**
  * Padding reserves exactly the space the in-field controls occupy, so typed
  * text can never render underneath them however long the message gets.
@@ -536,15 +535,6 @@ function inFieldTextareaStyle(audioEnabled: boolean): CSSProperties {
   };
 }
 
-const rightControlsStyle: CSSProperties = {
-  position: "absolute",
-  right: 8,
-  bottom: 6,
-  display: "flex",
-  alignItems: "center",
-  gap: "var(--space-1, 4px)",
-};
-
 const iconButtonStyle: CSSProperties = {
   height: 32,
   padding: "0 var(--space-2, 6px)",
@@ -554,19 +544,6 @@ const iconButtonStyle: CSSProperties = {
   color: "var(--fg-muted, #999)",
   cursor: "pointer",
   fontSize: "var(--text-xs)",
-};
-
-const clusterIconStyle: CSSProperties = {
-  width: 32,
-  height: 32,
-  padding: 0,
-  fontSize: "var(--text-lg)",
-  lineHeight: 1,
-  borderRadius: "var(--radius-md)",
-  border: "none",
-  background: "transparent",
-  color: "var(--fg-muted, #999)",
-  cursor: "pointer",
 };
 
 const micActiveStyle: CSSProperties = { ...iconButtonStyle, color: "var(--accent-chatbot)" };
@@ -604,36 +581,6 @@ function micMenuItemStyle(active?: boolean): CSSProperties {
   };
 }
 
-/** v1.16.0 Phase 3 -- chip for a non-image attachment (a PDF). */
-const docChipStyle: CSSProperties = {
-  width: 64,
-  height: 64,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  borderRadius: "var(--radius-sm)",
-  border: "1px solid var(--border-1)",
-  background: "var(--bg-2)",
-  color: "var(--fg-muted)",
-  fontSize: "var(--text-xs)",
-  fontWeight: 600,
-};
-
-const removeBtnStyle: CSSProperties = {
-  position: "absolute",
-  top: -6,
-  right: -6,
-  width: 18,
-  height: 18,
-  borderRadius: "50%",
-  border: "none",
-  background: "var(--bg-deep, #000)",
-  color: "var(--fg-0)",
-  cursor: "pointer",
-  fontSize: 11,
-  lineHeight: "18px",
-  padding: 0,
-};
 
 /* v2.2.3 Phase 2 (2.2): send icon is neutral fg, never a pillar hue. */
 const submitStyle: CSSProperties = {

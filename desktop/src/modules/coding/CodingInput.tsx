@@ -16,6 +16,13 @@ import { MotionSurface, composerMotionCandidates } from "../../motion";
 import { DOCUMENT_ACCEPT } from "../../shared/chat/documentAccept";
 import { fileMatchesAccept, isImageDataUrl } from "../../shared/chat/MediaComposer";
 import {
+  clusterIconStyle,
+  composerSurfaceStyle,
+  docChipStyle,
+  removeBtnStyle,
+  rightControlsStyle,
+} from "../../shared/chat/composerSurfaceStyles";
+import {
   filterSlashCommandsWithHub,
   SLASH_COMMANDS,
   type HubCommandDescriptor,
@@ -330,34 +337,12 @@ export function CodingInput({
   );
 }
 
-const docChipStyle: CSSProperties = {
-  width: 64,
-  height: 64,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  borderRadius: "var(--radius-sm)",
-  border: "1px solid var(--border-1)",
-  background: "var(--bg-2)",
-  color: "var(--fg-muted)",
-  fontSize: "var(--text-xs)",
-  fontWeight: 600,
-};
-
 /*
  * v2.2.3 Phase 2 (2.2): the beam is the only focus ring, always brand cyan;
  * the surface keeps one static hairline (no focused pink border).
  */
 const BEAM_ACCENT = "--accent-chatbot" satisfies AccentBeamAccentToken;
 const BEAM_RADIUS = "--radius-lg" as const;
-
-const composerSurfaceStyle: CSSProperties = {
-  position: "relative",
-  display: "block",
-  backgroundColor: "var(--bg-0)",
-  border: "1px solid var(--border-subtle, #2a2a2a)",
-  borderRadius: "var(--radius-lg, 12px)",
-};
 
 const inFieldTextareaStyle: CSSProperties = {
   display: "block",
@@ -378,28 +363,6 @@ const inFieldTextareaStyle: CSSProperties = {
   overflowY: "auto",
 };
 
-const rightControlsStyle: CSSProperties = {
-  position: "absolute",
-  right: 8,
-  bottom: 6,
-  display: "flex",
-  alignItems: "center",
-  gap: "var(--space-1, 4px)",
-};
-
-const clusterIconStyle: CSSProperties = {
-  width: 32,
-  height: 32,
-  padding: 0,
-  fontSize: "var(--text-lg)",
-  lineHeight: 1,
-  borderRadius: "var(--radius-md)",
-  border: "none",
-  background: "transparent",
-  color: "var(--fg-muted, #999)",
-  cursor: "pointer",
-};
-
 /* v2.2.3 Phase 2 (2.2): send icon is neutral fg, never a pillar hue. */
 const submitStyle: CSSProperties = {
   width: 32,
@@ -413,20 +376,4 @@ const submitStyle: CSSProperties = {
   border: "none",
   borderRadius: "var(--radius-md)",
   cursor: "pointer",
-};
-
-const removeBtnStyle: CSSProperties = {
-  position: "absolute",
-  top: -6,
-  right: -6,
-  width: 18,
-  height: 18,
-  borderRadius: "50%",
-  border: "none",
-  background: "var(--bg-deep, #000)",
-  color: "var(--fg-0)",
-  cursor: "pointer",
-  fontSize: 11,
-  lineHeight: "18px",
-  padding: 0,
 };

@@ -2,7 +2,7 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-23 (v2.2.3 Phase 6)
+**Last updated**: 2026-08-23 (v2.2.3 Phase 8)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
@@ -10,16 +10,16 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 
 ## v2.2.3
 
-**Last updated**: 2026-08-23 (Phase 6 - agentic workspace and Hub harness)
+**Last updated**: 2026-08-23 (Phase 8 - architecture, gaps, and CI reconciliation)
 
 ### Summary
 
 | Category | Open | Resolved |
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
-| Deferred (DF) | 11 | 0 |
-| Bugs / regressions (BG) | 0 | 17 |
-| Warnings (WN) | 1 | 0 |
+| Deferred (DF) | 11 | 1 |
+| Bugs / regressions (BG) | 0 | 18 |
+| Warnings (WN) | 2 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
@@ -38,7 +38,7 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 
 - **Source phase**: Carried into v2.2.3 Phase 1
 - **Plan reference**: `docs/v2/v2.2/plans/v2.2.3-glass-orbs-and-pillar-runtime.md` (Residual risks)
-- **Reason**: Vitest proves the async adapter and route behavior, and the debug Tauri build validates the scoped asset-protocol configuration. This cycle has not launched a packaged shell from Explorer, run a clean-VM install, or played a generated MP4 through a packaged asset URL. Packaged Chatbot first paint and packaged video playback are not proven here.
+- **Reason**: Vitest proves the async adapter and route behavior, the debug Tauri build validates the scoped asset-protocol configuration, and the Phase 8 platform contract names the Windows artifact and acceptance gap. This cycle has not launched a packaged shell from Explorer, run a clean-VM install, or played a generated MP4 through a packaged asset URL. Packaged Chatbot first paint and packaged video playback are not proven here.
 - **Suggested next step**: Launch the packaged application from Explorer on a clean Windows VM, confirm `/chatbot` renders without a console or blank pane, and play a generated MP4 from the scoped outputs directory.
 
 ##### DF-4 - Live-GPU image and video generation soaks not executed
@@ -48,19 +48,12 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 - **Reason**: Automated tests now prove that queue failures, empty image completes, empty video completes, and decode failures become written errors with no false media actions. Real SANA and LTX generation were not executed on a supported GPU, so successful bytes, runtime duration, and asset playback under live load remain unproven.
 - **Suggested next step**: Run the existing image and video generation smoke on a supported GPU and capture successful output plus packaged playback evidence.
 
-##### DF-9 - Four-pillar occupancy final acceptance is pending
-
-- **Source phase**: v2.2.3 verification addendum, reopened in Phase 1
-- **Plan reference**: `docs/v2/v2.2/plans/v2.2.3-glass-orbs-and-pillar-runtime.md` (Phase 5)
-- **Reason**: Phase 5 implementation is complete: App supplies live free VRAM, the Studio scheduler active snapshot, and one renderer-session consent set; Chat, Coding, Image, and Video classify only on submit. Four interaction tests prove a conflicting active model blocks dispatch until Switch, and policy tests prove unknown VRAM confirms. The canonical plan reserves closure for the Phase 8 whole-cycle reconciliation, so this row remains open until that gate.
-- **Suggested next step**: In Phase 8, re-run the four page gates plus no-load-on-navigation and resolve this item if the final suite remains green.
-
 ##### DF-14 - CodingInput retains a separate composer implementation
 
 - **Source phase**: Carried into v2.2.3 Phase 1
 - **Plan reference**: `docs/v2/v2.2/plans/v2.2.3-glass-orbs-and-pillar-runtime.md` (Phase 8.1)
-- **Reason**: Phase 2 aligns its chrome with MediaComposer but does not extract the duplicated surface implementation.
-- **Suggested next step**: Evaluate extraction during the Phase 8 scoped architecture audit without changing behavior.
+- **Reason**: Phase 8 extracts the byte-identical composer surface, right-control, icon-cluster, document-chip, and remove-button styles into `composerSurfaceStyles.ts`. CodingInput still owns separate markup and behavior for slash-command discovery, audio state, and coding-only controls, so replacing both components with one renderer would broaden behavior rather than remove exact duplication.
+- **Suggested next step**: Revisit a shared markup primitive only when the two composers' interaction contracts converge; keep the shared structural styles as the current deduplication boundary.
 
 ##### DF-16 - Native file dialogs remain unavailable
 
@@ -80,14 +73,14 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 
 - **Source phase**: Carried into v2.2.3 Phase 1
 - **Plan reference**: `docs/v2/v2.2/plans/v2.2.3-glass-orbs-and-pillar-runtime.md` (Phase 8.2)
-- **Reason**: No macOS `.app` or Linux AppImage was executed in this session, so native-addon resolution on those targets is not proven here.
-- **Suggested next step**: Run packaged `--healthcheck` acceptance on both operating systems and record the resolved addon path.
+- **Reason**: The Phase 8 parity contract and packaging tests show that macOS and Linux build scripts do not stage the desktop sidecar payload that Windows embeds. No macOS `.app` or Linux AppImage was executed in this session, so native-addon resolution on those targets is not proven here.
+- **Suggested next step**: Stage the desktop sidecar payload in both Unix installer builds, then run packaged `--healthcheck` acceptance on each operating system and record the resolved addon path.
 
 ##### DF-19 - CREATE_NO_WINDOW parity is N/A on macOS and Linux
 
 - **Source phase**: Carried into v2.2.3 Phase 1
 - **Plan reference**: `docs/v2/v2.2/plans/v2.2.3-glass-orbs-and-pillar-runtime.md` (Phase 8.4)
-- **Reason**: The Windows creation flag has no direct Unix counterpart. Absence of an observed terminal window on other platforms is not proven here.
+- **Reason**: The Phase 8 parity contract records the Windows creation flag as supported and macOS/Linux as not applicable. The Windows flag has no direct Unix counterpart; absence of an observed terminal window on other platforms is still not proven here.
 - **Suggested next step**: Record platform-specific packaged-launch evidence and keep the Windows-only flag classified as N/A elsewhere.
 
 ##### DF-20 - Folder color changes are not persisted through the IPC adapter
@@ -104,6 +97,13 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 - **Reason**: The sidecar chat protocol is request/response only and exposes no incremental token event channel. Phase 4 keeps the visible Composing orb until the complete reply arrives rather than simulating streaming.
 - **Suggested next step**: Add a typed incremental chat event protocol and cancellation contract in a transport-focused cycle, then replace the single terminal response without changing transcript persistence.
 
+##### DF-22 - Workspace Hub hook scripts are not executed by the desktop sidecar
+
+- **Source phase**: v2.2.3 Phase 8 reconciliation of Phase 6
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.3-glass-orbs-and-pillar-runtime.md` (Phase 6.3, Phase 8.2)
+- **Reason**: Phase 6 wires a vscode-free HookBus lifecycle inside the sidecar, but it does not discover or execute arbitrary workspace Hub hook scripts whose existing host integration depends on VS Code. Treating those scripts as active would be a false capability claim.
+- **Suggested next step**: Define a vscode-free hook discovery, permission, timeout, and result contract before enabling workspace hook scripts in desktop or scheduled sessions.
+
 #### Warnings
 
 ##### WN-1 - Pre-existing SIM117 in installer Complete test
@@ -113,7 +113,22 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 - **Reason**: Ruff reports a nested `with patch(...)` at `scripts/installer/tests/test_complete.py:13`. The line predates v2.2.3 and is outside the Phase 7 hunks; changing it would be unrelated cleanup. All Phase 7 source and newly changed test paths pass ruff, and every touched file passes `ruff format --check`.
 - **Suggested next step**: Combine the two patch contexts during a dedicated installer test-cleanup task.
 
+##### WN-2 - Desktop DOM suites emit known renderer-environment warnings
+
+- **Source phase**: v2.2.3 Phase 8 verification
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.3-glass-orbs-and-pillar-runtime.md` (Phase 8.5)
+- **Reason**: The solo desktop suite passes all 1369 tests but emits existing React `act(...)` warnings and jsdom notices for unimplemented Canvas and media methods. These warnings do not indicate failed assertions and the affected harness code is outside the Phase 8 refactor.
+- **Suggested next step**: Add targeted Canvas/media stubs and close remaining async React updates inside a dedicated desktop test-harness cleanup.
+
 ### Resolved Items
+
+#### Deferred items closed within this cycle
+
+##### DF-9 (resolved) - Four-pillar occupancy final acceptance
+
+- **Source phase**: v2.2.3 Phase 5, reconciled in Phase 8
+- **What changed**: App supplies free VRAM, the Studio scheduler snapshot, the resolved diffusion tier, and one renderer-session consent set. Chat, Coding, Image, and Video consult the same policy only when the user submits work; navigation never loads or unloads a model.
+- **Evidence**: The final occupancy acceptance passed 91 tests across the four pillar pages, model-residency policy, wiring, and no-load-on-navigation files. The solo desktop suite then passed 1369 tests across 157 files.
 
 #### Bugs found and fixed within this cycle
 
@@ -235,6 +250,13 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 - **What happened**: The pure deny parser was enforced by the VS Code ToolRegistry only. Sidecar Coding, scheduled, and ACP-style headless tools could execute a call that the workspace policy denied.
 - **Fix**: The shared sidecar tool factory now reads the active workdir's `.nexus/permissions.deny` for every invocation, rejects the first matching rule, and fails closed when the policy is malformed or unreadable.
 - **Evidence**: Sidecar tool tests prove a matching `write_file` call is rejected before mutation and a malformed policy rejects the attempted tool. Desktop lint, typecheck, web build, sidecar build, and the full desktop suite pass.
+
+##### BG-32 (resolved) - Rust and sidecar shell gates did not run on develop pushes
+
+- **Source phase**: Phase 8
+- **What happened**: `shell-build.yml` ran for main pushes and pull requests to main, so a sidecar or `src-tauri` regression could remain invisible on the integration branch until the release pull request.
+- **Fix**: Develop pushes now run the Ubuntu shell job, while main pushes and manual dispatch retain the full Windows, macOS, and Ubuntu matrix. Existing concurrency cancellation remains active.
+- **Evidence**: Workflow-discipline tests assert both push branches, the main pull-request target, and the matrix-cost condition. All 8 workflow-discipline tests and the full 5441-test root suite pass.
 
 ## v2.2.2
 

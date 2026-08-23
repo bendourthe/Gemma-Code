@@ -16,7 +16,7 @@ import { TopBar } from "../components/TopBar";
 import type { TelemetryStream } from "../components/LocalModelStatus.types";
 import { readProfileSync } from "../lib/profile";
 import { ipc } from "../lib/ipc";
-import type { ChatExplorerClient } from "../modules/chat/chatExplorerClient";
+import type { SyncChatExplorerClient } from "../modules/chat/chatExplorerClient";
 import type { MemorySearchAdapter } from "../components/TopBar";
 import type { AskInboxClient } from "./inbox/askInboxTypes";
 import { useAskInboxPendingCount } from "./inbox/useAskInboxPendingCount";
@@ -25,7 +25,7 @@ interface DashboardProps {
   telemetryStream: TelemetryStream | null;
   recentProjects?: ReadonlyArray<{ name: string; model: string; updated: string }>;
   /** Phase 4.5: search backends. Tests can inject mocks. */
-  chatClient?: ChatExplorerClient;
+  chatClient?: SyncChatExplorerClient;
   memoryAdapter?: MemorySearchAdapter;
   /** v1.18.0 Phase 4 -- parked-approval count for the chrome bell. */
   askInboxClient?: AskInboxClient;

@@ -6,10 +6,10 @@ on:
   # `modules/coding/llm/loopback.ts` + `headlessOpenAiClient.ts`, and `main.ts`
   # has long pulled `headlessOllamaClient.ts`). Without it a module-only change
   # could break `build:sidecar` with no shell build to catch it. Cost stays
-  # bounded: PRs still run ubuntu-only, and the macOS (10x) + Windows (2x) matrix
-  # is still gated to push-to-main.
+  # bounded: PRs and develop pushes run ubuntu-only, and the macOS (10x) +
+  # Windows (2x) matrix is still gated to push-to-main or manual dispatch.
   push:
-    branches: [main]
+    branches: [main, develop]
     paths:
       - "desktop/**"
       - "core/**"
@@ -34,10 +34,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Cost control: PRs run ubuntu-only (fast, platform-agnostic gate); the
-        # full macOS (10x) + Windows (2x) matrix runs on push-to-main and manual
-        # dispatch, where the release-representative build matters.
-        os: ${{ github.event_name == 'pull_request' && fromJSON('["ubuntu-latest"]') || fromJSON('["windows-latest","macos-latest","ubuntu-latest"]') }}
+        # Cost control: PRs and develop pushes run ubuntu-only (fast,
+        # platform-agnostic gate). The full macOS (10x) + Windows (2x) matrix
+        # runs on push-to-main and manual dispatch, where release-representative
+        # builds matter.
+        os: ${{ (github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main') && fromJSON('["windows-latest","macos-latest","ubuntu-latest"]') || fromJSON('["ubuntu-latest"]') }}
     runs-on: ${{ matrix.os }}
     defaults:
       run:

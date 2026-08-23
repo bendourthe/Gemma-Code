@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { Sidebar } from "../src/components/Sidebar";
+import { NAV_ENTRIES, Sidebar } from "../src/components/Sidebar";
 import { PERSISTENCE_KEYS } from "../src/lib/persistence";
+import { MODULES } from "../src/types/modules";
 
 function renderAt(path: string) {
   return render(
@@ -13,6 +14,14 @@ function renderAt(path: string) {
 }
 
 describe("Sidebar", () => {
+  it("derives module labels and routes from the canonical registry", () => {
+    for (const entry of NAV_ENTRIES) {
+      expect(entry.label).toBe(MODULES[entry.id].label);
+      expect(entry.to).toBe(MODULES[entry.id].route);
+      expect(entry).not.toHaveProperty("accentVar");
+    }
+  });
+
   it("renders all four primary module entries plus admin entries", () => {
     renderAt("/");
     expect(screen.getByTestId("nav-chatbot")).toBeInTheDocument();

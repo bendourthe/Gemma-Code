@@ -1,0 +1,44 @@
+{
+  "schema": "nexus-installer-platform-contract/v1",
+  "shared": {
+    "spec": "scripts/installer/build/nexus-installer.spec",
+    "catalog": "core/registry/recommended.json",
+    "documentDefaults": "supported",
+    "runtimeSources": "embedded",
+    "hubCatalogFallback": "network-sync",
+    "ollamaFallback": "pinned-vendor-download",
+    "nodeFallback": "provisioned-runtime-then-path"
+  },
+  "platforms": {
+    "windows": {
+      "buildScript": "scripts/installer/build/build-windows.ps1",
+      "workflow": ".github/workflows/installer-build.yml",
+      "artifact": "dist/NexusSetup.exe",
+      "desktopPayload": "embedded",
+      "taskbarTransparency": "supported",
+      "createNoWindow": "supported",
+      "targetOsAcceptance": "not-proven",
+      "gap": "DF-2"
+    },
+    "macos": {
+      "buildScript": "scripts/installer/build/build-macos.sh",
+      "workflow": ".github/workflows/installer-macos.yml",
+      "artifact": "dist/NexusSetup.dmg",
+      "desktopPayload": "not-staged",
+      "taskbarTransparency": "not-applicable",
+      "createNoWindow": "not-applicable",
+      "targetOsAcceptance": "not-proven",
+      "gap": "DF-18"
+    },
+    "linux": {
+      "buildScript": "scripts/installer/build/build-linux.sh",
+      "workflow": ".github/workflows/installer-linux.yml",
+      "artifact": "dist/NexusSetup-x86_64.AppImage",
+      "desktopPayload": "not-staged",
+      "taskbarTransparency": "not-applicable",
+      "createNoWindow": "not-applicable",
+      "targetOsAcceptance": "not-proven",
+      "gap": "DF-18"
+    }
+  }
+}

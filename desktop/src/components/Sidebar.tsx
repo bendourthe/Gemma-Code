@@ -9,7 +9,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
-import { MODULES, type ModuleId } from "../types/modules";
+import { moduleList, type ModuleId } from "../types/modules";
 import { writeActiveRoute } from "../lib/persistence";
 import type { AskInboxClient } from "../pages/inbox/askInboxTypes";
 import { useAskInboxPendingCount } from "../pages/inbox/useAskInboxPendingCount";
@@ -22,44 +22,22 @@ interface NavEntry {
   label: string;
   to: string;
   icon: typeof MessageSquare;
-  accentVar: string;
   shortcut: string;
 }
 
-const NAV_ENTRIES: readonly NavEntry[] = [
-  {
-    id: "chatbot",
-    label: MODULES.chatbot.label,
-    to: MODULES.chatbot.route,
-    icon: MessageSquare,
-    accentVar: MODULES.chatbot.accentVar,
-    shortcut: "Ctrl+1",
-  },
-  {
-    id: "coding",
-    label: MODULES.coding.label,
-    to: MODULES.coding.route,
-    icon: Code2,
-    accentVar: MODULES.coding.accentVar,
-    shortcut: "Ctrl+2",
-  },
-  {
-    id: "image",
-    label: MODULES.image.label,
-    to: MODULES.image.route,
-    icon: ImageIcon,
-    accentVar: MODULES.image.accentVar,
-    shortcut: "Ctrl+3",
-  },
-  {
-    id: "video",
-    label: MODULES.video.label,
-    to: MODULES.video.route,
-    icon: Film,
-    accentVar: MODULES.video.accentVar,
-    shortcut: "Ctrl+4",
-  },
-];
+const NAV_PRESENTATION: Record<ModuleId, Pick<NavEntry, "icon" | "shortcut">> = {
+  chatbot: { icon: MessageSquare, shortcut: "Ctrl+1" },
+  coding: { icon: Code2, shortcut: "Ctrl+2" },
+  image: { icon: ImageIcon, shortcut: "Ctrl+3" },
+  video: { icon: Film, shortcut: "Ctrl+4" },
+};
+
+const NAV_ENTRIES: readonly NavEntry[] = moduleList.map((module) => ({
+  id: module.id,
+  label: module.label,
+  to: module.route,
+  ...NAV_PRESENTATION[module.id],
+}));
 
 // v2.2.0 Phase 6 (6.3): "Ask inbox" left the nav for a bell in the footer --
 // a surface with zero pending items most of the time does not deserve a

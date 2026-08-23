@@ -4,6 +4,34 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-23] v2.2.3 Phase 8 - Architecture, gaps, and CI reconciliation
+
+### What Changed
+
+- Consolidated the synchronous and asynchronous Chat Explorer shapes into one mode-parameterized contract with named aliases.
+- Extracted only the byte-identical structural styles shared by CodingInput and MediaComposer, leaving their distinct interaction markup local.
+- Derived Sidebar routes and labels from the canonical module registry instead of maintaining a second route list.
+- Extended shell validation to `develop` pushes with an Ubuntu-only cost guard, while retaining the full OS matrix on main and manual runs.
+- Added a declarative Windows, macOS, and Linux installer parity contract plus tests that expose target-specific support and the unstaged Unix desktop payload.
+- Reconciled the v2.2.3 gap ledger, closing DF-9 and the develop-shell CI bug while retaining unproven packaged and Hub-hook behavior as named residuals.
+
+### Why It Changed
+
+The end-of-cycle audit found three small sources of structural drift and one release-gate blind spot. Installer workflows also lacked a single machine-readable statement of what each operating-system artifact actually stages, which made it easy to imply parity that had not been demonstrated.
+
+### Decisions Made
+
+- Kept CodingInput and MediaComposer as separate behavioral components because slash commands, audio controls, and media controls still differ; only exact style duplication moved.
+- Kept all existing docs and project files in place after the approved audit found no obsolete tracked files, actionable duplicate documents, or safe archive move within this patch.
+- Ran only Ubuntu shell validation on develop to catch Rust and sidecar regressions without tripling integration-branch CI cost.
+- Recorded macOS and Linux taskbar transparency and process-creation flags as not applicable, and retained their missing desktop payload as DF-18.
+
+### Impact and Context
+
+The solo desktop suite passed 1369 tests across 157 files, and the full root suite passed 5441 tests with 12 skips across 516 passing files and 3 skipped files. Installer pytest passed 1104 tests with 3 skips; Rust check, Clippy with warnings denied, and 15 Rust tests passed. Desktop web and sidecar builds, root lint and build, focused occupancy (91 tests), refactor (85 tests), packaging (32 tests), workflow-discipline (8 tests), docs-layout, and architecture gates passed; architecture retained 16 pre-existing warnings. Packaged clean-VM, live-GPU, and macOS/Linux installer execution remain not proven here.
+
+---
+
 ## [2026-08-23] v2.2.3 Phase 6 - Agentic workspace and Hub harness
 
 ### What Changed

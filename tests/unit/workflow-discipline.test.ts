@@ -54,7 +54,7 @@ describe('GitHub Actions are SHA-pinned', () => {
 });
 
 describe('Long-running workflows cancel superseded runs', () => {
-  const expectedConcurrent = ['ci.yml', 'nightly.yml', 'golden-tasks.yml'];
+  const expectedConcurrent = ['ci.yml', 'nightly.yml', 'golden-tasks.yml', 'shell-build.yml'];
 
   for (const name of expectedConcurrent) {
     it(`${name} declares concurrency: cancel-in-progress: true`, () => {
@@ -63,4 +63,19 @@ describe('Long-running workflows cancel superseded runs', () => {
       expect(text).toMatch(/cancel-in-progress:\s*true/);
     });
   }
+});
+
+describe('Shell build protects the integration branch without multiplying runner cost', () => {
+  const text = readFileSync(join(WORKFLOWS_DIR, 'shell-build.yml'), 'utf8');
+
+  it('runs for main and develop pushes plus pull requests to main', () => {
+    expect(text).toMatch(/push:\s*\n\s+branches:\s*\[main, develop\]/);
+    expect(text).toMatch(/pull_request:\s*\n\s+branches:\s*\[main\]/);
+  });
+
+  it('reserves the full OS matrix for main pushes and manual dispatch', () => {
+    expect(text).toContain("github.event_name == 'workflow_dispatch'");
+    expect(text).toContain("github.ref == 'refs/heads/main'");
+    expect(text).toContain("fromJSON('[\"ubuntu-latest\"]')");
+  });
 });
