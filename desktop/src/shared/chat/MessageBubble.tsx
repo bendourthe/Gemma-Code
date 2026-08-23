@@ -10,6 +10,19 @@ import { useEffect, useState, type CSSProperties, type KeyboardEvent as ReactKey
 import type { ChatMessage, ToolCard } from "./types";
 import { AgentStateOrb } from "../../components/agentState/AgentStateOrb";
 
+const COMPACT_MEDIA_STYLE: CSSProperties = {
+  display: "block",
+  width: "auto",
+  maxWidth: "100%",
+  maxHeight: "40vh",
+  height: "auto",
+  objectFit: "contain",
+  background: "transparent",
+  borderRadius: "var(--radius-md)",
+  marginTop: "var(--space-2)",
+  cursor: "zoom-in",
+};
+
 export interface MessageBubbleProps {
   message: ChatMessage;
   /** When false, tool-call cards are omitted from the rendered output. */
@@ -23,6 +36,8 @@ export interface MessageBubbleProps {
   onSelect?: (message: ChatMessage) => void;
   /** Lets the owning Studio clear actions and cached output after decode failure. */
   onMediaError?: (message: ChatMessage) => void;
+  /** v2.2.4 Phase 4 -- extra studio actions inside the media lightbox. */
+  renderPreviewExtra?: (message: ChatMessage) => ReactNode;
 }
 
 export function MessageBubble({
@@ -30,9 +45,19 @@ export function MessageBubble({
   enableTools = true,
   onSelect,
   onMediaError,
+  renderPreviewExtra,
 }: MessageBubbleProps): JSX.Element {
   const [mediaFailed, setMediaFailed] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   useEffect(() => setMediaFailed(false), [message.media?.src]);
+  useEffect(() => {
+    if (!previewOpen) return;
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") setPreviewOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [previewOpen]);
   const selectable = Boolean(onSelect);
   const studioPending = isStudioPending(message);
   const handleSelect = () => onSelect?.(message);
@@ -105,49 +130,48 @@ export function MessageBubble({
         <p data-testid={`message-media-error-${message.id}`} style={{ color: "var(--danger, #f87171)", margin: 0 }}>
           Generation failed: generated {message.media?.kind ?? "media"} could not be displayed.
         </p>
-      ) : message.media &&
-        (message.media.kind === "image" ? (
-          <img
-            data-testid={`message-media-${message.id}`}
-            src={message.media.src}
-            alt={message.content || "Generated image"}
-            onError={() => {
-              setMediaFailed(true);
-              onMediaError?.(message);
-            }}
-            style={{
-              display: "block",
-              width: "48rem",
-              maxWidth: "100%",
-              height: "auto",
-              minHeight: "8rem",
-              objectFit: "contain",
-              background: "var(--bg-2)",
-              borderRadius: "var(--radius-md)",
-              marginTop: "var(--space-2)",
-            }}
-          />
-        ) : (
-          <video
-            data-testid={`message-media-${message.id}`}
-            src={message.media.src}
-            controls
-            onError={() => {
-              setMediaFailed(true);
-              onMediaError?.(message);
-            }}
-            style={{
-              display: "block",
-              width: "48rem",
-              maxWidth: "100%",
-              minHeight: "8rem",
-              objectFit: "contain",
-              background: "var(--bg-2)",
-              borderRadius: "var(--radius-md)",
-              marginTop: "var(--space-2)",
-            }}
-          />
-        ))}
+      ) : message.media ? (
+        <>
+          {message.media.kind === "image" ? (
+            <img
+              data-testid={`message-media-${message.id}`}
+              src={message.media.src}
+              alt={message.content || "Generated image"}
+              onClick={(event) => {
+                event.stopPropagation();
+                setPreviewOpen(true);
+              }}
+              onError={() => {
+                setMediaFailed(true);
+                onMediaError?.(message);
+              }}
+              style={COMPACT_MEDIA_STYLE}
+            />
+          ) : (
+            <video
+              data-testid={`message-media-${message.id}`}
+              src={message.media.src}
+              controls
+              onClick={(event) => {
+                event.stopPropagation();
+                setPreviewOpen(true);
+              }}
+              onError={() => {
+                setMediaFailed(true);
+                onMediaError?.(message);
+              }}
+              style={COMPACT_MEDIA_STYLE}
+            />
+          )}
+          {previewOpen ? (
+            <MediaLightbox
+              message={message}
+              extra={renderPreviewExtra?.(message)}
+              onClose={() => setPreviewOpen(false)}
+            />
+          ) : null}
+        </>
+      ) : null}
       {enableTools && message.toolCards && message.toolCards.length > 0 && (
         <ul
           data-testid={`message-bubble-tools-${message.id}`}
@@ -212,6 +236,123 @@ function ariaRole(role: ChatMessage["role"]): string {
   return "system";
 }
 
+
+function MediaLightbox({
+  message,
+  extra,
+  onClose,
+}: {
+  message: ChatMessage;
+  extra?: ReactNode;
+  onClose: () => void;
+}): JSX.Element {
+  const media = message.media;
+  let previewNode: HTMLElement | null = null;
+  return (
+    <div
+      data-testid={`message-media-dialog-${message.id}`}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Generated media preview"
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 80,
+        background: "color-mix(in srgb, #000 72%, transparent)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "var(--space-4)",
+      }}
+    >
+      <div
+        onClick={(event) => event.stopPropagation()}
+        style={{
+          maxWidth: "min(96vw, 64rem)",
+          maxHeight: "92vh",
+          display: "flex",
+          flexDirection: "column",
+          gap: "var(--space-3)",
+          background: "var(--bg-1)",
+          borderRadius: "var(--radius-lg)",
+          padding: "var(--space-3)",
+        }}
+      >
+        {media?.kind === "image" ? (
+          <img
+            ref={(node) => {
+              previewNode = node;
+            }}
+            src={media.src}
+            alt={message.content || "Generated image"}
+            style={{ maxWidth: "90vw", maxHeight: "70vh", objectFit: "contain" }}
+          />
+        ) : media ? (
+          <video
+            ref={(node) => {
+              previewNode = node;
+            }}
+            src={media.src}
+            controls
+            autoPlay
+            style={{ maxWidth: "90vw", maxHeight: "70vh" }}
+          />
+        ) : null}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)" }}>
+          <button
+            type="button"
+            data-testid={`message-media-fullscreen-${message.id}`}
+            onClick={() => {
+              if (previewNode && typeof previewNode.requestFullscreen === "function") {
+                void previewNode.requestFullscreen();
+              }
+            }}
+          >
+            Fullscreen
+          </button>
+          <a
+            data-testid={`message-media-download-${message.id}`}
+            href={media?.src}
+            download={media?.kind === "video" ? `nexus-${message.id}.mp4` : `nexus-${message.id}.png`}
+          >
+            Download
+          </a>
+          {media?.kind === "image" ? (
+            <button
+              type="button"
+              data-testid={`message-media-copy-${message.id}`}
+              onClick={() => void copyImageSrc(media.src)}
+            >
+              Copy image
+            </button>
+          ) : null}
+          {extra}
+          <button type="button" data-testid={`message-media-close-${message.id}`} onClick={onClose}>
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+async function copyImageSrc(src: string): Promise<void> {
+  try {
+    const blob = await (await fetch(src)).blob();
+    const clipboard = typeof navigator !== "undefined" ? navigator.clipboard : undefined;
+    if (clipboard && typeof ClipboardItem !== "undefined" && typeof clipboard.write === "function") {
+      await clipboard.write([new ClipboardItem({ [blob.type || "image/png"]: blob })]);
+      return;
+    }
+    if (clipboard && typeof clipboard.writeText === "function") {
+      await clipboard.writeText(src);
+    }
+  } catch {
+    // Clipboard permission or jsdom gaps must not crash the transcript.
+  }
+}
+
 function isStudioPending(message: ChatMessage): boolean {
   return Boolean(
     message.pending &&
@@ -239,8 +380,8 @@ function bubbleStyle(message: ChatMessage, selectable = false): CSSProperties {
     };
   }
   return {
-    width: message.media ? "80%" : "fit-content",
-    maxWidth: message.media ? "48rem" : "80%",
+    width: "fit-content",
+    maxWidth: message.media ? "min(100%, 28rem)" : "80%",
     boxSizing: "border-box",
     padding: "var(--space-2) var(--space-3)",
     borderRadius: "var(--radius-lg, 12px)",

@@ -12,7 +12,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Download, FileJson, ImagePlus } from "lucide-react";
+import { Copy, Download, FileJson, ImagePlus } from "lucide-react";
 import { SidecarDownBanner } from "../../components/SidecarDownBanner";
 import { Button } from "../../components/ui";
 import {
@@ -34,6 +34,7 @@ import {
 } from "../../shared/models/ModelSwitchDialog";
 
 import { MediaComposer, MessageList, type ChatMessage } from "../../shared/chat";
+import { isUsableImageBase64 } from "../../shared/studio/usablePayload";
 import { ModelSelector } from "../../shared/chat/ModelSelector";
 import {
   SETTINGS_MODELS_PATH,
@@ -247,7 +248,7 @@ export function ImageStudioPage({
         } else if (event.kind === "complete") {
           done = true;
           const png = event.png ?? "";
-          if (!png) {
+          if (!isUsableImageBase64(png)) {
             outputs.current.delete(messageId);
             setWorkflowByMessage((prev) => {
               const next = { ...prev };
@@ -529,6 +530,20 @@ export function ImageStudioPage({
     }
   }
 
+  async function copyImage(messageId: string): Promise<void> {
+    const png = outputs.current.get(messageId);
+    if (!png) return;
+    const src = `data:image/png;base64,${png}`;
+    const adapter = clipboard ?? (typeof navigator !== "undefined" ? navigator.clipboard : null);
+    try {
+      if (adapter && typeof adapter.writeText === "function") {
+        await adapter.writeText(src);
+      }
+    } catch {
+      // best-effort
+    }
+  }
+
   function downloadImage(messageId: string): void {
     const png = outputs.current.get(messageId);
     if (!png || typeof document === "undefined") return;
@@ -639,7 +654,6 @@ export function ImageStudioPage({
                   data-testid={`image-actions-${m.id}`}
                   style={{ display: "flex", gap: "var(--space-2)", marginTop: "var(--space-1)" }}
                 >
-                  {/* v2.2.3 Phase 2 (2.3): icon-only glass actions; names on aria-label + title. */}
                   <button
                     type="button"
                     className="nx-icon-btn"
@@ -650,6 +664,22 @@ export function ImageStudioPage({
                   >
                     <Download size={16} aria-hidden="true" />
                   </button>
+                  <button
+                    type="button"
+                    className="nx-icon-btn"
+                    aria-label="Copy image"
+                    title="Copy image"
+                    data-testid={`image-copyimage-${m.id}`}
+                    onClick={() => void copyImage(m.id)}
+                  >
+                    <Copy size={16} aria-hidden="true" />
+                  </button>
+                </div>
+              ) : null
+            }
+            renderPreviewExtra={(m) =>
+              m.role === "assistant" && m.media ? (
+                <>
                   <button
                     type="button"
                     className="nx-icon-btn"
@@ -676,7 +706,7 @@ export function ImageStudioPage({
                   >
                     <ImagePlus size={16} aria-hidden="true" />
                   </button>
-                </div>
+                </>
               ) : null
             }
           />

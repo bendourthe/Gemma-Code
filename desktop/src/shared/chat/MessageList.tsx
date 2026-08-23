@@ -22,8 +22,10 @@ export interface MessageListProps {
   onSelectMessage?: (message: ChatMessage) => void;
   /** Called when generated media cannot be decoded by the browser/WebView. */
   onMediaError?: (message: ChatMessage) => void;
-  /** Optional trailing chrome (download / recall) still aligned with the bubble. */
+  /** Optional trailing chrome (download / copy image) still aligned with the bubble. */
   renderAfter?: (message: ChatMessage) => ReactNode;
+  /** v2.2.4 Phase 4 -- extra studio actions inside the media lightbox. */
+  renderPreviewExtra?: (message: ChatMessage) => ReactNode;
 }
 
 export function messageRowAlign(role: ChatMessage["role"]): "flex-end" | "flex-start" {
@@ -38,6 +40,7 @@ export function MessageList({
   onSelectMessage,
   onMediaError,
   renderAfter,
+  renderPreviewExtra,
 }: MessageListProps): JSX.Element {
   if (messages.length === 0) {
     return (
@@ -76,6 +79,7 @@ export function MessageList({
             enableTools={enableTools}
             {...(onSelectMessage ? { onSelect: onSelectMessage } : {})}
             {...(onMediaError ? { onMediaError } : {})}
+            {...(renderPreviewExtra ? { renderPreviewExtra } : {})}
           />
           {renderAfter?.(msg)}
         </li>

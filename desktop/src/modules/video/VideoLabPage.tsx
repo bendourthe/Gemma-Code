@@ -10,7 +10,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FileJson, ImagePlus } from "lucide-react";
+import { Download, FileJson, ImagePlus } from "lucide-react";
 
 import { useModelResidency } from "../../shared/models/useModelResidency";
 import {
@@ -30,6 +30,7 @@ import {
 } from "../../lib/sidecarStatus";
 
 import { MediaComposer, MessageList, chatComposerAccept, type ChatMessage } from "../../shared/chat";
+import { isUsableVideoPath } from "../../shared/studio/usablePayload";
 import { ModelSelector } from "../../shared/chat/ModelSelector";
 import {
   SETTINGS_MODELS_PATH,
@@ -291,7 +292,7 @@ export function VideoLabPage({
           });
         } else if (event.kind === "complete") {
           const mp4Path = event.mp4Path ?? "";
-          if (!mp4Path) {
+          if (!isUsableVideoPath(mp4Path)) {
             outputs.current.delete(messageId);
             chainRef.current = null;
             setPlaylists((prev) => {
@@ -586,6 +587,17 @@ export function VideoLabPage({
     [onGetMoreModels],
   );
 
+  function downloadVideo(messageId: string): void {
+    const href =
+      playlists.get(messageId)?.[0]?.src ??
+      (outputs.current.get(messageId) ? resolveMp4Url(outputs.current.get(messageId) as string) : undefined);
+    if (!href || typeof document === "undefined") return;
+    const a = document.createElement("a");
+    a.href = href;
+    a.download = `nexus-video-${messageId}.mp4`;
+    a.click();
+  }
+
   async function copyWorkflow(messageId: string): Promise<void> {
     const mp4Path = outputs.current.get(messageId);
     if (!mp4Path) return;
@@ -735,37 +747,52 @@ export function VideoLabPage({
                     data-testid={`video-actions-${m.id}`}
                     style={{ display: "flex", gap: "var(--space-2)", marginTop: "var(--space-1)" }}
                   >
-                    {/* v2.2.3 Phase 2 (2.3): icon-only glass actions; names on aria-label + title. */}
                     <button
                       type="button"
                       className="nx-icon-btn"
-                      aria-label="Copy Workflow"
-                      title="Copy Workflow"
-                      data-testid={`video-copyworkflow-${m.id}`}
-                      onClick={() => void copyWorkflow(m.id)}
+                      aria-label="Download"
+                      title="Download"
+                      data-testid={`video-download-${m.id}`}
+                      onClick={() => downloadVideo(m.id)}
                     >
-                      <FileJson size={16} aria-hidden="true" />
-                    </button>
-                    <RecallActions
-                      messageId={m.id}
-                      testIdPrefix="video"
-                      hasWorkflow={Boolean(workflowByMessage[m.id])}
-                      onRecall={(mode) => recall(m.id, mode)}
-                    />
-                    <button
-                      type="button"
-                      className="nx-icon-btn"
-                      aria-label="Use as Source"
-                      title="Use as Source"
-                      data-testid={`video-useframe-${m.id}`}
-                      onClick={() => setSeededAttachment(m.media?.src ?? null)}
-                    >
-                      <ImagePlus size={16} aria-hidden="true" />
+                      <Download size={16} aria-hidden="true" />
                     </button>
                   </div>
                 ) : null}
               </>
             )}
+            renderPreviewExtra={(m) =>
+              m.role === "assistant" && m.media ? (
+                <>
+                  <button
+                    type="button"
+                    className="nx-icon-btn"
+                    aria-label="Copy Workflow"
+                    title="Copy Workflow"
+                    data-testid={`video-copyworkflow-${m.id}`}
+                    onClick={() => void copyWorkflow(m.id)}
+                  >
+                    <FileJson size={16} aria-hidden="true" />
+                  </button>
+                  <RecallActions
+                    messageId={m.id}
+                    testIdPrefix="video"
+                    hasWorkflow={Boolean(workflowByMessage[m.id])}
+                    onRecall={(mode) => recall(m.id, mode)}
+                  />
+                  <button
+                    type="button"
+                    className="nx-icon-btn"
+                    aria-label="Use as Source"
+                    title="Use as Source"
+                    data-testid={`video-useframe-${m.id}`}
+                    onClick={() => setSeededAttachment(m.media?.src ?? null)}
+                  >
+                    <ImagePlus size={16} aria-hidden="true" />
+                  </button>
+                </>
+              ) : null
+            }
           />
         )}
       </div>

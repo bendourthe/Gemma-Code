@@ -2,7 +2,7 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-23 (v2.2.4 Phase 3)
+**Last updated**: 2026-08-23 (v2.2.4 Phase 4)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
@@ -10,7 +10,7 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 
 ## v2.2.4
 
-**Last updated**: 2026-08-23 (Phase 3 - Chatbot and Agents honesty)
+**Last updated**: 2026-08-23 (Phase 4 - Compact studio media)
 
 ### Summary
 
@@ -18,14 +18,26 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
 | Deferred (DF) | 10 | 1 |
-| Bugs / regressions (BG) | 0 | 6 |
+| Bugs / regressions (BG) | 0 | 8 |
 | Warnings (WN) | 2 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-Open deferred items remain those carried from v2.2.3 (DF-1, DF-2, DF-4, DF-14, DF-16, DF-18 through DF-22). DF-17 is resolved in Phase 2. Screenshot 6 (Hi with no user bubble) is closed in Phase 3.
+Open deferred items remain those carried from v2.2.3 (DF-1, DF-2, DF-4, DF-14, DF-16, DF-18 through DF-22). DF-17 is resolved in Phase 2. Screenshot 6 is closed in Phase 3. Screenshots 7 and 8 (empty studio rectangle and unexplained icons) are closed in Phase 4.
 
 ### Resolved this phase
+
+##### BG-39 - Generated media used a 48rem min-height slab
+
+- **Source phase**: v2.2.4 Phase 4
+- **Resolution**: Inline media is max-height 40vh with no min-height slab. Click opens a lightbox with fullscreen, download, and copy image. In-chat actions are download and copy image; recall lives in the dialog.
+- **Evidence**: `desktop/tests/mediaMessageBubble.test.tsx`, `desktop/tests/ImageStudioPage.test.tsx`, `desktop/tests/VideoLabPage.test.tsx`.
+
+##### BG-40 - Empty studio completes painted a grey rectangle
+
+- **Source phase**: v2.2.4 Phase 4
+- **Resolution**: `isUsableImageBase64` / `isUsableVideoPath` reject empty, whitespace, invalid base64, and 1x1 PNG before media is patched. The assistant row is error text.
+- **Evidence**: `desktop/tests/usablePayload.test.ts`, `desktop/tests/ImageStudioPage.test.tsx`.
 
 ##### BG-36 - Hi produced a not-installed banner with no user bubble
 

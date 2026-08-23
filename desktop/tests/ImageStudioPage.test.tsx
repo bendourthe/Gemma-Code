@@ -143,6 +143,7 @@ describe("ImageStudioPage (chat)", () => {
       await Promise.resolve();
     });
     await waitFor(() => expect(screen.getByAltText("Generated image")).toBeInTheDocument());
+    fireEvent.click(screen.getByAltText("Generated image"));
     const copyBtn = container.querySelector('[data-testid^="image-copyworkflow-"]') as HTMLButtonElement;
     await act(async () => {
       fireEvent.click(copyBtn);
@@ -243,6 +244,7 @@ describe("ImageStudioPage (chat)", () => {
       vi.advanceTimersByTime(40);
       await Promise.resolve();
     });
+    fireEvent.click(await screen.findByAltText("Generated image"));
     const usePrompt = await screen.findByLabelText("Use Prompt");
     fireEvent.click(screen.getByTestId("image-advanced-settings"));
     await act(async () => {
@@ -382,5 +384,20 @@ describe("ImageStudioPage (chat)", () => {
     });
     await waitFor(() => expect(client.lastRequest?.mode).toBe("inpaint"));
     expect((client.lastRequest?.request as { mask: string }).mask).toBe("mask-a");
+  });
+
+  it("turns a complete event with whitespace-only png into a written failure", async () => {
+    const client = new InMemoryDiffusionClient();
+    render(<ImageStudioPage client={client} modelsClient={imageModels()} drainIntervalMs={20} />);
+    client.scriptEvents("mem-job-1", [{ kind: "complete", jobId: "mem-job-1", png: "   " }]);
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "fox" } });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+      vi.advanceTimersByTime(40);
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(screen.getByText(/Generation failed/)).toBeInTheDocument());
+    expect(screen.queryByTestId(/^image-download-/)).toBeNull();
+    expect(screen.queryByTestId(/^message-media-/)).toBeNull();
   });
 });

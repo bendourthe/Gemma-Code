@@ -35,12 +35,12 @@ describe("MessageBubble media", () => {
     );
     expect(screen.getByTestId("message-media-a1")).toHaveStyle({
       display: "block",
-      minHeight: "8rem",
+      maxHeight: "40vh",
       objectFit: "contain",
     });
+    expect(screen.getByTestId("message-media-a1").getAttribute("style") ?? "").not.toMatch(/min-height:\s*8rem/);
     expect(screen.getByTestId("message-bubble-a1")).toHaveStyle({
-      width: "80%",
-      maxWidth: "48rem",
+      width: "fit-content",
     });
   });
 
@@ -97,5 +97,19 @@ describe("MessageBubble media", () => {
     expect(screen.queryByTestId("message-media-t1")).toBeNull();
     expect(screen.queryByTestId("message-pending-t1")).toBeNull();
     expect(screen.getByTestId("message-bubble-t1")).toHaveStyle({ width: "fit-content" });
+  });
+
+  it("opens a preview dialog from compact media and closes it", () => {
+    const msg: ChatMessage = {
+      id: "preview-1",
+      role: "assistant",
+      content: "",
+      media: { kind: "image", src: "data:image/png;base64,BBB" },
+    };
+    render(<MessageBubble message={msg} />);
+    fireEvent.click(screen.getByTestId("message-media-preview-1"));
+    expect(screen.getByTestId("message-media-dialog-preview-1")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("message-media-close-preview-1"));
+    expect(screen.queryByTestId("message-media-dialog-preview-1")).toBeNull();
   });
 });

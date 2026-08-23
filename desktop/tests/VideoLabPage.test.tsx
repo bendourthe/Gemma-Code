@@ -172,6 +172,8 @@ describe("VideoLabPage (chat)", () => {
       vi.advanceTimersByTime(40);
       await Promise.resolve();
     });
+    await waitFor(() => expect(screen.getByTestId(/^message-media-/)).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId(/^message-media-/));
     await waitFor(() =>
       expect(container.querySelector('[data-testid^="video-copyworkflow-"]')).not.toBeNull(),
     );
