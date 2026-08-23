@@ -463,7 +463,7 @@ export function VideoLabPage({
           resident: residentModelsFromScheduler(activeSchedulerJob),
           freeVramGB: hostVramFreeGB,
           activeJob: busyContextFromScheduler(activeSchedulerJob),
-          installed: Boolean(selected?.installed ?? true),
+          installed: Boolean(selected?.installed),
         });
         if (verdict.kind === "confirm") {
           pendingPromptRef.current = { text, attachments };

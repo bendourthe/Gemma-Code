@@ -296,7 +296,7 @@ export function CodingPage({
           resident: residentModelsFromScheduler(activeSchedulerJob),
           freeVramGB: hostVramFreeGB,
           activeJob: busyContextFromScheduler(activeSchedulerJob),
-          installed: Boolean(selectedModel?.installed ?? true),
+          installed: Boolean(selectedModel?.installed),
         });
         if (verdict.kind === "confirm") {
           pendingPromptRef.current = { text, attachments };

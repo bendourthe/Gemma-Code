@@ -124,6 +124,7 @@ describe("Sidebar", () => {
     const nav = screen.getByTestId("sidebar-module-nav");
     const toggle = screen.getByTestId("sidebar-collapse-toggle");
     expect(aside.firstElementChild).toBe(nav);
+    expect((aside as HTMLElement).style.padding.startsWith("0 ")).toBe(true);
     expect(toggle.className).toContain("nexus-sidebar-collapse-pill");
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
   });

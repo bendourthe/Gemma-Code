@@ -142,7 +142,7 @@ export function Sidebar({
         transition: "width 120ms ease",
         display: "flex",
         flexDirection: "column",
-        padding: compact ? "var(--space-2)" : "var(--space-3) var(--space-4)",
+        padding: compact ? "0 var(--space-2) var(--space-2)" : "0 var(--space-4) var(--space-3)",
         gap: "var(--space-2)",
       }}
     >
