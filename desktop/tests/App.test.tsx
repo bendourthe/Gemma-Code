@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { App } from "../src/App";
 import { StyleguidePage } from "../src/pages/Styleguide";
@@ -13,6 +13,15 @@ describe("App shell", () => {
     );
     expect(screen.getByTestId("sidebar")).toBeInTheDocument();
     expect(screen.getByTestId("dashboard")).toBeInTheDocument();
+  });
+
+  it("dismisses the ready overlay outside Tauri (ipc-unavailable is not a hang)", async () => {
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <App telemetryStream={null} />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.queryByTestId("ready-overlay")).toBeNull());
   });
 
   it("renders the Coding module at /coding (Phase 3)", () => {

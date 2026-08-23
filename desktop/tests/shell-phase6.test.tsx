@@ -11,7 +11,7 @@ import * as path from "node:path";
 
 import { describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { Sidebar } from "../src/components/Sidebar";
@@ -50,10 +50,11 @@ function renderSidebar(props: Parameters<typeof Sidebar>[0] = {}) {
 }
 
 describe("sidebar compact mode", () => {
-  it("starts expanded on a wide window", () => {
+  it("starts compact on a wide window", () => {
     localStorage.clear();
     renderSidebar({ initialWidth: 1600 });
-    expect(screen.getByTestId("nav-chatbot").textContent).toContain("Local Chatbot");
+    expect(screen.getByTestId("nav-chatbot").textContent).toBe("");
+    expect(screen.getByTestId("nav-chatbot").getAttribute("aria-label")).toBe("Local Chatbot");
   });
 
   it("auto-compacts on a narrow window without a stored preference", () => {
@@ -77,8 +78,8 @@ describe("sidebar compact mode", () => {
     const user = userEvent.setup();
     renderSidebar({ initialWidth: 1600 });
     await user.click(screen.getByTestId("sidebar-collapse-toggle"));
-    expect(localStorage.getItem("nexus.sidebar.compact")).toBe("true");
-    expect(screen.getByTestId("nav-chatbot").textContent).toBe("");
+    expect(localStorage.getItem("nexus.sidebar.compact")).toBe("false");
+    expect(screen.getByTestId("nav-chatbot").textContent).toContain("Local Chatbot");
     localStorage.clear();
   });
 
@@ -98,6 +99,7 @@ describe("brand is not duplicated", () => {
     const { container } = renderSidebar({ initialWidth: 1600 });
     expect(screen.queryByTestId("sidebar-brand")).toBeNull();
     expect(container.textContent).not.toContain("AI Studio");
+    expect(screen.queryByTestId("nav-admin-profile")).toBeNull();
   });
 });
 
@@ -201,6 +203,43 @@ describe("approvals bell", () => {
     expect(await screen.findByTestId("approvals-bell-error")).toBeTruthy();
     // Crucially NOT the "nothing waiting" message.
     expect(screen.queryByTestId("approvals-bell-empty")).toBeNull();
+  });
+
+  it("closes from the X control even when the sidecar is down", async () => {
+    const failing = {
+      list: vi.fn(async () => {
+        throw new Error("The pipe is being closed. (os error 232)");
+      }),
+      approve: vi.fn(),
+      deny: vi.fn(),
+      pendingCount: vi.fn(async () => 0),
+      listSchedules: vi.fn(async () => []),
+      setScheduleEnabled: vi.fn(),
+    } as never;
+    const user = userEvent.setup();
+    render(<ApprovalsBell pendingCount={0} compact={false} client={failing} />);
+    await user.click(screen.getByTestId("approvals-bell"));
+    expect(await screen.findByTestId("approvals-bell-error")).toBeTruthy();
+    await user.click(screen.getByTestId("approvals-bell-close"));
+    expect(screen.queryByTestId("approvals-bell-popover")).toBeNull();
+  });
+
+  it("closes on Escape", async () => {
+    const user = userEvent.setup();
+    render(<ApprovalsBell pendingCount={0} compact={false} client={client} />);
+    await user.click(screen.getByTestId("approvals-bell"));
+    expect(await screen.findByTestId("approvals-bell-popover")).toBeTruthy();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByTestId("approvals-bell-popover")).toBeNull();
+  });
+
+  it("closes on pointerdown outside the dialog and the bell", async () => {
+    const user = userEvent.setup();
+    render(<ApprovalsBell pendingCount={0} compact={false} client={client} />);
+    await user.click(screen.getByTestId("approvals-bell"));
+    expect(await screen.findByTestId("approvals-bell-popover")).toBeTruthy();
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByTestId("approvals-bell-popover")).toBeNull();
   });
 });
 

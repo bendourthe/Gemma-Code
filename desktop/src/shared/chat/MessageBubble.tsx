@@ -1,12 +1,12 @@
 /**
  * v1.0.0 Phase 4.4 -- shared message bubble.
  *
- * Renders a single chat message with a role-coloured bubble + optional
- * tool-call cards. Tool cards are an opt-in prop because the Chat module
- * disables tool-call UI by default (see `<MessageList enableTools>`).
+ * v2.2.2: user right / assistant left is owned by MessageList. The bubble
+ * itself is fit-content, max 80% of the transcript pane, with no You /
+ * Assistant labels on normal turns. Tool cards keep their name.
  */
 
-import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from "react";
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 import type { ChatMessage, ToolCard } from "./types";
 import { AgentStateOrb } from "../../components/agentState/AgentStateOrb";
 
@@ -30,6 +30,7 @@ export function MessageBubble({
 }: MessageBubbleProps): JSX.Element {
   const selectable = Boolean(onSelect);
   const handleSelect = () => onSelect?.(message);
+  const caption = captionFor(message);
   return (
     <article
       data-testid={`message-bubble-${message.id}`}
@@ -38,7 +39,7 @@ export function MessageBubble({
         ? {
             role: "button",
             tabIndex: 0,
-            "aria-label": `Preview ${labelForRole(message.role)} message`,
+            "aria-label": `Preview ${ariaRole(message.role)} message`,
             onClick: handleSelect,
             onKeyDown: (e: ReactKeyboardEvent) => {
               if (e.key === "Enter" || e.key === " ") {
@@ -50,14 +51,7 @@ export function MessageBubble({
         : {})}
       style={bubbleStyle(message.role, selectable)}
     >
-      <header style={{ marginBottom: "var(--space-1)", color: "var(--fg-muted)", fontSize: "var(--text-xs)" }}>
-        {labelForRole(message.role)}
-        {message.origin === "stt_transcript" ? (
-          <span data-testid={`message-origin-${message.id}`} style={{ marginLeft: "var(--space-2)" }}>
-            origin:stt_transcript
-          </span>
-        ) : null}
-      </header>
+      {caption}
       {message.content && <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{message.content}</p>}
       {message.attachments && message.attachments.length > 0 && (
         <div
@@ -146,18 +140,45 @@ function ToolCardView({ card }: { card: ToolCard }): JSX.Element {
   );
 }
 
-function labelForRole(role: ChatMessage["role"]): string {
-  if (role === "user") return "You";
-  if (role === "assistant") return "Assistant";
-  return "System";
+function captionFor(message: ChatMessage): ReactNode {
+  if (message.role === "system") {
+    return (
+      <header style={{ marginBottom: "var(--space-1)", color: "var(--fg-muted)", fontSize: "var(--text-xs)" }}>
+        System
+      </header>
+    );
+  }
+  if (message.origin === "stt_transcript") {
+    return (
+      <span data-testid={`message-origin-${message.id}`} style={{ color: "var(--fg-muted)", fontSize: "var(--text-xs)" }}>
+        origin:stt_transcript
+      </span>
+    );
+  }
+  return null;
+}
+
+function ariaRole(role: ChatMessage["role"]): string {
+  if (role === "user") return "your";
+  if (role === "assistant") return "assistant";
+  return "system";
 }
 
 function bubbleStyle(role: ChatMessage["role"], selectable = false): CSSProperties {
+  const user = role === "user";
+  const system = role === "system";
   return {
+    width: "fit-content",
+    maxWidth: "80%",
+    boxSizing: "border-box",
     padding: "var(--space-2) var(--space-3)",
-    borderRadius: "var(--radius-md)",
-    border: "1px solid var(--border-1)",
-    backgroundColor: role === "user" ? "transparent" : "var(--bg-1)",
+    borderRadius: "var(--radius-lg, 12px)",
+    border: `1px solid ${user ? "var(--border-subtle, #2a2a2a)" : "var(--border-1)"}`,
+    backgroundColor: system
+      ? "transparent"
+      : user
+        ? "color-mix(in srgb, var(--bg-2, #2a2a2a) 70%, transparent)"
+        : "color-mix(in srgb, var(--bg-1, #1b1b1b) 85%, transparent)",
     color: "var(--fg-0)",
     ...(selectable ? { cursor: "pointer" } : {}),
   };

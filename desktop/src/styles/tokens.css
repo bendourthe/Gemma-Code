@@ -187,3 +187,17 @@ body {
 * {
   box-sizing: border-box;
 }
+
+/* v2.2.1: shared focus ring for Select / SearchInput / TextField / Button. */
+.nx-control:focus {
+  outline: none;
+}
+.nx-control:focus-visible {
+  outline: 2px solid var(--accent-chatbot);
+  outline-offset: 2px;
+}
+.nx-control:disabled,
+.nx-control[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

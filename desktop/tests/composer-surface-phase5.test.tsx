@@ -23,12 +23,12 @@ describe("composer structure", () => {
     expect(surface.contains(screen.getByTestId("media-composer-submit"))).toBe(true);
   });
 
-  it("reserves padding so text cannot slide under the controls", () => {
+  it("reserves padding so text cannot slide under the right-cluster controls", () => {
     render(<MediaComposer onSubmit={() => undefined} />);
     const textarea = screen.getByTestId("media-composer-textarea") as HTMLTextAreaElement;
-    // Left padding clears the + button; right padding clears send.
-    expect(parseInt(textarea.style.paddingLeft, 10)).toBeGreaterThanOrEqual(40);
-    expect(parseInt(textarea.style.paddingRight, 10)).toBeGreaterThanOrEqual(100);
+    // + and send sit together on the right; left padding is the field inset.
+    expect(textarea.style.paddingLeft).toBe("var(--space-3, 8px)");
+    expect(parseInt(textarea.style.paddingRight, 10)).toBeGreaterThanOrEqual(72);
   });
 
   it("reserves more right padding when the mic controls are present", () => {

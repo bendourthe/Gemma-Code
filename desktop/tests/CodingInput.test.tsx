@@ -68,22 +68,32 @@ describe("CodingInput", () => {
     expect(screen.getByTestId("coding-input-submit")).toBeDisabled();
   });
 
-  it("on focus keeps the beam paused so metal wins; streaming plays a traveling beam", async () => {
+  it("on focus plays the surface beam; streaming plays a traveling beam", async () => {
     const { rerender } = render(<CodingInput onSubmit={vi.fn()} />);
     const beam = screen.getByTestId("coding-composer-beam");
     expect(beam).toHaveAttribute("data-beam-playing", "false");
     await userEvent.click(screen.getByTestId("coding-input-textarea"));
-    expect(beam).toHaveAttribute("data-beam-playing", "false");
-    expect(screen.getByTestId("coding-input-submit-metal")).toBeInTheDocument();
+    expect(beam).toHaveAttribute("data-beam-playing", "true");
+    expect(screen.queryByTestId("coding-input-submit-metal")).toBeNull();
     rerender(<CodingInput onSubmit={vi.fn()} streaming />);
     expect(screen.getByTestId("coding-composer-beam")).toHaveAttribute("data-beam-mode", "traveling");
     expect(screen.getByTestId("coding-composer-beam")).toHaveAttribute("data-beam-playing", "true");
   });
 
-  it("wraps Send in metal and leaves slash suggestions without it", async () => {
+  it("groups + and icon send inside the surface with no Send caption", async () => {
     render(<CodingInput onSubmit={vi.fn()} />);
+    const surface = screen.getByTestId("coding-input-surface");
     const send = screen.getByTestId("coding-input-submit");
-    expect(send.closest("[data-testid='coding-input-submit-metal']")).not.toBeNull();
+    expect(surface.contains(screen.getByTestId("coding-input-add"))).toBe(true);
+    expect(surface.contains(send)).toBe(true);
+    expect(send).toHaveAttribute("aria-label", "Send");
+    expect(send.querySelector("svg")).not.toBeNull();
+    const caption = Array.from(send.childNodes)
+      .filter((n) => n.nodeType === Node.TEXT_NODE)
+      .map((n) => n.textContent?.trim())
+      .join("");
+    expect(caption).toBe("");
+    expect(send.closest("[data-testid='coding-input-submit-metal']")).toBeNull();
     await userEvent.type(screen.getByTestId("coding-input-textarea"), "/pl");
     expect(screen.getByTestId("slash-plan").closest("[data-testid$='-metal']")).toBeNull();
   });

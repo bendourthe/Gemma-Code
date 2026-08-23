@@ -489,6 +489,32 @@ def _parse_healthcheck_verdict(stdout: str) -> dict | None:
     return None
 
 
+def _format_healthcheck_failure(verdict: dict, sidecar: str) -> str:
+    """One readable reason for the Complete page.
+
+    v2.2.1: never join the last three stderr fragments with ``" / "``. That
+    produced ``[ / / Nodejs v22.11.0]`` when the real stack sat earlier in
+    the tail and the last lines were blanks plus a Node version banner.
+    """
+    parts = [sidecar]
+    exit_code = verdict.get("exitCode")
+    if exit_code is not None:
+        parts.append(f"exitCode={exit_code}")
+    node = verdict.get("nodePath")
+    if node:
+        parts.append(f"node={node}")
+    script = verdict.get("scriptPath")
+    if script:
+        parts.append(f"script={script}")
+    stderr_tail = verdict.get("stderrTail")
+    if isinstance(stderr_tail, list):
+        lines = [str(s).strip() for s in stderr_tail if str(s).strip()]
+        if lines:
+            preview = lines[-8:]
+            parts.append("stderr: " + " | ".join(preview))
+    return "; ".join(parts)
+
+
 def first_run_health_check(
     state: InstallerState,
     log: Callable[[str, str], None],
@@ -567,10 +593,7 @@ def first_run_health_check(
                     "warn",
                 )
             return True
-        detail = sidecar
-        stderr_tail = verdict.get("stderrTail")
-        if isinstance(stderr_tail, list) and stderr_tail:
-            detail += " | stderr: " + " / ".join(str(s) for s in stderr_tail[-3:])
+        detail = _format_healthcheck_failure(verdict, sidecar)
         log(f"Desktop health check FAILED: {detail}", "error")
         log(
             "The app installed but its backend cannot start; the UI would "

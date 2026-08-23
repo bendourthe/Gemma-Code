@@ -39,5 +39,6 @@ The step returns failure only when no usable Node exists (the sidecar cannot run
 ## Related diagnostics
 
 - `sidecar_status` / `sidecar_restart` Tauri commands: spawn outcome, node source, stderr tail (50-line ring buffer), single-flight restart.
+- Windows sidecar spawn (`desktop/src-tauri/src/sidecar.rs` `sidecar_command`) sets `CREATE_NO_WINDOW` (`0x08000000`) so console-subsystem `node.exe` does not allocate a console. `DETACHED_PROCESS` is not set (it would break piped JSON-RPC stdin/stdout). The flag is Windows-only; macOS and Linux have no extra console window to hide.
 - `Nexus AI Studio.exe --healthcheck`: headless verdict `{sidecar, catalogRows, catalogStatus, hubCatalog}` on stdout, nonzero exit on sidecar failure; consumed by the installer's `first_run_health_check`.
 - `models.list` replies now include `catalogStatus: "ok" | "catalog-load-failed: <reason>"`.

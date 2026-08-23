@@ -493,6 +493,42 @@ class TestFirstRunHealthCheck:
         assert state.desktop_health_ok is False
         proc.kill.assert_called_once()
 
+    def test_dead_child_verdict_names_the_exception_not_slash_joined_blanks(self) -> None:
+        proc = MagicMock()
+        proc.communicate.return_value = (
+            '{"sidecar":"fail: sidecar-exited:7","exitCode":7,'
+            '"nodePath":"C:/Nexus/runtime/node/node.exe",'
+            '"scriptPath":"C:/apps/sidecar/dist/main.js","catalogRows":0,'
+            '"stderrTail":["","", "Nodejs v22.11.0",'
+            '"Cannot find module \'better-sqlite3\'"]}\n',
+            None,
+        )
+        proc.returncode = 1
+        state = self._check(proc)
+        assert state.desktop_health_ok is False
+        assert "better-sqlite3" in state.desktop_health_detail
+        assert "exitCode=7" in state.desktop_health_detail
+        assert " / " not in state.desktop_health_detail
+        assert "[ / /" not in state.desktop_health_detail
+
+    def test_format_skips_blank_stderr_fragments(self) -> None:
+        from nexus_installer.engine.desktop_provisioner import (
+            _format_healthcheck_failure,
+        )
+
+        detail = _format_healthcheck_failure(
+            {
+                "exitCode": 1,
+                "nodePath": "C:/node.exe",
+                "scriptPath": "C:/main.js",
+                "stderrTail": ["", "  ", "Nodejs v22.11.0"],
+            },
+            "fail: sidecar-exited:1",
+        )
+        assert "Nodejs v22.11.0" in detail
+        assert " / " not in detail
+        assert "[ / /" not in detail
+
     def test_spawn_failure_fails(self) -> None:
         state = InstallerState(desktop_exe_path="/apps/nexus")
         with (

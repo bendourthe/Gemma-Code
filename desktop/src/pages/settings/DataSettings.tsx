@@ -11,7 +11,7 @@
 
 import { useState } from "react";
 
-import { SearchInput, Switch } from "../../components/ui/Select";
+import { Button, SearchInput, Switch } from "../../components/ui";
 import { createDataTransferClient, defaultExportPath } from "./dataTransferClient";
 
 export interface TransferCategoryDto {
@@ -144,7 +144,12 @@ export function DataSettings({ client, categories }: DataSettingsProps): JSX.Ele
   return (
     <section
       data-testid="settings-data"
-      style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: "var(--space-4)",
+        padding: "var(--space-6, 24px)",
+      }}
     >
       <header>
         <h1 style={{ margin: 0 }}>Data</h1>
@@ -206,14 +211,15 @@ export function DataSettings({ client, categories }: DataSettingsProps): JSX.Ele
       </label>
 
       <div style={{ display: "flex", gap: "var(--space-2)" }}>
-        <button
+        <Button
           type="button"
-          data-testid="data-export"
+          testId="data-export"
           disabled={busy || selected.size === 0}
           onClick={() => void runExport()}
+          busy={busy}
         >
           {busy ? "Exporting..." : "Export selected"}
-        </button>
+        </Button>
       </div>
 
       <hr style={{ border: 0, borderTop: "1px solid var(--border-subtle)", width: "100%" }} />
@@ -232,22 +238,22 @@ export function DataSettings({ client, categories }: DataSettingsProps): JSX.Ele
           placeholder="Path to a nexus-export archive"
         />
         <div style={{ display: "flex", gap: "var(--space-2)" }}>
-          <button
+          <Button
             type="button"
-            data-testid="data-import-preview"
+            testId="data-import-preview"
             disabled={busy}
             onClick={() => void runImport(false)}
           >
             Preview
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            data-testid="data-import-apply"
+            testId="data-import-apply"
             disabled={busy}
             onClick={() => void runImport(true)}
           >
             Import
-          </button>
+          </Button>
         </div>
       </div>
 

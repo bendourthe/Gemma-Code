@@ -11,6 +11,7 @@
  */
 
 import { useCallback, useState } from "react";
+import { Button, TextField } from "../../components/ui";
 
 export interface OptimizerProposalDto {
   readonly id: string;
@@ -78,22 +79,23 @@ export function SkillOptimizerSettings({ client }: { client: SkillOptimizerClien
         until you approve an individual edit.
       </p>
       <div style={{ display: "flex", gap: "var(--space-2, 8px)", alignItems: "center" }}>
-        <input
-          data-testid="skill-optimizer-skill-id"
-          aria-label="Skill id"
+        <TextField
+          testId="skill-optimizer-skill-id"
+          label="Skill id"
           placeholder="e.g. nexus-hub/code-quality"
           value={skillId}
-          onChange={(e) => setSkillId(e.target.value)}
+          onChange={setSkillId}
           style={{ flex: 1 }}
         />
-        <button
+        <Button
           type="button"
-          data-testid="skill-optimizer-preview"
+          testId="skill-optimizer-preview"
           onClick={() => void runPreview()}
           disabled={status.kind === "previewing" || skillId.trim().length === 0}
+          busy={status.kind === "previewing"}
         >
           {status.kind === "previewing" ? "Previewing..." : "Preview"}
-        </button>
+        </Button>
       </div>
 
       {status.kind === "error" ? (
@@ -115,14 +117,14 @@ export function SkillOptimizerSettings({ client }: { client: SkillOptimizerClien
                 {p.skillPath}
               </div>
               <pre style={diffStyle}>{p.diff}</pre>
-              <button
+              <Button
                 type="button"
-                data-testid={`skill-optimizer-approve-${p.id}`}
+                testId={`skill-optimizer-approve-${p.id}`}
                 onClick={() => void approve(p.id)}
                 disabled={isApplied}
               >
                 {isApplied ? "Written" : "Approve & write"}
-              </button>
+              </Button>
             </li>
           );
         })}

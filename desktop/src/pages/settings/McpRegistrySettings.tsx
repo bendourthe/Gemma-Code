@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { Button, Switch, TextField } from "../../components/ui";
 import type { McpRegistryClient, McpRegistryServerDto } from "./mcpTypes";
 
 export interface McpRegistrySettingsProps {
@@ -94,24 +95,23 @@ export function McpRegistrySettings({ client }: McpRegistrySettingsProps): JSX.E
                 </p>
               ) : null}
               {server.tools.map((tool) => (
-                <label
+                <Switch
                   key={tool.name}
-                  style={{ display: "flex", gap: "var(--space-2, 8px)", alignItems: "center" }}
-                >
-                  <input
-                    type="checkbox"
-                    data-testid={`mcp-tool-${server.name}-${tool.name}`}
-                    checked={tool.exposed}
-                    disabled={!tool.toggleable || pending === `${server.name}/${tool.name}`}
-                    onChange={(e) => {
-                      void toggle(server.name, tool.name, !e.target.checked);
-                    }}
-                  />
-                  <span>{tool.name}</span>
-                  <span style={{ color: "var(--fg-muted)", fontSize: "var(--text-xs, 0.75rem)" }}>
-                    {tool.reason}
-                  </span>
-                </label>
+                  testId={`mcp-tool-${server.name}-${tool.name}`}
+                  checked={tool.exposed}
+                  disabled={!tool.toggleable || pending === `${server.name}/${tool.name}`}
+                  onChange={(checked) => {
+                    void toggle(server.name, tool.name, !checked);
+                  }}
+                  label={
+                    <>
+                      <span>{tool.name}</span>
+                      <span style={{ color: "var(--fg-muted)", fontSize: "var(--text-xs, 0.75rem)", marginLeft: "var(--space-2)" }}>
+                        {tool.reason}
+                      </span>
+                    </>
+                  }
+                />
               ))}
               {server.policyVerdict === "allow" ? (
                 <form
@@ -124,25 +124,18 @@ export function McpRegistrySettings({ client }: McpRegistrySettingsProps): JSX.E
                     setNewDeny((prev) => ({ ...prev, [server.name]: "" }));
                   }}
                 >
-                  <input
-                    data-testid={`mcp-deny-input-${server.name}`}
+                  <TextField
+                    testId={`mcp-deny-input-${server.name}`}
                     value={newDeny[server.name] ?? ""}
-                    onChange={(e) =>
-                      setNewDeny((prev) => ({ ...prev, [server.name]: e.target.value }))
+                    onChange={(value) =>
+                      setNewDeny((prev) => ({ ...prev, [server.name]: value }))
                     }
                     placeholder="Tool name to disable"
-                    style={{
-                      flex: 1,
-                      background: "var(--bg-1)",
-                      color: "var(--fg-0)",
-                      border: "1px solid var(--border-1)",
-                      borderRadius: "var(--radius-md)",
-                      padding: "var(--space-1) var(--space-2)",
-                    }}
+                    style={{ flex: 1 }}
                   />
-                  <button type="submit" data-testid={`mcp-deny-add-${server.name}`}>
+                  <Button type="submit" testId={`mcp-deny-add-${server.name}`}>
                     Disable
-                  </button>
+                  </Button>
                 </form>
               ) : null}
             </li>

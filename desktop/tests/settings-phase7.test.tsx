@@ -62,6 +62,11 @@ describe("styled controls replace the OS-chrome ones", () => {
 });
 
 describe("Settings > Data", () => {
+  it("insets the page with the same padding token as Models", () => {
+    render(<DataSettings />);
+    expect(screen.getByTestId("settings-data").style.padding).toBe("var(--space-6, 24px)");
+  });
+
   it("selects every non-sensitive category by default", () => {
     render(<DataSettings />);
     expect((screen.getByTestId("data-category-chats") as HTMLInputElement).checked).toBe(true);

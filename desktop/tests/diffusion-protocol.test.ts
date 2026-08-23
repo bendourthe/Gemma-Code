@@ -81,6 +81,20 @@ describe("diffusion IPC protocol", () => {
     expect(ok.strength).toBeCloseTo(0.85);
   });
 
+  it("txt2img accepts the 2026-08-22 field sampler flow-dpm-solver", () => {
+    const parsed = DiffusionTxt2ImgRequest.parse({
+      modelId: "sana-sprint-1024",
+      prompt: "a fox in snow",
+      width: 1024,
+      height: 1024,
+      steps: 1,
+      cfgScale: 1.5,
+      sampler: "flow-dpm-solver",
+      seed: 42,
+    });
+    expect(parsed.sampler).toBe("flow-dpm-solver");
+  });
+
   it("LoRA weights are clamped to [-2, 2]", () => {
     expect(() =>
       DiffusionTxt2ImgRequest.parse({

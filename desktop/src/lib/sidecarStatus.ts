@@ -30,6 +30,7 @@ export interface SidecarStatus {
   failure: string | null;
   stderrTail: string[];
   candidatesRejected: string[];
+  exitCode?: number | null;
 }
 
 /** The error string the IPC layer returns when not running under Tauri. */

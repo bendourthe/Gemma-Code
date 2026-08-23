@@ -313,7 +313,7 @@ describe("ImageStudioPage (chat)", () => {
     });
     expect(await screen.findByText(/Several matches/i)).toBeInTheDocument();
     expect(client.lastRequest).toBeNull();
-    expect(screen.getByTestId("image-sam-candidates")).toBeInTheDocument();
+    expect(await screen.findByTestId("image-sam-candidates")).toBeInTheDocument();
     await act(async () => {
       fireEvent.click(screen.getByTestId("image-sam-candidate-car-a"));
     });

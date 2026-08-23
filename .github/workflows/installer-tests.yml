@@ -9,6 +9,8 @@ on:
     branches-ignore: ["dependabot/**"]
     paths:
       - "scripts/installer/**"
+      - "desktop/src-tauri/**"
+      - "desktop/sidecar/**"
       - "core/registry/catalog.json"
       - "core/registry/catalog.ts"
       - "core/registry/recommended.json"
@@ -22,6 +24,8 @@ on:
     branches: ["main"]
     paths:
       - "scripts/installer/**"
+      - "desktop/src-tauri/**"
+      - "desktop/sidecar/**"
       - "core/registry/catalog.json"
       - "core/registry/catalog.ts"
       - "core/registry/recommended.json"

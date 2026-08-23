@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -9,8 +10,8 @@ import {
   type FocusEvent,
   type KeyboardEvent,
 } from "react";
+import { Send } from "lucide-react";
 import { AccentBeam } from "../../components/AccentBeam";
-import { MetalAccent } from "../../components/MetalAccent";
 import { MotionSurface, composerMotionCandidates } from "../../motion";
 import { DOCUMENT_ACCEPT } from "../../shared/chat/documentAccept";
 import { fileMatchesAccept, isImageDataUrl } from "../../shared/chat/MediaComposer";
@@ -59,11 +60,7 @@ export function CodingInput({
   const [focused, setFocused] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  // v2.2.0 Phase 3 (3.3): merge the built-ins with the installed Nexus-Hub
-  // commands. The pre-v2.2.0 composer showed `filterSlashCommands(value)
-  // .slice(0, 8)` -- no hub discovery at all, and 8 of 16 built-ins hidden at
-  // an empty "/". Only names and descriptions cross this boundary; command
-  // bodies load on invocation, so discovery costs no prompt context.
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const discovered = useHubCommands(hubCommands);
   const suggestions = useMemo(() => {
     if (!value.startsWith("/")) return [];
@@ -71,6 +68,13 @@ export function CodingInput({
   }, [value, discovered.commands]);
 
   const canSubmit = !disabled && (value.trim().length > 0 || attachments.length > 0);
+
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
 
   const addFiles = async (files: FileList | null): Promise<void> => {
     if (!files || files.length === 0) return;
@@ -175,8 +179,6 @@ export function CodingInput({
             display: "flex",
             flexDirection: "column",
             gap: "var(--space-1)",
-            // The cap is gone; a long merged list scrolls instead of hiding
-            // entries the user cannot otherwise discover.
             maxHeight: "18rem",
             overflowY: "auto",
           }}
@@ -266,7 +268,7 @@ export function CodingInput({
           ))}
         </div>
       )}
-      <div style={{ display: "flex", alignItems: "flex-end", gap: "var(--space-2)" }}>
+      <div data-testid="coding-input-surface" style={composerSurfaceStyle(focused)}>
         <input
           ref={fileInputRef}
           type="file"
@@ -279,17 +281,8 @@ export function CodingInput({
           }}
           style={{ display: "none" }}
         />
-        <button
-          type="button"
-          aria-label="Add attachments"
-          data-testid="coding-input-add"
-          disabled={disabled}
-          onClick={() => fileInputRef.current?.click()}
-          style={addBtnStyle}
-        >
-          +
-        </button>
         <textarea
+          ref={textareaRef}
           data-testid="coding-input-textarea"
           aria-label="Coding chat input"
           value={value}
@@ -297,43 +290,34 @@ export function CodingInput({
           onChange={handleChange}
           onKeyDown={handleKey}
           onPaste={onPaste}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
           placeholder={`Ask anything, or attach a PDF, image, or Office file. Type / for commands (${SLASH_COMMANDS.length} available).`}
-          rows={3}
-          style={{
-            flex: 1,
-            padding: "var(--space-2)",
-            backgroundColor: "var(--bg-1)",
-            color: "var(--fg-0)",
-            border: "1px solid var(--border-1)",
-            borderRadius: "var(--radius-md)",
-            fontFamily: "var(--font-mono)",
-            fontSize: "var(--text-sm)",
-            resize: "vertical",
-          }}
+          rows={1}
+          style={inFieldTextareaStyle}
         />
-        <MetalAccent
-          accentToken="--accent-coding"
-          surfaceId="coding-send"
-          data-testid="coding-input-submit-metal"
-          style={{ alignSelf: "flex-end" }}
-        >
+        <div data-testid="coding-input-actions" style={rightControlsStyle}>
           <button
             type="button"
+            aria-label="Add attachments"
+            data-testid="coding-input-add"
+            disabled={disabled}
+            onClick={() => fileInputRef.current?.click()}
+            style={clusterIconStyle}
+          >
+            +
+          </button>
+          <button
+            type="button"
+            aria-label="Send"
             data-testid="coding-input-submit"
             disabled={!canSubmit}
             onClick={submit}
-            style={{
-              padding: "var(--space-2) var(--space-4)",
-              backgroundColor: "var(--accent-coding)",
-              color: "var(--bg-0)",
-              border: "none",
-              borderRadius: "var(--radius-md)",
-              cursor: "pointer",
-            }}
+            style={submitStyle}
           >
-            Send
+            <Send size={16} aria-hidden="true" />
           </button>
-        </MetalAccent>
+        </div>
       </div>
     </div>
     </AccentBeam>
@@ -355,15 +339,69 @@ const docChipStyle: CSSProperties = {
   fontWeight: 600,
 };
 
-const addBtnStyle: CSSProperties = {
-  width: 36,
-  height: 36,
+function composerSurfaceStyle(focused: boolean): CSSProperties {
+  return {
+    position: "relative",
+    display: "block",
+    backgroundColor: "var(--bg-0)",
+    border: `1px solid ${focused ? "var(--accent-coding, #4aa)" : "var(--border-subtle, #2a2a2a)"}`,
+    borderRadius: "var(--radius-lg, 12px)",
+    transition: "border-color 120ms ease",
+  };
+}
+
+const inFieldTextareaStyle: CSSProperties = {
+  display: "block",
+  width: "100%",
+  boxSizing: "border-box",
+  paddingLeft: "var(--space-3, 8px)",
+  paddingRight: 84,
+  paddingTop: "var(--space-3, 8px)",
+  paddingBottom: "var(--space-3, 8px)",
+  backgroundColor: "transparent",
+  color: "var(--fg-0)",
+  border: "none",
+  outline: "none",
+  fontFamily: "var(--font-mono)",
+  fontSize: "var(--text-sm)",
+  resize: "none",
+  maxHeight: "9rem",
+  overflowY: "auto",
+};
+
+const rightControlsStyle: CSSProperties = {
+  position: "absolute",
+  right: 8,
+  bottom: 6,
+  display: "flex",
+  alignItems: "center",
+  gap: "var(--space-1, 4px)",
+};
+
+const clusterIconStyle: CSSProperties = {
+  width: 32,
+  height: 32,
+  padding: 0,
   fontSize: "var(--text-lg)",
   lineHeight: 1,
   borderRadius: "var(--radius-md)",
-  border: "1px solid var(--border-1)",
-  background: "var(--bg-0)",
-  color: "var(--fg-0)",
+  border: "none",
+  background: "transparent",
+  color: "var(--fg-muted, #999)",
+  cursor: "pointer",
+};
+
+const submitStyle: CSSProperties = {
+  width: 32,
+  height: 32,
+  padding: 0,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  backgroundColor: "transparent",
+  color: "var(--accent-coding)",
+  border: "none",
+  borderRadius: "var(--radius-md)",
   cursor: "pointer",
 };
 

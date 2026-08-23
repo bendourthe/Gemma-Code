@@ -23,9 +23,8 @@ import {
   type FocusEvent,
   type KeyboardEvent,
 } from "react";
+import { Send } from "lucide-react";
 import { AccentBeam, type AccentBeamAccentToken } from "../../components/AccentBeam";
-import { MetalAccent } from "../../components/MetalAccent";
-import { metalTokenFromCssVar } from "../../components/metalGl";
 import { MotionSurface, composerMotionCandidates } from "../../motion";
 import { isAudioDataUrl } from "./classifyAttachment";
 import type { MicRecorder } from "./micRecorder";
@@ -37,7 +36,7 @@ export interface MediaComposerProps {
   onSubmit: (text: string, attachments: readonly string[]) => void;
   accept?: string;
   submitAccentVar?: string;
-  /** Label on the hero submit control. Image / Video pass "Generate". */
+  /** Accessible name for the icon-only submit control. Image / Video pass "Generate". */
   submitLabel?: string;
   /** When set (and it changes), appended to the pending attachments ("Use as source"). */
   seededAttachment?: string | null;
@@ -357,19 +356,6 @@ export function MediaComposer({
           onChange={onFileChange}
           style={{ display: "none" }}
         />
-        <button
-          type="button"
-          aria-label="Add attachments"
-          title={!imageEnabled ? imageDisabledReason : undefined}
-          data-testid="media-composer-add"
-          data-image-enabled={imageEnabled ? "true" : "false"}
-          disabled={disabled}
-          onClick={() => fileInputRef.current?.click()}
-          style={inFieldButtonStyle("left")}
-        >
-          +
-        </button>
-
         <textarea
           ref={textareaRef}
           data-testid="media-composer-textarea"
@@ -386,7 +372,7 @@ export function MediaComposer({
           style={inFieldTextareaStyle(audioEnabled)}
         />
 
-        <div style={rightControlsStyle}>
+        <div data-testid="media-composer-actions" style={rightControlsStyle}>
           {audioEnabled ? (
             <>
               <button
@@ -413,21 +399,28 @@ export function MediaComposer({
               </button>
             </>
           ) : null}
-          <MetalAccent
-            accentToken={metalTokenFromCssVar(submitAccentVar)}
-            surfaceId="media-composer-submit"
-            data-testid="media-composer-submit-metal"
+          <button
+            type="button"
+            aria-label="Add attachments"
+            title={!imageEnabled ? imageDisabledReason : undefined}
+            data-testid="media-composer-add"
+            data-image-enabled={imageEnabled ? "true" : "false"}
+            disabled={disabled}
+            onClick={() => fileInputRef.current?.click()}
+            style={clusterIconStyle}
           >
-            <button
-              type="button"
-              data-testid="media-composer-submit"
-              disabled={!canSubmit}
-              onClick={submit}
-              style={submitStyle(submitAccentVar)}
-            >
-              {submitLabel}
-            </button>
-          </MetalAccent>
+            +
+          </button>
+          <button
+            type="button"
+            aria-label={submitLabel}
+            data-testid="media-composer-submit"
+            disabled={!canSubmit}
+            onClick={submit}
+            style={submitStyle(submitAccentVar)}
+          >
+            <Send size={16} aria-hidden="true" />
+          </button>
         </div>
 
         {micMenuOpen && audioEnabled ? (
@@ -506,24 +499,6 @@ function composerSurfaceStyle(focused: boolean): CSSProperties {
   };
 }
 
-/** Buttons pinned inside the field, anchored to its bottom edge. */
-function inFieldButtonStyle(side: "left" | "right"): CSSProperties {
-  const base: CSSProperties = {
-    position: "absolute",
-    bottom: 6,
-    width: 32,
-    height: 32,
-    fontSize: "var(--text-lg)",
-    lineHeight: 1,
-    borderRadius: "var(--radius-md)",
-    border: "none",
-    background: "transparent",
-    color: "var(--fg-muted, #999)",
-    cursor: "pointer",
-  };
-  return side === "left" ? { ...base, left: 8 } : { ...base, right: 8 };
-}
-
 /**
  * Padding reserves exactly the space the in-field controls occupy, so typed
  * text can never render underneath them however long the message gets.
@@ -533,9 +508,9 @@ function inFieldTextareaStyle(audioEnabled: boolean): CSSProperties {
     display: "block",
     width: "100%",
     boxSizing: "border-box",
-    // Left: the + button. Right: send, plus mic and chevron when audio is on.
-    paddingLeft: 48,
-    paddingRight: audioEnabled ? 190 : 110,
+    paddingLeft: "var(--space-3, 8px)",
+    // Right cluster: + and send, plus mic and chevron when audio is on.
+    paddingRight: audioEnabled ? 190 : 84,
     paddingTop: "var(--space-3, 8px)",
     paddingBottom: "var(--space-3, 8px)",
     backgroundColor: "transparent",
@@ -545,8 +520,6 @@ function inFieldTextareaStyle(audioEnabled: boolean): CSSProperties {
     fontFamily: "var(--font-sans)",
     fontSize: "var(--text-sm)",
     resize: "none",
-    // Grow to roughly six lines, then scroll internally rather than pushing
-    // the conversation off screen.
     maxHeight: "9rem",
     overflowY: "auto",
   };
@@ -570,6 +543,19 @@ const iconButtonStyle: CSSProperties = {
   color: "var(--fg-muted, #999)",
   cursor: "pointer",
   fontSize: "var(--text-xs)",
+};
+
+const clusterIconStyle: CSSProperties = {
+  width: 32,
+  height: 32,
+  padding: 0,
+  fontSize: "var(--text-lg)",
+  lineHeight: 1,
+  borderRadius: "var(--radius-md)",
+  border: "none",
+  background: "transparent",
+  color: "var(--fg-muted, #999)",
+  cursor: "pointer",
 };
 
 const micActiveStyle: CSSProperties = { ...iconButtonStyle, color: "var(--accent-chatbot)" };
@@ -640,9 +626,14 @@ const removeBtnStyle: CSSProperties = {
 
 function submitStyle(accentVar: string): CSSProperties {
   return {
-    padding: "var(--space-2) var(--space-4)",
-    backgroundColor: `var(${accentVar})`,
-    color: "var(--bg-0)",
+    width: 32,
+    height: 32,
+    padding: 0,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "transparent",
+    color: `var(${accentVar})`,
     border: "none",
     borderRadius: "var(--radius-md)",
     cursor: "pointer",

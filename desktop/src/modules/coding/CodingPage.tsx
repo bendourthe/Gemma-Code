@@ -23,6 +23,8 @@ import { MessageList, type ChatMessage } from "../../shared/chat";
 import { QuickModelSwitcher } from "../../shared/models/QuickModelSwitcher";
 import { createIpcModelsClient } from "../../pages/settings/ipcModelsClient";
 import type { ListedModelDto } from "../../pages/settings/modelsTypes";
+import { SidecarDownBanner } from "../../components/SidecarDownBanner";
+import { useSidecarStatus, type UseSidecarStatusOptions } from "../../lib/sidecarStatus";
 import { defaultHarnessSelector } from "../../../../modules/coding/orchestration/HarnessSelector";
 import {
   createIpcDocumentClient,
@@ -90,6 +92,8 @@ export interface CodingPageProps {
    * not a silent `parse_document` tool call.
    */
   documentClient?: DocumentClient;
+  /** v2.2.2 -- test seam for the backend-down banner. */
+  sidecarStatus?: UseSidecarStatusOptions;
 }
 
 export function CodingPage({
@@ -98,6 +102,7 @@ export function CodingPage({
   modelsClient: modelsClientOverride,
   onGetMoreModels,
   documentClient: documentClientOverride,
+  sidecarStatus: sidecarStatusOptions,
 }: CodingPageProps = {}): JSX.Element {
   const [tab, setTab] = useState<Tab>(initialTab ?? "chat");
   const [modelId, setModelId] = useState<string>(initialModelId ?? DEFAULT_MODEL_ID);
@@ -120,6 +125,7 @@ export function CodingPage({
   const [replaySessionId, setReplaySessionId] = useState<string | null>(null);
   const [compareSessionId, setCompareSessionId] = useState<string | null>(null);
   const [compareEvents, setCompareEvents] = useState<readonly TraceEventT[]>([]);
+  const sidecar = useSidecarStatus(sidecarStatusOptions);
 
   useEffect(() => {
     let cancelled = false;
@@ -416,6 +422,17 @@ export function CodingPage({
         <p data-testid="coding-error" role="alert" style={{ color: "var(--accent-danger, #f55)" }}>
           {error}
         </p>
+      )}
+
+      {sidecar.isDown && (
+        <SidecarDownBanner
+          status={sidecar.status}
+          restarting={sidecar.restarting}
+          restartError={sidecar.restartError}
+          onRestart={() => void sidecar.restart()}
+          context="Coding cannot reach the local backend."
+          testId="coding-sidecar-down"
+        />
       )}
 
       <div style={{ flex: 1, overflow: "auto" }}>

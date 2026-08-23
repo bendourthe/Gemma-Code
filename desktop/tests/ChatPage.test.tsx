@@ -19,6 +19,28 @@ describe("<ChatPage>", () => {
     render(<ChatPage client={client} />);
     expect(screen.getByTestId("chat-page-empty")).toBeInTheDocument();
     expect(screen.getByTestId("folder-tree-empty")).toBeInTheDocument();
+    expect(screen.getByTestId("media-composer")).toBeInTheDocument();
+  });
+
+  it("sends from the composer without a folder or existing chat", async () => {
+    const client = new InMemoryChatExplorerClient();
+    const chatSession: ChatSessionClient = {
+      start: async () => ({ sessionId: "s1", modelId: "gemma4:e4b", createdAt: "t" }),
+      sendMessage: async () => ({
+        sessionId: "s1",
+        events: [
+          { kind: "token", text: "ok" },
+          { kind: "done", finishReason: "stop" },
+        ],
+      }),
+    };
+    const user = userEvent.setup();
+    render(<ChatPage client={client} chatSession={chatSession} />);
+    const textarea = screen.getByTestId("media-composer-textarea");
+    await user.type(textarea, "hello from an empty rail{Enter}");
+    expect(await screen.findByText("hello from an empty rail")).toBeInTheDocument();
+    expect(client.listTree().chats.length).toBe(1);
+    expect(client.listTree().chats[0]?.title).toBe("New chat");
   });
 
   it("opening a chat surfaces the message list and input", async () => {
@@ -224,5 +246,29 @@ describe("<ChatPage>", () => {
       const values = [...select.options].map((o) => o.value);
       expect(values).toEqual(["gemma4:e4b", "__get_more_models__"]);
     });
+  });
+
+  it("shows SidecarDownBanner when the sidecar is down and keeps the composer", async () => {
+    const client = new InMemoryChatExplorerClient();
+    render(
+      <ChatPage
+        client={client}
+        sidecarStatus={{
+          pollMs: 0,
+          debounceMs: 1,
+          fetchFn: async () => ({
+            running: false,
+            nodePath: "C:/Nexus/runtime/node/node.exe",
+            nodeSource: "runtime-config",
+            scriptPath: "C:/Nexus/sidecar/dist/main.js",
+            failure: "sidecar-exited:-1073741510",
+            stderrTail: [],
+            candidatesRejected: [],
+          }),
+        }}
+      />,
+    );
+    expect(await screen.findByTestId("chat-sidecar-down")).toBeInTheDocument();
+    expect(screen.getByTestId("media-composer")).toBeInTheDocument();
   });
 });

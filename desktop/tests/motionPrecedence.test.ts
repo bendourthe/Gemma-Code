@@ -24,10 +24,10 @@ describe("motion precedence", () => {
     expect(allowsMotion("metal", ["metal", "beam"])).toBe(true);
   });
 
-  it("picks beam while a composer is streaming and metal while it is focused", () => {
+  it("picks beam while a composer is streaming or focused", () => {
     expect(composerMotionCandidates({ streaming: true, focused: true })).toEqual(["beam"]);
     expect(composerMotionCandidates({ streaming: true, focused: false })).toEqual(["beam"]);
-    expect(composerMotionCandidates({ streaming: false, focused: true })).toEqual(["metal"]);
+    expect(composerMotionCandidates({ streaming: false, focused: true })).toEqual(["beam"]);
     expect(composerMotionCandidates({ streaming: false, focused: false })).toEqual([]);
   });
 

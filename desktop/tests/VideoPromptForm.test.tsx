@@ -94,6 +94,8 @@ describe("VideoPromptForm presets", () => {
 
   it("includes flow-dpm-solver in the sampler dropdown", () => {
     render(<VideoPromptForm availableModels={AVAILABLE_MODELS} />);
+    expect(screen.getByTestId("video-advanced")).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(screen.getByTestId("video-advanced"));
     const sampler = screen.getByTestId("video-sampler") as HTMLSelectElement;
     const options = Array.from(sampler.options).map((o) => o.value);
     expect(options).toContain("flow-dpm-solver");
@@ -102,6 +104,7 @@ describe("VideoPromptForm presets", () => {
   it("exposes VRAM budget knobs in Advanced and maps them onto the request", () => {
     const onChange = vi.fn();
     render(<VideoPromptForm availableModels={AVAILABLE_MODELS} onChange={onChange} />);
+    fireEvent.click(screen.getByTestId("video-advanced"));
     expect(screen.getByTestId("video-memory-budget")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("video-layer-streaming"));
     expect(onChange).toHaveBeenCalled();

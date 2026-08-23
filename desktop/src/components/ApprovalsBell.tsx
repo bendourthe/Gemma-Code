@@ -1,5 +1,6 @@
 /**
  * v2.2.0 Phase 6 (6.3) -- approvals as a bell, not a nav tab.
+ * v2.2.1 Phase 3 -- the popover is always dismissable.
  *
  * The Ask Inbox parks CONFIRM/DANGEROUS tool calls from headless and scheduled
  * runs, so it is load-bearing -- but it is empty most of the time, and a
@@ -9,11 +10,18 @@
  *
  * Approval semantics are unchanged: nothing is ever auto-approved, and an
  * approval that arrives after a sidecar restart still fails safe upstream.
+ *
+ * The 2026-08-22 field trap: open toggled only from the bell, no Close, no
+ * Escape, no outside click, and `position: absolute; bottom: calc(100% + 4px)`
+ * covered the main pane (and the toggle). Sidecar-down then pinned a red card
+ * across every tab because the Sidebar stays mounted.
  */
 
-import { useCallback, useEffect, useState } from "react";
-import { Bell } from "lucide-react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { Bell, X } from "lucide-react";
 
+import { Button } from "./ui/Button";
 import type { AskInboxClient, ParkedAskDto } from "../pages/inbox/askInboxTypes";
 
 export interface ApprovalsBellProps {
@@ -33,6 +41,13 @@ export function ApprovalsBell({
   const [items, setItems] = useState<readonly ParkedAskDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [anchor, setAnchor] = useState<{ top: number; left: number; bottom: number } | null>(null);
+  const bellRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  const close = useCallback((): void => {
+    setOpen(false);
+  }, []);
 
   const refresh = useCallback(async () => {
     if (!client) {
@@ -53,6 +68,40 @@ export function ApprovalsBell({
   useEffect(() => {
     if (open) void refresh();
   }, [open, refresh]);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setAnchor(null);
+      return;
+    }
+    const node = bellRef.current;
+    if (!node) return;
+    const rect = node.getBoundingClientRect();
+    setAnchor({ top: rect.top, left: rect.right + 8, bottom: rect.bottom });
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        close();
+      }
+    };
+    const onPointer = (event: PointerEvent): void => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (bellRef.current?.contains(target)) return;
+      if (dialogRef.current?.contains(target)) return;
+      close();
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("pointerdown", onPointer);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("pointerdown", onPointer);
+    };
+  }, [open, close]);
 
   const act = useCallback(
     async (id: string, action: "approve" | "deny") => {
@@ -75,9 +124,104 @@ export function ApprovalsBell({
 
   const hasPending = pendingCount > 0;
 
+  const popover =
+    open && typeof document !== "undefined"
+      ? createPortal(
+          <div
+            ref={dialogRef}
+            data-testid={`${testId}-popover`}
+            role="dialog"
+            aria-label="Pending approvals"
+            style={{
+              position: "fixed",
+              left: anchor?.left ?? 64,
+              bottom: anchor ? Math.max(8, window.innerHeight - anchor.bottom) : 72,
+              zIndex: 40,
+              width: "20rem",
+              maxHeight: "18rem",
+              overflowY: "auto",
+              padding: "var(--space-3)",
+              borderRadius: "var(--radius-md)",
+              border: "1px solid var(--border-subtle)",
+              background: "var(--bg-elevated)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "var(--space-2)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "var(--space-2)",
+              }}
+            >
+              <strong style={{ fontSize: "var(--text-sm)" }}>Pending approvals</strong>
+              <button
+                type="button"
+                data-testid={`${testId}-close`}
+                aria-label="Close approvals"
+                onClick={close}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "var(--fg-muted)",
+                  cursor: "pointer",
+                  padding: "var(--space-1)",
+                  display: "inline-flex",
+                }}
+              >
+                <X size={14} aria-hidden />
+              </button>
+            </div>
+            {error !== null ? (
+              <span data-testid={`${testId}-error`} style={{ color: "var(--status-err)" }}>
+                Could not read approvals: {error}
+              </span>
+            ) : items === null ? (
+              <span style={{ color: "var(--fg-muted)" }}>Loading...</span>
+            ) : items.length === 0 ? (
+              <span data-testid={`${testId}-empty`} style={{ color: "var(--fg-muted)" }}>
+                Nothing waiting. Headless runs park approvals here.
+              </span>
+            ) : (
+              items.map((item) => (
+                <div
+                  key={item.id}
+                  data-testid={`${testId}-item-${item.id}`}
+                  style={{ display: "flex", flexDirection: "column", gap: "var(--space-1)" }}
+                >
+                  <span style={{ fontSize: "var(--text-sm)" }}>{item.toolName}</span>
+                  <div style={{ display: "flex", gap: "var(--space-2)" }}>
+                    <Button
+                      testId={`${testId}-approve-${item.id}`}
+                      disabled={busy === item.id}
+                      onClick={() => void act(item.id, "approve")}
+                    >
+                      Approve
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      testId={`${testId}-deny-${item.id}`}
+                      disabled={busy === item.id}
+                      onClick={() => void act(item.id, "deny")}
+                    >
+                      Deny
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>,
+          document.body,
+        )
+      : null;
+
   return (
     <div style={{ position: "relative" }}>
       <button
+        ref={bellRef}
         type="button"
         data-testid={testId}
         aria-label={
@@ -127,71 +271,7 @@ export function ApprovalsBell({
           </span>
         ) : null}
       </button>
-
-      {open ? (
-        <div
-          data-testid={`${testId}-popover`}
-          role="dialog"
-          aria-label="Pending approvals"
-          style={{
-            position: "absolute",
-            bottom: "calc(100% + 4px)",
-            left: 0,
-            zIndex: 40,
-            width: "20rem",
-            maxHeight: "18rem",
-            overflowY: "auto",
-            padding: "var(--space-3)",
-            borderRadius: "var(--radius-md)",
-            border: "1px solid var(--border-subtle)",
-            background: "var(--bg-elevated)",
-            display: "flex",
-            flexDirection: "column",
-            gap: "var(--space-2)",
-          }}
-        >
-          <strong style={{ fontSize: "var(--text-sm)" }}>Pending approvals</strong>
-          {error !== null ? (
-            <span data-testid={`${testId}-error`} style={{ color: "var(--status-err)" }}>
-              Could not read approvals: {error}
-            </span>
-          ) : items === null ? (
-            <span style={{ color: "var(--fg-muted)" }}>Loading...</span>
-          ) : items.length === 0 ? (
-            <span data-testid={`${testId}-empty`} style={{ color: "var(--fg-muted)" }}>
-              Nothing waiting. Headless runs park approvals here.
-            </span>
-          ) : (
-            items.map((item) => (
-              <div
-                key={item.id}
-                data-testid={`${testId}-item-${item.id}`}
-                style={{ display: "flex", flexDirection: "column", gap: "var(--space-1)" }}
-              >
-                <span style={{ fontSize: "var(--text-sm)" }}>{item.toolName}</span>
-                <div style={{ display: "flex", gap: "var(--space-2)" }}>
-                  <button
-                    type="button"
-                    data-testid={`${testId}-approve-${item.id}`}
-                    disabled={busy === item.id}
-                    onClick={() => void act(item.id, "approve")}
-                  >
-                    Approve
-                  </button>
-                  <button
-                    type="button"
-                    data-testid={`${testId}-deny-${item.id}`}
-                    disabled={busy === item.id}
-                    onClick={() => void act(item.id, "deny")}
-                  >
-                    Deny
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      ) : null}
+      {popover}
     </div>
   );
 }

@@ -14,6 +14,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import { Button, TextField } from "../../components/ui";
 import type { CredentialsClient } from "./credentialsTypes";
 
 export interface CredentialsSettingsProps {
@@ -124,23 +125,21 @@ export function CredentialsSettings({
       <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "flex-end" }}>
         <label style={fieldStyle}>
           <span style={labelStyle}>Integration</span>
-          <input
-            data-testid="credentials-integration"
+          <TextField
+            testId="credentials-integration"
             value={integration}
             placeholder="e.g. github-mcp"
-            onChange={(e) => setIntegration(e.target.value)}
-            style={inputStyle}
+            onChange={setIntegration}
           />
         </label>
-        <button
+        <Button
           type="button"
-          data-testid="credentials-load"
+          testId="credentials-load"
           onClick={handleLoad}
           disabled={available === false || integration.trim().length === 0}
-          style={buttonStyle}
         >
           Load keys
-        </button>
+        </Button>
       </div>
 
       {loadedIntegration ? (
@@ -161,14 +160,14 @@ export function CredentialsSettings({
                   style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "var(--space-2)", border: "1px solid var(--border-1)", borderRadius: "var(--radius-md)", padding: "var(--space-1) var(--space-2)" }}
                 >
                   <code>{key}</code>
-                  <button
+                  <Button
                     type="button"
-                    data-testid={`credential-delete-${key}`}
+                    testId={`credential-delete-${key}`}
+                    variant="danger"
                     onClick={() => void handleDelete(key)}
-                    style={buttonStyle}
                   >
                     Delete
-                  </button>
+                  </Button>
                 </li>
               ))}
             </ul>
@@ -177,33 +176,30 @@ export function CredentialsSettings({
           <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "flex-end", marginTop: "var(--space-3)" }}>
             <label style={fieldStyle}>
               <span style={labelStyle}>Key</span>
-              <input
-                data-testid="credentials-new-key"
+              <TextField
+                testId="credentials-new-key"
                 value={newKey}
                 placeholder="e.g. GITHUB_TOKEN"
-                onChange={(e) => setNewKey(e.target.value)}
-                style={inputStyle}
+                onChange={setNewKey}
               />
             </label>
             <label style={fieldStyle}>
               <span style={labelStyle}>Value</span>
-              <input
-                data-testid="credentials-new-value"
+              <TextField
+                testId="credentials-new-value"
                 type="password"
                 value={newValue}
-                onChange={(e) => setNewValue(e.target.value)}
-                style={inputStyle}
+                onChange={setNewValue}
               />
             </label>
-            <button
+            <Button
               type="button"
-              data-testid="credentials-save"
+              testId="credentials-save"
               onClick={() => void handleSave()}
               disabled={available === false || newKey.trim().length === 0 || newValue.length === 0}
-              style={buttonStyle}
             >
               Save to keychain
-            </button>
+            </Button>
           </div>
         </div>
       ) : null}
@@ -235,21 +231,4 @@ const fieldStyle: React.CSSProperties = {
 const labelStyle: React.CSSProperties = {
   fontSize: "var(--text-xs)",
   color: "var(--fg-muted)",
-};
-
-const inputStyle: React.CSSProperties = {
-  padding: "var(--space-1) var(--space-2)",
-  border: "1px solid var(--border-1)",
-  borderRadius: "var(--radius-md)",
-  background: "var(--bg-2)",
-  color: "var(--fg-0)",
-};
-
-const buttonStyle: React.CSSProperties = {
-  padding: "var(--space-1) var(--space-3)",
-  border: "1px solid var(--border-1)",
-  borderRadius: "var(--radius-md)",
-  background: "var(--bg-2)",
-  color: "var(--fg-0)",
-  cursor: "pointer",
 };

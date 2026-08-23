@@ -6,7 +6,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { Select } from "../../components/ui/Select";
+import { Button, Select, TextField } from "../../components/ui";
 import type {
   FineTuningClient,
   TuningBaseModelDto,
@@ -111,22 +111,21 @@ export function FineTuningSettings({ client }: FineTuningSettingsProps): JSX.Ele
                 {status.provisionError ? ` -- ${status.provisionError}` : ""}
               </p>
               <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
-                <button
+                <Button
                   type="button"
-                  data-testid="fine-tuning-provision"
+                  testId="fine-tuning-provision"
                   disabled={busy}
                   onClick={() =>
                     void run(async () => {
                       setStatus(await client.provision());
                     })
                   }
-                  style={buttonStyle}
                 >
                   Provision Unsloth Core
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  data-testid="fine-tuning-preflight"
+                  testId="fine-tuning-preflight"
                   disabled={busy}
                   onClick={() =>
                     void run(async () => {
@@ -134,10 +133,9 @@ export function FineTuningSettings({ client }: FineTuningSettingsProps): JSX.Ele
                       setPreflight(result.ok ? "ok" : result.message);
                     })
                   }
-                  style={buttonStyle}
                 >
                   Preflight
-                </button>
+                </Button>
               </div>
               {preflight ? (
                 <p data-testid="fine-tuning-preflight-result" style={mutedStyle}>
@@ -147,17 +145,18 @@ export function FineTuningSettings({ client }: FineTuningSettingsProps): JSX.Ele
 
               <label style={mutedStyle}>
                 Dataset sources (one path per line)
-                <textarea
-                  data-testid="fine-tuning-sources"
+                <TextField
+                  multiline
+                  testId="fine-tuning-sources"
                   value={source}
-                  onChange={(e) => setSource(e.target.value)}
+                  onChange={setSource}
                   rows={3}
                   style={{ display: "block", width: "100%", marginTop: "var(--space-1)" }}
                 />
               </label>
-              <button
+              <Button
                 type="button"
-                data-testid="fine-tuning-build-dataset"
+                testId="fine-tuning-build-dataset"
                 disabled={busy || source.trim().length === 0}
                 onClick={() =>
                   void run(async () => {
@@ -168,10 +167,9 @@ export function FineTuningSettings({ client }: FineTuningSettingsProps): JSX.Ele
                     setDataset(await client.buildDataset(paths));
                   })
                 }
-                style={buttonStyle}
               >
                 Build dataset
-              </button>
+              </Button>
               {dataset ? (
                 <div data-testid="fine-tuning-dataset-preview">
                   <p style={mutedStyle}>
@@ -198,9 +196,9 @@ export function FineTuningSettings({ client }: FineTuningSettingsProps): JSX.Ele
                   ))}
                 </Select>
               </label>
-              <button
+              <Button
                 type="button"
-                data-testid="fine-tuning-start"
+                testId="fine-tuning-start"
                 disabled={busy || !dataset || !baseModelId}
                 onClick={() =>
                   void run(async () => {
@@ -213,10 +211,9 @@ export function FineTuningSettings({ client }: FineTuningSettingsProps): JSX.Ele
                     setJobs(await client.listJobs());
                   })
                 }
-                style={buttonStyle}
               >
                 Start QLoRA job
-              </button>
+              </Button>
 
               <ul data-testid="fine-tuning-jobs" style={{ paddingLeft: "1.2rem" }}>
                 {jobs.map((job) => (
@@ -224,9 +221,9 @@ export function FineTuningSettings({ client }: FineTuningSettingsProps): JSX.Ele
                     {job.id}: {job.state}
                     {job.error ? ` (${job.error})` : ""}
                     {job.state !== "done" && job.state !== "quarantined" && job.state !== "export-failed" ? (
-                      <button
+                      <Button
                         type="button"
-                        data-testid={`fine-tuning-cancel-${job.id}`}
+                        testId={`fine-tuning-cancel-${job.id}`}
                         disabled={busy}
                         onClick={() =>
                           void run(async () => {
@@ -234,10 +231,10 @@ export function FineTuningSettings({ client }: FineTuningSettingsProps): JSX.Ele
                             setJobs(await client.listJobs());
                           })
                         }
-                        style={{ ...buttonStyle, marginLeft: "var(--space-2)" }}
+                        style={{ marginLeft: "var(--space-2)" }}
                       >
                         Cancel
-                      </button>
+                      </Button>
                     ) : null}
                   </li>
                 ))}
@@ -269,15 +266,6 @@ const alertStyle: React.CSSProperties = {
   color: "var(--accent-danger, #f87171)",
   fontSize: "var(--text-sm)",
   margin: 0,
-};
-
-const buttonStyle: React.CSSProperties = {
-  padding: "var(--space-1) var(--space-3)",
-  border: "1px solid var(--border-1)",
-  borderRadius: "var(--radius-md)",
-  background: "var(--bg-2)",
-  color: "var(--fg-0)",
-  cursor: "pointer",
 };
 
 const previewStyle: React.CSSProperties = {

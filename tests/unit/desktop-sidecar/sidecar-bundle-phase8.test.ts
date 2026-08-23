@@ -14,7 +14,7 @@
  * either failure is a shipped app with no backend.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import * as path from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -45,6 +45,16 @@ describe("sidecar bundle configuration", () => {
     // works".
     expect(CONFIG).toContain("better_sqlite3.node missing after copy");
     expect(CONFIG).toContain("throw new Error");
+  });
+
+  it("rebuilds the dist sqlite addon for installer Node 22, not the developer Node", () => {
+    // This host develops on Node 24 (ABI 137). The installer ships 22.11.0
+    // (ABI 127). Copying the developer binary made healthcheck die after
+    // unsloth-pins.json was present.
+    expect(CONFIG).toContain('INSTALLER_NODE_VERSION = "22.11.0"');
+    expect(CONFIG).toContain("prebuild-install");
+    expect(CONFIG).toContain("--target");
+    expect(CONFIG).toContain("--runtime");
   });
 });
 
@@ -96,5 +106,35 @@ describe("installer packaging", () => {
       "utf8",
     );
     expect(win).toContain("will sync at install time");
+  });
+
+  it("maps the whole sidecar dist tree as a Tauri resource, not only main.js", () => {
+    const conf = readFileSync(
+      path.join(ROOT, "desktop/src-tauri/tauri.conf.json"),
+      "utf8",
+    );
+    expect(conf).toContain('"../sidecar/dist": "sidecar/dist"');
+    expect(conf).not.toMatch(/sidecar\/dist\/main\.js/);
+  });
+
+  it("keeps better_sqlite3.node next to the bundled script when dist exists", () => {
+    const main = path.join(ROOT, "desktop/sidecar/dist/main.js");
+    if (!existsSync(main)) return;
+    const addon = path.join(
+      ROOT,
+      "desktop/sidecar/dist/node_modules/better-sqlite3/build/Release/better_sqlite3.node",
+    );
+    expect(existsSync(addon), `${addon} must sit next to ${main}`).toBe(true);
+  });
+
+  it("copies unsloth-pins.json next to the bundle", () => {
+    // licensePins.ts reads this at import time via __dirname. Missing it
+    // kills the packaged sidecar before ready, even when sqlite is present.
+    expect(CONFIG).toContain("unsloth-pins.json");
+    expect(CONFIG).toContain("The bundled sidecar loads it at import time");
+    const main = path.join(ROOT, "desktop/sidecar/dist/main.js");
+    if (!existsSync(main)) return;
+    const pins = path.join(ROOT, "desktop/sidecar/dist/unsloth-pins.json");
+    expect(existsSync(pins), `${pins} must sit next to ${main}`).toBe(true);
   });
 });

@@ -56,24 +56,34 @@ describe("MediaComposer", () => {
     expect(onSubmit).toHaveBeenCalledWith("hi", []);
   });
 
-  it("on focus keeps the beam paused so metal wins; streaming plays a traveling beam", () => {
+  it("on focus plays the surface beam; streaming plays a traveling beam", () => {
     const { rerender } = render(<MediaComposer onSubmit={vi.fn()} />);
     const beam = screen.getByTestId("media-composer-beam");
     expect(beam).toHaveAttribute("data-beam-playing", "false");
     fireEvent.focus(screen.getByTestId("media-composer-textarea"));
-    expect(beam).toHaveAttribute("data-beam-playing", "false");
-    expect(screen.getByTestId("media-composer-submit-metal")).toBeInTheDocument();
+    expect(beam).toHaveAttribute("data-beam-playing", "true");
+    expect(screen.queryByTestId("media-composer-submit-metal")).toBeNull();
     rerender(<MediaComposer onSubmit={vi.fn()} streaming submitAccentVar="--accent-chatbot" />);
     expect(screen.getByTestId("media-composer-beam")).toHaveAttribute("data-beam-mode", "traveling");
     expect(screen.getByTestId("media-composer-beam")).toHaveAttribute("data-beam-playing", "true");
     expect(screen.getByTestId("media-composer-beam")).toHaveAttribute("data-beam-accent", "--accent-chatbot");
   });
 
-  it("wraps the hero submit in metal and leaves the add-attachment control without it", () => {
+  it("uses an icon send with aria-label and no MetalAccent box", () => {
     render(<MediaComposer onSubmit={vi.fn()} submitLabel="Generate" />);
     const submit = screen.getByTestId("media-composer-submit");
-    expect(submit).toHaveTextContent("Generate");
-    expect(submit.closest("[data-testid='media-composer-submit-metal']")).not.toBeNull();
-    expect(screen.getByTestId("media-composer-add").closest("[data-testid$='-metal']")).toBeNull();
+    expect(submit).toHaveAttribute("aria-label", "Generate");
+    expect(submit.querySelector("svg")).not.toBeNull();
+    const caption = Array.from(submit.childNodes)
+      .filter((n) => n.nodeType === Node.TEXT_NODE)
+      .map((n) => n.textContent?.trim())
+      .join("");
+    expect(caption).toBe("");
+    expect(submit.closest("[data-testid='media-composer-submit-metal']")).toBeNull();
+    const surface = screen.getByTestId("media-composer-surface");
+    const actions = screen.getByTestId("media-composer-actions");
+    expect(surface.contains(actions)).toBe(true);
+    expect(actions.contains(screen.getByTestId("media-composer-add"))).toBe(true);
+    expect(actions.contains(submit)).toBe(true);
   });
 });

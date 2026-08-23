@@ -250,6 +250,10 @@ function main(): void {
   rl.on("close", () => {
     void shutdown();
   });
+  // v2.2.1: the shell waits for this line (or 500ms of liveness) before the
+  // first JSON-RPC write. Import-time crashes never reach here; try_wait
+  // then reports sidecar-exited instead of Windows 232.
+  process.stderr.write("[nexus-sidecar] ready\n");
   process.on("SIGTERM", () => void shutdown());
   process.on("SIGINT", () => void shutdown());
 }

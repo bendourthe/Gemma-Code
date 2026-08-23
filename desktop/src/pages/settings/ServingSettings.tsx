@@ -11,6 +11,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import { Button, Switch } from "../../components/ui";
 import type { AcpStatusDto, ServingClient, ServingStatusDto } from "./servingTypes";
 
 export interface ServingSettingsProps {
@@ -133,16 +134,13 @@ export function ServingSettings({ client, writeClipboard }: ServingSettingsProps
         </p>
       ) : (
         <>
-          <label style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-            <input
-              data-testid="serving-toggle"
-              type="checkbox"
-              checked={status.enabled}
-              disabled={busy}
-              onChange={(e) => void handleToggle(e.target.checked)}
-            />
-            <span>Enable the local API server</span>
-          </label>
+          <Switch
+            testId="serving-toggle"
+            checked={status.enabled}
+            disabled={busy}
+            onChange={(next) => void handleToggle(next)}
+            label="Enable the local API server"
+          />
 
           <p data-testid="serving-state" style={mutedStyle}>
             {status.running
@@ -152,16 +150,13 @@ export function ServingSettings({ client, writeClipboard }: ServingSettingsProps
                 : "Stopped. No port is bound while both the API server and ACP are off."}
           </p>
 
-          <label style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-            <input
-              data-testid="acp-toggle"
-              type="checkbox"
-              checked={acp?.enabled ?? false}
-              disabled={busy}
-              onChange={(e) => void handleAcpToggle(e.target.checked)}
-            />
-            <span>Enable the ACP agent (same loopback listener and token)</span>
-          </label>
+          <Switch
+            testId="acp-toggle"
+            checked={acp?.enabled ?? false}
+            disabled={busy}
+            onChange={(next) => void handleAcpToggle(next)}
+            label="Enable the ACP agent (same loopback listener and token)"
+          />
 
           {acp?.enabled ? (
             <div style={fieldRowStyle}>
@@ -169,14 +164,13 @@ export function ServingSettings({ client, writeClipboard }: ServingSettingsProps
               <code data-testid="acp-endpoint" style={valueStyle}>
                 {acp.endpoint}
               </code>
-              <button
+              <Button
                 type="button"
-                data-testid="acp-copy-endpoint"
+                testId="acp-copy-endpoint"
                 onClick={() => void copy("ACP endpoint", acp.endpoint)}
-                style={buttonStyle}
               >
                 Copy
-              </button>
+              </Button>
             </div>
           ) : null}
 
@@ -188,14 +182,13 @@ export function ServingSettings({ client, writeClipboard }: ServingSettingsProps
                   <code data-testid="serving-base-url" style={valueStyle}>
                     {status.baseUrl}
                   </code>
-                  <button
+                  <Button
                     type="button"
-                    data-testid="serving-copy-url"
+                    testId="serving-copy-url"
                     onClick={() => void copy("Base URL", status.baseUrl)}
-                    style={buttonStyle}
                   >
                     Copy
-                  </button>
+                  </Button>
                 </div>
               ) : null}
 
@@ -204,22 +197,21 @@ export function ServingSettings({ client, writeClipboard }: ServingSettingsProps
                 <code data-testid="serving-token" style={valueStyle}>
                   {revealed ? status.token : maskToken(status.token)}
                 </code>
-                <button
+                <Button
                   type="button"
-                  data-testid="serving-reveal-token"
+                  testId="serving-reveal-token"
+                  variant="ghost"
                   onClick={() => setRevealed((v) => !v)}
-                  style={buttonStyle}
                 >
                   {revealed ? "Hide" : "Reveal"}
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  data-testid="serving-copy-token"
+                  testId="serving-copy-token"
                   onClick={() => void copy("Token", status.token)}
-                  style={buttonStyle}
                 >
                   Copy
-                </button>
+                </Button>
               </div>
 
               {status.enabled ? (
@@ -305,13 +297,4 @@ const valueStyle: React.CSSProperties = {
   background: "var(--bg-2)",
   color: "var(--fg-0)",
   wordBreak: "break-all",
-};
-
-const buttonStyle: React.CSSProperties = {
-  padding: "var(--space-1) var(--space-3)",
-  border: "1px solid var(--border-1)",
-  borderRadius: "var(--radius-md)",
-  background: "var(--bg-2)",
-  color: "var(--fg-0)",
-  cursor: "pointer",
 };

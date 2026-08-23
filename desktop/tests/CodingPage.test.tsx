@@ -329,4 +329,26 @@ describe("CodingPage", () => {
       expect(fake.calls.some((c) => c.method === "coding.session.sendMessage")).toBe(true),
     );
   });
+
+  it("shows SidecarDownBanner when the sidecar is down and keeps the composer", async () => {
+    render(
+      <CodingPage
+        sidecarStatus={{
+          pollMs: 0,
+          debounceMs: 1,
+          fetchFn: async () => ({
+            running: false,
+            nodePath: "C:/Nexus/runtime/node/node.exe",
+            nodeSource: "runtime-config",
+            scriptPath: "C:/Nexus/sidecar/dist/main.js",
+            failure: "sidecar-exited:-1073741510",
+            stderrTail: [],
+            candidatesRejected: [],
+          }),
+        }}
+      />,
+    );
+    expect(await screen.findByTestId("coding-sidecar-down")).toBeInTheDocument();
+    expect(screen.getByTestId("coding-input")).toBeInTheDocument();
+  });
 });

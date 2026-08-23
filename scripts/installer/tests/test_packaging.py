@@ -214,6 +214,15 @@ class TestSidecarPackagingContracts:
         ).read_text(encoding="utf-8")
         assert "catalog.json" in content
 
+    def test_sidecar_esbuild_copies_unsloth_pins(self) -> None:
+        content = (
+            REPO_ROOT / "desktop" / "sidecar" / "esbuild.config.mjs"
+        ).read_text(encoding="utf-8")
+        assert "unsloth-pins.json" in content
+        assert "The bundled sidecar loads it at import time" in content
+        assert "22.11.0" in content
+        assert "prebuild-install" in content
+
     def test_spec_bundles_diffusion_runtime_sources(self) -> None:
         content = (BUILD_DIR / "nexus-installer.spec").read_text()
         assert '"runtimes"' in content

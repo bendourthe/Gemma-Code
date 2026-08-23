@@ -11,7 +11,7 @@
  */
 
 import { useMemo, useState } from "react";
-import { Select } from "../../components/ui/Select";
+import { Button, Select, Switch, TextField } from "../../components/ui";
 import type { ControlNetRef, LoraRef } from "./diffusionClient";
 import type { DiffusionTierId } from "../../../../core/config/DiffusionTier";
 import { defaultMemoryBudget, validateMemoryBudget } from "../../../../core/config/diffusionBudget";
@@ -245,24 +245,24 @@ export function ImagePromptForm({
             i
           </span>
         </span>
-        <textarea
-          data-testid="image-prompt"
+        <TextField
+          multiline
+          testId="image-prompt"
           rows={4}
           value={values.prompt}
           disabled={disabled}
-          onChange={(e) => update("prompt", e.target.value)}
-          style={{ width: "100%" }}
+          onChange={(v) => update("prompt", v)}
         />
       </label>
       <label>
         <span style={{ display: "block", fontSize: "var(--text-xs)", color: "var(--fg-muted)" }}>Negative Prompt</span>
-        <textarea
-          data-testid="image-negative-prompt"
+        <TextField
+          multiline
+          testId="image-negative-prompt"
           rows={2}
           value={values.negativePrompt}
           disabled={disabled}
-          onChange={(e) => update("negativePrompt", e.target.value)}
-          style={{ width: "100%" }}
+          onChange={(v) => update("negativePrompt", v)}
         />
       </label>
       <label>
@@ -319,53 +319,53 @@ export function ImagePromptForm({
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-2)" }}>
         <label>
           Width
-          <input
-            data-testid="image-width"
+          <TextField
+            testId="image-width"
             type="number"
             min={64}
             max={4096}
             step={8}
-            value={values.width}
+            value={String(values.width)}
             disabled={disabled}
-            onChange={(e) => update("width", Number(e.target.value))}
+            onChange={(v) => update("width", Number(v))}
           />
         </label>
         <label>
           Height
-          <input
-            data-testid="image-height"
+          <TextField
+            testId="image-height"
             type="number"
             min={64}
             max={4096}
             step={8}
-            value={values.height}
+            value={String(values.height)}
             disabled={disabled}
-            onChange={(e) => update("height", Number(e.target.value))}
+            onChange={(v) => update("height", Number(v))}
           />
         </label>
         <label>
           Steps
-          <input
-            data-testid="image-steps"
+          <TextField
+            testId="image-steps"
             type="number"
             min={1}
             max={150}
-            value={values.steps}
+            value={String(values.steps)}
             disabled={disabled}
-            onChange={(e) => update("steps", Number(e.target.value))}
+            onChange={(v) => update("steps", Number(v))}
           />
         </label>
         <label>
           CFG
-          <input
-            data-testid="image-cfg"
+          <TextField
+            testId="image-cfg"
             type="number"
             min={0}
             max={30}
             step={0.1}
-            value={values.cfgScale}
+            value={String(values.cfgScale)}
             disabled={disabled}
-            onChange={(e) => update("cfgScale", Number(e.target.value))}
+            onChange={(v) => update("cfgScale", Number(v))}
           />
         </label>
         <label>
@@ -385,55 +385,52 @@ export function ImagePromptForm({
         </label>
         <label>
           Seed
-          <input
-            data-testid="image-seed"
+          <TextField
+            testId="image-seed"
             type="number"
             min={0}
-            value={values.seed}
+            value={String(values.seed)}
             disabled={disabled}
-            onChange={(e) => update("seed", Number(e.target.value))}
+            onChange={(v) => update("seed", Number(v))}
           />
         </label>
       </div>
-      <label
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "var(--space-2)",
-          fontSize: "var(--text-xs)",
-          color: "var(--fg-muted)",
-        }}
-      >
-        <input
-          data-testid="image-fast-preview-toggle"
-          type="checkbox"
-          checked={values.fastPreview}
-          disabled={disabled}
-          onChange={(e) => update("fastPreview", e.target.checked)}
-        />
-        <span>
-          Fast Preview <em>(1-step Sana-Sprint, ~0.5 s)</em>
-        </span>
-        {values.fastPreview && (
-          <span
-            data-testid="image-fast-preview-model"
-            style={{ marginLeft: "auto", color: "var(--accent, #10b981)" }}
-          >
-            using {fastPreviewModelId}
+      <Switch
+        testId="image-fast-preview-toggle"
+        checked={values.fastPreview}
+        disabled={disabled}
+        onChange={(on) => update("fastPreview", on)}
+        label={
+          <span>
+            Fast Preview <em>(1-step Sana-Sprint, ~0.5 s)</em>
+            {values.fastPreview ? (
+              <span
+                data-testid="image-fast-preview-model"
+                style={{ marginLeft: "var(--space-2)", color: "var(--accent, #10b981)" }}
+              >
+                using {fastPreviewModelId}
+              </span>
+            ) : null}
           </span>
-        )}
-      </label>
-      <details
-        data-testid="image-advanced"
-        open={advancedOpen}
-        onToggle={(e) => setAdvancedOpen((e.target as HTMLDetailsElement).open)}
-      >
-        <summary>Advanced (LoRAs, ControlNet)</summary>
+        }
+      />
+      <div>
+        <Button
+          type="button"
+          variant="ghost"
+          testId="image-advanced"
+          aria-expanded={advancedOpen}
+          disabled={disabled}
+          onClick={() => setAdvancedOpen((v) => !v)}
+        >
+          Advanced (LoRAs, ControlNet)
+        </Button>
+        {advancedOpen ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", marginTop: "var(--space-2)" }}>
           <div>
-            <button data-testid="image-add-lora" type="button" onClick={addLora} disabled={disabled}>
+            <Button testId="image-add-lora" type="button" onClick={addLora} disabled={disabled}>
               + LoRA
-            </button>
+            </Button>
             {values.loras.map((lora, i) => (
               <div key={`lora-${i}`} data-testid={`image-lora-${i}`} style={{ display: "flex", gap: "var(--space-2)" }}>
                 <Select
@@ -447,34 +444,32 @@ export function ImagePromptForm({
                     </option>
                   ))}
                 </Select>
-                <input
-                  data-testid={`image-lora-weight-${i}`}
+                <TextField
+                  testId={`image-lora-weight-${i}`}
                   type="number"
                   step={0.05}
                   min={-2}
                   max={2}
-                  value={lora.weight}
-                  onChange={(e) => updateLora(i, { weight: Number(e.target.value) })}
+                  value={String(lora.weight)}
+                  onChange={(v) => updateLora(i, { weight: Number(v) })}
                 />
-                <button
+                <Button
                   type="button"
-                  data-testid={`image-lora-remove-${i}`}
+                  variant="ghost"
+                  testId={`image-lora-remove-${i}`}
                   onClick={() => removeLora(i)}
                 >
                   Remove
-                </button>
+                </Button>
               </div>
             ))}
           </div>
-          <label>
-            <input
-              data-testid="image-controlnet-toggle"
-              type="checkbox"
-              checked={Boolean(values.controlNet)}
-              onChange={(e) => toggleControlNet(e.target.checked)}
-            />
-            Enable ControlNet
-          </label>
+          <Switch
+            testId="image-controlnet-toggle"
+            checked={Boolean(values.controlNet)}
+            onChange={(on) => toggleControlNet(on)}
+            label="Enable ControlNet"
+          />
           {values.controlNet && (
             <div data-testid="image-controlnet-fields" style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
               <Select
@@ -511,50 +506,47 @@ export function ImagePromptForm({
             <strong>VRAM budget</strong>
             <label>
               max cache VRAM (GB)
-              <input
-                data-testid="image-max-cache-vram"
+              <TextField
+                testId="image-max-cache-vram"
                 type="number"
                 min={0.5}
                 step={0.5}
-                value={values.maxCacheVramGB}
+                value={String(values.maxCacheVramGB)}
                 disabled={disabled}
-                onChange={(e) => update("maxCacheVramGB", Number(e.target.value))}
+                onChange={(v) => update("maxCacheVramGB", Number(v))}
               />
             </label>
             <label>
               max cache RAM (GB)
-              <input
-                data-testid="image-max-cache-ram"
+              <TextField
+                testId="image-max-cache-ram"
                 type="number"
                 min={1}
                 step={1}
-                value={values.maxCacheRamGB}
+                value={String(values.maxCacheRamGB)}
                 disabled={disabled}
-                onChange={(e) => update("maxCacheRamGB", Number(e.target.value))}
+                onChange={(v) => update("maxCacheRamGB", Number(v))}
               />
             </label>
             <label>
               working reserve (GB)
-              <input
-                data-testid="image-working-reserve"
+              <TextField
+                testId="image-working-reserve"
                 type="number"
                 min={0}
                 step={0.5}
-                value={values.workingMemReserveGB}
+                value={String(values.workingMemReserveGB)}
                 disabled={disabled}
-                onChange={(e) => update("workingMemReserveGB", Number(e.target.value))}
+                onChange={(v) => update("workingMemReserveGB", Number(v))}
               />
             </label>
-            <label>
-              <input
-                data-testid="image-layer-streaming"
-                type="checkbox"
-                checked={values.layerStreaming}
-                disabled={disabled}
-                onChange={(e) => update("layerStreaming", e.target.checked)}
-              />
-              Layer streaming (complete a previously too-small VRAM load)
-            </label>
+            <Switch
+              testId="image-layer-streaming"
+              checked={values.layerStreaming}
+              disabled={disabled}
+              onChange={(on) => update("layerStreaming", on)}
+              label="Layer streaming (complete a previously too-small VRAM load)"
+            />
             {!budgetCheck.ok ? (
               <p data-testid="image-budget-error" style={{ color: "var(--accent-danger, #f87171)", margin: 0 }}>
                 {budgetCheck.errors.join(" ")}
@@ -567,7 +559,8 @@ export function ImagePromptForm({
             ))}
           </div>
         </div>
-      </details>
+        ) : null}
+      </div>
     </form>
   );
 }

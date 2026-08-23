@@ -23,13 +23,20 @@ use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Manager};
 use thiserror::Error;
 use tokio::sync::oneshot;
 
 /// Max stderr lines retained for diagnostics.
 const STDERR_TAIL_LINES: usize = 50;
+/// Lines included in the installer `--healthcheck` verdict JSON.
+pub const HEALTHCHECK_STDERR_LINES: usize = 20;
+/// Wait this long for the child to either print a ready line or stay alive.
+const LIVENESS_WAIT: Duration = Duration::from_millis(500);
+const LIVENESS_POLL: Duration = Duration::from_millis(25);
+/// Sidecar prints this on stderr after stdin is wired (v2.2.1).
+const READY_MARKER: &str = "[nexus-sidecar] ready";
 
 #[derive(Debug, Error)]
 pub enum SidecarError {
@@ -41,6 +48,14 @@ pub enum SidecarError {
     Request(String),
     #[error("sidecar response timeout")]
     Timeout,
+    /// Child started then exited before (or instead of) answering RPC.
+    /// Display is `sidecar-exited:<code>` so the Complete page can print it
+    /// without wrapping a Windows 232 broken-pipe error around a dead stdin.
+    #[error("sidecar-exited:{code}")]
+    Exited {
+        code: i32,
+        stderr_tail: Vec<String>,
+    },
 }
 
 #[derive(Debug, Serialize)]
@@ -102,6 +117,8 @@ pub struct SidecarStatus {
     pub failure: Option<String>,
     pub stderr_tail: Vec<String>,
     pub candidates_rejected: Vec<String>,
+    /// Set when the child has already exited. `None` while it is still running.
+    pub exit_code: Option<i32>,
 }
 
 /// The subset of `~/.nexus/runtime.json` the shell reads (installer contract,
@@ -335,16 +352,20 @@ impl Sidecar {
             failure: None,
             stderr_tail: Vec::new(),
             candidates_rejected: node.rejected.clone(),
+            exit_code: None,
         };
         if !script.exists() {
             status.failure = Some(format!("script-not-found: {}", script.display()));
             return Err(SidecarError::NotFound(script.to_path_buf()));
         }
-        let mut child = Command::new(&node.path)
-            .arg(script)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
+        // v2.2.1: native addons (better-sqlite3) resolve from cwd + the
+        // script directory. A Windows GUI parent often has cwd = System32,
+        // so Node started then died at `require('better-sqlite3')` and the
+        // next JSON-RPC write hit a closed pipe (ERROR_NO_DATA 232).
+        // v2.2.2: CREATE_NO_WINDOW so console-subsystem node.exe does not
+        // allocate a CMD the user can close (STATUS_CONTROL_C_EXIT).
+        let mut command = sidecar_command(&node.path, script);
+        let mut child = command
             .spawn()
             .map_err(|e| SidecarError::Spawn(format!("{} ({})", e, node.path.display())))?;
 
@@ -380,16 +401,25 @@ impl Sidecar {
         Self::spawn_reader(stdout, pending.clone());
 
         status.running = true;
-        Ok((
-            SidecarHandle {
-                child: Arc::new(Mutex::new(Some(child))),
-                stdin: Arc::new(Mutex::new(Some(stdin))),
-                next_id: Arc::new(AtomicU64::new(1)),
-                pending,
-                stderr_tail,
-            },
-            status,
-        ))
+        let handle = SidecarHandle {
+            child: Arc::new(Mutex::new(Some(child))),
+            stdin: Arc::new(Mutex::new(Some(stdin))),
+            next_id: Arc::new(AtomicU64::new(1)),
+            pending,
+            stderr_tail,
+        };
+        if let Err(err) = wait_until_ready(&handle, LIVENESS_WAIT) {
+            status.running = false;
+            status.failure = Some(err.to_string());
+            status.stderr_tail = handle.stderr_tail();
+            if let SidecarError::Exited { code, .. } = &err {
+                status.exit_code = Some(*code);
+            }
+            Sidecar::shutdown(handle);
+            return Err(err);
+        }
+        status.stderr_tail = handle.stderr_tail();
+        Ok((handle, status))
     }
 
     fn spawn_reader(stdout: ChildStdout, pending: PendingMap) {
@@ -426,6 +456,18 @@ impl Sidecar {
         method: &str,
         params: Value,
     ) -> Result<Value, SidecarError> {
+        // Never write JSON-RPC to a child that has already exited: that is
+        // the 2026-08-22 Complete-page 232 (ERROR_NO_DATA on a closed pipe).
+        match handle.try_exit_code() {
+            Ok(Some(code)) => {
+                return Err(SidecarError::Exited {
+                    code,
+                    stderr_tail: handle.stderr_tail(),
+                });
+            }
+            Ok(None) => {}
+            Err(e) => return Err(SidecarError::Request(e)),
+        }
         let id = handle.next_id.fetch_add(1, Ordering::SeqCst);
         let (tx, rx) = oneshot::channel();
         {
@@ -451,10 +493,24 @@ impl Sidecar {
             let Some(stdin) = guard.as_mut() else {
                 return Err(SidecarError::Request("stdin-closed".to_string()));
             };
-            writeln!(stdin, "{line}").map_err(|e| SidecarError::Request(e.to_string()))?;
-            stdin
-                .flush()
-                .map_err(|e| SidecarError::Request(e.to_string()))?;
+            writeln!(stdin, "{line}").map_err(|e| {
+                match handle.try_exit_code() {
+                    Ok(Some(code)) => SidecarError::Exited {
+                        code,
+                        stderr_tail: handle.stderr_tail(),
+                    },
+                    _ => SidecarError::Request(e.to_string()),
+                }
+            })?;
+            stdin.flush().map_err(|e| {
+                match handle.try_exit_code() {
+                    Ok(Some(code)) => SidecarError::Exited {
+                        code,
+                        stderr_tail: handle.stderr_tail(),
+                    },
+                    _ => SidecarError::Request(e.to_string()),
+                }
+            })?;
         }
 
         match tokio::time::timeout(Duration::from_secs(15), rx).await {
@@ -480,6 +536,90 @@ impl Sidecar {
                 let _ = child.wait();
             }
         }
+    }
+}
+
+/// Working directory for the Node child: the directory that contains `main.js`
+/// (and `node_modules/better-sqlite3`).
+pub fn spawn_cwd(script: &Path) -> Option<PathBuf> {
+    script.parent().map(|p| p.to_path_buf())
+}
+
+/// Windows CREATE_NO_WINDOW. Hides the Node console. Never combine with
+/// DETACHED_PROCESS (0x00000008); that breaks piped stdin/stdout JSON-RPC.
+#[cfg(windows)]
+pub const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+/// Process creation flags for the sidecar child. `None` on non-Windows.
+pub fn sidecar_windows_creation_flags() -> Option<u32> {
+    #[cfg(windows)]
+    {
+        Some(CREATE_NO_WINDOW)
+    }
+    #[cfg(not(windows))]
+    {
+        None
+    }
+}
+
+/// Shared Command builder for app spawn, restart, and `--healthcheck`.
+pub fn sidecar_command(node: &Path, script: &Path) -> Command {
+    let mut command = Command::new(node);
+    command
+        .arg(script)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    if let Some(dir) = spawn_cwd(script) {
+        command.current_dir(dir);
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    command
+}
+
+/// Last `n` stderr lines for a healthcheck verdict (empty fragments kept so
+/// the installer can skip them; the formatter must not join blanks with `" / "`).
+pub fn last_stderr_lines(lines: &[String], n: usize) -> Vec<String> {
+    if lines.len() <= n {
+        return lines.to_vec();
+    }
+    lines[lines.len() - n..].to_vec()
+}
+
+/// After spawn: the child must still be running (or have printed ready) before
+/// anyone writes JSON-RPC. A death during import (native addon, catalog) is
+/// `sidecar-exited:<code>` plus the stderr tail, never a 232 broken pipe.
+fn wait_until_ready(handle: &SidecarHandle, timeout: Duration) -> Result<(), SidecarError> {
+    let deadline = Instant::now() + timeout;
+    loop {
+        match handle.try_exit_code() {
+            Ok(Some(code)) => {
+                // Let the drain thread copy the last stack lines.
+                thread::sleep(Duration::from_millis(50));
+                return Err(SidecarError::Exited {
+                    code,
+                    stderr_tail: handle.stderr_tail(),
+                });
+            }
+            Ok(None) => {
+                if handle
+                    .stderr_tail()
+                    .iter()
+                    .any(|l| l.contains(READY_MARKER))
+                {
+                    return Ok(());
+                }
+                if Instant::now() >= deadline {
+                    return Ok(());
+                }
+            }
+            Err(e) => return Err(SidecarError::Spawn(e)),
+        }
+        thread::sleep(LIVENESS_POLL);
     }
 }
 
@@ -629,11 +769,118 @@ mod tests {
             failure: Some("script-not-found: x".into()),
             stderr_tail: vec!["boom".into()],
             candidates_rejected: vec![],
+            exit_code: Some(1),
         };
         let s = serde_json::to_string(&status).unwrap();
         assert!(s.contains("\"nodePath\""));
         assert!(s.contains("\"stderrTail\""));
+        assert!(s.contains("\"exitCode\":1"));
         assert!(s.contains("script-not-found"));
+    }
+
+    #[test]
+    fn spawn_cwd_is_the_script_parent() {
+        let script = PathBuf::from("C:/Nexus/sidecar/dist/main.js");
+        let cwd = spawn_cwd(&script).expect("parent");
+        assert_eq!(cwd, PathBuf::from("C:/Nexus/sidecar/dist"));
+    }
+
+    #[test]
+    fn spawn_helper_applies_create_no_window_on_windows() {
+        // DETACHED_PROCESS would break JSON-RPC pipes; CREATE_NO_WINDOW is the
+        // only extra Windows flag the spawn helper is allowed to set.
+        const DETACHED_PROCESS: u32 = 0x0000_0008;
+        let flags = sidecar_windows_creation_flags();
+        #[cfg(windows)]
+        {
+            assert_eq!(flags, Some(0x0800_0000));
+            assert_eq!(flags.unwrap() & DETACHED_PROCESS, 0);
+            assert_eq!(CREATE_NO_WINDOW, 0x0800_0000);
+        }
+        #[cfg(not(windows))]
+        {
+            assert_eq!(flags, None);
+        }
+        let cmd = sidecar_command(
+            Path::new("node"),
+            Path::new("C:/Nexus/sidecar/dist/main.js"),
+        );
+        let _ = cmd;
+    }
+
+    #[test]
+    fn last_stderr_lines_keeps_the_tail() {
+        let lines: Vec<String> = (0..30).map(|i| format!("line-{i}")).collect();
+        let tail = last_stderr_lines(&lines, HEALTHCHECK_STDERR_LINES);
+        assert_eq!(tail.len(), 20);
+        assert_eq!(tail[0], "line-10");
+        assert_eq!(tail[19], "line-29");
+    }
+
+    #[test]
+    fn spawn_with_dead_child_reports_exit_not_a_pipe_error() {
+        let dir = std::env::temp_dir().join("nexus-test-dead-child");
+        fs::create_dir_all(&dir).unwrap();
+        let script = dir.join("main.js");
+        fs::write(
+            &script,
+            b"process.stderr.write(\"Cannot find module 'better-sqlite3'\\n\"); process.exit(7);\n",
+        )
+        .unwrap();
+        let node = NodeResolution {
+            path: PathBuf::from("node"),
+            source: NodeSource::PathFallback,
+            rejected: vec![],
+        };
+        match Sidecar::spawn_with(&script, &node) {
+            Err(SidecarError::Exited { code, stderr_tail }) => {
+                assert_eq!(code, 7);
+                assert!(
+                    stderr_tail.iter().any(|l| l.contains("better-sqlite3")),
+                    "stderr was {stderr_tail:?}"
+                );
+            }
+            Err(SidecarError::Spawn(_)) => {
+                // PATH has no node in this environment; the contract is still
+                // encoded in Exited vs Request("pipe").
+            }
+            Err(other) => panic!("expected Exited or Spawn, got {other}"),
+            Ok(_) => panic!("dead child must not report running"),
+        }
+    }
+
+    #[test]
+    fn spawn_with_sets_cwd_to_script_dir() {
+        let dir = std::env::temp_dir().join("nexus-test-spawn-cwd");
+        fs::create_dir_all(&dir).unwrap();
+        let script = dir.join("main.js");
+        // Stay alive until stdin closes; print cwd so we can assert spawn cwd.
+        fs::write(
+            &script,
+            b"process.stderr.write('[nexus-sidecar] ready\\n'); process.stderr.write('cwd=' + process.cwd() + '\\n'); require('readline').createInterface({input:process.stdin}).on('close', () => process.exit(0));\n",
+        )
+        .unwrap();
+        let node = NodeResolution {
+            path: PathBuf::from("node"),
+            source: NodeSource::PathFallback,
+            rejected: vec![],
+        };
+        match Sidecar::spawn_with(&script, &node) {
+            Ok((handle, status)) => {
+                assert!(status.running);
+                let tail = handle.stderr_tail();
+                let cwd_line = tail.iter().find(|l| l.starts_with("cwd="));
+                if let Some(line) = cwd_line {
+                    let reported = line.trim_start_matches("cwd=");
+                    let expected = fs::canonicalize(&dir).unwrap_or(dir.clone());
+                    let reported_canon = fs::canonicalize(reported).unwrap_or_else(|_| PathBuf::from(reported));
+                    assert_eq!(reported_canon, expected, "spawn cwd was {reported}");
+                }
+                Sidecar::shutdown(handle);
+            }
+            Err(SidecarError::Spawn(_)) => {}
+            Err(other) => panic!("unexpected spawn error: {other}"),
+        }
     }
 
     #[test]

@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { Select } from "../../components/ui/Select";
+import { Button, Select, Switch, TextField } from "../../components/ui";
 import { ipcCall } from "../../lib/ipc";
 
 export type DesktopSecurityPosture = "strict" | "standard" | "unattended";
@@ -249,18 +249,15 @@ export function SecuritySettings({
           <code> nexus.coding.parseDocument.enabled</code> in local settings.
           Off by default.
         </p>
-        <label data-testid="parse-document-toggle" style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <input
-            type="checkbox"
-            checked={parseDocumentEnabled}
-            onChange={(e) => {
-              const next = e.target.checked;
-              setParseDocumentEnabled(next);
-              void parseDocument.setEnabled(next);
-            }}
-          />
-          Enable parse_document for coding sessions
-        </label>
+        <Switch
+          testId="parse-document-toggle"
+          checked={parseDocumentEnabled}
+          onChange={(next) => {
+            setParseDocumentEnabled(next);
+            void parseDocument.setEnabled(next);
+          }}
+          label="Enable parse_document for coding sessions"
+        />
       </section>
       <section data-testid="audit-log-viewer" style={{ marginTop: 32 }}>
         <h2>Local audit log</h2>
@@ -286,16 +283,16 @@ export function SecuritySettings({
           </label>
           <label>
             Pillar
-            <input
-              data-testid="audit-filter-pillar"
+            <TextField
+              testId="audit-filter-pillar"
               value={pillarFilter}
-              onChange={(e) => setPillarFilter(e.target.value)}
+              onChange={setPillarFilter}
               placeholder="coding"
             />
           </label>
-          <button type="button" data-testid="audit-refresh" onClick={refreshAudit}>
+          <Button type="button" testId="audit-refresh" onClick={refreshAudit}>
             Refresh
-          </button>
+          </Button>
           <span data-testid="audit-dropped-count">Dropped: {dropped}</span>
         </div>
         {!vaultAvailable ? (

@@ -20,7 +20,7 @@ describe("Sidebar", () => {
     expect(screen.getByTestId("nav-image")).toBeInTheDocument();
     expect(screen.getByTestId("nav-video")).toBeInTheDocument();
     expect(screen.getByTestId("nav-admin-settings")).toBeInTheDocument();
-    expect(screen.getByTestId("nav-admin-profile")).toBeInTheDocument();
+    expect(screen.queryByTestId("nav-admin-profile")).toBeNull();
   });
 
   // v2.2.0 Phase 6 (6.1 / 6.3): the brand block and the Ask-inbox tab are

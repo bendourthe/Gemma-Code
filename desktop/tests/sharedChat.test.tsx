@@ -15,18 +15,24 @@ import {
 } from "../src/shared/chat";
 
 describe("<MessageBubble>", () => {
-  it("renders the message content and role label", () => {
+  it("renders the message content without a You label", () => {
     const msg: ChatMessage = { id: "m1", role: "user", content: "Hello world" };
     render(<MessageBubble message={msg} />);
     const bubble = screen.getByTestId("message-bubble-m1");
     expect(bubble).toHaveTextContent("Hello world");
+    expect(bubble.textContent).toBe("Hello world");
     expect(bubble.getAttribute("data-role")).toBe("user");
+    expect(bubble.style.maxWidth).toBe("80%");
+    expect(bubble.style.width).toBe("fit-content");
   });
 
-  it("renders the assistant label and matching style", () => {
+  it("renders an assistant turn without an Assistant label", () => {
     const msg: ChatMessage = { id: "a1", role: "assistant", content: "Sure" };
     render(<MessageBubble message={msg} />);
-    expect(screen.getByTestId("message-bubble-a1")).toHaveTextContent(/Assistant/);
+    const bubble = screen.getByTestId("message-bubble-a1");
+    expect(bubble).toHaveTextContent("Sure");
+    expect(bubble.textContent).toBe("Sure");
+    expect(bubble.style.maxWidth).toBe("80%");
   });
 
   it("renders the system label", () => {
@@ -83,6 +89,22 @@ describe("<MessageList>", () => {
     render(<MessageList messages={messages} />);
     expect(screen.getByTestId("message-bubble-u1")).toBeInTheDocument();
     expect(screen.getByTestId("message-bubble-a1")).toBeInTheDocument();
+  });
+
+  it("aligns user rows to the end and assistant rows to the start", () => {
+    const messages: ChatMessage[] = [
+      { id: "u1", role: "user", content: "hi" },
+      { id: "a1", role: "assistant", content: "hello" },
+    ];
+    render(<MessageList messages={messages} />);
+    const userRow = screen.getByTestId("message-row-u1");
+    const assistantRow = screen.getByTestId("message-row-a1");
+    expect(userRow).toHaveAttribute("data-role", "user");
+    expect(assistantRow).toHaveAttribute("data-role", "assistant");
+    expect(userRow.style.alignItems).toBe("flex-end");
+    expect(assistantRow.style.alignItems).toBe("flex-start");
+    expect(screen.getByTestId("message-bubble-u1").style.maxWidth).toBe("80%");
+    expect(screen.getByTestId("message-bubble-a1").style.maxWidth).toBe("80%");
   });
 
   it("honours a custom emptyMessage", () => {

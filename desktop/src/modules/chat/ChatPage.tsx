@@ -75,6 +75,8 @@ import { QuickModelSwitcher } from "../../shared/models/QuickModelSwitcher";
 import { SETTINGS_MODELS_PATH } from "../../shared/models/installedFeed";
 import { createIpcModelsClient } from "../../pages/settings/ipcModelsClient";
 import type { ListedModelDto } from "../../pages/settings/modelsTypes";
+import { SidecarDownBanner } from "../../components/SidecarDownBanner";
+import { useSidecarStatus, type UseSidecarStatusOptions } from "../../lib/sidecarStatus";
 
 const FALLBACK_LLMS: readonly ListedModelDto[] = FRONTEND_MODELS.map((m) => ({
   id: m.id,
@@ -124,6 +126,8 @@ export interface ChatPageProps {
   playAudio?: (dataUrl: string, signal: AbortSignal) => Promise<void>;
   /** Tests inject a fake mic; production uses getUserMedia. */
   voiceMicRecorder?: import("../../shared/chat/micRecorder").MicRecorder;
+  /** v2.2.2 -- test seam for the backend-down banner. */
+  sidecarStatus?: UseSidecarStatusOptions;
 }
 
 export function ChatPage({
@@ -138,6 +142,7 @@ export function ChatPage({
   voiceMicRecorder,
   sampleVideoFrames,
   memoryHub,
+  sidecarStatus: sidecarStatusOptions,
 }: ChatPageProps = {}): JSX.Element {
   // The client survives re-renders but is recreated per ChatPage instance.
   // Tests can inject one via the prop so they observe state changes.
@@ -152,6 +157,7 @@ export function ChatPage({
         : new InMemoryChatExplorerClient()),
   );
   const client = clientOverride ?? internalClient;
+  const sidecar = useSidecarStatus(sidecarStatusOptions);
   const [chatSession] = useState<ChatSessionClient>(
     () => chatSessionOverride ?? createChatIpcClient(),
   );
@@ -463,8 +469,18 @@ export function ChatPage({
 
   const handleSubmit = useCallback(
     async (text: string, attachments: readonly string[] = []) => {
-      if (!activeChat) return;
-      const chat = activeChat;
+      let chat = activeChat;
+      if (!chat) {
+        const created = client.createChat({
+          folderId: null,
+          title: "New chat",
+          modelId,
+        });
+        chat = await Promise.resolve(created);
+        setActiveChat(chat);
+        setSelected({ kind: "chat", id: chat.id });
+        setTreeVersion((v) => v + 1);
+      }
       const baseId = `${chat.id}-${Date.now()}`;
       const groups = partitionAttachments(attachments);
       let prompt = text;
@@ -621,6 +637,7 @@ export function ChatPage({
       imageGate.enabled,
       listedModels,
       memoryHub,
+      modelId,
       playReply,
       sampleVideoFrames,
       selectedListedModel,
@@ -843,6 +860,17 @@ export function ChatPage({
           </span>
         </header>
 
+        {sidecar.isDown && (
+          <SidecarDownBanner
+            status={sidecar.status}
+            restarting={sidecar.restarting}
+            restartError={sidecar.restartError}
+            onRestart={() => void sidecar.restart()}
+            context="Chat cannot reach the local backend."
+            testId="chat-sidecar-down"
+          />
+        )}
+
         <div style={{ flex: 1, display: "flex", minHeight: 0, gap: "var(--space-3)" }}>
           <div style={{ flex: 1, overflowY: "auto", minWidth: 0 }}>
             {activeChat ? (
@@ -853,7 +881,7 @@ export function ChatPage({
               />
             ) : (
               <p data-testid="chat-page-empty" style={{ color: "var(--fg-muted)" }}>
-                Select a chat from the left rail, or right-click a folder to create one.
+                Type a message to start a chat. Folders are optional.
               </p>
             )}
           </div>
@@ -866,8 +894,7 @@ export function ChatPage({
           ) : null}
         </div>
 
-        {activeChat && (
-          <footer style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+        <footer style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
             {/*
               v1.20.0 Phase 2: RapidOCR remains required for PDF/image. Native
               Office parse does not, so the composer stays usable when this
@@ -927,8 +954,7 @@ export function ChatPage({
               audioEnabled
               audioHint={audioHint}
             />
-          </footer>
-        )}
+        </footer>
       </div>
     </section>
   );

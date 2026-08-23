@@ -10,7 +10,10 @@
 pub mod sidecar;
 
 use serde_json::{json, Value};
-use sidecar::{resolve_node, runtime_config_path, Sidecar, SidecarHandle, SidecarStatus};
+use sidecar::{
+    last_stderr_lines, resolve_node, runtime_config_path, Sidecar, SidecarError, SidecarHandle,
+    SidecarStatus, HEALTHCHECK_STDERR_LINES,
+};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use tauri::{Manager, RunEvent};
@@ -57,7 +60,8 @@ fn refreshed_status(state: &AppState) -> SidecarStatus {
             Ok(None) => status.running = true,
             Ok(Some(code)) => {
                 status.running = false;
-                status.failure = Some(format!("sidecar-exited: code {code}"));
+                status.exit_code = Some(code);
+                status.failure = Some(format!("sidecar-exited:{code}"));
             }
             Err(e) => {
                 status.running = false;
@@ -130,6 +134,9 @@ fn restart_sidecar_locked(
                 .unwrap_or_default();
             status.running = false;
             status.failure = Some(err.to_string());
+            if let SidecarError::Exited { code, .. } = &err {
+                status.exit_code = Some(*code);
+            }
             if let Ok(mut stored) = state.status.lock() {
                 *stored = status.clone();
             }
@@ -178,11 +185,19 @@ pub fn run_healthcheck(budget_secs: u64) -> i32 {
     let (handle, status) = match spawned {
         Ok(pair) => pair,
         Err(err) => {
+            let (exit_code, stderr_tail) = match &err {
+                SidecarError::Exited { code, stderr_tail } => {
+                    (Some(*code), last_stderr_lines(stderr_tail, HEALTHCHECK_STDERR_LINES))
+                }
+                _ => (None, Vec::new()),
+            };
             let verdict = json!({
                 "sidecar": format!("fail: {err}"),
+                "exitCode": exit_code,
                 "nodePath": node.path.display().to_string(),
                 "scriptPath": script.display().to_string(),
                 "candidatesRejected": node.rejected,
+                "stderrTail": stderr_tail,
                 "catalogRows": 0,
                 "hubCatalog": "unknown",
             });
@@ -239,17 +254,25 @@ pub fn run_healthcheck(budget_secs: u64) -> i32 {
             if std::time::Instant::now() >= deadline {
                 return Err(attempt_err);
             }
+            // A dead child will never answer; do not retry into a closed pipe.
+            if handle.try_exit_code().ok().flatten().is_some() {
+                return Err(attempt_err);
+            }
             tokio::time::sleep(backoff).await;
             backoff = (backoff * 2).min(std::time::Duration::from_secs(4));
         }
     });
 
+    let stderr_tail = last_stderr_lines(&handle.stderr_tail(), HEALTHCHECK_STDERR_LINES);
+    let exit_code = handle.try_exit_code().ok().flatten();
     let (verdict, code) = match outcome {
         Ok((catalog_rows, catalog_status, hub)) => (
             json!({
                 "sidecar": "ok",
+                "exitCode": exit_code,
                 "nodePath": status.node_path,
                 "scriptPath": status.script_path,
+                "stderrTail": stderr_tail,
                 "catalogRows": catalog_rows,
                 "catalogStatus": catalog_status,
                 "hubCatalog": hub,
@@ -259,9 +282,10 @@ pub fn run_healthcheck(budget_secs: u64) -> i32 {
         Err(reason) => (
             json!({
                 "sidecar": format!("fail: {reason}"),
+                "exitCode": exit_code,
                 "nodePath": status.node_path,
                 "scriptPath": status.script_path,
-                "stderrTail": handle.stderr_tail(),
+                "stderrTail": stderr_tail,
                 "catalogRows": 0,
                 "hubCatalog": "unknown",
             }),

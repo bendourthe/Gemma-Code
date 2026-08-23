@@ -2,13 +2,198 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-22 (Phase 8 of runtime-repair-and-ux-overhaul)
+**Last updated**: 2026-08-22 (v2.2.2 ready-shell-and-studio-chrome)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
-Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repair-and-ux-overhaul.md)
+Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repair-and-ux-overhaul.md), [plans/v2.2.1-field-repair-and-chrome-completion.md](plans/v2.2.1-field-repair-and-chrome-completion.md), [plans/v2.2.2-ready-shell-and-studio-chrome.md](plans/v2.2.2-ready-shell-and-studio-chrome.md)
+
+## v2.2.2
+
+**Last updated**: 2026-08-22 (ready-shell-and-studio-chrome)
+
+### Summary
+
+| Category | Open | Resolved |
+|---|---|---|
+| Not implemented (NI) | 0 | 0 |
+| Deferred (DF) | 8 | 0 |
+| Bugs / regressions (BG) | 0 | 6 |
+| Warnings (WN) | 0 | 0 |
+| Missing tests / coverage gaps (MT) | 0 | 0 |
+| Quality-gate gaps (QG) | 0 | 0 |
+
+v2.2.2 does not re-run v2.2.0 or v2.2.1. It closes what the 2026-08-22 post-healthcheck GUI session still proved broken, and finishes composer / bubble / Data / Advanced chrome.
+
+### Open Items
+
+#### Deferred (carried from v2.2.0 / v2.2.1)
+
+##### DF-1 - Node SEA / externalBin bundling not implemented (resolution chain shipped instead)
+
+Unchanged. Spawn now also sets `CREATE_NO_WINDOW` on Windows. The Node binary is still resolved from the installer chain, not a Tauri `externalBin`.
+
+##### DF-2 - Packaged-build acceptance legs not executed (clean-VM smoke)
+
+A 2026-08-22 Complete-page healthcheck on this Windows host printed sidecar ok. That is not a clean-VM proof, and this coding session did not launch `nexus-shell.exe` from Explorer to confirm zero Node consoles after the flag change. Unit tests cover the flag helper.
+
+##### DF-4 - Live-GPU generation smoke written but not executed
+
+Unchanged. Out of scope for v2.2.2.
+
+##### DF-14 - CodingInput still has its own composer implementation
+
+Unchanged as a shared primitive. v2.2.2 restyled CodingInput to the same in-field + / icon-send contract as MediaComposer (slash autocomplete stays). The duplicated surface style objects were not extracted.
+
+##### DF-16 remaining - no native file dialog for data transfer
+
+Unchanged. Settings > Data still takes a path string. Page padding now matches Models.
+
+##### DF-17 - Settings tabs are not URL-addressable
+
+Unchanged. Out of scope.
+
+##### DF-18 - Sidecar cwd + native addon on macOS .app and Linux AppImage
+
+Unchanged. This session did not execute a macOS `.app` or Linux AppImage install (`not_observed != absent`).
+
+##### DF-19 - CREATE_NO_WINDOW / hidden Node console not applicable on macOS or Linux
+
+- **Source phase**: v2.2.2 Phase 1 / Phase 6.4
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.2-ready-shell-and-studio-chrome.md` (1.1, 6.4)
+- **Reason**: `creation_flags(CREATE_NO_WINDOW)` is `cfg(windows)` only. macOS and Linux do not allocate a console for a GUI-parented Node child the way Windows console-subsystem `node.exe` does. Those platforms are N/A for this flag, not proven hidden.
+- **Suggested next step**: Record a packaged macOS/Linux launch screenshot showing no extra terminal; do not copy the Windows flag there.
+
+### Resolved Items
+
+#### Bugs found and fixed within this cycle
+
+##### BG-9 (resolved) - Visible node.exe console then sidecar-exited:-1073741510
+
+- **Source phase**: Phase 1
+- **What happened**: After a passing installer healthcheck, the GUI spawned console-subsystem `node.exe` with no creation flags. Closing that CMD sent `STATUS_CONTROL_C_EXIT` (0xC000013A / -1073741510) and killed the sidecar.
+- **Fix**: Shared `sidecar_command` sets `CREATE_NO_WINDOW` (`0x08000000`) on Windows. No `DETACHED_PROCESS`. In-app `ReadyOverlay` waits for sidecar running plus `models.list` (empty catalog ok), then dismisses. Failure shows `SidecarDownBanner` plus Restart, not a hung splash.
+
+##### BG-10 (resolved) - Image generate 400d on sampler flow-dpm-solver
+
+- **Source phase**: Phase 2
+- **What happened**: UI default and Fast Preview sent `flow-dpm-solver`. Python already allowed it. Sidecar Zod `DiffusionSampler` was the six-value enum without that member.
+- **Fix**: Enum includes `flow-dpm-solver`. Protocol tests parse the 2026-08-22 field payload.
+
+##### BG-11 (resolved) - Settings > Data had no page padding
+
+- **Source phase**: Phase 4
+- **What happened**: Data controls sat on the pane edge. Models uses `padding: var(--space-6, 24px)`.
+- **Fix**: The same token on the `settings-data` root.
+
+##### BG-12 (resolved) - Generate/Send was a labeled MetalAccent box; Coding was a three-box row
+
+- **Source phase**: Phase 3
+- **What happened**: MediaComposer wrapped a captioned submit in MetalAccent (`.nexus-metal-fallback` ring). CodingInput kept + / textarea / Send as separate boxes.
+- **Fix**: + and icon send grouped inside the field (right cluster). Submit is `aria-label` only. AccentBeam stays on the surface.
+
+##### BG-13 (resolved) - Transcripts were full-width rectangles labeled You/Assistant
+
+- **Source phase**: Phase 5
+- **What happened**: MessageBubble was full-width with a role header. Image/Video used custom `<ul>` lists.
+- **Fix**: User rows `flex-end`, assistant `flex-start`. Bubble `fit-content`, `max-width: 80%`. No You/Assistant on normal turns. Image/Video use MessageList.
+
+##### BG-14 (resolved) - Chat and Coding looked empty when the sidecar was down
+
+- **Source phase**: Phase 5
+- **What happened**: Neither page mounted `SidecarDownBanner`. Empty copy read as a blank constellation.
+- **Fix**: Banner on Chat and Coding when `useSidecarStatus` reports down. Composer stays visible.
+
+## v2.2.1
+
+**Last updated**: 2026-08-22 (field-repair-and-chrome-completion)
+
+### Summary
+
+| Category | Open | Resolved |
+|---|---|---|
+| Not implemented (NI) | 0 | 0 |
+| Deferred (DF) | 6 | 0 |
+| Bugs / regressions (BG) | 0 | 6 |
+| Warnings (WN) | 0 | 0 |
+| Missing tests / coverage gaps (MT) | 0 | 0 |
+| Quality-gate gaps (QG) | 0 | 0 |
+
+v2.2.1 does not re-run the v2.2.0 cycle. It closes what the 2026-08-22 field install still proved broken, and finishes chrome that v2.2.0 claimed done. Carry-forwards from v2.2.0 that this patch did not close are listed below (same IDs).
+
+### Open Items
+
+#### Deferred (carried from v2.2.0)
+
+##### DF-1 - Node SEA / externalBin bundling not implemented (resolution chain shipped instead)
+
+Unchanged. Spawn now sets cwd to the script directory and waits for liveness; the Node binary is still resolved from the installer chain, not a Tauri `externalBin`.
+
+##### DF-2 - Packaged-build acceptance legs not executed (clean-VM smoke)
+
+A 2026-08-22 rebuild of `nexus-shell.exe --healthcheck` on this Windows host printed `"sidecar":"ok"` with `catalogRows: 38` after two packaging fixes: copy `unsloth-pins.json` next to the bundle (import-time ENOENT), and fetch `better-sqlite3` for installer Node 22.11.0 (ABI 127) instead of the developer Node 24 (ABI 137). The Complete-page install of a freshly built `dist/NexusSetup.exe` is still the remaining live-install proof.
+
+##### DF-4 - Live-GPU generation smoke written but not executed
+
+Unchanged. Out of scope for v2.2.1.
+
+##### DF-16 remaining - no native file dialog for data transfer
+
+Unchanged. Settings > Data still takes a path string. Preview-and-stage import is not a full restore into final destinations.
+
+##### DF-17 - Settings tabs are not URL-addressable
+
+Unchanged. Out of scope.
+
+##### DF-18 - Sidecar cwd + native addon on macOS .app and Linux AppImage
+
+- **Source phase**: v2.2.1 Phase 1 / Phase 5.4
+- **Plan reference**: `docs/v2/v2.2/plans/v2.2.1-field-repair-and-chrome-completion.md` (5.4)
+- **Reason**: Spawn cwd is `script.parent()` and Tauri maps the whole `sidecar/dist` tree, which is OS-agnostic in source. This session did not execute a macOS `.app` or Linux AppImage install, so those resource layouts are not proven here (`not_observed != absent`).
+- **Suggested next step**: Run `--healthcheck` on a packaged macOS and Linux build and confirm `better_sqlite3.node` resolves from the script directory.
+
+### Resolved Items
+
+#### Bugs found and fixed within this cycle
+
+##### BG-3 (resolved) - Complete page printed os error 232 and `[ / / Nodejs v22.11.0]`
+
+- **Source phase**: Phase 1
+- **What happened**: Node 22.11.0 started, then the child died (native addon lookup with the wrong cwd). The next JSON-RPC write hit a closed pipe. Healthcheck joined the last three stderr fragments with `" / "`.
+- **Fix**: `spawn_with` sets cwd to `script.parent()`, waits for `[nexus-sidecar] ready` or 500 ms of liveness, maps a dead child to `sidecar-exited:<code>`, and the installer prints `exitCode`, paths, and non-empty stderr lines.
+
+##### BG-4 (resolved) - Approvals popover could not be dismissed
+
+- **Source phase**: Phase 3
+- **What happened**: Open toggled only from the bell. No X, Escape, or outside click. The card followed the user across tabs.
+- **Fix**: Close control, Escape, pointerdown outside the dialog and the bell. Portal to the right of the rail so it cannot cover the toggle. Sidecar-down error is closable and does not auto-open.
+
+##### BG-5 (resolved) - Settings leftover native search/text/action chrome
+
+- **Source phase**: Phase 4
+- **What happened**: Models Search, Skill Optimizer, and every other Settings tab still used unstyled native inputs and buttons after the v2.2.0 select pass.
+- **Fix**: Shared `Button` and `TextField` primitives; sweep of every Settings tab body; coding-panel leftover `<select>`s wrapped. Vitest grep guards the settings pages.
+
+##### BG-6 (resolved) - User Profile sidebar row and expanded-by-default rail
+
+- **Source phase**: Phase 2
+- **What happened**: `ADMIN_ENTRIES` still had User Profile -> `/profile`. Compact was `storedCompact ?? narrow`, so a wide window started expanded.
+- **Fix**: Profile row removed. Compact default is true. Silent `/profile` redirect remains.
+
+##### BG-7 (resolved) - Image/Video mapped sidecar-down to a fake installed SANA
+
+- **Source phase**: Phase 5 leftover
+- **What happened**: Catch on `models.list` set `noneInstalled` and showed `FALLBACK_MODEL` marked installed.
+- **Fix**: Sidecar-down sets an empty list and `noneInstalled=false`. A genuine empty catalog is empty, not a fake installed row.
+
+##### BG-8 (resolved) - Chat composer hidden until a chat existed
+
+- **Source phase**: Phase 5 leftover
+- **What happened**: `MediaComposer` rendered only when `activeChat` was set. Empty copy told the user to pick a folder first.
+- **Fix**: Composer is always visible. First send creates a folder-less "New chat" and titles it from the first prompt when the generator is available.
 
 ## v2.2.0
+
 
 ### Summary
 

@@ -14,7 +14,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { Select } from "../../components/ui/Select";
+import { Button, SearchInput, Select } from "../../components/ui";
 import { SidecarDownBanner } from "../../components/SidecarDownBanner";
 import { isBackendDownMessage, useSidecarStatus } from "../../lib/sidecarStatus";
 
@@ -268,13 +268,12 @@ export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProp
         )}
         <label style={{ flex: 1 }}>
           <span style={labelStyle}>Search</span>
-          <input
-            data-testid="models-search"
-            type="search"
+          <SearchInput
+            testId="models-search"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={setQuery}
             placeholder="Search by name, type, or id"
-            style={{ width: "100%" }}
+            label="Search models"
           />
         </label>
       </div>
@@ -442,13 +441,13 @@ function RowActions({
           {formatBytes(progress.bytes)}
           {total > 0 ? ` / ${formatBytes(total)} (${pct.toFixed(0)}%)` : ""}
         </span>
-        <button
+        <Button
           type="button"
-          data-testid={`models-cancel-${item.id}`}
+          testId={`models-cancel-${item.id}`}
           onClick={onCancel}
         >
           Cancel
-        </button>
+        </Button>
       </div>
     );
   }
@@ -466,37 +465,37 @@ function RowActions({
       );
     }
     return (
-      <button
+      <Button
         type="button"
-        data-testid={`models-install-${item.id}`}
+        testId={`models-install-${item.id}`}
         onClick={onInstall}
       >
         Install
-      </button>
+      </Button>
     );
   }
   if (onReveal) {
     return (
-      <button
+      <Button
         type="button"
-        data-testid={`models-reveal-${item.id}`}
+        testId={`models-reveal-${item.id}`}
         onClick={onReveal}
       >
         Reveal
-      </button>
+      </Button>
     );
   }
   if (onRemove) {
     return (
       <div style={{ display: "flex", gap: "var(--space-2, 8px)" }}>
         {onPin && (
-          <button type="button" data-testid={`models-pin-${item.id}`} onClick={onPin}>
+          <Button type="button" testId={`models-pin-${item.id}`} onClick={onPin}>
             Pin
-          </button>
+          </Button>
         )}
-        <button type="button" data-testid={`models-remove-${item.id}`} onClick={onRemove}>
+        <Button type="button" testId={`models-remove-${item.id}`} onClick={onRemove}>
           Remove
-        </button>
+        </Button>
       </div>
     );
   }

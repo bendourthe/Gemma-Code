@@ -21,13 +21,12 @@ export function allowsMotion(kind: MotionKind, candidates: readonly MotionKind[]
   return primaryMotion(candidates) === kind;
 }
 
-/** Composer: streaming beam owns liveness; focus metal owns the hero send; idle is quiet. */
+/** Composer: streaming and focus both use the surface beam; idle is quiet. */
 export function composerMotionCandidates(input: {
   streaming: boolean;
   focused: boolean;
 }): MotionKind[] {
-  if (input.streaming) return ["beam"];
-  if (input.focused) return ["metal"];
+  if (input.streaming || input.focused) return ["beam"];
   return [];
 }
 

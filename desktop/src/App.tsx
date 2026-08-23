@@ -3,6 +3,8 @@ import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { Sidebar } from "./components/Sidebar";
 import { TitleBar } from "./components/TitleBar";
 import { ConstellationBackground } from "./components/ConstellationBackground";
+import { ReadyOverlay } from "./components/ReadyOverlay";
+import { useReadyGate } from "./lib/readyGate";
 import { Dashboard } from "./pages/Dashboard";
 import { StyleguidePage } from "./pages/Styleguide";
 import { CodingPage } from "./modules/coding/CodingPage";
@@ -76,6 +78,7 @@ function AppLayout({ telemetryStream }: AppProps): JSX.Element {
   const [hostVramGB, setHostVramGB] = useState<number | null>(null);
   const navigate = useNavigate();
   const { isAmbientReceded } = useMotionActivity();
+  const ready = useReadyGate();
 
   useEffect(() => {
     if (telemetryStream !== undefined) {
@@ -145,6 +148,13 @@ function AppLayout({ telemetryStream }: AppProps): JSX.Element {
           into the sidebar footer.
         */}
         <Sidebar askInboxClient={askInboxClient} telemetryStream={stream} />
+        <ReadyOverlay
+          phase={ready.phase}
+          status={ready.status}
+          restarting={ready.restarting}
+          restartError={ready.restartError}
+          onRestart={() => void ready.restart()}
+        />
         <main
           style={{
             display: "flex",

@@ -14,20 +14,27 @@
 
 import type { CSSProperties, ReactNode, SelectHTMLAttributes } from "react";
 
-const controlBase: CSSProperties = {
-  appearance: "none",
-  WebkitAppearance: "none",
-  MozAppearance: "none",
+export const CONTROL_CLASS = "nx-control";
+
+/** Shared surface tokens for Select, SearchInput, TextField, and Button. */
+export const controlSurface: CSSProperties = {
   backgroundColor: "var(--bg-elevated, #1b1b1b)",
   color: "var(--fg-0)",
   border: "1px solid var(--border-subtle)",
   borderRadius: "var(--radius-md, 8px)",
   padding: "var(--space-2, 6px) var(--space-3, 10px)",
-  paddingRight: "1.75rem",
   fontSize: "var(--text-sm)",
   fontFamily: "var(--font-sans)",
-  cursor: "pointer",
   outline: "none",
+};
+
+const controlBase: CSSProperties = {
+  appearance: "none",
+  WebkitAppearance: "none",
+  MozAppearance: "none",
+  ...controlSurface,
+  paddingRight: "1.75rem",
+  cursor: "pointer",
   width: "100%",
 };
 
@@ -45,6 +52,7 @@ export function Select({ label, testId, style, children, ...rest }: SelectProps)
       <select
         data-testid={testId}
         aria-label={label ?? rest["aria-label"]}
+        className={CONTROL_CLASS}
         {...rest}
         style={{ ...controlBase, ...style }}
       >
@@ -90,20 +98,14 @@ export function SearchInput({
   return (
     <input
       type="search"
+      className={CONTROL_CLASS}
       data-testid={testId}
       aria-label={label}
       value={value}
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
       style={{
-        backgroundColor: "var(--bg-elevated, #1b1b1b)",
-        color: "var(--fg-0)",
-        border: "1px solid var(--border-subtle)",
-        borderRadius: "var(--radius-md, 8px)",
-        padding: "var(--space-2, 6px) var(--space-3, 10px)",
-        fontSize: "var(--text-sm)",
-        fontFamily: "var(--font-sans)",
-        outline: "none",
+        ...controlSurface,
         width: "100%",
         ...style,
       }}
@@ -133,6 +135,7 @@ export function Switch({ checked, onChange, label, disabled, testId }: SwitchPro
         cursor: disabled ? "default" : "pointer",
         opacity: disabled ? 0.6 : 1,
         fontSize: "var(--text-sm)",
+        position: "relative",
       }}
     >
       <input
@@ -141,7 +144,14 @@ export function Switch({ checked, onChange, label, disabled, testId }: SwitchPro
         checked={checked}
         disabled={disabled}
         onChange={(e) => onChange(e.target.checked)}
-        style={{ position: "absolute", opacity: 0, width: 0, height: 0 }}
+        style={{
+          position: "absolute",
+          opacity: 0,
+          width: 34,
+          height: 18,
+          margin: 0,
+          cursor: disabled ? "default" : "pointer",
+        }}
       />
       <span
         aria-hidden

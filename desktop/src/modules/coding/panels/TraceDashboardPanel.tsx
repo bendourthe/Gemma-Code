@@ -4,6 +4,7 @@ import type {
   PerModelMetricSummaryT,
   TraceEventT,
 } from "../../../../sidecar/src/protocol";
+import { Select } from "../../../components/ui";
 import { TimelineScrubber } from "./TimelineScrubber";
 import { SessionCompareView } from "./SessionCompareView";
 import { ModelAnalyticsSection } from "./ModelAnalyticsSection";
@@ -195,10 +196,11 @@ export function TraceDashboardPanel({
         }}
       >
         hookKind:
-        <select
+        <Select
           value={hookKindFilter}
           onChange={(e) => setHookKindFilter(e.target.value)}
           aria-label="Filter by hookKind"
+          style={{ width: "auto" }}
         >
           <option value="">(all)</option>
           {availableHookKinds.map((k) => (
@@ -206,7 +208,7 @@ export function TraceDashboardPanel({
               {k}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
       {visibleEvents.length === 0 ? (
         <p style={{ color: "var(--fg-muted)" }}>No trace events recorded yet.</p>

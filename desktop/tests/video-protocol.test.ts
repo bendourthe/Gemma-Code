@@ -42,6 +42,22 @@ describe("video IPC protocol", () => {
     expect(parsed.durationSeconds).toBe(4);
   });
 
+  it("text2video accepts flow-dpm-solver (Fast Preview / SANA)", () => {
+    const parsed = DiffusionVideoText2VideoRequest.parse({
+      modelId: "sana-video-2b-720p",
+      prompt: "fox",
+      width: 1280,
+      height: 720,
+      durationSeconds: 4,
+      fps: 24,
+      steps: 30,
+      cfgScale: 3.5,
+      sampler: "flow-dpm-solver",
+      seed: 7,
+    });
+    expect(parsed.sampler).toBe("flow-dpm-solver");
+  });
+
   it("text2video rejects out-of-range duration", () => {
     expect(() =>
       DiffusionVideoText2VideoRequest.parse({

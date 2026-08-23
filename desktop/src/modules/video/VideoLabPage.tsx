@@ -14,13 +14,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useModelResidency } from "../../shared/models/useModelResidency";
 import { ModelSwitchChip, ModelSwitchDialog } from "../../shared/models/ModelSwitchDialog";
 import { SidecarDownBanner } from "../../components/SidecarDownBanner";
+import { Button } from "../../components/ui";
 import {
   isBackendDownMessage,
   isSidecarFailureMessage,
   useSidecarStatus,
 } from "../../lib/sidecarStatus";
 
-import { MediaComposer, MessageBubble, chatComposerAccept, type ChatMessage } from "../../shared/chat";
+import { MediaComposer, MessageList, chatComposerAccept, type ChatMessage } from "../../shared/chat";
 import { ModelSelector } from "../../shared/chat/ModelSelector";
 import {
   SETTINGS_MODELS_PATH,
@@ -141,6 +142,7 @@ export function VideoLabPage({
   const [queueJobs, setQueueJobs] = useState<readonly GenerationJob[]>([]);
   const [workflowByMessage, setWorkflowByMessage] = useState<Record<string, Record<string, unknown>>>({});
   const [frameComments, setFrameComments] = useState<readonly { frame: number; text: string }[]>([]);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const chainRef = useRef<{
     messageId: string;
     current: ContinuationSegmentPlan;
@@ -183,18 +185,23 @@ export function VideoLabPage({
           setNoneInstalled(false);
           setListFailure(null);
         } else {
-          setModels([FALLBACK_MODEL]);
+          setModels([]);
           setNoneInstalled(true);
           setListFailure(null);
         }
       } catch (err) {
         if (!cancelled) {
           const message = err instanceof Error ? err.message : String(err);
-          setModels([FALLBACK_MODEL]);
-          // `ipc-unavailable` = outside Tauri (dev/tests): keep the fallback.
           const backendFailed = isSidecarFailureMessage(message);
-          setListFailure(backendFailed ? message : null);
-          setNoneInstalled(!backendFailed);
+          if (backendFailed) {
+            setModels([]);
+            setNoneInstalled(false);
+            setListFailure(message);
+          } else {
+            setModels([FALLBACK_MODEL]);
+            setNoneInstalled(false);
+            setListFailure(null);
+          }
         }
       }
     })();
@@ -636,10 +643,11 @@ export function VideoLabPage({
               : ""}
           </p>
         ) : (
-          <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
-            {messages.map((m) => (
-              <li key={m.id}>
-                <MessageBubble message={m} enableTools={false} />
+          <MessageList
+            messages={messages}
+            enableTools={false}
+            renderAfter={(m) => (
+              <>
                 {m.role === "assistant" && (m.media || (playlists.get(m.id)?.length ?? 0) > 0) ? (
                   <TimelinePreviewer
                     src={playlists.get(m.id)?.[0]?.src ?? m.media?.src ?? null}
@@ -650,7 +658,7 @@ export function VideoLabPage({
                     onAddComment={(c) => setFrameComments((prev) => [...prev, c])}
                   />
                 ) : null}
-                {m.role === "assistant" && m.media && (
+                {m.role === "assistant" && m.media ? (
                   <div
                     data-testid={`video-actions-${m.id}`}
                     style={{ display: "flex", gap: "var(--space-2)", marginTop: "var(--space-1)" }}
@@ -672,16 +680,25 @@ export function VideoLabPage({
                       Use as Source
                     </button>
                   </div>
-                )}
-              </li>
-            ))}
-          </ul>
+                ) : null}
+              </>
+            )}
+          />
         )}
       </div>
 
       <div style={{ padding: "var(--space-3) var(--space-4)", borderTop: "1px solid var(--border-1)", display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-        <details data-testid="video-advanced-settings">
-          <summary style={{ cursor: "pointer", color: "var(--fg-muted)" }}>Advanced settings</summary>
+        <div>
+          <Button
+            type="button"
+            variant="ghost"
+            testId="video-advanced-settings"
+            aria-expanded={advancedOpen}
+            onClick={() => setAdvancedOpen((v) => !v)}
+          >
+            Advanced settings
+          </Button>
+          {advancedOpen ? (
           <div style={{ marginTop: "var(--space-2)" }}>
             <VideoPromptForm
               key={formEpoch}
@@ -707,7 +724,8 @@ export function VideoLabPage({
               }}
             />
           </div>
-        </details>
+          ) : null}
+        </div>
         <MediaComposer
           disabled={isGenerating}
           placeholder={

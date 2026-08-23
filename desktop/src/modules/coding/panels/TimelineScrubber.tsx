@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { TraceEventT } from "../../../../sidecar/src/protocol";
+import { Select } from "../../../components/ui";
 
 export const PLAYBACK_SPEEDS = [0.5, 1, 2, 4] as const;
 export type PlaybackSpeed = (typeof PLAYBACK_SPEEDS)[number];
@@ -285,18 +286,19 @@ export function TimelineScrubber({
         </button>
         <label style={{ display: "inline-flex", gap: "var(--space-1)", alignItems: "center" }}>
           Speed:
-          <select
+          <Select
             data-testid={`${testIdPrefix}-speed`}
             value={speed}
             onChange={handleSpeed}
             aria-label="Playback speed"
+            style={{ width: "auto" }}
           >
             {PLAYBACK_SPEEDS.map((s) => (
               <option key={s} value={s}>
                 {s}x
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <span
           data-testid={`${testIdPrefix}-playhead`}

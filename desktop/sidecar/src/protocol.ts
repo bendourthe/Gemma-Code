@@ -412,6 +412,8 @@ export const DiffusionSampler = z.enum([
   "dpmpp_sde",
   "ddim",
   "lms",
+  // v2.2.2 -- matches Python `_VALID_SAMPLERS` (SANA default / Fast Preview).
+  "flow-dpm-solver",
 ]);
 export type DiffusionSamplerT = z.infer<typeof DiffusionSampler>;
 

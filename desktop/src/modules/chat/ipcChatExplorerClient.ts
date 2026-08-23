@@ -24,7 +24,11 @@ export interface ChatExplorerClient {
   renameFolder(id: string, name: string): Promise<Folder>;
   moveFolder(id: string, parentId: string | null): Promise<Folder>;
   deleteFolder(id: string): Promise<void>;
-  createChat(folderId: string | null, title: string, modelId: string): Promise<Chat>;
+  createChat(
+    folderId: string | null | { folderId: string | null; title: string; modelId: string },
+    title?: string,
+    modelId?: string,
+  ): Promise<Chat>;
   /** `byUser` pins the title so auto-titling can never overwrite it. */
   renameChat(id: string, title: string, byUser?: boolean): Promise<Chat>;
   moveChat(id: string, folderId: string | null): Promise<Chat>;
@@ -59,8 +63,16 @@ export function createIpcChatExplorerClient(): ChatExplorerClient {
     async deleteFolder(id) {
       await call("chat.explorer.deleteFolder", { id });
     },
-    createChat: (folderId, title, modelId) =>
-      call<Chat>("chat.explorer.createChat", { folderId, title, modelId }),
+    createChat(folderIdOrInput: string | null | { folderId: string | null; title: string; modelId: string }, title?: string, modelId?: string) {
+      if (folderIdOrInput !== null && typeof folderIdOrInput === "object") {
+        return call<Chat>("chat.explorer.createChat", folderIdOrInput);
+      }
+      return call<Chat>("chat.explorer.createChat", {
+        folderId: folderIdOrInput,
+        title,
+        modelId,
+      });
+    },
     renameChat: (id, title, byUser) =>
       call<Chat>("chat.explorer.renameChat", {
         id,

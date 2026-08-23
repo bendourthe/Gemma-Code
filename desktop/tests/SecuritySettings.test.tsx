@@ -81,7 +81,7 @@ describe("SecuritySettings", () => {
       />,
     );
     await waitFor(() => expect(screen.getByTestId("parse-document-toggle")).toBeInTheDocument());
-    await user.click(screen.getByTestId("parse-document-toggle").querySelector("input")!);
+    await user.click(screen.getByTestId("parse-document-toggle"));
     expect(setEnabled).toHaveBeenCalledWith(true);
   });
 });

@@ -13,6 +13,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SidecarDownBanner } from "../../components/SidecarDownBanner";
+import { Button } from "../../components/ui";
 import {
   isBackendDownMessage,
   isSidecarFailureMessage,
@@ -24,7 +25,7 @@ import {
   ModelSwitchDialog,
 } from "../../shared/models/ModelSwitchDialog";
 
-import { MediaComposer, MessageBubble, type ChatMessage } from "../../shared/chat";
+import { MediaComposer, MessageList, type ChatMessage } from "../../shared/chat";
 import { ModelSelector } from "../../shared/chat/ModelSelector";
 import {
   SETTINGS_MODELS_PATH,
@@ -154,7 +155,12 @@ export function ImageStudioPage({
     base: Parameters<DiffusionClient["txt2img"]>[0];
     candidates: readonly { label: string; maskPngBase64: string }[];
   } | null>(null);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const outputs = useRef<Map<string, string>>(new Map()); // messageId -> raw png
+
+  useEffect(() => {
+    if (pendingReplace) setAdvancedOpen(true);
+  }, [pendingReplace]);
 
   const isGenerating = activeJob !== null;
 
@@ -178,20 +184,26 @@ export function ImageStudioPage({
           setNoneInstalled(false);
           setListFailure(null);
         } else {
-          setModels([FALLBACK_MODEL]);
+          setModels([]);
           setNoneInstalled(true);
           setListFailure(null);
         }
       } catch (err) {
         if (!cancelled) {
           const message = err instanceof Error ? err.message : String(err);
-          setModels([FALLBACK_MODEL]);
-          // Only claim "none installed" when the backend actually answered.
-          // `ipc-unavailable` means we are outside Tauri (dev/tests), where
-          // the fallback model is the intended behavior.
           const backendFailed = isSidecarFailureMessage(message);
-          setListFailure(backendFailed ? message : null);
-          setNoneInstalled(!backendFailed);
+          // Sidecar-down is unknown, not empty. Never show a fake installed SANA.
+          if (backendFailed) {
+            setModels([]);
+            setNoneInstalled(false);
+            setListFailure(message);
+          } else {
+            // ipc-unavailable (Vite / Vitest): keep a local fallback so the
+            // composer still has a model id, without claiming none-installed.
+            setModels([FALLBACK_MODEL]);
+            setNoneInstalled(false);
+            setListFailure(null);
+          }
         }
       }
     })();
@@ -560,41 +572,49 @@ export function ImageStudioPage({
             Describe an image to generate it, or drop an image and ask to edit, extend, or vary it.
           </p>
         ) : (
-          <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
-            {messages.map((m) => (
-              <li key={m.id}>
-                <MessageBubble message={m} enableTools={false} />
-                {m.role === "assistant" && m.media && (
-                  <div
-                    data-testid={`image-actions-${m.id}`}
-                    style={{ display: "flex", gap: "var(--space-2)", marginTop: "var(--space-1)" }}
-                  >
-                    <button type="button" data-testid={`image-download-${m.id}`} onClick={() => downloadImage(m.id)}>
-                      Download
-                    </button>
-                    <button type="button" data-testid={`image-copyworkflow-${m.id}`} onClick={() => void copyWorkflow(m.id)}>
-                      Copy Workflow
-                    </button>
-                    <RecallActions
-                      messageId={m.id}
-                      testIdPrefix="image"
-                      hasWorkflow={Boolean(workflowByMessage[m.id])}
-                      onRecall={(mode) => recall(m.id, mode)}
-                    />
-                    <button type="button" data-testid={`image-usesource-${m.id}`} onClick={() => useAsSource(m.id)}>
-                      Use as Source
-                    </button>
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
+          <MessageList
+            messages={messages}
+            enableTools={false}
+            renderAfter={(m) =>
+              m.role === "assistant" && m.media ? (
+                <div
+                  data-testid={`image-actions-${m.id}`}
+                  style={{ display: "flex", gap: "var(--space-2)", marginTop: "var(--space-1)" }}
+                >
+                  <button type="button" data-testid={`image-download-${m.id}`} onClick={() => downloadImage(m.id)}>
+                    Download
+                  </button>
+                  <button type="button" data-testid={`image-copyworkflow-${m.id}`} onClick={() => void copyWorkflow(m.id)}>
+                    Copy Workflow
+                  </button>
+                  <RecallActions
+                    messageId={m.id}
+                    testIdPrefix="image"
+                    hasWorkflow={Boolean(workflowByMessage[m.id])}
+                    onRecall={(mode) => recall(m.id, mode)}
+                  />
+                  <button type="button" data-testid={`image-usesource-${m.id}`} onClick={() => useAsSource(m.id)}>
+                    Use as Source
+                  </button>
+                </div>
+              ) : null
+            }
+          />
         )}
       </div>
 
       <div style={{ padding: "var(--space-3) var(--space-4)", borderTop: "1px solid var(--border-1)", display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-        <details data-testid="image-advanced-settings">
-          <summary style={{ cursor: "pointer", color: "var(--fg-muted)" }}>Advanced settings</summary>
+        <div>
+          <Button
+            type="button"
+            variant="ghost"
+            testId="image-advanced-settings"
+            aria-expanded={advancedOpen}
+            onClick={() => setAdvancedOpen((v) => !v)}
+          >
+            Advanced settings
+          </Button>
+          {advancedOpen ? (
           <div style={{ marginTop: "var(--space-2)" }}>
             <ImagePromptForm
               key={formEpoch}
@@ -622,21 +642,22 @@ export function ImageStudioPage({
             {pendingReplace ? (
               <div data-testid="image-sam-candidates" style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
                 {pendingReplace.candidates.map((c) => (
-                  <button
+                  <Button
                     key={c.label}
                     type="button"
-                    data-testid={`image-sam-candidate-${c.label}`}
+                    variant="ghost"
+                    testId={`image-sam-candidate-${c.label}`}
                     disabled={isGenerating}
                     onClick={() => void pickCandidate(c.maskPngBase64)}
                   >
                     {c.label}
-                  </button>
+                  </Button>
                 ))}
               </div>
             ) : null}
-            <button
+            <Button
               type="button"
-              data-testid="image-seed-sweep"
+              testId="image-seed-sweep"
               disabled={isGenerating}
               onClick={() => {
                 void queueClient.enqueue({
@@ -649,7 +670,7 @@ export function ImageStudioPage({
               }}
             >
               Queue seed sweep
-            </button>
+            </Button>
             <GenerationQueueBar
               jobs={queueJobs}
               onCancel={(id) => {
@@ -664,7 +685,8 @@ export function ImageStudioPage({
               }}
             />
           </div>
-        </details>
+          ) : null}
+        </div>
         <MediaComposer
           disabled={isGenerating}
           onSubmit={(text, attachments) => void handleSubmit(text, attachments)}

@@ -6,7 +6,6 @@ import {
   Image as ImageIcon,
   Film,
   Settings as SettingsIcon,
-  UserCircle2,
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
@@ -67,13 +66,10 @@ const NAV_ENTRIES: readonly NavEntry[] = [
 // permanent tab. Approvals are still one click away, and never auto-approved.
 const ADMIN_ENTRIES = [
   { label: "Settings", to: "/settings", icon: SettingsIcon, shortcut: "Ctrl+," },
-  { label: "User Profile", to: "/profile", icon: UserCircle2, shortcut: null },
 ] as const;
 
 /** Persisted collapse preference. */
 const COMPACT_KEY = "nexus.sidebar.compact";
-/** Below this window width the rail auto-compacts. */
-const AUTO_COMPACT_WIDTH = 1100;
 const FULL_WIDTH = 248;
 const RAIL_WIDTH = 56;
 
@@ -98,34 +94,25 @@ export interface SidebarProps {
 export function Sidebar({
   askInboxClient,
   telemetryStream,
-  initialWidth,
+  initialWidth: _initialWidth,
 }: SidebarProps = {}): JSX.Element {
   const navigate = useNavigate();
   const location = useLocation();
   const pendingCount = useAskInboxPendingCount(askInboxClient);
 
-  // v2.2.0 Phase 6 (6.1): compact rail. An explicit choice wins; with none
-  // stored we follow the window width, so a narrow window is usable without
-  // silently overwriting a preference the user set on a wide one.
+  // v2.2.1: compact icon rail is the default. An explicit expand (stored
+  // false) still persists, including on a narrow window -- auto-compact must
+  // not clobber that choice. With no stored preference the rail is compact
+  // even on a wide window (v2.2.0 used `storedCompact ?? narrow`, so a 1440px
+  // window started expanded).
   const [storedCompact, setStoredCompact] = useState<boolean | null>(() =>
     readCompactPreference(),
   );
-  const [narrow, setNarrow] = useState<boolean>(() => {
-    const width = initialWidth ?? (typeof window === "undefined" ? FULL_WIDTH * 4 : window.innerWidth);
-    return width < AUTO_COMPACT_WIDTH;
-  });
-  const compact = storedCompact ?? narrow;
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const onResize = (): void => setNarrow(window.innerWidth < AUTO_COMPACT_WIDTH);
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
+  const compact = storedCompact ?? true;
 
   const toggleCompact = useCallback(() => {
     setStoredCompact((prev) => {
-      const next = !(prev ?? narrow);
+      const next = !(prev ?? true);
       try {
         localStorage.setItem(COMPACT_KEY, String(next));
       } catch {
@@ -133,7 +120,7 @@ export function Sidebar({
       }
       return next;
     });
-  }, [narrow]);
+  }, []);
 
   useEffect(() => {
     writeActiveRoute(location.pathname);
