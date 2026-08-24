@@ -9,6 +9,6 @@
     "rootDir": ".",
     "outDir": "../out/core"
   },
-  "include": ["**/*"],
+  "include": ["**/*", "**/*.json"],
   "exclude": ["**/*.test.ts"]
 }
