@@ -24,6 +24,12 @@ from nexus_installer.installer_state import InstallerState
 _MOD = "nexus_installer.engine.hub_catalog_provisioner"
 
 
+@pytest.fixture(autouse=True)
+def _inject_fake_latest_hub_tag(monkeypatch: pytest.MonkeyPatch) -> None:
+    # v2.2.5 Phase 5: tests inject a fake latest. v3.12.0 is not the pin.
+    monkeypatch.setenv("NEXUS_HUB_LATEST_TAG", "v9.9.9")
+
+
 @pytest.fixture()
 def log() -> MagicMock:
     return MagicMock()
@@ -77,7 +83,7 @@ class TestMissingPrerequisites:
 class TestProvisionFlow:
     def test_already_installed_then_synced(self, fake_binaries, log: MagicMock) -> None:
         run = _events(
-            {"kind": "done", "source": "installed", "tag": "v3.12.0"},
+            {"kind": "done", "source": "installed", "tag": "v9.9.9"},
             {"kind": "done", "tag": "v3.13.0", "applied": True},
         )
         with patch(f"{_MOD}._run_cli", side_effect=run):
@@ -93,12 +99,12 @@ class TestProvisionFlow:
         snapshot.mkdir()
         (snapshot / "catalog.tar.gz").write_bytes(b"archive")
         (snapshot / "manifest.json").write_text(
-            json.dumps({"sha256": "b" * 64, "tag": "v3.12.0"}), encoding="utf-8"
+            json.dumps({"sha256": "b" * 64, "tag": "v9.9.9"}), encoding="utf-8"
         )
         run = _events(
             {"kind": "done", "source": "absent", "tag": None},
-            {"kind": "done", "source": "snapshot", "tag": "v3.12.0"},
-            {"kind": "done", "tag": "v3.12.0", "applied": True},
+            {"kind": "done", "source": "snapshot", "tag": "v9.9.9"},
+            {"kind": "done", "tag": "v9.9.9", "applied": True},
         )
         with (
             patch(f"{_MOD}.payload_snapshot_dir", return_value=snapshot),
@@ -119,7 +125,7 @@ class TestProvisionFlow:
         )
         run = _events(
             {"kind": "done", "source": "absent", "tag": None},
-            {"kind": "done", "source": "snapshot", "tag": "v3.12.0"},
+            {"kind": "done", "source": "snapshot", "tag": "v9.9.9"},
             {"kind": "error", "failureClass": "network", "message": "ENOTFOUND"},
         )
         with (
@@ -162,7 +168,7 @@ class TestProvisionFlow:
             calls.append(args)
             if "--hub-catalog-status" in args:
                 return {"kind": "done", "source": "absent", "tag": None}
-            return {"kind": "done", "source": "snapshot", "tag": "v3.12.0"}
+            return {"kind": "done", "source": "snapshot", "tag": "v9.9.9"}
 
         with (
             patch(f"{_MOD}.payload_snapshot_dir", return_value=snapshot),
@@ -201,7 +207,7 @@ class TestProvisionFlow:
 class TestStepWrapper:
     def test_records_outcome_on_state(self, fake_binaries, log: MagicMock) -> None:
         run = _events(
-            {"kind": "done", "source": "installed", "tag": "v3.12.0"},
+            {"kind": "done", "source": "installed", "tag": "v9.9.9"},
             {"kind": "done", "tag": "v3.13.0", "applied": True},
         )
         state = InstallerState()
@@ -259,7 +265,7 @@ class TestSnapshotBuilder:
         (catalog / "commands").mkdir()
         (catalog / "commands" / "plan.md").write_text("body")
         (catalog / "nexus-hub-version.json").write_text(
-            json.dumps({"version": "v3.12.0"})
+            json.dumps({"version": "v9.9.9"})
         )
 
         out = tmp_path / "out"
@@ -267,8 +273,34 @@ class TestSnapshotBuilder:
         manifest = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
         assert len(manifest["sha256"]) == 64
         assert manifest["sha256"] != "0" * 64
-        assert manifest["tag"] == "v3.12.0"
+        assert manifest["tag"] == "v9.9.9"
         assert (out / "catalog.tar.gz").is_file()
+
+    def test_builder_refuses_a_stale_catalog_that_is_not_latest(
+        self, tmp_path: Path
+    ) -> None:
+        import importlib.util
+
+        builder_path = (
+            Path(__file__).resolve().parents[1] / "build" / "build-hub-snapshot.py"
+        )
+        spec = importlib.util.spec_from_file_location(
+            "build_hub_snapshot", builder_path
+        )
+        assert spec and spec.loader
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        catalog = tmp_path / "catalog"
+        (catalog / "skills" / "demo").mkdir(parents=True)
+        (catalog / "skills" / "demo" / "SKILL.md").write_text("---\nname: Demo\n---\n")
+        (catalog / "commands").mkdir()
+        (catalog / "commands" / "plan.md").write_text("body")
+        (catalog / "nexus-hub-version.json").write_text(
+            json.dumps({"version": "v3.12.0"})
+        )
+        assert module.build_snapshot(catalog, tmp_path / "out") == 1
+        assert not (tmp_path / "out" / "catalog.tar.gz").exists()
 
 
 class TestSnapshotRoundTrip:
@@ -303,7 +335,7 @@ class TestSnapshotRoundTrip:
             "---\ndescription: Plan it.\n---\nbody\n", encoding="utf-8"
         )
         (catalog / "nexus-hub-version.json").write_text(
-            json.dumps({"version": "v3.12.0"}), encoding="utf-8"
+            json.dumps({"version": "v9.9.9"}), encoding="utf-8"
         )
         out = tmp_path / "snapshot"
         assert module.build_snapshot(catalog, out) == 0
@@ -364,7 +396,7 @@ class TestSnapshotRoundTrip:
             json.loads((target / "nexus-hub-version.json").read_text(encoding="utf-8"))[
                 "version"
             ]
-            == "v3.12.0"
+            == "v9.9.9"
         )
         # And it never wrote outside the target.
         assert not (Path.home() / ".nexus-ai" / "catalog" / "code-quality").exists()

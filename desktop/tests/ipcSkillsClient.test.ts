@@ -47,14 +47,14 @@ describe("createIpcSkillsClient", () => {
   });
 
   it("upstreamLatestTag maps skills.upstreamLatest.latestTag", async () => {
-    stub({ "skills.upstreamLatest": { latestTag: "v3.12.0" } });
-    expect(await createIpcSkillsClient().upstreamLatestTag()).toBe("v3.12.0");
+    stub({ "skills.upstreamLatest": { latestTag: "v9.9.9" } });
+    expect(await createIpcSkillsClient().upstreamLatestTag()).toBe("v9.9.9");
   });
 
   it("syncNow returns the applied tag + summary", async () => {
     stub({
       "skills.sync": {
-        tag: "v3.12.0",
+        tag: "v9.9.9",
         applied: true,
         alreadyUpToDate: false,
         blocked: false,
@@ -62,7 +62,7 @@ describe("createIpcSkillsClient", () => {
       },
     });
     expect(await createIpcSkillsClient().syncNow()).toEqual({
-      tag: "v3.12.0",
+      tag: "v9.9.9",
       applied: true,
       summary: "+2 new, ~1 modified, -0 removed",
     });
@@ -71,7 +71,7 @@ describe("createIpcSkillsClient", () => {
   it("syncNow reports 'already up to date'", async () => {
     stub({
       "skills.sync": {
-        tag: "v3.12.0",
+        tag: "v9.9.9",
         applied: false,
         alreadyUpToDate: true,
         blocked: false,
@@ -108,7 +108,7 @@ describe("createIpcSkillsClient", () => {
             id: "nexus-hub/code-quality",
             displayName: "Code Quality",
             path: "/c/SKILL.md",
-            provenance: { source: "nexus-hub", tag: "v3.12.0", contentHash: "abc" },
+            provenance: { source: "nexus-hub", tag: "v9.9.9", contentHash: "abc" },
           },
         ],
         error: null,

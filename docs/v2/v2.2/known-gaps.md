@@ -2,7 +2,7 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-23 (v2.2.5 Phase 4)
+**Last updated**: 2026-08-23 (v2.2.5 Phase 5)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
@@ -10,7 +10,7 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 
 ## v2.2.5
 
-**Last updated**: 2026-08-23 (Phase 4 - Chat explorer chrome)
+**Last updated**: 2026-08-23 (Phase 5 - Hub latest and scanner allowlist)
 
 ### Summary
 
@@ -18,12 +18,12 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
 | Deferred (DF) | 2 | 0 |
-| Bugs / regressions (BG) | 0 | 6 |
+| Bugs / regressions (BG) | 0 | 7 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-DF-2 (packaged Explorer) and DF-4 (live GPU generate) stay open. BG-44 through BG-49 are closed at unit/integration evidence. Phases 5-6 still own Hub latest and remaining BG-43 / BG-50 rows.
+DF-2 (packaged Explorer) and DF-4 (live GPU generate) stay open. BG-44 through BG-50 are closed at unit/integration evidence except live Hub apply, which remains DF-23. Phase 6 still owns remaining BG-43 documentation and CI path filters.
 
 ### Open this cycle
 
@@ -78,6 +78,12 @@ DF-2 (packaged Explorer) and DF-4 (live GPU generate) stay open. BG-44 through B
 - **Source phase**: v2.2.5 Phase 2
 - **Resolution**: Node result guard rejects empty/1x1/`ok: false` before `complete`. Python production path fail-closes instead of returning a 1x1 stub. SANA catalog ids call `sana.txt2img` / `sana_int4.txt2img` / `sana_sprint.txt2img`.
 - **Evidence**: `desktop/tests/diffusion-resultGuard.test.ts`, `desktop/tests/diffusion-dispatcher.test.ts`, `desktop/tests/diffusion-route.test.ts`, `tests/python/diffusion/test_real_execute.py`.
+
+##### BG-50 - Hub snapshot was frozen at 3.12.0 and Update was scanner-blocked
+
+- **Source phase**: v2.2.5 Phase 5
+- **Resolution**: Pack-time snapshot requires the catalog tag to match GitHub `/releases/latest` (tests inject `NEXUS_HUB_LATEST_TAG`). A stale 3.12.0 catalog is refused. Networked install already calls `--sync-hub-catalog` without a pin. `HUB_SKILL_SCAN_ALLOWLIST` was re-reviewed against Hub v3.19.2; `PromptInjectionScanner` stays on. A planted jailbreak in a non-allowlisted skill still blocks.
+- **Evidence**: `scripts/installer/tests/test_hub_catalog_provisioner.py`, `tests/unit/core/skills/PromptInjectionScanner.test.ts`, `tests/unit/core/skills/NexusHubSyncer.test.ts`. Packaged live Hub apply remains DF-23.
 
 ## v2.2.4
 

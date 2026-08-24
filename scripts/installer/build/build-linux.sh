@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# v2.2.0 Phase 8 (DF-7): build the bundled Nexus-Hub catalog snapshot so an
-# offline first run still lands a working harness. Non-fatal: a build host
-# without a local catalog still produces an installer that syncs at install
-# time.
+# v2.2.0 Phase 8 (DF-7) / v2.2.5 Phase 5: pack only the latest Hub tag.
+# A stale local catalog fails the snapshot job; the installer still builds.
 HUB_CATALOG="${HOME}/.nexus-ai/catalog"
+SNAPSHOT_OUT="$(dirname "$0")/hub-snapshot"
 if [ -d "$HUB_CATALOG" ]; then
-  python "$(dirname "$0")/build-hub-snapshot.py" --catalog "$HUB_CATALOG" --out "$(dirname "$0")/hub-snapshot"
-  echo "  Snapshot built from $HUB_CATALOG"
+  if python "$(dirname "$0")/build-hub-snapshot.py" --catalog "$HUB_CATALOG" --out "$SNAPSHOT_OUT"; then
+    echo "  Snapshot built from $HUB_CATALOG"
+  else
+    echo "  Snapshot pack refused (catalog is not latest, or latest tag unresolved). Clearing any stale snapshot."
+    rm -rf "$SNAPSHOT_OUT"
+  fi
 else
   echo "  No local catalog at $HUB_CATALOG; installer will sync at install time."
 fi

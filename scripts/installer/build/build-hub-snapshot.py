@@ -4,6 +4,12 @@ Packs a synced `~/.nexus-ai/catalog/` tree (or any explicit catalog dir) into
 `scripts/installer/build/hub-snapshot/catalog.tar.gz` plus a `manifest.json`
 recording the tag and a REAL sha256.
 
+v2.2.5 Phase 5: the packed tag must be the latest Hub release (GitHub
+`/releases/latest`, overridable by `NEXUS_HUB_LATEST_TAG` in tests). Packing
+a frozen 3.12.0 catalog while latest is newer is a hard failure, not a silent
+ship. `--allow-stale` is the explicit escape hatch. A latest-tag API failure
+also fails the pack job.
+
 Why this exists: without a bundled snapshot the harness only arrives if the
 sidecar's best-effort first-launch fetch succeeds, so an offline install ships
 an app with no skills, no commands, and no rules. v1.10.0 removed an earlier
@@ -14,7 +20,7 @@ placeholder digest, and `test_packaging.py` asserts the same invariant.
 Usage:
     python scripts/installer/build/build-hub-snapshot.py [--catalog DIR] [--out DIR]
 
-Exit codes: 0 built; 1 the source catalog is missing or unusable.
+Exit codes: 0 built; 1 the source catalog is missing, unusable, or not latest.
 """
 
 from __future__ import annotations
@@ -26,6 +32,8 @@ import os
 import sys
 import tarfile
 import tempfile
+import urllib.error
+import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -33,6 +41,8 @@ INSTALLER_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUT = INSTALLER_ROOT / "build" / "hub-snapshot"
 SNAPSHOT_NAME = "catalog.tar.gz"
 MANIFEST_NAME = "manifest.json"
+DEFAULT_UPSTREAM = "bendourthe/Nexus-Hub"
+LATEST_TAG_ENV = "NEXUS_HUB_LATEST_TAG"
 
 # Directories that must exist in a usable catalog: a snapshot without skills or
 # commands would satisfy "catalog present" while delivering no harness at all.
@@ -64,6 +74,30 @@ def _read_tag(catalog: Path) -> str | None:
     return version if isinstance(version, str) and version.strip() else None
 
 
+def resolve_latest_tag(upstream: str = DEFAULT_UPSTREAM) -> str | None:
+    """Latest Hub release tag. Tests inject `NEXUS_HUB_LATEST_TAG`."""
+    override = os.environ.get(LATEST_TAG_ENV, "").strip()
+    if override:
+        return override
+    url = f"https://api.github.com/repos/{upstream}/releases/latest"
+    req = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "nexus-hub-snapshot",
+            "Accept": "application/vnd.github+json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except (OSError, urllib.error.URLError, TimeoutError, json.JSONDecodeError, ValueError):
+        return None
+    tag = data.get("tag_name") if isinstance(data, dict) else None
+    if isinstance(tag, str) and tag.strip():
+        return tag.strip()
+    return None
+
+
 def _tar_filter(info: tarfile.TarInfo) -> tarfile.TarInfo | None:
     parts = Path(info.name).parts
     if any(part in EXCLUDED_NAMES for part in parts):
@@ -74,7 +108,7 @@ def _tar_filter(info: tarfile.TarInfo) -> tarfile.TarInfo | None:
     return info
 
 
-def build_snapshot(catalog: Path, out_dir: Path) -> int:
+def build_snapshot(catalog: Path, out_dir: Path, *, require_latest: bool = True) -> int:
     if not catalog.is_dir():
         print(f"ERROR: catalog directory not found: {catalog}", file=sys.stderr)
         print(
@@ -93,6 +127,23 @@ def build_snapshot(catalog: Path, out_dir: Path) -> int:
         return 1
 
     tag = _read_tag(catalog)
+    if require_latest:
+        latest = resolve_latest_tag()
+        if not latest:
+            print(
+                "ERROR: could not resolve the latest Nexus-Hub release tag. "
+                "Refusing to pack a snapshot that might be frozen (v3.12.0 class). "
+                f"Inject {LATEST_TAG_ENV} in tests, or retry when GitHub is reachable.",
+                file=sys.stderr,
+            )
+            return 1
+        if tag != latest:
+            print(
+                f"ERROR: catalog tag {tag or 'unknown'} is not latest ({latest}). "
+                "Refusing to embed a stale Hub snapshot. Sync latest, then pack.",
+                file=sys.stderr,
+            )
+            return 1
     out_dir.mkdir(parents=True, exist_ok=True)
     archive = out_dir / SNAPSHOT_NAME
 
@@ -143,8 +194,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--out", type=Path, default=DEFAULT_OUT, help="Output directory."
     )
+    parser.add_argument(
+        "--allow-stale",
+        action="store_true",
+        help="Pack even when the catalog tag is not the latest Hub release.",
+    )
     args = parser.parse_args(argv)
-    return build_snapshot(args.catalog or default_catalog_dir(), args.out)
+    return build_snapshot(
+        args.catalog or default_catalog_dir(),
+        args.out,
+        require_latest=not args.allow_stale,
+    )
 
 
 if __name__ == "__main__":

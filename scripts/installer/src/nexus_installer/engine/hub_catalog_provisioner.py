@@ -6,7 +6,7 @@ Guarantees the harness (skills, commands, rules, hooks) is on disk at
 1. If the catalog is already present, refresh it when online; never clobber it
    on failure.
 2. Otherwise extract the bundled, checksummed snapshot (works with no network).
-3. When online, refresh from the pinned upstream release on top of that.
+3. When online, refresh from the latest upstream release on top of that.
 
 All catalog work is delegated to the sidecar's dedicated `hub-catalog.js`
 bundle (run with the Node the installer provisioned), so the sync logic,

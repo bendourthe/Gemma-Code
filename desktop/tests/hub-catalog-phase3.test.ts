@@ -91,11 +91,11 @@ describe("parseSkillFrontmatter", () => {
 describe("readHubCatalog", () => {
   it("lists hub and user skills with counts", async () => {
     const catalog = await makeCatalog({
-      version: "v3.12.0",
+      version: "v9.9.9",
       skills: { "code-quality": SKILL_MD, "security-review": SKILL_MD },
       userSkills: { "my-skill": SKILL_MD },
     });
-    const listing = await readHubCatalog({ catalogDir: catalog, tag: "v3.12.0" });
+    const listing = await readHubCatalog({ catalogDir: catalog, tag: "v9.9.9" });
     expect(listing.error).toBeNull();
     expect(listing.counts["nexus-hub"]).toBe(2);
     expect(listing.counts.user).toBe(1);
@@ -105,7 +105,7 @@ describe("readHubCatalog", () => {
       "user/my-skill",
     ]);
     const hubRow = listing.rows.find((r) => r.id.startsWith("nexus-hub/"));
-    expect(hubRow?.provenance.tag).toBe("v3.12.0");
+    expect(hubRow?.provenance.tag).toBe("v9.9.9");
   });
 
   it("skips a directory with no SKILL.md instead of failing the listing", async () => {
@@ -167,14 +167,14 @@ describe("classifyHubFailure", () => {
 
 describe("runHubCatalogCli", () => {
   it("reports status for an installed catalog", async () => {
-    const catalog = await makeCatalog({ version: "v3.12.0", skills: { a: SKILL_MD } });
+    const catalog = await makeCatalog({ version: "v9.9.9", skills: { a: SKILL_MD } });
     const events: HubCliEvent[] = [];
     const code = await runHubCatalogCli(["node", "cli", "--hub-catalog-status"], {
       catalogDir: catalog,
       emit: (e) => events.push(e),
     });
     expect(code).toBe(0);
-    expect(events.at(-1)).toMatchObject({ kind: "done", source: "installed", tag: "v3.12.0" });
+    expect(events.at(-1)).toMatchObject({ kind: "done", source: "installed", tag: "v9.9.9" });
   });
 
   it("reports absent when nothing is installed", async () => {
@@ -212,7 +212,7 @@ describe("runHubCatalogCli", () => {
       catalogDir: path.join(os.tmpdir(), "nexus-sync-current"),
       emit: (e) => events.push(e),
       createSyncer: () => ({
-        sync: async () => ({ tag: "v3.12.0", applied: false, alreadyUpToDate: true }),
+        sync: async () => ({ tag: "v9.9.9", applied: false, alreadyUpToDate: true }),
       }),
     });
     expect(code).toBe(0);

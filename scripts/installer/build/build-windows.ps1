@@ -29,18 +29,21 @@ uv sync --quiet
 uv pip install pyinstaller --quiet
 Pop-Location
 
-# v2.2.0 Phase 8 (DF-7): build the bundled Nexus-Hub catalog snapshot.
-#
-# The spec has embedded this snapshot since Phase 3, but no build script ever
-# produced it, so every installer shipped without an offline harness and a
-# first run with no network landed no skills or commands at all. Non-fatal: a
-# dev box without a local catalog still builds, and the installer falls back to
-# a network sync at install time.
+# v2.2.0 Phase 8 (DF-7) / v2.2.5 Phase 5: build the bundled Nexus-Hub
+# catalog snapshot from the LATEST tag. A stale local catalog (the 3.12.0
+# class) fails the snapshot job; the installer still builds and syncs latest
+# at install time. Do not embed a frozen snapshot.
 Write-Host "[2/5] Building Nexus-Hub catalog snapshot..." -ForegroundColor Cyan
 $HubCatalog = Join-Path $env:USERPROFILE ".nexus-ai\catalog"
+$SnapshotOut = Join-Path $PSScriptRoot "hub-snapshot"
 if (Test-Path $HubCatalog) {
-    python (Join-Path $PSScriptRoot "build-hub-snapshot.py") --catalog $HubCatalog --out (Join-Path $PSScriptRoot "hub-snapshot")
-    Write-Host "  Snapshot built from $HubCatalog"
+    python (Join-Path $PSScriptRoot "build-hub-snapshot.py") --catalog $HubCatalog --out $SnapshotOut
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "  Snapshot pack refused (catalog is not latest, or latest tag unresolved). Clearing any stale snapshot." -ForegroundColor Yellow
+        if (Test-Path $SnapshotOut) { Remove-Item $SnapshotOut -Recurse -Force }
+    } else {
+        Write-Host "  Snapshot built from $HubCatalog"
+    }
 } else {
     Write-Host "  No local catalog at $HubCatalog; installer will sync at install time." -ForegroundColor Yellow
 }
