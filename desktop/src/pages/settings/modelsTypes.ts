@@ -60,6 +60,12 @@ export interface ListedModelDto {
   whyRecommended?: string;
   differentiators?: string;
   agentic?: boolean;
+  /** v2.2.5 Phase 3 -- installer card chips. */
+  origin?: string;
+  releaseDate?: string;
+  uncensored?: boolean;
+  /** True when the installer snapshot listed this id (or an alias). */
+  selectedAtInstall?: boolean;
 }
 
 export interface InstallProgressDto {

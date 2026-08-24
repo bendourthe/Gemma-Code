@@ -32,7 +32,9 @@ import {
   type ListedModel,
   NexusModelRegistry,
 } from "../../../../core/registry/NexusModelRegistry.js";
+import { aliasesFor, foldModelId } from "../../../../core/registry/modelAliases.js";
 import { HttpOllamaPullClient, InstallManager } from "./installManager.js";
+import { loadSnapshot, type SelectionSnapshot } from "./selectionSnapshot.js";
 
 export interface ListedModelDto {
   id: string;
@@ -73,6 +75,10 @@ export interface ListedModelDto {
     whyRecommended?: string;
     differentiators?: string;
     agentic?: boolean;
+    origin?: string;
+    releaseDate?: string;
+    uncensored?: boolean;
+    selectedAtInstall?: boolean;
   }
 
 export interface DiskUsageDto {
@@ -175,6 +181,8 @@ export interface ModelsServiceOptions {
   modelsRoot: string;
   ollamaBaseUrl?: string;
   fetchFn?: typeof fetch;
+  /** Test seam for `~/.nexus/selected-models.json`. */
+  loadSnapshot?: () => Promise<SelectionSnapshot | null>;
 }
 
 export class ModelsService {
@@ -183,6 +191,7 @@ export class ModelsService {
   private readonly _modelsRoot: string;
   private readonly _ollamaBaseUrl: string;
   private readonly _fetch: typeof fetch;
+  private readonly _loadSnapshot: () => Promise<SelectionSnapshot | null>;
 
   constructor(opts: ModelsServiceOptions) {
     this._registry = opts.registry;
@@ -190,6 +199,7 @@ export class ModelsService {
     this._modelsRoot = opts.modelsRoot;
     this._ollamaBaseUrl = opts.ollamaBaseUrl ?? DEFAULT_OLLAMA_URL;
     this._fetch = opts.fetchFn ?? fetch;
+    this._loadSnapshot = opts.loadSnapshot ?? (() => loadSnapshot());
   }
 
   get registry(): NexusModelRegistry {
@@ -217,9 +227,18 @@ export class ModelsService {
     if (this._catalog.models.length === 0) {
       const known = new Set(reconciled.map((m) => m.id));
       const synthesized = synthesizeInstalledFromProbe(probe, known);
-      return [...reconciled, ...synthesized].map(toDto);
+      return this._withSelection([...reconciled, ...synthesized].map(toDto));
     }
-    return reconciled.map(toDto);
+    return this._withSelection(reconciled.map(toDto));
+  }
+
+  private async _withSelection(dtos: ListedModelDto[]): Promise<ListedModelDto[]> {
+    const snapshot = await this._loadSnapshot();
+    const selected = expandSnapshotIds(snapshot?.orderedIds ?? []);
+    return dtos.map((dto) => ({
+      ...dto,
+      selectedAtInstall: idSelectedAtInstall(dto.id, selected),
+    }));
   }
 
   /** Remove an installed model (rejects for external models, per the registry). */
@@ -276,7 +295,25 @@ function toDto(m: ListedModel): ListedModelDto {
     whyRecommended: m.whyRecommended,
     differentiators: m.differentiators,
     agentic: m.agentic,
+    origin: m.origin,
+    releaseDate: m.releaseDate,
+    uncensored: m.uncensored,
   };
+}
+
+function expandSnapshotIds(orderedIds: readonly string[]): Set<string> {
+  const selected = new Set<string>();
+  for (const id of orderedIds) {
+    selected.add(id);
+    selected.add(foldModelId(id));
+    for (const alias of aliasesFor(id)) selected.add(alias);
+  }
+  return selected;
+}
+
+function idSelectedAtInstall(id: string, selected: ReadonlySet<string>): boolean {
+  if (selected.has(id) || selected.has(foldModelId(id))) return true;
+  return aliasesFor(id).some((alias) => selected.has(alias));
 }
 
 /**

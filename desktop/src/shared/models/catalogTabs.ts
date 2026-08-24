@@ -80,3 +80,57 @@ export function recommendationKind(
   if (tags.includes("recommended")) return "recommended";
   return "compatible";
 }
+
+/**
+ * v2.2.5 Phase 3 -- installer `_card_status` priority: Required, then
+ * hardware incompatibility, then Recommended, then Compatible. Over-budget
+ * rows never display Compatible. Missing VRAM numbers do not invent Compatible.
+ */
+export function cardBadgeLabel(
+  model: Pick<ListedModelDto, "tags" | "type" | "task" | "vramGB">,
+  hostVramGB: number | null | undefined,
+): string {
+  const kind = recommendationKind(model);
+  if (kind === "required") return "Required";
+  const fits =
+    typeof model.vramGB === "number" && typeof hostVramGB === "number"
+      ? model.vramGB <= hostVramGB
+      : null;
+  if (fits === false) return `Needs ${model.vramGB} GB VRAM`;
+  if (kind === "recommended") return "Recommended";
+  if (fits === null) return "";
+  return "Compatible";
+}
+
+export function catalogSortRank(
+  model: Pick<ListedModelDto, "tags" | "type" | "task" | "vramGB">,
+  hostVramGB: number | null | undefined,
+): number {
+  const kind = recommendationKind(model);
+  const fits =
+    typeof model.vramGB === "number" && typeof hostVramGB === "number"
+      ? model.vramGB <= hostVramGB
+      : null;
+  if (kind === "required") return 0;
+  if (fits === false) return 3;
+  if (kind === "recommended") return 1;
+  return 2;
+}
+
+export function sortModelsOnTab(
+  models: readonly ListedModelDto[],
+  hostVramGB: number | null | undefined,
+): ListedModelDto[] {
+  return [...models].sort((a, b) => {
+    const rank = catalogSortRank(a, hostVramGB) - catalogSortRank(b, hostVramGB);
+    if (rank !== 0) return rank;
+    const da = a.releaseDate ?? "";
+    const db = b.releaseDate ?? "";
+    if (da !== db) {
+      if (!da) return 1;
+      if (!db) return -1;
+      return db.localeCompare(da);
+    }
+    return (a.displayName || a.id).localeCompare(b.displayName || b.id);
+  });
+}

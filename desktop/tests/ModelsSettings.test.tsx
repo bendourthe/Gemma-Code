@@ -344,4 +344,100 @@ describe("ModelsSettings", () => {
     expect(screen.queryByTestId("models-filter-family")).not.toBeInTheDocument();
     expect(screen.queryByTestId("models-filter-source")).not.toBeInTheDocument();
   });
+
+  it("makes the model list a scrolling flex child", async () => {
+    await loaded(client());
+    const list = screen.getByTestId("models-list");
+    expect(list.style.overflowY).toBe("auto");
+    expect(list.style.minHeight).toBe("0px");
+  });
+
+  it("shows Needs VRAM instead of Compatible for SANA 1.6B 4K on a 16 GB host", async () => {
+    const sanaClient: ModelsClient = {
+      async list() {
+        return [
+          {
+            id: "sana-1.6b-4k",
+            displayName: "SANA 1.6B 4K",
+            family: "sana",
+            type: "image",
+            task: "image",
+            installed: false,
+            source: "catalog-only",
+            vramGB: 20,
+            origin: "USA",
+            releaseDate: "2025-09-10",
+            uncensored: false,
+            tags: [],
+          },
+          {
+            id: "sana-sprint-1024",
+            displayName: "SANA Sprint 1024",
+            family: "sana",
+            type: "image",
+            task: "image",
+            installed: false,
+            source: "catalog-only",
+            vramGB: 8,
+            tags: ["recommended"],
+            origin: "USA",
+            releaseDate: "2026-05-01",
+            uncensored: false,
+          },
+        ];
+      },
+      install() {
+        return Object.assign({ cancel() {} }, { done: Promise.resolve() });
+      },
+      async remove() {},
+      async diskUsage() {
+        return { usedBytes: 0, freeBytes: null };
+      },
+    };
+    render(<ModelsSettings client={sanaClient} hostVramGB={16} />);
+    await waitFor(() => expect(screen.queryByTestId("models-loading")).not.toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("models-tab-image"));
+    const rows = screen.getAllByTestId(/models-row-/);
+    expect(rows[0]).toHaveAttribute("data-testid", "models-row-sana-sprint-1024");
+    expect(rows[1]).toHaveAttribute("data-testid", "models-row-sana-1.6b-4k");
+    expect(screen.getByTestId("models-badge-sana-1.6b-4k").textContent).toBe("Needs 20 GB VRAM");
+    expect(screen.getByTestId("models-badge-sana-sprint-1024").textContent).toBe("Recommended");
+    expect(screen.getByTestId("models-chip-origin-sana-1.6b-4k").textContent).toMatch(/USA/);
+    expect(screen.getByTestId("models-chip-date-sana-1.6b-4k").textContent).toMatch(/2025-09-10/);
+    expect(screen.getByTestId("models-chip-guardrails-sana-1.6b-4k").textContent).toBe("Censored");
+  });
+
+  it("shows Retry when Qwen 3.5 4B was selected at install but is not on disk", async () => {
+    const qwenClient: ModelsClient = {
+      async list() {
+        return [
+          {
+            id: "qwen3.5:4b",
+            displayName: "Qwen 3.5 4B",
+            family: "qwen",
+            type: "llm",
+            task: "agentic",
+            installed: false,
+            source: "catalog-only",
+            selectedAtInstall: true,
+            vramGB: 4,
+          },
+        ];
+      },
+      install() {
+        return Object.assign({ cancel() {} }, { done: Promise.resolve() });
+      },
+      async remove() {},
+      async diskUsage() {
+        return { usedBytes: 0, freeBytes: null };
+      },
+    };
+    render(<ModelsSettings client={qwenClient} hostVramGB={16} />);
+    await waitFor(() => expect(screen.queryByTestId("models-loading")).not.toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("models-tab-agentic"));
+    expect(screen.getByTestId("models-row-qwen3.5:4b-selected-missing").textContent).toMatch(
+      /Selected during setup/,
+    );
+    expect(screen.getByTestId("models-install-qwen3.5:4b").textContent).toMatch(/Retry/i);
+  });
 });

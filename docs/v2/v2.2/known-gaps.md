@@ -2,7 +2,7 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-23 (v2.2.5 Phase 2)
+**Last updated**: 2026-08-23 (v2.2.5 Phase 3)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
@@ -10,7 +10,7 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 
 ## v2.2.5
 
-**Last updated**: 2026-08-23 (Phase 2 - diffusion returns bytes)
+**Last updated**: 2026-08-23 (Phase 3 - Settings Models installer parity)
 
 ### Summary
 
@@ -18,12 +18,12 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
 | Deferred (DF) | 2 | 0 |
-| Bugs / regressions (BG) | 0 | 1 |
+| Bugs / regressions (BG) | 0 | 5 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-DF-2 (packaged Explorer) and DF-4 (live GPU generate) stay open. BG-49 (empty diffusion complete) is closed at unit/integration evidence. Phases 3-6 still own Settings parity, chat chrome, Hub latest, and remaining BG-43+ rows.
+DF-2 (packaged Explorer) and DF-4 (live GPU generate) stay open. BG-44 through BG-47 and BG-49 are closed at unit/integration evidence. Packaged Settings scroll and live Qwen 4B Downloaded after a real installer pull remain unproven. Phases 4-6 still own chat chrome, Hub latest, and remaining BG-43 / BG-48 / BG-50 rows.
 
 ### Open this cycle
 
@@ -42,6 +42,30 @@ DF-2 (packaged Explorer) and DF-4 (live GPU generate) stay open. BG-49 (empty di
 - **Suggested next step**: Run one Image Studio generate on a host with weights and GPU, or confirm the typed runtime-not-ready string in the UI when GPU is absent.
 
 ### Resolved this phase
+
+##### BG-44 - Settings Models list could not scroll
+
+- **Source phase**: v2.2.5 Phase 3
+- **Resolution**: Settings shell and Models list are flex children with `minHeight: 0` and `overflowY: auto`. Search is no longer a growing flex:1 sibling that ate the list.
+- **Evidence**: `desktop/tests/ModelsSettings.test.tsx` (scroll style assertion). Packaged window screenshot not recorded this phase (not_observed != absent).
+
+##### BG-45 - Qwen 3.5 4B showed Download after a selected install
+
+- **Source phase**: v2.2.5 Phase 3
+- **Resolution**: `ModelsService.list` expands installer snapshot ids through aliases. Snapshot membership without an Ollama tag is `selectedAtInstall` plus Retry copy, not Downloaded. Snapshot writer keeps a ticked `qwen3.5:4b` even when 9B is also selected.
+- **Evidence**: `desktop/tests/modelsService.test.ts`, `desktop/tests/ModelsSettings.test.tsx`, `scripts/installer/tests/test_runtime_provisioner.py`. Live Ollama 4B pull not recorded this phase.
+
+##### BG-46 - Over-budget cards displayed Compatible
+
+- **Source phase**: v2.2.5 Phase 3
+- **Resolution**: `cardBadgeLabel` never returns Compatible when VRAM does not fit. Missing VRAM numbers leave the badge blank instead of inventing Compatible. Sort order is Required, Recommended that fits, Compatible that fits, then over-budget, then `releaseDate` desc.
+- **Evidence**: `desktop/tests/catalogTabs.test.ts`, SANA 4K vs 16 GB host case in `desktop/tests/ModelsSettings.test.tsx`.
+
+##### BG-47 - Settings cards omitted installer origin / date / guardrail chips
+
+- **Source phase**: v2.2.5 Phase 3
+- **Resolution**: `ListedModelDto` marshals `origin`, `releaseDate`, and `uncensored` from `catalog.json`. Missing origin omits the chip. `uncensored: false` shows Censored.
+- **Evidence**: `desktop/tests/ModelsSettings.test.tsx`.
 
 ##### BG-49 - Empty diffusion complete looked like a successful generate
 

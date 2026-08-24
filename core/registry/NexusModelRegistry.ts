@@ -121,6 +121,10 @@ export interface ListedModel {
   readonly whyRecommended?: string;
   readonly differentiators?: string;
   readonly agentic?: boolean;
+  /** v2.2.5 Phase 3 -- installer card chips. */
+  readonly origin?: string;
+  readonly releaseDate?: string;
+  readonly uncensored?: boolean;
 }
 
 export interface ListFilter {
@@ -225,6 +229,9 @@ export class NexusModelRegistry {
         whyRecommended: spec?.whyRecommended,
         differentiators: spec?.differentiators,
         agentic: spec?.agentic,
+        origin: spec?.origin,
+        releaseDate: spec?.releaseDate,
+        uncensored: spec?.uncensored,
       });
     }
 
@@ -259,6 +266,9 @@ export class NexusModelRegistry {
         whyRecommended: spec.whyRecommended,
         differentiators: spec.differentiators,
         agentic: spec.agentic,
+        origin: spec.origin,
+        releaseDate: spec.releaseDate,
+        uncensored: spec.uncensored,
       });
     }
 

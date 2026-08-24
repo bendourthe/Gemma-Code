@@ -216,3 +216,17 @@ class TestSelectionSnapshotWrite:
         assert data["orderedIds"] == ["lfm2.5:1.2b", "sana-1.5-1.6b"]
         assert data["recommendedByTask"]["chat"] == "lfm2.5:1.2b"
         assert data["downloadedSinceInstall"] == []
+
+    def test_snapshot_keeps_qwen_4b_when_ticked_even_if_9b_is_also_selected(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, log: MagicMock
+    ) -> None:
+        # Family collapse may hide a sibling on the Qt wizard. The snapshot is
+        # the list of ids the operator actually ticked, so Settings can show
+        # Retry instead of a silent Download when Ollama never got the tag.
+        monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+        monkeypatch.setattr(rp, "_recommended_by_task", lambda _ids: {"agentic": "qwen3.5:9b"})
+        state = InstallerState()
+        state.selected_model_ids = ["qwen3.5:4b", "qwen3.5:9b"]
+        assert rp.write_selection_snapshot(state, log) is True
+        data = json.loads((tmp_path / ".nexus" / "selected-models.json").read_text(encoding="utf-8"))
+        assert data["orderedIds"] == ["qwen3.5:4b", "qwen3.5:9b"]

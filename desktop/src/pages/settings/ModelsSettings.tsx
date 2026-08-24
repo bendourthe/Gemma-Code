@@ -18,8 +18,9 @@ import { isBackendDownMessage, useSidecarStatus } from "../../lib/sidecarStatus"
 import {
   CATALOG_TAB_DEFS,
   catalogTabsFor,
+  cardBadgeLabel,
   modelsOnTab,
-  recommendationKind,
+  sortModelsOnTab,
   type CatalogTab,
 } from "../../shared/models/catalogTabs";
 import { filterCatalog, modelFitsHost } from "../../shared/models/modelLibrary";
@@ -130,7 +131,7 @@ export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProp
 
   const otherCount = modelsOnTab(searched, "other").length;
   const tabDefs = otherCount > 0 ? [...CATALOG_TAB_DEFS, { id: "other" as const, label: "Other" }] : CATALOG_TAB_DEFS;
-  const visible = modelsOnTab(searched, tab);
+  const visible = sortModelsOnTab(modelsOnTab(searched, tab), hostVramGB);
 
   async function refresh(): Promise<void> {
     const list = await client.list();
@@ -248,7 +249,7 @@ export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProp
         ))}
       </div>
 
-      <label style={{ flex: 1 }}>
+      <label>
         <span style={labelStyle}>Search</span>
         <SearchInput
           testId="models-search"
@@ -266,7 +267,7 @@ export function ModelsSettings({ client, hostVramGB = null }: ModelsSettingsProp
           {visible.length === 0 ? (
             <p style={{ color: "var(--fg-muted)" }}>No matching entries.</p>
           ) : (
-            <ul style={listStyle}>
+            <ul data-testid="models-list" style={listStyle}>
               {visible.map((m) => (
                 <ModelCard
                   key={m.id}
@@ -320,9 +321,10 @@ function ModelCard({
   onRemove,
   onReveal,
 }: ModelCardProps): JSX.Element {
-  const kind = recommendationKind(item);
+  const kindLabel = cardBadgeLabel(item, hostVramGB);
   const overBudget = modelFitsHost(item, hostVramGB) === false;
   const downloaded = item.installed && item.source !== "catalog-only";
+  const selectedMissing = Boolean(item.selectedAtInstall) && !downloaded;
   return (
     <li data-testid={`models-row-${item.id}`} style={cardStyle}>
       <div style={{ display: "flex", gap: "var(--space-3, 12px)", alignItems: "flex-start" }}>
@@ -330,9 +332,11 @@ function ModelCard({
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2, 8px)", flexWrap: "wrap" }}>
             <span style={{ fontWeight: 600 }}>{item.displayName}</span>
-            <span data-testid={`models-badge-${item.id}`} style={badgeStyle(kind)}>
-              {kind === "required" ? "Required" : kind === "recommended" ? "Recommended" : "Compatible"}
-            </span>
+            {kindLabel ? (
+              <span data-testid={`models-badge-${item.id}`} style={badgeStyle(kindLabel)}>
+                {kindLabel}
+              </span>
+            ) : null}
             {catalogTabsFor(item).includes("agentic") && item.task === "chat" ? (
               <span style={{ fontSize: "0.75em", color: "var(--fg-muted)" }}>Also agentic</span>
             ) : null}
@@ -358,6 +362,32 @@ function ModelCard({
             {item.task ? ` - ${item.task}` : ""} - {formatBytes(item.sizeBytes)} - {item.license ?? "license: ?"}
             {typeof item.vramGB === "number" ? ` - ${item.vramGB} GB VRAM` : ""}
           </div>
+          <div data-testid={`models-chips-${item.id}`} style={chipRowStyle}>
+            {item.origin ? (
+              <span data-testid={`models-chip-origin-${item.id}`} style={chipStyle}>
+                Origin: {item.origin}
+              </span>
+            ) : null}
+            {item.releaseDate ? (
+              <span data-testid={`models-chip-date-${item.id}`} style={chipStyle}>
+                Released: {item.releaseDate}
+              </span>
+            ) : null}
+            {item.uncensored === true ? (
+              <span data-testid={`models-chip-guardrails-${item.id}`} style={chipStyle}>
+                Uncensored
+              </span>
+            ) : item.uncensored === false ? (
+              <span data-testid={`models-chip-guardrails-${item.id}`} style={chipStyle}>
+                Censored
+              </span>
+            ) : null}
+          </div>
+          {selectedMissing ? (
+            <p data-testid={`models-row-${item.id}-selected-missing`} style={copyStyle}>
+              Selected during setup but not found in Ollama. Retry the download, or ignore if the installer skipped this sibling.
+            </p>
+          ) : null}
           {item.licenseNote ? (
             <div data-testid={`models-row-${item.id}-license-note`} style={{ fontSize: "0.8em", color: "var(--fg-muted)", marginTop: 2 }}>
               Use restriction: {item.licenseNote}
@@ -395,6 +425,7 @@ function ModelCard({
             installing={installing}
             downloaded={downloaded}
             overBudget={overBudget}
+            selectedMissing={selectedMissing}
             hostVramGB={hostVramGB}
             onInstall={onInstall}
             onCancel={onCancel}
@@ -413,6 +444,7 @@ function RowActions({
   installing,
   downloaded,
   overBudget,
+  selectedMissing,
   hostVramGB,
   onInstall,
   onCancel,
@@ -424,6 +456,7 @@ function RowActions({
   installing?: boolean;
   downloaded: boolean;
   overBudget: boolean;
+  selectedMissing: boolean;
   hostVramGB?: number | null;
   onInstall: () => void;
   onCancel: () => void;
@@ -480,7 +513,7 @@ function RowActions({
   }
   return (
     <Button type="button" testId={`models-install-${item.id}`} onClick={onInstall}>
-      Download
+      {selectedMissing ? "Retry" : "Download"}
     </Button>
   );
 }
@@ -573,22 +606,20 @@ function messageFor(e: unknown): string {
   return String(e);
 }
 
-function badgeStyle(kind: "required" | "recommended" | "compatible"): CSSProperties {
-  const color =
-    kind === "required"
-      ? "var(--accent-warning, #d97706)"
-      : kind === "recommended"
-        ? "var(--accent-llm, #10b981)"
-        : "var(--fg-muted)";
+function badgeStyle(kind: string): CSSProperties {
+  const over = kind.startsWith("Needs ");
   return {
-    fontSize: "0.7em",
-    fontWeight: 600,
-    letterSpacing: "0.02em",
-    textTransform: "uppercase",
-    color,
-    border: `1px solid ${color}`,
+    fontSize: "0.75em",
+    padding: "2px 8px",
     borderRadius: "var(--radius-1, 4px)",
-    padding: "0 0.45em",
+    background: over
+      ? "var(--status-warn-bg, #422006)"
+      : kind === "Required"
+        ? "var(--accent-primary, #6366f1)"
+        : kind === "Recommended"
+          ? "var(--bg-2, #1f1f1f)"
+          : "var(--bg-2, #1f1f1f)",
+    color: over ? "var(--status-warn, #fbbf24)" : "var(--fg-0)",
   };
 }
 
@@ -619,11 +650,13 @@ function starStyle(on: boolean): CSSProperties {
 
 const pageStyle: CSSProperties = {
   flex: 1,
+  minHeight: 0,
   display: "flex",
   flexDirection: "column",
   gap: "var(--space-4, 16px)",
   padding: "var(--space-6, 24px)",
   color: "var(--fg-0)",
+  overflow: "hidden",
 };
 
 const headerStyle: CSSProperties = {
@@ -643,6 +676,9 @@ const sectionStyle: CSSProperties = {
   display: "flex",
   flexDirection: "column",
   gap: "var(--space-2, 8px)",
+  flex: 1,
+  minHeight: 0,
+  overflow: "hidden",
 };
 
 const listStyle: CSSProperties = {
@@ -652,6 +688,9 @@ const listStyle: CSSProperties = {
   display: "flex",
   flexDirection: "column",
   gap: "var(--space-2, 8px)",
+  flex: 1,
+  minHeight: 0,
+  overflowY: "auto",
 };
 
 const cardStyle: CSSProperties = {
@@ -672,4 +711,19 @@ const copyStyle: CSSProperties = {
   margin: "4px 0 0",
   fontSize: "0.85em",
   color: "var(--fg-1, var(--fg-0))",
+};
+
+const chipRowStyle: CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: "6px",
+  marginTop: 6,
+};
+
+const chipStyle: CSSProperties = {
+  fontSize: "0.75em",
+  color: "var(--fg-muted)",
+  border: "1px solid var(--border-1, #2a2a2a)",
+  borderRadius: 9,
+  padding: "1px 8px",
 };

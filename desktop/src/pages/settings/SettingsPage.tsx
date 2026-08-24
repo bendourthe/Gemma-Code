@@ -140,7 +140,7 @@ export function SettingsPage({
   );
 
   return (
-    <div data-testid="settings-shell" style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+    <div data-testid="settings-shell" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <nav data-testid="settings-tabs" style={tabsStyle}>
         <button
           type="button"

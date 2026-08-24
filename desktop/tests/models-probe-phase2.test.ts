@@ -98,6 +98,7 @@ describe("ModelsService.list (Phase 2)", () => {
       catalog,
       modelsRoot: root,
       fetchFn: throwingFetch,
+      loadSnapshot: async () => null,
     });
     const listed = await svc.list();
     expect(listed[0]?.installed).toBe(true);
@@ -112,6 +113,7 @@ describe("ModelsService.list (Phase 2)", () => {
       catalog: { models: [] } as unknown as CatalogFile,
       modelsRoot: root,
       fetchFn: throwingFetch,
+      loadSnapshot: async () => null,
     });
     const listed = await svc.list();
     expect(listed.map((m) => m.id).sort()).toEqual(["ltx-video", "sana-1.6b-2k"]);
@@ -130,6 +132,7 @@ describe("ModelsService.list (Phase 2)", () => {
       catalog,
       modelsRoot: root,
       fetchFn: throwingFetch,
+      loadSnapshot: async () => null,
     });
     const listed = await svc.list();
     expect(listed.map((m) => m.id)).toEqual(["sana-1.6b-2k"]);
