@@ -4,6 +4,28 @@ This log tracks significant development milestones, architectural decisions, and
 
 ---
 
+## [2026-08-23] v2.2.5 - First successful generation (release)
+
+Index: [plan](v2/v2.2/plans/v2.2.5-first-successful-generation.md), [history](v2/v2.2/development/history/), [gaps](v2/v2.2/known-gaps.md). Changelog is authoritative.
+
+### What Changed
+
+- Cut product version **2.2.5** (root `package.json` + `tauri.conf.json` via `sync-tauri-version.mjs`). `desktop/package.json` and `Cargo.toml` stay 1.5.0. Installer `__version__` stays 1.1.0. Desktop pin stays `v2.1.0` until this tag's bundle assets attach.
+- One tag covers the untagged v2.2.0-v2.2.4 field-repair work plus v2.2.5: sidecar start, Chatbot-first, alias-fold ids, fail-closed diffusion, Settings Models installer parity, chat explorer chrome, Hub latest.
+- This release changes no opt-in capability, installer flag, or host surface.
+
+### Why It Changed
+
+`/update release` after v2.2.5 Phase 6. DF-2 and DF-4 stay open (not_observed != absent).
+
+### Decisions Made
+
+- Did not convert `docs/DEVLOG.md` into a one-line-per-release table (this repo's narrative body is retained; this section is the v2.2.5 index line).
+- Did not bump `NEXUS_DESKTOP_PINNED_TAG` before GitHub Release assets exist.
+- Nexus-Hub-only scripts (`check_version_sync.py`, `generate_manifest.py`, `check_release_preconditions.py`) are absent here and were not invented.
+
+---
+
 ## [2026-08-23] v2.2.3 Phase 8 - Architecture, gaps, and CI reconciliation
 
 ### What Changed

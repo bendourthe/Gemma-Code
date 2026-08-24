@@ -1,22 +1,49 @@
 # Unreleased
 
-Develop follow-up after tag `v2.1.0`. No version bump. No retag.
+Post-cut work on `develop` after tag `v2.2.5`. No version bump. No retag.
+
+# [2.2.5](https://github.com/bendourthe/Nexus-AI/compare/v2.1.0...v2.2.5) (2026-08-23)
+
+Field-repair cycle after the v2.1.0 cut (plans v2.2.0 through v2.2.5, one tag). Local-only. Packaged Explorer soak and live GPU generate remain unproven (DF-2, DF-4). The installer desktop pin stays `v2.1.0` until this tag's bundle assets attach.
+
+This release changes no opt-in capability, installer flag, or host surface.
+
 
 ### Features
 
+* **v2.2:** repair sidecar packaging so the Node backend can start, and show every installed model honestly ([bd63e52](https://github.com/bendourthe/Nexus-AI/commit/bd63e52), [972ccd0](https://github.com/bendourthe/Nexus-AI/commit/972ccd0), [6362a90](https://github.com/bendourthe/Nexus-AI/commit/6362a90))
+* **v2.2:** provision the Nexus-Hub harness in-app and persist chats with auto-titles and a rebuilt composer ([8bacbd2](https://github.com/bendourthe/Nexus-AI/commit/8bacbd2), [1c4e49d](https://github.com/bendourthe/Nexus-AI/commit/1c4e49d))
+* **v2.2:** switch models on submit with a single-GPU occupancy policy, not on tab click ([056dab4](https://github.com/bendourthe/Nexus-AI/commit/056dab4), [25a94f7](https://github.com/bendourthe/Nexus-AI/commit/25a94f7), [6310721](https://github.com/bendourthe/Nexus-AI/commit/6310721))
+* **v2.2:** modernize the shell and Settings, retire User Profile, and add local data transfer ([530d5c2](https://github.com/bendourthe/Nexus-AI/commit/530d5c2), [0a22f53](https://github.com/bendourthe/Nexus-AI/commit/0a22f53), [06a8f3a](https://github.com/bendourthe/Nexus-AI/commit/06a8f3a))
+* **v2.2.3:** glass chrome, durable chat memory, occupancy on submit, and a workspace-aware Hub harness ([a443f07](https://github.com/bendourthe/Nexus-AI/commit/a443f07), [6fbcd1c](https://github.com/bendourthe/Nexus-AI/commit/6fbcd1c), [8af593a](https://github.com/bendourthe/Nexus-AI/commit/8af593a))
+* **v2.2.4:** open Chatbot on cold start, bind pickers to this-install snapshot, and show the user bubble before residency errors ([a7d8f43](https://github.com/bendourthe/Nexus-AI/commit/a7d8f43), [7f71bc7](https://github.com/bendourthe/Nexus-AI/commit/7f71bc7), [793b08a](https://github.com/bendourthe/Nexus-AI/commit/793b08a))
+* **v2.2.4:** compact studio media, rebuild Settings Models as the installer catalog, and let Hub update finish without raising every RPC timeout ([ecf8c35](https://github.com/bendourthe/Nexus-AI/commit/ecf8c35), [0077ac6](https://github.com/bendourthe/Nexus-AI/commit/0077ac6), [fd82255](https://github.com/bendourthe/Nexus-AI/commit/fd82255))
+* **v2.2.5:** fold catalog model ids onto Ollama tags before chat start ([8290192](https://github.com/bendourthe/Nexus-AI/commit/8290192))
+* **v2.2.5:** fail closed when diffusion cannot return usable bytes ([5cd6892](https://github.com/bendourthe/Nexus-AI/commit/5cd6892))
+* **v2.2.5:** match Settings Models scroll, badges, and installer chips ([37953b9](https://github.com/bendourthe/Nexus-AI/commit/37953b9))
+* **v2.2.5:** add chat row icons and a chats-pane collapse pill ([bb8561e](https://github.com/bendourthe/Nexus-AI/commit/bb8561e))
+* **v2.2.5:** pack and test Hub latest instead of a frozen 3.12.0 snapshot ([bea7594](https://github.com/bendourthe/Nexus-AI/commit/bea7594))
 * add Qwen 3.5 4B/9B, gpt-oss 20B, Qwen3-Coder 30B, EmbeddingGemma, and Qwen3-Embedding 0.6B to the installer catalog
 * drop pre-2025 installer-catalog opt-ins that are not required or recommended, retire Qwen 2.5 Coder / DeepSeek Coder V2, and sort remaining cards by recommendation then newest release then capability
 
+
 ### Bug Fixes
 
-* close remaining code-completeable known-gaps without claiming live GPU passes
+* **v2.1:** close remaining code-completeable known-gaps without claiming live GPU passes ([c366700](https://github.com/bendourthe/Nexus-AI/commit/c366700))
+* **v2.2.3:** make studio generation honest and repair chat explorer startup ([d072d04](https://github.com/bendourthe/Nexus-AI/commit/d072d04), [b6bf877](https://github.com/bendourthe/Nexus-AI/commit/b6bf877))
+* **v2.2.4:** treat unknown models as missing; do not invent Compatible or a default `gemma4:e4b` fallback ([b6c535e](https://github.com/bendourthe/Nexus-AI/commit/b6c535e))
+* **v2.2.5:** include `catalog.json` in the core TypeScript project ([2884710](https://github.com/bendourthe/Nexus-AI/commit/2884710))
 * show the Nexus mark on the Windows installer taskbar instead of the generic exe icon
 * upgrade the installer Ollama pin to v0.32.15 so Gemma 4 12B can pull (HTTP 412 on older hosts)
 * look up the Windows desktop binary in `%LOCALAPPDATA%\\Nexus AI Studio` (Tauri productName) instead of `%LOCALAPPDATA%\\Nexus\\Nexus.exe`
 
+
 ### Documentation
 
-* reconcile known-gaps after the v2.1.0 cut (hardware, license, and live-GPU rows stay open)
+* **v2.2.5:** reconcile known-gaps and CI for first-successful-generation ([e07cfb5](https://github.com/bendourthe/Nexus-AI/commit/e07cfb5))
+* track v2.2.6 session-memory and v2.2.7 context-meter plans (not started) ([6f17a4e](https://github.com/bendourthe/Nexus-AI/commit/6f17a4e))
+
+Plans: [v2.2.0](docs/v2/v2.2/plans/v2.2.0-runtime-repair-and-ux-overhaul.md), [v2.2.4](docs/v2/v2.2/plans/v2.2.4-chatbot-first-and-runtime-honesty.md), [v2.2.5](docs/v2/v2.2/plans/v2.2.5-first-successful-generation.md). Gaps: [docs/v2/v2.2/known-gaps.md](docs/v2/v2.2/known-gaps.md).
 
 # [2.1.0](https://github.com/bendourthe/Nexus-AI/compare/v2.0.0...v2.1.0) (2026-08-20)
 

@@ -1,7 +1,9 @@
 # Nexus - Progress Dashboard
 
-**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (**v2.2.5** first-successful-generation Phases 1-6 landed 2026-08-23; v2.2.0-v2.2.4 field-repair cycles are on `develop` with no tag; release handoff is `/update release`; package remains **2.1.0** until that command).
+**Project:** Nexus (renamed from Gemma Code at v1.0.0). **Release branch:** `main`. **Active branch:** `develop` (**v2.2.5** first-successful-generation cut 2026-08-23; package **2.2.5**; v2.2.6 and v2.2.7 plans are filed and not started).
 
+> **v2.2.5 RELEASED (2026-08-23)** -- field-repair cycle [v2.2.0](v2/v2.2/plans/v2.2.0-runtime-repair-and-ux-overhaul.md) through [v2.2.5](v2/v2.2/plans/v2.2.5-first-successful-generation.md). Package **2.2.5**. Known-gaps [in-progress](v2/v2.2/known-gaps.md) (DF-2 packaged Explorer, DF-4 live GPU generate). Cycle: sidecar start, honest catalog, Chatbot-first, alias-fold ids, fail-closed diffusion, Settings Models installer parity, chat explorer chrome, Hub latest. This release changes no opt-in capability, installer flag, or host surface.
+>
 > **v2.1.0 RELEASED (2026-08-20)** -- [open-local-ai-wave](v2/v2.1/plans/v2.1.0-adoption-open-local-ai-wave.md) Phases 1-7 plus known-gaps sweeps. Package **2.1.0**. Known-gaps [finalized](v2/v2.1/known-gaps.md) (6 open DF remain hardware/watch/live-GPU). Cycle: Muse Glimmer + Nemotron Lightning catalog/harness, cheap-first routing, studio provenance + queue, vision budgets + SAM2, Unsloth Core fine-tuning, signed audit log + JSON CLI + VRAM knobs. Develop follow-up closed code-completeable rows (unload, AgentLoop routing, SAM picker, MaskEditor, frame comments, installer Unsloth checkbox, golden-eval adapter). No retag.
 >
 > Opt-in: Settings > Fine-tuning Provision (`opt_in=False`); JSON CLI loopback on sidecar `sync()` (`/v1` still off until Local API); Settings > Security parse_document checkbox.
@@ -512,9 +514,9 @@ The project was renamed from Gemma Code to Nexus at v1.0.0 (the four-pillar desk
 | v1.9.0 (UI rework) | Installer + app UI rework: type scale + legibility, static logo (kill float-lag), taskbar/window icon frozen-path fix, two-tone wordmark, modern scrollbars + checkbox, per-provider model colors + plain-language shared catalog copy, whole-app copy pass; desktop app aurora generation animation (Image Studio + Video Lab), chat disclaimer, logo/icon parity | **PROPOSED (2026-07-07)** -- Phases 1-9 / T001-T036 not started; installer PR (P1-7) off the integration branch + app PR (P8-9); operator decisions: animation in the studios (not chat), rewrite shared `catalog.json`, one combined plan | `versions/v1/v1.9.0/plans/installer-and-app-ui-rework.md` |
 | v2.2.3 | Glass chrome, thinking orbs, durable pillar runtime, occupancy, workspace-aware Hub harness, installer field fixes | **Implemented on develop (2026-08-23)** -- Phases 1-8 landed; package remains 2.1.0 until `/update release` | `v2/v2.2/plans/v2.2.3-glass-orbs-and-pillar-runtime.md` |
 | v2.2.4 | Chatbot-first shell, installed-catalog honesty, compact studio media, Settings Models catalog, Hub update timeout copy | **Implemented on develop (2026-08-23)** -- Phases 1-7 landed; DF-2 packaged Explorer and DF-4 live GPU remain open | `v2/v2.2/plans/v2.2.4-chatbot-first-and-runtime-honesty.md` |
-| v2.2.5 | First successful generation: alias-fold chat ids, fail-closed diffusion, Settings Models installer parity, chat explorer chrome, Hub latest | **Implemented on develop (2026-08-23)** -- Phases 1-6 landed; DF-2 and DF-4 remain open; `/update release` is the version/tag handoff | `v2/v2.2/plans/v2.2.5-first-successful-generation.md` |
-| v2.2.6 | Session memory and studio history | **Planned** -- do not start until v2.2.5 release handoff | `v2/v2.2/plans/v2.2.6-session-memory-and-studio-history.md` |
-| v2.2.7 | Context meter and transcript chrome | **Planned** -- do not start until v2.2.5 release handoff | `v2/v2.2/plans/v2.2.7-context-meter-and-transcript-chrome.md` |
+| v2.2.5 | First successful generation: alias-fold chat ids, fail-closed diffusion, Settings Models installer parity, chat explorer chrome, Hub latest | **Released (2026-08-23)** -- package 2.2.5; DF-2 and DF-4 remain open | `v2/v2.2/plans/v2.2.5-first-successful-generation.md` |
+| v2.2.6 | Session memory and studio history | **Planned** -- next after v2.2.5 | `v2/v2.2/plans/v2.2.6-session-memory-and-studio-history.md` |
+| v2.2.7 | Context meter and transcript chrome | **Planned** -- after v2.2.6 | `v2/v2.2/plans/v2.2.7-context-meter-and-transcript-chrome.md` |
 
 ### v1.4.0 status (COMPLETE -- closed 2026-06-09)
 

@@ -6,7 +6,7 @@
 
 Nexus is a local-first, native desktop AI Studio that bundles four generative AI pillars behind one cohesive UI: agentic coding, organized local chat, image generation and editing, and short-form video synthesis. Everything runs on the host machine against optimized open-source models (Gemma 4, Llama 3, Qwen 2.5 Coder, SDXL / SANA-class diffusion, video-synthesis architectures), with real-time GPU / VRAM telemetry built into the dashboard. No API keys, no data leaving your machine, no per-token billing.
 
-> **Renamed from Gemma Code at v1.0.0** to reflect the four-pillar pivot. The v0.1.0 - v0.22.x line shipped as a single-purpose local agentic coding VS Code extension; v1.0.0 folded that engine into the "Agentic AI Coding" pillar of a wider desktop app. The VS Code surface is preserved as an optional thin adapter that proxies to the desktop daemon. Historical Gemma Code docs remain under `docs/archive/versions/v0/v0.1.0/` - `docs/archive/versions/v0/v0.9.0/`; v1 milestones live under `docs/v1/v1.<MINOR>/`, and the current **v2.1.0** open local-AI wave lives under `docs/v2/v2.1/`. See [Project Status](#project-status-august-2026).
+> **Renamed from Gemma Code at v1.0.0** to reflect the four-pillar pivot. The v0.1.0 - v0.22.x line shipped as a single-purpose local agentic coding VS Code extension; v1.0.0 folded that engine into the "Agentic AI Coding" pillar of a wider desktop app. The VS Code surface is preserved as an optional thin adapter that proxies to the desktop daemon. Historical Gemma Code docs remain under `docs/archive/versions/v0/v0.1.0/` - `docs/archive/versions/v0/v0.9.0/`; v1 milestones live under `docs/v1/v1.<MINOR>/`, v2.1.0 lives under `docs/v2/v2.1/`, and the current **v2.2.5** field-repair cycle lives under `docs/v2/v2.2/`. See [Project Status](#project-status-august-2026).
 
 ---
 
@@ -75,7 +75,7 @@ A persistent `Local Model Status` panel reports the active model architecture, p
 
 ## Project Status (August 2026)
 
-Nexus uses a single, convergent version line: git tags and `package.json` carry the same numbers as the milestone docs (`docs/v1/v1.<MINOR>/` through v1.20.0, then `docs/v2/v2.0/` for v2.0.0, `docs/v2/v2.1/` for **v2.1.0**).
+Nexus uses a single, convergent version line: git tags and `package.json` carry the same numbers as the milestone docs (`docs/v1/v1.<MINOR>/` through v1.20.0, then `docs/v2/v2.0/` for v2.0.0, `docs/v2/v2.1/` for v2.1.0, and `docs/v2/v2.2/` for **v2.2.5**).
 
 Historical note: between 2026-06-18 and 2026-07-20 a decoupled "release track" cut five semantic-release versions numbered ahead of the milestones. Those tags were renumbered onto the milestone line on 2026-08-05: the old `v2.0.0` tag became `v1.6.0`, `v2.1.0` -> `v1.7.0`, `v2.2.0` -> `v1.12.0`, `v2.3.0` -> `v1.13.0`, and `v2.4.0` -> `v1.14.0`. This **v2.0.0** cut is the reserved convergence release (v1.18 plan + v1.19.x subplans + this adoption plan).
 
@@ -108,13 +108,13 @@ Historical note: between 2026-06-18 and 2026-07-20 a decoupled "release track" c
 | v1.20.0 | Document ingest: wire `parse_document`, magic-byte Office routing, Chat and Coding attach, Docling layout engine deferred | Landed | [docs/v1/v1.20/](docs/v1/v1.20/) |
 | v2.0.0 | Convergence: multimodal Chat + local voice loop, DANGEROUS isolated-profile browser tools, Video Lab continuation + gated avatar, ProjectScope stretch | Landed | [docs/v2/v2.0/](docs/v2/v2.0/) |
 | v2.1.0 | Open local-AI wave: Muse Glimmer + Nemotron Lightning catalog/harness, adaptive routing, Image Studio depth, multimodal chat + SAM2, local fine-tuning, hardening | Landed | [docs/v2/v2.1/](docs/v2/v2.1/) |
-| v2.2.5 | First successful generation: alias-fold chat ids, fail-closed diffusion bytes, Settings Models installer parity, chat explorer chrome, Hub latest (not 3.12.0) | On `develop` (package.json stays 2.1.0 until release handoff) | [docs/v2/v2.2/](docs/v2/v2.2/) |
+| v2.2.5 | First successful generation: alias-fold chat ids, fail-closed diffusion bytes, Settings Models installer parity, chat explorer chrome, Hub latest (not 3.12.0) | Landed | [docs/v2/v2.2/](docs/v2/v2.2/) |
 
 Each v1 cycle's plan lives under `docs/v1/v1.<MINOR>/plans/`. v2.0.0 lives under `docs/v2/v2.0/plans/`. v2.1.0 lives under `docs/v2/v2.1/plans/`. The v2.2 field-repair cycle lives under `docs/v2/v2.2/plans/`. Deferred work is in that version's `known-gaps.md`.
 
 ### What's new in v2.2.5
 
-Field follow-on after v2.2.4 honesty: generation and catalog parity on a machine that already installed models. Root `package.json` stays 2.1.0 until the release handoff. Live GPU generate and packaged Explorer soak remain unproven (DF-4, DF-2).
+Field follow-on after v2.2.4 honesty: generation and catalog parity on a machine that already installed models. Live GPU generate and packaged Explorer soak remain unproven (DF-4, DF-2).
 
 - **One model-id space** - catalog id, Ollama tag, and coding LLM id fold through `core/registry/modelAliases.ts`. Chat send of `gemma-4-12b-it-gguf` starts `gemma4:12b`. Unknown ids do not fall back to `gemma4:e4b`.
 - **Diffusion fail-closed** - empty, 1x1, and `ok: false` payloads never look like a successful generate. SANA catalog ids call the registered Python methods. No GPU or weights returns a typed not-ready error.
