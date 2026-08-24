@@ -125,3 +125,14 @@ The audit input contained 393 tracked documentation files before this Phase 8 se
 The proposal to make the three scoped architecture changes, update the shell workflow, add the installer parity contract, and perform no file moves or deletions was approved on 2026-08-23. All references remain valid because no path changed.
 
 **Verdict**: Clean and fully triaged for Phase 8. No archive, move, or deletion is warranted in this patch.
+
+## v2.2.5 Phase 6 audit
+
+**Date**: 2026-08-23
+**Mode**: audit (no files moved)
+
+- `core/registry/modelAliases.ts` is the canonical id table, not a leftover shim. No second alias module to delete.
+- Phase histories for v2.2.5 Phases 1-6 live under `docs/v2/v2.2/development/history/`. Plans for v2.2.6 and v2.2.7 already sit in `plans/` (not started).
+- No scratch docs, duplicate catalogs, or empty tracked directories to move this phase.
+
+**Verdict**: Clean. No action required.

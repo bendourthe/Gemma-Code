@@ -2,7 +2,7 @@
 
 **Project**: Nexus AI Studio
 **Status**: in-progress
-**Last updated**: 2026-08-23 (v2.2.5 Phase 5)
+**Last updated**: 2026-08-23 (v2.2.5 Phase 6)
 
 Per-version tracker of unfinished work, deferrals, and follow-ups. The next `/plan` ingests this file to decide what carries forward. Classifications: `NI` not-implemented, `DF` deferred, `BG` bug/known-issue, `MT` missing-tests/coverage, `WN` warning/suppressed, `QG` bypassed-gate/CI.
 
@@ -10,7 +10,7 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 
 ## v2.2.5
 
-**Last updated**: 2026-08-23 (Phase 5 - Hub latest and scanner allowlist)
+**Last updated**: 2026-08-23 (Phase 6 - architecture, gaps, and CI)
 
 ### Summary
 
@@ -18,12 +18,12 @@ Plan: [plans/v2.2.0-runtime-repair-and-ux-overhaul.md](plans/v2.2.0-runtime-repa
 |---|---|---|
 | Not implemented (NI) | 0 | 0 |
 | Deferred (DF) | 2 | 0 |
-| Bugs / regressions (BG) | 0 | 7 |
+| Bugs / regressions (BG) | 0 | 8 |
 | Warnings (WN) | 0 | 0 |
 | Missing tests / coverage gaps (MT) | 0 | 0 |
 | Quality-gate gaps (QG) | 0 | 0 |
 
-DF-2 (packaged Explorer) and DF-4 (live GPU generate) stay open. BG-44 through BG-50 are closed at unit/integration evidence except live Hub apply, which remains DF-23. Phase 6 still owns remaining BG-43 documentation and CI path filters.
+DF-2 (packaged Explorer) and DF-4 (live GPU generate) stay open. BG-43 through BG-50 are closed at unit/integration evidence. Packaged Hi, GPU generate, Settings scroll, Qwen 4B pull, and Hub Update apply remain not_observed in a packaged soak. Live Hub apply stays DF-23.
 
 ### Open this cycle
 
@@ -42,6 +42,12 @@ DF-2 (packaged Explorer) and DF-4 (live GPU generate) stay open. BG-44 through B
 - **Suggested next step**: Run one Image Studio generate on a host with weights and GPU, or confirm the typed runtime-not-ready string in the UI when GPU is absent.
 
 ### Resolved this phase
+
+##### BG-43 - Chatbot used two model-id namespaces
+
+- **Source phase**: v2.2.5 Phase 1
+- **Resolution**: Canonical alias table folds catalog id, Ollama tag, and coding LLM id. `requireModel` and the installed probe accept any alias. Chat and Agents send the folded runtime id. Unknown ids never fall back to `gemma4:e4b`.
+- **Evidence**: `tests/unit/core/registry/modelAliases.test.ts`, `desktop/tests/coding-models.test.ts`, `desktop/tests/ChatPage.test.tsx`. Live Ollama `gemma4:12b` answered Hi this cycle. Packaged Explorer click remains DF-2.
 
 ##### BG-44 - Settings Models list could not scroll
 

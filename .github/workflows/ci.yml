@@ -74,6 +74,9 @@ jobs:
       # v2.2.4: the same `npm run test:shell` job covers chatbot-first
       # routing, installed-catalog pickers, compact media, Models catalog
       # tabs, and Hub skills.sync timeout copy. Do not add a live Hub clone.
+      # v2.2.5: the same job covers modelAliases, Models overflow/badges/chips,
+      # FolderTree row icons + chats-pane pill, Hub catalog latest stubs, and
+      # the scanner allowlist. Do not add a live GPU or live Hub clone.
       - name: Desktop vitest (Node 22)
         if: matrix.node == '22.x'
         run: npm run test:shell

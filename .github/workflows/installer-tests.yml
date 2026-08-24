@@ -1,6 +1,8 @@
 # v1.19.0 Phase 4: installer pytest + headless-smoke, path-gated so
 # unrelated pushes do not pay PyQt apt + uv sync. Catalog/registry
 # changes still run the job (LFM pin, licenseNote, 8B-A1B absence).
+# v2.2.5: scripts/installer/** covers snapshot-latest stubs
+# (NEXUS_HUB_LATEST_TAG) and the stale-3.12.0 refusal. Do not clone Hub.
 # PRs to main use the same path filter. workflow_dispatch always runs.
 name: Installer tests
 
