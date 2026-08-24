@@ -68,7 +68,8 @@ describe("ImageStudioPage (chat)", () => {
     expect(client.lastRequest?.mode).toBe("txt2img");
     expect((client.lastRequest?.request as { prompt: string }).prompt).toBe("a fox");
     expect((client.lastRequest?.request as { modelId: string }).modelId).toBe("sana-1.6b-1024");
-    expect(screen.getByText("a fox")).toBeInTheDocument(); // echoed user bubble
+    // User bubble plus the auto-created session title both read the prompt.
+    expect(screen.getAllByText("a fox").length).toBeGreaterThanOrEqual(1);
   });
 
   it("does not generate until a conflicting active model switch is approved", async () => {
@@ -419,5 +420,117 @@ describe("ImageStudioPage (chat)", () => {
     );
     expect(screen.getByTestId("image-history-pane")).toBeInTheDocument();
     expect(screen.getByText("Fox portrait")).toBeInTheDocument();
+  });
+
+  it("persists turns and uses last PNG path for a follow-up with no attachment", async () => {
+    const client = new InMemoryDiffusionClient();
+    const explorer = new InMemoryStudioExplorerClient("image");
+    render(
+      <ImageStudioPage
+        client={client}
+        modelsClient={imageModels()}
+        explorerClient={explorer}
+        drainIntervalMs={20}
+      />,
+    );
+    client.scriptEvents("mem-job-1", [
+      { kind: "complete", jobId: "mem-job-1", png: "PNGB64==", outputPath: "/tmp/fox.png" },
+    ]);
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "a fox" } });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(60);
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(screen.getByAltText("Generated image")).toBeInTheDocument());
+    await waitFor(() => {
+      const session = explorer.listTree().sessions[0];
+      expect(session).toBeTruthy();
+      expect(explorer.listTurns(session!.id)).toHaveLength(2);
+      expect(session!.lastOutputRef).toBe("/tmp/fox.png");
+    });
+    client.scriptEvents("mem-job-2", [
+      { kind: "complete", jobId: "mem-job-2", png: "PNGB64==", outputPath: "/tmp/fox-snow.png" },
+    ]);
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "make it snow" } });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(60);
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(client.lastRequest?.mode).toBe("img2img"));
+    expect((client.lastRequest?.request as { sourceImage: string }).sourceImage).toBe("/tmp/fox.png");
+    await waitFor(() => {
+      const session = explorer.listTree().sessions[0];
+      expect(explorer.listTurns(session!.id).length).toBeGreaterThanOrEqual(3);
+    });
+  });
+
+  it("hydrates transcript after remount from the same explorer", async () => {
+    const explorer = new InMemoryStudioExplorerClient("image");
+    const session = explorer.createSession({
+      folderId: null,
+      title: "Fox",
+      modelId: "sana-1.6b-1024",
+    });
+    explorer.appendTurn({ sessionId: session.id, role: "user", content: "a fox" });
+    explorer.appendTurn({
+      sessionId: session.id,
+      role: "assistant",
+      content: "",
+      mediaRef: "/tmp/fox.png",
+    });
+    const { unmount } = render(
+      <ImageStudioPage
+        client={new InMemoryDiffusionClient()}
+        modelsClient={imageModels()}
+        explorerClient={explorer}
+        initialSessionId={session.id}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText("a fox")).toBeInTheDocument());
+    expect(screen.getByRole("img")).toHaveAttribute("src", "/tmp/fox.png");
+    unmount();
+    render(
+      <ImageStudioPage
+        client={new InMemoryDiffusionClient()}
+        modelsClient={imageModels()}
+        explorerClient={explorer}
+        initialSessionId={session.id}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText("a fox")).toBeInTheDocument());
+    expect(screen.getByRole("img")).toHaveAttribute("src", "/tmp/fox.png");
+  });
+
+  it("hydrate of a missing file is an error, not an empty complete", async () => {
+    const explorer = new InMemoryStudioExplorerClient("image");
+    const session = explorer.createSession({
+      folderId: null,
+      title: "Gone",
+      modelId: "sana-1.6b-1024",
+    });
+    explorer.appendTurn({ sessionId: session.id, role: "user", content: "a fox" });
+    explorer.appendTurn({
+      sessionId: session.id,
+      role: "assistant",
+      content: "",
+      mediaRef: "/tmp/gone.png",
+    });
+    render(
+      <ImageStudioPage
+        client={new InMemoryDiffusionClient()}
+        modelsClient={imageModels()}
+        explorerClient={explorer}
+        initialSessionId={session.id}
+        outputExists={() => false}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText(/output missing on disk/i)).toBeInTheDocument());
+    expect(screen.queryByRole("img")).toBeNull();
   });
 });

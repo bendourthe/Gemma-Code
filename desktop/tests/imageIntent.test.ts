@@ -47,4 +47,24 @@ describe("inferImageIntent", () => {
     expect(i.mode).toBe("outpaint");
     expect(i.direction).toBe("right");
   });
+
+  it("empty attachments + lastOutputRef -> img2img on that path", () => {
+    const i = inferImageIntent({
+      text: "make it snow",
+      attachments: [],
+      lastOutputRef: "/tmp/fox.png",
+    });
+    expect(i.mode).toBe("img2img");
+    expect(i.sourceImage).toBe("/tmp/fox.png");
+  });
+
+  it("user attachment wins over lastOutputRef", () => {
+    const i = inferImageIntent({
+      text: "make it night",
+      attachments: ["data:image/png;base64,AAA"],
+      lastOutputRef: "/tmp/fox.png",
+    });
+    expect(i.mode).toBe("img2img");
+    expect(i.sourceImage).toBe("data:image/png;base64,AAA");
+  });
 });

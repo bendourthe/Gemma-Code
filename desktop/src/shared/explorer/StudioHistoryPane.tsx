@@ -35,6 +35,8 @@ export interface StudioHistoryPaneProps {
   readonly defaultModelId: string;
   readonly sidecarDown?: boolean;
   readonly onSelectSession?: (sessionId: string) => void;
+  /** Bump after create/append so FolderTree re-reads the explorer. */
+  readonly refreshToken?: number;
 }
 
 export function StudioHistoryPane({
@@ -43,6 +45,7 @@ export function StudioHistoryPane({
   defaultModelId,
   sidecarDown = false,
   onSelectSession,
+  refreshToken,
 }: StudioHistoryPaneProps): JSX.Element {
   const explorer = useMemo(() => studioClientAsChatExplorer(client), [client]);
   const [selected, setSelected] = useState<SelectedNode | null>(null);
@@ -78,6 +81,7 @@ export function StudioHistoryPane({
           defaultModelId={defaultModelId}
           copy={copy}
           storageKey={`nexus.${pillar}.expanded`}
+          refreshToken={refreshToken}
         />
       )}
     </aside>
