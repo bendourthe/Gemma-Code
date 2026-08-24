@@ -402,4 +402,122 @@ describe("VideoLabPage (chat)", () => {
     expect(screen.getByTestId("video-history-pane")).toBeInTheDocument();
     expect(screen.getByText("Fox clip")).toBeInTheDocument();
   });
+
+  it("persists turns and continues from the last clip on a follow-up with no attachment", async () => {
+    const client = new InMemoryVideoClient();
+    const explorer = new InMemoryStudioExplorerClient("video");
+    render(
+      <VideoLabPage
+        client={client}
+        modelsClient={videoModels()}
+        explorerClient={explorer}
+        drainIntervalMs={20}
+        resolveMp4Url={(p) => `mock://${p}`}
+      />,
+    );
+    client.scriptEvents("mem-video-1", [
+      { kind: "complete", jobId: "mem-video-1", mp4Path: "/tmp/clip.mp4" },
+    ]);
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "a fox" } });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(60);
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(screen.getByTestId(/^message-media-/)).toBeInTheDocument());
+    await waitFor(() => {
+      const session = explorer.listTree().sessions[0];
+      expect(session).toBeTruthy();
+      expect(explorer.listTurns(session!.id)).toHaveLength(2);
+      expect(session!.lastOutputRef).toBe("/tmp/clip.mp4");
+    });
+    client.scriptEvents("mem-video-2", [
+      { kind: "complete", jobId: "mem-video-2", mp4Path: "/tmp/clip-snow.mp4" },
+    ]);
+    fireEvent.change(screen.getByTestId("media-composer-textarea"), { target: { value: "make it snow" } });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("media-composer-submit"));
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(60);
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(client.lastRequest?.mode).toBe("text2video"));
+    expect((client.lastRequest?.request as { continueFrom?: { priorJobId: string } }).continueFrom).toMatchObject({
+      priorJobId: "mem-video-1",
+      lastFramePath: "/tmp/clip.mp4",
+    });
+    await waitFor(() => {
+      const session = explorer.listTree().sessions[0];
+      expect(explorer.listTurns(session!.id).length).toBeGreaterThanOrEqual(3);
+    });
+  });
+
+  it("hydrates transcript after remount from the same explorer", async () => {
+    const explorer = new InMemoryStudioExplorerClient("video");
+    const session = explorer.createSession({
+      folderId: null,
+      title: "Fox",
+      modelId: "wan2.1-t2v-1.3b",
+    });
+    explorer.appendTurn({ sessionId: session.id, role: "user", content: "a fox" });
+    explorer.appendTurn({
+      sessionId: session.id,
+      role: "assistant",
+      content: "",
+      mediaRef: "/tmp/clip.mp4",
+    });
+    const { unmount } = render(
+      <VideoLabPage
+        client={new InMemoryVideoClient()}
+        modelsClient={videoModels()}
+        explorerClient={explorer}
+        initialSessionId={session.id}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText("a fox")).toBeInTheDocument());
+    const media = screen.getByTestId(/^message-media-/);
+    expect(media.tagName.toLowerCase()).toBe("video");
+    expect(media).toHaveAttribute("src", "/tmp/clip.mp4");
+    unmount();
+    render(
+      <VideoLabPage
+        client={new InMemoryVideoClient()}
+        modelsClient={videoModels()}
+        explorerClient={explorer}
+        initialSessionId={session.id}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText("a fox")).toBeInTheDocument());
+    expect(screen.getByTestId(/^message-media-/)).toHaveAttribute("src", "/tmp/clip.mp4");
+  });
+
+  it("hydrate of a missing file is an error, not an empty complete", async () => {
+    const explorer = new InMemoryStudioExplorerClient("video");
+    const session = explorer.createSession({
+      folderId: null,
+      title: "Gone",
+      modelId: "wan2.1-t2v-1.3b",
+    });
+    explorer.appendTurn({ sessionId: session.id, role: "user", content: "a fox" });
+    explorer.appendTurn({
+      sessionId: session.id,
+      role: "assistant",
+      content: "",
+      mediaRef: "/tmp/gone.mp4",
+    });
+    render(
+      <VideoLabPage
+        client={new InMemoryVideoClient()}
+        modelsClient={videoModels()}
+        explorerClient={explorer}
+        initialSessionId={session.id}
+        outputExists={() => false}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText(/output missing on disk/i)).toBeInTheDocument());
+    expect(screen.queryByTestId(/^message-media-/)).toBeNull();
+  });
 });

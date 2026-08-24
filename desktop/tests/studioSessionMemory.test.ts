@@ -42,4 +42,19 @@ describe("studioSessionMemory", () => {
   it("titles a session from the first prompt", () => {
     expect(sessionTitleFromPrompt("  a fox in snow  ")).toBe("a fox in snow");
   });
+
+  it("maps a video turn with mediaKind video", () => {
+    const turns: StudioTurn[] = [
+      {
+        id: "a1",
+        sessionId: "s1",
+        role: "assistant",
+        content: "",
+        mediaRef: "/tmp/clip.mp4",
+        createdAt: 1,
+      },
+    ];
+    const messages = studioTurnsToChatMessages(turns, { mediaKind: "video" });
+    expect(messages[0]?.media).toEqual({ kind: "video", src: "/tmp/clip.mp4" });
+  });
 });

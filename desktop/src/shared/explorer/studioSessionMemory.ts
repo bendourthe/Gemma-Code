@@ -42,8 +42,12 @@ export function lastAssistantMediaRef(turns: readonly StudioTurn[]): string | nu
 
 export function studioTurnsToChatMessages(
   turns: readonly StudioTurn[],
-  options?: { outputExists?: (path: string) => boolean },
+  options?: {
+    outputExists?: (path: string) => boolean;
+    mediaKind?: "image" | "video";
+  },
 ): ChatMessage[] {
+  const mediaKind = options?.mediaKind ?? "image";
   return turns.map((turn) => {
     if (turn.role === "user") {
       return {
@@ -65,7 +69,7 @@ export function studioTurnsToChatMessages(
       id: turn.id,
       role: "assistant" as const,
       content: turn.content,
-      ...(ref ? { media: { kind: "image" as const, src: ref } } : {}),
+      ...(ref ? { media: { kind: mediaKind, src: ref } } : {}),
     };
   });
 }
