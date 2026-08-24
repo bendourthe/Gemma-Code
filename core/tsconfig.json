@@ -5,6 +5,7 @@
     "composite": true,
     "declaration": true,
     "declarationMap": false,
+    "resolveJsonModule": true,
     "rootDir": ".",
     "outDir": "../out/core"
   },

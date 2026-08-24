@@ -88,6 +88,7 @@ describe("ChatSessionManager", () => {
       },
     });
     const started = mgr.start({ modelId: "gemma4:e4b", title: "My chat" });
+    expect(started.modelId).toBe("gemma4:e4b");
     expect(started.sessionId).toBe("chat-1");
     expect(mgr.size()).toBe(1);
 
@@ -100,6 +101,12 @@ describe("ChatSessionManager", () => {
     await mgr.sendMessage(started.sessionId, "again");
     expect(seen[1]?.messages.length).toBe(4);
     expect(seen[1]?.messages.some((m) => m.role === "assistant")).toBe(true);
+  });
+
+  it("starts a session with catalog id gemma-4-12b-it-gguf via alias to gemma4:12b", () => {
+    const mgr = new ChatSessionManager();
+    const started = mgr.start({ modelId: "gemma-4-12b-it-gguf", title: "Hi" });
+    expect(started.modelId).toBe("gemma4:12b");
   });
 
   it("falls back to a deterministic echo when no runner is wired", async () => {

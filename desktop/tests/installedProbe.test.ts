@@ -63,6 +63,14 @@ describe("markInstalledFromProbe", () => {
     expect(byId["nomic-embed-text"]).toMatchObject({ installed: false, source: "catalog-only" });
   });
 
+  it("treats catalog id as installed when Ollama has an alias tag (v2.2.5 T004)", () => {
+    const out = markInstalledFromProbe([catalogOnly("gemma-4-12b-it-gguf")], CATALOG, {
+      ollamaTags: new Set(["gemma4:12b"]),
+      weightsIds: new Set(),
+    });
+    expect(out[0]).toMatchObject({ installed: true, source: "registry" });
+  });
+
   it("flips LFM when Ollama reports the official GGUF tag (v1.19.0 Phase 1)", () => {
     const out = markInstalledFromProbe([catalogOnly("lfm2.5:2.6b")], CATALOG, {
       ollamaTags: new Set(["hf.co/LiquidAI/LFM2.5-2.6B-GGUF:Q4_K_M"]),

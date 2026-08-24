@@ -265,6 +265,56 @@ describe("<ChatPage>", () => {
     expect(start).toHaveBeenCalledWith(expect.objectContaining({ modelId: "lfm2.5:1.2b" }));
   });
 
+  it("folds picker catalog id gemma-4-12b-it-gguf to gemma4:12b on session start", async () => {
+    const client = new InMemoryChatExplorerClient();
+    const start = vi.fn(async () => ({ sessionId: "s-g12", modelId: "gemma4:12b", createdAt: "t" }));
+    const sendMessage = vi.fn(async () => ({
+      sessionId: "s-g12",
+      events: [
+        { kind: "token" as const, text: "hello" },
+        { kind: "done" as const, finishReason: "stop" },
+      ],
+    }));
+    const modelsClient = {
+      lastSelection: {
+        schemaVersion: 1 as const,
+        orderedIds: ["gemma-4-12b-it-gguf"],
+        recommendedByTask: { chat: "gemma-4-12b-it-gguf" },
+        downloadedSinceInstall: [],
+      },
+      async list() {
+        return [
+          {
+            id: "gemma-4-12b-it-gguf",
+            displayName: "Gemma 4 12B",
+            type: "llm" as const,
+            installed: true,
+            source: "registry" as const,
+          },
+        ];
+      },
+    };
+    const user = userEvent.setup();
+    render(
+      <ChatPage
+        client={client}
+        chatSession={{ start, sendMessage }}
+        modelsClient={modelsClient}
+      />,
+    );
+    await waitFor(() => {
+      expect((screen.getByTestId("chat-model-select") as HTMLSelectElement).value).toBe(
+        "gemma-4-12b-it-gguf",
+      );
+    });
+    await user.type(screen.getByTestId("media-composer-textarea"), "Hi{Enter}");
+    expect(await screen.findByText("Hi")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(start).toHaveBeenCalled();
+    });
+    expect(start).toHaveBeenCalledWith(expect.objectContaining({ modelId: "gemma4:12b" }));
+  });
+
   it("keeps the Hi user bubble when the selected model is not installed", async () => {
     const client = new InMemoryChatExplorerClient();
     const start = vi.fn();

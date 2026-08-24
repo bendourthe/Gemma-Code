@@ -13,6 +13,7 @@ import type {
   TraceEventT,
 } from "../../../sidecar/src/protocol";
 import { CodingInput } from "./CodingInput";
+import { foldModelId } from "../../../../core/registry/modelAliases";
 import { DEFAULT_MODEL_ID, FRONTEND_MODELS } from "./models";
 import { applyEvents, type RenderedTurn } from "./toolCallCard";
 import { MemoryPanel } from "./panels/MemoryPanel";
@@ -204,7 +205,7 @@ export function CodingPage({
       return null;
     }
     const reply = await ipc.call<CodingSessionStartResponseT>("coding.session.start", {
-      modelId,
+      modelId: foldModelId(modelId),
       workspacePath: selectedWorkspace,
     });
     if (!reply.ok) {

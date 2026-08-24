@@ -17,6 +17,7 @@
 
 import type { CatalogFile } from "./catalog.js";
 import { findSpec } from "./catalog.js";
+import { aliasesFor, lookupAlias } from "./modelAliases.js";
 import type { ListedModel } from "./NexusModelRegistry.js";
 
 /**
@@ -71,6 +72,20 @@ export function isOnDisk(modelId: string, probe: InstalledProbe): boolean {
 }
 
 /**
+ * v2.2.5 Phase 1 (T004) -- installed if any alias is in Ollama tags or the
+ * weights tree. Snapshot membership is not consulted here.
+ */
+export function isInstalledByAliases(modelId: string, probe: InstalledProbe): boolean {
+  const rec = lookupAlias(modelId);
+  const ids = rec ? rec.aliases : aliasesFor(modelId);
+  for (const alias of ids) {
+    if (probe.ollamaTags.has(alias)) return true;
+    if (isOnDisk(alias, probe)) return true;
+  }
+  return false;
+}
+
+/**
  * Return a copy of `listed` with catalog-only entries flipped to
  * installed (`source: "registry"`) when the probe proves they are present in
  * Ollama's store or the weights tree. Registry and external entries pass
@@ -85,7 +100,7 @@ export function markInstalledFromProbe(
     if (model.installed || model.source !== "catalog-only") return model;
     const tag = ollamaTagForSpec(findSpec(catalog, model.id));
     const inOllama = tag !== null && probe.ollamaTags.has(tag);
-    if (inOllama || isOnDisk(model.id, probe)) {
+    if (inOllama || isOnDisk(model.id, probe) || isInstalledByAliases(model.id, probe)) {
       return { ...model, installed: true, source: "registry" };
     }
     return model;

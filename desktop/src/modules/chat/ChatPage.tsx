@@ -53,6 +53,7 @@ import { recordMultimodalTurn } from "../../../../core/memory/multimodalSurrogat
 import type { EpisodicMemory } from "../../../../core/memory/MemoryHub";
 import { redactSecrets } from "../../../../core/observability/redactSecrets";
 import { PreviewPane, type PreviewArtifact } from "../../components/PreviewPane";
+import { foldModelId } from "../../../../core/registry/modelAliases";
 import { DEFAULT_MODEL_ID, FRONTEND_MODELS } from "../coding/models";
 import {
   createIpcDocumentClient,
@@ -498,7 +499,7 @@ export function ChatPage({
         let sessionId = sessionIdsRef.current.get(chatId);
         if (!sessionId) {
           const started = await chatSession.start({
-            modelId: chat?.modelId ?? modelId,
+            modelId: foldModelId(chat?.modelId ?? modelId),
             title: chat?.title,
             history: replayHistory(messagesByChatRef.current.get(chatId) ?? [], `${baseId}-user`),
           });
@@ -525,7 +526,7 @@ export function ChatPage({
           if (!isUnknownChatSessionError(err)) throw err;
           sessionIdsRef.current.delete(chatId);
           const restarted = await chatSession.start({
-            modelId: chat?.modelId ?? modelId,
+            modelId: foldModelId(chat?.modelId ?? modelId),
             title: chat?.title,
             history: replayHistory(messagesByChatRef.current.get(chatId) ?? [], `${baseId}-user`),
           });

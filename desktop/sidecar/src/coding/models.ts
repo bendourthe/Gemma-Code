@@ -21,6 +21,11 @@ import {
   type PromptFormatName as CorePromptFormatName,
   type ToolFormatName as CoreToolFormatName,
 } from "../../../../core/registry/ModelCatalog";
+import {
+  lookupAlias,
+  toSidecarRuntime,
+  unknownModelIdError,
+} from "../../../../core/registry/modelAliases";
 
 export type ModelFamily = CoreModelFamily;
 export type PromptFormatName = CorePromptFormatName;
@@ -29,7 +34,9 @@ export type ToolFormatName = CoreToolFormatName;
 export type SidecarModelEntry = Pick<
   LlmCatalogEntry,
   "id" | "displayName" | "family" | "promptFormat" | "toolFormat"
->;
+> & {
+  readonly codingAvailable?: boolean;
+};
 
 function project(entry: LlmCatalogEntry): SidecarModelEntry {
   return Object.freeze({
@@ -38,6 +45,7 @@ function project(entry: LlmCatalogEntry): SidecarModelEntry {
     family: entry.family,
     promptFormat: entry.promptFormat,
     toolFormat: entry.toolFormat,
+    codingAvailable: true,
   });
 }
 
@@ -46,12 +54,26 @@ export const SIDECAR_MODELS: readonly SidecarModelEntry[] = Object.freeze(
 );
 
 export function lookupModel(id: string): SidecarModelEntry | undefined {
+  const aliased = lookupAlias(id);
+  if (aliased) {
+    const runtime = toSidecarRuntime(aliased);
+    return runtime
+      ? Object.freeze({
+          id: runtime.id,
+          displayName: runtime.displayName,
+          family: runtime.family,
+          promptFormat: runtime.promptFormat,
+          toolFormat: runtime.toolFormat,
+          codingAvailable: runtime.codingAvailable,
+        })
+      : undefined;
+  }
   const entry = ModelCatalog.byId(id);
   return entry ? project(entry) : undefined;
 }
 
 export function requireModel(id: string): SidecarModelEntry {
   const found = lookupModel(id);
-  if (!found) throw new Error(`Unknown model id: ${id}`);
+  if (!found) throw unknownModelIdError(id);
   return found;
 }
